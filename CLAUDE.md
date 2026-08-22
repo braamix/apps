@@ -9,12 +9,13 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**One program is ported so far**, [benchmarks/dhrystone](benchmarks/dhrystone/),
-and it is the worked example: it established the build, and the next port
-copies its shape. The rest of the tree is category directories, a few holding a
-one-line `TODO.md` naming the upstream to port:
-[archivers/zip](archivers/zip/TODO.md),
-[benchmarks/duremark](benchmarks/duremark/TODO.md), [editors/vi](editors/vi/TODO.md),
+**Two programs are ported so far**: [benchmarks/dhrystone](benchmarks/dhrystone/),
+which established the build and is the worked example a new port copies, and
+[benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
+upstream that already has a porting layer, where the port is a third
+implementation of it rather than a rewrite. The rest of the tree is category
+directories, a few holding a one-line `TODO.md` naming the upstream to port:
+[archivers/zip](archivers/zip/TODO.md), [editors/vi](editors/vi/TODO.md),
 [emulators/simbesm](emulators/simbesm/TODO.md), [games/adventure](games/adventure/TODO.md),
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).
 

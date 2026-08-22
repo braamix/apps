@@ -22,7 +22,7 @@ REPO_URL      ?= https://pub.sergev.org/braam
 # G. A client refuses an index whose version is below the one it holds, so this
 # rises at every publication. It cannot be derived: only the publisher knows
 # what was last uploaded.
-INDEX_VERSION ?= 1
+INDEX_VERSION ?= 2
 # E, milliseconds since the epoch: 2027-08-21. A promise to re-sign by then.
 INDEX_EXPIRY  ?= 1818806400000
 INDEX_DESC    ?= Braam applications
