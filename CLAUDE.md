@@ -17,8 +17,9 @@ upstream that already has a porting layer, where the port is a third
 implementation of it rather than a rewrite; and
 [games/adventure](games/adventure/), the largest so far and the first
 interactive one, which shows what a program that reads, writes files and
-carries its own data has to do here. The rest of the tree is category
-directories, a few holding a one-line `TODO.md` naming the upstream to port:
+carries its own data has to do here, and the only one with a test. The rest of
+the tree is category directories, a few holding a one-line `TODO.md` naming the
+upstream to port:
 [archivers/zip](archivers/zip/TODO.md), [editors/vi](editors/vi/TODO.md),
 [emulators/simbesm](emulators/simbesm/TODO.md),
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).
@@ -57,8 +58,10 @@ writing any code here:
 [Makefile](Makefile) into `build/`, unpacks it, configures against its
 toolchain file and builds everything. `make SDK=<prefix>` uses an SDK that is
 already unpacked and skips the download; `make clean` removes `build/` and the
-next `make` fetches again. You need clang with the wasm32 target, `wasm-ld`,
-CMake 3.24, Python 3, `curl` and `unzip`.
+next `make` fetches again. `make test` runs the headless tests, for which you
+also need node and a built `../braam-core` — see Testing a program below. You
+need clang with the wasm32 target, `wasm-ld`, CMake 3.24, Python 3, `curl` and
+`unzip`.
 
 **The SDK version lives in the Makefile**, and [README.md](README.md) repeats
 it. Move both with each Braam release: a binary stamped for another process ABI
@@ -266,13 +269,45 @@ cd ../braam-core && node test/run.mjs --kernel build/kernel.wasm \
 `harness.mjs` there owns the kernel instance, the screen and the shell, and each
 case is one file exporting `check()`.
 
-**To actually run a program under that harness**, it has to be in the image:
-copy `../braam-core/build/rootfs` aside, drop the `.wasm` in as `bin/<name>`,
-repack with `../braam-core/tools/pack.py <dir> <out.zip>`, and drive the shell
-with `init()` and `submit()` from `harness.mjs`. Note that **the harness clock
-is frozen on purpose** — `fakeworker.mjs` says so — so `proc_now()` never
-advances there and anything that measures elapsed time reads zero. Check that
-in a browser instead.
+**To actually run a program under that harness**, plant it: after `init()` and
+the first tick, `store.files.set("/bin/<name>", bytes)` puts it where `PATH`
+looks, because `exec` takes any path carrying a well-formed stamp and `/bin` is
+ordinary store content once boot has unpacked the archive. Then drive the shell
+with `submit()`. Repacking `../braam-core/build/rootfs` with
+`../braam-core/tools/pack.py` is the other way and is not needed for this.
+Note that **the harness clock is frozen on purpose** — `fakeworker.mjs` says
+so — so `proc_now()` never advances there and anything that measures elapsed
+time reads zero. Check that in a browser instead.
+
+## Testing a program
+
+`make test` runs every program's headless test.
+[games/adventure/test/](games/adventure/test/) is the worked example, the way
+dhrystone is the worked example for the build: `play.mjs` imports
+`../braam-core/test/smoke/harness.mjs` directly — `test/run.mjs` there is not
+reusable, its case list is a literal and it never injects an out-of-tree
+binary — boots the kernel, plants the `.wasm`, and drives one run. It asserts
+what the run meant (landmarks in order, the score, no parser refusal) and then
+the transcript byte for byte against a golden file beside it, which is exact
+because the run is deterministic.
+
+A program that reads and writes should be tested through **stdin and stdout
+redirected to files**, not through the grid: `store.files.set("/tmp/w", …)`,
+`submit("<name> </tmp/w >/tmp/g")`, then read `/tmp/g` back out of the store.
+A long transcript does not fit on 24 rows, and a program reading a file behaves
+differently from one reading the console — adventure prints no prompt and
+echoes nothing over a pipe, which is what makes its transcript assertable.
+
+Two things the harness imposes: the keyboard is `Channel<Key, 64>` and `type()`
+posts a whole line without checking, so keep a submitted command line under
+sixty characters; and `run(now)` returns `-1` when the kernel is idle, which is
+how a test waits — there is no sleep and no timeout anywhere in the suite.
+
+**Anything random has to be pinned.** The service clock is a fixed epoch and
+pids are deterministic, so a seed taken from them is reproducible by accident
+and moves the moment process ordering does. adventure takes `ADVENTURE_SEED`
+from `proc_env` for this; the shell's `VAR=x cmd` prefix puts it in the child's
+environment alone.
 
 ## Running without rebuilding the system
 

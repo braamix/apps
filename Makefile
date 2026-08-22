@@ -35,7 +35,7 @@ MKINDEX ?= $(firstword $(wildcard \
 
 REPO := $(BUILD)/repo
 
-.PHONY: all package index clean
+.PHONY: all package test index clean
 
 all: $(BUILD)/CMakeCache.txt
 	@cmake --build $(BUILD) -j $(JOBS)
@@ -44,6 +44,11 @@ all: $(BUILD)/CMakeCache.txt
 # `package`, which CPack claims.
 package: all
 	@cmake --build $(BUILD) -j $(JOBS) --target packages
+
+# Headless tests, one script per program, each driving a built binary under
+# ../braam-core's smoke harness. Needs node and a built core tree.
+test: all
+	@node games/adventure/test/play.mjs
 
 # The repository to upload: the signed index and the zips it vouches for, in
 # one directory, because a package's URL is derived from the index's own N.

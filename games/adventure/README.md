@@ -76,11 +76,17 @@ it is mechanical — the binary is byte for byte the one the macros produced.
 | `open`/`read`/`write`/`creat`/`close` | `open_at`, `read_file`, `write_all`, `close_fd` |
 | `access` | `stat_of`, where `Err(NotFound)` is the good answer |
 | `unlink` | `remove_path` |
-| `srand`/`rand` | an xorshift32 seeded from `clock_now()` |
+| `srand`/`rand` | an xorshift32 seeded from `clock_now()`, or `ADVENTURE_SEED` |
 | `time`/`localtime` | `clock_now()` and `civil()`, keeping the year-2066 joke |
 | `atoi`, `strcmp` | one local `atoi`; `strcmp` left with the mode that used it |
 | `exit(0)` | a status returned up the call chain |
 | `signal(SIGINT, trapdel)` | nothing — see below |
+
+**`ADVENTURE_SEED` is an addition**, and the only one upstream would not
+recognise. Set it to a number and the dice start there instead of at the clock,
+so a scripted game replays the same way every time. It exists for
+`test/walkthrough.txt` and costs four lines in `adv_seed()`; unset, nothing
+changes.
 
 Four changes go deeper than a substitution:
 
@@ -155,6 +161,47 @@ make package    # build/games/adventure/adventure-1.0-r0.zip
 The package holds `.PKGINFO` and `bin/adventure` and nothing else — the data is
 in the binary. `bin/` is what reaches `PATH` once `/bin/pkg` installs it.
 
+## Testing
+
+```
+make test       # from the top of this repository
+```
+
+`test/play.mjs` boots `../braam-core`'s kernel under node, plants the built
+`adventure.wasm` in the image, and runs `test/walkthrough.txt` on stdin with
+`ADVENTURE_SEED=36`. That walkthrough is a **complete game — 350 out of 350 in
+330 turns**, and the test fails on anything less, on any word the parser
+refuses, on a death, on a question that ate a command, on any of twenty
+landmarks reached out of order, and finally on any difference at all from
+`test/game.log`, the golden transcript beside it. The run is deterministic, so
+that last check is exact; when a change to the game is meant, refresh it with
+
+```
+cp build/games/adventure/game.log games/adventure/test/game.log
+```
+
+The transcript is written to `build/games/adventure/game.log` whether the test
+passes or not, and the whole run takes about twenty milliseconds.
+
+The walkthrough was adapted from an `expect` script that plays the **Z-machine**
+Adventure under `dfrotz` to the same 350 points, following
+[the usual solution](https://ifarchive.org/if-archive/solutions/adventure-walkthrough.txt).
+None of that script could be used as it stood. It waits on a `>` prompt that
+only the line editor prints; it never answers `Would you like instructions?`,
+`Do you indeed wish to quit now?` or `Do you really want to quit now?`, all of
+which this version asks; and it uses `all`, `give` and `wait`, none of which are
+among the 298 words here — so `get all` became the objects named one by one,
+`give eggs` became `throw eggs`, and `give food` became `feed bear`. Its
+`-s 123` dwarves fall on other turns than ours, so where the axe is picked up
+and thrown is this seed's own, and so is the wait at Witt's End: the way out of
+there is one chance in twenty a turn, and the game offers a hint every
+twenty-five turns you fail, which has to be declined.
+
+Its longer commands would in fact have parsed: `getin` keeps only the first two
+words of a line, and only their first five letters, so `unlock grate with keys`
+is `unlock grate` and `throw axe at dwarf` is `throw axe`. The walkthrough
+writes the two words it means.
+
 ## Files
 
 | | |
@@ -166,3 +213,6 @@ in the binary. `bin/` is what reaches `PATH` once `/bin/pkg` installs it.
 | `edit.cpp`, `edit.h` | the line editor, from `braam-core`'s `sh` |
 | `mkdata.py` | `glorkz` to a C++ array, at build time |
 | `glorkz` | the data file, verbatim |
+| `test/play.mjs` | the headless test: kernel, image, walkthrough, assertions |
+| `test/walkthrough.txt` | a whole game, 350 of 350, one command a line |
+| `test/game.log` | what it prints, to the byte |

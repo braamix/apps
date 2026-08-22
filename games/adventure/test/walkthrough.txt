@@ -1,0 +1,387 @@
+# A complete game of adventure, 350 out of 350 in 330 turns, played against
+# ADVENTURE_SEED=36 by games/adventure/test/play.mjs. One command a line;
+# `#` and blank lines are stripped before the file reaches the game.
+#
+# Adapted from an expect script that plays the Z-machine Adventure under dfrotz
+# and cannot drive this one: it has no `all`, `give` or `wait`, it never answers
+# the questions this version asks, and its dwarves fall on other turns. See
+# ../README.md.
+
+# Would you like instructions? No — they cost five points and buy a
+# thousand turns of lamp instead of three hundred and thirty, and this game
+# needs neither.
+no
+
+# First excursion: the keys, the lamp, the grate, the bird against the snake,
+# and the treasures of the Hall of the Mountain King.
+east
+get keys
+get lamp
+west
+south
+south
+south
+unlock grate
+down
+west
+light lamp
+get cage
+west
+west
+west
+get bird
+west
+down
+south
+get gold
+north
+north
+drop bird
+drop cage
+drop keys
+south
+get jewelry
+north
+sw
+west
+
+# The dragon. `kill dragon` asks what with, and only `y` or `yes` answers it.
+kill dragon
+yes
+get rug
+east
+east
+west
+get coins
+east
+north
+get silver
+north
+
+# Out through y2, and the first score. Every `score` asks whether to quit,
+# hence the `no` under it.
+off
+plugh
+drop gold
+drop jewelry
+drop coins
+drop silver
+drop rug
+get bottle
+get water
+get lamp
+get axe
+score
+no
+
+# Second excursion: water the plant twice, oil the rusty door, and the long
+# loop for the trident, the emerald, the vase, the pearl and the pyramid.
+plugh
+on
+south
+south
+sw
+west
+north
+down
+south
+down
+pour water
+up
+west
+up
+north
+north
+get water
+south
+south
+down
+south
+down
+pour water
+up
+east
+down
+get oil
+up
+west
+down
+
+# `climb` is a motion word here, not `climb plant`.
+climb
+west
+north
+oil door
+drop bottle
+north
+get trident
+west
+down
+se
+north
+west
+drop trident
+drop lamp
+drop axe
+east
+get emerald
+west
+get trident
+get lamp
+get axe
+nw
+south
+get vase
+se
+east
+get pillow
+west
+ne
+east
+north
+open clam
+down
+down
+get pearl
+up
+up
+south
+up
+east
+up
+north
+off
+plugh
+drop emerald
+drop trident
+drop pearl
+drop pillow
+drop vase
+plugh
+on
+
+# The plover room: only the emerald fits through the crawl, so everything
+# else was left behind at the alcove.
+plover
+ne
+get pyramid
+south
+plover
+off
+plugh
+drop pyramid
+score
+no
+
+# Third excursion: the eggs for the troll, the spices, the bear, and the
+# pirate's pile — the expect script's `get all`, spelled out.
+get food
+plugh
+on
+south
+south
+get keys
+sw
+west
+north
+down
+south
+down
+climb
+west
+get eggs
+north
+north
+west
+down
+sw
+up
+ne
+
+# `throw eggs` where the Z script said `give eggs`; the vocabulary has no
+# `give`, and the troll takes what is thrown at him.
+throw eggs
+ne
+ne
+east
+ne
+east
+get spices
+west
+south
+se
+south
+east
+
+# `feed bear`, likewise, for `give food`.
+feed bear
+unlock chain
+drop keys
+get chain
+get bear
+west
+west
+north
+west
+west
+sw
+drop bear
+sw
+sw
+down
+se
+se
+west
+west
+down
+climb
+west
+
+# fee fie foe foo brings the eggs back to the nest.
+fee
+fie
+foe
+foo
+get eggs
+south
+down
+up
+west
+up
+south
+east
+east
+west
+west
+west
+east
+east
+get diamonds
+west
+south
+
+# The dwarves. Their axe is thrown at us once, early, and after that every
+# `throw axe` here answers a dwarf that the fixed seed puts in the way.
+get axe
+get axe
+east
+south
+south
+south
+north
+east
+east
+nw
+get chest
+get chain
+get spices
+get eggs
+get diamonds
+throw axe
+get axe
+se
+se
+throw axe
+get axe
+north
+down
+east
+east
+off
+xyzzy
+drop eggs
+drop spices
+drop chain
+drop diamonds
+drop chest
+score
+no
+
+# End game: the last lousy point is the magazine carried from the anteroom to
+# Witt's End, which there is no reliable way back out of — so it is the last
+# thing done, and the wait for the cave to close is spent trying.
+get lamp
+get axe
+plugh
+on
+south
+down
+west
+down
+east
+get magazine
+east
+drop magazine
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+no
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+east
+
+# Twenty-five turns at Witt's End and the game offers a hint; decline it.
+no
+east
+east
+east
+east
+east
+east
+east
+east
+
+# The cave is closed and we are in the repository. Carry the dynamite to the
+# far end, leave it, and set it off from here.
+sw
+get rod
+ne
+drop rod
+sw
+blast

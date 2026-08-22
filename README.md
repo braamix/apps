@@ -32,6 +32,12 @@ target, `wasm-ld`, CMake 3.24, Python 3, `curl` and `unzip`.
 
 builds the packages beside them, `<program>-<version>.zip`.
 
+    make test
+
+runs what headless tests there are — today `games/adventure`, which plays a
+whole game of Colossal Cave under a sibling `../braam-core` build. Needs node
+and that tree built.
+
     make index
 
 signs a repository into `build/repo/` — the packages and an index over them,
