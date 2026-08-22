@@ -42,3 +42,4 @@ endif()
 
 # One line per category that holds a program.
 add_subdirectory(benchmarks)
+add_subdirectory(games)
