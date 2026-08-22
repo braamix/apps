@@ -8,7 +8,7 @@ that runs in a browser tab.
 | | |
 | --- | --- |
 | [benchmarks/dhrystone](benchmarks/dhrystone/) | Dhrystone 2.1, the 1984 integer benchmark |
-| [benchmarks/duremark](benchmarks/duremark/) | DureMark 1.0, a small CoreMark-inspired benchmark |
+| [benchmarks/duremark](benchmarks/duremark/) | DureMark 1.1, a small CoreMark-inspired benchmark |
 
 The rest of the tree is category directories, a few of them holding a `TODO.md`
 naming an upstream worth porting.

@@ -1,4 +1,4 @@
-# duremark — the DureMark benchmark, version 1.0
+# duremark — the DureMark benchmark, version 1.1
 
 A small integer benchmark inspired by EEMBC's CoreMark, keeping the spirit of
 its workloads at a fraction of the complexity and memory. It was written to
@@ -29,7 +29,7 @@ Try 3 iterations...
 Try 10 iterations...
 ...
 
-DureMark 1.0 Results
+DureMark 1.1 Results
 =======================
 Iterations      : 1000000
 Execution Time  : 6.9 sec
@@ -98,7 +98,7 @@ From the top of this repository:
 
 ```
 make            # build/benchmarks/duremark/duremark.wasm
-make package    # build/benchmarks/duremark/duremark-1.0-r0.zip
+make package    # build/benchmarks/duremark/duremark-1.1-r0.zip
 ```
 
 The package holds `.PKGINFO` and `bin/duremark`; `bin/` is what reaches `PATH`

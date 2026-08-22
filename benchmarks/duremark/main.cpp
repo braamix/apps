@@ -118,7 +118,7 @@ Task<i32> du_main(void)
     /* Output results */
     total_sec = res.total_ticks * sec_per_tick;
     du_printf("\n");
-    du_printf("DureMark 1.0 Results\n");
+    du_printf("DureMark 1.1 Results\n");
     du_printf("=======================\n");
     du_printf("Iterations      : %lu\n", res.iterations);
     du_printf("Execution Time  : %.1f sec\n", total_sec);

@@ -18,6 +18,16 @@ function(braam_add_package)
 
     set(zip ${CMAKE_CURRENT_BINARY_DIR}/${P_NAME}-${P_VERSION}.zip)
 
+    # A version bump leaves the old zip in the build tree, and `make index`
+    # would publish a package the tree can no longer build. Configure time is
+    # the moment to drop it: a bump edits this call, which reconfigures.
+    file(GLOB stale ${CMAKE_CURRENT_BINARY_DIR}/${P_NAME}-*.zip)
+    foreach(f IN LISTS stale)
+        if(NOT f STREQUAL zip)
+            file(REMOVE ${f})
+        endif()
+    endforeach()
+
     set(fields "")
     foreach(f IN LISTS P_FIELD)
         if(NOT f MATCHES "^[A-Za-z]=")
