@@ -42,7 +42,7 @@ writing any code here:
 ## Building a program
 
 Get an SDK from `https://github.com/braamix/core/releases/download/v*/braam-sdk-*.zip`
-(the version [README.md](README.md) names, currently 0.3.118) and unpack it
+(the version [README.md](README.md) names, currently 0.4.162) and unpack it
 anywhere — the tree is relocatable, needs no install and no environment
 variable. Or `make install` in `../braam-core`. You also need clang with the
 wasm32 target, `wasm-ld`, CMake 3.24 and Python 3.

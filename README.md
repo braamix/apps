@@ -20,7 +20,7 @@ There is no libc, so a port is a rewrite rather than a recompile.
 
 Download and unpack the SDK — it is relocatable and needs no install:
 
-    https://github.com/braamix/core/releases/download/v0.3/braam-sdk-0.3.118-6129d42.zip
+    https://github.com/braamix/core/releases/download/v0.4/braam-sdk-0.4.162-6b94bea.zip
 
 You also need clang with the wasm32 target, `wasm-ld`, CMake 3.24 and Python 3.
 
