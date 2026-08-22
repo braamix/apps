@@ -187,9 +187,42 @@ read it back.
 
 **A zip on its own cannot be installed.** `pkg` has twelve subcommands and none
 takes a path: every install resolves a name in a signed index and checks the
-package's size and digest against it, with no `--force` in any form. Publishing
-is `Package_Formats.md` §10 — keys, an anchor in `rootfs.zip`, a signed index —
-and `../braam-core/tools/mkrepo.py` does the whole of it in forty lines.
+package's size and digest against it, with no `--force` in any form.
+
+## Publishing
+
+`make index` writes `build/repo/` — the signed index and the zips it vouches
+for, in one directory because a package's URL is derived from the index's own
+`N`. That directory is what gets uploaded to `https://pub.sergev.org/braam`,
+which is the URL `rootfs/etc/repositories` ships and which `N` must equal byte
+for byte.
+
+Three variables at the head of the [Makefile](Makefile) govern it:
+
+- **`INDEX_VERSION`** — `G`. **It must rise at every publication**; a client
+  refuses an index below the one it holds, and equal means "unchanged" and no
+  rewrite. It cannot be derived — only the publisher knows what was uploaded
+  last.
+- **`INDEX_EXPIRY`** — `E`, milliseconds. A promise to re-sign by then.
+- **`INDEX_KEY`** — the publisher's private key, `~/.ssh/braam/index.key`,
+  outside this tree and never copied into it. Its public half must be the
+  `K:index` of the anchor the client boots with, or the index is refused at the
+  `signature` step. Re-signing needs only this key; the root keys are for
+  anchors alone.
+
+Re-publishing is the whole set every time: `mkindex.py` reads `C`, `S` and the
+`cmd:` provides out of the zips, so a package rebuilt without a re-signed index
+fails as `not in the index` or `digest does not match`.
+
+A zip is reproducible only with **`SOURCE_DATE_EPOCH`** set — `mkpkg.py` stamps
+entries with the pack time otherwise, so two builds of identical sources differ
+in their bytes and therefore in `C`. Set it when a rebuild should produce the
+package that is already published.
+
+To check a repository end to end without uploading, drive
+`../braam-core/test/smoke/harness.mjs` with the unmodified rootfs and serve
+`index` and the zips from `net.routes` — the shipped anchor is the real one, so
+`pkg update` and `pkg install` exercise §7 in full.
 
 `braam_add_package` and `mkpkg.py` reached the SDK after 0.4.162, the release
 this tree pins, so [cmake/BraamPackage.cmake](cmake/BraamPackage.cmake) stands

@@ -28,9 +28,17 @@ target, `wasm-ld`, CMake 3.24, Python 3, `curl` and `unzip`.
 
     make package
 
-builds the packages beside them, `<program>-<version>.zip`. Installing one
-needs a repository: `pkg` checks every package against a signed index, so a zip
-on its own is not installable. That procedure is
+builds the packages beside them, `<program>-<version>.zip`.
+
+    make index
+
+signs a repository into `build/repo/` — the packages and an index over them,
+ready to upload to <https://pub.sergev.org/braam>, which is the repository
+Braam ships configured. `pkg` installs nothing that a signed index does not vouch
+for, so the zips and the index travel together.
+
+Signing needs the publisher's index key, which lives outside this tree; the
+index version must rise at every publication. The whole procedure is
 [Package Formats](https://github.com/braamix/core/blob/main/doc/Package_Formats.md)
 §10.
 

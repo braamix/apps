@@ -16,7 +16,26 @@ TOOLCHAIN := $(SDK)/lib/cmake/braam/wasm32-unknown-unknown.cmake
 # not survive the cmake process in between. Pass a count explicitly instead.
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 
-.PHONY: all package clean
+# Publishing. The repository the index is for, which must equal the client's
+# /etc/repositories line byte for byte, and the index's own two numbers.
+REPO_URL      ?= https://pub.sergev.org/braam
+# G. A client refuses an index whose version is below the one it holds, so this
+# rises at every publication. It cannot be derived: only the publisher knows
+# what was last uploaded.
+INDEX_VERSION ?= 1
+# E, milliseconds since the epoch: 2027-08-21. A promise to re-sign by then.
+INDEX_EXPIRY  ?= 1818806400000
+INDEX_DESC    ?= Braam applications
+# The publisher's own key, outside this tree and never copied into it. Its
+# public half has to be the K:index of the anchor the client boots with.
+INDEX_KEY     ?= $(HOME)/.ssh/braam/index.key
+# The SDK's copy first; the pinned 0.4.162 predates it, so the core tree next.
+MKINDEX ?= $(firstword $(wildcard \
+    $(SDK)/libexec/braam/mkindex.py ../braam-core/tools/mkindex.py))
+
+REPO := $(BUILD)/repo
+
+.PHONY: all package index clean
 
 all: $(BUILD)/CMakeCache.txt
 	@cmake --build $(BUILD) -j $(JOBS)
@@ -25,6 +44,22 @@ all: $(BUILD)/CMakeCache.txt
 # `package`, which CPack claims.
 package: all
 	@cmake --build $(BUILD) -j $(JOBS) --target packages
+
+# The repository to upload: the signed index and the zips it vouches for, in
+# one directory, because a package's URL is derived from the index's own N.
+index: package
+	@test -n "$(MKINDEX)" || \
+	    { echo "no mkindex.py in $(SDK) or ../braam-core/tools"; exit 1; }
+	@test -r "$(INDEX_KEY)" || { echo "cannot read $(INDEX_KEY)"; exit 1; }
+	@rm -rf $(REPO) && mkdir -p $(REPO)
+	@# A package zip is $(BUILD)/<category>/<program>/<name>-<version>.zip —
+	@# depth three, which the SDK's own zip beside it is not.
+	@find $(BUILD) -mindepth 3 -maxdepth 3 -name '*-*.zip' \
+	    -not -path '$(SDK)/*' -exec cp {} $(REPO)/ \;
+	@python3 $(MKINDEX) --out $(REPO)/index --url $(REPO_URL) \
+	    --version $(INDEX_VERSION) --expiry $(INDEX_EXPIRY) \
+	    --description '$(INDEX_DESC)' --sign $(INDEX_KEY) $(REPO)/*.zip
+	@echo "$(REPO): index $(INDEX_VERSION), `ls $(REPO)/*.zip | wc -l | tr -d ' '` package(s)"
 
 clean:
 	@rm -rf $(BUILD)
