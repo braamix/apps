@@ -16,10 +16,15 @@ TOOLCHAIN := $(SDK)/lib/cmake/braam/wasm32-unknown-unknown.cmake
 # not survive the cmake process in between. Pass a count explicitly instead.
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 
-.PHONY: all clean
+.PHONY: all package clean
 
 all: $(BUILD)/CMakeCache.txt
 	@cmake --build $(BUILD) -j $(JOBS)
+
+# The zips /bin/pkg installs, one per program. `packages` rather than
+# `package`, which CPack claims.
+package: all
+	@cmake --build $(BUILD) -j $(JOBS) --target packages
 
 clean:
 	@rm -rf $(BUILD)

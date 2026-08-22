@@ -136,6 +136,33 @@ make
 
 which leaves `build/benchmarks/dhrystone/dhrystone.wasm`.
 
+## Packaging
+
+```
+make package
+```
+
+builds `build/benchmarks/dhrystone/dhrystone-2.1-r0.zip`, a package in the
+format `/bin/pkg` installs (Package_Formats.md §5):
+
+```
+.PKGINFO            P:dhrystone  V:2.1-r0  I:<unpacked size>  T:<description>
+bin/dhrystone       the binary
+```
+
+`bin/` is the load-bearing part. Every flat entry of it becomes a link in the
+installed generation's `bin/`, which `/pkg/bin` points at and the default
+`PATH` — `/bin:/pkg/bin` — already names, plus a generated
+`cmd:dhrystone=2.1-r0` provide. The entry's leaf is the command's name, which
+is why it is `bin/dhrystone` and not `bin/dhrystone.wasm`.
+
+**The zip alone cannot be installed.** `pkg` checks every package's size and
+digest against a signed index, and the anchor naming the signing key ships
+inside `rootfs.zip`; there is no `--force` and no local-file install. Publishing
+means standing up a repository — keys, an anchor, an index — which is
+Package_Formats.md §10 end to end, and `tools/mkrepo.py` in the core tree is a
+worked example of all of it.
+
 ## Files
 
 | | |

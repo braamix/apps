@@ -41,9 +41,10 @@ writing any code here:
   the specification, the shell language.
 - `../braam-core/src/cmd/` — thirty-six worked examples of the program shape.
 - `../braam-core/examples/hello/` — the minimal program and its `CMakeLists.txt`.
-- `../braam-core/tools/mkpkg.py` — the package builder. **It is not in the SDK**;
-  the SDK ships only `stamp.py`. A package built here needs it from the core
-  tree, or a local equivalent.
+- `../braam-core/tools/mkpkg.py` — the package builder, and `mkrepo.py` beside
+  it for a whole signed repository. `mkpkg.py` now installs with the SDK, but
+  not in 0.4.162, the release this tree pins — so `make package` still reaches
+  into the core tree for it. See Packaging below.
 
 ## Building
 
@@ -152,20 +153,50 @@ instead, with an absolute `#!` interpreter; that needs no toolchain at all.
 
 ## Packaging
 
+`make package` builds every program's zip. A program declares one beside its
+`braam_add_program`:
+
+```cmake
+braam_add_package(NAME <name> VERSION <v>
+                  FIELD "T=<description>" [FIELD "D=<depends>"]...
+                  FILES $<TARGET_FILE:bin_<name>>=bin/<name>)
+add_dependencies(packages pkg_<name>)
+```
+
+**Quote a `FIELD` whose value has a space**, or CMake splits it and the value
+is silently truncated — `braam_add_package` refuses what does not look like
+`<letter>=<value>` to catch that.
+
+**`bin/` is what reaches `PATH`**, and the entry's leaf is the command's name.
+Every flat entry becomes a link in the installed generation's `bin/`, which
+`/pkg/bin` points at and the default `PATH` (`/bin:/pkg/bin`) already names,
+plus a generated `cmd:<entry>` provide. So `bin/<name>`, never
+`bin/<name>.wasm`, and never nested: `bin/sub/tool` yields no command.
+
 Per `Package_Formats.md` §5: a zip whose top-level dot-entries are metadata and
 whose everything else is payload, unpacked into `/pkg/store/<name>-<version>/`.
-`.PKGINFO` is required and carries the §3.2 letters less `C` and `S`, in the
-order `P V I T o t k g D p i`. Optional `/bin/sh` hooks: `.pre-install`,
-`.post-install`, `.pre-deinstall`, `.post-deinstall`, `.pre-upgrade`,
-`.post-upgrade`, `.trigger`. **An unknown top-level dot-entry makes the package
-uninstallable.**
+`.PKGINFO` is written by the tool, carries the §3.2 letters less `C` and `S` in
+the order `P V I T o t k g D p i`, and only `P` and `V` are required — `p:`
+`cmd:` names are the publisher's, generated into the index. Optional `/bin/sh`
+hooks: `.pre-install`, `.post-install`, `.pre-deinstall`, `.post-deinstall`,
+`.pre-upgrade`, `.post-upgrade`, `.trigger`. **An unknown top-level dot-entry
+makes the package uninstallable.** A package must stay under 4 MiB.
 
-```
-../braam-core/tools/mkpkg.py --out <name>-<version>.zip --name <name> --version <v> \
-    [--field T=<description>] [--field D=<depends>] build/<name>.wasm=bin/<name>
-```
+Versions follow apk's grammar (`1.2-r0`), and nothing checks the spelling —
+read it back.
 
-Versions follow apk's grammar (`1.2-r0`).
+**A zip on its own cannot be installed.** `pkg` has twelve subcommands and none
+takes a path: every install resolves a name in a signed index and checks the
+package's size and digest against it, with no `--force` in any form. Publishing
+is `Package_Formats.md` §10 — keys, an anchor in `rootfs.zip`, a signed index —
+and `../braam-core/tools/mkrepo.py` does the whole of it in forty lines.
+
+`braam_add_package` and `mkpkg.py` reached the SDK after 0.4.162, the release
+this tree pins, so [cmake/BraamPackage.cmake](cmake/BraamPackage.cmake) stands
+in by driving `../braam-core/tools/mkpkg.py`. **Delete it and the block that
+includes it in [CMakeLists.txt](CMakeLists.txt) when the pinned SDK carries its
+own** — packaging is the one thing here that wants the core tree beside this
+one.
 
 ## Verifying a binary
 

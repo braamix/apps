@@ -15,8 +15,8 @@ naming an upstream worth porting.
 ## Layout
 
 Categories, as in pkgsrc — `archivers`, `benchmarks`, `editors`, `games`,
-`misc` — each holding one sub-directory per program. Every program will build
-into a ZIP package that `/bin/pkg` installs; for now it builds to a `.wasm`.
+`misc` — each holding one sub-directory per program. Every program builds into
+a ZIP package that `/bin/pkg` installs.
 
 ## Building
 
@@ -25,6 +25,17 @@ into a ZIP package that `/bin/pkg` installs; for now it builds to a `.wasm`.
 That fetches the SDK into `build/`, unpacks it, and builds every program —
 `build/<category>/<program>/<program>.wasm`. You need clang with the wasm32
 target, `wasm-ld`, CMake 3.24, Python 3, `curl` and `unzip`.
+
+    make package
+
+builds the packages beside them, `<program>-<version>.zip`. Installing one
+needs a repository: `pkg` checks every package against a signed index, so a zip
+on its own is not installable. That procedure is
+[Package Formats](https://github.com/braamix/core/blob/main/doc/Package_Formats.md)
+§10.
+
+Packaging is also the one part that wants the core checkout next to this one,
+until a Braam release later than 0.4.162 ships `mkpkg.py` in the SDK.
 
 The SDK is currently
 
