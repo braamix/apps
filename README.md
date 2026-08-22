@@ -3,35 +3,42 @@
 Software ported to [Braam](https://github.com/braamix/core), an operating system
 that runs in a browser tab.
 
-**Status: nothing is ported yet.** The tree is empty category directories, and a
-few of them hold a `TODO.md` naming an upstream worth porting. There are no
-sources and no build scripts.
+## What is here
+
+| | |
+| --- | --- |
+| [benchmarks/dhrystone](benchmarks/dhrystone/) | Dhrystone 2.1, the 1984 integer benchmark |
+
+The rest of the tree is category directories, a few of them holding a `TODO.md`
+naming an upstream worth porting.
 
 ## Layout
 
 Categories, as in pkgsrc — `archivers`, `benchmarks`, `editors`, `games`,
-`misc` — each holding one sub-directory per program. Every program builds into
-a ZIP package that `/bin/pkg` installs.
+`misc` — each holding one sub-directory per program. Every program will build
+into a ZIP package that `/bin/pkg` installs; for now it builds to a `.wasm`.
 
 ## Building
 
-A program is a freestanding C++20 file compiled to wasm32 against the Braam SDK.
-There is no libc, so a port is a rewrite rather than a recompile.
+    make
 
-Download and unpack the SDK — it is relocatable and needs no install:
+That fetches the SDK into `build/`, unpacks it, and builds every program —
+`build/<category>/<program>/<program>.wasm`. You need clang with the wasm32
+target, `wasm-ld`, CMake 3.24, Python 3, `curl` and `unzip`.
+
+The SDK is currently
 
     https://github.com/braamix/core/releases/download/v0.4/braam-sdk-0.4.162-6b94bea.zip
 
-You also need clang with the wasm32 target, `wasm-ld`, CMake 3.24 and Python 3.
+named at the head of the [Makefile](Makefile). Please move to the newest with
+each Braam release: a binary carries the process ABI it was built for, and the
+kernel refuses one built for another. `make SDK=<prefix>` builds against an SDK
+already unpacked somewhere and skips the download.
 
-    cmake -B build --toolchain <sdk>/lib/cmake/braam/wasm32-unknown-unknown.cmake
-    cmake --build build
-
-The toolchain file must be on that first command; CMake picks the compiler when
-a project is configured, and a build directory configured without it cannot be
-repaired by adding the flag.
-
-Please move to the newest SDK with each Braam release.
+A program is freestanding C++20 compiled to wasm32. There is no libc, so a port
+is a rewrite rather than a recompile — and one that keeps the original's
+structure, names and output, replacing only what reached the C library or the
+OS.
 
 ## Documents
 
