@@ -144,6 +144,7 @@ void Game::linkdata(void) // secondary data manipulation
     closng_ = panic_ = closed_ = scorng_ = FALSE;
     check_vocab();
     check_msgs();
+    check_hints();
 }
 
 // glorkz decides these numbers; the enums only name them.  Check the naming
@@ -196,6 +197,29 @@ void Game::check_msgs()
     for (i16 n = 1; n <= i16(Magic::Last); n++)
         if (mtext_[n].seekadr == 0)
             bug(36);
+}
+
+// glorkz decides which hint is which; the enum only names them.  Tie each name
+// to the messages it asks, so a hint table that moved cannot pass.
+void Game::check_hints()
+{
+    struct Asks {
+        Hint hint;
+        Msg question, answer;
+    };
+    static const Asks ASKS[] = {
+        { Hint::Grate, Msg::GettingIntoCave, Msg::GrateSolid },
+        { Hint::Bird, Msg::CatchingBird, Msg::BirdFrightened },
+        { Hint::Snake, Msg::DealWithSnake, Msg::CantKillSnake },
+        { Hint::Maze, Msg::HelpWithMaze, Msg::DropThings },
+        { Hint::Plover, Msg::ExploreBeyondPlover, Msg::WayToExplore },
+        { Hint::WittsEnd, Msg::HelpGettingOut, Msg::DontGoWest },
+    };
+    for (const Asks &a : ASKS) {
+        const HintRule &h = hints_[usize(i16(a.hint))];
+        if (h.question != a.question || h.answer != a.answer)
+            bug(37);
+    }
 }
 
 Task<i32> Game::startup(void)
