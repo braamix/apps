@@ -59,7 +59,8 @@ Phase Game::trsay() // 9030
     if (*wd2_ != 0)
         copystr(wd2_, wd1_);
     i = vocab(wd1_, -1, 0);
-    if (i == 62 || i == 65 || i == 71 || i == 2025) {
+    if (i == i16(Motion::Xyzzy) || i == i16(Motion::Plugh) || i == i16(Motion::Plover) ||
+        i == 2000 + i16(Verb::Foo)) {
         *wd2_ = 0;
         obj_  = 0;
         return Phase::Lookup;

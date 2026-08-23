@@ -169,7 +169,7 @@ int Game::mback(void) // 20
     {
         ll = tk().tloc;
         if (ll == k_) {
-            k_ = tk().tverb; // k back to verb
+            k_ = i16(tk().tverb); // k back to verb
             tk_to(loc_);
             return (9);
         }
@@ -185,7 +185,7 @@ int Game::mback(void) // 20
     }
     tkk_ = tk2 < 0 ? i32(travel_[tkk_loc_].size()) : tk2; // 23
     if (!tk_end()) {
-        k_ = tk().tverb;
+        k_ = i16(tk().tverb);
         tk_to(loc_);
         return (9);
     }
@@ -195,20 +195,21 @@ int Game::mback(void) // 20
 
 int Game::badmove(void) // 20
 {
-    spk_ = 12;
-    if (k_ >= 43 && k_ <= 50)
+    Motion m = Motion(k_);
+    spk_     = 12;
+    if (m >= Motion::East && m <= Motion::NW)
         spk_ = 9;
-    if (k_ == 29 || k_ == 30)
+    if (m == Motion::Up || m == Motion::Down)
         spk_ = 9;
-    if (k_ == 7 || k_ == 36 || k_ == 37)
+    if (m == Motion::Forward || m == Motion::Left || m == Motion::Right)
         spk_ = 10;
-    if (k_ == 11 || k_ == 19)
+    if (m == Motion::Out || m == Motion::In)
         spk_ = 11;
     if (verb_ == find_ || verb_ == invent_)
         spk_ = 59;
-    if (k_ == 62 || k_ == 65)
+    if (m == Motion::Xyzzy || m == Motion::Plugh)
         spk_ = 42;
-    if (k_ == 17)
+    if (m == Motion::Crawl)
         spk_ = 80;
     rspeak(spk_);
     return (2);
@@ -304,7 +305,7 @@ int Game::march(void) // label 8
     oldloc_ = loc_;
 l9:
     for (; !tk_end(); tkk_++)
-        if (tk().tverb == 1 || tk().tverb == k_)
+        if (tk().tverb == Motion::Forced || tk().tverb == Motion(k_))
             break;
     if (tk_end()) {
         badmove();

@@ -53,54 +53,42 @@ struct Text {
     u16 txtlen;  // length of msg starting here
 };
 
+// clang-format off
+// A vocabulary word worth 2000 + n in glorkz is verb n.  linkdata() checks the
+// naming against the data file.
+enum class Verb : i16 {
+    None = 0,       // signed, because rdflt() leaves -1 here
+    Take = 1, Drop, Say, Open, Nothing, Lock, On, Off, Wave, Calm, Walk, Kill, Pour, Eat, Drink,
+    Rub, Throw, Quit, Find, Invent, Feed, Fill, Blast, Score, Foo, Brief, Read, Break, Wake,
+    Suspend, Hours,
+};
+// clang-format on
+
+// clang-format off
+// A vocabulary word under 1000 is motion n.  Travel::tverb holds one, and so
+// does k_ once lookup() has classified a word as one.
+enum class Motion : i16 {
+    Forced = 1,     // no word: this exit fires whatever was typed
+    Road = 2, Enter, Upstream, Downstream, Forest, Forward, Back, Valley, Stairs, Out, Building,
+    Gully, Stream, Rock, Bed, Crawl, Cobbles, In, Surface, Null, Dark, Passage, Low, Canyon,
+    Awkward, Giant, View, Up, Down, Pit, Outdoors, Crack, Steps, Dome, Left, Right, Hall, Jump,
+    Barren, Over, Across, East, West, North, South, NE, SE, SW, NW, Debris, Hole, Wall, Broken,
+    Y2, Climb, Look, Floor, Room, Slit, Slab, Xyzzy, Depression, Entrance, Plugh, Secret, Cave,
+    // 68 has no word.
+    Cross = 69, Bedquilt, Plover, Oriental, Cavern, Shell, Reservoir, Main, Fork,
+};
+// clang-format on
+
 struct Travel {     // direcs & conditions of travel
     u16 conditions; // m in writeup (newloc / 1000)
     u16 tloc;       // n in writeup (newloc % 1000)
-    u16 tverb;      // the verb that takes you there
+    Motion tverb;   // the verb that takes you there
 };
 
 // An exit from deep in the call graph, which had no way back: done() and its
 // callers hand the status up instead, and a negative one says the game is over
 // and already reported.
 constexpr int ADV_OVER = -1;
-
-// The verbs.  A vocabulary word worth 2000 + n in glorkz is verb n, and these
-// are the numbers the two dispatch switches and actspk_ are indexed by.
-// linkdata() checks the naming still matches the data file.
-enum class Verb : i16 {
-    None = 0, // and rdflt() leaves -1 here, which is why this is signed
-    Take = 1,
-    Drop,
-    Say,
-    Open,
-    Nothing, // the verb, not nothing(), which is statement label 2009
-    Lock,
-    On,
-    Off,
-    Wave,
-    Calm,
-    Walk,
-    Kill,
-    Pour,
-    Eat,
-    Drink,
-    Rub,
-    Throw,
-    Quit,
-    Find,
-    Invent,
-    Feed,
-    Fill,
-    Blast,
-    Score,
-    Foo, // fee, fie, foe, foo, fum
-    Brief,
-    Read,
-    Break,
-    Wake,
-    Suspend,
-    Hours,
-};
 
 // One step of a turn, named for the FORTRAN statement label it was.  Upstream
 // jumped between these with goto and the tr* handlers returned the number the
@@ -254,7 +242,7 @@ private:
         emrald_ = 0, pyram_ = 0, pearl_ = 0, rug_ = 0, chain_ = 0, spices_ = 0, back_ = 0,
         look_ = 0, cave_ = 0, null_ = 0, entrnc_ = 0, dprssn_ = 0;
 
-    // The verb mnemonics are typed, so verb_ == say_ needs no cast.
+    // Typed, so verb_ == say_ needs no cast.
     Verb say_ = Verb::None, lock_ = Verb::None, throw_ = Verb::None, find_ = Verb::None,
          invent_ = Verb::None;
 

@@ -212,7 +212,7 @@ Task<Phase> Game::describe() // 2000
     if (toting(bear_))
         rspeak(141); // 2001
     speak(kk);
-    k_ = 1;
+    k_ = i16(Motion::Forced);
     if (forced(loc_))
         co_return Phase::Motion;
     if (loc_ == 33 && pct(25) && !closng_)

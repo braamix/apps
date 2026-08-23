@@ -83,9 +83,9 @@ void DataReader::rtrav(void) // read travel table
         while (breakch != LF) // only do one line at a time
         {
             Travel t;
-            t.tverb      = rnum(); // get verb from the file
-            t.tloc       = n;      // table entry mod 1000
-            t.conditions = m;      // table entry / 1000
+            t.tverb      = Motion(rnum()); // get verb from the file
+            t.tloc       = n;              // table entry mod 1000
+            t.conditions = m;              // table entry / 1000
             if (!g_.travel_[locc].push(t))
                 bug(31);
         }

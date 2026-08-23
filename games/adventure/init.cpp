@@ -35,7 +35,7 @@ void Game::linkdata(void) // secondary data manipulation
     // array linkages
     for (i = 1; i <= LOCSIZ; i++)
         if (ltext_[i].seekadr != 0 && !travel_[i].empty())
-            if ((travel_[i][0].tverb) == 1)
+            if ((travel_[i][0].tverb) == Motion::Forced)
                 cond_[i] = 2;
     for (j = 100; j > 0; j--)
         if (fixd_[j] > 0) {
