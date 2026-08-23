@@ -812,20 +812,26 @@ Task<i32> Game::play(Args args)
     }
 }
 
-namespace {
-Game game; // .bss, and trivially destructible
-} // namespace
-
 Task<i32> proc_main(Args args)
 {
     if (Task<void> t = adv_input_init())
         co_await t;
 
-    i32 rc = 0;
-    if (Task<i32> t = game.play(args))
-        rc = co_await t;
-    else
-        rc = 1;
+    // On the heap: the state is ten kilobytes, and once it holds a Vec it is
+    // not trivially destructible, which a global here must be.
+    i32 rc     = 1;
+    Game *game = heap_new<Game>();
+    if (!game)
+        adv_printf("adventure: out of memory\n");
+    else {
+        struct Free {
+            ~Free() { heap_delete(game); }
+            Game *game;
+        } free_game{ game };
+
+        if (Task<i32> t = game->play(args))
+            rc = co_await t;
+    }
 
     if (Task<void> t = adv_flush())
         co_await t;

@@ -116,70 +116,74 @@ private:
     Task<Result<void>> save(Str), restore(Str);
 
     // ================= state ===========================================
-    i16 loc_, newloc_, oldloc_, oldlc2_, wzdark_, gaveup_, kq_, k_, k2_;
-    i16 verb_, obj_, spk_;
-    i16 blklin_;
-    i32 saved_, savet_, mxscor_, latncy_;
+    i16 loc_ = 0, newloc_ = 0, oldloc_ = 0, oldlc2_ = 0, wzdark_ = 0, gaveup_ = 0, kq_ = 0, k_ = 0,
+        k2_   = 0;
+    i16 verb_ = 0, obj_ = 0, spk_ = 0;
+    i16 blklin_ = 0;
+    i32 saved_ = 0, savet_ = 0, mxscor_ = 0, latncy_ = 0;
 
-    HashTab voc_[HTSIZE]; // hash table for vocabulary
+    HashTab voc_[HTSIZE] = {}; // hash table for vocabulary
 
-    Text rtext_[RTXSIZ]; // random text messages
+    Text rtext_[RTXSIZ] = {}; // random text messages
 
-    Text mtext_[MAGSIZ]; // magic messages
+    Text mtext_[MAGSIZ] = {}; // magic messages
 
-    i16 clsses_;
-    Text ctext_[CLSMAX]; // classes of adventurer
-    i16 cval_[CLSMAX];
+    i16 clsses_         = 0;
+    Text ctext_[CLSMAX] = {}; // classes of adventurer
+    i16 cval_[CLSMAX]   = {};
 
-    Text ptext_[101]; // object descriptions
+    Text ptext_[101] = {}; // object descriptions
 
-    Text ltext_[LOCSIZ]; // long loc description
-    Text stext_[LOCSIZ]; // short loc descriptions
+    Text ltext_[LOCSIZ] = {}; // long loc description
+    Text stext_[LOCSIZ] = {}; // short loc descriptions
 
-    Travel *travel_[LOCSIZ]; // direcs & conditions of travel
+    Travel *travel_[LOCSIZ] = {}; // direcs & conditions of travel
 
-    i16 atloc_[LOCSIZ];
+    i16 atloc_[LOCSIZ] = {};
 
-    i16 plac_[101];              // initial object placement
-    i16 fixd_[101], fixed_[101]; // location fixed?
+    i16 plac_[101] = {};                   // initial object placement
+    i16 fixd_[101] = {}, fixed_[101] = {}; // location fixed?
 
-    i16 actspk_[35]; // rtext msg for verb <n>
+    i16 actspk_[35] = {}; // rtext msg for verb <n>
 
-    i16 cond_[LOCSIZ]; // various condition bits
+    i16 cond_[LOCSIZ] = {}; // various condition bits
 
-    i16 hntmax_;
-    i16 hints_[20][5]; // info on hints
-    i16 hinted_[20], hintlc_[20];
+    i16 hntmax_       = 0;
+    i16 hints_[20][5] = {}; // info on hints
+    i16 hinted_[20] = {}, hintlc_[20] = {};
 
-    i16 place_[101], prop_[101], plink_[201];
-    i16 abb_[LOCSIZ];
+    i16 place_[101] = {}, prop_[101] = {}, plink_[201] = {};
+    i16 abb_[LOCSIZ] = {};
 
-    i16 maxtrs_, tally_, tally2_; // treasure values
+    i16 maxtrs_ = 0, tally_ = 0, tally2_ = 0; // treasure values
 
-    i16 keys_, lamp_, grate_, cage_, rod_, // mnemonics
-        rod2_, steps_, bird_, door_, pillow_, snake_, fissur_, tablet_, clam_, oyster_, magzin_,
-        dwarf_, knife_, food_, bottle_, water_, oil_, plant_, plant2_, axe_, mirror_, dragon_,
-        chasm_, troll_, troll2_, bear_, messag_, vend_, batter_, nugget_, coins_, chest_, eggs_,
-        tridnt_, vase_, emrald_, pyram_, pearl_, rug_, chain_, spices_, back_, look_, cave_, null_,
-        entrnc_, dprssn_, say_, lock_, throw_, find_, invent_;
+    i16 keys_ = 0, lamp_ = 0, grate_ = 0, cage_ = 0, rod_ = 0, // mnemonics
+        rod2_ = 0, steps_ = 0, bird_ = 0, door_ = 0, pillow_ = 0, snake_ = 0, fissur_ = 0,
+        tablet_ = 0, clam_ = 0, oyster_ = 0, magzin_ = 0, dwarf_ = 0, knife_ = 0, food_ = 0,
+        bottle_ = 0, water_ = 0, oil_ = 0, plant_ = 0, plant2_ = 0, axe_ = 0, mirror_ = 0,
+        dragon_ = 0, chasm_ = 0, troll_ = 0, troll2_ = 0, bear_ = 0, messag_ = 0, vend_ = 0,
+        batter_ = 0, nugget_ = 0, coins_ = 0, chest_ = 0, eggs_ = 0, tridnt_ = 0, vase_ = 0,
+        emrald_ = 0, pyram_ = 0, pearl_ = 0, rug_ = 0, chain_ = 0, spices_ = 0, back_ = 0,
+        look_ = 0, cave_ = 0, null_ = 0, entrnc_ = 0, dprssn_ = 0, say_ = 0, lock_ = 0, throw_ = 0,
+        find_ = 0, invent_ = 0;
 
-    i16 chloc_, chloc2_, dseen_[7], // dwarf stuff
-        dloc_[7], odloc_[7], dflag_, daltlc_;
+    i16 chloc_ = 0, chloc2_ = 0, dseen_[7] = {}, // dwarf stuff
+        dloc_[7] = {}, odloc_[7] = {}, dflag_ = 0, daltlc_ = 0;
 
-    i16 tk_[21], stick_, dtotal_, attack_;
-    i16 turns_, lmwarn_, iwest_, knfloc_, // various flags & counters
-        detail_, abbnum_, maxdie_, numdie_, holdng_, dkill_, foobar_, bonus_, clock1_, clock2_,
-        closng_, panic_, closed_, scorng_;
+    i16 tk_[21] = {}, stick_ = 0, dtotal_ = 0, attack_ = 0;
+    i16 turns_ = 0, lmwarn_ = 0, iwest_ = 0, knfloc_ = 0, // various flags & counters
+        detail_ = 0, abbnum_ = 0, maxdie_ = 0, numdie_ = 0, holdng_ = 0, dkill_ = 0, foobar_ = 0,
+        bonus_ = 0, clock1_ = 0, clock2_ = 0, closng_ = 0, panic_ = 0, closed_ = 0, scorng_ = 0;
 
-    i16 limit_;
+    i16 limit_ = 0;
 
     // ---- what upstream kept beside the state struct --------------------
-    Travel *tkk_;      // travel is closer to keys(...)
-    char wd1_[MAXSTR]; // the complete words
-    char wd2_[MAXSTR];
-    int delhit_; // user typed a DEL
-    const char *magic_;
-    i32 status_; // what proc_main will return
+    Travel *tkk_       = nullptr; // travel is closer to keys(...)
+    char wd1_[MAXSTR]  = {};      // the complete words
+    char wd2_[MAXSTR]  = {};
+    int delhit_        = 0; // user typed a DEL
+    const char *magic_ = nullptr;
+    i32 status_        = 0; // what proc_main will return
 
     static const i16 SETBIT[16]; // bit defn masks 1,2,4,...
 };
