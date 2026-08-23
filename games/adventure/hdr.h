@@ -94,9 +94,9 @@ enum class Phase : u8 {
 // The game.  Upstream's globals are the state, and its routines are the
 // methods; a field carries a trailing underscore so neither hides the other.
 class Game {
-public:
     friend class DataReader; // fills the tables from glorkz
 
+public:
     // Sizes every table.  The one place that can run out of memory: after it
     // nothing grows but the travel lists, so every index below is unchecked,
     // exactly as the C arrays were.

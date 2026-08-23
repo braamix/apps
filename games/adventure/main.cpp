@@ -836,17 +836,15 @@ Task<i32> proc_main(Args args)
     // not trivially destructible, which a global here must be.
     i32 rc     = 1;
     Game *game = heap_new<Game>();
+    struct Free {
+        ~Free() { heap_delete(game); }
+        Game *game;
+    } free_game{ game };
+
     if (!game || !game->alloc())
         adv_printf("adventure: out of memory\n");
-    else {
-        struct Free {
-            ~Free() { heap_delete(game); }
-            Game *game;
-        } free_game{ game };
-
-        if (Task<i32> t = game->play(args))
-            rc = co_await t;
-    }
+    else if (Task<i32> t = game->play(args))
+        rc = co_await t;
 
     if (Task<void> t = adv_flush())
         co_await t;
