@@ -253,6 +253,15 @@ the fifteen-minute latency, is called where the data is now built — upstream
 called it only in the `adventure.dat` path, so in normal play `magic` stayed
 null and the wizard's check dereferenced it.
 
+**Two fields upstream carried are gone**, because neither could do anything.
+`k2_` was declared and saved and never read or written. `spices` was declared
+and saved and read once — `trbridge()` bumped `tally2_` when the spices were
+still untaken, so that breaking the bridge under the bear counted them as lost
+— but nothing ever assigned it, so it stayed 0 and the test read `prop[0]`,
+which no object owns and nothing writes. The bump could not fire on any turn of
+any game, and the line went with the field. Dropping the two moves the save
+file, so its magic reads `ADVSAVE\003`.
+
 **The save file is a field list.** Upstream wrote `struct game` raw and then
 walked the travel lists node by node. `serial.h` names every field once and
 visits it twice — `Ser` writes, `De` reads — so the two halves cannot drift
@@ -260,7 +269,7 @@ apart, and a magic word at the front means a stale file is refused rather than
 mis-parsed. The travel lists are not in it at all: `rdata()` rebuilds them
 before `restore()` runs and play never changes them, which is the same reason
 the old format could treat the pointers it wrote as "there was a node here". A
-save file is this build's, and 9,780 bytes where the raw struct took 19,032.
+save file is this build's, and 9,492 bytes where the raw struct took 19,032.
 
 **One thing worth checking against upstream.** `mback()` has a fallback for
 getting back through a forced location, and as this port has it the branch

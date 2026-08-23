@@ -8,7 +8,7 @@
 
 #include "hdr.h"
 
-constexpr Str SAVE_MAGIC = "ADVSAVE\002"; // format 2: fields, not a struct
+constexpr Str SAVE_MAGIC = "ADVSAVE\003"; // format 3: two dead fields dropped
 
 struct Ser {
     String out;
@@ -116,7 +116,6 @@ void Game::visit(V &v)
     v.field(gaveup_);
     v.field(kq_);
     v.field(k_);
-    v.field(k2_);
     v.field(verb_);
     v.field(obj_);
     v.field(spk_);
@@ -195,7 +194,6 @@ void Game::visit(V &v)
     v.field(pearl_);
     v.field(rug_);
     v.field(chain_);
-    v.field(spices_);
     v.field(back_);
     v.field(look_);
     v.field(cave_);

@@ -343,8 +343,7 @@ private:
     void visit(V &v); // the one field list, in serial.h
 
     // ================= state ===========================================
-    i16 loc_ = 0, newloc_ = 0, oldloc_ = 0, oldlc2_ = 0, wzdark_ = 0, gaveup_ = 0, kq_ = 0, k_ = 0,
-        k2_     = 0;
+    i16 loc_ = 0, newloc_ = 0, oldloc_ = 0, oldlc2_ = 0, wzdark_ = 0, gaveup_ = 0, kq_ = 0, k_ = 0;
     i16 obj_    = 0;
     Msg spk_    = Msg::None;
     Verb verb_  = Verb::None;
@@ -394,8 +393,8 @@ private:
         bottle_ = 0, water_ = 0, oil_ = 0, plant_ = 0, plant2_ = 0, axe_ = 0, mirror_ = 0,
         dragon_ = 0, chasm_ = 0, troll_ = 0, troll2_ = 0, bear_ = 0, messag_ = 0, vend_ = 0,
         batter_ = 0, nugget_ = 0, coins_ = 0, chest_ = 0, eggs_ = 0, tridnt_ = 0, vase_ = 0,
-        emrald_ = 0, pyram_ = 0, pearl_ = 0, rug_ = 0, chain_ = 0, spices_ = 0, back_ = 0,
-        look_ = 0, cave_ = 0, null_ = 0, entrnc_ = 0, dprssn_ = 0;
+        emrald_ = 0, pyram_ = 0, pearl_ = 0, rug_ = 0, chain_ = 0, back_ = 0, look_ = 0, cave_ = 0,
+        null_ = 0, entrnc_ = 0, dprssn_ = 0;
 
     // Typed, so verb_ == say_ needs no cast.
     Verb say_ = Verb::None, lock_ = Verb::None, throw_ = Verb::None, find_ = Verb::None,

@@ -241,9 +241,7 @@ Move Game::trbridge(void) // 30300
     drop(bear_, newloc_);
     fixed_[bear_] = PINNED;
     prop_[bear_]  = 3;
-    if (prop_[spices_] < 0)
-        tally2_++;
-    oldlc2_ = newloc_;
+    oldlc2_       = newloc_;
     return Move::Died;
 }
 
