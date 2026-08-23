@@ -4,21 +4,20 @@
 // status travels up to proc_main.
 #include "hdr.h"
 
-void poof(void)
+void Game::poof(void)
 {
-    magic       = "dwarf";
-    game.latncy = 15; // originally 45 minutes
+    magic_  = "dwarf";
+    latncy_ = 15; // originally 45 minutes
 }
 
-static Task<i32> wizard(void) // not as complex as advent/10 (for now)
+Task<i32> Game::wizard(void) // not as complex as advent/10 (for now)
 {
-    char *word, *x;
     if (!co_await yesm(16, 0, 7))
         co_return FALSE;
     mspeak(17);
-    if (Task<void> t = getin(&word, &x))
+    if (Task<void> t = getin())
         co_await t;
-    if (!weq(word, magic)) {
+    if (!weq(wd1_, magic_)) {
         mspeak(20);
         co_return FALSE;
     }
@@ -26,7 +25,7 @@ static Task<i32> wizard(void) // not as complex as advent/10 (for now)
     co_return TRUE;
 }
 
-Task<i32> start(int n)
+Task<i32> Game::start(int n)
 {
     int d, t, delay;
 
@@ -34,28 +33,28 @@ Task<i32> start(int n)
     if (Task<void> c = adv_clock())
         co_await c;
     datime(&d, &t);
-    delay = (d - game.saved) * 1440 + (t - game.savet); // good for about a month
-    if (delay >= game.latncy || delay < 0) {
-        game.saved = -1;
+    delay = (d - saved_) * 1440 + (t - savet_); // good for about a month
+    if (delay >= latncy_ || delay < 0) {
+        saved_ = -1;
         co_return 0;
     }
     adv_printf("This adventure was suspended a mere %d minutes ago.", delay);
-    if (delay <= game.latncy / 3) {
+    if (delay <= latncy_ / 3) {
         mspeak(2);
-        adv_status = 0;
+        status_ = 0;
         co_return ADV_OVER;
     }
     mspeak(8);
     if (!co_await wizard()) {
         mspeak(9);
-        adv_status = 0;
+        status_ = 0;
         co_return ADV_OVER;
     }
-    game.saved = -1;
+    saved_ = -1;
     co_return 0;
 }
 
-Task<i32> ciao(void)
+Task<i32> Game::ciao(void)
 {
     String fname;
 
@@ -67,7 +66,7 @@ Task<i32> ciao(void)
         if (Task<AdvEnd> t = adv_readline(fname))
             how = co_await t;
         if (how != AdvEnd::Enter || fname.empty()) {
-            adv_status = 0;
+            status_ = 0;
             co_return ADV_OVER;
         }
         Result<FileInfo> st = Err(Error::NotFound);
@@ -82,6 +81,6 @@ Task<i32> ciao(void)
         co_await t;
     adv_printf("                    ^\n");
     adv_printf("That should do it.  Gis revido.\n");
-    adv_status = 0;
+    status_ = 0;
     co_return ADV_OVER;
 }

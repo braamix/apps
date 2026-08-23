@@ -3,37 +3,36 @@
 // A handler returns the label its caller must jump back into.
 #include "hdr.h"
 
-Task<void> checkhints(void) // 2600 &c
+Task<void> Game::checkhints(void) // 2600 &c
 {
     int hint;
-    for (hint = 4; hint <= game.hntmax; hint++) {
-        if (game.hinted[hint])
+    for (hint = 4; hint <= hntmax_; hint++) {
+        if (hinted_[hint])
             continue;
-        if (!bitset(game.loc, hint))
-            game.hintlc[hint] = -1;
-        game.hintlc[hint]++;
-        if (game.hintlc[hint] < game.hints[hint][1])
+        if (!bitset(loc_, hint))
+            hintlc_[hint] = -1;
+        hintlc_[hint]++;
+        if (hintlc_[hint] < hints_[hint][1])
             continue;
         switch (hint) {
         case 4: // 40400
-            if (game.prop[game.grate] == 0 && !here(game.keys))
+            if (prop_[grate_] == 0 && !here(keys_))
                 goto l40010;
             goto l40020;
         case 5: // 40500
-            if (here(game.bird) && toting(game.rod) && game.obj == game.bird)
+            if (here(bird_) && toting(rod_) && obj_ == bird_)
                 goto l40010;
             continue; // i.e. goto l40030
         case 6:       // 40600
-            if (here(game.snake) && !here(game.bird))
+            if (here(snake_) && !here(bird_))
                 goto l40010;
             goto l40020;
         case 7: // 40700
-            if (game.atloc[game.loc] == 0 && game.atloc[game.oldloc] == 0 &&
-                game.atloc[game.oldlc2] == 0 && game.holdng > 1)
+            if (atloc_[loc_] == 0 && atloc_[oldloc_] == 0 && atloc_[oldlc2_] == 0 && holdng_ > 1)
                 goto l40010;
             goto l40020;
         case 8: // 40800
-            if (game.prop[game.emrald] != -1 && game.prop[game.pyram] == -1)
+            if (prop_[emrald_] != -1 && prop_[pyram_] == -1)
                 goto l40010;
             goto l40020;
         case 9:
@@ -42,453 +41,452 @@ Task<void> checkhints(void) // 2600 &c
             bug(27);
         }
     l40010:
-        game.hintlc[hint] = 0;
-        if (!co_await yes(game.hints[hint][3], 0, 54))
+        hintlc_[hint] = 0;
+        if (!co_await yes(hints_[hint][3], 0, 54))
             continue;
         adv_printf("I am prepared to give you a hint, but it will ");
-        adv_printf("cost you %d points.\n", game.hints[hint][2]);
-        game.hinted[hint] = co_await yes(175, game.hints[hint][4], 54);
+        adv_printf("cost you %d points.\n", hints_[hint][2]);
+        hinted_[hint] = co_await yes(175, hints_[hint][4], 54);
     l40020:
-        game.hintlc[hint] = 0;
+        hintlc_[hint] = 0;
     }
     co_return;
 }
 
-int trsay(void) // 9030
+int Game::trsay(void) // 9030
 {
     int i;
-    if (*wd2 != 0)
-        copystr(wd2, wd1);
-    i = vocab(wd1, -1, 0);
+    if (*wd2_ != 0)
+        copystr(wd2_, wd1_);
+    i = vocab(wd1_, -1, 0);
     if (i == 62 || i == 65 || i == 71 || i == 2025) {
-        *wd2     = 0;
-        game.obj = 0;
+        *wd2_ = 0;
+        obj_  = 0;
         return (2630);
     }
-    adv_printf("\nOkay, \"%s\".\n", wd2);
+    adv_printf("\nOkay, \"%s\".\n", wd2_);
     return (2012);
 }
 
-int trtake(void) // 9010
+int Game::trtake(void) // 9010
 {
-    if (toting(game.obj))
+    if (toting(obj_))
         return (2011); // 9010
-    game.spk = 25;
-    if (game.obj == game.plant && game.prop[game.plant] <= 0)
-        game.spk = 115;
-    if (game.obj == game.bear && game.prop[game.bear] == 1)
-        game.spk = 169;
-    if (game.obj == game.chain && game.prop[game.bear] != 0)
-        game.spk = 170;
-    if (game.fixed[game.obj] != 0)
+    spk_ = 25;
+    if (obj_ == plant_ && prop_[plant_] <= 0)
+        spk_ = 115;
+    if (obj_ == bear_ && prop_[bear_] == 1)
+        spk_ = 169;
+    if (obj_ == chain_ && prop_[bear_] != 0)
+        spk_ = 170;
+    if (fixed_[obj_] != 0)
         return (2011);
-    if (game.obj == game.water || game.obj == game.oil) {
-        if (here(game.bottle) && liq(0) == game.obj) {
-            game.obj = game.bottle;
+    if (obj_ == water_ || obj_ == oil_) {
+        if (here(bottle_) && liq(0) == obj_) {
+            obj_ = bottle_;
             goto l9017;
         }
-        game.obj = game.bottle;
-        if (toting(game.bottle) && game.prop[game.bottle] == 1)
+        obj_ = bottle_;
+        if (toting(bottle_) && prop_[bottle_] == 1)
             return (9220);
-        if (game.prop[game.bottle] != 1)
-            game.spk = 105;
-        if (!toting(game.bottle))
-            game.spk = 104;
+        if (prop_[bottle_] != 1)
+            spk_ = 105;
+        if (!toting(bottle_))
+            spk_ = 104;
         return (2011);
     }
 l9017:
-    if (game.holdng >= 7) {
+    if (holdng_ >= 7) {
         rspeak(92);
         return (2012);
     }
-    if (game.obj == game.bird) {
-        if (game.prop[game.bird] != 0)
+    if (obj_ == bird_) {
+        if (prop_[bird_] != 0)
             goto l9014;
-        if (toting(game.rod)) {
+        if (toting(rod_)) {
             rspeak(26);
             return (2012);
         }
-        if (!toting(game.cage)) // 9013
+        if (!toting(cage_)) // 9013
         {
             rspeak(27);
             return (2012);
         }
-        game.prop[game.bird] = 1; // 9015
+        prop_[bird_] = 1; // 9015
     }
 l9014:
-    if ((game.obj == game.bird || game.obj == game.cage) && game.prop[game.bird] != 0)
-        carry(game.bird + game.cage - game.obj, game.loc);
-    carry(game.obj, game.loc);
-    game.k = liq(0);
-    if (game.obj == game.bottle && game.k != 0)
-        game.place[game.k] = -1;
+    if ((obj_ == bird_ || obj_ == cage_) && prop_[bird_] != 0)
+        carry(bird_ + cage_ - obj_, loc_);
+    carry(obj_, loc_);
+    k_ = liq(0);
+    if (obj_ == bottle_ && k_ != 0)
+        place_[k_] = -1;
     return (2009);
 }
 
-static int dropper(void) // 9021
+int Game::dropper(void) // 9021
 {
-    game.k = liq(0);
-    if (game.k == game.obj)
-        game.obj = game.bottle;
-    if (game.obj == game.bottle && game.k != 0)
-        game.place[game.k] = 0;
-    if (game.obj == game.cage && game.prop[game.bird] != 0)
-        drop(game.bird, game.loc);
-    if (game.obj == game.bird)
-        game.prop[game.bird] = 0;
-    drop(game.obj, game.loc);
+    k_ = liq(0);
+    if (k_ == obj_)
+        obj_ = bottle_;
+    if (obj_ == bottle_ && k_ != 0)
+        place_[k_] = 0;
+    if (obj_ == cage_ && prop_[bird_] != 0)
+        drop(bird_, loc_);
+    if (obj_ == bird_)
+        prop_[bird_] = 0;
+    drop(obj_, loc_);
     return (2012);
 }
 
-int trdrop(void) // 9020
+int Game::trdrop(void) // 9020
 {
-    if (toting(game.rod2) && game.obj == game.rod && !toting(game.rod))
-        game.obj = game.rod2;
-    if (!toting(game.obj))
+    if (toting(rod2_) && obj_ == rod_ && !toting(rod_))
+        obj_ = rod2_;
+    if (!toting(obj_))
         return (2011);
-    if (game.obj == game.bird && here(game.snake)) {
+    if (obj_ == bird_ && here(snake_)) {
         rspeak(30);
-        if (game.closed)
+        if (closed_)
             return (19000);
-        dstroy(game.snake);
-        game.prop[game.snake] = 1;
+        dstroy(snake_);
+        prop_[snake_] = 1;
         return (dropper());
     }
-    if (game.obj == game.coins && here(game.vend)) // 9024
+    if (obj_ == coins_ && here(vend_)) // 9024
     {
-        dstroy(game.coins);
-        drop(game.batter, game.loc);
-        pspeak(game.batter, 0);
+        dstroy(coins_);
+        drop(batter_, loc_);
+        pspeak(batter_, 0);
         return (2012);
     }
-    if (game.obj == game.bird && at(game.dragon) && game.prop[game.dragon] == 0) // 9025
+    if (obj_ == bird_ && at(dragon_) && prop_[dragon_] == 0) // 9025
     {
         rspeak(154);
-        dstroy(game.bird);
-        game.prop[game.bird] = 0;
-        if (game.place[game.snake] == game.plac[game.snake])
-            game.tally2--;
+        dstroy(bird_);
+        prop_[bird_] = 0;
+        if (place_[snake_] == plac_[snake_])
+            tally2_--;
         return (2012);
     }
-    if (game.obj == game.bear && at(game.troll)) // 9026
+    if (obj_ == bear_ && at(troll_)) // 9026
     {
         rspeak(163);
-        move(game.troll, 0);
-        move(game.troll + 100, 0);
-        move(game.troll2, game.plac[game.troll]);
-        move(game.troll2 + 100, game.fixd[game.troll]);
-        juggle(game.chasm);
-        game.prop[game.troll] = 2;
+        move(troll_, 0);
+        move(troll_ + 100, 0);
+        move(troll2_, plac_[troll_]);
+        move(troll2_ + 100, fixd_[troll_]);
+        juggle(chasm_);
+        prop_[troll_] = 2;
         return (dropper());
     }
-    if (game.obj != game.vase || game.loc == game.plac[game.pillow]) // 9027
+    if (obj_ != vase_ || loc_ == plac_[pillow_]) // 9027
     {
         rspeak(54);
         return (dropper());
     }
-    game.prop[game.vase] = 2; // 9028
-    if (at(game.pillow))
-        game.prop[game.vase] = 0;
-    pspeak(game.vase, game.prop[game.vase] + 1);
-    if (game.prop[game.vase] != 0)
-        game.fixed[game.vase] = -1;
+    prop_[vase_] = 2; // 9028
+    if (at(pillow_))
+        prop_[vase_] = 0;
+    pspeak(vase_, prop_[vase_] + 1);
+    if (prop_[vase_] != 0)
+        fixed_[vase_] = -1;
     return (dropper());
 }
 
-int tropen(void) // 9040
+int Game::tropen(void) // 9040
 {
-    if (game.obj == game.clam || game.obj == game.oyster) {
-        game.k = 0; // 9046
-        if (game.obj == game.oyster)
-            game.k = 1;
-        game.spk = 124 + game.k;
-        if (toting(game.obj))
-            game.spk = 120 + game.k;
-        if (!toting(game.tridnt))
-            game.spk = 122 + game.k;
-        if (game.verb == game.lock)
-            game.spk = 61;
-        if (game.spk != 124)
+    if (obj_ == clam_ || obj_ == oyster_) {
+        k_ = 0; // 9046
+        if (obj_ == oyster_)
+            k_ = 1;
+        spk_ = 124 + k_;
+        if (toting(obj_))
+            spk_ = 120 + k_;
+        if (!toting(tridnt_))
+            spk_ = 122 + k_;
+        if (verb_ == lock_)
+            spk_ = 61;
+        if (spk_ != 124)
             return (2011);
-        dstroy(game.clam);
-        drop(game.oyster, game.loc);
-        drop(game.pearl, 105);
+        dstroy(clam_);
+        drop(oyster_, loc_);
+        drop(pearl_, 105);
         return (2011);
     }
-    if (game.obj == game.door)
-        game.spk = 111;
-    if (game.obj == game.door && game.prop[game.door] == 1)
-        game.spk = 54;
-    if (game.obj == game.cage)
-        game.spk = 32;
-    if (game.obj == game.keys)
-        game.spk = 55;
-    if (game.obj == game.grate || game.obj == game.chain)
-        game.spk = 31;
-    if (game.spk != 31 || !here(game.keys))
+    if (obj_ == door_)
+        spk_ = 111;
+    if (obj_ == door_ && prop_[door_] == 1)
+        spk_ = 54;
+    if (obj_ == cage_)
+        spk_ = 32;
+    if (obj_ == keys_)
+        spk_ = 55;
+    if (obj_ == grate_ || obj_ == chain_)
+        spk_ = 31;
+    if (spk_ != 31 || !here(keys_))
         return (2011);
-    if (game.obj == game.chain) {
-        if (game.verb == game.lock) {
-            game.spk = 172; // 9049: lock
-            if (game.prop[game.chain] != 0)
-                game.spk = 34;
-            if (game.loc != game.plac[game.chain])
-                game.spk = 173;
-            if (game.spk != 172)
+    if (obj_ == chain_) {
+        if (verb_ == lock_) {
+            spk_ = 172; // 9049: lock
+            if (prop_[chain_] != 0)
+                spk_ = 34;
+            if (loc_ != plac_[chain_])
+                spk_ = 173;
+            if (spk_ != 172)
                 return (2011);
-            game.prop[game.chain] = 2;
-            if (toting(game.chain))
-                drop(game.chain, game.loc);
-            game.fixed[game.chain] = -1;
+            prop_[chain_] = 2;
+            if (toting(chain_))
+                drop(chain_, loc_);
+            fixed_[chain_] = -1;
             return (2011);
         }
-        game.spk = 171;
-        if (game.prop[game.bear] == 0)
-            game.spk = 41;
-        if (game.prop[game.chain] == 0)
-            game.spk = 37;
-        if (game.spk != 171)
+        spk_ = 171;
+        if (prop_[bear_] == 0)
+            spk_ = 41;
+        if (prop_[chain_] == 0)
+            spk_ = 37;
+        if (spk_ != 171)
             return (2011);
-        game.prop[game.chain]  = 0;
-        game.fixed[game.chain] = 0;
-        if (game.prop[game.bear] != 3)
-            game.prop[game.bear] = 2;
-        game.fixed[game.bear] = 2 - game.prop[game.bear];
+        prop_[chain_]  = 0;
+        fixed_[chain_] = 0;
+        if (prop_[bear_] != 3)
+            prop_[bear_] = 2;
+        fixed_[bear_] = 2 - prop_[bear_];
         return (2011);
     }
-    if (game.closng) {
-        game.k = 130;
-        if (!game.panic)
-            game.clock2 = 15;
-        game.panic = TRUE;
+    if (closng_) {
+        k_ = 130;
+        if (!panic_)
+            clock2_ = 15;
+        panic_ = TRUE;
         return (2010);
     }
-    game.k                = 34 + game.prop[game.grate]; // 9043
-    game.prop[game.grate] = 1;
-    if (game.verb == game.lock)
-        game.prop[game.grate] = 0;
-    game.k = game.k + 2 * game.prop[game.grate];
+    k_            = 34 + prop_[grate_]; // 9043
+    prop_[grate_] = 1;
+    if (verb_ == lock_)
+        prop_[grate_] = 0;
+    k_ = k_ + 2 * prop_[grate_];
     return (2010);
 }
 
-Task<i32> trkill(void) // 9120
+Task<i32> Game::trkill(void) // 9120
 {
     int i;
     for (i = 1; i <= 5; i++)
-        if (game.dloc[i] == game.loc && game.dflag >= 2)
+        if (dloc_[i] == loc_ && dflag_ >= 2)
             break;
     if (i == 6)
         i = 0;
-    if (game.obj == 0) // 9122
+    if (obj_ == 0) // 9122
     {
         if (i != 0)
-            game.obj = game.dwarf;
-        if (here(game.snake))
-            game.obj = game.obj * 100 + game.snake;
-        if (at(game.dragon) && game.prop[game.dragon] == 0)
-            game.obj = game.obj * 100 + game.dragon;
-        if (at(game.troll))
-            game.obj = game.obj * 100 + game.troll;
-        if (here(game.bear) && game.prop[game.bear] == 0)
-            game.obj = game.obj * 100 + game.bear;
-        if (game.obj > 100)
+            obj_ = dwarf_;
+        if (here(snake_))
+            obj_ = obj_ * 100 + snake_;
+        if (at(dragon_) && prop_[dragon_] == 0)
+            obj_ = obj_ * 100 + dragon_;
+        if (at(troll_))
+            obj_ = obj_ * 100 + troll_;
+        if (here(bear_) && prop_[bear_] == 0)
+            obj_ = obj_ * 100 + bear_;
+        if (obj_ > 100)
             co_return 8000;
-        if (game.obj == 0) {
-            if (here(game.bird) && game.verb != game.throw_)
-                game.obj = game.bird;
-            if (here(game.clam) || here(game.oyster))
-                game.obj = 100 * game.obj + game.clam;
-            if (game.obj > 100)
+        if (obj_ == 0) {
+            if (here(bird_) && verb_ != throw_)
+                obj_ = bird_;
+            if (here(clam_) || here(oyster_))
+                obj_ = 100 * obj_ + clam_;
+            if (obj_ > 100)
                 co_return 8000;
         }
     }
-    if (game.obj == game.bird) // 9124
+    if (obj_ == bird_) // 9124
     {
-        game.spk = 137;
-        if (game.closed)
+        spk_ = 137;
+        if (closed_)
             co_return 2011;
-        dstroy(game.bird);
-        game.prop[game.bird] = 0;
-        if (game.place[game.snake] == game.plac[game.snake])
-            game.tally2++;
-        game.spk = 45;
+        dstroy(bird_);
+        prop_[bird_] = 0;
+        if (place_[snake_] == plac_[snake_])
+            tally2_++;
+        spk_ = 45;
     }
-    if (game.obj == 0)
-        game.spk = 44; // 9125
-    if (game.obj == game.clam || game.obj == game.oyster)
-        game.spk = 150;
-    if (game.obj == game.snake)
-        game.spk = 46;
-    if (game.obj == game.dwarf)
-        game.spk = 49;
-    if (game.obj == game.dwarf && game.closed)
+    if (obj_ == 0)
+        spk_ = 44; // 9125
+    if (obj_ == clam_ || obj_ == oyster_)
+        spk_ = 150;
+    if (obj_ == snake_)
+        spk_ = 46;
+    if (obj_ == dwarf_)
+        spk_ = 49;
+    if (obj_ == dwarf_ && closed_)
         co_return 19000;
-    if (game.obj == game.dragon)
-        game.spk = 147;
-    if (game.obj == game.troll)
-        game.spk = 157;
-    if (game.obj == game.bear)
-        game.spk = 165 + (game.prop[game.bear] + 1) / 2;
-    if (game.obj != game.dragon || game.prop[game.dragon] != 0)
+    if (obj_ == dragon_)
+        spk_ = 147;
+    if (obj_ == troll_)
+        spk_ = 157;
+    if (obj_ == bear_)
+        spk_ = 165 + (prop_[bear_] + 1) / 2;
+    if (obj_ != dragon_ || prop_[dragon_] != 0)
         co_return 2011;
     rspeak(49);
-    game.verb = 0;
-    game.obj  = 0;
-    if (Task<void> t = getin(&wd1, &wd2))
+    verb_ = 0;
+    obj_  = 0;
+    if (Task<void> t = getin())
         co_await t;
-    if (!weq(wd1, "y") && !weq(wd1, "yes"))
+    if (!weq(wd1_, "y") && !weq(wd1_, "yes"))
         co_return 2608;
-    pspeak(game.dragon, 1);
-    game.prop[game.dragon] = 2;
-    game.prop[game.rug]    = 0;
-    game.k                 = (game.plac[game.dragon] + game.fixd[game.dragon]) / 2;
-    move(game.dragon + 100, -1);
-    move(game.rug + 100, 0);
-    move(game.dragon, game.k);
-    move(game.rug, game.k);
-    for (game.obj = 1; game.obj <= 100; game.obj++)
-        if (game.place[game.obj] == game.plac[game.dragon] ||
-            game.place[game.obj] == game.fixd[game.dragon])
-            move(game.obj, game.k);
-    game.loc = game.k;
-    game.k   = game.null;
+    pspeak(dragon_, 1);
+    prop_[dragon_] = 2;
+    prop_[rug_]    = 0;
+    k_             = (plac_[dragon_] + fixd_[dragon_]) / 2;
+    move(dragon_ + 100, -1);
+    move(rug_ + 100, 0);
+    move(dragon_, k_);
+    move(rug_, k_);
+    for (obj_ = 1; obj_ <= 100; obj_++)
+        if (place_[obj_] == plac_[dragon_] || place_[obj_] == fixd_[dragon_])
+            move(obj_, k_);
+    loc_ = k_;
+    k_   = null_;
     co_return 8;
 }
 
-int trtoss(void) // 9170: throw
+int Game::trtoss(void) // 9170: throw
 {
     int i;
-    if (toting(game.rod2) && game.obj == game.rod && !toting(game.rod))
-        game.obj = game.rod2;
-    if (!toting(game.obj))
+    if (toting(rod2_) && obj_ == rod_ && !toting(rod_))
+        obj_ = rod2_;
+    if (!toting(obj_))
         return (2011);
-    if (game.obj >= 50 && game.obj <= game.maxtrs && at(game.troll)) {
-        game.spk = 159; // 9178
-        drop(game.obj, 0);
-        move(game.troll, 0);
-        move(game.troll + 100, 0);
-        drop(game.troll2, game.plac[game.troll]);
-        drop(game.troll2 + 100, game.fixd[game.troll]);
-        juggle(game.chasm);
+    if (obj_ >= 50 && obj_ <= maxtrs_ && at(troll_)) {
+        spk_ = 159; // 9178
+        drop(obj_, 0);
+        move(troll_, 0);
+        move(troll_ + 100, 0);
+        drop(troll2_, plac_[troll_]);
+        drop(troll2_ + 100, fixd_[troll_]);
+        juggle(chasm_);
         return (2011);
     }
-    if (game.obj == game.food && here(game.bear)) {
-        game.obj = game.bear; // 9177
+    if (obj_ == food_ && here(bear_)) {
+        obj_ = bear_; // 9177
         return (9210);
     }
-    if (game.obj != game.axe)
+    if (obj_ != axe_)
         return (9020);
     for (i = 1; i <= 5; i++) {
-        if (game.dloc[i] == game.loc) {
-            game.spk = 48; // 9172
-            if (ran(3) == 0 || game.saved != -1)
+        if (dloc_[i] == loc_) {
+            spk_ = 48; // 9172
+            if (ran(3) == 0 || saved_ != -1)
             l9175: {
-                rspeak(game.spk);
-                drop(game.axe, game.loc);
-                game.k = game.null;
+                rspeak(spk_);
+                drop(axe_, loc_);
+                k_ = null_;
                 return (8);
             }
-                game.dseen[i] = FALSE;
-            game.dloc[i] = 0;
-            game.spk     = 47;
-            game.dkill++;
-            if (game.dkill == 1)
-                game.spk = 149;
+                dseen_[i] = FALSE;
+            dloc_[i] = 0;
+            spk_     = 47;
+            dkill_++;
+            if (dkill_ == 1)
+                spk_ = 149;
             goto l9175;
         }
     }
-    game.spk = 152;
-    if (at(game.dragon) && game.prop[game.dragon] == 0)
+    spk_ = 152;
+    if (at(dragon_) && prop_[dragon_] == 0)
         goto l9175;
-    game.spk = 158;
-    if (at(game.troll))
+    spk_ = 158;
+    if (at(troll_))
         goto l9175;
-    if (here(game.bear) && game.prop[game.bear] == 0) {
-        game.spk = 164;
-        drop(game.axe, game.loc);
-        game.fixed[game.axe] = -1;
-        game.prop[game.axe]  = 1;
-        juggle(game.bear);
+    if (here(bear_) && prop_[bear_] == 0) {
+        spk_ = 164;
+        drop(axe_, loc_);
+        fixed_[axe_] = -1;
+        prop_[axe_]  = 1;
+        juggle(bear_);
         return (2011);
     }
-    game.obj = 0;
+    obj_ = 0;
     return (9120);
 }
 
-int trfeed(void) // 9210
+int Game::trfeed(void) // 9210
 {
-    if (game.obj == game.bird) {
-        game.spk = 100;
+    if (obj_ == bird_) {
+        spk_ = 100;
         return (2011);
     }
-    if (game.obj == game.snake || game.obj == game.dragon || game.obj == game.troll) {
-        game.spk = 102;
-        if (game.obj == game.dragon && game.prop[game.dragon] != 0)
-            game.spk = 110;
-        if (game.obj == game.troll)
-            game.spk = 182;
-        if (game.obj != game.snake || game.closed || !here(game.bird))
+    if (obj_ == snake_ || obj_ == dragon_ || obj_ == troll_) {
+        spk_ = 102;
+        if (obj_ == dragon_ && prop_[dragon_] != 0)
+            spk_ = 110;
+        if (obj_ == troll_)
+            spk_ = 182;
+        if (obj_ != snake_ || closed_ || !here(bird_))
             return (2011);
-        game.spk = 101;
-        dstroy(game.bird);
-        game.prop[game.bird] = 0;
-        game.tally2++;
+        spk_ = 101;
+        dstroy(bird_);
+        prop_[bird_] = 0;
+        tally2_++;
         return (2011);
     }
-    if (game.obj == game.dwarf) {
-        if (!here(game.food))
+    if (obj_ == dwarf_) {
+        if (!here(food_))
             return (2011);
-        game.spk = 103;
-        game.dflag++;
+        spk_ = 103;
+        dflag_++;
         return (2011);
     }
-    if (game.obj == game.bear) {
-        if (game.prop[game.bear] == 0)
-            game.spk = 102;
-        if (game.prop[game.bear] == 3)
-            game.spk = 110;
-        if (!here(game.food))
+    if (obj_ == bear_) {
+        if (prop_[bear_] == 0)
+            spk_ = 102;
+        if (prop_[bear_] == 3)
+            spk_ = 110;
+        if (!here(food_))
             return (2011);
-        dstroy(game.food);
-        game.prop[game.bear] = 1;
-        game.fixed[game.axe] = 0;
-        game.prop[game.axe]  = 0;
-        game.spk             = 168;
+        dstroy(food_);
+        prop_[bear_] = 1;
+        fixed_[axe_] = 0;
+        prop_[axe_]  = 0;
+        spk_         = 168;
         return (2011);
     }
-    game.spk = 14;
+    spk_ = 14;
     return (2011);
 }
 
-int trfill(void) // 9220
+int Game::trfill(void) // 9220
 {
-    if (game.obj == game.vase) {
-        game.spk = 29;
-        if (liqloc(game.loc) == 0)
-            game.spk = 144;
-        if (liqloc(game.loc) == 0 || !toting(game.vase))
+    if (obj_ == vase_) {
+        spk_ = 29;
+        if (liqloc(loc_) == 0)
+            spk_ = 144;
+        if (liqloc(loc_) == 0 || !toting(vase_))
             return (2011);
         rspeak(145);
-        game.prop[game.vase]  = 2;
-        game.fixed[game.vase] = -1;
+        prop_[vase_]  = 2;
+        fixed_[vase_] = -1;
         return (9020); // advent/10 goes to 9024
     }
-    if (game.obj != 0 && game.obj != game.bottle)
+    if (obj_ != 0 && obj_ != bottle_)
         return (2011);
-    if (game.obj == 0 && !here(game.bottle))
+    if (obj_ == 0 && !here(bottle_))
         return (8000);
-    game.spk = 107;
-    if (liqloc(game.loc) == 0)
-        game.spk = 106;
+    spk_ = 107;
+    if (liqloc(loc_) == 0)
+        spk_ = 106;
     if (liq(0) != 0)
-        game.spk = 105;
-    if (game.spk != 107)
+        spk_ = 105;
+    if (spk_ != 107)
         return (2011);
-    game.prop[game.bottle] = ((game.cond[game.loc] % 4) / 2) * 2;
-    game.k                 = liq(0);
-    if (toting(game.bottle))
-        game.place[game.k] = -1;
-    if (game.k == game.oil)
-        game.spk = 108;
+    prop_[bottle_] = ((cond_[loc_] % 4) / 2) * 2;
+    k_             = liq(0);
+    if (toting(bottle_))
+        place_[k_] = -1;
+    if (k_ == oil_)
+        spk_ = 108;
     return (2011);
 }

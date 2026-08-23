@@ -24,166 +24,170 @@
 #include "kernel/alloc.h"
 #include "proc/io.h"
 
-extern int delhit;
-extern int adv_status; // what proc_main will return
-extern const char *magic;
+constexpr int TAB = 011;
+constexpr int LF  = 012;
 
-#define DATSIZE (46 * 1024) // size of encrypted data
-
-#define TAB 011
-#define LF  012
 #define FLUSHLF          \
     while (next() != LF) \
         ;
 
-extern char *wd1, *wd2; // the complete words
+constexpr int FALSE = 0;
+constexpr int TRUE  = 1;
 
-struct hashtab { // hash table for vocabulary
-    int val;     // word type &index (ktab)
-    int hash;    // 32-bit hash value
+constexpr usize DATSIZE = 46 * 1024; // size of encrypted data
+constexpr usize MAXSTR  = 20;        // max length of user's words
+constexpr usize HTSIZE  = 512;       // max number of vocab words
+constexpr usize RTXSIZ  = 205;
+constexpr usize MAGSIZ  = 35;
+constexpr usize CLSMAX  = 12;
+constexpr usize LOCSIZ  = 141; // number of locations
+
+struct HashTab { // hash table for vocabulary
+    i32 val;     // word type &index (ktab)
+    i32 hash;    // 32-bit hash value
 };
 
-struct text {
-    unsigned short seekadr; // DATFILE must be < 2**16
-    unsigned short txtlen;  // length of msg starting here
+struct Text {
+    u16 seekadr; // DATFILE must be < 2**16
+    u16 txtlen;  // length of msg starting here
 };
 
-struct travlist {              // direcs & conditions of travel
-    struct travlist *next;     // ptr to next list entry
-    unsigned short conditions; // m in writeup (newloc / 1000)
-    unsigned short tloc;       // n in writeup (newloc % 1000)
-    unsigned short tverb;      // the verb that takes you there
+struct Travel {     // direcs & conditions of travel
+    Travel *next;   // ptr to next list entry
+    u16 conditions; // m in writeup (newloc / 1000)
+    u16 tloc;       // n in writeup (newloc % 1000)
+    u16 tverb;      // the verb that takes you there
 };
-
-// Game state.
-extern struct game {
-    short loc, newloc, oldloc, oldlc2, wzdark, gaveup, kq, k, k2;
-    short verb, obj, spk;
-    short blklin;
-    int saved, savet, mxscor, latncy;
-
-#define MAXSTR 20 // max length of user's words
-
-#define HTSIZE 512              // max number of vocab words
-    struct hashtab voc[HTSIZE]; // hash table for vocabulary
-
-#define RTXSIZ 205
-    struct text rtext[RTXSIZ]; // random text messages
-
-#define MAGSIZ 35
-    struct text mtext[MAGSIZ]; // magic messages
-
-    short clsses;
-#define CLSMAX 12
-    struct text ctext[CLSMAX]; // classes of adventurer
-    short cval[CLSMAX];
-
-    struct text ptext[101]; // object descriptions
-
-#define LOCSIZ 141             // number of locations
-    struct text ltext[LOCSIZ]; // long loc description
-    struct text stext[LOCSIZ]; // short loc descriptions
-
-    struct travlist *travel[LOCSIZ]; // direcs & conditions of travel
-
-    short atloc[LOCSIZ];
-
-    short plac[101];             // initial object placement
-    short fixd[101], fixed[101]; // location fixed?
-
-    short actspk[35]; // rtext msg for verb <n>
-
-    short cond[LOCSIZ]; // various condition bits
-
-    short hntmax;
-    short hints[20][5]; // info on hints
-    short hinted[20], hintlc[20];
-
-    short place[101], prop[101], plink[201];
-    short abb[LOCSIZ];
-
-    short maxtrs, tally, tally2; // treasure values
-
-#define FALSE 0
-#define TRUE  1
-
-    short keys, lamp, grate, cage, rod, // mnemonics
-        rod2, steps, bird, door, pillow, snake, fissur, tablet, clam, oyster, magzin, dwarf, knife,
-        food, bottle, water, oil, plant, plant2, axe, mirror, dragon, chasm, troll, troll2, bear,
-        messag, vend, batter, nugget, coins, chest, eggs, tridnt, vase, emrald, pyram, pearl, rug,
-        chain, spices, back, look, cave, null, entrnc, dprssn, say, lock, throw_, find, invent;
-
-    short chloc, chloc2, dseen[7], // dwarf stuff
-        dloc[7], odloc[7], dflag, daltlc;
-
-    short tk[21], stick, dtotal, attack;
-    short turns, lmwarn, iwest, knfloc, // various flags & counters
-        detail, abbnum, maxdie, numdie, holdng, dkill, foobar, bonus, clock1, clock2, closng, panic,
-        closed, scorng;
-
-    short limit;
-} game;
-
-extern struct travlist *tkk; // travel is closer to keys(...)
-
-extern const short setbit[16]; // bit defn masks 1,2,4,...
 
 // An exit from deep in the call graph, which had no way back: done() and its
 // callers hand the status up instead, and a negative one says the game is over
 // and already reported.
 constexpr int ADV_OVER = -1;
 
-void linkdata(void);
-Task<i32> startup(void);
-void rdata(void);
-void mspeak(int);
-void rspeak(int);
-void speak(struct text *);
-int toting(int);
-Task<i32> yes(int, int, int);
-Task<i32> yesm(int, int, int);
-void drop(int, int);
-int vocab(const char *, int, int);
-void poof(void);
-Task<Result<void>> save(Str);
-Task<i32> ciao(void);
-Task<Result<void>> restore(Str);
-Task<i32> start(int);
-int length(const char *);
+// The game.  Upstream's globals are the state, and its routines are the
+// methods; a field carries a trailing underscore so neither hides the other.
+class Game {
+public:
+    Task<i32> play(Args args); // upstream's main()
+
+private:
+    // ---- the command loop -- main.cpp ---------------------------------
+    int closing(), caveclose();
+
+    // ---- setup -- init.cpp --------------------------------------------
+    void linkdata();
+    Task<i32> startup();
+
+    // ---- the glorkz parser -- io.cpp ----------------------------------
+    void rdata();
+    int next(), rnum();
+    void putdat(char), rtrav(), rdesc(int), rvoc(), rlocs(), rdflt(), rliq(), rhints();
+
+    // ---- messages and input -- io.cpp ---------------------------------
+    void speak(Text *), pspeak(int, int), rspeak(int), mspeak(int);
+    Task<void> getin(); // fills wd1_ and wd2_
+    Task<i32> yes(int, int, int), yesm(int, int, int);
+
+    // ---- the objects -- vocab.cpp -------------------------------------
+    void dstroy(int), juggle(int), move(int, int), carry(int, int), drop(int, int);
+    int put(int, int, int), vocab(const char *, int, int);
+
+    // ---- statement functions -- subr.cpp ------------------------------
+    int toting(int), here(int), at(int), liq2(int), liq(int), liqloc(int);
+    int bitset(int, int), forced(int), dark(int), pct(int);
+
+    // ---- the dwarves and the travel table -- move.cpp -----------------
+    int fdwarf(), mback(), badmove(), trbridge(), specials(), march();
+
+    // ---- the hints and the verb handlers -- verbs.cpp -----------------
+    Task<void> checkhints();
+    int trsay(), trtake(), dropper(), trdrop(), tropen(), trtoss(), trfeed(), trfill();
+    Task<i32> trkill();
+
+    // ---- privileged operations -- wizard.cpp --------------------------
+    void poof();
+    Task<i32> wizard(), start(int), ciao();
+
+    // ---- scoring and the end -- done.cpp ------------------------------
+    int score();
+    Task<i32> done(int), die(int);
+
+    // ---- suspend and resume -- save.cpp -------------------------------
+    Task<Result<void>> save(Str), restore(Str);
+
+    // ================= state ===========================================
+    i16 loc_, newloc_, oldloc_, oldlc2_, wzdark_, gaveup_, kq_, k_, k2_;
+    i16 verb_, obj_, spk_;
+    i16 blklin_;
+    i32 saved_, savet_, mxscor_, latncy_;
+
+    HashTab voc_[HTSIZE]; // hash table for vocabulary
+
+    Text rtext_[RTXSIZ]; // random text messages
+
+    Text mtext_[MAGSIZ]; // magic messages
+
+    i16 clsses_;
+    Text ctext_[CLSMAX]; // classes of adventurer
+    i16 cval_[CLSMAX];
+
+    Text ptext_[101]; // object descriptions
+
+    Text ltext_[LOCSIZ]; // long loc description
+    Text stext_[LOCSIZ]; // short loc descriptions
+
+    Travel *travel_[LOCSIZ]; // direcs & conditions of travel
+
+    i16 atloc_[LOCSIZ];
+
+    i16 plac_[101];              // initial object placement
+    i16 fixd_[101], fixed_[101]; // location fixed?
+
+    i16 actspk_[35]; // rtext msg for verb <n>
+
+    i16 cond_[LOCSIZ]; // various condition bits
+
+    i16 hntmax_;
+    i16 hints_[20][5]; // info on hints
+    i16 hinted_[20], hintlc_[20];
+
+    i16 place_[101], prop_[101], plink_[201];
+    i16 abb_[LOCSIZ];
+
+    i16 maxtrs_, tally_, tally2_; // treasure values
+
+    i16 keys_, lamp_, grate_, cage_, rod_, // mnemonics
+        rod2_, steps_, bird_, door_, pillow_, snake_, fissur_, tablet_, clam_, oyster_, magzin_,
+        dwarf_, knife_, food_, bottle_, water_, oil_, plant_, plant2_, axe_, mirror_, dragon_,
+        chasm_, troll_, troll2_, bear_, messag_, vend_, batter_, nugget_, coins_, chest_, eggs_,
+        tridnt_, vase_, emrald_, pyram_, pearl_, rug_, chain_, spices_, back_, look_, cave_, null_,
+        entrnc_, dprssn_, say_, lock_, throw_, find_, invent_;
+
+    i16 chloc_, chloc2_, dseen_[7], // dwarf stuff
+        dloc_[7], odloc_[7], dflag_, daltlc_;
+
+    i16 tk_[21], stick_, dtotal_, attack_;
+    i16 turns_, lmwarn_, iwest_, knfloc_, // various flags & counters
+        detail_, abbnum_, maxdie_, numdie_, holdng_, dkill_, foobar_, bonus_, clock1_, clock2_,
+        closng_, panic_, closed_, scorng_;
+
+    i16 limit_;
+
+    // ---- what upstream kept beside the state struct --------------------
+    Travel *tkk_;      // travel is closer to keys(...)
+    char wd1_[MAXSTR]; // the complete words
+    char wd2_[MAXSTR];
+    int delhit_; // user typed a DEL
+    const char *magic_;
+    i32 status_; // what proc_main will return
+
+    static const i16 SETBIT[16]; // bit defn masks 1,2,4,...
+};
+
+// Free: pure, or defined in braam.cpp, which must not include this header.
 [[noreturn]] void bug(int);
-Task<void> getin(char **, char **);
-int fdwarf(void);
-Task<i32> die(int);
-int bitset(int, int);
-int forced(int);
-int dark(int);
-int pct(int);
-void pspeak(int, int);
-Task<void> checkhints(void);
-void copystr(const char *, char *);
-Task<i32> done(int);
-int closing(void);
-int caveclose(void);
-int here(int);
-int at(int);
-int liqloc(int);
-int weq(const char *, const char *);
-int march(void);
-void dstroy(int);
-int score(void);
-void move(int, int);
-void datime(int *, int *);
-int trtake(void);
-int trdrop(void);
-int trsay(void);
-int tropen(void);
-Task<i32> trkill(void);
-int trtoss(void);
-int trfill(void);
-int trfeed(void);
-int liq(int);
 int ran(int);
-void carry(int, int);
-void juggle(int);
-int put(int, int, int);
-int next(void);
+void datime(int *, int *);
+int length(const char *);
+int weq(const char *, const char *);
+void copystr(const char *, char *);

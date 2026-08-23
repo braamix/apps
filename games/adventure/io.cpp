@@ -40,7 +40,7 @@ static int atoi(const char *s)
     return v * sign;
 }
 
-int next(void) // next char frm file, bump adr
+int Game::next(void) // next char frm file, bump adr
 {
     char ch;
     adrptr++; // seek address in file
@@ -55,13 +55,13 @@ int next(void) // next char frm file, bump adr
     return (ch);
 }
 
-static void putdat(char ch) // the leading 'X', so seekadr > 0
+void Game::putdat(char ch) // the leading 'X', so seekadr > 0
 {
     if (outadr < DATSIZE)
         datbuf[outadr++] = ch;
 }
 
-int rnum(void) // read initial location num
+int Game::rnum(void) // read initial location num
 {
     char *s;
     tape = iotape; // restart encryption tape
@@ -75,29 +75,29 @@ int rnum(void) // read initial location num
     return (atoi(nbf)); // convert it to integer
 }
 
-static void rtrav(void) // read travel table
+void Game::rtrav(void) // read travel table
 {
     int locc;
-    struct travlist *t = 0;
+    Travel *t = 0;
     char *s;
     char buf[12];
     int len, m, n, entries = 0;
-    for (game.oldloc = -1;;) // get another line
+    for (oldloc_ = -1;;) // get another line
     {
-        if ((locc = rnum()) != game.oldloc && game.oldloc >= 0) // end of entry
+        if ((locc = rnum()) != oldloc_ && oldloc_ >= 0) // end of entry
         {
             t->next = 0; // terminate the old entry
         }
         if (locc == -1)
             return;
-        if (locc != game.oldloc) // getting a new entry
+        if (locc != oldloc_) // getting a new entry
         {
-            t = heap_new<struct travlist>();
+            t = heap_new<Travel>();
             if (!t)
                 bug(31);
-            game.travel[locc] = t;
-            entries           = 0;
-            game.oldloc       = locc;
+            travel_[locc] = t;
+            entries       = 0;
+            oldloc_       = locc;
         }
         for (s = buf, *s = 0;; s++) // get the newloc number /ASCII
             if ((*s = next()) == TAB || *s == LF)
@@ -117,7 +117,7 @@ static void rtrav(void) // read travel table
         while (breakch != LF) // only do one line at a time
         {
             if (entries++) {
-                t->next = heap_new<struct travlist>();
+                t->next = heap_new<Travel>();
                 if (!t->next)
                     bug(31);
                 t = t->next;
@@ -129,7 +129,7 @@ static void rtrav(void) // read travel table
     }
 }
 
-static void rdesc(int sect) // read description-format msgs
+void Game::rdesc(int sect) // read description-format msgs
 {
     int locc;
     int seekstart, maystart;
@@ -137,45 +137,45 @@ static void rdesc(int sect) // read description-format msgs
     if (sect == 1)
         putdat('X'); // so seekadr > 0
     adrptr = 0;
-    for (game.oldloc = -1, seekstart = seekhere;;) {
-        maystart = adrptr;                                     // maybe starting new entry
-        if ((locc = rnum()) != game.oldloc && game.oldloc >= 0 // finished msg
-            && !(sect == 5 && (locc == 0 || locc >= 100)))     // unless sect 5
+    for (oldloc_ = -1, seekstart = seekhere;;) {
+        maystart = adrptr;                                 // maybe starting new entry
+        if ((locc = rnum()) != oldloc_ && oldloc_ >= 0     // finished msg
+            && !(sect == 5 && (locc == 0 || locc >= 100))) // unless sect 5
         {
             switch (sect) // now put it into right table
             {
             case 1: // long descriptions
-                game.ltext[game.oldloc].seekadr = seekhere;
-                game.ltext[game.oldloc].txtlen  = maystart - seekstart;
+                ltext_[oldloc_].seekadr = seekhere;
+                ltext_[oldloc_].txtlen  = maystart - seekstart;
                 break;
             case 2: // short descriptions
-                game.stext[game.oldloc].seekadr = seekhere;
-                game.stext[game.oldloc].txtlen  = maystart - seekstart;
+                stext_[oldloc_].seekadr = seekhere;
+                stext_[oldloc_].txtlen  = maystart - seekstart;
                 break;
             case 5: // object descriptions
-                game.ptext[game.oldloc].seekadr = seekhere;
-                game.ptext[game.oldloc].txtlen  = maystart - seekstart;
+                ptext_[oldloc_].seekadr = seekhere;
+                ptext_[oldloc_].txtlen  = maystart - seekstart;
                 break;
             case 6: // random messages
-                if (game.oldloc > RTXSIZ) {
+                if (oldloc_ > RTXSIZ) {
                     adv_printf("Too many random msgs\n");
                     bug(32);
                 }
-                game.rtext[game.oldloc].seekadr = seekhere;
-                game.rtext[game.oldloc].txtlen  = maystart - seekstart;
+                rtext_[oldloc_].seekadr = seekhere;
+                rtext_[oldloc_].txtlen  = maystart - seekstart;
                 break;
             case 10: // class messages
-                game.ctext[game.clsses].seekadr = seekhere;
-                game.ctext[game.clsses].txtlen  = maystart - seekstart;
-                game.cval[game.clsses++]        = game.oldloc;
+                ctext_[clsses_].seekadr = seekhere;
+                ctext_[clsses_].txtlen  = maystart - seekstart;
+                cval_[clsses_++]        = oldloc_;
                 break;
             case 12: // magic messages
-                if (game.oldloc > MAGSIZ) {
+                if (oldloc_ > MAGSIZ) {
                     adv_printf("Too many magic msgs\n");
                     bug(32);
                 }
-                game.mtext[game.oldloc].seekadr = seekhere;
-                game.mtext[game.oldloc].txtlen  = maystart - seekstart;
+                mtext_[oldloc_].seekadr = seekhere;
+                mtext_[oldloc_].txtlen  = maystart - seekstart;
                 break;
             default:
                 adv_printf("rdesc called with bad section\n");
@@ -189,23 +189,20 @@ static void rdesc(int sect) // read description-format msgs
             return;
         }
         if (sect != 5 || (locc > 0 && locc < 100)) {
-            if (game.oldloc != locc) // starting a new message
+            if (oldloc_ != locc) // starting a new message
                 seekstart = maystart;
-            game.oldloc = locc;
+            oldloc_ = locc;
         }
         FLUSHLF; // scan the line
     }
 }
 
-Task<void> getin(char **wrd1, char **wrd2) // get command from user
+Task<void> Game::getin() // get command from user
 {
-    static char wd1buf[MAXSTR], wd2buf[MAXSTR];
     String line;
 
-    *wrd1     = wd1buf; // return ptr to internal string
-    *wrd2     = wd2buf;
-    wd1buf[0] = 0;
-    wd2buf[0] = 0; // in case it isn't set here
+    wd1_[0] = 0;
+    wd2_[0] = 0; // in case it isn't set here
 
     if (Task<void> t = adv_flush())
         co_await t;
@@ -216,12 +213,12 @@ Task<void> getin(char **wrd1, char **wrd2) // get command from user
 
     if (how == AdvEnd::Interrupt) // ^C, which was DEL on a VAX
     {
-        delhit++;
+        delhit_++;
         co_return;
     }
     if (how == AdvEnd::Eof) // nothing more will be typed
     {
-        copystr("quit", wd1buf);
+        copystr("quit", wd1_);
         co_return;
     }
 
@@ -230,7 +227,7 @@ Task<void> getin(char **wrd1, char **wrd2) // get command from user
     // MAXSTR is a complaint rather than an overrun.
     Str s      = line.str();
     usize i    = 0;
-    char *dest = wd1buf;
+    char *dest = wd1_;
     int first = 1, numch = 0;
     while (i < s.size()) {
         char c = s[i++];
@@ -242,13 +239,13 @@ Task<void> getin(char **wrd1, char **wrd2) // get command from user
             if (!first)
                 break; // finished 2nd word
             first = numch = 0;
-            dest          = wd2buf;
+            dest          = wd2_;
             continue;
         }
         if (++numch >= MAXSTR) // string too long
         {
             adv_printf("Give me a break!!\n");
-            wd1buf[0] = wd2buf[0] = 0;
+            wd1_[0] = wd2_[0] = 0;
             co_return;
         }
         dest[numch - 1] = c;
@@ -257,7 +254,7 @@ Task<void> getin(char **wrd1, char **wrd2) // get command from user
     co_return;
 }
 
-Task<i32> yes(int x, int y, int z) // confirm with rspeak
+Task<i32> Game::yes(int x, int y, int z) // confirm with rspeak
 {
     int result = -1;
     String line;
@@ -289,7 +286,7 @@ Task<i32> yes(int x, int y, int z) // confirm with rspeak
     co_return result;
 }
 
-Task<i32> yesm(int x, int y, int z) // confirm with mspeak
+Task<i32> Game::yesm(int x, int y, int z) // confirm with mspeak
 {
     int result = -1;
     String line;
@@ -320,7 +317,7 @@ Task<i32> yesm(int x, int y, int z) // confirm with mspeak
     co_return result;
 }
 
-static void rvoc(void)
+void Game::rvoc(void)
 {
     char *s; // read the vocabulary
     int index;
@@ -340,29 +337,29 @@ static void rvoc(void)
     }
 }
 
-static void rlocs(void) // initial object locations
+void Game::rlocs(void) // initial object locations
 {
     for (;;) {
-        if ((game.obj = rnum()) < 0)
+        if ((obj_ = rnum()) < 0)
             break;
-        game.plac[game.obj] = rnum(); // initial loc for this obj
-        if (breakch == TAB)           // there's another entry
-            game.fixd[game.obj] = rnum();
+        plac_[obj_] = rnum(); // initial loc for this obj
+        if (breakch == TAB)   // there's another entry
+            fixd_[obj_] = rnum();
         else
-            game.fixd[game.obj] = 0;
+            fixd_[obj_] = 0;
     }
 }
 
-static void rdflt(void) // default verb messages
+void Game::rdflt(void) // default verb messages
 {
     for (;;) {
-        if ((game.verb = rnum()) < 0)
+        if ((verb_ = rnum()) < 0)
             break;
-        game.actspk[game.verb] = rnum();
+        actspk_[verb_] = rnum();
     }
 }
 
-static void rliq(void) // liquid assets &c: cond bits
+void Game::rliq(void) // liquid assets &c: cond bits
 {
     int bitnum;
     for (;;) // read new bit list
@@ -371,28 +368,28 @@ static void rliq(void) // liquid assets &c: cond bits
             break;
         for (;;) // read locs for bits
         {
-            game.cond[rnum()] |= setbit[bitnum];
+            cond_[rnum()] |= SETBIT[bitnum];
             if (breakch == LF)
                 break;
         }
     }
 }
 
-static void rhints(void)
+void Game::rhints(void)
 {
     int hintnum, i;
-    game.hntmax = 0;
+    hntmax_ = 0;
     for (;;) {
         if ((hintnum = rnum()) < 0)
             break;
         for (i = 1; i < 5; i++)
-            game.hints[hintnum][i] = rnum();
-        if (hintnum > game.hntmax)
-            game.hntmax = hintnum;
+            hints_[hintnum][i] = rnum();
+        if (hintnum > hntmax_)
+            hntmax_ = hintnum;
     }
 }
 
-void rdata(void) // read all data from orig file
+void Game::rdata(void) // read all data from orig file
 {
     int sect;
     char ch;
@@ -401,8 +398,8 @@ void rdata(void) // read all data from orig file
     datbuf = static_cast<char *>(heap_alloc(DATSIZE)); // the text lines go here
     if (!datbuf)
         bug(30);
-    outadr      = 0;
-    game.clsses = 1;
+    outadr  = 0;
+    clsses_ = 1;
     for (;;) // read data sections
     {
         sect = next() - '0';     // 1st digit of section number
@@ -459,23 +456,23 @@ void rdata(void) // read all data from orig file
     }
 }
 
-void rspeak(int msg)
+void Game::rspeak(int msg)
 {
     if (msg != 0)
-        speak(&game.rtext[msg]);
+        speak(&rtext_[msg]);
 }
 
-void mspeak(int msg)
+void Game::mspeak(int msg)
 {
     if (msg != 0)
-        speak(&game.mtext[msg]);
+        speak(&mtext_[msg]);
 }
 
 // The longest message in glorkz is 1460 bytes; upstream used alloca.
 static char tbuf[2048];
 
-void speak(struct text *msg) // read, decrypt, and print a message (not ptext)
-{                            // msg is a pointer to seek address and length of mess
+void Game::speak(Text *msg) // read, decrypt, and print a message (not ptext)
+{                           // msg is a pointer to seek address and length of mess
     char *s, nonfirst;
     if (msg->seekadr + msg->txtlen > DATSIZE || msg->txtlen >= sizeof tbuf) {
         adv_printf("Corrupted dat file!\n");
@@ -494,7 +491,7 @@ void speak(struct text *msg) // read, decrypt, and print a message (not ptext)
         if ((*s ^ *tape) == '>' && (*(s + 1) ^ *(tape + 1)) == '$' &&
             (*(s + 2) ^ *(tape + 2)) == '<')
             break;
-        if (game.blklin && !nonfirst++)
+        if (blklin_ && !nonfirst++)
             adv_putc('\n');
         do {
             if (*tape == 0)
@@ -504,20 +501,20 @@ void speak(struct text *msg) // read, decrypt, and print a message (not ptext)
     }
 }
 
-void pspeak(int msg, // read, decrypt an print a ptext message
-            int skip)
+void Game::pspeak(int msg, // read, decrypt an print a ptext message
+                  int skip)
 // msg is the number of all the p msgs for this place
 // assumes object 1 doesn't have prop 1, obj 2 no prop 2 &c
 {
     char *s, nonfirst;
     char *numst;
     int lstr;
-    lstr = game.ptext[msg].txtlen;
-    if (game.ptext[msg].seekadr + lstr > DATSIZE || usize(lstr) >= sizeof tbuf) {
+    lstr = ptext_[msg].txtlen;
+    if (ptext_[msg].seekadr + lstr > DATSIZE || usize(lstr) >= sizeof tbuf) {
         adv_printf("Corrupted dat file!\n");
         return;
     }
-    __builtin_memcpy(tbuf, datbuf + game.ptext[msg].seekadr, lstr);
+    __builtin_memcpy(tbuf, datbuf + ptext_[msg].seekadr, lstr);
     s        = tbuf;
     nonfirst = 0;
     while (s - tbuf < lstr) // read a line at a time
@@ -535,7 +532,7 @@ void pspeak(int msg, // read, decrypt an print a ptext message
         if ((*s ^ *tape) == '>' && (*(s + 1) ^ *(tape + 1)) == '$' &&
             (*(s + 2) ^ *(tape + 2)) == '<')
             break;
-        if (game.blklin && !nonfirst++)
+        if (blklin_ && !nonfirst++)
             adv_putc('\n');
         do {
             if (*tape == 0)

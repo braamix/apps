@@ -3,60 +3,60 @@
 // Ported to Braam.  done() and die() return ADV_OVER instead of calling exit().
 #include "hdr.h"
 
-int score(void) // sort of like 20000
+int Game::score(void) // sort of like 20000
 {
     int scor, i;
-    game.mxscor = scor = 0;
-    for (i = 50; i <= game.maxtrs; i++) {
-        if (game.ptext[i].txtlen == 0)
+    mxscor_ = scor = 0;
+    for (i = 50; i <= maxtrs_; i++) {
+        if (ptext_[i].txtlen == 0)
             continue;
-        game.k = 12;
-        if (i == game.chest)
-            game.k = 14;
-        if (i > game.chest)
-            game.k = 16;
-        if (game.prop[i] >= 0)
+        k_ = 12;
+        if (i == chest_)
+            k_ = 14;
+        if (i > chest_)
+            k_ = 16;
+        if (prop_[i] >= 0)
             scor += 2;
-        if (game.place[i] == 3 && game.prop[i] == 0)
-            scor += game.k - 2;
-        game.mxscor += game.k;
+        if (place_[i] == 3 && prop_[i] == 0)
+            scor += k_ - 2;
+        mxscor_ += k_;
     }
-    scor += (game.maxdie - game.numdie) * 10;
-    game.mxscor += game.maxdie * 10;
-    if (!(game.scorng || game.gaveup))
+    scor += (maxdie_ - numdie_) * 10;
+    mxscor_ += maxdie_ * 10;
+    if (!(scorng_ || gaveup_))
         scor += 4;
-    game.mxscor += 4;
-    if (game.dflag != 0)
+    mxscor_ += 4;
+    if (dflag_ != 0)
         scor += 25;
-    game.mxscor += 25;
-    if (game.closng)
+    mxscor_ += 25;
+    if (closng_)
         scor += 25;
-    game.mxscor += 25;
-    if (game.closed) {
-        if (game.bonus == 0)
+    mxscor_ += 25;
+    if (closed_) {
+        if (bonus_ == 0)
             scor += 10;
-        if (game.bonus == 135)
+        if (bonus_ == 135)
             scor += 25;
-        if (game.bonus == 134)
+        if (bonus_ == 134)
             scor += 30;
-        if (game.bonus == 133)
+        if (bonus_ == 133)
             scor += 45;
     }
-    game.mxscor += 45;
-    if (game.place[game.magzin] == 108)
+    mxscor_ += 45;
+    if (place_[magzin_] == 108)
         scor++;
-    game.mxscor++;
+    mxscor_++;
     scor += 2;
-    game.mxscor += 2;
-    for (i = 1; i <= game.hntmax; i++)
-        if (game.hinted[i])
-            scor -= game.hints[i][2];
+    mxscor_ += 2;
+    for (i = 1; i <= hntmax_; i++)
+        if (hinted_[i])
+            scor -= hints_[i][2];
     return (scor);
 }
 
 // game is over
 // entry=1 means goto 13000, entry=2 means goto 20000, 3=19000
-Task<i32> done(int entry)
+Task<i32> Game::done(int entry)
 {
     int i, sc;
     if (entry == 1)
@@ -64,21 +64,21 @@ Task<i32> done(int entry)
     if (entry == 3)
         rspeak(136);
     adv_printf("\n\n\nYou scored %d out of a ", (sc = score()));
-    adv_printf("possible %d using %d turns.\n", game.mxscor, game.turns);
-    adv_status = 0;
-    for (i = 1; i <= game.clsses; i++)
-        if (game.cval[i] >= sc) {
-            speak(&game.ctext[i]);
-            if (i == game.clsses - 1) {
+    adv_printf("possible %d using %d turns.\n", mxscor_, turns_);
+    status_ = 0;
+    for (i = 1; i <= clsses_; i++)
+        if (cval_[i] >= sc) {
+            speak(&ctext_[i]);
+            if (i == clsses_ - 1) {
                 adv_printf("To achieve the next higher rating");
                 adv_printf(" would be a neat trick!\n\n");
                 adv_printf("Congratulations!!\n");
                 co_return ADV_OVER;
             }
-            game.k = game.cval[i] + 1 - sc;
+            k_ = cval_[i] + 1 - sc;
             adv_printf("To achieve the next higher rating, you need");
-            adv_printf(" %d more point", game.k);
-            if (game.k == 1)
+            adv_printf(" %d more point", k_);
+            if (k_ == 1)
                 adv_printf(".\n");
             else
                 adv_printf("s.\n");
@@ -88,37 +88,37 @@ Task<i32> done(int entry)
     co_return ADV_OVER;
 }
 
-Task<i32> die( // label 90
+Task<i32> Game::die( // label 90
     int entry)
 {
     int i, yea;
     if (entry != 99) {
         rspeak(23);
-        game.oldlc2 = game.loc;
+        oldlc2_ = loc_;
     }
-    if (game.closng) // 99
+    if (closng_) // 99
     {
         rspeak(131);
-        game.numdie++;
+        numdie_++;
         co_return co_await done(2);
     }
-    yea = co_await yes(81 + game.numdie * 2, 82 + game.numdie * 2, 54);
-    game.numdie++;
-    if (game.numdie == game.maxdie || !yea)
+    yea = co_await yes(81 + numdie_ * 2, 82 + numdie_ * 2, 54);
+    numdie_++;
+    if (numdie_ == maxdie_ || !yea)
         co_return co_await done(2);
-    game.place[game.water] = 0;
-    game.place[game.oil]   = 0;
-    if (toting(game.lamp))
-        game.prop[game.lamp] = 0;
+    place_[water_] = 0;
+    place_[oil_]   = 0;
+    if (toting(lamp_))
+        prop_[lamp_] = 0;
     for (i = 100; i >= 1; i--) {
         if (!toting(i))
             continue;
-        game.k = game.oldlc2;
-        if (i == game.lamp)
-            game.k = 1;
-        drop(i, game.k);
+        k_ = oldlc2_;
+        if (i == lamp_)
+            k_ = 1;
+        drop(i, k_);
     }
-    game.loc    = 3;
-    game.oldloc = game.loc;
+    loc_    = 3;
+    oldloc_ = loc_;
     co_return 2000;
 }

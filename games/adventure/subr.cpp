@@ -3,79 +3,79 @@
 
 // Statement functions
 
-int toting(int objj)
+int Game::toting(int objj)
 {
-    if (game.place[objj] == -1)
+    if (place_[objj] == -1)
         return (TRUE);
     else
         return (FALSE);
 }
 
-int here(int objj)
+int Game::here(int objj)
 {
-    if (game.place[objj] == game.loc || toting(objj))
+    if (place_[objj] == loc_ || toting(objj))
         return (TRUE);
     else
         return (FALSE);
 }
 
-int at(int objj)
+int Game::at(int objj)
 {
-    if (game.place[objj] == game.loc || game.fixed[objj] == game.loc)
+    if (place_[objj] == loc_ || fixed_[objj] == loc_)
         return (TRUE);
     else
         return (FALSE);
 }
 
-static int liq2(int pbotl)
+int Game::liq2(int pbotl)
 {
-    return ((1 - pbotl) * game.water + (pbotl / 2) * (game.water + game.oil));
+    return ((1 - pbotl) * water_ + (pbotl / 2) * (water_ + oil_));
 }
 
-int liq(int foo)
+int Game::liq(int foo)
 {
     int i;
     (void)foo;
-    i = game.prop[game.bottle];
+    i = prop_[bottle_];
     if (i > -1 - i)
         return (liq2(i));
     else
         return (liq2(-1 - i));
 }
 
-int liqloc(int locc) // may want to clean this one up a bit
+int Game::liqloc(int locc) // may want to clean this one up a bit
 {
     int i, j, l;
-    i = game.cond[locc] / 2;
+    i = cond_[locc] / 2;
     j = ((i * 2) % 8) - 5;
-    l = game.cond[locc] / 4;
+    l = cond_[locc] / 4;
     l = l % 2;
     return (liq2(j * l + 1));
 }
 
-int bitset(int l, int n)
+int Game::bitset(int l, int n)
 {
-    if (game.cond[l] & setbit[n])
+    if (cond_[l] & SETBIT[n])
         return (TRUE);
     return (FALSE);
 }
 
-int forced(int locc)
+int Game::forced(int locc)
 {
-    if (game.cond[locc] == 2)
+    if (cond_[locc] == 2)
         return (TRUE);
     return (FALSE);
 }
 
-int dark(int foo)
+int Game::dark(int foo)
 {
     (void)foo;
-    if ((game.cond[game.loc] % 2) == 0 && (game.prop[game.lamp] == 0 || !here(game.lamp)))
+    if ((cond_[loc_] % 2) == 0 && (prop_[lamp_] == 0 || !here(lamp_)))
         return (TRUE);
     return (FALSE);
 }
 
-int pct(int n)
+int Game::pct(int n)
 {
     if (ran(100) < n)
         return (TRUE);

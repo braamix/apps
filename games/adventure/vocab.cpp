@@ -1,69 +1,69 @@
 // Re-coding of advent in C: data structure routines -- upstream vocab.c.
 #include "hdr.h"
 
-void dstroy(int object)
+void Game::dstroy(int object)
 {
     move(object, 0);
 }
 
-void juggle(int object)
+void Game::juggle(int object)
 {
     int i, j;
-    i = game.place[object];
-    j = game.fixed[object];
+    i = place_[object];
+    j = fixed_[object];
     move(object, i);
     move(object + 100, j);
 }
 
-void move(int object, int where)
+void Game::move(int object, int where)
 {
     int from;
     if (object <= 100)
-        from = game.place[object];
+        from = place_[object];
     else
-        from = game.fixed[object - 100];
+        from = fixed_[object - 100];
     if (from > 0 && from <= 300)
         carry(object, from);
     drop(object, where);
 }
 
-int put(int object, int where, int pval)
+int Game::put(int object, int where, int pval)
 {
     move(object, where);
     return (-1 - pval);
 }
 
-void carry(int object, int where)
+void Game::carry(int object, int where)
 {
     int temp;
     if (object <= 100) {
-        if (game.place[object] == -1)
+        if (place_[object] == -1)
             return;
-        game.place[object] = -1;
-        game.holdng++;
+        place_[object] = -1;
+        holdng_++;
     }
-    if (game.atloc[where] == object) {
-        game.atloc[where] = game.plink[object];
+    if (atloc_[where] == object) {
+        atloc_[where] = plink_[object];
         return;
     }
-    for (temp = game.atloc[where]; game.plink[temp] != object; temp = game.plink[temp])
+    for (temp = atloc_[where]; plink_[temp] != object; temp = plink_[temp])
         ;
-    game.plink[temp] = game.plink[object];
+    plink_[temp] = plink_[object];
 }
 
-void drop(int object, int where)
+void Game::drop(int object, int where)
 {
     if (object > 100)
-        game.fixed[object - 100] = where;
+        fixed_[object - 100] = where;
     else {
-        if (game.place[object] == -1)
-            game.holdng--;
-        game.place[object] = where;
+        if (place_[object] == -1)
+            holdng_--;
+        place_[object] = where;
     }
     if (where <= 0)
         return;
-    game.plink[object] = game.atloc[where];
-    game.atloc[where]  = object;
+    plink_[object] = atloc_[where];
+    atloc_[where]  = object;
 }
 
 // Good hash function.
@@ -86,21 +86,21 @@ static unsigned int rot13_hash(const char *str)
     return hash;
 }
 
-int vocab(                      // look up or store a word
+int Game::vocab(                // look up or store a word
     const char *word, int type, // -2 for store, -1 for user word, >=0 for canned lookup
     int value)                  // used for storing only
 {
     int adr;
     unsigned int hash32, hash;
-    struct hashtab *h;
+    HashTab *h;
 
     hash32 = rot13_hash(word); // some kind of hash
     hash   = hash32 % HTSIZE;  // put it into range of table
 
     for (adr = hash;; adr++) { // look for entry in table
         if (adr == HTSIZE)
-            adr = 0;        // wrap around
-        h = &game.voc[adr]; // point at the entry
+            adr = 0;    // wrap around
+        h = &voc_[adr]; // point at the entry
         switch (type) {
         case -2:        // fill in entry
             if (h->val) // already got an entry?

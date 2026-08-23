@@ -5,69 +5,69 @@
 // proc_main; and anything that reads is a coroutine.
 #include "hdr.h"
 
-int closing(void) // 10000
+int Game::closing(void) // 10000
 {
     int i;
-    game.prop[game.grate] = game.prop[game.fissur] = 0;
+    prop_[grate_] = prop_[fissur_] = 0;
     for (i = 1; i <= 6; i++) {
-        game.dseen[i] = FALSE;
-        game.dloc[i]  = 0;
+        dseen_[i] = FALSE;
+        dloc_[i]  = 0;
     }
-    move(game.troll, 0);
-    move(game.troll + 100, 0);
-    move(game.troll2, game.plac[game.troll]);
-    move(game.troll2 + 100, game.fixd[game.troll]);
-    juggle(game.chasm);
-    if (game.prop[game.bear] != 3)
-        dstroy(game.bear);
-    game.prop[game.chain]  = 0;
-    game.fixed[game.chain] = 0;
-    game.prop[game.axe]    = 0;
-    game.fixed[game.axe]   = 0;
+    move(troll_, 0);
+    move(troll_ + 100, 0);
+    move(troll2_, plac_[troll_]);
+    move(troll2_ + 100, fixd_[troll_]);
+    juggle(chasm_);
+    if (prop_[bear_] != 3)
+        dstroy(bear_);
+    prop_[chain_]  = 0;
+    fixed_[chain_] = 0;
+    prop_[axe_]    = 0;
+    fixed_[axe_]   = 0;
     rspeak(129);
-    game.clock1 = -1;
-    game.closng = TRUE;
+    clock1_ = -1;
+    closng_ = TRUE;
     return (19999);
 }
 
-int caveclose(void) // 11000
+int Game::caveclose(void) // 11000
 {
     int i;
-    game.prop[game.bottle] = put(game.bottle, 115, 1);
-    game.prop[game.plant]  = put(game.plant, 115, 0);
-    game.prop[game.oyster] = put(game.oyster, 115, 0);
-    game.prop[game.lamp]   = put(game.lamp, 115, 0);
-    game.prop[game.rod]    = put(game.rod, 115, 0);
-    game.prop[game.dwarf]  = put(game.dwarf, 115, 0);
-    game.loc               = 115;
-    game.oldloc            = 115;
-    game.newloc            = 115;
+    prop_[bottle_] = put(bottle_, 115, 1);
+    prop_[plant_]  = put(plant_, 115, 0);
+    prop_[oyster_] = put(oyster_, 115, 0);
+    prop_[lamp_]   = put(lamp_, 115, 0);
+    prop_[rod_]    = put(rod_, 115, 0);
+    prop_[dwarf_]  = put(dwarf_, 115, 0);
+    loc_           = 115;
+    oldloc_        = 115;
+    newloc_        = 115;
 
-    put(game.grate, 116, 0);
-    game.prop[game.snake]  = put(game.snake, 116, 1);
-    game.prop[game.bird]   = put(game.bird, 116, 1);
-    game.prop[game.cage]   = put(game.cage, 116, 0);
-    game.prop[game.rod2]   = put(game.rod2, 116, 0);
-    game.prop[game.pillow] = put(game.pillow, 116, 0);
+    put(grate_, 116, 0);
+    prop_[snake_]  = put(snake_, 116, 1);
+    prop_[bird_]   = put(bird_, 116, 1);
+    prop_[cage_]   = put(cage_, 116, 0);
+    prop_[rod2_]   = put(rod2_, 116, 0);
+    prop_[pillow_] = put(pillow_, 116, 0);
 
-    game.prop[game.mirror]  = put(game.mirror, 115, 0);
-    game.fixed[game.mirror] = 116;
+    prop_[mirror_]  = put(mirror_, 115, 0);
+    fixed_[mirror_] = 116;
 
     for (i = 1; i <= 100; i++)
         if (toting(i))
             dstroy(i);
     rspeak(132);
-    game.closed = TRUE;
+    closed_ = TRUE;
     return (2);
 }
 
 // The main program.  Upstream's main(), less the mode that compiled glorkz
 // into adventure.dat: the data is in the binary and parsed at startup.
-static Task<i32> adventure(Args args)
+Task<i32> Game::play(Args args)
 {
     int i;
     int rval;
-    struct text *kk;
+    Text *kk;
     Str savfile;
 
     if (args.size() > 1)
@@ -83,8 +83,8 @@ static Task<i32> adventure(Args args)
             r = co_await t;
         if (r.is_ok()) {
             if (co_await start(0) == ADV_OVER) // restarting game : 8305
-                co_return adv_status;
-            game.k = game.null;
+                co_return status_;
+            k_ = null_;
             goto l8;
         }
         adv_printf("Your forged file dissappears in a puff of greasy black smoke! (poof)\n");
@@ -93,197 +93,197 @@ static Task<i32> adventure(Args args)
         co_return 0;
     }
     if (co_await start(0) == ADV_OVER)
-        co_return adv_status;
+        co_return status_;
     if (co_await startup() == ADV_OVER) // prepare for a user
-        co_return adv_status;
-    game.blklin = TRUE;
+        co_return status_;
+    blklin_ = TRUE;
 
     for (;;) // main command loop (label 2)
     {
-        if (game.newloc < 9 && game.newloc != 0 && game.closng) {
-            rspeak(130);            // if closing leave only by
-            game.newloc = game.loc; // main office
-            if (!game.panic)
-                game.clock2 = 15;
-            game.panic = TRUE;
+        if (newloc_ < 9 && newloc_ != 0 && closng_) {
+            rspeak(130);    // if closing leave only by
+            newloc_ = loc_; // main office
+            if (!panic_)
+                clock2_ = 15;
+            panic_ = TRUE;
         }
 
         rval = fdwarf(); // dwarf stuff
         if (rval == 99) {
             if (co_await die(99) == ADV_OVER)
-                co_return adv_status;
+                co_return status_;
         }
 
     l2000:
-        if (game.loc == 0) { // label 2000
+        if (loc_ == 0) { // label 2000
             if (co_await die(99) == ADV_OVER)
-                co_return adv_status;
+                co_return status_;
         }
-        kk = &game.stext[game.loc];
-        if ((game.abb[game.loc] % game.abbnum) == 0 || kk->seekadr == 0)
-            kk = &game.ltext[game.loc];
-        if (!forced(game.loc) && dark(0)) {
-            if (game.wzdark && pct(35)) {
+        kk = &stext_[loc_];
+        if ((abb_[loc_] % abbnum_) == 0 || kk->seekadr == 0)
+            kk = &ltext_[loc_];
+        if (!forced(loc_) && dark(0)) {
+            if (wzdark_ && pct(35)) {
                 if (co_await die(90) == ADV_OVER)
-                    co_return adv_status;
+                    co_return status_;
                 goto l2000;
             }
-            kk = &game.rtext[16];
+            kk = &rtext_[16];
         }
-        if (toting(game.bear))
+        if (toting(bear_))
             rspeak(141); // 2001
         speak(kk);
-        game.k = 1;
-        if (forced(game.loc))
+        k_ = 1;
+        if (forced(loc_))
             goto l8;
-        if (game.loc == 33 && pct(25) && !game.closng)
+        if (loc_ == 33 && pct(25) && !closng_)
             rspeak(8);
         if (!dark(0)) {
-            game.abb[game.loc]++;
-            for (i = game.atloc[game.loc]; i != 0; i = game.plink[i]) // 2004
+            abb_[loc_]++;
+            for (i = atloc_[loc_]; i != 0; i = plink_[i]) // 2004
             {
-                game.obj = i;
-                if (game.obj > 100)
-                    game.obj -= 100;
-                if (game.obj == game.steps && toting(game.nugget))
+                obj_ = i;
+                if (obj_ > 100)
+                    obj_ -= 100;
+                if (obj_ == steps_ && toting(nugget_))
                     continue;
-                if (game.prop[game.obj] < 0) {
-                    if (game.closed)
+                if (prop_[obj_] < 0) {
+                    if (closed_)
                         continue;
-                    game.prop[game.obj] = 0;
-                    if (game.obj == game.rug || game.obj == game.chain)
-                        game.prop[game.obj] = 1;
-                    game.tally--;
-                    if (game.tally == game.tally2 && game.tally != 0)
-                        if (game.limit > 35)
-                            game.limit = 35;
+                    prop_[obj_] = 0;
+                    if (obj_ == rug_ || obj_ == chain_)
+                        prop_[obj_] = 1;
+                    tally_--;
+                    if (tally_ == tally2_ && tally_ != 0)
+                        if (limit_ > 35)
+                            limit_ = 35;
                 }
                 {
-                    int pk = game.prop[game.obj]; // 2006
-                    if (game.obj == game.steps && game.loc == game.fixed[game.steps])
+                    int pk = prop_[obj_]; // 2006
+                    if (obj_ == steps_ && loc_ == fixed_[steps_])
                         pk = 1;
-                    pspeak(game.obj, pk);
+                    pspeak(obj_, pk);
                 }
             } // 2008
             goto l2012;
         l2009:
-            game.k = 54; // 2009
+            k_ = 54; // 2009
         l2010:
-            game.spk = game.k;
+            spk_ = k_;
         l2011:
-            rspeak(game.spk);
+            rspeak(spk_);
         }
     l2012:
-        game.verb = 0; // 2012
-        game.obj  = 0;
+        verb_ = 0; // 2012
+        obj_  = 0;
     l2600:
         if (Task<void> t = checkhints()) // to 2600-2602
             co_await t;
-        if (game.closed) {
-            if (game.prop[game.oyster] < 0 && toting(game.oyster))
-                pspeak(game.oyster, 1);
+        if (closed_) {
+            if (prop_[oyster_] < 0 && toting(oyster_))
+                pspeak(oyster_, 1);
             for (i = 1; i < 100; i++)
-                if (toting(i) && game.prop[i] < 0) // 2604
-                    game.prop[i] = -1 - game.prop[i];
+                if (toting(i) && prop_[i] < 0) // 2604
+                    prop_[i] = -1 - prop_[i];
         }
-        game.wzdark = dark(0); // 2605
-        if (game.knfloc > 0 && game.knfloc != game.loc)
-            game.knfloc = 1;
-        if (Task<void> t = getin(&wd1, &wd2))
+        wzdark_ = dark(0); // 2605
+        if (knfloc_ > 0 && knfloc_ != loc_)
+            knfloc_ = 1;
+        if (Task<void> t = getin())
             co_await t;
-        if (delhit) // user typed a DEL
+        if (delhit_) // user typed a DEL
         {
-            delhit = 0;           // reset counter
-            copystr("quit", wd1); // pretend he's quitting
-            *wd2 = 0;
+            delhit_ = 0;           // reset counter
+            copystr("quit", wd1_); // pretend he's quitting
+            *wd2_ = 0;
         }
     l2608:
-        if ((game.foobar = -game.foobar) > 0)
-            game.foobar = 0; // 2608
+        if ((foobar_ = -foobar_) > 0)
+            foobar_ = 0; // 2608
         // should check here for "magic mode"
-        game.turns++;
+        turns_++;
 
-        if (game.verb == game.say && *wd2 != 0)
-            game.verb = 0;
-        if (game.verb == game.say)
+        if (verb_ == say_ && *wd2_ != 0)
+            verb_ = 0;
+        if (verb_ == say_)
             goto l4090;
-        if (game.tally == 0 && game.loc >= 15 && game.loc != 33)
-            game.clock1--;
-        if (game.clock1 == 0) {
+        if (tally_ == 0 && loc_ >= 15 && loc_ != 33)
+            clock1_--;
+        if (clock1_ == 0) {
             closing(); // to 10000
             goto l19999;
         }
-        if (game.clock1 < 0)
-            game.clock2--;
-        if (game.clock2 == 0) {
+        if (clock1_ < 0)
+            clock2_--;
+        if (clock2_ == 0) {
             caveclose(); // to 11000
             continue;    // back to 2
         }
-        if (game.prop[game.lamp] == 1)
-            game.limit--;
-        if (game.limit <= 30 && here(game.batter) && game.prop[game.batter] == 0 &&
-            here(game.lamp)) {
+        if (prop_[lamp_] == 1)
+            limit_--;
+        if (limit_ <= 30 && here(batter_) && prop_[batter_] == 0 && here(lamp_)) {
             rspeak(188); // 12000
-            game.prop[game.batter] = 1;
-            if (toting(game.batter))
-                drop(game.batter, game.loc);
-            game.limit  = game.limit + 2500;
-            game.lmwarn = FALSE;
+            prop_[batter_] = 1;
+            if (toting(batter_))
+                drop(batter_, loc_);
+            limit_  = limit_ + 2500;
+            lmwarn_ = FALSE;
             goto l19999;
         }
-        if (game.limit == 0) {
-            game.limit           = -1; // 12400
-            game.prop[game.lamp] = 0;
+        if (limit_ == 0) {
+            limit_       = -1; // 12400
+            prop_[lamp_] = 0;
             rspeak(184);
             goto l19999;
         }
-        if (game.limit < 0 && game.loc <= 8) {
+        if (limit_ < 0 && loc_ <= 8) {
             rspeak(185); // 12600
-            game.gaveup = TRUE;
+            gaveup_ = TRUE;
             co_await done(2); // to 20000
-            co_return adv_status;
+            co_return status_;
         }
-        if (game.limit <= 30) {
-            if (game.lmwarn || !here(game.lamp))
+        if (limit_ <= 30) {
+            if (lmwarn_ || !here(lamp_))
                 goto l19999; // 12200
-            game.lmwarn = TRUE;
-            game.spk    = 187;
-            if (game.place[game.batter] == 0)
-                game.spk = 183;
-            if (game.prop[game.batter] == 1)
-                game.spk = 189;
-            rspeak(game.spk);
+            lmwarn_ = TRUE;
+            spk_    = 187;
+            if (place_[batter_] == 0)
+                spk_ = 183;
+            if (prop_[batter_] == 1)
+                spk_ = 189;
+            rspeak(spk_);
         }
     l19999:
-        game.k = 43;
-        if (liqloc(game.loc) == game.water)
-            game.k = 70;
-        if (weq(wd1, "enter") && (weq(wd2, "strea") || weq(wd2, "water")))
+        k_ = 43;
+        if (liqloc(loc_) == water_)
+            k_ = 70;
+        if (weq(wd1_, "enter") && (weq(wd2_, "strea") || weq(wd2_, "water")))
             goto l2010;
-        if (weq(wd1, "enter") && *wd2 != 0)
+        if (weq(wd1_, "enter") && *wd2_ != 0)
             goto l2800;
-        if ((!weq(wd1, "water") && !weq(wd1, "oil")) || (!weq(wd2, "plant") && !weq(wd2, "door")))
+        if ((!weq(wd1_, "water") && !weq(wd1_, "oil")) ||
+            (!weq(wd2_, "plant") && !weq(wd2_, "door")))
             goto l2610;
-        if (at(vocab(wd2, 1, 0)))
-            copystr("pour", wd2);
+        if (at(vocab(wd2_, 1, 0)))
+            copystr("pour", wd2_);
     l2610:
-        if (weq(wd1, "west"))
-            if (++game.iwest == 10)
+        if (weq(wd1_, "west"))
+            if (++iwest_ == 10)
                 rspeak(17);
     l2630:
-        i = vocab(wd1, -1, 0);
+        i = vocab(wd1_, -1, 0);
         if (i == -1) {
-            game.spk = 60; // 3000
+            spk_ = 60; // 3000
             if (pct(20))
-                game.spk = 61;
+                spk_ = 61;
             if (pct(20))
-                game.spk = 13;
-            rspeak(game.spk);
+                spk_ = 13;
+            rspeak(spk_);
             goto l2600;
         }
-        game.k  = i % 1000;
-        game.kq = i / 1000 + 1;
-        switch (game.kq) {
+        k_  = i % 1000;
+        kq_ = i / 1000 + 1;
+        switch (kq_) {
         case 1:
             goto l8;
         case 2:
@@ -307,7 +307,7 @@ static Task<i32> adventure(Args args)
             case 2000:
                 goto l2000;
             case ADV_OVER:
-                co_return adv_status;
+                co_return status_;
             default:
                 bug(111);
             }
@@ -316,28 +316,28 @@ static Task<i32> adventure(Args args)
         }
 
     l2800:
-        copystr(wd2, wd1);
-        *wd2 = 0;
+        copystr(wd2_, wd1_);
+        *wd2_ = 0;
         goto l2610;
 
     l4000:
-        game.verb = game.k;
-        game.spk  = game.actspk[game.verb];
-        if (*wd2 != 0 && game.verb != game.say)
+        verb_ = k_;
+        spk_  = actspk_[verb_];
+        if (*wd2_ != 0 && verb_ != say_)
             goto l2800;
-        if (game.verb == game.say)
-            game.obj = *wd2;
-        if (game.obj != 0)
+        if (verb_ == say_)
+            obj_ = *wd2_;
+        if (obj_ != 0)
             goto l4090;
 
-        switch (game.verb) {
+        switch (verb_) {
         case 1: // take = 8010
-            if (game.atloc[game.loc] == 0 || game.plink[game.atloc[game.loc]] != 0)
+            if (atloc_[loc_] == 0 || plink_[atloc_[loc_]] != 0)
                 goto l8000;
             for (i = 1; i <= 5; i++)
-                if (game.dloc[i] == game.loc && game.dflag >= 2)
+                if (dloc_[i] == loc_ && dflag_ >= 2)
                     goto l8000;
-            game.obj = game.atloc[game.loc];
+            obj_ = atloc_[loc_];
             goto l9010;
         case 2:
         case 3:
@@ -350,25 +350,25 @@ static Task<i32> adventure(Args args)
         case 28: // find,feed,break
         case 29: // wake
         l8000:
-            adv_printf("%s what?\n", wd1);
-            game.obj = 0;
+            adv_printf("%s what?\n", wd1_);
+            obj_ = 0;
             goto l2600;
         case 4:
         case 6: // 8040 open,lock
-            game.spk = 28;
-            if (here(game.clam))
-                game.obj = game.clam;
-            if (here(game.oyster))
-                game.obj = game.oyster;
-            if (at(game.door))
-                game.obj = game.door;
-            if (at(game.grate))
-                game.obj = game.grate;
-            if (game.obj != 0 && here(game.chain))
+            spk_ = 28;
+            if (here(clam_))
+                obj_ = clam_;
+            if (here(oyster_))
+                obj_ = oyster_;
+            if (at(door_))
+                obj_ = door_;
+            if (at(grate_))
+                obj_ = grate_;
+            if (obj_ != 0 && here(chain_))
                 goto l8000;
-            if (here(game.chain))
-                game.obj = game.chain;
-            if (game.obj == 0)
+            if (here(chain_))
+                obj_ = chain_;
+            if (obj_ == 0)
                 goto l2011;
             goto l9040;
         case 5:
@@ -384,109 +384,107 @@ static Task<i32> adventure(Args args)
         case 13:
             goto l9130; // pour
         case 14:        // eat: 8140
-            if (!here(game.food))
+            if (!here(food_))
                 goto l8000;
         l8142:
-            dstroy(game.food);
-            game.spk = 72;
+            dstroy(food_);
+            spk_ = 72;
             goto l2011;
         case 15:
             goto l9150; // drink
         case 18:        // quit: 8180
-            game.gaveup = co_await yes(22, 54, 54);
-            if (game.gaveup) {
+            gaveup_ = co_await yes(22, 54, 54);
+            if (gaveup_) {
                 co_await done(2); // 8185
-                co_return adv_status;
+                co_return status_;
             }
             goto l2012;
         case 20: // invent=8200
-            game.spk = 98;
+            spk_ = 98;
             for (i = 1; i <= 100; i++) {
-                if (i != game.bear && toting(i)) {
-                    if (game.spk == 98)
+                if (i != bear_ && toting(i)) {
+                    if (spk_ == 98)
                         rspeak(99);
-                    game.blklin = FALSE;
+                    blklin_ = FALSE;
                     pspeak(i, -1);
-                    game.blklin = TRUE;
-                    game.spk    = 0;
+                    blklin_ = TRUE;
+                    spk_    = 0;
                 }
             }
-            if (toting(game.bear))
-                game.spk = 141;
+            if (toting(bear_))
+                spk_ = 141;
             goto l2011;
         case 22:
             goto l9220; // fill
         case 23:
             goto l9230; // blast
         case 24:        // score: 8240
-            game.scorng = TRUE;
+            scorng_ = TRUE;
             adv_printf("If you were to quit now, you would score");
             adv_printf(" %d out of a possible ", score());
-            adv_printf("%d.", game.mxscor);
-            game.scorng = FALSE;
-            game.gaveup = co_await yes(143, 54, 54);
-            if (game.gaveup) {
+            adv_printf("%d.", mxscor_);
+            scorng_ = FALSE;
+            gaveup_ = co_await yes(143, 54, 54);
+            if (gaveup_) {
                 co_await done(2);
-                co_return adv_status;
+                co_return status_;
             }
             goto l2012;
         case 25: // foo: 8250
-            game.k   = vocab(wd1, 3, 0);
-            game.spk = 42;
-            if (game.foobar == 1 - game.k)
+            k_   = vocab(wd1_, 3, 0);
+            spk_ = 42;
+            if (foobar_ == 1 - k_)
                 goto l8252;
-            if (game.foobar != 0)
-                game.spk = 151;
+            if (foobar_ != 0)
+                spk_ = 151;
             goto l2011;
         l8252:
-            game.foobar = game.k;
-            if (game.k != 4)
+            foobar_ = k_;
+            if (k_ != 4)
                 goto l2009;
-            game.foobar = 0;
-            if (game.place[game.eggs] == game.plac[game.eggs] ||
-                (toting(game.eggs) && game.loc == game.plac[game.eggs]))
+            foobar_ = 0;
+            if (place_[eggs_] == plac_[eggs_] || (toting(eggs_) && loc_ == plac_[eggs_]))
                 goto l2011;
-            if (game.place[game.eggs] == 0 && game.place[game.troll] == 0 &&
-                game.prop[game.troll] == 0)
-                game.prop[game.troll] = 1;
-            game.k = 2;
-            if (here(game.eggs))
-                game.k = 1;
-            if (game.loc == game.plac[game.eggs])
-                game.k = 0;
-            move(game.eggs, game.plac[game.eggs]);
-            pspeak(game.eggs, game.k);
+            if (place_[eggs_] == 0 && place_[troll_] == 0 && prop_[troll_] == 0)
+                prop_[troll_] = 1;
+            k_ = 2;
+            if (here(eggs_))
+                k_ = 1;
+            if (loc_ == plac_[eggs_])
+                k_ = 0;
+            move(eggs_, plac_[eggs_]);
+            pspeak(eggs_, k_);
             goto l2012;
         case 26: // brief=8260
-            game.spk    = 156;
-            game.abbnum = 10000;
-            game.detail = 3;
+            spk_    = 156;
+            abbnum_ = 10000;
+            detail_ = 3;
             goto l2011;
         case 27: // read=8270
-            if (here(game.magzin))
-                game.obj = game.magzin;
-            if (here(game.tablet))
-                game.obj = game.obj * 100 + game.tablet;
-            if (here(game.messag))
-                game.obj = game.obj * 100 + game.messag;
-            if (game.closed && toting(game.oyster))
-                game.obj = game.oyster;
-            if (game.obj > 100 || game.obj == 0 || dark(0))
+            if (here(magzin_))
+                obj_ = magzin_;
+            if (here(tablet_))
+                obj_ = obj_ * 100 + tablet_;
+            if (here(messag_))
+                obj_ = obj_ * 100 + messag_;
+            if (closed_ && toting(oyster_))
+                obj_ = oyster_;
+            if (obj_ > 100 || obj_ == 0 || dark(0))
                 goto l8000;
             goto l9270;
         case 30: // suspend=8300
-            game.spk = 201;
+            spk_ = 201;
             adv_printf("I can suspend your adventure for you so");
             adv_printf(" you can resume later, but\n");
             adv_printf("you will have to wait at least");
-            adv_printf(" %d minutes before continuing.", game.latncy);
+            adv_printf(" %d minutes before continuing.", latncy_);
             if (!co_await yes(200, 54, 54))
                 goto l2012;
             if (Task<void> t = adv_clock())
                 co_await t;
-            datime(&game.saved, &game.savet);
+            datime(&saved_, &savet_);
             if (co_await ciao() == ADV_OVER)
-                co_return adv_status;
+                co_return status_;
             continue;
         case 31: // hours=8310
             adv_printf("Colossal cave is closed 9am-5pm Mon ");
@@ -497,7 +495,7 @@ static Task<i32> adventure(Args args)
         }
 
     l4090:
-        switch (game.verb) {
+        switch (verb_) {
         case 1: // take = 9010
         l9010:
             switch (trtake()) {
@@ -519,7 +517,7 @@ static Task<i32> adventure(Args args)
                 goto l2011;
             case 19000:
                 co_await done(3);
-                co_return adv_status;
+                co_return status_;
             case 2012:
                 goto l2012;
             default:
@@ -549,34 +547,34 @@ static Task<i32> adventure(Args args)
             goto l2009; // nothing
         case 7:         // on   9070
         l9070:
-            if (!here(game.lamp))
+            if (!here(lamp_))
                 goto l2011;
-            game.spk = 184;
-            if (game.limit < 0)
+            spk_ = 184;
+            if (limit_ < 0)
                 goto l2011;
-            game.prop[game.lamp] = 1;
+            prop_[lamp_] = 1;
             rspeak(39);
-            if (game.wzdark)
+            if (wzdark_)
                 goto l2000;
             goto l2012;
 
         case 8: // off
         l9080:
-            if (!here(game.lamp))
+            if (!here(lamp_))
                 goto l2011;
-            game.prop[game.lamp] = 0;
+            prop_[lamp_] = 0;
             rspeak(40);
             if (dark(0))
                 rspeak(16);
             goto l2012;
 
         case 9: // wave
-            if ((!toting(game.obj)) && (game.obj != game.rod || !toting(game.rod2)))
-                game.spk = 29;
-            if (game.obj != game.rod || !at(game.fissur) || !toting(game.obj) || game.closng)
+            if ((!toting(obj_)) && (obj_ != rod_ || !toting(rod2_)))
+                spk_ = 29;
+            if (obj_ != rod_ || !at(fissur_) || !toting(obj_) || closng_)
                 goto l2011;
-            game.prop[game.fissur] = 1 - game.prop[game.fissur];
-            pspeak(game.fissur, 2 - game.prop[game.fissur]);
+            prop_[fissur_] = 1 - prop_[fissur_];
+            pspeak(fissur_, 2 - prop_[fissur_]);
             goto l2012;
         case 10:
         case 11:
@@ -601,65 +599,63 @@ static Task<i32> adventure(Args args)
                 goto l2608;
             case 19000:
                 co_await done(3);
-                co_return adv_status;
+                co_return status_;
             default:
                 bug(112);
             }
         l9130:
         case 13: // pour
-            if (game.obj == game.bottle || game.obj == 0)
-                game.obj = liq(0);
-            if (game.obj == 0)
+            if (obj_ == bottle_ || obj_ == 0)
+                obj_ = liq(0);
+            if (obj_ == 0)
                 goto l8000;
-            if (!toting(game.obj))
+            if (!toting(obj_))
                 goto l2011;
-            game.spk = 78;
-            if (game.obj != game.oil && game.obj != game.water)
+            spk_ = 78;
+            if (obj_ != oil_ && obj_ != water_)
                 goto l2011;
-            game.prop[game.bottle] = 1;
-            game.place[game.obj]   = 0;
-            game.spk               = 77;
-            if (!(at(game.plant) || at(game.door)))
+            prop_[bottle_] = 1;
+            place_[obj_]   = 0;
+            spk_           = 77;
+            if (!(at(plant_) || at(door_)))
                 goto l2011;
-            if (at(game.door)) {
-                game.prop[game.door] = 0; // 9132
-                if (game.obj == game.oil)
-                    game.prop[game.door] = 1;
-                game.spk = 113 + game.prop[game.door];
+            if (at(door_)) {
+                prop_[door_] = 0; // 9132
+                if (obj_ == oil_)
+                    prop_[door_] = 1;
+                spk_ = 113 + prop_[door_];
                 goto l2011;
             }
-            game.spk = 112;
-            if (game.obj != game.water)
+            spk_ = 112;
+            if (obj_ != water_)
                 goto l2011;
-            pspeak(game.plant, game.prop[game.plant] + 1);
-            game.prop[game.plant]  = (game.prop[game.plant] + 2) % 6;
-            game.prop[game.plant2] = game.prop[game.plant] / 2;
-            game.k                 = game.null;
+            pspeak(plant_, prop_[plant_] + 1);
+            prop_[plant_]  = (prop_[plant_] + 2) % 6;
+            prop_[plant2_] = prop_[plant_] / 2;
+            k_             = null_;
             goto l8;
         case 14: // 9140 - eat
-            if (game.obj == game.food)
+            if (obj_ == food_)
                 goto l8142;
-            if (game.obj == game.bird || game.obj == game.snake || game.obj == game.clam ||
-                game.obj == game.oyster || game.obj == game.dwarf || game.obj == game.dragon ||
-                game.obj == game.troll || game.obj == game.bear)
-                game.spk = 71;
+            if (obj_ == bird_ || obj_ == snake_ || obj_ == clam_ || obj_ == oyster_ ||
+                obj_ == dwarf_ || obj_ == dragon_ || obj_ == troll_ || obj_ == bear_)
+                spk_ = 71;
             goto l2011;
         l9150:
         case 15: // 9150 - drink
-            if (game.obj == 0 && liqloc(game.loc) != game.water &&
-                (liq(0) != game.water || !here(game.bottle)))
+            if (obj_ == 0 && liqloc(loc_) != water_ && (liq(0) != water_ || !here(bottle_)))
                 goto l8000;
-            if (game.obj != 0 && game.obj != game.water)
-                game.spk = 110;
-            if (game.spk == 110 || liq(0) != game.water || !here(game.bottle))
+            if (obj_ != 0 && obj_ != water_)
+                spk_ = 110;
+            if (spk_ == 110 || liq(0) != water_ || !here(bottle_))
                 goto l2011;
-            game.prop[game.bottle] = 1;
-            game.place[game.water] = 0;
-            game.spk               = 74;
+            prop_[bottle_] = 1;
+            place_[water_] = 0;
+            spk_           = 74;
             goto l2011;
         case 16: // 9160: rub
-            if (game.obj != game.lamp)
-                game.spk = 76;
+            if (obj_ != lamp_)
+                spk_ = 76;
             goto l2011;
         case 17: // 9170: throw
             switch (trtoss()) {
@@ -678,16 +674,15 @@ static Task<i32> adventure(Args args)
             }
         case 19:
         case 20: // 9190: find, invent
-            if (at(game.obj) || (liq(0) == game.obj && at(game.bottle)) ||
-                game.k == liqloc(game.loc))
-                game.spk = 94;
+            if (at(obj_) || (liq(0) == obj_ && at(bottle_)) || k_ == liqloc(loc_))
+                spk_ = 94;
             for (i = 1; i <= 5; i++)
-                if (game.dloc[i] == game.loc && game.dflag >= 2 && game.obj == game.dwarf)
-                    game.spk = 94;
-            if (game.closed)
-                game.spk = 138;
-            if (toting(game.obj))
-                game.spk = 24;
+                if (dloc_[i] == loc_ && dflag_ >= 2 && obj_ == dwarf_)
+                    spk_ = 94;
+            if (closed_)
+                spk_ = 138;
+            if (toting(obj_))
+                spk_ = 24;
             goto l2011;
         l9210:
         case 21: // feed
@@ -711,111 +706,115 @@ static Task<i32> adventure(Args args)
             }
         l9230:
         case 23: // blast
-            if (game.prop[game.rod2] < 0 || !game.closed)
+            if (prop_[rod2_] < 0 || !closed_)
                 goto l2011;
-            game.bonus = 133;
-            if (game.loc == 115)
-                game.bonus = 134;
-            if (here(game.rod2))
-                game.bonus = 135;
-            rspeak(game.bonus);
+            bonus_ = 133;
+            if (loc_ == 115)
+                bonus_ = 134;
+            if (here(rod2_))
+                bonus_ = 135;
+            rspeak(bonus_);
             co_await done(2);
-            co_return adv_status;
+            co_return status_;
         l9270:
         case 27: // read
             if (dark(0))
                 goto l5190;
-            if (game.obj == game.magzin)
-                game.spk = 190;
-            if (game.obj == game.tablet)
-                game.spk = 196;
-            if (game.obj == game.messag)
-                game.spk = 191;
-            if (game.obj == game.oyster && game.hinted[2] && toting(game.oyster))
-                game.spk = 194;
-            if (game.obj != game.oyster || game.hinted[2] || !toting(game.oyster) || !game.closed)
+            if (obj_ == magzin_)
+                spk_ = 190;
+            if (obj_ == tablet_)
+                spk_ = 196;
+            if (obj_ == messag_)
+                spk_ = 191;
+            if (obj_ == oyster_ && hinted_[2] && toting(oyster_))
+                spk_ = 194;
+            if (obj_ != oyster_ || hinted_[2] || !toting(oyster_) || !closed_)
                 goto l2011;
-            game.hinted[2] = co_await yes(192, 193, 54);
+            hinted_[2] = co_await yes(192, 193, 54);
             goto l2012;
         case 28: // break
-            if (game.obj == game.mirror)
-                game.spk = 148;
-            if (game.obj == game.vase && game.prop[game.vase] == 0) {
-                game.spk = 198;
-                if (toting(game.vase))
-                    drop(game.vase, game.loc);
-                game.prop[game.vase]  = 2;
-                game.fixed[game.vase] = -1;
+            if (obj_ == mirror_)
+                spk_ = 148;
+            if (obj_ == vase_ && prop_[vase_] == 0) {
+                spk_ = 198;
+                if (toting(vase_))
+                    drop(vase_, loc_);
+                prop_[vase_]  = 2;
+                fixed_[vase_] = -1;
                 goto l2011;
             }
-            if (game.obj != game.mirror || !game.closed)
+            if (obj_ != mirror_ || !closed_)
                 goto l2011;
             rspeak(197);
             co_await done(3);
-            co_return adv_status;
+            co_return status_;
 
         case 29: // wake
-            if (game.obj != game.dwarf || !game.closed)
+            if (obj_ != dwarf_ || !closed_)
                 goto l2011;
             rspeak(199);
             co_await done(3);
-            co_return adv_status;
+            co_return status_;
 
         default:
             bug(24);
         }
 
     l5000:
-        game.obj = game.k;
-        if (game.fixed[game.k] != game.loc && !here(game.k))
+        obj_ = k_;
+        if (fixed_[k_] != loc_ && !here(k_))
             goto l5100;
     l5010:
-        if (*wd2 != 0)
+        if (*wd2_ != 0)
             goto l2800;
-        if (game.verb != 0)
+        if (verb_ != 0)
             goto l4090;
-        adv_printf("What do you want to do with the %s?\n", wd1);
+        adv_printf("What do you want to do with the %s?\n", wd1_);
         goto l2600;
     l5100:
-        if (game.k != game.grate)
+        if (k_ != grate_)
             goto l5110;
-        if (game.loc == 1 || game.loc == 4 || game.loc == 7)
-            game.k = game.dprssn;
-        if (game.loc > 9 && game.loc < 15)
-            game.k = game.entrnc;
-        if (game.k != game.grate)
+        if (loc_ == 1 || loc_ == 4 || loc_ == 7)
+            k_ = dprssn_;
+        if (loc_ > 9 && loc_ < 15)
+            k_ = entrnc_;
+        if (k_ != grate_)
             goto l8;
     l5110:
-        if (game.k != game.dwarf)
+        if (k_ != dwarf_)
             goto l5120;
         for (i = 1; i <= 5; i++)
-            if (game.dloc[i] == game.loc && game.dflag >= 2)
+            if (dloc_[i] == loc_ && dflag_ >= 2)
                 goto l5010;
     l5120:
-        if ((liq(0) == game.k && here(game.bottle)) || game.k == liqloc(game.loc))
+        if ((liq(0) == k_ && here(bottle_)) || k_ == liqloc(loc_))
             goto l5010;
-        if (game.obj != game.plant || !at(game.plant2) || game.prop[game.plant2] == 0)
+        if (obj_ != plant_ || !at(plant2_) || prop_[plant2_] == 0)
             goto l5130;
-        game.obj = game.plant2;
+        obj_ = plant2_;
         goto l5010;
     l5130:
-        if (game.obj != game.knife || game.knfloc != game.loc)
+        if (obj_ != knife_ || knfloc_ != loc_)
             goto l5140;
-        game.knfloc = -1;
-        game.spk    = 116;
+        knfloc_ = -1;
+        spk_    = 116;
         goto l2011;
     l5140:
-        if (game.obj != game.rod || !here(game.rod2))
+        if (obj_ != rod_ || !here(rod2_))
             goto l5190;
-        game.obj = game.rod2;
+        obj_ = rod2_;
         goto l5010;
     l5190:
-        if ((game.verb == game.find || game.verb == game.invent) && *wd2 == 0)
+        if ((verb_ == find_ || verb_ == invent_) && *wd2_ == 0)
             goto l5010;
-        adv_printf("I see no %s here\n", wd1);
+        adv_printf("I see no %s here\n", wd1_);
         goto l2012;
     }
 }
+
+namespace {
+Game game; // .bss, and trivially destructible
+} // namespace
 
 Task<i32> proc_main(Args args)
 {
@@ -823,7 +822,7 @@ Task<i32> proc_main(Args args)
         co_await t;
 
     i32 rc = 0;
-    if (Task<i32> t = adventure(args))
+    if (Task<i32> t = game.play(args))
         rc = co_await t;
     else
         rc = 1;
