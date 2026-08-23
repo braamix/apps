@@ -50,7 +50,7 @@ int Game::score(void) // sort of like 20000
     mxscor_ += 2;
     for (i = 1; i <= hntmax_; i++)
         if (hinted_[i])
-            scor -= hints_[i][2];
+            scor -= hints_[i].cost;
     return (scor);
 }
 

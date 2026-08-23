@@ -141,7 +141,6 @@ void Game::visit(V &v)
     v.field(actspk_);
     v.field(cond_);
     v.field(hntmax_);
-    v.field(hints_);
     v.field(hinted_);
     v.field(hintlc_);
     v.field(place_);

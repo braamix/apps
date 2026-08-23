@@ -12,7 +12,7 @@ Task<void> Game::checkhints(void) // 2600 &c
         if (!bitset(loc_, hint))
             hintlc_[hint] = -1;
         hintlc_[hint]++;
-        if (hintlc_[hint] < hints_[hint][1])
+        if (hintlc_[hint] < hints_[hint].turns)
             continue;
         switch (Hint(hint)) {
         case Hint::Grate: // 40400
@@ -42,11 +42,11 @@ Task<void> Game::checkhints(void) // 2600 &c
         }
     offer: // 40010
         hintlc_[hint] = 0;
-        if (!co_await yes(Msg(hints_[hint][3]), Msg::None, Msg::Ok))
+        if (!co_await yes(hints_[hint].question, Msg::None, Msg::Ok))
             continue;
         adv_printf("I am prepared to give you a hint, but it will ");
-        adv_printf("cost you %d points.\n", hints_[hint][2]);
-        hinted_[hint] = co_await yes(Msg::WantTheHint, Msg(hints_[hint][4]), Msg::Ok);
+        adv_printf("cost you %d points.\n", hints_[hint].cost);
+        hinted_[hint] = co_await yes(Msg::WantTheHint, hints_[hint].answer, Msg::Ok);
     reset: // 40020
         hintlc_[hint] = 0;
     }

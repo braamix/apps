@@ -106,6 +106,15 @@ enum class Hint : i16 {
     WittsEnd     = 9, // and how to get out of it
 };
 
+// One row of glorkz section 11.  Upstream's first column held the hint's own
+// number; the row index is that here, and the slot went with it.
+struct HintRule {
+    i16 turns    = 0;         // turns in the region before it is offered
+    i16 cost     = 0;         // points it costs to take
+    Msg question = Msg::None; // "Are you trying to catch the bird?"
+    Msg answer   = Msg::None; // what it tells you
+};
+
 // One step of a turn, named for the FORTRAN statement label it was.  Upstream
 // jumped between these with goto and the tr* handlers returned the number the
 // caller switched back into one; here a step returns the next step and play()
@@ -242,7 +251,7 @@ private:
     Vec<i16> cond_; // various condition bits
 
     i16 hntmax_ = 0;
-    Vec<Vec<i16>> hints_; // info on hints, HINTSIZ x 5
+    Vec<HintRule> hints_; // info on hints, by Hint
     Vec<i16> hinted_, hintlc_;
 
     Vec<i16> place_, prop_, plink_;

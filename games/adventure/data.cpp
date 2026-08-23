@@ -223,13 +223,16 @@ void DataReader::rliq(void) // liquid assets &c: cond bits
 
 void DataReader::rhints(void)
 {
-    int hintnum, i;
+    int hintnum;
     g_.hntmax_ = 0;
     for (;;) {
         if ((hintnum = rnum()) < 0)
             break;
-        for (i = 1; i < 5; i++)
-            g_.hints_[hintnum][i] = rnum();
+        HintRule &h = g_.hints_[usize(hintnum)]; // the four columns, in order
+        h.turns     = i16(rnum());
+        h.cost      = i16(rnum());
+        h.question  = Msg(rnum());
+        h.answer    = Msg(rnum());
         if (hintnum > g_.hntmax_)
             g_.hntmax_ = hintnum;
     }
