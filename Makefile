@@ -9,9 +9,11 @@ SDK_URL := https://github.com/braamix/core/releases/download/$(SDK_RELEASE)/braa
 
 BUILD     ?= build
 GENERATOR ?= Unix Makefiles
+
 # Fetched into the build directory, unless SDK names one already unpacked.
 SDK       ?= $(BUILD)/braam-sdk-$(SDK_VERSION)
 TOOLCHAIN := $(SDK)/lib/cmake/braam/wasm32-unknown-unknown.cmake
+
 # make's own -jN cannot reach the generated build: its jobserver descriptors do
 # not survive the cmake process in between. Pass a count explicitly instead.
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
@@ -19,16 +21,20 @@ JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 # Publishing. The repository the index is for, which must equal the client's
 # /etc/repositories line byte for byte, and the index's own two numbers.
 REPO_URL      ?= https://pub.sergev.org/braam
+
 # G. A client refuses an index whose version is below the one it holds, so this
 # rises at every publication. It cannot be derived: only the publisher knows
 # what was last uploaded.
-INDEX_VERSION ?= 2
+INDEX_VERSION ?= 4
+
 # E, milliseconds since the epoch: 2027-08-21. A promise to re-sign by then.
 INDEX_EXPIRY  ?= 1818806400000
 INDEX_DESC    ?= Braam applications
+
 # The publisher's own key, outside this tree and never copied into it. Its
 # public half has to be the K:index of the anchor the client boots with.
 INDEX_KEY     ?= $(HOME)/.ssh/braam/index.key
+
 # The SDK's copy first; the pinned 0.4.162 predates it, so the core tree next.
 MKINDEX ?= $(firstword $(wildcard \
     $(SDK)/libexec/braam/mkindex.py ../braam-core/tools/mkindex.py))
