@@ -17,37 +17,37 @@ Task<void> Game::checkhints(void) // 2600 &c
         switch (hint) {
         case 4: // 40400
             if (prop_[grate_] == 0 && !here(keys_))
-                goto l40010;
-            goto l40020;
+                goto offer;
+            goto reset;
         case 5: // 40500
             if (here(bird_) && toting(rod_) && obj_ == bird_)
-                goto l40010;
-            continue; // i.e. goto l40030
+                goto offer;
+            continue; // 40030, and keep the count
         case 6:       // 40600
             if (here(snake_) && !here(bird_))
-                goto l40010;
-            goto l40020;
+                goto offer;
+            goto reset;
         case 7: // 40700
             if (atloc_[loc_] == 0 && atloc_[oldloc_] == 0 && atloc_[oldlc2_] == 0 && holdng_ > 1)
-                goto l40010;
-            goto l40020;
+                goto offer;
+            goto reset;
         case 8: // 40800
             if (prop_[emrald_] != -1 && prop_[pyram_] == -1)
-                goto l40010;
-            goto l40020;
+                goto offer;
+            goto reset;
         case 9:
-            goto l40010; // 40900
+            goto offer; // 40900
         default:
             bug(27);
         }
-    l40010:
+    offer: // 40010
         hintlc_[hint] = 0;
         if (!co_await yes(Msg(hints_[hint][3]), Msg::None, Msg::Ok))
             continue;
         adv_printf("I am prepared to give you a hint, but it will ");
         adv_printf("cost you %d points.\n", hints_[hint][2]);
         hinted_[hint] = co_await yes(Msg::WantTheHint, Msg(hints_[hint][4]), Msg::Ok);
-    l40020:
+    reset: // 40020
         hintlc_[hint] = 0;
     }
     co_return;
@@ -85,7 +85,7 @@ Phase Game::trtake() // 9010
     if (obj_ == water_ || obj_ == oil_) {
         if (here(bottle_) && liq(0) == obj_) {
             obj_ = bottle_;
-            goto l9017;
+            goto pick_up;
         }
         obj_ = bottle_;
         if (toting(bottle_) && prop_[bottle_] == 1)
@@ -96,14 +96,14 @@ Phase Game::trtake() // 9010
             spk_ = Msg::NothingToCarryItIn;
         return report();
     }
-l9017:
+pick_up: // 9017
     if (holdng_ >= 7) {
         rspeak(Msg::CarryingTooMuch);
         return Phase::EndTurn;
     }
     if (obj_ == bird_) {
         if (prop_[bird_] != 0)
-            goto l9014;
+            goto carry_it;
         if (toting(rod_)) {
             rspeak(Msg::BirdBecomesUneasy);
             return Phase::EndTurn;
@@ -115,7 +115,7 @@ l9017:
         }
         prop_[bird_] = 1; // 9015
     }
-l9014:
+carry_it: // 9014
     if ((obj_ == bird_ || obj_ == cage_) && prop_[bird_] != 0)
         carry(bird_ + cage_ - obj_, loc_);
     carry(obj_, loc_);
@@ -381,7 +381,7 @@ Phase Game::trtoss() // 9170: throw
         if (dloc_[i] == loc_) {
             spk_ = Msg::DwarfDodges; // 9172
             if (ran(3) == 0 || saved_ != -1)
-            l9175: {
+            drop_axe: { // 9175
                 rspeak(spk_);
                 drop(axe_, loc_);
                 k_ = null_;
@@ -393,15 +393,15 @@ Phase Game::trtoss() // 9170: throw
             dkill_++;
             if (dkill_ == 1)
                 spk_ = Msg::KilledDwarfCloud;
-            goto l9175;
+            goto drop_axe;
         }
     }
     spk_ = Msg::AxeBouncesDragon;
     if (at(dragon_) && prop_[dragon_] == 0)
-        goto l9175;
+        goto drop_axe;
     spk_ = Msg::TrollCatchesAxe;
     if (at(troll_))
-        goto l9175;
+        goto drop_axe;
     if (here(bear_) && prop_[bear_] == 0) {
         spk_ = Msg::AxeMissesNearBear;
         drop(axe_, loc_);

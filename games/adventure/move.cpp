@@ -64,7 +64,7 @@ int Game::fdwarf(void) // 71
         dloc_[i]  = tk_[j];
         dseen_[i] = (dseen_[i] && loc_ >= 15) || (dloc_[i] == loc_ || odloc_[i] == loc_);
         if (!dseen_[i])
-            continue; // i.e. goto 6030
+            continue; // 6030, next dwarf
         dloc_[i] = loc_;
         if (i == 6) // pirate's spotted him
         {
@@ -74,20 +74,20 @@ int Game::fdwarf(void) // 71
             for (j = 50; j <= maxtrs_; j++) // loop to 6020
             {
                 if (j == pyram_ && (loc_ == plac_[pyram_] || loc_ == plac_[emrald_]))
-                    goto l6020;
+                    goto seen_here;
                 if (toting(j))
-                    goto l6022;
-            l6020:
+                    goto rob;
+            seen_here: // 6020
                 if (here(j))
                     k_ = 1;
             } // 6020
             if (tally_ == tally2_ + 1 && k_ == 0 && place_[chest_] == 0 && here(lamp_) &&
                 prop_[lamp_] == 1)
-                goto l6025;
+                goto steal_chest;
             if (odloc_[6] != dloc_[6] && pct(20))
                 rspeak(Msg::FaintRustling);
-            continue; // to 6030
-        l6022:
+            continue; // 6030, next dwarf
+        rob:          // 6022
             rspeak(Msg::PiratePounces);
             if (place_[messag_] == 0)
                 move(chest_, chloc_);
@@ -101,15 +101,15 @@ int Game::fdwarf(void) // 71
                 if (toting(j))
                     drop(j, chloc_);
             }
-        l6024:
+        hide_chest: // 6024
             dloc_[6] = odloc_[6] = chloc_;
             dseen_[6]            = FALSE;
             continue;
-        l6025:
+        steal_chest: // 6025
             rspeak(Msg::RustlingThenPirate);
             move(chest_, chloc_);
             move(messag_, chloc2_);
-            goto l6024;
+            goto hide_chest;
         }
         dtotal_++; // 6027
         if (odloc_[i] != dloc_[i])
@@ -136,7 +136,7 @@ int Game::fdwarf(void) // 71
     if (attack_ != 1) {
         adv_printf("%d of them throw knives at you!\n", attack_);
         k_ = i16(Msg::NoneHitYou);
-    l82:
+    hits:                // 82
         if (stick_ <= 1) // 82
         {
             rspeak(Msg(k_) + stick_);
@@ -149,7 +149,7 @@ int Game::fdwarf(void) // 71
     }
     rspeak(Msg::KnifeThrown);
     k_ = i16(Msg::KnifeMisses);
-    goto l82;
+    goto hits;
 }
 
 int Game::mback(void) // 20
@@ -296,14 +296,14 @@ int Game::march(void) // label 8
         case 2:
             return (2);
         case 9:
-            goto l9;
+            goto find_exit;
         default:
             bug(100);
         }
     }
     oldlc2_ = oldloc_;
     oldloc_ = loc_;
-l9:
+find_exit: // 9
     for (; !tk_end(); tkk_++)
         if (tk().tverb == Motion::Forced || tk().tverb == Motion(k_))
             break;
@@ -311,7 +311,7 @@ l9:
         badmove();
         return (2);
     }
-l11:
+try_entry:                     // 11
     ll1     = tk().conditions; // 11
     ll2     = tk().tloc;
     newloc_ = ll1;           // newloc=conditions
@@ -320,9 +320,9 @@ l11:
         if (newloc_ <= 100) // 13
         {
             if (newloc_ != 0 && !pct(newloc_))
-                goto l12; // 14
-        l16:
-            newloc_ = ll2; // newloc=location
+                goto next_entry; // 14
+        take_exit:               // 16
+            newloc_ = ll2;       // newloc=location
             if (newloc_ <= 300)
                 return (2);
             if (newloc_ <= 500)
@@ -331,7 +331,7 @@ l11:
                 case 2:
                     return (2);
                 case 12:
-                    goto l12;
+                    goto next_entry;
                 case 99:
                     return (99);
                 default:
@@ -342,16 +342,16 @@ l11:
             return (2);
         }
         if (toting(k_) || (newloc_ > 200 && at(k_)))
-            goto l16;
-        goto l12;
+            goto take_exit;
+        goto next_entry;
     }
     if (prop_[k_] != (newloc_ / 100) - 3)
-        goto l16; // newloc still conditions
-l12:              // alternative to probability move
+        goto take_exit; // newloc still conditions
+next_entry:             // 12, the alternative to a probability move
     for (; !tk_end(); tkk_++)
         if (tk().tloc != ll2 || tk().conditions != ll1)
             break;
     if (tk_end())
         bug(25);
-    goto l11;
+    goto try_entry;
 }
