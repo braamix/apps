@@ -232,8 +232,16 @@ writes the two words it means.
 | | |
 | --- | --- |
 | `hdr.h` | `struct game` and the prototypes |
-| `adventure.cpp` | the game: the command loop, the tables, the verbs, the scoring |
-| `io.cpp` | the `glorkz` parser, the messages, the words typed, save and restore |
+| `main.cpp` | closing the cave, and the command loop — upstream `main.c` |
+| `init.cpp` | the shared state and its setup — upstream `init.c` |
+| `vocab.cpp` | the objects and the words — upstream `vocab.c` |
+| `subr.cpp` | the statement functions — upstream `subr.c` |
+| `move.cpp` | the dwarves and the travel table — `subr.c` too |
+| `verbs.cpp` | the hints and the verb handlers — `subr.c` too |
+| `wizard.cpp` | suspend, resume and the magic word — upstream `wizard.c` |
+| `done.cpp` | dying, quitting and the scoring — upstream `done.c` |
+| `io.cpp` | the `glorkz` parser, the messages, the words typed — `io.c` |
+| `save.cpp` | the save file, written and read back — upstream `save.c` |
 | `braam.cpp`, `braam.h` | the porting layer: output, input, the dice, the clock |
 | `edit.cpp`, `edit.h` | the line editor, from `braam-core`'s `sh` |
 | `mkdata.py` | `glorkz` to a C++ array, at build time |

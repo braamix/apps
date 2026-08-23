@@ -154,6 +154,7 @@ int length(const char *);
 Task<void> getin(char **, char **);
 int fdwarf(void);
 Task<i32> die(int);
+int bitset(int, int);
 int forced(int);
 int dark(int);
 int pct(int);
