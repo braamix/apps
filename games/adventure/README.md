@@ -170,11 +170,17 @@ make test       # from the top of this repository
 `test/play.mjs` boots `../braam-core`'s kernel under node, plants the built
 `adventure.wasm` in the image, and runs `test/walkthrough.txt` on stdin with
 `ADVENTURE_SEED=36`. That walkthrough is a **complete game — 350 out of 350 in
-330 turns**, and the test fails on anything less, on any word the parser
+322 turns**, with nothing spare in it: drop any one of its 329 commands and the
+game ends short of 350. The test fails on anything less, on any word the parser
 refuses, on a death, on a question that ate a command, on any of twenty
 landmarks reached out of order, and finally on any difference at all from
-`test/game.log`, the golden transcript beside it. The run is deterministic, so
-that last check is exact; when a change to the game is meant, refresh it with
+`test/game.log`, the golden transcript beside it. That transcript has the
+commands put back into it, one per turn — the game echoes nothing when its
+input is a file, so `play.mjs` recovers the turn boundaries from the writes and
+interleaves them, and the log reads like a session someone sat through.
+
+The run is deterministic, so that last check is exact; when a change to the
+game is meant, refresh it with
 
 ```
 cp build/games/adventure/game.log games/adventure/test/game.log

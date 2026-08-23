@@ -1,4 +1,4 @@
-# A complete game of adventure, 350 out of 350 in 330 turns, played against
+# A complete game of adventure, 350 out of 350 in 322 turns, played against
 # ADVENTURE_SEED=36 by games/adventure/test/play.mjs. One command a line;
 # `#` and blank lines are stripped before the file reaches the game.
 #
@@ -6,14 +6,16 @@
 # and cannot drive this one: it has no `all`, `give` or `wait`, it never answers
 # the questions this version asks, and its dwarves fall on other turns. See
 # ../README.md.
+#
+# Nothing here is spare: drop any one line and the game ends short of 350.
 
-# Would you like instructions? No — they cost five points and buy a
-# thousand turns of lamp instead of three hundred and thirty, and this game
-# needs neither.
+# Would you like instructions? No — they buy a thousand turns of lamp
+# instead of three hundred and thirty, and cost five points. This game
+# needs the points and not the turns.
 no
 
-# First excursion: the keys, the lamp, the grate, the bird against the snake,
-# and the treasures of the Hall of the Mountain King.
+# First excursion: the keys, the lamp, the grate, the bird against the
+# snake, and the treasures of the Hall of the Mountain King.
 east
 get keys
 get lamp
@@ -45,7 +47,7 @@ north
 sw
 west
 
-# The dragon. `kill dragon` asks what with, and only `y` or `yes` answers it.
+# `kill dragon` asks what with, and only `y` or `yes` answers it.
 kill dragon
 yes
 get rug
@@ -58,8 +60,8 @@ north
 get silver
 north
 
-# Out through y2, and the first score. Every `score` asks whether to quit,
-# hence the `no` under it.
+# Out through y2, and the first score. Every `score` asks whether to
+# quit, hence the `no` under it.
 off
 plugh
 drop gold
@@ -68,14 +70,11 @@ drop coins
 drop silver
 drop rug
 get bottle
-get water
-get lamp
-get axe
 score
 no
 
-# Second excursion: water the plant twice, oil the rusty door, and the long
-# loop for the trident, the emerald, the vase, the pearl and the pyramid.
+# Second excursion: water the plant twice, oil the rusty door, and the
+# long loop for the trident, the emerald, the vase and the pearl.
 plugh
 on
 south
@@ -120,15 +119,16 @@ down
 se
 north
 west
+
+# The alcove: only what fits through the crawl reaches the emerald, so
+# everything else waits here.
 drop trident
 drop lamp
-drop axe
 east
 get emerald
 west
 get trident
 get lamp
-get axe
 nw
 south
 get vase
@@ -160,8 +160,7 @@ drop vase
 plugh
 on
 
-# The plover room: only the emerald fits through the crawl, so everything
-# else was left behind at the alcove.
+# Out again by plover, for the pyramid.
 plover
 ne
 get pyramid
@@ -174,8 +173,12 @@ score
 no
 
 # Third excursion: the eggs for the troll, the spices, the bear, and the
-# pirate's pile — the expect script's `get all`, spelled out.
+# pile the pirate stole — the expect script's `get all`, spelled out.
 get food
+
+# End game: the last lousy point is the magazine, carried from the
+# anteroom to Witt's End. There is one chance in twenty a turn of
+# getting back out, so the wait for the cave to close is spent trying.
 plugh
 on
 south
@@ -198,8 +201,8 @@ sw
 up
 ne
 
-# `throw eggs` where the Z script said `give eggs`; the vocabulary has no
-# `give`, and the troll takes what is thrown at him.
+# `throw eggs` where the Z script said `give eggs`: no `give` in this
+# vocabulary, and the troll takes what is thrown at him.
 throw eggs
 ne
 ne
@@ -260,9 +263,9 @@ get diamonds
 west
 south
 
-# The dwarves. Their axe is thrown at us once, early, and after that every
-# `throw axe` here answers a dwarf that the fixed seed puts in the way.
-get axe
+# The dwarves threw this axe at us a few turns ago. Both throws below
+# miss, and both are still needed: without them two dwarves get us,
+# and a death costs ten points.
 get axe
 east
 south
@@ -280,7 +283,9 @@ get diamonds
 throw axe
 get axe
 se
-se
+
+# A turn has to pass here; `look` spends one without moving.
+look
 throw axe
 get axe
 north
@@ -296,12 +301,6 @@ drop diamonds
 drop chest
 score
 no
-
-# End game: the last lousy point is the magazine carried from the anteroom to
-# Witt's End, which there is no reliable way back out of — so it is the last
-# thing done, and the wait for the cave to close is spent trying.
-get lamp
-get axe
 plugh
 on
 south
@@ -344,6 +343,8 @@ east
 east
 east
 east
+
+# Twenty-five turns of failing and the game offers a hint. Decline it.
 no
 east
 east
@@ -366,7 +367,7 @@ east
 east
 east
 
-# Twenty-five turns at Witt's End and the game offers a hint; decline it.
+# And again.
 no
 east
 east
@@ -377,8 +378,8 @@ east
 east
 east
 
-# The cave is closed and we are in the repository. Carry the dynamite to the
-# far end, leave it, and set it off from here.
+# The cave is closed and this is the repository. Carry the dynamite to
+# the far end, leave it, and set it off from here.
 sw
 get rod
 ne

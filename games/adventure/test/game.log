@@ -1,8 +1,12 @@
 Welcome to adventure!!  Would you like instructions?
 
+> no
+
 You are standing at the end of a road before a small brick building.
 Around you is a forest.  A small stream flows out of the building and
 down a gully.
+
+> east
 
 You are inside a building, a well house for a large spring.
 
@@ -14,17 +18,29 @@ There is food here.
 
 There is a bottle of water here.
 
-OK
+> get keys
 
 OK
+
+> get lamp
+
+OK
+
+> west
 
 You're at end of road again.
+
+> south
 
 You are in a valley in the forest beside a stream tumbling along a
 rocky bed.
 
+> south
+
 At your feet all the water of the stream splashes into a 2-inch slit
 in the rock.  Downstream the streambed is bare rock.
+
+> south
 
 You are in a 20-foot depression floored with bare dirt.  Set into the
 dirt is a strong steel grate mounted in concrete.  A dry streambed
@@ -32,21 +48,33 @@ leads into the depression.
 
 The grate is locked.
 
+> unlock grate
+
 The grate is now unlocked.
+
+> down
 
 You are in a small chamber beneath a 3x3 steel grate to the surface.
 A low crawl over cobbles leads inward to the west.
 
 The grate is open.
 
+> west
+
 You are crawling over cobbles in a low passage.  There is a dim light
 at the east end of the passage.
 
 There is a small wicker cage discarded nearby.
 
+> light lamp
+
 Your lamp is now on.
 
+> get cage
+
 OK
+
+> west
 
 You are in a debris room filled with stuff washed in from the surface.
 A low wide passage with cobbles becomes plugged with mud and debris
@@ -55,7 +83,11 @@ says "magic word xyzzy".
 
 A three foot black rod with a rusty star on an end lies nearby.
 
+> west
+
 You are in an awkward sloping east/west canyon.
+
+> west
 
 You are in a splendid chamber thirty feet high.  The walls are frozen
 rivers of orange stone.  An awkward canyon and a good passage exit
@@ -63,12 +95,18 @@ From east and west sides of the chamber.
 
 A cheerful little bird is sitting here singing.
 
+> get bird
+
 OK
+
+> west
 
 At your feet is a small pit breathing traces of white mist.  An east
 passage ends here except for a small crack leading on.
 
 Rough stone steps lead down the pit.
+
+> down
 
 You are at one end of a vast hall stretching forward out of sight to
 the west.  There are openings to either side.  Nearby, a wide stone
@@ -78,32 +116,52 @@ staircase.  There is a passage at the top of a dome behind you.
 
 Rough stone steps lead up the dome.
 
+> south
+
 This is a low room with a crude note on the wall.  The note says,
 "You won't get it up the steps".
 
 There is a large sparkling nugget of gold here!
 
+> get gold
+
 OK
 
+> north
+
 You're in hall of mists.
+
+> north
 
 You are in the hall of the mountain king, with passages off in all
 directions.
 
 A huge green fierce snake bars the way!
 
+> drop bird
+
 The little bird attacks the green snake, and in an astounding flurry
 drives the snake away.
 
-OK
+> drop cage
 
 OK
+
+> drop keys
+
+OK
+
+> south
 
 You are in the south side chamber.
 
 There is precious jewelry here!
 
+> get jewelry
+
 OK
+
+> north
 
 You're in hall of mt king.
 
@@ -113,9 +171,13 @@ There is a small wicker cage discarded nearby.
 
 A cheerful little bird is sitting here singing.
 
+> sw
+
 You are in a secret canyon which here runs e/w.  It crosses over a
 very tight canyon 15 feet below.  If you go down you may not be able
 to get back up.
+
+> west
 
 You are in a secret canyon which exits to the north and east.
 
@@ -123,7 +185,11 @@ A huge green fierce dragon bars the way!
 
 The dragon is sprawled out on a persian rug!!
 
+> kill dragon
+
 With what?  Your bare hands?
+
+> yes
 
 Congratulations!  You have just vanquished a dragon with your bare
 Hands!  (unbelievable, isn't it?)
@@ -134,9 +200,15 @@ There is a persian rug spread out on the floor!
 
 The body of a huge green dead dragon is lying off to one side.
 
+> get rug
+
 OK
 
+> east
+
 You're in secret e/w canyon above tight canyon.
+
+> east
 
 You're in hall of mt king.
 
@@ -145,13 +217,19 @@ There are some keys on the ground here.
 There is a small wicker cage discarded nearby.
 
 A cheerful little bird is sitting here singing.
+
+> west
 
 You are in the west side chamber of the hall of the mountain king.
 A passage continues west and up here.
 
 There are many coins here!
 
+> get coins
+
 OK
+
+> east
 
 You're in hall of mt king.
 
@@ -161,12 +239,18 @@ There is a small wicker cage discarded nearby.
 
 A cheerful little bird is sitting here singing.
 
+> north
+
 You are in a low n/s passage at a hole in the floor.  The hole goes
 down to an e/w passage.
 
 There are bars of silver here!
 
+> get silver
+
 OK
+
+> north
 
 You are in a large room, with a passage to the south, a passage to the
 west, and a wall of broken rock to the east.  There is a large "y2" on
@@ -174,9 +258,13 @@ A rock in the room's center.
 
 A hollow voice says "plugh".
 
+> off
+
 Your lamp is now off.
 
 It is now pitch dark.  If you proceed you will likely fall into a pit.
+
+> plugh
 
 You're inside building.
 
@@ -184,28 +272,44 @@ There is food here.
 
 There is a bottle of water here.
 
-OK
+> drop gold
 
 OK
 
-OK
+> drop jewelry
 
 OK
 
-OK
+> drop coins
 
 OK
 
-You are already carrying it!
+> drop silver
 
-You are already carrying it!
-I see no axe here
+OK
+
+> drop rug
+
+OK
+
+> get bottle
+
+OK
+
+> score
+
 If you were to quit now, you would score 121 out of a possible 350.
 Do you indeed wish to quit now?
 
+> no
+
 OK
 
+> plugh
+
 It is now pitch dark.  If you proceed you will likely fall into a pit.
+
+> on
 
 Your lamp is now on.
 
@@ -213,8 +317,12 @@ You're at "y2".
 
 A hollow voice says "plugh".
 
+> south
+
 You are in a low n/s passage at a hole in the floor.  The hole goes
 down to an e/w passage.
+
+> south
 
 You're in hall of mt king.
 
@@ -224,13 +332,21 @@ There is a small wicker cage discarded nearby.
 
 A cheerful little bird is sitting here singing.
 
+> sw
+
 You're in secret e/w canyon above tight canyon.
+
+> west
 
 You are in a secret canyon which exits to the north and east.
 
 The body of a huge green dead dragon is lying off to one side.
 
+> north
+
 You are in a secret n/s canyon above a large room.
+
+> down
 
 You are in a large low circular chamber whose floor is an immense slab
 fallen from the ceiling (slab room).  East and west there once were
@@ -238,13 +354,19 @@ large passages, but they are now filled with boulders.  Low small
 passages go north and south, and the south one quickly bends west
 around the boulders.
 
+> south
+
 You are at the west end of the twopit room.  There is a large hole in
 the wall above the pit at this end of the room.
+
+> down
 
 You are at the bottom of the western pit in the twopit room.  There is
 a large hole in the wall about 25 feet above you.
 
 There is a tiny little plant in the pit, murmuring "water, water, ..."
+
+> pour water
 
 The plant spurts into furious growth for a few seconds.
 
@@ -253,15 +375,23 @@ You're in west pit.
 There is a 12-foot-tall beanstalk stretching up out of the pit,
 Bellowing "water!! water!!"
 
+> up
+
 You're at west end of twopit room.
 
 The top of a 12-foot-tall beanstalk is poking out of the west pit.
+
+> west
 
 If you prefer, simply type w rather than west.
 
 You're in slab room.
 
+> up
+
 You are in a secret n/s canyon above a large room.
+
+> north
 
 You are in a north/south canyon about 25 feet across.  The floor is
 covered by white mist seeping in from the north.  The walls extend
@@ -271,28 +401,44 @@ Midway between the canyon walls.  (The mirror is obviously provided
 for the use of the dwarves, who as you know, are extremely vain.)  A
 Small window can be seen in either wall, some fifty feet up.
 
+> north
+
 You are at the edge of a large underground reservoir.  An opaque cloud
 of white mist fills the room and rises rapidly upward.  The lake is
 fed by a stream, which tumbles out of a hole in the wall about 10 feet
 overhead and splashes noisily into the water somewhere within the
 Mist.  The only passage goes back toward the south.
 
+> get water
+
 Your bottle is now full of water.
+
+> south
 
 You're in mirror canyon.
 
+> south
+
 You are in a secret n/s canyon above a large room.
 
+> down
+
 You're in slab room.
+
+> south
 
 You're at west end of twopit room.
 
 The top of a 12-foot-tall beanstalk is poking out of the west pit.
 
+> down
+
 You're in west pit.
 
 There is a 12-foot-tall beanstalk stretching up out of the pit,
 Bellowing "water!! water!!"
+
+> pour water
 
 The plant grows explosively, almost filling the bottom of the pit.
 
@@ -300,9 +446,13 @@ You're in west pit.
 
 There is a gigantic beanstalk stretching all the way up to the hole.
 
+> up
+
 You're at west end of twopit room.
 
 There is a huge beanstalk growing out of the west pit up to the hole.
+
+> east
 
 You are at the east end of the twopit room.  The floor here is
 littered with thin rock slabs, which make it easy to descend the pits.
@@ -312,22 +462,34 @@ wall directly over the west pit where you can't get to it.
 
 There is a huge beanstalk growing out of the west pit up to the hole.
 
+> down
+
 You are at the bottom of the eastern pit in the twopit room.  There is
 a small pool of oil in one corner of the pit.
 
+> get oil
+
 Your bottle is now full of oil.
+
+> up
 
 You're at east end of twopit room.
 
 There is a huge beanstalk growing out of the west pit up to the hole.
 
+> west
+
 You're at west end of twopit room.
 
 There is a huge beanstalk growing out of the west pit up to the hole.
 
+> down
+
 You're in west pit.
 
 There is a gigantic beanstalk stretching all the way up to the hole.
+
+> climb
 
 You clamber up the plant and scurry through the hole at the top.
 
@@ -335,20 +497,30 @@ You are in a long, narrow corridor stretching out of sight to the
 west.  At the eastern end is a hole through which you can see a
 profusion of leaves.
 
+> west
+
 You are in the giant room.  The ceiling here is too high up for your
 lamp to show it.  Cavernous passages lead east, north, and south.  On
 the west wall is scrawled the inscription, "fee fie foe foo" [sic].
 
 There is a large nest here, full of golden eggs!
 
+> north
+
 You are at one end of an immense north/south passage.
 
 The way north is barred by a massive, rusty, iron door.
 
+> oil door
+
 The oil has freed up the hinges so that the door will now move,
 although it requires some effort.
 
+> drop bottle
+
 OK
+
+> north
 
 You are in a magnificent cavern with a rushing stream, which cascades
 over a sparkling waterfall into a roaring whirlpool which disappears
@@ -356,13 +528,21 @@ through a hole in the floor.  Passages exit to the south and west.
 
 There is a jewel-encrusted trident here!
 
+> get trident
+
 OK
+
+> west
 
 You are at the top of a steep incline above a large room.  You could
 climb down here, but you would not be able to climb up.  There is a
 passage leading back to the north.
 
+> down
+
 You are in a large low room.  Crawls lead north, se, and sw.
+
+> se
 
 This is the oriental room.  Ancient oriental cave drawings cover the
 walls.  A gently sloping passage leads upward to the north, another
@@ -370,26 +550,39 @@ passage leads se, and a hands and knees crawl leads west.
 
 There is a delicate, precious, ming vase here!
 
+> north
+
 You are following a wide path around the outer edge of a large cavern.
 Far below, through a heavy white mist, strange splashing noises can be
 heard.  The mist rises up through a fissure in the ceiling.  The path
 exits to the south and west.
 
+> west
+
 You are in an alcove.  A small nw path seems to widen after a short
 distance.  An extremely tight tunnel leads east.  It looks like a very
 tight squeeze.  An eerie light can be seen at the other end.
 
-OK
+> drop trident
 
 OK
-I see no axe here
+
+> drop lamp
+
+OK
+
+> east
 
 You're in a small chamber lit by an eerie green light.  An extremely
 narrow tunnel exits to the west.  A dark corridor leads ne.
 
 There is an emerald here the size of a plover's egg!
 
+> get emerald
+
 OK
+
+> west
 
 You're in alcove.
 
@@ -397,38 +590,61 @@ There is a lamp shining nearby.
 
 There is a jewel-encrusted trident here!
 
-OK
+> get trident
 
 OK
-I see no axe here
+
+> get lamp
+
+OK
+
+> nw
 
 You're in misty cavern.
+
+> south
 
 You're in oriental room.
 
 There is a delicate, precious, ming vase here!
 
+> get vase
+
 OK
+
+> se
 
 You are in a room whose walls resemble swiss cheese.  Obvious passages
 go west, east, ne, and nw.  Part of the room is occupied by a large
 bedrock block.
+
+> east
 
 You are in the soft room.  The walls are covered with heavy curtains,
 the floor with a thick pile carpet.  Moss covers the ceiling.
 
 A small velvet pillow lies on the floor.
 
+> get pillow
+
 OK
 
+> west
+
 You're in swiss cheese room.
+
+> ne
 
 You are in bedquilt, a long east/west passage with holes everywhere.
 To explore at random select north, south, up, or down.
 
+> east
+
 You are at a complex junction.  A low hands and knees passage from the
 north joins a higher crawl from the east to make a walking passage
 going west.  There is also a large room above.  The air is damp here.
+
+> north
 
 You're in a large room carved out of sedimentary rock.  The floor and
 walls are littered with bits of shells imbedded in the stone.  A
@@ -437,42 +653,68 @@ up.  A low hands and knees passage enters from the south.
 
 There is an enormous clam here with its shell tightly closed.
 
+> open clam
+
 A glistening pearl falls out of the clam and rolls away.  Goodness,
 this must really be an oyster.  (I never was very good at identifying
 bivalves.)  Whatever it is, it has now snapped shut again.
 
+> down
+
 You are in a long sloping corridor with ragged sharp walls.
+
+> down
 
 You are in a cul-de-sac about eight feet across.
 
 Off to one side lies a glistening pearl!
 
+> get pearl
+
 OK
 
+> up
+
 You are in a long sloping corridor with ragged sharp walls.
+
+> up
 
 You're in shell room.
 
 There is an enormous oyster here with its shell tightly closed.
 
+> south
+
 You're at complex junction.
+
+> up
 
 You are in a large room full of dusty rocks.  There is a big hole in
 the floor.  There are cracks everywhere, and a passage leading east.
 
+> east
+
 You are in a dirty broken passage.  To the east is a crawl.  To the
 west is a large passage.  Above you is a hole to another passage.
 
+> up
+
 You are in a low n/s passage at a hole in the floor.  The hole goes
 down to an e/w passage.
+
+> north
 
 You're at "y2".
 
 A hollow voice says "plugh".
 
+> off
+
 Your lamp is now off.
 
 It is now pitch dark.  If you proceed you will likely fall into a pit.
+
+> plugh
 
 You're inside building.
 
@@ -488,23 +730,41 @@ There is a large sparkling nugget of gold here!
 
 There is food here.
 
-OK
+> drop emerald
 
 OK
 
-OK
+> drop trident
 
 OK
+
+> drop pearl
+
+OK
+
+> drop pillow
+
+OK
+
+> drop vase
 
 The vase is now resting, delicately, on a velvet pillow.
 
+> plugh
+
 It is now pitch dark.  If you proceed you will likely fall into a pit.
+
+> on
 
 Your lamp is now on.
 
 You're at "y2".
 
+> plover
+
 You're in plover room.
+
+> ne
 
 You're in the dark-room.  A corridor leading south is the only exit.
 
@@ -513,17 +773,27 @@ A massive stone tablet imbedded in the wall reads:
 
 There is a platinum pyramid here, 8 inches on a side!
 
+> get pyramid
+
 OK
 
+> south
+
 You're in plover room.
+
+> plover
 
 You're at "y2".
 
 A hollow voice says "plugh".
 
+> off
+
 Your lamp is now off.
 
 It is now pitch dark.  If you proceed you will likely fall into a pit.
+
+> plugh
 
 You're inside building.
 
@@ -549,15 +819,28 @@ There is a large sparkling nugget of gold here!
 
 There is food here.
 
+> drop pyramid
+
 OK
+
+> score
+
 If you were to quit now, you would score 203 out of a possible 350.
 Do you indeed wish to quit now?
 
-OK
+> no
 
 OK
+
+> get food
+
+OK
+
+> plugh
 
 It is now pitch dark.  If you proceed you will likely fall into a pit.
+
+> on
 
 Your lamp is now on.
 
@@ -565,8 +848,12 @@ You are in a large room, with a passage to the south, a passage to the
 west, and a wall of broken rock to the east.  There is a large "y2" on
 A rock in the room's center.
 
+> south
+
 You are in a low n/s passage at a hole in the floor.  The hole goes
 down to an e/w passage.
+
+> south
 
 You are in the hall of the mountain king, with passages off in all
 directions.
@@ -577,37 +864,59 @@ There is a small wicker cage discarded nearby.
 
 A cheerful little bird is sitting here singing.
 
+> get keys
+
 OK
 
+> sw
+
 You're in secret e/w canyon above tight canyon.
+
+> west
 
 You are in a secret canyon which exits to the north and east.
 
 The body of a huge green dead dragon is lying off to one side.
 
+> north
+
 You are in a secret n/s canyon above a large room.
 
+> down
+
 You're in slab room.
+
+> south
 
 You are at the west end of the twopit room.  There is a large hole in
 the wall above the pit at this end of the room.
 
 There is a huge beanstalk growing out of the west pit up to the hole.
 
+> down
+
 You are at the bottom of the western pit in the twopit room.  There is
 a large hole in the wall about 25 feet above you.
 
 There is a gigantic beanstalk stretching all the way up to the hole.
 
+> climb
+
 You clamber up the plant and scurry through the hole at the top.
 
 You're in narrow corridor.
+
+> west
 
 You're in giant room.
 
 There is a large nest here, full of golden eggs!
 
+> get eggs
+
 OK
+
+> north
 
 You are at one end of an immense north/south passage.
 
@@ -615,14 +924,24 @@ There is an empty bottle here.
 
 The way north leads through a massive, rusty, iron door.
 
+> north
+
 You're in cavern with waterfall.
+
+> west
 
 You're at steep incline above large room.
 
+> down
+
 You are in a large low room.  Crawls lead north, se, and sw.
+
+> sw
 
 You are in a long winding corridor sloping out of sight in both
 directions.
+
+> up
 
 You are on one side of a large, deep chasm.  A heavy white mist rising
 up from below obscures all view of the far side.  A sw path leads away
@@ -634,6 +953,8 @@ Mist.  A sign posted on the bridge reads, "stop! pay troll!"
 A burly troll stands by the bridge and insists you throw him a
 Treasure before you may cross.
 
+> ne
+
 The troll refuses to let you cross.
 
 You're on sw side of chasm.
@@ -644,7 +965,11 @@ Mist.  A sign posted on the bridge reads, "stop! pay troll!"
 A burly troll stands by the bridge and insists you throw him a
 Treasure before you may cross.
 
+> throw eggs
+
 The troll catches your treasure and scurries away out of sight.
+
+> ne
 
 You are on the far side of the chasm.  A ne path leads away from the
 chasm on this side.
@@ -654,16 +979,24 @@ Mist.  A sign posted on the bridge reads, "stop! pay troll!"
 
 The troll is nowhere to be seen.
 
+> ne
+
 You're in a long east/west corridor.  A faint rumbling noise can be
 heard in the distance.
+
+> east
 
 The path forks here.  The left fork leads northeast.  A dull rumbling
 seems to get louder in that direction.  The right fork leads southeast
 down a gentle slope.  The main corridor enters from the west.
 
+> ne
+
 The walls are quite warm here.  From the north can be heard a steady
 roar, so loud that the entire cave seems to be trembling.  Another
 passage leads south, and a low crawl goes east.
+
+> east
 
 You are in a small chamber filled with large boulders.  The walls are
 very warm, causing the air in the room to be almost stifling from the
@@ -672,17 +1005,29 @@ a low rumbling.
 
 There are rare spices here!
 
+> get spices
+
 OK
+
+> west
 
 You're at junction with warm walls.
 
+> south
+
 You're at fork in path.
+
+> se
 
 You are walking along a gently sloping north/south passage lined with
 oddly shaped limestone formations.
 
+> south
+
 You are standing at the entrance to a large, barren room.  A sign
 posted above the entrance reads:  "Caution!  Bear in room!"
+
+> east
 
 You are inside a barren room.  The center of the room is completely
 empty except for some dust.  Marks in the dust lead away toward the
@@ -692,32 +1037,52 @@ There is a ferocious cave bear eying you from the far end of the room!
 
 The bear is locked to the wall with a golden chain!
 
+> feed bear
+
 The bear eagerly wolfs down your food, after which he seems to calm
 Down considerably and even becomes rather friendly.
 
+> unlock chain
+
 The chain is now unlocked.
 
-OK
+> drop keys
 
 OK
 
+> get chain
+
 OK
+
+> get bear
+
+OK
+
+> west
 
 You are being followed by a very large, tame bear.
 
 You're in front of barren room.
 
+> west
+
 You are being followed by a very large, tame bear.
 
 You're in limestone passage.
+
+> north
 
 You are being followed by a very large, tame bear.
 
 You're at fork in path.
 
+> west
+
 You are being followed by a very large, tame bear.
 
 You're in corridor.
+
+> west
 
 You are being followed by a very large, tame bear.
 
@@ -727,6 +1092,8 @@ A rickety wooden bridge extends across the chasm, vanishing into the
 Mist.  A sign posted on the bridge reads, "stop! pay troll!"
 
 The troll is nowhere to be seen.
+
+> sw
 
 The troll steps out from beneath the bridge and blocks your way.
 
@@ -740,8 +1107,12 @@ Mist.  A sign posted on the bridge reads, "stop! pay troll!"
 A burly troll stands by the bridge and insists you throw him a
 Treasure before you may cross.
 
+> drop bear
+
 The bear lumbers toward the troll, who lets out a startled shriek and
 scurries away.  The bear soon gives up the pursuit and wanders back.
+
+> sw
 
 You're on sw side of chasm.
 
@@ -750,61 +1121,105 @@ Mist.  A sign posted on the bridge reads, "stop! pay troll!"
 
 The troll is nowhere to be seen.
 
+> sw
+
 You're in sloping corridor.
+
+> down
 
 You are in a large low room.  Crawls lead north, se, and sw.
 
+> se
+
 You're in oriental room.
 
+> se
+
 You're in swiss cheese room.
+
+> west
 
 You're at east end of twopit room.
 
 There is a huge beanstalk growing out of the west pit up to the hole.
 
+> west
+
 You're at west end of twopit room.
 
 There is a huge beanstalk growing out of the west pit up to the hole.
 
+> down
+
 You're in west pit.
 
 There is a gigantic beanstalk stretching all the way up to the hole.
+
+> climb
 
 You clamber up the plant and scurry through the hole at the top.
 
 You're in narrow corridor.
 
+> west
+
 You're in giant room.
 
-OK
+> fee
 
 OK
 
+> fie
+
 OK
+
+> foe
+
+OK
+
+> foo
 
 There is a large nest here, full of golden eggs!
 
+> get eggs
+
 OK
 
+> south
+
 You're in narrow corridor.
+
+> down
 
 You're in west pit.
 
 There is a gigantic beanstalk stretching all the way up to the hole.
 
+> up
+
 You're at west end of twopit room.
 
 There is a huge beanstalk growing out of the west pit up to the hole.
 
+> west
+
 You're in slab room.
 
+> up
+
 You are in a secret n/s canyon above a large room.
+
+> south
 
 You are in a secret canyon which exits to the north and east.
 
 The body of a huge green dead dragon is lying off to one side.
 
+> east
+
 You're in secret e/w canyon above tight canyon.
+
+> east
 
 You're in hall of mt king.
 
@@ -812,26 +1227,42 @@ There is a small wicker cage discarded nearby.
 
 A cheerful little bird is sitting here singing.
 
+> west
+
 You are in the west side chamber of the hall of the mountain king.
 A passage continues west and up here.
 
+> west
+
 You are at a crossover of a high n/s passage and a low e/w one.
+
+> west
 
 You are at the east end of a very long hall apparently without side
 chambers.  To the east a low wide crawl slants up.  To the north a
 round two foot hole slants down.
 
+> east
+
 You are at the west end of hall of mists.  A low wide crawl continues
 west and another goes north.  To the south is a little passage 6 feet
 Off the floor.
+
+> east
 
 You are on the west side of the fissure in the hall of mists.
 
 There are diamonds here!
 
+> get diamonds
+
 OK
 
+> west
+
 You're at west end of hall of mists.
+
+> south
 
 A little dwarf just walked around a corner, saw you, threw a little
 axe at you which missed, cursed, and ran away.
@@ -840,19 +1271,27 @@ You are in a maze of twisty little passages, all alike.
 
 There is a little axe here.
 
+> get axe
+
 OK
 
-You are already carrying it!
+> east
 
 You are in a maze of twisty little passages, all alike.
+
+> south
 
 There is a threatening little dwarf in the room with you!
 
 You are in a maze of twisty little passages, all alike.
 
+> south
+
 There is a threatening little dwarf in the room with you!
 
 You are in a maze of twisty little passages, all alike.
+
+> south
 
 Out from the shadows behind you pounces a bearded pirate!  "Har, har,"
 he chortles, "I'll just take all this booty and hide it away with me
@@ -863,9 +1302,13 @@ There is a threatening little dwarf in the room with you!
 
 You are in a maze of twisty little passages, all alike.
 
+> north
+
 There is a threatening little dwarf in the room with you!
 
 You are in a maze of twisty little passages, all alike.
+
+> east
 
 There are faint rustling noises from the darkness behind you.
 
@@ -875,9 +1318,13 @@ You are on the brink of a thirty foot pit with a massive orange column
 down one wall.  You could climb down here but you could not get back
 up.  The maze continues at this level.
 
+> east
+
 There is a threatening little dwarf in the room with you!
 
 You are in a maze of twisty little passages, all alike.
+
+> nw
 
 There is a threatening little dwarf in the room with you!
 
@@ -893,15 +1340,27 @@ There are diamonds here!
 
 The pirate's treasure chest is here!
 
-OK
+> get chest
 
 OK
 
-OK
+> get chain
 
 OK
 
+> get spices
+
 OK
+
+> get eggs
+
+OK
+
+> get diamonds
+
+OK
+
+> throw axe
 
 You attack a little dwarf, but he dodges out of the way.
 
@@ -915,13 +1374,20 @@ Dead end
 
 There is a little axe here.
 
+> get axe
+
 OK
+
+> se
 
 There is a threatening little dwarf in the room with you!
 
 You are in a maze of twisty little passages, all alike.
 
-There is no way to go that direction.
+> look
+
+Sorry, but I am not allowed to give more detail.  I will repeat the
+long description of your location.
 
 There is a threatening little dwarf in the room with you!
 
@@ -930,6 +1396,8 @@ One sharp nasty knife is thrown at you!
 It misses!
 
 You are in a maze of twisty little passages, all alike.
+
+> throw axe
 
 You attack a little dwarf, but he dodges out of the way.
 
@@ -943,23 +1411,37 @@ You are in a maze of twisty little passages, all alike.
 
 There is a little axe here.
 
+> get axe
+
 OK
+
+> north
 
 There is a threatening little dwarf in the room with you!
 
 You're at brink of pit.
 
+> down
+
 You're in bird chamber.
 
+> east
+
 You are in an awkward sloping east/west canyon.
+
+> east
 
 You're in debris room.
 
 A three foot black rod with a rusty star on an end lies nearby.
 
+> off
+
 Your lamp is now off.
 
 It is now pitch dark.  If you proceed you will likely fall into a pit.
+
+> xyzzy
 
 You're inside building.
 
@@ -985,25 +1467,40 @@ There is precious jewelry here!
 
 There is a large sparkling nugget of gold here!
 
-OK
+> drop eggs
 
 OK
 
-OK
+> drop spices
 
 OK
 
+> drop chain
+
 OK
+
+> drop diamonds
+
+OK
+
+> drop chest
+
+OK
+
+> score
+
 If you were to quit now, you would score 275 out of a possible 350.
 Do you indeed wish to quit now?
 
+> no
+
 OK
 
-You are already carrying it!
-
-You are already carrying it!
+> plugh
 
 It is now pitch dark.  If you proceed you will likely fall into a pit.
+
+> on
 
 Your lamp is now on.
 
@@ -1011,14 +1508,24 @@ You're at "y2".
 
 A hollow voice says "plugh".
 
+> south
+
 You are in a low n/s passage at a hole in the floor.  The hole goes
 down to an e/w passage.
 
+> down
+
 You're in dirty passage.
+
+> west
 
 You're in dusty rock room.
 
+> down
+
 You're at complex junction.
+
+> east
 
 You are in an anteroom leading to a large passage to the east.  Small
 passages go west and up.  The remnants of recent digging are evident.
@@ -1027,25 +1534,19 @@ Proceed at own risk.  [Witt construction company]"
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-OK
-
-You are at Witt's end.  Passages lead off in *all* directions.
+> get magazine
 
 OK
 
-You have crawled around in some little holes and wound up back in the
-main passage.
+> east
 
-You're at witt's end.
+You are at Witt's end.  Passages lead off in *all* directions.
 
-There are a few recent issues of "Spelunker today" magazine here.
+> drop magazine
 
-You have crawled around in some little holes and wound up back in the
-main passage.
+OK
 
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1054,12 +1555,34 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
+> east
+
 You have crawled around in some little holes and wound up back in the
 main passage.
 
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1068,12 +1591,7 @@ You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1082,12 +1600,7 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1095,6 +1608,26 @@ main passage.
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 A sepulchral voice reverberating through the cave, says, "Cave closing
 soon.  All adventurers exit immediately through main office."
@@ -1106,18 +1639,26 @@ You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
+> east
+
 You have crawled around in some little holes and wound up back in the
 main passage.
 
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You're in anteroom.
 
+> east
+
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1126,12 +1667,16 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
+> east
+
 You have crawled around in some little holes and wound up back in the
 main passage.
 
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1140,12 +1685,7 @@ You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1154,12 +1694,7 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1167,6 +1702,26 @@ main passage.
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1175,12 +1730,7 @@ You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1189,12 +1739,7 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1202,6 +1747,26 @@ main passage.
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1210,12 +1775,7 @@ You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1224,12 +1784,7 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1237,6 +1792,26 @@ main passage.
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1244,6 +1819,8 @@ main passage.
 You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1254,14 +1831,11 @@ There are a few recent issues of "Spelunker today" magazine here.
 
 Do you need help getting out of here?
 
+> no
+
 OK
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1270,12 +1844,25 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
+> east
+
 You have crawled around in some little holes and wound up back in the
 main passage.
 
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1284,12 +1871,7 @@ You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1298,12 +1880,7 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1311,6 +1888,26 @@ main passage.
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1319,12 +1916,7 @@ You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1333,12 +1925,7 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1346,6 +1933,26 @@ main passage.
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1354,12 +1961,7 @@ You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1368,12 +1970,7 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1381,6 +1978,26 @@ main passage.
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1388,6 +2005,8 @@ main passage.
 You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1398,14 +2017,11 @@ There are a few recent issues of "Spelunker today" magazine here.
 
 Do you need help getting out of here?
 
+> no
+
 OK
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1414,12 +2030,25 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
+> east
+
 You have crawled around in some little holes and wound up back in the
 main passage.
 
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1428,12 +2057,7 @@ You are at Witt's end.  Passages lead off in *all* directions.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
-You have crawled around in some little holes and wound up back in the
-main passage.
-
-You're at witt's end.
-
-There are a few recent issues of "Spelunker today" magazine here.
+> east
 
 You have crawled around in some little holes and wound up back in the
 main passage.
@@ -1442,12 +2066,25 @@ You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
 
+> east
+
 You have crawled around in some little holes and wound up back in the
 main passage.
 
 You're at witt's end.
 
 There are a few recent issues of "Spelunker today" magazine here.
+
+> east
+
+You have crawled around in some little holes and wound up back in the
+main passage.
+
+You're at witt's end.
+
+There are a few recent issues of "Spelunker today" magazine here.
+
+> east
 
 The sepulchral voice entones, "The cave is now closed."  As the echoes
 fade, there is a blinding flash of light (and a small puff of orange
@@ -1465,6 +2102,8 @@ not disturb the dwarves!"  An immense mirror is hanging against one
 wall, and stretches to the other end of the room, where various other
 sundry objects can be glimpsed dimly in the distance.
 
+> sw
+
 You are at the southwest end of the repository.  To one side is a pit
 full of fierce green snakes.  On the other side is a row of small
 wicker cages, each of which contains a little sulking bird.  In one
@@ -1476,15 +2115,25 @@ Keys in main office."
 
 The grate is locked.
 
+> get rod
+
 OK
+
+> ne
 
 You're at ne end.
 
+> drop rod
+
 OK
+
+> sw
 
 You're at sw end.
 
 The grate is locked.
+
+> blast
 
 there is a loud explosion, and a twenty-foot hole appears in the far
 wall, burying the dwarves in the rubble.  You march through the hole
@@ -1493,7 +2142,7 @@ friendly elves carry the conquering adventurer off into the sunset.
 
 
 
-You scored 350 out of a possible 350 using 330 turns.
+You scored 350 out of a possible 350 using 322 turns.
 
 All of adventuredom gives tribute to you, adventurer grandmaster!
 To achieve the next higher rating would be a neat trick!

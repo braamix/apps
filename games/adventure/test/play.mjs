@@ -3,7 +3,8 @@
 //
 // Input is a file, not the keyboard, so the game prints no prompt and echoes
 // nothing — the "> " belongs to the LineEditor alone. Output goes to a file
-// too: a three-hundred-turn transcript does not fit on 24 rows.
+// too: a three-hundred-turn transcript does not fit on 24 rows. The commands
+// are put back into it afterwards, one per turn, so it reads like a session.
 
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -75,13 +76,36 @@ const cmd = `ADVENTURE_SEED=${opt.seed} adventure </tmp/w >/tmp/g`;
 if (cmd.length > 60)
     die(`the command line is ${cmd.length} keys, and the ring holds 64`);
 
+// The game flushes its buffer once before every read and once on the way out,
+// so the writes to the log are its turns — which is what puts the commands back
+// into it. `stamp` is the fake store's per-write hook, and the file has already
+// grown by then, so its length is the boundary.
+const cuts = [];
+const stamp = H.store.stamp.bind(H.store);
+H.store.stamp = (path) => {
+    const n = path === "/tmp/g" && H.store.files.get(path).length;
+    if (n > (cuts[cuts.length - 1] || 0))   // the redirect truncates first
+        cuts.push(n);
+    stamp(path);
+};
+
 const started = Date.now();
 let s = H.submit(cmd, 100);
 const took = Date.now() - started;
+H.store.stamp = stamp;
 
 const log = new TextDecoder().decode(H.store.files.get("/tmp/g") || new Uint8Array(0));
+
+// The flush before a read carries the turn before it, so the first chunk is
+// what the game said before asking anything and chunk i + 1 answers command i.
+const chunks = cuts.map((end, i) =>
+    log.slice(i ? cuts[i - 1] : 0, end).replace(/^\n+|\n+$/g, ""));
+if (chunks.length !== script.length + 1)
+    die(`${chunks.length} turns of output for ${script.length} commands`);
+const shown =
+    chunks.flatMap((c, i) => (i ? [`> ${script[i - 1]}`, c] : [c])).join("\n\n") + "\n";
 mkdirSync(dirname(LOG), { recursive: true });
-writeFileSync(LOG, log);
+writeFileSync(LOG, shown);
 
 const fail = (msg) => {
     console.error(`adventure: ${msg}`);
@@ -102,7 +126,6 @@ if (!log)
     fail("the game wrote nothing");
 
 // Messages wrap, so match against one flat string.
-const lines = log.split("\n");
 const flat = log.replace(/\s+/g, " ");
 // Where in the transcript a match landed, as a percentage and the text around it.
 const near = (at) => `${Math.round((100 * at) / flat.length)}% in: ` +
@@ -174,6 +197,7 @@ if (Number(got) < FLOOR)
 const GOLDEN = join(HERE, "game.log");
 if (existsSync(GOLDEN)) {
     const want = readFileSync(GOLDEN, "utf8").split("\n");
+    const lines = shown.split("\n");
     const found = lines.findIndex((l, i) => l !== want[i]);
     const at = found < 0 ? Math.min(lines.length, want.length) : found;
     if (found >= 0 || lines.length !== want.length)
@@ -181,10 +205,12 @@ if (existsSync(GOLDEN)) {
              `${JSON.stringify(lines[at])} for ${JSON.stringify(want[at])}`);
 }
 
-const RANK = /You have achieved the rating: "([^"]+)"|Your score puts you in ([^.]+)\.|(All of adventuredom gives tribute to you[^\n]*)/;
+const RANK = new RegExp('You have achieved the rating: "([^"]+)"' +
+                        "|Your score puts you in ([^.]+)\\." +
+                        "|(All of adventuredom gives tribute to you[^\\n]*)");
 const rating = RANK.exec(log);
 const rank = rating && (rating[1] || rating[2] || rating[3] || "").trim();
 console.log(`adventure ok: ${got}/${possible} in ${turns} turns` +
             (rank ? ` — ${rank}` : "") +
-            ` (${script.length} commands, ${lines.length} lines, ${took} ms)`);
+            ` (${script.length} commands, ${shown.split("\n").length} lines, ${took} ms)`);
 console.log(`adventure: the transcript is ${LOG}`);
