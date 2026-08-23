@@ -31,6 +31,15 @@ struct Ser {
             field(a[i]);
     }
 
+    template <class T>
+    void field(Vec<T> &v)
+    {
+        i32 n = i32(v.size());
+        field(n);
+        for (usize i = 0; i < v.size(); i++)
+            field(v[i]);
+    }
+
 private:
     void put(u16 x)
     {
@@ -60,6 +69,21 @@ struct De {
     {
         for (usize i = 0; i < N; i++)
             field(a[i]);
+    }
+
+    // alloc() has already sized every Vec, so a count that disagrees is a bad
+    // file -- and refusing it is what keeps every index unchecked afterwards.
+    template <class T>
+    void field(Vec<T> &v)
+    {
+        i32 n = 0;
+        field(n);
+        if (!ok || n < 0 || usize(n) != v.size()) {
+            ok = false;
+            return;
+        }
+        for (usize i = 0; i < v.size(); i++)
+            field(v[i]);
     }
 
 private:

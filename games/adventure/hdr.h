@@ -22,6 +22,7 @@
 
 #include "braam.h"
 #include "kernel/alloc.h"
+#include "kernel/vec.h"
 #include "proc/io.h"
 
 constexpr int TAB = 011;
@@ -41,6 +42,8 @@ constexpr usize RTXSIZ  = 205;
 constexpr usize MAGSIZ  = 35;
 constexpr usize CLSMAX  = 12;
 constexpr usize LOCSIZ  = 141; // number of locations
+constexpr usize OBJSIZ  = 101;
+constexpr usize HINTSIZ = 20;
 
 struct HashTab { // hash table for vocabulary
     i32 val;     // word type &index (ktab)
@@ -68,6 +71,11 @@ constexpr int ADV_OVER = -1;
 // methods; a field carries a trailing underscore so neither hides the other.
 class Game {
 public:
+    // Sizes every table.  The one place that can run out of memory: after it
+    // nothing grows but the travel lists, so every index below is unchecked,
+    // exactly as the C arrays were.
+    bool alloc();
+
     Task<i32> play(Args args); // upstream's main()
 
 private:
@@ -124,17 +132,17 @@ private:
     i16 blklin_ = 0;
     i32 saved_ = 0, savet_ = 0, mxscor_ = 0, latncy_ = 0;
 
-    HashTab voc_[HTSIZE] = {}; // hash table for vocabulary
+    Vec<HashTab> voc_; // hash table for vocabulary
 
-    Text rtext_[RTXSIZ] = {}; // random text messages
+    Vec<Text> rtext_; // random text messages, RTXSIZ + 1: rdesc() lets 205 through
 
-    Text mtext_[MAGSIZ] = {}; // magic messages
+    Vec<Text> mtext_; // magic messages, MAGSIZ + 1 for the same reason
 
-    i16 clsses_         = 0;
-    Text ctext_[CLSMAX] = {}; // classes of adventurer
-    i16 cval_[CLSMAX]   = {};
+    i16 clsses_ = 0;
+    Vec<Text> ctext_; // classes of adventurer
+    Vec<i16> cval_;
 
-    Text ptext_[101] = {}; // object descriptions
+    Vec<Text> ptext_; // object descriptions
 
     Text ltext_[LOCSIZ] = {}; // long loc description
     Text stext_[LOCSIZ] = {}; // short loc descriptions
@@ -143,18 +151,18 @@ private:
 
     i16 atloc_[LOCSIZ] = {};
 
-    i16 plac_[101] = {};                   // initial object placement
-    i16 fixd_[101] = {}, fixed_[101] = {}; // location fixed?
+    Vec<i16> plac_;         // initial object placement
+    Vec<i16> fixd_, fixed_; // location fixed?
 
-    i16 actspk_[35] = {}; // rtext msg for verb <n>
+    Vec<i16> actspk_; // rtext msg for verb <n>
 
     i16 cond_[LOCSIZ] = {}; // various condition bits
 
-    i16 hntmax_       = 0;
-    i16 hints_[20][5] = {}; // info on hints
-    i16 hinted_[20] = {}, hintlc_[20] = {};
+    i16 hntmax_ = 0;
+    Vec<Vec<i16>> hints_; // info on hints, HINTSIZ x 5
+    Vec<i16> hinted_, hintlc_;
 
-    i16 place_[101] = {}, prop_[101] = {}, plink_[201] = {};
+    Vec<i16> place_, prop_, plink_;
     i16 abb_[LOCSIZ] = {};
 
     i16 maxtrs_ = 0, tally_ = 0, tally2_ = 0; // treasure values
@@ -169,10 +177,11 @@ private:
         look_ = 0, cave_ = 0, null_ = 0, entrnc_ = 0, dprssn_ = 0, say_ = 0, lock_ = 0, throw_ = 0,
         find_ = 0, invent_ = 0;
 
-    i16 chloc_ = 0, chloc2_ = 0, dseen_[7] = {}, // dwarf stuff
-        dloc_[7] = {}, odloc_[7] = {}, dflag_ = 0, daltlc_ = 0;
+    i16 chloc_ = 0, chloc2_ = 0, dflag_ = 0, daltlc_ = 0; // dwarf stuff
+    Vec<i16> dseen_, dloc_, odloc_;
 
-    i16 tk_[21] = {}, stick_ = 0, dtotal_ = 0, attack_ = 0;
+    Vec<i16> tk_; // scratch for fdwarf()
+    i16 stick_ = 0, dtotal_ = 0, attack_ = 0;
     i16 turns_ = 0, lmwarn_ = 0, iwest_ = 0, knfloc_ = 0, // various flags & counters
         detail_ = 0, abbnum_ = 0, maxdie_ = 0, numdie_ = 0, holdng_ = 0, dkill_ = 0, foobar_ = 0,
         bonus_ = 0, clock1_ = 0, clock2_ = 0, closng_ = 0, panic_ = 0, closed_ = 0, scorng_ = 0;

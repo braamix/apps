@@ -821,7 +821,7 @@ Task<i32> proc_main(Args args)
     // not trivially destructible, which a global here must be.
     i32 rc     = 1;
     Game *game = heap_new<Game>();
-    if (!game)
+    if (!game || !game->alloc())
         adv_printf("adventure: out of memory\n");
     else {
         struct Free {
