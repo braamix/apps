@@ -10,6 +10,23 @@
 
 #include "hdr.h"
 
+// glorkz's sections, in the order the file numbers them.
+enum class Section : int {
+    End      = 0,  // no more data
+    Long     = 1,  // long location descriptions
+    Short    = 2,  // short ones
+    Travel   = 3,  // the travel table
+    Vocab    = 4,  // the vocabulary
+    Objects  = 5,  // object descriptions, one line per prop value
+    Messages = 6,  // what rspeak() says
+    Places   = 7,  // initial object locations
+    Defaults = 8,  // the default message per verb
+    Liquid   = 9,  // the cond_ bits
+    Classes  = 10, // the scoring classes
+    Hints    = 11, // the hint table
+    Magic    = 12, // what mspeak() says
+};
+
 class DataReader {
 public:
     explicit DataReader(Game &g) : g_(g) {}
@@ -21,7 +38,7 @@ public:
 
 private:
     int next(), rnum();
-    void putdat(char), rtrav(), rdesc(int), rvoc(), rlocs(), rdflt(), rliq(), rhints();
+    void putdat(char), rtrav(), rdesc(Section), rvoc(), rlocs(), rdflt(), rliq(), rhints();
 
     Game &g_;
     const char *inbuf = nullptr; // the next byte of glorkz

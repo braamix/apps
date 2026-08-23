@@ -110,17 +110,55 @@ cost, a question and an answer. Their numbers cannot move: **a hint's number is
 also its bit in `cond_`**, which is what `bitset(loc_, hint)` tests, and glorkz
 sets bit 4 on the room outside the grate, 5 on the bird chamber, 6 on the hall
 of the mountain king, 7 across the all-alike maze, 8 on the plover rooms and 9
-on Witt's End. Bits 0 to 3 are the lit and liquid flags, which is why the loop
-starts at 4 — and why the oyster's clue and the offer of instructions, neither
-of them triggered by a room, can sit below it.
+on Witt's End. Bits 0 to 3 are `CondBit`, the lit and liquid flags, which is
+why the loop starts at 4 — and why the oyster's clue and the offer of
+instructions, neither of them triggered by a room, can sit below it.
 
-The numbers are still the data file's, and three checks keep the naming honest.
+**The rooms are named where the code names one.** `Loc` covers the
+twenty-three that appear in a comparison, an assignment or a table — `loc_ ==
+33` was Y2, `put(lamp_, 115, 0)` the repository, `loc_ = 3` the well house you
+wake in. Three of its numbers are thresholds rather than places:
+`newloc_ < Loc::BelowGrate` is "still above ground", `loc_ >=
+Loc::HallOfMists` is "deep enough for the dwarves to walk", and the crawl
+between the two is what sends `grate` to the entrance rather than the
+depression. It is a scoped plain enum, not an `enum class`, because a location
+is arithmetic here as much as an identity: `Loc::Alcove + Loc::PloverRoom -
+loc_` is how the tunnel between those two swaps ends.
+
+**What was left is the encodings around them.** `WordClass` names the
+`class * 1000 + n` that `glorkz` gives a word, which `vocab()` took as a bare
+`0`, `1`, `2` or `3` and `lookup()` dispatched on with a `+ 1` skew that is now
+gone. `Move` finishes what `Phase` started: `march()`, `mback()`, `fdwarf()`,
+`specials()`, `trbridge()` and `die()` returned the FORTRAN statement number
+their caller switched on, and `switch (march()) { case 2: … case 99: }` reads
+`case Move::Turn: … case Move::Died:`. `Done` and `Death` name the entry
+`done()` and `die()` take, retiring the comment that had to say what 1, 2 and 3
+meant. `CondBit` names the low four bits of `cond_` that the `Hint` bits sit
+above; `Section` names `glorkz`'s twelve; `Special` the three destinations
+above 300, with `TRAV_LOC`, `TRAV_SPEC` and the `COND_` bands for the rest of
+what `march()` decodes; `MAXOBJ`, `FIXED`, `TREASURE`, `CARRIED` and `PINNED`
+the object space, where `obj + 100` had been the immovable half of an object in
+sixteen places; and `NDWARVES`, `PIRATE` and `Dwarves` the dwarves — six of
+them, the sixth being the pirate, and `dflag_` counting from asleep to furious.
+
+What is deliberately still numeric is upstream's data: the `prop_` values,
+which mean something different for every object and index `pspeak()`'s rows in
+`glorkz`; the scoring weights; the clocks and the lamp's life; and every
+`pct(n)`. Naming those would invent meaning rather than record it.
+
+The numbers are still the data file's, and four checks keep the naming honest.
 `check_vocab()` looks up the word behind every vocabulary constant the code
 uses by name and traps if `glorkz` disagrees. `check_msgs()` cannot do that —
 nothing compares message text at runtime — so it asserts the weaker thing that
 still matters: that the message table has not shifted under the names, gap at
 87–89 included. `check_hints()` ties each hint to the question and answer its
-name claims, so the two tables cannot drift apart.
+name claims, so the two tables cannot drift apart. `check_locs()` does for the
+rooms what no lookup can: a room has no word, so it checks where `glorkz` puts
+the grate, the keys and the lamp, and that every room a `Hint` bit or a liquid
+bit belongs to is the room `Loc` names — the grate's own room, the bird
+chamber, the hall of the mountain king, the all-alike maze, the plover room,
+Witt's End and the oil pit — and that each of the twenty-three has a
+description and is not a forced move.
 
 The guarantee that used to be "the binary is byte for byte the one the macros
 produced" is now the transcript. `test/play.mjs` diffs 41,777 bytes of output
@@ -316,7 +354,7 @@ writes the two words it means.
 
 | | |
 | --- | --- |
-| `hdr.h` | `class Game`: the state, the methods, the phases, the words |
+| `hdr.h` | `class Game`: the state, the methods, and every named number |
 | `msg.h` | what `rspeak()` and `mspeak()` say, named |
 | `main.cpp` | closing the cave, and the command loop — upstream `main.c` |
 | `init.cpp` | the shared state and its setup — upstream `init.c` |

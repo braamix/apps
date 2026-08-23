@@ -5,7 +5,7 @@
 
 int Game::toting(int objj)
 {
-    if (place_[objj] == -1)
+    if (place_[objj] == CARRIED)
         return (TRUE);
     else
         return (FALSE);
@@ -43,6 +43,7 @@ int Game::liq(int foo)
         return (liq2(-1 - i));
 }
 
+// CondBit::Fluid and CondBit::Oil by arithmetic: l is the fluid bit, j the oil one.
 int Game::liqloc(int locc) // may want to clean this one up a bit
 {
     int i, j, l;
@@ -62,7 +63,7 @@ int Game::bitset(int l, int n)
 
 int Game::forced(int locc)
 {
-    if (cond_[locc] == 2)
+    if (cond_[locc] == COND_FORCED)
         return (TRUE);
     return (FALSE);
 }
@@ -70,7 +71,7 @@ int Game::forced(int locc)
 int Game::dark(int foo)
 {
     (void)foo;
-    if ((cond_[loc_] % 2) == 0 && (prop_[lamp_] == 0 || !here(lamp_)))
+    if (!bitset(loc_, i16(CondBit::Lit)) && (prop_[lamp_] == 0 || !here(lamp_)))
         return (TRUE);
     return (FALSE);
 }

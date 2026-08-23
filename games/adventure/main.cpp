@@ -9,14 +9,14 @@ Phase Game::closing() // 10000
 {
     int i;
     prop_[grate_] = prop_[fissur_] = 0;
-    for (i = 1; i <= 6; i++) {
+    for (i = 1; i <= PIRATE; i++) {
         dseen_[i] = FALSE;
         dloc_[i]  = 0;
     }
     move(troll_, 0);
-    move(troll_ + 100, 0);
+    move(troll_ + FIXED, 0);
     move(troll2_, plac_[troll_]);
-    move(troll2_ + 100, fixd_[troll_]);
+    move(troll2_ + FIXED, fixd_[troll_]);
     juggle(chasm_);
     if (prop_[bear_] != 3)
         dstroy(bear_);
@@ -33,27 +33,27 @@ Phase Game::closing() // 10000
 Phase Game::caveclose() // 11000
 {
     int i;
-    prop_[bottle_] = put(bottle_, 115, 1);
-    prop_[plant_]  = put(plant_, 115, 0);
-    prop_[oyster_] = put(oyster_, 115, 0);
-    prop_[lamp_]   = put(lamp_, 115, 0);
-    prop_[rod_]    = put(rod_, 115, 0);
-    prop_[dwarf_]  = put(dwarf_, 115, 0);
-    loc_           = 115;
-    oldloc_        = 115;
-    newloc_        = 115;
+    prop_[bottle_] = put(bottle_, Loc::RepositoryNE, 1);
+    prop_[plant_]  = put(plant_, Loc::RepositoryNE, 0);
+    prop_[oyster_] = put(oyster_, Loc::RepositoryNE, 0);
+    prop_[lamp_]   = put(lamp_, Loc::RepositoryNE, 0);
+    prop_[rod_]    = put(rod_, Loc::RepositoryNE, 0);
+    prop_[dwarf_]  = put(dwarf_, Loc::RepositoryNE, 0);
+    loc_           = Loc::RepositoryNE;
+    oldloc_        = Loc::RepositoryNE;
+    newloc_        = Loc::RepositoryNE;
 
-    put(grate_, 116, 0);
-    prop_[snake_]  = put(snake_, 116, 1);
-    prop_[bird_]   = put(bird_, 116, 1);
-    prop_[cage_]   = put(cage_, 116, 0);
-    prop_[rod2_]   = put(rod2_, 116, 0);
-    prop_[pillow_] = put(pillow_, 116, 0);
+    put(grate_, Loc::RepositorySW, 0);
+    prop_[snake_]  = put(snake_, Loc::RepositorySW, 1);
+    prop_[bird_]   = put(bird_, Loc::RepositorySW, 1);
+    prop_[cage_]   = put(cage_, Loc::RepositorySW, 0);
+    prop_[rod2_]   = put(rod2_, Loc::RepositorySW, 0);
+    prop_[pillow_] = put(pillow_, Loc::RepositorySW, 0);
 
-    prop_[mirror_]  = put(mirror_, 115, 0);
-    fixed_[mirror_] = 116;
+    prop_[mirror_]  = put(mirror_, Loc::RepositoryNE, 0);
+    fixed_[mirror_] = Loc::RepositorySW;
 
-    for (i = 1; i <= 100; i++)
+    for (i = 1; i <= MAXOBJ; i++)
         if (toting(i))
             dstroy(i);
     rspeak(Msg::CaveNowClosed);
@@ -160,7 +160,7 @@ Task<i32> Game::play(Args args)
             break;
 
         case Phase::Done3:
-            co_await done(3);
+            co_await done(Done::Dwarves);
             p = Phase::Over;
             break;
         case Phase::Over:
@@ -172,7 +172,7 @@ Task<i32> Game::play(Args args)
 
 Task<Phase> Game::dwarves() // 2
 {
-    if (newloc_ < 9 && newloc_ != 0 && closng_) {
+    if (newloc_ < Loc::BelowGrate && newloc_ != 0 && closng_) {
         rspeak(Msg::RecordedVoice); // if closing leave only by
         newloc_ = loc_;             // main office
         if (!panic_)
@@ -180,8 +180,8 @@ Task<Phase> Game::dwarves() // 2
         panic_ = TRUE;
     }
 
-    if (fdwarf() == 99) // dwarf stuff
-        if (co_await die(99) == ADV_OVER)
+    if (fdwarf() == Move::Died) // dwarf stuff
+        if (co_await die(Death::Elsewhere) == Move::Over)
             co_return Phase::Over;
     co_return Phase::Describe;
 }
@@ -193,7 +193,7 @@ Task<Phase> Game::describe() // 2000
 
     for (;;) {
         if (loc_ == 0) { // label 2000
-            if (co_await die(99) == ADV_OVER)
+            if (co_await die(Death::Elsewhere) == Move::Over)
                 co_return Phase::Over;
         }
         kk = &stext_[loc_];
@@ -201,7 +201,7 @@ Task<Phase> Game::describe() // 2000
             kk = &ltext_[loc_];
         if (!forced(loc_) && dark(0)) {
             if (wzdark_ && pct(35)) {
-                if (co_await die(90) == ADV_OVER)
+                if (co_await die(Death::Pit) == Move::Over)
                     co_return Phase::Over;
                 continue; // i.e. goto l2000
             }
@@ -215,15 +215,15 @@ Task<Phase> Game::describe() // 2000
     k_ = i16(Motion::Forced);
     if (forced(loc_))
         co_return Phase::Motion;
-    if (loc_ == 33 && pct(25) && !closng_)
+    if (loc_ == Loc::Y2 && pct(25) && !closng_)
         rspeak(Msg::HollowVoicePlugh);
     if (!dark(0)) {
         abb_[loc_]++;
         for (i = atloc_[loc_]; i != 0; i = plink_[i]) // 2004
         {
             obj_ = i;
-            if (obj_ > 100)
-                obj_ -= 100;
+            if (obj_ > MAXOBJ)
+                obj_ -= FIXED;
             if (obj_ == steps_ && toting(nugget_))
                 continue;
             if (prop_[obj_] < 0) {
@@ -263,7 +263,7 @@ Task<Phase> Game::hints_then_read() // 2600
     if (closed_) {
         if (prop_[oyster_] < 0 && toting(oyster_))
             pspeak(oyster_, 1);
-        for (i = 1; i < 100; i++)
+        for (i = 1; i < MAXOBJ; i++)       // <, not <=: upstream's
             if (toting(i) && prop_[i] < 0) // 2604
                 prop_[i] = -1 - prop_[i];
     }
@@ -292,7 +292,7 @@ Task<Phase> Game::timers() // 2608
         verb_ = Verb::None;
     if (verb_ == say_)
         co_return Phase::VerbObject;
-    if (tally_ == 0 && loc_ >= 15 && loc_ != 33)
+    if (tally_ == 0 && loc_ >= Loc::HallOfMists && loc_ != Loc::Y2)
         clock1_--;
     if (clock1_ == 0)
         co_return closing(); // to 10000
@@ -317,10 +317,10 @@ Task<Phase> Game::timers() // 2608
         rspeak(Msg::LampOutOfPower);
         co_return Phase::Lamp;
     }
-    if (limit_ < 0 && loc_ <= 8) {
+    if (limit_ < 0 && loc_ <= Loc::OutsideGrate) {
         rspeak(Msg::NoPointWandering); // 12600
         gaveup_ = TRUE;
-        co_await done(2); // to 20000
+        co_await done(Done::Score); // to 20000
         co_return Phase::Over;
     }
     if (limit_ <= 30) {
@@ -348,7 +348,7 @@ Phase Game::lamp() // 19999
         return Phase::Shift;
     if ((!weq(wd1_, "water") && !weq(wd1_, "oil")) || (!weq(wd2_, "plant") && !weq(wd2_, "door")))
         return Phase::West;
-    if (at(vocab(wd2_, 1, 0)))
+    if (at(vocab(wd2_, WordClass::Object)))
         copystr("pour", wd2_);
     return Phase::West;
 }
@@ -363,7 +363,7 @@ Phase Game::west() // 2610
 
 Phase Game::lookup() // 2630
 {
-    int i = vocab(wd1_, -1, 0);
+    int i = vocab(wd1_, VOC_USER, 0);
     if (i == -1) {
         spk_ = Msg::UnknownWord; // 3000
         if (pct(20))
@@ -373,16 +373,16 @@ Phase Game::lookup() // 2630
         rspeak(spk_);
         return Phase::Hints;
     }
-    k_  = i % 1000;
-    kq_ = i / 1000 + 1;
-    switch (kq_) {
-    case 1:
+    k_  = i % WORD_CLASS;
+    kq_ = i16(i / WORD_CLASS);
+    switch (WordClass(kq_)) {
+    case WordClass::Motion:
         return Phase::Motion;
-    case 2:
+    case WordClass::Object:
         return Phase::ObjectOnly;
-    case 3:
+    case WordClass::Verb:
         return Phase::VerbOnly;
-    case 4:
+    case WordClass::Message:
         return speak_k();
     default:
         adv_printf("Error 22\n");
@@ -393,13 +393,13 @@ Phase Game::lookup() // 2630
 Task<Phase> Game::motion() // 8
 {
     switch (march()) {
-    case 2:
+    case Move::Turn:
         co_return Phase::Dwarves; // i.e. goto l2
-    case 99:
-        switch (co_await die(99)) {
-        case 2000:
+    case Move::Died:
+        switch (co_await die(Death::Elsewhere)) {
+        case Move::Describe:
             co_return Phase::Describe;
-        case ADV_OVER:
+        case Move::Over:
             co_return Phase::Over;
         default:
             bug(111);
@@ -440,8 +440,8 @@ Task<Phase> Game::verb_only() // 4000
     case Verb::Take: // 8010
         if (atloc_[loc_] == 0 || plink_[atloc_[loc_]] != 0)
             co_return what();
-        for (i = 1; i <= 5; i++)
-            if (dloc_[i] == loc_ && dflag_ >= 2)
+        for (i = 1; i <= NDWARVES; i++)
+            if (dloc_[i] == loc_ && dflag_ >= Dwarves::Active)
                 co_return what();
         obj_ = atloc_[loc_];
         co_return Phase::VerbObject; // 9010
@@ -493,18 +493,18 @@ Task<Phase> Game::verb_only() // 4000
     case Verb::Quit: // 8180
         gaveup_ = co_await yes(Msg::ReallyQuit, Msg::Ok, Msg::Ok);
         if (gaveup_) {
-            co_await done(2); // 8185
+            co_await done(Done::Score); // 8185
             co_return Phase::Over;
         }
         co_return Phase::EndTurn;
     case Verb::Invent: // 8200
         spk_ = Msg::CarryingNothing;
-        for (i = 1; i <= 100; i++) {
+        for (i = 1; i <= MAXOBJ; i++) {
             if (i != bear_ && toting(i)) {
                 if (spk_ == Msg::CarryingNothing)
                     rspeak(Msg::CurrentlyHolding);
                 blklin_ = FALSE;
-                pspeak(i, -1);
+                pspeak(i, PS_FIRST_LINE);
                 blklin_ = TRUE;
                 spk_    = Msg::None;
             }
@@ -523,12 +523,12 @@ Task<Phase> Game::verb_only() // 4000
         scorng_ = FALSE;
         gaveup_ = co_await yes(Msg::IndeedQuit, Msg::Ok, Msg::Ok);
         if (gaveup_) {
-            co_await done(2);
+            co_await done(Done::Score);
             co_return Phase::Over;
         }
         co_return Phase::EndTurn;
     case Verb::Foo: // 8250
-        k_   = vocab(wd1_, 3, 0);
+        k_   = vocab(wd1_, WordClass::Message);
         spk_ = Msg::NothingHappens;
         if (foobar_ != 1 - k_) {
             if (foobar_ != 0)
@@ -557,6 +557,7 @@ Task<Phase> Game::verb_only() // 4000
         detail_ = 3;
         co_return report();
     case Verb::Read: // 8270
+        // The same overflow trick as trkill(): two candidates mean "read what?".
         if (here(magzin_))
             obj_ = magzin_;
         if (here(tablet_))
@@ -705,8 +706,8 @@ Task<Phase> Game::verb_object() // 4090
     case Verb::Invent: // 9190
         if (at(obj_) || (liq(0) == obj_ && at(bottle_)) || k_ == liqloc(loc_))
             spk_ = Msg::RightHereWithYou;
-        for (i = 1; i <= 5; i++)
-            if (dloc_[i] == loc_ && dflag_ >= 2 && obj_ == dwarf_)
+        for (i = 1; i <= NDWARVES; i++)
+            if (dloc_[i] == loc_ && dflag_ >= Dwarves::Active && obj_ == dwarf_)
                 spk_ = Msg::RightHereWithYou;
         if (closed_)
             spk_ = Msg::WhateverYouWant;
@@ -721,12 +722,12 @@ Task<Phase> Game::verb_object() // 4090
         if (prop_[rod2_] < 0 || !closed_)
             co_return report();
         bonus_ = Msg::BlastDistant;
-        if (loc_ == 115)
+        if (loc_ == Loc::RepositoryNE)
             bonus_ = Msg::BlastRepository;
         if (here(rod2_))
             bonus_ = Msg::BlastSplashed;
         rspeak(bonus_);
-        co_await done(2);
+        co_await done(Done::Score);
         co_return Phase::Over;
     case Verb::Read: // 9270
         if (dark(0))
@@ -751,20 +752,20 @@ Task<Phase> Game::verb_object() // 4090
             if (toting(vase_))
                 drop(vase_, loc_);
             prop_[vase_]  = 2;
-            fixed_[vase_] = -1;
+            fixed_[vase_] = PINNED;
             co_return report();
         }
         if (obj_ != mirror_ || !closed_)
             co_return report();
         rspeak(Msg::MirrorShatters);
-        co_await done(3);
+        co_await done(Done::Dwarves);
         co_return Phase::Over;
 
     case Verb::Wake:
         if (obj_ != dwarf_ || !closed_)
             co_return report();
         rspeak(Msg::ProdDwarf);
-        co_await done(3);
+        co_await done(Done::Dwarves);
         co_return Phase::Over;
 
     default:
@@ -780,16 +781,16 @@ Phase Game::object_only() // 5000
     if (fixed_[k_] == loc_ || here(k_))
         return Phase::Named;
     if (k_ == grate_) { // 5100
-        if (loc_ == 1 || loc_ == 4 || loc_ == 7)
+        if (loc_ == Loc::Road || loc_ == Loc::Valley || loc_ == Loc::Slit)
             k_ = dprssn_;
-        if (loc_ > 9 && loc_ < 15)
+        if (loc_ > Loc::BelowGrate && loc_ < Loc::HallOfMists)
             k_ = entrnc_;
         if (k_ != grate_)
             return Phase::Motion;
     }
     if (k_ == dwarf_) // 5110
-        for (i = 1; i <= 5; i++)
-            if (dloc_[i] == loc_ && dflag_ >= 2)
+        for (i = 1; i <= NDWARVES; i++)
+            if (dloc_[i] == loc_ && dflag_ >= Dwarves::Active)
                 return Phase::Named;
     if ((liq(0) == k_ && here(bottle_)) || k_ == liqloc(loc_)) // 5120
         return Phase::Named;

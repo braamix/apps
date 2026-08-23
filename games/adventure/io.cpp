@@ -191,7 +191,7 @@ void Game::pspeak(int msg, // read, decrypt an print a ptext message
         for (numst = s; (*s ^= *tape++) != TAB; s++)
             ;     // get number
         *s++ = 0; // decrypting number within the string
-        if (atoi(numst) != 100 * skip && skip >= 0) {
+        if (atoi(numst) != 100 * skip && skip != PS_FIRST_LINE) {
             while ((*s++ ^ *tape++) != LF) // flush the line
                 if (*tape == 0)
                     tape = IOTAPE;
@@ -207,7 +207,7 @@ void Game::pspeak(int msg, // read, decrypt an print a ptext message
                 tape = IOTAPE;
             adv_putc(*s ^ *tape);
         } while ((*s++ ^ *tape++) != LF); // better end with LF
-        if (skip < 0)
+        if (skip == PS_FIRST_LINE)
             break;
     }
 }

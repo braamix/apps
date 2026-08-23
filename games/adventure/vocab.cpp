@@ -12,17 +12,17 @@ void Game::juggle(int object)
     i = place_[object];
     j = fixed_[object];
     move(object, i);
-    move(object + 100, j);
+    move(object + FIXED, j);
 }
 
 void Game::move(int object, int where)
 {
     int from;
-    if (object <= 100)
+    if (object <= MAXOBJ)
         from = place_[object];
     else
-        from = fixed_[object - 100];
-    if (from > 0 && from <= 300)
+        from = fixed_[object - FIXED];
+    if (from > 0 && from <= TRAV_LOC)
         carry(object, from);
     drop(object, where);
 }
@@ -36,10 +36,10 @@ int Game::put(int object, int where, int pval)
 void Game::carry(int object, int where)
 {
     int temp;
-    if (object <= 100) {
-        if (place_[object] == -1)
+    if (object <= MAXOBJ) {
+        if (place_[object] == CARRIED)
             return;
-        place_[object] = -1;
+        place_[object] = CARRIED;
         holdng_++;
     }
     if (atloc_[where] == object) {
@@ -53,10 +53,10 @@ void Game::carry(int object, int where)
 
 void Game::drop(int object, int where)
 {
-    if (object > 100)
-        fixed_[object - 100] = where;
+    if (object > MAXOBJ)
+        fixed_[object - FIXED] = where;
     else {
-        if (place_[object] == -1)
+        if (place_[object] == CARRIED)
             holdng_--;
         place_[object] = where;
     }
@@ -72,8 +72,8 @@ static unsigned int rot13_hash(const char *str)
 {
     unsigned int len, hash, c;
 
-    // Max 5 utf8 characters.
-    len = 5;
+    // Max WORD_SIG utf8 characters.
+    len = WORD_SIG;
     for (hash = 0; len > 0; str++) {
         c = (unsigned char)*str;
         if (c == 0)
@@ -87,7 +87,7 @@ static unsigned int rot13_hash(const char *str)
 }
 
 int Game::vocab(                // look up or store a word
-    const char *word, int type, // -2 for store, -1 for user word, >=0 for canned lookup
+    const char *word, int type, // VOC_STORE, VOC_USER, or a WordClass
     int value)                  // used for storing only
 {
     int adr;
@@ -102,14 +102,14 @@ int Game::vocab(                // look up or store a word
             adr = 0;    // wrap around
         h = &voc_[adr]; // point at the entry
         switch (type) {
-        case -2:        // fill in entry
+        case VOC_STORE: // fill in entry
             if (h->val) // already got an entry?
                 goto exitloop2;
             h->val  = value;
             h->hash = hash32;
             return 0; // entry unused
 
-        case -1:             // looking up user word
+        case VOC_USER:       // looking up user word
             if (h->val == 0) // not found
                 return (-1);
             if ((unsigned int)h->hash != hash32)
@@ -124,9 +124,9 @@ int Game::vocab(                // look up or store a word
             if ((unsigned int)h->hash != hash32)
                 goto exitloop2;
             // the word matched o.k.
-            if (h->val / 1000 != type)
+            if (h->val / WORD_CLASS != type)
                 continue;
-            return h->val % 1000;
+            return h->val % WORD_CLASS;
         }
     exitloop2: // hashed entry does not match
         if (adr + 1 == (int)hash || (adr == HTSIZE && hash == 0)) {
@@ -153,7 +153,7 @@ int weq(                            // compare words
     int i;
     s = w1;
     t = w2;
-    for (i = 0; i < 5; i++) // compare at most 5 chars
+    for (i = 0; i < WORD_SIG; i++) // compare at most WORD_SIG chars
     {
         if (*t == 0 && *s == 0)
             return (TRUE);

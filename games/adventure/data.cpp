@@ -92,34 +92,34 @@ void DataReader::rtrav(void) // read travel table
     }
 }
 
-void DataReader::rdesc(int sect) // read description-format msgs
+void DataReader::rdesc(Section sect) // read description-format msgs
 {
     int locc;
     int seekstart, maystart;
     outsw = 1; // these msgs go into tmp file
-    if (sect == 1)
+    if (sect == Section::Long)
         putdat('X'); // so seekadr > 0
     adrptr = 0;
     for (g_.oldloc_ = -1, seekstart = seekhere;;) {
         maystart = adrptr;                                   // maybe starting new entry
         if ((locc = rnum()) != g_.oldloc_ && g_.oldloc_ >= 0 // finished msg
-            && !(sect == 5 && (locc == 0 || locc >= 100)))   // unless sect 5
+            && !(sect == Section::Objects && (locc == 0 || locc >= 100))) // unless sect 5
         {
             switch (sect) // now put it into right table
             {
-            case 1: // long descriptions
+            case Section::Long: // long descriptions
                 g_.ltext_[g_.oldloc_].seekadr = seekhere;
                 g_.ltext_[g_.oldloc_].txtlen  = maystart - seekstart;
                 break;
-            case 2: // short descriptions
+            case Section::Short: // short descriptions
                 g_.stext_[g_.oldloc_].seekadr = seekhere;
                 g_.stext_[g_.oldloc_].txtlen  = maystart - seekstart;
                 break;
-            case 5: // object descriptions
+            case Section::Objects: // object descriptions
                 g_.ptext_[g_.oldloc_].seekadr = seekhere;
                 g_.ptext_[g_.oldloc_].txtlen  = maystart - seekstart;
                 break;
-            case 6: // random messages
+            case Section::Messages: // random messages
                 if (g_.oldloc_ > RTXSIZ) {
                     adv_printf("Too many random msgs\n");
                     bug(32);
@@ -127,12 +127,12 @@ void DataReader::rdesc(int sect) // read description-format msgs
                 g_.rtext_[g_.oldloc_].seekadr = seekhere;
                 g_.rtext_[g_.oldloc_].txtlen  = maystart - seekstart;
                 break;
-            case 10: // class messages
+            case Section::Classes: // class messages
                 g_.ctext_[g_.clsses_].seekadr = seekhere;
                 g_.ctext_[g_.clsses_].txtlen  = maystart - seekstart;
                 g_.cval_[g_.clsses_++]        = g_.oldloc_;
                 break;
-            case 12: // magic messages
+            case Section::Magic: // magic messages
                 if (g_.oldloc_ > MAGSIZ) {
                     adv_printf("Too many magic msgs\n");
                     bug(32);
@@ -151,7 +151,7 @@ void DataReader::rdesc(int sect) // read description-format msgs
             seekhere += 3; // -1<delimiter>
             return;
         }
-        if (sect != 5 || (locc > 0 && locc < 100)) {
+        if (sect != Section::Objects || (locc > 0 && locc < 100)) {
             if (g_.oldloc_ != locc) // starting a new message
                 seekstart = maystart;
             g_.oldloc_ = locc;
@@ -176,7 +176,7 @@ void DataReader::rvoc(void)
         if (*s != '\n' && *s != LF)
             FLUSHLF; // can be comments
         *s = 0;
-        g_.vocab(buf, -2, index);
+        g_.vocab(buf, VOC_STORE, index);
     }
 }
 
@@ -254,44 +254,44 @@ void DataReader::read() // upstream rdata()
             FLUSHLF;
             sect = 10 * sect + ch - '0';
         }
-        switch (sect) {
-        case 0: // finished reading database
+        switch (Section(sect)) {
+        case Section::End: // finished reading database
             return;
-        case 1: // long form descriptions
-            rdesc(1);
+        case Section::Long: // long form descriptions
+            rdesc(Section::Long);
             break;
-        case 2: // short form descriptions
-            rdesc(2);
+        case Section::Short: // short form descriptions
+            rdesc(Section::Short);
             break;
-        case 3: // travel table
+        case Section::Travel:
             rtrav();
             break;
-        case 4: // vocabulary
+        case Section::Vocab:
             rvoc();
             break;
-        case 5: // object descriptions
-            rdesc(5);
+        case Section::Objects: // object descriptions
+            rdesc(Section::Objects);
             break;
-        case 6: // arbitrary messages
-            rdesc(6);
+        case Section::Messages: // arbitrary messages
+            rdesc(Section::Messages);
             break;
-        case 7: // object locations
+        case Section::Places: // object locations
             rlocs();
             break;
-        case 8: // action defaults
+        case Section::Defaults: // action defaults
             rdflt();
             break;
-        case 9: // liquid assets
+        case Section::Liquid: // liquid assets
             rliq();
             break;
-        case 10: // class messages
-            rdesc(10);
+        case Section::Classes: // class messages
+            rdesc(Section::Classes);
             break;
-        case 11: // hints
+        case Section::Hints:
             rhints();
             break;
-        case 12: // magic messages
-            rdesc(12);
+        case Section::Magic: // magic messages
+            rdesc(Section::Magic);
             break;
         default:
             adv_printf("Invalid data section number: %d\n", sect);

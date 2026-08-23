@@ -34,15 +34,16 @@ inline constexpr char IOTAPE[] = "Ax3F'tt$8hqer*hnGKrX:!l"; // encryption tape
 constexpr int FALSE = 0;
 constexpr int TRUE  = 1;
 
-constexpr i32 DATSIZE = 46 * 1024; // size of encrypted data
-constexpr i32 MAXSTR  = 20;        // max length of user's words
-constexpr i32 HTSIZE  = 512;       // max number of vocab words
-constexpr i32 RTXSIZ  = 205;
-constexpr i32 MAGSIZ  = 35;
-constexpr i32 CLSMAX  = 12;
-constexpr i32 LOCSIZ  = 141; // number of locations
-constexpr i32 OBJSIZ  = 101;
-constexpr i32 HINTSIZ = 20;
+constexpr i32 DATSIZE  = 46 * 1024; // size of encrypted data
+constexpr i32 MAXSTR   = 20;        // max length of user's words
+constexpr int WORD_SIG = 5;         // glorkz's significant letters: hash and weq agree on it
+constexpr i32 HTSIZE   = 512;       // max number of vocab words
+constexpr i32 RTXSIZ   = 205;
+constexpr i32 MAGSIZ   = 35;
+constexpr i32 CLSMAX   = 12;
+constexpr i32 LOCSIZ   = 141; // number of locations
+constexpr i32 OBJSIZ   = 101;
+constexpr i32 HINTSIZ  = 20;
 
 struct HashTab { // hash table for vocabulary
     i32 val;     // word type &index (ktab)
@@ -91,10 +92,134 @@ struct Travel {     // direcs & conditions of travel
 // and already reported.
 constexpr int ADV_OVER = -1;
 
+// What the routines below Phase return, named for the statement label it was.
+enum class Move : u8 {
+    Turn,     // 2     back to the top of the turn
+    Found,    // 9     mback(): the exit is under the cursor
+    Next,     // 12    specials(): try the next travel entry
+    Died,     // 99    to die()
+    Describe, // 2000  the room again
+    Over,     // die(): the game ended and said so
+};
+
+// The object space.  An object is 1..MAXOBJ; obj + FIXED addresses the same
+// object's immovable half, which is what fixed_ holds and place_ does not.
+constexpr int MAXOBJ   = OBJSIZ - 1;
+constexpr int FIXED    = 100;
+constexpr int TREASURE = 50; // the first treasure; maxtrs_ is the last
+constexpr int CARRIED  = -1; // place_[obj] while it is in your hands
+constexpr int PINNED   = -1; // fixed_[obj] once it may not be picked up again
+
+// glorkz gives a word the number WORD_CLASS * class + n, which is what the two
+// enums above number within.  vocab()'s two other type arguments are not
+// classes at all.
+enum class WordClass : int { Motion = 0, Object = 1, Verb = 2, Message = 3 };
+
+constexpr int WORD_CLASS = 1000;
+constexpr int VOC_STORE  = -2; // fill in an entry rather than look one up
+constexpr int VOC_USER   = -1; // look up whatever the player typed, any class
+
+constexpr int word_of(WordClass c, int n)
+{
+    return WORD_CLASS * int(c) + n;
+}
+
+// The rooms the code names.  glorkz decides the numbers; check_locs() ties the
+// ones it can to the data file.  Scoped but not enum class: a location is
+// arithmetic here as much as it is an identity -- Alcove + PloverRoom - loc_ is
+// how the tunnel between those two swaps ends.
+namespace Loc {
+enum : i16 {
+    Road            = 1, // end of road before the small brick building
+    Building        = 3, // inside the well house
+    Valley          = 4, // the valley beside the stream
+    Slit            = 7, // where the stream vanishes into the slit
+    OutsideGrate    = 8, // the 20-foot depression, and the last room above ground
+    BelowGrate      = 9, // the chamber beneath the grate
+    BirdChamber     = 13,
+    HallOfMists     = 15, // and from here down the dwarves walk
+    NoteRoom        = 18, // the low room with the crude note: daltlc_
+    HallOfMtKing    = 19,
+    OilPit          = 24, // the bottom of the eastern pit
+    WestOfFissure   = 27,
+    Y2              = 33, // where a hollow voice says "plugh"
+    MazeAllAlike    = 44,
+    ComplexJunction = 64,
+    Alcove          = 99,  // the plover tunnel's near end
+    PloverRoom      = 100, // and its far end
+    CulDeSac        = 105, // where the pearl rolls
+    WittsEnd        = 108, // and the magazine's one point
+    ChestDeadEnd    = 114, // the pirate's chest: chloc_
+    RepositoryNE    = 115, // the endgame
+    RepositorySW    = 116,
+    MessageDeadEnd  = 140, // where the pirate leaves his note: chloc2_
+};
+} // namespace Loc
+
+// pspeak()'s skip: print the object's first line, whatever its prop.
+constexpr int PS_FIRST_LINE = -1;
+
+// How many exits fdwarf() will weigh for one dwarf; tk_ is one longer.
+constexpr int DWARF_EXITS = 20;
+
+// dloc_, odloc_ and dseen_ hold the five dwarves and, at PIRATE, the pirate.
+constexpr int NDWARVES = 5;
+constexpr int PIRATE   = NDWARVES + 1;
+
+// dflag_, which counts up as the dwarves take an interest.  Scoped but not
+// enum class: fdwarf() does arithmetic on it and trfeed() increments it.
+namespace Dwarves {
+enum : i16 {
+    Asleep  = 0,  // not in the cave yet
+    Woken   = 1,  // the player has reached the hall of mists
+    Active  = 2,  // one has thrown an axe, and they can be met
+    Angry   = 3,  // and now they throw knives
+    Furious = 20, // fed, or the wizard let a suspended game resume
+};
+} // namespace Dwarves
+
+// A travel entry's conditions m, in bands of a hundred:
+//      0       always
+//      1..99   that percent of the time
+//      100     never -- carrying object 0
+//      100+n   only if carrying object n
+//      200+n   only if object n is here
+//      300+n   and up, only if prop[n] == m / COND_BAND - 3
+constexpr int COND_BAND  = 100; // and m % COND_BAND is the object
+constexpr int COND_NEVER = 100;
+constexpr int COND_CARRY = 1 * COND_BAND;
+constexpr int COND_AT    = 2 * COND_BAND;
+constexpr int COND_PROP  = 3 * COND_BAND;
+
+// And its destination n: a location, else a Special, else Msg(n - TRAV_SPEC).
+constexpr int TRAV_LOC  = 300;
+constexpr int TRAV_SPEC = 500;
+
+enum class Special : u8 { PloverTunnel = 1, DropEmerald = 2, TrollBridge = 3 };
+
+// die()'s entry: Pit says how, Elsewhere means the caller has said already.
+enum class Death : u8 { Pit = 90, Elsewhere = 99 };
+
+// done()'s entry, and the label it was.  Cave has no caller: upstream's
+// 13000 is unreachable, and its Magic::GreenSmoke with it.
+enum class Done : u8 { Cave = 1, Score = 2, Dwarves = 3 }; // 13000, 20000, 19000
+
+// The low four bits of cond_, set by glorkz section 9.
+enum class CondBit : i16 {
+    Lit     = 0, // lit without the lamp
+    Oil     = 1, // the liquid here is oil, not water
+    Fluid   = 2, // a liquid is here
+    NoDwarf = 3, // no dwarf and no pirate comes here
+};
+
+// cond_ with none of those bits: a forced move.  linkdata() writes it,
+// forced() reads it.
+constexpr i16 COND_FORCED = 2;
+
 // A hint's number is also its bit in cond_: glorkz section 9 sets bit 4 on the
 // grate room, 5 on the bird chamber and so on, which is what bitset(loc_, hint)
-// tests.  Bits 0 to 3 are the lit and liquid flags, so a location-triggered
-// hint cannot number below 4.
+// tests.  Bits 0 to 3 are CondBit above, so a location-triggered hint cannot
+// number below 4.
 enum class Hint : i16 {
     Oyster       = 2, // the clue inside it, taken by hand in verb_object()
     Instructions = 3, // "Would you like instructions?", taken in startup()
@@ -138,7 +263,7 @@ enum class Phase : u8 {
     Kill,       // 9120
     Feed,       // 9210
     Fill,       // 9220
-    Done3,      // done(3), from trdrop() which cannot await
+    Done3,      // done(Done::Dwarves), from trdrop() which cannot await
     Over,       // finished, and it has said so
 };
 
@@ -172,7 +297,7 @@ private:
     Phase eat_food() { return dstroy(food_), spk_ = Msg::Delicious, report(); } // 8142
 
     // ---- setup -- init.cpp --------------------------------------------
-    void linkdata(), check_vocab(), check_msgs(), check_hints();
+    void linkdata(), check_vocab(), check_msgs(), check_hints(), check_locs();
     Task<i32> startup();
 
     // ---- messages and input -- io.cpp ---------------------------------
@@ -184,12 +309,15 @@ private:
     void dstroy(int), juggle(int), move(int, int), carry(int, int), drop(int, int);
     int put(int, int, int), vocab(const char *, int, int);
 
+    // The canned lookup: the word must be in this class, and its n comes back.
+    int vocab(const char *word, WordClass c) { return vocab(word, int(c), 0); }
+
     // ---- statement functions -- subr.cpp ------------------------------
     int toting(int), here(int), at(int), liq2(int), liq(int), liqloc(int);
     int bitset(int, int), forced(int), dark(int), pct(int);
 
     // ---- the dwarves and the travel table -- move.cpp -----------------
-    int fdwarf(), mback(), badmove(), trbridge(), specials(), march();
+    Move fdwarf(), mback(), badmove(), trbridge(), specials(), march();
     void tk_to(int loc) { tkk_loc_ = i16(loc), tkk_ = 0; }
     bool tk_end() const { return usize(tkk_) >= travel_[tkk_loc_].size(); }
     const Travel &tk() const { return travel_[tkk_loc_][usize(tkk_)]; }
@@ -206,7 +334,8 @@ private:
 
     // ---- scoring and the end -- done.cpp ------------------------------
     int score();
-    Task<i32> done(int), die(int);
+    Task<void> done(Done);
+    Task<Move> die(Death);
 
     // ---- suspend and resume -- save.cpp, serial.h ---------------------
     Task<Result<void>> save(Str), restore(Str);

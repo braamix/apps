@@ -58,9 +58,9 @@ Phase Game::trsay() // 9030
     int i;
     if (*wd2_ != 0)
         copystr(wd2_, wd1_);
-    i = vocab(wd1_, -1, 0);
+    i = vocab(wd1_, VOC_USER, 0);
     if (i == i16(Motion::Xyzzy) || i == i16(Motion::Plugh) || i == i16(Motion::Plover) ||
-        i == 2000 + i16(Verb::Foo)) {
+        i == word_of(WordClass::Verb, i16(Verb::Foo))) {
         *wd2_ = 0;
         obj_  = 0;
         return Phase::Lookup;
@@ -121,7 +121,7 @@ carry_it: // 9014
     carry(obj_, loc_);
     k_ = liq(0);
     if (obj_ == bottle_ && k_ != 0)
-        place_[k_] = -1;
+        place_[k_] = CARRIED;
     return nothing();
 }
 
@@ -174,9 +174,9 @@ Phase Game::trdrop() // 9020
     {
         rspeak(Msg::BearScaresTroll);
         move(troll_, 0);
-        move(troll_ + 100, 0);
+        move(troll_ + FIXED, 0);
         move(troll2_, plac_[troll_]);
-        move(troll2_ + 100, fixd_[troll_]);
+        move(troll2_ + FIXED, fixd_[troll_]);
         juggle(chasm_);
         prop_[troll_] = 2;
         return (dropper());
@@ -191,7 +191,7 @@ Phase Game::trdrop() // 9020
         prop_[vase_] = 0;
     pspeak(vase_, prop_[vase_] + 1);
     if (prop_[vase_] != 0)
-        fixed_[vase_] = -1;
+        fixed_[vase_] = PINNED;
     return (dropper());
 }
 
@@ -212,7 +212,7 @@ Phase Game::tropen() // 9040
             return report();
         dstroy(clam_);
         drop(oyster_, loc_);
-        drop(pearl_, 105);
+        drop(pearl_, Loc::CulDeSac);
         return report();
     }
     if (obj_ == door_)
@@ -239,7 +239,7 @@ Phase Game::tropen() // 9040
             prop_[chain_] = 2;
             if (toting(chain_))
                 drop(chain_, loc_);
-            fixed_[chain_] = -1;
+            fixed_[chain_] = PINNED;
             return report();
         }
         spk_ = Msg::ChainUnlocked;
@@ -274,11 +274,13 @@ Phase Game::tropen() // 9040
 Task<Phase> Game::trkill() // 9120
 {
     int i;
-    for (i = 1; i <= 5; i++)
-        if (dloc_[i] == loc_ && dflag_ >= 2)
+    for (i = 1; i <= NDWARVES; i++)
+        if (dloc_[i] == loc_ && dflag_ >= Dwarves::Active)
             break;
-    if (i == 6)
+    if (i == PIRATE)
         i = 0;
+    // Shifting by a hundred rather than adding: a second candidate overflows
+    // the object range, and that is the test for "kill what?".
     if (obj_ == 0) // 9122
     {
         if (i != 0)
@@ -342,11 +344,11 @@ Task<Phase> Game::trkill() // 9120
     prop_[dragon_] = 2;
     prop_[rug_]    = 0;
     k_             = (plac_[dragon_] + fixd_[dragon_]) / 2;
-    move(dragon_ + 100, -1);
-    move(rug_ + 100, 0);
+    move(dragon_ + FIXED, PINNED);
+    move(rug_ + FIXED, 0);
     move(dragon_, k_);
     move(rug_, k_);
-    for (obj_ = 1; obj_ <= 100; obj_++)
+    for (obj_ = 1; obj_ <= MAXOBJ; obj_++)
         if (place_[obj_] == plac_[dragon_] || place_[obj_] == fixd_[dragon_])
             move(obj_, k_);
     loc_ = k_;
@@ -361,13 +363,13 @@ Phase Game::trtoss() // 9170: throw
         obj_ = rod2_;
     if (!toting(obj_))
         return report();
-    if (obj_ >= 50 && obj_ <= maxtrs_ && at(troll_)) {
+    if (obj_ >= TREASURE && obj_ <= maxtrs_ && at(troll_)) {
         spk_ = Msg::TrollTakesTreasure; // 9178
         drop(obj_, 0);
         move(troll_, 0);
-        move(troll_ + 100, 0);
+        move(troll_ + FIXED, 0);
         drop(troll2_, plac_[troll_]);
-        drop(troll2_ + 100, fixd_[troll_]);
+        drop(troll2_ + FIXED, fixd_[troll_]);
         juggle(chasm_);
         return report();
     }
@@ -377,7 +379,7 @@ Phase Game::trtoss() // 9170: throw
     }
     if (obj_ != axe_)
         return Phase::Drop;
-    for (i = 1; i <= 5; i++) {
+    for (i = 1; i <= NDWARVES; i++) {
         if (dloc_[i] == loc_) {
             spk_ = Msg::DwarfDodges; // 9172
             if (ran(3) == 0 || saved_ != -1)
@@ -405,7 +407,7 @@ Phase Game::trtoss() // 9170: throw
     if (here(bear_) && prop_[bear_] == 0) {
         spk_ = Msg::AxeMissesNearBear;
         drop(axe_, loc_);
-        fixed_[axe_] = -1;
+        fixed_[axe_] = PINNED;
         prop_[axe_]  = 1;
         juggle(bear_);
         return report();
@@ -438,7 +440,7 @@ Phase Game::trfeed() // 9210
         if (!here(food_))
             return report();
         spk_ = Msg::DwarvesEatCoal;
-        dflag_++;
+        dflag_++; // one step angrier
         return report();
     }
     if (obj_ == bear_) {
@@ -469,7 +471,7 @@ Phase Game::trfill() // 9220
             return report();
         rspeak(Msg::VaseShattered);
         prop_[vase_]  = 2;
-        fixed_[vase_] = -1;
+        fixed_[vase_] = PINNED;
         return Phase::Drop; // advent/10 goes to 9024
     }
     if (obj_ != 0 && obj_ != bottle_)
@@ -483,10 +485,10 @@ Phase Game::trfill() // 9220
         spk_ = Msg::BottleAlreadyFull;
     if (spk_ != Msg::BottleFullWater)
         return report();
-    prop_[bottle_] = ((cond_[loc_] % 4) / 2) * 2;
+    prop_[bottle_] = bitset(loc_, i16(CondBit::Oil)) * 2; // 0 water, 2 oil
     k_             = liq(0);
     if (toting(bottle_))
-        place_[k_] = -1;
+        place_[k_] = CARRIED;
     if (k_ == oil_)
         spk_ = Msg::BottleFullOil;
     return report();

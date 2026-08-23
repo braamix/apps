@@ -7,7 +7,7 @@ int Game::score(void) // sort of like 20000
 {
     int scor, i;
     mxscor_ = scor = 0;
-    for (i = 50; i <= maxtrs_; i++) {
+    for (i = TREASURE; i <= maxtrs_; i++) {
         if (ptext_[i].txtlen == 0)
             continue;
         k_ = 12;
@@ -17,7 +17,7 @@ int Game::score(void) // sort of like 20000
             k_ = 16;
         if (prop_[i] >= 0)
             scor += 2;
-        if (place_[i] == 3 && prop_[i] == 0)
+        if (place_[i] == Loc::Building && prop_[i] == 0)
             scor += k_ - 2;
         mxscor_ += k_;
     }
@@ -26,7 +26,7 @@ int Game::score(void) // sort of like 20000
     if (!(scorng_ || gaveup_))
         scor += 4;
     mxscor_ += 4;
-    if (dflag_ != 0)
+    if (dflag_ != Dwarves::Asleep)
         scor += 25;
     mxscor_ += 25;
     if (closng_)
@@ -43,7 +43,7 @@ int Game::score(void) // sort of like 20000
             scor += 45;
     }
     mxscor_ += 45;
-    if (place_[magzin_] == 108)
+    if (place_[magzin_] == Loc::WittsEnd)
         scor++;
     mxscor_++;
     scor += 2;
@@ -55,13 +55,12 @@ int Game::score(void) // sort of like 20000
 }
 
 // game is over
-// entry=1 means goto 13000, entry=2 means goto 20000, 3=19000
-Task<i32> Game::done(int entry)
+Task<void> Game::done(Done entry)
 {
     int i, sc;
-    if (entry == 1)
+    if (entry == Done::Cave)
         mspeak(Magic::GreenSmoke);
-    if (entry == 3)
+    if (entry == Done::Dwarves)
         rspeak(Msg::DwarvesAwakened);
     adv_printf("\n\n\nYou scored %d out of a ", (sc = score()));
     adv_printf("possible %d using %d turns.\n", mxscor_, turns_);
@@ -73,7 +72,7 @@ Task<i32> Game::done(int entry)
                 adv_printf("To achieve the next higher rating");
                 adv_printf(" would be a neat trick!\n\n");
                 adv_printf("Congratulations!!\n");
-                co_return ADV_OVER;
+                co_return;
             }
             k_ = cval_[i] + 1 - sc;
             adv_printf("To achieve the next higher rating, you need");
@@ -82,17 +81,17 @@ Task<i32> Game::done(int entry)
                 adv_printf(".\n");
             else
                 adv_printf("s.\n");
-            co_return ADV_OVER;
+            co_return;
         }
     adv_printf("You just went off my scale!!!\n");
-    co_return ADV_OVER;
+    co_return;
 }
 
-Task<i32> Game::die( // label 90
-    int entry)
+Task<Move> Game::die( // label 90
+    Death entry)
 {
     int i, yea;
-    if (entry != 99) {
+    if (entry != Death::Elsewhere) {
         rspeak(Msg::FellIntoPit);
         oldlc2_ = loc_;
     }
@@ -100,17 +99,20 @@ Task<i32> Game::die( // label 90
     {
         rspeak(Msg::LooksLikeYoureDead);
         numdie_++;
-        co_return co_await done(2);
+        co_await done(Done::Score);
+        co_return Move::Over;
     }
     yea = co_await yes(Msg::Killed + numdie_ * 2, Msg::ReviveOffer + numdie_ * 2, Msg::Ok);
     numdie_++;
-    if (numdie_ == maxdie_ || !yea)
-        co_return co_await done(2);
+    if (numdie_ == maxdie_ || !yea) {
+        co_await done(Done::Score);
+        co_return Move::Over;
+    }
     place_[water_] = 0;
     place_[oil_]   = 0;
     if (toting(lamp_))
         prop_[lamp_] = 0;
-    for (i = 100; i >= 1; i--) {
+    for (i = MAXOBJ; i >= 1; i--) {
         if (!toting(i))
             continue;
         k_ = oldlc2_;
@@ -118,7 +120,7 @@ Task<i32> Game::die( // label 90
             k_ = 1;
         drop(i, k_);
     }
-    loc_    = 3;
+    loc_    = Loc::Building;
     oldloc_ = loc_;
-    co_return 2000;
+    co_return Move::Describe;
 }

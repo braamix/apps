@@ -18,9 +18,10 @@ bool Game::alloc()
            rtext_.resize(RTXSIZ + 1) && mtext_.resize(MAGSIZ + 1) && ctext_.resize(CLSMAX) &&
            cval_.resize(CLSMAX) && ptext_.resize(OBJSIZ) && plac_.resize(OBJSIZ) &&
            fixd_.resize(OBJSIZ) && fixed_.resize(OBJSIZ) && place_.resize(OBJSIZ) &&
-           prop_.resize(OBJSIZ) && plink_.resize(201) && actspk_.resize(35) &&
-           hinted_.resize(HINTSIZ) && hintlc_.resize(HINTSIZ) && dseen_.resize(7) &&
-           dloc_.resize(7) && odloc_.resize(7) && tk_.resize(21);
+           prop_.resize(OBJSIZ) && plink_.resize(OBJSIZ + MAXOBJ) &&
+           actspk_.resize(35) && // upstream's slack above Verb::Hours
+           hinted_.resize(HINTSIZ) && hintlc_.resize(HINTSIZ) && dseen_.resize(PIRATE + 1) &&
+           dloc_.resize(PIRATE + 1) && odloc_.resize(PIRATE + 1) && tk_.resize(DWARF_EXITS + 1);
 }
 
 void Game::linkdata(void) // secondary data manipulation
@@ -30,13 +31,13 @@ void Game::linkdata(void) // secondary data manipulation
     for (i = 1; i <= LOCSIZ; i++)
         if (ltext_[i].seekadr != 0 && !travel_[i].empty())
             if ((travel_[i][0].tverb) == Motion::Forced)
-                cond_[i] = 2;
-    for (j = 100; j > 0; j--)
+                cond_[i] = COND_FORCED;
+    for (j = MAXOBJ; j > 0; j--)
         if (fixd_[j] > 0) {
-            drop(j + 100, fixd_[j]);
+            drop(j + FIXED, fixd_[j]);
             drop(j, plac_[j]);
         }
-    for (j = 100; j > 0; j--) {
+    for (j = MAXOBJ; j > 0; j--) {
         fixed_[j] = fixd_[j];
         if (plac_[j] != 0 && fixd_[j] <= 0)
             drop(j, plac_[j]);
@@ -46,85 +47,85 @@ void Game::linkdata(void) // secondary data manipulation
     tally_  = 0;
     tally2_ = 0;
 
-    for (i = 50; i <= maxtrs_; i++) {
+    for (i = TREASURE; i <= maxtrs_; i++) {
         if (ptext_[i].seekadr != 0)
             prop_[i] = -1;
         tally_ -= prop_[i];
     }
 
     // define mnemonics
-    keys_   = vocab("keys", 1, 0);
-    lamp_   = vocab("lamp", 1, 0);
-    grate_  = vocab("grate", 1, 0);
-    cage_   = vocab("cage", 1, 0);
-    rod_    = vocab("rod", 1, 0);
+    keys_   = vocab("keys", WordClass::Object);
+    lamp_   = vocab("lamp", WordClass::Object);
+    grate_  = vocab("grate", WordClass::Object);
+    cage_   = vocab("cage", WordClass::Object);
+    rod_    = vocab("rod", WordClass::Object);
     rod2_   = rod_ + 1;
-    steps_  = vocab("steps", 1, 0);
-    bird_   = vocab("bird", 1, 0);
-    door_   = vocab("door", 1, 0);
-    pillow_ = vocab("pillow", 1, 0);
-    snake_  = vocab("snake", 1, 0);
-    fissur_ = vocab("fissu", 1, 0);
-    tablet_ = vocab("table", 1, 0);
-    clam_   = vocab("clam", 1, 0);
-    oyster_ = vocab("oyster", 1, 0);
-    magzin_ = vocab("magaz", 1, 0);
-    dwarf_  = vocab("dwarf", 1, 0);
-    knife_  = vocab("knife", 1, 0);
-    food_   = vocab("food", 1, 0);
-    bottle_ = vocab("bottl", 1, 0);
-    water_  = vocab("water", 1, 0);
-    oil_    = vocab("oil", 1, 0);
-    plant_  = vocab("plant", 1, 0);
+    steps_  = vocab("steps", WordClass::Object);
+    bird_   = vocab("bird", WordClass::Object);
+    door_   = vocab("door", WordClass::Object);
+    pillow_ = vocab("pillow", WordClass::Object);
+    snake_  = vocab("snake", WordClass::Object);
+    fissur_ = vocab("fissu", WordClass::Object);
+    tablet_ = vocab("table", WordClass::Object);
+    clam_   = vocab("clam", WordClass::Object);
+    oyster_ = vocab("oyster", WordClass::Object);
+    magzin_ = vocab("magaz", WordClass::Object);
+    dwarf_  = vocab("dwarf", WordClass::Object);
+    knife_  = vocab("knife", WordClass::Object);
+    food_   = vocab("food", WordClass::Object);
+    bottle_ = vocab("bottl", WordClass::Object);
+    water_  = vocab("water", WordClass::Object);
+    oil_    = vocab("oil", WordClass::Object);
+    plant_  = vocab("plant", WordClass::Object);
     plant2_ = plant_ + 1;
-    axe_    = vocab("axe", 1, 0);
-    mirror_ = vocab("mirro", 1, 0);
-    dragon_ = vocab("drago", 1, 0);
-    chasm_  = vocab("chasm", 1, 0);
-    troll_  = vocab("troll", 1, 0);
+    axe_    = vocab("axe", WordClass::Object);
+    mirror_ = vocab("mirro", WordClass::Object);
+    dragon_ = vocab("drago", WordClass::Object);
+    chasm_  = vocab("chasm", WordClass::Object);
+    troll_  = vocab("troll", WordClass::Object);
     troll2_ = troll_ + 1;
-    bear_   = vocab("bear", 1, 0);
-    messag_ = vocab("messa", 1, 0);
-    vend_   = vocab("vendi", 1, 0);
-    batter_ = vocab("batte", 1, 0);
+    bear_   = vocab("bear", WordClass::Object);
+    messag_ = vocab("messa", WordClass::Object);
+    vend_   = vocab("vendi", WordClass::Object);
+    batter_ = vocab("batte", WordClass::Object);
 
-    nugget_ = vocab("gold", 1, 0);
-    coins_  = vocab("coins", 1, 0);
-    chest_  = vocab("chest", 1, 0);
-    eggs_   = vocab("eggs", 1, 0);
-    tridnt_ = vocab("tride", 1, 0);
-    vase_   = vocab("vase", 1, 0);
-    emrald_ = vocab("emera", 1, 0);
-    pyram_  = vocab("pyram", 1, 0);
-    pearl_  = vocab("pearl", 1, 0);
-    rug_    = vocab("rug", 1, 0);
-    chain_  = vocab("chain", 1, 0);
+    nugget_ = vocab("gold", WordClass::Object);
+    coins_  = vocab("coins", WordClass::Object);
+    chest_  = vocab("chest", WordClass::Object);
+    eggs_   = vocab("eggs", WordClass::Object);
+    tridnt_ = vocab("tride", WordClass::Object);
+    vase_   = vocab("vase", WordClass::Object);
+    emrald_ = vocab("emera", WordClass::Object);
+    pyram_  = vocab("pyram", WordClass::Object);
+    pearl_  = vocab("pearl", WordClass::Object);
+    rug_    = vocab("rug", WordClass::Object);
+    chain_  = vocab("chain", WordClass::Object);
 
-    back_   = vocab("back", 0, 0);
-    look_   = vocab("look", 0, 0);
-    cave_   = vocab("cave", 0, 0);
-    null_   = vocab("null", 0, 0);
-    entrnc_ = vocab("entra", 0, 0);
-    dprssn_ = vocab("depre", 0, 0);
+    back_   = vocab("back", WordClass::Motion);
+    look_   = vocab("look", WordClass::Motion);
+    cave_   = vocab("cave", WordClass::Motion);
+    null_   = vocab("null", WordClass::Motion);
+    entrnc_ = vocab("entra", WordClass::Motion);
+    dprssn_ = vocab("depre", WordClass::Motion);
 
-    say_    = Verb(vocab("say", 2, 0));
-    lock_   = Verb(vocab("lock", 2, 0));
-    throw_  = Verb(vocab("throw", 2, 0));
-    find_   = Verb(vocab("find", 2, 0));
-    invent_ = Verb(vocab("inven", 2, 0));
+    say_    = Verb(vocab("say", WordClass::Verb));
+    lock_   = Verb(vocab("lock", WordClass::Verb));
+    throw_  = Verb(vocab("throw", WordClass::Verb));
+    find_   = Verb(vocab("find", WordClass::Verb));
+    invent_ = Verb(vocab("inven", WordClass::Verb));
     // initialize dwarves
-    chloc_  = 114;
-    chloc2_ = 140;
-    for (i = 1; i <= 6; i++)
+    chloc_  = Loc::ChestDeadEnd;
+    chloc2_ = Loc::MessageDeadEnd;
+    for (i = 1; i <= PIRATE; i++)
         dseen_[i] = FALSE;
-    dflag_   = 0;
-    dloc_[1] = 19;
-    dloc_[2] = 27;
-    dloc_[3] = 33;
-    dloc_[4] = 44;
-    dloc_[5] = 64;
-    dloc_[6] = chloc_;
-    daltlc_  = 18;
+    dflag_        = Dwarves::Asleep;
+    dloc_[1]      = Loc::HallOfMtKing;
+    dloc_[2]      = Loc::WestOfFissure;
+    dloc_[3]      = Loc::Y2;
+    dloc_[4]      = Loc::MazeAllAlike;
+    dloc_[5]      = Loc::ComplexJunction;
+    dloc_[PIRATE] = chloc_;
+    daltlc_       = Loc::NoteRoom;
 
     // random flags & ctrs
     turns_  = 0;
@@ -133,8 +134,8 @@ void Game::linkdata(void) // secondary data manipulation
     knfloc_ = 0;
     detail_ = 0;
     abbnum_ = 5;
-    for (i = 0; i <= 4; i++)
-        if (rtext_[2 * i + 81].seekadr != 0)
+    for (i = 0; i <= 4; i++) // the obituaries, in pairs
+        if (rtext_[i16(Msg::Killed) + 2 * i].seekadr != 0)
             maxdie_ = i + 1;
     numdie_ = holdng_ = dkill_ = foobar_ = 0;
     bonus_                               = Msg::None;
@@ -145,6 +146,7 @@ void Game::linkdata(void) // secondary data manipulation
     check_vocab();
     check_msgs();
     check_hints();
+    check_locs();
 }
 
 // glorkz decides these numbers; the enums only name them.  Check the naming
@@ -154,33 +156,76 @@ void Game::check_vocab()
 {
     struct Named {
         const char *word;
-        int type; // val / 1000: 0 motion, 2 verb
         int want;
     };
     // clang-format off
-    static const Named NAMED[] = {
-        { "say",   2, int(Verb::Say)    }, { "lock",  2, int(Verb::Lock)   },
-        { "throw", 2, int(Verb::Throw)  }, { "find",  2, int(Verb::Find)   },
-        { "inven", 2, int(Verb::Invent) }, { "foo",   2, int(Verb::Foo)    },
-
-        { "forwa", 0, int(Motion::Forward) }, { "back",  0, int(Motion::Back)  },
-        { "out",   0, int(Motion::Out)     }, { "crawl", 0, int(Motion::Crawl) },
-        { "in",    0, int(Motion::In)      }, { "null",  0, int(Motion::Null)  },
-        { "up",    0, int(Motion::Up)      }, { "down",  0, int(Motion::Down)  },
-        { "left",  0, int(Motion::Left)    }, { "right", 0, int(Motion::Right) },
-        { "east",  0, int(Motion::East)    }, { "west",  0, int(Motion::West)  },
-        { "north", 0, int(Motion::North)   }, { "south", 0, int(Motion::South) },
-        { "ne",    0, int(Motion::NE)      }, { "se",    0, int(Motion::SE)    },
-        { "sw",    0, int(Motion::SW)      }, { "nw",    0, int(Motion::NW)    },
-        { "look",  0, int(Motion::Look)    }, { "xyzzy", 0, int(Motion::Xyzzy) },
-        { "depre", 0, int(Motion::Depression) }, { "entra", 0, int(Motion::Entrance) },
-        { "plugh", 0, int(Motion::Plugh)   }, { "cave",  0, int(Motion::Cave)  },
-        { "plove", 0, int(Motion::Plover)  },
+    static const Named VERBS[] = {
+        { "say",   int(Verb::Say)    }, { "lock",  int(Verb::Lock)   },
+        { "throw", int(Verb::Throw)  }, { "find",  int(Verb::Find)   },
+        { "inven", int(Verb::Invent) }, { "foo",   int(Verb::Foo)    },
+    };
+    static const Named MOTIONS[] = {
+        { "forwa", int(Motion::Forward) }, { "back",  int(Motion::Back)  },
+        { "out",   int(Motion::Out)     }, { "crawl", int(Motion::Crawl) },
+        { "in",    int(Motion::In)      }, { "null",  int(Motion::Null)  },
+        { "up",    int(Motion::Up)      }, { "down",  int(Motion::Down)  },
+        { "left",  int(Motion::Left)    }, { "right", int(Motion::Right) },
+        { "east",  int(Motion::East)    }, { "west",  int(Motion::West)  },
+        { "north", int(Motion::North)   }, { "south", int(Motion::South) },
+        { "ne",    int(Motion::NE)      }, { "se",    int(Motion::SE)    },
+        { "sw",    int(Motion::SW)      }, { "nw",    int(Motion::NW)    },
+        { "look",  int(Motion::Look)    }, { "xyzzy", int(Motion::Xyzzy) },
+        { "depre", int(Motion::Depression) }, { "entra", int(Motion::Entrance) },
+        { "plugh", int(Motion::Plugh)   }, { "cave",  int(Motion::Cave)  },
+        { "plove", int(Motion::Plover)  },
     };
     // clang-format on
-    for (const Named &n : NAMED)
-        if (vocab(n.word, n.type, 0) != n.want)
+    for (const Named &n : VERBS)
+        if (vocab(n.word, WordClass::Verb) != n.want)
             bug(35);
+    for (const Named &n : MOTIONS)
+        if (vocab(n.word, WordClass::Motion) != n.want)
+            bug(35);
+}
+
+// glorkz decides the room numbers too, and no room has a word to look up.  What
+// can be checked is where glorkz puts things and which bits it sets: section 7
+// places the grate and the keys, and section 9 marks the rooms a hint or a
+// liquid belongs to, one apiece.
+void Game::check_locs()
+{
+    struct Marked {
+        i16 loc;
+        i16 bit;
+    };
+    static const Marked MARKED[] = {
+        { Loc::OutsideGrate, i16(Hint::Grate) },  { Loc::BirdChamber, i16(Hint::Bird) },
+        { Loc::HallOfMtKing, i16(Hint::Snake) },  { Loc::MazeAllAlike, i16(Hint::Maze) },
+        { Loc::PloverRoom, i16(Hint::Plover) },   { Loc::WittsEnd, i16(Hint::WittsEnd) },
+        { Loc::OilPit, i16(CondBit::Oil) },       { Loc::OilPit, i16(CondBit::Fluid) },
+        { Loc::Road, i16(CondBit::Lit) },         { Loc::Building, i16(CondBit::Lit) },
+        { Loc::RepositoryNE, i16(CondBit::Lit) },
+    };
+    for (const Marked &m : MARKED)
+        if (!bitset(m.loc, m.bit))
+            bug(38);
+
+    if (plac_[grate_] != Loc::OutsideGrate || fixd_[grate_] != Loc::BelowGrate ||
+        plac_[keys_] != Loc::Building || plac_[lamp_] != Loc::Building)
+        bug(38);
+
+    // Every room the code names is a room, and none of them is a forced move.
+    static const i16 NAMED_LOCS[] = {
+        Loc::Road,         Loc::Building,     Loc::Valley,          Loc::Slit,
+        Loc::OutsideGrate, Loc::BelowGrate,   Loc::BirdChamber,     Loc::HallOfMists,
+        Loc::NoteRoom,     Loc::HallOfMtKing, Loc::OilPit,          Loc::WestOfFissure,
+        Loc::Y2,           Loc::MazeAllAlike, Loc::ComplexJunction, Loc::Alcove,
+        Loc::PloverRoom,   Loc::CulDeSac,     Loc::WittsEnd,        Loc::ChestDeadEnd,
+        Loc::RepositoryNE, Loc::RepositorySW, Loc::MessageDeadEnd,
+    };
+    for (i16 n : NAMED_LOCS)
+        if (ltext_[n].seekadr == 0 || forced(n))
+            bug(38);
 }
 
 // The message names are a summary of glorkz's text and nothing can check that
@@ -190,7 +235,7 @@ void Game::check_vocab()
 void Game::check_msgs()
 {
     for (i16 n = 1; n <= i16(Msg::Last); n++) {
-        bool reserved = n >= 87 && n <= 89;
+        bool reserved = n > i16(Msg::ReviveRefused) && n < i16(Msg::ObituarySlots);
         if ((rtext_[n].seekadr != 0) == reserved)
             bug(36);
     }
@@ -228,7 +273,7 @@ Task<i32> Game::startup(void)
         co_await t;
     hinted_[i16(Hint::Instructions)] =
         co_await yes(Msg::WelcomeInstructions, Msg::ColossalCave, Msg::None);
-    newloc_ = 1;
+    newloc_ = Loc::Road;
     limit_  = 330;
     if (hinted_[i16(Hint::Instructions)])
         limit_ = 1000; // better batteries if instrucs
