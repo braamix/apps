@@ -58,20 +58,39 @@ to clear — and **up and down walk a history of the last 32 commands**.
 ## What the port changed
 
 There is no libc: no `stdio`, no `malloc`, no `signal`, no `time`, no `rand`,
-and a program is a coroutine rather than a `main`. The game logic, the FORTRAN
-statement labels it still carries, the `tr*` handlers that return label numbers
-for the caller to `switch` back into a `goto`, and every line of its output are
-upstream's. Comments are `//` rather than `/* */`, and `hdr.h`'s macro layer is
-written out: the hundred and thirty-one `#define loc game.loc` aliases that
-reached the state struct say `game.loc` now, and the two that kept upstream's
-calls spelled `printf` and `putchar` name `adv_printf` and `adv_putc`. All of
-it is mechanical — the binary is byte for byte the one the macros produced.
+and a program is a coroutine rather than a `main`. The game logic and every
+line of its output are upstream's. Comments are `//` rather than `/* */`, and
+`hdr.h`'s macro layer is written out: the two aliases that kept upstream's
+calls spelled `printf` and `putchar` name `adv_printf` and `adv_putc`.
+
+**The state is a class.** Upstream's globals — the hundred and thirty-one
+`#define loc game.loc` aliases reached one struct — are `Game`'s members, and
+its routines are `Game`'s methods; a field carries a trailing underscore so
+neither hides the other. The fixed tables are `Vec`s, sized once in `alloc()`
+and unchecked from then on as the C arrays were, and the travel lists are a
+`Vec` of `Vec` where upstream had a hand-rolled linked list.
+
+**The turn is a state machine.** Upstream's command loop is one function of
+750 lines carrying thirty-seven FORTRAN statement labels, with the `tr*`
+handlers returning the label number their caller switched back into a `goto`.
+Each label is a method here, returning the label to go to next, and `play()`
+dispatches; `main.cpp` has no `goto` left. Twenty states cover the
+thirty-seven labels, because a fallthrough chain stays a chain of calls and
+nine of the twelve `9xxx` labels are only ever entered from `4000` with the
+matching verb already in `verb_`. The local jumps inside `fdwarf()`,
+`march()`, `checkhints()`, `trtake()`, `trtoss()` and `vocab()` are upstream's
+own and stay: each is a forward jump within one routine.
+
+The guarantee that used to be "the binary is byte for byte the one the macros
+produced" is now the transcript. `test/play.mjs` diffs 41,777 bytes of output
+from a 322-turn game, and `test/back.mjs` and `test/suspend.mjs` cover what it
+does not reach; none of the above moved a byte of any of them.
 
 | Original | Here |
 | --- | --- |
 | `printf`, `putchar` | a variadic formatter over one buffer, flushed once a turn |
 | `getchar` + the terminal driver | `LineEditor`, or `LineReader` over stdin |
-| `malloc` for travel nodes | `heap_new<travlist>`, checked |
+| `malloc` for travel nodes | a `Vec<Travel>` per location, filled as `glorkz` is read |
 | `alloca` in `speak`/`pspeak` | a fixed 2 KB buffer; the longest message is 1460 bytes |
 | `open`/`read`/`write`/`creat`/`close` | `open_at`, `read_file`, `write_all`, `close_fd` |
 | `access` | `stat_of`, where `Err(NotFound)` is the good answer |
@@ -153,13 +172,24 @@ of the debris room. The port initialises the buffer.
 **Left exactly as upstream has it:** `poof()`, which sets the magic word and
 the fifteen-minute latency, is called where the data is now built — upstream
 called it only in the `adventure.dat` path, so in normal play `magic` stayed
-null and the wizard's check dereferenced it. Everything else, including the
-save format, is unchanged: `save()` still writes `struct game` raw and then
-walks the travel lists node by node, and `restore()` still uses the pointers it
-reads back only as "there was a node here", which works because `glorkz` is
-parsed before either happens and the chains already have the right shape. A
-save file is therefore this build's, and 32-bit: the same game suspended by the
-BSD binary is 22,568 bytes and here 19,032.
+null and the wizard's check dereferenced it.
+
+**The save file is a field list.** Upstream wrote `struct game` raw and then
+walked the travel lists node by node. `serial.h` names every field once and
+visits it twice — `Ser` writes, `De` reads — so the two halves cannot drift
+apart, and a magic word at the front means a stale file is refused rather than
+mis-parsed. The travel lists are not in it at all: `rdata()` rebuilds them
+before `restore()` runs and play never changes them, which is the same reason
+the old format could treat the pointers it wrote as "there was a node here". A
+save file is this build's, and 9,780 bytes where the raw struct took 19,032.
+
+**One thing worth checking against upstream.** `mback()` has a fallback for
+getting back through a forced location, and as this port has it the branch
+cannot fire: the cursor starts at the head of the list, so
+`k_ == travel_[loc_][0].tloc` would already have matched `ll == k_` and
+returned. The line reads `travel[loc]` where upstream, by the sense of it,
+reads `travel[ll]` — the location you would pass through. It is left as it is,
+because changing it would change the game.
 
 ## Building and packaging
 
@@ -167,7 +197,7 @@ From the top of this repository:
 
 ```
 make            # build/games/adventure/adventure.wasm
-make package    # build/games/adventure/adventure-1.0-r0.zip
+make package    # build/games/adventure/adventure-1.0-r2.zip
 ```
 
 The package holds `.PKGINFO` and `bin/adventure` and nothing else — the data is
@@ -205,6 +235,20 @@ game asks whether to quit rather than dying, sends another, and checks that it
 scores itself, exits to a status-0 prompt and gives the keyboard back — the
 shell reading a command afterwards is what proves the last of those.
 
+`test/suspend.mjs` is the third, and covers what `make test` used to reach not
+at all: it plays a prefix, `suspend`s it to a file, checks that the same prefix
+suspended twice writes the same bytes, resumes from it, and checks that a file
+of `A`s is refused as a forgery. The resume does not get to play on — the
+harness clock is frozen, so no time passes and `start()`'s fifteen-minute gate
+turns it away, which is upstream's rule rather than this port's. Reaching that
+refusal is already the proof that `restore()` read the file.
+
+`test/back.mjs` is the fourth. The walkthrough never types `back`, so
+`mback()` — the one routine that compared travel-list pointers for
+identity — had no coverage when the lists became `Vec`s. It replays the walkthrough's
+opening with a `back` after every command and diffs `test/back.log` byte for
+byte; that golden was generated from the binary as it stood before the change.
+
 The transcript is written to `build/games/adventure/game.log` whether the test
 passes or not, and the whole run takes about twenty milliseconds.
 
@@ -231,7 +275,7 @@ writes the two words it means.
 
 | | |
 | --- | --- |
-| `hdr.h` | `struct game` and the prototypes |
+| `hdr.h` | `class Game`: the state, the methods, and the turn's phases |
 | `main.cpp` | closing the cave, and the command loop — upstream `main.c` |
 | `init.cpp` | the shared state and its setup — upstream `init.c` |
 | `vocab.cpp` | the objects and the words — upstream `vocab.c` |
@@ -240,13 +284,17 @@ writes the two words it means.
 | `verbs.cpp` | the hints and the verb handlers — `subr.c` too |
 | `wizard.cpp` | suspend, resume and the magic word — upstream `wizard.c` |
 | `done.cpp` | dying, quitting and the scoring — upstream `done.c` |
-| `io.cpp` | the `glorkz` parser, the messages, the words typed — `io.c` |
-| `save.cpp` | the save file, written and read back — upstream `save.c` |
+| `io.cpp` | the messages and the words typed — upstream `io.c` |
+| `data.cpp`, `data.h` | the `glorkz` parser — `io.c`'s `rdata()` and below |
+| `save.cpp`, `serial.h` | the save file: one field list, written and read |
 | `braam.cpp`, `braam.h` | the porting layer: output, input, the dice, the clock |
 | `edit.cpp`, `edit.h` | the line editor, from `braam-core`'s `sh` |
 | `mkdata.py` | `glorkz` to a C++ array, at build time |
 | `glorkz` | the data file, verbatim |
 | `test/play.mjs` | the headless test: kernel, image, walkthrough, assertions |
 | `test/interrupt.mjs` | the second one: `^C` at the prompt, on the grid |
+| `test/suspend.mjs` | the third: suspend to a file, and resume from it |
+| `test/back.mjs` | the fourth: `back`, which the walkthrough never types |
+| `test/back.log` | what that prints, to the byte |
 | `test/walkthrough.txt` | a whole game, 350 of 350, one command a line |
 | `test/game.log` | what it prints, to the byte |
