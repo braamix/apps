@@ -64,6 +64,33 @@ struct Travel {     // direcs & conditions of travel
 // and already reported.
 constexpr int ADV_OVER = -1;
 
+// One step of a turn, named for the FORTRAN statement label it was.  Upstream
+// jumped between these with goto and the tr* handlers returned the number the
+// caller switched back into one; here a step returns the next step and play()
+// dispatches.
+enum class Phase : u8 {
+    Dwarves,    // 2      the dwarves move, then the room
+    Describe,   // 2000   the room and what is in it
+    EndTurn,    // 2012
+    Hints,      // 2600   hints, then read a command
+    Timers,     // 2608   the clocks and the lamp
+    Lamp,       // 19999  liqloc, and the word rewrites
+    West,       // 2610
+    Lookup,     // 2630   which kind of word it was
+    Motion,     // 8      march
+    Shift,      // 2800   wd1 = wd2
+    VerbOnly,   // 4000
+    VerbObject, // 4090
+    ObjectOnly, // 5000
+    Named,      // 5010
+    Drop,       // 9020   the four a tr* handler re-enters with another verb
+    Kill,       // 9120
+    Feed,       // 9210
+    Fill,       // 9220
+    Done3,      // done(3), from trdrop() which cannot await
+    Over,       // finished, and it has said so
+};
+
 // The game.  Upstream's globals are the state, and its routines are the
 // methods; a field carries a trailing underscore so neither hides the other.
 class Game {
@@ -78,8 +105,20 @@ public:
     Task<i32> play(Args args); // upstream's main()
 
 private:
-    // ---- the command loop -- main.cpp ---------------------------------
-    int closing(), caveclose();
+    // ---- the command loop, one method per label -- main.cpp -----------
+    Phase closing(), caveclose();
+    Phase end_turn(), lamp(), west(), lookup(), shift();
+    Phase object_only(), named(), no_see();
+    Task<Phase> dwarves(), describe(), hints_then_read(), timers(), motion();
+    Task<Phase> verb_only(), verb_object();
+
+    // 2009 -> 2010 -> 2011 -> 2012 is a fallthrough chain with no branching,
+    // so it stays one as a chain of calls.  8000 and 8142 are the same shape.
+    Phase nothing() { return k_ = 54, speak_k(); }                  // 2009
+    Phase speak_k() { return spk_ = k_, report(); }                 // 2010
+    Phase report() { return rspeak(spk_), Phase::EndTurn; }         // 2011
+    Phase what();                                                   // 8000
+    Phase eat_food() { return dstroy(food_), spk_ = 72, report(); } // 8142
 
     // ---- setup -- init.cpp --------------------------------------------
     void linkdata();
@@ -106,8 +145,9 @@ private:
 
     // ---- the hints and the verb handlers -- verbs.cpp -----------------
     Task<void> checkhints();
-    int trsay(), trtake(), dropper(), trdrop(), tropen(), trtoss(), trfeed(), trfill();
-    Task<i32> trkill();
+    Phase trsay(), trtake(), trdrop(), tropen(), trtoss(), trfeed(), trfill();
+    Phase dropper();
+    Task<Phase> trkill();
 
     // ---- privileged operations -- wizard.cpp --------------------------
     void poof();

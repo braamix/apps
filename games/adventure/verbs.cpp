@@ -53,7 +53,7 @@ Task<void> Game::checkhints(void) // 2600 &c
     co_return;
 }
 
-int Game::trsay(void) // 9030
+Phase Game::trsay() // 9030
 {
     int i;
     if (*wd2_ != 0)
@@ -62,16 +62,16 @@ int Game::trsay(void) // 9030
     if (i == 62 || i == 65 || i == 71 || i == 2025) {
         *wd2_ = 0;
         obj_  = 0;
-        return (2630);
+        return Phase::Lookup;
     }
     adv_printf("\nOkay, \"%s\".\n", wd2_);
-    return (2012);
+    return Phase::EndTurn;
 }
 
-int Game::trtake(void) // 9010
+Phase Game::trtake() // 9010
 {
     if (toting(obj_))
-        return (2011); // 9010
+        return report(); // 9010
     spk_ = 25;
     if (obj_ == plant_ && prop_[plant_] <= 0)
         spk_ = 115;
@@ -80,7 +80,7 @@ int Game::trtake(void) // 9010
     if (obj_ == chain_ && prop_[bear_] != 0)
         spk_ = 170;
     if (fixed_[obj_] != 0)
-        return (2011);
+        return report();
     if (obj_ == water_ || obj_ == oil_) {
         if (here(bottle_) && liq(0) == obj_) {
             obj_ = bottle_;
@@ -88,29 +88,29 @@ int Game::trtake(void) // 9010
         }
         obj_ = bottle_;
         if (toting(bottle_) && prop_[bottle_] == 1)
-            return (9220);
+            return Phase::Fill;
         if (prop_[bottle_] != 1)
             spk_ = 105;
         if (!toting(bottle_))
             spk_ = 104;
-        return (2011);
+        return report();
     }
 l9017:
     if (holdng_ >= 7) {
         rspeak(92);
-        return (2012);
+        return Phase::EndTurn;
     }
     if (obj_ == bird_) {
         if (prop_[bird_] != 0)
             goto l9014;
         if (toting(rod_)) {
             rspeak(26);
-            return (2012);
+            return Phase::EndTurn;
         }
         if (!toting(cage_)) // 9013
         {
             rspeak(27);
-            return (2012);
+            return Phase::EndTurn;
         }
         prop_[bird_] = 1; // 9015
     }
@@ -121,10 +121,10 @@ l9014:
     k_ = liq(0);
     if (obj_ == bottle_ && k_ != 0)
         place_[k_] = -1;
-    return (2009);
+    return nothing();
 }
 
-int Game::dropper(void) // 9021
+Phase Game::dropper() // 9021
 {
     k_ = liq(0);
     if (k_ == obj_)
@@ -136,19 +136,19 @@ int Game::dropper(void) // 9021
     if (obj_ == bird_)
         prop_[bird_] = 0;
     drop(obj_, loc_);
-    return (2012);
+    return Phase::EndTurn;
 }
 
-int Game::trdrop(void) // 9020
+Phase Game::trdrop() // 9020
 {
     if (toting(rod2_) && obj_ == rod_ && !toting(rod_))
         obj_ = rod2_;
     if (!toting(obj_))
-        return (2011);
+        return report();
     if (obj_ == bird_ && here(snake_)) {
         rspeak(30);
         if (closed_)
-            return (19000);
+            return Phase::Done3;
         dstroy(snake_);
         prop_[snake_] = 1;
         return (dropper());
@@ -158,7 +158,7 @@ int Game::trdrop(void) // 9020
         dstroy(coins_);
         drop(batter_, loc_);
         pspeak(batter_, 0);
-        return (2012);
+        return Phase::EndTurn;
     }
     if (obj_ == bird_ && at(dragon_) && prop_[dragon_] == 0) // 9025
     {
@@ -167,7 +167,7 @@ int Game::trdrop(void) // 9020
         prop_[bird_] = 0;
         if (place_[snake_] == plac_[snake_])
             tally2_--;
-        return (2012);
+        return Phase::EndTurn;
     }
     if (obj_ == bear_ && at(troll_)) // 9026
     {
@@ -194,7 +194,7 @@ int Game::trdrop(void) // 9020
     return (dropper());
 }
 
-int Game::tropen(void) // 9040
+Phase Game::tropen() // 9040
 {
     if (obj_ == clam_ || obj_ == oyster_) {
         k_ = 0; // 9046
@@ -208,11 +208,11 @@ int Game::tropen(void) // 9040
         if (verb_ == lock_)
             spk_ = 61;
         if (spk_ != 124)
-            return (2011);
+            return report();
         dstroy(clam_);
         drop(oyster_, loc_);
         drop(pearl_, 105);
-        return (2011);
+        return report();
     }
     if (obj_ == door_)
         spk_ = 111;
@@ -225,7 +225,7 @@ int Game::tropen(void) // 9040
     if (obj_ == grate_ || obj_ == chain_)
         spk_ = 31;
     if (spk_ != 31 || !here(keys_))
-        return (2011);
+        return report();
     if (obj_ == chain_) {
         if (verb_ == lock_) {
             spk_ = 172; // 9049: lock
@@ -234,12 +234,12 @@ int Game::tropen(void) // 9040
             if (loc_ != plac_[chain_])
                 spk_ = 173;
             if (spk_ != 172)
-                return (2011);
+                return report();
             prop_[chain_] = 2;
             if (toting(chain_))
                 drop(chain_, loc_);
             fixed_[chain_] = -1;
-            return (2011);
+            return report();
         }
         spk_ = 171;
         if (prop_[bear_] == 0)
@@ -247,30 +247,30 @@ int Game::tropen(void) // 9040
         if (prop_[chain_] == 0)
             spk_ = 37;
         if (spk_ != 171)
-            return (2011);
+            return report();
         prop_[chain_]  = 0;
         fixed_[chain_] = 0;
         if (prop_[bear_] != 3)
             prop_[bear_] = 2;
         fixed_[bear_] = 2 - prop_[bear_];
-        return (2011);
+        return report();
     }
     if (closng_) {
         k_ = 130;
         if (!panic_)
             clock2_ = 15;
         panic_ = TRUE;
-        return (2010);
+        return speak_k();
     }
     k_            = 34 + prop_[grate_]; // 9043
     prop_[grate_] = 1;
     if (verb_ == lock_)
         prop_[grate_] = 0;
     k_ = k_ + 2 * prop_[grate_];
-    return (2010);
+    return speak_k();
 }
 
-Task<i32> Game::trkill(void) // 9120
+Task<Phase> Game::trkill() // 9120
 {
     int i;
     for (i = 1; i <= 5; i++)
@@ -291,21 +291,21 @@ Task<i32> Game::trkill(void) // 9120
         if (here(bear_) && prop_[bear_] == 0)
             obj_ = obj_ * 100 + bear_;
         if (obj_ > 100)
-            co_return 8000;
+            co_return what();
         if (obj_ == 0) {
             if (here(bird_) && verb_ != throw_)
                 obj_ = bird_;
             if (here(clam_) || here(oyster_))
                 obj_ = 100 * obj_ + clam_;
             if (obj_ > 100)
-                co_return 8000;
+                co_return what();
         }
     }
     if (obj_ == bird_) // 9124
     {
         spk_ = 137;
         if (closed_)
-            co_return 2011;
+            co_return report();
         dstroy(bird_);
         prop_[bird_] = 0;
         if (place_[snake_] == plac_[snake_])
@@ -321,7 +321,7 @@ Task<i32> Game::trkill(void) // 9120
     if (obj_ == dwarf_)
         spk_ = 49;
     if (obj_ == dwarf_ && closed_)
-        co_return 19000;
+        co_return Phase::Done3;
     if (obj_ == dragon_)
         spk_ = 147;
     if (obj_ == troll_)
@@ -329,14 +329,14 @@ Task<i32> Game::trkill(void) // 9120
     if (obj_ == bear_)
         spk_ = 165 + (prop_[bear_] + 1) / 2;
     if (obj_ != dragon_ || prop_[dragon_] != 0)
-        co_return 2011;
+        co_return report();
     rspeak(49);
     verb_ = 0;
     obj_  = 0;
     if (Task<void> t = getin())
         co_await t;
     if (!weq(wd1_, "y") && !weq(wd1_, "yes"))
-        co_return 2608;
+        co_return Phase::Timers;
     pspeak(dragon_, 1);
     prop_[dragon_] = 2;
     prop_[rug_]    = 0;
@@ -350,16 +350,16 @@ Task<i32> Game::trkill(void) // 9120
             move(obj_, k_);
     loc_ = k_;
     k_   = null_;
-    co_return 8;
+    co_return Phase::Motion;
 }
 
-int Game::trtoss(void) // 9170: throw
+Phase Game::trtoss() // 9170: throw
 {
     int i;
     if (toting(rod2_) && obj_ == rod_ && !toting(rod_))
         obj_ = rod2_;
     if (!toting(obj_))
-        return (2011);
+        return report();
     if (obj_ >= 50 && obj_ <= maxtrs_ && at(troll_)) {
         spk_ = 159; // 9178
         drop(obj_, 0);
@@ -368,14 +368,14 @@ int Game::trtoss(void) // 9170: throw
         drop(troll2_, plac_[troll_]);
         drop(troll2_ + 100, fixd_[troll_]);
         juggle(chasm_);
-        return (2011);
+        return report();
     }
     if (obj_ == food_ && here(bear_)) {
         obj_ = bear_; // 9177
-        return (9210);
+        return Phase::Feed;
     }
     if (obj_ != axe_)
-        return (9020);
+        return Phase::Drop;
     for (i = 1; i <= 5; i++) {
         if (dloc_[i] == loc_) {
             spk_ = 48; // 9172
@@ -384,7 +384,7 @@ int Game::trtoss(void) // 9170: throw
                 rspeak(spk_);
                 drop(axe_, loc_);
                 k_ = null_;
-                return (8);
+                return Phase::Motion;
             }
                 dseen_[i] = FALSE;
             dloc_[i] = 0;
@@ -407,17 +407,17 @@ int Game::trtoss(void) // 9170: throw
         fixed_[axe_] = -1;
         prop_[axe_]  = 1;
         juggle(bear_);
-        return (2011);
+        return report();
     }
     obj_ = 0;
-    return (9120);
+    return Phase::Kill;
 }
 
-int Game::trfeed(void) // 9210
+Phase Game::trfeed() // 9210
 {
     if (obj_ == bird_) {
         spk_ = 100;
-        return (2011);
+        return report();
     }
     if (obj_ == snake_ || obj_ == dragon_ || obj_ == troll_) {
         spk_ = 102;
@@ -426,19 +426,19 @@ int Game::trfeed(void) // 9210
         if (obj_ == troll_)
             spk_ = 182;
         if (obj_ != snake_ || closed_ || !here(bird_))
-            return (2011);
+            return report();
         spk_ = 101;
         dstroy(bird_);
         prop_[bird_] = 0;
         tally2_++;
-        return (2011);
+        return report();
     }
     if (obj_ == dwarf_) {
         if (!here(food_))
-            return (2011);
+            return report();
         spk_ = 103;
         dflag_++;
-        return (2011);
+        return report();
     }
     if (obj_ == bear_) {
         if (prop_[bear_] == 0)
@@ -446,47 +446,47 @@ int Game::trfeed(void) // 9210
         if (prop_[bear_] == 3)
             spk_ = 110;
         if (!here(food_))
-            return (2011);
+            return report();
         dstroy(food_);
         prop_[bear_] = 1;
         fixed_[axe_] = 0;
         prop_[axe_]  = 0;
         spk_         = 168;
-        return (2011);
+        return report();
     }
     spk_ = 14;
-    return (2011);
+    return report();
 }
 
-int Game::trfill(void) // 9220
+Phase Game::trfill() // 9220
 {
     if (obj_ == vase_) {
         spk_ = 29;
         if (liqloc(loc_) == 0)
             spk_ = 144;
         if (liqloc(loc_) == 0 || !toting(vase_))
-            return (2011);
+            return report();
         rspeak(145);
         prop_[vase_]  = 2;
         fixed_[vase_] = -1;
-        return (9020); // advent/10 goes to 9024
+        return Phase::Drop; // advent/10 goes to 9024
     }
     if (obj_ != 0 && obj_ != bottle_)
-        return (2011);
+        return report();
     if (obj_ == 0 && !here(bottle_))
-        return (8000);
+        return what();
     spk_ = 107;
     if (liqloc(loc_) == 0)
         spk_ = 106;
     if (liq(0) != 0)
         spk_ = 105;
     if (spk_ != 107)
-        return (2011);
+        return report();
     prop_[bottle_] = ((cond_[loc_] % 4) / 2) * 2;
     k_             = liq(0);
     if (toting(bottle_))
         place_[k_] = -1;
     if (k_ == oil_)
         spk_ = 108;
-    return (2011);
+    return report();
 }
