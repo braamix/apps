@@ -102,7 +102,7 @@ Task<i32> Game::die( // label 90
         numdie_++;
         co_return co_await done(2);
     }
-    yea = co_await yes(Msg(81 + numdie_ * 2), Msg(82 + numdie_ * 2), Msg::Ok);
+    yea = co_await yes(Msg::Killed + numdie_ * 2, Msg::ReviveOffer + numdie_ * 2, Msg::Ok);
     numdie_++;
     if (numdie_ == maxdie_ || !yea)
         co_return co_await done(2);

@@ -666,7 +666,7 @@ Task<Phase> Game::verb_object() // 4090
             prop_[door_] = 0; // 9132
             if (obj_ == oil_)
                 prop_[door_] = 1;
-            spk_ = Msg(113 + prop_[door_]);
+            spk_ = Msg::HingesRusted + prop_[door_];
             co_return report();
         }
         spk_ = Msg::PlantWantsWater;

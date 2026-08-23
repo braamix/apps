@@ -201,11 +201,11 @@ Phase Game::tropen() // 9040
         k_ = 0; // 9046
         if (obj_ == oyster_)
             k_ = 1;
-        spk_ = Msg(124 + k_);
+        spk_ = Msg::PearlFalls + k_;
         if (toting(obj_))
-            spk_ = Msg(120 + k_);
+            spk_ = Msg::PutDownClam + k_;
         if (!toting(tridnt_))
-            spk_ = Msg(122 + k_);
+            spk_ = Msg::NothingOpensClam + k_;
         if (verb_ == lock_)
             spk_ = Msg::What;
         if (spk_ != Msg::PearlFalls)
@@ -263,7 +263,7 @@ Phase Game::tropen() // 9040
         panic_ = TRUE;
         return speak_k();
     }
-    k_            = 34 + prop_[grate_]; // 9043
+    k_            = i16(Msg::AlreadyLocked + prop_[grate_]); // 9043
     prop_[grate_] = 1;
     if (verb_ == lock_)
         prop_[grate_] = 0;
@@ -328,7 +328,7 @@ Task<Phase> Game::trkill() // 9120
     if (obj_ == troll_)
         spk_ = Msg::TrollsTough;
     if (obj_ == bear_)
-        spk_ = Msg(165 + (prop_[bear_] + 1) / 2);
+        spk_ = Msg::BareHandsBear + (prop_[bear_] + 1) / 2;
     if (obj_ != dragon_ || prop_[dragon_] != 0)
         co_return report();
     rspeak(Msg::BareHands);

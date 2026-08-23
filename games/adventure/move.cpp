@@ -139,7 +139,7 @@ int Game::fdwarf(void) // 71
     l82:
         if (stick_ <= 1) // 82
         {
-            rspeak(Msg(k_ + stick_));
+            rspeak(Msg(k_) + stick_);
             if (stick_ == 0)
                 return (2000);
         } else
