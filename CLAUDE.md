@@ -232,7 +232,7 @@ package's size and digest against it, with no `--force` in any form.
 
 `make index` writes `build/repo/` — the signed index and the zips it vouches
 for, in one directory because a package's URL is derived from the index's own
-`N`. That directory is what gets uploaded to `https://pub.sergev.org/braam`,
+`N`. That directory is what gets uploaded to `https://braamix.github.io`,
 which is the URL `rootfs/etc/repositories` ships and which `N` must equal byte
 for byte.
 

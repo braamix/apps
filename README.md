@@ -42,7 +42,7 @@ sibling `../braam-core` built.
     make index
 
 signs a repository into `build/repo/` — the packages and an index over them,
-ready to upload to <https://pub.sergev.org/braam>, which is the repository
+ready to upload to <https://braamix.github.io>, which is the repository
 Braam ships configured. `pkg` installs nothing that a signed index does not vouch
 for, so the zips and the index travel together.
 

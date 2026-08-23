@@ -20,7 +20,7 @@ JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 
 # Publishing. The repository the index is for, which must equal the client's
 # /etc/repositories line byte for byte, and the index's own two numbers.
-REPO_URL      ?= https://pub.sergev.org/braam
+REPO_URL      ?= https://braamix.github.io
 
 # G. A client refuses an index whose version is below the one it holds, so this
 # rises at every publication. It cannot be derived: only the publisher knows
