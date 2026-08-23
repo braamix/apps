@@ -344,7 +344,7 @@ east
 east
 east
 
-# Twenty-five turns of failing and the game offers a hint. Decline it.
+# Twenty turns of failing and the game offers a hint. Decline it.
 no
 east
 east

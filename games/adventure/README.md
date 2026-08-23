@@ -79,7 +79,10 @@ thirty-seven labels, because a fallthrough chain stays a chain of calls and
 nine of the twelve `9xxx` labels are only ever entered from `4000` with the
 matching verb already in `verb_`. The local jumps inside `fdwarf()`,
 `march()`, `checkhints()`, `trtake()`, `trtoss()` and `vocab()` are upstream's
-own and stay: each is a forward jump within one routine.
+own and stay: each is a forward jump within one routine. Their labels are
+named, though — `march()` reads `find_exit` → `try_entry` → `take_exit`,
+with `next_entry` when a probability move fails — and each keeps its
+statement number as a comment.
 
 **The vocabulary is two enums.** `glorkz` maps a word to a number — under
 1000 a motion word, 1000 an object, 2000 a verb, 3000 a message — so the two
@@ -101,12 +104,23 @@ generated from `glorkz`, so the numbers are the file's; the names are a
 summary of the text, which each one carries beside it because that is the
 only way to check one.
 
-The numbers are still the data file's, and two checks keep the naming honest.
+**The hints are named too.** `Hint` covers the eight, and `HintRule` names the
+four columns of the table `checkhints()` reads — a turn threshold, a point
+cost, a question and an answer. Their numbers cannot move: **a hint's number is
+also its bit in `cond_`**, which is what `bitset(loc_, hint)` tests, and glorkz
+sets bit 4 on the room outside the grate, 5 on the bird chamber, 6 on the hall
+of the mountain king, 7 across the all-alike maze, 8 on the plover rooms and 9
+on Witt's End. Bits 0 to 3 are the lit and liquid flags, which is why the loop
+starts at 4 — and why the oyster's clue and the offer of instructions, neither
+of them triggered by a room, can sit below it.
+
+The numbers are still the data file's, and three checks keep the naming honest.
 `check_vocab()` looks up the word behind every vocabulary constant the code
 uses by name and traps if `glorkz` disagrees. `check_msgs()` cannot do that —
 nothing compares message text at runtime — so it asserts the weaker thing that
 still matters: that the message table has not shifted under the names, gap at
-87–89 included.
+87–89 included. `check_hints()` ties each hint to the question and answer its
+name claims, so the two tables cannot drift apart.
 
 The guarantee that used to be "the binary is byte for byte the one the macros
 produced" is now the transcript. `test/play.mjs` diffs 41,777 bytes of output
@@ -290,8 +304,8 @@ among the 298 words here — so `get all` became the objects named one by one,
 `give eggs` became `throw eggs`, and `give food` became `feed bear`. Its
 `-s 123` dwarves fall on other turns than ours, so where the axe is picked up
 and thrown is this seed's own, and so is the wait at Witt's End: the way out of
-there is one chance in twenty a turn, and the game offers a hint every
-twenty-five turns you fail, which has to be declined.
+there is one chance in twenty a turn, and the game offers a hint every twenty
+turns you fail, which has to be declined.
 
 Its longer commands would in fact have parsed: `getin` keeps only the first two
 words of a line, and only their first five letters, so `unlock grate with keys`
