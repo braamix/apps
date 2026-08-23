@@ -77,6 +77,12 @@ Task<i32> du_main(void)
     /* Set which algorithms to run */
     res.execs = ID_LIST | ID_MATRIX | ID_STATE;
 
+    /* ^C stops the ladder rather than the process, so a run cut short still
+       reports the pass that finished. */
+    int interrupted = 0;
+    if (Task<Result<void>> t = sig_catch(SIG_INT))
+        co_await t;
+
     /* Initialize workloads */
     res.list = du_list_init();
     if (!res.list) {
@@ -100,6 +106,15 @@ Task<i32> du_main(void)
         res.state_ticks  = du_time_one(&res, ID_STATE);
         res.total_ticks  = res.list_ticks + res.matrix_ticks + res.state_ticks;
 
+        /* A workload parks nowhere, so this is where a ^C from the middle of
+           one arrives. Between the timed passes, so it measures nothing. */
+        if (Task<Result<void>> t = sleep_for(0))
+            co_await t;
+        if (sig_take(SIG_INT)) {
+            interrupted = 1;
+            break;
+        }
+
         /* Check if we need to increase iterations. The cast is C++20's: it
            deprecates comparing a double with an unscoped enumeration. */
         if (res.total_ticks * sec_per_tick >= (double)TARGET_SECONDS) {
@@ -116,6 +131,14 @@ Task<i32> du_main(void)
     }
 
     /* Output results */
+    if (interrupted) {
+        du_printf("\nInterrupted: the results below are the last pass that finished.\n");
+        if (res.total_ticks == 0) {
+            /* Nothing was measured, and every line below would divide by it. */
+            co_await du_flush();
+            co_return 130;
+        }
+    }
     total_sec = res.total_ticks * sec_per_tick;
     du_printf("\n");
     du_printf("DureMark 1.1 Results\n");
@@ -128,5 +151,5 @@ Task<i32> du_main(void)
     du_printf("-----------------------\n");
     du_printf("Total Score     : %.2f DureMark\n\n", res.iterations / total_sec);
     co_await du_flush();
-    co_return 0;
+    co_return interrupted ? 130 : 0;
 }

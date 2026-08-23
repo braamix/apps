@@ -14,7 +14,8 @@
  *
  *  Braam:      printf became Buf, malloc became heap_new, scanf became the
  *              command line, and gettimeofday became proc_now. The measurement
- *              loop is untouched.
+ *              loop's body is untouched; what encloses it is entered a stretch
+ *              at a time, so that a signal can reach the run.
  *
  ****************************************************************************
  */
@@ -23,6 +24,7 @@
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "kernel/text.h"
+#include "math/ftoa.h"
 #include "proc/io.h"
 
 /* Runs when the command line names no number. The clock counts whole
@@ -67,46 +69,27 @@ struct Local_Vars {
 
 Local_Vars Final_Loc;
 
-/* printf's %-w.df, which Buf has no overload for: scale, round, pad. */
-void put_fixed(Buf<REPORT> &b, float v, u32 decimals, usize width)
+/* Proc_0's local: the loop is entered a stretch at a time, and a local would
+   not survive between two. */
+Str_30 Str_1_Loc;
+
+/* A run stopped by ^C. */
+bool Interrupted;
+
+/* printf's %-w.df: the conversion braam::math's, the padding Buf's. */
+void put_fixed(Buf<REPORT> &b, float v, i32 decimals, usize width)
 {
-    u32 scale = 1;
-    for (u32 i = 0; i < decimals; i++)
-        scale *= 10;
-
-    u64 scaled = u64(double(v) * scale + 0.5);
-
     Buf<32> t;
-    t.put(u32(scaled / scale)).put('.');
-    u32 frac = u32(scaled % scale);
-    for (u32 d = scale / 10; d > 1; d /= 10)
-        if (frac < d)
-            t.put('0');
-    t.put(frac);
+    put_f64(t, double(v), decimals, 'f');
     b.put_left(t.str(), width);
 }
 
 } // namespace
 
-/* noinline: proc_main is a coroutine, and inlining this into it would move the
-   benchmark's locals into a heap-allocated frame. */
-__attribute__((noinline)) int main_body(int Runs)
-/*****/
-
-/* main program, corresponds to procedures        */
-/* Main and Proc_0 in the Ada version             */
-/* Nought if the two records could not be had.    */
+/* Proc_0's initialisations, which the original ran before starting the timer.
+   Nought if the two records could not be had. */
+int main_init(void)
 {
-    One_Fifty Int_1_Loc;
-    One_Fifty Int_2_Loc;
-    One_Fifty Int_3_Loc;
-    char Ch_Index;
-    Enumeration Enum_Loc;
-    Str_30 Str_1_Loc;
-    Str_30 Str_2_Loc;
-    int Run_Index;
-    int Number_Of_Runs = Runs;
-
     /* Initializations */
 
     Next_Ptr_Glob = heap_new<Rec_Type>();
@@ -127,11 +110,26 @@ __attribute__((noinline)) int main_body(int Runs)
     /* Warning: With 16-Bit processors and Number_Of_Runs > 32000,  */
     /* overflow may occur for this array element.                   */
 
-    /***************/
-    /* Start timer */
-    /***************/
+    Final_Loc.Number_Of_Runs = 0;
+    return 1;
+}
 
-    Begin_Time = proc_now();
+/* noinline: proc_main is a coroutine, and inlining this into it would move the
+   benchmark's locals into a heap-allocated frame. */
+__attribute__((noinline)) void main_body(int Runs)
+/*****/
+
+/* One stretch of the measurement loop; the body is the original's. The timer */
+/* belongs to the whole run and is started outside.                           */
+{
+    One_Fifty Int_1_Loc;
+    One_Fifty Int_2_Loc;
+    One_Fifty Int_3_Loc;
+    char Ch_Index;
+    Enumeration Enum_Loc;
+    Str_30 Str_2_Loc;
+    int Run_Index;
+    int Number_Of_Runs = Runs;
 
     for (Run_Index = 1; Run_Index <= Number_Of_Runs; ++Run_Index) {
         Proc_5();
@@ -177,22 +175,15 @@ __attribute__((noinline)) int main_body(int Runs)
 
     } /* loop "for Run_Index" */
 
-    /**************/
-    /* Stop timer */
-    /**************/
-
-    End_Time = proc_now();
-
-    /* Out of the frame, so that the report can be written from a coroutine. */
-    Final_Loc.Int_1_Loc      = Int_1_Loc;
-    Final_Loc.Int_2_Loc      = Int_2_Loc;
-    Final_Loc.Int_3_Loc      = Int_3_Loc;
-    Final_Loc.Enum_Loc       = Enum_Loc;
-    Final_Loc.Number_Of_Runs = Number_Of_Runs;
+    /* Out of the frame, so that the report can be written from a coroutine.
+       The count accumulates: the report divides by the runs that were made. */
+    Final_Loc.Int_1_Loc = Int_1_Loc;
+    Final_Loc.Int_2_Loc = Int_2_Loc;
+    Final_Loc.Int_3_Loc = Int_3_Loc;
+    Final_Loc.Enum_Loc  = Enum_Loc;
+    Final_Loc.Number_Of_Runs += Number_Of_Runs;
     strcpy(Final_Loc.Str_1_Loc, Str_1_Loc);
     strcpy(Final_Loc.Str_2_Loc, Str_2_Loc);
-
-    return 1;
 }
 
 namespace {
@@ -252,6 +243,11 @@ void report(Buf<REPORT> &b)
     b.put("        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n");
     b.put("\n");
 
+    if (Interrupted) {
+        b.put("Interrupted after ").put(u32(Final_Loc.Number_Of_Runs)).put(" runs\n");
+        b.put("\n");
+    }
+
     User_Time = End_Time - Begin_Time;
 
     /* Measurements should last at least 2 seconds */
@@ -297,8 +293,7 @@ Task<i32> proc_main(Args args)
         Number_Of_Runs = int(n.value());
     }
 
-    /* Written before the run, because nothing interrupts the loop: between
-       syscalls the kernel has no hold on the process. */
+    /* Written before the run, because the loop itself writes nothing. */
     Buf<128> head;
     head.put("\n");
     head.put("Dhrystone Benchmark, Version 2.1 (Language: C)\n");
@@ -307,10 +302,48 @@ Task<i32> proc_main(Args args)
     if ((co_await write_all(SYS_STDOUT, head.str())).is_err())
         co_return 1;
 
-    if (!main_body(Number_Of_Runs)) {
+    if (!main_init()) {
         co_await errln("dhrystone", "Rec_Type", Error::NoMemory);
         co_return 1;
     }
+
+    /* The loop cannot suspend, so a signal reaches this program only between
+       two stretches of it. A fixed count of them rather than a fixed length
+       bounds the cost: 64 syscalls at 34-45 us, inside the measured interval
+       and under 3 ms of a run of seconds. */
+    constexpr int CHUNKS = 64;
+    int step             = Number_Of_Runs / CHUNKS;
+    if (step < 1)
+        step = 1;
+
+    if (Task<Result<void>> t = sig_catch(SIG_INT))
+        co_await t;
+
+    /***************/
+    /* Start timer */
+    /***************/
+
+    Begin_Time = proc_now();
+
+    for (int done = 0; done < Number_Of_Runs;) {
+        int runs = Number_Of_Runs - done < step ? Number_Of_Runs - done : step;
+        main_body(runs);
+        done += runs;
+        if (done >= Number_Of_Runs)
+            break;
+        if (Task<Result<void>> t = sleep_for(0))
+            co_await t;
+        if (sig_take(SIG_INT)) {
+            Interrupted = true;
+            break;
+        }
+    }
+
+    /**************/
+    /* Stop timer */
+    /**************/
+
+    End_Time = proc_now();
 
     /* Four kilobytes is a coroutine frame's worth many times over. */
     Buf<REPORT> *b = heap_new<Buf<REPORT>>();
@@ -324,7 +357,7 @@ Task<i32> proc_main(Args args)
     if (w.is_err())
         co_return w.error() == Error::Cancelled ? 130 : 1;
 
-    co_return 0;
+    co_return Interrupted ? 130 : 0;
 }
 
 void Proc_1(Rec_Pointer Ptr_Val_Par)

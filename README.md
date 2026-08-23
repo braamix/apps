@@ -34,9 +34,10 @@ builds the packages beside them, `<program>-<version>.zip`.
 
     make test
 
-runs what headless tests there are — today `games/adventure`, which plays a
-whole game of Colossal Cave under a sibling `../braam-core` build. Needs node
-and that tree built.
+runs what headless tests there are — `games/adventure`, which plays a whole
+game of Colossal Cave and interrupts a second one with `^C`, and the two
+benchmarks, each stopped partway by a signal. All of them need node and a
+sibling `../braam-core` built.
 
     make index
 

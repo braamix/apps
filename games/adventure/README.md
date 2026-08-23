@@ -80,7 +80,7 @@ it is mechanical — the binary is byte for byte the one the macros produced.
 | `time`/`localtime` | `clock_now()` and `civil()`, keeping the year-2066 joke |
 | `atoi`, `strcmp` | one local `atoi`; `strcmp` left with the mode that used it |
 | `exit(0)` | a status returned up the call chain |
-| `signal(SIGINT, trapdel)` | nothing — see below |
+| `signal(SIGINT, trapdel)` | `sig_catch(SIG_INT)`, and `Err(Intr)` is the DEL |
 
 **`ADVENTURE_SEED` is an addition**, and the only one upstream would not
 recognise. Set it to a number and the dice start there instead of at the clock,
@@ -122,13 +122,25 @@ Four changes go deeper than a substitution:
   file, a background job — none of this happens and lines come from stdin, so
   `adventure < script` still works.
 
-**`^C` cannot be caught.** Upstream trapped `SIGINT` and turned a DEL into a
-synthetic `quit`. On Braam the console cancels whatever process is in front
-"whatever is claimed", so `^C` kills the game and the shell reports 130.
-`delhit` and its handling in the command loop are kept as upstream wrote them,
-and the editor still reports an abandoned line — but nothing reaches them while
-the game is the foreground job. End of input does what DEL used to: it quits
-and scores.
+**`^C` is upstream's DEL.** Upstream trapped `SIGINT` and turned a DEL into a
+synthetic `quit`, and `delhit` and its handling in the command loop were kept
+as upstream wrote them from the first version of this port — but until Braam
+had signals nothing reached them, because the console cancelled whatever
+process was in front. `adv_input_init` now asks for `SIG_INT`, which abandons
+the read the game is parked on with `Err(Intr)` instead of killing it, and both
+input paths answer that as an interrupted line. So `^C` pretends the player
+typed `quit`, and the game asks before doing it — a second `^C` answers that
+question, as an abandoned line answers any of them. End of input still does the
+same thing, which is what a script that stops mid-game gets.
+
+That the game is told rather than killed also means it hands the keyboard back
+on the way out: `keys_claim(false)` runs where a cancellation used to skip it.
+
+**A resize repaints the line being typed**, which upstream had no notion of.
+The editor asks for `SIG_WINCH` too, and a resize with no keystroke behind it
+abandons the read the same way; the repaint that follows carries the new
+geometry back. This is what `ProcScreen` does for a full-screen program, done
+by hand because the editor drives `key_read()` itself.
 
 **One upstream bug is fixed**, because leaving it in would have been a
 different program on a different day. `rtrav()` read the travel table with
@@ -186,6 +198,13 @@ game is meant, refresh it with
 cp build/games/adventure/game.log games/adventure/test/game.log
 ```
 
+`test/interrupt.mjs` is the second case and the only one that plays on the
+grid: an interrupt is a property of the console, and over a pipe there is no
+keyboard to press. It starts a game, sends `^C` at the prompt, checks that the
+game asks whether to quit rather than dying, sends another, and checks that it
+scores itself, exits to a status-0 prompt and gives the keyboard back — the
+shell reading a command afterwards is what proves the last of those.
+
 The transcript is written to `build/games/adventure/game.log` whether the test
 passes or not, and the whole run takes about twenty milliseconds.
 
@@ -220,5 +239,6 @@ writes the two words it means.
 | `mkdata.py` | `glorkz` to a C++ array, at build time |
 | `glorkz` | the data file, verbatim |
 | `test/play.mjs` | the headless test: kernel, image, walkthrough, assertions |
+| `test/interrupt.mjs` | the second one: `^C` at the prompt, on the grid |
 | `test/walkthrough.txt` | a whole game, 350 of 350, one command a line |
 | `test/game.log` | what it prints, to the byte |

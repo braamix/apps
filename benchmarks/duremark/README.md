@@ -53,6 +53,7 @@ parsing to replace.
 | --- | --- |
 | `clock()`, `CLOCKS_PER_SEC` | `proc_now()`, so a tick is a millisecond |
 | `#define du_printf printf` | a small variadic formatter over `Buf` |
+| `printf`'s `%f` | `put_f64` from `math/ftoa.h`, which is `braam::math` |
 | `int main()` | `Task<i32> du_main()`, because writing is a coroutine |
 
 Two changes go deeper than the porting layer, and both are forced by the
@@ -89,8 +90,20 @@ duremark
 ```
 
 No arguments — the iteration count is chosen by the ladder. A run takes several
-seconds and **cannot be interrupted**: between syscalls the kernel has no hold
-on a process, so `^C` cannot reach a running benchmark.
+seconds.
+
+**`^C` stops the ladder rather than the process.** Between syscalls the kernel
+has no hold on a process, and a workload parks nowhere, so a signal is only
+collected between two steps of the ladder — where the run now parks for zero
+milliseconds to ask. The step being timed when the interrupt arrives is
+abandoned, the report prints the last one that finished, and the status is 130:
+
+```
+Interrupted: the results below are the last pass that finished.
+```
+
+That is up to a step's worth of waiting, which is under a second until the last
+of them and about three on it.
 
 ## Building and packaging
 
@@ -98,11 +111,23 @@ From the top of this repository:
 
 ```
 make            # build/benchmarks/duremark/duremark.wasm
-make package    # build/benchmarks/duremark/duremark-1.1-r0.zip
+make package    # build/benchmarks/duremark/duremark-1.1-r1.zip
 ```
 
 The package holds `.PKGINFO` and `bin/duremark`; `bin/` is what reaches `PATH`
 once `/bin/pkg` installs it.
+
+`braam::math` is linked for `%f` alone, and costs 6 KB of the 22 KB binary —
+musl's printf engine, which is the whole of what `--gc-sections` extracts. The
+benchmark itself is integer.
+
+`make test` runs `test/interrupt.mjs`, which sends a running ladder a `SIG_INT`
+and checks that it stops at a step boundary, reports, and exits 130. The score
+cannot be tested there: the smoke harness freezes the clock, so every step
+measures zero, the convergence check never passes and the run ends only because
+it is interrupted — which is also what makes the test cover the case where
+there is no measured time to report percentages of. Numbers come from a
+browser.
 
 ## Files
 
@@ -114,3 +139,4 @@ once `/bin/pkg` installs it.
 | `matrix.cpp` | the 10×10 matrix workload |
 | `state.cpp` | the number-recognising state machine |
 | `braam.cpp`, `braam.h` | the porting layer: the clock and the formatter |
+| `test/interrupt.mjs` | a ladder stopped by a signal, headless |

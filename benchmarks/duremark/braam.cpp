@@ -4,10 +4,11 @@
  *
  * Braam: the clock is Sys::Now, monotonic and counted in whole milliseconds,
  * so a tick is a millisecond. printf does not exist, so the conversions
- * DureMark uses are written out here.
+ * DureMark uses are written out here; %f is braam::math's.
  */
 #include "duremark.h"
 #include "kernel/fmt.h"
+#include "math/ftoa.h"
 
 /* Timing variables */
 static u32 start_ms;
@@ -32,29 +33,8 @@ namespace {
 /* One report's worth of text. Trivially destructible, so it may be a global. */
 Buf<4096> out_buf;
 
-/* A write that failed, reported as the exit status rather than thrown away. */
-bool write_failed;
-
-/* printf's %.Nf, which Buf has no overload for: scale, round, pad. */
-void put_fixed(double v, u32 decimals)
-{
-    u32 scale = 1;
-    for (u32 i = 0; i < decimals; i++)
-        scale *= 10;
-
-    if (v < 0) {
-        out_buf.put('-');
-        v = -v;
-    }
-    u64 scaled = u64(v * scale + 0.5);
-
-    out_buf.put(u32(scaled / scale)).put('.');
-    u32 frac = u32(scaled % scale);
-    for (u32 d = scale / 10; d > 1; d /= 10)
-        if (frac < d)
-            out_buf.put('0');
-    out_buf.put(frac);
-}
+/* A failed write, as the status to exit with: 130 for a ^C, 1 otherwise. */
+i32 write_status;
 
 } // namespace
 
@@ -76,12 +56,14 @@ void du_printf(const char *fmt, ...)
             continue;
         }
 
-        /* Precision, as in %.1f — the only width DureMark asks for. */
-        u32 decimals = 0;
+        /* Precision, as in %.1f — the only width DureMark asks for. None is
+           printf's default, which fmt_f64 spells -1. */
+        i32 decimals = -1;
         if (*p == '.') {
             p++;
+            decimals = 0;
             while (*p >= '0' && *p <= '9')
-                decimals = decimals * 10 + u32(*p++ - '0');
+                decimals = decimals * 10 + i32(*p++ - '0');
         }
 
         /* Length, as in %lu. wasm32 is LP32, so long is what int is. */
@@ -100,7 +82,7 @@ void du_printf(const char *fmt, ...)
                                 : __builtin_va_arg(ap, unsigned));
             break;
         case 'f':
-            put_fixed(__builtin_va_arg(ap, double), decimals);
+            put_f64(out_buf, __builtin_va_arg(ap, double), decimals, 'f');
             break;
         case 's': {
             /* Character by character: Str's const char * constructor reaches
@@ -129,8 +111,8 @@ Task<void> du_flush(void)
 
     Result<void> r = co_await write_all(SYS_STDOUT, out_buf.str());
     out_buf.clear();
-    if (r.is_err())
-        write_failed = true;
+    if (r.is_err() && !write_status)
+        write_status = r.error() == Error::Cancelled ? 130 : 1;
     co_return;
 }
 
@@ -140,5 +122,5 @@ Task<i32> proc_main(Args)
 
     if (Task<void> t = du_flush())
         co_await t;
-    co_return write_failed ? 1 : rc;
+    co_return write_status ? write_status : rc;
 }

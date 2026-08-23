@@ -17,7 +17,8 @@ upstream that already has a porting layer, where the port is a third
 implementation of it rather than a rewrite; and
 [games/adventure](games/adventure/), the largest so far and the first
 interactive one, which shows what a program that reads, writes files and
-carries its own data has to do here, and the only one with a test. The rest of
+carries its own data has to do here, and the one with the largest test. The
+rest of
 the tree is category directories, a few holding a one-line `TODO.md` naming the
 upstream to port:
 [archivers/zip](archivers/zip/TODO.md), [editors/vi](editors/vi/TODO.md),
@@ -133,6 +134,35 @@ too:
 - `tty_of(SYS_STDOUT)` reports whether output is a terminal and how wide;
   geometry is zero for a pipe or file.
 
+**A libm is available and is not linked by default.** `braam_add_program(...
+LIBS braam::math)` brings in `math/math.h`, C99 §7.12 answered by vendored
+musl, and `math/ftoa.h`, which is printf's float conversions — `put_f64(buf, v,
+prec, 'f')` into an ordinary `Buf<N>`, plus `parse_f64`/`scan_f64` for strtod.
+A program pays only for what it calls: `--gc-sections` extracts nothing else,
+and the float printf engine alone is 6–7 KB. Link it where a port formats a
+non-integer number by hand, and nowhere else.
+
+**Signals are asked for, or the default action stands.** `sig_catch(SIG_INT)`
+(`proc/io.h`) says a signal should be delivered rather than acted on; the mask
+starts empty, so a program that asks for nothing behaves as every program did
+before signals existed. `SIG_INT`, `SIG_TERM` and `SIG_WINCH` are the whole
+catchable set. A delivered signal abandons the call the process is parked on
+with `Err(Intr)` — only `Read`, `KeyRead`, `Sleep`, `Wait` and `ClipRead` can
+answer it — and `sig_take(SIG)` (`proc/rt.h`) then says which one it was:
+
+```cpp
+if (r.is_err() && r.error() == Error::Intr && sig_take(SIG_INT))
+    ...                             // interrupted, and still alive
+```
+
+`Err(Intr)` is not `Err(Cancelled)`: the first means the call was abandoned and
+nothing happened, the second that the process is being destroyed. A signal is
+delivered where a process *parks*, so a compute loop with no `co_await` in it
+cannot be interrupted at all — a long one has to be entered in stretches, with
+something awaited between two of them, for a `^C` to reach it. The SDK's manual
+documents `braam::math` but not signals; `../braam-core/doc/Concept.md` §3.5 is
+where they are written down.
+
 Rules that are a compile error, link error or trap rather than a warning:
 
 - Never `new` — `operator new` returns null and there are no exceptions. Use
@@ -143,8 +173,10 @@ Rules that are a compile error, link error or trap rather than a warning:
   span. Long-lived state goes in a heap block the frame points at.
 - The memory cap is 16 MB and it belongs to the kernel, not the binary.
 - A construct needing a compiler-rt builtin — 128-bit division, an outlined
-  `memcpy` — will not link. `fmod`, `pow` and `long double` are the same;
-  ordinary `float`/`double` arithmetic and `sqrt` are native and fine.
+  `memcpy` — will not link. **`long double` is the same**: it is 113-bit quad
+  here, so the `l`-suffixed half of `<math.h>` does not exist. Ordinary
+  `float`/`double` arithmetic and `sqrt` are native and fine, and everything
+  else C99 declares is `braam::math` (below).
 - A libc routine a port supplies for itself must be **`extern "C"`**. The
   compiler emits calls of its own — `strlen` behind `Str`'s `const char *`
   constructor, for one — and they name the C symbol, which a C++-mangled
@@ -274,9 +306,10 @@ time reads zero. Check that in a browser instead.
 
 ## Testing a program
 
-`make test` runs every program's headless test.
-[games/adventure/test/](games/adventure/test/) is the worked example, the way
-dhrystone is the worked example for the build: `play.mjs` imports
+`make test` runs every program's headless tests — adventure's two and one for
+each benchmark. [games/adventure/test/](games/adventure/test/) is the worked
+example, the way dhrystone is the worked example for the build: `play.mjs`
+imports
 `../braam-core/test/smoke/harness.mjs` directly — `test/run.mjs` there is not
 reusable, its case list is a literal and it never injects an out-of-tree
 binary — boots the kernel, plants the `.wasm`, and drives one run. It asserts
@@ -295,6 +328,24 @@ Two things the harness imposes: the keyboard is `Channel<Key, 64>` and `type()`
 posts a whole line without checking, so keep a submitted command line under
 sixty characters; and `run(now)` returns `-1` when the kernel is idle, which is
 how a test waits — there is no sleep and no timeout anywhere in the suite.
+
+**A signal has to be aimed at a process that parks.** `run(now)` pumps until
+the kernel is idle, so a foreground program that computes without parking runs
+to completion inside one call and leaves no window to press `^C` in — which is
+what `press("c".codePointAt(0), CTRL)` between two `run`s relies on
+(`games/adventure/test/interrupt.mjs`, and `signal.mjs` in the core suite). For
+a compute-bound one, queue two command lines before the first tick — the job in
+the background and a `kill -INT %1` behind it — and the shell takes its turn
+where the program parks, which is the moment under test (both benchmarks'
+`test/interrupt.mjs`).
+
+**The clock is frozen, and that decides what can be tested at all.** Anything
+whose control flow reads `proc_now()` behaves differently here: dhrystone
+always takes its "measured time too small" branch, and duremark's ladder never
+converges — every step measures zero, so the iteration count climbs until the
+twenty-step limit, and only a signal ends the run. What a benchmark *measures*
+has to be checked in a browser; what it does around the measurement can be
+tested here.
 
 **Anything random has to be pinned.** The service clock is a fixed epoch and
 pids are deterministic, so a seed taken from them is reproducible by accident

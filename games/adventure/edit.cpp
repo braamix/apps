@@ -156,12 +156,31 @@ Task<Result<Line>> LineEditor::read_line(Str prompt)
         if (!kt)
             co_return Err(Error::NoMemory);
         Result<KeyPress> r = co_await kt;
-        if (r.is_err())
-            co_return Err(r.error());
 
-        Key k{ r.value().code, r.value().mods };
-        cols_     = r.value().at.cols;
-        rows_     = r.value().at.rows;
+        Key k{};
+        if (r.is_err()) {
+            if (r.error() != Error::Intr)
+                co_return Err(r.error());
+
+            // A caught signal abandoned the read, so no key is behind it. A
+            // resize repaints and asks again; the reply carries the new
+            // geometry. SIG_INT is the DEL, which the ^C branch below answers.
+            if (sig_take(SIG_WINCH)) {
+                if (Task<Result<void>> t = redraw()) {
+                    if (Result<void> bad = co_await t; bad.is_err())
+                        co_return Err(bad.error());
+                }
+                continue;
+            }
+            if (!sig_take(SIG_INT))
+                co_return Err(r.error());
+            k = Key{ 'c', MOD_CTRL };
+        } else {
+            k     = Key{ r.value().code, r.value().mods };
+            cols_ = r.value().at.cols;
+            rows_ = r.value().at.rows;
+        }
+
         bool ctrl = (k.mods & MOD_CTRL) != 0;
         bool alt  = (k.mods & MOD_ALT) != 0;
 

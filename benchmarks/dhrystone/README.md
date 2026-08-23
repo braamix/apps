@@ -74,18 +74,20 @@ as real calls (below).
 ## What the port changed
 
 Braam has no C library, so every line that reached one was replaced. The
-measurement loop itself is untouched.
+measurement loop's statements are untouched; what encloses them moved, and the
+last of the three notes below says why.
 
 | Original | Here |
 | --- | --- |
 | `printf` | formatted into a `Buf` and written once |
+| `printf`'s `%f` | `put_f64` from `math/ftoa.h`, which is `braam::math` |
 | `scanf` prompt for the run count | the command line |
 | `malloc` | `heap_new<Rec_Type>()`, and it is checked |
 | `gettimeofday` | `proc_now()` — monotonic, milliseconds since boot |
 | `strcpy`, `strcmp` from libc | `dhry_lib.cpp` |
 | `#define true 1` / `false 0` | dropped; they are C++ keywords |
 
-Two consequences worth knowing:
+Three consequences worth knowing:
 
 - **The clock counts whole milliseconds**, where `gettimeofday` counted
   microseconds. The two scale factors in the result computation moved by a
@@ -100,6 +102,15 @@ Two consequences worth knowing:
   so how they are reached moves the score. Folding them inline would be
   permitted by the rules; keeping them as calls keeps the number comparable to
   a libc build.
+- **The measurement loop is entered in stretches.** The loop itself is
+  upstream's, statement for statement, but Proc_0's initialisations are split
+  out of it and the timer is started outside, so that `proc_main` can call it
+  sixty-four times over rather than once. Between two stretches the process
+  parks for zero milliseconds, which is the only moment a signal can reach it —
+  see `^C` below. Sixty-four syscalls at 34-45 µs each is under 3 ms, inside a
+  measured interval of seconds; the alternative, timing each stretch on its
+  own, would quantise the total by a millisecond sixty-four times over and cost
+  far more than it saved.
 
 `Str_30` values are printed through `strlen`, which is in `dhry_lib.cpp` for
 the same reason it has to exist at all — it is not part of the benchmark.
@@ -122,9 +133,19 @@ Nanoseconds for one run through Dhrystone: 15000.0
 DMIPS is Dhrystones per second over 1757, the rate of a VAX-11/780 — the
 machine that defined one MIPS.
 
-**Nothing interrupts the loop.** Between syscalls the kernel has no hold on a
-process, so `^C` cannot reach a running benchmark; an over-long run has to be
-killed. Ask for fewer iterations rather than more.
+**`^C` stops the run and reports it.** Between syscalls the kernel has no hold
+on a process, so a signal reaches one only where it parks — which is why the
+run is made in sixty-four stretches with a zero-length sleep between them. An
+interrupted run prints the whole report, with the runs it managed and a line
+saying so, and exits 130:
+
+```
+Interrupted after 2250000 runs
+```
+
+The rate is computed from the runs that were made, so it is still a rate; a run
+cut short in the first two seconds falls into the "measured time too small"
+branch as any short run does.
 
 ## Building
 
@@ -134,7 +155,22 @@ From the top of this repository:
 make
 ```
 
-which leaves `build/benchmarks/dhrystone/dhrystone.wasm`.
+which leaves `build/benchmarks/dhrystone/dhrystone.wasm`. Linking `braam::math`
+for the report's three numbers costs 7 KB of the 37 KB binary, all of it musl's
+printf engine — `--gc-sections` extracts nothing else, since the benchmark
+itself never calls a mathematical function.
+
+## Testing
+
+```
+make test
+```
+
+runs `test/interrupt.mjs`, which sends a running benchmark a `SIG_INT` and
+checks that it stops at a stretch boundary and reports how far it got. The
+timing cannot be tested there: the smoke harness freezes the clock, so a
+headless run always takes the "measured time too small" branch. Numbers come
+from a browser.
 
 ## Packaging
 
@@ -142,18 +178,18 @@ which leaves `build/benchmarks/dhrystone/dhrystone.wasm`.
 make package
 ```
 
-builds `build/benchmarks/dhrystone/dhrystone-2.1-r0.zip`, a package in the
+builds `build/benchmarks/dhrystone/dhrystone-2.1-r1.zip`, a package in the
 format `/bin/pkg` installs (Package_Formats.md §5):
 
 ```
-.PKGINFO            P:dhrystone  V:2.1-r0  I:<unpacked size>  T:<description>
+.PKGINFO            P:dhrystone  V:2.1-r1  I:<unpacked size>  T:<description>
 bin/dhrystone       the binary
 ```
 
 `bin/` is the load-bearing part. Every flat entry of it becomes a link in the
 installed generation's `bin/`, which `/pkg/bin` points at and the default
 `PATH` — `/bin:/pkg/bin` — already names, plus a generated
-`cmd:dhrystone=2.1-r0` provide. The entry's leaf is the command's name, which
+`cmd:dhrystone=2.1-r1` provide. The entry's leaf is the command's name, which
 is why it is `bin/dhrystone` and not `bin/dhrystone.wasm`.
 
 **The zip alone cannot be installed.** `pkg` checks every package's size and
@@ -171,3 +207,4 @@ worked example of all of it.
 | `dhry_1.cpp` | `Proc_0`'s body, the measurement loop, `Proc_1`–`Proc_5` (part 2) |
 | `dhry_2.cpp` | `Proc_6`–`Proc_8`, `Func_1`–`Func_3` (part 3) |
 | `dhry_lib.cpp` | `strcpy`, `strcmp`, `strlen` (part 4) |
+| `test/interrupt.mjs` | a run stopped by a signal, headless |

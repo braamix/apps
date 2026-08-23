@@ -8,8 +8,10 @@ if(NOT TARGET braam::proc)
     find_package(braam REQUIRED)
 endif()
 
+# braam::math is for the report's %f alone: the benchmark itself is integer.
 braam_add_program(NAME dhrystone
-                  SOURCES dhry_1.cpp dhry_2.cpp dhry_lib.cpp)
+                  SOURCES dhry_1.cpp dhry_2.cpp dhry_lib.cpp
+                  LIBS braam::math)
 
 # -O3, as the original Makefile used: the toolchain defaults to MinSizeRel, and
 # a benchmark built for size reports a number about size.

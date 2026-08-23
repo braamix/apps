@@ -169,9 +169,16 @@ Task<void> adv_input_init(void)
         have_keys = g.is_ok();
     }
 
-    if (have_keys)
+    // Upstream's signal(SIGINT, trapdel): a ^C abandons the read rather than
+    // cancelling the process. A resize is the editor's business alone.
+    if (Task<Result<void>> t = sig_catch(SIG_INT))
+        co_await t;
+
+    if (have_keys) {
         editor = heap_new<LineEditor>();
-    else {
+        if (Task<Result<void>> t = sig_catch(SIG_WINCH))
+            co_await t;
+    } else {
         input = heap_new<Input>(Args{}, SYS_STDIN, WHO);
         if (input)
             lines = heap_new<LineReader>(*input);
@@ -211,6 +218,9 @@ Task<AdvEnd> adv_readline(String &out_line)
     Result<bool> r = Err(Error::NoMemory);
     if (Task<Result<bool>> t = lines->next(out_line))
         r = co_await t;
+    // A ^C abandons the read with nothing taken from it: the DEL again.
+    if (r.is_err() && r.error() == Error::Intr && sig_take(SIG_INT))
+        co_return AdvEnd::Interrupt;
     if (r.is_err() || !r.value())
         co_return AdvEnd::Eof;
     co_return AdvEnd::Enter;

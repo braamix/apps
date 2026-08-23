@@ -8,9 +8,11 @@ if(NOT TARGET braam::proc)
     find_package(braam REQUIRED)
 endif()
 
-# braam.cpp is the porting layer, as unix.c and dos.c are upstream.
+# braam.cpp is the porting layer, as unix.c and dos.c are upstream. braam::math
+# is for its %f alone: the benchmark itself is integer.
 braam_add_program(NAME duremark
-                  SOURCES main.cpp list.cpp matrix.cpp state.cpp braam.cpp)
+                  SOURCES main.cpp list.cpp matrix.cpp state.cpp braam.cpp
+                  LIBS braam::math)
 
 # -O2, which is what upstream's own Makefile used. The toolchain defaults to
 # MinSizeRel, and a benchmark built for size reports a number about size.
