@@ -149,6 +149,7 @@ void Game::linkdata(void) // secondary data manipulation
     saved_                               = 0;
     closng_ = panic_ = closed_ = scorng_ = FALSE;
     check_vocab();
+    check_msgs();
 }
 
 // glorkz decides these numbers; the enums only name them.  Check the naming
@@ -185,6 +186,22 @@ void Game::check_vocab()
     for (const Named &n : NAMED)
         if (vocab(n.word, n.type, 0) != n.want)
             bug(35);
+}
+
+// The message names are a summary of glorkz's text and nothing can check that
+// at runtime.  What can be checked is that the table under them has not moved:
+// every message msg.h claims is there, and the obituary slots glorkz reserves
+// but never fills are still empty.
+void Game::check_msgs()
+{
+    for (i16 n = 1; n <= i16(Msg::Last); n++) {
+        bool reserved = n >= 87 && n <= 89;
+        if ((rtext_[n].seekadr != 0) == reserved)
+            bug(36);
+    }
+    for (i16 n = 1; n <= i16(Magic::Last); n++)
+        if (mtext_[n].seekadr == 0)
+            bug(36);
 }
 
 Task<i32> Game::startup(void)

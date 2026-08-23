@@ -148,7 +148,7 @@ private:
     Phase eat_food() { return dstroy(food_), spk_ = Msg::Delicious, report(); } // 8142
 
     // ---- setup -- init.cpp --------------------------------------------
-    void linkdata(), check_vocab();
+    void linkdata(), check_vocab(), check_msgs();
     Task<i32> startup();
 
     // ---- messages and input -- io.cpp ---------------------------------
