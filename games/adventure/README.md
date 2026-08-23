@@ -81,6 +81,21 @@ matching verb already in `verb_`. The local jumps inside `fdwarf()`,
 `march()`, `checkhints()`, `trtake()`, `trtoss()` and `vocab()` are upstream's
 own and stay: each is a forward jump within one routine.
 
+**The vocabulary is two enums.** `glorkz` maps a word to a number — under
+1000 a motion word, 1000 an object, 2000 a verb, 3000 a message — so the two
+dispatch switches read `case 1:` through `case 31:` with a comment for each,
+and `badmove()` chose its complaint with `if (k_ >= 43 && k_ <= 50)`. `Verb`
+names all thirty-one and `Motion` all seventy-five, which is the first place
+that numbering is written down; `verb_` is typed, `k_` is not, because `k_`
+holds a motion, an object, a location, a message or plain scratch depending on
+where you are. The travel table's `tverb` is a `Motion`, which also names the
+1 that no word carries and that `linkdata()` and `march()` both test — the
+exit that fires whatever the player typed.
+
+The numbers are still the data file's. `check_vocab()` looks up the word
+behind every constant the code uses by name and traps if `glorkz` disagrees,
+so the enums are a checked fact rather than a comment that can rot.
+
 The guarantee that used to be "the binary is byte for byte the one the macros
 produced" is now the transcript. `test/play.mjs` diffs 41,777 bytes of output
 from a 322-turn game, and `test/back.mjs` and `test/suspend.mjs` cover what it
@@ -275,7 +290,7 @@ writes the two words it means.
 
 | | |
 | --- | --- |
-| `hdr.h` | `class Game`: the state, the methods, and the turn's phases |
+| `hdr.h` | `class Game`: the state, the methods, the phases, the words |
 | `main.cpp` | closing the cave, and the command loop — upstream `main.c` |
 | `init.cpp` | the shared state and its setup — upstream `init.c` |
 | `vocab.cpp` | the objects and the words — upstream `vocab.c` |
