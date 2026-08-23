@@ -23,6 +23,7 @@
 #include "braam.h"
 #include "kernel/alloc.h"
 #include "kernel/vec.h"
+#include "msg.h"
 #include "proc/io.h"
 
 constexpr int TAB = 011;
@@ -151,9 +152,9 @@ private:
     Task<i32> startup();
 
     // ---- messages and input -- io.cpp ---------------------------------
-    void speak(Text *), pspeak(int, int), rspeak(int), mspeak(int);
+    void speak(Text *), pspeak(int, int), rspeak(int), mspeak(Magic);
     Task<void> getin(); // fills wd1_ and wd2_
-    Task<i32> yes(int, int, int), yesm(int, int, int);
+    Task<i32> yes(int, int, int), yesm(Magic, Magic, Magic);
 
     // ---- the objects -- vocab.cpp -------------------------------------
     void dstroy(int), juggle(int), move(int, int), carry(int, int), drop(int, int);

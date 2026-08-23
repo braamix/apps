@@ -91,7 +91,7 @@ Task<i32> Game::yes(int x, int y, int z) // confirm with rspeak
     co_return result;
 }
 
-Task<i32> Game::yesm(int x, int y, int z) // confirm with mspeak
+Task<i32> Game::yesm(Magic x, Magic y, Magic z) // confirm with mspeak
 {
     int result = -1;
     String line;
@@ -128,10 +128,10 @@ void Game::rspeak(int msg)
         speak(&rtext_[msg]);
 }
 
-void Game::mspeak(int msg)
+void Game::mspeak(Magic msg)
 {
-    if (msg != 0)
-        speak(&mtext_[msg]);
+    if (msg != Magic::None)
+        speak(&mtext_[i16(msg)]);
 }
 
 // The longest message in glorkz is 1460 bytes; upstream used alloca.

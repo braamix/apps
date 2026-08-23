@@ -60,7 +60,7 @@ Task<i32> Game::done(int entry)
 {
     int i, sc;
     if (entry == 1)
-        mspeak(1);
+        mspeak(Magic::GreenSmoke);
     if (entry == 3)
         rspeak(136);
     adv_printf("\n\n\nYou scored %d out of a ", (sc = score()));

@@ -12,16 +12,16 @@ void Game::poof(void)
 
 Task<i32> Game::wizard(void) // not as complex as advent/10 (for now)
 {
-    if (!co_await yesm(16, 0, 7))
+    if (!co_await yesm(Magic::AreYouAWizard, Magic::None, Magic::VeryWell))
         co_return FALSE;
-    mspeak(17);
+    mspeak(Magic::ProveIt);
     if (Task<void> t = getin())
         co_await t;
     if (!weq(wd1_, magic_)) {
-        mspeak(20);
+        mspeak(Magic::Charlatan);
         co_return FALSE;
     }
-    mspeak(19);
+    mspeak(Magic::ReallyAWizard);
     co_return TRUE;
 }
 
@@ -40,13 +40,13 @@ Task<i32> Game::start(int n)
     }
     adv_printf("This adventure was suspended a mere %d minutes ago.", delay);
     if (delay <= latncy_ / 3) {
-        mspeak(2);
+        mspeak(Magic::WizardsWait);
         status_ = 0;
         co_return ADV_OVER;
     }
-    mspeak(8);
+    mspeak(Magic::WizardMayContinue);
     if (!co_await wizard()) {
-        mspeak(9);
+        mspeak(Magic::ResumeLater);
         status_ = 0;
         co_return ADV_OVER;
     }
