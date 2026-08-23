@@ -92,9 +92,21 @@ where you are. The travel table's `tverb` is a `Motion`, which also names the
 1 that no word carries and that `linkdata()` and `march()` both test — the
 exit that fires whatever the player typed.
 
-The numbers are still the data file's. `check_vocab()` looks up the word
-behind every constant the code uses by name and traps if `glorkz` disagrees,
-so the enums are a checked fact rather than a comment that can rot.
+**The messages are named too**, in [msg.h](msg.h): `Msg` for the 198 that
+`rspeak()` prints and `Magic` for the 32 that `mspeak()` does. 139 of them
+appeared as bare numbers, and nine more sites computed one — every one of
+those turns out to index a run of consecutive messages, which is what
+`Msg::PutDownClam + k_` and `Msg::Killed + numdie_ * 2` now say. `msg.h` is
+generated from `glorkz`, so the numbers are the file's; the names are a
+summary of the text, which each one carries beside it because that is the
+only way to check one.
+
+The numbers are still the data file's, and two checks keep the naming honest.
+`check_vocab()` looks up the word behind every vocabulary constant the code
+uses by name and traps if `glorkz` disagrees. `check_msgs()` cannot do that —
+nothing compares message text at runtime — so it asserts the weaker thing that
+still matters: that the message table has not shifted under the names, gap at
+87–89 included.
 
 The guarantee that used to be "the binary is byte for byte the one the macros
 produced" is now the transcript. `test/play.mjs` diffs 41,777 bytes of output
@@ -291,6 +303,7 @@ writes the two words it means.
 | | |
 | --- | --- |
 | `hdr.h` | `class Game`: the state, the methods, the phases, the words |
+| `msg.h` | what `rspeak()` and `mspeak()` say, named |
 | `main.cpp` | closing the cave, and the command loop — upstream `main.c` |
 | `init.cpp` | the shared state and its setup — upstream `init.c` |
 | `vocab.cpp` | the objects and the words — upstream `vocab.c` |
