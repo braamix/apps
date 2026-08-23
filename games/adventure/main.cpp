@@ -737,11 +737,11 @@ Task<Phase> Game::verb_object() // 4090
             spk_ = Msg::CongratsDarkRoom;
         if (obj_ == messag_)
             spk_ = Msg::NotPirateMaze;
-        if (obj_ == oyster_ && hinted_[2] && toting(oyster_))
+        if (obj_ == oyster_ && hinted_[i16(Hint::Oyster)] && toting(oyster_))
             spk_ = Msg::SameAsBefore;
-        if (obj_ != oyster_ || hinted_[2] || !toting(oyster_) || !closed_)
+        if (obj_ != oyster_ || hinted_[i16(Hint::Oyster)] || !toting(oyster_) || !closed_)
             co_return report();
-        hinted_[2] = co_await yes(Msg::ClueCosts, Msg::ClueText, Msg::Ok);
+        hinted_[i16(Hint::Oyster)] = co_await yes(Msg::ClueCosts, Msg::ClueText, Msg::Ok);
         co_return Phase::EndTurn;
     case Verb::Break:
         if (obj_ == mirror_)

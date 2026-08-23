@@ -6,7 +6,7 @@
 Task<void> Game::checkhints(void) // 2600 &c
 {
     int hint;
-    for (hint = 4; hint <= hntmax_; hint++) {
+    for (hint = i16(Hint::Grate); hint <= hntmax_; hint++) {
         if (hinted_[hint])
             continue;
         if (!bitset(loc_, hint))
@@ -14,28 +14,28 @@ Task<void> Game::checkhints(void) // 2600 &c
         hintlc_[hint]++;
         if (hintlc_[hint] < hints_[hint][1])
             continue;
-        switch (hint) {
-        case 4: // 40400
+        switch (Hint(hint)) {
+        case Hint::Grate: // 40400
             if (prop_[grate_] == 0 && !here(keys_))
                 goto offer;
             goto reset;
-        case 5: // 40500
+        case Hint::Bird: // 40500
             if (here(bird_) && toting(rod_) && obj_ == bird_)
                 goto offer;
-            continue; // 40030, and keep the count
-        case 6:       // 40600
+            continue;     // 40030, and keep the count
+        case Hint::Snake: // 40600
             if (here(snake_) && !here(bird_))
                 goto offer;
             goto reset;
-        case 7: // 40700
+        case Hint::Maze: // 40700
             if (atloc_[loc_] == 0 && atloc_[oldloc_] == 0 && atloc_[oldlc2_] == 0 && holdng_ > 1)
                 goto offer;
             goto reset;
-        case 8: // 40800
+        case Hint::Plover: // 40800
             if (prop_[emrald_] != -1 && prop_[pyram_] == -1)
                 goto offer;
             goto reset;
-        case 9:
+        case Hint::WittsEnd:
             goto offer; // 40900
         default:
             bug(27);

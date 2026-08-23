@@ -208,10 +208,11 @@ Task<i32> Game::startup(void)
 {
     if (Task<void> t = adv_seed()) // random odd seed
         co_await t;
-    hinted_[3] = co_await yes(Msg::WelcomeInstructions, Msg::ColossalCave, Msg::None);
-    newloc_    = 1;
-    limit_     = 330;
-    if (hinted_[3])
+    hinted_[i16(Hint::Instructions)] =
+        co_await yes(Msg::WelcomeInstructions, Msg::ColossalCave, Msg::None);
+    newloc_ = 1;
+    limit_  = 330;
+    if (hinted_[i16(Hint::Instructions)])
         limit_ = 1000; // better batteries if instrucs
     co_return 0;
 }

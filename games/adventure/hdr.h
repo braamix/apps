@@ -91,6 +91,21 @@ struct Travel {     // direcs & conditions of travel
 // and already reported.
 constexpr int ADV_OVER = -1;
 
+// A hint's number is also its bit in cond_: glorkz section 9 sets bit 4 on the
+// grate room, 5 on the bird chamber and so on, which is what bitset(loc_, hint)
+// tests.  Bits 0 to 3 are the lit and liquid flags, so a location-triggered
+// hint cannot number below 4.
+enum class Hint : i16 {
+    Oyster       = 2, // the clue inside it, taken by hand in verb_object()
+    Instructions = 3, // "Would you like instructions?", taken in startup()
+    Grate        = 4, // outside the grate
+    Bird         = 5, // the bird chamber
+    Snake        = 6, // the hall of the mountain king
+    Maze         = 7, // the all-alike maze
+    Plover       = 8, // beyond the plover room
+    WittsEnd     = 9, // and how to get out of it
+};
+
 // One step of a turn, named for the FORTRAN statement label it was.  Upstream
 // jumped between these with goto and the tr* handlers returned the number the
 // caller switched back into one; here a step returns the next step and play()
