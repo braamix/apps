@@ -28,7 +28,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/glorkz.cpp
 braam_add_program(NAME adventure
                   SOURCES main.cpp init.cpp vocab.cpp wizard.cpp done.cpp
                           subr.cpp move.cpp verbs.cpp
-                          io.cpp save.cpp braam.cpp edit.cpp
+                          io.cpp data.cpp save.cpp braam.cpp edit.cpp
                           ${CMAKE_CURRENT_BINARY_DIR}/glorkz.cpp)
 
 # Str's const char * constructor calls strlen, and nothing provides one.

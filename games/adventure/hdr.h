@@ -28,9 +28,7 @@
 constexpr int TAB = 011;
 constexpr int LF  = 012;
 
-#define FLUSHLF          \
-    while (next() != LF) \
-        ;
+inline constexpr char IOTAPE[] = "Ax3F'tt$8hqer*hnGKrX:!l"; // encryption tape
 
 constexpr int FALSE = 0;
 constexpr int TRUE  = 1;
@@ -70,6 +68,8 @@ constexpr int ADV_OVER = -1;
 // methods; a field carries a trailing underscore so neither hides the other.
 class Game {
 public:
+    friend class DataReader; // fills the tables from glorkz
+
     // Sizes every table.  The one place that can run out of memory: after it
     // nothing grows but the travel lists, so every index below is unchecked,
     // exactly as the C arrays were.
@@ -84,11 +84,6 @@ private:
     // ---- setup -- init.cpp --------------------------------------------
     void linkdata();
     Task<i32> startup();
-
-    // ---- the glorkz parser -- io.cpp ----------------------------------
-    void rdata();
-    int next(), rnum();
-    void putdat(char), rtrav(), rdesc(int), rvoc(), rlocs(), rdflt(), rliq(), rhints();
 
     // ---- messages and input -- io.cpp ---------------------------------
     void speak(Text *), pspeak(int, int), rspeak(int), mspeak(int);
@@ -213,5 +208,6 @@ private:
 int ran(int);
 void datime(int *, int *);
 int length(const char *);
+int atoi(const char *);
 int weq(const char *, const char *);
 void copystr(const char *, char *);

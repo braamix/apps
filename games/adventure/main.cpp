@@ -3,7 +3,7 @@
 //
 // Ported to Braam.  exit() does not exist, so the status travels up to
 // proc_main; and anything that reads is a coroutine.
-#include "hdr.h"
+#include "data.h"
 
 int Game::closing(void) // 10000
 {
@@ -73,7 +73,7 @@ Task<i32> Game::play(Args args)
     if (args.size() > 1)
         savfile = args[1];
 
-    rdata(); // read glorkz, build the tables
+    DataReader(*this).read(); // read glorkz, build the tables
     linkdata();
     poof();
 
