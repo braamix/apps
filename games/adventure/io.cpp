@@ -14,8 +14,7 @@ int seekhere = 1; // initial seek for output file
 
 static const char *inbuf; // the next byte of glorkz
 static const char *inend;
-static char *datbuf; // the decrypted-text block
-static u32 outadr;   // where the next byte goes
+static u32 outadr; // where the next byte goes
 
 int adrptr;    // current seek adr ptr
 int outsw = 0; // putting stuff to data file?
@@ -49,7 +48,7 @@ int Game::next(void) // next char frm file, bump adr
         if (*tape == 0)
             tape = iotape; // rewind encryption tape
         if (outadr < DATSIZE)
-            datbuf[outadr++] = ch ^ *tape; // encrypt & output char
+            dat_[outadr++] = ch ^ *tape; // encrypt & output char
         tape++;
     }
     return (ch);
@@ -58,7 +57,7 @@ int Game::next(void) // next char frm file, bump adr
 void Game::putdat(char ch) // the leading 'X', so seekadr > 0
 {
     if (outadr < DATSIZE)
-        datbuf[outadr++] = ch;
+        dat_[outadr++] = ch;
 }
 
 int Game::rnum(void) // read initial location num
@@ -393,11 +392,8 @@ void Game::rdata(void) // read all data from orig file
 {
     int sect;
     char ch;
-    inbuf  = GLORKZ; // all the data lives in here
-    inend  = GLORKZ + GLORKZ_LEN;
-    datbuf = static_cast<char *>(heap_alloc(DATSIZE)); // the text lines go here
-    if (!datbuf)
-        bug(30);
+    inbuf   = GLORKZ; // all the data lives in here
+    inend   = GLORKZ + GLORKZ_LEN;
     outadr  = 0;
     clsses_ = 1;
     for (;;) // read data sections
@@ -478,7 +474,7 @@ void Game::speak(Text *msg) // read, decrypt, and print a message (not ptext)
         adv_printf("Corrupted dat file!\n");
         return;
     }
-    __builtin_memcpy(tbuf, datbuf + msg->seekadr, msg->txtlen);
+    __builtin_memcpy(tbuf, dat_.data() + msg->seekadr, msg->txtlen);
     s        = tbuf;
     nonfirst = 0;
     while (s - tbuf < msg->txtlen) // read a line at a time
@@ -514,7 +510,7 @@ void Game::pspeak(int msg, // read, decrypt an print a ptext message
         adv_printf("Corrupted dat file!\n");
         return;
     }
-    __builtin_memcpy(tbuf, datbuf + ptext_[msg].seekadr, lstr);
+    __builtin_memcpy(tbuf, dat_.data() + ptext_[msg].seekadr, lstr);
     s        = tbuf;
     nonfirst = 0;
     while (s - tbuf < lstr) // read a line at a time

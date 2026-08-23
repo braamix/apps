@@ -190,6 +190,8 @@ private:
 
     i16 limit_ = 0;
 
+    Vec<char> dat_; // the decrypted text, indexed by speak() and pspeak()
+
     // ---- what upstream kept beside the state struct --------------------
     Travel *tkk_       = nullptr; // travel is closer to keys(...)
     char wd1_[MAXSTR]  = {};      // the complete words
