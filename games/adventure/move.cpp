@@ -4,7 +4,6 @@
 int Game::fdwarf(void) // 71
 {
     int i, j;
-    Travel *kk;
 
     if (newloc_ != loc_ && !forced(loc_) && !bitset(loc_, 3)) {
         for (i = 1; i <= 5; i++) {
@@ -47,12 +46,13 @@ int Game::fdwarf(void) // 71
     {
         if (dloc_[i] == 0)
             continue;
-        j = 1;
-        for (kk = travel_[dloc_[i]]; kk != 0; kk = kk->next) {
-            newloc_ = kk->tloc;
+        j                     = 1;
+        const Vec<Travel> &tl = travel_[dloc_[i]];
+        for (usize x = 0; x < tl.size(); x++) {
+            newloc_ = tl[x].tloc;
             if (newloc_ > 300 || newloc_ < 15 || newloc_ == odloc_[i] ||
                 (j > 1 && newloc_ == tk_[j - 1]) || j >= 20 || newloc_ == dloc_[i] ||
-                forced(newloc_) || (i == 6 && bitset(newloc_, 3)) || kk->conditions == 100)
+                forced(newloc_) || (i == 6 && bitset(newloc_, 3)) || tl[x].conditions == 100)
                 continue;
             tk_[j++] = newloc_;
         }
@@ -154,35 +154,39 @@ int Game::fdwarf(void) // 71
 
 int Game::mback(void) // 20
 {
-    Travel *tk2, *j;
+    i32 tk2;
     int ll;
     if (forced(k_ = oldloc_))
         k_ = oldlc2_; // k=location
     oldlc2_ = oldloc_;
     oldloc_ = loc_;
-    tk2     = 0;
+    tk2     = -1; // upstream's null travel entry
     if (k_ == loc_) {
         rspeak(91);
         return (2);
     }
-    for (; tkk_ != 0; tkk_ = tkk_->next) // 21
+    for (; !tk_end(); tkk_++) // 21
     {
-        ll = tkk_->tloc;
+        ll = tk().tloc;
         if (ll == k_) {
-            k_   = tkk_->tverb; // k back to verb
-            tkk_ = travel_[loc_];
+            k_ = tk().tverb; // k back to verb
+            tk_to(loc_);
             return (9);
         }
+        // Dead as written, and kept that way: the cursor starts at entry 0, so
+        // k_ == j[0].tloc would have matched ll == k_ on the first pass and
+        // returned.  Upstream reads travel[ll] here, not travel[loc]; see the
+        // note in README.md.
         if (ll <= 300) {
-            j = travel_[loc_];
-            if (forced(ll) && k_ == j->tloc)
+            const Vec<Travel> &j = travel_[loc_];
+            if (forced(ll) && k_ == j[0].tloc)
                 tk2 = tkk_;
         }
     }
-    tkk_ = tk2; // 23
-    if (tkk_ != 0) {
-        k_   = tkk_->tverb;
-        tkk_ = travel_[loc_];
+    tkk_ = tk2 < 0 ? i32(travel_[tkk_loc_].size()) : tk2; // 23
+    if (!tk_end()) {
+        k_ = tk().tverb;
+        tk_to(loc_);
         return (9);
     }
     rspeak(140);
@@ -264,8 +268,8 @@ int Game::march(void) // label 8
 {
     int ll1, ll2;
 
-    tkk_ = travel_[newloc_ = loc_];
-    if (tkk_ == 0)
+    tk_to(newloc_ = loc_);
+    if (tk_end())
         bug(26);
     if (k_ == null_)
         return (2);
@@ -299,16 +303,16 @@ int Game::march(void) // label 8
     oldlc2_ = oldloc_;
     oldloc_ = loc_;
 l9:
-    for (; tkk_ != 0; tkk_ = tkk_->next)
-        if (tkk_->tverb == 1 || tkk_->tverb == k_)
+    for (; !tk_end(); tkk_++)
+        if (tk().tverb == 1 || tk().tverb == k_)
             break;
-    if (tkk_ == 0) {
+    if (tk_end()) {
         badmove();
         return (2);
     }
 l11:
-    ll1     = tkk_->conditions; // 11
-    ll2     = tkk_->tloc;
+    ll1     = tk().conditions; // 11
+    ll2     = tk().tloc;
     newloc_ = ll1;           // newloc=conditions
     k_      = newloc_ % 100; // k used for prob
     if (newloc_ <= 300) {
@@ -343,10 +347,10 @@ l11:
     if (prop_[k_] != (newloc_ / 100) - 3)
         goto l16; // newloc still conditions
 l12:              // alternative to probability move
-    for (; tkk_ != 0; tkk_ = tkk_->next)
-        if (tkk_->tloc != ll2 || tkk_->conditions != ll1)
+    for (; !tk_end(); tkk_++)
+        if (tk().tloc != ll2 || tk().conditions != ll1)
             break;
-    if (tkk_ == 0)
+    if (tk_end())
         bug(25);
     goto l11;
 }

@@ -56,6 +56,7 @@ test: all
 	@node games/adventure/test/play.mjs
 	@node games/adventure/test/interrupt.mjs
 	@node games/adventure/test/suspend.mjs
+	@node games/adventure/test/back.mjs
 	@node benchmarks/dhrystone/test/interrupt.mjs
 	@node benchmarks/duremark/test/interrupt.mjs
 

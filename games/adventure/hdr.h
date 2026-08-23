@@ -56,7 +56,6 @@ struct Text {
 };
 
 struct Travel {     // direcs & conditions of travel
-    Travel *next;   // ptr to next list entry
     u16 conditions; // m in writeup (newloc / 1000)
     u16 tloc;       // n in writeup (newloc % 1000)
     u16 tverb;      // the verb that takes you there
@@ -106,6 +105,9 @@ private:
 
     // ---- the dwarves and the travel table -- move.cpp -----------------
     int fdwarf(), mback(), badmove(), trbridge(), specials(), march();
+    void tk_to(int loc) { tkk_loc_ = i16(loc), tkk_ = 0; }
+    bool tk_end() const { return usize(tkk_) >= travel_[tkk_loc_].size(); }
+    const Travel &tk() const { return travel_[tkk_loc_][usize(tkk_)]; }
 
     // ---- the hints and the verb handlers -- verbs.cpp -----------------
     Task<void> checkhints();
@@ -149,7 +151,7 @@ private:
     Vec<Text> ltext_; // long loc description
     Vec<Text> stext_; // short loc descriptions
 
-    Travel *travel_[LOCSIZ + 1] = {}; // direcs & conditions of travel
+    Vec<Vec<Travel>> travel_; // direcs & conditions of travel, by location
 
     Vec<i16> atloc_;
 
@@ -193,8 +195,11 @@ private:
     Vec<char> dat_; // the decrypted text, indexed by speak() and pspeak()
 
     // ---- what upstream kept beside the state struct --------------------
-    Travel *tkk_       = nullptr; // travel is closer to keys(...)
-    char wd1_[MAXSTR]  = {};      // the complete words
+    // travel is closer to keys(...).  Upstream walked a linked list; here the
+    // cursor is a list and an index into it, and index == size() is its null.
+    i16 tkk_loc_       = 0;
+    i32 tkk_           = 0;
+    char wd1_[MAXSTR]  = {}; // the complete words
     char wd2_[MAXSTR]  = {};
     int delhit_        = 0; // user typed a DEL
     const char *magic_ = nullptr;

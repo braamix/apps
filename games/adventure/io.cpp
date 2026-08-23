@@ -77,26 +77,17 @@ int Game::rnum(void) // read initial location num
 void Game::rtrav(void) // read travel table
 {
     int locc;
-    Travel *t = 0;
     char *s;
     char buf[12];
-    int len, m, n, entries = 0;
+    int len, m, n;
     for (oldloc_ = -1;;) // get another line
     {
-        if ((locc = rnum()) != oldloc_ && oldloc_ >= 0) // end of entry
-        {
-            t->next = 0; // terminate the old entry
-        }
-        if (locc == -1)
+        if ((locc = rnum()) == -1)
             return;
         if (locc != oldloc_) // getting a new entry
         {
-            t = heap_new<Travel>();
-            if (!t)
-                bug(31);
-            travel_[locc] = t;
-            entries       = 0;
-            oldloc_       = locc;
+            travel_[locc].clear(); // upstream's fresh head node
+            oldloc_ = locc;
         }
         for (s = buf, *s = 0;; s++) // get the newloc number /ASCII
             if ((*s = next()) == TAB || *s == LF)
@@ -115,15 +106,12 @@ void Game::rtrav(void) // read travel table
         }
         while (breakch != LF) // only do one line at a time
         {
-            if (entries++) {
-                t->next = heap_new<Travel>();
-                if (!t->next)
-                    bug(31);
-                t = t->next;
-            }
-            t->tverb      = rnum(); // get verb from the file
-            t->tloc       = n;      // table entry mod 1000
-            t->conditions = m;      // table entry / 1000
+            Travel t;
+            t.tverb      = rnum(); // get verb from the file
+            t.tloc       = n;      // table entry mod 1000
+            t.conditions = m;      // table entry / 1000
+            if (!travel_[locc].push(t))
+                bug(31);
         }
     }
 }

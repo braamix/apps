@@ -18,14 +18,15 @@ bool Game::alloc()
         if (!hints_[i].resize(5))
             return false;
 
-    return dat_.resize(DATSIZE) && ltext_.resize(LOCSIZ + 1) && stext_.resize(LOCSIZ + 1) &&
-           atloc_.resize(LOCSIZ + 1) && cond_.resize(LOCSIZ + 1) && abb_.resize(LOCSIZ + 1) &&
-           voc_.resize(HTSIZE) && rtext_.resize(RTXSIZ + 1) && mtext_.resize(MAGSIZ + 1) &&
-           ctext_.resize(CLSMAX) && cval_.resize(CLSMAX) && ptext_.resize(OBJSIZ) &&
-           plac_.resize(OBJSIZ) && fixd_.resize(OBJSIZ) && fixed_.resize(OBJSIZ) &&
-           place_.resize(OBJSIZ) && prop_.resize(OBJSIZ) && plink_.resize(201) &&
-           actspk_.resize(35) && hinted_.resize(HINTSIZ) && hintlc_.resize(HINTSIZ) &&
-           dseen_.resize(7) && dloc_.resize(7) && odloc_.resize(7) && tk_.resize(21);
+    return travel_.resize(LOCSIZ + 1) && dat_.resize(DATSIZE) && ltext_.resize(LOCSIZ + 1) &&
+           stext_.resize(LOCSIZ + 1) && atloc_.resize(LOCSIZ + 1) && cond_.resize(LOCSIZ + 1) &&
+           abb_.resize(LOCSIZ + 1) && voc_.resize(HTSIZE) && rtext_.resize(RTXSIZ + 1) &&
+           mtext_.resize(MAGSIZ + 1) && ctext_.resize(CLSMAX) && cval_.resize(CLSMAX) &&
+           ptext_.resize(OBJSIZ) && plac_.resize(OBJSIZ) && fixd_.resize(OBJSIZ) &&
+           fixed_.resize(OBJSIZ) && place_.resize(OBJSIZ) && prop_.resize(OBJSIZ) &&
+           plink_.resize(201) && actspk_.resize(35) && hinted_.resize(HINTSIZ) &&
+           hintlc_.resize(HINTSIZ) && dseen_.resize(7) && dloc_.resize(7) && odloc_.resize(7) &&
+           tk_.resize(21);
 }
 
 void Game::linkdata(void) // secondary data manipulation
@@ -33,8 +34,8 @@ void Game::linkdata(void) // secondary data manipulation
     int i, j;
     // array linkages
     for (i = 1; i <= LOCSIZ; i++)
-        if (ltext_[i].seekadr != 0 && travel_[i] != 0)
-            if ((travel_[i]->tverb) == 1)
+        if (ltext_[i].seekadr != 0 && !travel_[i].empty())
+            if ((travel_[i][0].tverb) == 1)
                 cond_[i] = 2;
     for (j = 100; j > 0; j--)
         if (fixd_[j] > 0) {
