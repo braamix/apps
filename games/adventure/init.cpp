@@ -14,16 +14,18 @@ bool Game::alloc()
 {
     if (!hints_.resize(HINTSIZ))
         return false;
-    for (usize i = 0; i < HINTSIZ; i++)
+    for (i32 i = 0; i < HINTSIZ; i++)
         if (!hints_[i].resize(5))
             return false;
 
-    return voc_.resize(HTSIZE) && rtext_.resize(RTXSIZ + 1) && mtext_.resize(MAGSIZ + 1) &&
-           ctext_.resize(CLSMAX) && cval_.resize(CLSMAX) && ptext_.resize(OBJSIZ) &&
-           plac_.resize(OBJSIZ) && fixd_.resize(OBJSIZ) && fixed_.resize(OBJSIZ) &&
-           place_.resize(OBJSIZ) && prop_.resize(OBJSIZ) && plink_.resize(201) &&
-           actspk_.resize(35) && hinted_.resize(HINTSIZ) && hintlc_.resize(HINTSIZ) &&
-           dseen_.resize(7) && dloc_.resize(7) && odloc_.resize(7) && tk_.resize(21);
+    return ltext_.resize(LOCSIZ + 1) && stext_.resize(LOCSIZ + 1) && atloc_.resize(LOCSIZ + 1) &&
+           cond_.resize(LOCSIZ + 1) && abb_.resize(LOCSIZ + 1) && voc_.resize(HTSIZE) &&
+           rtext_.resize(RTXSIZ + 1) && mtext_.resize(MAGSIZ + 1) && ctext_.resize(CLSMAX) &&
+           cval_.resize(CLSMAX) && ptext_.resize(OBJSIZ) && plac_.resize(OBJSIZ) &&
+           fixd_.resize(OBJSIZ) && fixed_.resize(OBJSIZ) && place_.resize(OBJSIZ) &&
+           prop_.resize(OBJSIZ) && plink_.resize(201) && actspk_.resize(35) &&
+           hinted_.resize(HINTSIZ) && hintlc_.resize(HINTSIZ) && dseen_.resize(7) &&
+           dloc_.resize(7) && odloc_.resize(7) && tk_.resize(21);
 }
 
 void Game::linkdata(void) // secondary data manipulation

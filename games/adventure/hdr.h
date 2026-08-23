@@ -35,15 +35,15 @@ constexpr int LF  = 012;
 constexpr int FALSE = 0;
 constexpr int TRUE  = 1;
 
-constexpr usize DATSIZE = 46 * 1024; // size of encrypted data
-constexpr usize MAXSTR  = 20;        // max length of user's words
-constexpr usize HTSIZE  = 512;       // max number of vocab words
-constexpr usize RTXSIZ  = 205;
-constexpr usize MAGSIZ  = 35;
-constexpr usize CLSMAX  = 12;
-constexpr usize LOCSIZ  = 141; // number of locations
-constexpr usize OBJSIZ  = 101;
-constexpr usize HINTSIZ = 20;
+constexpr i32 DATSIZE = 46 * 1024; // size of encrypted data
+constexpr i32 MAXSTR  = 20;        // max length of user's words
+constexpr i32 HTSIZE  = 512;       // max number of vocab words
+constexpr i32 RTXSIZ  = 205;
+constexpr i32 MAGSIZ  = 35;
+constexpr i32 CLSMAX  = 12;
+constexpr i32 LOCSIZ  = 141; // number of locations
+constexpr i32 OBJSIZ  = 101;
+constexpr i32 HINTSIZ = 20;
 
 struct HashTab { // hash table for vocabulary
     i32 val;     // word type &index (ktab)
@@ -144,26 +144,28 @@ private:
 
     Vec<Text> ptext_; // object descriptions
 
-    Text ltext_[LOCSIZ] = {}; // long loc description
-    Text stext_[LOCSIZ] = {}; // short loc descriptions
+    // The location tables are LOCSIZ + 1: linkdata() runs to i <= LOCSIZ, and
+    // reads ltext_ there before the && short-circuits on travel_.
+    Vec<Text> ltext_; // long loc description
+    Vec<Text> stext_; // short loc descriptions
 
-    Travel *travel_[LOCSIZ] = {}; // direcs & conditions of travel
+    Travel *travel_[LOCSIZ + 1] = {}; // direcs & conditions of travel
 
-    i16 atloc_[LOCSIZ] = {};
+    Vec<i16> atloc_;
 
     Vec<i16> plac_;         // initial object placement
     Vec<i16> fixd_, fixed_; // location fixed?
 
     Vec<i16> actspk_; // rtext msg for verb <n>
 
-    i16 cond_[LOCSIZ] = {}; // various condition bits
+    Vec<i16> cond_; // various condition bits
 
     i16 hntmax_ = 0;
     Vec<Vec<i16>> hints_; // info on hints, HINTSIZ x 5
     Vec<i16> hinted_, hintlc_;
 
     Vec<i16> place_, prop_, plink_;
-    i16 abb_[LOCSIZ] = {};
+    Vec<i16> abb_;
 
     i16 maxtrs_ = 0, tally_ = 0, tally2_ = 0; // treasure values
 
