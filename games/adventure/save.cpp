@@ -1,34 +1,24 @@
 // Re-coding of advent in C: save and restore -- upstream save.c.
-#include "hdr.h"
+#include "serial.h"
 
 // save (III)   J. Gillogly
 // save user core image for restarting
 //
 // Braam has no seek, so the offset upstream used to append this to
-// adventure.dat is gone and a save file is only ever a save file.  The travel
-// lists are still written node by node and read back the same way: glorkz is
-// parsed before either happens, so the chains already have the right shape and
-// the pointers in the file are read only as "there was a node here".
+// adventure.dat is gone and a save file is only ever a save file.  Upstream
+// wrote struct game raw and then the travel lists node by node; here it is one
+// field list, visited by Ser to write and De to read.  The travel lists are
+// left out: rdata() rebuilds them before restore() runs, and play never
+// changes them.
 Task<Result<void>> Game::save(Str savfile) // save game state to file
 {
-    Travel *entry;
-    String bytes;
-    u32 n = 0;
+    Ser s;
 
-    if (!bytes.append(Str(reinterpret_cast<const char *>(this), sizeof *this)))
+    if (!s.out.append(SAVE_MAGIC))
         co_return Err(Error::NoMemory);
-    n += sizeof *this;
-
-    for (int i = 0; i < LOCSIZ; i++) // save travel lists
-    {
-        entry = travel_[i];
-        while (entry != 0) {
-            if (!bytes.append(Str(reinterpret_cast<const char *>(entry), sizeof *entry)))
-                co_return Err(Error::NoMemory);
-            n += sizeof *entry;
-            entry = entry->next;
-        }
-    }
+    visit(s);
+    if (!s.ok)
+        co_return Err(Error::NoMemory);
 
     Result<i32> fd = Err(Error::NoMemory);
     if (Task<Result<i32>> t = open_at(savfile, SYS_O_WRITE | SYS_O_CREATE | SYS_O_TRUNC))
@@ -41,7 +31,7 @@ Task<Result<void>> Game::save(Str savfile) // save game state to file
     }
 
     Result<void> w = Err(Error::NoMemory);
-    if (Task<Result<void>> t = write_all(u32(fd.value()), bytes.str()))
+    if (Task<Result<void>> t = write_all(u32(fd.value()), s.out.str()))
         w = co_await t;
     if (Task<void> c = close_fd(u32(fd.value())))
         co_await c;
@@ -52,7 +42,7 @@ Task<Result<void>> Game::save(Str savfile) // save game state to file
         co_return w;
     }
 
-    adv_printf("Saved %u bytes to ", n);
+    adv_printf("Saved %u bytes to ", u32(s.out.size()));
     adv_puts(savfile);
     adv_putc('\n');
     co_return {};
@@ -60,35 +50,18 @@ Task<Result<void>> Game::save(Str savfile) // save game state to file
 
 Task<Result<void>> Game::restore(Str savfile) // restore game from user file
 {
-    Travel **entryp;
-
     Result<String> r = Err(Error::NoMemory);
     if (Task<Result<String>> t = read_file(savfile))
         r = co_await t;
     if (r.is_err())
         co_return Err(r.error());
 
-    Str s = r.value().str();
-    if (s.size() < sizeof *this)
+    De d{ r.value().str() };
+    if (!d.in.starts_with(SAVE_MAGIC))
         co_return Err(Error::Invalid);
-    __builtin_memcpy(this, s.data(), sizeof *this);
-    usize pos = sizeof *this;
-
-    for (int i = 0; i < LOCSIZ; i++) // restore travel lists
-    {
-        if (!travel_[i])
-            continue;
-        entryp = &travel_[i];
-        while (*entryp != 0) {
-            if (pos + sizeof **entryp > s.size())
-                co_return Err(Error::Invalid);
-            *entryp = heap_new<Travel>();
-            if (!*entryp)
-                co_return Err(Error::NoMemory);
-            __builtin_memcpy(*entryp, s.data() + pos, sizeof **entryp);
-            pos += sizeof **entryp;
-            entryp = &(*entryp)->next;
-        }
-    }
+    d.pos = SAVE_MAGIC.size();
+    visit(d);
+    if (!d.ok)
+        co_return Err(Error::Invalid);
     co_return {};
 }

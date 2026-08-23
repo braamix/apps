@@ -112,8 +112,10 @@ private:
     int score();
     Task<i32> done(int), die(int);
 
-    // ---- suspend and resume -- save.cpp -------------------------------
+    // ---- suspend and resume -- save.cpp, serial.h ---------------------
     Task<Result<void>> save(Str), restore(Str);
+    template <class V>
+    void visit(V &v); // the one field list, in serial.h
 
     // ================= state ===========================================
     i16 loc_ = 0, newloc_ = 0, oldloc_ = 0, oldlc2_ = 0, wzdark_ = 0, gaveup_ = 0, kq_ = 0, k_ = 0,
