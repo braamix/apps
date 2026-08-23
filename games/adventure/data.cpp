@@ -195,10 +195,13 @@ void DataReader::rlocs(void) // initial object locations
 
 void DataReader::rdflt(void) // default verb messages
 {
+    int v;
     for (;;) {
-        if ((g_.verb_ = rnum()) < 0)
+        v        = rnum();
+        g_.verb_ = Verb(v); // upstream parsed into the global, the -1 too
+        if (v < 0)
             break;
-        g_.actspk_[g_.verb_] = rnum();
+        g_.actspk_[usize(v)] = rnum();
     }
 }
 

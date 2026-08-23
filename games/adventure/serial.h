@@ -16,6 +16,7 @@ struct Ser {
 
     void field(u16 &v) { put(v); }
     void field(i16 &v) { put(u16(v)); }
+    void field(Verb &v) { put(u16(i16(v))); }
     void field(i32 &v)
     {
         put(u16(u32(v)));
@@ -55,6 +56,7 @@ struct De {
 
     void field(u16 &v) { v = get(); }
     void field(i16 &v) { v = i16(get()); }
+    void field(Verb &v) { v = Verb(i16(get())); }
     void field(i32 &v)
     {
         u16 lo = get();

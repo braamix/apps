@@ -331,7 +331,7 @@ Task<Phase> Game::trkill() // 9120
     if (obj_ != dragon_ || prop_[dragon_] != 0)
         co_return report();
     rspeak(49);
-    verb_ = 0;
+    verb_ = Verb::None;
     obj_  = 0;
     if (Task<void> t = getin())
         co_await t;

@@ -64,6 +64,44 @@ struct Travel {     // direcs & conditions of travel
 // and already reported.
 constexpr int ADV_OVER = -1;
 
+// The verbs.  A vocabulary word worth 2000 + n in glorkz is verb n, and these
+// are the numbers the two dispatch switches and actspk_ are indexed by.
+// linkdata() checks the naming still matches the data file.
+enum class Verb : i16 {
+    None = 0, // and rdflt() leaves -1 here, which is why this is signed
+    Take = 1,
+    Drop,
+    Say,
+    Open,
+    Nothing, // the verb, not nothing(), which is statement label 2009
+    Lock,
+    On,
+    Off,
+    Wave,
+    Calm,
+    Walk,
+    Kill,
+    Pour,
+    Eat,
+    Drink,
+    Rub,
+    Throw,
+    Quit,
+    Find,
+    Invent,
+    Feed,
+    Fill,
+    Blast,
+    Score,
+    Foo, // fee, fie, foe, foo, fum
+    Brief,
+    Read,
+    Break,
+    Wake,
+    Suspend,
+    Hours,
+};
+
 // One step of a turn, named for the FORTRAN statement label it was.  Upstream
 // jumped between these with goto and the tr* handlers returned the number the
 // caller switched back into one; here a step returns the next step and play()
@@ -164,8 +202,9 @@ private:
 
     // ================= state ===========================================
     i16 loc_ = 0, newloc_ = 0, oldloc_ = 0, oldlc2_ = 0, wzdark_ = 0, gaveup_ = 0, kq_ = 0, k_ = 0,
-        k2_   = 0;
-    i16 verb_ = 0, obj_ = 0, spk_ = 0;
+        k2_  = 0;
+    i16 obj_ = 0, spk_ = 0;
+    Verb verb_  = Verb::None;
     i16 blklin_ = 0;
     i32 saved_ = 0, savet_ = 0, mxscor_ = 0, latncy_ = 0;
 
@@ -213,8 +252,11 @@ private:
         dragon_ = 0, chasm_ = 0, troll_ = 0, troll2_ = 0, bear_ = 0, messag_ = 0, vend_ = 0,
         batter_ = 0, nugget_ = 0, coins_ = 0, chest_ = 0, eggs_ = 0, tridnt_ = 0, vase_ = 0,
         emrald_ = 0, pyram_ = 0, pearl_ = 0, rug_ = 0, chain_ = 0, spices_ = 0, back_ = 0,
-        look_ = 0, cave_ = 0, null_ = 0, entrnc_ = 0, dprssn_ = 0, say_ = 0, lock_ = 0, throw_ = 0,
-        find_ = 0, invent_ = 0;
+        look_ = 0, cave_ = 0, null_ = 0, entrnc_ = 0, dprssn_ = 0;
+
+    // The verb mnemonics are typed, so verb_ == say_ needs no cast.
+    Verb say_ = Verb::None, lock_ = Verb::None, throw_ = Verb::None, find_ = Verb::None,
+         invent_ = Verb::None;
 
     i16 chloc_ = 0, chloc2_ = 0, dflag_ = 0, daltlc_ = 0; // dwarf stuff
     Vec<i16> dseen_, dloc_, odloc_;

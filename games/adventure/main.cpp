@@ -250,7 +250,7 @@ Task<Phase> Game::describe() // 2000
 
 Phase Game::end_turn() // 2012
 {
-    verb_ = 0;
+    verb_ = Verb::None;
     obj_  = 0;
     return Phase::Hints;
 }
@@ -289,7 +289,7 @@ Task<Phase> Game::timers() // 2608
     turns_++;
 
     if (verb_ == say_ && *wd2_ != 0)
-        verb_ = 0;
+        verb_ = Verb::None;
     if (verb_ == say_)
         co_return Phase::VerbObject;
     if (tally_ == 0 && loc_ >= 15 && loc_ != 33)
@@ -427,8 +427,8 @@ Task<Phase> Game::verb_only() // 4000
 {
     int i;
 
-    verb_ = k_;
-    spk_  = actspk_[verb_];
+    verb_ = Verb(k_);
+    spk_  = actspk_[i16(verb_)];
     if (*wd2_ != 0 && verb_ != say_)
         co_return Phase::Shift;
     if (verb_ == say_)
@@ -437,7 +437,7 @@ Task<Phase> Game::verb_only() // 4000
         co_return Phase::VerbObject;
 
     switch (verb_) {
-    case 1: // take = 8010
+    case Verb::Take: // 8010
         if (atloc_[loc_] == 0 || plink_[atloc_[loc_]] != 0)
             co_return what();
         for (i = 1; i <= 5; i++)
@@ -445,19 +445,19 @@ Task<Phase> Game::verb_only() // 4000
                 co_return what();
         obj_ = atloc_[loc_];
         co_return Phase::VerbObject; // 9010
-    case 2:
-    case 3:
-    case 9: // 8000 : drop,say,wave
-    case 10:
-    case 16:
-    case 17: // calm,rub,toss
-    case 19:
-    case 21:
-    case 28: // find,feed,break
-    case 29: // wake
-        co_return what();
-    case 4:
-    case 6: // 8040 open,lock
+    case Verb::Drop:
+    case Verb::Say:
+    case Verb::Wave:
+    case Verb::Calm:
+    case Verb::Rub:
+    case Verb::Throw:
+    case Verb::Find:
+    case Verb::Feed:
+    case Verb::Break:
+    case Verb::Wake:
+        co_return what(); // 8000
+    case Verb::Open:
+    case Verb::Lock: // 8040
         spk_ = 28;
         if (here(clam_))
             obj_ = clam_;
@@ -474,30 +474,30 @@ Task<Phase> Game::verb_only() // 4000
         if (obj_ == 0)
             co_return report();
         co_return Phase::VerbObject; // 9040
-    case 5:
-        co_return nothing(); // nothing
-    case 7:
-    case 8: // on, off
+    case Verb::Nothing:
+        co_return nothing();
+    case Verb::On:
+    case Verb::Off:
         co_return Phase::VerbObject;
-    case 11:
-        co_return what(); // walk
-    case 12:
-    case 13: // kill, pour
+    case Verb::Walk:
+        co_return what(); // 8110
+    case Verb::Kill:
+    case Verb::Pour:
         co_return Phase::VerbObject;
-    case 14: // eat: 8140
+    case Verb::Eat: // 8140
         if (!here(food_))
             co_return what();
         co_return eat_food();
-    case 15:
-        co_return Phase::VerbObject; // drink
-    case 18:                         // quit: 8180
+    case Verb::Drink:
+        co_return Phase::VerbObject;
+    case Verb::Quit: // 8180
         gaveup_ = co_await yes(22, 54, 54);
         if (gaveup_) {
             co_await done(2); // 8185
             co_return Phase::Over;
         }
         co_return Phase::EndTurn;
-    case 20: // invent=8200
+    case Verb::Invent: // 8200
         spk_ = 98;
         for (i = 1; i <= 100; i++) {
             if (i != bear_ && toting(i)) {
@@ -512,10 +512,10 @@ Task<Phase> Game::verb_only() // 4000
         if (toting(bear_))
             spk_ = 141;
         co_return report();
-    case 22:
-    case 23: // fill, blast
+    case Verb::Fill:
+    case Verb::Blast:
         co_return Phase::VerbObject;
-    case 24: // score: 8240
+    case Verb::Score: // 8240
         scorng_ = TRUE;
         adv_printf("If you were to quit now, you would score");
         adv_printf(" %d out of a possible ", score());
@@ -527,7 +527,7 @@ Task<Phase> Game::verb_only() // 4000
             co_return Phase::Over;
         }
         co_return Phase::EndTurn;
-    case 25: // foo: 8250
+    case Verb::Foo: // 8250
         k_   = vocab(wd1_, 3, 0);
         spk_ = 42;
         if (foobar_ != 1 - k_) {
@@ -551,12 +551,12 @@ Task<Phase> Game::verb_only() // 4000
         move(eggs_, plac_[eggs_]);
         pspeak(eggs_, k_);
         co_return Phase::EndTurn;
-    case 26: // brief=8260
+    case Verb::Brief: // 8260
         spk_    = 156;
         abbnum_ = 10000;
         detail_ = 3;
         co_return report();
-    case 27: // read=8270
+    case Verb::Read: // 8270
         if (here(magzin_))
             obj_ = magzin_;
         if (here(tablet_))
@@ -568,7 +568,7 @@ Task<Phase> Game::verb_only() // 4000
         if (obj_ > 100 || obj_ == 0 || dark(0))
             co_return what();
         co_return Phase::VerbObject; // 9270
-    case 30:                         // suspend=8300
+    case Verb::Suspend:              // 8300
         spk_ = 201;
         adv_printf("I can suspend your adventure for you so");
         adv_printf(" you can resume later, but\n");
@@ -582,7 +582,7 @@ Task<Phase> Game::verb_only() // 4000
         if (co_await ciao() == ADV_OVER)
             co_return Phase::Over;
         co_return Phase::Dwarves;
-    case 31: // hours=8310
+    case Verb::Hours: // 8310
         adv_printf("Colossal cave is closed 9am-5pm Mon ");
         adv_printf("through Fri except holidays.\n");
         co_return Phase::EndTurn;
@@ -596,18 +596,18 @@ Task<Phase> Game::verb_object() // 4090
     int i;
 
     switch (verb_) {
-    case 1: // take = 9010
+    case Verb::Take: // 9010
         co_return trtake();
-    case 2: // drop = 9020
+    case Verb::Drop: // 9020
         co_return trdrop();
-    case 3:
+    case Verb::Say:
         co_return trsay();
-    case 4:
-    case 6: // open, close = 9040
+    case Verb::Open:
+    case Verb::Lock: // 9040
         co_return tropen();
-    case 5:
-        co_return nothing(); // nothing
-    case 7:                  // on   9070
+    case Verb::Nothing:
+        co_return nothing();
+    case Verb::On: // 9070
         if (!here(lamp_))
             co_return report();
         spk_ = 184;
@@ -619,7 +619,7 @@ Task<Phase> Game::verb_object() // 4090
             co_return Phase::Describe;
         co_return Phase::EndTurn;
 
-    case 8: // off
+    case Verb::Off:
         if (!here(lamp_))
             co_return report();
         prop_[lamp_] = 0;
@@ -628,7 +628,7 @@ Task<Phase> Game::verb_object() // 4090
             rspeak(16);
         co_return Phase::EndTurn;
 
-    case 9: // wave
+    case Verb::Wave:
         if ((!toting(obj_)) && (obj_ != rod_ || !toting(rod2_)))
             spk_ = 29;
         if (obj_ != rod_ || !at(fissur_) || !toting(obj_) || closng_)
@@ -636,18 +636,18 @@ Task<Phase> Game::verb_object() // 4090
         prop_[fissur_] = 1 - prop_[fissur_];
         pspeak(fissur_, 2 - prop_[fissur_]);
         co_return Phase::EndTurn;
-    case 10:
-    case 11:
-    case 18: // calm, walk, quit
-    case 24:
-    case 25:
-    case 26: // score, foo, brief
-    case 30:
-    case 31: // suspend, hours
+    case Verb::Calm:
+    case Verb::Walk:
+    case Verb::Quit:
+    case Verb::Score:
+    case Verb::Foo:
+    case Verb::Brief:
+    case Verb::Suspend:
+    case Verb::Hours:
         co_return report();
-    case 12: // kill = 9120
+    case Verb::Kill: // 9120
         co_return co_await trkill();
-    case 13: // pour = 9130
+    case Verb::Pour: // 9130
         if (obj_ == bottle_ || obj_ == 0)
             obj_ = liq(0);
         if (obj_ == 0)
@@ -677,14 +677,14 @@ Task<Phase> Game::verb_object() // 4090
         prop_[plant2_] = prop_[plant_] / 2;
         k_             = null_;
         co_return Phase::Motion;
-    case 14: // 9140 - eat
+    case Verb::Eat: // 9140
         if (obj_ == food_)
             co_return eat_food();
         if (obj_ == bird_ || obj_ == snake_ || obj_ == clam_ || obj_ == oyster_ || obj_ == dwarf_ ||
             obj_ == dragon_ || obj_ == troll_ || obj_ == bear_)
             spk_ = 71;
         co_return report();
-    case 15: // 9150 - drink
+    case Verb::Drink: // 9150
         if (obj_ == 0 && liqloc(loc_) != water_ && (liq(0) != water_ || !here(bottle_)))
             co_return what();
         if (obj_ != 0 && obj_ != water_)
@@ -695,14 +695,14 @@ Task<Phase> Game::verb_object() // 4090
         place_[water_] = 0;
         spk_           = 74;
         co_return report();
-    case 16: // 9160: rub
+    case Verb::Rub: // 9160
         if (obj_ != lamp_)
             spk_ = 76;
         co_return report();
-    case 17: // 9170: throw
+    case Verb::Throw: // 9170
         co_return trtoss();
-    case 19:
-    case 20: // 9190: find, invent
+    case Verb::Find:
+    case Verb::Invent: // 9190
         if (at(obj_) || (liq(0) == obj_ && at(bottle_)) || k_ == liqloc(loc_))
             spk_ = 94;
         for (i = 1; i <= 5; i++)
@@ -713,11 +713,11 @@ Task<Phase> Game::verb_object() // 4090
         if (toting(obj_))
             spk_ = 24;
         co_return report();
-    case 21: // feed = 9210
+    case Verb::Feed: // 9210
         co_return trfeed();
-    case 22: // fill = 9220
+    case Verb::Fill: // 9220
         co_return trfill();
-    case 23: // blast = 9230
+    case Verb::Blast: // 9230
         if (prop_[rod2_] < 0 || !closed_)
             co_return report();
         bonus_ = 133;
@@ -728,7 +728,7 @@ Task<Phase> Game::verb_object() // 4090
         rspeak(bonus_);
         co_await done(2);
         co_return Phase::Over;
-    case 27: // read = 9270
+    case Verb::Read: // 9270
         if (dark(0))
             co_return no_see();
         if (obj_ == magzin_)
@@ -743,7 +743,7 @@ Task<Phase> Game::verb_object() // 4090
             co_return report();
         hinted_[2] = co_await yes(192, 193, 54);
         co_return Phase::EndTurn;
-    case 28: // break
+    case Verb::Break:
         if (obj_ == mirror_)
             spk_ = 148;
         if (obj_ == vase_ && prop_[vase_] == 0) {
@@ -760,7 +760,7 @@ Task<Phase> Game::verb_object() // 4090
         co_await done(3);
         co_return Phase::Over;
 
-    case 29: // wake
+    case Verb::Wake:
         if (obj_ != dwarf_ || !closed_)
             co_return report();
         rspeak(199);
@@ -813,7 +813,7 @@ Phase Game::named() // 5010
 {
     if (*wd2_ != 0)
         return Phase::Shift;
-    if (verb_ != 0)
+    if (verb_ != Verb::None)
         return Phase::VerbObject;
     adv_printf("What do you want to do with the %s?\n", wd1_);
     return Phase::Hints;

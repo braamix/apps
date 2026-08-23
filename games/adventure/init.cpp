@@ -113,11 +113,11 @@ void Game::linkdata(void) // secondary data manipulation
     entrnc_ = vocab("entra", 0, 0);
     dprssn_ = vocab("depre", 0, 0);
 
-    say_    = vocab("say", 2, 0);
-    lock_   = vocab("lock", 2, 0);
-    throw_  = vocab("throw", 2, 0);
-    find_   = vocab("find", 2, 0);
-    invent_ = vocab("inven", 2, 0);
+    say_    = Verb(vocab("say", 2, 0));
+    lock_   = Verb(vocab("lock", 2, 0));
+    throw_  = Verb(vocab("throw", 2, 0));
+    find_   = Verb(vocab("find", 2, 0));
+    invent_ = Verb(vocab("inven", 2, 0));
     // initialize dwarves
     chloc_  = 114;
     chloc2_ = 140;
