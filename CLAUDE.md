@@ -48,9 +48,8 @@ writing any code here:
 - `../braam-core/src/cmd/` — thirty-six worked examples of the program shape.
 - `../braam-core/examples/hello/` — the minimal program and its `CMakeLists.txt`.
 - `../braam-core/tools/mkpkg.py` — the package builder, and `mkrepo.py` beside
-  it for a whole signed repository. `mkpkg.py` now installs with the SDK, but
-  not in 0.4.162, the release this tree pins — so `make package` still reaches
-  into the core tree for it. See Packaging below.
+  it for a whole signed repository. Both install with the SDK as of 0.5.172, so
+  nothing here reaches into the core tree for them any more; only the tests do.
 
 ## Building
 
@@ -232,18 +231,12 @@ To check a repository end to end without uploading, drive
 `index` and the zips from `net.routes` — the shipped anchor is the real one, so
 `pkg update` and `pkg install` exercise §7 in full.
 
-`braam_add_package` and `mkpkg.py` reached the SDK after 0.4.162, the release
-this tree pins, so [cmake/BraamPackage.cmake](cmake/BraamPackage.cmake) stands
-in by driving `../braam-core/tools/mkpkg.py`. **Delete it and the block that
-includes it in [CMakeLists.txt](CMakeLists.txt) when the pinned SDK carries its
-own** — packaging is the one thing here that wants the core tree beside this
-one.
-
 ## Verifying a binary
 
 The module surface is exact, and a link that accidentally pulled in kernel code
 shows up here first — imports `env.memory`, `kernel.sys`, `kernel.sys_async`
-and nothing else; exports exactly `_alloc`, `_free`, `_resume`, `_start`;
+and nothing else; exports exactly `_alloc`, `_free`, `_sig`, `_start`, `_resume`
+(`_sig` is the word the kernel writes a delivered signal into, new in ABI 17);
 one custom section `braam` of five little-endian `u32`s.
 
 The section's second word is the process ABI, and it must match the running

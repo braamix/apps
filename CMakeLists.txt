@@ -15,30 +15,8 @@ endif()
 
 find_package(braam REQUIRED)
 
-# The package builder reached the SDK after 0.4.162, which is the release this
-# tree pins. Until it moves, take mkpkg.py from the core tree beside this
-# checkout — packaging is then the one thing here that wants a second
-# repository, and only when a package is actually built.
-if(NOT COMMAND braam_add_package)
-    if(NOT BRAAM_MKPKG)
-        find_file(BRAAM_MKPKG mkpkg.py
-                  PATHS ${CMAKE_SOURCE_DIR}/../braam-core/tools
-                  NO_DEFAULT_PATH
-                  DOC "mkpkg.py, the package builder")
-    endif()
-    if(BRAAM_MKPKG)
-        include(cmake/BraamPackage.cmake)
-    else()
-        message(STATUS
-            "no mkpkg.py: this SDK ships none and ../braam-core is not there,"
-            " so `make package` has nothing to build with")
-    endif()
-endif()
-
 # Every package, so one target builds the lot. A program attaches its own.
-if(COMMAND braam_add_package)
-    add_custom_target(packages)
-endif()
+add_custom_target(packages)
 
 # One line per category that holds a program.
 add_subdirectory(benchmarks)

@@ -24,11 +24,7 @@ target_compile_options(bin_dhrystone PRIVATE
 
 # The package /bin/pkg installs. bin/ is what reaches PATH, and the entry's
 # leaf is the command's name — bin/dhrystone, never bin/dhrystone.wasm.
-if(COMMAND braam_add_package)
-    braam_add_package(NAME dhrystone VERSION 2.1-r0
-                      FIELD "T=the Dhrystone 2.1 integer benchmark"
-                      FILES $<TARGET_FILE:bin_dhrystone>=bin/dhrystone)
-    if(TARGET packages)
-        add_dependencies(packages pkg_dhrystone)
-    endif()
-endif()
+braam_add_package(NAME dhrystone VERSION 2.1-r1
+                  FIELD "T=the Dhrystone 2.1 integer benchmark"
+                  FILES $<TARGET_FILE:bin_dhrystone>=bin/dhrystone)
+add_dependencies(packages pkg_dhrystone)

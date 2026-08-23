@@ -3,8 +3,8 @@
 
 # The SDK this tree builds against. Move it with each Braam release, here and
 # in README.md. A binary stamped for another process ABI is refused at exec.
-SDK_RELEASE := v0.4
-SDK_VERSION := 0.4.162-6b94bea
+SDK_RELEASE := v0.5
+SDK_VERSION := 0.5.172-e9a2981
 SDK_URL := https://github.com/braamix/core/releases/download/$(SDK_RELEASE)/braam-sdk-$(SDK_VERSION).zip
 
 BUILD     ?= build
@@ -25,7 +25,7 @@ REPO_URL      ?= https://pub.sergev.org/braam
 # G. A client refuses an index whose version is below the one it holds, so this
 # rises at every publication. It cannot be derived: only the publisher knows
 # what was last uploaded.
-INDEX_VERSION ?= 4
+INDEX_VERSION ?= 5
 
 # E, milliseconds since the epoch: 2027-08-21. A promise to re-sign by then.
 INDEX_EXPIRY  ?= 1818806400000
@@ -35,9 +35,8 @@ INDEX_DESC    ?= Braam applications
 # public half has to be the K:index of the anchor the client boots with.
 INDEX_KEY     ?= $(HOME)/.ssh/braam/index.key
 
-# The SDK's copy first; the pinned 0.4.162 predates it, so the core tree next.
-MKINDEX ?= $(firstword $(wildcard \
-    $(SDK)/libexec/braam/mkindex.py ../braam-core/tools/mkindex.py))
+# The SDK ships it, in libexec beside mkpkg.py.
+MKINDEX ?= $(firstword $(wildcard $(SDK)/libexec/braam/mkindex.py))
 
 REPO := $(BUILD)/repo
 
@@ -60,7 +59,7 @@ test: all
 # one directory, because a package's URL is derived from the index's own N.
 index: package
 	@test -n "$(MKINDEX)" || \
-	    { echo "no mkindex.py in $(SDK) or ../braam-core/tools"; exit 1; }
+	    { echo "no mkindex.py in $(SDK)"; exit 1; }
 	@test -r "$(INDEX_KEY)" || { echo "cannot read $(INDEX_KEY)"; exit 1; }
 	@rm -rf $(REPO) && mkdir -p $(REPO)
 	@# A package zip is $(BUILD)/<category>/<program>/<name>-<version>.zip —

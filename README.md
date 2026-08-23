@@ -50,12 +50,9 @@ index version must rise at every publication. The whole procedure is
 [Package Formats](https://github.com/braamix/core/blob/main/doc/Package_Formats.md)
 §10.
 
-Packaging is also the one part that wants the core checkout next to this one,
-until a Braam release later than 0.4.162 ships `mkpkg.py` in the SDK.
-
 The SDK is currently
 
-    https://github.com/braamix/core/releases/download/v0.4/braam-sdk-0.4.162-6b94bea.zip
+    https://github.com/braamix/core/releases/download/v0.5/braam-sdk-0.5.172-e9a2981.zip
 
 named at the head of the [Makefile](Makefile). Please move to the newest with
 each Braam release: a binary carries the process ABI it was built for, and the

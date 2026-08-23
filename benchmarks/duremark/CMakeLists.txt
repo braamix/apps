@@ -18,11 +18,7 @@ target_compile_options(bin_duremark PRIVATE -O2)
 
 # The package /bin/pkg installs. bin/ is what reaches PATH, and the entry's
 # leaf is the command's name.
-if(COMMAND braam_add_package)
-    braam_add_package(NAME duremark VERSION 1.1-r0
-                      FIELD "T=a small CoreMark-inspired integer benchmark"
-                      FILES $<TARGET_FILE:bin_duremark>=bin/duremark)
-    if(TARGET packages)
-        add_dependencies(packages pkg_duremark)
-    endif()
-endif()
+braam_add_package(NAME duremark VERSION 1.1-r1
+                  FIELD "T=a small CoreMark-inspired integer benchmark"
+                  FILES $<TARGET_FILE:bin_duremark>=bin/duremark)
+add_dependencies(packages pkg_duremark)
