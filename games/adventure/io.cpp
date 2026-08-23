@@ -59,7 +59,7 @@ Task<void> Game::getin() // get command from user
     co_return;
 }
 
-Task<i32> Game::yes(int x, int y, int z) // confirm with rspeak
+Task<i32> Game::yes(Msg x, Msg y, Msg z) // confirm with rspeak
 {
     int result = -1;
     String line;
@@ -122,10 +122,10 @@ Task<i32> Game::yesm(Magic x, Magic y, Magic z) // confirm with mspeak
     co_return result;
 }
 
-void Game::rspeak(int msg)
+void Game::rspeak(Msg msg)
 {
-    if (msg != 0)
-        speak(&rtext_[msg]);
+    if (msg != Msg::None)
+        speak(&rtext_[i16(msg)]);
 }
 
 void Game::mspeak(Magic msg)

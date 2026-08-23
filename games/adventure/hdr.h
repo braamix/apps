@@ -141,20 +141,20 @@ private:
 
     // 2009 -> 2010 -> 2011 -> 2012 is a fallthrough chain with no branching,
     // so it stays one as a chain of calls.  8000 and 8142 are the same shape.
-    Phase nothing() { return k_ = 54, speak_k(); }                  // 2009
-    Phase speak_k() { return spk_ = k_, report(); }                 // 2010
-    Phase report() { return rspeak(spk_), Phase::EndTurn; }         // 2011
-    Phase what();                                                   // 8000
-    Phase eat_food() { return dstroy(food_), spk_ = 72, report(); } // 8142
+    Phase nothing() { return k_ = i16(Msg::Ok), speak_k(); }                    // 2009
+    Phase speak_k() { return spk_ = Msg(k_), report(); }                        // 2010
+    Phase report() { return rspeak(spk_), Phase::EndTurn; }                     // 2011
+    Phase what();                                                               // 8000
+    Phase eat_food() { return dstroy(food_), spk_ = Msg::Delicious, report(); } // 8142
 
     // ---- setup -- init.cpp --------------------------------------------
     void linkdata(), check_vocab();
     Task<i32> startup();
 
     // ---- messages and input -- io.cpp ---------------------------------
-    void speak(Text *), pspeak(int, int), rspeak(int), mspeak(Magic);
+    void speak(Text *), pspeak(int, int), rspeak(Msg), mspeak(Magic);
     Task<void> getin(); // fills wd1_ and wd2_
-    Task<i32> yes(int, int, int), yesm(Magic, Magic, Magic);
+    Task<i32> yes(Msg, Msg, Msg), yesm(Magic, Magic, Magic);
 
     // ---- the objects -- vocab.cpp -------------------------------------
     void dstroy(int), juggle(int), move(int, int), carry(int, int), drop(int, int);
@@ -191,8 +191,9 @@ private:
 
     // ================= state ===========================================
     i16 loc_ = 0, newloc_ = 0, oldloc_ = 0, oldlc2_ = 0, wzdark_ = 0, gaveup_ = 0, kq_ = 0, k_ = 0,
-        k2_  = 0;
-    i16 obj_ = 0, spk_ = 0;
+        k2_     = 0;
+    i16 obj_    = 0;
+    Msg spk_    = Msg::None;
     Verb verb_  = Verb::None;
     i16 blklin_ = 0;
     i32 saved_ = 0, savet_ = 0, mxscor_ = 0, latncy_ = 0;
@@ -221,7 +222,7 @@ private:
     Vec<i16> plac_;         // initial object placement
     Vec<i16> fixd_, fixed_; // location fixed?
 
-    Vec<i16> actspk_; // rtext msg for verb <n>
+    Vec<Msg> actspk_; // rtext msg for verb <n>
 
     Vec<i16> cond_; // various condition bits
 
@@ -254,8 +255,9 @@ private:
     i16 stick_ = 0, dtotal_ = 0, attack_ = 0;
     i16 turns_ = 0, lmwarn_ = 0, iwest_ = 0, knfloc_ = 0, // various flags & counters
         detail_ = 0, abbnum_ = 0, maxdie_ = 0, numdie_ = 0, holdng_ = 0, dkill_ = 0, foobar_ = 0,
-        bonus_ = 0, clock1_ = 0, clock2_ = 0, closng_ = 0, panic_ = 0, closed_ = 0, scorng_ = 0;
+        clock1_ = 0, clock2_ = 0, closng_ = 0, panic_ = 0, closed_ = 0, scorng_ = 0;
 
+    Msg bonus_ = Msg::None; // the explosion ending, and the points for it
     i16 limit_ = 0;
 
     Vec<char> dat_; // the decrypted text, indexed by speak() and pspeak()

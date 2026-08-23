@@ -142,10 +142,11 @@ void Game::linkdata(void) // secondary data manipulation
     for (i = 0; i <= 4; i++)
         if (rtext_[2 * i + 81].seekadr != 0)
             maxdie_ = i + 1;
-    numdie_ = holdng_ = dkill_ = foobar_ = bonus_ = 0;
-    clock1_                                       = 30;
-    clock2_                                       = 50;
-    saved_                                        = 0;
+    numdie_ = holdng_ = dkill_ = foobar_ = 0;
+    bonus_                               = Msg::None;
+    clock1_                              = 30;
+    clock2_                              = 50;
+    saved_                               = 0;
     closng_ = panic_ = closed_ = scorng_ = FALSE;
     check_vocab();
 }
@@ -190,7 +191,7 @@ Task<i32> Game::startup(void)
 {
     if (Task<void> t = adv_seed()) // random odd seed
         co_await t;
-    hinted_[3] = co_await yes(65, 1, 0);
+    hinted_[3] = co_await yes(Msg::WelcomeInstructions, Msg::ColossalCave, Msg::None);
     newloc_    = 1;
     limit_     = 330;
     if (hinted_[3])

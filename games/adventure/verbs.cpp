@@ -42,11 +42,11 @@ Task<void> Game::checkhints(void) // 2600 &c
         }
     l40010:
         hintlc_[hint] = 0;
-        if (!co_await yes(hints_[hint][3], 0, 54))
+        if (!co_await yes(Msg(hints_[hint][3]), Msg::None, Msg::Ok))
             continue;
         adv_printf("I am prepared to give you a hint, but it will ");
         adv_printf("cost you %d points.\n", hints_[hint][2]);
-        hinted_[hint] = co_await yes(175, hints_[hint][4], 54);
+        hinted_[hint] = co_await yes(Msg::WantTheHint, Msg(hints_[hint][4]), Msg::Ok);
     l40020:
         hintlc_[hint] = 0;
     }
@@ -73,13 +73,13 @@ Phase Game::trtake() // 9010
 {
     if (toting(obj_))
         return report(); // 9010
-    spk_ = 25;
+    spk_ = Msg::CantBeSerious;
     if (obj_ == plant_ && prop_[plant_] <= 0)
-        spk_ = 115;
+        spk_ = Msg::PlantDeepRoots;
     if (obj_ == bear_ && prop_[bear_] == 1)
-        spk_ = 169;
+        spk_ = Msg::BearStillChained;
     if (obj_ == chain_ && prop_[bear_] != 0)
-        spk_ = 170;
+        spk_ = Msg::ChainStillLocked;
     if (fixed_[obj_] != 0)
         return report();
     if (obj_ == water_ || obj_ == oil_) {
@@ -91,26 +91,26 @@ Phase Game::trtake() // 9010
         if (toting(bottle_) && prop_[bottle_] == 1)
             return Phase::Fill;
         if (prop_[bottle_] != 1)
-            spk_ = 105;
+            spk_ = Msg::BottleAlreadyFull;
         if (!toting(bottle_))
-            spk_ = 104;
+            spk_ = Msg::NothingToCarryItIn;
         return report();
     }
 l9017:
     if (holdng_ >= 7) {
-        rspeak(92);
+        rspeak(Msg::CarryingTooMuch);
         return Phase::EndTurn;
     }
     if (obj_ == bird_) {
         if (prop_[bird_] != 0)
             goto l9014;
         if (toting(rod_)) {
-            rspeak(26);
+            rspeak(Msg::BirdBecomesUneasy);
             return Phase::EndTurn;
         }
         if (!toting(cage_)) // 9013
         {
-            rspeak(27);
+            rspeak(Msg::CantCarryBird);
             return Phase::EndTurn;
         }
         prop_[bird_] = 1; // 9015
@@ -147,7 +147,7 @@ Phase Game::trdrop() // 9020
     if (!toting(obj_))
         return report();
     if (obj_ == bird_ && here(snake_)) {
-        rspeak(30);
+        rspeak(Msg::BirdKillsSnake);
         if (closed_)
             return Phase::Done3;
         dstroy(snake_);
@@ -163,7 +163,7 @@ Phase Game::trdrop() // 9020
     }
     if (obj_ == bird_ && at(dragon_) && prop_[dragon_] == 0) // 9025
     {
-        rspeak(154);
+        rspeak(Msg::BirdKillsDragon);
         dstroy(bird_);
         prop_[bird_] = 0;
         if (place_[snake_] == plac_[snake_])
@@ -172,7 +172,7 @@ Phase Game::trdrop() // 9020
     }
     if (obj_ == bear_ && at(troll_)) // 9026
     {
-        rspeak(163);
+        rspeak(Msg::BearScaresTroll);
         move(troll_, 0);
         move(troll_ + 100, 0);
         move(troll2_, plac_[troll_]);
@@ -183,7 +183,7 @@ Phase Game::trdrop() // 9020
     }
     if (obj_ != vase_ || loc_ == plac_[pillow_]) // 9027
     {
-        rspeak(54);
+        rspeak(Msg::Ok);
         return (dropper());
     }
     prop_[vase_] = 2; // 9028
@@ -201,14 +201,14 @@ Phase Game::tropen() // 9040
         k_ = 0; // 9046
         if (obj_ == oyster_)
             k_ = 1;
-        spk_ = 124 + k_;
+        spk_ = Msg(124 + k_);
         if (toting(obj_))
-            spk_ = 120 + k_;
+            spk_ = Msg(120 + k_);
         if (!toting(tridnt_))
-            spk_ = 122 + k_;
+            spk_ = Msg(122 + k_);
         if (verb_ == lock_)
-            spk_ = 61;
-        if (spk_ != 124)
+            spk_ = Msg::What;
+        if (spk_ != Msg::PearlFalls)
             return report();
         dstroy(clam_);
         drop(oyster_, loc_);
@@ -216,25 +216,25 @@ Phase Game::tropen() // 9040
         return report();
     }
     if (obj_ == door_)
-        spk_ = 111;
+        spk_ = Msg::DoorRusty;
     if (obj_ == door_ && prop_[door_] == 1)
-        spk_ = 54;
+        spk_ = Msg::Ok;
     if (obj_ == cage_)
-        spk_ = 32;
+        spk_ = Msg::NoLock;
     if (obj_ == keys_)
-        spk_ = 55;
+        spk_ = Msg::CantUnlockKeys;
     if (obj_ == grate_ || obj_ == chain_)
-        spk_ = 31;
-    if (spk_ != 31 || !here(keys_))
+        spk_ = Msg::NoKeys;
+    if (spk_ != Msg::NoKeys || !here(keys_))
         return report();
     if (obj_ == chain_) {
         if (verb_ == lock_) {
-            spk_ = 172; // 9049: lock
+            spk_ = Msg::ChainLocked; // 9049: lock
             if (prop_[chain_] != 0)
-                spk_ = 34;
+                spk_ = Msg::AlreadyLocked;
             if (loc_ != plac_[chain_])
-                spk_ = 173;
-            if (spk_ != 172)
+                spk_ = Msg::NothingToLockChainTo;
+            if (spk_ != Msg::ChainLocked)
                 return report();
             prop_[chain_] = 2;
             if (toting(chain_))
@@ -242,12 +242,12 @@ Phase Game::tropen() // 9040
             fixed_[chain_] = -1;
             return report();
         }
-        spk_ = 171;
+        spk_ = Msg::ChainUnlocked;
         if (prop_[bear_] == 0)
-            spk_ = 41;
+            spk_ = Msg::BearBlocksChain;
         if (prop_[chain_] == 0)
-            spk_ = 37;
-        if (spk_ != 171)
+            spk_ = Msg::AlreadyUnlocked;
+        if (spk_ != Msg::ChainUnlocked)
             return report();
         prop_[chain_]  = 0;
         fixed_[chain_] = 0;
@@ -257,7 +257,7 @@ Phase Game::tropen() // 9040
         return report();
     }
     if (closng_) {
-        k_ = 130;
+        k_ = i16(Msg::RecordedVoice);
         if (!panic_)
             clock2_ = 15;
         panic_ = TRUE;
@@ -304,34 +304,34 @@ Task<Phase> Game::trkill() // 9120
     }
     if (obj_ == bird_) // 9124
     {
-        spk_ = 137;
+        spk_ = Msg::LeaveBirdAlone;
         if (closed_)
             co_return report();
         dstroy(bird_);
         prop_[bird_] = 0;
         if (place_[snake_] == plac_[snake_])
             tally2_++;
-        spk_ = 45;
+        spk_ = Msg::BirdDead;
     }
     if (obj_ == 0)
-        spk_ = 44; // 9125
+        spk_ = Msg::NothingToAttack; // 9125
     if (obj_ == clam_ || obj_ == oyster_)
-        spk_ = 150;
+        spk_ = Msg::ShellImpervious;
     if (obj_ == snake_)
-        spk_ = 46;
+        spk_ = Msg::SnakeDangerous;
     if (obj_ == dwarf_)
-        spk_ = 49;
+        spk_ = Msg::BareHands;
     if (obj_ == dwarf_ && closed_)
         co_return Phase::Done3;
     if (obj_ == dragon_)
-        spk_ = 147;
+        spk_ = Msg::DontKnowHow;
     if (obj_ == troll_)
-        spk_ = 157;
+        spk_ = Msg::TrollsTough;
     if (obj_ == bear_)
-        spk_ = 165 + (prop_[bear_] + 1) / 2;
+        spk_ = Msg(165 + (prop_[bear_] + 1) / 2);
     if (obj_ != dragon_ || prop_[dragon_] != 0)
         co_return report();
-    rspeak(49);
+    rspeak(Msg::BareHands);
     verb_ = Verb::None;
     obj_  = 0;
     if (Task<void> t = getin())
@@ -362,7 +362,7 @@ Phase Game::trtoss() // 9170: throw
     if (!toting(obj_))
         return report();
     if (obj_ >= 50 && obj_ <= maxtrs_ && at(troll_)) {
-        spk_ = 159; // 9178
+        spk_ = Msg::TrollTakesTreasure; // 9178
         drop(obj_, 0);
         move(troll_, 0);
         move(troll_ + 100, 0);
@@ -379,7 +379,7 @@ Phase Game::trtoss() // 9170: throw
         return Phase::Drop;
     for (i = 1; i <= 5; i++) {
         if (dloc_[i] == loc_) {
-            spk_ = 48; // 9172
+            spk_ = Msg::DwarfDodges; // 9172
             if (ran(3) == 0 || saved_ != -1)
             l9175: {
                 rspeak(spk_);
@@ -389,21 +389,21 @@ Phase Game::trtoss() // 9170: throw
             }
                 dseen_[i] = FALSE;
             dloc_[i] = 0;
-            spk_     = 47;
+            spk_     = Msg::KilledDwarf;
             dkill_++;
             if (dkill_ == 1)
-                spk_ = 149;
+                spk_ = Msg::KilledDwarfCloud;
             goto l9175;
         }
     }
-    spk_ = 152;
+    spk_ = Msg::AxeBouncesDragon;
     if (at(dragon_) && prop_[dragon_] == 0)
         goto l9175;
-    spk_ = 158;
+    spk_ = Msg::TrollCatchesAxe;
     if (at(troll_))
         goto l9175;
     if (here(bear_) && prop_[bear_] == 0) {
-        spk_ = 164;
+        spk_ = Msg::AxeMissesNearBear;
         drop(axe_, loc_);
         fixed_[axe_] = -1;
         prop_[axe_]  = 1;
@@ -417,18 +417,18 @@ Phase Game::trtoss() // 9170: throw
 Phase Game::trfeed() // 9210
 {
     if (obj_ == bird_) {
-        spk_ = 100;
+        spk_ = Msg::NotHungryFjords;
         return report();
     }
     if (obj_ == snake_ || obj_ == dragon_ || obj_ == troll_) {
-        spk_ = 102;
+        spk_ = Msg::NothingItWantsToEat;
         if (obj_ == dragon_ && prop_[dragon_] != 0)
-            spk_ = 110;
+            spk_ = Msg::DontBeRidiculous;
         if (obj_ == troll_)
-            spk_ = 182;
+            spk_ = Msg::TrollNotGluttony;
         if (obj_ != snake_ || closed_ || !here(bird_))
             return report();
-        spk_ = 101;
+        spk_ = Msg::SnakeEatsBird;
         dstroy(bird_);
         prop_[bird_] = 0;
         tally2_++;
@@ -437,37 +437,37 @@ Phase Game::trfeed() // 9210
     if (obj_ == dwarf_) {
         if (!here(food_))
             return report();
-        spk_ = 103;
+        spk_ = Msg::DwarvesEatCoal;
         dflag_++;
         return report();
     }
     if (obj_ == bear_) {
         if (prop_[bear_] == 0)
-            spk_ = 102;
+            spk_ = Msg::NothingItWantsToEat;
         if (prop_[bear_] == 3)
-            spk_ = 110;
+            spk_ = Msg::DontBeRidiculous;
         if (!here(food_))
             return report();
         dstroy(food_);
         prop_[bear_] = 1;
         fixed_[axe_] = 0;
         prop_[axe_]  = 0;
-        spk_         = 168;
+        spk_         = Msg::BearWolfsFood;
         return report();
     }
-    spk_ = 14;
+    spk_ = Msg::ExplainHow;
     return report();
 }
 
 Phase Game::trfill() // 9220
 {
     if (obj_ == vase_) {
-        spk_ = 29;
+        spk_ = Msg::NotCarryingIt;
         if (liqloc(loc_) == 0)
-            spk_ = 144;
+            spk_ = Msg::NothingToFillVase;
         if (liqloc(loc_) == 0 || !toting(vase_))
             return report();
-        rspeak(145);
+        rspeak(Msg::VaseShattered);
         prop_[vase_]  = 2;
         fixed_[vase_] = -1;
         return Phase::Drop; // advent/10 goes to 9024
@@ -476,18 +476,18 @@ Phase Game::trfill() // 9220
         return report();
     if (obj_ == 0 && !here(bottle_))
         return what();
-    spk_ = 107;
+    spk_ = Msg::BottleFullWater;
     if (liqloc(loc_) == 0)
-        spk_ = 106;
+        spk_ = Msg::NothingToFillWith;
     if (liq(0) != 0)
-        spk_ = 105;
-    if (spk_ != 107)
+        spk_ = Msg::BottleAlreadyFull;
+    if (spk_ != Msg::BottleFullWater)
         return report();
     prop_[bottle_] = ((cond_[loc_] % 4) / 2) * 2;
     k_             = liq(0);
     if (toting(bottle_))
         place_[k_] = -1;
     if (k_ == oil_)
-        spk_ = 108;
+        spk_ = Msg::BottleFullOil;
     return report();
 }

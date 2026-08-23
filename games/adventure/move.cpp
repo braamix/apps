@@ -10,7 +10,7 @@ int Game::fdwarf(void) // 71
             if (odloc_[i] != newloc_ || !dseen_[i])
                 continue;
             newloc_ = loc_;
-            rspeak(2);
+            rspeak(Msg::DwarfBlocks);
             break;
         }
     }
@@ -37,7 +37,7 @@ int Game::fdwarf(void) // 71
                 dloc_[i] = daltlc_;
             odloc_[i] = dloc_[i]; // 6002
         }
-        rspeak(3);
+        rspeak(Msg::DwarfThrowsAxe);
         drop(axe_, loc_);
         return (2000);
     }
@@ -85,10 +85,10 @@ int Game::fdwarf(void) // 71
                 prop_[lamp_] == 1)
                 goto l6025;
             if (odloc_[6] != dloc_[6] && pct(20))
-                rspeak(127);
+                rspeak(Msg::FaintRustling);
             continue; // to 6030
         l6022:
-            rspeak(128);
+            rspeak(Msg::PiratePounces);
             if (place_[messag_] == 0)
                 move(chest_, chloc_);
             move(messag_, chloc2_);
@@ -106,7 +106,7 @@ int Game::fdwarf(void) // 71
             dseen_[6]            = FALSE;
             continue;
         l6025:
-            rspeak(186);
+            rspeak(Msg::RustlingThenPirate);
             move(chest_, chloc_);
             move(messag_, chloc2_);
             goto l6024;
@@ -126,7 +126,7 @@ int Game::fdwarf(void) // 71
         adv_printf("There are %d threatening little dwarves ", dtotal_);
         adv_printf("in the room with you.\n");
     } else
-        rspeak(4);
+        rspeak(Msg::DwarfInRoom);
     if (attack_ == 0)
         return (2000);
     if (dflag_ == 2)
@@ -135,11 +135,11 @@ int Game::fdwarf(void) // 71
         dflag_ = 20;
     if (attack_ != 1) {
         adv_printf("%d of them throw knives at you!\n", attack_);
-        k_ = 6;
+        k_ = i16(Msg::NoneHitYou);
     l82:
         if (stick_ <= 1) // 82
         {
-            rspeak(k_ + stick_);
+            rspeak(Msg(k_ + stick_));
             if (stick_ == 0)
                 return (2000);
         } else
@@ -147,8 +147,8 @@ int Game::fdwarf(void) // 71
         oldlc2_ = loc_;
         return (99);
     }
-    rspeak(5);
-    k_ = 52;
+    rspeak(Msg::KnifeThrown);
+    k_ = i16(Msg::KnifeMisses);
     goto l82;
 }
 
@@ -162,7 +162,7 @@ int Game::mback(void) // 20
     oldloc_ = loc_;
     tk2     = -1; // upstream's null travel entry
     if (k_ == loc_) {
-        rspeak(91);
+        rspeak(Msg::DontRememberHow);
         return (2);
     }
     for (; !tk_end(); tkk_++) // 21
@@ -189,28 +189,28 @@ int Game::mback(void) // 20
         tk_to(loc_);
         return (9);
     }
-    rspeak(140);
+    rspeak(Msg::CantGetThereFromHere);
     return (2);
 }
 
 int Game::badmove(void) // 20
 {
     Motion m = Motion(k_);
-    spk_     = 12;
+    spk_     = Msg::WordNotHere;
     if (m >= Motion::East && m <= Motion::NW)
-        spk_ = 9;
+        spk_ = Msg::NoWayThatWay;
     if (m == Motion::Up || m == Motion::Down)
-        spk_ = 9;
+        spk_ = Msg::NoWayThatWay;
     if (m == Motion::Forward || m == Motion::Left || m == Motion::Right)
-        spk_ = 10;
+        spk_ = Msg::UnsureFacing;
     if (m == Motion::Out || m == Motion::In)
-        spk_ = 11;
+        spk_ = Msg::UnsureInOut;
     if (verb_ == find_ || verb_ == invent_)
-        spk_ = 59;
+        spk_ = Msg::OnlyTellWhatYouSee;
     if (m == Motion::Xyzzy || m == Motion::Plugh)
-        spk_ = 42;
+        spk_ = Msg::NothingHappens;
     if (m == Motion::Crawl)
-        spk_ = 80;
+        spk_ = Msg::WhichWay;
     rspeak(spk_);
     return (2);
 }
@@ -233,7 +233,7 @@ int Game::trbridge(void) // 30300
         prop_[troll_] = 1;
     if (!toting(bear_))
         return (2);
-    rspeak(162);
+    rspeak(Msg::BridgeBuckles);
     prop_[chasm_] = 1;
     prop_[troll_] = 2;
     drop(bear_, newloc_);
@@ -253,7 +253,7 @@ int Game::specials(void) // 30000
         if (holdng_ == 0 || (holdng_ == 1 && toting(emrald_)))
             return (2);
         newloc_ = loc_;
-        rspeak(117);
+        rspeak(Msg::WontFitThroughTunnel);
         return (2);
     case 2: // 30200
         drop(emrald_, loc_);
@@ -277,15 +277,15 @@ int Game::march(void) // label 8
     if (k_ == cave_) // 40
     {
         if (loc_ < 8)
-            rspeak(57);
+            rspeak(Msg::NoStreamOnSurface);
         if (loc_ >= 8)
-            rspeak(58);
+            rspeak(Msg::NeedDetail);
         return (2);
     }
     if (k_ == look_) // 30
     {
         if (detail_++ < 3)
-            rspeak(15);
+            rspeak(Msg::NoMoreDetail);
         wzdark_    = FALSE;
         abb_[loc_] = 0;
         return (2);
@@ -337,7 +337,7 @@ l11:
                 default:
                     bug(101);
                 }
-            rspeak(newloc_ - 500);
+            rspeak(Msg(newloc_ - 500));
             newloc_ = loc_;
             return (2);
         }

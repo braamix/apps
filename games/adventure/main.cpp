@@ -24,7 +24,7 @@ Phase Game::closing() // 10000
     fixed_[chain_] = 0;
     prop_[axe_]    = 0;
     fixed_[axe_]   = 0;
-    rspeak(129);
+    rspeak(Msg::CaveClosingSoon);
     clock1_ = -1;
     closng_ = TRUE;
     return Phase::Lamp;
@@ -56,7 +56,7 @@ Phase Game::caveclose() // 11000
     for (i = 1; i <= 100; i++)
         if (toting(i))
             dstroy(i);
-    rspeak(132);
+    rspeak(Msg::CaveNowClosed);
     closed_ = TRUE;
     return Phase::Dwarves;
 }
@@ -173,8 +173,8 @@ Task<i32> Game::play(Args args)
 Task<Phase> Game::dwarves() // 2
 {
     if (newloc_ < 9 && newloc_ != 0 && closng_) {
-        rspeak(130);    // if closing leave only by
-        newloc_ = loc_; // main office
+        rspeak(Msg::RecordedVoice); // if closing leave only by
+        newloc_ = loc_;             // main office
         if (!panic_)
             clock2_ = 15;
         panic_ = TRUE;
@@ -205,18 +205,18 @@ Task<Phase> Game::describe() // 2000
                     co_return Phase::Over;
                 continue; // i.e. goto l2000
             }
-            kk = &rtext_[16];
+            kk = &rtext_[i16(Msg::PitchDark)];
         }
         break;
     }
     if (toting(bear_))
-        rspeak(141); // 2001
+        rspeak(Msg::FollowedByBear); // 2001
     speak(kk);
     k_ = i16(Motion::Forced);
     if (forced(loc_))
         co_return Phase::Motion;
     if (loc_ == 33 && pct(25) && !closng_)
-        rspeak(8);
+        rspeak(Msg::HollowVoicePlugh);
     if (!dark(0)) {
         abb_[loc_]++;
         for (i = atloc_[loc_]; i != 0; i = plink_[i]) // 2004
@@ -303,7 +303,7 @@ Task<Phase> Game::timers() // 2608
     if (prop_[lamp_] == 1)
         limit_--;
     if (limit_ <= 30 && here(batter_) && prop_[batter_] == 0 && here(lamp_)) {
-        rspeak(188); // 12000
+        rspeak(Msg::LampDimReplacing); // 12000
         prop_[batter_] = 1;
         if (toting(batter_))
             drop(batter_, loc_);
@@ -314,11 +314,11 @@ Task<Phase> Game::timers() // 2608
     if (limit_ == 0) {
         limit_       = -1; // 12400
         prop_[lamp_] = 0;
-        rspeak(184);
+        rspeak(Msg::LampOutOfPower);
         co_return Phase::Lamp;
     }
     if (limit_ < 0 && loc_ <= 8) {
-        rspeak(185); // 12600
+        rspeak(Msg::NoPointWandering); // 12600
         gaveup_ = TRUE;
         co_await done(2); // to 20000
         co_return Phase::Over;
@@ -327,11 +327,11 @@ Task<Phase> Game::timers() // 2608
         if (lmwarn_ || !here(lamp_))
             co_return Phase::Lamp; // 12200
         lmwarn_ = TRUE;
-        spk_    = 187;
+        spk_    = Msg::LampDimGetBatteries;
         if (place_[batter_] == 0)
-            spk_ = 183;
+            spk_ = Msg::LampDimWrapUp;
         if (prop_[batter_] == 1)
-            spk_ = 189;
+            spk_ = Msg::LampDimNoSpares;
         rspeak(spk_);
     }
     co_return Phase::Lamp;
@@ -339,9 +339,9 @@ Task<Phase> Game::timers() // 2608
 
 Phase Game::lamp() // 19999
 {
-    k_ = 43;
+    k_ = i16(Msg::Where);
     if (liqloc(loc_) == water_)
-        k_ = 70;
+        k_ = i16(Msg::FeetWet);
     if (weq(wd1_, "enter") && (weq(wd2_, "strea") || weq(wd2_, "water")))
         return speak_k();
     if (weq(wd1_, "enter") && *wd2_ != 0)
@@ -357,7 +357,7 @@ Phase Game::west() // 2610
 {
     if (weq(wd1_, "west"))
         if (++iwest_ == 10)
-            rspeak(17);
+            rspeak(Msg::TypeWNotWest);
     return Phase::Lookup;
 }
 
@@ -365,11 +365,11 @@ Phase Game::lookup() // 2630
 {
     int i = vocab(wd1_, -1, 0);
     if (i == -1) {
-        spk_ = 60; // 3000
+        spk_ = Msg::UnknownWord; // 3000
         if (pct(20))
-            spk_ = 61;
+            spk_ = Msg::What;
         if (pct(20))
-            spk_ = 13;
+            spk_ = Msg::DontUnderstand;
         rspeak(spk_);
         return Phase::Hints;
     }
@@ -458,7 +458,7 @@ Task<Phase> Game::verb_only() // 4000
         co_return what(); // 8000
     case Verb::Open:
     case Verb::Lock: // 8040
-        spk_ = 28;
+        spk_ = Msg::NothingWithLock;
         if (here(clam_))
             obj_ = clam_;
         if (here(oyster_))
@@ -491,26 +491,26 @@ Task<Phase> Game::verb_only() // 4000
     case Verb::Drink:
         co_return Phase::VerbObject;
     case Verb::Quit: // 8180
-        gaveup_ = co_await yes(22, 54, 54);
+        gaveup_ = co_await yes(Msg::ReallyQuit, Msg::Ok, Msg::Ok);
         if (gaveup_) {
             co_await done(2); // 8185
             co_return Phase::Over;
         }
         co_return Phase::EndTurn;
     case Verb::Invent: // 8200
-        spk_ = 98;
+        spk_ = Msg::CarryingNothing;
         for (i = 1; i <= 100; i++) {
             if (i != bear_ && toting(i)) {
-                if (spk_ == 98)
-                    rspeak(99);
+                if (spk_ == Msg::CarryingNothing)
+                    rspeak(Msg::CurrentlyHolding);
                 blklin_ = FALSE;
                 pspeak(i, -1);
                 blklin_ = TRUE;
-                spk_    = 0;
+                spk_    = Msg::None;
             }
         }
         if (toting(bear_))
-            spk_ = 141;
+            spk_ = Msg::FollowedByBear;
         co_return report();
     case Verb::Fill:
     case Verb::Blast:
@@ -521,7 +521,7 @@ Task<Phase> Game::verb_only() // 4000
         adv_printf(" %d out of a possible ", score());
         adv_printf("%d.", mxscor_);
         scorng_ = FALSE;
-        gaveup_ = co_await yes(143, 54, 54);
+        gaveup_ = co_await yes(Msg::IndeedQuit, Msg::Ok, Msg::Ok);
         if (gaveup_) {
             co_await done(2);
             co_return Phase::Over;
@@ -529,10 +529,10 @@ Task<Phase> Game::verb_only() // 4000
         co_return Phase::EndTurn;
     case Verb::Foo: // 8250
         k_   = vocab(wd1_, 3, 0);
-        spk_ = 42;
+        spk_ = Msg::NothingHappens;
         if (foobar_ != 1 - k_) {
             if (foobar_ != 0)
-                spk_ = 151;
+                spk_ = Msg::CantYouRead;
             co_return report();
         }
         foobar_ = k_; // 8252
@@ -552,7 +552,7 @@ Task<Phase> Game::verb_only() // 4000
         pspeak(eggs_, k_);
         co_return Phase::EndTurn;
     case Verb::Brief: // 8260
-        spk_    = 156;
+        spk_    = Msg::BriefMode;
         abbnum_ = 10000;
         detail_ = 3;
         co_return report();
@@ -569,12 +569,12 @@ Task<Phase> Game::verb_only() // 4000
             co_return what();
         co_return Phase::VerbObject; // 9270
     case Verb::Suspend:              // 8300
-        spk_ = 201;
+        spk_ = Msg::NoSuspendDemo;
         adv_printf("I can suspend your adventure for you so");
         adv_printf(" you can resume later, but\n");
         adv_printf("you will have to wait at least");
         adv_printf(" %d minutes before continuing.", latncy_);
-        if (!co_await yes(200, 54, 54))
+        if (!co_await yes(Msg::IsThisAcceptable, Msg::Ok, Msg::Ok))
             co_return Phase::EndTurn;
         if (Task<void> t = adv_clock())
             co_await t;
@@ -610,11 +610,11 @@ Task<Phase> Game::verb_object() // 4090
     case Verb::On: // 9070
         if (!here(lamp_))
             co_return report();
-        spk_ = 184;
+        spk_ = Msg::LampOutOfPower;
         if (limit_ < 0)
             co_return report();
         prop_[lamp_] = 1;
-        rspeak(39);
+        rspeak(Msg::LampOn);
         if (wzdark_)
             co_return Phase::Describe;
         co_return Phase::EndTurn;
@@ -623,14 +623,14 @@ Task<Phase> Game::verb_object() // 4090
         if (!here(lamp_))
             co_return report();
         prop_[lamp_] = 0;
-        rspeak(40);
+        rspeak(Msg::LampOff);
         if (dark(0))
-            rspeak(16);
+            rspeak(Msg::PitchDark);
         co_return Phase::EndTurn;
 
     case Verb::Wave:
         if ((!toting(obj_)) && (obj_ != rod_ || !toting(rod2_)))
-            spk_ = 29;
+            spk_ = Msg::NotCarryingIt;
         if (obj_ != rod_ || !at(fissur_) || !toting(obj_) || closng_)
             co_return report();
         prop_[fissur_] = 1 - prop_[fissur_];
@@ -654,22 +654,22 @@ Task<Phase> Game::verb_object() // 4090
             co_return what();
         if (!toting(obj_))
             co_return report();
-        spk_ = 78;
+        spk_ = Msg::CantPourThat;
         if (obj_ != oil_ && obj_ != water_)
             co_return report();
         prop_[bottle_] = 1;
         place_[obj_]   = 0;
-        spk_           = 77;
+        spk_           = Msg::GroundWet;
         if (!(at(plant_) || at(door_)))
             co_return report();
         if (at(door_)) {
             prop_[door_] = 0; // 9132
             if (obj_ == oil_)
                 prop_[door_] = 1;
-            spk_ = 113 + prop_[door_];
+            spk_ = Msg(113 + prop_[door_]);
             co_return report();
         }
-        spk_ = 112;
+        spk_ = Msg::PlantWantsWater;
         if (obj_ != water_)
             co_return report();
         pspeak(plant_, prop_[plant_] + 1);
@@ -682,36 +682,36 @@ Task<Phase> Game::verb_object() // 4090
             co_return eat_food();
         if (obj_ == bird_ || obj_ == snake_ || obj_ == clam_ || obj_ == oyster_ || obj_ == dwarf_ ||
             obj_ == dragon_ || obj_ == troll_ || obj_ == bear_)
-            spk_ = 71;
+            spk_ = Msg::LostAppetite;
         co_return report();
     case Verb::Drink: // 9150
         if (obj_ == 0 && liqloc(loc_) != water_ && (liq(0) != water_ || !here(bottle_)))
             co_return what();
         if (obj_ != 0 && obj_ != water_)
-            spk_ = 110;
-        if (spk_ == 110 || liq(0) != water_ || !here(bottle_))
+            spk_ = Msg::DontBeRidiculous;
+        if (spk_ == Msg::DontBeRidiculous || liq(0) != water_ || !here(bottle_))
             co_return report();
         prop_[bottle_] = 1;
         place_[water_] = 0;
-        spk_           = 74;
+        spk_           = Msg::BottleEmpty;
         co_return report();
     case Verb::Rub: // 9160
         if (obj_ != lamp_)
-            spk_ = 76;
+            spk_ = Msg::NothingUnexpected;
         co_return report();
     case Verb::Throw: // 9170
         co_return trtoss();
     case Verb::Find:
     case Verb::Invent: // 9190
         if (at(obj_) || (liq(0) == obj_ && at(bottle_)) || k_ == liqloc(loc_))
-            spk_ = 94;
+            spk_ = Msg::RightHereWithYou;
         for (i = 1; i <= 5; i++)
             if (dloc_[i] == loc_ && dflag_ >= 2 && obj_ == dwarf_)
-                spk_ = 94;
+                spk_ = Msg::RightHereWithYou;
         if (closed_)
-            spk_ = 138;
+            spk_ = Msg::WhateverYouWant;
         if (toting(obj_))
-            spk_ = 24;
+            spk_ = Msg::AlreadyCarrying;
         co_return report();
     case Verb::Feed: // 9210
         co_return trfeed();
@@ -720,11 +720,11 @@ Task<Phase> Game::verb_object() // 4090
     case Verb::Blast: // 9230
         if (prop_[rod2_] < 0 || !closed_)
             co_return report();
-        bonus_ = 133;
+        bonus_ = Msg::BlastDistant;
         if (loc_ == 115)
-            bonus_ = 134;
+            bonus_ = Msg::BlastRepository;
         if (here(rod2_))
-            bonus_ = 135;
+            bonus_ = Msg::BlastSplashed;
         rspeak(bonus_);
         co_await done(2);
         co_return Phase::Over;
@@ -732,22 +732,22 @@ Task<Phase> Game::verb_object() // 4090
         if (dark(0))
             co_return no_see();
         if (obj_ == magzin_)
-            spk_ = 190;
+            spk_ = Msg::MagazineDwarvish;
         if (obj_ == tablet_)
-            spk_ = 196;
+            spk_ = Msg::CongratsDarkRoom;
         if (obj_ == messag_)
-            spk_ = 191;
+            spk_ = Msg::NotPirateMaze;
         if (obj_ == oyster_ && hinted_[2] && toting(oyster_))
-            spk_ = 194;
+            spk_ = Msg::SameAsBefore;
         if (obj_ != oyster_ || hinted_[2] || !toting(oyster_) || !closed_)
             co_return report();
-        hinted_[2] = co_await yes(192, 193, 54);
+        hinted_[2] = co_await yes(Msg::ClueCosts, Msg::ClueText, Msg::Ok);
         co_return Phase::EndTurn;
     case Verb::Break:
         if (obj_ == mirror_)
-            spk_ = 148;
+            spk_ = Msg::TooFarUp;
         if (obj_ == vase_ && prop_[vase_] == 0) {
-            spk_ = 198;
+            spk_ = Msg::VaseHurled;
             if (toting(vase_))
                 drop(vase_, loc_);
             prop_[vase_]  = 2;
@@ -756,14 +756,14 @@ Task<Phase> Game::verb_object() // 4090
         }
         if (obj_ != mirror_ || !closed_)
             co_return report();
-        rspeak(197);
+        rspeak(Msg::MirrorShatters);
         co_await done(3);
         co_return Phase::Over;
 
     case Verb::Wake:
         if (obj_ != dwarf_ || !closed_)
             co_return report();
-        rspeak(199);
+        rspeak(Msg::ProdDwarf);
         co_await done(3);
         co_return Phase::Over;
 
@@ -799,7 +799,7 @@ Phase Game::object_only() // 5000
     }
     if (obj_ == knife_ && knfloc_ == loc_) { // 5130
         knfloc_ = -1;
-        spk_    = 116;
+        spk_    = Msg::KnivesVanish;
         return report();
     }
     if (obj_ == rod_ && here(rod2_)) { // 5140

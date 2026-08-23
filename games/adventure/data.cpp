@@ -201,7 +201,7 @@ void DataReader::rdflt(void) // default verb messages
         g_.verb_ = Verb(v); // upstream parsed into the global, the -1 too
         if (v < 0)
             break;
-        g_.actspk_[usize(v)] = rnum();
+        g_.actspk_[usize(v)] = Msg(rnum());
     }
 }
 

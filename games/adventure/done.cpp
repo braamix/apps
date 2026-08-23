@@ -33,13 +33,13 @@ int Game::score(void) // sort of like 20000
         scor += 25;
     mxscor_ += 25;
     if (closed_) {
-        if (bonus_ == 0)
+        if (bonus_ == Msg::None)
             scor += 10;
-        if (bonus_ == 135)
+        if (bonus_ == Msg::BlastSplashed)
             scor += 25;
-        if (bonus_ == 134)
+        if (bonus_ == Msg::BlastRepository)
             scor += 30;
-        if (bonus_ == 133)
+        if (bonus_ == Msg::BlastDistant)
             scor += 45;
     }
     mxscor_ += 45;
@@ -62,7 +62,7 @@ Task<i32> Game::done(int entry)
     if (entry == 1)
         mspeak(Magic::GreenSmoke);
     if (entry == 3)
-        rspeak(136);
+        rspeak(Msg::DwarvesAwakened);
     adv_printf("\n\n\nYou scored %d out of a ", (sc = score()));
     adv_printf("possible %d using %d turns.\n", mxscor_, turns_);
     status_ = 0;
@@ -93,16 +93,16 @@ Task<i32> Game::die( // label 90
 {
     int i, yea;
     if (entry != 99) {
-        rspeak(23);
+        rspeak(Msg::FellIntoPit);
         oldlc2_ = loc_;
     }
     if (closng_) // 99
     {
-        rspeak(131);
+        rspeak(Msg::LooksLikeYoureDead);
         numdie_++;
         co_return co_await done(2);
     }
-    yea = co_await yes(81 + numdie_ * 2, 82 + numdie_ * 2, 54);
+    yea = co_await yes(Msg(81 + numdie_ * 2), Msg(82 + numdie_ * 2), Msg::Ok);
     numdie_++;
     if (numdie_ == maxdie_ || !yea)
         co_return co_await done(2);
