@@ -147,6 +147,43 @@ void Game::linkdata(void) // secondary data manipulation
     clock2_                                       = 50;
     saved_                                        = 0;
     closng_ = panic_ = closed_ = scorng_ = FALSE;
+    check_vocab();
+}
+
+// glorkz decides these numbers; the enums only name them.  Check the naming
+// rather than trust it -- a vocabulary that moved would mis-dispatch in
+// silence.  Motion::Forced has no word, so it cannot be checked here.
+void Game::check_vocab()
+{
+    struct Named {
+        const char *word;
+        int type; // val / 1000: 0 motion, 2 verb
+        int want;
+    };
+    // clang-format off
+    static const Named NAMED[] = {
+        { "say",   2, int(Verb::Say)    }, { "lock",  2, int(Verb::Lock)   },
+        { "throw", 2, int(Verb::Throw)  }, { "find",  2, int(Verb::Find)   },
+        { "inven", 2, int(Verb::Invent) }, { "foo",   2, int(Verb::Foo)    },
+
+        { "forwa", 0, int(Motion::Forward) }, { "back",  0, int(Motion::Back)  },
+        { "out",   0, int(Motion::Out)     }, { "crawl", 0, int(Motion::Crawl) },
+        { "in",    0, int(Motion::In)      }, { "null",  0, int(Motion::Null)  },
+        { "up",    0, int(Motion::Up)      }, { "down",  0, int(Motion::Down)  },
+        { "left",  0, int(Motion::Left)    }, { "right", 0, int(Motion::Right) },
+        { "east",  0, int(Motion::East)    }, { "west",  0, int(Motion::West)  },
+        { "north", 0, int(Motion::North)   }, { "south", 0, int(Motion::South) },
+        { "ne",    0, int(Motion::NE)      }, { "se",    0, int(Motion::SE)    },
+        { "sw",    0, int(Motion::SW)      }, { "nw",    0, int(Motion::NW)    },
+        { "look",  0, int(Motion::Look)    }, { "xyzzy", 0, int(Motion::Xyzzy) },
+        { "depre", 0, int(Motion::Depression) }, { "entra", 0, int(Motion::Entrance) },
+        { "plugh", 0, int(Motion::Plugh)   }, { "cave",  0, int(Motion::Cave)  },
+        { "plove", 0, int(Motion::Plover)  },
+    };
+    // clang-format on
+    for (const Named &n : NAMED)
+        if (vocab(n.word, n.type, 0) != n.want)
+            bug(35);
 }
 
 Task<i32> Game::startup(void)

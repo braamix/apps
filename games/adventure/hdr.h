@@ -147,7 +147,7 @@ private:
     Phase eat_food() { return dstroy(food_), spk_ = 72, report(); } // 8142
 
     // ---- setup -- init.cpp --------------------------------------------
-    void linkdata();
+    void linkdata(), check_vocab();
     Task<i32> startup();
 
     // ---- messages and input -- io.cpp ---------------------------------
