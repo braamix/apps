@@ -178,18 +178,18 @@ from a browser.
 make package
 ```
 
-builds `build/benchmarks/dhrystone/dhrystone-2.1-r1.zip`, a package in the
+builds `build/benchmarks/dhrystone/dhrystone-2.1-r2.zip`, a package in the
 format `/bin/pkg` installs (Package_Formats.md §5):
 
 ```
-.PKGINFO            P:dhrystone  V:2.1-r1  I:<unpacked size>  T:<description>
+.PKGINFO            P:dhrystone  V:2.1-r2  I:<unpacked size>  T:<description>
 bin/dhrystone       the binary
 ```
 
 `bin/` is the load-bearing part. Every flat entry of it becomes a link in the
 installed generation's `bin/`, which `/pkg/bin` points at and the default
 `PATH` — `/bin:/pkg/bin` — already names, plus a generated
-`cmd:dhrystone=2.1-r1` provide. The entry's leaf is the command's name, which
+`cmd:dhrystone=2.1-r2` provide. The entry's leaf is the command's name, which
 is why it is `bin/dhrystone` and not `bin/dhrystone.wasm`.
 
 **The zip alone cannot be installed.** `pkg` checks every package's size and

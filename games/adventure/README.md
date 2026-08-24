@@ -150,7 +150,7 @@ From the top of this repository:
 
 ```
 make            # build/games/adventure/adventure.wasm
-make package    # build/games/adventure/adventure-1.0-r2.zip
+make package    # build/games/adventure/adventure-1.0-r3.zip
 ```
 
 The package holds `.PKGINFO` and `bin/adventure` and nothing else — the data

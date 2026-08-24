@@ -111,7 +111,7 @@ From the top of this repository:
 
 ```
 make            # build/benchmarks/duremark/duremark.wasm
-make package    # build/benchmarks/duremark/duremark-1.1-r1.zip
+make package    # build/benchmarks/duremark/duremark-1.1-r2.zip
 ```
 
 The package holds `.PKGINFO` and `bin/duremark`; `bin/` is what reaches `PATH`
