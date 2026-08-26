@@ -1,0 +1,4 @@
+# The tree's style, less the include sorting: upstream's headers depend on the
+# order the .c file includes them in, and sorting them silently breaks builds.
+BasedOnStyle: InheritParentConfig
+SortIncludes: Never

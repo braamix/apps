@@ -1,0 +1,11 @@
+#ifndef _STDINT_H_
+#define _STDINT_H_
+#include <sys/types.h>
+
+#define UINT8_MAX  0xFF
+#define UINT16_MAX 0xFFFF
+#define UINT32_MAX 0xFFFFFFFFU
+#define UINT64_MAX 0xFFFFFFFFFFFFFFFFULL
+#define INT32_MAX  0x7FFFFFFF
+#define INT64_MAX  0x7FFFFFFFFFFFFFFFLL
+#endif
