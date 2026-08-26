@@ -33,11 +33,38 @@ struct Bufs {
     char out[OUTBUFSIZE];
 };
 
-constexpr Str USAGE =
-    "Usage:\ticonv [-cs] -f <from_code> -t <to_code> [file ...]\n"
-    "\ticonv -f <from_code> [-cs] [-t <to_code>] [file ...]\n"
-    "\ticonv -t <to_code> [-cs] [-f <from_code>] [file ...]\n"
-    "\ticonv -l\n";
+constexpr Str SHORT_USAGE =
+    "Usage:\n"
+    "    iconv [-cs] [-f <from-code>] [-t <to-code>] [file ...]\n"
+    "    iconv -l\n"
+    "Try `iconv --help' for the full list of options.\n";
+
+constexpr Str HELP =
+    "Usage:\n"
+    "    iconv [-cs] [-f <from-code>] [-t <to-code>] [file ...]\n"
+    "    iconv -l\n"
+    "\n"
+    "Convert text from one character encoding to another. Each file is read in\n"
+    "turn, or standard input when none is named or the name is `-'; the result\n"
+    "goes to standard output.\n"
+    "\n"
+    "Options:\n"
+    "  -f <from-code>  the encoding the input is in         (default UTF-8)\n"
+    "  -t <to-code>    the encoding to produce              (default UTF-8)\n"
+    "  -c              drop characters the target cannot represent\n"
+    "  -s              do not report how many were dropped\n"
+    "  -l              list every encoding name the tables know\n"
+    "  -h              print this message\n"
+    "\n"
+    "Long forms: --from-code=<name>, --to-code=<name>, --list, --silent, --help.\n"
+    "\n"
+    "A target name may carry //TRANSLIT to approximate what it cannot represent,\n"
+    "or //IGNORE to drop it, which is what -c sets.\n"
+    "\n"
+    "Examples:\n"
+    "    iconv -f KOI8-R -t UTF-8 old.txt >new.txt\n"
+    "    iconv -c -f UTF-8 -t ASCII notes.txt\n"
+    "    iconv -l\n";
 
 Task<void> say(Str a, Str b = {}, Str c = {})
 {
@@ -158,10 +185,11 @@ int list_one(unsigned int n, const char *const *names, void *)
 Task<i32> proc_main(Args args)
 {
     Str from, to;
-    bool opt_c = false, opt_s = false, opt_l = false;
+    bool opt_c = false, opt_s = false, opt_l = false, opt_h = false;
 
     // OptParse has no long options, and scripts written against GNU iconv pass
-    // them, so the four upstream declares are recognised ahead of it.
+    // them, so the four upstream declares are recognised ahead of it, plus
+    // --help, which upstream does not have.
     Vec<Str> rest;
     bool only_operands = false;
     for (usize i = 1; i < args.size(); i++) {
@@ -177,6 +205,8 @@ Task<i32> proc_main(Args args)
         }
         if (a == "--list") {
             opt_l = true;
+        } else if (a == "--help") {
+            opt_h = true;
         } else if (a == "--silent") {
             opt_s = true;
         } else if (a.starts_with("--from-code=")) {
@@ -185,16 +215,16 @@ Task<i32> proc_main(Args args)
             to = a.substr(10);
         } else if (a == "--from-code" || a == "--to-code") {
             if (i + 1 >= args.size()) {
-                co_await write_all(SYS_STDERR, USAGE);
+                co_await write_all(SYS_STDERR, SHORT_USAGE);
                 co_return 1;
             }
             (a == "--from-code" ? from : to) = args[++i];
         } else if (a[1] == '-') {
             co_await say("unknown option ", a);
-            co_await write_all(SYS_STDERR, USAGE);
+            co_await write_all(SYS_STDERR, SHORT_USAGE);
             co_return 1;
         } else {
-            // A short bundle, upstream's "csLlf:t:".
+            // A short bundle, upstream's "csLlf:t:" plus an h.
             for (usize k = 1; k < a.size(); k++) {
                 char c = a[k];
                 if (c == 'c') {
@@ -203,11 +233,13 @@ Task<i32> proc_main(Args args)
                     opt_s = true;
                 } else if (c == 'l') {
                     opt_l = true;
+                } else if (c == 'h') {
+                    opt_h = true;
                 } else if (c == 'f' || c == 't') {
                     Str v = a.substr(k + 1);
                     if (v.empty()) {
                         if (i + 1 >= args.size()) {
-                            co_await write_all(SYS_STDERR, USAGE);
+                            co_await write_all(SYS_STDERR, SHORT_USAGE);
                             co_return 1;
                         }
                         v = args[++i];
@@ -218,11 +250,18 @@ Task<i32> proc_main(Args args)
                     Buf<64> m;
                     m.put("iconv: illegal option -- ").put(c).put('\n');
                     co_await write_all(SYS_STDERR, m.str());
-                    co_await write_all(SYS_STDERR, USAGE);
+                    co_await write_all(SYS_STDERR, SHORT_USAGE);
                     co_return 1;
                 }
             }
         }
+    }
+
+    // Before the tables: help works where none are installed.
+    if (opt_h) {
+        if ((co_await File::stdout().write(HELP)).is_err())
+            co_return 1;
+        co_return (co_await File::stdout().flush()).is_err() ? 1 : 0;
     }
 
     // Where the tables are. Everything below reads them.
@@ -237,7 +276,7 @@ Task<i32> proc_main(Args args)
     if (opt_l) {
         if (opt_s || opt_c || !from.empty() || !to.empty()) {
             co_await say("-l is not allowed with other flags.");
-            co_await write_all(SYS_STDERR, USAGE);
+            co_await write_all(SYS_STDERR, SHORT_USAGE);
             co_return 1;
         }
         String names;
@@ -250,7 +289,7 @@ Task<i32> proc_main(Args args)
     }
 
     if (from.empty() && to.empty()) {
-        co_await write_all(SYS_STDERR, USAGE);
+        co_await write_all(SYS_STDERR, SHORT_USAGE);
         co_return 1;
     }
 

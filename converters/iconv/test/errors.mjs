@@ -85,6 +85,8 @@ function want(what, got, expected) {
     want("no arguments exits 1", st, "1");
     if (!text("/e").startsWith("Usage:"))
         die(`no arguments should print the usage, got ${JSON.stringify(text("/e"))}`);
+    if (!text("/e").includes("--help"))
+        die(`the usage should point at --help, got ${JSON.stringify(text("/e"))}`);
 }
 
 // 2. An encoding that does not exist.
@@ -151,6 +153,22 @@ function want(what, got, expected) {
     want("--from-code and --to-code exit 0", st, "0");
     if (text("/o") !== "ok\n")
         die(`the long options should convert, got ${JSON.stringify(text("/o"))}`);
+}
+
+// 8. --help explains the options on stdout, and -h is the same thing.
+{
+    const st = check("iconv --help >/o 2>/e");
+    want("--help exits 0", st, "0");
+    const h = text("/o");
+    if (!h.startsWith("Usage:") || !h.includes("Options:") || !h.includes("Examples:"))
+        die(`--help should explain the options, got ${JSON.stringify(h)}`);
+    if (text("/e") !== "")
+        die(`--help should write nothing to stderr, got ${JSON.stringify(text("/e"))}`);
+
+    const st2 = check("iconv -h >/p 2>/f");
+    want("-h exits 0", st2, "0");
+    if (text("/p") !== h)
+        die("-h and --help should print the same text");
 }
 
 console.log(`errors ok: ${checked} behaviours`);

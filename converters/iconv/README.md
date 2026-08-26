@@ -12,15 +12,16 @@ three BSD variants — is in [LICENSE](LICENSE).
 
 ## Using it
 
-    iconv [-cs] -f <from_code> -t <to_code> [file ...]
+    iconv [-cs] [-f <from_code>] [-t <to_code>] [file ...]
     iconv -l
+    iconv -h
 
 `-f` names the encoding the input is in and `-t` the one to produce; either may
 be left out and defaults to UTF-8. `-c` drops characters the target cannot
 represent instead of failing, `-s` suppresses the count of them, and `-l` lists
 every encoding name the tables know. `//TRANSLIT` after a target name asks for
 an approximation where there is no exact mapping, and `//IGNORE` is `-c` by
-another spelling.
+another spelling. `-h`, or `--help`, prints all of that as an option list.
 
     iconv -f KOI8-R -t UTF-8 old.txt > new.txt
 
@@ -109,6 +110,12 @@ Structure:
   and then exits 0 whatever it found. [test/convert.mjs](test/convert.mjs)
   asserts exact agreement for the twenty-five encodings where the two agree and
   reports the rest.
+
+- **`-h` and `--help` are new here.** Upstream has only the usage, printed on
+  an error, and it lists the flag combinations without saying what any flag
+  does. The help explains the options, the `//TRANSLIT` and `//IGNORE`
+  suffixes and the long forms; the usage on an error is two lines and points
+  at it.
 
 - **Renames forced by C++**: none of the identifiers, but a `void *` that C
   converts on its own now says so, six module headers declare their ops
