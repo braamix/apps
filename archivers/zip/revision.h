@@ -12,3 +12,10 @@
 // attributes mean, and these are Unix mode bits — synthesized, since the
 // filesystem has none.
 #define OS_CODE 0x300
+
+// The strings -h, -L and -v print. Upstream kept them here behind DEFCPYRT so
+// they were defined once; there is one file that names them here too.
+extern ZCONST char *copyright[1];
+extern ZCONST char *far swlicense[50];
+extern ZCONST char *far versinfolines[7];
+extern ZCONST char *far cryptnote[7];

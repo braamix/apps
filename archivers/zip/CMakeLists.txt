@@ -15,7 +15,7 @@ set(ZIP_NOBUILTIN
     -fno-builtin-memcpy -fno-builtin-memmove -fno-builtin-memset -fno-builtin-memcmp
     -fno-builtin-strlen -fno-builtin-strcpy -fno-builtin-strncpy -fno-builtin-strcat
     -fno-builtin-strcmp -fno-builtin-strncmp -fno-builtin-strchr -fno-builtin-strrchr
-    -fno-builtin-strstr -fno-builtin-toupper -fno-builtin-tolower
+    -fno-builtin-strstr -fno-builtin-strncat -fno-builtin-toupper -fno-builtin-tolower
     -fno-builtin-isspace -fno-builtin-isdigit -fno-builtin-isalpha -fno-builtin-isalnum -fno-builtin-isprint -fno-builtin-iscntrl -fno-builtin-getenv -fno-builtin-atoi -fno-builtin-strtol -fno-builtin-qsort)
 
 # Ported code keeps upstream's identifiers, its casts and its unused arguments;

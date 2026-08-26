@@ -533,7 +533,7 @@ Task<int> DisplayNumString(FILE *file, uzoff_t i)
 // Read numbers with trailing size multiplier (like 10M) and return number.
 // 10/30/04 EG
 
-uzoff_t ReadNumString(char *numstring)
+Task<uzoff_t> ReadNumString(char *numstring)
 {
     zoff_t num    = 0;
     char multchar = ' ';
@@ -542,16 +542,16 @@ uzoff_t ReadNumString(char *numstring)
 
     // check if valid number (currently no negatives)
     if (numstring == NULL) {
-        zipwarn("Unable to read empty number in ReadNumString", "");
-        return (uzoff_t)-1;
+        co_await zipwarn("Unable to read empty number in ReadNumString", "");
+        co_return (uzoff_t) - 1;
     }
     if (numstring[0] < '0' || numstring[0] > '9') {
-        zipwarn("Unable to read number (must start with digit): ", numstring);
-        return (uzoff_t)-1;
+        co_await zipwarn("Unable to read number (must start with digit): ", numstring);
+        co_return (uzoff_t) - 1;
     }
     if (strlen(numstring) > 8) {
-        zipwarn("Number too long to read (8 characters max): ", numstring);
-        return (uzoff_t)-1;
+        co_await zipwarn("Number too long to read (8 characters max): ", numstring);
+        co_return (uzoff_t) - 1;
     }
 
     // get the number part
@@ -561,14 +561,14 @@ uzoff_t ReadNumString(char *numstring)
     for (i = 0; numstring[i] && isdigit(numstring[i]); i++)
         ;
 
-    // return if no multiplier
+    // co_return if no multiplier
     if (numstring[i] == '\0') {
-        return (uzoff_t)num;
+        co_return (uzoff_t) num;
     }
 
     // nothing follows multiplier
     if (numstring[i + 1]) {
-        return (uzoff_t)-1;
+        co_return (uzoff_t) - 1;
     }
 
     // get multiplier
@@ -583,10 +583,10 @@ uzoff_t ReadNumString(char *numstring)
     } else if (multchar == 'T') {
         mult <<= 40;
     } else {
-        return (uzoff_t)-1;
+        co_return (uzoff_t) - 1;
     }
 
-    return (uzoff_t)num * mult;
+    co_return (uzoff_t) num *mult;
 }
 
 // Write the number as a string with a multiplier (like 10M) to outstring.

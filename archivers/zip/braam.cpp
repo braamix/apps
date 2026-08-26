@@ -3,6 +3,7 @@
 #include "kernel/alloc.h"
 #include "proc/rt.h"
 #include "proc/time.h"
+#include "zip.h"
 
 // ------------------------------------------------------------------- the heap
 //
@@ -142,6 +143,16 @@ extern "C" char *strcat(char *d, const char *s)
     return d;
 }
 
+extern "C" char *strncat(char *d, const char *s, usize n)
+{
+    char *e = d + strlen(d);
+    usize i = 0;
+    for (; i < n && s[i]; i++)
+        e[i] = s[i];
+    e[i] = 0;
+    return d;
+}
+
 extern "C" int strcmp(const char *a, const char *b)
 {
     while (*a && *a == *b)
@@ -252,6 +263,30 @@ extern "C" int atoi(const char *s)
     return (int)strtol(s, nullptr, 10);
 }
 
+// "%4d-%2d-%2d" or "%2d%2d%4d", which is what -t and -tt accept.
+int zparse_date(const char *s, int *yyyy, int *mm, int *dd)
+{
+    auto num = [](const char *p, int n, int &out) {
+        out = 0;
+        for (int i = 0; i < n; i++) {
+            if (p[i] < '0' || p[i] > '9')
+                return false;
+            out = out * 10 + (p[i] - '0');
+        }
+        return true;
+    };
+
+    if (strlen(s) >= 10 && s[4] == '-' && s[7] == '-') {
+        if (num(s, 4, *yyyy) && num(s + 5, 2, *mm) && num(s + 8, 2, *dd))
+            return 3;
+    }
+    if (strlen(s) >= 8) {
+        if (num(s, 2, *mm) && num(s + 2, 2, *dd) && num(s + 4, 4, *yyyy))
+            return 3;
+    }
+    return 0;
+}
+
 extern "C" long strtol(const char *s, char **end, int base)
 {
     const char *p = s;
@@ -344,6 +379,7 @@ FILE *zstdout = nullptr;
 FILE *zstderr = nullptr;
 char zfmtbuf[ZFMT_MAX];
 char zputbuf = 0;
+char zgetbuf = 0;
 
 namespace {
 
@@ -528,6 +564,14 @@ Task<usize> zfread(void *buf, usize size, usize count, FILE *f)
     co_return size ? got / size : 0;
 }
 
+Task<int> zfputs_nl(const char *s)
+{
+    if ((co_await zstdout->write(Str(s, strlen(s)))).is_err())
+        co_return EOF_;
+    co_await zfputc('\n', zstdout);
+    co_return 0;
+}
+
 Task<Result<void>> zfflush(FILE *f)
 {
     Result<void> r = Err(Error::NoMemory);
@@ -574,6 +618,14 @@ Task<void> zclock_init()
         ztz_min     = c.value().tz_min;
         zstart_time = (i64)(c.value().epoch_ms / 1000);
     }
+}
+
+extern "C" time_t time(time_t *t)
+{
+    time_t now = zstart_time + (time_t)(proc_now() / 1000);
+    if (t)
+        *t = now;
+    return now;
 }
 
 u32 zdostime(u64 mtime_ms)
@@ -633,8 +685,19 @@ Task<unsigned> zread(ftype f, char *buf, unsigned len)
     Result<String> r = Err(Error::NoMemory);
     if (Task<Result<String>> t = read_some((u32)f, len))
         r = co_await t;
+    // This is where a long run parks, so this is where a ^C reaches it.
+    // Upstream installed a handler that called ziperr(ZE_ABORT). There is no
+    // handler here: a delivered signal abandons the parked call with
+    // Err(Intr), or is simply pending if the call had already answered — so
+    // it is sig_take() that says one arrived, not the error. The entry loop
+    // unwinds on zip_fatal.
+    if (sig_take(SIG_INT))
+        zip_fail(ZE_ABORT, "aborting");
+
     if (r.is_err()) {
-        if (r.error() != Error::Closed)
+        if (r.error() == Error::Cancelled)
+            zip_fail(ZE_ABORT, "aborting");
+        else if (r.error() != Error::Closed && r.error() != Error::Intr)
             zread_failed = 1;
         co_return 0; // Closed is the end of input, not a failure
     }

@@ -116,7 +116,7 @@
 #define ZIP64_EFIELD_OFS_DISK \
     (ZIP64_EFIELD_OFS_OFS + 8) // zip64 extra field: offset to start disk #
 // --------------------------------------------------------------------------------------------------------------------------
-local int add_central_zip64_extra_field OF((struct zlist far *));
+local Task<int> add_central_zip64_extra_field OF((struct zlist far *));
 local int add_local_zip64_extra_field OF((struct zlist far *));
 #define UTF8_PATH_EF_TAG 0x7075 // ID for Unicode path (up) extra field
 local int add_Unicode_Path_local_extra_field OF((struct zlist far *));
@@ -407,7 +407,7 @@ char *copy_nondup_extra_fields(char *oldExtra, unsigned oldExtraLen, char *newEx
 
 // adds a zip64 extra field to the data the cextra member of zlist points to. If
 // there is already a zip64 extra field present delete it first.
-local int add_central_zip64_extra_field(struct zlist far *pZipListEntry)
+local Task<int> add_central_zip64_extra_field(struct zlist far *pZipListEntry)
 {
     char *pExtraFieldPtr;
     char *pTemp;
@@ -447,17 +447,17 @@ local int add_central_zip64_extra_field(struct zlist far *pZipListEntry)
     }
 
     if (used_zip64 && force_zip64 == 0) {
-        zipwarn("Large entry support disabled using -fz- but needed", "");
-        return ZE_BIG;
+        co_await zipwarn("Large entry support disabled using -fz- but needed", "");
+        co_return ZE_BIG;
     }
 
     // malloc zip64 extra field?
     if (pZipListEntry->cextra == NULL) {
         if (efsize == ZIP_EF_HEADER_SIZE) {
-            return ZE_OK;
+            co_return ZE_OK;
         }
         if ((pExtraFieldPtr = pZipListEntry->cextra = (char *)malloc(efsize)) == NULL) {
-            return ZE_MEM;
+            co_return ZE_MEM;
         }
         pZipListEntry->cext = efsize;
     } else {
@@ -467,7 +467,7 @@ local int add_central_zip64_extra_field(struct zlist far *pZipListEntry)
             // ... we don't, so re-malloc enough memory for the old extra data plus
             // the size of the zip64 extra field
             if ((pExtraFieldPtr = (char *)malloc(efsize + pZipListEntry->cext)) == NULL) {
-                return ZE_MEM;
+                co_return ZE_MEM;
             }
             // move the old extra field
             memmove(pExtraFieldPtr, pZipListEntry->cextra, pZipListEntry->cext);
@@ -490,7 +490,7 @@ local int add_central_zip64_extra_field(struct zlist far *pZipListEntry)
                 if (pZipListEntry->cext != efsize) {
                     // wrong size
                     if ((pExtraFieldPtr = (char *)malloc(efsize)) == NULL) {
-                        return ZE_MEM;
+                        co_return ZE_MEM;
                     }
                     free(pZipListEntry->cextra);
                     pZipListEntry->cextra = pExtraFieldPtr;
@@ -500,7 +500,7 @@ local int add_central_zip64_extra_field(struct zlist far *pZipListEntry)
                 // get the old Zip64 extra field out and add new
                 oldefsize = usTemp + ZIP_EF_HEADER_SIZE;
                 if ((pTemp = (char *)malloc(pZipListEntry->cext - oldefsize + efsize)) == NULL) {
-                    return ZE_MEM;
+                    co_return ZE_MEM;
                 }
                 len = (extent)(pExtraFieldPtr - pZipListEntry->cextra);
                 memcpy(pTemp, pZipListEntry->cextra, len);
@@ -536,7 +536,7 @@ local int add_central_zip64_extra_field(struct zlist far *pZipListEntry)
     }
 
     // un' wech
-    return ZE_OK;
+    co_return ZE_OK;
 }
 
 // Add Zip64 extra field to local header
@@ -1166,7 +1166,7 @@ Task<int> putcentral(struct zlist far *z)
 
     if (z->siz > ZIP_UWORD32_MAX || z->len > ZIP_UWORD32_MAX || z->off > ZIP_UWORD32_MAX ||
         z->dsk > ZIP_UWORD16_MAX || (force_zip64 == 1)) {
-        iRes = add_central_zip64_extra_field(z);
+        iRes = co_await add_central_zip64_extra_field(z);
         if (iRes != ZE_OK)
             co_return iRes;
     }
@@ -1388,3 +1388,163 @@ Task<int> putend(OFT(uzoff_t) n, OFT(uzoff_t) s, OFT(uzoff_t) c, OFT(extent) m, 
 // Note: a zip "entry" includes a local header (which includes the file
 // name), an encryption header if encrypting, the compressed data
 // and possibly an extended local header.
+
+// ------------------------------------------------- the name and the tidy-up
+
+// Compare the name in the zvoid pointer to the name of the zlist entry.
+local int zbcmp(ZCONST zvoid *n, ZCONST zvoid far *z)
+{
+    return namecmp((ZCONST char *)n, ((struct zlist far *)z)->zname);
+}
+
+local int zubcmp(ZCONST zvoid *n, ZCONST zvoid far *z)
+{
+    return namecmp((ZCONST char *)n, ((struct zlist far *)z)->zuname);
+}
+
+// Return a pointer to the entry in zfile with the name n, or NULL if not
+// found. zsort and zusort are built by readzipfile(), which is the update
+// path's, so until it arrives zcount is zero and this always answers NULL.
+struct zlist far *zsearch(ZCONST char *n)
+{
+    zvoid far **p; // result of search()
+
+    if (zcount) {
+        if ((p = search(n, (ZCONST zvoid far **)zsort, zcount, zbcmp)) != NULL)
+            return *(struct zlist far **)p;
+        else if (unicode_mismatch != 3 && fix != 2 &&
+                 (p = search(n, (ZCONST zvoid far **)zusort, zcount, zubcmp)) != NULL)
+            return *(struct zlist far **)p;
+        else
+            return NULL;
+    }
+    return NULL;
+}
+
+char *ziptyp(char *s)
+{
+    char *q; // temporary pointer
+    char *t; // pointer to malloc'ed string
+
+    if ((t = (char *)malloc(strlen(s) + 5)) == NULL)
+        return NULL;
+    strcpy(t, s);
+    if (adjust)
+        return t;
+    if (MBSRCHR((q = MBSRCHR(t, PATHCUT)) == NULL ? t : q + 1, '.') == NULL)
+        strcat(t, ".zip");
+    return t;
+}
+
+local void cutpath(char *p, int delim)
+{
+    char *r; // pointer to last path delimiter
+
+    if ((r = MBSRCHR(p, delim)) != NULL)
+        *r = 0;
+    else
+        *p = 0;
+}
+
+// Order by name, reversed, so a directory is reached after what was under it.
+local int rqcmp(ZCONST zvoid *a, ZCONST zvoid *b)
+{
+    return namecmp((*(struct zlist far **)b)->name, (*(struct zlist far **)a)->name);
+}
+
+Task<int> trash(void)
+// Delete the compressed files and the directories that contained the deleted
+// files, if empty.  Return an error code in the ZE_ class.  Failure of
+// destroy() or deletedir() is ignored.
+{
+    extent i;             // counter on deleted names
+    extent n;             // number of directories to delete
+    struct zlist far **s; // table of zip entries to handle, sorted
+    struct zlist far *z;  // current zip entry
+
+    // Delete marked names and count directories
+    n = 0;
+    for (z = zfiles; z != NULL; z = z->nxt)
+        if (z->mark == 1 || z->trash) {
+            z->mark = 1;
+            if (z->iname[z->nam - 1] != (char)0x2f) { // don't unlink directory
+                if (verbose)
+                    co_await zfprintf(mesg, "zip diagnostic: deleting file %s\n", z->name);
+                if (co_await destroy(z->name)) {
+                    co_await zipwarn("error deleting ", z->name);
+                }
+                // Try to delete all paths that lead up to marked names. This is
+                // necessary only with the -D option.
+                if (!dirnames) {
+                    cutpath(z->name, '/'); // XXX wrong ???
+                    // Below apparently does not work for Russian OEM but
+                    // '/' should be same as 0x2f for ascii and most ports so
+                    // changed it.  Did not trace through the mappings but
+                    // maybe 0x2F is mapped differently on OEM_RUSS - EG 2/28/2003
+                    // CS, 5/14/2005: iname is the byte array read from and written
+                    // to the zip archive; it MUST be ASCII (compatible)!!!
+                    // If something goes wrong with OEM_RUSS, there is a charcode
+                    // mapping error between external name (z->name) and iname somewhere
+                    // in the in2ex & ex2in code. The charcode translation should be
+                    // checked.
+                    // This code line is changed back to the original code.
+                    // CS, 6/12/2005: What is handled here is the difference between
+                    // ASCII charsets and non-ASCII charsets like the family of EBCDIC
+                    // charsets.  On these systems, the slash character '/' is not coded
+                    // as 0x2f but as 0x61 (the ASCII 'a'). The iname struct member holds
+                    // the name as stored in the Zip file, which are ASCII or translated
+                    // into ASCII for new entries, whereas the "name" struct member hold
+                    // the external name, coded in the native charset of the system
+                    // (EBCDIC on EBCDIC systems)
+                    /* cutpath(z->iname, '/'); */ // QQQ ???
+                    cutpath(z->iname, 0x2f);      // 0x2f = ascii['/']
+                    z->nam = strlen(z->iname);
+                    if (z->nam > 0) {
+                        z->iname[z->nam - 1] = (char)0x2f;
+                        z->iname[z->nam++]   = '\0';
+                    }
+                    if (z->nam > 0)
+                        n++;
+                }
+            } else {
+                n++;
+            }
+        }
+
+    // Construct the list of all marked directories. Some may be duplicated
+    // if -D was used.
+    if (n) {
+        if ((s = (struct zlist far **)malloc(n * sizeof(struct zlist far *))) == NULL)
+            co_return ZE_MEM;
+        n = 0;
+        for (z = zfiles; z != NULL; z = z->nxt) {
+            if (z->mark && z->nam > 0 && z->iname[z->nam - 1] == (char)0x2f // '/'
+                && (n == 0 || strcmp(z->name, s[n - 1]->name) != 0)) {
+                s[n++] = z;
+            }
+        }
+        // Sort the files in reverse order to get subdirectories first.
+        // To avoid problems with strange naming conventions as in VMS,
+        // we sort on the internal names, so x/y/z will always be removed
+        // before x/y. On VMS, x/y/z > x/y but [x.y.z] < [x.y]
+        qsort((char *)s, n, sizeof(struct zlist far *), rqcmp);
+
+        for (i = 0; i < n; i++) {
+            char *p = s[i]->name;
+            if (*p == '\0')
+                continue;
+            if (p[strlen(p) - 1] == '/') { // keep VMS [x.y]z.dir;1 intact
+                p[strlen(p) - 1] = '\0';
+            }
+            if (i == 0 || strcmp(s[i]->name, s[i - 1]->name) != 0) {
+                if (verbose) {
+                    co_await zfprintf(mesg, "deleting directory %s (if empty)                \n",
+                                      s[i]->name);
+                }
+                co_await deletedir(s[i]->name);
+            }
+        }
+        free((zvoid *)s);
+    }
+    co_return ZE_OK;
+}

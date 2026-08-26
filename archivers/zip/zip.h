@@ -27,7 +27,6 @@ typedef unsigned long ulg;  // unsigned 32-bit: long is 32 bits on wasm32
 typedef u32 z_uint4;
 
 typedef usize extent;
-typedef i64 time_t;
 
 // Zip64 throughout: an offset is 64-bit whatever the filesystem holds.
 typedef i64 zoff_t;
@@ -192,6 +191,14 @@ extern ZCONST ulg near *crc_32_tab;
 #define case_map(c) (c)
 #define to_up(c)    toupper(c)
 
+// Pattern matching: Unix style, as on every system with a real shell. The
+// 16-bit memory models are gone, so far and near allocation is plain malloc.
+#define MATCH     shmatch
+#define PAD       0
+#define PATHCUT   '/'
+#define farmalloc malloc
+#define farfree   free
+
 // The multi-byte layer collapses: names are UTF-8, and every routine that
 // walks one here walks bytes.
 #define CLEN(ptr)        1
@@ -243,6 +250,7 @@ extern int allow_fifo;
 extern int show_files;
 extern int zip_attributes;
 extern char *special; // suffixes not worth compressing
+extern char *label;   // the volume label, for -$
 
 extern int force_zip64;
 extern int zip64_entry;   // the current entry needs Zip64
@@ -401,6 +409,9 @@ Task<int> putlocal OF((struct zlist far *, int));
 Task<int> putextended OF((struct zlist far *));
 Task<int> putcentral OF((struct zlist far *));
 Task<int> putend OF((uzoff_t, uzoff_t, uzoff_t, extent, char *));
+struct zlist far *zsearch OF((ZCONST char *));
+char *ziptyp OF((char *));
+Task<int> trash OF((void));
 char *get_extra_field OF((ush, char *, unsigned));
 char *copy_nondup_extra_fields OF((char *, unsigned, char *, unsigned, unsigned *));
 
@@ -422,7 +433,71 @@ Task<int> close_split OF((ulg, FILE *, char *));
 
 // ----------------------------------------------------------------- fileio.cpp
 
+Task<char *> getnam OF((FILE *));
+struct flist far *fexpel OF((struct flist far *));
 char *last OF((char *, int));
+Task<int> check_dup OF((void));
+int filter OF((char *, int));
+Task<int> newname OF((char *, int, int));
+Task<int> proc_archive_name OF((char *, int));
+
+// Unicode. Names are UTF-8 here already, so the wide-character conversion
+// layer is the identity and only the escaping half does anything.
+typedef unsigned long zwchar;
+int is_ascii_string OF((char *));
+char *local_to_utf8_string OF((char *));
+char *utf8_to_local_string OF((char *));
+char *utf8_to_escape_string OF((char *));
+char *local_to_escape_string OF((char *));
+char *local_to_display_string OF((char *));
+char *wide_char_to_escape_string OF((zwchar));
+char *wide_to_local_string OF((zwchar *));
+char *wide_to_escape_string OF((zwchar *));
+char *wide_to_utf8_string OF((zwchar *));
+zwchar *local_to_wide_string OF((char *));
+zwchar *utf8_to_wide_string OF((char *));
+long ucs4_char_from_utf8 OF((ZCONST char **));
+
+// ------------------------------------------------- long option support
+//
+// The value is always returned as a string.
+#define o_NO_VALUE       0 // this option does not take a value
+#define o_REQUIRED_VALUE 1 // this option requires a value
+#define o_OPTIONAL_VALUE 2 // value is optional, see get_option()
+#define o_VALUE_LIST     3 // this option takes a list of values
+#define o_ONE_CHAR_VALUE 4 // next char is value, does not end the short opt
+#define o_NUMBER_VALUE   5 // value is an integer, likewise
+
+// A dash following the option, but before any value, sets negated.
+#define o_NOT_NEGATABLE 0
+#define o_NEGATABLE     1
+
+#define o_NO_OPTION_MATCH -1
+
+// Returned by get_option; do not use these as option IDs.
+#define o_NON_OPTION_ARG ((unsigned long)0xFFFF)
+#define o_ARG_FILE_ERR   ((unsigned long)0xFFFE)
+
+struct option_struct {
+    char *shortopt;          // sequence of chars that is the short option
+    char Far *longopt;       // the long option string
+    int value_type;          // from above
+    int negatable;           // from above
+    unsigned long option_ID; // what get_option returns for this option
+    char Far *name;          // optional string named on some errors
+};
+
+extern struct option_struct far options[];
+
+// The option parser.
+Task<unsigned long> get_option OF((char ***pargs, int *argc, int *argnum, int *optchar,
+                                   char **value, int *negated, int *first_nonopt_arg,
+                                   int *option_num, int recursion_depth));
+Task<char **> copy_args OF((char **args, int max_args));
+int free_args OF((char **args));
+Task<int> insert_arg OF((char ***args, ZCONST char *arg, int insert_at, int free_args));
+extern int enable_permute;
+extern int doubledash_ends_options;
 char *msname OF((char *));
 Task<int> destroy OF((char *));
 Task<int> replace OF((char *, char *));
@@ -435,12 +510,20 @@ Task<extent> rdsymlnk OF((char *, char *, extent));
 
 // -------------------------------------------------------------------- util.cpp
 
+int fseekable OF((FILE *));
+char *isshexp OF((char *));
+int shmatch OF((ZCONST char *, ZCONST char *, int));
+int abbrevmatch OF((char *, char *, int, int));
+void envargs OF((int *, char ***, char *, char *));
+void expand_args OF((int *, char ***));
+zvoid far **search OF((ZCONST zvoid *, ZCONST zvoid far **, extent,
+                       int (*)(ZCONST zvoid *, ZCONST zvoid far *)));
 int is_text_buf OF((ZCONST char *buf_ptr, unsigned buf_size));
 char *zip_fuzofft OF((uzoff_t, char *, char *));
 char *zip_fzofft OF((zoff_t, char *, char *));
 Task<int> DisplayNumString OF((FILE * file, uzoff_t i));
 int WriteNumString OF((uzoff_t num, char *outstring));
-uzoff_t ReadNumString OF((char *numstring));
+Task<uzoff_t> ReadNumString OF((char *numstring));
 void init_upper OF((void));
 int namecmp OF((ZCONST char *string1, ZCONST char *string2));
 

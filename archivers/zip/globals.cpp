@@ -211,6 +211,10 @@ ZCONST struct ziperror ziperrors[ZE_MAXERR + 1] = {
     /* 20 */ { "ZIP64", "Attempt to read unsupported Zip64 archive", ZE_S_SEVERE }
 };
 
+// The volume label, for -$. Upstream kept it in fileio.c; it is state like
+// any other and lives here.
+char *label = NULL;
+
 // What ziperr() recorded, since it cannot end the process where it stands.
 int zip_fatal            = ZE_OK;
 ZCONST char *zip_fatal_h = NULL;
@@ -218,3 +222,87 @@ ZCONST char *zip_fatal_h = NULL;
 // Where trees.cpp emits. Built on first use in zipup.cpp; a String has a
 // destructor, and a global may not.
 String *defl_sink = NULL;
+
+// revision.h's strings, which -h, -L and -v print. Upstream defined them in
+// revision.h behind DEFCPYRT, so that whichever file defined that macro owned
+// them; here they are ordinary data and live with the rest of it.
+ZCONST char *copyright[] = {
+    "Copyright (c) 1990-2008 Info-ZIP - Type '%s \"-L\"' for software license."
+};
+
+ZCONST char *far versinfolines[] = {
+    "This is %s %s (%s), by Info-ZIP.",
+    "Currently maintained by E. Gordon.  Please send bug reports to",
+    "the authors using the web page at www.info-zip.org; see README for details.",
+    "",
+    "Latest sources and executables are at ftp://ftp.info-zip.org/pub/infozip,",
+    "as of above date; see http://www.info-zip.org/ for other sites.",
+    ""
+};
+
+ZCONST char *far cryptnote[] = {
+    "Encryption notice:",
+    "\tThe encryption code of this program is not copyrighted and is",
+    "\tput in the public domain.  It was originally written in Europe",
+    "\tand, to the best of our knowledge, can be freely distributed",
+    "\tin both source and object forms from any country, including",
+    "\tthe USA under License Exception TSU of the U.S. Export",
+    "\tAdministration Regulations (section 740.13(e)) of 6 June 2002."
+};
+
+ZCONST char *far swlicense[] = {
+    "Copyright (c) 1990-2008 Info-ZIP.  All rights reserved.",
+    "",
+    "For the purposes of this copyright and license, \"Info-ZIP\" is defined as",
+    "the following set of individuals:",
+    "",
+    "   Mark Adler, John Bush, Karl Davis, Harald Denker, Jean-Michel Dubois,",
+    "   Jean-loup Gailly, Hunter Goatley, Ed Gordon, Ian Gorman, Chris Herborth,",
+    "   Dirk Haase, Greg Hartwig, Robert Heath, Jonathan Hudson, Paul Kienitz,",
+    "   David Kirschbaum, Johnny Lee, Onno van der Linden, Igor Mandrichenko,",
+    "   Steve P. Miller, Sergio Monesi, Keith Owens, George Petrov, Greg Roelofs,",
+    "   Kai Uwe Rommel, Steve Salisbury, Dave Smith, Steven M. Schweda,",
+    "   Christian Spieler, Cosmin Truta, Antoine Verheijen, Paul von Behren,",
+    "   Rich Wales, Mike White",
+    "",
+    "This software is provided \"as is,\" without warranty of any kind, express",
+    "or implied.  In no event shall Info-ZIP or its contributors be held liable",
+    "for any direct, indirect, incidental, special or consequential damages",
+    "arising out of the use of or inability to use this software.",
+    "",
+    "Permission is granted to anyone to use this software for any purpose,",
+    "including commercial applications, and to alter it and redistribute it",
+    "freely, subject to the above disclaimer and the following restrictions:",
+    "",
+    "    1. Redistributions of source code (in whole or in part) must retain",
+    "       the above copyright notice, definition, disclaimer, and this list",
+    "       of conditions.",
+    "",
+    "    2. Redistributions in binary form (compiled executables and libraries)",
+    "       must reproduce the above copyright notice, definition, disclaimer,",
+    "       and this list of conditions in documentation and/or other materials",
+    "       provided with the distribution.  The sole exception to this condition",
+    "       is redistribution of a standard UnZipSFX binary (including SFXWiz) as",
+    "       part of a self-extracting archive; that is permitted without inclusion",
+    "       of this license, as long as the normal SFX banner has not been removed",
+    "       from the binary or disabled.",
+    "",
+    "    3. Altered versions--including, but not limited to, ports to new operating",
+    "       systems, existing ports with new graphical interfaces, versions with",
+    "       modified or added functionality, and dynamic, shared, or static library",
+    "       versions not from Info-ZIP--must be plainly marked as such and must not",
+    "       be misrepresented as being the original source or, if binaries,",
+    "       compiled from the original source.  Such altered versions also must not",
+    "       be misrepresented as being Info-ZIP releases--including, but not",
+    "       limited to, labeling of the altered versions with the names \"Info-ZIP\"",
+    "       (or any variation thereof, including, but not limited to, different",
+    "       capitalizations), \"Pocket UnZip,\" \"WiZ\" or \"MacZip\" without the",
+    "       explicit permission of Info-ZIP.  Such altered versions are further",
+    "       prohibited from misrepresentative use of the Zip-Bugs or Info-ZIP",
+    "       e-mail addresses or the Info-ZIP URL(s), such as to imply Info-ZIP",
+    "       will provide support for the altered versions.",
+    "",
+    "    4. Info-ZIP retains the right to use the names \"Info-ZIP,\" \"Zip,\" \"UnZip,\"",
+    "       \"UnZipSFX,\" \"WiZ,\" \"Pocket UnZip,\" \"Pocket Zip,\" and \"MacZip\" for its",
+    "       own source and binary releases."
+};

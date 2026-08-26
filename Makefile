@@ -54,6 +54,8 @@ package: all
 # Needs node and a built core tree.
 test: all
 	@node archivers/zip/test/roundtrip.mjs
+	@node archivers/zip/test/tree.mjs
+	@node archivers/zip/test/interrupt.mjs
 	@node games/adventure/test/play.mjs
 	@node games/adventure/test/interrupt.mjs
 	@node games/adventure/test/suspend.mjs

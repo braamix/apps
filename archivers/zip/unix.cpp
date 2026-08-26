@@ -141,3 +141,101 @@ Task<void> version_local(void)
 {
     co_await zfprintf(mesg, "Compiled for Braam with clang, wasm32.\n\n");
 }
+
+// Process a name or sh expression to operate on (or exclude). Return an error
+// code in the ZE_ class.
+//
+// Upstream walked a directory with opendir/readdir. list_dir hands back the
+// whole listing in one syscall, and it never resolves a link — an entry says
+// SYS_KIND_LINK whatever it points at — so recursing on SYS_KIND_DIR alone
+// cannot follow a link out of the tree and needs no cycle guard. There are no
+// FIFOs and no special files, so those two branches are gone with them.
+Task<int> procname(char *n, int caseflag)
+{
+    char *a;             // path and name for recursion
+    int m;               // matched flag
+    char *p;             // path for recursion
+    struct zlist far *z; // steps through zfiles list
+
+    if (strcmp(n, "-") == 0) // if compressing stdin
+        co_return co_await newname(n, 0, caseflag);
+
+    Result<FileInfo> s = Err(Error::NoMemory);
+    if (Task<Result<FileInfo>> t = stat_of(Str(n, strlen(n)), false))
+        s = co_await t;
+
+    if (s.is_err()) {
+        // Not a file or directory -- search for shell expression in zip file
+        p = ex2in(n, 0, (int *)NULL); // shouldn't affect matching chars
+        m = 1;
+        for (z = zfiles; z != NULL; z = z->nxt) {
+            if (MATCH(p, z->iname, caseflag)) {
+                z->mark = pcount ? filter(z->zname, caseflag) : 1;
+                if (verbose)
+                    co_await zfprintf(mesg, "zip diagnostic: %scluding %s\n", z->mark ? "in" : "ex",
+                                      z->name);
+                m = 0;
+            }
+        }
+        free((zvoid *)p);
+        co_return m ? ZE_MISS : ZE_OK;
+    }
+
+    // Live name -- use if file, recurse if directory
+    if (s.value().kind == SYS_KIND_FILE || s.value().kind == SYS_KIND_LINK) {
+        // add or remove name of file
+        if ((m = co_await newname(n, 0, caseflag)) != ZE_OK)
+            co_return m;
+    } else if (s.value().kind == SYS_KIND_DIR) {
+        // Add trailing / to the directory name
+        if ((p = (char *)malloc(strlen(n) + 2)) == NULL)
+            co_return ZE_MEM;
+        if (strcmp(n, ".") == 0) {
+            *p = '\0'; // avoid "./" prefix and do not create zip entry
+        } else {
+            strcpy(p, n);
+            a = p + strlen(p);
+            if (a[-1] != '/')
+                strcpy(a, "/");
+            if (dirnames && (m = co_await newname(p, 1, caseflag)) != ZE_OK) {
+                free((zvoid *)p);
+                co_return m;
+            }
+        }
+
+        // recurse into directory
+        if (recurse) {
+            Result<Vec<DirEntry>> d = Err(Error::NoMemory);
+            if (Task<Result<Vec<DirEntry>>> t = list_dir(Str(n, strlen(n))))
+                d = co_await t;
+            if (d.is_ok()) {
+                for (const DirEntry &e : d.value()) {
+                    // "." and ".." are not in a listing here.
+                    if ((a = (char *)malloc(strlen(p) + e.name.size() + 1)) == NULL) {
+                        free((zvoid *)p);
+                        co_return ZE_MEM;
+                    }
+                    strcpy(a, p);
+                    memcpy(a + strlen(p), e.name.data(), e.name.size());
+                    a[strlen(p) + e.name.size()] = 0;
+                    if ((m = co_await procname(a, caseflag)) != ZE_OK) {
+                        // recurse on name
+                        if (m == ZE_MISS)
+                            co_await zipwarn("name not matched: ", a);
+                        else
+                            co_await ziperr_msg(m, a);
+                    }
+                    free((zvoid *)a);
+                    if (zip_fatal != ZE_OK) {
+                        free((zvoid *)p);
+                        co_return zip_fatal;
+                    }
+                }
+            }
+        }
+        free((zvoid *)p);
+    } else {
+        co_await zipwarn("ignoring special file: ", n);
+    }
+    co_return ZE_OK;
+}

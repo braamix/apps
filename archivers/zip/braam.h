@@ -6,6 +6,11 @@
 #pragma once
 
 #include "kernel/types.h"
+
+// EOF is zip.h's, which this header is included by; getc needs one of its own.
+constexpr int EOF_ = -1;
+
+typedef i64 time_t;
 #include "proc/file.h"
 #include "proc/io.h"
 
@@ -32,6 +37,7 @@ int strncmp(const char *a, const char *b, usize n);
 char *strchr(const char *s, int c);
 char *strrchr(const char *s, int c);
 char *strstr(const char *h, const char *n);
+char *strncat(char *d, const char *s, usize n);
 
 int toupper(int c);
 int tolower(int c);
@@ -47,6 +53,11 @@ int iscntrl(int c);
 char *getenv(const char *name);
 
 int atoi(const char *s);
+
+// The only two sscanf formats upstream uses, both for -t and -tt: an ISO
+// yyyy-mm-dd or an American mmddyyyy. A general sscanf would be the rest of
+// stdio for two call sites.
+int zparse_date(const char *s, int *yyyy, int *mm, int *dd);
 long strtol(const char *s, char **end, int base);
 
 void qsort(void *base, usize n, usize size, int (*cmp)(const void *, const void *));
@@ -112,6 +123,30 @@ inline Zfputc zfputc(int c, FILE *f)
     w.f = f;
     w.s = Str(&zputbuf, 1);
     return w;
+}
+
+// getc: one byte, not a rune — File::get() would decode UTF-8, and getnam
+// reads a name a byte at a time. EOF at end of input.
+extern char zgetbuf;
+
+struct Zfgetc : FileRead {
+    int await_resume() const { return v.is_ok() && v.value() == 1 ? (unsigned char)zgetbuf : EOF_; }
+};
+
+inline Zfgetc zfgetc(FILE *f)
+{
+    Zfgetc r;
+    r.f    = f;
+    r.into = Span<char>(&zgetbuf, 1);
+    return r;
+}
+
+// puts() and putchar(): stdout, and puts adds the newline.
+Task<int> zfputs_nl(const char *s);
+
+inline Zfputc zfputc_out(int c)
+{
+    return zfputc(c, zstdout);
 }
 
 inline FileWrite zfputs(const char *s, FILE *f)
@@ -181,3 +216,7 @@ extern i32 ztz_min;     // minutes east of UTC, read once at startup
 extern i64 zstart_time; // seconds since the epoch, likewise
 
 Task<void> zclock_init();
+
+// time(). The wall clock read at startup plus the monotonic milliseconds
+// since; under the harness proc_now() never advances, so it stands still.
+extern "C" time_t time(time_t *t);

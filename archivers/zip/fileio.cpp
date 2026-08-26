@@ -263,3 +263,2094 @@ char *last(char *p, int c)
     else
         return p;
 }
+
+// ---------------------------------------------------------------- the names
+//
+// The rest of upstream's fileio.c: the found list, the pattern filter, and the
+// option parser — get_option and its two halves, which read short options,
+// clustered options, long options with abbreviation matching, negation and
+// four kinds of value. proc/opt.h can do none of that, so upstream's parser
+// comes across whole.
+//
+// The UTF-8 and UCS-4 helpers stay plain functions: they are called from
+// everywhere and in tight expressions, so an allocation failure records itself
+// and answers NULL, which every caller already handles.
+
+local Task<unsigned long> get_shortopt OF((char **, int, int *, int *, char **, int *, int));
+local Task<unsigned long> get_longopt OF((char **, int, int *, int *, char **, int *, int));
+local int optionerr OF((char *, ZCONST char *, int, int));
+local int fqcmp OF((ZCONST zvoid *, ZCONST zvoid *));
+local int fqcmpz OF((ZCONST zvoid *, ZCONST zvoid *));
+local int utf8_char_bytes OF((ZCONST char *utf8));
+local int utf8_from_ucs4_char OF((char *utf8buf, ulg ch));
+local int utf8_to_ucs4_string OF((ZCONST char *utf8, ulg *ucs4buf, int buflen));
+local int ucs4_string_to_utf8 OF((ZCONST ulg * ucs4, char *utf8buf, int buflen));
+
+// converted to return string pointer from malloc to avoid
+// size limitation - 11/8/04 EG
+#define GETNAM_MAX 9000 // hopefully big enough for now
+Task<char *> getnam(FILE *fp)
+{
+    char name[GETNAM_MAX + 1];
+    int c;   // last character read
+    char *p; // pointer into name area
+
+    p = name;
+    while ((c = co_await zfgetc(fp)) == '\n' || c == '\r')
+        ;
+    if (c == EOF)
+        co_return NULL;
+    do {
+        if (p - name >= GETNAM_MAX)
+            co_return NULL;
+        *p++ = (char)c;
+        c    = co_await zfgetc(fp);
+    } while (c != EOF && (c != '\n' && c != '\r'));
+    *p = 0;
+    // malloc a copy
+    if ((p = (char *)malloc(strlen(name) + 1)) == NULL) {
+        co_return NULL;
+    }
+    strcpy(p, name);
+    co_return p;
+}
+
+struct flist far *fexpel(struct flist far *f)
+{
+    struct flist far *t; // temporary variable
+
+    t         = f->nxt;
+    *(f->lst) = t; // point last to next,
+    if (t != NULL)
+        t->lst = f->lst; // and next to last
+    if (f->name != NULL) // free memory used
+        free((zvoid *)(f->name));
+    if (f->zname != NULL)
+        free((zvoid *)(f->zname));
+    if (f->iname != NULL)
+        free((zvoid *)(f->iname));
+    if (f->uname)
+        free((zvoid *)f->uname);
+    farfree((zvoid far *)f);
+    fcount--; // decrement count
+    return t; // return pointer to next
+}
+
+local int fqcmp(ZCONST zvoid *a, ZCONST zvoid *b)
+{
+    return strcmp((*(struct flist far **)a)->name, (*(struct flist far **)b)->name);
+}
+
+local int fqcmpz(ZCONST zvoid *a, ZCONST zvoid *b)
+{
+    return strcmp((*(struct flist far **)a)->iname, (*(struct flist far **)b)->iname);
+}
+
+Task<int> proc_archive_name(char *n, int caseflag)
+{
+    int m;               // matched flag
+    char *p;             // path for recursion
+    struct zlist far *z; // steps through zfiles list
+
+    if (strcmp(n, "-") == 0) { // if compressing stdin
+        co_await zipwarn("Cannot select stdin when selecting archive entries", "");
+        co_return ZE_MISS;
+    } else {
+        // Search for shell expression in zip file
+        p = ex2in(n, 0, (int *)NULL); // shouldn't affect matching chars
+        m = 1;
+        for (z = zfiles; z != NULL; z = z->nxt) {
+            if (MATCH(p, z->iname, caseflag)) {
+                z->mark = pcount ? filter(z->zname, caseflag) : 1;
+                if (verbose)
+                    co_await zfprintf(mesg, "zip diagnostic: %scluding %s\n", z->mark ? "in" : "ex",
+                                      z->oname);
+                m = 0;
+            }
+        }
+        // also check escaped Unicode names
+        for (z = zfiles; z != NULL; z = z->nxt) {
+            if (z->zuname) {
+                char *zuname = z->zuname;
+                if (MATCH(p, zuname, caseflag)) {
+                    z->mark = pcount ? filter(zuname, caseflag) : 1;
+                    if (verbose) {
+                        co_await zfprintf(mesg, "zip diagnostic: %scluding %s\n",
+                                          z->mark ? "in" : "ex", z->oname);
+                        co_await zfprintf(mesg, "     Escaped Unicode:  %s\n", z->ouname);
+                    }
+                    m = 0;
+                }
+            }
+        }
+        free((zvoid *)p);
+        co_return m ? ZE_MISS : ZE_OK;
+    }
+}
+
+Task<int> check_dup(void)
+// Sort the found list and remove duplicates.
+// Return an error code in the ZE_ class.
+{
+    struct flist far *f;      // steps through found linked list
+    extent j, k;              // indices for s
+    struct flist far **s;     // sorted table
+    struct flist far **nodup; // sorted table without duplicates
+
+    // sort found list, remove duplicates
+    if (fcount) {
+        extent fl_size = fcount * sizeof(struct flist far *);
+        if ((fl_size / sizeof(struct flist far *)) != fcount ||
+            (s = (struct flist far **)malloc(fl_size)) == NULL)
+            co_return ZE_MEM;
+        for (j = 0, f = found; f != NULL; f = f->nxt)
+            s[j++] = f;
+        // Check names as given (f->name)
+        qsort((char *)s, fcount, sizeof(struct flist far *), fqcmp);
+        for (k = j = fcount - 1; j > 0; j--)
+            if (strcmp(s[j - 1]->name, s[j]->name) == 0)
+                // remove duplicate entry from list
+                fexpel(s[j]); // fexpel() changes fcount
+            else
+                // copy valid entry into destination position
+                s[k--] = s[j];
+        s[k]  = s[0];  // First entry is always valid
+        nodup = &s[k]; // Valid entries are at end of array s
+
+        // sort only valid items and check for unique internal names (f->iname)
+        qsort((char *)nodup, fcount, sizeof(struct flist far *), fqcmpz);
+        for (j = 1; j < fcount; j++)
+            if (strcmp(nodup[j - 1]->iname, nodup[j]->iname) == 0) {
+                char tempbuf[FNMAX + 4081];
+
+                zsprintf(errbuf, "  first full name: %s\n", nodup[j - 1]->name);
+                zsprintf(tempbuf, " second full name: %s\n", nodup[j]->name);
+                strcat(errbuf, "                     ");
+                strcat(errbuf, tempbuf);
+                zsprintf(tempbuf, "name in zip file repeated: %s", nodup[j]->iname);
+                strcat(errbuf, "                     ");
+                strcat(errbuf, tempbuf);
+                if (pathput == 0) {
+                    strcat(errbuf, "\n                     this may be a result of using -j");
+                }
+                co_await zipwarn(errbuf, "");
+                co_return ZE_PARMS;
+            }
+        free((zvoid *)s);
+    }
+    co_return ZE_OK;
+}
+
+int filter(char *name, int casesensitive)
+{
+    unsigned int n;
+    int slashes;
+    char *p, *q;
+    // without -i patterns, every name matches the "-i select rules"
+    int imatch = (icount == 0);
+    // without -R patterns, every name matches the "-R select rules"
+    int Rmatch = (Rcount == 0);
+
+    if (pcount == 0)
+        return TRUE;
+
+    for (n = 0; n < pcount; n++) {
+        if (!patterns[n].zname[0]) // it can happen...
+            continue;
+        p = name;
+        switch (patterns[n].select) {
+        case 'R':
+            if (Rmatch)
+                // one -R match is sufficient, skip this pattern
+                continue;
+            // With -R patterns, if the pattern has N path components (that is,
+            // N-1 slashes), then we test only the last N components of name.
+            slashes = 0;
+            for (q = patterns[n].zname; (q = MBSCHR(q, '/')) != NULL; MB_NEXTCHAR(q))
+                slashes++;
+            // The name may have M path components (M-1 slashes)
+            for (q = p; (q = MBSCHR(q, '/')) != NULL; MB_NEXTCHAR(q))
+                slashes--;
+            // Now, "slashes" contains the difference "N-M" between the number
+            // of path components in the pattern (N) and in the name (M).
+            if (slashes < 0)
+                // We found "M > N"
+                // --> skip the first (M-N) path components of the name.
+                for (q = p; (q = MBSCHR(q, '/')) != NULL; MB_NEXTCHAR(q))
+                    if (++slashes == 0) {
+                        p = q + 1; // q points at '/', mblen("/") is 1
+                        break;
+                    }
+            break;
+        case 'i':
+            if (imatch)
+                // one -i match is sufficient, skip this pattern
+                continue;
+            break;
+        }
+        if (MATCH(patterns[n].zname, p, casesensitive)) {
+            switch (patterns[n].select) {
+            case 'x':
+                // The -x match takes precedence over everything else
+                return FALSE;
+            case 'R':
+                Rmatch = TRUE;
+                break;
+            default:
+                // this must be a type -i match
+                imatch = TRUE;
+                break;
+            }
+        }
+    }
+    return imatch && Rmatch;
+}
+
+Task<int> newname(char *name, int isdir, int casesensitive)
+{
+    char *iname, *zname; // internal name, external version of iname
+    char *undosm;        // zname version with "-j" and "-k" options disabled
+    char *oname;         // iname converted for display
+    struct flist far *f; // where in found, or new found entry
+    struct zlist far *z; // where in zfiles (if found)
+    int dosflag;
+
+    // Scanning files ...
+    //
+    // After 5 seconds output Scanning files...
+    // then a dot every 2 seconds
+    if (noisy) {
+        // If find files then output message after delay
+        if (scan_count == 0) {
+            time_t current = time(NULL);
+            scan_start     = current;
+        }
+        scan_count++;
+        if (scan_count % 100 == 0) {
+            time_t current = time(NULL);
+
+            if (current - scan_start > scan_delay) {
+                if (scan_last == 0) {
+                    co_await zipmessage_nl("Scanning files ", 0);
+                    scan_last = current;
+                }
+                if (current - scan_last > scan_dot_time) {
+                    scan_last = current;
+                    co_await zfprintf(mesg, ".");
+                    co_await zfflush(mesg);
+                }
+            }
+        }
+    }
+
+    // Search for name in zip file.  If there, mark it, else add to
+    // list of new names to do (or remove from that list).
+    if ((iname = ex2in(name, isdir, &dosflag)) == NULL)
+        co_return ZE_MEM;
+
+    // Discard directory names with zip -rj
+    if (*iname == '\0') {
+        // A null string is a legitimate external directory name in AmigaDOS; also,
+        // a command like "zip -r zipfile FOO:" produces an empty internal name.
+        // If extensions needs to be swapped, we will have empty directory names
+        // instead of the original directory. For example, zipping 'c.', 'c.main'
+        // should zip only 'main.c' while 'c.' will be converted to '\0' by ex2in.
+
+        if (pathput && !recurse)
+            error("empty name without -j or -r");
+
+        free((zvoid *)iname);
+        co_return ZE_OK;
+    }
+    undosm = NULL;
+    if (dosflag || !pathput) {
+        int save_dosify = dosify, save_pathput = pathput;
+        dosify  = 0;
+        pathput = 1;
+        // zname is temporarly mis-used as "undosmode" iname pointer
+        if ((zname = ex2in(name, isdir, NULL)) != NULL) {
+            undosm = in2ex(zname);
+            free(zname);
+        }
+        dosify  = save_dosify;
+        pathput = save_pathput;
+    }
+    if ((zname = in2ex(iname)) == NULL)
+        co_return ZE_MEM;
+    // Convert name to display or OEM name
+    oname = local_to_display_string(iname);
+    if (undosm == NULL)
+        undosm = zname;
+    if ((z = zsearch(zname)) != NULL) {
+        if (pcount && !filter(undosm, casesensitive)) {
+            // Do not clear z->mark if "exclude", because, when "dosify || !pathput"
+            // is in effect, two files with different filter options may hit the
+            // same z entry.
+            if (verbose)
+                co_await zfprintf(mesg, "excluding %s\n", oname);
+            free((zvoid *)iname);
+            free((zvoid *)zname);
+        } else {
+            z->mark = 1;
+            if ((z->name = (char *)malloc(strlen(name) + 1 + PAD)) == NULL) {
+                if (undosm != zname)
+                    free((zvoid *)undosm);
+                free((zvoid *)iname);
+                free((zvoid *)zname);
+                co_return ZE_MEM;
+            }
+            strcpy(z->name, name);
+            z->oname   = oname;
+            z->dosflag = dosflag;
+
+            // Better keep the old name. Useful when updating on MSDOS a zip file
+            // made on Unix.
+            free((zvoid *)iname);
+            free((zvoid *)zname);
+        }
+        if (name == label) {
+            label = z->name;
+        }
+    } else if (pcount == 0 || filter(undosm, casesensitive)) {
+        // Check that we are not adding the zip file to itself. This
+        // catches cases like "zip -m foo ../dir/foo.zip".
+        //
+        // Upstream compared st_ino and st_dev. The filesystem has neither — this
+        // is the case its CMS/MVS branch was for — so the names are compared
+        // instead, which catches the same mistake for any name reached the same
+        // way.
+        if (zipfile != NULL && strcmp(zipfile, "-") != 0 && strcmp(name, zipfile) == 0) {
+            if (verbose)
+                co_await zfprintf(mesg, "file matches zip file -- skipping\n");
+            if (undosm != zname)
+                free((zvoid *)zname);
+            if (undosm != iname)
+                free((zvoid *)undosm);
+            free((zvoid *)iname);
+            free(oname);
+            co_return ZE_OK;
+        }
+
+        // allocate space and add to list
+        if ((f = (struct flist far *)farmalloc(sizeof(struct flist))) == NULL ||
+            fcount + 1 < fcount || (f->name = (char *)malloc(strlen(name) + 1 + PAD)) == NULL) {
+            if (f != NULL)
+                farfree((zvoid far *)f);
+            if (undosm != zname)
+                free((zvoid *)undosm);
+            free((zvoid *)iname);
+            free((zvoid *)zname);
+            free(oname);
+            co_return ZE_MEM;
+        }
+        strcpy(f->name, name);
+        f->iname = iname;
+        f->zname = zname;
+        // Unicode
+        f->uname = local_to_utf8_string(iname);
+
+        f->oname   = oname;
+        f->dosflag = dosflag;
+
+        *fnxt  = f;
+        f->lst = fnxt;
+        f->nxt = NULL;
+        fnxt   = &f->nxt;
+        fcount++;
+        if (name == label) {
+            label = f->name;
+        }
+    }
+    if (undosm != zname)
+        free((zvoid *)undosm);
+    co_return ZE_OK;
+}
+
+// Unicode conversion functions
+//
+// Provided by Paul Kienitz
+//
+// Some modifications to work with Zip
+//
+// ---------------------------------------------
+
+// NOTES APPLICABLE TO ALL STRING FUNCTIONS:
+//
+// All of the x_to_y functions take parameters for an output buffer and
+// its available length, and return an int.  The value returned is the
+// length of the string that the input produces, which may be larger than
+// the provided buffer length.  If the returned value is less than the
+// buffer length, then the contents of the buffer will be null-terminated;
+// otherwise, it will not be terminated and may be invalid, possibly
+// stopping in the middle of a multibyte sequence.
+//
+// In all cases you may pass NULL as the buffer and/or 0 as the length, if
+// you just want to learn how much space the string is going to require.
+//
+// The functions will return -1 if the input is invalid UTF-8 or cannot be
+// encoded as UTF-8.
+
+// utility functions for managing UTF-8 and UCS-4 strings
+
+// utf8_char_bytes
+//
+// Returns the number of bytes used by the first character in a UTF-8
+// string, or -1 if the UTF-8 is invalid or null.
+local int utf8_char_bytes(ZCONST char *utf8)
+{
+    int t, r;
+    unsigned lead;
+
+    if (!utf8)
+        return -1; // no input
+    lead = (unsigned char)*utf8;
+    if (lead < 0x80)
+        r = 1; // an ascii-7 character
+    else if (lead < 0xC0)
+        return -1; // error: trailing byte without lead byte
+    else if (lead < 0xE0)
+        r = 2; // an 11 bit character
+    else if (lead < 0xF0)
+        r = 3; // a 16 bit character
+    else if (lead < 0xF8)
+        r = 4; // a 21 bit character (the most currently used)
+    else if (lead < 0xFC)
+        r = 5; // a 26 bit character (shouldn't happen)
+    else if (lead < 0xFE)
+        r = 6; // a 31 bit character (shouldn't happen)
+    else
+        return -1; // error: invalid lead byte
+    for (t = 1; t < r; t++)
+        if ((unsigned char)utf8[t] < 0x80 || (unsigned char)utf8[t] >= 0xC0)
+            return -1; // error: not enough valid trailing bytes
+    return r;
+}
+
+// ucs4_char_from_utf8
+//
+// Given a reference to a pointer into a UTF-8 string, returns the next
+// UCS-4 character and advances the pointer to the next character sequence.
+// Returns ~0 and does not advance the pointer when input is ill-formed.
+//
+// Since the Unicode standard says 32-bit values won't be used (just
+// up to the current 21-bit mappings) changed this to signed to allow -1 to
+// be returned.
+long ucs4_char_from_utf8(ZCONST char **utf8)
+{
+    ulg ret;
+    int t, bytes;
+
+    if (!utf8)
+        return -1; // no input
+    bytes = utf8_char_bytes(*utf8);
+    if (bytes <= 0)
+        return -1; // invalid input
+    if (bytes == 1)
+        ret = **utf8; // ascii-7
+    else
+        ret = **utf8 & (0x7F >> bytes); // lead byte of a multibyte sequence
+    (*utf8)++;
+    for (t = 1; t < bytes; t++) // consume trailing bytes
+        ret = (ret << 6) | (*((*utf8)++) & 0x3F);
+    return (long)ret;
+}
+
+// utf8_from_ucs4_char - Convert UCS char to UTF-8
+//
+// Returns the number of bytes put into utf8buf to represent ch, from 1 to 6,
+// or -1 if ch is too large to represent.  utf8buf must have room for 6 bytes.
+local int utf8_from_ucs4_char(char *utf8buf, ulg ch)
+{
+    int trailing = 0;
+    int leadmask = 0x80;
+    int leadbits = 0x3F;
+    ulg tch      = ch;
+    int ret;
+
+    if (ch > 0x7FFFFFFF)
+        return -1; // UTF-8 can represent 31 bits
+    if (ch < 0x7F) {
+        *utf8buf++ = (char)ch; // ascii-7
+        return 1;
+    }
+    do {
+        trailing++;
+        leadmask = (leadmask >> 1) | 0x80;
+        leadbits >>= 1;
+        tch >>= 6;
+    } while (tch & ~leadbits);
+    ret = trailing + 1;
+    // produce lead byte
+    *utf8buf++ = (char)(leadmask | (ch >> (6 * trailing)));
+    // produce trailing bytes
+    while (--trailing >= 0)
+        *utf8buf++ = (char)(0x80 | ((ch >> (6 * trailing)) & 0x3F));
+    return ret;
+}
+
+// ===================================================================
+
+// utf8_to_ucs4_string - convert UTF-8 string to UCS string
+//
+// Return UCS count.  Now returns int so can return -1.
+local int utf8_to_ucs4_string(ZCONST char *utf8, ulg *ucs4buf, int buflen)
+{
+    int count = 0;
+
+    for (;;) {
+        long ch = ucs4_char_from_utf8(&utf8);
+        if (ch == -1)
+            return -1;
+        else {
+            if (ucs4buf && count < buflen)
+                ucs4buf[count] = ch;
+            if (ch == 0)
+                return count;
+            count++;
+        }
+    }
+}
+
+// ucs4_string_to_utf8
+local int ucs4_string_to_utf8(ZCONST ulg *ucs4, char *utf8buf, int buflen)
+{
+    char mb[6];
+    int count = 0;
+
+    if (!ucs4)
+        return -1;
+    for (;;) {
+        int mbl = utf8_from_ucs4_char(mb, *ucs4++);
+        int c;
+        if (mbl <= 0)
+            return -1;
+        // We could optimize this a bit by passing utf8buf + count
+        // directly to utf8_from_ucs4_char when buflen >= count + 6...
+        c = buflen - count;
+        if (mbl < c)
+            c = mbl;
+        if (utf8buf && count < buflen)
+            strncpy(utf8buf + count, mb, c);
+        if (mbl == 1 && !mb[0])
+            return count; // terminating nul
+        count += mbl;
+    }
+}
+
+// ---------------------------------------------------
+// Unicode Support
+//
+// These functions common for all Unicode ports.
+//
+// These functions should allocate and return strings that can be
+// freed with free().
+//
+// 8/27/05 EG
+//
+// Use zwchar for wide char which is unsigned long
+// in zip.h and 32 bits.  This avoids problems with
+// different sizes of wchar_t.
+
+// is_ascii_string
+// Checks if a string is all ascii
+int is_ascii_string(char *mbstring)
+{
+    char *p;
+    uch c;
+
+    if (mbstring == NULL)
+        return 0;
+
+    for (p = mbstring; (c = (uch)*p) != '\0'; p++) {
+        if (c > 0x7F) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+// local to UTF-8
+char *local_to_utf8_string(char *local_string)
+{
+    zwchar *wide_string = local_to_wide_string(local_string);
+    char *utf8_string   = wide_to_utf8_string(wide_string);
+
+    free(wide_string);
+    return utf8_string;
+}
+
+// wide_char_to_escape_string
+// provides a string that represents a wide char not in local char set
+//
+// An initial try at an algorithm.  Suggestions welcome.
+//
+// If not an ASCII char, probably need 2 bytes at least.  So if
+// a 2-byte wide encode it as 4 hex digits with a leading #U.
+// Since the Unicode standard has been frozen, it looks like 3 bytes
+// should be enough for any large Unicode character.  In these cases
+// prefix the string with #L.
+// So
+// #U1234
+// is a 2-byte wide character with bytes 0x12 and 0x34 while
+// #L123456
+// is a 3-byte wide with bytes 0x12, 0x34, and 0x56.
+// On Windows, wide that need two wide characters as a surrogate pair
+// to represent them need to be converted to a single number.
+
+// set this to the max bytes an escape can be
+#define MAX_ESCAPE_BYTES 8
+
+char *wide_char_to_escape_string(zwchar wide_char)
+{
+    int i;
+    zwchar w = wide_char;
+    uch b[9];
+    char e[7];
+    int len;
+    char *r;
+
+    // fill byte array with zeros
+    for (len = 0; len < sizeof(zwchar); len++) {
+        b[len] = 0;
+    }
+    // get bytes in right to left order
+    for (len = 0; w; len++) {
+        b[len] = (char)(w % 0x100);
+        w /= 0x100;
+    }
+
+    if ((r = (char *)malloc(MAX_ESCAPE_BYTES + 8)) == NULL) {
+        {
+            zip_fail(ZE_MEM, "wide_char_to_escape_string");
+            return NULL;
+        }
+    }
+    strcpy(r, "#");
+    // either 2 bytes or 4 bytes
+    if (len < 3) {
+        len = 2;
+        strcat(r, "U");
+    } else {
+        len = 3;
+        strcat(r, "L");
+    }
+    for (i = len - 1; i >= 0; i--) {
+        zsprintf(e, "%02x", b[i]);
+        strcat(r, e);
+    }
+    return r;
+}
+
+char *local_to_escape_string(char *local_string)
+{
+    zwchar *wide_string = local_to_wide_string(local_string);
+    char *escape_string = wide_to_escape_string(wide_string);
+
+    free(wide_string);
+    return escape_string;
+}
+
+// convert wide character string to multi-byte character string
+//
+// The local character set here is UTF-8, so every wide character has an
+// encoding: upstream's wctomb(), its state-dependent-encoding probe and its
+// "no multi-byte for this one" fallback all go, and what is left is the
+// encoding and -UN=e's escaping.
+char *wide_to_local_string(zwchar *wide_string)
+{
+    int i;
+    int wsize = 0;
+    char buf[9];
+    char *buffer       = NULL;
+    char *local_string = NULL;
+
+    for (wsize = 0; wide_string[wsize]; wsize++)
+        ;
+
+    if ((buffer = (char *)malloc(wsize * MAX_ESCAPE_BYTES + 1)) == NULL) {
+        zip_fail(ZE_MEM, "wide_to_local_string");
+        return NULL;
+    }
+
+    // convert it
+    buffer[0] = '\0';
+    for (i = 0; i < wsize; i++) {
+        int b = utf8_from_ucs4_char(buf, (ulg)wide_string[i]);
+        if (b < 0)
+            b = 0;
+        if (unicode_escape_all && !(b == 1 && (uch)buf[0] <= 0x7f)) {
+            // use escape for wide character
+            char *e = wide_char_to_escape_string(wide_string[i]);
+            strcat(buffer, e);
+            free(e);
+        } else {
+            strncat(buffer, buf, b);
+        }
+    }
+    if ((local_string = (char *)malloc(strlen(buffer) + 1)) == NULL) {
+        free(buffer);
+        zip_fail(ZE_MEM, "wide_to_local_string");
+        return NULL;
+    }
+    strcpy(local_string, buffer);
+    free(buffer);
+
+    return local_string;
+}
+
+// convert wide character string to escaped string
+char *wide_to_escape_string(zwchar *wide_string)
+{
+    int i;
+    int wsize = 0;
+    char buf[9];
+    char *buffer        = NULL;
+    char *escape_string = NULL;
+
+    for (wsize = 0; wide_string[wsize]; wsize++)
+        ;
+
+    if ((buffer = (char *)malloc(wsize * MAX_ESCAPE_BYTES + 1)) == NULL) {
+        {
+            zip_fail(ZE_MEM, "wide_to_escape_string");
+            return NULL;
+        }
+    }
+
+    // convert it
+    buffer[0] = '\0';
+    for (i = 0; i < wsize; i++) {
+        if (wide_string[i] <= 0x7f && isprint((char)wide_string[i])) {
+            // ASCII
+            buf[0] = (char)wide_string[i];
+            buf[1] = '\0';
+            strcat(buffer, buf);
+        } else {
+            // use escape for wide character
+            char *e = wide_char_to_escape_string(wide_string[i]);
+            strcat(buffer, e);
+            free(e);
+        }
+    }
+    if ((escape_string = (char *)malloc(strlen(buffer) + 1)) == NULL) {
+        {
+            zip_fail(ZE_MEM, "wide_to_escape_string");
+            return NULL;
+        }
+    }
+    strcpy(escape_string, buffer);
+    free(buffer);
+
+    return escape_string;
+}
+
+// convert local string to display character set string
+char *local_to_display_string(char *local_string)
+{
+    char *temp_string;
+    char *display_string;
+
+    // For Windows, OEM string should never be bigger than ANSI string, says
+    // CharToOem description.
+    // On UNIX, non-printable characters (0x00 - 0xFF) will be replaced by
+    // "^x", so more space may be needed.  Note that "^" itself is a valid
+    // name character, so this leaves an ambiguity, but UnZip displays
+    // names this way, too.  (0x00 is not possible, I hope.)
+    // For all other ports, just make a copy of local_string.
+
+    char *cp_dst; // Character pointers used in the
+    char *cp_src; // copying/changing procedure.
+
+    if ((temp_string = (char *)malloc(2 * strlen(local_string) + 1)) == NULL) {
+        {
+            zip_fail(ZE_MEM, "local_to_display_string");
+            return NULL;
+        }
+    }
+
+    // Copy source string, expanding non-printable characters to "^x".
+    cp_dst = temp_string;
+    cp_src = local_string;
+    while (*cp_src != '\0') {
+        if ((unsigned char)*cp_src < ' ') {
+            *cp_dst++ = '^';
+            *cp_dst++ = '@' + *cp_src++;
+        } else {
+            *cp_dst++ = *cp_src++;
+        }
+    }
+    *cp_dst = '\0';
+
+    if ((display_string = (char *)malloc(strlen(temp_string) + 1)) == NULL) {
+        {
+            zip_fail(ZE_MEM, "local_to_display_string");
+            return NULL;
+        }
+    }
+    strcpy(display_string, temp_string);
+    free(temp_string);
+
+    return display_string;
+}
+
+// UTF-8 to local
+char *utf8_to_local_string(char *utf8_string)
+{
+    zwchar *wide_string = utf8_to_wide_string(utf8_string);
+    char *loc           = wide_to_local_string(wide_string);
+    if (wide_string)
+        free(wide_string);
+    return loc;
+}
+
+// UTF-8 to local
+char *utf8_to_escape_string(char *utf8_string)
+{
+    zwchar *wide_string = utf8_to_wide_string(utf8_string);
+    char *escape_string = wide_to_escape_string(wide_string);
+    free(wide_string);
+    return escape_string;
+}
+
+// convert multi-byte character string to wide character string
+//
+// The local character set is UTF-8, so mbstowcs() and the wchar_t staging
+// buffer it wanted are utf8_to_ucs4_string().
+zwchar *local_to_wide_string(char *local_string)
+{
+    int wsize;
+    zwchar *wide_string;
+
+    wsize = utf8_to_ucs4_string(local_string, NULL, 0);
+    if (wsize == -1) {
+        // could not convert
+        return NULL;
+    }
+
+    // convert it
+    if ((wide_string = (zwchar *)malloc((wsize + 1) * sizeof(zwchar))) == NULL) {
+        zip_fail(ZE_MEM, "local_to_wide_string");
+        return NULL;
+    }
+    utf8_to_ucs4_string(local_string, wide_string, wsize + 1);
+
+    return wide_string;
+}
+
+// convert wide string to UTF-8
+char *wide_to_utf8_string(zwchar *wide_string)
+{
+    int mbcount;
+    char *utf8_string;
+
+    // get size of utf8 string
+    mbcount = ucs4_string_to_utf8(wide_string, NULL, 0);
+    if (mbcount == -1)
+        return NULL;
+    if ((utf8_string = (char *)malloc(mbcount + 1)) == NULL) {
+        {
+            zip_fail(ZE_MEM, "wide_to_utf8_string");
+            return NULL;
+        }
+    }
+    mbcount = ucs4_string_to_utf8(wide_string, utf8_string, mbcount + 1);
+    if (mbcount == -1)
+        return NULL;
+
+    return utf8_string;
+}
+
+// convert UTF-8 string to wide string
+zwchar *utf8_to_wide_string(char *utf8_string)
+{
+    int wcount;
+    zwchar *wide_string;
+
+    wcount = utf8_to_ucs4_string(utf8_string, NULL, 0);
+    if (wcount == -1)
+        return NULL;
+    if ((wide_string = (zwchar *)malloc((wcount + 2) * sizeof(zwchar))) == NULL) {
+        {
+            zip_fail(ZE_MEM, "utf8_to_wide_string");
+            return NULL;
+        }
+    }
+    wcount = utf8_to_ucs4_string(utf8_string, wide_string, wcount + 1);
+
+    return wide_string;
+}
+
+// message output - char casts are needed to handle constants
+#define oWARN(message) co_await zipwarn((char *)message, "")
+#define oERR(err, message)                         \
+    {                                              \
+        co_await ziperr_msg(err, (char *)message); \
+        co_return 0;                               \
+    }
+
+// Although the below provides some support for multibyte characters
+// the proper thing to do may be to use wide characters and support
+// Unicode.  May get to it soon.  EG
+
+// For now stay with muti-byte characters.  May support wide characters
+// in Zip 3.1.
+
+// multibyte character set support
+// Multibyte characters use typically two or more sequential bytes
+// to represent additional characters than can fit in a single byte
+// character set.  The code used here is based on the ANSI mblen function.
+
+// moved to zip.h
+
+// constants
+
+// function get_args_from_arg_file() can return this in depth parameter
+#define ARG_FILE_ERR -1
+
+// internal settings for optchar
+#define SKIP_VALUE_ARG   -1
+#define THIS_ARG_DONE    -2
+#define START_VALUE_LIST -3
+#define IN_VALUE_LIST    -4
+#define NON_OPTION_ARG   -5
+#define STOP_VALUE_LIST  -6
+// 7/25/04 EG
+#define READ_REST_ARGS_VERBATIM -7
+
+// global veriables
+
+int enable_permute = 1; // yes - return options first
+// 7/25/04 EG
+int doubledash_ends_options = 1; // when -- what follows are not options
+
+// buffer for error messages (this sizing is a guess but must hold 2 paths)
+#define OPTIONERR_BUF_SIZE (FNMAX * 2 + 4000)
+local char Far optionerrbuf[OPTIONERR_BUF_SIZE + 1];
+
+// error messages
+static ZCONST char Far op_not_neg_err[]      = "option %s not negatable";
+static ZCONST char Far op_req_val_err[]      = "option %s requires a value";
+static ZCONST char Far op_no_allow_val_err[] = "option %s does not allow a value";
+static ZCONST char Far sh_op_not_sup_err[]   = "short option '%c' not supported";
+static ZCONST char Far oco_req_val_err[]     = "option %s requires one character value";
+static ZCONST char Far oco_no_mbc_err[]      = "option %s does not support multibyte values";
+static ZCONST char Far num_req_val_err[]     = "option %s requires number value";
+static ZCONST char Far long_op_ambig_err[]   = "long option '%s' ambiguous";
+static ZCONST char Far long_op_not_sup_err[] = "long option '%s' not supported";
+
+// below removed as only used for processing argument files
+
+// get_nextarg
+// get_args_from_string
+// insert_args
+// get_args_from_arg_file
+
+// copy error, option name, and option description if any to buf
+local int optionerr(char *buf, ZCONST char *err, int optind, int islong)
+{
+    char optname[50];
+
+    if (options[optind].name && options[optind].name[0] != '\0') {
+        if (islong)
+            zsprintf(optname, "'%s' (%s)", options[optind].longopt, options[optind].name);
+        else
+            zsprintf(optname, "'%s' (%s)", options[optind].shortopt, options[optind].name);
+    } else {
+        if (islong)
+            zsprintf(optname, "'%s'", options[optind].longopt);
+        else
+            zsprintf(optname, "'%s'", options[optind].shortopt);
+    }
+    zsprintf(buf, err, optname);
+    return 0;
+}
+
+// copy_args
+//
+// Copy arguments in args, allocating storage with malloc.
+// Copies until a NULL argument is found or until max_args args
+// including args[0] are copied.  Set max_args to 0 to copy
+// until NULL.  Always terminates returned args[] with NULL arg.
+//
+// Any argument in the returned args can be freed with free().  Any
+// freed argument should be replaced with either another string
+// allocated with malloc or by NULL if last argument so that free_args
+// will properly work.
+Task<char **> copy_args(char **args, int max_args)
+{
+    int j;
+    char **new_args;
+
+    if (args == NULL) {
+        co_return NULL;
+    }
+
+    // count args
+    for (j = 0; args[j] && (max_args == 0 || j < max_args); j++)
+        ;
+
+    if ((new_args = (char **)malloc((j + 1) * sizeof(char *))) == NULL) {
+        oERR(ZE_MEM, "ca");
+    }
+
+    for (j = 0; args[j] && (max_args == 0 || j < max_args); j++) {
+        if (args[j] == NULL) {
+            // null argument is end of args
+            new_args[j] = NULL;
+            break;
+        }
+        if ((new_args[j] = (char *)malloc(strlen(args[j]) + 1)) == NULL) {
+            free_args(new_args);
+            oERR(ZE_MEM, "ca");
+        }
+        strcpy(new_args[j], args[j]);
+    }
+    new_args[j] = NULL;
+
+    co_return new_args;
+}
+
+// free args - free args created with one of these functions
+int free_args(char **args)
+{
+    int i;
+
+    if (args == NULL) {
+        return 0;
+    }
+
+    for (i = 0; args[i]; i++) {
+        free(args[i]);
+    }
+    free(args);
+    return i;
+}
+
+// insert_arg
+//
+// Insert the argument arg into the array args before argument at_arg.
+// Return the new count of arguments (argc).
+//
+// If free_args is true, this function frees the old args array
+// (but not the component strings).  DO NOT set free_args on original
+// argv but only on args allocated with malloc.
+
+Task<int> insert_arg(char ***pargs, ZCONST char *arg, int at_arg, int free_args)
+{
+    char *newarg = NULL;
+    char **args;
+    char **newargs = NULL;
+    int argnum;
+    int newargnum;
+    int argcnt;
+    int newargcnt;
+
+    if (pargs == NULL) {
+        co_return 0;
+    }
+    args = *pargs;
+
+    // count args
+    if (args == NULL) {
+        argcnt = 0;
+    } else {
+        for (argcnt = 0; args[argcnt]; argcnt++)
+            ;
+    }
+    if (arg == NULL) {
+        // done
+        co_return argcnt;
+    }
+    newargcnt = argcnt + 1;
+
+    // get storage for new args
+    if ((newargs = (char **)malloc((newargcnt + 1) * sizeof(char *))) == NULL) {
+        oERR(ZE_MEM, "ia");
+    }
+
+    // copy argument pointers from args to position at_arg, copy arg, then rest args
+    argnum    = 0;
+    newargnum = 0;
+    if (args) {
+        for (; args[argnum] && argnum < at_arg; argnum++) {
+            newargs[newargnum++] = args[argnum];
+        }
+    }
+    // copy new arg
+    if ((newarg = (char *)malloc(strlen(arg) + 1)) == NULL) {
+        oERR(ZE_MEM, "ia");
+    }
+    strcpy(newarg, arg);
+
+    newargs[newargnum++] = newarg;
+    if (args) {
+        for (; args[argnum]; argnum++) {
+            newargs[newargnum++] = args[argnum];
+        }
+    }
+    newargs[newargnum] = NULL;
+
+    // free old args array but not component strings - this assumes that
+    // args was allocated with malloc as copy_args does.  DO NOT DO THIS
+    // on the original argv.
+    if (free_args)
+        free(args);
+
+    *pargs = newargs;
+
+    co_return newargnum;
+}
+
+// -------------------------------------
+
+// get_shortopt
+//
+// Get next short option from arg.  The state is stored in argnum, optchar, and
+// option_num so no static storage is used.  Returns the option_ID.
+//
+// parameters:
+// args        - argv array of arguments
+// argnum      - index of current arg in args
+// optchar     - pointer to index of next char to process.  Can be 0 or
+// const defined at top of this file like THIS_ARG_DONE
+// negated     - on return pointer to int set to 1 if option negated or 0 otherwise
+// value       - on return pointer to string set to value of option if any or NULL
+// if none.  If value is returned then the caller should free()
+// it when not needed anymore.
+// option_num  - pointer to index in options[] of returned option or
+// o_NO_OPTION_MATCH if none.  Do not change as used by
+// value lists.
+// depth       - recursion depth (0 at top level, 1 or more in arg files)
+local Task<unsigned long> get_shortopt(char **args, int argnum, int *optchar, int *negated,
+                                       char **value, int *option_num, int depth)
+{
+    char *shortopt;
+    int clen;
+    char *nextchar;
+    char *s;
+    char *start;
+    int op;
+    char *arg;
+    int match = -1;
+
+    // get arg
+    arg = args[argnum];
+    // current char in arg
+    nextchar = arg + (*optchar);
+    clen     = MB_CLEN(nextchar);
+    // next char in arg
+    (*optchar) += clen;
+    // get first char of short option
+    shortopt = arg + (*optchar);
+    // no value
+    *value = NULL;
+
+    if (*shortopt == '\0') {
+        // no more options in arg
+        *optchar    = 0;
+        *option_num = o_NO_OPTION_MATCH;
+        co_return 0;
+    }
+
+    // look for match in options
+    clen = MB_CLEN(shortopt);
+    for (op = 0; options[op].option_ID; op++) {
+        s = options[op].shortopt;
+        if (s && s[0] == shortopt[0]) {
+            if (s[1] == '\0' && clen == 1) {
+                // single char match
+                match = op;
+            } else {
+                // 2 wide short opt.  Could support more chars but should use long opts instead
+                if (s[1] == shortopt[1]) {
+                    // match 2 char short opt or 2 byte char
+                    match = op;
+                    if (clen == 1)
+                        (*optchar)++;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (match > -1) {
+        // match
+        clen     = MB_CLEN(shortopt);
+        nextchar = arg + (*optchar) + clen;
+        // check for trailing dash negating option
+        if (*nextchar == '-') {
+            // negated
+            if (options[match].negatable == o_NOT_NEGATABLE) {
+                if (options[match].value_type == o_NO_VALUE) {
+                    optionerr(optionerrbuf, op_not_neg_err, match, 0);
+                    if (depth > 0) {
+                        // unwind
+                        oWARN(optionerrbuf);
+                        co_return o_ARG_FILE_ERR;
+                    } else {
+                        oERR(ZE_PARMS, optionerrbuf);
+                    }
+                }
+            } else {
+                *negated = 1;
+                // set up to skip negating dash
+                (*optchar) += clen;
+                clen = 1;
+            }
+        }
+
+        // value
+        clen = MB_CLEN(arg + (*optchar));
+        // optional value, one char value, and number value must follow option
+        if (options[match].value_type == o_ONE_CHAR_VALUE) {
+            // one char value
+            if (arg[(*optchar) + clen]) {
+                // has value
+                if (MB_CLEN(arg + (*optchar) + clen) > 1) {
+                    // multibyte value not allowed for now
+                    optionerr(optionerrbuf, oco_no_mbc_err, match, 0);
+                    if (depth > 0) {
+                        // unwind
+                        oWARN(optionerrbuf);
+                        co_return o_ARG_FILE_ERR;
+                    } else {
+                        oERR(ZE_PARMS, optionerrbuf);
+                    }
+                }
+                if ((*value = (char *)malloc(2)) == NULL) {
+                    oERR(ZE_MEM, "gso");
+                }
+                (*value)[0] = *(arg + (*optchar) + clen);
+                (*value)[1] = '\0';
+                *optchar += clen;
+                clen = 1;
+            } else {
+                // one char values require a value
+                optionerr(optionerrbuf, oco_req_val_err, match, 0);
+                if (depth > 0) {
+                    oWARN(optionerrbuf);
+                    co_return o_ARG_FILE_ERR;
+                } else {
+                    oERR(ZE_PARMS, optionerrbuf);
+                }
+            }
+        } else if (options[match].value_type == o_NUMBER_VALUE) {
+            // read chars until end of number
+            start = arg + (*optchar) + clen;
+            if (*start == '+' || *start == '-') {
+                start++;
+            }
+            s = start;
+            for (; isdigit(*s); MB_NEXTCHAR(s))
+                ;
+            if (s == start) {
+                // no digits
+                optionerr(optionerrbuf, num_req_val_err, match, 0);
+                if (depth > 0) {
+                    oWARN(optionerrbuf);
+                    co_return o_ARG_FILE_ERR;
+                } else {
+                    oERR(ZE_PARMS, optionerrbuf);
+                }
+            }
+            start = arg + (*optchar) + clen;
+            if ((*value = (char *)malloc((int)(s - start) + 1)) == NULL) {
+                oERR(ZE_MEM, "gso");
+            }
+            *optchar += (int)(s - start);
+            strncpy(*value, start, (int)(s - start));
+            (*value)[(int)(s - start)] = '\0';
+            clen                       = MB_CLEN(s);
+        } else if (options[match].value_type == o_OPTIONAL_VALUE) {
+            // optional value
+            // This seemed inconsistent so now if no value attached to argument look
+            // to the next argument if that argument is not an option for option
+            // value - 11/12/04 EG
+            if (arg[(*optchar) + clen]) {
+                // has value
+                // add support for optional = - 2/6/05 EG
+                if (arg[(*optchar) + clen] == '=') {
+                    // skip =
+                    clen++;
+                }
+                if (arg[(*optchar) + clen]) {
+                    if ((*value = (char *)malloc(strlen(arg + (*optchar) + clen) + 1)) == NULL) {
+                        oERR(ZE_MEM, "gso");
+                    }
+                    strcpy(*value, arg + (*optchar) + clen);
+                }
+                *optchar = THIS_ARG_DONE;
+            } else if (args[argnum + 1] && args[argnum + 1][0] != '-') {
+                // use next arg for value
+                if ((*value = (char *)malloc(strlen(args[argnum + 1]) + 1)) == NULL) {
+                    oERR(ZE_MEM, "gso");
+                }
+                // using next arg as value
+                strcpy(*value, args[argnum + 1]);
+                *optchar = SKIP_VALUE_ARG;
+            }
+        } else if (options[match].value_type == o_REQUIRED_VALUE ||
+                   options[match].value_type == o_VALUE_LIST) {
+            // see if follows option
+            if (arg[(*optchar) + clen]) {
+                // has value following option as -ovalue
+                // add support for optional = - 6/5/05 EG
+                if (arg[(*optchar) + clen] == '=') {
+                    // skip =
+                    clen++;
+                }
+                if ((*value = (char *)malloc(strlen(arg + (*optchar) + clen) + 1)) == NULL) {
+                    oERR(ZE_MEM, "gso");
+                }
+                strcpy(*value, arg + (*optchar) + clen);
+                *optchar = THIS_ARG_DONE;
+            } else {
+                // use next arg for value
+                if (args[argnum + 1]) {
+                    if ((*value = (char *)malloc(strlen(args[argnum + 1]) + 1)) == NULL) {
+                        oERR(ZE_MEM, "gso");
+                    }
+                    strcpy(*value, args[argnum + 1]);
+                    if (options[match].value_type == o_VALUE_LIST) {
+                        *optchar = START_VALUE_LIST;
+                    } else {
+                        *optchar = SKIP_VALUE_ARG;
+                    }
+                } else {
+                    // no value found
+                    optionerr(optionerrbuf, op_req_val_err, match, 0);
+                    if (depth > 0) {
+                        oWARN(optionerrbuf);
+                        co_return o_ARG_FILE_ERR;
+                    } else {
+                        oERR(ZE_PARMS, optionerrbuf);
+                    }
+                }
+            }
+        }
+
+        *option_num = match;
+        co_return options[match].option_ID;
+    }
+    zsprintf(optionerrbuf, sh_op_not_sup_err, *shortopt);
+    if (depth > 0) {
+        // unwind
+        oWARN(optionerrbuf);
+        co_return o_ARG_FILE_ERR;
+    } else {
+        oERR(ZE_PARMS, optionerrbuf);
+    }
+    co_return 0;
+}
+
+// get_longopt
+//
+// Get the long option in args array at argnum.
+// Parameters same as for get_shortopt.
+
+local Task<unsigned long> get_longopt(char **args, int argnum, int *optchar, int *negated,
+                                      char **value, int *option_num, int depth)
+{
+    char *longopt;
+    char *lastchr;
+    char *valuestart;
+    int op;
+    char *arg;
+    int match = -1;
+    *value    = NULL;
+
+    if (args == NULL) {
+        *option_num = o_NO_OPTION_MATCH;
+        co_return 0;
+    }
+    if (args[argnum] == NULL) {
+        *option_num = o_NO_OPTION_MATCH;
+        co_return 0;
+    }
+    // copy arg so can chop end if value
+    if ((arg = (char *)malloc(strlen(args[argnum]) + 1)) == NULL) {
+        oERR(ZE_MEM, "glo");
+    }
+    strcpy(arg, args[argnum]);
+
+    // get option
+    longopt = arg + 2;
+    // no value
+    *value = NULL;
+
+    // find =
+    for (lastchr = longopt, valuestart = longopt; *valuestart && *valuestart != '=';
+         lastchr = valuestart, MB_NEXTCHAR(valuestart))
+        ;
+    if (*valuestart) {
+        // found =value
+        *valuestart = '\0';
+        valuestart++;
+    } else {
+        valuestart = NULL;
+    }
+
+    if (*lastchr == '-') {
+        // option negated
+        *negated = 1;
+        *lastchr = '\0';
+    } else {
+        *negated = 0;
+    }
+
+    // look for long option match
+    for (op = 0; options[op].option_ID; op++) {
+        if (options[op].longopt && strcmp(options[op].longopt, longopt) == 0) {
+            // exact match
+            match = op;
+            break;
+        }
+        if (options[op].longopt && strncmp(options[op].longopt, longopt, strlen(longopt)) == 0) {
+            if (match > -1) {
+                zsprintf(optionerrbuf, long_op_ambig_err, longopt);
+                free(arg);
+                if (depth > 0) {
+                    // unwind
+                    oWARN(optionerrbuf);
+                    co_return o_ARG_FILE_ERR;
+                } else {
+                    oERR(ZE_PARMS, optionerrbuf);
+                }
+            }
+            match = op;
+        }
+    }
+
+    if (match == -1) {
+        zsprintf(optionerrbuf, long_op_not_sup_err, longopt);
+        free(arg);
+        if (depth > 0) {
+            oWARN(optionerrbuf);
+            co_return o_ARG_FILE_ERR;
+        } else {
+            oERR(ZE_PARMS, optionerrbuf);
+        }
+    }
+
+    // one long option an arg
+    *optchar = THIS_ARG_DONE;
+
+    // if negated then see if allowed
+    if (*negated && options[match].negatable == o_NOT_NEGATABLE) {
+        optionerr(optionerrbuf, op_not_neg_err, match, 1);
+        free(arg);
+        if (depth > 0) {
+            // unwind
+            oWARN(optionerrbuf);
+            co_return o_ARG_FILE_ERR;
+        } else {
+            oERR(ZE_PARMS, optionerrbuf);
+        }
+    }
+    // get value
+    if (options[match].value_type == o_OPTIONAL_VALUE) {
+        // optional value in form option=value
+        if (valuestart) {
+            // option=value
+            if ((*value = (char *)malloc(strlen(valuestart) + 1)) == NULL) {
+                free(arg);
+                oERR(ZE_MEM, "glo");
+            }
+            strcpy(*value, valuestart);
+        }
+    } else if (options[match].value_type == o_REQUIRED_VALUE ||
+               options[match].value_type == o_NUMBER_VALUE ||
+               options[match].value_type == o_ONE_CHAR_VALUE ||
+               options[match].value_type == o_VALUE_LIST) {
+        // handle long option one char and number value as required value
+        if (valuestart) {
+            // option=value
+            if ((*value = (char *)malloc(strlen(valuestart) + 1)) == NULL) {
+                free(arg);
+                oERR(ZE_MEM, "glo");
+            }
+            strcpy(*value, valuestart);
+        } else {
+            // use next arg
+            if (args[argnum + 1]) {
+                if ((*value = (char *)malloc(strlen(args[argnum + 1]) + 1)) == NULL) {
+                    free(arg);
+                    oERR(ZE_MEM, "glo");
+                }
+                // using next arg as value
+                strcpy(*value, args[argnum + 1]);
+                if (options[match].value_type == o_VALUE_LIST) {
+                    *optchar = START_VALUE_LIST;
+                } else {
+                    *optchar = SKIP_VALUE_ARG;
+                }
+            } else {
+                // no value found
+                optionerr(optionerrbuf, op_req_val_err, match, 1);
+                free(arg);
+                if (depth > 0) {
+                    // unwind
+                    oWARN(optionerrbuf);
+                    co_return o_ARG_FILE_ERR;
+                } else {
+                    oERR(ZE_PARMS, optionerrbuf);
+                }
+            }
+        }
+    } else if (options[match].value_type == o_NO_VALUE) {
+        // this option does not accept a value
+        if (valuestart) {
+            // --option=value
+            optionerr(optionerrbuf, op_no_allow_val_err, match, 1);
+            free(arg);
+            if (depth > 0) {
+                oWARN(optionerrbuf);
+                co_return o_ARG_FILE_ERR;
+            } else {
+                oERR(ZE_PARMS, optionerrbuf);
+            }
+        }
+    }
+    free(arg);
+
+    *option_num = match;
+    co_return options[match].option_ID;
+}
+
+// get_option
+//
+// Main interface for user.  Use this function to get options, values and
+// non-option arguments from a command line provided in argv form.
+//
+// To use get_option() first define valid options by setting
+// the global variable options[] to an array of option_struct.  Also
+// either change defaults below or make variables global and set elsewhere.
+// Zip uses below defaults.
+//
+// Call get_option() to get an option (like -b or --temp-file) and any
+// value for that option (like filename for -b) or a non-option argument
+// (like archive name) each call.  If *value* is not NULL after calling
+// get_option() it is a returned value and the caller should either store
+// the char pointer or free() it before calling get_option() again to avoid
+// leaking memory.  If a non-option non-value argument is returned get_option()
+// returns o_NON_OPTION_ARG and value is set to the entire argument.
+// When there are no more arguments get_option() returns 0.
+//
+// The parameters argnum (after set to 0 on initial call),
+// optchar, first_nonopt_arg, option_num, and depth (after initial
+// call) are set and maintained by get_option() and should not be
+// changed.  The parameters argc, negated, and value are outputs and
+// can be used by the calling program.  get_option() returns either the
+// option_ID for the current option, a special value defined in
+// zip.h, or 0 when no more arguments.
+//
+// The value returned by get_option() is the ID value in the options
+// table.  This value can be duplicated in the table if different
+// options are really the same option.  The index into the options[]
+// table is given by option_num, though the ID should be used as
+// option numbers change when the table is changed.  The ID must
+// not be 0 for any option as this ends the table.  If get_option()
+// finds an option not in the table it calls oERR to post an
+// error and exit.  Errors also result if the option requires a
+// value that is missing, a value is present but the option does
+// not take one, and an option is negated but is not
+// negatable.  Non-option arguments return o_NON_OPTION_ARG
+// with the entire argument in value.
+//
+// For Zip, permuting is on and all options and their values are
+// returned before any non-option arguments like archive name.
+//
+// The arguments "-" alone and "--" alone return as non-option arguments.
+// Note that "-" should not be used as part of a short option
+// entry in the table but can be used in the middle of long
+// options such as in the long option "a-long-option".  Now "--" alone
+// stops option processing, returning any arguments following "--" as
+// non-option arguments instead of options.
+//
+// Argument file support is removed from this version. It may be added later.
+//
+// After each call:
+// argc       is set to the current size of args[] but should not change
+// with argument file support removed,
+// argnum     is the index of the current arg,
+// value      is either the value of the returned option or non-option
+// argument or NULL if option with no value,
+// negated    is set if the option was negated by a trailing dash (-)
+// option_num is set to either the index in options[] for the option or
+// o_NO_OPTION_MATCH if no match.
+// Negation is checked before the value is read if the option is negatable so
+// that the - is not included in the value.  If the option is not negatable
+// but takes a value then the - will start the value.  If permuting then
+// argnum and first_nonopt_arg are unreliable and should not be used.
+//
+// Command line is read from left to right.  As get_option() finds non-option
+// arguments (arguments not starting with - and that are not values to options)
+// it moves later options and values in front of the non-option arguments.
+// This permuting is turned off by setting enable_permute to 0.  Then
+// get_option() will return options and non-option arguments in the order
+// found.  Currently permuting is only done after an argument is completely
+// processed so that any value can be moved with options they go with.  All
+// state information is stored in the parameters argnum, optchar,
+// first_nonopt_arg and option_num.  You should not change these after the
+// first call to get_option().  If you need to back up to a previous arg then
+// set argnum to that arg (remembering that args may have been permuted) and
+// set optchar = 0 and first_nonopt_arg to the first non-option argument if
+// permuting.  After all arguments are returned the next call to get_option()
+// returns 0.  The caller can then call free_args(args) if appropriate.
+//
+// get_option() accepts arguments in the following forms:
+// short options
+// of 1 and 2 characters, e.g. a, b, cc, d, and ba, after a single
+// leading -, as in -abccdba.  In this example if 'b' is followed by 'a'
+// it matches short option 'ba' else it is interpreted as short option
+// b followed by another option.  The character - is not legal as a
+// short option or as part of a 2 character short option.
+//
+// If a short option has a value it immediately follows the option or
+// if that option is the end of the arg then the next arg is used as
+// the value.  So if short option e has a value, it can be given as
+// -evalue
+// or
+// -e value
+// and now
+// -e=value
+// but now that = is optional a leading = is stripped for the first.
+// This change allows optional short option values to be defaulted as
+// -e=
+// Either optional or required values can be specified.  Optional values
+// now use both forms as ignoring the later got confusing.  Any
+// non-value short options can preceed a valued short option as in
+// -abevalue
+// Some value types (one_char and number) allow options after the value
+// so if oc is an option that takes a character and n takes a number
+// then
+// -abocVccn42evalue
+// returns value V for oc and value 42 for n.  All values are strings
+// so programs may have to convert the "42" to a number.  See long
+// options below for how value lists are handled.
+//
+// Any short option can be negated by following it with -.  Any - is
+// handled and skipped over before any value is read unless the option
+// is not negatable but takes a value and then - starts the value.
+//
+// If the value for an optional value is just =, then treated as no
+// value.
+//
+// long options
+// of arbitrary length are assumed if an arg starts with -- but is not
+// exactly --.  Long options are given one per arg and can be abbreviated
+// if the abbreviation uniquely matches one of the long options.
+// Exact matches always match before partial matches.  If ambiguous an
+// error is generated.
+//
+// Values are specified either in the form
+// --longoption=value
+// or can be the following arg if the value is required as in
+// --longoption value
+// Optional values to long options must be in the first form.
+//
+// Value lists are specified by o_VALUE_LIST and consist of an option
+// that takes a value followed by one or more value arguments.
+// The two forms are
+// --option=value
+// or
+// -ovalue
+// for a single value or
+// --option value1 value2 value3 ... --option2
+// or
+// -o value1 value2 value3 ...
+// for a list of values.  The list ends at the next option, the
+// end of the command line, or at a single "@" argument.
+// Each value is treated as if it was preceeded by the option, so
+// --option1 val1 val2
+// with option1 value_type set to o_VALUE_LIST is the same as
+// --option1=val1 --option1=val2
+//
+// Long options can be negated by following the option with - as in
+// --longoption-
+// Long options with values can also be negated if this makes sense for
+// the caller as:
+// --longoption-=value
+// If = is not followed by anything it is treated as no value.
+//
+// @path
+// When an argument in the form @path is encountered, the file at path
+// is opened and white space separated arguments read from the file
+// and inserted into the command line at that point as if the contents
+// of the file were directly typed at that location.  The file can
+// have options, files to zip, or anything appropriate at that location
+// in the command line.  Since Zip has permuting enabled, options and
+// files will propagate to the appropriate locations in the command
+// line.
+//
+// Argument files support has been removed from this version.  It may
+// be added back later.
+//
+// non-option argument
+// is any argument not given above.  If enable_permute is 1 then
+// these are returned after all options, otherwise all options and
+// args are returned in order.  Returns option ID o_NON_OPTION_ARG
+// and sets value to the argument.
+//
+//
+// Arguments to get_option:
+// char ***pargs          - pointer to arg array in the argv form
+// int *argc              - returns the current argc for args incl. args[0]
+// int *argnum            - the index of the current argument (caller
+// should set = 0 on first call and not change
+// after that)
+// int *optchar           - index of next short opt in arg or special
+// int *first_nonopt_arg  - used by get_option to permute args
+// int *negated           - option was negated (had trailing -)
+// char *value            - value of option if any (free when done with it) or NULL
+// int *option_num        - the index in options of the last option returned
+// (can be o_NO_OPTION_MATCH)
+// int recursion_depth    - current depth of recursion
+// (always set to 0 by caller)
+// (always 0 with argument files support removed)
+//
+// Caller should only read the returned option ID and the value, negated,
+// and option_num (if required) parameters after each call.
+//
+// Ed Gordon
+// 24 August 2003 (last updated 2 April 2008 EG)
+
+Task<unsigned long> get_option(char ***pargs, int *argc, int *argnum, int *optchar, char **value,
+                               int *negated, int *first_nonopt_arg, int *option_num,
+                               int recursion_depth)
+{
+    char **args;
+    unsigned long option_ID;
+
+    int argcnt;
+    int first_nonoption_arg;
+    char *arg = NULL;
+    int h;
+    int optc;
+    int argn;
+    int j;
+    int v;
+    int read_rest_args_verbatim = 0; // 7/25/04 - ignore options and arg files for rest args
+
+    // value is outdated.  The caller should free value before
+    // calling get_option again.
+    *value = NULL;
+
+    // if args is NULL then done
+    if (pargs == NULL) {
+        *argc = 0;
+        co_return 0;
+    }
+    args = *pargs;
+    if (args == NULL) {
+        *argc = 0;
+        co_return 0;
+    }
+
+    // count args
+    for (argcnt = 0; args[argcnt]; argcnt++)
+        ;
+
+    // if no provided args then nothing to do
+    if (argcnt < 1 || (recursion_depth == 0 && argcnt < 2)) {
+        *argc = argcnt;
+        // co_return 0 to note that no args are left
+        co_return 0;
+    }
+
+    *negated            = 0;
+    first_nonoption_arg = *first_nonopt_arg;
+    argn                = *argnum;
+    optc                = *optchar;
+
+    if (optc == READ_REST_ARGS_VERBATIM) {
+        read_rest_args_verbatim = 1;
+    }
+
+    if (argn == -1 || (recursion_depth == 0 && argn == 0)) {
+        // first call
+        // if depth = 0 then args[0] is argv[0] so skip
+        *option_num         = o_NO_OPTION_MATCH;
+        optc                = THIS_ARG_DONE;
+        first_nonoption_arg = -1;
+    }
+
+    // if option_num is set then restore last option_ID in case continuing value list
+    option_ID = 0;
+    if (*option_num != o_NO_OPTION_MATCH) {
+        option_ID = options[*option_num].option_ID;
+    }
+
+    // get next option if any
+    for (;;) {
+        if (read_rest_args_verbatim) {
+            // rest of args after "--" are non-option args if doubledash_ends_options set
+            argn++;
+            if (argn > argcnt || args[argn] == NULL) {
+                // done
+                option_ID = 0;
+                break;
+            }
+            arg = args[argn];
+            if ((*value = (char *)malloc(strlen(arg) + 1)) == NULL) {
+                oERR(ZE_MEM, "go");
+            }
+            strcpy(*value, arg);
+            *option_num = o_NO_OPTION_MATCH;
+            option_ID   = o_NON_OPTION_ARG;
+            break;
+
+            // permute non-option args after option args so options are returned first
+        } else if (enable_permute) {
+            if (optc == SKIP_VALUE_ARG || optc == THIS_ARG_DONE || optc == START_VALUE_LIST ||
+                optc == IN_VALUE_LIST || optc == STOP_VALUE_LIST) {
+                // moved to new arg
+                if (first_nonoption_arg > -1 && args[first_nonoption_arg]) {
+                    // do the permuting - move non-options after this option
+                    // if option and value separate args or starting list skip option
+                    if (optc == SKIP_VALUE_ARG || optc == START_VALUE_LIST) {
+                        v = 1;
+                    } else {
+                        v = 0;
+                    }
+                    for (h = first_nonoption_arg; h < argn; h++) {
+                        arg = args[first_nonoption_arg];
+                        for (j = first_nonoption_arg; j < argn + v; j++) {
+                            args[j] = args[j + 1];
+                        }
+                        args[j] = arg;
+                    }
+                    first_nonoption_arg += 1 + v;
+                }
+            }
+        } else if (optc == NON_OPTION_ARG) {
+            // if not permuting then already returned arg
+            optc = THIS_ARG_DONE;
+        }
+
+        // value lists
+        if (optc == STOP_VALUE_LIST) {
+            optc = THIS_ARG_DONE;
+        }
+
+        if (optc == START_VALUE_LIST || optc == IN_VALUE_LIST) {
+            if (optc == START_VALUE_LIST) {
+                // already returned first value
+                argn++;
+                optc = IN_VALUE_LIST;
+            }
+            argn++;
+            arg = args[argn];
+            // if end of args and still in list and there are non-option args then
+            // terminate list
+            if (arg == NULL && (optc == START_VALUE_LIST || optc == IN_VALUE_LIST) &&
+                first_nonoption_arg > -1) {
+                // terminate value list with @
+                // this is only needed for argument files
+                // but is also good for show command line so command lines with lists
+                // can always be read back in
+                argcnt = co_await insert_arg(&args, "@", first_nonoption_arg, 1);
+                argn++;
+                if (first_nonoption_arg > -1) {
+                    first_nonoption_arg++;
+                }
+            }
+
+            arg = args[argn];
+            if (arg && arg[0] == '@' && arg[1] == '\0') {
+                // inserted arguments terminator
+                optc = STOP_VALUE_LIST;
+                continue;
+            } else if (arg && arg[0] != '-') { // not option
+                // - and -- are not allowed in value lists unless escaped
+                // another value in value list
+                if ((*value = (char *)malloc(strlen(args[argn]) + 1)) == NULL) {
+                    oERR(ZE_MEM, "go");
+                }
+                strcpy(*value, args[argn]);
+                break;
+
+            } else {
+                argn--;
+                optc = THIS_ARG_DONE;
+            }
+        }
+
+        // move to next arg
+        if (optc == SKIP_VALUE_ARG) {
+            argn += 2;
+            optc = 0;
+        } else if (optc == THIS_ARG_DONE) {
+            argn++;
+            optc = 0;
+        }
+        if (argn > argcnt) {
+            break;
+        }
+        if (args[argn] == NULL) {
+            // done unless permuting and non-option args
+            if (first_nonoption_arg > -1 && args[first_nonoption_arg]) {
+                // co_return non-option arguments at end
+                if (optc == NON_OPTION_ARG) {
+                    first_nonoption_arg++;
+                }
+                // after first pass args are permuted but skipped over non-option args
+                // swap so argn points to first non-option arg
+                j                   = argn;
+                argn                = first_nonoption_arg;
+                first_nonoption_arg = j;
+            }
+            if (argn > argcnt || args[argn] == NULL) {
+                // done
+                option_ID = 0;
+                break;
+            }
+        }
+
+        // after swap first_nonoption_arg points to end which is NULL
+        if (first_nonoption_arg > -1 && (args[first_nonoption_arg] == NULL)) {
+            // only non-option args left
+            if (optc == NON_OPTION_ARG) {
+                argn++;
+            }
+            if (argn > argcnt || args[argn] == NULL) {
+                // done
+                option_ID = 0;
+                break;
+            }
+            if ((*value = (char *)malloc(strlen(args[argn]) + 1)) == NULL) {
+                oERR(ZE_MEM, "go");
+            }
+            strcpy(*value, args[argn]);
+            optc      = NON_OPTION_ARG;
+            option_ID = o_NON_OPTION_ARG;
+            break;
+        }
+
+        arg = args[argn];
+
+        // is it an option
+        if (arg[0] == '-') {
+            // option
+            if (arg[1] == '\0') {
+                // arg = -
+                // treat like non-option arg
+                *option_num = o_NO_OPTION_MATCH;
+                if (enable_permute) {
+                    // permute args to move all non-option args to end
+                    if (first_nonoption_arg < 0) {
+                        first_nonoption_arg = argn;
+                    }
+                    argn++;
+                } else {
+                    // not permute args so co_return non-option args when found
+                    if ((*value = (char *)malloc(strlen(arg) + 1)) == NULL) {
+                        oERR(ZE_MEM, "go");
+                    }
+                    strcpy(*value, arg);
+                    optc      = NON_OPTION_ARG;
+                    option_ID = o_NON_OPTION_ARG;
+                    break;
+                }
+
+            } else if (arg[1] == '-') {
+                // long option
+                if (arg[2] == '\0') {
+                    // arg = --
+                    if (doubledash_ends_options) {
+                        // Now -- stops permuting and forces the rest of
+                        // the command line to be read verbatim - 7/25/04 EG
+
+                        // never permute args after -- and co_return as non-option args
+                        if (first_nonoption_arg < 1) {
+                            // -- is first non-option argument - 8/7/04 EG
+                            argn--;
+                        } else {
+                            // go back to start of non-option args - 8/7/04 EG
+                            argn = first_nonoption_arg - 1;
+                        }
+
+                        // disable permuting and treat remaining arguments as not
+                        // options
+                        read_rest_args_verbatim = 1;
+                        optc                    = READ_REST_ARGS_VERBATIM;
+
+                    } else {
+                        // treat like non-option arg
+                        *option_num = o_NO_OPTION_MATCH;
+                        if (enable_permute) {
+                            // permute args to move all non-option args to end
+                            if (first_nonoption_arg < 0) {
+                                first_nonoption_arg = argn;
+                            }
+                            argn++;
+                        } else {
+                            // not permute args so co_return non-option args when found
+                            if ((*value = (char *)malloc(strlen(arg) + 1)) == NULL) {
+                                oERR(ZE_MEM, "go");
+                            }
+                            strcpy(*value, arg);
+                            optc      = NON_OPTION_ARG;
+                            option_ID = o_NON_OPTION_ARG;
+                            break;
+                        }
+                    }
+
+                } else {
+                    option_ID = co_await get_longopt(args, argn, &optc, negated, value, option_num,
+                                                     recursion_depth);
+                    if (option_ID == o_ARG_FILE_ERR) {
+                        // unwind as only get this if recursion_depth > 0
+                        co_return option_ID;
+                    }
+                    break;
+                }
+
+            } else {
+                // short option
+                option_ID = co_await get_shortopt(args, argn, &optc, negated, value, option_num,
+                                                  recursion_depth);
+
+                if (option_ID == o_ARG_FILE_ERR) {
+                    // unwind as only get this if recursion_depth > 0
+                    co_return option_ID;
+                }
+
+                if (optc == 0) {
+                    // if optc = 0 then ran out of short opts this arg
+                    optc = THIS_ARG_DONE;
+                } else {
+                    break;
+                }
+            }
+
+        } else {
+            // non-option
+            if (enable_permute) {
+                // permute args to move all non-option args to end
+                if (first_nonoption_arg < 0) {
+                    first_nonoption_arg = argn;
+                }
+                argn++;
+            } else {
+                // no permute args so co_return non-option args when found
+                if ((*value = (char *)malloc(strlen(arg) + 1)) == NULL) {
+                    oERR(ZE_MEM, "go");
+                }
+                strcpy(*value, arg);
+                *option_num = o_NO_OPTION_MATCH;
+                optc        = NON_OPTION_ARG;
+                option_ID   = o_NON_OPTION_ARG;
+                break;
+            }
+        }
+    }
+
+    *pargs            = args;
+    *argc             = argcnt;
+    *first_nonopt_arg = first_nonoption_arg;
+    *argnum           = argn;
+    *optchar          = optc;
+
+    co_return option_ID;
+}
