@@ -445,6 +445,16 @@ Task<int> zipup(struct zlist far *z)
         free((zvoid *)b);
         s = zisize;
     }
+    // A ^C reaches the run where it parks, which is the read below; zread()
+    // records ZE_ABORT and the entry ends here rather than being written out
+    // as a short one. Upstream's handler ended the process from inside the
+    // signal, which nothing here can do.
+    if (zip_fatal != ZE_OK) {
+        if (ifile != fbad)
+            co_await zclose(ifile);
+        co_return zip_fatal;
+    }
+
     if (ifile != fbad && zerr(ifile)) {
         co_await zipwarn("could not read input file: ", z->oname);
     }

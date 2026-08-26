@@ -580,20 +580,90 @@ Task<Result<void>> zfflush(FILE *f)
     co_return r;
 }
 
-Task<Result<void>> zfclose(FILE *f)
+Task<bool> zgets(char *buf, usize cap, FILE *f)
 {
+    String line;
+    bool got = false;
+    if (Task<Result<bool>> t = f->getline(line, false))
+        if (Result<bool> r = co_await t; r.is_ok())
+            got = r.value();
+    if (!got) {
+        buf[0] = 0;
+        co_return false;
+    }
+
+    usize n = line.size() < cap - 2 ? line.size() : cap - 2;
+    memcpy(buf, line.data(), n);
+    buf[n]     = '\n'; // getline() stripped it and upstream tests for it
+    buf[n + 1] = 0;
+    co_return true;
+}
+
+Task<FILE *> zfopen(const char *path, const char *mode)
+{
+    u32 flags    = SYS_O_READ;
+    FileMode how = FileMode::Read;
+    if (mode[0] == 'w') {
+        flags = SYS_O_WRITE | SYS_O_CREATE | SYS_O_TRUNC;
+        how   = FileMode::Write;
+    } else if (mode[0] == 'a') {
+        flags = SYS_O_WRITE | SYS_O_CREATE | SYS_O_APPEND;
+        how   = FileMode::Append;
+    }
+    if (strchr(mode, '+')) {
+        flags |= SYS_O_READ | SYS_O_WRITE;
+        how = FileMode::Update;
+    }
+
+    Result<i32> fd = Err(Error::NoMemory);
+    if (Task<Result<i32>> t = open_at(Str(path, strlen(path)), flags))
+        fd = co_await t;
+    if (fd.is_err())
+        co_return nullptr;
+
+    FILE *f = heap_new<File>(File::of((u32)fd.value(), how));
+    if (f == nullptr) {
+        if (Task<void> t = close_fd((u32)fd.value()))
+            co_await t;
+        co_return nullptr;
+    }
+    f->set_buffering(Buffering::Full);
+    f->reserve(SYS_READ_MAX);
+    co_return f;
+}
+
+Task<int> zfclose(FILE *f)
+{
+    if (f == nullptr || f == zstdout || f == zstderr)
+        co_return 0;
+
     Result<void> r = Err(Error::NoMemory);
-    if (Task<Result<void>> t = f->close())
+    if (Task<Result<void>> t = f->flush())
         r = co_await t;
-    co_return r;
+
+    u32 fd = f->fd();
+    if (Task<void> t = close_fd(fd))
+        co_await t;
+    heap_delete(f);
+    co_return r.is_ok() ? 0 : EOF_;
 }
 
 Task<i32> zfseeko(FILE *f, i64 off, int whence)
 {
+    // fseek() clears the end-of-file indicator, and a failed one does not
+    // leave the stream unusable. A File's error is sticky and a seek does not
+    // touch it, so both are said outright — upstream seeks past the start of
+    // a short archive on purpose and reads on when that fails.
+    f->clear_err();
+
     Result<u64> r = Err(Error::NoMemory);
     if (Task<Result<u64>> t = f->seek(off, (u32)whence))
         r = co_await t;
-    co_return r.is_ok() ? 0 : -1;
+    if (r.is_err()) {
+        f->clear_err();
+        co_return -1;
+    }
+    co_return 0;
 }
 
 Task<i64> zftello(FILE *f)

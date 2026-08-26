@@ -141,15 +141,892 @@ char *tempname(char *zip)
     return t;
 }
 
-// Close the split disk_number is on and give it its final name. Splits arrive
-// with the update path; nothing calls this yet.
+// Reduce all path components to MSDOS upper case 8.3 style names.
+char *msname(char *n)
+{
+    int c; // current character
+    int f; // characters in current component
+    char *p;
+    char *q;
+
+    p = q = n;
+    f     = 0;
+    while ((c = (unsigned char)*POSTINCSTR(p)) != 0)
+        if (c == ' ' || c == ':' || c == '"' || c == '*' || c == '+' || c == ',' || c == ';' ||
+            c == '<' || c == '=' || c == '>' || c == '?' || c == '[' || c == ']' || c == '|')
+            continue; // char is discarded
+        else if (c == '/') {
+            *POSTINCSTR(q) = (char)c;
+            f              = 0; // new component
+        } else if (c == '.') {
+            if (f == 0)
+                continue; // leading dots are discarded
+            else if (f < 9) {
+                *POSTINCSTR(q) = (char)c;
+                f              = 9; // now in file type
+            } else
+                f = 12; // now just excess characters
+        } else if (f < 12 && f != 8) {
+            f += CLEN(p); // do until end of name or type
+            *POSTINCSTR(q) = (char)(to_up(c));
+        }
+    *q = 0;
+    return n;
+}
+
+// Return a pointer to the start of the last path component. For a directory
+// name terminated by the character in c, the return value is an empty string.
+char *last(char *p, int c)
+{
+    char *t;
+
+    if ((t = strrchr(p, c)) != NULL)
+        return t + 1;
+    else
+        return p;
+}
+
+// Close the split disk_number is on and give it its final name.
 Task<int> close_split(ulg disk_number, FILE *tempfile, char *temp_name)
 {
+    char *split_path = NULL;
+
+    split_path = get_out_split_path(out_path, disk_number);
+
+    if (noisy_splits)
+        co_await zipmessage("\tClosing split ", split_path);
+
+    co_await zfclose(tempfile);
+
+    co_await rename_split(temp_name, split_path);
+    set_filetype(split_path);
+
     co_return ZE_OK;
 }
 
-// bfwrite
-// Does the fwrite but also counts bytes and does splits.
+#define SPLIT_MAXPATH (FNMAX + 4010)
+
+Task<int> fcopy(FILE *f, FILE *g, uzoff_t n)
+{
+    char *b;   // malloc'ed buffer for copying
+    extent k;  // result of fread()
+    uzoff_t m; // bytes copied so far
+
+    if ((b = (char *)malloc(CBSZ)) == NULL)
+        co_return ZE_MEM;
+    m = 0;
+    while (n == (uzoff_t)(-1L) || m < n) {
+        if ((k = co_await zfread(
+                 b, 1, n == (uzoff_t)(-1) ? CBSZ : (n - m < CBSZ ? (extent)(n - m) : CBSZ), f)) ==
+            0) {
+            if (zferror(f)) {
+                free((zvoid *)b);
+                co_return ZE_READ;
+            } else
+                break;
+        }
+        if (co_await zwrite(b, 1, k, g) != k) {
+            free((zvoid *)b);
+            co_await zfprintf(mesg, " fcopy: write error\n");
+            co_return ZE_TEMP;
+        }
+        m += k;
+    }
+    free((zvoid *)b);
+    co_return ZE_OK;
+}
+
+Task<int> bfcopy(uzoff_t n)
+{
+    char *b;    // malloc'ed buffer for copying
+    extent k;   // result of fread()
+    uzoff_t m;  // bytes copied so far
+    extent brd; // bytes to read
+    zoff_t data_start = 0;
+    zoff_t des_start  = 0;
+    char *split_path;
+    extent kk;
+    int i;
+    char sbuf[4]; // buffer for sliding signature window for fix = 2
+    int des = 0;  // this entry has data descriptor to find
+
+    if ((b = (char *)malloc(CBSZ)) == NULL)
+        co_return ZE_MEM;
+
+    if (copy_only && !display_globaldots) {
+        // initialize dot count
+        dot_count = -1;
+    }
+
+    if (fix == 2 && n == (uzoff_t)-2) {
+        data_start = co_await zftello(in_file);
+        for (kk = 0; kk < 4; kk++)
+            sbuf[kk] = 0;
+        des = 1;
+    }
+
+    des_good = 0;
+
+    m = 0;
+    while (des || n == (uzoff_t)(-1L) || m < n) {
+        if (des || n == (uzoff_t)(-1))
+            brd = CBSZ;
+        else
+            brd = (n - m < CBSZ ? (extent)(n - m) : CBSZ);
+
+        des_start = co_await zftello(in_file);
+
+        if ((k = co_await zfread(b, 1, brd, in_file)) == 0) {
+            if (fix == 2 && k < brd) {
+                free((zvoid *)b);
+                co_return ZE_READ;
+            } else if (zferror(in_file)) {
+                free((zvoid *)b);
+                co_return ZE_READ;
+            } else {
+                break;
+            }
+        }
+
+        // end at extended local header (data descriptor) signature
+        if (des) {
+            des_crc   = 0;
+            des_csize = 0;
+            des_usize = 0;
+
+            // If first 4 bytes in buffer are data descriptor signature then
+            // try to read the data descriptor.
+            // If not, scan for signature and break if found, let bfwrite flush
+            // the data and then next read should put the data descriptor at
+            // the beginning of the buffer.
+
+            if ((b[0] != 0x50 /*'P' except EBCDIC*/ || b[1] != 0x4b /*'K' except EBCDIC*/ ||
+                 b[2] != '\07' || b[3] != '\010')) {
+                // buffer is not start of data descriptor
+
+                for (kk = 0; kk < k; kk++) {
+                    // add byte to end of sbuf
+                    for (i = 0; i < 3; i++)
+                        sbuf[i] = sbuf[i + 1];
+                    sbuf[3] = b[kk];
+
+                    // see if this is signature
+                    if ((sbuf[0] == 0x50 /*'P' except EBCDIC*/ &&
+                         sbuf[1] == 0x4b /*'K' except EBCDIC*/ && sbuf[2] == '\07' &&
+                         sbuf[3] == '\010')) {
+                        kk -= 3;
+                        if (co_await zfseeko(in_file, bytes_this_split + kk, SEEK_SET) != 0) {
+                            // seek error
+                            ZIPERR(ZE_READ, "seek failed reading descriptor");
+                        }
+                        des_start = co_await zftello(in_file);
+                        k         = kk;
+                        break;
+                    }
+                }
+            } else
+
+            // signature at start of buffer
+            {
+                des_good = 0;
+
+                if (zip64_entry) {
+                    // read Zip64 data descriptor
+                    if (k < 24) {
+                        // not enough bytes, so can't be data descriptor
+                        // as data descriptors can't be split across splits
+                    } else {
+                        // read the Zip64 descriptor
+
+                        des_crc   = LG(b + 4);
+                        des_csize = LLG(b + 8);
+                        des_usize = LLG(b + 16);
+
+                        // if this is the right data descriptor then the sizes should match
+                        if ((uzoff_t)des_start - (uzoff_t)data_start != des_csize) {
+                            // apparently this signature does not go with this data so skip
+
+                            // write out signature as data
+                            k = 4;
+                            if (co_await zfseeko(in_file, des_start + k, SEEK_SET) != 0) {
+                                // seek error
+                                ZIPERR(ZE_READ, "seek failed reading descriptor");
+                            }
+                            if (co_await bfwrite(b, 1, k, BFWRITE_DATA) != k) {
+                                free((zvoid *)b);
+                                co_await zfprintf(mesg, " fcopy: write error\n");
+                                co_return ZE_TEMP;
+                            }
+                            m += k;
+                            continue;
+                        } else {
+                            // apparently this is the correct data descriptor
+
+                            // we should check the CRC but would need to inflate
+                            // the data
+
+                            // skip descriptor as will write out later
+                            des_good   = 1;
+                            k          = 24;
+                            data_start = co_await zftello(in_file);
+                            if (co_await zfseeko(in_file, des_start + k, SEEK_SET) != 0) {
+                                // seek error
+                                ZIPERR(ZE_READ, "seek failed reading descriptor");
+                            }
+                            data_start = co_await zftello(in_file);
+                        }
+                    }
+
+                } else {
+                    // read standard data descriptor
+
+                    if (k < 16) {
+                        // not enough bytes, so can't be data descriptor
+                        // as data descriptors can't be split across splits
+                    } else {
+                        // read the descriptor
+
+                        des_crc   = LG(b + 4);
+                        des_csize = LG(b + 8);
+                        des_usize = LG(b + 12);
+
+                        // if this is the right data descriptor then the sizes should match
+                        if ((uzoff_t)des_start - (uzoff_t)data_start != des_csize) {
+                            // apparently this signature does not go with this data so skip
+
+                            // write out signature as data
+                            k = 4;
+                            if (co_await zfseeko(in_file, des_start + k, SEEK_SET) != 0) {
+                                // seek error
+                                ZIPERR(ZE_READ, "seek failed reading descriptor");
+                            }
+                            if (co_await bfwrite(b, 1, k, BFWRITE_DATA) != k) {
+                                free((zvoid *)b);
+                                co_await zfprintf(mesg, " fcopy: write error\n");
+                                co_return ZE_TEMP;
+                            }
+                            m += k;
+                            continue;
+                        } else {
+                            // apparently this is the correct data descriptor
+
+                            // we should check the CRC but this does not work for
+                            // encrypted data
+
+                            // skip descriptor as will write out later
+                            des_good   = 1;
+                            data_start = co_await zftello(in_file);
+                            k          = 16;
+                            if (co_await zfseeko(in_file, des_start + k, SEEK_SET) != 0) {
+                                // seek error
+                                ZIPERR(ZE_READ, "seek failed reading descriptor");
+                            }
+                            data_start = co_await zftello(in_file);
+                        }
+                    }
+                }
+            }
+        }
+
+        if (des_good) {
+            // skip descriptor as will write out later
+        } else {
+            // write out apparently wrong descriptor as data
+            if (co_await bfwrite(b, 1, k, BFWRITE_DATA) != k) {
+                free((zvoid *)b);
+                co_await zfprintf(mesg, " fcopy: write error\n");
+                co_return ZE_TEMP;
+            }
+            m += k;
+        }
+
+        if (copy_only && !display_globaldots) {
+            if (dot_size > 0) {
+                // initial space
+                if (noisy && dot_count == -1) {
+                    co_await zfputc(' ', mesg);
+                    co_await zfflush(mesg);
+                    dot_count++;
+                }
+                dot_count += k;
+                if (dot_size <= dot_count)
+                    dot_count = 0;
+            }
+            if ((verbose || noisy) && dot_size && !dot_count) {
+                co_await zfputc('.', mesg);
+                co_await zfflush(mesg);
+                mesg_line_started = 1;
+            }
+        }
+
+        if (des_good)
+            break;
+
+        if (des)
+            continue;
+
+        if ((des || n != (uzoff_t)(-1L)) && m < n && zfeof(in_file)) {
+            // open next split
+            current_in_disk++;
+
+            if (current_in_disk >= total_disks) {
+                // done
+                break;
+
+            } else if (current_in_disk == total_disks - 1) {
+                // last disk is archive.zip
+                if ((split_path = (char *)malloc(strlen(in_path) + 1)) == NULL) {
+                    co_await zipwarn("reading archive: ", in_path);
+                    co_return ZE_MEM;
+                }
+                strcpy(split_path, in_path);
+            } else {
+                // other disks are archive.z01, archive.z02, ...
+                split_path = get_in_split_path(in_path, current_in_disk);
+            }
+
+            co_await zfclose(in_file);
+
+            // open the split
+            while ((in_file = co_await zfopen(split_path, FOPR)) == NULL) {
+                int r = 0;
+
+                // could not open split
+
+                if (fix == 1 && skip_this_disk) {
+                    free(split_path);
+                    free((zvoid *)b);
+                    co_return ZE_FORM;
+                }
+
+                // Ask for directory with split.  Updates in_path
+                r = co_await ask_for_split_read_path(current_in_disk);
+                if (r == ZE_ABORT) {
+                    co_await zipwarn("could not find split: ", split_path);
+                    free(split_path);
+                    free((zvoid *)b);
+                    co_return ZE_ABORT;
+                }
+                if (r == ZE_EOF) {
+                    co_await zipmessage_nl("", 1);
+                    co_await zipwarn("user ended reading - closing archive", "");
+                    free(split_path);
+                    free((zvoid *)b);
+                    co_return ZE_EOF;
+                }
+                if (fix == 2 && skip_this_disk) {
+                    // user asked to skip this disk
+                    co_await zipwarn("skipping split file: ", split_path);
+                    current_in_disk++;
+                }
+
+                if (current_in_disk == total_disks - 1) {
+                    // last disk is archive.zip
+                    if ((split_path = (char *)malloc(strlen(in_path) + 1)) == NULL) {
+                        co_await zipwarn("reading archive: ", in_path);
+                        co_return ZE_MEM;
+                    }
+                    strcpy(split_path, in_path);
+                } else {
+                    // other disks are archive.z01, archive.z02, ...
+                    split_path = get_in_split_path(zipfile, current_in_disk);
+                }
+            }
+            if (fix == 2 && skip_this_disk) {
+                // user asked to skip this disk
+                free(split_path);
+                free((zvoid *)b);
+                co_return ZE_FORM;
+            }
+            free(split_path);
+        }
+    }
+    free((zvoid *)b);
+    co_return ZE_OK;
+}
+
+Task<int> ask_for_split_read_path(ulg current_disk)
+{
+    FILE *f;
+    int is_readable = 0;
+    int i;
+    char *split_dir    = NULL;
+    char *archive_name = NULL;
+    char *split_name   = NULL;
+    char *split_path   = NULL;
+    char buf[SPLIT_MAXPATH + 100];
+
+    // get split path
+    split_path = get_in_split_path(in_path, current_disk);
+
+    // get the directory
+    if ((split_dir = (char *)malloc(strlen(in_path) + 40)) == NULL) {
+        ZIPERR(ZE_MEM, "split path");
+    }
+    strcpy(split_dir, in_path);
+
+    // remove any name at end
+    for (i = strlen(split_dir) - 1; i >= 0; i--) {
+        if (split_dir[i] == '/' || split_dir[i] == '\\' || split_dir[i] == ':') {
+            split_dir[i + 1] = '\0';
+            break;
+        }
+    }
+    if (i < 0)
+        split_dir[0] = '\0';
+
+    // get the name of the archive
+    if ((archive_name = (char *)malloc(strlen(in_path) + 1)) == NULL) {
+        ZIPERR(ZE_MEM, "split path");
+    }
+    if (strlen(in_path) == strlen(split_dir)) {
+        archive_name[0] = '\0';
+    } else {
+        strcpy(archive_name, in_path + strlen(split_dir));
+    }
+
+    // get the name of the split
+    if ((split_name = (char *)malloc(strlen(split_path) + 1)) == NULL) {
+        ZIPERR(ZE_MEM, "split path");
+    }
+    if (strlen(in_path) == strlen(split_dir)) {
+        split_name[0] = '\0';
+    } else {
+        strcpy(split_name, split_path + strlen(split_dir));
+    }
+    if (i < 0) {
+        strcpy(split_dir, "(current directory)");
+    }
+
+    co_await zfprintf(mesg, "\n\nCould not find:\n");
+    co_await zfprintf(mesg, "  %s\n", split_path);
+    // fprintf(mesg, "Please enter the path directory (. for cur dir) where\n");
+    // fprintf(mesg, "  %s\n", split_name);
+    // fprintf(mesg, "is located\n");
+    for (;;) {
+        if (is_readable) {
+            co_await zfprintf(mesg, "\nHit c      (change path to where this split file is)");
+            co_await zfprintf(mesg, "\n    q      (abort archive - quit)");
+            co_await zfprintf(mesg, "\n or ENTER  (continue with this split): ");
+        } else {
+            if (fix == 1) {
+                co_await zfprintf(mesg, "\nHit c      (change path to where this split file is)");
+                co_await zfprintf(mesg, "\n    s      (skip this split)");
+                co_await zfprintf(mesg, "\n    q      (abort archive - quit)");
+                co_await zfprintf(mesg, "\n or ENTER  (try reading this split again): ");
+            } else if (fix == 2) {
+                co_await zfprintf(mesg, "\nHit c      (change path to where this split file is)");
+                co_await zfprintf(mesg, "\n    s      (skip this split)");
+                co_await zfprintf(mesg, "\n    q      (abort archive - quit)");
+                co_await zfprintf(mesg, "\n    e      (end this archive - no more splits)");
+                co_await zfprintf(mesg, "\n    z      (look for .zip split - the last split)");
+                co_await zfprintf(mesg, "\n or ENTER  (try reading this split again): ");
+            } else {
+                co_await zfprintf(mesg, "\nHit c      (change path to where this split file is)");
+                co_await zfprintf(mesg, "\n    q      (abort archive - quit)");
+                co_await zfprintf(mesg, "\n or ENTER  (try reading this split again): ");
+            }
+        }
+        co_await zfflush(mesg);
+        {
+            // fgets(). getline() is File's, and it strips the newline the loop
+            // below would have.
+            String line;
+            bool got = false;
+            if (Task<Result<bool>> t = File::stdin().getline(line, false)) {
+                Result<bool> r = co_await t;
+                got            = r.is_ok() && r.value();
+            }
+            usize n = got && line.size() < SPLIT_MAXPATH ? line.size() : 0;
+            memcpy(buf, line.data(), n);
+            buf[n] = 0;
+        }
+        // remove any newline
+        for (i = 0; buf[i]; i++) {
+            if (buf[i] == '\n') {
+                buf[i] = '\0';
+                break;
+            }
+        }
+        if (toupper(buf[0]) == 'Q') {
+            co_return ZE_ABORT;
+        } else if ((fix == 1 || fix == 2) && toupper(buf[0]) == 'S') {
+            // fprintf(mesg, "\nSkip this split/disk?  (files in this split will not be recovered)
+            // [n/y] "); fflush(mesg); fgets(buf, SPLIT_MAXPATH, stdin); if (buf[0] == 'y' || buf[0]
+            // == 'Y') {
+            skip_this_disk = current_in_disk + 1;
+            co_return ZE_FORM;
+        } else if (toupper(buf[0]) == 'C') {
+            co_await zfprintf(
+                mesg, "\nEnter path where this split is (ENTER = same dir, . = current dir)");
+            co_await zfprintf(mesg, "\n: ");
+            co_await zfflush(mesg);
+            {
+                // fgets(). getline() is File's, and it strips the newline the loop
+                // below would have.
+                String line;
+                bool got = false;
+                if (Task<Result<bool>> t = File::stdin().getline(line, false)) {
+                    Result<bool> r = co_await t;
+                    got            = r.is_ok() && r.value();
+                }
+                usize n = got && line.size() < SPLIT_MAXPATH ? line.size() : 0;
+                memcpy(buf, line.data(), n);
+                buf[n] = 0;
+            }
+            is_readable = 0;
+            // remove any newline
+            for (i = 0; buf[i]; i++) {
+                if (buf[i] == '\n') {
+                    buf[i] = '\0';
+                    break;
+                }
+            }
+            if (buf[0] == '\0') {
+                // Hit ENTER so try old path again - could be removable media was changed
+                strcpy(buf, split_path);
+            }
+        } else if (fix == 2 && toupper(buf[0]) == 'E') {
+            // no more splits to read
+            co_return ZE_EOF;
+        } else if (fix == 2 && toupper(buf[0]) == 'Z') {
+            total_disks = current_disk + 1;
+            free(split_path);
+            split_path = get_in_split_path(in_path, current_disk);
+            buf[0]     = '\0';
+            strncat(buf, split_path, SPLIT_MAXPATH);
+        }
+        if (strlen(buf) > 0) {
+            // changing path
+
+            // check if user wants current directory
+            if (buf[0] == '.' && buf[1] == '\0') {
+                buf[0] = '\0';
+            }
+            // remove any name at end
+            for (i = strlen(buf); i >= 0; i--) {
+                if (buf[i] == '/' || buf[i] == '\\' || buf[i] == ':') {
+                    buf[i + 1] = '\0';
+                    break;
+                }
+            }
+            // update base_path to newdir/split_name - in_path is the .zip file path
+            free(in_path);
+            if (i < 0) {
+                // just name so current directory
+                strcpy(buf, "(current directory)");
+                if (archive_name == NULL) {
+                    i = 0;
+                } else {
+                    i = strlen(archive_name);
+                }
+                if ((in_path = (char *)malloc(strlen(archive_name) + 40)) == NULL) {
+                    ZIPERR(ZE_MEM, "split path");
+                }
+                strcpy(in_path, archive_name);
+            } else {
+                // not the current directory
+                // remove any name at end
+                for (i = strlen(buf); i >= 0; i--) {
+                    if (buf[i] == '/') {
+                        buf[i + 1] = '\0';
+                        break;
+                    }
+                }
+                if (i < 0) {
+                    buf[0] = '\0';
+                }
+                if ((in_path = (char *)malloc(strlen(buf) + strlen(archive_name) + 40)) == NULL) {
+                    ZIPERR(ZE_MEM, "split path");
+                }
+                strcpy(in_path, buf);
+                strcat(in_path, archive_name);
+            }
+
+            free(split_path);
+
+            // get split path
+            split_path = get_in_split_path(in_path, current_disk);
+
+            free(split_dir);
+            if ((split_dir = (char *)malloc(strlen(in_path) + 40)) == NULL) {
+                ZIPERR(ZE_MEM, "split path");
+            }
+            strcpy(split_dir, in_path);
+            // remove any name at end
+            for (i = strlen(split_dir); i >= 0; i--) {
+                if (split_dir[i] == '/') {
+                    split_dir[i + 1] = '\0';
+                    break;
+                }
+            }
+
+            // try to open it
+            if ((f = co_await zfopen(split_path, "r")) == NULL) {
+                co_await zfprintf(mesg, "\nCould not find or open\n");
+                co_await zfprintf(mesg, "  %s\n", split_path);
+                // fprintf(mesg, "Please enter the path (. for cur dir) where\n");
+                // fprintf(mesg, "  %s\n", split_name);
+                // fprintf(mesg, "is located\n");
+                continue;
+            }
+            co_await zfclose(f);
+            is_readable = 1;
+            co_await zfprintf(mesg, "Found:  %s\n", split_path);
+        } else {
+            // try to open it
+            if ((f = co_await zfopen(split_path, "r")) == NULL) {
+                co_await zfprintf(mesg, "\nCould not find or open\n");
+                co_await zfprintf(mesg, "  %s\n", split_path);
+                // fprintf(mesg, "Please enter the path (. for cur dir) where\n");
+                // fprintf(mesg, "  %s\n", split_name);
+                // fprintf(mesg, "is located\n");
+                continue;
+            }
+            co_await zfclose(f);
+            is_readable = 1;
+            co_await zfprintf(mesg, "\nFound:  %s\n", split_path);
+            break;
+        }
+    }
+    free(archive_name);
+    free(split_dir);
+    free(split_name);
+
+    co_return ZE_OK;
+}
+
+Task<int> ask_for_split_write_path(ulg current_disk)
+{
+    unsigned int num = (unsigned int)current_disk + 1;
+    int i;
+    char *split_dir  = NULL;
+    char *split_name = NULL;
+    char buf[FNMAX + 40];
+
+    // get the directory
+    if ((split_dir = (char *)malloc(strlen(out_path) + 40)) == NULL) {
+        ZIPERR(ZE_MEM, "split path");
+    }
+    strcpy(split_dir, out_path);
+
+    // remove any name at end
+    for (i = strlen(split_dir); i >= 0; i--) {
+        if (split_dir[i] == '/' || split_dir[i] == '\\' || split_dir[i] == ':') {
+            split_dir[i + 1] = '\0';
+            break;
+        }
+    }
+
+    // get the name of the split
+    if ((split_name = (char *)malloc(strlen(out_path) + 1)) == NULL) {
+        ZIPERR(ZE_MEM, "split path");
+    }
+    if (strlen(out_path) == strlen(split_dir)) {
+        split_name[0] = '\0';
+    } else {
+        strcpy(split_name, out_path + strlen(split_dir));
+    }
+    if (i < 0) {
+        strcpy(split_dir, "(current directory)");
+    }
+    if (mesg_line_started)
+        co_await zfprintf(mesg, "\n");
+    co_await zfprintf(mesg, "\nOpening disk %d\n", num);
+    co_await zfprintf(mesg, "Hit ENTER to write to default path of\n");
+    co_await zfprintf(mesg, "  %s\n", split_dir);
+    co_await zfprintf(mesg, "or enter a new directory path (. for cur dir) and hit ENTER\n");
+    for (;;) {
+        co_await zfprintf(mesg, "\nPath (or hit ENTER to continue): ");
+        co_await zfflush(mesg);
+        {
+            // fgets(). getline() is File's, and it strips the newline the loop below
+            // would otherwise have to.
+            String line;
+            bool got = false;
+            if (Task<Result<bool>> t = File::stdin().getline(line, false)) {
+                Result<bool> r = co_await t;
+                got            = r.is_ok() && r.value();
+            }
+            usize n = got && line.size() < (usize)(FNMAX) ? line.size() : 0;
+            memcpy(buf, line.data(), n);
+            buf[n] = 0;
+        }
+        // remove any newline
+        for (i = 0; buf[i]; i++) {
+            if (buf[i] == '\n') {
+                buf[i] = '\0';
+                break;
+            }
+        }
+        if (strlen(buf) > 0) {
+            // changing path
+
+            // current directory
+            if (buf[0] == '.' && buf[1] == '\0') {
+                buf[0] = '\0';
+            }
+            // remove any name at end
+            for (i = strlen(buf); i >= 0; i--) {
+                if (buf[i] == '/' || buf[i] == '\\' || buf[i] == ':') {
+                    buf[i + 1] = '\0';
+                    break;
+                }
+            }
+            // update out_path to newdir/split_name
+            free(out_path);
+            if (i < 0) {
+                // just name so current directory
+                strcpy(buf, "(current directory)");
+                if (split_name == NULL) {
+                    i = 0;
+                } else {
+                    i = strlen(split_name);
+                }
+                if ((out_path = (char *)malloc(strlen(split_name) + 40)) == NULL) {
+                    ZIPERR(ZE_MEM, "split path");
+                }
+                strcpy(out_path, split_name);
+            } else {
+                // not the current directory
+                // remove any name at end
+                for (i = strlen(buf); i >= 0; i--) {
+                    if (buf[i] == '/') {
+                        buf[i + 1] = '\0';
+                        break;
+                    }
+                }
+                if (i < 0) {
+                    buf[0] = '\0';
+                }
+                if ((out_path = (char *)malloc(strlen(buf) + strlen(split_name) + 40)) == NULL) {
+                    ZIPERR(ZE_MEM, "split path");
+                }
+                strcpy(out_path, buf);
+                strcat(out_path, split_name);
+            }
+            co_await zfprintf(mesg, "Writing to:\n  %s\n", buf);
+            free(split_name);
+            free(split_dir);
+            if ((split_dir = (char *)malloc(strlen(out_path) + 40)) == NULL) {
+                ZIPERR(ZE_MEM, "split path");
+            }
+            strcpy(split_dir, out_path);
+            // remove any name at end
+            for (i = strlen(split_dir); i >= 0; i--) {
+                if (split_dir[i] == '/') {
+                    split_dir[i + 1] = '\0';
+                    break;
+                }
+            }
+            if ((split_name = (char *)malloc(strlen(out_path) + 1)) == NULL) {
+                ZIPERR(ZE_MEM, "split path");
+            }
+            strcpy(split_name, out_path + strlen(split_dir));
+        } else {
+            break;
+        }
+    }
+    free(split_dir);
+    free(split_name);
+
+    // for now no way out except Ctrl C
+    co_return 1;
+}
+
+char *get_in_split_path(char *base_path, ulg disk_number)
+{
+    char *split_path = NULL;
+    int base_len     = 0;
+    int path_len     = 0;
+    ulg num          = disk_number + 1;
+    char ext[6];
+
+    // A split has extension z01, z02, ..., z99, z100, z101, ... z999
+    // We currently support up to .z99999
+    // WinZip will also read .100, .101, ... but AppNote 6.2.2 uses above
+    // so use that.  Means on DOS can only have 100 splits.
+
+    if (num == total_disks) {
+        // last disk is base path
+        if ((split_path = (char *)malloc(strlen(base_path) + 1)) == NULL) {
+            {
+                zip_fail(ZE_MEM, "base path");
+                return NULL;
+            }
+        }
+        strcpy(split_path, base_path);
+
+        return split_path;
+    } else {
+        if (num > 99999) {
+            {
+                zip_fail(ZE_BIG, "More than 99999 splits needed");
+                return NULL;
+            }
+        }
+        zsprintf(ext, "z%02lu", num);
+    }
+
+    // create path for this split - zip.c checked for .zip extension
+    base_len = strlen(base_path) - 3;
+    path_len = base_len + strlen(ext);
+
+    if ((split_path = (char *)malloc(path_len + 1)) == NULL) {
+        {
+            zip_fail(ZE_MEM, "split path");
+            return NULL;
+        }
+    }
+    // copy base_path except for end zip
+    strcpy(split_path, base_path);
+    split_path[base_len] = '\0';
+    // add extension
+    strcat(split_path, ext);
+
+    return split_path;
+}
+
+char *get_out_split_path(char *base_path, ulg disk_number)
+{
+    char *split_path = NULL;
+    int base_len     = 0;
+    int path_len     = 0;
+    ulg num          = disk_number + 1;
+    char ext[6];
+
+    // A split has extension z01, z02, ..., z99, z100, z101, ... z999
+    // We currently support up to .z99999
+    // WinZip will also read .100, .101, ... but AppNote 6.2.2 uses above
+    // so use that.  Means on DOS can only have 100 splits.
+
+    if (num > 99999) {
+        {
+            zip_fail(ZE_BIG, "More than 99999 splits needed");
+            return NULL;
+        }
+    }
+    zsprintf(ext, "z%02lu", num);
+
+    // create path for this split - zip.c checked for .zip extension
+    base_len = strlen(base_path) - 3;
+    path_len = base_len + strlen(ext);
+
+    if ((split_path = (char *)malloc(path_len + 1)) == NULL) {
+        {
+            zip_fail(ZE_MEM, "split path");
+            return NULL;
+        }
+    }
+    // copy base_path except for end zip
+    strcpy(split_path, base_path);
+    split_path[base_len] = '\0';
+    // add extension
+    strcat(split_path, ext);
+
+    return split_path;
+}
+
 Task<usize> bfwrite(ZCONST void *buffer, usize size, usize count, int mode)
 {
     usize bytes_written = 0;
@@ -211,58 +1088,195 @@ Task<usize> bfwrite(ZCONST void *buffer, usize size, usize count, int mode)
         bytes_to_write = b;
     }
 
-    // Upstream closed the split here and opened the next. Splits arrive with
-    // the update path; until then the only way to be short is a failed write.
-    if (bytes_to_write > 0)
-        ZIPERR(ZE_WRITE, "write error on zip file")
+    if (bytes_to_write > 0) {
+        if (split_method) {
+            // still bytes to write so close split and open next split
+            bytes_prev_splits += bytes_this_split;
+
+            if (split_method == 1 && zferror(y)) {
+                // if writing all splits to same place and have problem then bad
+                ZIPERR(ZE_WRITE, "Could not write split");
+            }
+
+            if (split_method == 2 && zferror(y)) {
+                // A split must be at least 64K except last .zip split
+                if (bytes_this_split < 64 * (uzoff_t)0x400) {
+                    ZIPERR(ZE_WRITE, "Not enough space to write split");
+                }
+            }
+
+            // close this split
+            if (split_method == 1 && current_local_disk == current_disk) {
+                // keep split open so can update it
+                current_local_tempname = tempzip;
+            } else {
+                // close split
+                co_await close_split(current_disk, y, tempzip);
+                y = NULL;
+                free(tempzip);
+                tempzip = NULL;
+            }
+            cd_entries_this_disk = 0;
+            bytes_this_split     = 0;
+
+            // increment disk - disks are numbered 0, 1, 2, ... and
+            // splits are 01, 02, ...
+            current_disk++;
+
+            if (split_method == 2 && split_bell) {
+                // bell when pause to ask for next split
+                co_await zfputc('\007', mesg);
+                co_await zfflush(mesg);
+            }
+
+            for (;;) {
+                // if method 2 pause and allow changing path
+                if (split_method == 2) {
+                    if (co_await ask_for_split_write_path(current_disk) == 0) {
+                        ZIPERR(ZE_ABORT, "could not write split");
+                    }
+                }
+
+                // open next split
+                {
+                    if (tempath != NULL) {
+                        // if -b used to set temp file dir use that for split temp
+                        if ((tempzip = (char *)malloc(strlen(tempath) + 12)) == NULL) {
+                            ZIPERR(ZE_MEM, "allocating temp filename");
+                        }
+                        strcpy(tempzip, tempath);
+                        if (lastchar(tempzip) != '/')
+                            strcat(tempzip, "/");
+                    } else {
+                        free(tempzip);
+                        tempzip = NULL;
+                    }
+
+                    // Upstream built a "ziXXXXXX" template and handed it to mkstemp,
+                    // then fdopen'ed the descriptor. tempname() carries proc_random()
+                    // instead and the open that follows names SYS_O_EXCL, which is the
+                    // same guarantee; fdopen has nothing to do here because zfopen
+                    // opens the name itself.
+                    {
+                        char *base = tempzip ? tempzip : zipfile;
+                        char *nm   = tempname(base);
+                        free(tempzip);
+                        tempzip = nm;
+                        if (tempzip == NULL) {
+                            ZIPERR(ZE_MEM, "allocating temp filename");
+                        }
+                    }
+
+                    if ((y = co_await zfopen(tempzip, FOPW_TMP)) == NULL) {
+                        ZIPERR(ZE_TEMP, tempzip);
+                    }
+                }
+
+                r = co_await zwrite((char *)buffer + bytes_written, 1, bytes_to_write, y);
+                bytes_written += r;
+                bytes_this_split += r;
+                if (!(mode == BFWRITE_HEADER || mode == BFWRITE_LOCALHEADER ||
+                      mode == BFWRITE_CENTRALHEADER)) {
+                    bytes_this_entry += r;
+                }
+                if (bytes_to_write > r) {
+                    // buffer bigger than split
+                    if (split_method == 2) {
+                        // let user choose another disk
+                        co_await zipwarn("Not enough room on disk", "");
+                        continue;
+                    } else {
+                        ZIPERR(ZE_WRITE, "Not enough room on disk");
+                    }
+                }
+                if (mode == BFWRITE_LOCALHEADER || mode == BFWRITE_HEADER ||
+                    mode == BFWRITE_CENTRALHEADER) {
+                    if (split_method == 1 && current_local_file &&
+                        current_local_disk != current_disk) {
+                        // We're opening a new split because the next header
+                        // did not fit on the last split.  We need to now close
+                        // the last split and update the pointers for
+                        // the current split.
+                        co_await close_split(current_local_disk, current_local_file,
+                                             current_local_tempname);
+                        free(current_local_tempname);
+                    }
+                    current_local_tempname = tempzip;
+                    current_local_file     = y;
+                    current_local_offset   = 0;
+                    current_local_disk     = current_disk;
+                }
+                break;
+            }
+        } else {
+            // likely have more than fits but no splits
+
+            // probably already have error "no space left on device"
+            // could let flush_outbuf() handle error but co_await bfwrite() is called for
+            // headers also
+            if (zferror(y))
+                ziperr(ZE_WRITE, "write error on zip file");
+        }
+    }
+
+    // display dots for archive instead of for each file
+    if (display_globaldots) {
+        if (dot_size > 0) {
+            // initial space
+            if (dot_count == -1) {
+                co_await zfputc(' ', mesg);
+                co_await zfflush(mesg);
+                // assume a header will be written first, so avoid 0
+                dot_count = 1;
+            }
+            // skip incrementing dot count for small buffers like for headers
+            if (size * count > 1000) {
+                dot_count++;
+                if (dot_size <= dot_count * (zoff_t)size * (zoff_t)count)
+                    dot_count = 0;
+            }
+        }
+        if (dot_size && !dot_count) {
+            dot_count++;
+            co_await zfputc('.', mesg);
+            co_await zfflush(mesg);
+            mesg_line_started = 1;
+        }
+    }
 
     co_return bytes_written;
 }
 
-// Reduce all path components to MSDOS upper case 8.3 style names.
-char *msname(char *n)
-{
-    int c; // current character
-    int f; // characters in current component
-    char *p;
-    char *q;
+// Unicode conversion functions
+//
+// Provided by Paul Kienitz
+//
+// Some modifications to work with Zip
+//
+// ---------------------------------------------
 
-    p = q = n;
-    f     = 0;
-    while ((c = (unsigned char)*POSTINCSTR(p)) != 0)
-        if (c == ' ' || c == ':' || c == '"' || c == '*' || c == '+' || c == ',' || c == ';' ||
-            c == '<' || c == '=' || c == '>' || c == '?' || c == '[' || c == ']' || c == '|')
-            continue; // char is discarded
-        else if (c == '/') {
-            *POSTINCSTR(q) = (char)c;
-            f              = 0; // new component
-        } else if (c == '.') {
-            if (f == 0)
-                continue; // leading dots are discarded
-            else if (f < 9) {
-                *POSTINCSTR(q) = (char)c;
-                f              = 9; // now in file type
-            } else
-                f = 12; // now just excess characters
-        } else if (f < 12 && f != 8) {
-            f += CLEN(p); // do until end of name or type
-            *POSTINCSTR(q) = (char)(to_up(c));
-        }
-    *q = 0;
-    return n;
-}
+// NOTES APPLICABLE TO ALL STRING FUNCTIONS:
+//
+// All of the x_to_y functions take parameters for an output buffer and
+// its available length, and return an int.  The value returned is the
+// length of the string that the input produces, which may be larger than
+// the provided buffer length.  If the returned value is less than the
+// buffer length, then the contents of the buffer will be null-terminated;
+// otherwise, it will not be terminated and may be invalid, possibly
+// stopping in the middle of a multibyte sequence.
+//
+// In all cases you may pass NULL as the buffer and/or 0 as the length, if
+// you just want to learn how much space the string is going to require.
+//
+// The functions will return -1 if the input is invalid UTF-8 or cannot be
+// encoded as UTF-8.
 
-// Return a pointer to the start of the last path component. For a directory
-// name terminated by the character in c, the return value is an empty string.
-char *last(char *p, int c)
-{
-    char *t;
+// utility functions for managing UTF-8 and UCS-4 strings
 
-    if ((t = strrchr(p, c)) != NULL)
-        return t + 1;
-    else
-        return p;
-}
+// utf8_char_bytes
+//
+// Returns the number of bytes used by the first character in a UTF-8
+// string, or -1 if the UTF-8 is invalid or null.
 
 // ---------------------------------------------------------------- the names
 //

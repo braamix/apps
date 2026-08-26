@@ -6,6 +6,7 @@
 #pragma once
 
 #include "braam.h"
+#include "proc/time.h"
 
 // ------------------------------------------------------------ what tailor.h did
 
@@ -36,6 +37,13 @@ typedef u64 uzoff_t;
 #define UNICODE_SUPPORT
 #define NO_BZIP2_SUPPORT
 #define DYN_ALLOC
+
+// stdio's fopen modes, less the 'b' this filesystem has no use for.
+#define FOPR     "r"
+#define FOPM     "r+"
+#define FOPW     "w"
+#define FOPW_TMP FOPW
+#define FOPR_EX  FOPM
 
 #define CBSZ 16384 // copy buffer
 #define SBSZ CBSZ  // copy buffer for a stored entry, see zipup()
@@ -146,6 +154,12 @@ struct plist {
 #define EB_ID       0
 #define EB_LEN      2
 
+// Little-endian reads. Upstream kept these in the zipfile.h it had inlined
+// into zipfile.c; fileio.cpp's split reader wants them too.
+#define SH(a)  ((ush)(((ush)(uch)(a)[0]) | (((ush)(uch)(a)[1]) << 8)))
+#define LG(a)  ((ulg)SH(a) | ((ulg)SH((a) + 2) << 16))
+#define LLG(a) ((zoff_t)LG(a) | ((zoff_t)LG((a) + 4) << 32))
+
 #define LF    10
 #define CR    13
 #define CTRLZ 26
@@ -156,6 +170,12 @@ struct plist {
 #define IZ_PW_CANCELALL  -2
 #define IZ_PW_ERROR      5
 #define IZ_PW_SKIPVERIFY IZ_PW_CANCEL
+
+// crypt.h's password length. Encryption itself arrives with the siblings.
+#define IZ_PWLEN 80
+
+// The longest comment a -c or -z prompt takes.
+#define MAXCOM 32766
 
 #define ZP_PW_ENTER  0
 #define ZP_PW_VERIFY 1
@@ -180,6 +200,12 @@ struct plist {
 #define STORE                 0
 #define DEFLATE               8
 #define LAST_KNOWN_COMPMETHOD DEFLATE
+
+// The "version made by" host codes AppNote lists; zipoddities() warns above it.
+#define NUM_HOSTS 31
+
+// Upstream's internal-attribute code for EBCDIC text, which nothing here sets.
+#define __EBCDIC 2
 
 // ------------------------------------------------------------------- globals
 
@@ -405,6 +431,10 @@ void bi_init OF((char *, unsigned int, int));
 
 // ---------------------------------------------------------------- zipfile.cpp
 
+Task<int> readzipfile OF((void));
+Task<int> readlocal OF((struct zlist far **, struct zlist far *));
+Task<int> zipcopy OF((struct zlist far *));
+Task<zoff_t> ffile_size OF((FILE *));
 Task<int> putlocal OF((struct zlist far *, int));
 Task<int> putextended OF((struct zlist far *));
 Task<int> putcentral OF((struct zlist far *));
@@ -430,6 +460,14 @@ char *copy_nondup_extra_fields OF((char *, unsigned, char *, unsigned, unsigned 
 
 Task<usize> bfwrite OF((ZCONST void *buffer, usize size, usize count, int));
 Task<int> close_split OF((ulg, FILE *, char *));
+Task<int> ask_for_split_read_path OF((ulg));
+Task<int> ask_for_split_write_path OF((ulg));
+char *get_in_split_path OF((char *, ulg));
+char *get_out_split_path OF((char *, ulg));
+Task<int> rename_split OF((char *, char *));
+int set_filetype OF((char *));
+Task<int> fcopy OF((FILE *, FILE *, uzoff_t));
+Task<int> bfcopy OF((uzoff_t));
 
 // ----------------------------------------------------------------- fileio.cpp
 
@@ -502,6 +540,8 @@ char *msname OF((char *));
 Task<int> destroy OF((char *));
 Task<int> replace OF((char *, char *));
 char *tempname OF((char *));
+int getfileattr OF((char *));
+int setfileattr OF((char *, int));
 ulg dostime OF((int, int, int, int, int, int));
 ulg unix2dostime OF((time_t *));
 time_t dos2unixtime OF((ulg));
@@ -539,3 +579,7 @@ char *in2ex OF((char *));
 char *ex2in OF((char *, int, int *));
 int fseekable OF((FILE *));
 Task<void> version_local OF((void));
+
+// The password prompt. crypt.cpp answers it once encryption is here; until
+// then it refuses, and -e and -P say so.
+Task<int> encr_passwd OF((int modeflag, char *pwbuf, int size, ZCONST char *zfn));

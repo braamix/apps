@@ -154,6 +154,10 @@ inline FileWrite zfputs(const char *s, FILE *f)
     return f->write(Str(s, strlen(s)));
 }
 
+// fgets: a line into buf, newline kept, true if one was read. getline() is
+// File's and strips it, so it is put back — upstream tests for it.
+Task<bool> zgets(char *buf, usize cap, FILE *f);
+
 // Formats into zfmtbuf, then one write.
 FileWrite zfprintf(FILE *f, const char *fmt, ...);
 
@@ -161,7 +165,19 @@ FileWrite zfprintf(FILE *f, const char *fmt, ...);
 int zsprintf(char *out, const char *fmt, ...);
 
 Task<Result<void>> zfflush(FILE *f);
-Task<Result<void>> zfclose(FILE *f);
+
+// fopen. The File is heap-allocated because upstream keeps FILE * in globals
+// that outlive the scope that opened them, and File is move-only. The modes
+// are stdio's, less the 'b' this filesystem has no use for: "r", "w", "r+".
+Task<FILE *> zfopen(const char *path, const char *mode);
+
+// fclose: flush, close the descriptor, and free the File. A standard stream is
+// left alone. Zero on success, EOF on a write that would not go out.
+//
+// Closing the descriptor by hand is not optional: File::of() borrows one and
+// will not close it, and the store refuses to rename a file something still
+// holds open.
+Task<int> zfclose(FILE *f);
 Task<i32> zfseeko(FILE *f, i64 off, int whence);
 Task<i64> zftello(FILE *f);
 
