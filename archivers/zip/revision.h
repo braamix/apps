@@ -2,6 +2,10 @@
 // into a central header's "version made by".
 #pragma once
 
+// The strings below name ZCONST, so this says where that comes from rather
+// than relying on the include order clang-format sorts.
+#include "zip.h"
+
 #define Z_MAJORVER   3
 #define Z_MINORVER   0
 #define Z_PATCHLEVEL 0

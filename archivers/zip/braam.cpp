@@ -679,6 +679,30 @@ Task<i64> zftello(FILE *f)
 i32 ztz_min     = 0;
 i64 zstart_time = 0;
 
+int zargv(Args argv, char ***out)
+{
+    // Every main calls this first, so it is where the streams are named. The
+    // runtime flushes stdout and stderr after proc_main returns.
+    zstdout = &File::stdout();
+    zstderr = &File::stderr();
+    if (mesg == nullptr)
+        mesg = zstdout;
+
+    int n    = (int)argv.size();
+    char **a = (char **)malloc((n + 2) * sizeof(char *));
+    if (a == nullptr)
+        return 0;
+    for (int i = 0; i < n; i++) {
+        if ((a[i] = (char *)malloc(argv[i].size() + 1)) == nullptr)
+            return 0;
+        memcpy(a[i], argv[i].data(), argv[i].size());
+        a[i][argv[i].size()] = 0;
+    }
+    a[n] = nullptr;
+    *out = a;
+    return n;
+}
+
 Task<void> zclock_init()
 {
     Result<Clock> c = Err(Error::NoMemory);

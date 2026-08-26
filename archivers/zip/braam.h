@@ -60,6 +60,16 @@ int atoi(const char *s);
 int zparse_date(const char *s, int *yyyy, int *mm, int *dd);
 long strtol(const char *s, char **end, int base);
 
+} // extern "C"
+
+// atol(): strtol base 10, which is all zipsplit asks for.
+inline long strtol_l(const char *s)
+{
+    return strtol(s, nullptr, 10);
+}
+
+extern "C" {
+
 void qsort(void *base, usize n, usize size, int (*cmp)(const void *, const void *));
 
 } // extern "C"
@@ -71,6 +81,7 @@ using FILE = File;
 
 // Assigned at startup: a global may have no destructor, and File::stderr() is
 // not a constant expression.
+extern FILE *mesg; // zip.h names it too; zargv needs it here
 extern FILE *zstdout;
 extern FILE *zstderr;
 
@@ -232,6 +243,12 @@ extern i32 ztz_min;     // minutes east of UTC, read once at startup
 extern i64 zstart_time; // seconds since the epoch, likewise
 
 Task<void> zclock_init();
+
+// argv as a NUL-terminated char ** the option parser can rewrite, and the
+// point at which zstdout and zstderr are named. Str is not
+// NUL-terminated, so this is a copy either way; args[0] is the program name,
+// which get_option skips.
+int zargv(Args argv, char ***out);
 
 // time(). The wall clock read at startup plus the monotonic milliseconds
 // since; under the harness proc_now() never advances, so it stands still.

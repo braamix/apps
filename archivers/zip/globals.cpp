@@ -215,6 +215,18 @@ ZCONST struct ziperror ziperrors[ZE_MAXERR + 1] = {
 // any other and lives here.
 char *label = NULL;
 
+// Upstream ended the process here. Sys::Exit only records a status and a
+// process ends when its root task returns, so the code is kept and the caller
+// unwinds with it; zip_fatal_h is what a plain function leaves behind when it
+// cannot write a message at all.
+void zip_fail(int c, ZCONST char *h)
+{
+    if (zip_fatal == ZE_OK) {
+        zip_fatal   = c;
+        zip_fatal_h = h;
+    }
+}
+
 // What ziperr() recorded, since it cannot end the process where it stands.
 int zip_fatal            = ZE_OK;
 ZCONST char *zip_fatal_h = NULL;

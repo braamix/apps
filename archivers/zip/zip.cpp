@@ -12,8 +12,10 @@
 #include "zip.h"
 
 #include "crc32.h"
+#include "crypt.h"
 #include "proc/rt.h"
 #include "revision.h"
+#include "ttyio.h"
 
 #define RETURN(x) co_return (x)
 #define FINISH(e) co_return (co_await finish(e))
@@ -38,18 +40,6 @@ local int tempdir      = 0;    // 1=use temp directory (-b)
 local int junk_sfx     = 0;    // 1=junk the sfx prefix
 
 // ------------------------------------------------------------------ messages
-
-// Upstream ended the process here. Sys::Exit only records a status and a
-// process ends when its root task returns, so the code is kept and the caller
-// unwinds with it; zip_fatal_h is what a plain function leaves behind when it
-// cannot write a message at all.
-void zip_fail(int c, ZCONST char *h)
-{
-    if (zip_fatal == ZE_OK) {
-        zip_fatal   = c;
-        zip_fatal_h = h;
-    }
-}
 
 Task<void> ziperr_msg(int c, ZCONST char *h)
 {
@@ -1060,12 +1050,17 @@ int set_filetype(char *out_path)
     return ZE_OK;
 }
 
-// Upstream read a password from the terminal here. Encryption arrives with
-// the siblings; until then -e and -P are refused rather than ignored.
 Task<int> encr_passwd(int modeflag, char *pwbuf, int size, ZCONST char *zfn)
 {
-    co_await zipwarn("encryption is not built in yet", "");
-    co_return IZ_PW_ERROR;
+    ZCONST char *prompt;
+
+    (void)zfn; // upstream's "tell picky compilers to shut up"
+
+    prompt = (modeflag == ZP_PW_VERIFY) ? "Verify password: " : "Enter password: ";
+
+    if (co_await getp(prompt, pwbuf, size) == NULL)
+        ZIPERR(ZE_PARMS, "no terminal to read a password from")
+    co_return IZ_PW_ENTERED;
 }
 
 // setup for writing zip file on stdout

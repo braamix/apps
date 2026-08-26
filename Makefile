@@ -25,7 +25,7 @@ REPO_URL      ?= https://braamix.github.io
 # G. A client refuses an index whose version is below the one it holds, so this
 # rises at every publication. It cannot be derived: only the publisher knows
 # what was last uploaded.
-INDEX_VERSION ?= 7
+INDEX_VERSION ?= 8
 
 # E, milliseconds since the epoch: 2027-08-21. A promise to re-sign by then.
 INDEX_EXPIRY  ?= 1818806400000
@@ -57,6 +57,7 @@ test: all
 	@node archivers/zip/test/tree.mjs
 	@node archivers/zip/test/interrupt.mjs
 	@node archivers/zip/test/update.mjs
+	@node archivers/zip/test/tools.mjs
 	@node games/adventure/test/play.mjs
 	@node games/adventure/test/interrupt.mjs
 	@node games/adventure/test/suspend.mjs

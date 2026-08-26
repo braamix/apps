@@ -9,19 +9,20 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Three programs are ported so far**:
+**Four programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
 upstream that already has a porting layer, where the port is a third
 implementation of it rather than a rewrite; and
-[games/adventure](games/adventure/), the largest so far and the first
-interactive one, which shows what a program that reads, writes files and
-carries its own data has to do here, and the one with the largest test. The
-rest of
+[games/adventure](games/adventure/), which shows what a program that reads,
+writes files and carries its own data has to do here; and
+[archivers/zip](archivers/zip/), the largest by far — Info-ZIP's zip 3.0, four
+commands out of one set of sources, where nearly every function became a
+coroutine because nearly every one of them reaches a stream. The rest of
 the tree is category directories, a few holding a one-line `TODO.md` naming the
 upstream to port:
-[archivers/zip](archivers/zip/TODO.md), [editors/vi](editors/vi/TODO.md),
+[editors/vi](editors/vi/TODO.md),
 [emulators/simbesm](emulators/simbesm/TODO.md),
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).
 

@@ -31,10 +31,30 @@ target_compile_options(zip_quiet INTERFACE
     -Wno-shadow -Wno-sign-compare -Wno-unused-parameter
     -Wno-writable-strings -Wno-unused-but-set-variable)
 
-braam_add_program(NAME zip
-                  SOURCES zip.cpp zipfile.cpp zipup.cpp fileio.cpp util.cpp
-                          globals.cpp crc32.cpp deflate.cpp trees.cpp
-                          unix.cpp braam.cpp)
+# What every one of the four is made of. Upstream compiled these a second time
+# with -DUTIL for the three tools, which strips the create path out of them;
+# here they are compiled once and --gc-sections keeps out of each binary what
+# that binary never reaches.
+set(ZIP_COMMON zipfile.cpp fileio.cpp util.cpp globals.cpp crc32.cpp
+               crypt.cpp ttyio.cpp unix.cpp braam.cpp)
 
-target_compile_options(bin_zip PRIVATE ${ZIP_NOBUILTIN})
-target_link_libraries(bin_zip PRIVATE zip_quiet)
+braam_add_program(NAME zip
+                  SOURCES zip.cpp zipup.cpp deflate.cpp trees.cpp ${ZIP_COMMON})
+braam_add_program(NAME zipnote   SOURCES zipnote.cpp ${ZIP_COMMON})
+braam_add_program(NAME zipsplit  SOURCES zipsplit.cpp ${ZIP_COMMON})
+braam_add_program(NAME zipcloak  SOURCES zipcloak.cpp ${ZIP_COMMON})
+
+foreach(t zip zipnote zipsplit zipcloak)
+    target_compile_options(bin_${t} PRIVATE ${ZIP_NOBUILTIN})
+    target_link_libraries(bin_${t} PRIVATE zip_quiet)
+endforeach()
+
+# One package, four commands: every flat bin/ entry becomes a cmd: provide and
+# a link in the installed generation's bin/, which /pkg/bin points at.
+braam_add_package(NAME zip VERSION 3.0-r0
+                  FIELD "T=Info-ZIP zip 3.0, the archiver"
+                  FILES $<TARGET_FILE:bin_zip>=bin/zip
+                        $<TARGET_FILE:bin_zipnote>=bin/zipnote
+                        $<TARGET_FILE:bin_zipsplit>=bin/zipsplit
+                        $<TARGET_FILE:bin_zipcloak>=bin/zipcloak)
+add_dependencies(packages pkg_zip)

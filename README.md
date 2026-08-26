@@ -7,6 +7,7 @@ that runs in a browser tab.
 
 | | |
 | --- | --- |
+| [archivers/zip](archivers/zip/) | Info-ZIP zip 3.0, and zipnote, zipsplit and zipcloak with it |
 | [benchmarks/dhrystone](benchmarks/dhrystone/) | Dhrystone 2.1, the 1984 integer benchmark |
 | [benchmarks/duremark](benchmarks/duremark/) | DureMark 1.1, a small CoreMark-inspired benchmark |
 | [games/adventure](games/adventure/) | Colossal Cave Adventure, the 1977 C re-coding |
@@ -34,8 +35,9 @@ builds the packages beside them, `<program>-<version>.zip`.
 
     make test
 
-runs what headless tests there are — `games/adventure`, which plays a whole
-game of Colossal Cave and interrupts a second one with `^C`, and the two
+runs what headless tests there are — `archivers/zip`, which writes archives and
+reads them back with Braam's own `/bin/unzip`; `games/adventure`, which plays a
+whole game of Colossal Cave and interrupts a second one with `^C`; and the two
 benchmarks, each stopped partway by a signal. All of them need node and a
 sibling `../braam-core` built.
 

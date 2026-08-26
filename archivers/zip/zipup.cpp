@@ -7,6 +7,7 @@
 // it left. read_buf keeps its indirection and its type gains a Task.
 
 #include "crc32.h"
+#include "crypt.h"
 #include "kernel/alloc.h"
 #include "revision.h"
 #include "zip.h"
@@ -354,7 +355,7 @@ Task<int> zipup(struct zlist far *z)
 
 #if CRYPT
     if (!isdir && key != NULL) {
-        crypthead(key, z->crc);
+        co_await crypthead(key, z->crc);
         z->siz += RAND_HEAD_LEN; // to be updated later
         tempzn += RAND_HEAD_LEN;
     }
