@@ -53,6 +53,7 @@ package: all
 # Headless tests, driving a built binary under ../braam-core's system harness.
 # Needs node and a built core tree.
 test: all
+	@node archivers/zip/test/roundtrip.mjs
 	@node games/adventure/test/play.mjs
 	@node games/adventure/test/interrupt.mjs
 	@node games/adventure/test/suspend.mjs

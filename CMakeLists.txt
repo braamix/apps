@@ -19,5 +19,6 @@ find_package(braam REQUIRED)
 add_custom_target(packages)
 
 # One line per category that holds a program.
+add_subdirectory(archivers)
 add_subdirectory(benchmarks)
 add_subdirectory(games)
