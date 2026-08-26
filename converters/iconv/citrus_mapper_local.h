@@ -32,30 +32,32 @@
 #ifndef _CITRUS_MAPPER_LOCAL_H_
 #define _CITRUS_MAPPER_LOCAL_H_
 
+#include "kernel/task.h"
+
 #define _CITRUS_MAPPER_GETOPS_FUNC_BASE(_n_) int _n_(struct _citrus_mapper_ops *)
 #define _CITRUS_MAPPER_GETOPS_FUNC(_n_) \
     _CITRUS_MAPPER_GETOPS_FUNC_BASE(_citrus_##_n_##_mapper_getops)
 
 #ifdef _CITRUS_APPLE
-#define _CITRUS_MAPPER_DECLS(_m_)                                                                  \
-    static int _citrus_##_m_##_mapper_init(struct _citrus_mapper_area *__restrict,                 \
-                                           struct _citrus_mapper *__restrict,                      \
-                                           const char *__restrict, const void *__restrict, size_t, \
-                                           struct _citrus_mapper_traits *__restrict, size_t);      \
-    static void _citrus_##_m_##_mapper_uninit(struct _citrus_mapper *);                            \
-    static int _citrus_##_m_##_mapper_convert(struct _citrus_mapper *__restrict,                   \
-                                              struct _citrus_mapper_convert_ctx *__restrict);      \
+#define _CITRUS_MAPPER_DECLS(_m_)                                                             \
+    static Task<int> _citrus_##_m_##_mapper_init(                                             \
+        struct _citrus_mapper_area *__restrict, struct _citrus_mapper *__restrict,            \
+        const char *__restrict, const void *__restrict, size_t,                               \
+        struct _citrus_mapper_traits *__restrict, size_t);                                    \
+    static void _citrus_##_m_##_mapper_uninit(struct _citrus_mapper *);                       \
+    static int _citrus_##_m_##_mapper_convert(struct _citrus_mapper *__restrict,              \
+                                              struct _citrus_mapper_convert_ctx *__restrict); \
     static void _citrus_##_m_##_mapper_init_state(void);
 #else
-#define _CITRUS_MAPPER_DECLS(_m_)                                                                  \
-    static int _citrus_##_m_##_mapper_init(struct _citrus_mapper_area *__restrict,                 \
-                                           struct _citrus_mapper *__restrict,                      \
-                                           const char *__restrict, const void *__restrict, size_t, \
-                                           struct _citrus_mapper_traits *__restrict, size_t);      \
-    static void _citrus_##_m_##_mapper_uninit(struct _citrus_mapper *);                            \
-    static int _citrus_##_m_##_mapper_convert(struct _citrus_mapper *__restrict,                   \
-                                              _citrus_index_t *__restrict, _citrus_index_t,        \
-                                              void *__restrict);                                   \
+#define _CITRUS_MAPPER_DECLS(_m_)                                                           \
+    static Task<int> _citrus_##_m_##_mapper_init(                                           \
+        struct _citrus_mapper_area *__restrict, struct _citrus_mapper *__restrict,          \
+        const char *__restrict, const void *__restrict, size_t,                             \
+        struct _citrus_mapper_traits *__restrict, size_t);                                  \
+    static void _citrus_##_m_##_mapper_uninit(struct _citrus_mapper *);                     \
+    static int _citrus_##_m_##_mapper_convert(struct _citrus_mapper *__restrict,            \
+                                              _citrus_index_t *__restrict, _citrus_index_t, \
+                                              void *__restrict);                            \
     static void _citrus_##_m_##_mapper_init_state(void);
 #endif
 
@@ -69,10 +71,10 @@
     }
 
 typedef _CITRUS_MAPPER_GETOPS_FUNC_BASE((*_citrus_mapper_getops_t));
-typedef int (*_citrus_mapper_init_t)(struct _citrus_mapper_area *__restrict,
-                                     struct _citrus_mapper *__restrict, const char *__restrict,
-                                     const void *__restrict, size_t,
-                                     struct _citrus_mapper_traits *__restrict, size_t);
+typedef Task<int> (*_citrus_mapper_init_t)(struct _citrus_mapper_area *__restrict,
+                                           struct _citrus_mapper *__restrict,
+                                           const char *__restrict, const void *__restrict, size_t,
+                                           struct _citrus_mapper_traits *__restrict, size_t);
 typedef void (*_citrus_mapper_uninit_t)(struct _citrus_mapper *);
 #ifdef _CITRUS_APPLE
 typedef int (*_citrus_mapper_convert_t)(struct _citrus_mapper *__restrict,

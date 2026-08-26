@@ -32,6 +32,8 @@
 #ifndef _CITRUS_CSMAPPER_H_
 #define _CITRUS_CSMAPPER_H_
 
+#include "kernel/task.h"
+
 #ifdef _CITRUS_APPLE
 #include <stdbool.h>
 #endif
@@ -51,11 +53,13 @@
 __BEGIN_DECLS
 #ifdef _CITRUS_APPLE
 struct _citrus_csmapper;
-int _citrus_csmapper_open(struct _citrus_csmapper *__restrict *__restrict, const char *__restrict,
-                          const char *__restrict, uint32_t, unsigned long *, bool *);
+Task<int> _citrus_csmapper_open(struct _citrus_csmapper *__restrict *__restrict,
+                                const char *__restrict, const char *__restrict, uint32_t,
+                                unsigned long *, bool *);
 #else
-int _citrus_csmapper_open(struct _citrus_csmapper *__restrict *__restrict, const char *__restrict,
-                          const char *__restrict, uint32_t, unsigned long *);
+Task<int> _citrus_csmapper_open(struct _citrus_csmapper *__restrict *__restrict,
+                                const char *__restrict, const char *__restrict, uint32_t,
+                                unsigned long *);
 #endif
 __END_DECLS
 

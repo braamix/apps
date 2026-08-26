@@ -32,6 +32,8 @@
 #ifndef _CITRUS_MAPPER_H_
 #define _CITRUS_MAPPER_H_
 
+#include "kernel/task.h"
+
 struct _citrus_mapper_area;
 struct _citrus_mapper;
 #ifdef _CITRUS_APPLE
@@ -43,11 +45,12 @@ struct _citrus_mapper_traits;
 __BEGIN_DECLS
 int _citrus_mapper_create_area(struct _citrus_mapper_area *__restrict *__restrict,
                                const char *__restrict);
-int _citrus_mapper_open(struct _citrus_mapper_area *__restrict,
-                        struct _citrus_mapper *__restrict *__restrict, const char *__restrict);
-int _citrus_mapper_open_direct(struct _citrus_mapper_area *__restrict,
-                               struct _citrus_mapper *__restrict *__restrict,
-                               const char *__restrict, const char *__restrict);
+Task<int> _citrus_mapper_open(struct _citrus_mapper_area *__restrict,
+                              struct _citrus_mapper *__restrict *__restrict,
+                              const char *__restrict);
+Task<int> _citrus_mapper_open_direct(struct _citrus_mapper_area *__restrict,
+                                     struct _citrus_mapper *__restrict *__restrict,
+                                     const char *__restrict, const char *__restrict);
 void _citrus_mapper_close(struct _citrus_mapper *);
 void _citrus_mapper_set_persistent(struct _citrus_mapper *__restrict);
 #ifdef _CITRUS_APPLE

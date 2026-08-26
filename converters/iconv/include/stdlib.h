@@ -20,6 +20,7 @@ void exit(int status);
 char *getenv(const char *name);
 int issetugid(void);
 
+int atoi(const char *s);
 unsigned long strtoul(const char *s, char **end, int base);
 long strtol(const char *s, char **end, int base);
 

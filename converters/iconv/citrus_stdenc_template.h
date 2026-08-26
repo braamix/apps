@@ -91,7 +91,7 @@ static int _FUNCNAME(stdenc_init)(struct _citrus_stdenc *__restrict ce, const vo
 
     ei = NULL;
     if (sizeof(_ENCODING_INFO) > 0) {
-        ei = calloc(1, sizeof(_ENCODING_INFO));
+        ei = (_ENCODING_INFO *)calloc(1, sizeof(_ENCODING_INFO));
         if (ei == NULL)
             return (errno);
     }

@@ -20,80 +20,92 @@
 
 #include "citrus_namespace.h"
 
+struct _citrus_iconv_ops;
+struct _citrus_stdenc_ops;
+struct _citrus_mapper_ops;
+
 extern "C" {
 
 // The two iconv drivers.
-void *_citrus_iconv_std_iconv_getops(void);
-void *_citrus_iconv_none_iconv_getops(void);
+int _citrus_iconv_std_iconv_getops(struct _citrus_iconv_ops *);
+int _citrus_iconv_none_iconv_getops(struct _citrus_iconv_ops *);
 
 // The stdenc modules. "NONE" is not among them: citrus_stdenc.c reaches
 // citrus_none.cpp directly, without a module at all.
-void *_citrus_UTF8_stdenc_getops(void);
-void *_citrus_UTF8MAC_stdenc_getops(void);
-void *_citrus_UTF7_stdenc_getops(void);
-void *_citrus_UTF1632_stdenc_getops(void);
-void *_citrus_ISO2022_stdenc_getops(void);
-void *_citrus_HZ_stdenc_getops(void);
-void *_citrus_VIQR_stdenc_getops(void);
-void *_citrus_MSKanji_stdenc_getops(void);
-void *_citrus_ZW_stdenc_getops(void);
-void *_citrus_BIG5_stdenc_getops(void);
-void *_citrus_UES_stdenc_getops(void);
-void *_citrus_GBK2K_stdenc_getops(void);
-void *_citrus_DECHanyu_stdenc_getops(void);
-void *_citrus_EUC_stdenc_getops(void);
-void *_citrus_EUCTW_stdenc_getops(void);
-void *_citrus_JOHAB_stdenc_getops(void);
-void *_citrus_DECKanji_stdenc_getops(void);
+int _citrus_UTF8_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_UTF8MAC_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_UTF7_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_UTF1632_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_ISO2022_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_HZ_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_VIQR_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_MSKanji_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_ZW_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_BIG5_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_UES_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_GBK2K_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_DECHanyu_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_EUC_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_EUCTW_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_JOHAB_stdenc_getops(struct _citrus_stdenc_ops *);
+int _citrus_DECKanji_stdenc_getops(struct _citrus_stdenc_ops *);
 
 // The mappers. mapper_parallel is a second entry point in mapper_serial's
 // source, as it is upstream — two targets, one file.
-void *_citrus_mapper_std_mapper_getops(void);
-void *_citrus_mapper_serial_mapper_getops(void);
-void *_citrus_mapper_parallel_mapper_getops(void);
-void *_citrus_mapper_zone_mapper_getops(void);
-void *_citrus_mapper_646_mapper_getops(void);
-void *_citrus_mapper_none_mapper_getops(void);
+int _citrus_mapper_std_mapper_getops(struct _citrus_mapper_ops *);
+int _citrus_mapper_serial_mapper_getops(struct _citrus_mapper_ops *);
+int _citrus_mapper_parallel_mapper_getops(struct _citrus_mapper_ops *);
+int _citrus_mapper_zone_mapper_getops(struct _citrus_mapper_ops *);
+int _citrus_mapper_646_mapper_getops(struct _citrus_mapper_ops *);
+int _citrus_mapper_none_mapper_getops(struct _citrus_mapper_ops *);
 }
 
 namespace {
 
+// The three getops signatures differ only in their argument, and the call
+// sites cast back to the right one exactly as they cast dlsym's void *. A
+// generic function pointer is what the table can hold in the meantime.
+typedef void (*GetOps)();
+
 struct ModuleEntry {
     const char *name;
     const char *iface;
-    void *(*getops)(void);
+    GetOps getops;
 };
 
 // The names are the ones esdb's ENCODING fields and mapper.dir's second column
-// hold, which is what citrus passes to _citrus_load_module.
-constexpr ModuleEntry MODULES[] = {
-    { "iconv_std", "iconv", _citrus_iconv_std_iconv_getops },
-    { "iconv_none", "iconv", _citrus_iconv_none_iconv_getops },
+// hold, which is what citrus passes to _citrus_load_module. const rather than
+// constexpr because a cast between function pointer types is not a constant
+// expression; the initialiser is still a link-time one, so there is no dynamic
+// initialisation and nothing to destroy.
+const ModuleEntry MODULES[] = {
+    { "iconv_std", "iconv", (GetOps)_citrus_iconv_std_iconv_getops },
+    { "iconv_none", "iconv", (GetOps)_citrus_iconv_none_iconv_getops },
 
-    { "UTF8", "stdenc", _citrus_UTF8_stdenc_getops },
-    { "UTF8MAC", "stdenc", _citrus_UTF8MAC_stdenc_getops },
-    { "UTF7", "stdenc", _citrus_UTF7_stdenc_getops },
-    { "UTF1632", "stdenc", _citrus_UTF1632_stdenc_getops },
-    { "ISO2022", "stdenc", _citrus_ISO2022_stdenc_getops },
-    { "HZ", "stdenc", _citrus_HZ_stdenc_getops },
-    { "VIQR", "stdenc", _citrus_VIQR_stdenc_getops },
-    { "MSKanji", "stdenc", _citrus_MSKanji_stdenc_getops },
-    { "ZW", "stdenc", _citrus_ZW_stdenc_getops },
-    { "BIG5", "stdenc", _citrus_BIG5_stdenc_getops },
-    { "UES", "stdenc", _citrus_UES_stdenc_getops },
-    { "GBK2K", "stdenc", _citrus_GBK2K_stdenc_getops },
-    { "DECHanyu", "stdenc", _citrus_DECHanyu_stdenc_getops },
-    { "EUC", "stdenc", _citrus_EUC_stdenc_getops },
-    { "EUCTW", "stdenc", _citrus_EUCTW_stdenc_getops },
-    { "JOHAB", "stdenc", _citrus_JOHAB_stdenc_getops },
-    { "DECKanji", "stdenc", _citrus_DECKanji_stdenc_getops },
+    { "UTF8", "stdenc", (GetOps)_citrus_UTF8_stdenc_getops },
+    { "UTF8MAC", "stdenc", (GetOps)_citrus_UTF8MAC_stdenc_getops },
+    { "UTF7", "stdenc", (GetOps)_citrus_UTF7_stdenc_getops },
+    { "UTF1632", "stdenc", (GetOps)_citrus_UTF1632_stdenc_getops },
+    { "ISO2022", "stdenc", (GetOps)_citrus_ISO2022_stdenc_getops },
+    { "HZ", "stdenc", (GetOps)_citrus_HZ_stdenc_getops },
+    { "VIQR", "stdenc", (GetOps)_citrus_VIQR_stdenc_getops },
+    { "MSKanji", "stdenc", (GetOps)_citrus_MSKanji_stdenc_getops },
+    { "ZW", "stdenc", (GetOps)_citrus_ZW_stdenc_getops },
+    { "BIG5", "stdenc", (GetOps)_citrus_BIG5_stdenc_getops },
+    { "UES", "stdenc", (GetOps)_citrus_UES_stdenc_getops },
+    { "GBK2K", "stdenc", (GetOps)_citrus_GBK2K_stdenc_getops },
+    { "DECHanyu", "stdenc", (GetOps)_citrus_DECHanyu_stdenc_getops },
+    { "EUC", "stdenc", (GetOps)_citrus_EUC_stdenc_getops },
+    { "EUCTW", "stdenc", (GetOps)_citrus_EUCTW_stdenc_getops },
+    { "JOHAB", "stdenc", (GetOps)_citrus_JOHAB_stdenc_getops },
+    { "DECKanji", "stdenc", (GetOps)_citrus_DECKanji_stdenc_getops },
 
-    { "mapper_std", "mapper", _citrus_mapper_std_mapper_getops },
-    { "mapper_serial", "mapper", _citrus_mapper_serial_mapper_getops },
-    { "mapper_parallel", "mapper", _citrus_mapper_parallel_mapper_getops },
-    { "mapper_zone", "mapper", _citrus_mapper_zone_mapper_getops },
-    { "mapper_646", "mapper", _citrus_mapper_646_mapper_getops },
-    { "mapper_none", "mapper", _citrus_mapper_none_mapper_getops },
+    { "mapper_std", "mapper", (GetOps)_citrus_mapper_std_mapper_getops },
+    { "mapper_serial", "mapper", (GetOps)_citrus_mapper_serial_mapper_getops },
+    { "mapper_parallel", "mapper", (GetOps)_citrus_mapper_parallel_mapper_getops },
+    { "mapper_zone", "mapper", (GetOps)_citrus_mapper_zone_mapper_getops },
+    { "mapper_646", "mapper", (GetOps)_citrus_mapper_646_mapper_getops },
+    { "mapper_none", "mapper", (GetOps)_citrus_mapper_none_mapper_getops },
 };
 
 constexpr usize MODULE_N = sizeof(MODULES) / sizeof(MODULES[0]);

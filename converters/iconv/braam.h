@@ -30,8 +30,9 @@ Str citrus_prefix();
 struct _citrus_region;
 Task<int> _citrus_load_file(struct _citrus_region *r, const char *path);
 
-// Whether a path exists, for the one place citrus stats a directory.
-Task<int> citrus_stat_file(const char *path);
+// Whether a path is one of the preloaded index files, for the one place citrus
+// stats before reading. Synchronous, because the answer is already in hand.
+extern "C" int citrus_have_file(const char *path);
 
 // Reads the index files, once. A region that came from there is borrowed, and
 // _citrus_unmap_file does not free it.

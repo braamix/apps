@@ -32,13 +32,15 @@
 #ifndef _CITRUS_ICONV_H_
 #define _CITRUS_ICONV_H_
 
+#include "kernel/task.h"
+
 struct _citrus_iconv_shared;
 struct _citrus_iconv_ops;
 struct _citrus_iconv;
 
 __BEGIN_DECLS
-int _citrus_iconv_open(struct _citrus_iconv *__restrict *__restrict, const char *__restrict,
-                       const char *__restrict);
+Task<int> _citrus_iconv_open(struct _citrus_iconv *__restrict *__restrict, const char *__restrict,
+                             const char *__restrict);
 void _citrus_iconv_close(struct _citrus_iconv *);
 const char *_citrus_iconv_canonicalize(const char *);
 __END_DECLS

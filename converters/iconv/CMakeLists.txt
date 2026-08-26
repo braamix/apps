@@ -17,12 +17,12 @@ endif()
 set(ICONV_NOBUILTIN
     -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
     -fno-builtin-memcpy -fno-builtin-memmove -fno-builtin-memset -fno-builtin-memcmp
-    -fno-builtin-memchr
+    -fno-builtin-memchr -fno-builtin-bzero
     -fno-builtin-strlen -fno-builtin-strcpy -fno-builtin-strncpy
     -fno-builtin-strcmp -fno-builtin-strncmp -fno-builtin-strchr -fno-builtin-strrchr
     -fno-builtin-strstr -fno-builtin-strdup -fno-builtin-strndup
     -fno-builtin-strcasecmp -fno-builtin-strncasecmp -fno-builtin-strcasestr
-    -fno-builtin-strtol -fno-builtin-strtoul
+    -fno-builtin-strtol -fno-builtin-strtoul -fno-builtin-atoi
     -fno-builtin-snprintf -fno-builtin-vsnprintf
     -fno-builtin-abort -fno-builtin-exit -fno-builtin-getenv -fno-builtin-qsort
     -fno-builtin-isspace -fno-builtin-isdigit -fno-builtin-isalpha
@@ -61,11 +61,63 @@ set(ICONV_CORE
     citrus_memstream.cpp citrus_prop.cpp citrus_none.cpp
     citrus_stdenc.cpp citrus_lookup.cpp)
 
+# What citrus reads a file to do, and so becomes a coroutine: opening a
+# conversion. Nothing below these converts anything.
+set(ICONV_OPEN
+    citrus_esdb.cpp citrus_csmapper.cpp citrus_mapper.cpp
+    citrus_iconv.cpp bsd_iconv.cpp)
+
+# The conversion modules. Every one of them is upstream's, and every one is
+# ordinary synchronous code but for the mapper's init.
+set(ICONV_MODULES
+    modules/citrus_iconv_std.cpp modules/citrus_iconv_none.cpp
+    modules/citrus_utf8.cpp modules/citrus_utf8mac.cpp modules/citrus_utf7.cpp
+    modules/citrus_utf1632.cpp modules/citrus_iso2022.cpp modules/citrus_hz.cpp
+    modules/citrus_viqr.cpp modules/citrus_mskanji.cpp modules/citrus_zw.cpp
+    modules/citrus_big5.cpp modules/citrus_ues.cpp modules/citrus_gbk2k.cpp
+    modules/citrus_dechanyu.cpp modules/citrus_euc.cpp modules/citrus_euctw.cpp
+    modules/citrus_johab.cpp modules/citrus_deckanji.cpp
+    modules/citrus_mapper_std.cpp modules/citrus_mapper_serial.cpp
+    modules/citrus_mapper_zone.cpp modules/citrus_mapper_646.cpp
+    modules/citrus_mapper_none.cpp)
+
 # The porting layer: the C library, the two replacements for dlopen and mmap,
 # and where the data lives.
 set(ICONV_PORT braam.cpp citrus_module.cpp citrus_mmap.cpp citrus_paths.cpp)
 
-add_library(iconv_obj OBJECT ${ICONV_PORT} ${ICONV_CORE})
-target_include_directories(iconv_obj PRIVATE ${ICONV_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(iconv_obj PRIVATE ${ICONV_NOBUILTIN} ${ICONV_DEFS} ${ICONV_PRELUDE})
-target_link_libraries(iconv_obj PRIVATE braam::proc braam::flags iconv_quiet)
+# The tables. mki18n.py compiles every .src into the .mps and .esdb the
+# readers expect, and copies the four index texts with their containers. The
+# .src tree is the dependency: a change to one rebuilds the lot, which takes
+# about four seconds.
+file(GLOB_RECURSE ICONV_DATA_SRC CONFIGURE_DEPENDS
+     ${CMAKE_CURRENT_SOURCE_DIR}/data/*.src
+     ${CMAKE_CURRENT_SOURCE_DIR}/data/*.part
+     ${CMAKE_CURRENT_SOURCE_DIR}/data/*.alias
+     ${CMAKE_CURRENT_SOURCE_DIR}/data/*.variable
+     ${CMAKE_CURRENT_SOURCE_DIR}/data/*.646)
+
+set(ICONV_I18N ${CMAKE_CURRENT_BINARY_DIR}/i18n)
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp
+                   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/mki18n.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/data ${ICONV_I18N}
+                   COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mki18n.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/mkcsmapper.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/mkesdb.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/mkdb.py
+                           ${CMAKE_CURRENT_SOURCE_DIR}/citrusdb.py
+                           ${ICONV_DATA_SRC}
+                   COMMENT "Compiling the i18n tables"
+                   VERBATIM)
+add_custom_target(iconv_i18n ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp)
+
+braam_add_program(NAME iconv
+                  SOURCES iconv.cpp ${ICONV_PORT} ${ICONV_CORE} ${ICONV_OPEN}
+                          ${ICONV_MODULES})
+target_include_directories(bin_iconv PRIVATE ${ICONV_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}
+                                             ${CMAKE_CURRENT_SOURCE_DIR}/modules)
+target_compile_options(bin_iconv PRIVATE ${ICONV_NOBUILTIN} ${ICONV_DEFS} ${ICONV_PRELUDE})
+target_link_libraries(bin_iconv PRIVATE iconv_quiet)
+
+add_dependencies(bin_iconv iconv_i18n)

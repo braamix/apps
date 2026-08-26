@@ -3,6 +3,9 @@
 
 #include <sys/types.h>
 
+/* BSD's string.h reaches strings.h, and citrus relies on that for strcasecmp. */
+#include <strings.h>
+
 extern "C" {
 void *memcpy(void *d, const void *s, size_t n);
 void *memmove(void *d, const void *s, size_t n);

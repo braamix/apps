@@ -32,6 +32,8 @@
 #ifndef _CITRUS_ICONV_LOCAL_H_
 #define _CITRUS_ICONV_LOCAL_H_
 
+#include "kernel/task.h"
+
 #include <iconv.h>
 #include <stdbool.h>
 
@@ -44,8 +46,8 @@
 #define _CITRUS_ICONV_GETOPS_FUNC(_n_) _CITRUS_ICONV_GETOPS_FUNC_BASE(_citrus_##_n_##_iconv_getops)
 
 #define _CITRUS_ICONV_DECLS(_m_)                                                                  \
-    static int _citrus_##_m_##_iconv_init_shared(struct _citrus_iconv_shared *__restrict,         \
-                                                 const char *__restrict, const char *__restrict); \
+    static Task<int> _citrus_##_m_##_iconv_init_shared(                                           \
+        struct _citrus_iconv_shared *__restrict, const char *__restrict, const char *__restrict); \
     static void _citrus_##_m_##_iconv_uninit_shared(struct _citrus_iconv_shared *);               \
     static int _citrus_##_m_##_iconv_convert(                                                     \
         struct _citrus_iconv *__restrict, char *__restrict *__restrict, size_t *__restrict,       \
@@ -64,8 +66,8 @@
     }
 
 typedef _CITRUS_ICONV_GETOPS_FUNC_BASE((*_citrus_iconv_getops_t));
-typedef int (*_citrus_iconv_init_shared_t)(struct _citrus_iconv_shared *__restrict,
-                                           const char *__restrict, const char *__restrict);
+typedef Task<int> (*_citrus_iconv_init_shared_t)(struct _citrus_iconv_shared *__restrict,
+                                                 const char *__restrict, const char *__restrict);
 typedef void (*_citrus_iconv_uninit_shared_t)(struct _citrus_iconv_shared *);
 typedef int (*_citrus_iconv_convert_t)(struct _citrus_iconv *__restrict,
                                        char *__restrict *__restrict, size_t *__restrict,

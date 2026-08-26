@@ -163,6 +163,14 @@ Task<Result<void>> citrus_preload()
     co_return Result<void>();
 }
 
+// mapper.dir is read whatever the conversion, so "is it there" is a question
+// the cache can answer without a syscall.
+extern "C" int citrus_have_file(const char *path)
+{
+    Cached *c = cached_of(path);
+    return c && c->head ? 0 : ENOENT;
+}
+
 // Upstream's signature, answered out of the cache. A path that is not one of
 // the four is a programming error rather than a missing file: everything else
 // goes through _citrus_load_file.
