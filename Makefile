@@ -3,8 +3,8 @@
 
 # The SDK this tree builds against. Move it with each Braam release, here and
 # in README.md. A binary stamped for another process ABI is refused at exec.
-SDK_RELEASE := v0.6
-SDK_VERSION := 0.6.182-92b91d6
+SDK_RELEASE := v0.7
+SDK_VERSION := 0.7.201-af23af1
 SDK_URL := https://github.com/braamix/core/releases/download/$(SDK_RELEASE)/braam-sdk-$(SDK_VERSION).zip
 
 BUILD     ?= build
@@ -25,7 +25,7 @@ REPO_URL      ?= https://braamix.github.io
 # G. A client refuses an index whose version is below the one it holds, so this
 # rises at every publication. It cannot be derived: only the publisher knows
 # what was last uploaded.
-INDEX_VERSION ?= 6
+INDEX_VERSION ?= 7
 
 # E, milliseconds since the epoch: 2027-08-21. A promise to re-sign by then.
 INDEX_EXPIRY  ?= 1818806400000
@@ -50,7 +50,7 @@ all: $(BUILD)/CMakeCache.txt
 package: all
 	@cmake --build $(BUILD) -j $(JOBS) --target packages
 
-# Headless tests, driving a built binary under ../braam-core's smoke harness.
+# Headless tests, driving a built binary under ../braam-core's system harness.
 # Needs node and a built core tree.
 test: all
 	@node games/adventure/test/play.mjs

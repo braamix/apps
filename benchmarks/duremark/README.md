@@ -123,7 +123,7 @@ benchmark itself is integer.
 
 `make test` runs `test/interrupt.mjs`, which sends a running ladder a `SIG_INT`
 and checks that it stops at a step boundary, reports, and exits 130. The score
-cannot be tested there: the smoke harness freezes the clock, so every step
+cannot be tested there: the system harness freezes the clock, so every step
 measures zero, the convergence check never passes and the run ends only because
 it is interrupted — which is also what makes the test cover the case where
 there is no measured time to report percentages of. Numbers come from a

@@ -168,7 +168,7 @@ make test
 
 runs `test/interrupt.mjs`, which sends a running benchmark a `SIG_INT` and
 checks that it stops at a stretch boundary and reports how far it got. The
-timing cannot be tested there: the smoke harness freezes the clock, so a
+timing cannot be tested there: the system harness freezes the clock, so a
 headless run always takes the "measured time too small" branch. Numbers come
 from a browser.
 

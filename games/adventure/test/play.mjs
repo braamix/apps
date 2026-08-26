@@ -1,4 +1,4 @@
-// Plays walkthrough.txt against adventure.wasm under braam-core's smoke
+// Plays walkthrough.txt against adventure.wasm under braam-core's system
 // harness, headless; node pumps the kernel's clock by hand.
 //
 // Input is a file, not the keyboard, so the game prints no prompt and echoes
@@ -49,7 +49,7 @@ if (!existsSync(opt.binary))
 
 // After the paths are checked: the harness exits the process itself, and would
 // not say what to build.
-const H = await import(join(CORE, "test/smoke/harness.mjs"));
+const H = await import(join(CORE, "test/system/harness.mjs"));
 
 const LOG = join(APPS, "build/games/adventure/game.log");
 

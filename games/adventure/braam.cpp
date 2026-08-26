@@ -257,7 +257,7 @@ Task<void> adv_clock(void)
 }
 
 // ADVENTURE_SEED pins the dice, for test/walkthrough.txt. Not upstream's.
-// datime() still wants the clock, so only rng_state is overridden.
+// datime() still wants the clock, so adv_clock() runs either way.
 Task<void> adv_seed(void)
 {
     if (Task<void> t = adv_clock())
@@ -273,7 +273,7 @@ Task<void> adv_seed(void)
             seed = seed * 10 + u32(env[i] - '0');
         }
     } else
-        seed = u32(clock_ms) ^ (proc_pid() << 16);
+        seed = proc_random();
     rng_state = seed ? seed : 1;
     co_return;
 }

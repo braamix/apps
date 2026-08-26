@@ -46,7 +46,7 @@ writing any code here:
 - `../braam-core/doc/Package_Formats.md` §5 — what a package zip must contain.
 - `../braam-core/doc/System_Calls.md`, `Concept.md`, `Shell.md` — the mechanism,
   the specification, the shell language.
-- `../braam-core/src/cmd/` — thirty-six worked examples of the program shape.
+- `../braam-core/src/cmd/` — forty-four worked examples of the program shape.
 - `../braam-core/examples/hello/` — the minimal program and its `CMakeLists.txt`.
 - `../braam-core/tools/mkpkg.py` — the package builder, and `mkrepo.py` beside
   it for a whole signed repository. Both install with the SDK as of 0.5.172, so
@@ -141,6 +141,29 @@ prec, 'f')` into an ordinary `Buf<N>`, plus `parse_f64`/`scan_f64` for strtod.
 A program pays only for what it calls: `--gc-sections` extracts nothing else,
 and the float printf engine alone is 6–7 KB. Link it where a port formats a
 non-integer number by hand, and nowhere else.
+
+**A buffered stream is available and none of these three ports uses it.**
+`proc/file.h`'s `File` is stdio's shape — `get()` a rune, `put()`, `write()`,
+`getline()`, a sticky error checked once rather than per character, and an
+exit-time flush. It costs ~7 KB and `--gc-sections` keeps every byte of it out
+of a binary that does not name the header; `braam_add_program` links nothing
+extra for it. It pays where a port's inner loop is `while ((c = getchar()) !=
+EOF)`, which has no other expressible form here, and nowhere else: a program
+that already formats into a `Buf<N>` and writes once has no syscall left for it
+to save. Two rules it states and does not enforce — a buffered `File` owns its
+stream until `close()` or `detach()`, and `~File` does not flush. `get()` and
+`put()` are awaiters, not `Task`s, so a plain non-coroutine function cannot
+reach them at all; that is what keeps adventure's `adv_printf` on its own
+buffer.
+
+The rest of what 0.7 put within a port's reach: `stat_fd` (`proc/io.h`) sizes an
+open descriptor, for a format whose directory is at the end of the file;
+`SYS_O_EXCL` beside `SYS_O_CREATE` makes a create fail on a name already taken;
+`proc_random()` (`proc/rt.h`) is 32 bits out of `crypto.getRandomValues`, with
+no error, where a seed used to be guessed from the clock and the pid; and
+`/dev/null`, `/dev/zero`, `/dev/random` and `/dev/urandom` are open-able paths.
+`rune_lower`/`rune_upper` in `kernel/text.h` are ASCII through Cyrillic by
+range.
 
 **Signals are asked for, or the default action stands.** `sig_catch(SIG_INT)`
 (`proc/io.h`) says a signal should be delivered rather than acted on; the mask
@@ -259,7 +282,7 @@ in their bytes and therefore in `C`. Set it when a rebuild should produce the
 package that is already published.
 
 To check a repository end to end without uploading, drive
-`../braam-core/test/smoke/harness.mjs` with the unmodified rootfs and serve
+`../braam-core/test/system/harness.mjs` with the unmodified rootfs and serve
 `index` and the zips from `net.routes` — the shipped anchor is the real one, so
 `pkg update` and `pkg install` exercise §7 in full.
 
@@ -282,17 +305,17 @@ node -e 'const m=new WebAssembly.Module(require("fs").readFileSync(
   console.log(new Uint32Array(WebAssembly.Module.customSections(m,"braam")[0]))'
 ```
 
-From a built core tree, `test/smoke/abi.mjs` asserts all of it for any binary
-named after the rootfs — silently, so a clean `smoke ok` is the pass:
+From a built core tree, `test/system/abi.mjs` asserts all of it for any binary
+named after the rootfs — silently, so a clean `system ok` is the pass:
 
 ```
 cd ../braam-core && node test/run.mjs --kernel build/kernel.wasm \
     build/web/rootfs.zip <path>/<name>.wasm
 ```
 
-`../braam-core/test/smoke/` is an additional working directory for this session;
-`harness.mjs` there owns the kernel instance, the screen and the shell, and each
-case is one file exporting `check()`.
+`../braam-core/test/system/` is an additional working directory for this
+session; `harness.mjs` there owns the kernel instance, the screen and the shell,
+and each case is one file exporting `check()`.
 
 **To actually run a program under that harness**, plant it: after `init()` and
 the first tick, `store.files.set("/bin/<name>", bytes)` puts it where `PATH`
@@ -306,11 +329,10 @@ time reads zero. Check that in a browser instead.
 
 ## Testing a program
 
-`make test` runs every program's headless tests — adventure's two and one for
+`make test` runs every program's headless tests — adventure's four and one for
 each benchmark. [games/adventure/test/](games/adventure/test/) is the worked
 example, the way dhrystone is the worked example for the build: `play.mjs`
-imports
-`../braam-core/test/smoke/harness.mjs` directly — `test/run.mjs` there is not
+imports `../braam-core/test/system/harness.mjs` directly — `test/run.mjs` is not
 reusable, its case list is a literal and it never injects an out-of-tree
 binary — boots the kernel, plants the `.wasm`, and drives one run. It asserts
 what the run meant (landmarks in order, the score, no parser refusal) and then

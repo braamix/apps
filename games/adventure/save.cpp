@@ -4,12 +4,11 @@
 // save (III)   J. Gillogly
 // save user core image for restarting
 //
-// Braam has no seek, so the offset upstream used to append this to
-// adventure.dat is gone and a save file is only ever a save file.  Upstream
-// wrote struct game raw and then the travel lists node by node; here it is one
-// field list, visited by Ser to write and De to read.  The travel lists are
-// left out: rdata() rebuilds them before restore() runs, and play never
-// changes them.
+// The data is compiled in, not a file, so upstream's offset into adventure.dat
+// is gone and a save file is only ever a save file.  Upstream wrote struct game
+// raw and then the travel lists node by node; here it is one field list,
+// visited by Ser to write and De to read.  The travel lists are left out:
+// rdata() rebuilds them before restore() runs, and play never changes them.
 Task<Result<void>> Game::save(Str savfile) // save game state to file
 {
     Ser s;

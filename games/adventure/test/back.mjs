@@ -49,7 +49,7 @@ for (const [what, path] of [["kernel", opt.kernel], ["rootfs", opt.rootfs]])
 if (!existsSync(opt.binary))
     die(`no binary at ${opt.binary} — run make`);
 
-const H = await import(join(CORE, "test/smoke/harness.mjs"));
+const H = await import(join(CORE, "test/system/harness.mjs"));
 
 const LOG = join(APPS, "build/games/adventure/back.log");
 
