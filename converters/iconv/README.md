@@ -125,7 +125,7 @@ Structure:
 ## Building and packaging
 
     make            # iconv.wasm, and the tables beside it
-    make package    # iconv-1.16-r0.zip
+    make package    # iconv-1.16-r1.zip
 
 The package is about 1.9 MB and unpacks to 42 MiB, which needs a Braam whose
 `pkg` allows it — `UNPACK_MAX` rose to 50 MiB in braam-core for this. The zip
