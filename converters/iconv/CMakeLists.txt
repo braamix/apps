@@ -98,9 +98,11 @@ file(GLOB_RECURSE ICONV_DATA_SRC CONFIGURE_DEPENDS
 
 set(ICONV_I18N ${CMAKE_CURRENT_BINARY_DIR}/i18n)
 
+set(ICONV_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/i18n.manifest)
+
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp
                    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/mki18n.py
-                           ${CMAKE_CURRENT_SOURCE_DIR}/data ${ICONV_I18N}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/data ${ICONV_I18N} ${ICONV_MANIFEST}
                    COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mki18n.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/mkcsmapper.py
@@ -121,3 +123,32 @@ target_compile_options(bin_iconv PRIVATE ${ICONV_NOBUILTIN} ${ICONV_DEFS} ${ICON
 target_link_libraries(bin_iconv PRIVATE iconv_quiet)
 
 add_dependencies(bin_iconv iconv_i18n)
+
+# The package needs to name every payload file, and the tables do not exist
+# until the build runs — so the generator is run once at configure time for its
+# manifest. The glob above is CONFIGURE_DEPENDS, so adding a .src reconfigures
+# and the list is made again.
+if(NOT EXISTS ${ICONV_MANIFEST})
+    execute_process(COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/mki18n.py
+                            ${CMAKE_CURRENT_SOURCE_DIR}/data ${ICONV_I18N} ${ICONV_MANIFEST}
+                    RESULT_VARIABLE made)
+    if(NOT made EQUAL 0)
+        message(FATAL_ERROR "mki18n.py could not compile the tables")
+    endif()
+endif()
+
+file(STRINGS ${ICONV_MANIFEST} ICONV_I18N_FILES)
+set(ICONV_PAYLOAD "")
+foreach(f IN LISTS ICONV_I18N_FILES)
+    list(APPEND ICONV_PAYLOAD ${ICONV_I18N}/${f}=share/i18n/${f})
+endforeach()
+
+# One package, and the data travels in it. Only the flat bin/ entry becomes a
+# command; share/i18n is nested, so it is payload and nothing else. That is
+# what lets the binary find its own tables: /pkg/bin/iconv is a link into the
+# store directory the data sits in.
+braam_add_package(NAME iconv VERSION 1.16-r0
+                  FIELD "T=Citrus iconv, character set conversion"
+                  FILES $<TARGET_FILE:bin_iconv>=bin/iconv ${ICONV_PAYLOAD})
+add_dependencies(pkg_iconv iconv_i18n)
+add_dependencies(packages pkg_iconv)

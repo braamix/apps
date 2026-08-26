@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Build the whole i18n tree from data/.
 
-    mki18n.py <datadir> <outdir>
+    mki18n.py <datadir> <outdir> [<manifest>]
 
 Produces <outdir>/csmapper and <outdir>/esdb: a .mps per mapping source, an
 .esdb per encoding, the .646 tables copied, the four index texts copied and
 their containers built beside them. This is what the package ships.
+
+With a third argument it also writes the list of what it made, one path a line
+relative to <outdir> — the package needs that list before the build runs.
 """
 
 import sys
@@ -86,13 +89,18 @@ def indexes(data, out):
 
 
 def main(argv):
-    if len(argv) != 3:
+    if len(argv) not in (3, 4):
         sys.exit(__doc__)
     data, out = Path(argv[1]), Path(argv[2])
     out.mkdir(parents=True, exist_ok=True)
     m = build_csmapper(data / "csmapper", out / "csmapper")
     e = build_esdb(data / "esdb", out / "esdb")
     indexes(data, out)
+
+    if len(argv) == 4:
+        made = sorted(str(f.relative_to(out)) for f in out.rglob("*") if f.is_file())
+        Path(argv[3]).write_text("\n".join(made) + "\n")
+
     print(f"i18n: {m} mappers, {e} encodings")
     return 0
 

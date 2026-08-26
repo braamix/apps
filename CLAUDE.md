@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Four programs are ported so far**:
+**Five programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -19,7 +19,12 @@ implementation of it rather than a rewrite; and
 writes files and carries its own data has to do here; and
 [archivers/zip](archivers/zip/), the largest by far — Info-ZIP's zip 3.0, four
 commands out of one set of sources, where nearly every function became a
-coroutine because nearly every one of them reaches a stream. The rest of
+coroutine because nearly every one of them reaches a stream; and
+[converters/iconv](converters/iconv/), Citrus iconv with two hundred character
+sets, which is the opposite shape — it reads files only while opening a
+conversion, so the coroutines stop at the door and the whole conversion path is
+untouched C. Its 44 MB of tables are compiled from upstream's own sources by
+Python replacements for `mkcsmapper` and `mkesdb`, byte for byte. The rest of
 the tree is category directories, a few holding a one-line `TODO.md` naming the
 upstream to port:
 [editors/vi](editors/vi/TODO.md),
@@ -243,7 +248,8 @@ the order `P V I T o t k g D p i`, and only `P` and `V` are required — `p:`
 `cmd:` names are the publisher's, generated into the index. Optional `/bin/sh`
 hooks: `.pre-install`, `.post-install`, `.pre-deinstall`, `.post-deinstall`,
 `.pre-upgrade`, `.post-upgrade`, `.trigger`. **An unknown top-level dot-entry
-makes the package uninstallable.** A package must stay under 4 MiB.
+makes the package uninstallable.** A package must stay under 4 MiB compressed
+and unpack to no more than 50 MiB.
 
 Versions follow apk's grammar (`1.2-r0`), and nothing checks the spelling —
 read it back.

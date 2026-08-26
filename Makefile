@@ -62,6 +62,9 @@ test: all
 	@node games/adventure/test/interrupt.mjs
 	@node games/adventure/test/suspend.mjs
 	@node games/adventure/test/back.mjs
+	@node converters/iconv/test/smoke.mjs
+	@node converters/iconv/test/convert.mjs
+	@node converters/iconv/test/errors.mjs
 	@node benchmarks/dhrystone/test/interrupt.mjs
 	@node benchmarks/duremark/test/interrupt.mjs
 
