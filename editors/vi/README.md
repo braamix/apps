@@ -213,12 +213,13 @@ can repeat.
 
 ## Testing
 
-`make test` runs five cases, each driving `ex` with its input and output
+`make test` runs nine cases, each driving `ex` with its input and output
 redirected to files — a long transcript does not fit on 24 rows, and command
 mode prints no prompt down a pipe, which is what makes a transcript assertable.
 
-- `exscript.mjs` — the address grammar, `a`/`i`/`c`, `d`/`m`/`co`/`j`, marks,
-  undo, and a `:w` read back out of the store.
+- `exscript.mjs` — the address grammar, `a`/`i`/`c`, `d`/`m`/`co`/`j`, every
+  spelling of `delete` and the `dp`/`dl` forms, marks, undo, and a `:w` read
+  back out of the store.
 - `exerrors.mjs` — the gate on the error mechanism: twenty-two commands that
   must fail, each message exact and each buffer intact afterwards.
 - `exregex.mjs` — every BRE construct, `:s` with groups and `&`, `:g`, `:v`,
@@ -230,7 +231,8 @@ mode prints no prompt down a pipe, which is what makes a transcript assertable.
 - `vikeys.mjs` — the first frame whole and its three colours, `x`, counts, the
   word and arrow motions, `^F` and `^C`.
 - `viinsert.mjs` — `i`/`A`/`o`/`O`, the operators, `yy`/`p`, `u`, `.`, a named
-  buffer, `:map`, `:ab`, both shell escapes, and the file `ZZ` writes.
+  buffer, `:map`, `:ab`, both shell escapes, the file `ZZ` writes, and the
+  report line.
 - `vikeypad.mjs` — the arrows, Home, End, Delete, Backspace and escape, in
   command mode, inside an insertion, after an operator and on the `:` line;
   and the mode line, which of the insert commands raise it and which do not.

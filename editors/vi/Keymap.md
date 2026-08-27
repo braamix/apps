@@ -9,7 +9,7 @@ The short of it: **the classic vi keymap is complete.** Every keystroke in ex/vi
 3.6's visual mode is reachable but one — `=`, the LISP reformat operator — and
 on the ex side only `:open`, `:preserve`, `:recover` and `:stop` are gone, each
 with the thing it existed for. What is missing is everything vi grew *after*
-November 1980, and two commands broken by a mechanical rename.
+November 1980.
 
 ---
 
@@ -123,10 +123,6 @@ joined by `,` or `;`, and `%`.
 `spawn()`, against Braam's `/bin`. `:cd` and `:chdir` change the working
 directory for real.
 
-**`:delete` spelled out does not work.** `:d` does; `:de`, `:del`, `:dele`,
-`:delete`, `:dp` and `:dl` all fail. See part 2 — it is a one-line bug, not a
-design decision.
-
 ### Options
 
 All forty of upstream's, in [ex_data.cpp](ex_data.cpp), settable by `:set`,
@@ -186,20 +182,6 @@ Ordered by what it costs. The first five are repairs to code that is already
 written.
 
 ### Repairs to code that is already written
-
-**`:delete`, and with it `:dp` and `:dl`.** [ex_cmds.cpp:295](ex_cmds.cpp)
-passes `tail("exdelete")`. `delete()` was renamed because it is a C++ keyword,
-and the rename reached the *string* — which is the command name, not the
-function. `tailprim()` seeds `tcommand[0]` from it, so it becomes `'e'`:
-`:delete` reports `eelete: Not an editor command`, `:del` reports `eel:`, and
-the `tcommand[0] == 'd'` test at
-[ex_cmds2.cpp:450](ex_cmds2.cpp) that keeps `dp` and `dl` alive never fires.
-The error text names it too, so `:1d ,` says `Extra characters at end of
-"exdelete" command`. Pass `"delete"`. **One line**, and a test that types more
-than `:d`.
-
-**`6 lines exdeleted`.** The same rename, in `notenam` at
-[ex_vops.cpp:348](ex_vops.cpp) and `:459`. **Two lines.**
 
 **The bell.** `obeep()` ([ex_vget.cpp:324](ex_vget.cpp)) ends at
 `vputc(CTRL('g'))`, and `vputc` is `((void)0)`. Every refused command aborts

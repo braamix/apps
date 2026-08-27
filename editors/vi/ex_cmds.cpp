@@ -292,7 +292,8 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
             /*
              * Caution: dp and dl have special meaning already.
              */
-            tail("exdelete");
+            /* The command name, not exdelete()'s: tailprim() matches on it. */
+            tail("delete");
             c = cmdreg();
             setCNL();
             if (ex_thrown)

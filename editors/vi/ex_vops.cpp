@@ -345,7 +345,7 @@ Task<void> vdelete(int c)
         }
         wdot = dot;
         co_await vremote(i, op_delete, 0);
-        notenam = "exdelete";
+        notenam = "delete"; /* the word printed, not the function's name */
         DEL[0]  = 0;
         killU();
         vreplace(vcline, i, 0);
@@ -456,7 +456,7 @@ Task<void> vchange(int c)
         addr = dot;
         co_await vremote(cnt, op_delete, 0);
         setpk();
-        notenam = "exdelete";
+        notenam = "delete";
         if (c != 'd')
             notenam = "change";
         /*

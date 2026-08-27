@@ -60,4 +60,11 @@ vi("/tmp/f", ["x", "Z", "Z"]);
 is("what ZZ wrote", get("/tmp/f") ?? "(nothing)", "lpha\nbeta\ngamma\ndelta\n");
 quitvi();
 
-ok("i/A/o/O, dd/cw/dw/r/J/>>, yy/p, u, ., a register, :map, :ab, ! and ZZ");
+// The report line, over `report` lines so that it is printed at all. It names
+// the command, and the name is the user's word, not the C++ function's.
+put("/tmp/g", Array.from({ length: 20 }, (_, i) => `line${i + 1}`).join("\n") + "\n");
+vi("/tmp/g", ["1", "0", "d", "d"]);
+is("the delete report", screen().split("\n").pop(), "10 lines deleted");
+quitvi();
+
+ok("i/A/o/O, dd/cw/dw/r/J/>>, yy/p, u, ., a register, :map, :ab, !, ZZ, report");

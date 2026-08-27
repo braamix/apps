@@ -48,6 +48,28 @@ delta alpha
 gamma
 delta`);
 
+// Delete by its long names, and the two trailing-letter forms ed left behind.
+// tailprim() matches on the name string, so this is what catches a rename of
+// exdelete() leaking into it: :d alone would still pass.
+put("/tmp/f", FILE);
+is("delete spelled out", ex("/tmp/f", "2delete\n1dele\n1del\nq!\n"),
+`"/tmp/f" 4 lines, 23 characters
+gamma
+gamma
+delta`);
+
+put("/tmp/f", FILE);
+is("dp and dl", ex("/tmp/f", "2dp\n1dl\nq!\n"),
+`"/tmp/f" 4 lines, 23 characters
+gamma
+gamma$`);
+
+// And the name the error message uses.
+put("/tmp/f", FILE);
+is("the name in an error", ex("/tmp/f", "1d ,\nq!\n"),
+`"/tmp/f" 4 lines, 23 characters
+Extra characters at end of "delete" command`);
+
 // A mark follows its line as other lines move around it: 'a is set on line
 // two, line one goes, and 'a is line one now and still the same text.
 put("/tmp/f", FILE);
@@ -76,4 +98,4 @@ put("/tmp/f", FILE);
 ex("/tmp/f", "2,3d\nw /tmp/w\nq\n");
 is("what :w wrote", get("/tmp/w") ?? "(nothing)", "alpha\ndelta\n");
 
-ok("addresses, a/i/c, d/m/co/j, marks, undo and :w");
+ok("addresses, a/i/c, d/m/co/j, the delete spellings, marks, undo and :w");
