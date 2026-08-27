@@ -72,7 +72,7 @@ struct option options[NOPTS + 1] = {
     { "paragraphs", "para", STRING, 0, 0, paragraphs },
     { "prompt", 0, ONOFF, 1, 1, 0 },
     { "readonly", "ro", ONOFF, 0, 0, 0 },
-    { "redraw", 0, ONOFF, 0, 0, 0 },
+    { "redraw", 0, ONOFF, 1, 1, 0 },
     { "remap", 0, ONOFF, 1, 1, 0 },
     { "report", 0, NUMERIC, 5, 5, 0 },
     { "scroll", "scr", NUMERIC, 12, 12, 0 },

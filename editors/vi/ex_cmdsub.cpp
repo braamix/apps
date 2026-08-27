@@ -979,7 +979,7 @@ void mapcmd(int un, int ab)
     ignore(skipwh());
     for (p = lhs;;) {
         c = getchar();
-        if (c == CTRL(v)) {
+        if (c == CTRL('v')) {
             c = getchar();
         } else if (!un && any(c, " \t")) {
             /* End of lhs */
@@ -1002,7 +1002,7 @@ void mapcmd(int un, int ab)
         THROW(error("Missing rhs"));
     for (p = rhs;;) {
         c = getchar();
-        if (c == CTRL(v)) {
+        if (c == CTRL('v')) {
             c = getchar();
         } else if (endcmd(c) && c != '"') {
             ungetchar(c);

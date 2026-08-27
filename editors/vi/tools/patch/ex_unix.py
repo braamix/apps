@@ -154,9 +154,17 @@ Task<void> filter(int mode)
 		}
 	}
 
-	co_await vspawn_begin();
+	/*
+	 * The screen only has to be handed over when the child writes to it.
+	 * A filter's output goes to a file, so it never does, and giving the
+	 * alternate screen back and taking it again would cost a full repaint
+	 * of a buffer that is halfway through being changed.
+	 */
+	if (fdout < 0)
+		co_await vspawn_begin();
 	co_await runsh((char *) "-c", uxb, fdin, fdout);
-	co_await vspawn_end();
+	if (fdout < 0)
+		co_await vspawn_end(0);
 
 	if (fdout >= 0)
 		co_await ex_close(fdout);

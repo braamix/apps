@@ -152,19 +152,6 @@ Task<i32> proc_main(Args args)
         value(MAGIC)  = 0;
     }
 
-#ifndef EX_HAVE_VISUAL
-    /*
-     * The visual half is not built yet. Say so once, here, rather than
-     * leaving it to fail at the first :visual: upstream defers the whole
-     * of startup into visual when it is entered as vi, and a vi that
-     * refused at that point would have read no file and taken no command.
-     */
-    if (ivis) {
-        co_await write_all(SYS_STDERR, "vi: visual mode is not built yet -- this is ex\n");
-        ivis = 0;
-    }
-#endif
-
     /*
      * Process flag arguments.
      */
@@ -231,6 +218,7 @@ Task<i32> proc_main(Args args)
      * geometry is the one thing that is not, and it rides on every terminal
      * reply, so it is asked for where the screen is claimed.
      */
+    ruptible = 1;
     co_await setrupt();
     {
         Result<TtyInfo> t = Err(Error::NoMemory);

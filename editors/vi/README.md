@@ -1,8 +1,8 @@
-# ex — the UCB line editor, and vi beside it
+# vi — the UCB screen editor, and ex under it
 
-Edit a file by naming lines and telling the editor what to do to them:
-`:1,$s/old/new/g`, `:g/TODO/p`, `:5,10m$`. Two commands out of one set of
-sources, `ex` and `vi`, as upstream shipped them.
+The editor Bill Joy wrote: `dd`, `cw`, `p`, `u`, and `:1,$s/old/new/g` behind
+the colon. Two commands out of one set of sources, `vi` and `ex`, as upstream
+shipped them.
 
 **This is ex/vi version 3.6, dated 11/3/80.** Bill Joy wrote it at Berkeley in
 1976 out of ed, and Mark Horton maintained it from 1979; this directory ports
@@ -10,23 +10,20 @@ the version that shipped with 4BSD, taken from the V7/x86 contrib tree. It is
 the ancestor of every vi in use since. The Berkeley copyright is on every file
 and in [LICENSE](LICENSE); `:version` prints the version string.
 
-**Only command mode is built.** The visual half — `vi` proper, the full-screen
-editor — is not ported yet, and both binaries currently start in command mode;
-`:visual` says so and stops. What is here is `ex`, complete: everything you can
-do at a `:` prompt, which is the whole of the editor's vocabulary and rather
-more of it than the screen ever showed.
-
 ## Using it
 
 ```
-ex file          # the editor, one command per line, : is the prompt
+vi file          # the screen editor
+ex file          # the same editor, one command per line, : is the prompt
 ex - file        # no prompt and no autoprint, for a script
-ex -R file       # read only
-ex -t tag file   # start at a tag
-ex +/pat file    # start at the first line matching pat
+vi -R file       # read only
+vi -t tag file   # start at a tag
+vi +/pat file    # start at the first line matching pat
 ```
 
-`ex` is the shape of editor that suits a browser tab better than it looks: it
+`vi` is the screen editor and `ex` is the same editor with the screen taken
+away — one binary's worth of code either way, and `:visual` and `Q` cross
+between them. The command half suits a browser tab better than it looks: it
 needs no terminal, so it works down a pipe, and a session is a script you can
 keep. `ed`-style batch editing —
 
@@ -50,6 +47,9 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
 | termcap, `tputs` padding, and a cursor-motion cost model | nothing: the screen is an array of cells, so a capability is a constant and cursor addressing is indexing |
 | `read(0, …)` from the bottom of the address parser | one read at the top of the command loop, because a syscall must be awaited and that is a plain function |
 | `write(1, …)` from wherever output was formatted | a growable buffer, drained where the editor stops to read |
+| termcap's `cm`/`al`/`dl`/`ic` and a cost model over them | `vtube`, vi's own screen image, blitted into the Grid: one syscall a frame, carrying the cells that changed |
+| a byte read from the tty, and a one-second wait to tell an arrow key from an ESC | `next_key()`; a named key arrives whole, so there is nothing to tell apart |
+| `SIGTSTP`, `SIGHUP`, and re-arming `SIGINT` on every delivery | `sig_catch(SIG_INT)` once; `SIG_WINCH` arrives as `Err(Intr)` and is a repaint |
 | `fork` and `execl` for `:!`, `:sh` and `:r !cmd` | `spawn()` with the console handed over and taken back |
 | a filter driven through two pipes, one written by a **second forked copy of the editor** | a temp file on each side: one task cannot park on both ends of a pipeline |
 | the errno message table, carried in the source | `error_name()`, because the kernel names its own errors |
@@ -87,6 +87,18 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
 - **The order in `error_end()` is load-bearing.** The flag goes up last,
   because `putchar()` is poisoned on it and the message has to get out first.
 
+- **`vtube` was already the screen.** vi kept an exact image of the terminal so
+  that it could work out the fewest bytes to send. That image is the back
+  buffer now: `vflush()` writes the cells that differ into the Grid, which
+  keeps the damage, and one syscall sends the frame. It is the same economy
+  `ex_put.c`'s cursor-cost model was after, arrived at from the other end — and
+  it is why `vgoto()` is four assignments where it was two hundred lines.
+
+- **`redraw` defaults on.** Upstream left `@` on a screen row it had decided
+  not to repaint, because a repaint cost bytes at 300 baud; `:set redraw` was
+  for people who would rather pay. A repaint costs the damaged cells here, so
+  it is always worth it, and `@` lines do not appear.
+
 - **Reading happens in one place.** `getach()` is called from the bottom of the
   address parser and cannot await a syscall, so it answers `EOF` when its
   buffer runs dry and the command loop fills it. That is safe because a whole
@@ -101,9 +113,17 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
 
 ## Differences from upstream worth knowing
 
-- **`:visual`, `:open` and `:vi` are not built.** Open mode is out for good —
-  it existed for terminals that could not address a cursor, and a cell grid
-  always can — and visual is not written yet.
+- **`:open` is gone.** Open mode edited one line where it stood, for terminals
+  that could not address a cursor; a cell grid always can. The `state !=
+  VISUAL` branches are left in place rather than excised — there are forty of
+  them, and dead is cheaper than cut.
+- **`showmatch` does not pause.** Upstream slept a second on the matching
+  bracket. A sleep is a syscall and the pause happens inside insert mode, where
+  nothing can await; the match is still checked, and an unmatched one beeps.
+- **A character above ASCII is dropped.** ex is a byte editor: `TRIM` is 0177
+  throughout and a line is a `char` array.
+- **The arrow keys answer `^P`, `^N`, `^H` and space,** not `hjkl`, so that
+  they work inside insert mode too.
 - **`:!cmd` runs, `sort` may not.** The escapes work, but they run Braam's
   `/bin`, which is forty-odd commands and not a Unix.
 - **`:e *.c` does not glob.** Upstream forked a shell to expand the argument
@@ -133,7 +153,7 @@ make                     # both binaries
 make package             # vi-3.6-r0.zip, holding bin/ex and bin/vi
 ```
 
-Each is about 130 KB. `tools/regen.sh` regenerates the ported `.cpp` files from
+Each is about 220 KB. `tools/regen.sh` regenerates the ported `.cpp` files from
 `tmp/ex/`: `tools/knr.py` does the K&R conversion, resolves the `#ifdef`
 configuration and inserts the `co_await`s, and one script per file under
 `tools/patch/` does the edits that needed a decision. It ran once; the `.cpp`
@@ -156,6 +176,12 @@ mode prints no prompt down a pipe, which is what makes a transcript assertable.
   being lost, `readonly`, and the arg list.
 - `exbang.mjs` — `:r !`, `:w !`, a range through a filter, and `:!` leaving the
   buffer alone.
+- `vikeys.mjs` — the first frame whole, `x`, counts, the word and arrow
+  motions, `^F` and `^C`.
+- `viinsert.mjs` — `i`/`A`/`o`/`O`, the operators, `yy`/`p`, `u`, `.`, a named
+  buffer, `:map`, `:ab`, both shell escapes, and the file `ZZ` writes.
+- `viresize.mjs` — a resize mid-session: the screen re-cut, the buffer kept,
+  the cursor where it was.
 
 ## Files
 
@@ -176,6 +202,16 @@ mode prints no prompt down a pipe, which is what makes a transcript assertable.
 | `ex_buf.cpp` | `ex_temp.c` — the buffer, which is no longer a temp file |
 | `ex_out.cpp` | `ex_put.c` — the half of it that formats |
 | `ex_file.cpp` | — the system calls, in the shapes ex expects them |
+| `ex_v.cpp` | `ex_v.c` — entering and leaving visual |
+| `ex_vmain.cpp` | `ex_vmain.c` — the visual keystroke loop |
+| `ex_voper.cpp` | `ex_voper.c` — operators, operands and word motions |
+| `ex_vops.cpp` | `ex_vops.c` — delete, change, shift, yank, undo |
+| `ex_vops2.cpp` | `ex_vops2.c` — insert mode |
+| `ex_vops3.cpp` | `ex_vops3.c` — the `( ) { } [ ]` motions |
+| `ex_vput.cpp` | `ex_vput.c` — the screen image, less the part that drove a terminal |
+| `ex_vadj.cpp` | `ex_vadj.c` — logical screen control |
+| `ex_vget.cpp` | `ex_vget.c` — single keys, `:map`, the echo area |
+| `ex_vwind.cpp` | `ex_vwind.c` — window control and scrolls |
 | `ex_screen.cpp` | `ex_tty.c` — the terminal, which is no longer a terminal |
 | `braam.cpp` | — the C library ex calls |
 | `ex_err.h` | — the `longjmp` that is not |

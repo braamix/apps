@@ -105,11 +105,18 @@ extern struct option options[NOPTS + 1];
  * Only arrays of and pointers to characters are used and parameters and
  * registers are never declared character.
  */
-#define QUOTE   0200
-#define TRIM    0177
-#define CTRL(c) ('c' & 037)
-#define NL      CTRL(j)
-#define CR      CTRL(m)
+#define QUOTE 0200
+#define TRIM  0177
+/*
+ * Note the quotes, which upstream did not need. A pre-ANSI preprocessor
+ * substituted a macro parameter inside a character constant, so `CTRL(v)` in
+ * 1980 expanded to ('v' & 037); C++ leaves 'c' alone, and every CTRL() in the
+ * tree would quietly be ('c' & 037), which is 3. The call sites carry the
+ * quotes now and this takes what it is given.
+ */
+#define CTRL(c) ((c) & 037)
+#define NL      CTRL('j')
+#define CR      CTRL('m')
 #define DELETE  0177 /* See also ATTN, QUIT in ex_tune.h */
 #define ESCAPE  033
 
@@ -147,6 +154,7 @@ EXTERN exbool listf;              /* Command should run in list mode */
 EXTERN char *loc1;                /* Where re began to match (in linebuf) */
 EXTERN char *loc2;                /* First char after re match (") */
 EXTERN line names['z' - 'a' + 2]; /* Mark registers a-z,' */
+EXTERN int otchng;                /* Backup tchng to find changes in macros */
 EXTERN int notecnt;               /* Count for notify (to visual from cmd) */
 EXTERN exbool numberf;            /* Command should run in number mode */
 EXTERN short oprompt;             /* Saved during source */
@@ -565,5 +573,5 @@ Task<void> filter(int mode);
 /* ----------------------------------------------------------- ex_screen.cpp */
 Task<Result<void>> vflush(void);
 Task<void> vspawn_begin(void);
-Task<void> vspawn_end(void);
+Task<void> vspawn_end(exbool repaint = 1);
 void vresize(void);

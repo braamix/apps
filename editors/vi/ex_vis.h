@@ -163,6 +163,13 @@ EXTERN short vch_mac; /* Change state - one of the above */
  * are made, i.e. after a 'J' join.  This is because a 'JU' would
  * lose completely the text of the line just joined on.
  */
+/*
+ * The bounds of what a change touched within the line, for the U undo.
+ * Upstream declared these in ex_vops.c, where C's common symbols merged the
+ * declaration with the definition.
+ */
+extern char *vUD1, *vUD2, *vUA1, *vUA2; /* defined in ex_vops.cpp */
+
 EXTERN char *vUNDcurs; /* Cursor just before 'U' */
 EXTERN line *vUNDdot;  /* The line address of line saved in vUNDsav */
 EXTERN line vUNDsav;   /* Grabbed initial "*dot" */
@@ -257,13 +264,52 @@ EXTERN char workcmd[5];            /* Temporary for lastcmd */
 #define cindent() ((outline - vlinfo[vcline].vliny) * WCOLS + outcol)
 /*
  * Upstream padded a capability out over the line at the current baud rate.
- * Nothing is emitted here, so both of these are gone; the definitions stay so
- * that a stray caller is a compile error rather than a silent no-op.
+ * Upstream emitted a byte here, and padded a capability out over the line at
+ * the current speed. The store into vtube beside every one of these is what
+ * reaches the screen now -- vtube is the screen image, and ex_screen.cpp blits
+ * it -- so all of them are nothing. The names stay because they are written at
+ * some forty places, and each one marks where a byte used to go.
  */
-#define vputc(c) putch(c)
+#define vputc(c)       ((void)0)
+#define vputp(cp, cnt) ((void)0)
+#define fgoto()        ((void)0)
+#define goim()         ((void)0)
+#define endim()        ((void)0)
+#define godm()         ((void)0)
+#define enddm()        ((void)0)
+#define tputs(s, n, f) ((void)0)
+
+/*
+ * The type of an operator, and of what vremote() applies to a range.
+ *
+ * Upstream kept these in an `int (*)()` and called them with whatever
+ * arguments suited; K&R matched by position and asked no questions. C++ wants
+ * one type, and three of the eight functions involved await -- so the type is
+ * the awaiting one, and the five that do not each get a wrapper below rather
+ * than being made to await for the table's sake.
+ */
+typedef Task<void> (*Vopf)(int);
+
+/*
+ * lfind() remembers what it was asked for in lf, and the lisp code asks
+ * whether that was a plain move or an indent. It is never called through --
+ * only compared -- and the two things compared against it have unrelated
+ * types, so it is a tag rather than a function pointer.
+ */
+EXTERN void *lf;
+
+Task<void> op_move(int c);
+Task<void> op_beep(int c);
+Task<void> op_yank(int c);
+Task<void> op_delete(int c);
+Task<void> op_shift(int c);
+Task<void> op_yankreg(int c);
+Task<void> op_put(int c);
+Task<void> op_putreg(int c);
+Task<void> op_join(int c);
+Task<void> op_filter(int c);
 
 /* ---------------------------------------------------------------- ex_v.cpp */
-void oop(void);
 void ovbeg(void);
 Task<void> ovend(void);
 Task<void> vop(void);
@@ -271,18 +317,21 @@ void fixzero(void);
 void savevis(void);
 void undvis(void);
 void setwind(void);
+/* The screen image. Upstream kept it on vop's stack, deliberately leaked,
+ * standing in for an alloca it could not write; vop is a coroutine, and a
+ * frame past 512 bytes costs a whole 64 KiB span. */
+EXTERN char atube[TUBESIZE + LBSIZE];
 void vok(char *atube);
-void vintr(void);
-void vsetsiz(int i);
+void vsetsiz(int size);
 
 /* ------------------------------------------------------------- ex_vadj.cpp */
-void vopen(line *addr, int p);
-void vreopen(int p, int lineno, int l);
-void vglitchup(int l, int n);
+void vopen(line *tp, int p);
+int vreopen(int p, int lineno, int l);
+int vglitchup(int l, int o);
 void vinslin(int p, int cnt, int l);
 void vopenup(int cnt, exbool could, int l);
 void vadjAL(int p, int cnt);
-void vrollup(int p);
+void vrollup(int dl);
 void vup1(void);
 void vmoveitup(int cnt, exbool doclr);
 void vscroll(int cnt);
@@ -310,12 +359,12 @@ Task<int> readecho(int c);
 void setLAST(void);
 void addtext(char *cp);
 void setDEL(void);
-void setBUF(char *cp);
+void setBUF(char *BUF);
 void addto(char *buf, char *str);
-void noteit(exbool must);
+exbool noteit(exbool must);
 void obeep(void);
 Task<int> map(int c, struct maps *maps);
-void macpush(char *st, int canundo);
+void macpush(char *st, int canundo = 0);
 Task<int> vgetcnt(void);
 Task<int> fastpeekkey(void);
 
@@ -323,20 +372,19 @@ Task<int> fastpeekkey(void);
 Task<void> vmain(void);
 Task<void> grabtag(void);
 void prepapp(void);
-void vremote(int cnt, void (*f)(int), int arg);
-Task<void> vremote_f(int cnt, Task<void> (*f)(int), int arg);
+Task<void> vremote(int cnt, Vopf f, int arg);
 void vsave(void);
 Task<void> vzop(exbool hadcnt, int cnt, int c);
 
 /* ------------------------------------------------------------ ex_voper.cpp */
 Task<void> operate(int c, int cnt);
 Task<exbool> find(int c);
-void word(int (*func)(void), int cnt);
-int eend(int (*func)(void));
-void wordof(int which, char *cp);
-int wordch(char *cp);
+exbool word(Vopf op, int cnt);
+void eend(Vopf op);
+exbool wordof(int which, char *wc);
+int wordch(char *wc);
 exbool edge(void);
-void margin(void);
+exbool margin(void);
 
 /* ------------------------------------------------------------- ex_vops.cpp */
 Task<void> vUndo(void);
@@ -344,7 +392,7 @@ Task<void> vundo(exbool show);
 Task<void> vmacchng(exbool fromvis);
 void vnoapp(void);
 void vmove(void);
-void vdelete(int c);
+Task<void> vdelete(int c);
 Task<void> vchange(int c);
 Task<void> voOpen(int c, int cnt);
 Task<void> vshftop(int c);
@@ -352,48 +400,47 @@ Task<void> vfilter(int c);
 Task<int> xdw(void);
 void vshift(void);
 Task<void> vrep(int cnt);
-void vyankit(void);
+Task<void> vyankit(int c);
 void setpk(void);
 
 /* ------------------------------------------------------------ ex_vops2.cpp */
 void bleep(int i, char *cp);
-void vdcMID(void);
-char *takeout(char *BUF);
+int vdcMID(void);
+void takeout(char *BUF);
 exbool ateopr(void);
 Task<void> vappend(int ch, int cnt, int indent);
-char *back1(char *cp);
+void back1(void);
 Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch);
-void vdoappend(char *text);
-void vgetsplit(int c);
+void vdoappend(char *lp);
 int vmaxrep(int ch, int cnt);
-void vinschar(int c);
+int vinschar(int c);
 
 /* ------------------------------------------------------------ ex_vops3.cpp */
-exbool lfind(int param, int cnt, int (*f)(int), line *limit);
-int endsent(exbool pastatom);
-void endPS(void);
+int lfind(exbool pastatom, int cnt, Vopf f, line *limit);
+exbool endsent(exbool pastatom);
+exbool endPS(void);
 int lindent(line *addr);
-void lmatchp(line *addr);
+int lmatchp(line *addr);
 void lsmatch(char *cp);
-char *ltosolid(void);
-char *ltosol1(char *cp);
+exbool ltosolid(void);
+exbool ltosol1(char *parens);
 exbool lskipbal(char *parens);
-exbool lskipatom(char *parens, char **cpp, exbool dir);
+exbool lskipatom(void);
 exbool lskipa1(char *parens);
 exbool lnext(void);
-exbool lbrack(int c, int (*f)(int));
+int lbrack(int c, Vopf f);
 exbool isa(char *cp);
 
 /* ------------------------------------------------------------- ex_vput.cpp */
 void vclear(void);
-void vclrbyte(char *cp, int cnt);
+void vclrbyte(char *cp, int i);
 void vclrlin(int l, line *tp);
 void vclreol(void);
 void vclrech(exbool didphys);
 void fixech(void);
-void vcursbef(void);
-void vcursat(void);
-void vcursaft(void);
+void vcursbef(char *cp);
+void vcursat(char *cp);
+void vcursaft(char *cp);
 void vfixcurs(void);
 void vsetcurs(char *nc);
 void vigoto(int y, int x);
@@ -415,17 +462,17 @@ void tfixnl(void);
 int vputch(int c);
 
 /* ------------------------------------------------------------ ex_vwind.cpp */
-void vmoveto(line *addr, char *curs, int move);
-void vjumpto(line *addr, char *curs, int move);
+void vmoveto(line *addr, char *curs, int context);
+void vjumpto(line *addr, char *curs, int context);
 void vupdown(int cnt, char *curs);
-void vup(int cnt, int ind, exbool show);
-void vdown(int cnt, int ind, exbool show);
+void vup(int cnt, int ind, exbool scroll);
+void vdown(int cnt, int ind, exbool scroll);
 void vcontext(line *addr, int where);
 void vclean(void);
 void vshow(line *addr, line *top);
 void vreset(exbool inecho);
-line *vback(line *addr, int cnt);
-void vfit(void);
+line *vback(line *tp, int cnt);
+int vfit(line *tp, int cnt);
 void vroll(int cnt);
 void vrollR(int cnt);
 int vcookit(int cnt);

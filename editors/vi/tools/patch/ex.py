@@ -255,29 +255,12 @@ print('ok')
 p = 'ex.cpp'
 s = open(p).read()
 
-s = s.replace('''	if (any('d', av[0])) {	/* "edit" */
-		value(OPEN) = 0;
-		value(REPORT) = 1;
-		value(MAGIC) = 0;
-	}
-''', '''	if (any('d', av[0])) {	/* "edit" */
-		value(OPEN) = 0;
-		value(REPORT) = 1;
-		value(MAGIC) = 0;
-	}
+open(p, 'w').write(s)
 
-#ifndef EX_HAVE_VISUAL
-	/*
-	 * The visual half is not built yet. Say so once, here, rather than
-	 * leaving it to fail at the first :visual: upstream defers the whole
-	 * of startup into visual when it is entered as vi, and a vi that
-	 * refused at that point would have read no file and taken no command.
-	 */
-	if (ivis) {
-		co_await write_all(SYS_STDERR,
-		    "vi: visual mode is not built yet -- this is ex\\n");
-		ivis = 0;
-	}
-#endif
-''')
+p = 'ex.cpp'
+s = open(p).read()
+# Upstream set this from what SIGINT's disposition was on entry -- a shell that
+# started ex in the background left it ignored, and then ex left it ignored.
+# There is no such thing here: a signal is asked for or it is not.
+s = s.replace('\tco_await setrupt();', '\truptible = 1;\n\tco_await setrupt();')
 open(p, 'w').write(s)

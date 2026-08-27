@@ -22,7 +22,7 @@ int getchar(void)
 
     do
         c = getcd();
-    while (!globp && c == CTRL(d));
+    while (!globp && c == CTRL('d'));
     return (c);
 }
 
@@ -36,7 +36,7 @@ again:
         return (c);
     c &= TRIM;
     if (!inopen)
-        if (!globp && c == CTRL(d))
+        if (!globp && c == CTRL('d'))
             setlastchar('\n');
         else if (junk(c)) {
             checkjunk(c);
@@ -153,7 +153,7 @@ Task<Result<void>> ex_readline(void)
      * string, and a completed line moves the notional cursor down.
      */
     if (n == 0 || inbuf[n - 1] != '\n')
-        inbuf[n++] = CTRL(d);
+        inbuf[n++] = CTRL('d');
     if (inbuf[n - 1] == '\n')
         noteinp();
     inbuf[n] = 0;
@@ -191,7 +191,7 @@ Task<int> gettty(void)
         if (value(AUTOINDENT) ^ aiflag) {
             holdcm = 1;
             tab(lastin + offset);
-            while ((c = getcd()) == CTRL(d)) {
+            while ((c = getcd()) == CTRL('d')) {
                 if (lastin == 0) {
                     holdcm = 0;
                     co_return (EOF);
@@ -203,7 +203,7 @@ Task<int> gettty(void)
             case '^':
             case '0':
                 ch = getcd();
-                if (ch == CTRL(d)) {
+                if (ch == CTRL('d')) {
                     if (c == '0')
                         lastin = 0;
                     if (!OS) {

@@ -67,6 +67,9 @@ test: all
 	@node editors/vi/test/exregex.mjs
 	@node editors/vi/test/exfiles.mjs
 	@node editors/vi/test/exbang.mjs
+	@node editors/vi/test/vikeys.mjs
+	@node editors/vi/test/viinsert.mjs
+	@node editors/vi/test/viresize.mjs
 	@node converters/iconv/test/smoke.mjs
 	@node converters/iconv/test/convert.mjs
 	@node converters/iconv/test/errors.mjs

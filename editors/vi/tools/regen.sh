@@ -10,9 +10,9 @@ set -e
 cd "$(dirname "$0")/.."
 PATCH=${PATCH:-tools/patch}
 
-# Command mode. The visual half has no successor here yet.
 for f in ex ex_addr ex_cmds ex_cmds2 ex_cmdsub ex_get ex_io ex_re ex_set \
-         ex_subr ex_unix; do
+         ex_subr ex_unix ex_v ex_vadj ex_vget ex_vmain ex_voper ex_vops \
+         ex_vops2 ex_vops3 ex_vput ex_vwind; do
     python3 tools/knr.py "tmp/ex/$f.c" > "$f.cpp" 2>/dev/null
     [ -f "$PATCH/$f.py" ] && (cd . && python3 "$PATCH/$f.py" >/dev/null)
 done

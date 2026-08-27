@@ -68,4 +68,12 @@ beta
 gamma
 1 more file to edit`);
 
-ok(":w, :w>>, a range, :r, :e refusals, readonly, :n and :rew");
+// A tags file, and :ta finding a line in it.
+put("/tmp/f", FILE);
+put("/tmp/tags", "gamma\t/tmp/f\t/^gamma$/\n");
+is("a tag", ex("/tmp/f", "set tags=/tmp/tags\nta gamma\np\nq!\n"),
+`${HEAD}
+gamma
+gamma`);
+
+ok(":w, :w>>, a range, :r, :e refusals, readonly, :n, :rew and :ta");

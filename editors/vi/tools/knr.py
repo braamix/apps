@@ -240,6 +240,8 @@ DEFINED = {
     'TIOCSETC': False,
     'VFORK': False,
     'UCVISUAL': False,
+    'BEEHIVE': False,   # a terminal with no escape key; f1 stood in for one
+    'ADEBUG': False,
     'EATQS': False,
     'RDEBUG': False,
     'MDEBUG': False,
@@ -355,6 +357,11 @@ def convert(path, protos, missing):
     # The SCCS id was read by what(1); nothing reads it here, and it is an
     # unused static in every file.
     src = re.sub(r'^static\s+char\s+\*sccsid\s*=[^;]*;\n', '', src, flags=re.M)
+
+    # CTRL(v) meant ('v' & 037) only because a pre-ANSI preprocessor
+    # substituted inside a character constant. Quote the argument, or every
+    # one of the forty-odd of them becomes ('c' & 037), which is 3.
+    src = re.sub(r"\bCTRL\(([^()'\s])\)", r"CTRL('\1')", src)
 
     src = ifdef_pass(src)
 

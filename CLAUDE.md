@@ -28,8 +28,10 @@ Python replacements for `mkcsmapper` and `mkesdb`, byte for byte; and
 [editors/vi](editors/vi/), UCB ex/vi 3.6 — a third shape again, where the
 hard part is neither streams nor data but *control flow*: `error()` was a
 `longjmp` from arbitrary depth and there is no `setjmp` to be had, so it
-records and unwinds a frame at a time. Command mode is complete; the visual
-half is not built yet. The rest of the tree is category directories, a few
+records and unwinds a frame at a time. Its other half is the screen — vi kept
+an exact image of the terminal in `vtube` to work out the fewest bytes to
+send, and that image is now the back buffer for a damage-tracked Grid. The
+rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
 [emulators/simbesm](emulators/simbesm/TODO.md),
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).

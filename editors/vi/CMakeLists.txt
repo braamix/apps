@@ -42,6 +42,8 @@ target_compile_options(vi_quiet INTERFACE
 set(VI_COMMON
     ex.cpp ex_addr.cpp ex_cmds.cpp ex_cmds2.cpp ex_cmdsub.cpp ex_data.cpp
     ex_get.cpp ex_io.cpp ex_re.cpp ex_set.cpp ex_subr.cpp ex_unix.cpp
+    ex_v.cpp ex_vadj.cpp ex_vget.cpp ex_vmain.cpp ex_voper.cpp ex_vops.cpp
+    ex_vops2.cpp ex_vops3.cpp ex_vput.cpp ex_vwind.cpp
     ex_buf.cpp ex_out.cpp ex_file.cpp ex_screen.cpp braam.cpp)
 
 braam_add_program(NAME ex SOURCES ${VI_COMMON})
@@ -57,7 +59,7 @@ target_compile_definitions(bin_vi PRIVATE EX_DEFAULT_VISUAL=1)
 # One package, two commands: every flat bin/ entry becomes a cmd: provide and a
 # link in the installed generation's bin/, which /pkg/bin points at.
 braam_add_package(NAME vi VERSION 3.6-r0
-                  FIELD "T=UCB ex 3.6, the line editor"
+                  FIELD "T=UCB ex/vi 3.6, the visual editor"
                   FILES $<TARGET_FILE:bin_ex>=bin/ex
                         $<TARGET_FILE:bin_vi>=bin/vi)
 add_dependencies(packages pkg_vi)

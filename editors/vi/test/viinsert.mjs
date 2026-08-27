@@ -1,0 +1,63 @@
+// Visual mode: the commands that change the buffer, and the file they leave.
+//
+// The screen says the display kept up; the file says the buffer was right.
+// Both matter, and they are different assertions.
+
+import { boot, vi, press, screen, put, get, quitvi, is, ok } from "./exlib.mjs";
+
+await boot("viinsert");
+
+const FILE = "alpha\nbeta\ngamma\ndelta\n";
+
+function edit(keys, want, what) {
+    put("/tmp/f", FILE);
+    vi("/tmp/f", keys);
+    is(what, screen(4), want);
+}
+
+// Insert, append, and open a line above and below.
+edit(["i", "XY", "ESC"], "XYalpha\nbeta\ngamma\ndelta", "i");
+edit(["A", "!", "ESC"], "alpha!\nbeta\ngamma\ndelta", "A");
+edit(["o", "new", "ESC"], "alpha\nnew\nbeta\ngamma", "o");
+edit(["O", "new", "ESC"], "new\nalpha\nbeta\ngamma", "O");
+
+// Delete and change, with an operator and a motion.
+edit(["d", "d"], "beta\ngamma\ndelta\n~", "dd");
+edit(["2", "d", "d"], "gamma\ndelta\n~\n~", "2dd");
+edit(["c", "w", "ZZZ", "ESC"], "ZZZ\nbeta\ngamma\ndelta", "cw");
+edit(["d", "w"], "\nbeta\ngamma\ndelta", "dw");
+edit(["r", "Z"], "Zlpha\nbeta\ngamma\ndelta", "r");
+edit(["J"], "alpha beta\ngamma\ndelta\n~", "J");
+edit([">", ">"], "        alpha\nbeta\ngamma\ndelta", ">>");
+
+// Yank and put, and the delete register.
+edit(["y", "y", "p"], "alpha\nalpha\nbeta\ngamma", "yy p");
+edit(["d", "d", "p"], "beta\nalpha\ngamma\ndelta", "dd p");
+
+// u undoes the last change; . repeats it.
+edit(["d", "w", "u"], "alpha\nbeta\ngamma\ndelta", "u");
+edit(["x", "j", "."], "lpha\neta\ngamma\ndelta", ".");
+
+// A named buffer.
+edit(['"', "a", "y", "y", "j", '"', "a", "p"],
+     "alpha\nbeta\nalpha\ngamma", "a named buffer");
+
+// The : escape reaches the whole of command mode and comes back.
+edit([":", "set nu", "CR"],
+     "     1  alpha\n     2  beta\n     3  gamma\n     4  delta", ": escape");
+
+// :map, :ab, and the two shell escapes. A filter's child writes to a file, so
+// the screen is never handed over for one; :! hands it over and takes it back.
+edit([":", "map q dd", "CR", "q"], "beta\ngamma\ndelta\n~", ":map");
+edit([":", "ab xx hello", "CR", "i", "xx ", "ESC"],
+     "hello alpha\nbeta\ngamma\ndelta", ":ab");
+edit([":", "!echo hi", "CR"], "alpha\nbeta\ngamma\ndelta", ":! comes back");
+edit(["!", "!", "cat", "CR"], "alpha\nbeta\ngamma\ndelta", "!!cat");
+
+// ZZ writes and leaves. The file is what this is really asserting.
+put("/tmp/f", FILE);
+vi("/tmp/f", ["x", "Z", "Z"]);
+is("what ZZ wrote", get("/tmp/f") ?? "(nothing)", "lpha\nbeta\ngamma\ndelta\n");
+quitvi();
+
+ok("i/A/o/O, dd/cw/dw/r/J/>>, yy/p, u, ., a register, :map, :ab, ! and ZZ");

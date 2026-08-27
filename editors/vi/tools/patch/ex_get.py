@@ -10,7 +10,7 @@ s = s.replace('''	flush();
 		if (c < 0)
 			return (lastc = EOF);
 		if (c == 0 || incurs[c-1] != '\\n')
-			incurs[c++] = CTRL(d);
+			incurs[c++] = CTRL('d');
 		if (incurs[c-1] == '\\n')
 			noteinp();
 		incurs[c] = 0;
@@ -81,7 +81,7 @@ Task<Result<void>> ex_readline(void)
 	 * string, and a completed line moves the notional cursor down.
 	 */
 	if (n == 0 || inbuf[n-1] != '\\n')
-		inbuf[n++] = CTRL(d);
+		inbuf[n++] = CTRL('d');
 	if (inbuf[n-1] == '\\n')
 		noteinp();
 	inbuf[n] = 0;

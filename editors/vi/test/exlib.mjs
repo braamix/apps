@@ -17,6 +17,7 @@ export const opt = {
     kernel: join(CORE, "build/kernel.wasm"),
     rootfs: join(CORE, "build/web/rootfs.zip"),
     binary: join(APPS, "build/editors/vi/ex.wasm"),
+    visual: join(APPS, "build/editors/vi/vi.wasm"),
 };
 for (const a of process.argv.slice(2)) {
     const m = /^--(\w+)=(.*)$/.exec(a);
@@ -43,6 +44,7 @@ export async function boot(caseName) {
         ["kernel", opt.kernel, "make -C ../braam-core"],
         ["rootfs", opt.rootfs, "make -C ../braam-core"],
         ["ex", opt.binary, "make"],
+        ["vi", opt.visual, "make"],
     ]) {
         if (!existsSync(path)) {
             console.error(`${caseName}: no ${what} at ${path} — run \`${how}\``);
@@ -57,6 +59,7 @@ export async function boot(caseName) {
     H.regrid(80, 24, "resize returned no screen descriptor");
     if (!H.store.files.has("/bin/sh")) die("the archive did not unpack");
     H.store.files.set("/bin/ex", new Uint8Array(readFileSync(opt.binary)));
+    H.store.files.set("/bin/vi", new Uint8Array(readFileSync(opt.visual)));
     return H;
 }
 
@@ -69,7 +72,7 @@ export function get(path) {
     return b === undefined ? null : dec.decode(b);
 }
 
-let clock = 1;
+export let clock = 1;
 
 // Run `ex <file>` with `script` on its standard input and its output in /tmp/o.
 // The command line stays well under sixty characters: the harness keyboard is a
@@ -99,4 +102,69 @@ export function is(what, got, want) {
 
 export function ok(what) {
     console.log(`${name} ok: ${what}`);
+}
+
+// ------------------------------------------------------------------- visual
+//
+// The other half is driven through the grid, because that is what visual mode
+// is: keys in, cells out. A screen is asserted as its rows joined with
+// newlines, trailing blanks stripped, so that a later change of width does not
+// churn the expectations.
+
+/* Two names everyone writes and the harness does not have. */
+const H_KEY_ALIASES = { CR: "ENTER", ESC: "ESCAPE" };
+
+let running = false;
+
+// Leave the session that is up, if there is one: a second vi cannot be
+// submitted while the first still holds the screen.
+export function quitvi() {
+    if (!running)
+        return;
+    press("ESC");
+    press(":");
+    H.type("q!");
+    press("CR");
+    /* The screen the shell had is restored when the claim drops, and its
+       prompt is redrawn a tick later. */
+    H.run(clock++);
+    H.run(clock++);
+    running = false;
+}
+
+export function vi(file, keys = []) {
+    quitvi();
+    running = true;
+    H.submit(`vi ${file}`, clock++);
+    H.run(clock++);
+    for (const k of keys)
+        press(k);
+    return screen();
+}
+
+// One key. A string is typed as itself; "^x" is control-x; the named keys go
+// by name. Each is followed by a run, so the editor has answered before the
+// next one arrives.
+const NAMED = { ...H_KEY_ALIASES };
+
+export function press(k) {
+    const named = NAMED[k] || k;
+    if (k.startsWith("^") && k.length === 2)
+        H.press(k[1].toLowerCase().codePointAt(0), H.CTRL);
+    else if (named in H.KEY)
+        H.press(H.KEY[named]);
+    else
+        H.type(k);
+    H.run(clock++);
+}
+
+export function screen(rows = 0) {
+    const r = H.rows(H.screen()).map((s) => s.replace(/\s+$/, ""));
+    return (rows ? r.slice(0, rows) : r).join("\n").replace(/\n+$/, "");
+}
+
+export function regrid(cols, rows) {
+    H.regrid(cols, rows, "resize returned no screen descriptor");
+    H.run(clock++);
+    H.run(clock++);
 }
