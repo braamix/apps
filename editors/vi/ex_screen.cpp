@@ -66,6 +66,11 @@ Task<void> vscreen_give(void)
  * vtube holds bytes and a Cell holds a codepoint and an attribute. A zero in
  * vtube means "never written" and QUOTE means "part of an expanded tab"; both
  * draw as a blank, which is what vputchar() already intends by them.
+ *
+ * Colour is this port's, since a termcap terminal had none: the echo area is
+ * cyan and the ~ of a line past the end of the file is blue. A row is one or
+ * the other by where it is and what is on it -- vclrlin() leaves a ~ alone in
+ * column zero -- so nothing else has to keep track.
  */
 Task<Result<void>> vflush(void)
 {
@@ -78,20 +83,25 @@ Task<Result<void>> vflush(void)
     for (y = 0; y <= WECHO && y < (int)g->rows; y++) {
         char *tp = vtube[y];
         char *ap = vatube0 && tp ? vatube0 + (tp - vtube0) : 0;
+        u8 fg    = COLOR_WHITE;
 
         if (tp == 0)
             continue;
+        if (y == WECHO)
+            fg = COLOR_CYAN;
+        else if ((tp[0] & TRIM) == '~' && (WCOLS < 2 || tp[1] == 0))
+            fg = COLOR_BLUE;
         for (x = 0; x < WCOLS && x < (int)g->cols; x++) {
             int c       = tp[x] & TRIM;
             char32_t ch = c ? (char32_t)c : U' ';
             u8 at       = ap ? (u8)ap[x] : 0;
             Cell *cl    = g->at((u32)x, (u32)y);
 
-            if (cl == 0 || (cl->ch == ch && cl->attrs == at))
+            if (cl == 0 || (cl->ch == ch && cl->attrs == at && cl->fg == fg))
                 continue;
             cl->ch    = ch;
             cl->attrs = at;
-            cl->fg    = COLOR_WHITE;
+            cl->fg    = fg;
             cl->bg    = COLOR_BLACK;
             g->touch((u32)x, (u32)y, 1, 1);
         }

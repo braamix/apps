@@ -163,6 +163,15 @@ export function screen(rows = 0) {
     return (rows ? r.slice(0, rows) : r).join("\n").replace(/\n+$/, "");
 }
 
+const COLORS = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
+
+// The foreground colour of a row, named: the ~ rows and the echo line are not
+// white, and nothing else says so.
+export function fg(y) {
+    const c = H.cell(H.screen(), 0, y).fg;
+    return COLORS[c & 7] + (c & 8 ? "+" : "");
+}
+
 export function regrid(cols, rows) {
     H.regrid(cols, rows, "resize returned no screen descriptor");
     H.run(clock++);

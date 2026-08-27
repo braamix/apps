@@ -135,6 +135,10 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
 - **There is no `TERM` and `:set term=` is an error.** The screen is an array
   of cells, so a terminal type would name nothing; `:set all` prints
   `term=braam`.
+- **The screen has colour**, which a termcap terminal did not: the echo line
+  is cyan and the `~` of a row past the end of the file is blue. `vflush()`
+  decides it per row, from where the row is and what is on it, so nothing
+  upstream had to learn about it.
 - **`^Z` and `:stop` are gone.** `SIG_TSTP` is not in Braam's catchable set.
 - **`:preserve`, `:recover` and `-r` are gone** with the temp file.
 - **`-x` is gone.** The crypt mode was asked to be left out.
@@ -189,8 +193,8 @@ mode prints no prompt down a pipe, which is what makes a transcript assertable.
   being lost, `readonly`, and the arg list.
 - `exbang.mjs` — `:r !`, `:w !`, a range through a filter, and `:!` leaving the
   buffer alone.
-- `vikeys.mjs` — the first frame whole, `x`, counts, the word and arrow
-  motions, `^F` and `^C`.
+- `vikeys.mjs` — the first frame whole and its three colours, `x`, counts, the
+  word and arrow motions, `^F` and `^C`.
 - `viinsert.mjs` — `i`/`A`/`o`/`O`, the operators, `yy`/`p`, `u`, `.`, a named
   buffer, `:map`, `:ab`, both shell escapes, and the file `ZZ` writes.
 - `viresize.mjs` — a resize mid-session: the screen re-cut, the buffer kept,

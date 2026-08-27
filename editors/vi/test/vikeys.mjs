@@ -3,7 +3,7 @@
 // Keys in, cells out. The screen is asserted whole, which is what makes this
 // worth having -- it is the only test that says vtube reached the Grid at all.
 
-import { boot, vi, press, screen, put, is, ok } from "./exlib.mjs";
+import { boot, vi, press, screen, fg, put, is, ok } from "./exlib.mjs";
 
 await boot("vikeys");
 
@@ -21,6 +21,9 @@ gamma
 delta
 ${TILDE}
 "/tmp/f" 4 lines, 23 characters`);
+
+// Three colours in that frame: the text, the ~ rows and the echo line.
+is("the colours", [fg(0), fg(4), fg(23)].join(" "), "white blue cyan");
 
 // x deletes the character under the cursor, and the cursor started at the top
 // left; the rest of the screen must not move.
