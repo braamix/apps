@@ -255,9 +255,10 @@ EXTERN short wdkind;               /* Liberal/conservative words? */
 EXTERN char workcmd[5];            /* Temporary for lastcmd */
 
 /*
- * A cursor key pressed inside an insertion, for vappend to act on once the
- * line is whole: it ends the insertion, moves, and opens another where it
- * landed, which is what keeps the user inside insert mode.
+ * A cursor key, or a backspace that ran past the start, pressed inside an
+ * insertion, for vappend to act on once the line is whole: it ends the
+ * insertion, moves or deletes, and opens another where it landed, which is
+ * what keeps the user inside insert mode.
  */
 EXTERN int insmotion;
 

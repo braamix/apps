@@ -64,6 +64,25 @@ edit(["i", "XY", "DELETE", "DELETE", "1", "ESC"], "XY1pha\nbeta\ngamma\ndelta", 
 edit(["A", "Z", "DELETE", "1", "ESC"], "alphaZ1\nbeta\ngamma\ndelta", "delete at the end beeps");
 edit(["i", "abc", "BACKSPACE", "1", "ESC"], "ab1alpha\nbeta\ngamma\ndelta", "backspace");
 
+// And past the start of the insertion it takes the line itself, which is a
+// port addition: upstream stopped at what this insertion had typed.
+edit(["i", "BACKSPACE", "1", "ESC"], "1alpha\nbeta\ngamma\ndelta", "backspace at column 0 beeps");
+edit(["l", "l", "i", "BACKSPACE", "1", "ESC"], "a1pha\nbeta\ngamma\ndelta", "past the start");
+edit(["l", "l", "i", "BACKSPACE", "BACKSPACE", "1", "ESC"], "1pha\nbeta\ngamma\ndelta", "twice");
+edit(["l", "l", "i", "X", "BACKSPACE", "BACKSPACE", "1", "ESC"], "a1pha\nbeta\ngamma\ndelta",
+     "through the insertion and out the other side");
+edit(["l", "l", "i", "^h", "1", "ESC"], "a1pha\nbeta\ngamma\ndelta", "^H is the same key");
+
+// After A the caret sits on the terminator, which is not a character: the
+// rub-out has to work there too, and leave the insertion at the end.
+edit(["A", "BACKSPACE", "1", "ESC"], "alph1\nbeta\ngamma\ndelta", "at the end of the line");
+edit(["A", "BACKSPACE", "BACKSPACE", "1", "ESC"], "alp1\nbeta\ngamma\ndelta", "twice at the end");
+
+// The autoindent is below the start of the insertion and goes the same way.
+put("/tmp/f", "    indented\n");
+vi("/tmp/f", [":", "se ai", "CR", "o", "BACKSPACE", "X", "ESC"]);
+is("backspace over the autoindent", screen(2), "    indented\n   X");
+
 // A page leaves the insertion, as an escape would: there is no window to
 // insert into two screens away.
 put("/tmp/f", Array.from({ length: 60 }, (_, i) => `l${i + 1}`).join("\n") + "\n");
@@ -93,6 +112,7 @@ mode("o", ["o"], MODE);
 mode("R", ["R"], MODE);
 mode("c", ["c", "w"], MODE);
 mode("across a motion", ["i", "X", "LEFT"], MODE);
+mode("across a rub-out", ["l", "i", "X", "BACKSPACE", "BACKSPACE"], MODE);
 mode("gone after escape", ["i", "XY", "ESC"], `"/tmp/f" 4 lines, 23 characters`, "cyan");
 
 // r takes one character and is not a mode; nor is the : line.
@@ -107,6 +127,12 @@ press("ESC");
 put("/tmp/f", FILE);
 vi("/tmp/f", [":", "se", "LEFT", "t nu", "CR"]);
 is("an arrow on the : line", screen(1), "     1  alpha");
+
+// Backspacing off the ':' prompt abandons the command line, and does not rub
+// out the buffer under it: the echo area has its own floor.
+put("/tmp/f", FILE);
+vi("/tmp/f", [":", "se", "BACKSPACE", "BACKSPACE", "BACKSPACE", "x"]);
+is("backspace off the : prompt", screen(4), "lpha\nbeta\ngamma\ndelta");
 
 /* --------------------------------------------------- escape and undo */
 

@@ -147,6 +147,20 @@ below is what it draws on.
   ends the insertion, `^V` still quotes the key after it, and on the `:` line
   a cursor key beeps and is dropped — ending *that* would run a half-typed
   command.
+- **Backspace erases past the start of an insertion**, which upstream's did
+  not: its `case CTRL('h')` carries the note `BUG: Can't back around line
+  boundaries`, and it stopped at whatever the insertion itself had typed. Two
+  floors are below that, and each is answered where it lives. The autoindent is
+  in `genbuf` too, so the floor is simply lowered onto it — `^T`, `^D` and
+  `^^D` already move it. Below that is the line, which is in `linebuf`, so the
+  same route the cursor keys take is taken again: the insertion ends, `vdelete`
+  rubs the character out, and another insertion opens there. It carries the
+  same two consequences, and one more — the rubbed character lands in the
+  unnamed register, because `vdelete` is what does the work. At column 0 it
+  beeps; joining onto the previous line is vim's `backspace=eol` and is not
+  here. `^H` is the same key and does the same thing; on the `:` line the echo
+  area keeps its own floor, where backspacing off the prompt abandons the
+  command.
 - **`:!cmd` runs, `sort` may not.** The escapes work, but they run Braam's
   `/bin`, which is forty-odd commands and not a Unix.
 - **`:e *.c` does not glob.** Upstream forked a shell to expand the argument

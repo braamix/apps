@@ -379,9 +379,9 @@ again:
     vmove();
 
     /*
-     * A cursor key ended it: move, and open another insertion there. What
-     * follows is vmain's own preamble for an insert command, less the parts
-     * that only a typed one needs.
+     * A cursor key or a backspace ended it: move or rub out, and open another
+     * insertion there. What follows is vmain's own preamble for an insert
+     * command, less the parts that only a typed one needs.
      */
     if (insmotion && co_await vinsmove()) {
         if (ch != 'R')
@@ -407,9 +407,9 @@ again:
 }
 
 /*
- * The motion a cursor key means, between one insertion and the next. The ones
- * that stay on the line are pointer moves; the ones that need the buffer or
- * the window are the command they answer. Zero to leave insert mode.
+ * The motion a key means, between one insertion and the next. The ones that
+ * stay on the line are pointer moves; the ones that need the buffer or the
+ * window are the command they answer. Zero to leave insert mode.
  */
 Task<exbool> vinsmove(void)
 {
@@ -417,6 +417,22 @@ Task<exbool> vinsmove(void)
 
     insmotion = 0;
     switch (c) {
+    /*
+     * Backspace past the start of the insertion. Not operate('X'), whose
+     * margin() beeps where an append leaves the cursor -- on the terminator.
+     */
+    case CTRL('h'): {
+        int at = cursor - linebuf - 1;
+
+        wdot    = NOLINE;
+        wcursor = cursor - 1;
+        co_await vmacchng(1);
+        co_await vdelete(0);
+        cursor  = linebuf + at; /* vdelete leaves it on a character */
+        vmoving = 0;
+        break;
+    }
+
     case KLEFT:
         if (cursor > linebuf)
             cursor--;
@@ -603,6 +619,17 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
                          * don't obeep.
                          */
                         ungetkey(c);
+                        goto vadone;
+                    }
+                    /* The autoindent is in genbuf too: lower the floor. */
+                    if (ogcursor > genbuf) {
+                        ogcursor = genbuf;
+                        goto vbackup;
+                    }
+                    /* The line is whole only between insertions: end this
+                     * one and let vinsmove rub the character out. */
+                    if (commch != 'r' && cursor > linebuf) {
+                        insmotion = c;
                         goto vadone;
                     }
                     obeep();

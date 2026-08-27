@@ -169,6 +169,8 @@ the crypt mode. `-l` was never in 3.6.
 ### What the port added
 
 - The cursor keys work inside an insertion, which upstream's did not.
+- Backspace erases past the start of an insertion, into the autoindent and the
+  line; not onto the previous line.
 - `-- INSERT --` on the echo line, which is vim's habit and not vi's.
 - Colour: cyan echo line, blue `~`.
 - Esc is a key with a code of its own, distinct from the byte `033`.
