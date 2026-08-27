@@ -1198,6 +1198,16 @@ local Task<int> zipmain(Args argv)
     envargs(&argcnt, &args, "ZIPOPT", "ZIP");
     expand_args(&argcnt, &args);
 
+    // Upstream's isatty(1) check: no arguments at a terminal is the help.
+    // Its -v half is the option loop's `argcnt == 2` case.
+    Result<TtyInfo> tt = Err(Error::NoMemory);
+    if (Task<Result<TtyInfo>> tk = tty_of(SYS_STDOUT))
+        tt = co_await tk;
+    if (tt.is_ok() && tt.value().console && argcnt == 1) {
+        co_await help();
+        FINISH(ZE_OK);
+    }
+
     zipfile = tempzip = NULL;
     y                 = NULL;
     d                 = 0;

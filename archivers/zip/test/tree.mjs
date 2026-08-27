@@ -126,7 +126,18 @@ const help = dec.decode(H.store.files.get("/tmp/h") || new Uint8Array(0));
 if (!/Copyright \(c\) 1990-2008 Info-ZIP/.test(help) || !/-r *recurse into directories/.test(help))
     die(`-h is not upstream's help: ${JSON.stringify(help.slice(0, 200))}`);
 
-// 7. The run is reproducible: the harness clock is frozen, so the DOS stamp
+// 7. No arguments at a terminal is that help and status 0. The help is longer
+//    than the 24 rows, so the tail is what is checked.
+run("clear");
+const bare = H.rows(run("zip; echo $?"));
+if (!bare.includes("  -h2  show more help"))
+    die(`bare zip did not print the help: ${JSON.stringify(bare)}`);
+if (bare.some((r) => /cannot write zip file to terminal/.test(r)))
+    die("bare zip still refuses to write to the terminal");
+if (!bare.includes("0"))
+    die(`bare zip did not exit 0: ${JSON.stringify(bare)}`);
+
+// 8. The run is reproducible: the harness clock is frozen, so the DOS stamp
 //    cannot move and nothing else may either.
 run("zip -r -q /tmp/again.zip /home/t");
 const a = H.store.files.get("/tmp/r.zip"), b = H.store.files.get("/tmp/again.zip");

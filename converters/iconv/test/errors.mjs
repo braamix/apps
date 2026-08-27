@@ -42,7 +42,7 @@ function die(msg) {
 await H.init(opt.kernel, opt.rootfs);
 H.kernel().init(0);
 if (H.run(0) !== -1) die("the kernel did not settle after boot");
-H.regrid(80, 24, 8, 16);
+H.regrid(80, 24, "resize returned no screen descriptor");
 if (!H.store.files.has("/bin/sh")) die("the archive did not unpack");
 
 H.store.files.set("/bin/iconv", new Uint8Array(readFileSync(opt.binary)));
