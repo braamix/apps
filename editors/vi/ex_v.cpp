@@ -68,8 +68,9 @@ Task<void> ovend(void)
     vgoto(WECHO, 0);
     vclreol();
     vgoto(WECHO, 0);
-    holdcm = 0;
-    splitw = 0;
+    holdcm    = 0;
+    splitw    = 0;
+    inserting = 0;
     co_await vflush();
     co_await vscreen_give();
     setoutt();

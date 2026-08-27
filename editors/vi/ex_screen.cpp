@@ -74,11 +74,19 @@ Task<void> vscreen_give(void)
  * cyan and the ~ of a line past the end of the file is blue. A row is one or
  * the other by where it is and what is on it -- vclrlin() leaves a ~ alone in
  * column zero -- so nothing else has to keep track.
+ *
+ * So is the mode line. It is written over the echo area rather than into
+ * vtube, which is vi's own idea of the screen and would have to be cleared
+ * again: the cells under it differ from vtube while it shows, and that is
+ * what puts the echo area back when the insertion ends.
  */
+static const char MODELINE[] = "-- INSERT --";
+
 Task<Result<void>> vflush(void)
 {
     Grid *g;
     int y, x;
+    int mode = inserting ? (int)sizeof(MODELINE) - 1 : 0;
 
     if (vscreen == 0)
         co_return {};
@@ -95,16 +103,20 @@ Task<Result<void>> vflush(void)
         else if ((tp[0] & TRIM) == '~' && (WCOLS < 2 || tp[1] == 0))
             fg = COLOR_BLUE;
         for (x = 0; x < WCOLS && x < (int)g->cols; x++) {
-            int c       = tp[x] & TRIM;
+            /* The mode line has the echo area to itself while it is up. */
+            exbool over = mode && y == WECHO;
+            exbool note = over && x < mode;
+            int c       = note ? MODELINE[x] : over ? 0 : tp[x] & TRIM;
             char32_t ch = c ? (char32_t)c : U' ';
-            u8 at       = ap ? (u8)ap[x] : 0;
+            u8 at       = over || ap == 0 ? 0 : (u8)ap[x];
+            u8 f        = note ? (u8)(COLOR_WHITE | COLOR_BRIGHT) : fg;
             Cell *cl    = g->at((u32)x, (u32)y);
 
-            if (cl == 0 || (cl->ch == ch && cl->attrs == at && cl->fg == fg))
+            if (cl == 0 || (cl->ch == ch && cl->attrs == at && cl->fg == f))
                 continue;
             cl->ch    = ch;
             cl->attrs = at;
-            cl->fg    = fg;
+            cl->fg    = f;
             cl->bg    = COLOR_BLACK;
             g->touch((u32)x, (u32)y, 1, 1);
         }

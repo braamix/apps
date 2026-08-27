@@ -124,8 +124,9 @@ void error0(void)
         undvis();
         putnl();
     }
-    inopen = 0;
-    holdcm = 0;
+    inserting = 0;
+    inopen    = 0;
+    holdcm    = 0;
 }
 
 /*

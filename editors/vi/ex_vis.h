@@ -261,6 +261,9 @@ EXTERN char workcmd[5];            /* Temporary for lastcmd */
  */
 EXTERN int insmotion;
 
+/* Whether an insertion is open, which is what the mode line says. */
+EXTERN exbool inserting;
+
 /*
  * Macros
  */

@@ -123,6 +123,12 @@ Task<void> vappend(int ch, int cnt, int indent)
     }
 again:
     vaifirst = indent == 0;
+    /*
+     * The mode line, up before the ^@ peek below parks: that is where the
+     * editor waits after i is pressed and nothing has been typed yet. r takes
+     * one character and is over, so it is not a mode.
+     */
+    inserting = ch != 'r';
 
     /*
      * Handle replace character by (eventually)
@@ -169,8 +175,9 @@ again:
             obeep();
             if (!splitw)
                 ungetkey('u');
-            doomed = 0;
-            hold   = oldhold;
+            doomed    = 0;
+            hold      = oldhold;
+            inserting = 0;
             co_return;
         }
         /*
@@ -354,6 +361,8 @@ again:
      * and sync the screen.
      */
     hold = oldhold;
+    /* The mode line stays up across a motion: the insertion is not over. */
+    inserting = insmotion != 0;
     /*
      * The caret drops back onto the last character inserted -- unless a
      * motion is waiting, which starts from where the next character would
@@ -394,6 +403,7 @@ again:
         oldhold = hold;
         goto again;
     }
+    inserting = 0;
 }
 
 /*

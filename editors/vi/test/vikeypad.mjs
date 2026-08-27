@@ -6,7 +6,7 @@
 // byte -- a space is a space and an arrow is not -- and this is what says so:
 // every case here presses a real named key and reads the line it left.
 
-import { boot, vi, press, screen, cursor, put, quitvi, is, ok } from "./exlib.mjs";
+import { boot, vi, press, screen, cursor, fg, put, quitvi, is, ok } from "./exlib.mjs";
 
 await boot("vikeypad");
 
@@ -73,6 +73,33 @@ is("page down leaves insert", screen(1), "l22");
 // ^V quotes the key that follows, so an arrow can still be typed as its byte.
 edit(["i", "^v", "UP", "ESC"], "^Palpha\nbeta\ngamma\ndelta", "quoted arrow");
 
+/* --------------------------------------------------------- the mode line */
+
+// The echo area says so while an insertion is open, in bright white, and has
+// itself back when it closes. Row 23 of 24, and the whole of it.
+const MODE = "-- INSERT --";
+
+function mode(what, keys, want, colour = "white+") {
+    put("/tmp/f", FILE);
+    vi("/tmp/f", keys);
+    is(what, screen().split("\n")[23] ?? "", want);
+    is(`${what}, in colour`, fg(23), colour);
+}
+
+mode("i, before a character is typed", ["i"], MODE);
+mode("and while typing", ["i", "XY"], MODE);
+mode("A", ["A"], MODE);
+mode("o", ["o"], MODE);
+mode("R", ["R"], MODE);
+mode("c", ["c", "w"], MODE);
+mode("across a motion", ["i", "X", "LEFT"], MODE);
+mode("gone after escape", ["i", "XY", "ESC"], `"/tmp/f" 4 lines, 23 characters`, "cyan");
+
+// r takes one character and is not a mode; nor is the : line.
+mode("not r", ["r"], `"/tmp/f" 4 lines, 23 characters`, "cyan");
+mode("not the : line", [":", "se"], ":se", "cyan");
+press("ESC");
+
 /* ------------------------------------------------------- the : line */
 
 // An arrow on the command line is discarded -- not inserted, and not a
@@ -102,4 +129,4 @@ edit(["i", "ab", "LEFT", "c", "ESC", "u", "U"], "alpha\nbeta\ngamma\ndelta", "U 
 
 quitvi();
 
-ok("the arrows, Home, End, Delete, Backspace and escape, in both modes");
+ok("the arrows, Home, End, Delete, Backspace and escape, in both modes, and the mode line");

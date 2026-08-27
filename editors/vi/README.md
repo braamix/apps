@@ -157,6 +157,12 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
   is cyan and the `~` of a row past the end of the file is blue. `vflush()`
   decides it per row, from where the row is and what is on it, so nothing
   upstream had to learn about it.
+- **An insertion says so.** `-- INSERT --` in bright white, over the echo
+  area, from the moment `i` is pressed until the insertion closes — which is
+  vim's, not vi's: upstream gave no sign at all, and on a screen with no modes
+  of its own that is a poor bargain. `vflush()` writes it over the echo row
+  rather than into `vtube`, so the row underneath comes back on its own when
+  the insertion ends. `r` is not a mode and the `:` line is not one either.
 - **A motion sends a frame of its own.** The cursor rides in the header of a
   blit, and a blit with nothing damaged in it is not sent at all, so
   `vflush()` damages the cell under the cursor when it has moved. Without
@@ -222,7 +228,8 @@ mode prints no prompt down a pipe, which is what makes a transcript assertable.
 - `viinsert.mjs` — `i`/`A`/`o`/`O`, the operators, `yy`/`p`, `u`, `.`, a named
   buffer, `:map`, `:ab`, both shell escapes, and the file `ZZ` writes.
 - `vikeypad.mjs` — the arrows, Home, End, Delete, Backspace and escape, in
-  command mode, inside an insertion, after an operator and on the `:` line.
+  command mode, inside an insertion, after an operator and on the `:` line;
+  and the mode line, which of the insert commands raise it and which do not.
 - `viresize.mjs` — a resize mid-session: the screen re-cut, the buffer kept,
   the cursor where it was; and a session started on a 144x41 screen, which
   uses all of it.
