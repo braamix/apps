@@ -369,14 +369,14 @@ Task<exbool> confirmed(line *a)
      * and so could ask either way. getch(), which upstream left written but
      * never called, is the other half.
      */
-    ch = c = inopen ? co_await getkey() : co_await getch();
+    ch = c = inopen ? keycmd(co_await getkey()) : co_await getch();
 again:
     if (c == '\r')
         c = '\n';
     if (inopen)
         putchar(c), flush();
     if (c != '\n' && c != EOF) {
-        c = inopen ? co_await getkey() : co_await getch();
+        c = inopen ? keycmd(co_await getkey()) : co_await getch();
         goto again;
     }
     noteinp();

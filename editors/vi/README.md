@@ -123,8 +123,22 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
   nothing can await; the match is still checked, and an unmatched one beeps.
 - **A character above ASCII is dropped.** ex is a byte editor: `TRIM` is 0177
   throughout and a line is a `char` array.
-- **The arrow keys answer `^P`, `^N`, `^H` and space,** not `hjkl`, so that
-  they work inside insert mode too.
+- **The arrow keys answer `^P`, `^N`, `^H` and space,** not `hjkl`, so that a
+  `:map` on them still reaches them. Home and End are `^` and `$`, the paging
+  keys are `^B` and `^F`, and Delete is `x`. A modifier held with any of them
+  changes nothing.
+- **The cursor keys work inside an insertion**, which upstream's did not:
+  ←, →, Home, End, ↑ and ↓ move and leave you inserting where they land, and
+  Delete takes the character under the caret. There is no cursor between two
+  characters in vi's insert — the text being typed is in `genbuf` and the rest
+  of the line is still in `linebuf` — so what actually happens is that the
+  insertion ends, the motion runs on the whole line, and another insertion
+  opens at the new cursor. Two consequences, both of them vim's rule as well:
+  `u` undoes back to the last motion rather than to the `i`, and `.` repeats
+  the text typed after it. `U` still restores the whole line. A paging key
+  ends the insertion, `^V` still quotes the key after it, and on the `:` line
+  a cursor key beeps and is dropped — ending *that* would run a half-typed
+  command.
 - **`:!cmd` runs, `sort` may not.** The escapes work, but they run Braam's
   `/bin`, which is forty-odd commands and not a Unix.
 - **`:e *.c` does not glob.** Upstream forked a shell to expand the argument
@@ -197,6 +211,8 @@ mode prints no prompt down a pipe, which is what makes a transcript assertable.
   word and arrow motions, `^F` and `^C`.
 - `viinsert.mjs` — `i`/`A`/`o`/`O`, the operators, `yy`/`p`, `u`, `.`, a named
   buffer, `:map`, `:ab`, both shell escapes, and the file `ZZ` writes.
+- `vikeypad.mjs` — the arrows, Home, End, Delete, Backspace and escape, in
+  command mode, inside an insertion, after an operator and on the `:` line.
 - `viresize.mjs` — a resize mid-session: the screen re-cut, the buffer kept,
   the cursor where it was; and a session started on a 144x41 screen, which
   uses all of it.

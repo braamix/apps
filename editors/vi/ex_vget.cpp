@@ -25,7 +25,7 @@ void ungetkey(int c)
  */
 Task<int> getkey(void)
 {
-    char c;
+    int c;
 
     do {
         c = co_await getbr();
@@ -128,11 +128,27 @@ Task<int> getesc(void)
     switch (c) {
     case CTRL('v'):
     case CTRL('q'):
-        c = co_await getkey();
+        c = keycmd(co_await getkey());
         co_return (c);
 
     case ATTN:
     case QUIT:
+        ungetkey(c);
+        co_return (0);
+
+    /*
+     * A cursor key where a character was wanted: abandon the command and
+     * let the key be read again as the motion it is.
+     */
+    case KUP:
+    case KDOWN:
+    case KLEFT:
+    case KRIGHT:
+    case KHOME:
+    case KEND:
+    case KPGUP:
+    case KPGDN:
+    case KDEL:
         ungetkey(c);
         co_return (0);
 

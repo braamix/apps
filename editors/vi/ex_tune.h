@@ -67,3 +67,21 @@
  */
 #define ATTN (-2)
 #define QUIT ('\\' & 037)
+
+/*
+ * The cursor keys. A byte would not say which key was pressed and insert mode
+ * has to know, so key_byte() answers one of these -- ATTN's trick of a value
+ * no byte can hold -- and keycmd() turns it back into the command byte.
+ * They must fit in a char: getkey() returns through one.
+ */
+#define KUP    (-3)
+#define KDOWN  (-4)
+#define KLEFT  (-5)
+#define KRIGHT (-6)
+#define KHOME  (-7)
+#define KEND   (-8)
+#define KPGUP  (-9)
+#define KPGDN  (-10)
+#define KDEL   (-11)
+
+#define keynamed(c) ((c) <= KUP)

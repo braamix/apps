@@ -189,12 +189,40 @@ void vresize(void)
  *
  * There are no control characters on this keyboard (Concept.md §3.5): ^C is
  * 'c' with the control modifier set, and this is where the two become one
- * again. The arrows answer ^P, ^N, ^H and space rather than k, j, h and l,
- * because those four work inside insert mode too and hjkl would type
- * themselves.
+ * again. A cursor key answers a sentinel instead of a byte (ex_tune.h), so
+ * that insert mode can tell it from the same character typed.
  */
 int key_byte(Key k)
 {
+    /* A named key means the same thing whatever is held down with it. */
+    switch (k.code) {
+    case KEY_ESCAPE:
+        return (ESCAPE);
+    case KEY_ENTER:
+        return ('\r');
+    case KEY_TAB:
+        return ('\t');
+    case KEY_BACKSPACE:
+        return ('\b');
+    case KEY_DELETE:
+        return (KDEL);
+    case KEY_UP:
+        return (KUP);
+    case KEY_DOWN:
+        return (KDOWN);
+    case KEY_LEFT:
+        return (KLEFT);
+    case KEY_RIGHT:
+        return (KRIGHT);
+    case KEY_HOME:
+        return (KHOME);
+    case KEY_END:
+        return (KEND);
+    case KEY_PAGE_UP:
+        return (KPGUP);
+    case KEY_PAGE_DOWN:
+        return (KPGDN);
+    }
     if (k.mods & MOD_CTRL) {
         /*
          * ^C reaches a program in front of the console as SIG_INT, and
@@ -219,39 +247,41 @@ int key_byte(Key k)
             return (DELETE);
         return (0);
     }
-    switch (k.code) {
-    case KEY_ESCAPE:
-        return (ESCAPE);
-    case KEY_ENTER:
-        return ('\r');
-    case KEY_TAB:
-        return ('\t');
-    case KEY_BACKSPACE:
-        return ('\b');
-    case KEY_DELETE:
-        return ('x'); /* vi has no forward delete */
-    case KEY_UP:
-        return (CTRL('p'));
-    case KEY_DOWN:
-        return (CTRL('n'));
-    case KEY_LEFT:
-        return ('\b');
-    case KEY_RIGHT:
-        return (' ');
-    case KEY_HOME:
-        return ('^');
-    case KEY_END:
-        return ('$');
-    case KEY_PAGE_UP:
-        return (CTRL('b'));
-    case KEY_PAGE_DOWN:
-        return (CTRL('f'));
-    }
     /*
      * ex is a byte editor: TRIM is 0177 throughout and a line is a char
      * array, so a codepoint above ASCII has nowhere to go.
      */
     return (k.code < 0x80 ? (int)k.code : 0);
+}
+
+/*
+ * A cursor key as the command decoder wants it: the arrows answer ^P, ^N, ^H
+ * and space rather than k, j, h and l, so that a :map on them still works.
+ * Anything else is itself.
+ */
+int keycmd(int c)
+{
+    switch (c) {
+    case KUP:
+        return (CTRL('p'));
+    case KDOWN:
+        return (CTRL('n'));
+    case KLEFT:
+        return ('\b');
+    case KRIGHT:
+        return (' ');
+    case KHOME:
+        return ('^');
+    case KEND:
+        return ('$');
+    case KPGUP:
+        return (CTRL('b'));
+    case KPGDN:
+        return (CTRL('f'));
+    case KDEL:
+        return ('x'); /* vi has no forward delete */
+    }
+    return (c);
 }
 
 /*

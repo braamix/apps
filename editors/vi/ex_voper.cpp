@@ -123,7 +123,9 @@ Task<void> operate(int c, int cnt)
      * Get next character, mapping it and saving as
      * part of command for repeat.
      */
-    c = co_await map(co_await getesc(), arrows);
+    /* A cursor key after an operator is its motion, not a cancel. */
+    c = keynamed(co_await peekkey()) ? keycmd(co_await getkey())
+                                     : co_await map(co_await getesc(), arrows);
     if (c == 0)
         co_return;
     if (!subop)

@@ -121,6 +121,7 @@ Task<void> vappend(int ch, int cnt, int indent)
         vmove();
         *gcursor = i;
     }
+again:
     vaifirst = indent == 0;
 
     /*
@@ -353,7 +354,12 @@ Task<void> vappend(int ch, int cnt, int indent)
      * and sync the screen.
      */
     hold = oldhold;
-    if (cursor > linebuf)
+    /*
+     * The caret drops back onto the last character inserted -- unless a
+     * motion is waiting, which starts from where the next character would
+     * have gone.
+     */
+    if (cursor > linebuf && !insmotion)
         cursor--;
     if (state != HARDOPEN)
         vsyncCL();
@@ -362,6 +368,78 @@ Task<void> vappend(int ch, int cnt, int indent)
     doomed  = 0;
     wcursor = cursor;
     vmove();
+
+    /*
+     * A cursor key ended it: move, and open another insertion there. What
+     * follows is vmain's own preamble for an insert command, less the parts
+     * that only a typed one needs.
+     */
+    if (insmotion && co_await vinsmove()) {
+        if (ch != 'R')
+            ch = 'i';
+        cnt    = 1;
+        indent = 0;
+        lastcp = workcmd;
+        /* '.' repeats the resumed insertion, not the command that began it. */
+        *lastcp++ = ch;
+        setLAST();
+        vcursat(cursor);
+        prepapp();
+        vnoapp();
+        doomed = ch == 'R' ? 10000 : 0;
+        if (FIXUNDO)
+            vundkind = VCHNG;
+        vmoving = 0;
+        CP(vutmp, linebuf);
+        oldhold = hold;
+        goto again;
+    }
+}
+
+/*
+ * The motion a cursor key means, between one insertion and the next. The ones
+ * that stay on the line are pointer moves; the ones that need the buffer or
+ * the window are the command they answer. Zero to leave insert mode.
+ */
+Task<exbool> vinsmove(void)
+{
+    int c = insmotion;
+
+    insmotion = 0;
+    switch (c) {
+    case KLEFT:
+        if (cursor > linebuf)
+            cursor--;
+        else
+            obeep();
+        break;
+
+    case KRIGHT:
+        if (*cursor)
+            cursor++;
+        else
+            obeep();
+        break;
+
+    case KHOME:
+        cursor = vskipwh(linebuf);
+        break;
+
+    case KEND:
+        cursor = strend(linebuf);
+        break;
+
+    case KUP:
+    case KDOWN:
+    case KDEL:
+        co_await operate(keycmd(c), 1);
+        break;
+
+    default: /* a page leaves the insertion, as an escape would */
+        ungetkey(keycmd(c));
+        co_return (0);
+    }
+    co_return (1);
 }
 
 /*
@@ -405,6 +483,7 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
      * as not to allow backspace over autoindent.
      */
     *aescaped = 0;
+    insmotion = 0;
     ogcursor  = gcursor;
     flusho();
     CDCNT   = 0;
@@ -433,7 +512,7 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
                 goto vadone;
         }
         c = co_await getkey();
-        if (c != ATTN)
+        if (c >= 0)
             c &= (QUOTE | TRIM);
         ch        = c;
         maphopcnt = 0;
@@ -468,6 +547,32 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
             case ATTN:
             case QUIT:
                 ungetkey(c);
+                goto vadone;
+
+            /*
+             * A cursor key. End the insertion here so that the line is whole
+             * to move around in; vappend does the motion and opens another
+             * insertion where it lands.
+             *
+             * Not in the echo area, where ending it would submit a half
+             * typed command line, and not under r, which takes one character
+             * only. The key travels in insmotion rather than through
+             * ungetkey, so readecho and vmain never see it.
+             */
+            case KUP:
+            case KDOWN:
+            case KLEFT:
+            case KRIGHT:
+            case KHOME:
+            case KEND:
+            case KPGUP:
+            case KPGDN:
+            case KDEL:
+                if (splitw || commch == 'r') {
+                    obeep();
+                    continue;
+                }
+                insmotion = c;
                 goto vadone;
 
             /*
@@ -558,7 +663,7 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
                 x = destcol, y = destline;
                 putchar('^');
                 vgoto(y, x);
-                c = co_await getkey();
+                c = keycmd(co_await getkey()); /* a quoted cursor key is its byte */
                 if (c != NL) {
                     if (doomed >= 0)
                         doomed++;
@@ -587,7 +692,7 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
                 wdkind     = 1;
                 *gcursor++ = c;
                 if (backsl)
-                    *gcursor++ = co_await getkey();
+                    *gcursor++ = keycmd(co_await getkey());
                 *gcursor = 0;
                 /*
                  * Find end of previous word if we are past it.

@@ -126,7 +126,7 @@ Task<void> vmain(void)
          * The call to map allows use of function key pads
          * by performing a terminal dependent mapping of inputs.
          */
-        op        = co_await getkey();
+        op        = keycmd(co_await getkey());
         maphopcnt = 0;
         do {
             /*

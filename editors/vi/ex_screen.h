@@ -133,5 +133,6 @@ void putpad(char *cap);
 void standout(exbool on);
 
 int key_byte(Key k);
+int keycmd(int c);
 Task<Result<void>> vscreen_take(void);
 Task<void> vscreen_give(void);

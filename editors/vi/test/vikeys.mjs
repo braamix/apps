@@ -42,6 +42,15 @@ put("/tmp/f", FILE);
 vi("/tmp/f", ["3", "x"]);
 is("3x", screen(2), "ha\nbeta");
 
+// hjkl, the motions the arrow keys are named after, and a count on each.
+put("/tmp/f", FILE);
+vi("/tmp/f", ["j", "j", "l", "l", "r", "Z"]);
+is("jjll", screen(3), "alpha\nbeta\ngaZma");
+
+put("/tmp/f", FILE);
+vi("/tmp/f", ["3", "j", "2", "l", "k", "h", "r", "Z"]);
+is("3j 2l k h", screen(3), "alpha\nbeta\ngZmma");
+
 // Word motions, and r to prove where the cursor ended up.
 put("/tmp/f", FILE);
 vi("/tmp/f", ["w", "r", "Q"]);
@@ -68,4 +77,4 @@ put("/tmp/f", FILE);
 vi("/tmp/f", ["2", "^C", "d", "d"]);
 is("^C abandons a count", screen(3), "beta\ngamma\ndelta");
 
-ok("the first frame, x, counts, word and arrow motions, ^F and ^C");
+ok("the first frame, x, counts, hjkl, word and arrow motions, ^F and ^C");

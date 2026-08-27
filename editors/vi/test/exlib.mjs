@@ -142,17 +142,21 @@ export function vi(file, keys = []) {
     return screen();
 }
 
-// One key. A string is typed as itself; "^x" is control-x; the named keys go
-// by name. Each is followed by a run, so the editor has answered before the
-// next one arrives.
+// One key. A string is typed as itself; "^x" is control-x and "^LEFT" is a
+// named key with control held; the named keys go by name. Each is followed by
+// a run, so the editor has answered before the next one arrives.
 const NAMED = { ...H_KEY_ALIASES };
 
+const name_of = (k) => NAMED[k] || k;
+
 export function press(k) {
-    const named = NAMED[k] || k;
-    if (k.startsWith("^") && k.length === 2)
+    const ctrl = k.startsWith("^") ? name_of(k.slice(1)) : "";
+    if (ctrl in H.KEY && ctrl)
+        H.press(H.KEY[ctrl], H.CTRL);
+    else if (k.startsWith("^") && k.length === 2)
         H.press(k[1].toLowerCase().codePointAt(0), H.CTRL);
-    else if (named in H.KEY)
-        H.press(H.KEY[named]);
+    else if (name_of(k) in H.KEY)
+        H.press(H.KEY[name_of(k)]);
     else
         H.type(k);
     H.run(clock++);

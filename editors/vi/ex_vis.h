@@ -255,6 +255,13 @@ EXTERN short wdkind;               /* Liberal/conservative words? */
 EXTERN char workcmd[5];            /* Temporary for lastcmd */
 
 /*
+ * A cursor key pressed inside an insertion, for vappend to act on once the
+ * line is whole: it ends the insertion, moves, and opens another where it
+ * landed, which is what keeps the user inside insert mode.
+ */
+EXTERN int insmotion;
+
+/*
  * Macros
  */
 #define INF       30000
@@ -412,6 +419,7 @@ int vdcMID(void);
 void takeout(char *BUF);
 exbool ateopr(void);
 Task<void> vappend(int ch, int cnt, int indent);
+Task<exbool> vinsmove(void);
 void back1(void);
 Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch);
 void vdoappend(char *lp);
