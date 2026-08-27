@@ -114,6 +114,10 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
 
 ## Differences from upstream worth knowing
 
+[Keymap.md](Keymap.md) asks the other question — which of a modern vi user's
+keystrokes work here, which could be made to, and which will not — and the list
+below is what it draws on.
+
 - **`:open` is gone.** Open mode edited one line where it stood, for terminals
   that could not address a cursor; a cell grid always can. The `state !=
   VISUAL` branches are left in place rather than excised — there are forty of
