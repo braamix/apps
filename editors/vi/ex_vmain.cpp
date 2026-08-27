@@ -4,6 +4,8 @@
 #include "ex_screen.h"
 #include "ex_vis.h"
 
+#include "kernel/text.h"
+
 /*
  * This is the main routine for visual.
  * We here decode the count and possible named buffer specification
@@ -511,14 +513,19 @@ Task<void> vmain(void)
          * ~	Switch case of letter under cursor
          */
         case '~': {
-            char mbuf[4];
+            char mbuf[8];
+            int n, r = runeat(cursor, &n);
+            char32_t o = rune_lower((char32_t)r);
+            usize k;
+
             setLAST();
+            /* The other case, if there is one; a whole character either way. */
+            o       = o == (char32_t)r ? rune_upper((char32_t)r) : o;
             mbuf[0] = 'r';
-            mbuf[1] = *cursor;
-            mbuf[2] = cursor[1] == 0 ? 0 : ' ';
-            mbuf[3] = 0;
-            if (isalpha(mbuf[1]))
-                mbuf[1] ^= ' '; /* toggle the case */
+            k       = 1 + utf8_encode(o, mbuf + 1);
+            if (cursor[n] != 0)
+                mbuf[k++] = ' ';
+            mbuf[k] = 0;
             macpush(mbuf, 1);
         }
             continue;

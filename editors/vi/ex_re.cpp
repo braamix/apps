@@ -4,6 +4,8 @@
 #include "ex_screen.h"
 #include "ex_vis.h"
 
+#include "kernel/text.h"
+
 /*
  * Global, substitute and regular expressions.
  * Very similar to ed, with some re extensions and
@@ -265,6 +267,32 @@ Task<int> compsub(int ch)
     }
 }
 
+/* getchar(), a whole codepoint at a time: a pattern is UTF-8 like a line. */
+static int getrune(void)
+{
+    char b[4];
+    char32_t r;
+    int c = getchar();
+    int n, i;
+
+    if (c == EOF || c < 0200)
+        return (c);
+    n = runelen(c);
+    if (n == 1)
+        return (c);
+    b[0] = (char)c;
+    for (i = 1; i < n; i++) {
+        int d = getchar();
+
+        if (d == EOF) {
+            ungetchar(d);
+            return (c);
+        }
+        b[i] = (char)d;
+    }
+    return (utf8_decode(Str(b, (usize)n), 0, r) ? (int)r : c);
+}
+
 void comprhs(int seof)
 {
     int *rp, *orp;
@@ -275,12 +303,12 @@ void comprhs(int seof)
     for (int i = 0; (orhsbuf[i] = rp[i]) != 0; i++)
         continue;
     for (;;) {
-        c = getchar();
+        c = getrune();
         if (c == seof)
             break;
         switch (c) {
         case '\\':
-            c = getchar();
+            c = getrune();
             if (c == EOF) {
                 ungetchar(c);
                 break;
@@ -417,6 +445,8 @@ void dosub(void)
     char *lp, *sp;
     int *rp;
     int c;
+    char b[4];
+    usize k, i;
 
     lp = linebuf;
     sp = genbuf;
@@ -464,13 +494,12 @@ void dosub(void)
                 goto ovflo;
             continue;
         }
-        if (casecnt)
-            *sp++ = fixcase(c & TRIM);
-        else
-            *sp++ = c & TRIM;
-        if (sp >= &genbuf[LBSIZE])
+        k = utf8_encode((char32_t)(casecnt ? fixcase(c & TRIM) : (c & TRIM)), b);
+        if (sp + k >= &genbuf[LBSIZE])
         ovflo:
             THROW(error("Line overflow@in substitute"));
+        for (i = 0; i < k; i++)
+            *sp++ = b[i];
     }
     lp   = loc2;
     loc2 = sp + (linebuf - genbuf);
@@ -485,20 +514,22 @@ int fixcase(int c)
     if (casecnt == 0)
         return (c);
     casecnt--;
-    if (destuc) {
-        if (islower(c))
-            c = toupper(c);
-    } else if (isupper(c))
-        c = tolower(c);
-    return (c);
+    return ((int)(destuc ? rune_upper((char32_t)c) : rune_lower((char32_t)c)));
 }
 
 char *place(char *sp, char *l1, char *l2)
 {
     while (l1 < l2) {
-        *sp++ = fixcase(*l1++);
-        if (sp >= &genbuf[LBSIZE])
+        char b[4];
+        int n, c = runeat(l1, &n);
+        usize k;
+
+        l1 += n;
+        k = utf8_encode((char32_t)fixcase(c), b);
+        if (sp + k >= &genbuf[LBSIZE])
             return (0);
+        for (usize i = 0; i < k; i++)
+            *sp++ = b[i];
     }
     return (sp);
 }
@@ -517,9 +548,9 @@ void snote(int total, int lines)
 exbool compile(int eof, exbool oknl)
 {
     int c;
-    char *ep;
-    char *lastep;
-    char bracket[NBRA], *bracketp;
+    int *ep;
+    int *lastep;
+    int bracket[NBRA], *bracketp;
     int *rhsp;
     int cclcnt;
 
@@ -568,7 +599,7 @@ exbool compile(int eof, exbool oknl)
         if (ep >= &expbuf[ESIZE - 2])
         complex:
             THROWV(0, cerror("Re too complex|Regular expression too complicated"));
-        c = getchar();
+        c = getrune();
         if (c == eof || c == EOF) {
             if (bracketp != bracket)
                 THROWV(0, cerror("Unmatched \\(|More \\('s than \\)'s in regular expression"));
@@ -584,7 +615,7 @@ exbool compile(int eof, exbool oknl)
             lastep = ep;
         switch (c) {
         case '\\':
-            c = getchar();
+            c = getrune();
             switch (c) {
             case '(':
                 if (nbra >= NBRA)
@@ -651,9 +682,9 @@ exbool compile(int eof, exbool oknl)
                     *ep++  = CCL;
                     *ep++  = 0;
                     cclcnt = 1;
-                    c      = getchar();
+                    c      = getrune();
                     if (c == '^') {
-                        c      = getchar();
+                        c      = getrune();
                         ep[-2] = NCCL;
                     }
                     if (c == ']')
@@ -661,14 +692,14 @@ exbool compile(int eof, exbool oknl)
                                          "cannot match"));
                     while (c != ']') {
                         if (c == '\\' && any(peekchar(), "]-^\\"))
-                            c = getchar() | QUOTE;
+                            c = getrune() | QUOTE;
                         if (c == '\n' || c == EOF)
                             THROWV(0, cerror("Missing ]"));
                         *ep++ = c;
                         cclcnt++;
                         if (ep >= &expbuf[ESIZE])
                             goto complex;
-                        c = getchar();
+                        c = getrune();
                     }
                     lastep[1] = cclcnt;
                     continue;
@@ -734,15 +765,15 @@ void cerror(char *s)
 
 exbool same(int a, int b)
 {
-    return (a == b || value(IGNORECASE) &&
-                          ((islower(a) && toupper(a) == b) || (islower(b) && toupper(b) == a)));
+    return (a == b || (value(IGNORECASE) && rune_lower((char32_t)a) == rune_lower((char32_t)b)));
 }
 
 char *locs;
 
 exbool execute(exbool gf, line *addr)
 {
-    char *p1, *p2;
+    char *p1;
+    int *p2;
     int c;
 
     if (gf) {
@@ -765,14 +796,15 @@ exbool execute(exbool gf, line *addr)
     if (*p2 == CCHR) {
         c = p2[1];
         do {
-            if (c != *p1 && (!value(IGNORECASE) || !((islower(c) && toupper(c) == *p1) ||
-                                                     (islower(*p1) && toupper(*p1) == c))))
+            int n;
+
+            if (!same(c, runeat(p1, &n)))
                 continue;
             if (advance(p1, p2)) {
                 loc1 = p1;
                 return (1);
             }
-        } while (*p1++);
+        } while (*p1 && (p1 = nextchar(p1)));
         return (0);
     }
     /* regular algorithm */
@@ -781,17 +813,17 @@ exbool execute(exbool gf, line *addr)
             loc1 = p1;
             return (1);
         }
-    } while (*p1++);
+    } while (*p1 && (p1 = nextchar(p1)));
     return (0);
 }
 
-#define uletter(c) (isalpha(c) || c == '_')
+#define uletter(c) rune_word(c)
 
-exbool advance(char *lp, char *ep)
+exbool advance(char *lp, int *ep)
 {
     char *curlp;
     char *sp, *sp1;
-    int c;
+    int c, n;
 
     for (;;)
         switch (*ep++) {
@@ -809,14 +841,17 @@ exbool advance(char *lp, char *ep)
                                     continue;
                             }
             */
-            if (!same(*ep, *lp))
+            if (!same(*ep, runeat(lp, &n)))
                 return (0);
-            ep++, lp++;
+            ep++, lp += n;
             continue;
 
         case CDOT:
-            if (*lp++)
+            if (*lp) {
+                ignore(runeat(lp, &n));
+                lp += n;
                 continue;
+            }
             return (0);
 
         case CDOL:
@@ -829,14 +864,16 @@ exbool advance(char *lp, char *ep)
             return (1);
 
         case CCL:
-            if (cclass(ep, *lp++, 1)) {
+            c = runeat(lp, &n), lp += n;
+            if (cclass(ep, c, 1)) {
                 ep += *ep;
                 continue;
             }
             return (0);
 
         case NCCL:
-            if (cclass(ep, *lp++, 0)) {
+            c = runeat(lp, &n), lp += n;
+            if (cclass(ep, c, 0)) {
                 ep += *ep;
                 continue;
             }
@@ -852,14 +889,17 @@ exbool advance(char *lp, char *ep)
 
         case CDOT | STAR:
             curlp = lp;
-            while (*lp++)
-                continue;
+            while (*lp) {
+                ignore(runeat(lp, &n));
+                lp += n;
+            }
+            lp++; /* the overshoot star: gives back */
             goto star;
 
         case CCHR | STAR:
             curlp = lp;
-            while (same(*lp, *ep))
-                lp++;
+            while (same(*ep, runeat(lp, &n)))
+                lp += n;
             lp++;
             ep++;
             goto star;
@@ -867,13 +907,14 @@ exbool advance(char *lp, char *ep)
         case CCL | STAR:
         case NCCL | STAR:
             curlp = lp;
-            while (cclass(ep, *lp++, ep[-1] == (CCL | STAR)))
-                continue;
+            do {
+                c = runeat(lp, &n), lp += n ? n : 1;
+            } while (cclass(ep, c, ep[-1] == (CCL | STAR)));
             ep += *ep;
             goto star;
         star:
             do {
-                lp--;
+                lp = lp > curlp ? prevchar(curlp, lp) : lp - 1;
                 if (lp == locs)
                     break;
                 if (advance(lp, ep))
@@ -882,14 +923,18 @@ exbool advance(char *lp, char *ep)
             return (0);
 
         case CBRC:
-            if (lp == expbuf)
+            if (lp == linebuf) /* upstream wrote expbuf, and meant this */
                 continue;
-            if ((isdigit(*lp) || uletter(*lp)) && !uletter(lp[-1]) && !isdigit(lp[-1]))
-                continue;
+            {
+                int prev = runeat(prevchar(linebuf, lp), &n);
+
+                if (uletter(runeat(lp, &n)) && !uletter(prev))
+                    continue;
+            }
             return (0);
 
         case CLET:
-            if (!uletter(*lp) && !isdigit(*lp))
+            if (!uletter(runeat(lp, &n)))
                 continue;
             return (0);
 
@@ -898,17 +943,17 @@ exbool advance(char *lp, char *ep)
         }
 }
 
-exbool cclass(char *set, int c, exbool af)
+exbool cclass(int *set, int c, exbool af)
 {
     int n;
 
     if (c == 0)
         return (0);
-    if (value(IGNORECASE) && isupper(c))
-        c = tolower(c);
+    if (value(IGNORECASE))
+        c = (int)rune_lower((char32_t)c);
     n = *set++;
     while (--n)
-        if (n > 2 && set[1] == '-') {
+        if (n > 2 && (set[1] & TRIM) == '-' && !(set[1] & QUOTE)) {
             if (c >= (set[0] & TRIM) && c <= (set[2] & TRIM))
                 return (af);
             set += 3;

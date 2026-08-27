@@ -473,8 +473,8 @@ exbool compile(int eof, exbool oknl);
 exbool same(int a, int b);
 void cerror(char *s);
 exbool execute(exbool gf, line *addr = 0);
-exbool advance(char *lp, char *ep);
-exbool cclass(char *set, int c, exbool af);
+exbool advance(char *lp, int *ep);
+exbool cclass(int *set, int c, exbool af);
 
 /* ------------------------------------------------------------- ex_set.cpp */
 void set(void);
@@ -492,6 +492,9 @@ int column(char *cp);
 /* UTF-8 stepping; see ex_subr.cpp. */
 int runeat(char *cp, int *len);
 int runelen(int lead);
+exbool rune_space(int c);
+exbool rune_word(int c);
+int runeof(char *cp);
 char *nextchar(char *cp);
 char *prevchar(char *base, char *cp);
 char *vstep(char *cp, int dir);

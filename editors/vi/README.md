@@ -138,14 +138,27 @@ below is what it draws on.
   There is no `wcwidth` anywhere in Braam, so one codepoint is one cell here as
   it is in every other program.
 
-  Three things are still ASCII, and are limitations rather than bugs: the
-  regular expression engine matches a byte at a time, so `.` is one byte and
-  `[а-я]` is not a range — a *literal* pattern still matches, because its
-  UTF-8 bytes match themselves; `~`, `\u` and `\U` case-convert ASCII only,
-  though `rune_lower`/`rune_upper` are there in `kernel/text.h` for whoever
-  wants them; and `w`, `e` and `b` keep upstream's `wordch()`, so a Cyrillic
-  run reads as punctuation to them. [test/viutf8.mjs](test/viutf8.mjs) pins all
-  three, so they stay deliberate.
+  The regular expressions came with it. `Expbuf` holds codepoints rather than
+  bytes, the way `vtube` and `rhsbuf` do, so `.` matches one character,
+  `[а-я]` is a range and a class member can be multi-byte; `compile()` reads
+  through a `getrune()` because `getchar()` hands back bytes. `advance()`'s
+  greedy scanners and the `star:` backtrack step characters together — they
+  have to, since the scanners overshoot by one for the backtrack to give back.
+  Case is `rune_lower`/`rune_upper` from `kernel/text.h` throughout: `~`,
+  `ignorecase`, and `\u` `\U` in a `:s` replacement, which used to spend their
+  one conversion on a lead byte.
+
+  `w`, `e`, `b` and the `\<` `\>` boundaries share one predicate, `rune_word`
+  in [ex_subr.cpp](ex_subr.cpp) — they must not disagree about where a word
+  ends. Above ASCII there are no tables to consult, so the rule is by
+  exclusion: not a blank and not punctuation is a letter, with four ranges for
+  the punctuation (Latin-1 symbols, General Punctuation, the CJK forms). That
+  makes Cyrillic, Greek, CJK, Arabic and Hebrew word characters and leaves a
+  dash, a guillemet or a CJK comma as punctuation, which is what stops `w`.
+
+  One thing is still byte-wise, and is obscure enough to leave: a `:s`
+  delimiter above ASCII is compared on its lead byte, so `:s§a§b§` does not
+  work. Use a delimiter from ASCII, which is every delimiter anyone uses.
 - **The screen image holds codepoints.** `vtube` was one byte per cell and is
   one `int`, which is what lets a cell carry a character and the `QUOTE` tag
   that marks the inside of an expanded tab. It costs 256 KiB of the 16 MB

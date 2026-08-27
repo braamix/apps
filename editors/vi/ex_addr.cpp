@@ -186,7 +186,7 @@ line *address(char *incurs)
                 if (c == '/') {
                     while (loc1 <= incurs) {
                         if (loc1 == loc2)
-                            loc2++;
+                            loc2 = nextchar(loc2);
                         if (!execute(1))
                             goto nope;
                     }
@@ -198,7 +198,7 @@ line *address(char *incurs)
                     do {
                         last = loc1;
                         if (loc1 == loc2)
-                            loc2++;
+                            loc2 = nextchar(loc2);
                         if (!execute(1))
                             break;
                     } while (loc1 < incurs);

@@ -4,7 +4,7 @@
 #include "ex_screen.h"
 #include "ex_vis.h"
 
-#define blank() isspace(wcursor[0])
+#define blank() rune_space(runeof(wcursor))
 #define forbid(a) \
     if (a)        \
         goto errlab;
@@ -660,7 +660,7 @@ nocount:
             if (addr != dot || loc1 != cursor)
                 markDOT();
             if (loc1 > linebuf && *loc1 == 0)
-                loc1--;
+                loc1 = prevchar(linebuf, loc1);
             if (c)
                 vjumpto(addr, loc1, c);
             else {
@@ -784,7 +784,7 @@ void eend(Vopf op)
  */
 exbool wordof(int which, char *wc)
 {
-    if (isspace(*wc))
+    if (rune_space(runeof(wc)))
         return (0);
     return (!wdkind || wordch(wc) == which);
 }
@@ -795,10 +795,7 @@ exbool wordof(int which, char *wc)
  */
 int wordch(char *wc)
 {
-    int c;
-
-    c = wc[0];
-    return (isalpha(c) || isdigit(c) || c == '_');
+    return (rune_word(runeof(wc)));
 }
 
 /*

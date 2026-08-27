@@ -32,6 +32,14 @@ int runeat(char *cp, int *len)
     return ((int)r);
 }
 
+/* The codepoint at cp, for a caller with no use for its length. */
+int runeof(char *cp)
+{
+    int n;
+
+    return (runeat(cp, &n));
+}
+
 /* Bytes the sequence this lead byte opens should have; 1 if it opens none. */
 int runelen(int lead)
 {
@@ -56,6 +64,40 @@ char *nextchar(char *cp)
         return (cp);
     ignore(runeat(cp, &n));
     return (cp + n);
+}
+
+/*
+ * Blank, and word character, over the whole range.
+ *
+ * Above ASCII there are no tables to consult, so the rule is by exclusion:
+ * anything that is not a blank and not punctuation is a letter. Four ranges
+ * cover what text actually contains -- Latin-1 punctuation and symbols,
+ * General Punctuation, and the CJK forms -- and Cyrillic, Greek, CJK, Arabic
+ * and Hebrew all come out as word characters.
+ */
+exbool rune_space(int c)
+{
+    if (c < 0200)
+        return (isspace(c));
+    return (c == 0xa0 || (c >= 0x2000 && c <= 0x200a) || c == 0x2028 || c == 0x2029 ||
+            c == 0x202f || c == 0x205f || c == 0x3000);
+}
+
+exbool rune_word(int c)
+{
+    if (c < 0200)
+        return (isalpha(c) || isdigit(c) || c == '_');
+    if (rune_space(c))
+        return (0);
+    if (c >= 0xa0 && c <= 0xbf)
+        return (0);
+    if (c == 0xd7 || c == 0xf7)
+        return (0);
+    if (c >= 0x2000 && c <= 0x206f)
+        return (0);
+    if (c >= 0x3000 && c <= 0x303f)
+        return (0);
+    return (1);
 }
 
 /* One character along linebuf, in either direction; off the front is allowed. */

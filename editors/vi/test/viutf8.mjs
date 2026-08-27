@@ -93,18 +93,84 @@ H.store.files.set("/tmp/f", new Uint8Array([0x61, 0xd0, 0x62, 0x0a]));
 vi("/tmp/f", []);
 is("a truncated sequence", screen(1), "a�b");
 
-/* ------------------------------------------------ the limitations */
+/* ------------------------------------------- regexps, by character */
 
-// Stated in README.md, and pinned here so they stay deliberate: the regex
-// engine is byte-at-a-time, so . is one byte and does not match a character.
 quitvi(); /* ex cannot be submitted while visual holds the screen */
-put("/tmp/f", RU + "\n");
-is("a literal pattern matches", ex("/tmp/f", "/привет/p\n"),
-   `"/tmp/f" 1 line, 20 characters\n${RU}\n`);
 
+// The engine matches codepoints now: . is one character, not one byte.
 put("/tmp/f", RU + "\n");
 ex("/tmp/f", "1s/п.ивет/X/\nw\n");
-is(". does not match a character", get("/tmp/f"), RU + "\n");
+is(". matches one character", get("/tmp/f"), "X мир\n");
+
+// A range over Cyrillic, which needs the class members to be codepoints.
+put("/tmp/f", "аaбbяzА\n");
+ex("/tmp/f", "1s/[а-я]//g\nw\n");
+is("a Cyrillic range", get("/tmp/f"), "abzА\n");
+
+// A class with multi-byte members, and its negation.
+put("/tmp/f", "белка\n");
+ex("/tmp/f", "1s/[её]/X/g\nw\n");
+is("a class of Cyrillic members", get("/tmp/f"), "бXлка\n");
+
+put("/tmp/f", "aбvгd\n");
+ex("/tmp/f", "1s/[^a-z]//g\nw\n");
+is("a negated class skips whole characters", get("/tmp/f"), "avd\n");
+
+// An escaped - is a member, not a range. This is the case that catches
+// QUOTE being truncated away when a class member is stored.
+put("/tmp/f", "a-z m\n");
+ex("/tmp/f", "1s/[a\\-z]//g\nw\n");
+is("[a\\-z] is three members", get("/tmp/f"), " m\n");
+
+// * over a multi-byte character, and the backtracking that gives characters
+// back one at a time -- which is where a byte-wise lp-- would land mid-rune.
+put("/tmp/f", "поооле\n");
+ex("/tmp/f", "1s/по*/X/\nw\n");
+is("* over a Cyrillic character", get("/tmp/f"), "Xле\n");
+
+put("/tmp/f", "аbвгяd\n");
+ex("/tmp/f", "1s/^.*я/X/\nw\n");
+is("greedy .* backtracks by character", get("/tmp/f"), "Xd\n");
+
+// Word boundaries agree with w/e/b: a Cyrillic run is one word.
+put("/tmp/f", "мир мирный\n");
+ex("/tmp/f", "1s/\\<мир\\>/X/\nw\n");
+is("\\< \\> on a Cyrillic word", get("/tmp/f"), "X мирный\n");
+
+// ignorecase folds Cyrillic, through rune_lower.
+put("/tmp/f", RU + "\n");
+is("ignorecase over Cyrillic", ex("/tmp/f", "se ic\n/ПРИВЕТ/p\n"),
+   `"/tmp/f" 1 line, 20 characters\n${RU}\n`);
+
+// \u and \U convert a whole character, not its lead byte.
+put("/tmp/f", RU + "\n");
+ex("/tmp/f", "1s/привет/\\u&/\nw\n");
+is("\\u on a Cyrillic character", get("/tmp/f"), "Привет мир\n");
+
+put("/tmp/f", RU + "\n");
+ex("/tmp/f", "1s/.*/\\U&/\nw\n");
+is("\\U over a Cyrillic line", get("/tmp/f"), "ПРИВЕТ МИР\n");
+
+/* --------------------------------------------------- ~ and w e b */
+
+edit(["~"], "Привет мир", "~ toggles a Cyrillic letter");
+edit(["~", "~"], "ПРивет мир", "~ steps on, as vi's does");
+edit(["~", "h", "~"], "привет мир", "and toggles back");
+edit(["l", "l", "~"], "прИвет мир", "~ in the middle");
+
+// A Cyrillic run is a word, so w crosses it and dw takes it whole.
+edit(["d", "w"], "мир", "dw takes the Cyrillic word");
+edit(["w", "x"], "привет ир", "w lands on the next word");
+
+// Punctuation above ASCII is not a word character: the dash stops w.
+function edit2(keys, want, what) {
+    put("/tmp/f", "привет — да\n");
+    vi("/tmp/f", keys);
+    is(what, screen(1), want);
+}
+edit2(["w", "x"], "привет  да", "w stops at the em dash");
+edit2(["w", "w", "x"], "привет — а", "and passes it");
+edit2(["$", "b", "b", "x"], "привет  да", "b comes back to it");
 
 quitvi();
-ok("round trip, display, x/X/r/backspace, typing, U+FFFD and the limits");
+ok("round trip, display, editing, typing, regexps by character, ~ and w e b");

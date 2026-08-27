@@ -12,7 +12,7 @@
 #pragma once
 
 struct regexp {
-    char Expbuf[ESIZE + 2];
+    int Expbuf[ESIZE + 2]; /* opcodes and codepoints; QUOTE marks an escape */
     exbool Circfl;
     short Nbra;
 };

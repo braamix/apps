@@ -70,8 +70,9 @@ int getach(void)
         return (c);
     }
     if (globp) {
+        /* A byte over 0177 is a byte, not a negative one. */
         if (*globp)
-            return (*globp++);
+            return ((unsigned char)*globp++);
         globp = 0;
         return (lastc = EOF);
     }
