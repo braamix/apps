@@ -5,6 +5,77 @@
 #include "ex_screen.h"
 #include "ex_vis.h"
 
+#include "kernel/text.h"
+
+/*
+ * UTF-8, one codepoint at a time.
+ *
+ * A line stays a char array of UTF-8 bytes -- the SDK's own TextBuf keeps text
+ * that way -- and only the stepping knows about codepoints. A malformed
+ * sequence decodes to U+FFFD and advances one byte, so bad input is visible
+ * and never swallows the rest of the line.
+ */
+int runeat(char *cp, int *len)
+{
+    char32_t r;
+    usize used;
+    int n = 0;
+
+    while (n < 4 && cp[n])
+        n++;
+    if (n == 0) {
+        *len = 0;
+        return (0);
+    }
+    used = utf8_decode(Str(cp, (usize)n), 0, r);
+    *len = used ? (int)used : 1;
+    return ((int)r);
+}
+
+/* Bytes the sequence this lead byte opens should have; 1 if it opens none. */
+int runelen(int lead)
+{
+    unsigned char b = (unsigned char)lead;
+
+    if (b < 0200)
+        return (1);
+    if ((b & 0340) == 0300)
+        return (2);
+    if ((b & 0360) == 0340)
+        return (3);
+    if ((b & 0370) == 0360)
+        return (4);
+    return (1);
+}
+
+char *nextchar(char *cp)
+{
+    int n;
+
+    if (*cp == 0)
+        return (cp);
+    ignore(runeat(cp, &n));
+    return (cp + n);
+}
+
+/* One character along linebuf, in either direction; off the front is allowed. */
+char *vstep(char *cp, int dir)
+{
+    if (dir > 0)
+        return (nextchar(cp));
+    return (cp > linebuf ? prevchar(linebuf, cp) : cp - 1);
+}
+
+char *prevchar(char *base, char *cp)
+{
+    if (cp <= base)
+        return (base);
+    cp--;
+    while (cp > base && ((unsigned char)*cp & 0300) == 0200)
+        cp--;
+    return (cp);
+}
+
 /*
  * Random routines, in alphabetical order.
  */
@@ -407,8 +478,12 @@ int qcolumn(char *lim, char *gp)
     if (lim != NULL)
         lim[1] = x;
     if (gp)
-        while (*gp)
-            putchar(*gp++);
+        while (*gp) {
+            int n, c = runeat(gp, &n);
+
+            putchar(c);
+            gp += n;
+        }
     Outchar = OO;
     return (vcntcol);
 }
@@ -563,10 +638,14 @@ char *vfindcol(int i)
 
     Outchar = qcount;
     ignore(qcolumn(linebuf - 1, NOSTR));
-    for (cp = linebuf; *cp && vcntcol < i; cp++)
-        putchar(*cp);
+    for (cp = linebuf; *cp && vcntcol < i;) {
+        int n, c = runeat(cp, &n);
+
+        putchar(c);
+        cp += n;
+    }
     if (cp != linebuf)
-        cp--;
+        cp = prevchar(linebuf, cp);
     Outchar = OO;
     return (cp);
 }

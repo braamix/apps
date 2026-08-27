@@ -251,14 +251,14 @@ EXTERN char *vglobp;               /* Untyped input (e.g. repeat insert text) */
  * (ex_tune.h) and so is a UTF-8 byte read through a signed char, so the two
  * would alias in a char buffer.
  */
-EXTERN int vmacbuf[VBSIZE];        /* Text of visual macro, hence nonnestable */
-EXTERN int *vmacp;                 /* Like vglobp but for visual macros */
-EXTERN char *vmcurs;               /* Cursor for restore after undo d), e.g. */
-EXTERN short vmovcol;              /* Column to try to keep on arrow keys */
-EXTERN exbool vmoving;             /* Are trying to keep vmovcol */
-EXTERN char vreg;                  /* Register for this command */
-EXTERN short wdkind;               /* Liberal/conservative words? */
-EXTERN char workcmd[5];            /* Temporary for lastcmd */
+EXTERN int vmacbuf[VBSIZE]; /* Text of visual macro, hence nonnestable */
+EXTERN int *vmacp;          /* Like vglobp but for visual macros */
+EXTERN char *vmcurs;        /* Cursor for restore after undo d), e.g. */
+EXTERN short vmovcol;       /* Column to try to keep on arrow keys */
+EXTERN exbool vmoving;      /* Are trying to keep vmovcol */
+EXTERN char vreg;           /* Register for this command */
+EXTERN short wdkind;        /* Liberal/conservative words? */
+EXTERN char workcmd[5];     /* Temporary for lastcmd */
 
 /*
  * A cursor key, or a backspace that ran past the start, pressed inside an

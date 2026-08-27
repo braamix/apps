@@ -365,7 +365,7 @@ Task<void> vdelete(int c)
     setDEL();
     CP(cp, wcursor);
     if (cp > linebuf && (cp[0] == 0 || c == '#'))
-        cp--;
+        cp = prevchar(linebuf, cp);
     if (state == HARDOPEN) {
         bleep(i, cp);
         cursor = cp;
@@ -824,13 +824,17 @@ void vshift(void)
  */
 Task<void> vrep(int cnt)
 {
-    int i, c;
+    int i, c, n;
+    char *ep = cursor;
 
-    if (cnt > strlen(cursor)) {
+    /* cnt characters, which is not cnt bytes. */
+    for (n = cnt; n > 0 && *ep; n--)
+        ep = nextchar(ep);
+    if (n > 0) {
         obeep();
         co_return;
     }
-    i = column(cursor + cnt - 1);
+    i = column(ep - 1);
     vcursat(cursor);
     doomed = i - cindent();
     if (!vglobp) {
@@ -844,7 +848,7 @@ Task<void> vrep(int cnt)
     CP(vutmp, linebuf);
     if (FIXUNDO)
         vundkind = VCHNG;
-    wcursor = cursor + cnt;
+    wcursor = ep;
     vUD1    = cursor;
     vUD2    = wcursor;
     CP(cursor, wcursor);

@@ -383,9 +383,9 @@ nocount:
     case ' ':
         forbid(margin() || opf == op_move && edge());
         while (cnt > 0 && !margin())
-            wcursor += dir, cnt--;
+            wcursor = vstep(wcursor, dir), cnt--;
         if (margin() && opf == op_move || wcursor < linebuf)
-            wcursor -= dir;
+            wcursor = vstep(wcursor, -dir);
         vmoving = 0;
         break;
 
@@ -411,7 +411,7 @@ nocount:
             goto errlab;
         co_await vmacchng(1);
         while (cnt > 0 && !margin())
-            wcursor += dir, cnt--;
+            wcursor = vstep(wcursor, dir), cnt--;
         opf     = deleteop;
         vmoving = 0;
         break;
@@ -809,7 +809,7 @@ exbool edge(void)
     if (linebuf[0] == 0)
         return (1);
     if (dir == 1)
-        return (wcursor[1] == 0);
+        return (*nextchar(wcursor) == 0);
     else
         return (wcursor == linebuf);
 }

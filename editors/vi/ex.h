@@ -488,6 +488,13 @@ exbool any(int c, char *s);
 int backtab(int i);
 void change(void);
 int column(char *cp);
+
+/* UTF-8 stepping; see ex_subr.cpp. */
+int runeat(char *cp, int *len);
+int runelen(int lead);
+char *nextchar(char *cp);
+char *prevchar(char *base, char *cp);
+char *vstep(char *cp, int dir);
 void comment(void);
 /*
  * Note the order. Upstream wrote `Copy(to, from, size)` and then declared

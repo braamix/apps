@@ -327,12 +327,12 @@ exbool lnext(void)
 {
     if (dir > 0) {
         if (*wcursor)
-            wcursor++;
+            wcursor = nextchar(wcursor);
         if (*wcursor)
             return (1);
         if (wdot >= llimit) {
             if (lf == (void *)op_move && wcursor > linebuf)
-                wcursor--;
+                wcursor = prevchar(linebuf, wcursor);
             return (0);
         }
         wdot++;
@@ -340,7 +340,7 @@ exbool lnext(void)
         wcursor = linebuf;
         return (1);
     } else {
-        --wcursor;
+        wcursor = wcursor > linebuf ? prevchar(linebuf, wcursor) : wcursor - 1;
         if (wcursor >= linebuf)
             return (1);
         if (wdot <= llimit) {

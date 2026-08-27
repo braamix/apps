@@ -4,6 +4,8 @@
 #include "ex_screen.h"
 #include "ex_vis.h"
 
+#include "kernel/text.h"
+
 /*
  * Input routines for open/visual.
  * We handle upper case only terminals in visual and reading from the
@@ -46,6 +48,10 @@ Task<int> peekbr(void)
 
 short precbksl;
 
+/* The tail of a multi-byte key, waiting to be read one byte at a time. */
+static int keyq[4];
+static int keyqn;
+
 /*
  * Get a keystroke, including a ^@.
  * If an key was returned with ungetkey, that
@@ -87,6 +93,17 @@ getATTN:
         inopen  = 1; /* restore old setting now that macro done */
         vch_mac = VC_NOTINMAC;
     }
+    /*
+     * The tail of a UTF-8 sequence key_byte() handed over whole. Below the
+     * pushbacks, because it is keyboard input and they come first.
+     */
+    if (keyqn) {
+        c = keyq[0];
+        for (int i = 1; i < keyqn; i++)
+            keyq[i - 1] = keyq[i];
+        keyqn--;
+        co_return (c);
+    }
     /* The frame: the editor stops here, so the screen must be right here. */
     co_await vflush();
 
@@ -111,6 +128,15 @@ again: {
     c = key_byte(res_of(r));
     if (c == 0)
         goto again;
+    /* A codepoint arrives whole; the line takes it a UTF-8 byte at a time. */
+    if (c >= 0x80) {
+        char b[4];
+        usize n = utf8_encode((char32_t)c, b);
+
+        for (usize i = 1; i < n; i++)
+            keyq[keyqn++] = (unsigned char)b[i];
+        c = (unsigned char)b[0];
+    }
 }
 
     lastvgk = 0;

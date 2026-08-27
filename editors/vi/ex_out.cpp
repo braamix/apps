@@ -31,6 +31,8 @@
 #include "ex.h"
 #include "ex_screen.h"
 #include "ex_vis.h"
+
+#include "kernel/text.h"
 #include "kernel/alloc.h"
 
 /*
@@ -141,8 +143,12 @@ int normline(int i)
     (void)i;
     if (shudclob)
         slobber(linebuf[0]);
-    for (cp = linebuf; *cp;)
-        putchar(*cp++);
+    for (cp = linebuf; *cp;) {
+        int n, c = runeat(cp, &n);
+
+        putchar(c);
+        cp += n;
+    }
     if (!inopen)
         putchar('\n' | QUOTE);
     return (0);
@@ -260,7 +266,6 @@ int putchar(int c)
  */
 int termchar(int c)
 {
-    c &= 0177;
     switch (c) {
     case '\n':
         destline++;
@@ -339,7 +344,15 @@ int putch(int c)
         return (0);
     if (oblen == obcap && !obgrow(oblen + 1))
         return (0);
-    obuf[oblen++] = c & 0177;
+    {
+        char b[4];
+        usize n = utf8_encode((char32_t)(c & TRIM), b);
+
+        if (oblen + n > obcap && !obgrow(oblen + n))
+            return (0);
+        for (usize i = 0; i < n; i++)
+            obuf[oblen++] = b[i];
+    }
     return (0);
 }
 

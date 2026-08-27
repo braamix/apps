@@ -422,7 +422,7 @@ Task<exbool> vinsmove(void)
      * margin() beeps where an append leaves the cursor -- on the terminator.
      */
     case CTRL('h'): {
-        int at = cursor - linebuf - 1;
+        int at = prevchar(linebuf, cursor) - linebuf;
 
         /* At column 0 the character before the cursor is the line break. */
         if (cursor == linebuf) {
@@ -446,7 +446,7 @@ Task<exbool> vinsmove(void)
             break;
         }
         wdot    = NOLINE;
-        wcursor = cursor - 1;
+        wcursor = prevchar(linebuf, cursor);
         co_await vmacchng(1);
         co_await vdelete(0);
         cursor  = linebuf + at; /* vdelete leaves it on a character */
@@ -519,6 +519,7 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
     int c, ch;
     char *cp;
     int x, y, iwhite, backsl = 0;
+    exbool partial = 0; /* mid-character: the rest of a UTF-8 sequence is due */
     char *iglobp;
     char cstr[2];
     OutcharFn OO = Outchar;
@@ -553,7 +554,8 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
         backsl = 0;
         if (gobblebl)
             gobblebl--;
-        if (cnt != 0) {
+        /* For r: cnt is characters, and a character is several keys. */
+        if (cnt != 0 && !partial) {
             cnt--;
             if (cnt == 0)
                 goto vadone;
@@ -631,8 +633,8 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
              */
             case CTRL('h'):
             bakchar:
-                cp = gcursor - 1;
-                if (cp < ogcursor) {
+                cp = prevchar(genbuf, gcursor);
+                if (gcursor <= ogcursor) {
                     if (splitw) {
                         /*
                          * Backspacing over readecho
@@ -930,13 +932,25 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
                 continue;
             }
         def:
-            if (!backsl) {
-                putchar(c);
-                flush();
-            }
             if (gcursor > &genbuf[LBSIZE - 2])
                 COTHROWV(0, error("Line too long"));
             *gcursor++ = c & TRIM;
+            /*
+             * A key arrives as its UTF-8 bytes, one at a time; the echo is of
+             * the character, so it waits until the last byte of one.
+             */
+            {
+                char *sp = prevchar(genbuf, gcursor);
+                int n, r;
+
+                *gcursor = 0;
+                r        = runeat(sp, &n);
+                partial  = sp + runelen(*sp) != gcursor;
+                if (!backsl && !partial) {
+                    putchar(r);
+                    flush();
+                }
+            }
             vcsync();
             if (value(SHOWMATCH) && !iglobp)
                 if (c == ')' || c == '}')

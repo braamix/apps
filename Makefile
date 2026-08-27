@@ -71,6 +71,7 @@ test: all
 	@node editors/vi/test/viinsert.mjs
 	@node editors/vi/test/vikeypad.mjs
 	@node editors/vi/test/viresize.mjs
+	@node editors/vi/test/viutf8.mjs
 	@node converters/iconv/test/smoke.mjs
 	@node converters/iconv/test/convert.mjs
 	@node converters/iconv/test/errors.mjs

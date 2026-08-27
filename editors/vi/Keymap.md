@@ -172,6 +172,9 @@ the crypt mode. `-l` was never in 3.6.
 - Backspace erases past the start of an insertion, into the autoindent, the
   line and the break before it — vim's `backspace=indent,eol,start`.
 - Home is `0`, column zero, where upstream's termcap mapping had no opinion.
+- UTF-8: text loads, displays and saves unharmed, a non-ASCII key inserts, and
+  `h` `l` `x` `X` `r` and Backspace move and edit a whole character. Not the
+  regexps, `~`, or `w` `e` `b`, which stay ASCII.
 - `-- INSERT --` on the echo line, which is vim's habit and not vi's.
 - Colour: cyan echo line, blue `~`.
 - Esc is a key with a code of its own, distinct from the byte `033`.
@@ -246,9 +249,12 @@ there is no temp file: the buffer is memory. A crash takes the session with it.
 sleep is a syscall, the pause happens inside insert mode, and insert mode cannot
 await one. The match is still checked, and an unmatched one is still refused.
 
-**Anything above ASCII, so UTF-8** — `TRIM` is `0177` and a line is a `char`
-array, throughout: the buffer, `vtube`, the regular expressions, the column
-arithmetic. That is a different editor's data model, not a patch.
+**Unicode regular expressions** — UTF-8 itself is here (§1), but the matcher
+still walks a byte at a time, so `.` is one byte and `[а-я]` is not a range. A
+literal pattern matches, because its bytes match themselves. `~` and `\U` are
+ASCII for the same reason, and `w` `e` `b` classify by upstream's `wordch()`.
+Widening the matcher means widening `expbuf`, which is an opcode stream with
+literal bytes in it — a bigger change than the buffer was.
 
 **`:e *.c`** — the glob is the shell's and it ran before ex started. Upstream
 forked a shell of its own to expand argument words; there is no `fork`. `%`,

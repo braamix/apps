@@ -47,7 +47,7 @@ EXTERN struct regexp subre;  /* Last substitute re */
  */
 EXTERN char *braslist[NBRA]; /* Starts of \(\)'ed text in lhs */
 EXTERN char *braelist[NBRA]; /* Ends... */
-EXTERN int rhsbuf[RHSSIZE]; /* Rhs of last substitute; QUOTE marks an escape */
+EXTERN int rhsbuf[RHSSIZE];  /* Rhs of last substitute; QUOTE marks an escape */
 
 /*
  * Definitions of codes for the compiled re's.

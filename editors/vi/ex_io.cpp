@@ -24,7 +24,7 @@ short isalt;
 long cntch;   /* Count of characters on unit io */
 short cntln;  /* Count of lines " */
 long cntnull; /* Count of nulls " */
-long cntodd;  /* Count of non-ascii characters " */
+long cntodd;  /* Count of malformed UTF-8 sequences " */
 
 /*
  * Parse file name for command encoded by comm.
@@ -493,20 +493,22 @@ Task<int> getfile(void)
         if (lp >= &linebuf[LBSIZE]) {
             COTHROWV(0, error(" Line too long"));
         }
-        c = *fp++;
+        c = (unsigned char)*fp++;
         if (c == 0) {
             cntnull++;
             continue;
         }
-        if (c & QUOTE) {
-            cntodd++;
-            c &= TRIM;
-            if (c == 0)
-                continue;
-        }
         *lp++ = c;
     } while (c != '\n');
-    *--lp  = 0;
+    *--lp = 0;
+    /* Not "non-ASCII" any more: a line is UTF-8, and this is what is not. */
+    for (char *p = linebuf; *p;) {
+        int n, r = runeat(p, &n);
+
+        if (r == 0xfffd)
+            cntodd++;
+        p += n;
+    }
     nextip = fp;
     cntln++;
     co_return (0);
@@ -660,7 +662,7 @@ Task<int> iostats(void)
                     printf(", ");
             }
             if (cntodd)
-                printf("%ld non-ASCII", cntodd);
+                printf("%ld malformed", cntodd);
             putchar(')');
         }
         noonl();

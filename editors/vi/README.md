@@ -125,8 +125,37 @@ below is what it draws on.
 - **`showmatch` does not pause.** Upstream slept a second on the matching
   bracket. A sleep is a syscall and the pause happens inside insert mode, where
   nothing can await; the match is still checked, and an unmatched one beeps.
-- **A character above ASCII is dropped.** ex is a byte editor: `TRIM` is 0177
-  throughout and a line is a `char` array.
+- **UTF-8, and the editing is by character.** Upstream dropped everything above
+  0177, because `TRIM` was 0177 and `QUOTE` — the flag it passes to `putchar`
+  — was the bit above it, so the flag and the data wanted the same bit. `QUOTE`
+  is 0x200000 now and `TRIM` is a codepoint's worth, which separates them. A
+  line is still a `char` array of UTF-8 bytes, the way the SDK's own `TextBuf`
+  keeps text; what changed is the stepping. `h`, `l`, `x`, `X`, `r`, Backspace
+  and the column arithmetic all move a whole codepoint, `nextchar`/`prevchar`
+  in [ex_subr.cpp](ex_subr.cpp) being what they move by. A malformed sequence
+  draws as U+FFFD and advances one byte, so bad input is visible and never eats
+  the rest of the line; `:e` counts those where it used to count "non-ASCII".
+  There is no `wcwidth` anywhere in Braam, so one codepoint is one cell here as
+  it is in every other program.
+
+  Three things are still ASCII, and are limitations rather than bugs: the
+  regular expression engine matches a byte at a time, so `.` is one byte and
+  `[а-я]` is not a range — a *literal* pattern still matches, because its
+  UTF-8 bytes match themselves; `~`, `\u` and `\U` case-convert ASCII only,
+  though `rune_lower`/`rune_upper` are there in `kernel/text.h` for whoever
+  wants them; and `w`, `e` and `b` keep upstream's `wordch()`, so a Cyrillic
+  run reads as punctuation to them. [test/viutf8.mjs](test/viutf8.mjs) pins all
+  three, so they stay deliberate.
+- **The screen image holds codepoints.** `vtube` was one byte per cell and is
+  one `int`, which is what lets a cell carry a character and the `QUOTE` tag
+  that marks the inside of an expanded tab. It costs 256 KiB of the 16 MB
+  process cap, and `vutmp` — a line image, carved out of the tube's tail by
+  upstream — has its own block now.
+- **A key is a codepoint, and the line takes its bytes.** `key_byte()` used to
+  answer `k.code < 0x80 ? k.code : 0`; it answers the codepoint, and `getbr()`
+  hands back the UTF-8 bytes one at a time from a small queue below the
+  pushbacks. Insert mode echoes the character rather than the byte, waiting for
+  the last byte of a sequence, and `r` counts characters rather than keys.
 - **The arrow keys answer `^P`, `^N`, `^H` and space,** not `hjkl`, so that a
   `:map` on them still reaches them. Home and End are `0` and `$`, the paging
   keys are `^B` and `^F`, and Delete is `x`. A modifier held with any of them

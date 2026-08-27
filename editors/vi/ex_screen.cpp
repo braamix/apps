@@ -66,7 +66,7 @@ Task<void> vscreen_give(void)
  * same economy ex_put.c's cursor-cost model was after, arrived at from the
  * other end.
  *
- * vtube holds bytes and a Cell holds a codepoint and an attribute. A zero in
+ * A vtube cell and a Cell both hold a codepoint, so this is a copy. A zero in
  * vtube means "never written" and QUOTE means "part of an expanded tab"; both
  * draw as a blank, which is what vputchar() already intends by them.
  *
@@ -92,7 +92,7 @@ Task<Result<void>> vflush(void)
         co_return {};
     g = &vscreen->grid();
     for (y = 0; y <= WECHO && y < (int)g->rows; y++) {
-        int *tp = vtube[y];
+        int *tp  = vtube[y];
         char *ap = vatube0 && tp ? vatube0 + (tp - vtube0) : 0;
         u8 fg    = COLOR_WHITE;
 
@@ -275,11 +275,8 @@ int key_byte(Key k)
             return (DELETE);
         return (0);
     }
-    /*
-     * ex is a byte editor: TRIM is 0177 throughout and a line is a char
-     * array, so a codepoint above ASCII has nowhere to go.
-     */
-    return (k.code < 0x80 ? (int)k.code : 0);
+    /* A line is UTF-8, and getbr() hands the rest of the sequence back. */
+    return ((int)k.code);
 }
 
 /*
