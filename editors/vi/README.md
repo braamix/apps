@@ -128,7 +128,7 @@ below is what it draws on.
 - **A character above ASCII is dropped.** ex is a byte editor: `TRIM` is 0177
   throughout and a line is a `char` array.
 - **The arrow keys answer `^P`, `^N`, `^H` and space,** not `hjkl`, so that a
-  `:map` on them still reaches them. Home and End are `^` and `$`, the paging
+  `:map` on them still reaches them. Home and End are `0` and `$`, the paging
   keys are `^B` and `^F`, and Delete is `x`. A modifier held with any of them
   changes nothing.
 - **The escape key is not the byte 033.** It has a code of its own all the way
@@ -149,16 +149,20 @@ below is what it draws on.
   command.
 - **Backspace erases past the start of an insertion**, which upstream's did
   not: its `case CTRL('h')` carries the note `BUG: Can't back around line
-  boundaries`, and it stopped at whatever the insertion itself had typed. Two
-  floors are below that, and each is answered where it lives. The autoindent is
-  in `genbuf` too, so the floor is simply lowered onto it — `^T`, `^D` and
-  `^^D` already move it. Below that is the line, which is in `linebuf`, so the
-  same route the cursor keys take is taken again: the insertion ends, `vdelete`
-  rubs the character out, and another insertion opens there. It carries the
-  same two consequences, and one more — the rubbed character lands in the
-  unnamed register, because `vdelete` is what does the work. At column 0 it
-  beeps; joining onto the previous line is vim's `backspace=eol` and is not
-  here. `^H` is the same key and does the same thing; on the `:` line the echo
+  boundaries`, and it stopped at whatever the insertion itself had typed —
+  which is the note's own subject. Three floors are below that, and each is
+  answered where it lives. The autoindent is in `genbuf` too, so the floor is
+  simply lowered onto it; `^T`, `^D` and `^^D` already move it. Below that is
+  the line, which is in `linebuf`, and below the line is the break. Both take
+  the route the cursor keys take: the insertion ends, `vdelete` rubs the
+  character out or `op_join` takes the break, and another insertion opens where
+  that left off. So the whole of vim's `backspace=indent,eol,start` is here,
+  and `o` followed by a backspace undoes itself. The join inserts no space — it
+  is `join(1)`, the `:j!` spelling — and only the first line of the file has
+  nothing to back into. Two consequences beyond the cursor keys' own: the
+  rubbed character lands in the unnamed register, because `vdelete` is what
+  does the work, and a join reports itself on the echo line when `report` says
+  to. `^H` is the same key and does the same thing; on the `:` line the echo
   area keeps its own floor, where backspacing off the prompt abandons the
   command.
 - **`:!cmd` runs, `sort` may not.** The escapes work, but they run Braam's

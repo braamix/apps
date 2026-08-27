@@ -24,7 +24,7 @@ Every one takes a count, and every one is an operand for an operator.
 | `h j k l`, `^H`, space | char left/down/up/right |
 | ←, ↓, ↑, → | the same, via `^H`, `^N`, `^P`, space, so `:map` reaches them |
 | `0` `^` `$` | line start, first non-blank, end |
-| Home, End | `^` and `$` |
+| Home, End | `0` and `$` |
 | `\|` | to column *n* |
 | `w W b B e E` | word forward, back, end; capital is blank-delimited |
 | `f F t T` *c*, `;` `,` | find char in line, repeat, reverse |
@@ -169,8 +169,9 @@ the crypt mode. `-l` was never in 3.6.
 ### What the port added
 
 - The cursor keys work inside an insertion, which upstream's did not.
-- Backspace erases past the start of an insertion, into the autoindent and the
-  line; not onto the previous line.
+- Backspace erases past the start of an insertion, into the autoindent, the
+  line and the break before it — vim's `backspace=indent,eol,start`.
+- Home is `0`, column zero, where upstream's termcap mapping had no opinion.
 - `-- INSERT --` on the echo line, which is vim's habit and not vi's.
 - Colour: cyan echo line, blue `~`.
 - Esc is a key with a code of its own, distinct from the byte `033`.

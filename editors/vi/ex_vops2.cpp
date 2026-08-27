@@ -424,6 +424,27 @@ Task<exbool> vinsmove(void)
     case CTRL('h'): {
         int at = cursor - linebuf - 1;
 
+        /* At column 0 the character before the cursor is the line break. */
+        if (cursor == linebuf) {
+            if (dot == one) {
+                obeep();
+                break;
+            }
+            co_await operate(CTRL('p'), 1); /* onto the line to join to */
+            vsave();
+            co_await vmacchng(1);
+            setLAST();
+            cursor = strend(linebuf);        /* the seam, and the insert point */
+            co_await vremote(2, op_join, 1); /* 1: no space between */
+            notenam = "join";
+            vmoving = 0;
+            killU();
+            vreplace(vcline, 2, 1);
+            if (notecnt == 2)
+                notecnt = 0;
+            vrepaint(cursor);
+            break;
+        }
         wdot    = NOLINE;
         wcursor = cursor - 1;
         co_await vmacchng(1);
@@ -448,7 +469,7 @@ Task<exbool> vinsmove(void)
         break;
 
     case KHOME:
-        cursor = vskipwh(linebuf);
+        cursor = linebuf;
         break;
 
     case KEND:
@@ -628,7 +649,7 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
                     }
                     /* The line is whole only between insertions: end this
                      * one and let vinsmove rub the character out. */
-                    if (commch != 'r' && cursor > linebuf) {
+                    if (commch != 'r') {
                         insmotion = c;
                         goto vadone;
                     }

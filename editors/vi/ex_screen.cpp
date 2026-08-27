@@ -301,7 +301,7 @@ int keycmd(int c)
     case KRIGHT:
         return (' ');
     case KHOME:
-        return ('^');
+        return ('0'); /* column 0, not the first non-blank */
     case KEND:
         return ('$');
     case KPGUP:

@@ -27,10 +27,15 @@ edit(["DELETE"], "lpha\nbeta\ngamma\ndelta", "delete");
 edit(["BACKSPACE", "x"], "lpha\nbeta\ngamma\ndelta", "backspace at column 0");
 edit(["3", "DOWN", "x"], "alpha\nbeta\ngamma\nelta", "a count applies");
 
-// Home is ^, the first non-blank, so the indent is not where it lands.
+// Home is 0, column zero, so it lands on the indent and not past it.
 put("/tmp/f", "    indented\n");
 vi("/tmp/f", ["END", "HOME", "x"]);
-is("home", screen(1), "    ndented");
+is("home", screen(1), "   indented");
+
+// And it is a motion an operator takes, where ^ used to be.
+put("/tmp/f", "    indented\n");
+vi("/tmp/f", ["END", "d", "HOME"]);
+is("d Home", screen(1), "d");
 
 // An operator takes a cursor key as its motion, not as a cancel.
 edit(["l", "d", "END"], "a\nbeta\ngamma\ndelta", "d End");
@@ -77,6 +82,20 @@ edit(["l", "l", "i", "^h", "1", "ESC"], "a1pha\nbeta\ngamma\ndelta", "^H is the 
 // rub-out has to work there too, and leave the insertion at the end.
 edit(["A", "BACKSPACE", "1", "ESC"], "alph1\nbeta\ngamma\ndelta", "at the end of the line");
 edit(["A", "BACKSPACE", "BACKSPACE", "1", "ESC"], "alp1\nbeta\ngamma\ndelta", "twice at the end");
+
+// At column 0 the character before the cursor is the line break, so it goes
+// too, and the insertion carries on at the seam.
+edit(["j", "i", "BACKSPACE", "1", "ESC"], "alpha1beta\ngamma\ndelta\n~", "join");
+edit(["j", "i", "BACKSPACE", "BACKSPACE", "1", "ESC"], "alph1beta\ngamma\ndelta\n~",
+     "join, then on into the line above");
+// "gamma" is five characters, and the sixth backspace takes the break.
+edit(["j", "j", "A", ...Array(6).fill("BACKSPACE"), "1", "ESC"],
+     "alpha\nbeta1\ndelta\n~", "a whole line, and then the break");
+edit(["i", "BACKSPACE", "1", "ESC"], "1alpha\nbeta\ngamma\ndelta", "nothing to join to beeps");
+
+// An o and a backspace undo each other, which is what makes the join feel
+// like a delete rather than a command.
+edit(["o", "BACKSPACE", "1", "ESC"], "alpha1\nbeta\ngamma\ndelta", "o then back");
 
 // The autoindent is below the start of the insertion and goes the same way.
 put("/tmp/f", "    indented\n");
