@@ -56,7 +56,7 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
 | `expreserve` and `exrecover`, two setuid helpers | gone with the temp file they existed for |
 | the `ex3.6strings` file and the `xstr` tool that built it | the messages are compiled in, as they were on VMUNIX |
 | `-x` and `:set key`, the crypt mode | gone |
-| K&R C throughout, no prototypes anywhere | C++20; `tools/knr.py` did the mechanical half and `tools/patch/` the rest |
+| K&R C throughout, no prototypes anywhere | C++20; [tools/knr.py](tools/knr.py) did the mechanical half and hand edits the rest |
 
 ## Structure
 
@@ -153,12 +153,14 @@ make                     # both binaries
 make package             # vi-3.6-r0.zip, holding bin/ex and bin/vi
 ```
 
-Each is about 220 KB. `tools/regen.sh` regenerates the ported `.cpp` files from
-`tmp/ex/`: `tools/knr.py` does the K&R conversion, resolves the `#ifdef`
-configuration and inserts the `co_await`s, and one script per file under
-`tools/patch/` does the edits that needed a decision. It ran once; the `.cpp`
-files are the source from here on. It is kept because it says exactly which
-half of the port was mechanical.
+Each is about 220 KB.
+
+[tools/knr.py](tools/knr.py) is the converter the port was made with: it reads
+the prototypes out of `ex.h` and `ex_vis.h`, rewrites each K&R definition to
+match, resolves the `#ifdef` configuration, quotes `CTRL()`'s argument and
+inserts the `co_await`s. It ran once, on the sources under `tmp/ex/`, and the
+`.cpp` files here are the source from here on -- it is kept as the record of
+which half of the port was mechanical, not as a step you can repeat.
 
 ## Testing
 

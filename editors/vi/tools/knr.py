@@ -1,18 +1,28 @@
 #!/usr/bin/env python3
 """K&R -> C++20 for the ex sources.
 
+The converter this port was made with. It ran once, over tmp/ex/, and the .cpp
+files beside it are the source from here on; what it did not do -- the edits
+that needed a decision -- was done by hand afterwards. It is kept as the record
+of which half of the port was mechanical, and running it again would overwrite
+every hand edit since.
+
 Upstream has no prototypes at all: every definition is `name(a, b)` followed by
 declarations for a and b, with the return type implicit int. The prototypes in
 ex.h and ex_vis.h are the authority, so this reads them and rewrites each
 definition's header to match. A definition whose name is not declared is
 reported rather than guessed at.
 
-Then four smaller passes:
+Then the smaller passes:
 
   register       gone, it is an error in C++17
   bool           -> exbool, since bool is a keyword and inopen holds -1
   delete/inline  renamed, likewise
+  CTRL(c)        -> CTRL('c'), which a pre-ANSI preprocessor did not need
+  #ifdef         resolved: one arm of each is reachable, and the dead ones
+                 do not balance their braces against the live one
   error(...)     -> THROW(...), the return shape picked from the return type
+  co_await       inserted at every call of something that is itself a Task
 
 The error pass is the interesting one. Upstream's error() never returned -- it
 longjmp'd -- so what a converted call site returns is never used: the caller's
