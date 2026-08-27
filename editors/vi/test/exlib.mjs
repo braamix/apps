@@ -167,6 +167,14 @@ export function screen(rows = 0) {
     return (rows ? r.slice(0, rows) : r).join("\n").replace(/\n+$/, "");
 }
 
+// Where the cursor is on the screen, as "x,y". Worth asserting on its own: it
+// rides in the blit's header, and a frame with no damaged cell is not sent at
+// all, so a motion -- which changes no cell -- is exactly what goes missing.
+export function cursor() {
+    const s = H.screen();
+    return `${s.cursor_x},${s.cursor_y}`;
+}
+
 const COLORS = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
 
 // The foreground colour of a row, named: the ~ rows and the echo line are not

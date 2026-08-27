@@ -677,7 +677,7 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
          * If we get a blank not in the echo area
          * consider splitting the window in the wrapmargin.
          */
-        if (c != NL && !splitw) {
+        if (c != NL && c != KESC && !splitw) {
             if (c == ' ' && gobblebl) {
                 gobbled = 1;
                 continue;
@@ -774,6 +774,15 @@ Task<char *> vgetline(int cnt, char *gcursor, exbool *aescaped, int commch)
          */
         case NL:
             *aescaped = c;
+            goto vadone;
+
+        /*
+         * The escape key always ends the insertion. Pressing it is not the
+         * only way a 033 gets here -- getbr() answers one when replayed input
+         * runs out, and lastvgk says that is where this came from -- and that
+         * one goes in as text when there is more of the repeat to come.
+         */
+        case KESC:
             goto vadone;
 
         /*

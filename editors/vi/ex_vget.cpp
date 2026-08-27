@@ -152,7 +152,8 @@ Task<int> getesc(void)
         ungetkey(c);
         co_return (0);
 
-    case ESCAPE:
+    case KESC:   /* the key */
+    case ESCAPE: /* and the byte it would be */
         co_return (0);
     }
     co_return (c);

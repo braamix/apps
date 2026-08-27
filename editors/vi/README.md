@@ -127,6 +127,10 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
   `:map` on them still reaches them. Home and End are `^` and `$`, the paging
   keys are `^B` and `^F`, and Delete is `x`. A modifier held with any of them
   changes nothing.
+- **The escape key is not the byte 033.** It has a code of its own all the way
+  into the decoder, because 033 has two other producers: `^[` types one, and
+  `getbr()` answers one when replayed input runs out. The key always ends an
+  insertion; the byte does not, when a repeat has more of itself to come.
 - **The cursor keys work inside an insertion**, which upstream's did not:
   ←, →, Home, End, ↑ and ↓ move and leave you inserting where they land, and
   Delete takes the character under the caret. There is no cursor between two
@@ -153,6 +157,12 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
   is cyan and the `~` of a row past the end of the file is blue. `vflush()`
   decides it per row, from where the row is and what is on it, so nothing
   upstream had to learn about it.
+- **A motion sends a frame of its own.** The cursor rides in the header of a
+  blit, and a blit with nothing damaged in it is not sent at all, so
+  `vflush()` damages the cell under the cursor when it has moved. Without
+  that, `h`, `j`, `k`, `l`, `$`, `G` and every other motion moved the cursor
+  in the editor and left it where it was on the screen — which looks exactly
+  like an editor that has stopped answering.
 - **`^Z` and `:stop` are gone.** `SIG_TSTP` is not in Braam's catchable set.
 - **`:preserve`, `:recover` and `-r` are gone** with the temp file.
 - **`-x` is gone.** The crypt mode was asked to be left out.

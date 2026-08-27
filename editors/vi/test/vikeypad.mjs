@@ -6,7 +6,7 @@
 // byte -- a space is a space and an arrow is not -- and this is what says so:
 // every case here presses a real named key and reads the line it left.
 
-import { boot, vi, press, screen, put, quitvi, is, ok } from "./exlib.mjs";
+import { boot, vi, press, screen, cursor, put, quitvi, is, ok } from "./exlib.mjs";
 
 await boot("vikeypad");
 
@@ -85,6 +85,16 @@ is("an arrow on the : line", screen(1), "     1  alpha");
 
 // Escape ends the insertion; a second one only beeps.
 edit(["i", "XY", "ESC", "ESC", "x"], "Xalpha\nbeta\ngamma\ndelta", "escape twice");
+
+// And the cursor it leaves is on the screen, not only in the editor: escape
+// steps back one, and that is a frame with no character changed in it.
+put("/tmp/f", FILE);
+vi("/tmp/f", ["i", "bar"]);
+is("the caret while inserting", cursor(), "3,0");
+press("ESC");
+is("the caret after escape", cursor(), "2,0");
+press("h");
+is("and a motion after that", cursor(), "1,0");
 
 // u undoes the segment the last motion began, U the whole line.
 edit(["i", "ab", "LEFT", "c", "ESC", "u"], "abalpha\nbeta\ngamma\ndelta", "u after a motion");

@@ -69,19 +69,27 @@
 #define QUIT ('\\' & 037)
 
 /*
- * The cursor keys. A byte would not say which key was pressed and insert mode
+ * The named keys. A byte would not say which key was pressed and the editor
  * has to know, so key_byte() answers one of these -- ATTN's trick of a value
  * no byte can hold -- and keycmd() turns it back into the command byte.
  * They must fit in a char: getkey() returns through one.
+ *
+ * The escape key is here because 033 is not only it: getbr() answers 033 when
+ * replayed input runs out, and ^[ types one. Insert mode ends on the key and
+ * not always on the byte.
+ *
+ * keynamed() is the cursor keys alone -- the ones that are a motion after an
+ * operator, where the escape key cancels instead.
  */
-#define KUP    (-3)
-#define KDOWN  (-4)
-#define KLEFT  (-5)
-#define KRIGHT (-6)
-#define KHOME  (-7)
-#define KEND   (-8)
-#define KPGUP  (-9)
-#define KPGDN  (-10)
-#define KDEL   (-11)
+#define KESC   (-3)
+#define KUP    (-4)
+#define KDOWN  (-5)
+#define KLEFT  (-6)
+#define KRIGHT (-7)
+#define KHOME  (-8)
+#define KEND   (-9)
+#define KPGUP  (-10)
+#define KPGDN  (-11)
+#define KDEL   (-12)
 
 #define keynamed(c) ((c) <= KUP)

@@ -3,7 +3,7 @@
 // Keys in, cells out. The screen is asserted whole, which is what makes this
 // worth having -- it is the only test that says vtube reached the Grid at all.
 
-import { boot, vi, press, screen, fg, put, is, ok } from "./exlib.mjs";
+import { boot, vi, press, screen, fg, cursor, put, is, ok } from "./exlib.mjs";
 
 await boot("vikeys");
 
@@ -50,6 +50,19 @@ is("jjll", screen(3), "alpha\nbeta\ngaZma");
 put("/tmp/f", FILE);
 vi("/tmp/f", ["3", "j", "2", "l", "k", "h", "r", "Z"]);
 is("3j 2l k h", screen(3), "alpha\nbeta\ngZmma");
+
+// A motion changes no character, so the only thing that says it happened is
+// where the cursor is -- and the cursor reaches the screen in the header of a
+// blit that a frame with nothing damaged in it never sends.
+put("/tmp/f", FILE);
+vi("/tmp/f");
+is("the cursor starts home", cursor(), "0,0");
+for (const [k, at] of [["l", "1,0"], ["l", "2,0"], ["j", "2,1"], ["k", "2,0"],
+                       ["h", "1,0"], ["$", "4,0"], ["0", "0,0"], ["G", "0,3"],
+                       ["UP", "0,2"], ["RIGHT", "1,2"], ["w", "0,3"]]) {
+    press(k);
+    is(`the cursor after ${k}`, cursor(), at);
+}
 
 // Word motions, and r to prove where the cursor ended up.
 put("/tmp/f", FILE);

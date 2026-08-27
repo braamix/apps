@@ -20,6 +20,9 @@
 
 ProcScreen *vscreen;
 
+/* Where the cursor was in the frame last sent. */
+static u32 vcurx, vcury;
+
 /*
  * The screen and the keyboard are claims: one holder each, kept by the kernel
  * on the process's record. Command mode wants neither -- it writes a byte
@@ -109,6 +112,19 @@ Task<Result<void>> vflush(void)
     g->cursor_x  = destcol >= 0 && destcol < (int)g->cols ? (u32)destcol : 0;
     g->cursor_y  = destline >= 0 && destline < (int)g->rows ? (u32)destline : 0;
     g->cursor_on = true;
+
+    /*
+     * The cursor rides in the blit's header, and a blit with no damage in it
+     * is not sent at all (proc/screen.cpp). A motion changes no cell, so
+     * without this h, j, k, l and every other motion would move the cursor in
+     * the editor and leave it where it was on the screen. Damaging the cell
+     * under it is what carries the header out.
+     */
+    if (g->cursor_x != vcurx || g->cursor_y != vcury) {
+        g->touch(g->cursor_x, g->cursor_y, 1, 1);
+        vcurx = g->cursor_x;
+        vcury = g->cursor_y;
+    }
     co_return co_await vscreen->flush();
 }
 
@@ -197,7 +213,7 @@ int key_byte(Key k)
     /* A named key means the same thing whatever is held down with it. */
     switch (k.code) {
     case KEY_ESCAPE:
-        return (ESCAPE);
+        return (KESC);
     case KEY_ENTER:
         return ('\r');
     case KEY_TAB:
@@ -262,6 +278,8 @@ int key_byte(Key k)
 int keycmd(int c)
 {
     switch (c) {
+    case KESC:
+        return (ESCAPE);
     case KUP:
         return (CTRL('p'));
     case KDOWN:
