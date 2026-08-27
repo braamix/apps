@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """K&R -> C++20 for the ex sources.
 
-The converter this port was made with. It ran once, over tmp/ex/, and the .cpp
-files beside it are the source from here on; what it did not do -- the edits
+The converter this port was made with. It ran once, over the ex 3.6 tree the
+README names, and the .cpp files beside it are the source from here on; what it did not do -- the edits
 that needed a decision -- was done by hand afterwards. It is kept as the record
 of which half of the port was mechanical, and running it again would overwrite
 every hand edit since.

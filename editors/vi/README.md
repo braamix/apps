@@ -6,8 +6,9 @@ shipped them.
 
 **This is ex/vi version 3.6, dated 11/3/80.** Bill Joy wrote it at Berkeley in
 1976 out of ed, and Mark Horton maintained it from 1979; this directory ports
-the version that shipped with 4BSD, taken from the V7/x86 contrib tree. It is
-the ancestor of every vi in use since. The Berkeley copyright is on every file
+the version that shipped with 4BSD, taken from the V7/x86 contrib tree at
+`github.com/calmsacibis995/v7x86`, under `usr/contrib/ucb/ex`. It is the
+ancestor of every vi in use since. The Berkeley copyright is on every file
 and in [LICENSE](LICENSE); `:version` prints the version string.
 
 ## Using it
@@ -158,9 +159,10 @@ Each is about 220 KB.
 [tools/knr.py](tools/knr.py) is the converter the port was made with: it reads
 the prototypes out of `ex.h` and `ex_vis.h`, rewrites each K&R definition to
 match, resolves the `#ifdef` configuration, quotes `CTRL()`'s argument and
-inserts the `co_await`s. It ran once, on the sources under `tmp/ex/`, and the
-`.cpp` files here are the source from here on -- it is kept as the record of
-which half of the port was mechanical, not as a step you can repeat.
+inserts the `co_await`s. It ran once, over the upstream tree named at the top
+of this file, and the `.cpp` files here are the source from here on -- it is
+kept as the record of which half of the port was mechanical, not as a step you
+can repeat.
 
 ## Testing
 
