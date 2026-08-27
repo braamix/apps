@@ -9,6 +9,7 @@ that runs in a browser tab.
 | --- | --- |
 | [archivers/zip](archivers/zip/) | Info-ZIP zip 3.0, and zipnote, zipsplit and zipcloak with it |
 | [converters/iconv](converters/iconv/) | Citrus iconv, and the two hundred character sets it converts between |
+| [editors/vi](editors/vi/) | UCB ex 3.6, the line editor Bill Joy grew vi out of |
 | [benchmarks/dhrystone](benchmarks/dhrystone/) | Dhrystone 2.1, the 1984 integer benchmark |
 | [benchmarks/duremark](benchmarks/duremark/) | DureMark 1.1, a small CoreMark-inspired benchmark |
 | [games/adventure](games/adventure/) | Colossal Cave Adventure, the 1977 C re-coding |

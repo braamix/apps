@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Five programs are ported so far**:
+**Six programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -24,10 +24,13 @@ coroutine because nearly every one of them reaches a stream; and
 sets, which is the opposite shape — it reads files only while opening a
 conversion, so the coroutines stop at the door and the whole conversion path is
 untouched C. Its 44 MB of tables are compiled from upstream's own sources by
-Python replacements for `mkcsmapper` and `mkesdb`, byte for byte. The rest of
-the tree is category directories, a few holding a one-line `TODO.md` naming the
-upstream to port:
-[editors/vi](editors/vi/TODO.md),
+Python replacements for `mkcsmapper` and `mkesdb`, byte for byte; and
+[editors/vi](editors/vi/), UCB ex/vi 3.6 — a third shape again, where the
+hard part is neither streams nor data but *control flow*: `error()` was a
+`longjmp` from arbitrary depth and there is no `setjmp` to be had, so it
+records and unwinds a frame at a time. Command mode is complete; the visual
+half is not built yet. The rest of the tree is category directories, a few
+holding a one-line `TODO.md` naming the upstream to port:
 [emulators/simbesm](emulators/simbesm/TODO.md),
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).
 

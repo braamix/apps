@@ -1,0 +1,5 @@
+# The tree's own style, less the include sorting: ex.h defines EXTERN, `line`
+# and `exbool`, and every other header here is written against them, so the
+# order of the includes is part of the source rather than a matter of taste.
+BasedOnStyle: InheritParentConfig
+SortIncludes: Never

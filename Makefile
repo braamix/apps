@@ -62,6 +62,11 @@ test: all
 	@node games/adventure/test/interrupt.mjs
 	@node games/adventure/test/suspend.mjs
 	@node games/adventure/test/back.mjs
+	@node editors/vi/test/exscript.mjs
+	@node editors/vi/test/exerrors.mjs
+	@node editors/vi/test/exregex.mjs
+	@node editors/vi/test/exfiles.mjs
+	@node editors/vi/test/exbang.mjs
 	@node converters/iconv/test/smoke.mjs
 	@node converters/iconv/test/convert.mjs
 	@node converters/iconv/test/errors.mjs
