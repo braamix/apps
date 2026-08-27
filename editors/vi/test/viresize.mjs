@@ -37,4 +37,18 @@ is("what it wrote", get("/tmp/f") ?? "(nothing)",
    ["ine1", ...LINES.slice(1)].join("\n") + "\n");
 quitvi();
 
-ok("a resize re-cuts the screen, keeps the buffer and keeps the cursor");
+// The other half of the same thing: the screen a session *starts* on. The
+// geometry arrives with the claim, so it has to be read there -- twenty-four
+// rows is only the default the option table carries.
+const MANY = Array.from({ length: 80 }, (_, i) => `l${i + 1}`);
+put("/tmp/g", MANY.join("\n") + "\n");
+regrid(144, 41);
+vi("/tmp/g");
+is("forty lines on a 41-row screen", screen(40), MANY.slice(0, 40).join("\n"));
+
+// And the window followed the screen: ^D is half of it, not half of 24.
+press("^D");
+is("^D scrolled twenty", screen(1), "l21");
+quitvi();
+
+ok("a resize re-cuts the screen, the geometry is read at the claim, and the window follows");

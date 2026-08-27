@@ -43,13 +43,16 @@
 /*
  * The screen image. Upstream allocated TUBESIZE bytes on the stack in vop()
  * and never freed them, standing in for a non-portable alloca; here it is one
- * file-scope array, because vop() is a coroutine and a frame past 512 bytes
- * costs a whole 64 KiB span. That makes it cheap to raise the limits to what
- * a maximised browser window wants: a grid may be SCREEN_MAX_COLS wide.
+ * heap block (ex_vis.h), because vop() is a coroutine and a frame past 512
+ * bytes costs a whole 64 KiB span. That makes it cheap to raise the limits to
+ * what a maximised browser window wants: a grid may be SCREEN_MAX_COLS wide,
+ * and the width here is that. The height is half SCREEN_MAX_ROWS, because
+ * vlinfo's vliny is a char and a row number has to fit in one; a screen
+ * taller than this is used down to line 128 and no further.
  */
-#define TUBELINES 80    /* Number of screen lines for visual */
-#define TUBECOLS  256   /* Number of screen columns for visual */
-#define TUBESIZE  20480 /* Maximum screen size for visual */
+#define TUBELINES 128   /* Number of screen lines for visual */
+#define TUBECOLS  512   /* Number of screen columns for visual */
+#define TUBESIZE  65536 /* Maximum screen size for visual */
 
 /*
  * Output column (and line) are set to this value on cursor addressible

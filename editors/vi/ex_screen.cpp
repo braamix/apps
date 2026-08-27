@@ -103,6 +103,39 @@ Task<Result<void>> vflush(void)
 }
 
 /*
+ * The geometry: the tail of setterm() in ex_tty.c. Upstream read LINES and
+ * COLUMNS out of termcap and picked the window from the line's speed; there is
+ * no line, so this is always the fast case -- the whole screen but the status
+ * row, or -w.
+ *
+ * window and scroll are options. Only one still equal to its default follows
+ * the screen; the default moves with it either way.
+ */
+void setsize(int rows, int cols)
+{
+    int w;
+
+    if (rows <= 0 || cols <= 0)
+        return;
+    LINES   = (short)(rows < TUBELINES ? rows : TUBELINES);
+    COLUMNS = (short)(cols < TUBECOLS ? cols : TUBECOLS);
+
+    w = defwind ? defwind : LINES - 1;
+    if (w >= LINES)
+        w = LINES - 1;
+    if (w < 1)
+        w = 1;
+    if (value(WINDOW) == options[WINDOW].odefault)
+        value(WINDOW) = (short)w;
+    options[WINDOW].odefault = (short)w;
+
+    w = (value(WINDOW) + 1) / 2;
+    if (value(SCROLL) == options[SCROLL].odefault)
+        value(SCROLL) = (short)w;
+    options[SCROLL].odefault = (short)w;
+}
+
+/*
  * A resize. The geometry rides on every terminal reply, so ProcScreen has
  * reshaped the grid already by the time this is called; what is left is vi's
  * own idea of the screen, which is vtube -- row pointers into one block, cut
@@ -122,8 +155,7 @@ void vresize(void)
     cols = vscreen->grid().cols;
     if (rows == 0 || cols == 0)
         return;
-    LINES   = (short)(rows < TUBELINES ? rows : TUBELINES);
-    COLUMNS = (short)(cols < TUBECOLS ? cols : TUBECOLS);
+    setsize((int)rows, (int)cols);
     if (!inopen)
         return;
     /*
@@ -133,6 +165,7 @@ void vresize(void)
      */
     vsave();
     WCOLS = COLUMNS;
+    vsetsiz(value(WINDOW));
     setwind();
     vok(atube);
     vclear();

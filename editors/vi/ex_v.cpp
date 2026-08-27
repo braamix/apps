@@ -5,6 +5,8 @@
 #include "ex_screen.h"
 #include "ex_vis.h"
 
+#include "kernel/alloc.h"
+
 /*
  * Entry points to open and visual from command mode processor.
  * The open/visual code breaks down roughly as follows:
@@ -83,7 +85,7 @@ Task<void> ovend(void)
  */
 Task<void> vop(void)
 {
-    int c;
+    int c, size;
 
     ovbeg();
     COCHK;
@@ -92,14 +94,27 @@ Task<void> vop(void)
     if (any(peekchar(), "+-^."))
         c = getchar();
     pastwh();
-    vsetsiz(isdigit(peekchar()) ? getnum() : value(WINDOW));
+    size = isdigit(peekchar()) ? getnum() : -1;
     newline();
     COCHK;
+
+    /* Before the claim, so a failure throws with the screen still the shell's. */
+    if (atube == 0)
+        atube = (char *)heap_alloc(TUBESIZE + LBSIZE);
+    if (atube == 0)
+        COTHROW(error("Out of memory@- no room for the screen image"));
 
     /* Taken here, given back in ovend(): command mode wants neither. */
     if ((co_await vscreen_take()).is_err())
         COTHROW(error("Visual needs a terminal"));
 
+    /*
+     * The grid is the screen, and it is only sized once the claim is in. So
+     * the window is settled here rather than beside the count, which is where
+     * upstream settled it -- there LINES was known before visual was entered.
+     */
+    setsize((int)vscreen->grid().rows, (int)vscreen->grid().cols);
+    vsetsiz(size >= 0 ? size : value(WINDOW));
     setwind();
     vok(atube);
     if (!inglobal)

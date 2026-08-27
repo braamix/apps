@@ -319,8 +319,11 @@ void undvis(void);
 void setwind(void);
 /* The screen image. Upstream kept it on vop's stack, deliberately leaked,
  * standing in for an alloca it could not write; vop is a coroutine, and a
- * frame past 512 bytes costs a whole 64 KiB span. */
-EXTERN char atube[TUBESIZE + LBSIZE];
+ * frame past 512 bytes costs a whole 64 KiB span. A heap block rather than a
+ * global: static data has to fit in the initial memory, and this is 64 KiB.
+ * Claimed on the first visual and kept, which is upstream's leak by another
+ * name. */
+EXTERN char *atube;
 void vok(char *atube);
 void vsetsiz(int size);
 

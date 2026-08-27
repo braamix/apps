@@ -139,7 +139,16 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
 - **`:preserve`, `:recover` and `-r` are gone** with the temp file.
 - **`-x` is gone.** The crypt mode was asked to be left out.
 - **`w300` and `w1200` are ignored.** They chose a window size from the line's
-  speed; there is no line, so this is always the fast case.
+  speed; there is no line, so this is always the fast case: `window` is the
+  whole screen but the status row, and `scroll` half of that. Both are read
+  off the grid when visual claims it and again at every resize, so a value the
+  user has set — in `EXINIT`, in `.exrc`, with `-w`, or with `:set` — stays
+  put, and one left at its default follows the screen.
+- **The screen is used up to 128 rows and 512 columns.** 512 is the widest
+  grid the kernel will make; 128 is half the tallest, because `vlinfo`'s row
+  number is a `char`. The image behind them is one 64 KiB heap block claimed
+  on the first `vi`, and `TUBELINES`, `TUBECOLS` and `TUBESIZE` in `ex_tune.h`
+  are the three constants that say so.
 - **A file is limited by memory**, not by the temp file: about 2 MB of text,
   and the buffer grows by everything ever typed rather than by what is in it,
   because nothing is ever reused. Both limits are one constant each in
@@ -185,7 +194,8 @@ mode prints no prompt down a pipe, which is what makes a transcript assertable.
 - `viinsert.mjs` — `i`/`A`/`o`/`O`, the operators, `yy`/`p`, `u`, `.`, a named
   buffer, `:map`, `:ab`, both shell escapes, and the file `ZZ` writes.
 - `viresize.mjs` — a resize mid-session: the screen re-cut, the buffer kept,
-  the cursor where it was.
+  the cursor where it was; and a session started on a 144x41 screen, which
+  uses all of it.
 
 ## Files
 

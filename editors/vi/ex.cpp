@@ -215,8 +215,9 @@ Task<i32> proc_main(Args args)
      *
      * There is no terminal type to look up: the screen is an array of
      * cells, so the capabilities are fixed and ex_screen.h names them. The
-     * geometry is the one thing that is not, and it rides on every terminal
-     * reply, so it is asked for where the screen is claimed.
+     * geometry is the one thing that is not; it comes back with the question
+     * of whether this is a terminal at all, and it rides on every reply after
+     * that, so visual asks the grid again when it claims the screen.
      */
     ruptible = 1;
     co_await setrupt();
@@ -226,6 +227,8 @@ Task<i32> proc_main(Args args)
         if (Task<Result<TtyInfo>> k = tty_of(SYS_STDIN))
             t = co_await k;
         intty = t.is_ok() && res_of(t).console;
+        if (intty)
+            setsize((int)res_of(t).at.rows, (int)res_of(t).at.cols);
     }
     value(PROMPT) = intty;
     if ((cp = getenv("SHELL")) != 0)
