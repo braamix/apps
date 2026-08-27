@@ -110,7 +110,7 @@ From the top of this repository:
 
 ```
 make            # build/archivers/zip/{zip,zipnote,zipsplit,zipcloak}.wasm
-make package    # build/archivers/zip/zip-3.0-r0.zip
+make package    # build/archivers/zip/zip-3.0-r1.zip
 ```
 
 The package holds `.PKGINFO` and four `bin/` entries and nothing else. `bin/`

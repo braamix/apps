@@ -51,7 +51,7 @@ endforeach()
 
 # One package, four commands: every flat bin/ entry becomes a cmd: provide and
 # a link in the installed generation's bin/, which /pkg/bin points at.
-braam_add_package(NAME zip VERSION 3.0-r0
+braam_add_package(NAME zip VERSION 3.0-r1
                   FIELD "T=Info-ZIP zip 3.0, the archiver"
                   FILES $<TARGET_FILE:bin_zip>=bin/zip
                         $<TARGET_FILE:bin_zipnote>=bin/zipnote
