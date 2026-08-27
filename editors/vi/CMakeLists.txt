@@ -18,7 +18,10 @@ set(VI_NOBUILTIN
     -fno-builtin-toupper -fno-builtin-tolower -fno-builtin-isspace -fno-builtin-isdigit
     -fno-builtin-isalpha -fno-builtin-isalnum -fno-builtin-islower -fno-builtin-isupper
     -fno-builtin-isprint -fno-builtin-iscntrl -fno-builtin-getenv -fno-builtin-atoi
-    -fno-builtin-qsort)
+    -fno-builtin-qsort
+    # int is wchar_t's width here, so the key-buffer loops in ex_vget.cpp get
+    # recognised as these and folded into calls to them.
+    -fno-builtin-wcslen -fno-builtin-wcscpy)
 
 # Ported code keeps upstream's identifiers, its casts and its unused arguments.
 # An INTERFACE target rather than target_compile_options, because braam::flags

@@ -101,8 +101,11 @@ Task<void> vop(void)
 
     /* Before the claim, so a failure throws with the screen still the shell's. */
     if (atube == 0)
-        atube = (char *)heap_alloc(TUBESIZE + LBSIZE);
-    if (atube == 0)
+        atube = (int *)heap_alloc(TUBESIZE * sizeof(int));
+    /* Its own block: the tube holds cells now, and vutmp holds a line. */
+    if (vutmp == 0)
+        vutmp = (char *)heap_alloc(LBSIZE);
+    if (atube == 0 || vutmp == 0)
         COTHROW(error("Out of memory@- no room for the screen image"));
 
     /* Taken here, given back in ovend(): command mode wants neither. */
@@ -232,7 +235,7 @@ void setwind(void)
  * If so, then divide the screen buffer up into lines,
  * and initialize a bunch of state variables before we start.
  */
-void vok(char *atube)
+void vok(int *atube)
 {
     int i;
 
@@ -246,12 +249,11 @@ void vok(char *atube)
     vtube0 = atube;
     vclrbyte(atube, WCOLS * (WECHO - ZERO + 1));
     for (i = 0; i < ZERO; i++)
-        vtube[i] = (char *)0;
+        vtube[i] = (int *)0;
     for (; i <= WECHO; i++)
         vtube[i] = atube, atube += WCOLS;
     for (; i < TUBELINES; i++)
-        vtube[i] = (char *)0;
-    vutmp    = atube;
+        vtube[i] = (int *)0;
     vundkind = VNONE;
     vUNDdot  = 0;
     OCOLUMNS = COLUMNS;

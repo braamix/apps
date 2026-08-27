@@ -71,8 +71,9 @@ getATTN:
         co_return (c);
     }
     if (vglobp) {
+        /* Text, not keys: a byte over 0177 must not read as a named key. */
         if (*vglobp)
-            co_return (lastvgk = *vglobp++);
+            co_return (lastvgk = (unsigned char)*vglobp++);
         lastvgk = 0;
         co_return (ESCAPE);
     }
@@ -192,7 +193,7 @@ Task<int> readecho(int c)
     linebuf[0] = 0;
     genbuf[0]  = c;
     if (co_await peekbr()) {
-        if (!INS[0] || (INS[0] & (QUOTE | TRIM)) == OVERBUF)
+        if (!INS[0] || (unsigned char)INS[0] == OVERBUF)
             goto blewit;
         vglobp = INS;
     }
@@ -245,7 +246,7 @@ void addtext(char *cp)
     if (vglobp)
         return;
     addto(INS, cp);
-    if ((INS[0] & (QUOTE | TRIM)) == OVERBUF)
+    if ((unsigned char)INS[0] == OVERBUF)
         lastcmd[0] = 0;
 }
 
@@ -271,7 +272,7 @@ void setBUF(char *BUF)
 
 void addto(char *buf, char *str)
 {
-    if ((buf[0] & (QUOTE | TRIM)) == OVERBUF)
+    if ((unsigned char)buf[0] == OVERBUF)
         return;
     if (strlen(buf) + strlen(str) + 1 >= VBSIZE) {
         buf[0] = OVERBUF;
@@ -339,8 +340,9 @@ void obeep(void)
 Task<int> map(int c, struct maps *maps)
 {
     int d;
-    char *p, *q;
-    char b[10]; /* Assumption: no keypad sends string longer than 10 */
+    char *p;
+    int *q;
+    int b[10]; /* Assumption: no keypad sends string longer than 10 */
 
     /*
      * Mapping for special keys on the terminal only.
@@ -389,7 +391,7 @@ Task<int> map(int c, struct maps *maps)
                          * to undo part of an insertion
                          * so if in input mode don't.
                          */
-                        macpush(&b[1], maps == arrows);
+                        macpushk(&b[1], maps == arrows);
                         co_return (c);
                     }
                     *q   = co_await getkey();
@@ -404,7 +406,7 @@ Task<int> map(int c, struct maps *maps)
         contin:;
         }
     }
-    macpush(&b[1], 0);
+    macpushk(&b[1], 0);
     co_return (c);
 }
 
@@ -417,9 +419,26 @@ Task<int> map(int c, struct maps *maps)
  * is false for, for example, pushing back lookahead from fastpeekkey(),
  * since otherwise two fast escapes can clobber our undo.
  */
-void macpush(char *st, int canundo)
+/* strlen and strcpy, over the key buffer. */
+static int maclen(int *p)
 {
-    char tmpbuf[BUFSIZ];
+    int n = 0;
+
+    while (p[n])
+        n++;
+    return (n);
+}
+
+static int *maccpy(int *to, int *from)
+{
+    while (*to++ = *from++)
+        continue;
+    return (to - 1);
+}
+
+void macpushk(int *st, int canundo)
+{
+    int tmpbuf[BUFSIZ];
 
     if (st == 0 || *st == 0)
         return;
@@ -427,16 +446,19 @@ void macpush(char *st, int canundo)
     if (!value(UNDOMACRO))
         canundo = 0;
 #endif
-    if ((vmacp ? strlen(vmacp) : 0) + strlen(st) > BUFSIZ)
+    if ((vmacp ? maclen(vmacp) : 0) + maclen(st) > BUFSIZ)
         THROW(error("Macro too long@ - maybe recursive?"));
     if (vmacp) {
-        strcpy(tmpbuf, vmacp);
+        maccpy(tmpbuf, vmacp);
         if (!FIXUNDO)
             canundo = 0; /* can't undo inside a macro anyway */
     }
-    strcpy(vmacbuf, st);
-    if (vmacp)
-        strcat(vmacbuf, tmpbuf);
+    {
+        int *end = maccpy(vmacbuf, st);
+
+        if (vmacp)
+            maccpy(end, tmpbuf);
+    }
     vmacp = vmacbuf;
     /* arrange to be able to undo the whole macro */
     if (canundo) {
@@ -449,6 +471,25 @@ void macpush(char *st, int canundo)
 #endif
         vch_mac = VC_NOCHANGE;
     }
+}
+
+/*
+ * The same, for text rather than keys: every caller but map() pushes a string
+ * out of a buffer, and a byte over 0177 is a byte, not a named key.
+ */
+void macpush(char *st, int canundo)
+{
+    int b[BUFSIZ];
+    int n = 0;
+
+    if (st == 0 || *st == 0)
+        return;
+    while (st[n] && n < BUFSIZ - 1) {
+        b[n] = (unsigned char)st[n];
+        n++;
+    }
+    b[n] = 0;
+    macpushk(b, canundo);
 }
 
 /*

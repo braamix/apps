@@ -23,7 +23,7 @@ void vclear(void)
 /*
  * Clear memory.
  */
-void vclrbyte(char *cp, int i)
+void vclrbyte(int *cp, int i)
 {
     if (i > 0)
         do
@@ -50,7 +50,7 @@ void vclrlin(int l, line *tp)
 void vclreol(void)
 {
     int i, j;
-    char *tp;
+    int *tp;
 
     if (destcol == WCOLS)
         return;
@@ -377,7 +377,7 @@ int slakused; /* This much of tabslack will be used up */
 void vprepins(void)
 {
     int i;
-    char *cp = vtube0;
+    int *cp = vtube0;
 
     for (i = 0; i < DEPTH(vcline); i++) {
         vmaktop(LINE(vcline) + i, cp);
@@ -385,18 +385,18 @@ void vprepins(void)
     }
 }
 
-void vmaktop(int p, char *cp)
+void vmaktop(int p, int *cp)
 {
     int i;
-    char temp[TUBECOLS];
+    int temp[TUBECOLS];
 
     if (p < 0 || vtube[p] == cp)
         return;
     for (i = ZERO; i <= WECHO; i++)
         if (vtube[i] == cp) {
-            copy(temp, vtube[i], WCOLS);
-            copy(vtube[i], vtube[p], WCOLS);
-            copy(vtube[p], temp, WCOLS);
+            copy(temp, vtube[i], WCOLS * sizeof(int));
+            copy(vtube[i], vtube[p], WCOLS * sizeof(int));
+            copy(vtube[p], temp, WCOLS * sizeof(int));
             vtube[i] = vtube[p];
             vtube[p] = cp;
             return;
@@ -414,7 +414,7 @@ void vmaktop(int p, char *cp)
 int vinschar(int c)
 {
     int i;
-    char *tp;
+    int *tp;
 
     if ((!IM || !EI) && ((hold & HOLDQIK) || !value(REDRAW) || value(SLOWOPEN))) {
         /*
@@ -593,7 +593,7 @@ int vinschar(int c)
 void vrigid(void)
 {
     int col;
-    char *tp = vtube0 + tabend;
+    int *tp = vtube0 + tabend;
 
     for (col = tabend; col < linend; col++)
         if ((*tp++ & TRIM) == 0) {
@@ -661,8 +661,8 @@ void vishft(void)
     int tshft = 0;
     int j;
     int i;
-    char *tp = vtube0;
-    char *up;
+    int *tp = vtube0;
+    int *up;
     short oldhold = hold;
 
     shft = value(TABSTOP);
@@ -754,7 +754,7 @@ void vishft(void)
  */
 void viin(int c)
 {
-    char *tp, *up;
+    int *tp, *up;
     int i, j;
     exbool noim = 0;
     int remdoom;
@@ -908,7 +908,7 @@ void viin(int c)
  */
 int vputchar(int c)
 {
-    char *tp;
+    int *tp;
     int d;
 
     c &= (QUOTE | TRIM);

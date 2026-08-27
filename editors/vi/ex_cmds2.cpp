@@ -167,7 +167,8 @@ void error_end(exbool had_msg)
         io           = -1;
     }
     inappend = inglobal = 0;
-    globp = vglobp = vmacp = 0;
+    globp = vglobp = 0;
+    vmacp = 0;
     if (vcatch) {
         ex_thrown_msg = had_msg;
         ex_thrown     = 1;

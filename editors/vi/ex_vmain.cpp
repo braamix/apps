@@ -24,7 +24,7 @@ static char vmactmp[BUFSIZ];
 Task<void> vmain(void)
 {
     int c, cnt, i;
-    char esave[TUBECOLS];
+    int esave[TUBECOLS];
     char *oglobp;
     char d;
     line *addr;
@@ -696,7 +696,7 @@ Task<void> vmain(void)
              * use insert mode on intelligent terminals.
              */
             if (!vreg && DEL[0]) {
-                forbid((DEL[0] & (QUOTE | TRIM)) == OVERBUF);
+                forbid((unsigned char)DEL[0] == OVERBUF);
                 vglobp = DEL;
                 ungetkey(c == 'p' ? 'a' : 'i');
                 goto reread;
@@ -902,7 +902,7 @@ Task<void> vmain(void)
             }
             vcatch = 0;
             if (excatch())
-                copy(esave, vtube[WECHO], TUBECOLS);
+                copy(esave, vtube[WECHO], TUBECOLS * sizeof(int));
             fixol();
             Pline   = OPline;
             Putchar = OPutchar;
@@ -967,7 +967,7 @@ Task<void> vmain(void)
                 addr = zero;
                 vcnt = 0;
                 if (esave[0] == 0)
-                    copy(esave, vtube[WECHO], TUBECOLS);
+                    copy(esave, vtube[WECHO], TUBECOLS * sizeof(int));
             }
 
             /*

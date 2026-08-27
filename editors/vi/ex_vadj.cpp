@@ -302,7 +302,7 @@ void vopenup(int cnt, exbool could, int l)
  */
 void vadjAL(int p, int cnt)
 {
-    char *tlines[TUBELINES];
+    int *tlines[TUBELINES];
     int from, to;
 
     copy(tlines, vtube, sizeof vtube); /*SASSIGN*/
@@ -372,7 +372,7 @@ void vmoveitup(int cnt, exbool doclr)
 void vscroll(int cnt)
 {
     int from, to;
-    char *tlines[TUBELINES];
+    int *tlines[TUBELINES];
 
     if (cnt < 0 || cnt > TUBELINES)
         THROW(error("Internal error: vscroll"));
@@ -658,7 +658,7 @@ void vdellin(int p, int cnt, int l)
  */
 void vadjDL(int p, int cnt)
 {
-    char *tlines[TUBELINES];
+    int *tlines[TUBELINES];
     int from, to;
 
     /*

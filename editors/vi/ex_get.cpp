@@ -77,8 +77,8 @@ int getach(void)
     }
 top:
     if (input) {
-        if (c = *input++) {
-            if (c &= TRIM)
+        if (c = (unsigned char)*input++) {
+            if (c != NULMARK) /* the NUL it stands for is dropped */
                 return (lastc = c);
             goto top;
         }
@@ -159,7 +159,7 @@ Task<Result<void>> ex_readline(void)
     inbuf[n] = 0;
     for (n--; n >= 0; n--)
         if (inbuf[n] == 0)
-            inbuf[n] = QUOTE;
+            inbuf[n] = NULMARK;
     input = inbuf;
     co_return {};
 }

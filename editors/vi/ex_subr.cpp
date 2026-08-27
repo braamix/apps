@@ -90,7 +90,7 @@ void copywR(line *to, line *from, int size)
 
 int ctlof(int c)
 {
-    return (c == TRIM ? '?' : c | ('A' - 1));
+    return (c == DELETE ? '?' : c | ('A' - 1));
 }
 
 void dingdong(void)
@@ -182,7 +182,7 @@ exbool junk(int c)
 {
     if (c && !value(BEAUTIFY))
         return (0);
-    if (c >= ' ' && c != TRIM)
+    if (c >= ' ' && c != DELETE)
         return (0);
     switch (c) {
     case '\t':

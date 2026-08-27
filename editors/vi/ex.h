@@ -105,8 +105,19 @@ extern struct option options[NOPTS + 1];
  * Only arrays of and pointers to characters are used and parameters and
  * registers are never declared character.
  */
-#define QUOTE 0200
-#define TRIM  0177
+/*
+ * A codepoint, and the flag above it: upstream had seven bits of character
+ * and bit 7 for the flag, which is the bit UTF-8 needs.
+ */
+#define QUOTE 0x00200000
+#define TRIM  0x001fffff
+
+/*
+ * The two bytes UTF-8 can never produce, for the sentinels that have to live
+ * in a char buffer beside text: an embedded NUL, kept out of the string
+ * terminator, and OVERBUF (ex_vis.h) for a buffer that overflowed.
+ */
+#define NULMARK 0376
 /*
  * Note the quotes, which upstream did not need. A pre-ANSI preprocessor
  * substituted a macro parameter inside a character constant, so `CTRL(v)` in

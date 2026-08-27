@@ -63,7 +63,7 @@ void takeout(char *BUF)
         cursor  = cp;
     }
     setBUF(BUF);
-    if ((BUF[0] & (QUOTE | TRIM)) == OVERBUF)
+    if ((unsigned char)BUF[0] == OVERBUF)
         obeep();
 }
 
@@ -74,7 +74,7 @@ void takeout(char *BUF)
 exbool ateopr(void)
 {
     int i, c;
-    char *cp = vtube[destline] + destcol;
+    int *cp = vtube[destline] + destcol;
 
     for (i = WCOLS - destcol; i > 0; i--) {
         c = *cp++;
@@ -171,7 +171,7 @@ again:
      * so far (e.g. if we are a change.)
      */
     if ((vglobp && *vglobp == 0) || co_await peekbr()) {
-        if ((INS[0] & (QUOTE | TRIM)) == OVERBUF) {
+        if ((unsigned char)INS[0] == OVERBUF) {
             obeep();
             if (!splitw)
                 ungetkey('u');

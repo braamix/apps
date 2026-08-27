@@ -106,8 +106,8 @@ EXTERN short vcnt;
  * cannot simply *be* the Grid, because the shuffling above moves row pointers
  * and a Cell grid is contiguous.
  */
-EXTERN char *vtube[TUBELINES];
-EXTERN char *vtube0;
+EXTERN int *vtube[TUBELINES];
+EXTERN int *vtube0;
 
 /* Standout, alongside vtube: one attrs byte per cell. */
 EXTERN char *vatube0;
@@ -245,8 +245,14 @@ EXTERN short Peekkey;              /* Peek ahead key */
 EXTERN exbool rubble;              /* Line is filthy (in hardcopy open), redraw! */
 EXTERN int vSCROLL;                /* Number lines to scroll on ^D/^U */
 EXTERN char *vglobp;               /* Untyped input (e.g. repeat insert text) */
-EXTERN char vmacbuf[VBSIZE];       /* Text of visual macro, hence nonnestable */
-EXTERN char *vmacp;                /* Like vglobp but for visual macros */
+/*
+ * Keys, not bytes: map() pushes back what it peeked while matching a multi
+ * character :map, and that may be a named key. A named key is negative
+ * (ex_tune.h) and so is a UTF-8 byte read through a signed char, so the two
+ * would alias in a char buffer.
+ */
+EXTERN int vmacbuf[VBSIZE];        /* Text of visual macro, hence nonnestable */
+EXTERN int *vmacp;                 /* Like vglobp but for visual macros */
 EXTERN char *vmcurs;               /* Cursor for restore after undo d), e.g. */
 EXTERN short vmovcol;              /* Column to try to keep on arrow keys */
 EXTERN exbool vmoving;             /* Are trying to keep vmovcol */
@@ -270,7 +276,7 @@ EXTERN exbool inserting;
  */
 #define INF       30000
 #define LASTLINE  LINE(vcnt)
-#define OVERBUF   QUOTE
+#define OVERBUF   0377 /* byte 0 of a text buffer; never valid UTF-8 */
 #define beep      obeep
 #define cindent() ((outline - vlinfo[vcline].vliny) * WCOLS + outcol)
 /*
@@ -334,8 +340,8 @@ void setwind(void);
  * global: static data has to fit in the initial memory, and this is 64 KiB.
  * Claimed on the first visual and kept, which is upstream's leak by another
  * name. */
-EXTERN char *atube;
-void vok(char *atube);
+EXTERN int *atube;
+void vok(int *atube);
 void vsetsiz(int size);
 
 /* ------------------------------------------------------------- ex_vadj.cpp */
@@ -379,6 +385,7 @@ exbool noteit(exbool must);
 void obeep(void);
 Task<int> map(int c, struct maps *maps);
 void macpush(char *st, int canundo = 0);
+void macpushk(int *st, int canundo = 0);
 Task<int> vgetcnt(void);
 Task<int> fastpeekkey(void);
 
@@ -448,7 +455,7 @@ exbool isa(char *cp);
 
 /* ------------------------------------------------------------- ex_vput.cpp */
 void vclear(void);
-void vclrbyte(char *cp, int i);
+void vclrbyte(int *cp, int i);
 void vclrlin(int l, line *tp);
 void vclreol(void);
 void vclrech(exbool didphys);
@@ -465,7 +472,7 @@ void vigotoCL(int x);
 void vgoto(int y, int x);
 void vgotab(void);
 void vprepins(void);
-void vmaktop(int p, char *cp);
+void vmaktop(int p, int *cp);
 void vneedpos(int cnt);
 void vnpins(int dosync);
 void vishft(void);

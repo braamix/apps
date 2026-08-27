@@ -92,7 +92,7 @@ Task<Result<void>> vflush(void)
         co_return {};
     g = &vscreen->grid();
     for (y = 0; y <= WECHO && y < (int)g->rows; y++) {
-        char *tp = vtube[y];
+        int *tp = vtube[y];
         char *ap = vatube0 && tp ? vatube0 + (tp - vtube0) : 0;
         u8 fg    = COLOR_WHITE;
 

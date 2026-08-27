@@ -267,12 +267,13 @@ Task<int> compsub(int ch)
 
 void comprhs(int seof)
 {
-    char *rp, *orp;
+    int *rp, *orp;
     int c;
-    char orhsbuf[RHSSIZE];
+    int orhsbuf[RHSSIZE];
 
     rp = rhsbuf;
-    CP(orhsbuf, rp);
+    for (int i = 0; (orhsbuf[i] = rp[i]) != 0; i++)
+        continue;
     for (;;) {
         c = getchar();
         if (c == seof)
@@ -413,7 +414,8 @@ exbool destuc;
 
 void dosub(void)
 {
-    char *lp, *sp, *rp;
+    char *lp, *sp;
+    int *rp;
     int c;
 
     lp = linebuf;
@@ -456,7 +458,7 @@ void dosub(void)
                 casecnt = 0;
                 continue;
             }
-        if (c < 0 && (c &= TRIM) >= '1' && c < nbra + '1') {
+        if ((c & QUOTE) && (c &= TRIM) >= '1' && c < nbra + '1') {
             sp = place(sp, braslist[c - '1'], braelist[c - '1']);
             if (sp == 0)
                 goto ovflo;
@@ -517,7 +519,8 @@ exbool compile(int eof, exbool oknl)
     int c;
     char *ep;
     char *lastep;
-    char bracket[NBRA], *bracketp, *rhsp;
+    char bracket[NBRA], *bracketp;
+    int *rhsp;
     int cclcnt;
 
     if (isalpha(eof) || isdigit(eof))
