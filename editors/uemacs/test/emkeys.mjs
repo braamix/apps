@@ -21,7 +21,7 @@ beta
 gamma
 delta
 ${BLANK}
--- uEmacs/Pk 4.0.15: f (Spell utf-8) /tmp/f ----------------------------- All --`);
+-- uEmacs/Pk 4.0.15: f (utf-8) /tmp/f ----------------------------------- All --`);
 
 // Three things the frame says that the text does not: the mode line is in
 // reverse video, the message line is cyan, and the text is white.

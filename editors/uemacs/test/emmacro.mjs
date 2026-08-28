@@ -8,12 +8,19 @@ import { boot, em, put, get, press, keys, submit, screen, modeline, is, ok, tick
 
 await boot("emmacro");
 
-// emacs.rc ran: it is what turns on spell and utf-8 for a buffer as it is
-// read, from the macro bound to META-SPEC-R.
+// emacs.rc ran: add-global-mode "utf-8" is its doing, and a session without it
+// shows an empty mode list.
 put("/tmp/f", "alpha\nbeta\n");
 em("/tmp/f");
 is("the packaged emacs.rc ran",
-   /\(Spell utf-8\)/.test(modeline()) ? "Spell utf-8" : modeline(), "Spell utf-8");
+   /\(utf-8\)/.test(modeline()) ? "utf-8" : modeline(), "utf-8");
+
+// And the macro bound to META-SPEC-R, which runs as a file is read: a .c file
+// gets CMODE. That is &sin and &mid working over the name.
+put("/tmp/g.c", "int main(void)\n{\n}\n");
+em("/tmp/g.c");
+is("a .c file comes up in CMODE",
+   /\(Cmode utf-8\)/.test(modeline()) ? "Cmode utf-8" : modeline(), "Cmode utf-8");
 
 // A user's own .emacsrc on disk wins over the packaged one. Nothing else
 // binds C-x q, so a session that answers it read the file, and the mode line
@@ -21,8 +28,8 @@ is("the packaged emacs.rc ran",
 put("/home/.emacsrc", "bind-to-key beginning-of-file ^Xq\n");
 em("/tmp/f", ["^n", "^x", "q"]);
 is("$HOME/.emacsrc overrides it, and its binding works", H.screen().cursor_y + "", "0");
-is("so the packaged one did not run", /Spell/.test(modeline()) ? "spell" : "no spell",
-   "no spell");
+is("so the packaged one did not run", /utf-8/.test(modeline()) ? "utf-8" : "no utf-8",
+   "no utf-8");
 H.store.files.delete("/home/.emacsrc");
 
 // So does the system-wide copy, and so does one in the current directory:
@@ -148,7 +155,7 @@ H.store.files.delete(`${STORE}/share/emacs.rc`);
 H.store.files.delete(`${STORE}/share/emacs.hlp`);
 em("/tmp/f");
 is("without the package emacs.rc does not run",
-   /Spell/.test(modeline()) ? "spell" : "no spell", "no spell");
+   /utf-8/.test(modeline()) ? "utf-8" : "no utf-8", "no utf-8");
 keys("ESC", "?");
 tick(3);
 is("and the help says it is not there", screen().split("\n").pop(),

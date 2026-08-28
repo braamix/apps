@@ -62,7 +62,7 @@ export async function boot(caseName) {
 // The package as pkg would have installed it: em reads /pkg/bin/em to find its
 // own share directory, so the whole link chain has to be real. The leaf may
 // dangle -- readlink does not follow it -- and the binary stays at /bin/em.
-export const STORE = "/pkg/store/uemacs-4.0-r1";
+export const STORE = "/pkg/store/uemacs-4.0-r2";
 
 function install() {
     for (const f of ["emacs.rc", "emacs.hlp"])

@@ -170,11 +170,10 @@ message line uses; everything else was replaced rather than reimplemented.
   `emacs.rc`'s help viewer rebinds.
 
   **F1 to F12 arrive too**, as `FN;` through `FND` and `FNT` through `FN]` with
-  shift. Nothing binds them but the startup file: `emacs.rc` puts help on F1,
-  which the port's `emacs.rc` now does whatever `$sres` says — the PC test
-  there is a kludge upstream admits to, and it decides for a screen, not for a
-  keyboard. F11 and F12 have no `FN` spelling, so `M-K` is the way to bind
-  them; it takes the keystroke rather than a name.
+  shift. Nothing binds them but the startup file, and [`emacs.rc`](emacs.rc)
+  binds the two upstream's own PC branch did: help on F1 and exit on F10. F11
+  and F12 have no `FN` spelling, so `M-K` is the way to bind them; it takes the
+  keystroke rather than a name.
 
   **Control on a motion key** is the word and buffer motions: `C-Left` and
   `C-Right` are `M-B`/`M-F`, `C-Home` and `C-End` are `M-<`/`M->`, and
@@ -197,11 +196,27 @@ message line uses; everything else was replaced rather than reimplemented.
 - **The screen has colour**, which a termcap terminal did not: the message line
   is cyan. The mode line keeps the reverse video it always had, as a cell
   attribute rather than an escape sequence.
-- **`emacs.rc` is UTF-8.** Upstream's was ISO 8859-1, for the `insert-string
-  "ä"` macros on a Nordic keyboard; the whole system is UTF-8 here, so the file
-  was converted and the macros still insert the letters they name.
-- **`$TERM` is not set and `emacs.rc`'s Sun branch never runs.** There is no
-  terminal type, because there is no terminal.
+- **[`emacs.rc`](emacs.rc) is two thirds shorter**, because most of upstream's
+  was addressed to a DOS box or a serial terminal and none of it ran. `$sres`
+  answers `"NORMAL"` and nothing can set it, so the `%system` kludge always
+  said `OTHER` and the whole PC branch under it was skipped: the `CGA` line,
+  the `$flicker`/`$scroll` snow workaround, the F-key and Alt-key bindings and
+  the colour modes. Just as well — there are no colour modes (`modename[]` has
+  nine entries and `blue`, `HIGH` and `red` are not among them) and no
+  `$scroll` variable, and an unforced FALSE ends a startup file, so either
+  would have stopped the rest of it dead. `$progname` is `uEmacs/Pk` rather
+  than the `uEmacs/PK` upstream tests for, so the Sun `$TERM` branch and the
+  `.emrc` files never ran either; there is no `$TERM` and no `$LANG` in the
+  environment to test. Gone with them: the Latin-1 macros that made `{|}[\]`
+  insert `äöåÄÖÅ` on a Nordic keyboard that could not send the letters — this
+  one sends them, and the whole system is UTF-8 — and `bind-to-key newline
+  ^J`, which was for pasting into an xterm. A paste arrives here as Enter
+  keystrokes, never as `^J`, so `^J` goes back to newline-and-indent.
+- **The mode line no longer says `Spell`.** Upstream's `emacs.rc` turned spell
+  mode on for every file it read, and this build has no hunspell behind it —
+  the mode existed and never found a misspelling. What is left in the file is
+  the help browser, `CMODE` and `WRAP` by file extension, `utf-8`, and F1 and
+  F10.
 - **The shell escapes run Braam's `/bin`,** which is forty-odd commands and not
   a Unix: `C-x !` works, `sort` and `tr` are not there to be run.
 - **A file replaced by rename is only caught if its size or mtime moved.**
@@ -244,7 +259,7 @@ Upstream's file split and its names are kept; `.c` became `.cpp`.
 
 ```
 make                     # build/editors/uemacs/em.wasm, about 270 KB
-make package             # uemacs-4.0-r1.zip: bin/em, and four files in share/
+make package             # uemacs-4.0-r2.zip: bin/em, and four files in share/
 make test                # the seven cases below
 ```
 
@@ -268,7 +283,8 @@ to be driven down a pipe. [test/emlib.mjs](test/emlib.mjs) is the shared half.
   and the key that ends it running as a command, `M-r`, and a regexp under
   MAGIC.
 - `emmacro.mjs` — that the packaged `emacs.rc` ran and that one on disk
-  overrides it, `!while`/`!if`/`&add`/`&cat`, `store-macro` with
+  overrides it, a `.c` file coming up in `CMODE` from the file-read hook,
+  `!while`/`!if`/`&add`/`&cat`, `store-macro` with
   `bind-to-key`, a keyboard macro, a `$` variable, `M-?` opening the packaged
   `emacs.hlp` and `F1` opening a topic out of its index, and what happens with
   no package at all.

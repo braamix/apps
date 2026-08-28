@@ -16,7 +16,7 @@ keys("CR");
 tick(1);
 is("C-x C-f", screen(1), "first");
 is("the mode line names it", modeline().slice(0, 40),
-   "-- uEmacs/Pk 4.0.15: one (Spell utf-8) /");
+   "-- uEmacs/Pk 4.0.15: one (utf-8) /tmp/on");
 
 // And on a file that is not: a new buffer, and the message says so.
 keys("^x", "^f");

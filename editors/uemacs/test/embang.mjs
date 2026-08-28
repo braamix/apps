@@ -37,7 +37,7 @@ H.type("echo one; echo two");
 keys("CR");
 tick(6);
 is("C-x @ opens a window on the output", row(10).slice(0, 44),
-   "-- uEmacs/Pk 4.0.15: command (Spell View utf");
+   "-- uEmacs/Pk 4.0.15: command (View utf-8) --");
 is("and leaves the file in the other half", [row(11), row(12)].join("\n"), "alpha\nbeta");
 
 // C-x # filters the buffer through a command. Upstream drove the filter
