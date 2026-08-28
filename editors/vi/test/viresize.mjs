@@ -51,4 +51,52 @@ press("^D");
 is("^D scrolled twenty", screen(1), "l21");
 quitvi();
 
-ok("a resize re-cuts the screen, the geometry is read at the claim, and the window follows");
+// A resize while the : line is up must not touch the buffer. readecho()
+// empties linebuf to compose the command in genbuf, and vresize()'s vsave()
+// would take that empty line for an edit and write it over the real one --
+// silently, and :w then put the loss on disk.
+put("/tmp/f", "alpha\nbeta\ngamma\n");
+regrid(80, 24);
+vi("/tmp/f");
+press(":");
+for (const c of "w /tmp/o1")
+    press(c);
+regrid(60, 20);
+press("CR");
+is("a resize under : leaves the buffer alone", get("/tmp/o1") ?? "(nothing)",
+   "alpha\nbeta\ngamma\n");
+quitvi();
+
+// The same for a search, which uses the echo line the same way.
+put("/tmp/f", "alpha\nbeta\ngamma\n");
+regrid(80, 24);
+vi("/tmp/f");
+press("/");
+for (const c of "beta")
+    press(c);
+regrid(60, 20);
+press("CR");
+press(":");
+for (const c of "w /tmp/o2")
+    press(c);
+press("CR");
+is("a resize under / leaves the buffer alone", get("/tmp/o2") ?? "(nothing)",
+   "alpha\nbeta\ngamma\n");
+quitvi();
+
+// But an edit in flight still has to be saved: the guard is splitw, not a
+// blanket skip.
+put("/tmp/f", "alpha\nbeta\ngamma\n");
+regrid(80, 24);
+vi("/tmp/f", ["i", "Z"]);
+regrid(60, 20);
+press("ESC");
+press(":");
+for (const c of "w /tmp/o3")
+    press(c);
+press("CR");
+is("a resize mid-insert keeps the insertion", get("/tmp/o3") ?? "(nothing)",
+   "Zalpha\nbeta\ngamma\n");
+quitvi();
+
+ok("a resize re-cuts the screen, the geometry is read at the claim, the window follows, and the buffer survives one under :");

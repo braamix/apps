@@ -200,8 +200,13 @@ void vresize(void)
      * The line being edited lives in linebuf, and the redraw below reads the
      * buffer; without this it would repaint the line as it was before the
      * current change.
+     *
+     * Not while splitw: the echo line owns linebuf then -- readecho() empties
+     * it to compose a : command in genbuf -- and vsave() would take that empty
+     * line for an edit and write it over the real one.
      */
-    vsave();
+    if (!splitw)
+        vsave();
     WCOLS = COLUMNS;
     vsetsiz(value(WINDOW));
     setwind();
