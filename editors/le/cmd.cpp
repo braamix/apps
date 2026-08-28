@@ -29,6 +29,14 @@
 #include "edit.h"
 #include "cmd.h"
 
+/* The command lines the Options form edits and the config file carries. They
+   were cmd.cc's, and they outlive the stub. */
+char    Shell  [256]="exec $SHELL";
+char    Make   [256]="exec make";
+char    Run    [256]="exec make run";
+char    Compile[256]="exec make \"$FNAME.o\"";
+char    HelpCmd[256]="";	/* upstream ran PKGDATADIR/help */
+
 Task<void>    cmd(const char *,bool,bool)
 {
     ErrMsg("Running a command is not available yet");

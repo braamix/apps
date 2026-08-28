@@ -489,3 +489,22 @@ wchar_t visualize_wchar(wchar_t wc)
 }
 
 #endif //USE_MULTIBYTE_CHARS
+
+/* What tables.cc held besides the D211 and VTA2000 keyboard maps.
+ *
+ * ModifyKey was the software Cyrillic layout: upstream read a Latin key and
+ * looked up the Russian letter on the same physical key, because a terminal
+ * could not tell it which one the user had meant. The browser sends the
+ * codepoint that was typed, so there is nothing to translate and inputmode
+ * never leaves LATIN. rus.cc's `coding` goes the same way. */
+
+int   coding=0;
+
+void  InitModifyKeyTables()
+{
+}
+
+int   ModifyKey(int key)
+{
+   return key;
+}

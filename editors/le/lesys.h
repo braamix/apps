@@ -4,9 +4,18 @@
 // is no table of messages here -- error_name() in kernel/result.h names them.
 #pragma once
 
+#ifdef __cplusplus
 #include "kernel/result.h"
 #include "kernel/text.h"   // the Str scanners, in place of sscanf
 #include "kernel/types.h"
+#else
+/* regex.c and wcwidth.c are C and want only the widths and the limits. */
+typedef unsigned long usize;
+typedef unsigned char u8;
+typedef unsigned int u32;
+typedef unsigned long long u64;
+typedef long long i64;
+#endif
 
 /* What a path buffer holds. alloca is gone -- a variable-length array in a
    coroutine would live in its frame, and a frame past 512 bytes costs a
@@ -37,6 +46,7 @@ extern int errno;
 
 // Only the five LE compares against; each is the kernel's own number so that
 // errno = int(r.error()) needs no mapping.
+#ifdef __cplusplus
 enum {
     ENOENT       = int(Error::NotFound),
     EACCES       = int(Error::Perm),
@@ -46,6 +56,7 @@ enum {
     EAGAIN       = int(Error::Again),
     EWOULDBLOCK  = EAGAIN,
 };
+#endif
 
 // The stat LE looks at. Everything else in struct stat went with the syscalls
 // that filled it.

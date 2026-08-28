@@ -19,6 +19,7 @@
 #include "config.h"
 #include "lesys.h"
 #include "edit.h"
+#include "epath.h"
 #include "lefile.h"
 #include "leio.h"
 #include "rus.h"
@@ -277,9 +278,14 @@ Task<void>  SaveConfToOpenFile(FILE *f,const struct init *init)
 
    for(p=init; p->name; p++)
    {
-      fprintf(f,"%s=",p->name);
+      char line[64];
+      snprintf(line,sizeof(line),"%s=",p->name);
+      co_await le_puts(line,f);
       if(p->format==NUM)
-         fprintf(f,"%d",*(int*)(p->var));
+      {
+         snprintf(line,sizeof(line),"%d",*(int*)(p->var));
+         co_await le_puts(line,f);
+      }
       else if(p->format==STR)
          co_await le_puts((char*)(p->var),f);
       co_await le_putc('\n',f);
@@ -297,7 +303,7 @@ Task<void>  SaveConfToFile(const char *f,const struct init *init)
       co_return;
    }
    co_await SaveConfToOpenFile(conf,init);
-   if(ferror(conf))
+   if(conf->failed())
    {
       co_await le_fclose(conf);
       FError(f);
@@ -328,10 +334,10 @@ Task<void>  SaveTermOpt()
    co_return;
 }
 
-void  fskip(FILE *f)
+Task<void>  fskip(FILE *f)
 {
    int i;
-   while((i=getc(f))!=EOF && i!='\n');
+   while((i=co_await le_getc(f))!=EOF && i!='\n');
 }
 
 Task<void>  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
@@ -341,27 +347,22 @@ Task<void>  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
    char  str[256];
    char  *s;
 
-   if(mine)
-   {
-#ifndef __MSDOS__
-      struct stat st;
-      if(co_await le_fstat(fileno(f),&st)==0)
-      {
-	 if(st.st_uid!=getuid()) // don't read conf from other's files.
-	    co_return;
-      }
-#endif
-   }
+   /* Upstream refused to read a config file owned by someone else. There is
+      no owner here. */
+   (void)mine;
 
    for(;;)
    {
-      if(fscanf(f,"%[^=\n]=",str)!=1)
+      String name;
+      if(!(co_await f->scan_until(name,"=\n",255)).value_or(false)
+      || !(co_await f->scan_lit('=')).value_or(false))
       {
-	 fskip(f);
-	 if(feof(f))
+	 co_await fskip(f);
+	 if(f->eof())
 	    break;
 	 continue;
       }
+      snprintf(str,sizeof(str),"%.*s",(int)name.size(),name.data());
       for(i=0; str[i]; i++)
 	 if(!isspace((unsigned char)str[i]))
 	    break;
@@ -378,8 +379,12 @@ Task<void>  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
          {
             if(ptr->format==NUM)
             {
-               if(fscanf(f,"%d\n",(int*)(ptr->var))<1)
-                  fskip(f);
+               {
+                  Result<i64> n=co_await f->scan_i64();
+                  if(n.is_ok())
+                     *(int*)(ptr->var)=(int)n.value();
+                  co_await fskip(f);
+               }
                break;
             }
             else if(ptr->format==STR)
@@ -387,12 +392,12 @@ Task<void>  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
                s=(char*)(ptr->var);
                do
                {
-                  if((i=getc(f))==EOF || i=='\n')
+                  if((i=co_await le_getc(f))==EOF || i=='\n')
                      break;
                   *s++=i;
                   if(s-(char*)(ptr->var)>=255)
                   {
-                     fskip(f);
+                     co_await fskip(f);
                      break;
                   }
                }
@@ -403,7 +408,7 @@ Task<void>  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
          }
       }
       if(!ptr->name)
-         fskip(f);
+         co_await fskip(f);
    }
 }
 
@@ -417,18 +422,10 @@ Task<void>  ReadConfFromFile(const char *ini,const struct init *init,bool mine)
    co_await le_fclose(f);
 }
 
-static bool ConfOK(const char *f,bool mine)
+static Task<bool> ConfOK(const char *f,bool mine)
 {
-   if(mine)
-   {
-#ifndef __MSDOS__
-      struct stat st;
-      if(co_await le_stat(f,&st)==-1)
-	 co_return false;
-      if(st.st_uid!=getuid())
-	 co_return false; // don't use other's config
-#endif
-   }
+   /* Upstream refused a config file owned by someone else; there is no owner. */
+   (void)mine;
    if(co_await le_access(f,R_OK)==-1)
       co_return false;
    co_return true;
@@ -442,14 +439,14 @@ Task<void>  ReadConf()
    bool mine;
 
    snprintf(t,sizeof(t),"%s/.le/term-%s",HOME,TERM);
-   if(!ConfOK(t,false))
+   if(!co_await ConfOK(t,false))
    {
-      snprintf(t,sizeof(t),"%s/term-%s",PKGDATADIR,TERM);
-      if(!ConfOK(t,false))
+      snprintf(t,sizeof(t),"%s/term-%s",datadir,TERM);
+      if(!co_await ConfOK(t,false))
       {
 	 snprintf(t,sizeof(t),"%s/.le/term",HOME);
-	 if(!ConfOK(t,false))
-            snprintf(t,sizeof(t),"%s/term",PKGDATADIR);
+	 if(!co_await ConfOK(t,false))
+            snprintf(t,sizeof(t),"%s/term",datadir);
       }
    }
    co_await ReadConfFromFile(t,term,false);
@@ -458,14 +455,14 @@ Task<void>  ReadConf()
       co_await init_chset();
 
    snprintf(t,sizeof(t),"%s/.le/colors-%s",HOME,TERM);
-   if(!ConfOK(t,false))
+   if(!co_await ConfOK(t,false))
    {
-      snprintf(t,sizeof(t),"%s/colors-%s",PKGDATADIR,TERM);
-      if(!ConfOK(t,false))
+      snprintf(t,sizeof(t),"%s/colors-%s",datadir,TERM);
+      if(!co_await ConfOK(t,false))
       {
 	 snprintf(t,sizeof(t),"%s/.le/colors",HOME);
-	 if(!ConfOK(t,false))
-	    snprintf(t,sizeof(t),"%s/colors",PKGDATADIR);
+	 if(!co_await ConfOK(t,false))
+	    snprintf(t,sizeof(t),"%s/colors",datadir);
       }
    }
    co_await ReadConfFromFile(t,colors,false);
@@ -475,12 +472,12 @@ Task<void>  ReadConf()
    if(!ExplicitInitName)
    {
       strcpy(InitName,".le.ini");
-      if(!ConfOK(InitName,mine=true))
+      if(!co_await ConfOK(InitName,mine=true))
       {
 	 snprintf(InitName,sizeof(InitName),"%s/.le/le.ini",HOME);
-	 if(!ConfOK(InitName,mine=false))
+	 if(!co_await ConfOK(InitName,mine=false))
 	 {
-	    snprintf(t,sizeof(t),"%s/le.ini",PKGDATADIR);
+	    snprintf(t,sizeof(t),"%s/le.ini",datadir);
 	    co_await ReadConfFromFile(t,init,false);
 	    goto ini_done;
 	 }
@@ -679,7 +676,7 @@ static bool InOptField(int y,int x,struct opt *o)
 
 Task<void>  W_Dialogue(struct opt *opt,
              const char *SetupHelp,const char *SetupTitle,
-             int (*EatKey)(int),int (*HandleButton)(const char *,int))
+             Task<int> (*EatKey)(int),Task<int> (*HandleButton)(const char *,int))
 {
    int newitem=0;
    int first=1;
@@ -866,7 +863,7 @@ use_key:
          {
             if(curr->type==STR)
                break;
-            action=EatKey(action);
+            action=co_await EatKey(action);
             goto use_key;
             break;
          }
@@ -896,7 +893,7 @@ use_key:
                *(int*)(curr->var)=GetNo(curr,opt);
                break;
 	    case(BUTTON):
-	       action=HandleButton(curr->name,curr-opt);
+	       action=co_await HandleButton(curr->name,curr-opt);
 	       goto use_key;
             }
             break;
@@ -993,7 +990,7 @@ use_key:
             ((char*)(curr->var))[pos]=0;
             break;
          case(ENTER_CHAR_CODE):
-            key=getcode_char();
+            key=co_await getcode_char();
             goto do_insert;
          case(CHOOSE_CHAR):
             key=co_await choose_ch();
@@ -1004,7 +1001,7 @@ use_key:
          default:
             if(action!=NO_ACTION || StringTypedLen!=1)
             {
-               action=EatKey(action);
+               action=co_await EatKey(action);
                goto use_key;
             }
             key=StringTyped[0];
@@ -1049,7 +1046,7 @@ leave_cycle:
       SetStdCol();
       if(curr->type==BUTTON)
       {
-         action=HandleButton(curr->name,curr-opt);
+         action=co_await HandleButton(curr->name,curr-opt);
 	 goto use_key;
       }
    }
@@ -1068,7 +1065,7 @@ leave_cycle:
 
 Task<void>  Dialogue(struct opt *opt,int WinWidth,int WinHeight,const char *WinTitle,
              const char *SetupHelp,const char *SetupTitle,
-             int (*EatKey)(int),int (*HandleButton)(const char *,int))
+             Task<int> (*EatKey)(int),Task<int> (*HandleButton)(const char *,int))
 {
    WIN *optw;
    optw=CreateWin(MIDDLE,MIDDLE,WinWidth,WinHeight,DIALOGUE_WIN_ATTR,WinTitle,0);
@@ -1095,9 +1092,9 @@ Task<int>    OptEatKey(int k)
    co_return(-1);
 }
 
-int    OptHandleBut(const char *,int)
+Task<int>    OptHandleBut(const char *,int)
 {
-   return(0);
+   co_return(0);
 }
 
 Task<void>  Options()
@@ -1120,14 +1117,14 @@ Task<void>  UpdtOpt()
    co_await SaveConf(InitName);
    co_return;
 }
-int   TOEatKey(int k)
+Task<int>   TOEatKey(int k)
 {
    (void)k;
-   return(-1);
+   co_return(-1);
 }
-int   TOHandleBut(const char *,int)
+Task<int>   TOHandleBut(const char *,int)
 {
-   return(0);
+   co_return(0);
 }
 Task<void>  TermOpt(void)
 {

@@ -19,6 +19,8 @@
 #ifndef TEXTPOINT_H
 #define TEXTPOINT_H
 
+#include "leglobal.h"
+
 
 #define  COLUNDEFINED      1
 #define  LINEUNDEFINED     2
@@ -29,7 +31,7 @@ class TextPoint
    offs  offset;
    num   line,col;
    int   flags;
-   static TextPoint cached_array[];
+   static Global<TextPoint> cached_array[];
    static int cached_array_ptr;
 
    TextPoint   *next;
@@ -107,12 +109,16 @@ public:
    void Check() const {};
 };
 
-extern TextPoint  CurrentPos;
-extern TextPoint  ScreenTop;
-extern TextPoint  BlockBegin;
-extern TextPoint  BlockEnd;
-extern TextPoint  TextEnd;
-extern TextPoint  TextBegin;
+/* Built on first use and never destroyed; see leglobal.h. The macro keeps
+   every use site as upstream wrote it. */
+extern Global<TextPoint> g_CurrentPos, g_ScreenTop, g_BlockBegin,
+                         g_BlockEnd, g_TextEnd, g_TextBegin;
+#define CurrentPos (g_CurrentPos.get())
+#define ScreenTop  (g_ScreenTop.get())
+#define BlockBegin (g_BlockBegin.get())
+#define BlockEnd   (g_BlockEnd.get())
+#define TextEnd    (g_TextEnd.get())
+#define TextBegin  (g_TextBegin.get())
 
 #define ScrPtr  ScreenTop.Offset()
 #define ScrLine ScreenTop.Line()

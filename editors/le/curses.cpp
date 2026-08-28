@@ -11,15 +11,15 @@ int COLS  = 80;
 // Every call that takes a WINDOW * gets this and every callee ignores it.
 WINDOW *stdscr = (WINDOW *)1;
 
-const cchar_t WACS_ULCORNER_c = { A_NORMAL, { 0x250C, 0, 0, 0, 0 } };
-const cchar_t WACS_URCORNER_c = { A_NORMAL, { 0x2510, 0, 0, 0, 0 } };
-const cchar_t WACS_LLCORNER_c = { A_NORMAL, { 0x2514, 0, 0, 0, 0 } };
-const cchar_t WACS_LRCORNER_c = { A_NORMAL, { 0x2518, 0, 0, 0, 0 } };
-const cchar_t WACS_HLINE_c    = { A_NORMAL, { 0x2500, 0, 0, 0, 0 } };
-const cchar_t WACS_VLINE_c    = { A_NORMAL, { 0x2502, 0, 0, 0, 0 } };
-const cchar_t WACS_CKBOARD_c  = { A_NORMAL, { 0x2592, 0, 0, 0, 0 } };
-const cchar_t WACS_LTEE_c     = { A_NORMAL, { 0x251C, 0, 0, 0, 0 } };
-const cchar_t WACS_RTEE_c     = { A_NORMAL, { 0x2524, 0, 0, 0, 0 } };
+const cchar_t WACS_ULCORNER_c = { A_NORMAL, { 0x250C, 0 } };
+const cchar_t WACS_URCORNER_c = { A_NORMAL, { 0x2510, 0 } };
+const cchar_t WACS_LLCORNER_c = { A_NORMAL, { 0x2514, 0 } };
+const cchar_t WACS_LRCORNER_c = { A_NORMAL, { 0x2518, 0 } };
+const cchar_t WACS_HLINE_c    = { A_NORMAL, { 0x2500, 0 } };
+const cchar_t WACS_VLINE_c    = { A_NORMAL, { 0x2502, 0 } };
+const cchar_t WACS_CKBOARD_c  = { A_NORMAL, { 0x2592, 0 } };
+const cchar_t WACS_LTEE_c     = { A_NORMAL, { 0x251C, 0 } };
+const cchar_t WACS_RTEE_c     = { A_NORMAL, { 0x2524, 0 } };
 
 namespace {
 

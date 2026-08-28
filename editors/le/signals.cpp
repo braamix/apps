@@ -57,7 +57,9 @@ void  CheckWindowResize()
    flag|=REDISPLAY_ALL;
 }
 
-static char mem[4000];
+/* A path, which is all TmpFileName builds; upstream sized this for the
+   crash dumps as well. */
+static char mem[LE_PATHMAX];
 
 char *TmpFileName()
 {

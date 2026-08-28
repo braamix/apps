@@ -1503,13 +1503,13 @@ Task<void>  UserInsertByteCode()
 {
    if(View)
       co_return;
-   int ch=getcode_char();
+   int ch=co_await getcode_char();
    if(ch!=-1)
       UserInsertControlChar(ch);
 }
 Task<void>  UserInsertWCharCode()
 {
-   wchar_t ch=getcode_wchar();
+   wchar_t ch=co_await getcode_wchar();
    if(ch!=-1)
       UserInsertWChar(ch);
    co_return;
@@ -1607,8 +1607,8 @@ Task<void>  UserBlockPrefixIndent()
    flag=REDISPLAY_ALL;
 }
 
-History	 ShellHistory;
-History	 PipeHistory;
+Global<History> g_ShellHistory;
+Global<History> g_PipeHistory;
 
 Task<void>  UserShellCommand()
 {

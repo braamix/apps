@@ -468,7 +468,7 @@ const char *calcerrmsg()
 }
 
 #ifdef   MAIN
-co_await main(argc,argv)
+Task<co_await> main(argc,argv)
 char  **argv;
 {
    int   i;

@@ -513,7 +513,7 @@ leave_menu:
    refresh();
 }
 
-extern void fskip(FILE*);
+extern Task<void> fskip(FILE*);
 
 Task<void> LoadMainMenu()
 {
@@ -575,7 +575,7 @@ read_it:
       int c=co_await le_getc(f);
       if(c=='#')
       {
-	 fskip(f);
+	 co_await fskip(f);
 	 continue;
       }
       if(c==' ' || c=='\t' || c=='\n')
@@ -598,13 +598,13 @@ read_it:
 	 if(c!='"')
 	 {
 	    if(c!='\n' && c!=EOF)
-	       fskip(f);
+	       co_await fskip(f);
 	    continue;
 	 }
 	 if(!(co_await f->scan_until(tok,"\"")).value_or(false)
 	 || !(co_await f->scan_lit('"')).value_or(false))
 	 {
-	    fskip(f);
+	    co_await fskip(f);
 	    continue;
 	 }
 	 m[mi].SetText(strdup(str));
@@ -675,22 +675,22 @@ read_it:
 	    }
 	 }
 	 mi++;
-	 fskip(f);
+	 co_await fskip(f);
       }
       else if(!strcmp(func,"hline"))
       {
 	 m[mi++].text=strdup("---");
-	 fskip(f);
+	 co_await fskip(f);
       }
       else if(!strcmp(func,"end"))
       {
 	 m[mi++].text=0;
 	 level--;
-	 fskip(f);
+	 co_await fskip(f);
       }
       else
       {
-	 fskip(f);
+	 co_await fskip(f);
       }
    }
    co_await le_fclose(f);

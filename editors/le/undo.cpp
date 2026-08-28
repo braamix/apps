@@ -19,7 +19,7 @@
 #include "config.h"
 #include "undo.h"
 
-Undo undo;
+Global<Undo> g_undo;
 
 Undo::Undo()
 {

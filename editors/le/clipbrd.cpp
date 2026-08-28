@@ -24,7 +24,7 @@
 #include "leio.h"
 #include "clipbrd.h"
 
-ClipBoard MainClipBoard;
+Global<ClipBoard> g_MainClipBoard;
 
 ClipBoard::ClipBoard()
 {

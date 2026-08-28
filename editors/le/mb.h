@@ -34,7 +34,7 @@ wchar_t WCharAt(offs o);
 wchar_t WCharLeftAt(offs o);
 void InsertWChar(wchar_t ch);
 wchar_t WCharAtLC(num,num);
-wchar_t getcode_wchar();
+Task<wchar_t> getcode_wchar();
 Task<wchar_t> choose_wch();
 void ReplaceWCharExt(wchar_t);
 void ReplaceWCharExtMove(wchar_t);

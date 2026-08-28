@@ -94,10 +94,12 @@ target_include_directories(bin_le PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GEN})
 target_compile_options(bin_le PRIVATE ${LE_NOBUILTIN} -fno-threadsafe-statics)
 target_link_libraries(bin_le PRIVATE le_quiet)
 
-# regex.c is C: it wants the malloc allocator and none of the wide-character
-# or glibc halves.
+# regex.c and wcwidth.c are the two files that are C. cinc/ is the handful of
+# libc headers they name, each forwarding to the shim; REGEX_MALLOC keeps
+# regex.c off alloca.
 set_source_files_properties(regex.c wcwidth.c PROPERTIES
-    COMPILE_DEFINITIONS "REGEX_MALLOC=1")
+    COMPILE_DEFINITIONS "REGEX_MALLOC=1"
+    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/cinc;${CMAKE_CURRENT_SOURCE_DIR};${GEN}")
 
 # The data travels with the binary. Only the flat bin/ entry becomes a command;
 # share/ is nested, so it is payload -- and /pkg/bin/le is the link into the

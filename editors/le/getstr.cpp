@@ -208,14 +208,14 @@ Task<int>   getstring(const char *pr,char *buf,int maxlen,History* history,int *
 	    }
             goto ins;
          case(ENTER_CHAR_CODE):
-            ch=getcode_char();
+            ch=co_await getcode_char();
             if(ch==-1)
                break;
 	    StringTyped[0]=ch;
 	    StringTypedLen=1;
             goto ins;
          case(ENTER_WCHAR_CODE):
-            ch=getcode_wchar();
+            ch=co_await getcode_wchar();
             if(ch==-1)
                break;
 	    StringTypedLen=wctomb((char*)StringTyped,ch);

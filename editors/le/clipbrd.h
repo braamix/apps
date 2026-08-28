@@ -41,6 +41,7 @@ public:
    int Linearize(char **buf,int *len);
 };
 
-extern ClipBoard MainClipBoard;
+extern Global<ClipBoard> g_MainClipBoard;
+#define MainClipBoard (g_MainClipBoard.get())
 
 #endif//CLIPBRD_H

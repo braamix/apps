@@ -27,7 +27,8 @@ Task<void>  editcalc()
    static   char  expr[256]="";
    char  str[256];
    int   i,y;
-   static   History  CalcHistory;
+   static Global<History> g_CalcHistory;
+   History &CalcHistory=g_CalcHistory.get();
 
    w=CreateWin(FRIGHT,FDOWN,40,16,DIALOGUE_WIN_ATTR," Calculator ",0);
    DisplayWin(w);

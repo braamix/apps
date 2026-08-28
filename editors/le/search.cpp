@@ -38,7 +38,7 @@ extern "C" {
 #define FORWARD   1
 #define BACKWARD  2
 
-History  SearchHistory;
+Global<History> g_SearchHistory;
 
 int   match_case=1;
 
@@ -63,7 +63,8 @@ static bool hex_search;
 int   LastOp=0;
 int   LastDir=FORWARD;
 
-TextPoint   back_tp;
+Global<TextPoint> g_back_tp;
+#define back_tp (g_back_tp.get())
 
 char *my_memrchr(const char *mem,char ch,num len)
 {

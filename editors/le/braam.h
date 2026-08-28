@@ -7,16 +7,29 @@
 // editor itself to syscalls; what is left of printf is the message line.
 #pragma once
 
+#ifdef __cplusplus
 #include "kernel/types.h"
+#else
+/* regex.c and wcwidth.c are C; kernel/types.h is C++. */
+typedef unsigned long usize;
+typedef unsigned long size_t;
+typedef long ptrdiff_t;
+#endif
 
+#ifdef __cplusplus
 #define NULL nullptr
+#else
+#define NULL ((void *)0)
+#endif
 
-using va_list = __builtin_va_list;
+typedef __builtin_va_list va_list;
 #define va_start(ap, last) __builtin_va_start(ap, last)
 #define va_end(ap)         __builtin_va_end(ap)
 #define va_arg(ap, t)      __builtin_va_arg(ap, t)
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 void *malloc(usize n);
 void *calloc(usize n, usize size);
@@ -84,7 +97,12 @@ int vsnprintf(char *buf, usize size, const char *fmt, va_list ap);
 int snprintf(char *buf, usize size, const char *fmt, ...);
 int sprintf(char *buf, const char *fmt, ...);
 
-} // extern "C"
+#ifdef __cplusplus
+}
+#endif
 
-// A failed assertion is a trap; there is nothing to print to at that point.
+// abort() and a failed assertion are both a trap; there is nothing to print
+// to at that point.
+#define abort() __builtin_trap()
+
 #define assert(e) ((e) ? (void)0 : __builtin_trap())

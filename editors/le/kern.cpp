@@ -46,9 +46,9 @@ bool      newfile=false;
 int       EolSize=1;
 char	  EolStr[3]="\n";
 
-InodeInfo   FileInfo;
-InodeHistory PositionHistory;
-History    LoadHistory;
+Global<InodeInfo> g_FileInfo;
+Global<InodeHistory> g_PositionHistory;
+Global<History> g_LoadHistory;
 
 mode_t   FileMode;
 

@@ -140,9 +140,9 @@ void c_string_interpret(char *s)
    }
 }
 
-extern void fskip(FILE*);
+extern Task<void> fskip(FILE*);
 
-char *read_regex(FILE*f)
+Task<char *> read_regex(FILE*f)
 {
    char str[1024];
    char *accum=0;
@@ -217,7 +217,7 @@ char *read_regex(FILE*f)
    co_return accum;
 }
 
-static FILE *open_syntax_d(const char *name)
+static Task<FILE *> open_syntax_d(const char *name)
 {
    if(name[0]!='/') {
       const char *base_dir="syntax.d";
@@ -252,7 +252,7 @@ static bool remember_file(const char *fn)
    return true;
 }
 static bool hl_section_match;
-static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
+static Task<void> ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 {
    if(!remember_file(fn))
       co_return;
@@ -350,7 +350,7 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
       {
 	 if(!hl_section_match)
 	 {
-	    fskip(f);
+	    co_await fskip(f);
 	    continue;
 	 }
 	 bool ignore_case=false;
@@ -375,19 +375,19 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	 if(res==1) {
 	    mask=1;
 	    if(co_await le_getc(f)!='=') {
-	       fskip(f);
+	       co_await fskip(f);
 	       continue;
 	    }
 	 }
 	 else if(res!=2)
 	 {
-	    fskip(f);
+	    co_await fskip(f);
 	    continue;
 	 }
 	 else {
 	    mask<<=1;
 	 }
-	 rx=read_regex(f);
+	 rx=co_await read_regex(f);
 	 if(!rx)
 	    goto end;
 	 syntax_hl *hl=new syntax_hl(color,mask);
@@ -412,12 +412,12 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	 }
 	 if(hl_lines<1)
 	    hl_lines=1;
-	 fskip(f);
+	 co_await fskip(f);
 	 break;
       case('i'):
 	 if(!hl_section_match)
 	 {
-	    fskip(f);
+	    co_await fskip(f);
 	    continue;
 	 }
 	 /*fallthrought*/
@@ -425,20 +425,20 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	 if((co_await f->scan_lit('=')).value_or(false)
 	 && (co_await f->scan_token(tok,255)).value_or(false)
 	 && (snprintf(str,sizeof(str),"%.*s",(int)tok.size(),tok.data()),true)) {
-	    FILE *i_f=open_syntax_d(str);
+	    FILE *i_f=co_await open_syntax_d(str);
 	    if(i_f) {
-	       ReadSyntaxFile(str,i_f,chain);
+	       co_await ReadSyntaxFile(str,i_f,chain);
 	       while(*chain) // skip the newly added nodes
 		  chain=&chain[0]->next;
 	    }
 	 }
-	 fskip(f);
+	 co_await fskip(f);
 	 break;
       case('s'):
       {
 	 if(!hl_section_match)
 	 {
-	    fskip(f);
+	    co_await fskip(f);
 	    continue;
 	 }
 	 ch=co_await le_getc(f);
@@ -448,7 +448,7 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	    ch=co_await le_getc(f);
 	 }
 	 if(ch!='(') {
-	    fskip(f);
+	    co_await fskip(f);
 	    break;
 	 }
 	 if((co_await f->scan_until(fld,")\n=",255)).value_or(false)
@@ -466,13 +466,13 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	    if(res!=1) {
 	       mask=1;
 	       if(co_await le_getc(f)!='=') {
-		  fskip(f);
+		  co_await fskip(f);
 		  continue;
 	       }
 	    } else {
 	       mask<<=1;
 	    }
-	    rx=read_regex(f);
+	    rx=co_await read_regex(f);
 	    if(!rx)
 	       goto end;
 
@@ -489,17 +489,17 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	    chain=&hl->next;
 	    hl_active=1; // have at least one element
 
-	    FILE *i_f=open_syntax_d(str);
+	    FILE *i_f=co_await open_syntax_d(str);
 	    if(i_f) {
-	       ReadSyntaxFile(str,i_f,&hl->sub);
+	       co_await ReadSyntaxFile(str,i_f,&hl->sub);
 	    }
 	 } else {
-	    fskip(f);
+	    co_await fskip(f);
 	 }
 	 break;
       }
       default:
-	 fskip(f);
+	 co_await fskip(f);
       case('\n'):
 	 break;
       }
@@ -538,7 +538,7 @@ Task<void> InitHighlight()
    if(!f)
       co_return;
    hl_section_match=false;
-   ReadSyntaxFile(fn,f,&syntax_hl::chain);
+   co_await ReadSyntaxFile(fn,f,&syntax_hl::chain);
 }
 
 class element

@@ -20,15 +20,15 @@
 #include "edit.h"
 #include "mb.h"
 
-TextPoint   CurrentPos;
-TextPoint   ScreenTop;
-TextPoint   TextBegin;
-TextPoint   TextEnd;
-TextPoint   BlockBegin;
-TextPoint   BlockEnd;
+Global<TextPoint> g_CurrentPos;
+Global<TextPoint> g_ScreenTop;
+Global<TextPoint> g_TextBegin;
+Global<TextPoint> g_TextEnd;
+Global<TextPoint> g_BlockBegin;
+Global<TextPoint> g_BlockEnd;
 
 static const int cached_array_size=64;
-TextPoint   TextPoint::cached_array[cached_array_size];
+Global<TextPoint> TextPoint::cached_array[cached_array_size];
 int	    TextPoint::cached_array_ptr;
 
 TextPoint   *TextPoint::base=NULL;
@@ -122,15 +122,15 @@ void TextPoint::CacheTextPoint() const
 {
    if(!offset || (flags&(COLUNDEFINED|LINEUNDEFINED)))
       return;
-   if(cached_array[cached_array_ptr].offset != offset)
+   if(cached_array[cached_array_ptr].get().offset != offset)
    {
       /* The set was a membership test over these same 64 slots, so the slots
 	 are the set: scan them rather than keep a second copy. */
       for(int i=0; i<cached_array_size; i++)
-	 if(cached_array[i].offset==offset)
+	 if(cached_array[i].get().offset==offset)
 	    return;
    }
-   cached_array[cached_array_ptr++]=*this;
+   cached_array[cached_array_ptr++].get()=*this;
    cached_array_ptr&=(cached_array_size-1);
 }
 

@@ -33,6 +33,11 @@ extern "C" int mbtowc(wchar_t *out, const char *s, usize n)
     return (int)used;
 }
 
+extern "C" int wcwidth(wchar_t c)
+{
+    return mk_wcwidth(c);
+}
+
 extern "C" int mblen(const char *s, usize n)
 {
     return mbtowc(nullptr, s, n);

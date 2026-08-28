@@ -132,7 +132,7 @@ struct  menu   ConCan4Menu[]={
 {   "  &Cancel  ",MIDDLE+6,FDOWN-2  },
 {NULL}};
 
-off_t  GetDevSize(int fd)
+Task<off_t> GetDevSize(int fd)
 {
 #ifdef BLKGETSIZE
    unsigned sect=0;
@@ -332,7 +332,7 @@ Task<int>   LoadFile(char *name)
       && st.st_size<=0)
       {
 	 // try to get device size
-	 st.st_size=GetDevSize(file);
+	 st.st_size=co_await GetDevSize(file);
       }
       if(st.st_size>0)
       {
@@ -412,7 +412,7 @@ static char *BackupName(char *buf,unsigned buf_size,char *bp,char *filename,char
    return buf;
 }
 
-static void MoveBackup(char *bp,char *filename,char *bak,int n)
+static Task<void> MoveBackup(char *bp,char *filename,char *bak,int n)
 {
    static char bakname[LE_PATHMAX];
 
@@ -430,7 +430,7 @@ static void MoveBackup(char *bp,char *filename,char *bak,int n)
 	    co_await le_unlink(bakname);
 	 else
 	 {
-	    MoveBackup(bp,filename,bak,n+1);
+	    co_await MoveBackup(bp,filename,bak,n+1);
 	    if(co_await le_rename(bakname,bakname1)==-1)
 	       co_await le_unlink(bakname);
 	 }
@@ -490,7 +490,7 @@ static Task<int> CreateBak(char *name)
       snprintf(bp,bp_size,"%s%s",HOME,BakPath+1);
    }
 
-   MoveBackup(bp,filename,bak,1);
+   co_await MoveBackup(bp,filename,bak,1);
 
    unsigned nbytes=strlen(bp)+1+strlen(filename)+strlen(bak)+40+1;
    static char bakname[LE_PATHMAX];

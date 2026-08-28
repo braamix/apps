@@ -55,7 +55,10 @@ typedef void WINDOW;
 extern WINDOW *stdscr;
 
 // A wide cell, ncurses' shape, so screen.cpp's cchar_t building is unchanged.
-enum { CCHARW_MAX = 5 };
+// Two rather than ncurses' five: a cell holds one codepoint here and the
+// renderer composes no combining marks, so the rest were never drawn -- and
+// Redisplay's line buffer is one of these per column.
+enum { CCHARW_MAX = 2 };
 
 struct cchar_t {
     attr_t attr;

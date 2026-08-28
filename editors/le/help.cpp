@@ -89,7 +89,7 @@ Task<void>  Help(char ***h,char *title)
 }
 #endif //0
 
-static char *LoadHelp(const char *tag)
+static Task<char *> LoadHelp(const char *tag)
 {
    char hpath[LE_PATHMAX];
    FILE *hf=co_await le_fopen(datafile(hpath,sizeof(hpath),"le.hlp"),false);
@@ -179,7 +179,7 @@ static char *LoadHelp(const char *tag)
 
 Task<void>  Help(const char *helpf,const char *title)
 {
-   char *help=LoadHelp(helpf);
+   char *help=co_await LoadHelp(helpf);
    if(!help)
       co_return;
    const char  *ptr=help;

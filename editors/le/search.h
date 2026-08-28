@@ -29,7 +29,8 @@ Task<void>     StartReplace(void);
 Task<void>     ContReplace(void);
 Task<void>     StartSearchBackward(void);
 
-extern   History  SearchHistory;
+extern Global<History> g_SearchHistory;
+#define SearchHistory (g_SearchHistory.get())
 
 extern unsigned char map_to_lower[256];
 void map_to_lower_init();

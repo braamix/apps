@@ -86,8 +86,9 @@ void  GoToLineNum(num line_num)
    SetStdCol();
 }
 
-History CodeHistory;
-long getcode(const char *prompt)
+Global<History> g_CodeHistory;
+#define CodeHistory (g_CodeHistory.get())
+Task<long> getcode(const char *prompt)
 {
    long  i;
    static char ch[10];
@@ -107,20 +108,20 @@ long getcode(const char *prompt)
    i=strtol(ch,0,0);
    co_return((int)i);
 }
-int getcode_char()
+Task<int> getcode_char()
 {
-   long ch=getcode("Char: ");
+   long ch=co_await getcode("Char: ");
    if(ch<0 || ch>=256)
-      return -1;
-   return (int)ch;
+      co_return -1;
+   co_return (int)ch;
 }
 #if USE_MULTIBYTE_CHARS
-wchar_t getcode_wchar()
+Task<wchar_t> getcode_wchar()
 {
-   long ch=getcode("Wide Char: ");
+   long ch=co_await getcode("Wide Char: ");
    if(ch<0)
-      return -1;
-   return (wchar_t)ch;
+      co_return -1;
+   co_return (wchar_t)ch;
 }
 #endif
 
@@ -424,7 +425,7 @@ Task<void>    Initialize()
 
    co_await InstallSignalHandlers();
 
-   InitCurses();
+   co_await InitCurses();
 
    co_await ReadConf();
 

@@ -112,4 +112,5 @@ public:
    void SetGlue(bool g) { glue_changes=g; }
 };
 
-extern Undo undo;
+extern Global<Undo> g_undo;
+#define undo (g_undo.get())

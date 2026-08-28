@@ -73,9 +73,12 @@ extern  int    PreferPageTop;
    insert/delete line capability of a terminal */
 extern  int     useidl;
 
-extern   InodeHistory   PositionHistory;
-extern   InodeInfo      FileInfo;
-extern   History        LoadHistory;
+extern Global<InodeHistory> g_PositionHistory;
+#define PositionHistory (g_PositionHistory.get())
+extern Global<InodeInfo> g_FileInfo;
+#define FileInfo (g_FileInfo.get())
+extern Global<History> g_LoadHistory;
+#define LoadHistory (g_LoadHistory.get())
 
 extern int FuncKeysNum;
 
@@ -167,8 +170,8 @@ void  HardMove(num,num);
 void  ExpandTab(void);
 bool  IsAlNumAt(offs);
 
-long  getcode(const char *prompt);
-int   getcode_char();
+Task<long> getcode(const char *prompt);
+Task<int>   getcode_char();
 Task<int>   AskToSave();
 Task<void>  Quit(void);
 

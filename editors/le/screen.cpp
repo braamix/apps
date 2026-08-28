@@ -366,7 +366,7 @@ void  StatusLine()
       bn=le_basename(FileName);
       l=strlen(bn);
 #if USE_MULTIBYTE_CHARS
-      static wchar_t wnamebuf[LE_PATHMAX];
+      static wchar_t wnamebuf[256];
       if(l>=(int)(sizeof(wnamebuf)/sizeof(*wnamebuf)))
 	 l=sizeof(wnamebuf)/sizeof(*wnamebuf)-1;
       wname=wnamebuf;

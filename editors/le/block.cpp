@@ -72,14 +72,16 @@ Task<void>   HideDisplay()
 }
 char   CharAtLC(num l,num c)
 {
-   static  TextPoint   Last;
+   static Global<TextPoint> g_Last;
+   TextPoint &Last=g_Last.get();
    Last=TextPoint(l,c);
    return((EolAt(Last)||Last.Col()!=c||Last.Line()!=l)?' ':CharAt(Last));
 }
 #if USE_MULTIBYTE_CHARS
 wchar_t WCharAtLC(num l,num c)
 {
-   static TextPoint Last;
+   static Global<TextPoint> g_Last;
+   TextPoint &Last=g_Last.get();
    Last=TextPoint(l,c);
    return((EolAt(Last)||Last.Col()!=c||Last.Line()!=l)?' ':WCharAt(Last));
 }

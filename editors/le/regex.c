@@ -210,48 +210,10 @@
    even if config.h says that we can.  */
 # undef REL_ALLOC
 
-# include <unistd.h>
-
-/* When used in Emacs's lib-src, we need xmalloc and xrealloc. */
-
-static void *
-xmalloc (size_t size)
-{
-  void *val = malloc (size);
-  if (!val && size)
-    {
-      write (STDERR_FILENO, "virtual memory exhausted\n", 25);
-      exit (1);
-    }
-  return val;
-}
-
-static void *
-xrealloc (void *block, size_t size)
-{
-  void *val;
-  /* We must call malloc explicitly when BLOCK is 0, since some
-     reallocs don't do this.  */
-  if (! block)
-    val = malloc (size);
-  else
-    val = realloc (block, size);
-  if (!val && size)
-    {
-      write (STDERR_FILENO, "virtual memory exhausted\n", 25);
-      exit (1);
-    }
-  return val;
-}
-
-# ifdef malloc
-#  undef malloc
-# endif
-# define malloc xmalloc
-# ifdef realloc
-#  undef realloc
-# endif
-# define realloc xrealloc
+/* Upstream wrapped malloc so that running out of memory printed a line and
+   exited. A write is a syscall here and this is not a coroutine, and nothing
+   can exit from inside one anyway -- so the allocator is malloc itself, which
+   answers null, and re_compile_pattern's own out-of-memory paths carry it. */
 
 # include <stdbool.h>
 # include <string.h>
