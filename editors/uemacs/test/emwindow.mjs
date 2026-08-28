@@ -56,4 +56,16 @@ regrid(60, 20);
 is("and back", [row(0), row(1)].join("\n"), "first\nsecond");
 is("the mode line again", String(row(18).length), "60");
 
+// A drag is a burst of resizes, and the process sees none of them until it is
+// next scheduled -- so the geometry it ends up with can be the one it already
+// had. The kernel blanks its screen for each of them anyway, keeping only the
+// rows above the cursor, so a frame sent by difference would send nothing and
+// leave the screen black. H.regrid() directly, since regrid() ticks.
+H.regrid(100, 30, "resize returned no screen descriptor");
+H.regrid(60, 20, "resize returned no screen descriptor");
+tick(3);
+is("a burst of resizes ending where it started", [row(0), row(1)].join("\n"),
+   "first\nsecond");
+is("and the mode line with it", String(row(18).length), "60");
+
 ok("split, switch, close, and a resize either way");

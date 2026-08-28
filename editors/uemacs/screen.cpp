@@ -29,9 +29,13 @@
 #define MARGIN 8
 #define SCRSIZ 64
 
-/* The screen size the back buffer is allocated for. */
-#define TUBEROWS 128
-#define TUBECOLS 512
+/*
+ * The screen size the back buffer is allocated for: the widest grid the
+ * kernel will make, except in columns, where MAXCOL is what display.cpp's
+ * mode line and message buffers are.
+ */
+#define TUBEROWS SCREEN_MAX_ROWS
+#define TUBECOLS MAXCOL
 
 struct terminal term = {
     TUBEROWS,            /* t_mrow */
@@ -54,12 +58,21 @@ struct tcell {
 static struct tcell *tube;
 static int tuberows, tubecols;
 
+/*
+ * Send the next frame whole rather than by difference.  The kernel blanks its
+ * screen on a resize, keeping only the rows above the cursor, but leaves the
+ * Grid we diff against alone when the geometry did not change -- so every
+ * cell would compare equal, nothing would be sent, and the screen would stay
+ * black below wherever the cursor was.
+ */
+static int full_blit = TRUE;
+
 static int curx, cury;             /* where ttputc() writes next */
 static int reverse;                /* tcaprev() state */
 static int lastx = -1, lasty = -1; /* cursor in the frame last sent */
 
 static ProcScreen *scr;
-static int have_keys, have_screen;
+static int have_keys, have_screen, opened;
 
 /* One pushback, and the resize the last key read noticed. */
 static int pushback = -1;
@@ -149,11 +162,22 @@ Task<void> ttopen(void)
     }
     scr->grid().cursor_on = true;
 
-    getscreensize(&w, &h);
-    if (w > 0 && h > 0) {
-        term.t_ncol = (short)w;
-        term.t_nrow = (short)(h - 1);
+    /*
+     * The first time only.  A grid resized during a shell escape would
+     * otherwise leave the windows their old height and nothing to notice:
+     * term would already agree with it, so checkwinsize() never runs.
+     */
+    if (!opened) {
+        getscreensize(&w, &h);
+        if (w > 0 && h > 0) {
+            term.t_ncol = (short)w;
+            term.t_nrow = (short)(h - 1);
+        }
+        opened = TRUE;
     }
+
+    /* The kernel blanks its screen when it hands one back. */
+    full_blit = TRUE;
 
     /* We do not know where the cursor is. */
     shown_row = 999;
@@ -318,29 +342,40 @@ static Task<void> vflush(void)
 {
     Grid *g;
     int y, x, rows, cols;
+    int whole = full_blit;
 
     if (!scr || !tube)
         co_return;
-    g    = &scr->grid();
-    rows = (int)g->rows < tuberows ? (int)g->rows : tuberows;
-    cols = (int)g->cols < tubecols ? (int)g->cols : tubecols;
+    g         = &scr->grid();
+    rows      = (int)g->rows < tuberows ? (int)g->rows : tuberows;
+    cols      = (int)g->cols < tubecols ? (int)g->cols : tubecols;
+    full_blit = FALSE;
 
-    for (y = 0; y < rows; y++) {
+    for (y = 0; y < (int)g->rows; y++) {
         unsigned char row_fg = y == term.t_nrow ? COLOR_YELLOW | COLOR_BRIGHT : COLOR_WHITE;
 
-        for (x = 0; x < cols; x++) {
-            struct tcell *p = cell_at(y, x);
+        for (x = 0; x < (int)g->cols; x++) {
+            struct tcell *p = y < rows && x < cols ? cell_at(y, x) : NULL;
             Cell *cl        = g->at((u32)x, (u32)y);
             char32_t ch;
             unsigned char fg, bg, attrs;
 
-            if (!p || !cl)
+            if (!cl)
                 continue;
-            ch    = p->ch ? (char32_t)p->ch : U' ';
-            attrs = p->attrs & ~ATTR_REVERSE;
-            fg    = p->attrs & ATTR_REVERSE ? COLOR_BLACK : row_fg;
-            bg    = p->attrs & ATTR_REVERSE ? COLOR_CYAN : COLOR_BLACK;
-            if (cl->ch == ch && cl->attrs == attrs && cl->fg == fg && cl->bg == bg)
+            /* Beyond the back buffer there is nothing to say but blank: the
+               grid is damaged whole by a reshape and would ship zeroed
+               cells, which are black on black. */
+            if (!p) {
+                if (!whole)
+                    continue;
+                ch = U' ', attrs = 0, fg = row_fg, bg = COLOR_BLACK;
+            } else {
+                ch    = p->ch ? (char32_t)p->ch : U' ';
+                attrs = p->attrs & ~ATTR_REVERSE;
+                fg    = p->attrs & ATTR_REVERSE ? COLOR_BLACK : row_fg;
+                bg    = p->attrs & ATTR_REVERSE ? COLOR_CYAN : COLOR_BLACK;
+            }
+            if (!whole && cl->ch == ch && cl->attrs == attrs && cl->fg == fg && cl->bg == bg)
                 continue;
             cl->ch    = ch;
             cl->attrs = attrs;
@@ -365,8 +400,12 @@ static Task<void> vflush(void)
         lastx = (int)g->cursor_x;
         lasty = (int)g->cursor_y;
     }
-    if (Task<Result<void>> t = scr->flush())
-        co_await t;
+    /* The damage is taken before the blit is awaited, so a frame the kernel
+       refuses -- a resize landing under it -- is gone.  Ask for it again. */
+    if (Task<Result<void>> t = scr->flush()) {
+        if ((co_await t).is_err())
+            full_blit = TRUE;
+    }
 }
 
 /*
@@ -535,13 +574,20 @@ Task<int> ttgetc(void)
         if (r.is_err()) {
             if (r.error() != Error::Intr)
                 co_return 0;
+            /*
+             * next_key() takes SIG_WINCH itself and reshapes before it
+             * reports, so the grid may have moved whatever signal is
+             * behind this -- note the size before answering one, or a
+             * resize arriving with a ^C is dropped.
+             */
+            note_size();
+            full_blit = TRUE;
             if (sig_take(SIG_TERM)) {
                 quitting = TRUE;
                 co_return 0;
             }
             if (sig_take(SIG_INT))
                 co_return keycode_to_char(CONTROL | 'C');
-            note_size();
             co_await checkwinsize();
             continue;
         }
@@ -585,8 +631,10 @@ Task<void> tcappause(const char *prompt)
             r = co_await t;
         if (r.is_err()) {
             /* ^C is a key here too; anything else Intr means is a resize. */
-            if (r.error() == Error::Intr && !sig_take(SIG_INT))
+            if (r.error() == Error::Intr && !sig_take(SIG_INT)) {
+                full_blit = TRUE;
                 continue;
+            }
             break;
         }
         {

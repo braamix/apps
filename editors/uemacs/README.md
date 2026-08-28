@@ -224,8 +224,20 @@ message line uses; everything else was replaced rather than reimplemented.
   a Unix: `C-x !` works, `sort` and `tr` are not there to be run.
 - **A file replaced by rename is only caught if its size or mtime moved.**
   Upstream keyed the "changed under us" check on device and inode as well.
-- **The screen is used up to 128 rows and 512 columns**, which is the widest
-  grid the kernel will make and a back buffer of 512 KB.
+- **The screen is used up to 256 rows and 500 columns**, a back buffer of
+  1 MB. The rows are the tallest grid the kernel will make; the columns are
+  twelve short of its 512, because `MAXCOL` is what the mode line and the
+  message line are built in and a wider terminal would overrun them.
+- **A resize sends the whole frame, not the difference.** The kernel
+  reallocates its screen on every resize and keeps only the rows above the
+  cursor, blanking the rest — but it leaves the process's own Grid alone when
+  the geometry has not changed, and that Grid is what `vflush()` diffs
+  against. A drag is a burst of resizes the process sees none of until it is
+  next scheduled, so the geometry it wakes to is often the one it already had:
+  every cell then compares equal, nothing is sent, and the screen stays black
+  below wherever the cursor was. So a `SIG_WINCH`, a screen handed back after
+  a shell escape, and a blit the kernel refuses each arm one unconditional
+  frame.
 - **`(End)` after a shell escape is written on the console, not through the
   message line.** The message line is in the back buffer, which is not sent
   while the screen claim is the child's — and taking the screen back is what
@@ -291,8 +303,9 @@ to be driven down a pipe. [test/emlib.mjs](test/emlib.mjs) is the shared half.
   `bind-to-key`, a keyboard macro, a `$` variable, `M-?` opening the packaged
   `emacs.hlp` and `F1` opening a topic out of its index, and what happens with
   no package at all.
-- `emwindow.mjs` — `C-x 2`, `C-x o`, `C-x 1`, `C-x z` with one window, and a
-  resize both ways with the buffer and the cursor kept.
+- `emwindow.mjs` — `C-x 2`, `C-x o`, `C-x 1`, `C-x z` with one window, a
+  resize both ways with the buffer and the cursor kept, and a burst of them
+  ending at the size the editor already had.
 - `embang.mjs` — `C-x !` with its output on the console under the pause, the
   key that resumes, `C-x @` opening a window on a command's output, and
   `C-x #` filtering the buffer.
