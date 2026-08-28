@@ -141,6 +141,32 @@ Task<Result<void>> vflush(void)
 }
 
 /*
+ * Erase the screen: CL, where the screen is the Grid. The diff in vflush()
+ * reaches only the cells vtube covers, so a row past WECHO, a column past
+ * WCOLS, or what a shell escape left would otherwise stay.
+ */
+void vscreen_erase(void)
+{
+    Grid *g;
+    u32 i, n;
+
+    if (vscreen == 0)
+        return;
+    g = &vscreen->grid();
+    if (g->cells == 0)
+        return;
+    n = g->rows * g->cols;
+    for (i = 0; i < n; i++) {
+        Cell *cl  = &g->cells[i];
+        cl->ch    = U' ';
+        cl->attrs = 0;
+        cl->fg    = COLOR_WHITE;
+        cl->bg    = COLOR_BLACK;
+    }
+    g->touch(0, 0, g->cols, g->rows);
+}
+
+/*
  * The geometry: the tail of setterm() in ex_tty.c. Upstream read LINES and
  * COLUMNS out of termcap and picked the window from the line's speed; there is
  * no line, so this is always the fast case -- the whole screen but the status

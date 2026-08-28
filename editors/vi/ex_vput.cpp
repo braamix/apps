@@ -16,8 +16,11 @@ void vclear(void)
     outcol   = 0;
     destline = 0;
     outline  = 0;
-    if (inopen)
+    if (inopen) {
         vclrbyte(vtube0, WCOLS * (WECHO - ZERO + 1));
+        /* Upstream sent CL beside this; the screen is the Grid now. */
+        vscreen_erase();
+    }
 }
 
 /*
