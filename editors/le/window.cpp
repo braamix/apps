@@ -143,7 +143,10 @@ void  PutStr(int x,int y,const char *str)
    if(mb_mode)
    {
       int len=strlen(str);
-      wchar_t *wstr=(wchar_t*)alloca((len+1)*sizeof(wchar_t));
+      wchar_t wbuf[SCREEN_MAX_COLS+1];
+      wchar_t *wstr=wbuf;
+      if(len>SCREEN_MAX_COLS)
+	 len=SCREEN_MAX_COLS;
       memset(wstr,0,(len+1)*sizeof(wchar_t));
       mbstowcs(wstr,str,len);
 

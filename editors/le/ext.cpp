@@ -49,7 +49,7 @@ void  ReplaceWCharExt(wchar_t ch)
    SetStdCol();
 }
 
-void  ExpandAllTabs()
+Task<void>  ExpandAllTabs()
 {
    num ol=GetLine(),oc=GetCol();
    static  struct  menu EATmenu[]={
@@ -62,7 +62,7 @@ void  ExpandAllTabs()
    {
    case(0):
    case('C'):
-      return;
+      co_return;
    }
    MessageSync("Expanding...");
    CurrentPos=TextBegin;
@@ -76,7 +76,7 @@ void  ExpandAllTabs()
    SetStdCol();
 }
 
-void  ExpandSpanTabs()
+Task<void>  ExpandSpanTabs()
 {
    num ol=GetLine(),oc=GetCol();
    static  struct  menu EATmenu[]={
@@ -89,7 +89,7 @@ void  ExpandSpanTabs()
    {
    case(0):
    case('C'):
-      return;
+      co_return;
    }
    MessageSync("Expanding...");
    CurrentPos=TextBegin;
@@ -123,7 +123,7 @@ void ReplaceAll(const char *str1,const char *str2)
    }
 }
 
-void  DOS_UNIX(void)
+Task<void>  DOS_UNIX(void)
 {
    const char *TargetEol=(!EolIs(EOL_UNIX)?EOL_UNIX:EOL_DOS);
 
@@ -139,7 +139,7 @@ void  DOS_UNIX(void)
    {
    case(0):
    case('C'):
-      return;
+      co_return;
    case('Y'):
       MessageSync("Changing EOLs between DOS and UNIX formats...");
       undo.BeginUndoGroup();

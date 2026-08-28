@@ -69,9 +69,10 @@ target_compile_options(le_quiet INTERFACE
     -Wno-missing-field-initializers -Wno-invalid-source-encoding)
 
 # Upstream's file split and names are kept; what went is named in README.md.
-# curses.cpp is new and is the whole of ncurses this needs; epath.cpp is new
-# because PKGDATADIR is a path only the running program can know. There is no
-# mouse.cc, rus.cc or tables.cc.
+# What is new: curses.cpp is the whole of ncurses this needs, leio.cpp the
+# file syscalls, lewchar.cpp the UTF-8 half of wchar.h, and epath.cpp the
+# PKGDATADIR only the running program can know. There is no mouse.cc, rus.cc
+# or tables.cc.
 braam_add_program(NAME le
                   SOURCES about.cpp block.cpp bm.cpp calc.cpp chset.cpp
                           clipbrd.cpp cmd.cpp color.cpp colormnu.cpp edit.cpp
@@ -83,7 +84,8 @@ braam_add_program(NAME le
                           search.cpp signals.cpp textpoin.cpp undo.cpp
                           user.cpp window.cpp
                           regex.c wcwidth.c
-                          braam.cpp curses.cpp epath.cpp
+                          braam.cpp curses.cpp epath.cpp leio.cpp
+                          lewchar.cpp
                           ${LE_GENERATED}
                   LIBS braam::math)
 

@@ -22,6 +22,7 @@
 #ifdef HAVE_ALLOCA_H
 #endif
 #include "edit.h"
+#include "leio.h"
 #include "options.h"
 
 struct attr attr_table[MAX_COLOR_NO];
@@ -214,9 +215,11 @@ const color *FindColor(const color *pal,int no)
 void  ParseOneColor(color *pal,const char *desc,int no)
 {
    color c;
-   char	 *d=(char*)alloca(strlen(desc)+1);
+   char	 d[256];
    bool good=false;
 
+   if(strlen(desc)>=sizeof(d))
+      return;
    strcpy(d,desc);
 
    c.attr=0;

@@ -86,7 +86,7 @@ int   ReadMenu(const struct menu *m,int dir,const attr *a,const attr *ca,int cur
             display(&m[i],ca);
       }
       move(LINES-1,COLS-1);
-      action=GetNextAction();
+      action=co_await GetNextAction();
       switch(action)
       {
       case(CHAR_LEFT):

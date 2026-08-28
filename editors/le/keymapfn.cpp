@@ -63,28 +63,29 @@ void  EditorReadKeymap()
    fclose(f);
 }
 
-void LoadKeymapEmacs()
+Task<void> LoadKeymapEmacs()
 {
    const char *k=PKGDATADIR"/keymap-emacs";
    FILE *f=fopen(k,"r");
    if(!f)
    {
       FError(k);
-      return;
+      co_return;
    }
    ReadActionMap(f);
    fclose(f);
    RebuildKeyTree();
    LoadMainMenu();
 }
-void LoadKeymapDefault()
+Task<void> LoadKeymapDefault()
 {
    FreeActionCodeTable();
    ActionCodeTable=DefaultActionCodeTable;
    RebuildKeyTree();
    LoadMainMenu();
+   co_return;
 }
-void SaveKeymap()
+Task<void> SaveKeymap()
 {
    char  filename[1024];
    FILE  *f;
@@ -94,12 +95,12 @@ void SaveKeymap()
    if(!f)
    {
       FError(filename);
-      return;
+      co_return;
    }
    WriteActionMap(f);
    fclose(f);
 }
-void SaveKeymapForTerminal()
+Task<void> SaveKeymapForTerminal()
 {
    char  filename[1024];
    FILE  *f;
@@ -109,7 +110,7 @@ void SaveKeymapForTerminal()
    if(!f)
    {
       FError(filename);
-      return;
+      co_return;
    }
    WriteActionMap(f);
    fclose(f);

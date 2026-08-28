@@ -21,13 +21,13 @@ int      CharMatch();
 int      Match1();
 int      Match();
 void     ReplaceFound();
-void     FindMatch();
+Task<void>     FindMatch();
 
-void     StartSearch(void);
-void     ContSearch(void);
-void     StartReplace(void);
-void     ContReplace(void);
-void     StartSearchBackward(void);
+Task<void>     StartSearch(void);
+Task<void>     ContSearch(void);
+Task<void>     StartReplace(void);
+Task<void>     ContReplace(void);
+Task<void>     StartSearchBackward(void);
 
 extern   History  SearchHistory;
 

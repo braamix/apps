@@ -21,7 +21,7 @@
 #include "edit.h"
 #include "calc.h"
 
-void  editcalc()
+Task<void>  editcalc()
 {
    WIN   *w;
    static   char  expr[256]="";
@@ -74,4 +74,5 @@ void  editcalc()
    while(1);
    CloseWin();
    DestroyWin(w);
+   co_return;
 }

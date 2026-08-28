@@ -19,9 +19,39 @@
 #ifndef GETCH_H
 #define GETCH_H
 
-int         GetRawKey();
-int         WaitForKey(int delay=-1); /* ERR - no key */
-int	    GetKey(int delay=-1);
-int	    CheckPending();
+#include "kernel/task.h"
+
+/* A key, as the rest of the editor sees it.
+ *
+ * Braam hands over {codepoint, modifiers}; upstream read bytes. So the two
+ * that already have a byte form keep it -- Ctrl-letter is the control
+ * character, and Alt is an ESC in front, which is what upstream's own
+ * \e|X bindings mean -- and a printable key is its UTF-8, one byte per call.
+ * That leaves the key tree, StringTyped and the self-insert path in Edit()
+ * exactly as they were.
+ *
+ * What is left over is the named keys, which had no byte form that was not a
+ * terminal's escape sequence. They are single codes above every byte. */
+enum {
+   K_NAMED = 0x100,
+   K_UP = K_NAMED, K_DOWN, K_LEFT, K_RIGHT,
+   K_HOME, K_END, K_PGUP, K_PGDN,
+   K_INSERT, K_DELETE, K_BACKTAB,
+   K_F1, K_F2, K_F3, K_F4, K_F5, K_F6,
+   K_F7, K_F8, K_F9, K_F10, K_F11, K_F12,
+   K_NAMED_LAST = K_F12,
+
+   /* On a named key only: a printable one carries Ctrl in its control
+      character and Alt in the ESC before it. */
+   K_SHIFT = 0x1000,
+   K_CTRL  = 0x2000,
+
+   /* The resize that rides on a key reply, and the one LE already handles. */
+   K_RESIZE = 0x8000,
+};
+
+Task<int>   GetRawKey();
+Task<int>   WaitForKey(); /* peeks: the key is put back */
+Task<int>   GetKey();
 
 #endif

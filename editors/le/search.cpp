@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "edit.h"
+#include "leio.h"
 #include "keymap.h"
 #include "getch.h"
 #include "search.h"
@@ -41,10 +42,12 @@ History  SearchHistory;
 
 int   match_case=1;
 
-byte  pattern[256];
+enum { MAXPATTERNLEN=255 };
+
+byte  pattern[MAXPATTERNLEN+1];
 int   patlen=0;
 
-byte  replace[256];
+byte  replace[MAXPATTERNLEN+1];
 int   replen=0;
 
 offs  fndind=0;
@@ -78,7 +81,7 @@ void  NotFound()
    Message("Search string not found.");
    SetStdCol();
    SetCursor();
-   WaitForKey();
+   co_await WaitForKey();
 }
 
 unsigned char map_to_lower[256];
@@ -118,7 +121,8 @@ static bool CompilePattern()
    numeric_search=false;
    bool match_case_now=match_case;
 
-   unsigned char *p=(unsigned char *)alloca(patlen+1);
+   static unsigned char pbuf[MAXPATTERNLEN+1];
+   unsigned char *p=pbuf;
    memcpy(p,pattern,patlen);
    int len=patlen;
    if(*p=='$') // search options
@@ -167,7 +171,8 @@ static bool CompilePattern()
       int radix=0;
       if(hex_search)
 	 radix=16;
-      char *s=(char*)alloca(len+1);
+      static char sbuf[MAXPATTERNLEN+1];
+      char *s=sbuf;
       char *store=s;
       len=0;
       for(char *t=strtok((char*)p," "); t; t=strtok(0," "))
@@ -481,7 +486,7 @@ void  ReplaceFound()
    flag=REDISPLAY_ALL;
 }
 
-void  Replace()
+Task<void>  Replace()
 {
    int    key=0,action=NO_ACTION;
    int    rcnt=0;
@@ -522,7 +527,7 @@ void  Replace()
             SyncTextWin();
 	    Message(str);
             SetCursor();
-            while(WaitForKey()==ERR);
+            while(co_await WaitForKey()==ERR);
             return;
          }
          else
@@ -553,7 +558,7 @@ void  Replace()
          Message("Replace? Y,R-replace L-Last replace N,D-do not replace *-replace all #-in block");
          SetCursor();
       next_action:
-         action=GetNextAction();
+         action=co_await GetNextAction();
 	 switch(action)
 	 {
 	 case REFRESH_SCREEN:
@@ -642,25 +647,25 @@ ret:     flag=TRUE;
    while(TRUE);
 }
 
-void  ContSearch()
+Task<void>  ContSearch()
 {
    if(LastOp==REPLACE && !View)
    {
-      ContReplace();
-      return;
+      co_await ContReplace();
+      co_return;
    }
    back_tp=CurrentPos;
    if(LastDir==FORWARD)
    {
       if(patlen==0)
       {
-         StartSearch();
-         return;
+         co_await StartSearch();
+         co_return;
       }
       if(Eof())
       {
          NotFound();
-         return;
+         co_return;
       }
       MoveRight();
       if(!Search(FORWARD,TextEnd))
@@ -676,13 +681,13 @@ void  ContSearch()
    {
       if(patlen==0)
       {
-         StartSearchBackward();
-         return;
+         co_await StartSearchBackward();
+         co_return;
       }
       if(Bof())
       {
          NotFound();
-         return;
+         co_return;
       }
       MoveLeft();
       if(!Search(BACKWARD,0))
@@ -697,64 +702,64 @@ void  ContSearch()
    SetStdCol();
 }
 
-void  StartSearch()
+Task<void>  StartSearch()
 {
    if(getstring("Search forwards: ",(char*)pattern,sizeof(pattern)-1,
                                   &SearchHistory,&patlen,"SearchHelp"," Search Help ")<1)
-     return;
+     co_return;
    LastDir=FORWARD;
    LastOp=SEARCH;
    if(!CompilePattern())
-      return;
-   ContSearch();
+      co_return;
+   co_await ContSearch();
 }
-void  StartSearchBackward()
+Task<void>  StartSearchBackward()
 {
    if(getstring("Search backwards: ",(char*)pattern,sizeof(pattern)-1,
                                   &SearchHistory,&patlen,"SearchHelp"," Search Help ")<1)
-     return;
+     co_return;
    LastDir=BACKWARD;
    LastOp=SEARCH;
    if(!CompilePattern())
-      return;
-   ContSearch();
+      co_return;
+   co_await ContSearch();
 }
 
-void  ContReplace()
+Task<void>  ContReplace()
 {
    if(patlen==0)
    {
-      StartReplace();
+      co_await StartReplace();
       return;
    }
-   Replace();
+   co_await Replace();
 }
 
-void  StartReplace()
+Task<void>  StartReplace()
 {
    if(View)
-      return;
+      co_return;
    if(getstring("Search: ",(char*)pattern,sizeof(pattern)-1,&SearchHistory,&patlen,"SearchHelp"," Search Help ")<1)
-      return;
+      co_return;
    if(getstring("Replace: ",(char*)replace,sizeof(replace)-1,&SearchHistory,&replen,"ReplaceHelp"," Replace Help ")<0)
-      return;
+      co_return;
    LastOp=REPLACE;
    if(!CompilePattern())
-      return;
-   ContReplace();
+      co_return;
+   co_await ContReplace();
 }
 
-void  FindMatch()
+Task<void>  FindMatch()
 {
-   const offs ptr=FindMatch(Char());
+   const offs ptr=co_await FindMatch(Char());
    if(ptr==-2)
-      return;
+      co_return;
    if(ptr==-1)
    {
       Message("Matching bracket not found.");
       SetCursor();
-      WaitForKey();
-      return;
+      co_await WaitForKey();
+      co_return;
    }
    CurrentPos=ptr;
    SetStdCol();

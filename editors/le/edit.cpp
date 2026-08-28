@@ -25,6 +25,7 @@
 #ifdef HAVE_LANGINFO_H
 #endif
 #include "edit.h"
+#include "leio.h"
 #include "calc.h"
 #include "keymap.h"
 #include "block.h"
@@ -128,7 +129,7 @@ void ProcessDragMark()
       if(CurrentPos!=BlockBegin || (Text && stdcol>GetCol()))
       {
 	 BlockEnd=*DragMark;
-	 UserSetBlockBegin();
+	 co_await UserSetBlockBegin();
       }
    }
    else if(CurrentPos>=*DragMark)
@@ -136,7 +137,7 @@ void ProcessDragMark()
       if(CurrentPos!=BlockEnd || (Text && stdcol>GetCol()))
       {
 	 BlockBegin=*DragMark;
-	 UserSetBlockEnd();
+	 co_await UserSetBlockEnd();
       }
    }
 }
@@ -167,7 +168,7 @@ void    Edit()
       SyncTextWin();
       SetCursor();
 
-      action=GetNextAction();
+      action=co_await GetNextAction();
 
       if(action==WINDOW_RESIZE)
       {
@@ -198,7 +199,7 @@ void    Edit()
 
       if(action==QUIT_EDITOR)
       {
-         Quit();
+         co_await Quit();
          continue;
       }
 
@@ -297,10 +298,10 @@ void    Edit()
 	 switch(key)
 	 {
 	 case('\n'):
-	    UserNewLine();
+	    co_await UserNewLine();
 	    break;
 	 case('\t'):
-	    UserIndent();
+	    co_await UserIndent();
 	    break;
 	 default:   /* not a newline and not a tab */
 	    if(insert || Eol() || (Char()=='\t' && Tabulate(GetCol())!=(GetCol()+1)))
@@ -313,10 +314,11 @@ void    Edit()
       }
    }
 }
-void    Quit()
+Task<void>    Quit()
 {
    if(AskToSave())
       Terminate();
+   co_return;
 }
 int     AskToSave()
 {
@@ -332,10 +334,10 @@ int     AskToSave()
       {
       case('Y'):
          errno=0;
-         result=(UserSave()==OK);
+         result=(co_await UserSave()==OK);
          if(!result && modified)
          {
-            UserSaveAs();
+            co_await UserSaveAs();
             result=!modified;
          }
          break;
@@ -420,18 +422,18 @@ void    Initialize()
    initcalc();
 
 #ifndef MSDOS
-   unsigned nbytes=(strlen(HOME)|15)+17;
-   char  *filename=(char*)alloca(nbytes);
+   static char filename[LE_PATHMAX];
+   unsigned nbytes=sizeof(filename);
    snprintf(filename,nbytes,"%s/.le",HOME);
-   mkdir(filename,0700);
+   co_await le_mkdir(filename,0700);
    strcat(filename,"/tmp");
-   mkdir(filename,0700);
+   co_await le_mkdir(filename,0700);
    snprintf(HstName,sizeof(HstName),"%s/.le/history2",HOME);
 #else
    snprintf(HstName,sizeof(HstName),"%s/le.hst",HOME);
 #endif
 
-   InstallSignalHandlers();
+   co_await InstallSignalHandlers();
 
    InitCurses();
 
@@ -470,7 +472,7 @@ void    Terminate()
    FILE    *f;
 
    alarm(0);
-   EmptyText();
+   co_await EmptyText();
 
    curs_set(1);
 
@@ -479,7 +481,7 @@ void    Terminate()
       if(SaveHst)
       {
          MessageSync("Saving history...");
-         int fd=open(HstName,O_RDWR|O_CREAT,0644);
+         int fd=co_await le_open(HstName,O_RDWR|O_CREAT,0644);
          struct flock l;
 	 l.l_type=F_RDLCK;
 	 l.l_whence=SEEK_SET;
@@ -515,12 +517,12 @@ void    Terminate()
 
 #ifdef HAVE_FTRUNCATE
 	    fflush(f);
-	    if (ftruncate(fd,ftell(f)) < 0)
+	    if (co_await le_ftruncate(fd,ftell(f)) < 0)
 	        /*ignore*/;
 #endif
             fclose(f);
          }
-         close(fd);
+         co_await le_close(fd);
       }
    }
 
@@ -756,7 +758,7 @@ int     main(int argc,char **argv)
 	    break;
 	 const char *f=hl->get_line();
 	 if(*f && (first || f[0]!='/')
-	 && access(f,R_OK)!=-1)
+	 && co_await le_access(f,R_OK)!=-1)
 	 {
 	    strcpy(newname,f);
 	    break;

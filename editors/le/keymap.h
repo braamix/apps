@@ -20,6 +20,7 @@
 #define KEYMAP_H
 
 #include "action-enum.h"
+#include "kernel/task.h"
 
 // some compatibility defines
 #define CHAR_LEFT	A_BACKWARD_CHAR
@@ -47,7 +48,10 @@
 #define SAVE_FILE	A_SAVE_FILE_AS
 #define SAVE_FILE_AS	A_SAVE_FILE
 
-typedef  void  (*ActionProc)();
+/* Every bound command awaits a key or a syscall somewhere below it -- the
+   dialogs, the prompts, the file I/O -- so all of them are coroutines. The
+   table is what makes this one edit rather than a hundred and sixty-nine. */
+typedef  Task<void>  (*ActionProc)();
 
 struct   ActionNameProcRec
 {
@@ -70,9 +74,9 @@ extern int   ActionArgumentLen;
 extern const ActionCodeRec *ActionCodeTable;
 extern const ActionCodeRec DefaultActionCodeTable[];
 
-int   GetNextAction(void);
+Task<int> GetNextAction(void);
 const char *GetActionString(int action);
-const char *GetActionArgument(const char *prompt,class History* history=0,const char *help=0,const char *title=0);
+Task<const char *> GetActionArgument(const char *prompt,class History* history=0,const char *help=0,const char *title=0);
 void  ReadActionMap(FILE*);
 void  WriteActionMap(FILE*);
 ActionProc GetActionProc(int action);
@@ -86,9 +90,9 @@ char  *ParseActionArgumentAlloc(const char *);
 
 const char *ShortcutPrettyPrint(int c,const char *arg);
 
-void LoadKeymapEmacs();
-void LoadKeymapDefault();
-void SaveKeymap();
-void SaveKeymapForTerminal();
+Task<void> LoadKeymapEmacs();
+Task<void> LoadKeymapDefault();
+Task<void> SaveKeymap();
+Task<void> SaveKeymapForTerminal();
 
 #endif /* KEYMAP_H */

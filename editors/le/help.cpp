@@ -213,7 +213,7 @@ void  Help(const char *helpf,const char *title)
       curs_set(0);
       move(LINES-1,COLS-1);
 
-      int action=GetNextAction();
+      int action=co_await GetNextAction();
       int i;
       switch(action)
       {

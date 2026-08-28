@@ -27,6 +27,7 @@
 #include <fnmatch.h>
 
 #include "edit.h"
+#include "leio.h"
 #include "keymap.h"
 
 #ifndef DIRSIZ
@@ -169,7 +170,7 @@ void  condense(char *filename)
    }
 
    snprintf(tmp,sizeof(tmp),"%s/",drive);
-   if(stat(tmp,&st)!=-1)
+   if(co_await le_stat(tmp,&st)!=-1)
    {
       root_dev=st.st_dev;
       root_ino=st.st_ino;
@@ -180,7 +181,7 @@ void  condense(char *filename)
       root_ino=0;
    }
    snprintf(tmp,sizeof(tmp),"%s.",drive);
-   if(stat(tmp,&st)!=-1)
+   if(co_await le_stat(tmp,&st)!=-1)
    {
       curr_dev=st.st_dev;
       curr_ino=st.st_ino;
@@ -211,7 +212,7 @@ void  condense(char *filename)
             *(store++)=*(scan++);
          *store=0;
          snprintf(tmp,sizeof(tmp),"%s%s",drive,newfilename);
-         if(stat(tmp,&st)!=-1)
+         if(co_await le_stat(tmp,&st)!=-1)
          {
             for(i=0; i<currpointno; i++)
             {
@@ -334,7 +335,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
    do
    {
       condense(directory);
-      if(stat(directory,&st)==-1)
+      if(co_await le_stat(directory,&st)==-1)
       {
          FError(directory);
          CloseWin();
@@ -387,7 +388,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
             break;
          }
          snprintf(str,sizeof(str),"%s/%s",directory,entry->d_name);
-         if(stat(str,&(dir[i].st))==-1
+         if(co_await le_stat(str,&(dir[i].st))==-1
          || ((dir[i].st.st_mode&S_IFMT)==S_IFREG && fnmatch(filename,entry->d_name,0)!=0)
          || ((dir[i].st.st_mode&S_IFMT)!=S_IFREG && (dir[i].st.st_mode&S_IFMT)!=S_IFDIR)
          || !strcmp(entry->d_name,"."))
@@ -453,7 +454,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
 	    snprintf(str,sizeof(str),"%s/%s - %s",directory,filename,dir[current].name);
 	 Message(str);
 
-         action=GetNextAction();
+         action=co_await GetNextAction();
          switch(action)
          {
          case(CHAR_LEFT):

@@ -19,6 +19,7 @@
 #include "config.h"
 #include "lesys.h"
 #include "edit.h"
+#include "leio.h"
 #include "rus.h"
 #include "keymap.h"
 #include "options.h"
@@ -313,7 +314,7 @@ void  SaveConf(const char *f)
    ClearMessage();
 }
 
-void  SaveTermOpt()
+Task<void>  SaveTermOpt()
 {
    char  t[256];
    MessageSync("Saving the terminal options...");
@@ -324,6 +325,7 @@ void  SaveTermOpt()
 #endif
    SaveConfToFile(t,term);
    ClearMessage();
+   co_return;
 }
 
 void  fskip(FILE *f)
@@ -343,7 +345,7 @@ void  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
    {
 #ifndef __MSDOS__
       struct stat st;
-      if(fstat(fileno(f),&st)==0)
+      if(co_await le_fstat(fileno(f),&st)==0)
       {
 	 if(st.st_uid!=getuid()) // don't read conf from other's files.
 	    return;
@@ -421,13 +423,13 @@ static bool ConfOK(const char *f,bool mine)
    {
 #ifndef __MSDOS__
       struct stat st;
-      if(stat(f,&st)==-1)
+      if(co_await le_stat(f,&st)==-1)
 	 return false;
       if(st.st_uid!=getuid())
 	 return false; // don't use other's config
 #endif
    }
-   if(access(f,R_OK)==-1)
+   if(co_await le_access(f,R_OK)==-1)
       return false;
    return true;
 }
@@ -492,7 +494,7 @@ ini_done:
    snprintf(t,sizeof(t),"%s/le-%s",HOME,TERM);
    ReadConfFromFile(t,term,false);
    strcpy(InitName,"le.ini");
-   if(access(InitName,R_OK)==-1)
+   if(co_await le_access(InitName,R_OK)==-1)
      snprintf(InitName,sizeof(InitName),"%s/le.ini",HOME);
    ReadConfFromFile(InitName,init,false);
 #endif
@@ -791,7 +793,7 @@ void  W_Dialogue(struct opt *opt,
             GotoXY(curr->x+pos,curr->y);
             break;
       }
-      action=GetNextAction();
+      action=co_await GetNextAction();
 use_key:
       if(action==-1)
          continue;
@@ -997,7 +999,7 @@ use_key:
             key=choose_ch();
             goto do_insert;
          case(ENTER_CONTROL_CHAR):
-            key=GetRawKey();
+            key=co_await GetRawKey();
             goto do_insert;
          default:
             if(action!=NO_ACTION || StringTypedLen!=1)
@@ -1087,7 +1089,7 @@ int    OptEatKey(int k)
    }
    if(k==SAVE_FILE_AS)
    {
-      SaveOpt();
+      co_await SaveOpt();
       return(NEWLINE);
    }
    return(-1);
@@ -1098,22 +1100,25 @@ int    OptHandleBut(const char *,int)
    return(0);
 }
 
-void  Options()
+Task<void>  Options()
 {
    Dialogue(opt,68,17," Options ","OptionsHelp"," Setup Help ",OptEatKey,OptHandleBut);
+   co_return;
 }
 
-void  SaveOpt()
+Task<void>  SaveOpt()
 {
 #ifndef __MSDOS__
    SaveConf(".le.ini");
 #else
    SaveConf("le.ini");
 #endif
+   co_return;
 }
-void  UpdtOpt()
+Task<void>  UpdtOpt()
 {
    SaveConf(InitName);
+   co_return;
 }
 int   TOEatKey(int k)
 {
@@ -1124,26 +1129,31 @@ int   TOHandleBut(const char *,int)
 {
    return(0);
 }
-void  TermOpt(void)
+Task<void>  TermOpt(void)
 {
    Dialogue(TOpt,70,11," Terminal Options ",NULL,NULL,TOEatKey,TOHandleBut);
    RebuildKeyTree();
+   co_return;
 }
-void  FormatOptions(void)
+Task<void>  FormatOptions(void)
 {
    Dialogue(FormatOpt,30,12," Format Options ",NULL,NULL,TOEatKey,TOHandleBut);
+   co_return;
 }
-void  AppearOpt(void)
+Task<void>  AppearOpt(void)
 {
    Dialogue(AppearOptTbl,26,11," Appearance Options ",NULL,NULL,TOEatKey,TOHandleBut);
+   co_return;
 }
-void  ProgOpt(void)
+Task<void>  ProgOpt(void)
 {
    Dialogue(ProgOptTbl,70,9," External Programs ",NULL,NULL,TOEatKey,TOHandleBut);
+   co_return;
 }
-void  UndoOpt(void)
+Task<void>  UndoOpt(void)
 {
    Dialogue(UndoOptTbl,40,8," Undo Options ",NULL,NULL,TOEatKey,TOHandleBut);
+   co_return;
 }
 
 static int bg,fg,c_bold,c_rev,c_ul,c_dim,b_bold,b_rev,b_ul,b_dim;
@@ -1249,13 +1259,13 @@ int ColorHandleBut(const char *button,int index)
       color_applied=true;
    }
    if(res=='S')
-      ColorsSave();
+      co_await ColorsSave();
    else if(res=='T')
-      ColorsSaveForTerminal();
+      co_await ColorsSaveForTerminal();
    return CANCEL;
 }
 
-void  ColorsOpt()
+Task<void>  ColorsOpt()
 {
    memcpy(new_color_pal,color_pal,sizeof(new_color_pal));
    memcpy(new_bw_pal,bw_pal,sizeof(new_bw_pal));
@@ -1284,4 +1294,5 @@ void  ColorsOpt()
       flag=REDISPLAY_ALL;
       RedisplayAll();
    }
+   co_return;
 }

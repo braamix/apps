@@ -37,13 +37,13 @@ int   LeftAdj=1;
 int   RightAdj=0;
 int   wordwrap=0;
 
-void  FormatPara()
+Task<void>  FormatPara()
 {
    num   bcol,ncol;
    int   i;
 
    if(in_hex_mode || View || buffer_mmapped) /* formatting is not allowed in those modes */
-      return;
+      co_return;
 
    flag=1;
    ToLineBegin();
@@ -57,7 +57,7 @@ void  FormatPara()
 	 space++;
       }
       if(Eof())
-	 return;
+	 co_return;
       if(Eol())
       {
 	 DeleteBlock(space,0);
@@ -236,7 +236,7 @@ void  FormatPara()
                MoveRightOverEOL();
             NewLine();
             MoveUp();
-            CenterLine();
+            co_await CenterLine();
             MoveDown();
          }
          else
@@ -271,7 +271,7 @@ void  FormatPara()
    MoveDown();
 }
 
-void  FormatAll()
+Task<void>  FormatAll()
 {
    static  struct  menu FAmenu[]={
    {"   &Ok   ",MIDDLE-6,FDOWN-2},
@@ -279,9 +279,9 @@ void  FormatAll()
    {NULL}};
 
    if(in_hex_mode || View)
-      return;
+      co_return;
 
-   char *message=(char*)alloca(80);
+   char message[80];
    strcpy(message,"ALL text will be formatted");
    if(!undo.Enabled())
       strcat(message," (no undo)");
@@ -291,27 +291,27 @@ void  FormatAll()
    {
    case(0):
    case('C'):
-      return;
+      co_return;
    }
    MessageSync("Formatting all document...");
    TextPoint oldpos=CurrentPos;
    CurrentPos=TextBegin;
    while(!Eof())
-      FormatPara();
+      co_await FormatPara();
    CurrentPos=oldpos;
 }
 
-void  CenterLine()
+Task<void>  CenterLine()
 {
    num shift;
    if(in_hex_mode || View)
-      return;
+      co_return;
    flag=REDISPLAY_LINE;
    ToLineBegin();
    while(Space() && !Eol())
       DeleteChar();
    if(Eol())
-      return; /* nothing to center */
+      co_return; /* nothing to center */
    ToLineEnd();
    while(SpaceLeft())
       BackSpace();
@@ -326,17 +326,17 @@ void  CenterLine()
    SetStdCol();
 }
 
-void  ShiftRightLine()
+Task<void>  ShiftRightLine()
 {
    num shift;
    if(in_hex_mode || View)
-      return;
+      co_return;
    flag=REDISPLAY_LINE;
    ToLineBegin();
    while(Space() && !Eol())
       DeleteChar();
    if(Eol())
-      return; /* nothing to shift */
+      co_return; /* nothing to shift */
    ToLineEnd();
    while(SpaceLeft())
       BackSpace();
@@ -351,12 +351,12 @@ void  ShiftRightLine()
    SetStdCol();
 }
 
-void  FormatFunc()
+Task<void>  FormatFunc()
 {
    int   action;
 
    if(in_hex_mode || View)
-      return;
+      co_return;
    ToLineBegin();
    SetStdCol();
 again:
@@ -366,17 +366,17 @@ again:
    Message("Format: F-Format all P-format Paragraph C-Center line R-align Right");
    SetCursor();
 
-   action=GetNextAction();
+   action=co_await GetNextAction();
    switch(action)
    {
    case(LINE_UP):
-       UserLineUp();
+       co_await UserLineUp();
        goto again;
    case(LINE_DOWN):
-       UserLineDown();
+       co_await UserLineDown();
        goto again;
    case(REFRESH_SCREEN):
-       UserRefreshScreen();
+       co_await UserRefreshScreen();
        break;
    default:
       if(StringTypedLen!=1)
@@ -386,28 +386,28 @@ again:
       case('P'):
       case('p'):
          MessageSync("Formatting one paragraph...");
-         FormatPara();
+         co_await FormatPara();
          RedisplayAll();
          goto again;
       case('R'):
       case('r'):
       {
          MessageSync("Shifting right...");
-	 ShiftRightLine();
-	 UserLineDown();
+	 co_await ShiftRightLine();
+	 co_await UserLineDown();
          RedisplayLine();
          goto again;
       }
       case('C'):
       case('c'):
          MessageSync("Centering...");
-         CenterLine();
-         UserLineDown();
+         co_await CenterLine();
+         co_await UserLineDown();
          RedisplayLine();
          goto again;
       case('F'):
       case('f'):
-         FormatAll();
+         co_await FormatAll();
          flag=REDISPLAY_ALL;
          break;
       }

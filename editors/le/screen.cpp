@@ -22,6 +22,7 @@
 #endif
 
 #include "edit.h"
+#include "leio.h"
 #include "block.h"
 #include "highli.h"
 #include "getch.h"
@@ -386,7 +387,10 @@ void  StatusLine()
       bn=le_basename(FileName);
       l=strlen(bn);
 #if USE_MULTIBYTE_CHARS
-      wname=(wchar_t*)alloca((l+1)*sizeof(wchar_t));
+      static wchar_t wnamebuf[LE_PATHMAX];
+      if(l>=(int)(sizeof(wnamebuf)/sizeof(*wnamebuf)))
+	 l=sizeof(wnamebuf)/sizeof(*wnamebuf)-1;
+      wname=wnamebuf;
       memset(wname,0,(l+1)*sizeof(wchar_t));
       mbstowcs(wname,bn,l);
       l=wcslen(wname);
@@ -589,12 +593,16 @@ void  Redisplay(num line,offs ptr,num limit)
       ptr=0;
 
    int ll=max(TextWinWidth,80);
-   chtype *cl=(chtype*)alloca(ll*sizeof(chtype));
+   static chtype clbuf[SCREEN_MAX_COLS+1];
+   chtype *cl=clbuf;
+   if(ll>SCREEN_MAX_COLS)
+      ll=SCREEN_MAX_COLS;
    chtype *clp;
    const attr *ca=norm_attr;
 
 #ifdef USE_MULTIBYTE_CHARS
-   cchar_t *clw=(cchar_t*)alloca(ll*sizeof(cchar_t));
+   static cchar_t clwbuf[SCREEN_MAX_COLS+1];
+   cchar_t *clw=clwbuf;
    cchar_t *clwp;
 #endif
 

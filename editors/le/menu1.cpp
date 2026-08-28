@@ -376,7 +376,7 @@ void    ActivateMainMenu(void)
       else
          curr=n;
       move(LINES-1,COLS-1);
-      action=GetNextAction();
+      action=co_await GetNextAction();
       switch(action)
       {
          case(LINE_BEGIN):

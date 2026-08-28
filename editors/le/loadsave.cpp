@@ -30,6 +30,7 @@
 #endif
 
 #include "edit.h"
+#include "leio.h"
 #include "keymap.h"
 #include "highli.h"
 #ifdef HAVE_ALLOCA_H
@@ -75,7 +76,7 @@ int    LockFile(int fd,bool drop)
          {
             return(-2);
          }
-         fstat(fd,&st);
+         co_await le_fstat(fd,&st);
 
          snprintf(msg,sizeof(msg),"This file is already locked by process %ld",(long)Lock1.l_pid);
          switch(ReadMenuBox(LockEnforce(st.st_mode)?
@@ -92,9 +93,9 @@ int    LockFile(int fd,bool drop)
             errno=EACCES;
             while(fcntl(fd,F_SETLK,&Lock)==-1 && (errno==EACCES || errno==EAGAIN))
             {
-	       if(WaitForKey(1000)!=ERR)
+	       if(co_await WaitForKey(1000)!=ERR)
 	       {
-		  int action=GetNextAction();
+		  int action=co_await GetNextAction();
 		  if(action==CANCEL)
                   {
                      ErrMsg("Interrupted by user");
@@ -145,10 +146,10 @@ off_t  GetDevSize(int fd)
 
    for(;;)
    {
-      off_t pos=lseek(fd,upper,SEEK_SET);
+      off_t pos=co_await le_lseek(fd,upper,SEEK_SET);
       if(pos!=upper)
 	 break;
-      int res=read(fd,buf,sizeof(buf));
+      int res=co_await le_read(fd,buf,sizeof(buf));
       if(res<=0)
 	 break;
       lower=upper;
@@ -159,13 +160,13 @@ off_t  GetDevSize(int fd)
       if(upper<=lower)
 	 break;
       off_t mid=(upper+lower)/2;
-      off_t pos=lseek(fd,mid,SEEK_SET);
+      off_t pos=co_await le_lseek(fd,mid,SEEK_SET);
       if(pos!=mid)
       {
 	 upper=mid;
 	 continue;
       }
-      int res=read(fd,buf,sizeof(buf));
+      int res=co_await le_read(fd,buf,sizeof(buf));
       if(res>0)
 	 lower=mid+res;
       else
@@ -207,7 +208,7 @@ int   LoadFile(char *name)
    if(!hide)
       MainClipBoard.Copy();
 
-   EmptyText();
+   co_await EmptyText();
    ResetBookmarks();
 
    flag=REDISPLAY_ALL;
@@ -238,14 +239,14 @@ int   LoadFile(char *name)
 	 mmap_begin=mmap_len=0;
    }
 
-   if(stat(open_name,&st)!=-1)
+   if(co_await le_stat(open_name,&st)!=-1)
    {
       FileMode=st.st_mode;
       if((!buffer_mmapped && (S_ISBLK(FileMode) || S_ISCHR(FileMode)))
 	 || S_ISFIFO(FileMode))
       {
 	 ErrMsg("This is a special file or a pipe\nthat I cannot edit.");
-	 EmptyText();
+	 co_await EmptyText();
 	 return(ERR);
       }
       if(S_ISDIR(FileMode))
@@ -256,7 +257,7 @@ int   LoadFile(char *name)
       int f=creat(open_name,0644);
       if(f!=-1)
       {
-	 close(f);
+	 co_await le_close(f);
 	 newfile=1;
       }
       else
@@ -264,29 +265,29 @@ int   LoadFile(char *name)
 	 ErrMsg("Cannot create the file.\n"
 		"The directory does not exist or is not accessible\n"
 	        "or does not permit writing");
-	 EmptyText();
+	 co_await EmptyText();
 	 return(ERR);
       }
    }
    int open_flags=View?O_RDONLY:O_RDWR;
    if(!View && !buffer_mmapped)
 	open_flags|=O_CREAT;
-   file=open(open_name,open_flags,0664);
+   file=co_await le_open(open_name,open_flags,0664);
    if(file==-1 && !View)
    {
       View|=TMP_RO_MODE;
-      file=open(open_name,O_RDONLY);
+      file=co_await le_open(open_name,O_RDONLY);
 	 /* try to open the file in read-only mode */
    }
    if(file==-1)
    {
       FError(open_name);
-      EmptyText();
+      co_await EmptyText();
       return(ERR);
    }
 
    // re-stat the file in case it was created
-   fstat(file,&st);
+   co_await le_fstat(file,&st);
    FileMode=st.st_mode;
 
    if(!View)
@@ -294,9 +295,9 @@ int   LoadFile(char *name)
       int lock_res=LockFile(file,true);
       if(lock_res==-1)
       {
-	 close(file);
+	 co_await le_close(file);
 	 file=-1;
-	 EmptyText();
+	 co_await EmptyText();
          return(ERR);
       }
       if(lock_res==-2)
@@ -309,7 +310,7 @@ int   LoadFile(char *name)
       {
 	 if(errno)
 	    FError(name);
-	 EmptyText();
+	 co_await EmptyText();
 	 return(ERR);
       }
       CheckPoint();
@@ -351,7 +352,7 @@ int   LoadFile(char *name)
 	    if((off_t)mmap_len!=st.st_size) {
 	       errno=ENOMEM;
 	       FError(name);
-	       EmptyText();
+	       co_await EmptyText();
 	       return ERR;
 	    }
 	 }
@@ -361,7 +362,7 @@ int   LoadFile(char *name)
 	 {
 	    buffer=0;
 	    FError(name);
-	    EmptyText();
+	    co_await EmptyText();
 	    return ERR;
 	 }
 	 BufferSize=mmap_len;
@@ -378,7 +379,7 @@ int   LoadFile(char *name)
    hide=1;
    flag=REDISPLAY_ALL;
 
-   fstat(file,&st);
+   co_await le_fstat(file,&st);
    FileInfo=InodeInfo(&st);
    strcpy(FileName,name);
 
@@ -427,28 +428,28 @@ static void MoveBackup(char *bp,char *filename,char *bak,int n)
    char *bakname=(char*)alloca(nbytes);
 
    BackupName(bakname,nbytes,bp,filename,bak,n);
-   if(access(bakname,F_OK)!=-1)
+   if(co_await le_access(bakname,F_OK)!=-1)
    {
       if(n>=MaxBackup)
-	 remove(bakname);
+	 co_await le_unlink(bakname);
       else
       {
          unsigned nbytes1=strlen(bp)+1+strlen(filename)+strlen(bak)+40+1;
 	 char *bakname1=(char*)alloca(nbytes1);
 	 BackupName(bakname1,nbytes1,bp,filename,bak,n+1);
 	 if(!strcmp(bakname,bakname1))
-	    remove(bakname);
+	    co_await le_unlink(bakname);
 	 else
 	 {
 	    MoveBackup(bp,filename,bak,n+1);
-	    if(rename(bakname,bakname1)==-1)
-	       remove(bakname);
+	    if(co_await le_rename(bakname,bakname1)==-1)
+	       co_await le_unlink(bakname);
 	 }
       }
    }
 }
 
-static int CreateBak(char *name)
+static Task<int> CreateBak(char *name)
 {
    char  *buf2;
    num   buf2size;
@@ -505,25 +506,25 @@ static int CreateBak(char *name)
    char *bakname=(char*)alloca(nbytes);
    BackupName(bakname,nbytes,bp,filename,bak,1);
 
-   if(stat(name,&st)==-1)
+   if(co_await le_stat(name,&st)==-1)
    {
       FError(name);
       return ERR;
    }
 
-   fd=open(name,O_RDONLY);
-   bfd=open(bakname,O_TRUNC|O_CREAT|O_WRONLY,st.st_mode&~0077);
+   fd=co_await le_open(name,O_RDONLY);
+   bfd=co_await le_open(bakname,O_TRUNC|O_CREAT|O_WRONLY,st.st_mode&~0077);
 
    if(fd==-1)
    {
       if(bfd!=-1)
-         close(bfd);
+         co_await le_close(bfd);
       FError(name);
       return ERR;
    }
    else if(bfd==-1)
    {
-      close(fd);
+      co_await le_close(fd);
       FError(bakname);
       return ERR;
    }
@@ -540,7 +541,7 @@ static int CreateBak(char *name)
       num written=0;
       for(;;)
       {
-         bytesread=read(fd,buf2,buf2size);
+         bytesread=co_await le_read(fd,buf2,buf2size);
          if(bytesread==-1)
          {
             FError(name);
@@ -561,8 +562,8 @@ static int CreateBak(char *name)
       free(buf2);
       buf2=NULL;
    }
-   close(fd);
-   close(bfd);
+   co_await le_close(fd);
+   co_await le_close(bfd);
 
    if(res==OK)
    {
@@ -584,7 +585,7 @@ int CheckMode(mode_t mode)
    return(1);
 }
 
-int   SaveFile(char *name)
+Task<int>   SaveFile(char *name)
 {
    struct stat st;
    char  msg[256];
@@ -599,12 +600,12 @@ int   SaveFile(char *name)
    }
 
    if(Text && !View)
-      UserOptimizeText();
+      co_await UserOptimizeText();
 
    snprintf(msg,sizeof(msg),"Saving the file \"%.60s\"...",name);
    MessageSync(msg);
 
-   if(stat(name,&st)!=-1)
+   if(co_await le_stat(name,&st)!=-1)
    {
       if(!CheckMode(st.st_mode))
          return(ERR);
@@ -641,7 +642,7 @@ int   SaveFile(char *name)
 
       if(makebak && !newfile) /* only for 'old' files */
       {
-	 if(CreateBak(name)!=OK)
+	 if(co_await CreateBak(name)!=OK)
 	 {
 	    switch(ReadMenuBox(ConCan4Menu,HORIZ,"Cannot create backup file",
 		     " Warning ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
@@ -672,7 +673,7 @@ int   SaveFile(char *name)
    MessageSync(msg);
 
    errno=0;
-   nfile=open(name,O_CREAT|O_RDWR,st.st_mode);
+   nfile=co_await le_open(name,O_CREAT|O_RDWR,st.st_mode);
    if(nfile==-1)
    {
      FError(name);
@@ -682,7 +683,7 @@ int   SaveFile(char *name)
    int lock_res=LockFile(nfile,false);
    if(lock_res==-1)
    {
-     close(nfile);
+     co_await le_close(nfile);
      return(ERR);
    }
    if(lock_res==-2)
@@ -690,14 +691,14 @@ int   SaveFile(char *name)
 
    // now after locking truncate the file
 #ifdef HAVE_FTRUNCATE
-   if (ftruncate(nfile,0) < 0)
+   if (co_await le_ftruncate(nfile,0) < 0)
       /*ignore*/;
 #else
-   close(open(name,O_TRUNC|O_RDONLY));
+   co_await le_close(co_await le_open(name,O_TRUNC|O_RDONLY));
 #endif
 
    struct stat new_st;
-   if(fstat(nfile,&new_st)!=-1 && new_st.st_mode!=st.st_mode)
+   if(co_await le_fstat(nfile,&new_st)!=-1 && new_st.st_mode!=st.st_mode)
    {
       /* force new file to be the same mode as source one */
 #ifdef HAVE_FCHMOD
@@ -713,19 +714,19 @@ int   SaveFile(char *name)
    {
      if(errno)
        FError(name);
-     close(nfile);
+     co_await le_close(nfile);
      return(ERR);
    }
    if(act_written!=Size())
    {
      ErrMsg("Cannot write the file up to end\nPerhaps disk is full");
-     close(nfile);
+     co_await le_close(nfile);
      return(ERR);
    }
 
    if(buffer_mmapped)
    {
-      close(nfile);
+      co_await le_close(nfile);
       return OK;
    }
 
@@ -733,18 +734,18 @@ int   SaveFile(char *name)
    CheckPoint();
    undo.FileSaved();
 
-   stat(name,&st);
+   co_await le_stat(name,&st);
    FileInfo=InodeInfo(&st);
    SavePosition();
 
-   close(file);
+   co_await le_close(file);
    file=nfile;
    LockFile(file,true);
 
    if(delete_old_file)
    {
-     if(stat(FileName,&st)!=-1 && st.st_size==0)
-       remove(FileName);
+     if(co_await le_stat(FileName,&st)!=-1 && st.st_size==0)
+       co_await le_unlink(FileName);
    }
 
    if(FileName!=name)
@@ -753,16 +754,16 @@ int   SaveFile(char *name)
    return(OK);
 }
 
-int   ReopenRW()
+Task<int>   ReopenRW()
 {
    struct stat st;
 
    if(View==0)
       return(OK);
 
-   if(access(FileName,W_OK|R_OK)==-1)
+   if(co_await le_access(FileName,W_OK|R_OK)==-1)
    {
-      if(stat(FileName,&st)==-1)
+      if(co_await le_stat(FileName,&st)==-1)
       {
          FError(FileName);
          return ERR;

@@ -8,6 +8,9 @@
 int LINES = 24;
 int COLS  = 80;
 
+// Every call that takes a WINDOW * gets this and every callee ignores it.
+WINDOW *stdscr = (WINDOW *)1;
+
 const cchar_t WACS_ULCORNER_c = { A_NORMAL, { 0x250C, 0, 0, 0, 0 } };
 const cchar_t WACS_URCORNER_c = { A_NORMAL, { 0x2510, 0, 0, 0, 0 } };
 const cchar_t WACS_LLCORNER_c = { A_NORMAL, { 0x2514, 0, 0, 0, 0 } };
@@ -198,31 +201,31 @@ int raw()
 {
     return OK;
 }
-int meta(void *, bool)
+int meta(WINDOW *, bool)
 {
     return OK;
 }
-int intrflush(void *, bool)
+int intrflush(WINDOW *, bool)
 {
     return OK;
 }
-int keypad(void *, bool)
+int keypad(WINDOW *, bool)
 {
     return OK;
 }
-int idlok(void *, bool)
+int idlok(WINDOW *, bool)
 {
     return OK;
 }
-int scrollok(void *, bool)
+int scrollok(WINDOW *, bool)
 {
     return OK;
 }
-int leaveok(void *, bool)
+int leaveok(WINDOW *, bool)
 {
     return OK;
 }
-int clearok(void *, bool)
+int clearok(WINDOW *, bool)
 {
     curses_full_blit();
     return OK;

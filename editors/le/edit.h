@@ -160,7 +160,7 @@ void  MoveLeftOverEOL();
 void  MoveRightOverEOL();
 
 void  MoveLineCol(num,num);
-void  HideDisplay(void);
+Task<void>  HideDisplay(void);
 char  CharAtLC(num,num);
 void  NewLine(void);
 void  HardMove(num,num);
@@ -170,11 +170,11 @@ bool  IsAlNumAt(offs);
 long  getcode(const char *prompt);
 int   getcode_char();
 int   AskToSave();
-void  Quit(void);
+Task<void>  Quit(void);
 
 void  InstallSignalHandlers(void);
 void  ReleaseSignalHandlers(void);
-void  SuspendEditor();
+Task<void>  SuspendEditor();
 void  BlockSignals();
 void  UnblockSignals();
 char *TmpFileName();
@@ -203,10 +203,10 @@ offs        LineEnd(offs base);
 char        *GetWord();
 int         GetSpace(num amount);
 
-void        EmptyText();
+Task<void>        EmptyText();
 int         LoadFile(char *name);
-int         SaveFile(char *name);
-int	    ReopenRW();
+Task<int>         SaveFile(char *name);
+Task<int>	    ReopenRW();
 void	    SavePosition();   // put current pos to history
 
 void        Initialize();
@@ -220,12 +220,12 @@ int	    file_check(const char *);	 /* checks existence or ability to create */
 
 void    DeleteToEOL();
 void    DeleteToBOL();
-void    DrawFrames();
-void    ExpandAllTabs();
-void	ExpandSpanTabs();
-void    Options();
+Task<void>    DrawFrames();
+Task<void>    ExpandAllTabs();
+Task<void>	ExpandSpanTabs();
+Task<void>    Options();
 void    ReadConf();
-void    editcalc();
+Task<void>    editcalc();
 void    CorrectParameters();
 
 void  InitCurses();
@@ -238,8 +238,6 @@ offs    PrevLine(offs);
 offs    NextNLines(offs,num);
 offs    PrevNLines(offs,num);
 
-void    GoToOffset(void);
-void    GoToLineNumber(void);
 void    GoToLineNum(num);
 
 void  SeekStdCol();
@@ -251,17 +249,35 @@ static inline void RestoreStdCol(num s) { stdcol=s; }
 
 void  CheckWindowResize();
 
-extern  void    Quit(void),
-                Options(void),
-                HideDisplay(void),Indent(void),Unindent(void),
-                FindBlockBegin(void),FindBlockEnd(void),ConvertToLower(void),
-                ConvertToUpper(void),ExchangeCases(void),BlockType(void),
-                FindMatch(void),DoMake(void),DoRun(void),DoCompile(void),
-                DoShell(void),editcalc(void),DrawFrames(void),
-                ExpandAllTabs(void),
-                TermOpt(void),SaveOpt(void),UpdtOpt(void),AppearOpt(void),
-                edit_chset(void),SaveTermOpt(void),GoToLineNumber(void),
-                FormatOptions(void),DOS_UNIX(void);
+/* The bound commands, one declaration each rather than upstream's comma list,
+   because they are Tasks now and the list would not read. */
+extern Task<void> Quit(void);
+extern Task<void> Options(void);
+extern Task<void> HideDisplay(void);
+extern Task<void> Indent(void);
+extern Task<void> Unindent(void);
+extern Task<void> FindBlockBegin(void);
+extern Task<void> FindBlockEnd(void);
+extern Task<void> ConvertToLower(void);
+extern Task<void> ConvertToUpper(void);
+extern Task<void> ExchangeCases(void);
+extern Task<void> BlockType(void);
+extern Task<void> FindMatch(void);   /* overloads offs FindMatch(char) below */
+extern Task<void> DoMake(void);
+extern Task<void> DoRun(void);
+extern Task<void> DoCompile(void);
+extern Task<void> DoShell(void);
+extern Task<void> editcalc(void);
+extern Task<void> DrawFrames(void);
+extern Task<void> ExpandAllTabs(void);
+extern Task<void> TermOpt(void);
+extern Task<void> SaveOpt(void);
+extern Task<void> UpdtOpt(void);
+extern Task<void> AppearOpt(void);
+extern Task<void> edit_chset(void);
+extern Task<void> SaveTermOpt(void);
+extern Task<void> FormatOptions(void);
+extern Task<void> DOS_UNIX(void);
 
 void  PreModify();
 int   PreUserEdit();

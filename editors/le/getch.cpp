@@ -16,236 +16,188 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+/* The one place the editor parks. Upstream blocked in getch() and a SIGWINCH
+   longjmp'd out of it; here the resize arrives as Err(Intr) from next_key(),
+   which is the same thing without the jump -- so there is no sigsetjmp and no
+   getch_return. */
+
 #include "config.h"
-
-#define MAX_FAIL_COUNT   100
-
-#ifdef HAVE_UNISTD_H
-#include "lesys.h"
-#endif
-#ifdef HAVE_SYS_POLL_H
-#include <sys/poll.h>
-#else
-#endif
-
-#ifdef __linux__
-#  include <linux/keyboard.h>
-#  if HAVE_LINUX_TIOCL_H
-#  endif
-   static int linux_process_key(int);
-   static int ungetstr(const char *str);
-#endif
-
 #include "edit.h"
 #include "getch.h"
+#include "keymap.h"
 
-sigjmp_buf getch_return;
-bool  getch_return_set=false;
+#include "kernel/key.h"
+#include "kernel/sysabi.h"
+#include "proc/rt.h"
 
-static int fail_count=0;
-static void fail()
+int resize_flag;
+
+void    UnrefKey(int)
 {
-   if(++fail_count>=MAX_FAIL_COUNT)
-      raise(SIGHUP);
+   /* Upstream drained the terminal's typeahead after an unknown escape
+      sequence. There are no escape sequences here and nothing to drain. */
 }
 
-void    UnrefKey(int key) // ???
+/* One Braam key as the byte, or the named code, the rest of the editor wants.
+   Anything left over is pushed back and comes out of the next call. */
+static int decode(Key k)
 {
-    if(iscntrl(key))
-    {
-        napms(100);
-        flushinp();
-    }
-}
+   int named=0;
 
-
-int   GetRawKey()
-{
-   int   key;
-
-   UnblockSignals();
-
-   timeout(-1);
-   keypad(stdscr,0);
-   key=getch();
-   if(key==ERR)
-      fail();
-   else
-      fail_count=0;
-   keypad(stdscr,1);
-
-   BlockSignals();
-
-   return(key);
-}
-
-int   CheckPending()
-{
-   struct pollfd pfd;
-   pfd.fd=0;
-   pfd.events=POLLIN;
-   return poll(&pfd,1,0);
-}
-
-int   WaitForKey(int delay)
-{
-   int key=GetKey(delay);
-
-#ifdef WITH_MOUSE
-   if(key==KEY_MOUSE)
+   switch(k.code)
    {
-      MEVENT mev;
-      if(getmouse(&mev)==OK)
-	 ungetmouse(&mev);
+   case KEY_UP:        named=K_UP;      break;
+   case KEY_DOWN:      named=K_DOWN;    break;
+   case KEY_LEFT:      named=K_LEFT;    break;
+   case KEY_RIGHT:     named=K_RIGHT;   break;
+   case KEY_HOME:      named=K_HOME;    break;
+   case KEY_END:       named=K_END;     break;
+   case KEY_PAGE_UP:   named=K_PGUP;    break;
+   case KEY_PAGE_DOWN: named=K_PGDN;    break;
+   case KEY_INSERT:    named=K_INSERT;  break;
+   case KEY_DELETE:    named=K_DELETE;  break;
+   case KEY_F1:  named=K_F1;  break;
+   case KEY_F2:  named=K_F2;  break;
+   case KEY_F3:  named=K_F3;  break;
+   case KEY_F4:  named=K_F4;  break;
+   case KEY_F5:  named=K_F5;  break;
+   case KEY_F6:  named=K_F6;  break;
+   case KEY_F7:  named=K_F7;  break;
+   case KEY_F8:  named=K_F8;  break;
+   case KEY_F9:  named=K_F9;  break;
+   case KEY_F10: named=K_F10; break;
+   case KEY_F11: named=K_F11; break;
+   case KEY_F12: named=K_F12; break;
+
+   /* These three have a byte of their own and always have had. */
+   case KEY_ENTER:     return '\n';
+   case KEY_ESCAPE:    return 27;
+   case KEY_BACKSPACE: return 0177;
+   case KEY_TAB:
+      if(k.mods&MOD_SHIFT)
+	 return K_BACKTAB;
+      return '\t';
    }
-   else
-#endif
+
+   if(named)
+   {
+      if(k.mods&MOD_SHIFT)
+	 named|=K_SHIFT;
+      if(k.mods&MOD_CTRL)
+	 named|=K_CTRL;
+      /* Alt is an ESC in front, on a named key as on any other, because that
+	 is what upstream's \e|$kcub1 bindings mean. */
+      if(k.mods&MOD_ALT)
+      {
+	 ungetch(named);
+	 return 27;
+      }
+      return named;
+   }
+
+   /* Ctrl on a printable key is the control character it has always been. */
+   if(k.mods&MOD_CTRL)
+   {
+      int c=k.code;
+      if(c>='a' && c<='z')	c=c-'a'+1;
+      else if(c>='A' && c<='Z') c=c-'A'+1;
+      else if(c=='[')		c=27;
+      else if(c=='\\')		c=28;
+      else if(c==']')		c=29;
+      else if(c=='^')		c=30;
+      else if(c=='_' || c=='/')	c=31;
+      else if(c=='@' || c==' ')	c=0;
+      else if(c=='?')		c=0177;
+      else return ERR;
+      if(k.mods&MOD_ALT)
+      {
+	 ungetch(c);
+	 return 27;
+      }
+      return c;
+   }
+
+   if(k.mods&MOD_ALT)
+   {
+      ungetch((int)k.code);
+      return 27;
+   }
+
+   /* A printable key, as its UTF-8. Upstream got these one byte at a time and
+      the editor inserts them one at a time, so hand back the first and queue
+      the rest -- and queue them backwards, since ungetch is a stack. */
+   {
+      char buf[4];
+      int n=wctomb(buf,(wchar_t)k.code);
+
+      if(n<1)
+	 return ERR;
+      for(int i=n-1; i>0; i--)
+	 ungetch((unsigned char)buf[i]);
+      return (unsigned char)buf[0];
+   }
+}
+
+Task<int>   GetRawKey()
+{
+   if(curses_unget_pending())
+      co_return curses_unget_take();
+
+   for(;;)
+   {
+      /* refresh() only raised a flag; this is where the frame goes out, and
+	 it must go out before the process parks or the screen would lag a
+	 keystroke behind. */
+      if(Task<Result<void>> t=curses_flush())
+	 co_await t;
+
+      Result<Key> r=Err(Error::NoMemory);
+      if(Task<Result<Key>> t=curses_screen().next_key())
+	 r=co_await t;
+
+      if(r.is_err())
+      {
+	 if(r.error()!=Error::Intr)
+	    co_return ERR;
+	 /* next_key() takes SIG_WINCH itself and reshapes before it reports,
+	    so note the geometry before answering whatever signal is behind
+	    this -- a resize arriving with a ^C is dropped otherwise. */
+	 bool resized=(int)curses_grid().cols!=COLS
+		   || (int)curses_grid().rows!=LINES;
+	 if(sig_take(SIG_TERM))
+	    co_return ERR;
+	 if(sig_take(SIG_INT))
+	    co_return 3;	/* ^C, as the keystroke upstream bound */
+	 if(resized)
+	 {
+	    curses_resized();
+	    resize_flag=1;
+	    co_return ERR;
+	 }
+	 continue;
+      }
+
+      int key=decode(r.value());
+      if(key!=ERR)
+	 co_return key;
+      if(curses_unget_pending())
+	 co_return curses_unget_take();
+   }
+}
+
+Task<int>   WaitForKey()
+{
+   int key=co_await GetRawKey();
+
    if(key!=ERR)
       ungetch(key);
-
-   return(key);
+   co_return key;
 }
 
-int   GetKey(int delay)
+Task<int>   GetKey()
 {
-   if(sigsetjmp(getch_return,1)==0)
-   {
-      getch_return_set=true;
-      UnblockSignals();
-
-      bkgdset(NORMAL_TEXT_ATTR->n_attr|' ');   // recent ncurses uses bkgd for default clearing
-      timeout(delay);
-      int key=getch();
-      if(key==ERR)
-      {
-	 if(delay==-1)
-	    fail();
-      }
-      else
-	 fail_count=0;
-      timeout(-1);
-      bkgdset(' ');
-
-      BlockSignals();
-      getch_return_set=false;
-
-      /* on linux try to interpret shift state */
-#ifdef __linux__
-      key=linux_process_key(key);
-#endif
-
-      return key;
-   }
-   else
-   {
-      getch_return_set=false;
-      return ERR;
-   }
+   /* Upstream set the background so that recent ncurses cleared with the
+      editor's own colours; the Grid is cleared with an attribute the caller
+      already chose, so there is nothing to set. */
+   co_return co_await GetRawKey();
 }
-
-#ifdef __linux__
-/* I hate it, it does not work over telnet */
-/* Oh why linux cannot just return different codes for different keys? */
-
-# ifndef TIOCL_GETSHIFTSTATE
-#  define TIOCL_GETSHIFTSTATE 6 // older linux versions did not define this
-# endif
-
-int linux_process_key(int key)
-{
-   /* BEWARE OF UNWANTED RECURSION! */
-#ifdef TIOCLINUX
-   char shift_state=TIOCL_GETSHIFTSTATE;
-   if(ioctl(0,TIOCLINUX,&shift_state)<0)
-      return key;
-
-   bool shift=(shift_state & (1<<KG_SHIFT));
-   bool ctrl =(shift_state & (1<<KG_CTRL));
-   bool alt  =(shift_state & (1<<KG_ALT));
-
-   if(!shift && !ctrl && !alt)
-      return key;
-
-   // improve function keys a bit...
-   {
-      int add=12;
-      if(ctrl)
-	 add=24;
-      if(alt || (shift && ctrl))
-	 add=36;
-      if(shift && key>=KEY_F0+11 && key<=KEY_F0+20)
-	 return key+add-10;	// ~F11 and ~F12 lose
-      else if(key>=KEY_F0+1 && key<=KEY_F0+12)
-	 return key+add;
-   }
-   // some xterm key sequences are used below.
-   int xterm_shift=0;
-   if(shift)	     xterm_shift=2;
-   if(ctrl)	     xterm_shift=5;
-   if(shift && ctrl) xterm_shift=6;
-   int code=0;
-   char str[16];
-   switch(key)
-   {
-   case KEY_LEFT:
-      code='D';
-      break;
-   case KEY_RIGHT:
-      code='C';
-      break;
-   case KEY_UP:
-      code='A';
-      break;
-   case KEY_DOWN:
-      code='B';
-      break;
-   case KEY_HOME:
-      code='H';
-      break;
-   case KEY_END:
-      code='F';
-      break;
-   }
-   if(code)
-   {
-      snprintf(str,sizeof(str),"\033[1;%d%c",xterm_shift,code);
-      return ungetstr(str);
-   }
-   code=0;
-   switch(key)
-   {
-   case KEY_IC:
-      code=2;
-      break;
-   case KEY_DC:
-      code=3;
-      break;
-   case KEY_PPAGE:
-      code=5;
-      break;
-   case KEY_NPAGE:
-      code=6;
-      break;
-   }
-   if(code)
-   {
-      snprintf(str,sizeof(str),"\033[%d;%d~",code,xterm_shift);
-      return ungetstr(str);
-   }
-
-#endif // TIOCLINUX
-   return key;
-}
-
-static int ungetstr(const char *str)
-{
-   int len=strlen(str);
-   if(len==0)
-      return ERR;
-   const char *scan=str+len-1;
-   while(scan>str)
-      ungetch(*scan--);
-   return *scan;
-}
-
-#endif

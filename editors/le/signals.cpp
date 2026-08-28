@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-1997 by Alexander V. Lukyanov (lav@yars.free.net)
+ * Copyright (c) 1993-2012 by Alexander V. Lukyanov (lav@yars.free.net)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,231 +16,130 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+/* Signals, of which three are catchable and none is a handler.
+ *
+ * A signal is delivered where the process parks, so getch.cpp answers all
+ * three and there is nothing to install but the mask. What went with the
+ * handlers: the SIGSEGV/SIGBUS/SIGILL dumps to ~/.le/tmp/DUMP-*, the SIGHUP
+ * rescue, and SIGTSTP -- there is no job control to stop into.
+ *
+ * The autosave survives. It was already a resumable chunked state machine
+ * driven by alarm(), which is what makes it fit: co_await AutoSaveTick() is the same
+ * machine, called from Edit()'s loop between keystrokes rather than from a
+ * handler. */
+
 #include "config.h"
-#ifdef HAVE_UNISTD_H
 #include "lesys.h"
-#endif
 #include "edit.h"
+#include "leio.h"
 
-#ifndef __MSDOS__
-#ifdef HAVE_SYS_IOCTL_H
-#endif
-#endif
-
-/* This pair of functions is to work
-   with signal handlers - install and release */
-static struct sigaction  OldSIGHUP;
-static struct sigaction  OldSIGINT;
-static struct sigaction  OldSIGQUIT;
-static struct sigaction  OldSIGTSTP;
-
-#ifdef __GNUC__
-#define  SA_HANDLER_TYPE   typeof(OldSIGHUP.sa_handler)
-#else
-#define  SA_HANDLER_TYPE   void(*)(int)
-#endif
-#ifndef SA_RESTART
-#define SA_RESTART 0
-#endif
-
+#include "kernel/sysabi.h"
+#include "proc/io.h"
+#include "proc/rt.h"
 
 void  BlockSignals()
 {
-   sigset_t ss;
-
-   sigemptyset(&ss);
-   sigaddset(&ss,SIGALRM);
-
-   sigprocmask(SIG_BLOCK,&ss,NULL);
+   /* Upstream masked signals around getch so a handler could not run inside
+      curses. Nothing runs asynchronously here. */
 }
+
 void  UnblockSignals()
 {
-   sigset_t ss;
-
-   sigemptyset(&ss);
-   sigaddset(&ss,SIGALRM);
-
-   sigprocmask(SIG_UNBLOCK,&ss,NULL);
 }
-
-#ifndef KEY_RESIZE
-int   resize_flag=0;
 
 void  CheckWindowResize()
 {
-#if !defined(__MSDOS__) && defined(TIOCGWINSZ)
-   struct winsize winsz;
-   static bool disable_resize=false;
-
-   resize_flag=0;
-
-   if(disable_resize)
-      return;
-
-   winsz.ws_col=COLS;
-   winsz.ws_row=LINES;
-   ioctl(0,TIOCGWINSZ,&winsz);
-   if(winsz.ws_col && winsz.ws_row
-   && (winsz.ws_col!=COLS || winsz.ws_row!=LINES)
-   && !(getenv("LINES") && getenv("COLUMNS")))
-   {
-      WIN *w=CreateWin(0,0,COLS,LINES,NORMAL_TEXT_ATTR,"",NOSHADOW);
-      DisplayWin(w);
-      InitCurses(); // this does endwin() automatically
-      if(winsz.ws_col!=COLS || winsz.ws_row!=LINES)
-      {
-	 beep();
-         disable_resize=true;
-      }
-      clearok(stdscr,TRUE);
-      CorrectParameters();
-      flag|=REDISPLAY_ALL;
-      CloseWin();
-      DestroyWin(w);
-   }
-#endif
-}
-
-void  resize_sig(int sig)
-{
-   (void)sig;
-   resize_flag=1;
-
-   extern bool getch_return_set;
-   extern sigjmp_buf getch_return;
-
-   if(getch_return_set)
-      siglongjmp(getch_return,1);
-}
-#endif // KEY_RESIZE
-
-void    SuspendEditor()
-{
-#ifndef __MSDOS__
-/*    clear();*/
-    curs_set(1);
-    refresh();
-    endwin();
-    kill(getpid(),SIGSTOP);
-    refresh();
-#else
-   ErrMsg("Suspending is not supported under MSDOG");
-#endif
+   /* next_key() reshapes the grid before it reports the resize, and getch.cpp
+      has already called curses_resized(); all that is left is to lay the
+      editor out again. Upstream had to ask the terminal for its size and
+      restart curses. */
+   CorrectParameters();
+   flag|=REDISPLAY_ALL;
 }
 
 static char mem[4000];
+
 char *TmpFileName()
 {
-#ifndef __MSDOS__
    snprintf(mem,sizeof(mem),"%s/.le/tmp/",HOME);
-   char *add=mem+strlen(mem);
-   strcpy(add,FileName);
-   while(*add)
+   int len=strlen(mem);
+   char *store=mem+len;
+   const char *scan=FileName;
+   /* The whole path, with the slashes turned into ! -- so two files of the
+      same name in different directories do not collide. */
+   while(*scan && len<(int)sizeof(mem)-2)
    {
-      if(isslash(*add))
-	 *add='_';
-      add++;
+      *store++=(*scan=='/'?'!':*scan);
+      scan++;
+      len++;
    }
-   snprintf(add,mem+sizeof(mem)-add,".%d",(int)getpid());
-#else
-   snprintf(mem,sizeof(mem),"le%d.res",(int)getpid());
-#endif
-   return mem;
-}
-char *HupFileName(int sig)
-{
-#ifndef __MSDOS__
-   snprintf(mem,sizeof(mem),"%s/.le/tmp/DUMP-%d-",HOME,sig);
-   char *add=mem+strlen(mem);
-   strcpy(add,FileName);
-   while(*add)
-   {
-      if(isslash(*add))
-	 *add='_';
-      add++;
-   }
-   snprintf(add,mem+sizeof(mem)-add,".%d",(int)getpid());
-#else
-   snprintf(mem,sizeof(mem),"le%d.hup",(int)getpid());
-#endif
+   *store=0;
    return mem;
 }
 
-void    hup(int sig)
+Task<void>    SuspendEditor()
 {
-   endwin();
-
-   if(modified)
-   {
-      char *s=HupFileName(sig);
-      fprintf(stderr,"le: Caught signal %d, dumping text to %s\n",sig,s);
-      int fd=creat(s,0600);
-      num act_written;
-      WriteBlock(fd,0,Size(),&act_written);
-      close(fd);
-   }
-   else
-   {
-      fprintf(stderr,"le: Caught signal %d\n",sig);
-   }
-   if(sig==SIGSEGV || sig==SIGBUS)
-   {
-      ReleaseSignalHandlers();
-      sigset_t mask;
-      sigemptyset(&mask);
-      sigaddset(&mask,sig);
-      sigprocmask(SIG_UNBLOCK,&mask,0);
-      kill(getpid(),sig);
-   }
-   exit(1);
+   /* There is no job control to stop into. */
+   Message("Suspend is not available here");
+   co_return;
 }
 
-void    alarmsave(int a)
+Task<void>    InstallSignalHandlers()
 {
-   // set handler again to be safe
-   struct sigaction  alarmsaveaction;
-   alarmsaveaction.sa_handler=(SA_HANDLER_TYPE)alarmsave;
-   alarmsaveaction.sa_flags=SA_RESTART;
-   sigemptyset(&alarmsaveaction.sa_mask);
-   sigaction(SIGALRM,&alarmsaveaction,NULL);
+   /* Ask for the three that are catchable; the mask starts empty, so without
+      this a ^C would kill the editor with the file unsaved. */
+   if(Task<Result<void>> t=sig_catch(SIG_INT))
+      co_await t;
+   if(Task<Result<void>> t=sig_catch(SIG_TERM))
+      co_await t;
+   if(Task<Result<void>> t=sig_catch(SIG_WINCH))
+      co_await t;
+}
 
+void    ReleaseSignalHandlers()
+{
+}
+
+/* The autosave. `modified` is upstream's three-state: 1 the text changed,
+   3 a dump is running, 2 the dump is complete. */
+Task<void>    AutoSaveTick()
+{
    static offs dump_pos=0;
    static int fd=-1;
    static int interrupted=0;
+   static u64 due=0;
    const int chunk=0x20000;
 
-   (void)a;
+   u64 now=proc_now();
+   if(now<due)
+      co_return;
 
-   // check if the text changed
    if(modified==1)
    {
-      // it did - reset dump state
       dump_pos=0;
       if(fd!=-1)
       {
 	 interrupted++;
-	 close(fd);
+	 co_await le_close(fd);
       }
       char *s=TmpFileName();
-      fd=open(s,O_CREAT|O_WRONLY|O_TRUNC,0600);
+      fd=co_await le_open(s,O_CREAT|O_WRONLY|O_TRUNC,0600);
       if(fd==-1)
       {
-	 alarm(ALARMDELAY);
-	 return;
+	 due=now+ALARMDELAY*1000;
+	 co_return;
       }
       modified=3;
    }
-   // if the dump is in progress
    if(modified==3)
    {
       num  act_written;
-      if(WriteBlock(fd,dump_pos,(interrupted>5?Size()-dump_pos:chunk),
-		     &act_written)!=OK)
+      if(co_await WriteBlock(fd,dump_pos,(interrupted>5?Size()-dump_pos:chunk),
+			     &act_written)!=OK)
       {
       done:
-	 close(fd);
+	 co_await le_close(fd);
 	 fd=-1;
-	 // mark it as dumped
 	 modified=2;
       }
       else
@@ -251,148 +150,10 @@ void    alarmsave(int a)
 	    interrupted=0;
 	    goto done;
 	 }
-	 // after a second write next chunk
-	 alarm(1);
-	 return;
+	 /* After a chunk, come back for the next one at once. */
+	 due=now+1000;
+	 co_return;
       }
    }
-   alarm(ALARMDELAY);
-}
-
-void    InstallSignalHandlers()
-{
-   struct sigaction  hupaction;
-   struct sigaction  alarmsaveaction;
-   struct sigaction  ign_action;
-   struct sigaction  suspend_action;
-
-   hupaction.sa_handler=(SA_HANDLER_TYPE)hup;
-   hupaction.sa_flags=0;
-   sigfillset(&hupaction.sa_mask);
-
-   alarmsaveaction.sa_handler=(SA_HANDLER_TYPE)alarmsave;
-   alarmsaveaction.sa_flags=SA_RESTART;
-   sigemptyset(&alarmsaveaction.sa_mask);
-
-   ign_action.sa_handler=(SA_HANDLER_TYPE)SIG_IGN;
-   ign_action.sa_flags=0;
-   sigemptyset(&ign_action.sa_mask);
-
-   suspend_action.sa_handler=(SA_HANDLER_TYPE)SuspendEditor;
-   suspend_action.sa_flags=0;
-   sigemptyset(&suspend_action.sa_mask);
-
-#ifndef	KEY_RESIZE
-   struct sigaction  resize_action;
-   resize_action.sa_handler=(SA_HANDLER_TYPE)resize_sig;
-   resize_action.sa_flags=0;
-   sigemptyset(&resize_action.sa_mask);
-#endif
-
-   BlockSignals();
-
-   /* catch signals to dump editing file and exit */
-   sigaction(SIGHUP,&hupaction,&OldSIGHUP);
-
-#ifndef DEBUG
-   sigaction(SIGILL,&hupaction,NULL);
-#ifdef SIGTRAP
-   sigaction(SIGTRAP,&hupaction,NULL);
-#endif
-   sigaction(SIGABRT,&hupaction,NULL);
-#ifdef SIGEMT
-   sigaction(SIGEMT,&hupaction,NULL);
-#endif
-   sigaction(SIGFPE,&hupaction,NULL);
-#if SIGBUS
-   sigaction(SIGBUS,&hupaction,NULL);
-#endif
-   sigaction(SIGSEGV,&hupaction,NULL);
-#ifdef SIGSYS
-   sigaction(SIGSYS,&hupaction,NULL);
-#endif
-#endif /* DEBUG */
-
-   sigaction(SIGTERM,&hupaction,NULL);
-#ifdef SIGPWR
-   sigaction(SIGPWR,&hupaction,NULL);
-#endif
-
-   sigaction(SIGALRM,&alarmsaveaction,NULL);
-
-   sigaction(SIGINT,&ign_action,&OldSIGINT);
-   sigaction(SIGQUIT,&ign_action,&OldSIGQUIT);
-#ifdef SIGTSTP
-   sigaction(SIGTSTP,&suspend_action,&OldSIGTSTP);
-#endif
-#ifdef SIGVTALRM
-   sigaction(SIGVTALRM,&ign_action,NULL);
-#endif
-#ifdef SIGPIPE
-   sigaction(SIGPIPE,&ign_action,NULL);
-#endif
-   sigaction(SIGUSR1,&ign_action,NULL);
-   sigaction(SIGUSR2,&ign_action,NULL);
-
-#if defined(SIGWINCH) && !defined(KEY_RESIZE)
-   sigaction(SIGWINCH,&resize_action,NULL);
-#endif
-#ifdef SIGCHLD
-//    sigaction(SIGCHLD,&ign_action,NULL);
-#endif
-#ifdef SIGTTIN
-   sigaction(SIGTTIN,&suspend_action,NULL);
-#endif
-#ifdef SIGTTOU
-   sigaction(SIGTTOU,&suspend_action,NULL);
-#endif
-}
-void    ReleaseSignalHandlers()
-{
-   struct sigaction  dfl_action;
-
-   dfl_action.sa_handler=(SA_HANDLER_TYPE)SIG_DFL;
-   dfl_action.sa_flags=0;
-
-   alarm(0);   /* turn off alarm */
-
-   sigaction(SIGHUP,&OldSIGHUP,NULL);
-   sigaction(SIGILL,&dfl_action,NULL);
-#ifdef SIGTRAP
-   sigaction(SIGTRAP,&dfl_action,NULL);
-#endif
-   sigaction(SIGABRT,&dfl_action,NULL);
-#ifdef SIGEMT
-   sigaction(SIGEMT,&dfl_action,NULL);
-#endif
-   sigaction(SIGFPE,&dfl_action,NULL);
-#ifdef SIGBUS
-   sigaction(SIGBUS,&dfl_action,NULL);
-#endif
-   sigaction(SIGSEGV,&dfl_action,NULL);
-#ifdef SIGSYS
-   sigaction(SIGSYS,&dfl_action,NULL);
-#endif
-   sigaction(SIGTERM,&dfl_action,NULL);
-#ifdef SIGPWR
-   sigaction(SIGPWR,&dfl_action,NULL);
-#endif
-
-   sigaction(SIGALRM,&dfl_action,NULL);
-
-   sigaction(SIGINT,&OldSIGINT,NULL);
-   sigaction(SIGQUIT,&OldSIGQUIT,NULL);
-#ifdef SIGTSTP
-   sigaction(SIGTSTP,&OldSIGTSTP,NULL);
-#endif
-#ifdef SIGVTALRM
-   sigaction(SIGVTALRM,&dfl_action,NULL);
-#endif
-#ifdef SIGPIPE
-   sigaction(SIGPIPE,&dfl_action,NULL);
-#endif
-   sigaction(SIGUSR1,&dfl_action,NULL);
-   sigaction(SIGUSR2,&dfl_action,NULL);
-
-   UnblockSignals();
+   due=now+ALARMDELAY*1000;
 }

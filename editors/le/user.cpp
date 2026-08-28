@@ -23,6 +23,7 @@
 #ifdef HAVE_ALLOCA_H
 #endif
 #include "edit.h"
+#include "leio.h"
 #include "block.h"
 #include "keymap.h"
 #include "clipbrd.h"
@@ -33,24 +34,24 @@
 #include "undo.h"
 #include "highli.h"
 
-void  UserDeleteToEol()
+Task<void>  UserDeleteToEol()
 {
    if(View || in_hex_mode)
-      return;
+      co_return;
    DeleteToEOL();
    if(!Text)
       SetStdCol();
    flag|=REDISPLAY_LINE;
 }
-void  UserDeleteLine()
+Task<void>  UserDeleteLine()
 {
    if(View || in_hex_mode)
-      return;
+      co_return;
    DeleteLine();
    flag|=REDISPLAY_AFTER;
 }
 
-void  UserLineUp()
+Task<void>  UserLineUp()
 {
    if(in_hex_mode)
    {
@@ -60,8 +61,9 @@ void  UserLineUp()
    {
       MoveUp();
    }
+   co_return;
 }
-void  UserLineDown()
+Task<void>  UserLineDown()
 {
    if(in_hex_mode)
    {
@@ -88,9 +90,10 @@ void  UserLineDown()
 	    SetStdCol();
       }
    }
+   co_return;
 }
 
-void  UserCharLeft()
+Task<void>  UserCharLeft()
 {
    if(in_hex_mode)
    {
@@ -112,13 +115,13 @@ void  UserCharLeft()
       if(Text && Eol() && stdcol>GetCol())
       {
          stdcol--;
-         return;
+         co_return;
       }
       MoveLeftOverEOL();
    }
    SetStdCol();
 }
-void  UserCharRight()
+Task<void>  UserCharRight()
 {
    if(in_hex_mode)
    {
@@ -147,12 +150,13 @@ void  UserCharRight()
          SetStdCol();
       }
    }
+   co_return;
 }
 
-void  UserCopyFromDown()
+Task<void>  UserCopyFromDown()
 {
    if(View || in_hex_mode)
-      return;
+      co_return;
 
    num   oc=GetCol();
    if(Text && stdcol>oc && Eol())
@@ -171,7 +175,7 @@ void  UserCopyFromDown()
          InsertChar('\t');
 	 SetStdCol();
          flag|=REDISPLAY_LINE;
-         return;
+         co_return;
       }
       if(tp.Col()==oc && !EolAt(tp.Offset()))
       {
@@ -183,14 +187,14 @@ void  UserCopyFromDown()
             ReplaceWCharExtMove(ch);
 	 SetStdCol();
          flag|=REDISPLAY_LINE;
-         return;
+         co_return;
       }
    }
 }
-void  UserCopyFromUp()
+Task<void>  UserCopyFromUp()
 {
    if(View || in_hex_mode)
-      return;
+      co_return;
 
    num   oc=GetCol();
    if(Text && stdcol>oc && Eol())
@@ -207,7 +211,7 @@ void  UserCopyFromUp()
          InsertChar('\t');
 	 SetStdCol();
          flag|=REDISPLAY_LINE;
-         return;
+         co_return;
       }
       if(tp.Col()==oc && !EolAt(tp.Offset()))
       {
@@ -219,18 +223,18 @@ void  UserCopyFromUp()
             ReplaceWCharExtMove(ch);
 	 SetStdCol();
          flag|=REDISPLAY_LINE;
-         return;
+         co_return;
       }
    }
 }
 
-void  UserDeleteBlock()
+Task<void>  UserDeleteBlock()
 {
    if(DragMark)
       UserStopDragMark();
 
    if(View)
-      return;
+      co_return;
    CheckBlock();
    if(!hide)
    {
@@ -238,13 +242,13 @@ void  UserDeleteBlock()
       Delete();
    }
 }
-void  UserCopyBlock()
+Task<void>  UserCopyBlock()
 {
    if(DragMark)
       UserStopDragMark();
 
    if(View)
-      return;
+      co_return;
    CheckBlock();
    if(!hide)
    {
@@ -253,13 +257,13 @@ void  UserCopyBlock()
       Copy();
    }
 }
-void  UserMoveBlock()
+Task<void>  UserMoveBlock()
 {
    if(DragMark)
       UserStopDragMark();
 
    if(View)
-       return;
+       co_return;
    CheckBlock();
    if(!hide)
    {
@@ -269,13 +273,13 @@ void  UserMoveBlock()
    }
 }
 
-void  UserBackwardDeleteWord()
+Task<void>  UserBackwardDeleteWord()
 {
    if(View || in_hex_mode)
-      return;
+      co_return;
    if(!IsAlNumLeft() && CharRel(-1)!=' ' && CharRel(-1)!='\t')
    {
-      UserBackSpace();
+      co_await UserBackSpace();
    }
    else
    {
@@ -295,12 +299,12 @@ void  UserBackwardDeleteWord()
    flag|=REDISPLAY_LINE;
 }
 
-void  UserForwardDeleteWord()
+Task<void>  UserForwardDeleteWord()
 {
    if(View || in_hex_mode)
-      return;
+      co_return;
    if(!IsAlNumRel(0) && Char()!=' ' && Char()!='\t')
-      UserDeleteChar();
+      co_await UserDeleteChar();
    else
    {
       PreUserEdit();
@@ -319,12 +323,12 @@ void  UserForwardDeleteWord()
    flag|=REDISPLAY_LINE;
 }
 
-void  UserDeleteWord()
+Task<void>  UserDeleteWord()
 {
    if(View || in_hex_mode)
-      return;
+      co_return;
    if(!IsAlNumRel(0))
-      UserForwardDeleteWord();
+      co_await UserForwardDeleteWord();
    else
    {
       PreUserEdit();
@@ -360,7 +364,7 @@ void  UserMarkWord()
    hide=FALSE;
    flag=REDISPLAY_ALL;
 }
-void  UserMarkLine()
+Task<void>  UserMarkLine()
 {
    if(DragMark)
       UserStopDragMark();
@@ -372,8 +376,9 @@ void  UserMarkLine()
       BlockEnd=NextLine(Offset());
    hide=FALSE;
    flag=REDISPLAY_ALL;
+   co_return;
 }
-void  UserMarkToEol()
+Task<void>  UserMarkToEol()
 {
    if(DragMark)
       UserStopDragMark();
@@ -383,8 +388,9 @@ void  UserMarkToEol()
    BlockEnd=LineEnd(CurrentPos.Offset());
    hide=(BlockEnd.Col()<=BlockBegin.Col());
    flag=REDISPLAY_ALL;
+   co_return;
 }
-void  UserMarkAll()
+Task<void>  UserMarkAll()
 {
    if(DragMark)
       UserStopDragMark();
@@ -396,9 +402,10 @@ void  UserMarkAll()
       BlockEnd=TextEnd;
    hide=FALSE;
    flag=REDISPLAY_ALL;
+   co_return;
 }
 
-void  UserPageTop()
+Task<void>  UserPageTop()
 {
    if(in_hex_mode)
    {
@@ -425,6 +432,7 @@ void  UserPageTop()
       else
 	 CurrentPos=ScreenTop;
    }
+   co_return;
 }
 void UserScrollUp()
 {
@@ -435,11 +443,11 @@ void UserScrollUp()
    } else {
       ScreenTop=PrevLine(ScreenTop);
       if(GetLine()>=ScreenTop.Line()+TextWinHeight)
-	 UserLineUp();
+	 co_await UserLineUp();
    }
    flag=REDISPLAY_ALL;
 }
-void UserScrollDown()
+Task<void> UserScrollDown()
 {
    if(in_hex_mode) {
       if((TextEnd-ScreenTop)/16>=TextWinHeight) {
@@ -451,17 +459,17 @@ void UserScrollDown()
       if(TextEnd.Line()-ScreenTop.Line()>=TextWinHeight) {
 	 ScreenTop=NextLine(ScreenTop);
 	 if(CurrentPos<ScreenTop)
-	    UserLineDown();
+	    co_await UserLineDown();
       }
    }
    flag=REDISPLAY_ALL;
 }
-void  UserPageUp()
+Task<void>  UserPageUp()
 {
    if(PreferPageTop)
    {
-      UserPageTop();
-      return;
+      co_await UserPageTop();
+      co_return;
    }
 
    if(in_hex_mode)
@@ -481,7 +489,7 @@ void  UserPageUp()
    }
    flag=REDISPLAY_ALL;
 }
-void  UserPageBottom()
+Task<void>  UserPageBottom()
 {
    if(in_hex_mode)
    {
@@ -509,13 +517,14 @@ void  UserPageBottom()
       else
 	 CurrentPos=TextPoint(ScreenTop.Line()+TextWinHeight-1,GetStdCol());
    }
+   co_return;
 }
-void  UserPageDown()
+Task<void>  UserPageDown()
 {
    if(PreferPageTop)
    {
-      UserPageBottom();
-      return;
+      co_await UserPageBottom();
+      co_return;
    }
 
    if(in_hex_mode)
@@ -549,7 +558,7 @@ void  UserPageDown()
    flag=REDISPLAY_ALL;
 }
 
-void  UserWordLeft()
+Task<void>  UserWordLeft()
 {
    if(in_hex_mode && !ascii)
       MoveLeft();
@@ -561,8 +570,9 @@ void  UserWordLeft()
          CurrentPos-=MBCharSize;
    }
    SetStdCol();
+   co_return;
 }
-void  UserWordRight()
+Task<void>  UserWordRight()
 {
    if(in_hex_mode && !ascii)
       MoveRight();
@@ -574,20 +584,22 @@ void  UserWordRight()
          CurrentPos+=MBCharSize;
    }
    SetStdCol();
+   co_return;
 }
 
-void  UserMenu()
+Task<void>  UserMenu()
 {
    ActivateMainMenu();
+   co_return;
 }
 
-void  UserCommentLine()
+Task<void>  UserCommentLine()
 {
    int unc=0;
    TextPoint   op=CurrentPos;
 
    if(View || in_hex_mode)
-      return;
+      co_return;
 
    ToLineBegin();
    if(Suffix(FileName,".cc")
@@ -687,7 +699,7 @@ done:
    flag|=REDISPLAY_LINE;
 }
 
-void  UserSetBlockBegin()
+Task<void>  UserSetBlockBegin()
 {
    PreUserEdit();
    flag=REDISPLAY_ALL;
@@ -695,7 +707,7 @@ void  UserSetBlockBegin()
    {
       BlockBegin=BlockEnd=CurrentPos;
       hide=FALSE;
-      return;
+      co_return;
    }
    if(rblock?(CurrentPos.Line()<=BlockEnd.Line()
               && CurrentPos.Col()<=BlockEnd.Col())
@@ -713,7 +725,7 @@ void  UserSetBlockBegin()
 	 *DragMark = BlockBegin;
    }
 }
-void  UserSetBlockEnd()
+Task<void>  UserSetBlockEnd()
 {
    PreUserEdit();
    flag=REDISPLAY_ALL;
@@ -721,7 +733,7 @@ void  UserSetBlockEnd()
    {
       BlockBegin=BlockEnd=CurrentPos;
       hide=FALSE;
-      return;
+      co_return;
    }
    if(rblock?(CurrentPos.Line()>=BlockBegin.Line()
               && CurrentPos.Col()>=BlockBegin.Col())
@@ -740,29 +752,30 @@ void  UserSetBlockEnd()
    }
 }
 
-void  UserFindBlockBegin()
+Task<void>  UserFindBlockBegin()
 {
    if(hide)
-      return;
+      co_return;
    CurrentPos=BlockBegin;
    SetStdCol();
 }
-void  UserFindBlockEnd()
+Task<void>  UserFindBlockEnd()
 {
    if(hide)
-      return;
+      co_return;
    CurrentPos=BlockEnd;
    SetStdCol();
 }
 
-void  UserLineBegin()
+Task<void>  UserLineBegin()
 {
    if(Text && !View)
       ToLineEnd();
    ToLineBegin();
    SetStdCol();
+   co_return;
 }
-void  UserLineEnd()
+Task<void>  UserLineEnd()
 {
    ToLineEnd();
    SetStdCol();
@@ -772,27 +785,30 @@ void  UserLineEnd()
       InsertAutoindent(TextPoint(CurrentPos-EolSize).Col());
       modified=old_modified;
    }
+   co_return;
 }
-void  UserFileBegin()
+Task<void>  UserFileBegin()
 {
    CurrentPos=TextBegin;
    SetStdCol();
+   co_return;
 }
-void  UserFileEnd()
+Task<void>  UserFileEnd()
 {
    CurrentPos=TextEnd;
    SetStdCol();
+   co_return;
 }
 
-void  UserPreviousEdit()
+Task<void>  UserPreviousEdit()
 {
    if(!modified)
-      return;
+      co_return;
    CurrentPos=ptr1;
    SetStdCol();
 }
 
-void  UserUnindent()
+Task<void>  UserUnindent()
 {
    num newmargin;
    num oldmargin;
@@ -817,8 +833,8 @@ void  UserUnindent()
    {
       if(Text && Eol() && stdcol>GetCol())
       {
-         UserLineEnd();
-	 return;
+         co_await UserLineEnd();
+	 co_return;
       }
       BackSpace();
    }
@@ -844,7 +860,7 @@ void  UserUnindent()
 	 else
 	    stdcol=0;
 	 flag|=REDISPLAY_LINE;
-         return;
+         co_return;
       }
       while(GetCol()>newmargin)
       {
@@ -869,17 +885,17 @@ void  UserUnindent()
    SetStdCol();
 }
 
-void  UserBackSpace()
+Task<void>  UserBackSpace()
 {
    if(View)
-      return;
+      co_return;
    if(Bof() && (!Text || GetStdCol()==0))
-      return;
+      co_return;
    if(in_hex_mode)
    {
       BackSpace();
       flag|=REDISPLAY_AFTER;
-      return;
+      co_return;
    }
    if(Bol() && (!Text || GetStdCol()==0))
    {
@@ -892,28 +908,28 @@ void  UserBackSpace()
       {
 	 if(Text && Eol() && stdcol>GetCol())
 	 {
-	    //UserLineEnd();
+	    //co_await UserLineEnd();
 	    AddStdCol(-1);
-	    return;
+	    co_return;
 	 }
          BackSpace();
          flag|=REDISPLAY_LINE;
       }
       else
       {
-         UserUnindent();
-         return;
+         co_await UserUnindent();
+         co_return;
       }
    }
    SetStdCol();
 }
 
-void  UserDeleteChar()
+Task<void>  UserDeleteChar()
 {
    if(View)
-      return;
+      co_return;
    if(Eof())
-      return;
+      co_return;
    if(in_hex_mode)
    {
       DeleteChar();
@@ -936,12 +952,12 @@ void  UserDeleteChar()
    SetStdCol();
 }
 
-int   UserSave()
+Task<int>   UserSave()
 {
    if(FileName[0] && !View)
-      return(SaveFile(FileName));
+      return(co_await SaveFile(FileName));
    else
-      return(UserSaveAs());
+      return(co_await UserSaveAs());
 }
 
 int   file_check(const char *fn)
@@ -958,9 +974,9 @@ int   file_check(const char *fn)
 	 fn=open_name1;
    }
 
-   if(access(fn,R_OK)==-1)
+   if(co_await le_access(fn,R_OK)==-1)
    {
-      if(access(fn,F_OK)==0)
+      if(co_await le_access(fn,F_OK)==0)
       {
 	 snprintf(msg,sizeof(msg),"File: %s\nThe specified file is not readable",fn);
 	 ErrMsg(msg);
@@ -979,13 +995,13 @@ int   file_check(const char *fn)
 	 *slash=0;
       else
 	 strcpy(dir,".");
-      if(access(dir,F_OK)==-1)
+      if(co_await le_access(dir,F_OK)==-1)
       {
 	 snprintf(msg,sizeof(msg),"File: %s\nThe specified directory does not exist",fn);
 	 ErrMsg(msg);
 	 return ERR;
       }
-      if(access(dir,W_OK|X_OK)==-1)
+      if(co_await le_access(dir,W_OK|X_OK)==-1)
       {
 	 snprintf(msg,sizeof(msg),"File: %s\nThe specified file does not exist\n"
 		"and the directory does not permit creating",fn);
@@ -1012,7 +1028,7 @@ int   file_check(const char *fn)
    return OK;
 }
 
-void    UserLoad()
+Task<void>    UserLoad()
 {
    char  newname[256];
    newname[0]=0;
@@ -1020,11 +1036,11 @@ void    UserLoad()
    if(getstring("Load: ",newname,sizeof(newname)-1,&LoadHistory)>0)
    {
       if(ChooseFileName(newname,sizeof(newname))<0)
-         return;
+         co_return;
       if(file_check(newname)==ERR)
       {
 	 LoadHistory.Push();
-	 return;
+	 co_return;
       }
 
       if(modified)
@@ -1032,14 +1048,14 @@ void    UserLoad()
          if(!AskToSave())
          {
             LoadHistory.Push();
-            return;
+            co_return;
          }
       }
       LoadFile(newname);
    }
 }
 
-int   UserSaveAs()
+Task<int>   UserSaveAs()
 {
    char  newname[256];
    newname[0]=0;
@@ -1048,7 +1064,7 @@ int   UserSaveAs()
    {
       if(ChooseFileName(newname,sizeof(newname))<0)
          return(ERR);
-      if(SaveFile(newname)!=OK)
+      if(co_await SaveFile(newname)!=OK)
       {
          LoadHistory.Push();
          return(ERR);
@@ -1057,15 +1073,15 @@ int   UserSaveAs()
    }
    return(ERR);
 }
-void  UserSwitch()
+Task<void>  UserSwitch()
 {
    LoadHistory.Open();
    LoadHistory.Prev();
    const HistoryLine *prev=LoadHistory.Prev();
    if(prev==NULL)
    {
-      UserLoad();
-      return;
+      co_await UserLoad();
+      co_return;
    }
 
    char newname[256];
@@ -1073,24 +1089,24 @@ void  UserSwitch()
    newname[255]=0;
 
    if(ChooseFileName(newname,sizeof(newname))<0)
-      return;
+      co_return;
 
-   if(access(newname,R_OK)==-1)
+   if(co_await le_access(newname,R_OK)==-1)
    {
-      UserLoad();
-      return;
+      co_await UserLoad();
+      co_return;
    }
 
    if(modified)
       if(!AskToSave())
-         return;
+         co_return;
 
    LoadHistory+=newname;
 
    LoadFile(newname);
 }
 
-void  UserInfo()
+Task<void>  UserInfo()
 {
    WIN   *InfoWin;
    char  cwd[1024];
@@ -1138,38 +1154,39 @@ void  UserInfo()
 
       refresh();
    }
-   while(WaitForKey(1000)==ERR);
+   while(co_await WaitForKey(1000)==ERR);
 
    flushinp();
 
    CloseWin();
    DestroyWin(InfoWin);
+   co_return;
 }
 
-void  UserToLineNumber()
+Task<void>  UserToLineNumber()
 {
    static char nl[10]="";
    if(getstring("Move to line: ",nl,sizeof(nl)-1,NULL,NULL,NULL)<1)
-      return;
+      co_return;
    GoToLineNum(strtol(nl,0,0)-1);
    SetStdCol();
 }
-void  UserToOffset()
+Task<void>  UserToOffset()
 {
    static char no[40]="";
    if(getstring("Move to offset: ",no,sizeof(no)-1,NULL,NULL,NULL)<1)
-      return;
+      co_return;
    CurrentPos=strtol(no,0,0);
    SetStdCol();
 }
 
-void  UserIndent()
+Task<void>  UserIndent()
 {
    /* #### what exactly needs to be done when !insert ? */
    if(Text && stdcol>=GetCol() && Eol())
    {
       stdcol=(stdcol/IndentSize+1)*IndentSize;
-      return;
+      co_return;
    }
    num addcol=0;
    num newcol=(GetCol()/IndentSize+1)*IndentSize;
@@ -1189,7 +1206,7 @@ void  UserIndent()
    if(Text && stdcol>=GetCol() && Eol())
    {
       stdcol=(stdcol/IndentSize+1)*IndentSize;
-      return;
+      co_return;
    }
    PreUserEdit();
    if(insert)
@@ -1231,10 +1248,10 @@ void  UserIndent()
    SetStdCol();
 }
 
-void  UserNewLine()
+Task<void>  UserNewLine()
 {
    if(View)
-      return;
+      co_return;
 
    if(autoindent && !CheckPending())
       UserAutoindent();
@@ -1277,38 +1294,38 @@ void  UserAutoindent()
       InsertAutoindent(oldcol);
 }
 
-void  UserUndelete()
+Task<void>  UserUndelete()
 {
    if(View)
-      return;
+      co_return;
    Undelete();
    flag=REDISPLAY_ALL;
    SetStdCol();
 }
-void  UserUndo()
+Task<void>  UserUndo()
 {
    if(View)
-      return;
+      co_return;
    if(!undo.Enabled())
    {
-      UserUndelete();
-      return;
+      co_await UserUndelete();
+      co_return;
    }
    undo.UndoGroup();
    flag=REDISPLAY_ALL;
 }
-void  UserRedo()
+Task<void>  UserRedo()
 {
    if(View)
-      return;
+      co_return;
    undo.RedoGroup();
    flag=REDISPLAY_ALL;
    SetStdCol();
 }
-void  UserUndoStep()
+Task<void>  UserUndoStep()
 {
    if(View)
-      return;
+      co_return;
    undo.UndoOne();
    flag=REDISPLAY_ALL;
 }
@@ -1327,7 +1344,7 @@ void  UserInsertChar(char ch)
       return;
    if(Text && autoindent && ch=='}' && MarginSizeAt(Offset())==-1 && MarginSizeAt(PrevLine(Offset()))==stdcol)
    {
-      const offs match = FindMatch(ch);
+      const offs match = co_await FindMatch(ch);
       const num indent = match>=0 ? MarginSizeAt(match) : stdcol-IndentSize;
       DeleteToBOL();
       stdcol=indent;
@@ -1409,98 +1426,108 @@ void UserInsertWChar(wchar_t ch)
    UserInsertString(buf,len);
 }
 
-void  UserEnterControlChar()
+Task<void>  UserEnterControlChar()
 {
    int   key;
 
    if(View)
-      return;
+      co_return;
 
    attrset(STATUS_LINE_ATTR->n_attr);
    mvaddch(StatusLineY,COLS-2,'^');
    SetCursor();
-   key=GetRawKey();
+   key=co_await GetRawKey();
    if(key==ERR)
-      return;
+      co_return;
    UserInsertControlChar((char)key);
 }
 
-void  UserWordHelp()
+Task<void>  UserWordHelp()
 {
    if(*GetWord())
-      cmd(HelpCmd,0,1);
+      co_await cmd(HelpCmd,0,1);
+   co_return;
 }
 
-void  UserKeysHelp()
+Task<void>  UserKeysHelp()
 {
    Help("MainHelp"," Help on Keys ");
+   co_return;
 }
 
-void  UserAbout()
+Task<void>  UserAbout()
 {
    ShowAbout();
    move(LINES-1,COLS-1);
-   GetNextAction();
+   co_await GetNextAction();
    HideAbout();
+   co_return;
 }
 
-void  UserRefreshScreen()
+Task<void>  UserRefreshScreen()
 {
    reset_prog_mode();
    flushinp();
    RedisplayAll();
    refresh();
+   co_return;
 }
 
-void  UserChooseChar()
+Task<void>  UserChooseChar()
 {
    if(mb_mode && !in_hex_mode)
-      UserChooseWChar();
+      co_await UserChooseWChar();
    else
-      UserChooseByte();
+      co_await UserChooseByte();
+   co_return;
 }
-void  UserChooseByte()
+Task<void>  UserChooseByte()
 {
    int   ch=choose_ch();
    if(ch!=-1)
       UserInsertControlChar(ch);
+   co_return;
 }
-void  UserChooseWChar()
+Task<void>  UserChooseWChar()
 {
    wchar_t ch=choose_wch();
    if(ch!=-1)
       UserInsertWChar(ch);
+   co_return;
 }
 
-void  UserInsertCharCode()
+Task<void>  UserInsertCharCode()
 {
    if(mb_mode && !in_hex_mode)
-      UserInsertWCharCode();
+      co_await UserInsertWCharCode();
    else
-      UserInsertByteCode();
+      co_await UserInsertByteCode();
+   co_return;
 }
-void  UserInsertByteCode()
+Task<void>  UserInsertByteCode()
 {
    if(View)
-      return;
+      co_return;
    int ch=getcode_char();
    if(ch!=-1)
       UserInsertControlChar(ch);
 }
-void  UserInsertWCharCode()
+Task<void>  UserInsertWCharCode()
 {
    wchar_t ch=getcode_wchar();
    if(ch!=-1)
       UserInsertWChar(ch);
+   co_return;
 }
 
 static int base_editmode=-1;
 
-void  UserSwitchInsertMode()
+Task<void>  UserSwitchInsertMode()
 {
    insert=!insert;
+   co_return;
 }
-void  UserSwitchHexMode()
+Task<void>  UserSwitchHexMode()
 {
    if(editmode==HEXM)
    {
@@ -1522,8 +1549,9 @@ void  UserSwitchHexMode()
       ScreenTop=ScreenTop&~15;
    else
       ScreenTop=LineBegin(ScreenTop);
+   co_return;
 }
-void  UserSwitchTextMode()
+Task<void>  UserSwitchTextMode()
 {
    if(editmode==TEXT)
    {
@@ -1544,37 +1572,41 @@ void  UserSwitchTextMode()
       ScreenTop=ScreenTop&~15;
    else
       ScreenTop=LineBegin(ScreenTop);
+   co_return;
 }
 
-void  UserSwitchRussianMode()
+Task<void>  UserSwitchRussianMode()
 {
    if(inputmode==RUSS)
       inputmode=LATIN;
    else
       inputmode=RUSS;
+   co_return;
 }
-void  UserSwitchGraphMode()
+Task<void>  UserSwitchGraphMode()
 {
    if(inputmode==GRAPH)
       inputmode=LATIN;
    else
       inputmode=GRAPH;
+   co_return;
 }
-void  UserSwitchAutoindentMode()
+Task<void>  UserSwitchAutoindentMode()
 {
    autoindent=!autoindent;
+   co_return;
 }
 
-void  UserBlockPrefixIndent()
+Task<void>  UserBlockPrefixIndent()
 {
    if(View)
-      return;
+      co_return;
 
    if(DragMark)
       UserStopDragMark();
 
-   if(!GetActionArgument("Prefix: "))
-      return;
+   if(!co_await GetActionArgument("Prefix: "))
+      co_return;
 
    PrefixIndent(ActionArgument,ActionArgumentLen);
    flag=REDISPLAY_ALL;
@@ -1583,55 +1615,55 @@ void  UserBlockPrefixIndent()
 History	 ShellHistory;
 History	 PipeHistory;
 
-void  UserShellCommand()
+Task<void>  UserShellCommand()
 {
-   if(!GetActionArgument("Shell-Command: ",&ShellHistory))
-      return;
-   cmd(ActionArgument,/*save*/false,/*pause*/true);
+   if(!co_await GetActionArgument("Shell-Command: ",&ShellHistory))
+      co_return;
+   co_await cmd(ActionArgument,/*save*/false,/*pause*/true);
 }
 
-void  UserPipeBlock()
+Task<void>  UserPipeBlock()
 {
    if(DragMark)
       UserStopDragMark();
 
    CheckBlock();
    if(hide || rblock || View)
-      return;
+      co_return;
 
-   const char *filter=GetActionArgument("Pipe through: ",&PipeHistory);
+   const char *filter=co_await GetActionArgument("Pipe through: ",&PipeHistory);
    if(!filter)
-      return;
+      co_return;
 
    MessageSync("Piping...");
 
-   PipeBlock(filter,TRUE,TRUE);
+   co_await PipeBlock(filter,TRUE,TRUE);
    flag=REDISPLAY_ALL;
 }
 
-void  UserYankBlock()
+Task<void>  UserYankBlock()
 {
    if(DragMark)
       UserStopDragMark();
 
    if(View)
-      return;
+      co_return;
    MainClipBoard.PasteAndMark();
    OptionallyConvertBlockNewLines("yanked");
    flag=REDISPLAY_ALL;
 }
 
-void  UserStartDragMark()
+Task<void>  UserStartDragMark()
 {
    if(DragMark)
    {
       UserStopDragMark();
-      return;
+      co_return;
    }
    PreUserEdit();
    DragMark=new TextPoint(CurrentPos);
    if(hide)
-      UserSetBlockBegin();
+      co_await UserSetBlockBegin();
 }
 void  UserStopDragMark()
 {
@@ -1753,10 +1785,10 @@ MarkMove(PageBottom);
 MarkMove(LineUp);
 MarkMove(LineDown);
 
-void UserOptimizeText()
+Task<void> UserOptimizeText()
 {
    if(View || buffer_mmapped)
-      return;
+      co_return;
 
    offs     ptr;
    TextPoint  tp=CurrentPos;
@@ -1816,15 +1848,16 @@ void UserOptimizeText()
    flag=REDISPLAY_ALL;
 }
 
-void UserRememberBlock()
+Task<void> UserRememberBlock()
 {
    if(DragMark)
       UserStopDragMark();
 
    MainClipBoard.Copy();
+   co_return;
 }
 
-void UserSetBookmark()
+Task<void> UserSetBookmark()
 {
    Message("Mark: ");
    move(LINES-1,6);
@@ -1835,9 +1868,10 @@ void UserSetBookmark()
    else
       beep();
    ClearMessage();
+   co_return;
 }
 
-void UserGoBookmark()
+Task<void> UserGoBookmark()
 {
    Message("Go to mark: ");
    move(LINES-1,12);
@@ -1848,6 +1882,7 @@ void UserGoBookmark()
    else
       beep();
    ClearMessage();
+   co_return;
 }
 
 #define S(n) void UserSetBookmark##n() { SetBookmark('0'+n); }

@@ -22,8 +22,8 @@
 extern	 byte  chset[CHSET_SIZE+1];
 
 void  init_chset();
-void  set_chset_8bit();
-void  set_chset_8bit_noctrl();
+Task<void>  set_chset_8bit();
+Task<void>  set_chset_8bit_noctrl();
 
 void  addch_visual(chtype ch);
 chtype visualize(const attr *a,chtype ch);

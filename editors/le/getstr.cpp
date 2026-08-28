@@ -112,7 +112,7 @@ int   getstring(const char *pr,char *buf,int maxlen,History* history,int *len,
 
       move(LINES-1,col-shift+strlen(pr));
       curs_set(1);
-      action=GetNextAction();
+      action=co_await GetNextAction();
       switch(action)
       {
          case(EDITOR_HELP):
@@ -223,7 +223,7 @@ int   getstring(const char *pr,char *buf,int maxlen,History* history,int *len,
 	       break;
             goto ins;
          case(ENTER_CONTROL_CHAR):
-	    ch=GetRawKey();
+	    ch=co_await GetRawKey();
 	    StringTyped[0]=ch;
 	    StringTypedLen=1;
             goto ins;

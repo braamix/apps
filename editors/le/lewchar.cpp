@@ -33,6 +33,11 @@ extern "C" int mbtowc(wchar_t *out, const char *s, usize n)
     return (int)used;
 }
 
+extern "C" int mblen(const char *s, usize n)
+{
+    return mbtowc(nullptr, s, n);
+}
+
 extern "C" int wctomb(char *out, wchar_t c)
 {
     char buf[4];

@@ -43,18 +43,19 @@ void  init_chset()
    for(i=0; i<256; i++)
       if(iscntrl(i))
          chset[i/CHSET_BITS_PER_BYTE]|=(1<<i%CHSET_BITS_PER_BYTE);*/
-   set_chset_8bit_noctrl();
+   co_await set_chset_8bit_noctrl();
 }
 
-void  set_chset_8bit()
+Task<void>  set_chset_8bit()
 {
    int i;
    clear_chset();
    for(i=0; i<32; i++)
       set_chset_bit(i);
    set_chset_bit(127);
+   co_return;
 }
-void  set_chset_8bit_noctrl()
+Task<void>  set_chset_8bit_noctrl()
 {
    int i;
    clear_chset();
@@ -62,6 +63,7 @@ void  set_chset_8bit_noctrl()
       set_chset_bit(i);
    for(i=127; i<128+32; i++)
       set_chset_bit(i);
+   co_return;
 }
 void  set_chset_no8bit()
 {
@@ -73,7 +75,7 @@ void  set_chset_no8bit()
       set_chset_bit(i);
 }
 
-void  edit_chset()
+Task<void>  edit_chset()
 {
    WIN *w;
    int i,j;
@@ -121,7 +123,7 @@ void  edit_chset()
             PutCh(i*3+3,j+4,(i<<4)+j);
             PutCh(i*3+4,j+4,' ');
          }
-      action=GetNextAction();
+      action=co_await GetNextAction();
       switch(action)
       {
       case(CANCEL):
@@ -171,6 +173,7 @@ done:
    flag=REDISPLAY_ALL;
    CloseWin();
    DestroyWin(w);
+   co_return;
 }
 
 int  choose_ch()
@@ -226,7 +229,7 @@ int  choose_ch()
 	       PutCh(i*3+3,j+4,(i<<4)+j);
             PutCh(i*3+4,j+4,' ');
          }
-      action=GetNextAction();
+      action=co_await GetNextAction();
       switch(action)
       {
       case(NEWLINE):
@@ -314,7 +317,7 @@ wchar_t choose_wch()
             PutCh(i*3+4,j+4,' ');
          }
 
-      action=GetNextAction();
+      action=co_await GetNextAction();
       switch(action)
       {
       case(NEWLINE):

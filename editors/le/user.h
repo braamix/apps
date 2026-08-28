@@ -18,133 +18,133 @@
 
 /* functions, invoked with the keyboard by the user */
 
-void  UserDeleteToEol();
-void  UserDeleteLine();
-void  UserDeleteWord();
-void  UserForwardDeleteWord();
-void  UserBackwardDeleteWord();
+Task<void>  UserDeleteToEol();
+Task<void>  UserDeleteLine();
+Task<void>  UserDeleteWord();
+Task<void>  UserForwardDeleteWord();
+Task<void>  UserBackwardDeleteWord();
 
-void  UserCopyFromDown();
-void  UserCopyFromUp();
+Task<void>  UserCopyFromDown();
+Task<void>  UserCopyFromUp();
 
-void  UserDeleteBlock();
-void  UserCopyBlock();
-void  UserMoveBlock();
+Task<void>  UserDeleteBlock();
+Task<void>  UserCopyBlock();
+Task<void>  UserMoveBlock();
 void  UserMarkWord();
-void  UserMarkLine();
-void  UserMarkToEol();
-void  UserMarkAll();
+Task<void>  UserMarkLine();
+Task<void>  UserMarkToEol();
+Task<void>  UserMarkAll();
 
-void  UserLineUp();
-void  UserLineDown();
+Task<void>  UserLineUp();
+Task<void>  UserLineDown();
 void  UserScrollUp();
-void  UserScrollDown();
-void  UserCharLeft();
-void  UserCharRight();
-void  UserPageTop();
-void  UserPageUp();
-void  UserPageBottom();
-void  UserPageDown();
-void  UserWordLeft();
-void  UserWordRight();
-void  UserLineBegin();
-void  UserLineEnd();
+Task<void>  UserScrollDown();
+Task<void>  UserCharLeft();
+Task<void>  UserCharRight();
+Task<void>  UserPageTop();
+Task<void>  UserPageUp();
+Task<void>  UserPageBottom();
+Task<void>  UserPageDown();
+Task<void>  UserWordLeft();
+Task<void>  UserWordRight();
+Task<void>  UserLineBegin();
+Task<void>  UserLineEnd();
 
-void  UserMarkCharLeft();
-void  UserMarkCharRight();
-void  UserMarkWordLeft();
-void  UserMarkWordRight();
-void  UserMarkLineBegin();
-void  UserMarkLineEnd();
-void  UserMarkFileBegin();
-void  UserMarkFileEnd();
-void  UserMarkPageDown();
-void  UserMarkPageUp();
-void  UserMarkPageTop();
-void  UserMarkPageBottom();
-void  UserMarkLineUp();
-void  UserMarkLineDown();
+Task<void>  UserMarkCharLeft();
+Task<void>  UserMarkCharRight();
+Task<void>  UserMarkWordLeft();
+Task<void>  UserMarkWordRight();
+Task<void>  UserMarkLineBegin();
+Task<void>  UserMarkLineEnd();
+Task<void>  UserMarkFileBegin();
+Task<void>  UserMarkFileEnd();
+Task<void>  UserMarkPageDown();
+Task<void>  UserMarkPageUp();
+Task<void>  UserMarkPageTop();
+Task<void>  UserMarkPageBottom();
+Task<void>  UserMarkLineUp();
+Task<void>  UserMarkLineDown();
 
-void  UserMenu();
+Task<void>  UserMenu();
 
-void  UserCommentLine();
+Task<void>  UserCommentLine();
 
-void  UserSetBlockBegin();
-void  UserSetBlockEnd();
-void  UserFindBlockBegin();
-void  UserFindBlockEnd();
-void  UserPipeBlock();
+Task<void>  UserSetBlockBegin();
+Task<void>  UserSetBlockEnd();
+Task<void>  UserFindBlockBegin();
+Task<void>  UserFindBlockEnd();
+Task<void>  UserPipeBlock();
 
-void  UserFileBegin();
-void  UserFileEnd();
+Task<void>  UserFileBegin();
+Task<void>  UserFileEnd();
 
-void  UserPreviousEdit();
+Task<void>  UserPreviousEdit();
 
-void  UserBackSpace();
-void  UserDeleteChar();
+Task<void>  UserBackSpace();
+Task<void>  UserDeleteChar();
 
-void  UserLoad();
-int   UserSave();
-void  UserSwitch();
-int   UserSaveAs();
+Task<void>  UserLoad();
+Task<int>   UserSave();
+Task<void>  UserSwitch();
+Task<int>   UserSaveAs();
 
-void  UserInfo();
+Task<void>  UserInfo();
 
-void  UserToLineNumber();
-void  UserToOffset();
+Task<void>  UserToLineNumber();
+Task<void>  UserToOffset();
 
-void  UserIndent();
-void  UserUnindent();
+Task<void>  UserIndent();
+Task<void>  UserUnindent();
 
 void  UserAutoindent();
-void  UserNewLine();
+Task<void>  UserNewLine();
 
-void  UserUndelete();
-void  UserUndo();
-void  UserRedo();
-void  UserUndoStep();
+Task<void>  UserUndelete();
+Task<void>  UserUndo();
+Task<void>  UserRedo();
+Task<void>  UserUndoStep();
 void  UserRedoStep();
 
-void  UserEnterControlChar();
+Task<void>  UserEnterControlChar();
 
-void  UserWordHelp();
-void  UserKeysHelp();
-void  UserAbout();
+Task<void>  UserWordHelp();
+Task<void>  UserKeysHelp();
+Task<void>  UserAbout();
 
-void  UserRefreshScreen();
+Task<void>  UserRefreshScreen();
 
-void  UserChooseChar();
-void  UserChooseWChar();
-void  UserChooseByte();
-void  UserInsertCharCode();
-void  UserInsertWCharCode();
-void  UserInsertByteCode();
+Task<void>  UserChooseChar();
+Task<void>  UserChooseWChar();
+Task<void>  UserChooseByte();
+Task<void>  UserInsertCharCode();
+Task<void>  UserInsertWCharCode();
+Task<void>  UserInsertByteCode();
 
 void  UserInsertChar(char ch);
 void  UserInsertControlChar(char ch);
 void  UserReplaceChar(char ch);
 
-void  UserSwitchHexMode();
-void  UserSwitchTextMode();
-void  UserSwitchInsertMode();
-void  UserSwitchAutoindentMode();
-void  UserSwitchRussianMode();
-void  UserSwitchGraphMode();
+Task<void>  UserSwitchHexMode();
+Task<void>  UserSwitchTextMode();
+Task<void>  UserSwitchInsertMode();
+Task<void>  UserSwitchAutoindentMode();
+Task<void>  UserSwitchRussianMode();
+Task<void>  UserSwitchGraphMode();
 
-void  UserBlockPrefixIndent();
+Task<void>  UserBlockPrefixIndent();
 
-void  UserShellCommand();
+Task<void>  UserShellCommand();
 
-void  UserYankBlock();
-void  UserRememberBlock();
+Task<void>  UserYankBlock();
+Task<void>  UserRememberBlock();
 
-void  UserStartDragMark();
+Task<void>  UserStartDragMark();
 void  UserStopDragMark();
 
-void  UserOptimizeText();
+Task<void>  UserOptimizeText();
 
-void  UserSetBookmark();
-void  UserGoBookmark();
+Task<void>  UserSetBookmark();
+Task<void>  UserGoBookmark();
 
 #define S(n) void UserSetBookmark##n();
 S(0) S(1) S(2) S(3) S(4) S(5) S(6) S(7) S(8) S(9)

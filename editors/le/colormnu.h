@@ -16,12 +16,12 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-void ColorsOpt();
-void ColorsSave();
-void ColorsSaveForTerminal();
-void LoadColorDefault();
-void LoadColorDefaultBG();
-void LoadColorBlack();
-void LoadColorBlue();
-void LoadColorWhite();
-void LoadColorGreen();
+Task<void> ColorsOpt();
+Task<void> ColorsSave();
+Task<void> ColorsSaveForTerminal();
+Task<void> LoadColorDefault();
+Task<void> LoadColorDefaultBG();
+Task<void> LoadColorBlack();
+Task<void> LoadColorBlue();
+Task<void> LoadColorWhite();
+Task<void> LoadColorGreen();

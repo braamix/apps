@@ -21,6 +21,7 @@
 #include <fnmatch.h>
 #include "lesys.h"
 #include "edit.h"
+#include "leio.h"
 #include "highli.h"
 #include "screen.h"
 #include "search.h"
@@ -214,7 +215,7 @@ static FILE *open_syntax_d(const char *name)
       unsigned nbytes=strlen(PKGDATADIR)+strlen(HOME)+1+strlen(base_dir)+1+strlen(name)+1;
       char *fn=(char*)alloca(nbytes);
       snprintf(fn,nbytes,"%s/.le/%s/%s",HOME,base_dir,name);
-      if(access(fn,R_OK)==-1)
+      if(co_await le_access(fn,R_OK)==-1)
 	 snprintf(fn,nbytes,"%s/%s/%s",PKGDATADIR,base_dir,name);
       name=fn;
    }

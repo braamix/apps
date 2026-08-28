@@ -23,6 +23,7 @@
 #ifdef HAVE_UNISTD_H
 #endif
 #include "edit.h"
+#include "leio.h"
 #include "block.h"
 #include "keymap.h"
 #include "clipbrd.h"
@@ -60,13 +61,14 @@ void   MoveLineCol(num l,num c)
 {
    CurrentPos=TextPoint(l,c);
 }
-void   HideDisplay()
+Task<void>   HideDisplay()
 {
    if(DragMark)
       UserStopDragMark();
    hide=!hide;
    CheckBlock();
    flag=1;
+   co_return;
 }
 char   CharAtLC(num l,num c)
 {
@@ -337,7 +339,7 @@ void    Move()
    hide=0;
 }
 
-void    Write()
+Task<void>    Write()
 {
    if(DragMark)
       UserStopDragMark();
@@ -348,57 +350,57 @@ void    Write()
 
    CheckBlock();
    if(hide)
-       return;
+       co_return;
 
    if(getstring("Write to: ",BlockFile,sizeof(BlockFile)-1,&LoadHistory,0,
 	 "WriteBlockHelp"," Write Block Help ")<1)
-       return;
+       co_return;
    if(BlockFile[0]=='|')
    {
       LoadHistory.Push();
       /* write to pipe */
       MessageSync("Piping to...");
-      PipeBlock(BlockFile+1,/*IN*/FALSE,/*OUT*/TRUE);
-      return;
+      co_await PipeBlock(BlockFile+1,/*IN*/FALSE,/*OUT*/TRUE);
+      co_return;
    }
    if(ChooseFileName(BlockFile,sizeof(BlockFile))<0)
-      return;
+      co_return;
    LoadHistory.Push();
 
-   if(stat(BlockFile,&st)==-1)
+   if(co_await le_stat(BlockFile,&st)==-1)
    {
        if(errno!=ENOENT)
        {
            FError(BlockFile);
-           return;
+           co_return;
        }
        st.st_mode=0;
    }
    else
    {
        if(!(st.st_mode&S_IFCHR) && !CheckMode(st.st_mode))
-           return;
+           co_return;
        if(FileInfo.SameFile(InodeInfo(&st)))
        {
            ErrMsg("This is the editing file");
-           return;
+           co_return;
        }
    }
-   fd=open(BlockFile,O_CREAT|((st.st_mode&S_IFCHR)?0:O_EXCL)|O_WRONLY,0666);
+   fd=co_await le_open(BlockFile,O_CREAT|((st.st_mode&S_IFCHR)?0:O_EXCL)|O_WRONLY,0666);
    if(fd==-1 && errno==EEXIST)
    {
-       fd=open(BlockFile,O_WRONLY);
+       fd=co_await le_open(BlockFile,O_WRONLY);
        if(fd==-1)
        {
            FError(BlockFile);
-           return;
+           co_return;
        }
        if(LockFile(fd,false)==-1)    /* check if the file is already locked */
        {
-           close(fd);
-           return;
+           co_await le_close(fd);
+           co_return;
        }
-       close(fd);
+       co_await le_close(fd);
 
        static struct menu OverwrMenu[]={
        { " &Overwrite "},{ "  &Append  "},{ "  &Cancel  "},
@@ -408,18 +410,18 @@ void    Write()
        {
        case('C'):
        case(0):
-           return;
+           co_return;
        case('O'):
-           fd=open(BlockFile,O_WRONLY|O_TRUNC);
+           fd=co_await le_open(BlockFile,O_WRONLY|O_TRUNC);
            break;
        case('A'):
-           fd=open(BlockFile,O_WRONLY|O_APPEND);
+           fd=co_await le_open(BlockFile,O_WRONLY|O_APPEND);
        }
    }
    if(fd==-1)
    {
       FError(BlockFile);
-      return;
+      co_return;
    }
    MessageSync("Writing...");
    int res=OK;
@@ -428,11 +430,11 @@ void    Write()
       ClipBoard cb;
       if(!cb.Copy())
       {
-         close(fd);
-         return;
+         co_await le_close(fd);
+         co_return;
       }
       errno=0;
-      res=cb.Write(fd);
+      res=cb.co_await Write(fd);
    }
    else
    {
@@ -441,7 +443,7 @@ void    Write()
    }
    if(res<0)
       FError(BlockFile);
-   close(fd);
+   co_await le_close(fd);
 }
 
 int OptionallyConvertBlockNewLines(const char *bname)
@@ -498,7 +500,7 @@ int OptionallyConvertBlockNewLines(const char *bname)
    return 1;
 }
 
-void    Read()
+Task<void>    Read()
 {
    if(DragMark)
       UserStopDragMark();
@@ -509,40 +511,40 @@ void    Read()
    int res=OK;
 
    if(View)
-      return;
+      co_return;
    if(getstring("Read from: ",BlockFile,sizeof(BlockFile)-1,&LoadHistory,0,
 	 "ReadBlockHelp"," Read Block Help ")<1)
-      return;
+      co_return;
    if(BlockFile[0]=='|')
    {
       LoadHistory.Push();
       /* read from pipe */
       MessageSync("Piping in...");
-      if(PipeBlock(BlockFile+1,TRUE,FALSE)==OK)
+      if(co_await PipeBlock(BlockFile+1,TRUE,FALSE)==OK)
 	 goto after_read;
-      return;
+      co_return;
    }
    if(ChooseFileName(BlockFile,sizeof(BlockFile))<0)
-      return;
+      co_return;
    LoadHistory.Push();
 
-   fd=open(BlockFile,O_RDONLY);
+   fd=co_await le_open(BlockFile,O_RDONLY);
    if(fd==-1)
    {
        FError(BlockFile);
-       return;
+       co_return;
    }
    errno=0;
-   if(fstat(fd,&st)==-1)
+   if(co_await le_fstat(fd,&st)==-1)
    {
-       close(fd);
+       co_await le_close(fd);
        FError(BlockFile);
-       return;
+       co_return;
    }
    if(!CheckMode(st.st_mode))
    {
-       close(fd);
-       return;
+       co_await le_close(fd);
+       co_return;
    }
    MessageSync("Reading...");
    PreUserEdit();
@@ -552,14 +554,14 @@ void    Read()
       res=ReadBlock(fd,st.st_size,&act_read);
    if(res!=OK)
    {
-      close(fd);
+      co_await le_close(fd);
       if(errno)
          FError(BlockFile);
-      return;
+      co_return;
    }
-   close(fd);
+   co_await le_close(fd);
    if(act_read==0)
-      return;
+      co_return;
    BlockBegin=BlockEnd=CurrentPos;
    BlockBegin-=act_read;
    rblock=hide=FALSE;
@@ -680,7 +682,7 @@ void    DoUnindent(int i)
 }
 
 char   is[64]="";
-void   Indent()
+Task<void>   Indent()
 {
    if(DragMark)
       UserStopDragMark();
@@ -688,22 +690,22 @@ void   Indent()
    int    i;
    CheckBlock();
    if(View || hide)
-      return;
+      co_return;
    if(is[0]==0)
       snprintf(is,sizeof(is),"%d",IndentSize);
    if(getstring("Indent size: ",is,sizeof(is)-1,NULL,NULL,NULL)<1)
-      return;
+      co_return;
    if(sscanf(is,"%d",&i)==0 || i==0 || abs(i)>1024)
    {
       is[0]=0;
-      return;
+      co_return;
    }
    if(i>0)
       DoIndent(i);
    else
       DoUnindent(-i);
 }
-void   Unindent()
+Task<void>   Unindent()
 {
    if(DragMark)
       UserStopDragMark();
@@ -711,15 +713,15 @@ void   Unindent()
    int    i;
    CheckBlock();
    if(View || hide)
-      return;
+      co_return;
    if(is[0]==0)
       snprintf(is,sizeof(is),"%d",IndentSize);
    if(getstring("Unindent size: ",is,sizeof(is)-1,NULL,NULL,NULL)<1)
-      return;
+      co_return;
    if(sscanf(is,"%d",&i)==0 || i==0 || abs(i)>1024)
    {
       is[0]=0;
-      return;
+      co_return;
    }
    if(i>0)
       DoUnindent(i);
@@ -759,13 +761,13 @@ byte   Inverse(byte ch)
       return(Tolower(ch));
 }
 
-void    BlockFunc()
+Task<void>    BlockFunc()
 {
    if(DragMark)
    {
       UserStopDragMark();
       beep();
-      return;
+      co_return;
    }
 
    int   h=FALSE;
@@ -783,7 +785,7 @@ next:
    else
       MessageSync("Block: W-Write B-Begin E-End T-Type H-Hide A-mark All");
    SetCursor();
-   action=GetNextAction();
+   action=co_await GetNextAction();
    flag=REDISPLAY_ALL;
    switch(action)
    {
@@ -791,7 +793,7 @@ next:
       Help("BlockHelp"," Block Help ");
       goto next;
    case(REFRESH_SCREEN):
-      UserRefreshScreen();
+      co_await UserRefreshScreen();
       break;
    default:
       if(StringTypedLen!=1)
@@ -799,43 +801,43 @@ next:
       switch(toupper(StringTyped[0]))
       {
       case('V'):
-	 UserStartDragMark();
+	 co_await UserStartDragMark();
 	 break;
       case('C'):
          if(!h)
-            UserCopyBlock();
+            co_await UserCopyBlock();
          break;
       case('M'):
          if(!h)
-            UserMoveBlock();
+            co_await UserMoveBlock();
          break;
       case('D'):
          if(!h)
-            UserDeleteBlock();
+            co_await UserDeleteBlock();
          break;
       case('W'):
          if(!h)
-            Write();
+            co_await Write();
          break;
       case('R'):
-         Read();
+         co_await Read();
          break;
       case('H'):
-         HideDisplay();
+         co_await HideDisplay();
          break;
       case('I'):
          if(!h)
-             Indent();
+             co_await Indent();
          break;
       case('U'):
          if(!h)
-             Unindent();
+             co_await Unindent();
          break;
       case('B'):
-         UserSetBlockBegin();
+         co_await UserSetBlockBegin();
          break;
       case('E'):
-         UserSetBlockEnd();
+         co_await UserSetBlockEnd();
          break;
       case('B'-'@'):
          if(!h)
@@ -846,37 +848,37 @@ next:
              CurrentPos=BlockEnd;
          break;
       case('T'):
-         BlockType();
+         co_await BlockType();
          break;
       case('P'):
-         ConvertToUpper();
+         co_await ConvertToUpper();
          break;
       case('L'):
-         ConvertToLower();
+         co_await ConvertToLower();
          break;
       case('X'):
-         ExchangeCases();
+         co_await ExchangeCases();
          break;
       case('Y'):
-	 UserYankBlock();
+	 co_await UserYankBlock();
 	 break;
       case('A'):
-	 UserMarkAll();
+	 co_await UserMarkAll();
 	 break;
       case('|'):
 #ifndef MSDOS
-         UserPipeBlock();
+         co_await UserPipeBlock();
 #else
          Message("Piping is not supported on MS-DOS. Press any key");
-         GetNextAction();
+         co_await GetNextAction();
 #endif
          break;
       case('>'):
-	 UserBlockPrefixIndent();
+	 co_await UserBlockPrefixIndent();
 	 break;
       default:
          flag=FALSE;
-         return;
+         co_return;
       }
    }
 }
@@ -993,7 +995,7 @@ void  TransformW(wchar_t (*func)(wchar_t))
 }
 #endif
 
-void    ConvertToUpper()
+Task<void>    ConvertToUpper()
 {
    if(DragMark)
       UserStopDragMark();
@@ -1007,8 +1009,9 @@ void    ConvertToUpper()
    else
 #endif
       Transform(Toupper);
+   co_return;
 }
-void    ConvertToLower()
+Task<void>    ConvertToLower()
 {
    if(DragMark)
       UserStopDragMark();
@@ -1022,8 +1025,9 @@ void    ConvertToLower()
    else
 #endif
       Transform(Tolower);
+   co_return;
 }
-void    ExchangeCases()
+Task<void>    ExchangeCases()
 {
    if(DragMark)
       UserStopDragMark();
@@ -1038,11 +1042,13 @@ void    ExchangeCases()
    else
 #endif
       Transform(Inverse);
+   co_return;
 }
-void    BlockType()
+Task<void>    BlockType()
 {
    rblock=!rblock;
    flag=!hide;
+   co_return;
 }
 
 void    CheckBlock()

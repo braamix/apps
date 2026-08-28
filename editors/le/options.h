@@ -27,9 +27,9 @@ void SaveConfToOpenFile(FILE *f,const struct init *init);
 void SaveConfToFile(const char *f,const struct init *init);
 void ReadConfFromFile(const char *file,const struct init *init,bool mine);
 
-void ColorsOpt();
-void ProgOpt();
-void UndoOpt();
+Task<void> ColorsOpt();
+Task<void> ProgOpt();
+Task<void> UndoOpt();
 
 extern const struct init colors[];
 

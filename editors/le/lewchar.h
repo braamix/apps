@@ -23,6 +23,7 @@ extern "C" {
 
 // -1 for a sequence that is not UTF-8, 0 for a NUL. `n` bounds the read.
 int mbtowc(wchar_t *out, const char *s, usize n);
+int mblen(const char *s, usize n);
 int wctomb(char *out, wchar_t c);
 usize mbstowcs(wchar_t *out, const char *s, usize n);
 usize wcslen(const wchar_t *s);

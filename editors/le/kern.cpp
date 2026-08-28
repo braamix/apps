@@ -591,7 +591,7 @@ int write_loop(int fd,const char *ptr,num size,num *written)
 {
    errno=0;
    while(size>0) {
-      int res=write(fd,ptr,size);
+      int res=co_await le_write(fd,ptr,size);
       if(res==-1)
 	 return ERR;
       if(res==0)
@@ -969,9 +969,9 @@ void  CheckPoint()
    oldmodified=modified;
 }
 
-void  EmptyText()
+Task<void>  EmptyText()
 {
-   remove(TmpFileName());
+   co_await le_unlink(TmpFileName());
 
    if(FileName[0])
       LoadHistory+=HistoryLine(FileName,strlen(FileName));
@@ -979,12 +979,12 @@ void  EmptyText()
    if(file!=-1)
    {
       struct stat st;
-      close(file);
+      co_await le_close(file);
       file=-1;
-      if(stat(FileName,&st)!=-1)
+      if(co_await le_stat(FileName,&st)!=-1)
       {
 	 if(newfile && st.st_size==0)
-            remove(FileName);
+            co_await le_unlink(FileName);
 	 else if(!modified)
 	    SavePosition();
       }

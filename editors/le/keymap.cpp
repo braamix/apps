@@ -62,12 +62,12 @@ enum
    CODE_TOO_MUCH
 };
 
-const int MAX_DELAY=30000000;
-const int HALF_DELAY=500;
-
+/* Upstream timed the gap between bytes, because an escape sequence and an ESC
+   the user typed are the same two bytes and only the delay tells them apart.
+   Braam sends a key rather than a sequence, so there is nothing to time and
+   the node has no maxdelay. */
 struct KeyTreeNode
 {
-   int maxdelay;
    int action;
    int keycode;
    struct KeyTreeNode *sibling;
@@ -120,6 +120,22 @@ const char *GetActionCodeText(const char *code)
 #define LEFT_BRACE  '{'
 #define RIGHT_BRACE '}'
 
+/* The name after a $, with or without braces, leaving `c` on its last
+   character. One reader for the three places that used to inline it. */
+static void ScanKeyName(const char *&c,char *out,unsigned size)
+{
+   int bracket=(*c==LEFT_BRACE);
+   char *store=out;
+
+   c+=bracket;
+   while(*c!=0 && (bracket?*c!=RIGHT_BRACE:(isalnum((unsigned char)*c)||*c=='-'))
+      && (unsigned)(store-out)<size-1)
+      *store++=*c++;
+   *store=0;
+   if(!(bracket && *c==RIGHT_BRACE))
+      c--;
+}
+
 static int PrettyCodeScore(const char *c)
 {
    if(c==0)
@@ -131,10 +147,6 @@ static int PrettyCodeScore(const char *c)
       score++;
 
       char  term_name[256];
-      char  *term_str;
-      int   bracket;
-      int   fk;
-      int   shift;
       char code_ch=*c;
       switch(code_ch)
       {
@@ -144,32 +156,10 @@ static int PrettyCodeScore(const char *c)
 	 if(code_ch==0)
 	    break;
 
-	 bracket=(code_ch==LEFT_BRACE);
-	 c+=bracket;
-
-	 term_str=term_name;
-	 while(*c!=0 && (bracket?*c!=RIGHT_BRACE:isalnum((unsigned char)*c)) && term_str-term_name<255)
-	    *term_str++=*c++;
-	 *term_str=0;
-	 if(!(bracket && *c==RIGHT_BRACE))
-	    c--;
-
-	 shift=0;
-	 if(sscanf(term_name,"%1dkf%d",&shift,&fk)==2
-	 || sscanf(term_name,"kf%d",&fk)==1)
-	 {
-	    if(shift)
-	       score+=2+2*shift;
-	    else
-	       score+=2;
-	    if(shift)
-	       snprintf(term_name,sizeof(term_name),"kf%d",shift*FuncKeysNum+fk);
-	 }
-	 else
-	    score+=8;
-	 term_str=tigetstr(term_name);
-	 if(term_str==(char*)-1 || !term_str || !*term_str)
+	 ScanKeyName(c,term_name,sizeof(term_name));
+	 if(!FindKeyCode(term_name))
 	    return 1000000;
+	 score+=2;
 	 break;
       case('|'):
 	 score+=5;
@@ -197,10 +187,6 @@ const char *ActionCodePrettyPrint(const char *c)
    while(*c)
    {
       char  term_name[256];
-      char  *term_str;
-      int   bracket;
-      int   fk;
-      int   shift;
       unsigned char code_ch=*c;
       switch(code_ch)
       {
@@ -210,28 +196,9 @@ const char *ActionCodePrettyPrint(const char *c)
 	 if(code_ch==0)
 	    break;
 
-	 bracket=(code_ch==LEFT_BRACE);
-	 c+=bracket;
-
-	 term_str=term_name;
-	 while(*c!=0 && (bracket?*c!=RIGHT_BRACE:isalnum((unsigned char)*c)) && term_str-term_name<255)
-	    *term_str++=*c++;
-	 *term_str=0;
-	 if(!(bracket && *c==RIGHT_BRACE))
-	    c--;
-
-	 shift=0;
-	 if((sscanf(term_name,"%1dkf%d",&shift,&fk)==2
-	  || sscanf(term_name,"kf%d",&fk)==1) && shift<4)
+	 ScanKeyName(c,term_name,sizeof(term_name));
 	 {
-	    static char shift_str_map[][3]={"","~","^","~^"};
-	    unsigned nbytes=snprintf(store,store_size,"%sF%d",shift_str_map[shift],fk);
-	    store+=nbytes;
-	    store_size-=nbytes;
-	 }
-	 else
-	 {
-	    // FIXME.
+	    /* The name is already the pretty form: Left, C-Home, F4. */
 	    unsigned nbytes=snprintf(store,store_size,"%s",term_name);
 	    store+=nbytes;
 	    store_size-=nbytes;
@@ -355,7 +322,7 @@ ActionProc GetActionProc(int action)
    return(NULL);
 }
 
-static KeyTreeNode *AddToKeyTree(KeyTreeNode *curr,int key_code,int delay,int action,const char *arg)
+static KeyTreeNode *AddToKeyTree(KeyTreeNode *curr,int key_code,int action,const char *arg)
 {
    KeyTreeNode *scan;
    for(scan=curr->child; scan; scan=scan->sibling)
@@ -364,7 +331,6 @@ static KeyTreeNode *AddToKeyTree(KeyTreeNode *curr,int key_code,int delay,int ac
    if(!scan)
    {
       scan=new KeyTreeNode;
-      scan->maxdelay=delay;
       scan->keycode=key_code;
       scan->action=action;
       scan->arg=arg;
@@ -389,108 +355,68 @@ KeyTreeNode *BuildKeyTree(const ActionCodeRec *ac_table)
 {
    KeyTreeNode *top=0;
    char  term_name[256];
-   char  *term_str;
-   int   bracket;
-   int   fk;
 
    top=new KeyTreeNode;
    top->keycode=-1;
    top->action=NO_ACTION;
    top->arg=0;
-   top->maxdelay=MAX_DELAY;
    top->child=0;
    top->sibling=0;
 
+   /* Upstream built each binding twice -- once against terminfo's escape
+      sequence and once against the key name -- and walked every subset of the
+      $names in a binding to do it. A name is one code here, so there is one
+      pass and no fk_mask. */
    while(ac_table->action!=-1)
    {
-      int fk_mask=0;
-      int fk_num=0;
-      while(fk_mask < (1<<fk_num))
+      KeyTreeNode *curr=top;
+      const char *code=ac_table->code;
+
+      while(*code)
       {
-	 KeyTreeNode *curr=top;
+	 int key_code=0;
+	 char code_ch=*code;
 
-	 const char *code=ac_table->code;
-	 int delay=MAX_DELAY;
-
-	 fk_num=0;
-	 while(*code)
+	 switch(code_ch)
 	 {
-	    int shift=0;
-	    int key_code=0;
-
-	    char code_ch=*code;
-	    switch(code_ch)
+	 case('$'):
+	    code_ch=*(++code);
+	    if(code_ch==0)
+	       break;
+	    ScanKeyName(code,term_name,sizeof(term_name));
+	    code++;
+	    key_code=FindKeyCode(term_name);
+	    if(!key_code)
 	    {
-	    case('$'):
-	       code_ch=*(++code);
-
-	       if(code_ch==0)
-		  break;
-
-	       bracket=(code_ch==LEFT_BRACE);
-	       code+=bracket;
-
-	       term_str=term_name;
-	       while(*code!=0 && (bracket?*code!=RIGHT_BRACE:isalnum((unsigned char)*code)) && term_str-term_name<255)
-		  *term_str++=*code++;
-	       *term_str=0;
-	       if(bracket && *code==RIGHT_BRACE)
+	       /* An unknown name binds nothing rather than binding NUL. */
+	       while(*code && *code!='|')
 		  code++;
-
-	       if(sscanf(term_name,"%1dkf%d",&shift,&fk)==2)
-		  snprintf(term_name,sizeof(term_name),"kf%d",shift*FuncKeysNum+fk);
-
-	       if((fk_mask&(1<<fk_num))==0)
-	       {
-	       fallback:
-		  key_code=FindKeyCode(term_name);
-	       }
-	       else
-	       {
-		  term_str=tigetstr(term_name);
-		  if(term_str==NULL || term_str==(char*)-1)
-		     goto fallback;
-		  while(term_str[0] && term_str[1])
-		  {
-		     curr=AddToKeyTree(curr,(unsigned char)term_str[0],delay,NO_ACTION,NULL);
-		     delay=HALF_DELAY;
-		     term_str++;
-		  }
-		  key_code=(unsigned char)term_str[0];
-		  if(key_code==0)
-		     goto fallback;
-	       }
-	       fk_num++;
-	       break;
-	    case('|'):
-	       delay=MAX_DELAY;
-	       code++;
 	       continue;
-	       break;
-	    case('^'):
-	       if(code[1])
-	       {
-		  code_ch=toupper(*++code)-'@';
-		  if(!code_ch)
-		     code_ch|=0200;
-	       }
-	       goto default_l;
-	    case('\\'):
-	       code_ch=*(++code);
-	    default:
-	    default_l:
-	       key_code=(unsigned char)code_ch;
-	       code++;
 	    }
-
-	    // now add the key_code to the tree
-	    curr=AddToKeyTree(curr,key_code,delay,
-			      (*code?NO_ACTION:ac_table->action),
-			      (*code?NULL:ac_table->arg));
-	    delay=HALF_DELAY;
+	    break;
+	 case('|'):
+	    code++;
+	    continue;
+	 case('^'):
+	    if(code[1])
+	    {
+	       code_ch=toupper(*++code)-'@';
+	       if(!code_ch)
+		  code_ch|=0200;
+	    }
+	    goto default_l;
+	 case('\\'):
+	    code_ch=*(++code);
+	 default:
+	 default_l:
+	    key_code=(unsigned char)code_ch;
+	    code++;
 	 }
 
-	 fk_mask++;
+	 // now add the key_code to the tree
+	 curr=AddToKeyTree(curr,key_code,
+			   (*code?NO_ACTION:ac_table->action),
+			   (*code?NULL:ac_table->arg));
       }
       ac_table++;
    }
@@ -727,13 +653,10 @@ void FreeActionCodeTable()
    ActionCodeTable=0;
 }
 
-int   GetNextAction()
+Task<int>   GetNextAction()
 {
    unsigned char *store;
    int   key;
-#if USE_MULTIBYTE_CHARS
-   static KeyTreeNode kt_mb = { HALF_DELAY, NO_ACTION, -1, NULL,  NULL, NULL };
-#endif
 
    store=StringTyped;
    StringTypedLen=0;
@@ -742,102 +665,52 @@ int   GetNextAction()
 
    KeyTreeNode *kt=KeyTree;
 
-   for(;;)  // loop for a whole key sequence
+   /* Upstream had two loops and a delay: a node's children carried the
+      shortest gap that could still be part of an escape sequence, and a key
+      that did not arrive in time ended the sequence. Nothing here is timed --
+      a key is a key -- so what is left is: read one, walk one edge, and stop
+      where there is no edge to walk. */
+   for(;;)
    {
-      int time_passed=0;
+      KeyTreeNode *scan;
 
-      for(;;)  // loop for one key
+      if(!kt->child)
+	 break;
+
+      key=co_await GetKey();
+
+      extern int resize_flag;
+      if(resize_flag && kt==KeyTree)
       {
-	 int delay=-1;
-	 KeyTreeNode *scan;
-
-	 for(scan=kt->child; scan; scan=scan->sibling)
-	    if(delay==-1 ||
-	       (delay>scan->maxdelay && scan->maxdelay<time_passed))
-	       delay=scan->maxdelay;
-
-	 if(delay==MAX_DELAY)
-	    key=GetKey();
-	 else if(delay==-1 || time_passed>=delay)
-	    goto return_action;
-	 else
-	    key=GetKey(delay-time_passed);
-
-#ifdef KEY_RESIZE
-	 if(key==KEY_RESIZE)
-	    return WINDOW_RESIZE;
-#else // !KEY_RESIZE
-	 extern int resize_flag;
-	 if(resize_flag && kt==KeyTree)
-	 {
-	    if(key!=ERR)
-	       ungetch(key);
-	    CheckWindowResize();
-	    return WINDOW_RESIZE;
-	 }
-#endif // !KEY_RESIZE
-
-	 if(key==ERR)
-	 {  // no key in the time interval
-	    time_passed=delay;
-	    continue;
-	 }
-
-#ifdef WITH_MOUSE
-	 if(key==KEY_MOUSE)
-	 {
-	    if(kt==KeyTree)
-	       return MOUSE_ACTION;
-	    MEVENT mev;
-	    int limit=100; // workaround for ncurses bug
-	    while(getmouse(&mev)==OK && limit-->0)
-	       ;  // flush mouse event queue
-	    continue;
-	 }
-#endif
-
-	 if(key<=UCHAR_MAX)
-	 {
-	    *(store++)=key;
-	    *store=0;
-	    StringTypedLen++;
-	 }
-
-	 for(scan=kt->child; scan; scan=scan->sibling)
-	    if(scan->keycode==key || (key==0 && scan->keycode==128))
-	       break;
-	 if(!scan)
-	 {
-	    if(StringTypedLen>1 && kt->action==NO_ACTION && StringTyped[0]<32) {
-	    // We've got an unknown sequence.
-	    // It is likely that it is a bit longer that we've already got,
-	    // so try to flush it.
-	       napms(10);
-	       flushinp();
-	    }
-#if USE_MULTIBYTE_CHARS
-	    // check for partial mb chars
-	    if(mb_mode && StringTypedLen>0 && kt->action==NO_ACTION && StringTyped[0]>=128) {
-	       mbtowc(0,0,0);
-	       wchar_t wc;
-	       int mb_size=mbtowc(&wc,(const char*)StringTyped,StringTypedLen);
-	       if(mb_size<=0) {
-		  kt=&kt_mb;
-		  continue;
-	       }
-	    }
-#endif
-	 return_action:
-	    if(kt->action==REFRESH_SCREEN)
-               clearok(stdscr,1); // force repaint for next refresh
-	    timeout(-1);
-	    ActionArgument=kt->arg;
-	    ActionArgumentLen=xstrlen(ActionArgument);
-	    return(LastActionCode=kt->action);
-	 }
-	 kt=scan;
+	 resize_flag=0;
+	 if(key!=ERR)
+	    ungetch(key);
+	 CheckWindowResize();
+	 co_return WINDOW_RESIZE;
       }
+      if(key==ERR)
+	 break;
+
+      if(key<=UCHAR_MAX)
+      {
+	 *(store++)=key;
+	 *store=0;
+	 StringTypedLen++;
+      }
+
+      for(scan=kt->child; scan; scan=scan->sibling)
+	 if(scan->keycode==key || (key==0 && scan->keycode==128))
+	    break;
+      if(!scan)
+	 break;
+      kt=scan;
    }
+
+   if(kt->action==REFRESH_SCREEN)
+      clearok(stdscr,1); // force repaint for next refresh
+   ActionArgument=kt->arg;
+   ActionArgumentLen=xstrlen(ActionArgument);
+   co_return (LastActionCode=kt->action);
 }
 
 const char *GetActionArgument(const char *prompt,History* history,const char *help,const char *title)

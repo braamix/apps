@@ -21,6 +21,7 @@
 #include "config.h"
 #include "lesys.h"
 #include "edit.h"
+#include "leio.h"
 #include "clipbrd.h"
 
 ClipBoard MainClipBoard;
@@ -326,9 +327,9 @@ int ClipBoard::Write(int fd)
       num ll=width;
       while(ll>0 && text[i*width+ll-1]==' ')
 	 ll--;
-      if(write(fd,&text[i*width],ll)!=ll)
+      if(co_await le_write(fd,&text[i*width],ll)!=ll)
 	 return -1;
-      if(write(fd,EolStr,EolSize)!=EolSize)
+      if(co_await le_write(fd,EolStr,EolSize)!=EolSize)
 	 return -1;
    }
    return 0;

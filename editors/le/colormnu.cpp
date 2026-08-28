@@ -20,6 +20,7 @@
 
 #include "lesys.h"
 #include "edit.h"
+#include "leio.h"
 #include "colormnu.h"
 #include "options.h"
 #ifdef HAVE_ALLOCA_H
@@ -32,25 +33,27 @@ void ColorsSaveToFile(const char *f)
 }
 
 static const char *const colors_file="/.le/colors";
-void ColorsSave()
+Task<void> ColorsSave()
 {
-   unsigned nbytes=strlen(HOME)+strlen(colors_file)+1;
-   char *f=(char*)alloca(nbytes);
+   static char f[LE_PATHMAX];
+   unsigned nbytes=sizeof(f);
    snprintf(f,nbytes,"%s%s",HOME,colors_file);
    ColorsSaveToFile(f);
+   co_return;
 }
 
-void ColorsSaveForTerminal()
+Task<void> ColorsSaveForTerminal()
 {
-   unsigned nbytes=strlen(HOME)+strlen(colors_file)+1+strlen(TERM)+1;
-   char *f=(char*)alloca(nbytes);
+   static char f[LE_PATHMAX];
+   unsigned nbytes=sizeof(f);
    snprintf(f,nbytes,"%s%s-%s",HOME,colors_file,TERM);
    ColorsSaveToFile(f);
+   co_return;
 }
 
 void LoadColor(const char *f)
 {
-   if(access(f,R_OK)==-1)
+   if(co_await le_access(f,R_OK)==-1)
    {
       FError(f);
       return;
@@ -62,7 +65,7 @@ void LoadColor(const char *f)
    flag=REDISPLAY_ALL;
 }
 
-void LoadColorDefault()
+Task<void> LoadColorDefault()
 {
    memcpy(color_pal,default_color_pal,sizeof(default_color_pal));
    memcpy(bw_pal,default_bw_pal,sizeof(default_bw_pal));
@@ -71,25 +74,31 @@ void LoadColorDefault()
    clearok(stdscr,1);
 #endif
    flag=REDISPLAY_ALL;
+   co_return;
 }
 
-void LoadColorDefaultBG()
+Task<void> LoadColorDefaultBG()
 {
    LoadColor(PKGDATADIR"/colors-defbg");
+   co_return;
 }
-void LoadColorBlue()
+Task<void> LoadColorBlue()
 {
    LoadColor(PKGDATADIR"/colors-blue");
+   co_return;
 }
-void LoadColorBlack()
+Task<void> LoadColorBlack()
 {
    LoadColor(PKGDATADIR"/colors-black");
+   co_return;
 }
-void LoadColorWhite()
+Task<void> LoadColorWhite()
 {
    LoadColor(PKGDATADIR"/colors-white");
+   co_return;
 }
-void LoadColorGreen()
+Task<void> LoadColorGreen()
 {
    LoadColor(PKGDATADIR"/colors-green");
+   co_return;
 }

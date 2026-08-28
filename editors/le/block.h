@@ -31,11 +31,11 @@ static inline int InBlock(offs ptr,num line,num col)
 void    Copy();
 void    Move();
 int     Delete();
-void    Read();
-void    Write();
+Task<void>    Read();
+Task<void>    Write();
 
-void    Indent();
-void    Unindent();
+Task<void>    Indent();
+Task<void>    Unindent();
 void    DoIndent(int i);
 void    DoUnindent(int i);
 
@@ -45,15 +45,15 @@ byte    Toupper();
 byte    Tolower();
 byte    Inverse();
 
-void    BlockFunc();
-int     PipeBlock(const char *cmd,bool in,bool out);
+Task<void>    BlockFunc();
+Task<int> PipeBlock(const char *cmd,bool in,bool out);
 extern  char    BlockFile[256];
 
-void    ConvertToUpper();
-void    ConvertToLower();
-void    ExchangeCases();
+Task<void>    ConvertToUpper();
+Task<void>    ConvertToLower();
+Task<void>    ExchangeCases();
 
-void    BlockType();
+Task<void>    BlockType();
 void    CheckBlock();
 
 void  PrefixIndent(const char *,num);

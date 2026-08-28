@@ -20,5 +20,6 @@
 #define KEYNAMES_H
 
 int FindKeyCode(const char *name);
+const char *FindKeyName(int code);
 
 #endif

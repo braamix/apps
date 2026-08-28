@@ -7,6 +7,12 @@
 #include "kernel/result.h"
 #include "kernel/types.h"
 
+/* What a path buffer holds. alloca is gone -- a variable-length array in a
+   coroutine would live in its frame, and a frame past 512 bytes costs a
+   whole 64 KiB span -- so the buffers it sized are fixed and, where the
+   holder is a coroutine, at file scope. */
+enum { LE_PATHMAX = 512 };
+
 typedef usize size_t;
 typedef unsigned mode_t;
 typedef long time_t;

@@ -232,7 +232,7 @@ void  Draw(int x,int y,byte how)
    RedisplayLine();
 }
 
-void    DrawFrames(void)
+Task<void>    DrawFrames(void)
 {
    static
    int   curr_frame=1;
@@ -240,7 +240,7 @@ void    DrawFrames(void)
    char  sign[4];
 
    if(in_hex_mode || View)
-      return;
+      co_return;
 
    CurrGraphSet=GraphSets[grsetno];
    if(mb_mode)
@@ -255,7 +255,7 @@ void    DrawFrames(void)
       mvaddstr(StatusLineY,COLS-4,sign);
       SetCursor();
 
-      action=GetNextAction();
+      action=co_await GetNextAction();
       switch(action)
       {
       case(EDITOR_HELP):
@@ -274,7 +274,7 @@ void    DrawFrames(void)
          Draw(0,1,curr_frame);
          break;
       case(REFRESH_SCREEN):
-         UserRefreshScreen();
+         co_await UserRefreshScreen();
          break;
       default:
          if(StringTypedLen!=1)
@@ -289,7 +289,7 @@ void    DrawFrames(void)
             break;
          default:
             beep();
-            return;
+            co_return;
          }
       }
    }

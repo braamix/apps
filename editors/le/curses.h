@@ -44,6 +44,16 @@ enum { COLORS = 8 };
 
 enum { ERR = -1, OK = 0 };
 
+#ifndef TRUE
+#define TRUE  1
+#define FALSE 0
+#endif
+
+// There is one screen and no windows, so every WINDOW * a call takes is this,
+// and every callee ignores it.
+typedef void WINDOW;
+extern WINDOW *stdscr;
+
 // A wide cell, ncurses' shape, so screen.cpp's cchar_t building is unchanged.
 enum { CCHARW_MAX = 5 };
 
@@ -75,7 +85,7 @@ extern const cchar_t WACS_ULCORNER_c, WACS_URCORNER_c, WACS_LLCORNER_c, WACS_LRC
 
 extern int LINES, COLS;
 
-// The screen. There is no stdscr: one screen, no windows.
+// The screen.
 //
 // The two halves that are syscalls are Tasks and everything else is not, which
 // is the whole reason this shim exists in the shape it does.
@@ -106,13 +116,13 @@ int cbreak();
 int noecho();
 int nonl();
 int raw();
-int meta(void *win, bool on);
-int intrflush(void *win, bool on);
-int keypad(void *win, bool on);
-int idlok(void *win, bool on);
-int scrollok(void *win, bool on);
-int leaveok(void *win, bool on);
-int clearok(void *win, bool on);
+int meta(WINDOW *win, bool on);
+int intrflush(WINDOW *win, bool on);
+int keypad(WINDOW *win, bool on);
+int idlok(WINDOW *win, bool on);
+int scrollok(WINDOW *win, bool on);
+int leaveok(WINDOW *win, bool on);
+int clearok(WINDOW *win, bool on);
 int curs_set(int visibility);
 
 int move(int y, int x);
