@@ -56,7 +56,7 @@ the dialogs use; everything else was replaced rather than reimplemented.
 | a key tree over terminfo escape sequences, with a timer to tell `ESC` from `ESC [ A` | [keymap.cpp](keymap.cpp): a key arrives whole, so there is nothing to time; the tree stays, keyed on the key |
 | `fcntl` advisory locks on the edited file and the history | gone — the filesystem has no locking, and `DISABLE_FILE_LOCKS` is already upstream's own switch |
 | `mmap` mode, and `FILE:BEGIN:LENGTH` to map a window of a device | gone — there is no `mmap`; `buffer_mmapped` is a compile-time `false` and about twenty-five guards fall with it |
-| `fork` + `execl("/bin/sh")` to filter a block, `system()` for make and run | stubbed; see [What is not here yet](#what-is-not-here-yet) |
+| `fork` + `execl("/bin/sh")` to filter a block, `system()` for make and run | [pipe.cpp](pipe.cpp) and [cmd.cpp](cmd.cpp): `spawn()` takes the descriptors as an argument, and the filter's two pipes are temp files — one task cannot park on both ends of a pipeline |
 | SIGSEGV/SIGBUS handlers dumping the buffer to `~/.le/tmp/DUMP-*`, a SIGHUP rescue, SIGTSTP | gone. `SIG_INT`, `SIG_TERM` and `SIG_WINCH` are the whole catchable set, and none of them is a handler |
 | `alarm(60)` driving the autosave | [signals.cpp](signals.cpp)'s `AutoSaveTick()`, asked from `Edit()`'s loop. It was already a resumable chunked state machine, which is what let it move |
 | eight-bit Cyrillic codepages, a software keyboard layout, D211 and VTA2000 tables | gone. The browser sends the codepoint that was typed |
@@ -139,16 +139,17 @@ driven, one function each. See the 0.7 release notes in `../../braam-core`.
   nothing provides here.
 - **A `cchar_t` holds two codepoints, not ncurses' five.** A cell holds one and
   the renderer composes no combining marks, so the rest were never drawn.
+- **A filter's errors are collected, not interleaved.** Upstream gave the child
+  three pipes and read all of them as they came; here the child's stderr is a
+  third temp file, shown in the error box when it ran. And a filter that fails
+  leaves the text alone — upstream streamed and could not tell a command that
+  failed from one that legitimately produced nothing, and the exit status says
+  which it was.
 
 ## What is not here yet
 
-- **Filtering a block through a command** (`pipe.cc`) and **Make, Run, Compile
-  and the shell escape** (`cmd.cc`). Braam has `spawn`, `make_pipe`,
-  `wait_child` and `screen_claim`, so both are possible and the choreography is
-  settled — the screen goes back before the keyboard, and both before the
-  spawn. `pipe.cc` used `poll()` over three descriptors at once, which one task
-  cannot do, so a filter wants a temp file on each side. The actions say so
-  until then.
+Nothing of substance. The block filter and the shell escape are in; what they
+cost is in the list above.
 
 ## Files
 
@@ -195,6 +196,7 @@ node editors/le/test/leedit.mjs
 | [lesigint.mjs](test/lesigint.mjs) | `^C` reaches its binding rather than killing the editor |
 | [lescreen.mjs](test/lescreen.mjs) | hex mode, the menu bar and a resize |
 | [lesyntax.mjs](test/lesyntax.mjs) | the syntax colours and the help, both out of `share` |
+| [lespawn.mjs](test/lespawn.mjs) | a block filter, a failing one, and the shell escape |
 
 The harness plants the whole package link chain, because `readlink("/pkg/bin/le")`
 is how the editor finds its own data.
