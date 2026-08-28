@@ -950,7 +950,7 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
                 co_await unixex((char *)"-c", uxb, 0, 0);
                 co_await vspawn_end();
                 co_await unixwt(1, 0);
-                vclrech(1); /* vcontin(0); */
+                co_await vcontin(0);
                 nochng();
             }
             continue;

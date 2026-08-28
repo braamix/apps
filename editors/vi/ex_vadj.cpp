@@ -417,7 +417,9 @@ void vscrap(void)
     /*
      * Discard lines off the bottom.
      */
-    if (vcnt) {
+    /* vcnt > 0, not vcnt: a suspended screen is negative and would index
+       vlinfo before its front. */
+    if (vcnt > 0) {
         for (j = 0; j <= vcnt; j++)
             if (LINE(j) > WBOT || LINE(j) + DEPTH(j) - 1 > WBOT) {
                 vcnt = j;

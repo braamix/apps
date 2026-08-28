@@ -209,7 +209,8 @@ Task<void> vmain(void)
              * to be expanded to make room for it (after
              * we have printed @'s ick showing we goofed).
              */
-            if (vcnt == 0)
+            /* <= 0: a suspended screen is negative, and vredraw skips it. */
+            if (vcnt <= 0)
                 vrepaint(cursor);
             vfixcurs();
             continue;

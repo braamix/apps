@@ -221,7 +221,6 @@ void fixol(void)
         if (state == ONEOPEN || state == HARDOPEN)
             outline = destline = 0;
         Outchar = vputchar;
-        vcontin(1);
     } else {
         if (destcol)
             vclreol();
@@ -492,8 +491,13 @@ Task<void> vcontin(exbool ask)
             co_return;
         }
         if (ask) {
+            /* merror writes through linebuf; the line is not ours to lose. */
+            char save[LBSIZE];
+
+            CP(save, linebuf);
             merror("[Hit return to continue] ");
             flush();
+            CP(linebuf, save);
         }
         if (ask) {
             if (co_await getkey() == ':') {

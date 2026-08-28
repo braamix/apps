@@ -207,6 +207,14 @@ below is what it draws on.
   to. `^H` is the same key and does the same thing; on the `:` line the echo
   area keeps its own floor, where backspacing off the prompt abandons the
   command.
+- **There is no `[Hit return to continue]`.** Upstream paused after a `:`
+  command that printed, so its output could be read before visual repainted
+  over it. The pause cannot work here and the prompt is not shown: a `:`
+  command's output goes to the output buffer and then to stdout, never through
+  `vtube`, so the prompt itself would be invisible while still swallowing the
+  key that answered it. A one-line message reaches the echo area and stays
+  there, which covers `:f`, `:set x?` and every error. What is genuinely lost
+  is the output of `:!cmd` and of a multi-line `:p`, which the repaint erases.
 - **`:!cmd` runs, `sort` may not.** The escapes work, but they run Braam's
   `/bin`, which is forty-odd commands and not a Unix.
 - **`:e *.c` does not glob.** Upstream forked a shell to expand the argument
