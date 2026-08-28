@@ -221,7 +221,7 @@ Task<void>    Edit()
       if(proc)
       {
 	 undo.BeginUndoGroup();
-	 proc();
+	 co_await proc();
 	 undo.EndUndoGroup();
 	 continue;
       }

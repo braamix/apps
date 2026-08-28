@@ -457,7 +457,7 @@ Task<void>    ActivateMainMenu(void)
                      CloseWin();
                   }
 		  ActionArgument=m[curr].arg;
-                  GetActionProc(m[curr].action)();
+                  co_await GetActionProc(m[curr].action)();
                   if(m[curr].fl&HIDE)
                   {
                      flag=1;

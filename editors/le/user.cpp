@@ -22,6 +22,7 @@
 #endif
 #ifdef HAVE_ALLOCA_H
 #endif
+#include "kernel/alloc.h"
 #include "edit.h"
 #include "proc/io.h"
 #include "proc/rt.h"
@@ -1656,7 +1657,7 @@ Task<void>  UserStartDragMark()
       co_return;
    }
    PreUserEdit();
-   DragMark=new TextPoint(CurrentPos);
+   DragMark=heap_new<TextPoint>(CurrentPos);
    if(hide)
       co_await UserSetBlockBegin();
 }
@@ -1664,7 +1665,7 @@ void  UserStopDragMark()
 {
    if(!DragMark)
       return;
-   delete DragMark;
+   heap_delete(DragMark);
    DragMark=0;
 }
 

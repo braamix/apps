@@ -20,6 +20,20 @@ Str str_of(const char *s)
     return Str(s, strlen(s));
 }
 
+// The path, as an inode number. OPFS has none, and st_ino is what LE's
+// SameFile() compares -- with a constant there every file would look like
+// every other, and the "changed out of the editor" warning fires on the first
+// save. A hash of the path says what SameFile means.
+u64 ino_of(Str path)
+{
+    u64 h = 1469598103934665603ull; // FNV-1a
+    for (usize i = 0; i < path.size(); i++) {
+        h ^= u8(path[i]);
+        h *= 1099511628211ull;
+    }
+    return h;
+}
+
 // FileInfo is kind, size and mtime; the rest of struct stat was never filled
 // from anything the VFS keeps.
 void fill(struct stat *st, const FileInfo &fi)
@@ -30,7 +44,7 @@ void fill(struct stat *st, const FileInfo &fi)
     st->st_size  = (off_t)fi.size;
     st->st_mtime = (time_t)(fi.mtime / 1000);
     st->st_ino   = 0;
-    st->st_dev   = 0;
+    st->st_dev   = 1;
 }
 
 Task<int> stat_into(Str path, struct stat *st, bool follow)
@@ -42,6 +56,7 @@ Task<int> stat_into(Str path, struct stat *st, bool follow)
     if (r.is_err())
         co_return fail(r.error());
     fill(st, r.value());
+    st->st_ino = ino_of(path);
     co_return 0;
 }
 
@@ -141,6 +156,7 @@ Task<int> le_lstat(const char *path, struct stat *st)
     co_return co_await stat_into(str_of(path), st, false);
 }
 
+// No path, so no inode: the one caller compares a mode, not an identity.
 Task<int> le_fstat(int fd, struct stat *st)
 {
     Result<FileInfo> r = Err(Error::NoMemory);

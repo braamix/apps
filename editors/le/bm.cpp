@@ -19,6 +19,7 @@
 /* $Id: bm.cc,v 1.2 2001/05/16 14:42:28 lav Exp $ */
 
 #include "config.h"
+#include "kernel/alloc.h"
 #include "edit.h"
 #include "bm.h"
 
@@ -38,8 +39,8 @@ void SetBookmark(int n)
    }
    else
    {
-      bm[n]=new TextPoint(CurrentPos);
-      bm_scrtop[n]=new TextPoint(ScreenTop);
+      bm[n]=heap_new<TextPoint>(CurrentPos);
+      bm_scrtop[n]=heap_new<TextPoint>(ScreenTop);
    }
    bm_scrshift[n]=ScrShift;
 }
@@ -49,9 +50,9 @@ void ClearBookmark(int n)
    assert(n>=0 && n<N);
    if(bm[n])
    {
-      delete bm[n];
+      heap_delete(bm[n]);
       bm[n]=0;
-      delete bm_scrtop[n];
+      heap_delete(bm_scrtop[n]);
       bm_scrtop[n]=0;
    }
 }

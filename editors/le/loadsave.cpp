@@ -368,9 +368,22 @@ Task<int>   LoadFile(char *name)
    hide=1;
    flag=REDISPLAY_ALL;
 
-   co_await le_fstat(file,&st);
+   /* By name rather than by descriptor: identity here is the path -- there
+      are no inode numbers -- and fstat has no path to derive one from. */
+   co_await le_stat(name,&st);
    FileInfo=InodeInfo(&st);
    strcpy(FileName,name);
+
+   /* And let the file go. Upstream held this descriptor for the whole session
+      because the advisory lock lived on it; there is no locking here, and
+      "readers share, a writer has the file to itself" (Concept.md 5.2) --
+      so holding it would make the first save Err(Perm). The text is in the
+      buffer by now and SaveFile opens the file again by name. */
+   if(file!=-1)
+   {
+      co_await le_close(file);
+      file=-1;
+   }
 
    CurrentPos=TextBegin;
    if(SavePos)

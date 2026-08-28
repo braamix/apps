@@ -44,12 +44,12 @@ void Undo::Clear()
    {
       Change *to_delete=chain_head;
       chain_head=chain_head->next;
-      delete to_delete;
+      heap_delete(to_delete);
    }
    chain_tail=chain_ptr=0;
    current_group=0;
    group_open=0;
-   delete group_head;
+   heap_delete(group_head);
    group_head=0;
 }
 Undo::~Undo()
@@ -62,7 +62,7 @@ void Undo::BeginUndoGroup()
    if(!group_open)
    {
       current_group++;
-      group_head=new GroupHead;
+      group_head=heap_new<GroupHead>();
    }
    group_open++;
 }
@@ -70,7 +70,7 @@ void Undo::AddChange(Change *c)
 {
    if(!Enabled())
    {
-      delete c;
+      heap_delete(c);
       return;
    }
    // cut undo list at current position, so redo is not possible.
@@ -86,12 +86,12 @@ void Undo::AddChange(Change *c)
 	 chain_ptr->prev->next=chain_ptr->next;
       Change *to_delete=chain_ptr;
       chain_ptr=chain_ptr->next;
-      delete to_delete;
+      heap_delete(to_delete);
    }
    if(!group_open)
    {
       current_group++;
-      group_head=new GroupHead;
+      group_head=heap_new<GroupHead>();
    }
    c->group=current_group;
    c->group_head=group_head;
@@ -107,7 +107,7 @@ void Undo::AddChange(Change *c)
 
    if(joined)
    {
-      delete c;
+      heap_delete(c);
       return;
    }
 
@@ -121,7 +121,7 @@ void Undo::AddChange(Change *c)
 }
 void Undo::EndUndoGroup()
 {
-   delete group_head;
+   heap_delete(group_head);
    group_head=0;
    if(group_open<=0)
       return;
@@ -371,7 +371,7 @@ void Undo::CheckSize()
 	    {
 	       Change *to_delete=scan;
 	       scan=scan->prev;
-	       delete to_delete;
+	       heap_delete(to_delete);
 	    }
 	    break;
 	 }

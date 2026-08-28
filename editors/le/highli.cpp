@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include "lesys.h"
+#include "kernel/alloc.h"
 #include "edit.h"
 #include "lefile.h"
 #include "epath.h"
@@ -65,7 +66,7 @@ void syntax_hl::free_chain(syntax_hl *chain)
 {
    for(syntax_hl *r=chain; r; r=chain) {
       chain=r->next;
-      delete r;
+      heap_delete(r);
    }
 }
 
@@ -390,13 +391,13 @@ static Task<void> ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	 rx=co_await read_regex(f);
 	 if(!rx)
 	    goto end;
-	 syntax_hl *hl=new syntax_hl(color,mask);
+	 syntax_hl *hl=heap_new<syntax_hl>(color,mask);
 	 const char *err=hl->set_rexp(rx,ignore_case);
 	 free(rx); rx=0;
 	 if(err)
 	 {
 	    ErrMsg(err);
-	    delete hl;
+	    heap_delete(hl);
 	    goto end;
 	 }
 	 *chain=hl; // add to chain
@@ -476,13 +477,13 @@ static Task<void> ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	    if(!rx)
 	       goto end;
 
-	    syntax_hl *hl=new syntax_hl(-1,mask);
+	    syntax_hl *hl=heap_new<syntax_hl>(-1,mask);
 	    const char *err=hl->set_rexp(rx,ignore_case);
 	    free(rx); rx=0;
 	    if(err)
 	    {
 	       ErrMsg(err);
-	       delete hl;
+	       heap_delete(hl);
 	       goto end;
 	    }
 	    *chain=hl; // add to chain
@@ -571,7 +572,7 @@ element *element::New()
       return res;
    }
    if(!hunk || hunk_size==0)
-      hunk=new element[hunk_size=128];
+      hunk=(element *)calloc(hunk_size=128,sizeof(element));
    res=hunk;
    hunk++;
    hunk_size--;

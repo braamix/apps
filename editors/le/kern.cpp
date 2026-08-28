@@ -331,7 +331,7 @@ int   InsertBlock(const char *block_left,num size_left,const char *block_right,n
       new_oldmodified=oldmodified;
 
    if(undo.Enabled())
-      undo.AddChange(new Undo::Insert(block_left,size_left,block_right,size_right));
+      undo.AddChange(heap_new<Undo::Insert>(block_left,size_left,block_right,size_right));
 
    memmove(buffer+ptr1,block_left,size_left);
    memmove(buffer+ptr2-size_right,block_right,size_right);
@@ -665,7 +665,7 @@ int   DeleteBlock(num left,num right)
       oldmodified=modified;
 
    if(undo.Enabled())
-      undo.AddChange(new Undo::Delete(buffer+ptr1-left,left,buffer+ptr2,right));
+      undo.AddChange(heap_new<Undo::Delete>(buffer+ptr1-left,left,buffer+ptr2,right));
 
    size=left+right;
    base=Offset()-left;
@@ -781,7 +781,7 @@ int   ReplaceBlock(const char *block,num size)
 	 num_of_lines++;
 
    if(undo.Enabled())
-      undo.AddChange(new Undo::Replace(buffer+ptr2,oldsize,block,size));
+      undo.AddChange(heap_new<Undo::Replace>(buffer+ptr2,oldsize,block,size));
 
    memmove(buffer+ptr2-(size-oldsize),block,size);
    oldptr2=ptr2;

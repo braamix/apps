@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "lesys.h"
+#include "kernel/alloc.h"
 #include "edit.h"
 #include "lefile.h"
 #include "keymap.h"
@@ -331,7 +332,7 @@ static KeyTreeNode *AddToKeyTree(KeyTreeNode *curr,int key_code,int action,const
 	 break;
    if(!scan)
    {
-      scan=new KeyTreeNode;
+      scan=heap_new<KeyTreeNode>();
       scan->keycode=key_code;
       scan->action=action;
       scan->arg=arg;
@@ -357,7 +358,7 @@ KeyTreeNode *BuildKeyTree(const ActionCodeRec *ac_table)
    KeyTreeNode *top=0;
    char  term_name[256];
 
-   top=new KeyTreeNode;
+   top=heap_new<KeyTreeNode>();
    top->keycode=-1;
    top->action=NO_ACTION;
    top->arg=0;
@@ -433,7 +434,7 @@ void FreeKeyTree(KeyTreeNode *kt)
       return;
    FreeKeyTree(kt->sibling);
    FreeKeyTree(kt->child);
-   delete kt;
+   heap_delete(kt);
 }
 
 void RebuildKeyTree()

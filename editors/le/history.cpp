@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "lesys.h"
+#include "kernel/alloc.h"
 #include "edit.h"
 #include "lefile.h"
 #include "proc/rt.h"
@@ -89,10 +90,10 @@ void History::operator+=(const HistoryLine& hl)
       return;
 
    for(i=0; i<HISTORY_SIZE-1 && lines[i] && hl!=*lines[i]; i++);
-   delete lines[i];
+   heap_delete(lines[i]);
    for( ; i>0; i--)
       lines[i]=lines[i-1];
-   lines[0]=new HistoryLine(hl);
+   lines[0]=heap_new<HistoryLine>(hl);
 }
 void History::operator-=(const HistoryLine& hl)
 {
@@ -104,7 +105,7 @@ void History::operator-=(const HistoryLine& hl)
    for(i=0; lines[i] && hl!=*lines[i]; i++)
       if(i>=HISTORY_SIZE-1)
          return;
-   delete lines[i];
+   heap_delete(lines[i]);
    for( ; i<HISTORY_SIZE-1; i++)
       lines[i]=lines[i+1];
    lines[i]=0;
@@ -230,7 +231,7 @@ Task<void>  History::ReadFrom(FILE *f)
 	 co_return;
       }
       line[len]=0;
-      lines[i]=new HistoryLine;
+      lines[i]=heap_new<HistoryLine>();
       lines[i]->cr_time=cr_time;
       lines[i]->line=line;
       lines[i]->len=len;
@@ -288,11 +289,11 @@ int InodeHistory::FindInodeIndex(const InodeInfo& file)
 const InodeInfo *InodeHistory::FindInode(const InodeInfo& file)
 {
    static InodeInfo *info;
-   delete info; info=0;
+   heap_delete(info); info=0;
 
    int i=FindInodeIndex(file);
    if(i!=-1)
-      return(info=new InodeInfo(lines[i]));
+      return(info=heap_new<InodeInfo>(lines[i]));
 
    return(0);
 }
