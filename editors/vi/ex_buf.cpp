@@ -310,7 +310,7 @@ Task<void> putreg(int c)
         unddol = dol;
         dol    = odol;
         dot    = odot;
-        pragged(0);
+        co_await pragged(0);
     }
     killcnt(cnt);
     notecnt = cnt;

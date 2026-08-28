@@ -319,7 +319,7 @@ Task<void> put(void)
         COTHROW(error("Cannot put inside global/macro"));
     cnt = unddol - dol;
     if (cnt && inopen && pkill[0] && pkill[1]) {
-        pragged(1);
+        co_await pragged(1);
         co_return;
     }
     tad1 = dol + 1;
@@ -335,7 +335,7 @@ Task<void> put(void)
  * Argument says pkills have meaning, e.g. called from
  * put; it is 0 on calls from putreg.
  */
-void pragged(exbool kill)
+Task<void> pragged(exbool kill)
 {
     extern char *cursor;
     char *gp = &genbuf[cursor - linebuf];
@@ -364,7 +364,7 @@ void pragged(exbool kill)
     undap1  = dot;
     undap2  = dot + 1;
     unddel  = dot - 1;
-    undo(1);
+    co_await undo(1);
 }
 
 /*

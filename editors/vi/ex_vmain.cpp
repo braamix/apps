@@ -1110,6 +1110,26 @@ void prepapp(void)
  * Execute function f with the address bounds addr1
  * and addr2 surrounding cnt lines starting at dot.
  */
+/*
+ * vremote(1, op_yank, 0), without the coroutine: op_yank only calls yank(),
+ * which is a plain function, and vsave() cannot await.
+ */
+void vremote_yank(void)
+{
+    int oing = inglobal;
+
+    addr1    = dot;
+    addr2    = dot;
+    inglobal = 0;
+    if (FIXUNDO)
+        undap1 = undap2 = dot;
+    yank();
+    inglobal = oing;
+    if (FIXUNDO)
+        vundkind = VMANY;
+    vmcurs = 0;
+}
+
 Task<void> vremote(int cnt, Vopf f, int arg)
 {
     int oing = inglobal;
@@ -1207,7 +1227,7 @@ void vsave(void)
         prepapp();
         strcLIN(vutmp);
         putmark(dot);
-        vremote(1, op_yank, 0);
+        vremote_yank();
         vundkind = VMCHNG;
         notecnt  = 0;
         undkind  = UNDCHANGE;

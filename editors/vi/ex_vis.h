@@ -394,6 +394,7 @@ Task<void> vmain(void);
 Task<void> grabtag(void);
 void prepapp(void);
 Task<void> vremote(int cnt, Vopf f, int arg);
+void vremote_yank(void);
 void vsave(void);
 Task<void> vzop(exbool hadcnt, int cnt, int c);
 

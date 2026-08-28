@@ -36,6 +36,13 @@ edit(["d", "d", "p"], "beta\nalpha\ngamma\ndelta", "dd p");
 
 // u undoes the last change; . repeats it.
 edit(["d", "w", "u"], "alpha\nbeta\ngamma\ndelta", "u");
+
+// Undo after moving off the changed line. vsave() syncs the line's undo copy
+// out of vutmp when you leave it, and that sync is a yank -- which was being
+// dropped, so undo quietly did nothing here.
+edit(["x", "j", "u"], "alpha\nbeta\ngamma\ndelta", "u after moving off the line");
+edit(["i", "ZZ", "ESC", "j", "u"], "alpha\nbeta\ngamma\ndelta", "u after an insert and a move");
+edit(["d", "d", "j", "u"], "alpha\nbeta\ngamma\ndelta", "u after dd and a move");
 edit(["x", "j", "."], "lpha\neta\ngamma\ndelta", ".");
 
 // A named buffer.

@@ -354,7 +354,7 @@ Task<void> move1(int cflag, line *addrt);
 Task<int> getcopy(void);
 Task<int> getput(void);
 Task<void> put(void);
-void pragged(exbool kill);
+Task<void> pragged(exbool kill);
 void shift(int c, int cnt);
 Task<void> tagfind(exbool quick);
 void yank(void);
