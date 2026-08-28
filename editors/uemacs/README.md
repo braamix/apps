@@ -180,6 +180,16 @@ message line uses; everything else was replaced rather than reimplemented.
   `C-Backspace` and `C-Delete` are `M-^H`/`M-D`. Every other modifier on a
   named key is still dropped.
 
+  **Command is the browser's, and `Alt` is the only Meta.** The host does not
+  consume a chord carrying ⌘ or Super — `Meta is the system's`, says
+  `keys.js` — so the page acts on it *and* delivers it, and a program is meant
+  to find nothing bound to it. Reading it as uemacs's Meta prefix made every
+  system chord run a command underneath the browser's: ⌘V paged backwards
+  before the pasted text arrived, so a paste landed a screen away from the
+  cursor, and ⌘Z — undo, on the machine most likely to send it — was
+  quick-exit, which writes every buffer out and leaves. Any key carrying it is
+  now dropped, which is what vi and the shell's line editor already did.
+
 - **`&lef`, `&mid` and `&rig` terminate what they return.** Upstream's are
   `strncpy` and `strcpy` into a static buffer the last call also used, so
   `&lef $line 2` came back as `..` with the tail of an earlier answer stuck to
@@ -287,7 +297,8 @@ to be driven down a pipe. [test/emlib.mjs](test/emlib.mjs) is the shared half.
 - `emkeys.mjs` — the first frame whole and its colours, the mode line black on
   cyan, `C-f`/`C-b`/`C-n`/`C-p`/`C-a`/`C-e`, the arrow keys reaching
   the same commands, `Home`/`End`/`Delete`, `C-Left`/`C-Right`/`C-Home`/`C-End`,
-  `M-<` and `M->`, `C-u` with and without a count, and the word motions.
+  `M-<` and `M->`, `C-u` with and without a count, the word motions, and a
+  ⌘V paste landing at the cursor.
 - `emedit.mjs` — self-insert, `C-d`, `C-h`, `C-o`, `C-k` and `C-y` through the
   kill buffer, a region with `M-space`/`C-w`/`M-w`, `M-u`/`M-l`/`M-c`, and the
   two files `C-x C-s` and `C-x C-w` write.

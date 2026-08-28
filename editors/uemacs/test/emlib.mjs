@@ -136,6 +136,9 @@ const NAMED = { CR: "ENTER", ESC: "ESCAPE" };
 
 const name_of = (k) => NAMED[k] || k;
 
+// MOD_META from key.h: the Command key, which harness.mjs does not name.
+export const CMD = 8;
+
 // F1 to F12, which harness.mjs's KEY table stops short of. They are the last
 // twelve of key.h's enum, after PAGE_DOWN.
 const fkey = (k) => (/^F([1-9]|1[0-2])$/.test(k) ? H.KEY.PAGE_DOWN + Number(k.slice(1)) : 0);

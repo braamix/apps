@@ -424,6 +424,11 @@ static int key_code(Key k, int *code)
 
     *code = 0;
 
+    /* Command, or Super, is the browser's: it acts on the chord and hands it
+       over as well, so Cmd-V paged back before the paste arrived. */
+    if (k.mods & MOD_META)
+        return FALSE;
+
     /* F1 to F10, and the shifted block.  F11 and F12 are 0x85 and 0x86, which
        have no FN spelling: bind them by pressing the key. */
     if (k.code >= KEY_F1 && k.code <= KEY_F12) {
@@ -521,8 +526,8 @@ static int key_code(Key k, int *code)
         else if (c == '?')
             c = 0x7f;
     }
-    /* Alt and Meta are the same prefix ESC produces the long way round. */
-    if (k.mods & (MOD_ALT | MOD_META)) {
+    /* Alt is the prefix ESC produces the long way round. */
+    if (k.mods & MOD_ALT) {
         if (c >= 'a' && c <= 'z')
             c ^= DIFCASE;
         if (c >= 0x00 && c <= 0x1F)

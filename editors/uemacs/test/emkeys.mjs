@@ -4,7 +4,8 @@
 // this worth having: it is the only case that says the back buffer reached the
 // Grid at all.
 
-import { boot, em, put, press, keys, screen, cursor, fg, bg, is, ok } from "./emlib.mjs";
+import { boot, em, put, press, keys, screen, cursor, fg, bg, tick, CMD, is, ok, H }
+    from "./emlib.mjs";
 
 await boot("emkeys");
 
@@ -72,6 +73,18 @@ keys("^END");
 is("C-End is the end of the buffer", cursor(), "0,4");
 keys("^HOME");
 is("C-Home is the start of it", cursor(), "0,0");
+
+// A Command chord is the browser's: the host acts on it and hands it over as
+// well, so the editor has to ignore it. This is the paste sequence exactly as
+// ⌘V delivers it -- the chord, then the text as keystrokes. Taken as Meta,
+// the v was previous-page and the text landed a screen away.
+em("/tmp/f", ["^n", "^n"]);
+H.press("v".codePointAt(0), CMD);
+tick(1);
+is("Cmd-V moves nothing", cursor(), "0,2");
+H.type("XY");
+tick(1);
+is("and the paste lands at the cursor", screen(3), "alpha\nbeta\nXYgamma");
 
 // M-< and M-> are the ends of the buffer.
 keys("ESC", "<");
