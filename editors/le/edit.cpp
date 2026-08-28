@@ -25,6 +25,7 @@
 #ifdef HAVE_LANGINFO_H
 #endif
 #include "edit.h"
+#include "proc/io.h"
 #include "lefile.h"
 #include "leio.h"
 #include "calc.h"
@@ -36,7 +37,7 @@
 #include "search.h"
 #include "undo.h"
 #ifdef WITH_MOUSE
-# include "mouse.h"
+
 #endif
 
 
@@ -55,9 +56,9 @@ extern void _nc_free_and_exit(int);
 
 #ifdef HAVE_ALLOCA_H
 #endif
-#include "localcharset.h"
 
 char  Program[256];
+int   quitting;
 
 extern  const char    MainHelp[];
 
@@ -93,18 +94,18 @@ long getcode(const char *prompt)
    static bool getcode_active=false;
 
    if(getcode_active)
-      return(-1);
+      co_return(-1);
 
    getcode_active=true;
 
-   if(getstring(prompt,ch,sizeof(ch)-1,&CodeHistory)<1)
+   if(co_await getstring(prompt,ch,sizeof(ch)-1,&CodeHistory)<1)
    {
       getcode_active=false;
-      return(-1);
+      co_return(-1);
    }
    getcode_active=false;
    i=strtol(ch,0,0);
-   return((int)i);
+   co_return((int)i);
 }
 int getcode_char()
 {
@@ -123,7 +124,7 @@ wchar_t getcode_wchar()
 }
 #endif
 
-void ProcessDragMark()
+Task<void> ProcessDragMark()
 {
    if(CurrentPos<*DragMark)
    {
@@ -143,14 +144,14 @@ void ProcessDragMark()
    }
 }
 
-void    Edit()
+Task<void>    Edit()
 {
    int      key;
    int      action;
    ActionProc proc;
    num	 old_num_of_lines=-1;
 
-   while(1)
+   while(!quitting)
    {
       SeekStdCol();
       if(in_hex_mode)
@@ -163,7 +164,18 @@ void    Edit()
       }
 
       if(DragMark)
-	 ProcessDragMark();
+	 co_await ProcessDragMark();
+
+      /* Whatever the last command recorded. Upstream put the box up from
+	 inside ErrMsg; this is the same box one turn later. */
+      if(ErrorPending())
+      {
+	 co_await ShowPendingError();
+	 continue;
+      }
+
+      /* The autosave, which upstream drove from an alarm. */
+      co_await AutoSaveTick();
 
       ClearMessage();
       SyncTextWin();
@@ -306,7 +318,7 @@ void    Edit()
 	    break;
 	 default:   /* not a newline and not a tab */
 	    if(insert || Eol() || (Char()=='\t' && Tabulate(GetCol())!=(GetCol()+1)))
-	       UserInsertChar(key);
+	       co_await UserInsertChar(key);
 	    else
 	       UserReplaceChar(key);
 	    flag|=REDISPLAY_LINE;
@@ -317,11 +329,11 @@ void    Edit()
 }
 Task<void>    Quit()
 {
-   if(AskToSave())
-      Terminate();
+   if(co_await AskToSave())
+      co_await Terminate();
    co_return;
 }
-int     AskToSave()
+Task<int>     AskToSave()
 {
    if(modified && !View)
    {
@@ -330,7 +342,7 @@ int     AskToSave()
       {NULL}};
       int result=TRUE;
 
-      switch(ReadMenuBox(Menu,HORIZ,"The file has been modified. Save?","",
+      switch(co_await ReadMenuBox(Menu,HORIZ,"The file has been modified. Save?","",
 	 VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
       {
       case('Y'):
@@ -359,37 +371,13 @@ int     AskToSave()
 #define NCUR
 #endif
 
-void  InitCurses()
+Task<void>  InitCurses()
 {
-#ifdef NCUR
-   static bool init=false;
-
-   if(init)
-   {
-      endwin();
-      initscr();  // for some old ncurses
-      doupdate();
-      return;
-   }
-
-   initscr();
-   init=true;
-
-#else
-   static SCREEN *le_scr=NULL;
-
-   if(le_scr!=NULL)
-   {
-      delscreen(le_scr);
-   }
-
-   le_scr=newterm(NULL,stdout,stdin);
-   if(le_scr==NULL)
-   {
-      fprintf(stderr,"le: newterm() failed. Check your $TERM variable.\n");
-      ExitProgram(1);
-   }
-#endif
+   /* Upstream started curses over a terminal it had to name; here the screen
+      and the keyboard are claimed with two syscalls, and re-entering is what
+      a resize does. */
+   if(Task<Result<void>> t=curses_open())
+      co_await t;
 
    le_start_color();
 
@@ -414,12 +402,12 @@ void  TermCurses()
 
 int optUseColor=-1;
 
-void    Initialize()
+Task<void>    Initialize()
 {
    FILE    *f;
 
    InitModifyKeyTables();
-   init_chset();
+   co_await init_chset();
    initcalc();
 
 #ifndef MSDOS
@@ -438,7 +426,7 @@ void    Initialize()
 
    InitCurses();
 
-   ReadConf();
+   co_await ReadConf();
 
    if(optUseColor!=-1)
       UseColor=optUseColor;
@@ -447,19 +435,15 @@ void    Initialize()
 
    InitMenu();
 
-   struct flock l;
-   l.l_type=F_RDLCK;
-   l.l_whence=SEEK_SET;
-   l.l_start=l.l_len=0;
    MessageSync("Loading history...");
    f=co_await le_fopen(HstName,false);
-   if(f && fcntl(fileno(f),F_SETLKW,&l)!=-1)
+   if(f)
    {
-      PositionHistory.co_await ReadFrom(f);
-      LoadHistory.co_await ReadFrom(f);
-      SearchHistory.co_await ReadFrom(f);
-      ShellHistory.co_await ReadFrom(f);
-      PipeHistory.co_await ReadFrom(f);
+      co_await PositionHistory.ReadFrom(f);
+      co_await LoadHistory.ReadFrom(f);
+      co_await SearchHistory.ReadFrom(f);
+      co_await ShellHistory.ReadFrom(f);
+      co_await PipeHistory.ReadFrom(f);
       co_await le_fclose(f);
    }
 
@@ -468,12 +452,11 @@ void    Initialize()
 
    co_await LoadMainMenu();
 }
-void    Terminate()
+Task<void>    Terminate()
 {
    FILE    *f;
 
-   alarm(0);
-   Task<co_await> EmptyText();
+   co_await EmptyText();
 
    curs_set(1);
 
@@ -482,60 +465,56 @@ void    Terminate()
       if(SaveHst)
       {
          MessageSync("Saving history...");
-         int fd=co_await le_open(HstName,O_RDWR|O_CREAT,0644);
-         struct flock l;
-	 l.l_type=F_RDLCK;
-	 l.l_whence=SEEK_SET;
-	 l.l_start=l.l_len=0;
-         if(fd!=-1 && fcntl(fd,F_SETLKW,&l)!=-1)
+         /* Upstream held a lock across the read-merge-write, and rewound one
+	    descriptor to do it. There is no lock here, so the old file is read
+	    and then written over. */
+         f=co_await le_fopen(HstName,false);
+         if(f)
          {
-            f=fdopen(fd,"r+b");
-
             InodeHistory oldPositionHistory;
             History  oldLoadHistory;
             History  oldSearchHistory;
             History  oldShellHistory;
             History  oldPipeHistory;
 
-            oldPositionHistory.co_await ReadFrom(f);
-            oldLoadHistory.co_await ReadFrom(f);
-            oldSearchHistory.co_await ReadFrom(f);
-            oldShellHistory.co_await ReadFrom(f);
-            oldPipeHistory.co_await ReadFrom(f);
+            co_await oldPositionHistory.ReadFrom(f);
+            co_await oldLoadHistory.ReadFrom(f);
+            co_await oldSearchHistory.ReadFrom(f);
+            co_await oldShellHistory.ReadFrom(f);
+            co_await oldPipeHistory.ReadFrom(f);
             PositionHistory.Merge(oldPositionHistory);
             LoadHistory.Merge(oldLoadHistory);
             SearchHistory.Merge(oldSearchHistory);
             ShellHistory.Merge(oldShellHistory);
             PipeHistory.Merge(oldPipeHistory);
 
-            rewind(f);
+            co_await le_fclose(f);
 
-            PositionHistory.co_await WriteTo(f);
-            LoadHistory.co_await WriteTo(f);
-            SearchHistory.co_await WriteTo(f);
-            ShellHistory.co_await WriteTo(f);
-            PipeHistory.co_await WriteTo(f);
+            f=co_await le_fopen(HstName,true);
+            if(!f)
+               co_return;
 
-#ifdef HAVE_FTRUNCATE
-	    fflush(f);
-	    if (co_await le_ftruncate(fd,ftell(f)) < 0)
-	        /*ignore*/;
-#endif
+            co_await PositionHistory.WriteTo(f);
+            co_await LoadHistory.WriteTo(f);
+            co_await SearchHistory.WriteTo(f);
+            co_await ShellHistory.WriteTo(f);
+            co_await PipeHistory.WriteTo(f);
+
             co_await le_fclose(f);
          }
-         co_await le_close(fd);
       }
    }
 
    TermCurses();
 
-   ExitProgram(0);
+   /* exit() cannot unwind a coroutine; Edit()'s loop reads this. */
+   quitting=1;
 }
 
-void  PrintUsage(int arg)
+Task<void>  PrintUsage(int arg)
 {
    (void)arg;
-   printf("Usage: le [OPTIONS] [FILES...]\n"
+   co_await File::stdout().write("Usage: le [OPTIONS] [FILES...]\n"
 	  "\n"
 	  "-r  --read-only    permanent read only mode (view)\n"
 	  "-h  --hex-mode     start in hex mode\n"
@@ -548,32 +527,15 @@ void  PrintUsage(int arg)
           "    --multibyte    force multibyte mode\n"
           "    --no-multibyte disable multibyte mode\n"
 #endif
-	  "    --mmap         load file using mmap (read only)\n"
-	  "    --mmap-rw      mmap read-write. Use with extreme caution,\n"
-	  "                   especially on your hard disk!\n"
-	  "                   All changes go directly to file/disk.\n"
 	  "    --help         this description\n"
 	  "    --version      print LE version\n"
 	  "\n"
 	  "The last file will be loaded. If no files specified, last readable file\n"
 	  "from history will be loaded if the path is relative or it is the last.\n");
-   ExitProgram(1);
+   co_await File::stdout().flush();
 }
 
-#if USE_MULTIBYTE_CHARS
-static bool has_widechars()
-{
-   for(int c=' '; c<256; c++)
-   {
-      wint_t w=btowc(c);
-      if(w!=WEOF && w>=256)
-	 return 1;
-   }
-   return 0;
-}
-#endif
-
-int     main(int argc,char **argv)
+Task<i32>     proc_main(Args args)
 {
    int   optView=-1,opteditmode=-1,optWarpLine=0;
    int	 opt_use_mmap=-1;
@@ -582,151 +544,112 @@ int     main(int argc,char **argv)
    int	 opt_mb_mode=-1;
 #endif
 
-   enum {
-      DUMP_KEYMAP=1024,
-      DUMP_COLORS,
-      PRINT_HELP,
-      PRINT_VERSION,
-      CONFIG_FILE,
-      USE_MMAP,
-      USE_MMAP_RW,
-#if USE_MULTIBYTE_CHARS
-      MULTIBYTE,
-      NO_MULTIBYTE,
-#endif
-      MAX_OPTION
-   };
-
-   static struct option le_options[]=
-   {
-      {"help",no_argument,0,PRINT_HELP},
-      {"version",no_argument,0,PRINT_VERSION},
-      {"dump-keymap",no_argument,0,DUMP_KEYMAP},
-      {"dump-colors",no_argument,0,DUMP_COLORS},
-      {"read-only",no_argument,0,'r'},
-      {"hex-mode",no_argument,0,'h'},
-      {"black-white",no_argument,0,'b'},
-      {"color",no_argument,0,'c'},
-      {"config",required_argument,0,CONFIG_FILE},
-#if USE_MULTIBYTE_CHARS
-      {"multibyte",no_argument,0,MULTIBYTE},
-      {"no-multibyte",no_argument,0,NO_MULTIBYTE},
-#endif
-#ifdef HAVE_MMAP
-      {"mmap",no_argument,0,USE_MMAP},
-      {"mmap-rw",no_argument,0,USE_MMAP_RW},
-#endif
-      {0,0,0,0}
-   };
-
    char  newname[256];
    newname[0]=0;
 
-   strncpy(Program,le_basename(argv[0]),sizeof(Program));
+   /* getopt_long, by hand: five short options and eight long ones, which is
+      smaller than carrying getopt. */
+   static char argbuf[LE_PATHMAX];
+   unsigned optind=1;
+   bool bad=false;
 
-#if defined(CURSES_BOOL) && !defined(bool_redefined)
-   if(sizeof(bool) != sizeof(CURSES_BOOL))
-   {
-      fprintf(stderr,"%s: warning: curses library has wrong bool type. Expect trouble.\n",Program);
-      sleep(2);
-   }
-#endif
-
-#ifdef __MSDOS__
-    HOME=".";
-    TERM="ansi";
-    _fmode=O_BINARY;
-#else
-   setlocale(LC_ALL,"");
-#if USE_MULTIBYTE_CHARS
-   if(has_widechars())
-      mb_mode=true;
-   const char *cs=locale_charset();
-   if(cs && !strcasecmp(cs,"UTF-8"))
-      mb_mode=true;
-#endif
+   strncpy(Program,"le",sizeof(Program)-1);
 
    HOME=getenv("HOME");
    if(HOME==NULL)
-   {
-      fprintf(stderr,"Cannot get the value of HOME\n\r");
-      co_return(1);
-   }
+      HOME=(char*)"/home";
    TERM=getenv("TERM");
    if(TERM==NULL)
-   {
-      fprintf(stderr,"Cannot get the value of TERM\n\r");
-      co_return(1);
-   }
+      TERM=(char*)"braam";
    DISPLAY=getenv("DISPLAY");
-#endif
 
-   while((opt=getopt_long(argc,argv,"rhbc",le_options,0))!=-1)
+   /* One encoding, and it is UTF-8. */
+   mb_mode=true;
+
+   for(; optind<args.size(); optind++)
    {
-      switch(opt)
+      Str a=args[optind];
+      if(a.size()<2 || a[0]!='-' || a=="--")
       {
-      case('r'):
-         optView=1;
-#ifdef HAVE_MMAP
-	 opt_use_mmap=1;
-#endif
-         break;
-      case('h'):
-         opteditmode=HEXM;
-         break;
-      case('b'):
-         optUseColor=0;
-         break;
-      case('c'):
-	 optUseColor=1;
+	 if(a=="--")
+	    optind++;
 	 break;
-      case('?'):
-	 fprintf(stderr,"%s: Try `%s --help' for more information\n",Program,argv[0]);
-	 ExitProgram(1);
-      case(DUMP_KEYMAP):
-	 co_await WriteActionMap(stdout);
-	 ExitProgram(0);
-      case(DUMP_COLORS):
-	 co_await DumpDefaultColors(stdout);
-	 ExitProgram(0);
-      case(PRINT_HELP):
-	 PrintUsage(0);
-	 ExitProgram(0);
-      case(PRINT_VERSION):
-	 PrintVersion();
-	 ExitProgram(0);
-      case(USE_MMAP):
-	 opt_use_mmap=1;
-	 if(optView==-1)
-	    optView=2;
-	 else
-	    optView|=2;
-	 opteditmode=HEXM;
-	 break;
-      case(USE_MMAP_RW):
-	 opt_use_mmap=1;
-	 if(optView!=-1)
-	    optView&=~2;
-	 opteditmode=HEXM;
-	 break;
-      case(CONFIG_FILE):
-	 ExplicitInitName=true;
-	 strncpy(InitName,optarg,sizeof(InitName)-1);
-	 break;
-#if USE_MULTIBYTE_CHARS
-      case MULTIBYTE:
-	 opt_mb_mode=true;
-	 break;
-      case NO_MULTIBYTE:
-	 opt_mb_mode=false;
-	 break;
-#endif
       }
+      if(a[1]!='-')
+      {
+	 for(usize i=1; i<a.size(); i++)
+	 {
+	    switch(a[i])
+	    {
+	    case 'r': optView=1; break;
+	    case 'h': opteditmode=HEXM; break;
+	    case 'b': optUseColor=0; break;
+	    case 'c': optUseColor=1; break;
+	    default:  bad=true; break;
+	    }
+	 }
+	 continue;
+      }
+
+      Str name=a.substr(2), val;
+      usize eq=name.find('=');
+      if(eq!=Str::npos)
+      {
+	 val=name.substr(eq+1);
+	 name=name.substr(0,eq);
+      }
+
+      if(name=="help")
+      {
+	 co_await PrintUsage(0);
+	 co_return 0;
+      }
+      else if(name=="version")
+      {
+	 co_await PrintVersion();
+	 co_return 0;
+      }
+      else if(name=="dump-keymap")
+      {
+	 co_await WriteActionMap(&File::stdout());
+	 co_await File::stdout().flush();
+	 co_return 0;
+      }
+      else if(name=="dump-colors")
+      {
+	 co_await DumpDefaultColors(&File::stdout());
+	 co_await File::stdout().flush();
+	 co_return 0;
+      }
+      else if(name=="read-only")	  optView=1;
+      else if(name=="hex-mode")	  opteditmode=HEXM;
+      else if(name=="black-white")  optUseColor=0;
+      else if(name=="color")	  optUseColor=1;
+      else if(name=="multibyte")	  opt_mb_mode=true;
+      else if(name=="no-multibyte") opt_mb_mode=false;
+      else if(name=="config")
+      {
+	 ExplicitInitName=true;
+	 if(val.size()<sizeof(InitName))
+	 {
+	    memcpy(InitName,val.data(),val.size());
+	    InitName[val.size()]=0;
+	 }
+      }
+      else
+	 bad=true;
    }
+
+   if(bad)
+   {
+      co_await File::stderr().write("le: unknown option; try `le --help'\n");
+      co_return 1;
+   }
+
    if(optUseColor!=-1)
       UseColor=optUseColor;
 
-   Initialize();
+   co_await Initialize();
 
    if(optView!=-1)
       View=!!optView;
@@ -741,13 +664,15 @@ int     main(int argc,char **argv)
       mb_mode=opt_mb_mode;
 #endif
 
-   if(optind<argc-1 && argv[optind][0]=='+' && isdigit((unsigned char)argv[optind][1]))
+   if(optind+1<args.size() && args[optind].size()>1 && args[optind][0]=='+'
+   && isdigit((unsigned char)args[optind][1]))
    {
-      optWarpLine=atoi(argv[optind]);
+      usize used;
+      optWarpLine=(int)scan_i64(args[optind].substr(1),used).value_or(0);
       optind++;
    }
 
-   if(optind>=argc)
+   if(optind>=args.size())
    {
       const HistoryLine *hl=0;
       LoadHistory.Open();
@@ -770,31 +695,34 @@ int     main(int argc,char **argv)
       if(!hl)
       {
          ShowAbout();
-         if(getstring("Load: ",newname,255,&LoadHistory,NULL,NULL)<1
-                                             || ChooseFileName(newname,sizeof(newname))<0)
-            Terminate();
+         if(co_await getstring("Load: ",newname,255,&LoadHistory,NULL,NULL)<1
+                                             || co_await ChooseFileName(newname,sizeof(newname))<0)
+            co_await Terminate();
          HideAbout();
       }
    }
    else
    {
-      for(; optind<argc; optind++)
-         LoadHistory+=argv[optind];
-      snprintf(newname,sizeof(newname),"%.255s",argv[argc-1]);
+      for(usize i=optind; i<args.size(); i++)
+      {
+         snprintf(argbuf,sizeof(argbuf),"%.*s",(int)args[i].size(),args[i].data());
+         LoadHistory+=argbuf;
+      }
+      snprintf(newname,sizeof(newname),"%.*s",
+               (int)args[args.size()-1].size(),args[args.size()-1].data());
    }
-   if(newname[0] && file_check(newname)==ERR)
+   if(newname[0] && co_await file_check(newname)==ERR)
    {
       if(View || buffer_mmapped)
-	 Terminate();
+	 co_await Terminate();
       newname[0]=0;
    }
-   if(LoadFile(newname)!=ERR)
+   if(co_await LoadFile(newname)!=ERR)
    {
       if(optWarpLine>0)
 	 GoToLineNum(optWarpLine-1);
    }
-   Edit();
-   Terminate();
-   ExitProgram(0);
+   co_await Edit();
+   co_await Terminate();
    co_return 0;
 }

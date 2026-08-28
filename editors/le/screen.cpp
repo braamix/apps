@@ -120,29 +120,11 @@ void  TestPosition()
    }
 }
 
-static int skipped=0;	// number of times Sync skipped its work
-
 void  SyncTextWin()
 {
-   if(CheckPending()>0)
-   {
-      if(++skipped<2000)
-      {
-         if(ShowStatusLine==SHOW_NONE)
-         {
-            flag=REDISPLAY_ALL;
-            return;
-         }
-	 attrset(STATUS_LINE_ATTR->n_attr);
-	 move(StatusLineY,COLS-3);
-	 addch(' ');
-	 addch("-\\|/"[time(0)%4]);
-	 leaveok(stdscr,TRUE);
-	 flag=REDISPLAY_ALL;
-	 return;
-      }
-   }
-   skipped=0;
+   /* Upstream skipped the redraw while a key was already queued, and drew a
+      spinner instead. That was a latency hack against a terminal it had to
+      write bytes to; the Grid sends only the cells that changed. */
 
    int m=message_sp;
    if(ShowStatusLine==SHOW_BOTTOM && m>0)
@@ -248,9 +230,6 @@ void  ScrollBar(int check)
 }
 void  SetCursor()
 {
-   if(skipped)
-      return;
-
    ScrollBar(TRUE);
    if(in_hex_mode)
    {
@@ -977,15 +956,50 @@ struct  menu   OkMenu[]={
 {"   &Ok   ",MIDDLE,FDOWN-2},
 {NULL}};
 
+/* The error box records rather than blocks.
+ *
+ * Upstream put a modal Ok box up from here, and these three are called from
+ * sixty-eight places -- including the buffer primitives in kern.cpp, which are
+ * pure arithmetic and are called in tight loops. Blocking here would have made
+ * every one of them a coroutine. So the message is kept and co_await Edit()'s loop puts
+ * the box up on its next turn, which is the same box with the same text. */
+
+static char pending_error[256];
+
 void  ErrMsg(const char *s)
 {
-   ReadMenuBox(OkMenu,HORIZ,s," Error ",ERROR_WIN_ATTR,CURR_BUTTON_ATTR);
+   if(pending_error[0])   /* the first error is the one that explains */
+      return;
+   snprintf(pending_error,sizeof(pending_error),"%s",s);
+}
+
+Task<void>  ShowPendingError()
+{
+   if(!pending_error[0])
+      co_return;
+   /* Cleared first: the box reads a key, and what it does must not queue
+      another copy of this one. */
+   static char showing[sizeof(pending_error)];
+   strcpy(showing,pending_error);
+   pending_error[0]=0;
+   co_await ReadMenuBox(OkMenu,HORIZ,showing," Error ",ERROR_WIN_ATTR,CURR_BUTTON_ATTR);
+}
+
+bool  ErrorPending()
+{
+   return pending_error[0]!=0;
 }
 
 void  FError(const char *s)
 {
-   const char *err=errno?strerror(errno):"The device is full or ulimit is too low,\nI cannot write";
-   char  msg[256];
+   char err[64];
+   char msg[256];
+
+   if(errno)
+      snprintf(err,sizeof(err),"%.*s",(int)error_name(Error(errno)).size(),
+	       error_name(Error(errno)).data());
+   else
+      snprintf(err,sizeof(err),"The device is full,\nI cannot write");
 
    if(strlen(s)>50)
       snprintf(msg,sizeof(msg),"File: ...%s\n",s+strlen(s)-47);

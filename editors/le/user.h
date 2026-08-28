@@ -37,7 +37,7 @@ Task<void>  UserMarkAll();
 
 Task<void>  UserLineUp();
 Task<void>  UserLineDown();
-void  UserScrollUp();
+Task<void>  UserScrollUp();
 Task<void>  UserScrollDown();
 Task<void>  UserCharLeft();
 Task<void>  UserCharRight();
@@ -120,7 +120,7 @@ Task<void>  UserInsertCharCode();
 Task<void>  UserInsertWCharCode();
 Task<void>  UserInsertByteCode();
 
-void  UserInsertChar(char ch);
+Task<void>  UserInsertChar(char ch);
 void  UserInsertControlChar(char ch);
 void  UserReplaceChar(char ch);
 

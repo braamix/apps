@@ -111,7 +111,7 @@ void  PutWCh(int x,int y,wchar_t ch)
       attrset(curr_attr->n_attr);
    }
 }
-void  PutCCh(int x,int y,cchar_t *ch)
+void  PutCCh(int x,int y,const cchar_t *ch)
 {
    Absolute(&x,1,Upper->w);
    Absolute(&y,1,Upper->h);

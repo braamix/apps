@@ -23,7 +23,7 @@
 #include "keymap.h"
 
 #if 0
-void  Help(char ***h,char *title)
+Task<void>  Help(char ***h,char *title)
 {
    static   struct   menu
    c[]={
@@ -60,13 +60,13 @@ void  Help(char ***h,char *title)
       for(line=2; line<Upper->h-4 && h[page][line-2]; line++)
          PutStr(2,line,h[page][line-2]);
       if(page==0 && !h[1])
-         res=ReadMenu(c,HORIZ,HELP_WIN_ATTR,CURR_BUTTON_ATTR);
+         res=co_await ReadMenu(c,HORIZ,HELP_WIN_ATTR,CURR_BUTTON_ATTR);
       else if(page==0)
-         res=ReadMenu(nc,HORIZ,HELP_WIN_ATTR,CURR_BUTTON_ATTR);
+         res=co_await ReadMenu(nc,HORIZ,HELP_WIN_ATTR,CURR_BUTTON_ATTR);
       else if(!h[page+1])
-         res=ReadMenu(pc,HORIZ,HELP_WIN_ATTR,CURR_BUTTON_ATTR);
+         res=co_await ReadMenu(pc,HORIZ,HELP_WIN_ATTR,CURR_BUTTON_ATTR);
       else
-         res=ReadMenu(backward?pnc:npc,HORIZ,HELP_WIN_ATTR,CURR_BUTTON_ATTR);
+         res=co_await ReadMenu(backward?pnc:npc,HORIZ,HELP_WIN_ATTR,CURR_BUTTON_ATTR);
       switch(res)
       {
       case('C'):
@@ -104,8 +104,14 @@ static char *LoadHelp(const char *tag)
    char this_tag[256];
    bool tag_match=false;
    buf[255]=0;
-   while(fgets(buf,sizeof(buf)-1,hf)!=0)
+   String ln;
+   while((co_await hf->getline(ln,true)).value_or(false))
    {
+      {
+	 unsigned n=ln.size()<sizeof(buf)-1?ln.size():sizeof(buf)-1;
+	 memcpy(buf,ln.data(),n);
+	 buf[n]=0;
+      }
       usize used;
       Str tag=(buf[0]=='[')?scan_until(Str(buf+1,strlen(buf+1)),"]",used):Str();
       if(!tag.empty() && tag.size()<sizeof(this_tag)
@@ -115,7 +121,7 @@ static char *LoadHelp(const char *tag)
 	    co_await le_fclose(hf);
 	    co_return help;
 	 }
-	 if(!strcasecmp(tag,this_tag))
+	 if(!strncasecmp(tag.data(),this_tag,tag.size()) && strlen(this_tag)==tag.size())
 	    tag_match=true;
 	 continue;
       }
@@ -171,7 +177,7 @@ static char *LoadHelp(const char *tag)
    co_return 0;
 }
 
-void  Help(const char *helpf,const char *title)
+Task<void>  Help(const char *helpf,const char *title)
 {
    char *help=LoadHelp(helpf);
    if(!help)

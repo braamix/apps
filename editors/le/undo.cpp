@@ -99,7 +99,7 @@ void Undo::AddChange(Change *c)
 
    bool joined=false;
 
-   time_t now=time(0);
+   time_t now=(time_t)(proc_now()/1000);
    if(glue_changes && chain_tail
    && now>=last_change_time && now-last_change_time<=glue_max_time)
       joined=chain_tail->Join(c);

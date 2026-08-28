@@ -334,7 +334,7 @@ Task<void>  DumpDefaultColors(FILE *f)
 {
    DescribeColors(default_bw_pal,default_color_pal);
 
-   SaveConfToOpenFile(f,colors);
+   co_await SaveConfToOpenFile(f,colors);
 }
 
 void le_start_color()

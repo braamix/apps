@@ -57,7 +57,7 @@ Task<void>  ExpandAllTabs()
    {" &Cancel ",MIDDLE+6,FDOWN-2},
    {NULL}};
 
-   switch(ReadMenuBox(EATmenu,HORIZ,"ALL tab characters will be\nexpanded to spaces",
+   switch(co_await ReadMenuBox(EATmenu,HORIZ,"ALL tab characters will be\nexpanded to spaces",
       " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
    {
    case(0):
@@ -84,7 +84,7 @@ Task<void>  ExpandSpanTabs()
    {" &Cancel ",MIDDLE+6,FDOWN-2},
    {NULL}};
 
-   switch(ReadMenuBox(EATmenu,HORIZ,"Spans of tab characters will be\nexpanded to spaces + one tab",
+   switch(co_await ReadMenuBox(EATmenu,HORIZ,"Spans of tab characters will be\nexpanded to spaces + one tab",
       " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
    {
    case(0):
@@ -134,7 +134,7 @@ Task<void>  DOS_UNIX(void)
    {" &Cancel ",MIDDLE+10,FDOWN-2},
    {NULL}};
 
-   switch(ReadMenuBox(YesNoCancel,HORIZ,"Do you want to change EOLs?"," UNIX<->DOS ",
+   switch(co_await ReadMenuBox(YesNoCancel,HORIZ,"Do you want to change EOLs?"," UNIX<->DOS ",
       VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
    {
    case(0):

@@ -21,6 +21,7 @@
 #ifdef HAVE_SYS_MMAN_H
 #endif
 #include   "keymap.h"
+#include   "leio.h"
 #include   "edit.h"
 #include   "mb.h"
 #include   "undo.h"
@@ -463,7 +464,7 @@ int   CopyBlockOver(offs from,num size)
    return ERR;
 }
 
-int   ReadBlock(int fd,num size,num *act_read)
+Task<int>   ReadBlock(int fd,num size,num *act_read)
 {
    if(buffer_mmapped)
    {
@@ -551,7 +552,7 @@ Task<int>   ReadBlockOver(int fd,num size,num *act_read)
       free(buf);
       co_return res;
    }
-   if(ReadBlock(fd,size,act_read)==OK)
+   if(co_await ReadBlock(fd,size,act_read)==OK)
       co_return DeleteBlock(0,*act_read);
    co_return ERR;
 }
@@ -587,7 +588,7 @@ int   GetBlock(char *copy,offs from,num size)
 }
 
 // fight partial writes, count written bytes.
-int write_loop(int fd,const char *ptr,num size,num *written)
+Task<int> write_loop(int fd,const char *ptr,num size,num *written)
 {
    errno=0;
    while(size>0) {
@@ -603,7 +604,7 @@ int write_loop(int fd,const char *ptr,num size,num *written)
    co_return OK;
 }
 
-int   WriteBlock(int fd,offs from,num size,num *act_written)
+Task<int>   WriteBlock(int fd,offs from,num size,num *act_written)
 {
    *act_written=0;
 
@@ -616,19 +617,19 @@ int   WriteBlock(int fd,offs from,num size,num *act_written)
      size=Size()-from;
 
    if(size<=0)
-     return(OK);
+     co_return(OK);
 
    if(from>=ptr1)    // the region is completely on the right side
-      return write_loop(fd,buffer+from+ptr2-ptr1,size,act_written);
+      co_return co_await write_loop(fd,buffer+from+ptr2-ptr1,size,act_written);
 
    if(from+size<=ptr1)	// the region is completely on the left side
-      return write_loop(fd,buffer+from,size,act_written);
+      co_return co_await write_loop(fd,buffer+from,size,act_written);
 
    // the region is split by the gap
    num leftsize=ptr1-from;
-   if(write_loop(fd,buffer+from,leftsize,act_written)!=OK)
-      return ERR;
-   return write_loop(fd,buffer+ptr2,size-leftsize,act_written);
+   if(co_await write_loop(fd,buffer+from,leftsize,act_written)!=OK)
+      co_return ERR;
+   co_return co_await write_loop(fd,buffer+ptr2,size-leftsize,act_written);
 }
 
 int   DeleteBlock(num left,num right)

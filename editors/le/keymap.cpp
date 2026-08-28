@@ -730,7 +730,7 @@ Task<const char *> GetActionArgument(const char *prompt,History* history,const c
       NoMemory();
       co_return NULL;
    }
-   int res=getstring(prompt,*b,maxlen-1,history,len,help,title);
+   int res=co_await getstring(prompt,*b,maxlen-1,history,len,help,title);
    if(res==-1)
       co_return NULL;
    ActionArgument=*b;

@@ -61,9 +61,13 @@ void  HideAbout()
    about_window=NULL;
 }
 
-void PrintVersion()
+Task<void> PrintVersion()
 {
-   printf("%s - %s\n%s <%s>\n\n%s",Program,version_string,copyright,EMAIL,
+   char head[256];
+
+   snprintf(head,sizeof(head),"%s - %s\n%s <%s>\n\n",Program,version_string,copyright,EMAIL);
+   co_await File::stdout().write(Str(head,strlen(head)));
+   co_await File::stdout().write(
 "LE is free software: you can redistribute it and/or modify it\n"
 "under the terms of the GNU General Public License as published by\n"
 "the Free Software Foundation, either version 3 of the License, or\n"
@@ -76,4 +80,5 @@ void PrintVersion()
 "\n"
 "You should have received a copy of the GNU General Public License\n"
 "along with LE.  If not, see <http://www.gnu.org/licenses/>.\n");
+   co_await File::stdout().flush();
 }

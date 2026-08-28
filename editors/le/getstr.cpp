@@ -25,7 +25,7 @@
 #include "getch.h"
 #include "mb.h"
 
-int   getstring(const char *pr,char *buf,int maxlen,History* history,int *len,
+Task<int>   getstring(const char *pr,char *buf,int maxlen,History* history,int *len,
                 const char *help,const char *title)
 {
    int      pos,col,action,ch;
@@ -118,7 +118,7 @@ int   getstring(const char *pr,char *buf,int maxlen,History* history,int *len,
          case(EDITOR_HELP):
             if(!help)
                break;
-            Help(help,title);
+            co_await Help(help,title);
             break;
          case(CANCEL):
             co_return(-1);

@@ -25,7 +25,7 @@
  *
  * The autosave survives. It was already a resumable chunked state machine
  * driven by alarm(), which is what makes it fit: co_await AutoSaveTick() is the same
- * machine, called from Edit()'s loop between keystrokes rather than from a
+ * machine, called from co_await Edit()'s loop between keystrokes rather than from a
  * handler. */
 
 #include "config.h"
@@ -134,8 +134,8 @@ Task<void>    AutoSaveTick()
    if(modified==3)
    {
       num  act_written;
-      if(co_await WriteBlock(fd,dump_pos,(interrupted>5?Size()-dump_pos:chunk),
-			     &act_written)!=OK)
+      if((co_await WriteBlock(fd,dump_pos,(interrupted>5?Size()-dump_pos:chunk),
+			      &act_written))!=OK)
       {
       done:
 	 co_await le_close(fd);

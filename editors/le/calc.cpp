@@ -468,7 +468,7 @@ const char *calcerrmsg()
 }
 
 #ifdef   MAIN
-main(argc,argv)
+co_await main(argc,argv)
 char  **argv;
 {
    int   i;
@@ -486,6 +486,6 @@ char  **argv;
          printf("Error: %s\n",calcerrmsg());
    }
    while(1);
-   return(0);
+   co_return(0);
 }
 #endif

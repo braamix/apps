@@ -286,7 +286,7 @@ Task<void>  FormatAll()
    if(!undo.Enabled())
       strcat(message," (no undo)");
 
-   switch(ReadMenuBox(FAmenu,HORIZ,message,
+   switch(co_await ReadMenuBox(FAmenu,HORIZ,message,
       " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
    {
    case(0):
@@ -370,7 +370,7 @@ again:
    switch(action)
    {
    case(LINE_UP):
-       Task<co_await> UserLineUp();
+       co_await UserLineUp();
        goto again;
    case(LINE_DOWN):
        co_await UserLineDown();

@@ -37,7 +37,7 @@ public:
    int Paste(bool mark=false);
    int PasteAndMark() { return Paste(true); }
 
-   int Write(int fd);
+   Task<int> Write(int fd);
    int Linearize(char **buf,int *len);
 };
 

@@ -28,7 +28,6 @@
 #include "getch.h"
 #include "format.h"
 #include "colormnu.h"
-#include "mouse.h"
 #include "undo.h"
 
 bool ExplicitInitName=false;
@@ -272,7 +271,7 @@ const struct init colors[]=
    { NULL }
 };
 
-void  SaveConfToOpenFile(FILE *f,const struct init *init)
+Task<void>  SaveConfToOpenFile(FILE *f,const struct init *init)
 {
    const struct  init   *p;
 
@@ -287,7 +286,7 @@ void  SaveConfToOpenFile(FILE *f,const struct init *init)
    }
 }
 
-void  SaveConfToFile(const char *f,const struct init *init)
+Task<void>  SaveConfToFile(const char *f,const struct init *init)
 {
    FILE  *conf;
 
@@ -297,7 +296,7 @@ void  SaveConfToFile(const char *f,const struct init *init)
       FError(f);
       co_return;
    }
-   SaveConfToOpenFile(conf,init);
+   co_await SaveConfToOpenFile(conf,init);
    if(ferror(conf))
    {
       co_await le_fclose(conf);
@@ -307,10 +306,10 @@ void  SaveConfToFile(const char *f,const struct init *init)
    co_await le_fclose(conf);
 }
 
-void  SaveConf(const char *f)
+Task<void>  SaveConf(const char *f)
 {
    MessageSync("Saving the editor options...");
-   SaveConfToFile(f,init);
+   co_await SaveConfToFile(f,init);
    strcpy(InitName,f);
    ClearMessage();
 }
@@ -324,7 +323,7 @@ Task<void>  SaveTermOpt()
 #else
    snprintf(t,sizeof(t),"%s/le-%s",HOME,TERM);
 #endif
-   SaveConfToFile(t,term);
+   co_await SaveConfToFile(t,term);
    ClearMessage();
    co_return;
 }
@@ -335,7 +334,7 @@ void  fskip(FILE *f)
    while((i=getc(f))!=EOF && i!='\n');
 }
 
-void  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
+Task<void>  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
 {
    const struct init *ptr;
    int    i;
@@ -408,13 +407,13 @@ void  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
    }
 }
 
-void  ReadConfFromFile(const char *ini,const struct init *init,bool mine)
+Task<void>  ReadConfFromFile(const char *ini,const struct init *init,bool mine)
 {
    FILE  *f;
    f=co_await le_fopen(ini,false);
    if(f==NULL)
       co_return;
-   ReadConfFromOpenFile(f,init,mine);
+   co_await ReadConfFromOpenFile(f,init,mine);
    co_await le_fclose(f);
 }
 
@@ -435,7 +434,7 @@ static bool ConfOK(const char *f,bool mine)
    co_return true;
 }
 
-void  ReadConf()
+Task<void>  ReadConf()
 {
    char  t[256];
 
@@ -453,10 +452,10 @@ void  ReadConf()
             snprintf(t,sizeof(t),"%s/term",PKGDATADIR);
       }
    }
-   ReadConfFromFile(t,term,false);
+   co_await ReadConfFromFile(t,term,false);
 
    if(chset[0]=='7') // workaround for older version
-      init_chset();
+      co_await init_chset();
 
    snprintf(t,sizeof(t),"%s/.le/colors-%s",HOME,TERM);
    if(!ConfOK(t,false))
@@ -469,7 +468,7 @@ void  ReadConf()
 	    snprintf(t,sizeof(t),"%s/colors",PKGDATADIR);
       }
    }
-   ReadConfFromFile(t,colors,false);
+   co_await ReadConfFromFile(t,colors,false);
    ParseColors();
 
    mine=false;
@@ -482,22 +481,22 @@ void  ReadConf()
 	 if(!ConfOK(InitName,mine=false))
 	 {
 	    snprintf(t,sizeof(t),"%s/le.ini",PKGDATADIR);
-	    ReadConfFromFile(t,init,false);
+	    co_await ReadConfFromFile(t,init,false);
 	    goto ini_done;
 	 }
       }
    }
-   ReadConfFromFile(InitName,init,mine);
+   co_await ReadConfFromFile(InitName,init,mine);
 
 ini_done:
 
 #else
    snprintf(t,sizeof(t),"%s/le-%s",HOME,TERM);
-   ReadConfFromFile(t,term,false);
+   co_await ReadConfFromFile(t,term,false);
    strcpy(InitName,"le.ini");
    if(co_await le_access(InitName,R_OK)==-1)
      snprintf(InitName,sizeof(InitName),"%s/le.ini",HOME);
-   ReadConfFromFile(InitName,init,false);
+   co_await ReadConfFromFile(InitName,init,false);
 #endif
 
    CorrectParameters();
@@ -678,7 +677,7 @@ static bool InOptField(int y,int x,struct opt *o)
 }
 #endif /* WITH_MOUSE */
 
-void  W_Dialogue(struct opt *opt,
+Task<void>  W_Dialogue(struct opt *opt,
              const char *SetupHelp,const char *SetupTitle,
              int (*EatKey)(int),int (*HandleButton)(const char *,int))
 {
@@ -828,7 +827,7 @@ use_key:
          goto leave_cycle;
       case(EDITOR_HELP):
          if(SetupHelp)
-            Help(SetupHelp,SetupTitle);
+            co_await Help(SetupHelp,SetupTitle);
          break;
       case(CHAR_LEFT):
       case(CHAR_RIGHT):
@@ -1067,7 +1066,7 @@ leave_cycle:
    idlok(stdscr,useidl);
 }
 
-void  Dialogue(struct opt *opt,int WinWidth,int WinHeight,const char *WinTitle,
+Task<void>  Dialogue(struct opt *opt,int WinWidth,int WinHeight,const char *WinTitle,
              const char *SetupHelp,const char *SetupTitle,
              int (*EatKey)(int),int (*HandleButton)(const char *,int))
 {
@@ -1075,17 +1074,17 @@ void  Dialogue(struct opt *opt,int WinWidth,int WinHeight,const char *WinTitle,
    optw=CreateWin(MIDDLE,MIDDLE,WinWidth,WinHeight,DIALOGUE_WIN_ATTR,WinTitle,0);
    DisplayWin(optw);
 
-   W_Dialogue(opt,SetupHelp,SetupTitle,EatKey,HandleButton);
+   co_await W_Dialogue(opt,SetupHelp,SetupTitle,EatKey,HandleButton);
 
    CloseWin();
    DestroyWin(optw);
 }
 
-int    OptEatKey(int k)
+Task<int>    OptEatKey(int k)
 {
    if(k==SAVE_FILE)
    {
-      SaveConf(InitName);
+      co_await SaveConf(InitName);
       co_return(NEWLINE);
    }
    if(k==SAVE_FILE_AS)
@@ -1103,22 +1102,22 @@ int    OptHandleBut(const char *,int)
 
 Task<void>  Options()
 {
-   Dialogue(opt,68,17," Options ","OptionsHelp"," Setup Help ",OptEatKey,OptHandleBut);
+   co_await Dialogue(opt,68,17," Options ","OptionsHelp"," Setup Help ",OptEatKey,OptHandleBut);
    co_return;
 }
 
 Task<void>  SaveOpt()
 {
 #ifndef __MSDOS__
-   SaveConf(".le.ini");
+   co_await SaveConf(".le.ini");
 #else
-   SaveConf("le.ini");
+   co_await SaveConf("le.ini");
 #endif
    co_return;
 }
 Task<void>  UpdtOpt()
 {
-   SaveConf(InitName);
+   co_await SaveConf(InitName);
    co_return;
 }
 int   TOEatKey(int k)
@@ -1132,34 +1131,34 @@ int   TOHandleBut(const char *,int)
 }
 Task<void>  TermOpt(void)
 {
-   Dialogue(TOpt,70,11," Terminal Options ",NULL,NULL,TOEatKey,TOHandleBut);
+   co_await Dialogue(TOpt,70,11," Terminal Options ",NULL,NULL,TOEatKey,TOHandleBut);
    RebuildKeyTree();
    co_return;
 }
 Task<void>  FormatOptions(void)
 {
-   Dialogue(FormatOpt,30,12," Format Options ",NULL,NULL,TOEatKey,TOHandleBut);
+   co_await Dialogue(FormatOpt,30,12," Format Options ",NULL,NULL,TOEatKey,TOHandleBut);
    co_return;
 }
 Task<void>  AppearOpt(void)
 {
-   Dialogue(AppearOptTbl,26,11," Appearance Options ",NULL,NULL,TOEatKey,TOHandleBut);
+   co_await Dialogue(AppearOptTbl,26,11," Appearance Options ",NULL,NULL,TOEatKey,TOHandleBut);
    co_return;
 }
 Task<void>  ProgOpt(void)
 {
-   Dialogue(ProgOptTbl,70,9," External Programs ",NULL,NULL,TOEatKey,TOHandleBut);
+   co_await Dialogue(ProgOptTbl,70,9," External Programs ",NULL,NULL,TOEatKey,TOHandleBut);
    co_return;
 }
 Task<void>  UndoOpt(void)
 {
-   Dialogue(UndoOptTbl,40,8," Undo Options ",NULL,NULL,TOEatKey,TOHandleBut);
+   co_await Dialogue(UndoOptTbl,40,8," Undo Options ",NULL,NULL,TOEatKey,TOHandleBut);
    co_return;
 }
 
 static int bg,fg,c_bold,c_rev,c_ul,c_dim,b_bold,b_rev,b_ul,b_dim;
 
-void  EditColor(color *cp,color *bp)
+Task<void>  EditColor(color *cp,color *bp)
 {
    static struct opt color_opt[]=
    {
@@ -1220,7 +1219,7 @@ void  EditColor(color *cp,color *bp)
    PutStr(33,2,"Color options");
    PutStr(48,2,"B/W attributes");
 
-   W_Dialogue(color_opt,NULL,NULL,TOEatKey,TOHandleBut);
+   co_await W_Dialogue(color_opt,NULL,NULL,TOEatKey,TOHandleBut);
 
    CloseWin();
    DestroyWin(w);
@@ -1235,7 +1234,7 @@ static color new_color_pal[MAX_COLOR_NO+1];
 static color new_bw_pal[MAX_COLOR_NO+1];
 static bool color_applied;
 
-int ColorHandleBut(const char *button,int index)
+Task<int> ColorHandleBut(const char *button,int index)
 {
    static int color_xlat[]={
       NORMAL_TEXT,BLOCK_TEXT,STATUS_LINE,SCROLL_BAR,ERROR_WIN,VERIFY_WIN,
@@ -1244,7 +1243,7 @@ int ColorHandleBut(const char *button,int index)
    if(index<(int)(sizeof(color_xlat)/sizeof(*color_xlat)))
    {
       int color_no=color_xlat[index];
-      EditColor(FindColor(new_color_pal,color_no),
+      co_await EditColor(FindColor(new_color_pal,color_no),
                 FindColor(new_bw_pal,color_no));
       co_return -1;
    }
@@ -1287,7 +1286,7 @@ Task<void>  ColorsOpt()
 
    color_applied=false;
 
-   Dialogue(m,42,15," Select color to tune ",NULL,NULL,TOEatKey,ColorHandleBut);
+   co_await Dialogue(m,42,15," Select color to tune ",NULL,NULL,TOEatKey,ColorHandleBut);
 
    if(color_applied)
    {

@@ -169,16 +169,17 @@ bool  IsAlNumAt(offs);
 
 long  getcode(const char *prompt);
 int   getcode_char();
-int   AskToSave();
+Task<int>   AskToSave();
 Task<void>  Quit(void);
 
-void  InstallSignalHandlers(void);
+Task<void>  InstallSignalHandlers(void);
 void  ReleaseSignalHandlers(void);
+// The autosave, asked from Edit()'s loop; upstream had an alarm.
+Task<void>  AutoSaveTick(void);
 Task<void>  SuspendEditor();
 void  BlockSignals();
 void  UnblockSignals();
 char *TmpFileName();
-char *HupFileName(int sig);
 
 extern bool buffer_mmapped;
 
@@ -193,7 +194,7 @@ void        ToLineBegin(void);
 void        ToLineEnd(void);
 void        DeleteEOL(void);
 void        DeleteLine(void);
-int         getstring(const char *prompt,char *buf,int maxlen,History *history=NULL,
+Task<int>         getstring(const char *prompt,char *buf,int maxlen,History *history=NULL,
                       int *len=NULL,const char *help=NULL,const char *help_title=NULL);
 void        FError(const char *filename);
 void        NoMemory();
@@ -204,19 +205,23 @@ char        *GetWord();
 int         GetSpace(num amount);
 
 Task<void>        EmptyText();
-int         LoadFile(char *name);
+Task<int>         LoadFile(char *name);
 Task<int>         SaveFile(char *name);
 Task<int>	    ReopenRW();
 void	    SavePosition();   // put current pos to history
 
-void        Initialize();
-void        Terminate();
+Task<void>        Initialize();
+Task<void>        Terminate();
 
-void        Edit();
+Task<void>        Edit();
 
-int         LockFile(int fd,bool drop_write_lock);
-int         CheckMode(mode_t);
-int	    file_check(const char *);	 /* checks existence or ability to create */
+/* exit() cannot unwind a coroutine, so leaving is a flag: Terminate() raises
+   it and Edit()'s loop falls out. */
+extern int quitting;
+
+Task<int>         LockFile(int fd,bool drop_write_lock);
+Task<int>         CheckMode(mode_t);
+Task<int>	    file_check(const char *);	 /* checks existence or ability to create */
 
 void    DeleteToEOL();
 void    DeleteToBOL();
@@ -224,11 +229,11 @@ Task<void>    DrawFrames();
 Task<void>    ExpandAllTabs();
 Task<void>	ExpandSpanTabs();
 Task<void>    Options();
-void    ReadConf();
+Task<void>    ReadConf();
 Task<void>    editcalc();
 void    CorrectParameters();
 
-void  InitCurses();
+Task<void>  InitCurses();
 void  TermCurses();
 
 void    _clrtoeol(void);
@@ -288,10 +293,10 @@ int   InsertBlock(const char *block,num len,const char *rblock=NULL,num rlen=0);
 int   ReplaceBlock(const char *block,num len);
 int   CopyBlock(offs from,num len);
 int   CopyBlockOver(offs from,num len);
-int   ReadBlock(int fd,num len,num *act_read);
+Task<int>   ReadBlock(int fd,num len,num *act_read);
 Task<int>   ReadBlockOver(int fd,num len,num *act_read);
 Task<int>   ReplaceTextFromFile(int fd,num len,num *act_read);
-int   WriteBlock(int fd,offs from,num len,num *act_written);
+Task<int>   WriteBlock(int fd,offs from,num len,num *act_written);
 int   DeleteBlock(num left,num right);
 int   GetBlock(char *copy,offs from,num size);
 int   Undelete();
@@ -300,8 +305,8 @@ offs  ScanForCharForward(offs start,byte ch);
 void  InsertAutoindent(num oldcol);
 offs  FindMatch(char op);
 
-void  Help(const char *help,const char *title);
-/*void  Help(char ***help,char *title);*/
+Task<void>  Help(const char *help,const char *title);
+/*Task<void>  Help(char ***help,char *title);*/
 
 Task<void>  ActivateMainMenu();
 
@@ -355,13 +360,13 @@ bool BlockEqAt(offs,const char *,int);
 
 int   isslash(char);
 
-int write_loop(int fd,const char *ptr,num size,num *written);
+Task<int> write_loop(int fd,const char *ptr,num size,num *written);
 
 static inline bool E_AGAIN(const int e) {
    return (e==EAGAIN || e==EWOULDBLOCK || e==EINTR);
 }
 
-void  ProcessDragMark();
+Task<void>  ProcessDragMark();
 
 #if ! defined __builtin_expect && __GNUC__ < 3
 # define __builtin_expect(expr, expected) (expr)

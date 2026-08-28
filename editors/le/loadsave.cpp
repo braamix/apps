@@ -46,7 +46,7 @@
 #endif
 
 #ifndef DISABLE_FILE_LOCKS
-int    LockFile(int fd,bool drop)
+Task<int>    LockFile(int fd,bool drop)
 {
    struct  flock   Lock;
    Lock.l_start=0;
@@ -79,7 +79,7 @@ int    LockFile(int fd,bool drop)
          co_await le_fstat(fd,&st);
 
          snprintf(msg,sizeof(msg),"This file is already locked by process %ld",(long)Lock1.l_pid);
-         switch(ReadMenuBox(LockEnforce(st.st_mode)?
+         switch(co_await ReadMenuBox(LockEnforce(st.st_mode)?
             LockMenu1:LockMenu,HORIZ,msg," Lock Error ",
 	    VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
          {
@@ -93,7 +93,7 @@ int    LockFile(int fd,bool drop)
             errno=EACCES;
             while(fcntl(fd,F_SETLK,&Lock)==-1 && (errno==EACCES || errno==EAGAIN))
             {
-	       if(Task<co_await> co_await WaitForKey(1000)!=ERR)
+	       if(co_await WaitForKey(1000)!=ERR)
 	       {
 		  int action=co_await GetNextAction();
 		  if(action==CANCEL)
@@ -121,9 +121,9 @@ int    LockFile(int fd,bool drop)
    co_return(0);
 }
 #else /* DISABLE_FILE_LOCKS */
-int   LockFile(int,bool)
+Task<int>   LockFile(int,bool)
 {
-   return 0;
+   co_return 0;
 }
 #endif /* DISABLE_FILE_LOCKS */
 
@@ -197,7 +197,7 @@ const char *GetDefaultEol()
    return eol;
 }
 
-int   LoadFile(char *name)
+Task<int>   LoadFile(char *name)
 {
    struct stat    st;
    num    act_read;
@@ -208,7 +208,7 @@ int   LoadFile(char *name)
    if(!hide)
       MainClipBoard.Copy();
 
-   Task<co_await> EmptyText();
+   co_await EmptyText();
    ResetBookmarks();
 
    flag=REDISPLAY_ALL;
@@ -235,7 +235,7 @@ int   LoadFile(char *name)
 	 || S_ISFIFO(FileMode))
       {
 	 ErrMsg("This is a special file or a pipe\nthat I cannot edit.");
-	 Task<co_await> EmptyText();
+	 co_await EmptyText();
 	 co_return(ERR);
       }
       if(S_ISDIR(FileMode))
@@ -254,7 +254,7 @@ int   LoadFile(char *name)
 	 ErrMsg("Cannot create the file.\n"
 		"The directory does not exist or is not accessible\n"
 	        "or does not permit writing");
-	 Task<co_await> EmptyText();
+	 co_await EmptyText();
 	 co_return(ERR);
       }
    }
@@ -271,7 +271,7 @@ int   LoadFile(char *name)
    if(file==-1)
    {
       FError(open_name);
-      Task<co_await> EmptyText();
+      co_await EmptyText();
       co_return(ERR);
    }
 
@@ -281,12 +281,12 @@ int   LoadFile(char *name)
 
    if(!View)
    {
-      int lock_res=LockFile(file,true);
+      int lock_res=co_await LockFile(file,true);
       if(lock_res==-1)
       {
 	 co_await le_close(file);
 	 file=-1;
-	 Task<co_await> EmptyText();
+	 co_await EmptyText();
          co_return(ERR);
       }
       if(lock_res==-2)
@@ -299,7 +299,7 @@ int   LoadFile(char *name)
       {
 	 if(errno)
 	    FError(name);
-	 Task<co_await> EmptyText();
+	 co_await EmptyText();
 	 co_return(ERR);
       }
       CheckPoint();
@@ -341,7 +341,7 @@ int   LoadFile(char *name)
 	    if((off_t)mmap_len!=st.st_size) {
 	       errno=ENOMEM;
 	       FError(name);
-	       Task<co_await> EmptyText();
+	       co_await EmptyText();
 	       co_return ERR;
 	    }
 	 }
@@ -351,7 +351,7 @@ int   LoadFile(char *name)
 	 {
 	    buffer=0;
 	    FError(name);
-	    Task<co_await> EmptyText();
+	    co_await EmptyText();
 	    co_return ERR;
 	 }
 	 BufferSize=mmap_len;
@@ -397,7 +397,7 @@ int   LoadFile(char *name)
    CenterView();
 
    /* Upstream armed an alarm here; co_await AutoSaveTick() is asked instead, from
-      Edit()'s loop between keystrokes. */
+      co_await Edit()'s loop between keystrokes. */
    co_return(OK);
 }
 
@@ -540,7 +540,7 @@ static Task<int> CreateBak(char *name)
          }
          if(bytesread==0)
             break;
-         if(write_loop(bfd,buf2,bytesread,&written)==ERR)
+         if(co_await write_loop(bfd,buf2,bytesread,&written)==ERR)
 	 {
 	    FError(bakname);
 	    res=ERR;
@@ -561,14 +561,14 @@ static Task<int> CreateBak(char *name)
    co_return res;
 }
 
-int CheckMode(mode_t mode)
+Task<int> CheckMode(mode_t mode)
 {
    if((mode&S_IFMT)!=S_IFREG)
    {
      ErrMsg("This is not a regular file");
-     return(0);
+     co_return(0);
    }
-   return(1);
+   co_return(1);
 }
 
 Task<int>   SaveFile(char *name)
@@ -593,7 +593,7 @@ Task<int>   SaveFile(char *name)
 
    if(co_await le_stat(name,&st)!=-1)
    {
-      if(!CheckMode(st.st_mode))
+      if(!co_await CheckMode(st.st_mode))
          co_return(ERR);
 
       InodeInfo   NewFileInfo(&st,GetLine(),GetCol());
@@ -605,7 +605,7 @@ Task<int>   SaveFile(char *name)
 
 	 if(FileInfo.SameFileModified(NewFileInfo))
 	 {
-	    switch(ReadMenuBox(ConCan4Menu,HORIZ,"The file was changed out of the editor",
+	    switch(co_await ReadMenuBox(ConCan4Menu,HORIZ,"The file was changed out of the editor",
 		     " Warning ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
 	    {
 	    case('C'):
@@ -615,7 +615,7 @@ Task<int>   SaveFile(char *name)
 	 }
 	 else if(!FileInfo.SameFile(NewFileInfo))
 	 {
-	    switch(ReadMenuBox(ConCan4Menu,HORIZ,"The file already exists and will be overwritten",
+	    switch(co_await ReadMenuBox(ConCan4Menu,HORIZ,"The file already exists and will be overwritten",
 		     " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
 	    {
 	    case('C'):
@@ -630,7 +630,7 @@ Task<int>   SaveFile(char *name)
       {
 	 if(co_await CreateBak(name)!=OK)
 	 {
-	    switch(ReadMenuBox(ConCan4Menu,HORIZ,"Cannot create backup file",
+	    switch(co_await ReadMenuBox(ConCan4Menu,HORIZ,"Cannot create backup file",
 		     " Warning ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
 	    {
 	    case('C'):
@@ -666,7 +666,7 @@ Task<int>   SaveFile(char *name)
      co_return(ERR);
    }
 
-   int lock_res=LockFile(nfile,false);
+   int lock_res=co_await LockFile(nfile,false);
    if(lock_res==-1)
    {
      co_await le_close(nfile);
@@ -688,7 +688,7 @@ Task<int>   SaveFile(char *name)
 
    /* now, after all that stuff, write the buffer contents */
    errno=0;
-   if(WriteBlock(nfile,0,Size(),&act_written)!=OK)
+   if(co_await WriteBlock(nfile,0,Size(),&act_written)!=OK)
    {
      if(errno)
        FError(name);
@@ -718,7 +718,7 @@ Task<int>   SaveFile(char *name)
 
    co_await le_close(file);
    file=nfile;
-   LockFile(file,true);
+   co_await LockFile(file,true);
 
    if(delete_old_file)
    {
@@ -761,7 +761,7 @@ Task<int>   ReopenRW()
    offs oldpos=CurrentPos;
    int oldhide=hide;
 
-   int res=LoadFile(name);
+   int res=co_await LoadFile(name);
    if(res==OK)
    {
       BlockBegin=oldbb;

@@ -21,7 +21,7 @@
 
 extern	 byte  chset[CHSET_SIZE+1];
 
-void  init_chset();
+Task<void>  init_chset();
 Task<void>  set_chset_8bit();
 Task<void>  set_chset_8bit_noctrl();
 

@@ -39,6 +39,12 @@ int iswprint(wint_t c);
 int iswupper(wint_t c);
 int iswlower(wint_t c);
 wint_t towupper(wint_t c);
+
+// wctrans is the locale's named case mappings. There is one locale here, so a
+// transform is the function itself rather than a name to look up.
+typedef wint_t (*wctrans_t)(wint_t);
+wctrans_t wctrans(const char *name);
+wint_t towctrans(wint_t c, wctrans_t t);
 wint_t towlower(wint_t c);
 
 } // extern "C"

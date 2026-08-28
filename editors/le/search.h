@@ -16,7 +16,7 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-void     NotFound();
+Task<void>     NotFound();
 int      CharMatch();
 int      Match1();
 int      Match();

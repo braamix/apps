@@ -257,12 +257,12 @@ int move(int y, int x)
     return OK;
 }
 
-int getcury()
+int getcury(WINDOW *)
 {
     return cy;
 }
 
-int getcurx()
+int getcurx(WINDOW *)
 {
     return cx;
 }

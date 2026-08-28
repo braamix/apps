@@ -55,7 +55,7 @@ Task<void>  editcalc()
          }
       }
 
-      if(getstring("Expression: ",expr,sizeof(expr)-1,&CalcHistory,NULL,"CalcHelp"," Calculator Help ")<1)
+      if(co_await getstring("Expression: ",expr,sizeof(expr)-1,&CalcHistory,NULL,"CalcHelp"," Calculator Help ")<1)
          break;
       if(!strcmp(expr,"ins"))
       {

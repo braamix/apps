@@ -259,7 +259,7 @@ Task<void>    DrawFrames(void)
       switch(action)
       {
       case(EDITOR_HELP):
-         Help("FramesHelp"," Frame-Drawing Help ");
+         co_await Help("FramesHelp"," Frame-Drawing Help ");
          break;
       case(CHAR_LEFT):
          Draw(-1,0,curr_frame);

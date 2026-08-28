@@ -58,6 +58,6 @@ void    CheckBlock();
 
 void  PrefixIndent(const char *,num);
 
-int OptionallyConvertBlockNewLines(const char *bname);
+Task<int> OptionallyConvertBlockNewLines(const char *bname);
 
 extern TextPoint *DragMark;

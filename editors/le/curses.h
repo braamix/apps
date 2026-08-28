@@ -130,8 +130,8 @@ int clearok(WINDOW *win, bool on);
 int curs_set(int visibility);
 
 int move(int y, int x);
-int getcury();
-int getcurx();
+int getcury(WINDOW *win = nullptr);
+int getcurx(WINDOW *win = nullptr);
 #define getyx(win, y, x) ((void)(win), (y) = getcury(), (x) = getcurx())
 
 int attrset(chtype a);

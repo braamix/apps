@@ -71,7 +71,7 @@ void  display(const struct menu *mi,const attr *a)
    DisplayItem(mi->x,mi->y,mi->text,a);
 }
 
-int   ReadMenu(const struct menu *m,int dir,const attr *a,const attr *ca,int curr)
+Task<int>   ReadMenu(const struct menu *m,int dir,const attr *a,const attr *ca,int curr)
 {
    int   i,action,key;
 
@@ -174,7 +174,7 @@ void  GetTextGeometry(const char *s,int *w,int *h)
    }
 }
 
-int   ReadMenuBox(struct menu *m,int dir,const char *msg,const char *title,
+Task<int>   ReadMenuBox(struct menu *m,int dir,const char *msg,const char *title,
 		  const attr *a,const attr *a1)
 {
    int	 w,h;
@@ -202,7 +202,7 @@ int   ReadMenuBox(struct menu *m,int dir,const char *msg,const char *title,
 	 h+=1;
    }
    else
-      abort();
+      __builtin_trap();
 
    WIN *win=CreateWin(MIDDLE,MIDDLE,w+4,h+4,a,title);
    // get adjusted window size
@@ -219,13 +219,13 @@ int   ReadMenuBox(struct menu *m,int dir,const char *msg,const char *title,
       }
    }
    else
-      abort();
+      __builtin_trap();
 
    DisplayWin(win);
    PutStr(2,2,msg);
-   int res=ReadMenu(m,dir,a,a1);
+   int res=co_await ReadMenu(m,dir,a,a1);
    CloseWin();
    DestroyWin(win);
 
-   return(res);
+   co_return(res);
 }

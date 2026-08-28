@@ -26,6 +26,7 @@
 #endif
 
 #include "edit.h"
+#include "proc/io.h"
 #include "leio.h"
 #include "keymap.h"
 
@@ -118,7 +119,7 @@ int    entry_compare(struct entry *a,struct entry *b)
    return(diff);
 }
 
-void  condense(char *filename)
+Task<void>  condense(char *filename)
 {
    int    filenamelen;
    char  *scan;
@@ -250,7 +251,7 @@ void  condense(char *filename)
    free(point);
 }
 
-int ChooseFileName(char *fn, unsigned fn_size)
+Task<int> ChooseFileName(char *fn, unsigned fn_size)
 {
    char	    *a;
    static WIN *w=NULL;
@@ -262,8 +263,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
    char     str1[300];
    int      i,l;
    int      dirsize;
-   DIR      *dd;
-   struct dirent *entry;
+   Vec<DirEntry> ents;
    char     drive[3]="";
 
 #ifdef MSDOS
@@ -314,7 +314,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
    if(*a==0) /* there is no wildcards */
    {
       LoadHistory-=fn;
-      condense(directory);
+      co_await condense(directory);
       for(a=filename; *a; a++)
          if(*a=='\\' && a[1])
             memmove(a,a+1,strlen(a));  /* delete backslashes */
@@ -333,7 +333,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
 
    do
    {
-      condense(directory);
+      co_await condense(directory);
       if(co_await le_stat(directory,&st)==-1)
       {
          FError(directory);
@@ -357,45 +357,60 @@ int ChooseFileName(char *fn, unsigned fn_size)
       PutStr(MIDDLE,FDOWN-1,"READING");
       refresh();
 
-      dd=opendir(directory);
-      if(!dd)
+      /* One listing rather than opendir/readdir/rewinddir, and .. is not in
+	 it -- a listing never resolves -- so it is put in front by hand. */
       {
-         FError(directory);
-         CloseWin();
-         DestroyWin(w);
-	 co_return(-1);
+	 Result<Vec<DirEntry>> r=Err(Error::NoMemory);
+	 if(Task<Result<Vec<DirEntry>>> t=list_dir(Str(directory,strlen(directory))))
+	    r=co_await t;
+	 if(r.is_err())
+	 {
+	    FError(directory);
+	    CloseWin();
+	    DestroyWin(w);
+	    co_return(-1);
+	 }
+	 ents=move(r.value());
       }
-      dirsize=0;
-      while(readdir(dd))
-         dirsize++;
+      dirsize=(int)ents.size()+1;
       dir=(struct entry*)malloc(dirsize*sizeof(*dir));
       if(dir==NULL)
       {
          NotMemory();
          CloseWin();
          DestroyWin(w);
-	 closedir(dd);
          co_return(-1);
       }
-      rewinddir(dd);
       for(i=0; i<dirsize; i++)
       {
-         entry=readdir(dd);
-         if(entry==NULL)
-         {
-            dirsize=i;
-            break;
-         }
-         snprintf(str,sizeof(str),"%s/%s",directory,entry->d_name);
+	 const char *d_name;
+	 char namebuf[256];
+
+	 if(i==0)
+	    d_name="..";
+	 else
+	 {
+	    Str nm=ents[i-1].name.str();
+	    if(nm.size()>=sizeof(namebuf))
+	    {
+	       i--;
+	       dirsize--;
+	       continue;
+	    }
+	    memcpy(namebuf,nm.data(),nm.size());
+	    namebuf[nm.size()]=0;
+	    d_name=namebuf;
+	 }
+         snprintf(str,sizeof(str),"%s/%s",directory,d_name);
          if(co_await le_stat(str,&(dir[i].st))==-1
-         || ((dir[i].st.st_mode&S_IFMT)==S_IFREG && fnmatch(filename,entry->d_name,0)!=0)
+         || ((dir[i].st.st_mode&S_IFMT)==S_IFREG && fnmatch(filename,d_name,0)!=0)
          || ((dir[i].st.st_mode&S_IFMT)!=S_IFREG && (dir[i].st.st_mode&S_IFMT)!=S_IFDIR)
-         || !strcmp(entry->d_name,"."))
+         || !strcmp(d_name,"."))
          {
             i--;
             continue;
          }
-         dir[i].name=strdup(entry->d_name);
+         dir[i].name=strdup(d_name);
          if(dir[i].name==NULL)
          {
             for(i=i-1; i>=0; i--)
@@ -404,11 +419,9 @@ int ChooseFileName(char *fn, unsigned fn_size)
             NotMemory();
             CloseWin();
             DestroyWin(w);
-	    closedir(dd);
             co_return(-1);
          }
       }
-      closedir(dd);
 
       qsort(dir,dirsize,sizeof(*dir),(int (*)(const void*,const void*))entry_compare);
 

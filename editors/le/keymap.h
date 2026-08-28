@@ -21,6 +21,7 @@
 
 #include "action-enum.h"
 #include "kernel/task.h"
+#include "lefile.h"
 
 // some compatibility defines
 #define CHAR_LEFT	A_BACKWARD_CHAR

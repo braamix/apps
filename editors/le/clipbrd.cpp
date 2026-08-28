@@ -318,7 +318,7 @@ int ClipBoard::Paste(bool mark)
    return true;
 }
 
-int ClipBoard::Write(int fd)
+Task<int> ClipBoard::Write(int fd)
 {
    if(!text)
       co_return 0;

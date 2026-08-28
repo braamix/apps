@@ -352,7 +352,7 @@ Task<void>    Write()
    if(hide)
        co_return;
 
-   if(getstring("Write to: ",BlockFile,sizeof(BlockFile)-1,&LoadHistory,0,
+   if(co_await getstring("Write to: ",BlockFile,sizeof(BlockFile)-1,&LoadHistory,0,
 	 "WriteBlockHelp"," Write Block Help ")<1)
        co_return;
    if(BlockFile[0]=='|')
@@ -363,7 +363,7 @@ Task<void>    Write()
       co_await PipeBlock(BlockFile+1,/*IN*/FALSE,/*OUT*/TRUE);
       co_return;
    }
-   if(ChooseFileName(BlockFile,sizeof(BlockFile))<0)
+   if(co_await ChooseFileName(BlockFile,sizeof(BlockFile))<0)
       co_return;
    LoadHistory.Push();
 
@@ -378,7 +378,7 @@ Task<void>    Write()
    }
    else
    {
-       if(!(st.st_mode&S_IFCHR) && !CheckMode(st.st_mode))
+       if(!(st.st_mode&S_IFCHR) && !co_await CheckMode(st.st_mode))
            co_return;
        if(FileInfo.SameFile(InodeInfo(&st)))
        {
@@ -395,7 +395,7 @@ Task<void>    Write()
            FError(BlockFile);
            co_return;
        }
-       if(LockFile(fd,false)==-1)    /* check if the file is already locked */
+       if(co_await LockFile(fd,false)==-1)    /* check if the file is already locked */
        {
            co_await le_close(fd);
            co_return;
@@ -405,7 +405,7 @@ Task<void>    Write()
        static struct menu OverwrMenu[]={
        { " &Overwrite "},{ "  &Append  "},{ "  &Cancel  "},
        {NULL}};
-       switch(ReadMenuBox(OverwrMenu,HORIZ,"The file to write already exists",
+       switch(co_await ReadMenuBox(OverwrMenu,HORIZ,"The file to write already exists",
 	 " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
        {
        case('C'):
@@ -434,25 +434,25 @@ Task<void>    Write()
          co_return;
       }
       errno=0;
-      res=cb.co_await Write(fd);
+      res=co_await cb.Write(fd);
    }
    else
    {
       errno=0;
-      res=WriteBlock(fd,BlockBegin,BlockEnd-BlockBegin,&act_written);
+      res=co_await WriteBlock(fd,BlockBegin,BlockEnd-BlockBegin,&act_written);
    }
    if(res<0)
       FError(BlockFile);
    co_await le_close(fd);
 }
 
-int OptionallyConvertBlockNewLines(const char *bname)
+Task<int> OptionallyConvertBlockNewLines(const char *bname)
 {
    TextPoint old=CurrentPos;
 
    int block_size=BlockEnd-BlockBegin;
    if(buffer_mmapped || rblock || in_hex_mode || block_size<EolSize)
-      return 1;
+      co_return 1;
 
    num   dos_nl,unix_nl,mac_nl;
    CountNewLines(BlockBegin,block_size,&unix_nl,&dos_nl,&mac_nl);
@@ -465,7 +465,7 @@ int OptionallyConvertBlockNewLines(const char *bname)
       snprintf(msg,sizeof(msg),"The %s block looks like it is in UNIX format,\n"
 		  "whereas the current text is in DOS format\n"
 		  "Do you wish to convert the block?",bname);
-      switch(ReadMenuBox(ynMenu,HORIZ,msg,
+      switch(co_await ReadMenuBox(ynMenu,HORIZ,msg,
 	       " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
       {
       case(0):
@@ -483,7 +483,7 @@ int OptionallyConvertBlockNewLines(const char *bname)
       snprintf(msg,sizeof(msg),"The %s block looks like it is in DOS format,\n"
 		  "whereas the current text is in UNIX format\n"
 		  "Do you wish to convert the block?",bname);
-      switch(ReadMenuBox(ynMenu,HORIZ,msg,
+      switch(co_await ReadMenuBox(ynMenu,HORIZ,msg,
 	       " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
       {
       case(0):
@@ -497,7 +497,7 @@ int OptionallyConvertBlockNewLines(const char *bname)
    }
    CurrentPos=old;
    SetStdCol();
-   return 1;
+   co_return 1;
 }
 
 Task<void>    Read()
@@ -512,7 +512,7 @@ Task<void>    Read()
 
    if(View)
       co_return;
-   if(getstring("Read from: ",BlockFile,sizeof(BlockFile)-1,&LoadHistory,0,
+   if(co_await getstring("Read from: ",BlockFile,sizeof(BlockFile)-1,&LoadHistory,0,
 	 "ReadBlockHelp"," Read Block Help ")<1)
       co_return;
    if(BlockFile[0]=='|')
@@ -524,7 +524,7 @@ Task<void>    Read()
 	 goto after_read;
       co_return;
    }
-   if(ChooseFileName(BlockFile,sizeof(BlockFile))<0)
+   if(co_await ChooseFileName(BlockFile,sizeof(BlockFile))<0)
       co_return;
    LoadHistory.Push();
 
@@ -541,7 +541,7 @@ Task<void>    Read()
        FError(BlockFile);
        co_return;
    }
-   if(!CheckMode(st.st_mode))
+   if(!co_await CheckMode(st.st_mode))
    {
        co_await le_close(fd);
        co_return;
@@ -551,7 +551,7 @@ Task<void>    Read()
    if(buffer_mmapped || (in_hex_mode && !insert))
       res=co_await ReadBlockOver(fd,st.st_size,&act_read);
    else
-      res=ReadBlock(fd,st.st_size,&act_read);
+      res=co_await ReadBlock(fd,st.st_size,&act_read);
    if(res!=OK)
    {
       co_await le_close(fd);
@@ -568,7 +568,7 @@ Task<void>    Read()
 
 after_read:
    flag=REDISPLAY_ALL;
-   OptionallyConvertBlockNewLines("read");
+   co_await OptionallyConvertBlockNewLines("read");
    CurrentPos=BlockEnd;
    SetStdCol();
 }
@@ -693,7 +693,7 @@ Task<void>   Indent()
       co_return;
    if(is[0]==0)
       snprintf(is,sizeof(is),"%d",IndentSize);
-   if(getstring("Indent size: ",is,sizeof(is)-1,NULL,NULL,NULL)<1)
+   if(co_await getstring("Indent size: ",is,sizeof(is)-1,NULL,NULL,NULL)<1)
       co_return;
    usize used;
    Option<i64> got=scan_i64(Str(is,strlen(is)),used);
@@ -719,7 +719,7 @@ Task<void>   Unindent()
       co_return;
    if(is[0]==0)
       snprintf(is,sizeof(is),"%d",IndentSize);
-   if(getstring("Unindent size: ",is,sizeof(is)-1,NULL,NULL,NULL)<1)
+   if(co_await getstring("Unindent size: ",is,sizeof(is)-1,NULL,NULL,NULL)<1)
       co_return;
    usize used;
    Option<i64> got=scan_i64(Str(is,strlen(is)),used);
@@ -796,7 +796,7 @@ next:
    switch(action)
    {
    case(EDITOR_HELP):
-      Help("BlockHelp"," Block Help ");
+      co_await Help("BlockHelp"," Block Help ");
       goto next;
    case(REFRESH_SCREEN):
       co_await UserRefreshScreen();

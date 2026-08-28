@@ -36,14 +36,14 @@ void  set_chset_bit(int i)
    chset[i/CHSET_BITS_PER_BYTE]|=(1<<i%CHSET_BITS_PER_BYTE);
 }
 
-void  init_chset()
+Task<void>  init_chset()
 {
 /*   int i;
    clear_chset();
    for(i=0; i<256; i++)
       if(iscntrl(i))
          chset[i/CHSET_BITS_PER_BYTE]|=(1<<i%CHSET_BITS_PER_BYTE);*/
-   Task<co_await> set_chset_8bit_noctrl();
+   co_await set_chset_8bit_noctrl();
 }
 
 Task<void>  set_chset_8bit()

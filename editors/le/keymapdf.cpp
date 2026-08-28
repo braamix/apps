@@ -25,6 +25,7 @@
 */
 
 #include "config.h"
+#include "braam.h"
 #include "keymap.h"
 
 const ActionCodeRec DefaultActionCodeTable[]=

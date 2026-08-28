@@ -27,10 +27,10 @@
 #ifdef HAVE_ALLOCA_H
 #endif
 
-void ColorsSaveToFile(const char *f)
+Task<void> ColorsSaveToFile(const char *f)
 {
    DescribeColors(bw_pal,color_pal);
-   SaveConfToFile(f,colors);
+   co_await SaveConfToFile(f,colors);
 }
 
 static const char *const colors_file="/.le/colors";
@@ -42,7 +42,7 @@ Task<void> ColorsSave()
    static char f[LE_PATHMAX];
    unsigned nbytes=sizeof(f);
    snprintf(f,nbytes,"%s%s",HOME,colors_file);
-   ColorsSaveToFile(f);
+   co_await ColorsSaveToFile(f);
    co_return;
 }
 
@@ -51,18 +51,18 @@ Task<void> ColorsSaveForTerminal()
    static char f[LE_PATHMAX];
    unsigned nbytes=sizeof(f);
    snprintf(f,nbytes,"%s%s-%s",HOME,colors_file,TERM);
-   ColorsSaveToFile(f);
+   co_await ColorsSaveToFile(f);
    co_return;
 }
 
-void LoadColor(const char *f)
+Task<void> LoadColor(const char *f)
 {
    if(co_await le_access(f,R_OK)==-1)
    {
       FError(f);
       co_return;
    }
-   ReadConfFromFile(f,colors,false);
+   co_await ReadConfFromFile(f,colors,false);
    ParseColors();
    init_attrs();
    clearok(stdscr,1);
@@ -83,26 +83,26 @@ Task<void> LoadColorDefault()
 
 Task<void> LoadColorDefaultBG()
 {
-   LoadColor(datafile(cfile,sizeof(cfile),"/colors-defbg"+1));
+   co_await LoadColor(datafile(cfile,sizeof(cfile),"/colors-defbg"+1));
    co_return;
 }
 Task<void> LoadColorBlue()
 {
-   LoadColor(datafile(cfile,sizeof(cfile),"/colors-blue"+1));
+   co_await LoadColor(datafile(cfile,sizeof(cfile),"/colors-blue"+1));
    co_return;
 }
 Task<void> LoadColorBlack()
 {
-   LoadColor(datafile(cfile,sizeof(cfile),"/colors-black"+1));
+   co_await LoadColor(datafile(cfile,sizeof(cfile),"/colors-black"+1));
    co_return;
 }
 Task<void> LoadColorWhite()
 {
-   LoadColor(datafile(cfile,sizeof(cfile),"/colors-white"+1));
+   co_await LoadColor(datafile(cfile,sizeof(cfile),"/colors-white"+1));
    co_return;
 }
 Task<void> LoadColorGreen()
 {
-   LoadColor(datafile(cfile,sizeof(cfile),"/colors-green"+1));
+   co_await LoadColor(datafile(cfile,sizeof(cfile),"/colors-green"+1));
    co_return;
 }

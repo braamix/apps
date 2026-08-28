@@ -68,7 +68,7 @@ void  PutStr(int x,int y,const char *s);
 void  PutCh(int x,int y,chtype ch);
 #ifdef USE_MULTIBYTE_CHARS
 void  PutWCh(int x,int y,wchar_t ch);
-void  PutCCh(int x,int y,cchar_t *ch);
+void  PutCCh(int x,int y,const cchar_t *ch);
 # define PutACS(x,y,a) do { int x0=(x),y0=(y);\
       if(mb_mode) PutCCh(x0,y0,WACS_##a);\
       else PutCh(x0,y0,ACS_##a); } while(0)

@@ -23,9 +23,9 @@ struct init
    void  *var;
 };
 
-void SaveConfToOpenFile(FILE *f,const struct init *init);
-void SaveConfToFile(const char *f,const struct init *init);
-void ReadConfFromFile(const char *file,const struct init *init,bool mine);
+Task<void> SaveConfToOpenFile(FILE *f,const struct init *init);
+Task<void> SaveConfToFile(const char *f,const struct init *init);
+Task<void> ReadConfFromFile(const char *file,const struct init *init,bool mine);
 
 Task<void> ColorsOpt();
 Task<void> ProgOpt();

@@ -34,7 +34,10 @@ void  MessageSync(const char *msg);
 void  AddMessage(const char *msg);
 void  ClearMessage();
 
+/* The error box records; Edit()'s loop shows it. See screen.cpp. */
 void  ErrMsg(const char *msg);
+bool  ErrorPending();
+Task<void>  ShowPendingError();
 
 void  TestPosition();
 

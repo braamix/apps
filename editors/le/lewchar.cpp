@@ -138,3 +138,17 @@ extern "C" wint_t towlower(wint_t c)
 {
     return (wint_t)rune_lower((char32_t)c);
 }
+
+extern "C" wctrans_t wctrans(const char *name)
+{
+    if (!strcmp(name, "toupper"))
+        return towupper;
+    if (!strcmp(name, "tolower"))
+        return towlower;
+    return nullptr;
+}
+
+extern "C" wint_t towctrans(wint_t c, wctrans_t t)
+{
+    return t ? t(c) : c;
+}

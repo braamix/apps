@@ -521,6 +521,7 @@ Task<void> LoadMainMenu()
    char fn[1024];
    char func[256];
    char str[256];
+   String tok;		// what the scanners fill
    int mi=0;
    int level=0;
 
@@ -583,8 +584,9 @@ read_it:
 	 break;
       le_ungetc(c,f);
 
-      if(fscanf(f,"%255s",func)!=1)
+      if(!(co_await f->scan_token(tok,255)).value_or(false))
 	 break;
+      snprintf(func,sizeof(func),"%.*s",(int)tok.size(),tok.data());
       if(!strcmp(func,"submenu") || !strcmp(func,"function"))
       {
 	 for(;;)
@@ -599,7 +601,8 @@ read_it:
 	       fskip(f);
 	    continue;
 	 }
-	 if(fscanf(f,"%[^\"]\"",str)!=1)
+	 if(!(co_await f->scan_until(tok,"\"")).value_or(false)
+	 || !(co_await f->scan_lit('"')).value_or(false))
 	 {
 	    fskip(f);
 	    continue;
@@ -627,7 +630,8 @@ read_it:
 	    if(c=='\n')
 	       continue;
 
-	    if(fscanf(f,"%s",str)==1)
+	    if((co_await f->scan_token(tok)).value_or(false)
+	    && (snprintf(str,sizeof(str),"%.*s",(int)tok.size(),tok.data()),true))
 	    {
 	       const char *arg=0;
 	       int code=ParseActionNameArg(str,&arg);
@@ -635,7 +639,8 @@ read_it:
 		  m[mi].action=code;
 		  m[mi].arg=ParseActionArgumentAlloc(arg);
 	       } else {
-		  fprintf(stderr,"invalid function name: %s\n",str);
+		  /* Upstream complained on stderr. The screen is taken by
+		     then, so a bad menu entry is simply skipped. */
 	       }
 	    }
 	 }
@@ -654,7 +659,8 @@ read_it:
 	    if(c=='\n')
 	       break;
 
-	    if(fscanf(f,"%s",str)==1)
+	    if((co_await f->scan_token(tok)).value_or(false)
+	    && (snprintf(str,sizeof(str),"%.*s",(int)tok.size(),tok.data()),true))
 	    {
 	       if(!strcmp(str,"hide"))
 		  m[mi].fl|=HIDE;

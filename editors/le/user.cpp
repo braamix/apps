@@ -437,7 +437,7 @@ Task<void>  UserPageTop()
    }
    co_return;
 }
-void UserScrollUp()
+Task<void> UserScrollUp()
 {
    if(in_hex_mode) {
       ScreenTop-=16;
@@ -446,7 +446,7 @@ void UserScrollUp()
    } else {
       ScreenTop=PrevLine(ScreenTop);
       if(GetLine()>=ScreenTop.Line()+TextWinHeight)
-	 Task<co_await> UserLineUp();
+	 co_await UserLineUp();
    }
    flag=REDISPLAY_ALL;
 }
@@ -963,7 +963,7 @@ Task<int>   UserSave()
       co_return(co_await UserSaveAs());
 }
 
-int   file_check(const char *fn)
+Task<int>   file_check(const char *fn)
 {
    char	 dir[256];
    char	 *slash;
@@ -1011,7 +1011,7 @@ int   file_check(const char *fn)
 	 {NULL}
       };
       snprintf(msg,sizeof(msg),"The file `%s' does not exist. Create?",fn);
-      switch(ReadMenuBox(CreateOrNot,HORIZ,msg,
+      switch(co_await ReadMenuBox(CreateOrNot,HORIZ,msg,
 	 " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
       {
       case('R'):
@@ -1028,11 +1028,11 @@ Task<void>    UserLoad()
    char  newname[256];
    newname[0]=0;
 
-   if(getstring("Load: ",newname,sizeof(newname)-1,&LoadHistory)>0)
+   if(co_await getstring("Load: ",newname,sizeof(newname)-1,&LoadHistory)>0)
    {
-      if(ChooseFileName(newname,sizeof(newname))<0)
+      if(co_await ChooseFileName(newname,sizeof(newname))<0)
          co_return;
-      if(file_check(newname)==ERR)
+      if(co_await file_check(newname)==ERR)
       {
 	 LoadHistory.Push();
 	 co_return;
@@ -1040,13 +1040,13 @@ Task<void>    UserLoad()
 
       if(modified)
       {
-         if(!AskToSave())
+         if(!co_await AskToSave())
          {
             LoadHistory.Push();
             co_return;
          }
       }
-      LoadFile(newname);
+      co_await LoadFile(newname);
    }
 }
 
@@ -1055,9 +1055,9 @@ Task<int>   UserSaveAs()
    char  newname[256];
    newname[0]=0;
 
-   if(getstring("Save as: ",newname,sizeof(newname)-1,&LoadHistory,NULL,NULL)>0)
+   if(co_await getstring("Save as: ",newname,sizeof(newname)-1,&LoadHistory,NULL,NULL)>0)
    {
-      if(ChooseFileName(newname,sizeof(newname))<0)
+      if(co_await ChooseFileName(newname,sizeof(newname))<0)
          co_return(ERR);
       if(co_await SaveFile(newname)!=OK)
       {
@@ -1083,7 +1083,7 @@ Task<void>  UserSwitch()
    strncpy(newname,prev->get_line(),255);
    newname[255]=0;
 
-   if(ChooseFileName(newname,sizeof(newname))<0)
+   if(co_await ChooseFileName(newname,sizeof(newname))<0)
       co_return;
 
    if(co_await le_access(newname,R_OK)==-1)
@@ -1093,12 +1093,12 @@ Task<void>  UserSwitch()
    }
 
    if(modified)
-      if(!AskToSave())
+      if(!co_await AskToSave())
          co_return;
 
    LoadHistory+=newname;
 
-   LoadFile(newname);
+   co_await LoadFile(newname);
 }
 
 Task<void>  UserInfo()
@@ -1149,7 +1149,7 @@ Task<void>  UserInfo()
 
       refresh();
    }
-   while(Task<co_await> co_await WaitForKey()==ERR);
+   while(co_await WaitForKey()==ERR);
 
    flushinp();
 
@@ -1161,7 +1161,7 @@ Task<void>  UserInfo()
 Task<void>  UserToLineNumber()
 {
    static char nl[10]="";
-   if(getstring("Move to line: ",nl,sizeof(nl)-1,NULL,NULL,NULL)<1)
+   if(co_await getstring("Move to line: ",nl,sizeof(nl)-1,NULL,NULL,NULL)<1)
       co_return;
    GoToLineNum(strtol(nl,0,0)-1);
    SetStdCol();
@@ -1169,7 +1169,7 @@ Task<void>  UserToLineNumber()
 Task<void>  UserToOffset()
 {
    static char no[40]="";
-   if(getstring("Move to offset: ",no,sizeof(no)-1,NULL,NULL,NULL)<1)
+   if(co_await getstring("Move to offset: ",no,sizeof(no)-1,NULL,NULL,NULL)<1)
       co_return;
    CurrentPos=strtol(no,0,0);
    SetStdCol();
@@ -1333,13 +1333,13 @@ void  UserRedoStep()
    SetStdCol();
 }
 
-void  UserInsertChar(char ch)
+Task<void>  UserInsertChar(char ch)
 {
    if(View)
       co_return;
    if(Text && autoindent && ch=='}' && MarginSizeAt(Offset())==-1 && MarginSizeAt(PrevLine(Offset()))==stdcol)
    {
-      const offs match = co_await FindMatch(ch);
+      const offs match = FindMatch(ch);
       const num indent = match>=0 ? MarginSizeAt(match) : stdcol-IndentSize;
       DeleteToBOL();
       stdcol=indent;
@@ -1446,7 +1446,7 @@ Task<void>  UserWordHelp()
 
 Task<void>  UserKeysHelp()
 {
-   Help("MainHelp"," Help on Keys ");
+   co_await Help("MainHelp"," Help on Keys ");
    co_return;
 }
 
@@ -1644,7 +1644,7 @@ Task<void>  UserYankBlock()
    if(View)
       co_return;
    MainClipBoard.PasteAndMark();
-   OptionallyConvertBlockNewLines("yanked");
+   co_await OptionallyConvertBlockNewLines("yanked");
    flag=REDISPLAY_ALL;
 }
 
