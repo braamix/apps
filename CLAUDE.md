@@ -31,7 +31,7 @@ hard part is neither streams nor data but *control flow*: `error()` was a
 records and unwinds a frame at a time. Its other half is the screen — vi kept
 an exact image of the terminal in `vtube` to work out the fewest bytes to
 send, and that image is now the back buffer for a damage-tracked Grid; and
-[editors/uemacs](editors/uemacs/), uEmacs/PK 4.0, whose hard part is
+[editors/uemacs](editors/uemacs/), uEmacs/PK 4.0.15, whose hard part is
 *breadth*: the one blocking read sits under `ask_string()` and `getcmd()`,
 which nearly every command calls, and the commands are reached through two
 function-pointer tables — so changing `fn_t` converted 244 of 377 functions

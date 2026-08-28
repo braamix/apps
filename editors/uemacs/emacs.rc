@@ -1,6 +1,6 @@
 ;	EMACS.RC / .emacsrc
 ;
-;	Startup file for uEmacs/PK 4.0, executed every time the editor is
+;	Startup file for uEmacs/PK 4.0.15, executed every time the editor is
 ;	entered.  Petri Kutvonen's, less what only a DOS box or a serial
 ;	terminal could use: the $sres kludge and the PC branch under it,
 ;	the colour modes, the Latin-1 macros, the Sun $TERM test, EM.RC and
