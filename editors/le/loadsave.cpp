@@ -74,7 +74,7 @@ int    LockFile(int fd,bool drop)
          fcntl(fd,F_GETLK,&Lock1);
          if(Lock1.l_type==F_UNLCK)
          {
-            return(-2);
+            co_return(-2);
          }
          co_await le_fstat(fd,&st);
 
@@ -85,9 +85,9 @@ int    LockFile(int fd,bool drop)
          {
          case(0):
          case('C'):
-            return(-1);
+            co_return(-1);
          case('I'):
-            return(0);
+            co_return(0);
          case('W'):
             MessageSync("Waiting for unlocking the file... (C-x - cancel)");
             errno=EACCES;
@@ -99,18 +99,18 @@ int    LockFile(int fd,bool drop)
 		  if(action==CANCEL)
                   {
                      ErrMsg("Interrupted by user");
-                     return(-1);
+                     co_return(-1);
                   }
                }
 	       errno=0;
             }
             if(errno!=EACCES && errno!=EAGAIN)
-               return(-2);
+               co_return(-2);
          }
       }
       else
       {
-         return(-2);
+         co_return(-2);
       }
    }
    if(drop)
@@ -118,7 +118,7 @@ int    LockFile(int fd,bool drop)
       Lock.l_type=F_RDLCK;	// drop write lock to read lock
       fcntl(fd,F_SETLK,&Lock);
    }
-   return(0);
+   co_return(0);
 }
 #else /* DISABLE_FILE_LOCKS */
 int   LockFile(int,bool)
@@ -137,7 +137,7 @@ off_t  GetDevSize(int fd)
 #ifdef BLKGETSIZE
    unsigned sect=0;
    if(ioctl(fd,BLKGETSIZE,&sect)==0)
-      return ((off_t)sect)<<9;
+      co_return ((off_t)sect)<<9;
 #endif
 
    off_t lower=0;
@@ -173,7 +173,7 @@ off_t  GetDevSize(int fd)
 	 upper=mid;
    }
 
-   return upper;
+   co_return upper;
 }
 
 const char *GetDefaultEol()
@@ -218,7 +218,7 @@ int   LoadFile(char *name)
    if(!name[0])
    {
       buffer_mmapped=false;
-      return(OK);
+      co_return(OK);
    }
 
    snprintf(msg,sizeof(msg),"Loading the file \"%.60s\"...",name);
@@ -227,17 +227,6 @@ int   LoadFile(char *name)
    newfile=0;
 
    const char *open_name=name;
-   unsigned long long mmap_begin=0;
-   unsigned long mmap_len=0;
-   char open_name1[256];
-   unsigned n;
-   if(buffer_mmapped) {
-      if(sscanf(name,"%[^:]:%lli:%li%n",open_name1,&mmap_begin,&mmap_len,&n)==3
-      && n==strlen(name))
-	 open_name=open_name1;
-      else
-	 mmap_begin=mmap_len=0;
-   }
 
    if(co_await le_stat(open_name,&st)!=-1)
    {
@@ -247,14 +236,14 @@ int   LoadFile(char *name)
       {
 	 ErrMsg("This is a special file or a pipe\nthat I cannot edit.");
 	 co_await EmptyText();
-	 return(ERR);
+	 co_return(ERR);
       }
       if(S_ISDIR(FileMode))
 	 View|=TMP_RO_MODE;
    }
    else if(errno==ENOENT && !View && !buffer_mmapped)
    {
-      int f=creat(open_name,0644);
+      int f=co_await le_open(open_name,O_CREAT|O_WRONLY|O_TRUNC,0644);
       if(f!=-1)
       {
 	 co_await le_close(f);
@@ -266,7 +255,7 @@ int   LoadFile(char *name)
 		"The directory does not exist or is not accessible\n"
 	        "or does not permit writing");
 	 co_await EmptyText();
-	 return(ERR);
+	 co_return(ERR);
       }
    }
    int open_flags=View?O_RDONLY:O_RDWR;
@@ -283,7 +272,7 @@ int   LoadFile(char *name)
    {
       FError(open_name);
       co_await EmptyText();
-      return(ERR);
+      co_return(ERR);
    }
 
    // re-stat the file in case it was created
@@ -298,7 +287,7 @@ int   LoadFile(char *name)
 	 co_await le_close(file);
 	 file=-1;
 	 co_await EmptyText();
-         return(ERR);
+         co_return(ERR);
       }
       if(lock_res==-2)
 	 ErrMsg("Warning: file locking failed");
@@ -311,7 +300,7 @@ int   LoadFile(char *name)
 	 if(errno)
 	    FError(name);
 	 co_await EmptyText();
-	 return(ERR);
+	 co_return(ERR);
       }
       CheckPoint();
 
@@ -353,7 +342,7 @@ int   LoadFile(char *name)
 	       errno=ENOMEM;
 	       FError(name);
 	       co_await EmptyText();
-	       return ERR;
+	       co_return ERR;
 	    }
 	 }
 	 buffer=(char*)mmap(0,mmap_len,PROT_READ|(View?0:PROT_WRITE),
@@ -363,7 +352,7 @@ int   LoadFile(char *name)
 	    buffer=0;
 	    FError(name);
 	    co_await EmptyText();
-	    return ERR;
+	    co_return ERR;
 	 }
 	 BufferSize=mmap_len;
 	 ptr1=ptr2=BufferSize;
@@ -407,8 +396,9 @@ int   LoadFile(char *name)
    ScrShift=0;
    CenterView();
 
-   alarm(ALARMDELAY); /* set alarm so the file is dumped at regular intervals */
-   return(OK);
+   /* Upstream armed an alarm here; co_await AutoSaveTick() is asked instead, from
+      Edit()'s loop between keystrokes. */
+   co_return(OK);
 }
 
 int   MaxBackup=9;
@@ -416,7 +406,7 @@ int   MaxBackup=9;
 static char *BackupName(char *buf,unsigned buf_size,char *bp,char *filename,char *bak,int n)
 {
    unsigned nbytes=strlen(bak)+40+1;
-   char *suffix=(char*)alloca(nbytes);
+   static char suffix[LE_PATHMAX];
    snprintf(suffix,nbytes,bak,n);
    snprintf(buf,buf_size,"%s/%s%s",bp,filename,suffix);
    return buf;
@@ -424,10 +414,9 @@ static char *BackupName(char *buf,unsigned buf_size,char *bp,char *filename,char
 
 static void MoveBackup(char *bp,char *filename,char *bak,int n)
 {
-   unsigned nbytes=strlen(bp)+1+strlen(filename)+strlen(bak)+40+1;
-   char *bakname=(char*)alloca(nbytes);
+   static char bakname[LE_PATHMAX];
 
-   BackupName(bakname,nbytes,bp,filename,bak,n);
+   BackupName(bakname,sizeof(bakname),bp,filename,bak,n);
    if(co_await le_access(bakname,F_OK)!=-1)
    {
       if(n>=MaxBackup)
@@ -435,7 +424,7 @@ static void MoveBackup(char *bp,char *filename,char *bak,int n)
       else
       {
          unsigned nbytes1=strlen(bp)+1+strlen(filename)+strlen(bak)+40+1;
-	 char *bakname1=(char*)alloca(nbytes1);
+	 static char bakname1[LE_PATHMAX];
 	 BackupName(bakname1,nbytes1,bp,filename,bak,n+1);
 	 if(!strcmp(bakname,bakname1))
 	    co_await le_unlink(bakname);
@@ -481,9 +470,8 @@ static Task<int> CreateBak(char *name)
 
    MessageSync("Creating backup file...");
 
-   namemax=pathconf(directory,_PC_NAME_MAX);
-   if(namemax==-1)
-     namemax=14;
+   /* There is no pathconf; OPFS takes any name a filesystem would. */
+   namemax=255;
 
 
    char *bp=BakPath;
@@ -496,20 +484,22 @@ static Task<int> CreateBak(char *name)
    else if(bp[0]=='~' && (bp[1]==0 || isslash(bp[1])))
    {
       bp_size=strlen(bp)+strlen(HOME);
-      bp=(char*)alloca(bp_size);
+      static char bpbuf[LE_PATHMAX];
+      bp=bpbuf;
+      bp_size=sizeof(bpbuf);
       snprintf(bp,bp_size,"%s%s",HOME,BakPath+1);
    }
 
    MoveBackup(bp,filename,bak,1);
 
    unsigned nbytes=strlen(bp)+1+strlen(filename)+strlen(bak)+40+1;
-   char *bakname=(char*)alloca(nbytes);
-   BackupName(bakname,nbytes,bp,filename,bak,1);
+   static char bakname[LE_PATHMAX];
+   BackupName(bakname,sizeof(bakname),bp,filename,bak,1);
 
    if(co_await le_stat(name,&st)==-1)
    {
       FError(name);
-      return ERR;
+      co_return ERR;
    }
 
    fd=co_await le_open(name,O_RDONLY);
@@ -520,13 +510,13 @@ static Task<int> CreateBak(char *name)
       if(bfd!=-1)
          co_await le_close(bfd);
       FError(name);
-      return ERR;
+      co_return ERR;
    }
    else if(bfd==-1)
    {
       co_await le_close(fd);
       FError(bakname);
-      return ERR;
+      co_return ERR;
    }
    buf2size=st.st_size;
    if(buf2size>0x40000)
@@ -565,14 +555,10 @@ static Task<int> CreateBak(char *name)
    co_await le_close(fd);
    co_await le_close(bfd);
 
-   if(res==OK)
-   {
-      struct utimbuf ut;
-      ut.actime=st.st_atime;
-      ut.modtime=st.st_mtime;
-      utime(bakname,&ut);
-   }
-   return res;
+   /* Upstream gave the backup the original's mtime. There is no setter for
+      one here -- touch_path moves a file to now and is the only thing that
+      can -- so the backup carries the time it was written. */
+   co_return res;
 }
 
 int CheckMode(mode_t mode)
@@ -596,7 +582,7 @@ Task<int>   SaveFile(char *name)
    if(buffer_mmapped)
    {
       if(!strcmp(name,FileName))
-	 return OK;
+	 co_return OK;
    }
 
    if(Text && !View)
@@ -608,14 +594,14 @@ Task<int>   SaveFile(char *name)
    if(co_await le_stat(name,&st)!=-1)
    {
       if(!CheckMode(st.st_mode))
-         return(ERR);
+         co_return(ERR);
 
       InodeInfo   NewFileInfo(&st,GetLine(),GetCol());
 
       if(file!=-1)
       {
 	 if(buffer_mmapped && FileInfo.SameFile(NewFileInfo))
-	    return OK;
+	    co_return OK;
 
 	 if(FileInfo.SameFileModified(NewFileInfo))
 	 {
@@ -624,7 +610,7 @@ Task<int>   SaveFile(char *name)
 	    {
 	    case('C'):
 	    case(0):
-	       return(ERR);
+	       co_return(ERR);
 	    }
 	 }
 	 else if(!FileInfo.SameFile(NewFileInfo))
@@ -634,7 +620,7 @@ Task<int>   SaveFile(char *name)
 	    {
 	    case('C'):
 	    case(0):
-	       return(ERR);
+	       co_return(ERR);
 	    }
 	    delete_old_file=1;
 	 }
@@ -649,7 +635,7 @@ Task<int>   SaveFile(char *name)
 	    {
 	    case('C'):
 	    case(0):
-	       return(ERR);
+	       co_return(ERR);
 	    }
 	 }
       }
@@ -659,7 +645,7 @@ Task<int>   SaveFile(char *name)
      if(errno!=ENOENT)
      {
        FError(name);
-       return(ERR);
+       co_return(ERR);
      }
      st.st_mode=FileMode|0600;
      delete_old_file=1;
@@ -677,14 +663,14 @@ Task<int>   SaveFile(char *name)
    if(nfile==-1)
    {
      FError(name);
-     return(ERR);
+     co_return(ERR);
    }
 
    int lock_res=LockFile(nfile,false);
    if(lock_res==-1)
    {
      co_await le_close(nfile);
-     return(ERR);
+     co_return(ERR);
    }
    if(lock_res==-2)
       ErrMsg("Warning: file locking failed");
@@ -697,16 +683,8 @@ Task<int>   SaveFile(char *name)
    co_await le_close(co_await le_open(name,O_TRUNC|O_RDONLY));
 #endif
 
-   struct stat new_st;
-   if(co_await le_fstat(nfile,&new_st)!=-1 && new_st.st_mode!=st.st_mode)
-   {
-      /* force new file to be the same mode as source one */
-#ifdef HAVE_FCHMOD
-      fchmod(nfile,st.st_mode);
-#else
-      chmod(name,st.st_mode);
-#endif
-   }
+   /* Upstream forced the new file to the source's mode. There are no
+      permission bits in the filesystem here. */
 
    /* now, after all that stuff, write the buffer contents */
    errno=0;
@@ -715,19 +693,19 @@ Task<int>   SaveFile(char *name)
      if(errno)
        FError(name);
      co_await le_close(nfile);
-     return(ERR);
+     co_return(ERR);
    }
    if(act_written!=Size())
    {
      ErrMsg("Cannot write the file up to end\nPerhaps disk is full");
      co_await le_close(nfile);
-     return(ERR);
+     co_return(ERR);
    }
 
    if(buffer_mmapped)
    {
       co_await le_close(nfile);
-      return OK;
+      co_return OK;
    }
 
    modified=0;
@@ -751,7 +729,7 @@ Task<int>   SaveFile(char *name)
    if(FileName!=name)
       strcpy(FileName,name);
 
-   return(OK);
+   co_return(OK);
 }
 
 Task<int>   ReopenRW()
@@ -759,34 +737,23 @@ Task<int>   ReopenRW()
    struct stat st;
 
    if(View==0)
-      return(OK);
+      co_return(OK);
 
    if(co_await le_access(FileName,W_OK|R_OK)==-1)
    {
       if(co_await le_stat(FileName,&st)==-1)
       {
          FError(FileName);
-         return ERR;
+         co_return ERR;
       }
 
-      if(st.st_uid!=geteuid())
-      {
-	 ErrMsg("You are not the owner of the file,\nso you cannot force read-write open");
-	 return ERR;
-      }
-
-      st.st_mode|=S_IRUSR|S_IWUSR;
-
-      if(chmod(FileName,st.st_mode)==-1)
-      {
-	 FError("chmod() failed");
-	 return ERR;
-      }
+      /* Upstream checked the owner and then chmod'ed the write bit on.
+	 There is no owner and no bit: a file is writable or it is not. */
    }
 
    View=0;
 
-   char	 *name=(char*)alloca(strlen(FileName)+1);
+   static char name[LE_PATHMAX];
    strcpy(name,FileName);
 
    offs oldbb=BlockBegin;
@@ -802,7 +769,7 @@ Task<int>   ReopenRW()
       CurrentPos=oldpos;
       hide=oldhide;
    }
-   return res;
+   co_return res;
 }
 
 void SavePosition()

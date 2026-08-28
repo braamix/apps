@@ -176,7 +176,7 @@ done:
    co_return;
 }
 
-int  choose_ch()
+Task<int>  choose_ch()
 {
    WIN *w;
    int i,j;
@@ -267,10 +267,10 @@ int  choose_ch()
 done:
    CloseWin();
    DestroyWin(w);
-   return(res);
+   co_return(res);
 }
 #if USE_MULTIBYTE_CHARS
-wchar_t choose_wch()
+Task<wchar_t> choose_wch()
 {
    WIN *w;
    int i,j;
@@ -363,7 +363,7 @@ wchar_t choose_wch()
 done:
    CloseWin();
    DestroyWin(w);
-   return(res);
+   co_return(res);
 }
 #endif
 

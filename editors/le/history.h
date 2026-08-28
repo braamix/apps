@@ -61,8 +61,8 @@ public:
    void  operator+=(const HistoryLine *h) { *this+=*h; }
    void  operator-=(const HistoryLine *h) { *this-=*h; }
    void  Push();
-   void  ReadFrom(FILE*);
-   void  WriteTo(FILE*);
+   Task<void>  ReadFrom(FILE*);
+   Task<void>  WriteTo(FILE*);
    void  Merge(const History& h);
 };
 

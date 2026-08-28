@@ -121,12 +121,12 @@ int   getstring(const char *pr,char *buf,int maxlen,History* history,int *len,
             Help(help,title);
             break;
          case(CANCEL):
-            return(-1);
+            co_return(-1);
          case(NEWLINE):
             if(history!=NULL && *len!=0)
                *history+=HistoryLine(buf,*len);
             buf[*len]=0;
-            return(*len);
+            co_return(*len);
          case(LINE_UP):
             if(history==NULL)
                break;
@@ -191,7 +191,7 @@ int   getstring(const char *pr,char *buf,int maxlen,History* history,int *len,
          case(CHOOSE_CHAR):
 	    if(mb_mode)
 	    {
-	       ch=choose_wch();
+	       ch=co_await choose_wch();
 	       if(ch==-1)
 		  break;
 	       StringTypedLen=wctomb((char*)StringTyped,ch);
@@ -200,7 +200,7 @@ int   getstring(const char *pr,char *buf,int maxlen,History* history,int *len,
 	    }
 	    else
 	    {
-	       ch=choose_ch();
+	       ch=co_await choose_ch();
 	       if(ch==-1)
 		  break;
 	       StringTyped[0]=ch;

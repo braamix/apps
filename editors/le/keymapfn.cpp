@@ -54,7 +54,7 @@ void  EditorReadKeymap()
    }
 
    errno=0;
-   ReadActionMap(f);
+   co_await ReadActionMap(f);
    if(errno)
    {
       FError(filename);
@@ -72,17 +72,17 @@ Task<void> LoadKeymapEmacs()
       FError(k);
       co_return;
    }
-   ReadActionMap(f);
+   co_await ReadActionMap(f);
    fclose(f);
    RebuildKeyTree();
-   LoadMainMenu();
+   co_await LoadMainMenu();
 }
 Task<void> LoadKeymapDefault()
 {
    FreeActionCodeTable();
    ActionCodeTable=DefaultActionCodeTable;
    RebuildKeyTree();
-   LoadMainMenu();
+   co_await LoadMainMenu();
    co_return;
 }
 Task<void> SaveKeymap()
@@ -97,7 +97,7 @@ Task<void> SaveKeymap()
       FError(filename);
       co_return;
    }
-   WriteActionMap(f);
+   co_await WriteActionMap(f);
    fclose(f);
 }
 Task<void> SaveKeymapForTerminal()
@@ -112,6 +112,6 @@ Task<void> SaveKeymapForTerminal()
       FError(filename);
       co_return;
    }
-   WriteActionMap(f);
+   co_await WriteActionMap(f);
    fclose(f);
 }

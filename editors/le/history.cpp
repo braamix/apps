@@ -191,9 +191,9 @@ void  History::WriteTo(FILE *f)
 	 fprintf(f,"%lu:%u:",(unsigned long)lines[i]->cr_time,lines[i]->len);
 	 fwrite(lines[i]->line,1,lines[i]->len,f);
       }
-      fputc('\n',f);
+      co_await le_putc('\n',f);
    }
-   fputs("0:0:\n",f);
+   co_await le_puts("0:0:\n",f);
 }
 void  History::ReadFrom(FILE *f)
 {
@@ -209,7 +209,7 @@ void  History::ReadFrom(FILE *f)
       }
       if(len==0)
       {
-	 fgetc(f); // skip \n
+	 co_await le_getc(f); // skip \n
 	 return;
       }
       char *line=(char*)malloc(len+1);
@@ -224,11 +224,11 @@ void  History::ReadFrom(FILE *f)
       lines[i]->cr_time=cr_time;
       lines[i]->line=line;
       lines[i]->len=len;
-      fgetc(f);	  // skip \n
+      co_await le_getc(f);	  // skip \n
    }
    if (fscanf(f,"%*u:%*u:") < 0)
       /*ignore*/
-   fgetc(f);	  // skip \n
+   co_await le_getc(f);	  // skip \n
 }
 
 InodeInfo::InodeInfo()

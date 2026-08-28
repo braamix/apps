@@ -593,14 +593,14 @@ int write_loop(int fd,const char *ptr,num size,num *written)
    while(size>0) {
       int res=co_await le_write(fd,ptr,size);
       if(res==-1)
-	 return ERR;
+	 co_return ERR;
       if(res==0)
-	 return ERR;
+	 co_return ERR;
       ptr+=res;
       size-=res;
       *written+=res;
    }
-   return OK;
+   co_return OK;
 }
 
 int   WriteBlock(int fd,offs from,num size,num *act_written)

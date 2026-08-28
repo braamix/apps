@@ -282,7 +282,7 @@ extern Task<void> DOS_UNIX(void);
 void  PreModify();
 int   PreUserEdit();
 
-int   choose_ch();
+Task<int>   choose_ch();
 
 int   InsertBlock(const char *block,num len,const char *rblock=NULL,num rlen=0);
 int   ReplaceBlock(const char *block,num len);

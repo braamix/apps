@@ -955,9 +955,9 @@ Task<void>  UserDeleteChar()
 Task<int>   UserSave()
 {
    if(FileName[0] && !View)
-      return(co_await SaveFile(FileName));
+      co_return(co_await SaveFile(FileName));
    else
-      return(co_await UserSaveAs());
+      co_return(co_await UserSaveAs());
 }
 
 int   file_check(const char *fn)
@@ -980,13 +980,13 @@ int   file_check(const char *fn)
       {
 	 snprintf(msg,sizeof(msg),"File: %s\nThe specified file is not readable",fn);
 	 ErrMsg(msg);
-	 return ERR;
+	 co_return ERR;
       }
       if((View&RO_MODE) || buffer_mmapped)  // view mode or mmap mode
       {
 	 snprintf(msg,sizeof(msg),"File: %s\nThe specified file does not exist",fn);
 	 ErrMsg(msg);
-	 return ERR;
+	 co_return ERR;
       }
       strcpy(dir,fn);
       slash=dir+strlen(dir);
@@ -999,14 +999,14 @@ int   file_check(const char *fn)
       {
 	 snprintf(msg,sizeof(msg),"File: %s\nThe specified directory does not exist",fn);
 	 ErrMsg(msg);
-	 return ERR;
+	 co_return ERR;
       }
       if(co_await le_access(dir,W_OK|X_OK)==-1)
       {
 	 snprintf(msg,sizeof(msg),"File: %s\nThe specified file does not exist\n"
 		"and the directory does not permit creating",fn);
 	 ErrMsg(msg);
-	 return ERR;
+	 co_return ERR;
       }
 
       struct menu CreateOrNot[]=
@@ -1020,12 +1020,12 @@ int   file_check(const char *fn)
 	 " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
       {
       case('R'):
-	 return OK;
+	 co_return OK;
       default:
-	 return ERR;
+	 co_return ERR;
       }
    }
-   return OK;
+   co_return OK;
 }
 
 Task<void>    UserLoad()
@@ -1063,15 +1063,15 @@ Task<int>   UserSaveAs()
    if(getstring("Save as: ",newname,sizeof(newname)-1,&LoadHistory,NULL,NULL)>0)
    {
       if(ChooseFileName(newname,sizeof(newname))<0)
-         return(ERR);
+         co_return(ERR);
       if(co_await SaveFile(newname)!=OK)
       {
          LoadHistory.Push();
-         return(ERR);
+         co_return(ERR);
       }
-      return(OK);
+      co_return(OK);
    }
-   return(ERR);
+   co_return(ERR);
 }
 Task<void>  UserSwitch()
 {
@@ -1483,14 +1483,14 @@ Task<void>  UserChooseChar()
 }
 Task<void>  UserChooseByte()
 {
-   int   ch=choose_ch();
+   int   ch=co_await choose_ch();
    if(ch!=-1)
       UserInsertControlChar(ch);
    co_return;
 }
 Task<void>  UserChooseWChar()
 {
-   wchar_t ch=choose_wch();
+   wchar_t ch=co_await choose_wch();
    if(ch!=-1)
       UserInsertWChar(ch);
    co_return;
@@ -1885,7 +1885,7 @@ Task<void> UserGoBookmark()
    co_return;
 }
 
-#define S(n) void UserSetBookmark##n() { SetBookmark('0'+n); }
+#define S(n) Task<void> UserSetBookmark##n() { SetBookmark('0'+n); co_return; }
 S(0) S(1) S(2) S(3) S(4) S(5) S(6) S(7) S(8) S(9)
-#define G(n) void UserGoBookmark##n() { GoBookmark('0'+n); }
+#define G(n) Task<void> UserGoBookmark##n() { GoBookmark('0'+n); co_return; }
 G(0) G(1) G(2) G(3) G(4) G(5) G(6) G(7) G(8) G(9)

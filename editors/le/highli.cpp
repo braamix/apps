@@ -155,7 +155,7 @@ char *read_regex(FILE*f)
       {
 	 if(accum)
 	    break;
-	 return 0;
+	 co_return 0;
       }
       cont=0;
       int len=strlen(s);
@@ -169,13 +169,13 @@ char *read_regex(FILE*f)
 	    len--;
 	    cont=1;
 	    for(;;) {
-	       int ch=fgetc(f);
+	       int ch=co_await le_getc(f);
 	       if(ch==EOF || ch=='\n') {
 		  cont=0;
 		  break;
 	       }
 	       if(ch!=' ' && ch!='\t') {
-		  ungetc(ch,f);
+		  le_ungetc(ch,f);
 		  break;
 	       }
 	    }
@@ -190,7 +190,7 @@ char *read_regex(FILE*f)
       {
 	 accum=strdup(str);
 	 if(!accum)
-	    return 0;
+	    co_return 0;
       }
       else
       {
@@ -198,14 +198,14 @@ char *read_regex(FILE*f)
 	 if(!s)
 	 {
 	    free(accum);
-	    return 0;
+	    co_return 0;
 	 }
 	 accum=s;
 	 strcat(accum,str);
       }
    }
    c_string_interpret(accum);
-   return accum;
+   co_return accum;
 }
 
 static FILE *open_syntax_d(const char *name)
@@ -219,7 +219,7 @@ static FILE *open_syntax_d(const char *name)
 	 snprintf(fn,nbytes,"%s/%s/%s",PKGDATADIR,base_dir,name);
       name=fn;
    }
-   return fopen(name,"r");
+   co_return fopen(name,"r");
 }
 
 static std::set< std::string > files_loaded;
@@ -240,7 +240,7 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 
    for(;;)
    {
-      ch=fgetc(f);
+      ch=co_await le_getc(f);
       switch(ch)
       {
       case(EOF):
@@ -319,15 +319,15 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	    continue;
 	 }
 	 bool ignore_case=false;
-	 int c=fgetc(f);
+	 int c=co_await le_getc(f);
 	 if(c=='i')
 	    ignore_case=true;
 	 else
-	    ungetc(c,f);
+	    le_ungetc(c,f);
 	 res=fscanf(f,"%d,%i=",&color,&mask);
 	 if(res==1) {
 	    mask=1;
-	    if(fgetc(f)!='=') {
+	    if(co_await le_getc(f)!='=') {
 	       fskip(f);
 	       continue;
 	    }
@@ -389,11 +389,11 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	    fskip(f);
 	    continue;
 	 }
-	 ch=fgetc(f);
+	 ch=co_await le_getc(f);
 	 bool ignore_case=false;
 	 if(ch=='i') {
 	    ignore_case=true;
-	    ch=fgetc(f);
+	    ch=co_await le_getc(f);
 	 }
 	 if(ch!='(') {
 	    fskip(f);
@@ -403,7 +403,7 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	    res=fscanf(f,"%i=",&mask);
 	    if(res!=1) {
 	       mask=1;
-	       if(fgetc(f)!='=') {
+	       if(co_await le_getc(f)!='=') {
 		  fskip(f);
 		  continue;
 	       }

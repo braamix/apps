@@ -298,7 +298,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
       if(strlen(directory)+strlen(HOME)>254)
       {
          ErrMsg("Path name is too long");
-         return(-1);
+         co_return(-1);
       }
       snprintf(str,sizeof(str),"%s%s",HOME,directory+1);
       strcpy(directory,str);
@@ -326,7 +326,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
       if(!strncmp(fn+strlen(drive),"./",2))
          memmove(fn+strlen(drive),fn+strlen(drive)+2,strlen(fn+strlen(drive)+2)+1);
       LoadHistory+=fn;
-      return(0);
+      co_return(0);
    }
 
    w=CreateWin(MIDDLE,MIDDLE,(DIRSIZ+2)*4+4,12,DIALOGUE_WIN_ATTR," Directory ",0);
@@ -340,7 +340,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
          FError(directory);
          CloseWin();
          DestroyWin(w);
-	 return(-1);
+	 co_return(-1);
       }
       if((st.st_mode&S_IFMT)!=S_IFDIR)
       {
@@ -349,7 +349,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
          ErrMsg(msg);
          CloseWin();
          DestroyWin(w);
-	 return(-1);
+	 co_return(-1);
       }
 
       if(dir)
@@ -364,7 +364,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
          FError(directory);
          CloseWin();
          DestroyWin(w);
-	 return(-1);
+	 co_return(-1);
       }
       dirsize=0;
       while(readdir(dd))
@@ -376,7 +376,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
          CloseWin();
          DestroyWin(w);
 	 closedir(dd);
-         return(-1);
+         co_return(-1);
       }
       rewinddir(dd);
       for(i=0; i<dirsize; i++)
@@ -406,7 +406,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
             CloseWin();
             DestroyWin(w);
 	    closedir(dd);
-            return(-1);
+            co_return(-1);
          }
       }
       closedir(dd);
@@ -531,7 +531,7 @@ int ChooseFileName(char *fn, unsigned fn_size)
    if(action==NEWLINE)
    {
       LoadHistory+=HistoryLine(fn);
-      return(0);
+      co_return(0);
    }
-   return(-2);
+   co_return(-2);
 }

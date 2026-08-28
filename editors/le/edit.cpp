@@ -348,10 +348,10 @@ int     AskToSave()
       case('N'):
          result=TRUE;
       }
-      return(result);
+      co_return(result);
    }
    SavePosition();
-   return(TRUE);
+   co_return(TRUE);
 }
 
 #if defined(NCURSES_VERSION) || defined(__NCURSES_H)
@@ -454,18 +454,18 @@ void    Initialize()
    f=fopen(HstName,"rb");
    if(f && fcntl(fileno(f),F_SETLKW,&l)!=-1)
    {
-      PositionHistory.ReadFrom(f);
-      LoadHistory.ReadFrom(f);
-      SearchHistory.ReadFrom(f);
-      ShellHistory.ReadFrom(f);
-      PipeHistory.ReadFrom(f);
+      PositionHistory.co_await ReadFrom(f);
+      LoadHistory.co_await ReadFrom(f);
+      SearchHistory.co_await ReadFrom(f);
+      ShellHistory.co_await ReadFrom(f);
+      PipeHistory.co_await ReadFrom(f);
       fclose(f);
    }
 
    EditorReadKeymap();
    RebuildKeyTree();
 
-   LoadMainMenu();
+   co_await LoadMainMenu();
 }
 void    Terminate()
 {
@@ -496,11 +496,11 @@ void    Terminate()
             History  oldShellHistory;
             History  oldPipeHistory;
 
-            oldPositionHistory.ReadFrom(f);
-            oldLoadHistory.ReadFrom(f);
-            oldSearchHistory.ReadFrom(f);
-            oldShellHistory.ReadFrom(f);
-            oldPipeHistory.ReadFrom(f);
+            oldPositionHistory.co_await ReadFrom(f);
+            oldLoadHistory.co_await ReadFrom(f);
+            oldSearchHistory.co_await ReadFrom(f);
+            oldShellHistory.co_await ReadFrom(f);
+            oldPipeHistory.co_await ReadFrom(f);
             PositionHistory.Merge(oldPositionHistory);
             LoadHistory.Merge(oldLoadHistory);
             SearchHistory.Merge(oldSearchHistory);
@@ -509,11 +509,11 @@ void    Terminate()
 
             rewind(f);
 
-            PositionHistory.WriteTo(f);
-            LoadHistory.WriteTo(f);
-            SearchHistory.WriteTo(f);
-            ShellHistory.WriteTo(f);
-            PipeHistory.WriteTo(f);
+            PositionHistory.co_await WriteTo(f);
+            LoadHistory.co_await WriteTo(f);
+            SearchHistory.co_await WriteTo(f);
+            ShellHistory.co_await WriteTo(f);
+            PipeHistory.co_await WriteTo(f);
 
 #ifdef HAVE_FTRUNCATE
 	    fflush(f);
@@ -649,13 +649,13 @@ int     main(int argc,char **argv)
    if(HOME==NULL)
    {
       fprintf(stderr,"Cannot get the value of HOME\n\r");
-      return(1);
+      co_return(1);
    }
    TERM=getenv("TERM");
    if(TERM==NULL)
    {
       fprintf(stderr,"Cannot get the value of TERM\n\r");
-      return(1);
+      co_return(1);
    }
    DISPLAY=getenv("DISPLAY");
 #endif
@@ -683,10 +683,10 @@ int     main(int argc,char **argv)
 	 fprintf(stderr,"%s: Try `%s --help' for more information\n",Program,argv[0]);
 	 ExitProgram(1);
       case(DUMP_KEYMAP):
-	 WriteActionMap(stdout);
+	 co_await WriteActionMap(stdout);
 	 ExitProgram(0);
       case(DUMP_COLORS):
-	 DumpDefaultColors(stdout);
+	 co_await DumpDefaultColors(stdout);
 	 ExitProgram(0);
       case(PRINT_HELP):
 	 PrintUsage(0);
@@ -795,5 +795,5 @@ int     main(int argc,char **argv)
    Edit();
    Terminate();
    ExitProgram(0);
-   return 0;
+   co_return 0;
 }

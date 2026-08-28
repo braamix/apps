@@ -281,8 +281,8 @@ void  SaveConfToOpenFile(FILE *f,const struct init *init)
       if(p->format==NUM)
          fprintf(f,"%d",*(int*)(p->var));
       else if(p->format==STR)
-         fputs((char*)(p->var),f);
-      fputc('\n',f);
+         co_await le_puts((char*)(p->var),f);
+      co_await le_putc('\n',f);
    }
 }
 
@@ -424,14 +424,14 @@ static bool ConfOK(const char *f,bool mine)
 #ifndef __MSDOS__
       struct stat st;
       if(co_await le_stat(f,&st)==-1)
-	 return false;
+	 co_return false;
       if(st.st_uid!=getuid())
-	 return false; // don't use other's config
+	 co_return false; // don't use other's config
 #endif
    }
    if(co_await le_access(f,R_OK)==-1)
-      return false;
-   return true;
+      co_return false;
+   co_return true;
 }
 
 void  ReadConf()
@@ -996,7 +996,7 @@ use_key:
             key=getcode_char();
             goto do_insert;
          case(CHOOSE_CHAR):
-            key=choose_ch();
+            key=co_await choose_ch();
             goto do_insert;
          case(ENTER_CONTROL_CHAR):
             key=co_await GetRawKey();
@@ -1085,14 +1085,14 @@ int    OptEatKey(int k)
    if(k==SAVE_FILE)
    {
       SaveConf(InitName);
-      return(NEWLINE);
+      co_return(NEWLINE);
    }
    if(k==SAVE_FILE_AS)
    {
       co_await SaveOpt();
-      return(NEWLINE);
+      co_return(NEWLINE);
    }
-   return(-1);
+   co_return(-1);
 }
 
 int    OptHandleBut(const char *,int)
@@ -1245,11 +1245,11 @@ int ColorHandleBut(const char *button,int index)
       int color_no=color_xlat[index];
       EditColor(FindColor(new_color_pal,color_no),
                 FindColor(new_bw_pal,color_no));
-      return -1;
+      co_return -1;
    }
    const char *l=strchr(button,'&');
    if(!l)
-      return -1;
+      co_return -1;
    char res=toupper(l[1]);
    if(res=='S' || res=='U' || res=='T' || res=='O')
    {
@@ -1262,7 +1262,7 @@ int ColorHandleBut(const char *button,int index)
       co_await ColorsSave();
    else if(res=='T')
       co_await ColorsSaveForTerminal();
-   return CANCEL;
+   co_return CANCEL;
 }
 
 Task<void>  ColorsOpt()

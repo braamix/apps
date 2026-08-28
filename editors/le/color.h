@@ -72,7 +72,7 @@ void  ParseColors();
 const color *FindColor(const color *pal,int no);
 static inline color *FindColor(color *pal,int no) { return const_cast<color*>(FindColor(const_cast<const color*>(pal),no)); }
 void  DescribeColors(const color *,const color *);
-void  DumpDefaultColors(FILE *);
+Task<void>  DumpDefaultColors(FILE *);
 
 extern color color_pal[MAX_COLOR_NO+1];
 extern color bw_pal[MAX_COLOR_NO+1];

@@ -513,7 +513,7 @@ leave_menu:
 
 extern void fskip(FILE*);
 
-void LoadMainMenu()
+Task<void> LoadMainMenu()
 {
    FILE *f;
    char fn[1024];
@@ -569,7 +569,7 @@ read_it:
 
    for(;;)
    {
-      int c=fgetc(f);
+      int c=co_await le_getc(f);
       if(c=='#')
       {
 	 fskip(f);
@@ -579,7 +579,7 @@ read_it:
 	 continue;
       if(c==EOF)
 	 break;
-      ungetc(c,f);
+      le_ungetc(c,f);
 
       if(fscanf(f,"%255s",func)!=1)
 	 break;
@@ -587,7 +587,7 @@ read_it:
       {
 	 for(;;)
 	 {
-	    c=fgetc(f);
+	    c=co_await le_getc(f);
 	    if(c!=' ' && c!='\t')
 	       break;
 	 }
@@ -615,13 +615,13 @@ read_it:
 
 	    for(;;)
 	    {
-	       c=fgetc(f);
+	       c=co_await le_getc(f);
 	       if(c!=' ' && c!='\t')
 		  break;
 	    }
 	    if(c==EOF)
 	       break;
-	    ungetc(c,f);
+	    le_ungetc(c,f);
 	    if(c=='\n')
 	       continue;
 
@@ -641,13 +641,13 @@ read_it:
 	 {
 	    for(;;)
 	    {
-	       c=fgetc(f);
+	       c=co_await le_getc(f);
 	       if(c!=' ' && c!='\t')
 		  break;
 	    }
 	    if(c==EOF)
 	       break;
-	    ungetc(c,f);
+	    le_ungetc(c,f);
 
 	    if(c=='\n')
 	       break;

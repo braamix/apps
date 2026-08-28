@@ -330,7 +330,7 @@ void  DescribeColors(const color *bw,const color *co)
       DescribeOneColor(color_descriptions[i],FindColor(bw,i-MAX_COLOR_NO));
 }
 
-void  DumpDefaultColors(FILE *f)
+Task<void>  DumpDefaultColors(FILE *f)
 {
    DescribeColors(default_bw_pal,default_color_pal);
 

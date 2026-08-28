@@ -61,6 +61,6 @@ typedef struct sr_menu
    }
 } Menu1;
 
-void LoadMainMenu();
+Task<void> LoadMainMenu();
 
 #endif /* MENU1_H */

@@ -278,17 +278,17 @@ const char *ShortcutPrettyPrint(int c,const char *arg)
    return code_text;
 }
 
-void  WriteActionMap(FILE *f)
+Task<void>  WriteActionMap(FILE *f)
 {
    for(int i=0; ActionCodeTable[i].action!=-1; i++)
    {
       int pos=0;
       const char *a_name=GetActionName(ActionCodeTable[i].action);
-      fputs(a_name,f);
+      co_await le_puts(a_name,f);
       pos+=strlen(a_name);
       const char *arg=ActionCodeTable[i].arg;
       if(arg) {
-	 fputc('(',f),pos++;
+	 co_await le_putc('(',f),pos++;
 	 while(*arg) {
 	    char out=*arg;
 	    char bsout=0;
@@ -301,17 +301,17 @@ void  WriteActionMap(FILE *f)
 	    case ' ': out='_'; break;
 	    }
 	    if(bsout)
-	       fputc('\\',f),pos++;
-	    fputc(bsout?bsout:out,f),pos++;
+	       co_await le_putc('\\',f),pos++;
+	    co_await le_putc(bsout?bsout:out,f),pos++;
 	    arg++;
 	 }
-	 fputc(')',f),pos++;
+	 co_await le_putc(')',f),pos++;
       }
-      fputc(' ',f),pos++;
+      co_await le_putc(' ',f),pos++;
       while(pos<23)
-	 fputc(' ',f),pos++;
-      fputs(GetActionCodeText(ActionCodeTable[i].code),f);
-      putc('\n',f);
+	 co_await le_putc(' ',f),pos++;
+      co_await le_puts(GetActionCodeText(ActionCodeTable[i].code),f);
+      co_await le_putc('\n', f);
    }
 }
 
@@ -513,7 +513,7 @@ char *ParseActionArgumentAlloc(const char *arg)
    return alloc;
 }
 
-void  ReadActionMap(FILE *f)
+Task<void>  ReadActionMap(FILE *f)
 {
    FreeActionCodeTable();
 
@@ -531,7 +531,7 @@ void  ReadActionMap(FILE *f)
       store=ActionName;
       for(;;)  /* action name cycle */
       {
-         ch=fgetc(f);
+         ch=co_await le_getc(f);
          if(ch==EOF || isspace(ch))
             break;
          if(store-ActionName<(int)sizeof(ActionName)-1)
@@ -543,7 +543,7 @@ void  ReadActionMap(FILE *f)
       if(action_found==-1)
       {
          while(ch!='\n' && ch!=EOF)
-            ch=fgetc(f);
+            ch=co_await le_getc(f);
 	 if(ch==EOF)
 	    break;
 	 continue;
@@ -551,7 +551,7 @@ void  ReadActionMap(FILE *f)
 
       /* skip spaces between action name and action code */
       while(ch!='\n' && ch!=EOF && isspace(ch))
-         ch=fgetc(f);
+         ch=co_await le_getc(f);
 
       if(ch==EOF || ch=='\n')
          break;
@@ -561,7 +561,7 @@ void  ReadActionMap(FILE *f)
       {
          if(ch=='\\')
          {
-            ch=fgetc(f);
+            ch=co_await le_getc(f);
             switch(ch)
             {
             case('e'):
@@ -582,13 +582,13 @@ void  ReadActionMap(FILE *f)
             default:
                if(isdigit(ch))
                {
-                  ungetc(ch,f);
+                  le_ungetc(ch,f);
                   if (fscanf(f,"%3o",&ch) < 0)
                      /*ignore*/;
                }
                else
                {
-                  ungetc(ch,f);
+                  le_ungetc(ch,f);
                   ch='\\';
                }
             }
@@ -599,7 +599,7 @@ void  ReadActionMap(FILE *f)
          if(store-ActionCode<(int)sizeof(ActionCode)-1)
             *(store++)=ch;
 
-         ch=fgetc(f);
+         ch=co_await le_getc(f);
          if(ch==EOF || isspace(ch))
             break;
       }

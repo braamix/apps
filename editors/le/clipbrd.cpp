@@ -321,18 +321,18 @@ int ClipBoard::Paste(bool mark)
 int ClipBoard::Write(int fd)
 {
    if(!text)
-      return 0;
+      co_return 0;
    for(int i=0; i<height; i++)
    {
       num ll=width;
       while(ll>0 && text[i*width+ll-1]==' ')
 	 ll--;
       if(co_await le_write(fd,&text[i*width],ll)!=ll)
-	 return -1;
+	 co_return -1;
       if(co_await le_write(fd,EolStr,EolSize)!=EolSize)
-	 return -1;
+	 co_return -1;
    }
-   return 0;
+   co_return 0;
 }
 
 int ClipBoard::Linearize(char **buf,int *len)

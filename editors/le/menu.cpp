@@ -134,12 +134,12 @@ right:         curr++;
 	 }
          break;
       case(CANCEL):
-         return(0);
+         co_return(0);
       case(NEWLINE):
 	 i=ItemChar(m[curr].text);
 	 if(i)
-	    return i;
-         return(-1-curr);
+	    co_return i;
+         co_return(-1-curr);
       default:
          if(StringTypedLen!=1)
             break;
@@ -148,7 +148,7 @@ right:         curr++;
          key=toupper(StringTyped[0]);
          for(i=0; m[i].text; i++)
             if(key==ItemChar(m[i].text))
-               return(key);
+               co_return(key);
       }
    }
    while(1);
