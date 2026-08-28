@@ -207,14 +207,22 @@ below is what it draws on.
   to. `^H` is the same key and does the same thing; on the `:` line the echo
   area keeps its own floor, where backspacing off the prompt abandons the
   command.
-- **There is no `[Hit return to continue]`.** Upstream paused after a `:`
-  command that printed, so its output could be read before visual repainted
-  over it. The pause cannot work here and the prompt is not shown: a `:`
-  command's output goes to the output buffer and then to stdout, never through
-  `vtube`, so the prompt itself would be invisible while still swallowing the
-  key that answered it. A one-line message reaches the echo area and stays
-  there, which covers `:f`, `:set x?` and every error. What is genuinely lost
-  is the output of `:!cmd` and of a multi-line `:p`, which the repaint erases.
+- **`[Hit return to continue]` is written on the console, not through
+  `vtube`.** Upstream paused after a `:` command that printed, so its output
+  could be read before visual repainted over it, and it did so with `merror`
+  and `getkey` — neither of which can be used for it here. A `:` command's
+  output goes to the output buffer and then to stdout, which lands on the same
+  cells the Grid does but is not in `vtube`; `getkey` begins with the
+  `vflush()` whose diff would put `vtube` back over exactly what the pause
+  exists to keep. So the prompt is bytes on stdout like the output above it,
+  and the key is one `key_read()`. Around a shell escape there is no keyboard
+  either — the claim went back before the child was spawned — so it is taken
+  for the one keystroke and given straight back, and the pause happens before
+  the screen is retaken, because taking it is what repaints. Any key answers;
+  `:` opens the next `:` line, which pauses in its turn. Upstream paused from
+  `fixol()`, which cannot await here — `excatch()` calls it, and `excatch()`
+  has eight callers that are not coroutines — so the `:` line does it instead,
+  which is the only place a command's output reaches the terminal.
 - **`:!cmd` runs, `sort` may not.** The escapes work, but they run Braam's
   `/bin`, which is forty-odd commands and not a Unix.
 - **`:e *.c` does not glob.** Upstream forked a shell to expand the argument
@@ -281,7 +289,7 @@ can repeat.
 
 ## Testing
 
-`make test` runs nine cases, each driving `ex` with its input and output
+`make test` runs eleven cases, each driving `ex` with its input and output
 redirected to files — a long transcript does not fit on 24 rows, and command
 mode prints no prompt down a pipe, which is what makes a transcript assertable.
 
@@ -307,6 +315,11 @@ mode prints no prompt down a pipe, which is what makes a transcript assertable.
 - `viresize.mjs` — a resize mid-session: the screen re-cut, the buffer kept,
   the cursor where it was; and a session started on a 144x41 screen, which
   uses all of it.
+- `viutf8.mjs` — a round trip through the store, the display, editing and
+  typing by character, regexps, `~`, and `w`/`e`/`b`.
+- `vibang.mjs` — the pause: `:!` under its output with the screen handed back,
+  `:p` with both claims held, the key that resumes, and `:` at the prompt
+  opening the next command.
 
 ## Files
 

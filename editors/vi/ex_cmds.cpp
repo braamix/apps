@@ -661,9 +661,10 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
                 flush();
                 co_await vspawn_begin();
                 co_await unixex((char *)"-i", (char *)"", 0, 0);
-                co_await vspawn_end();
                 co_await unixwt(1, 0);
-                co_await vcontin(0);
+                /* Before the screen comes back: taking it repaints. */
+                co_await vcontin(1);
+                co_await vspawn_end();
                 continue;
 
                 /* source */
@@ -950,9 +951,10 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
                 flush();
                 co_await vspawn_begin();
                 co_await unixex((char *)"-c", uxb, 0, 0);
-                co_await vspawn_end();
                 co_await unixwt(1, 0);
-                co_await vcontin(0);
+                /* Before the screen comes back: taking it repaints. */
+                co_await vcontin(1);
+                co_await vspawn_end();
                 nochng();
             }
             continue;

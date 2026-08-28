@@ -23,6 +23,9 @@ ProcScreen *vscreen;
 /* Where the cursor was in the frame last sent. */
 static u32 vcurx, vcury;
 
+/* Whether the keyboard claim is ours; ProcScreen keeps its own copy private. */
+static exbool vkeys;
+
 /*
  * The screen and the keyboard are claims: one holder each, kept by the kernel
  * on the process's record. Command mode wants neither -- it writes a byte
@@ -41,6 +44,7 @@ Task<Result<void>> vscreen_take(void)
             co_return Err(Error::NoMemory);
     }
     CO_TRY_VOID(co_await vscreen->take_keys());
+    vkeys = 1;
     CO_TRY_VOID(co_await vscreen->take_screen());
     vscreen->grid().cursor_on = true;
     co_return {};
@@ -54,6 +58,7 @@ Task<void> vscreen_give(void)
         co_await t;
     if (Task<Result<Geometry>> t = keys_claim(false))
         co_await t;
+    vkeys = 0;
 }
 
 /*
@@ -212,6 +217,7 @@ void setsize(int rows, int cols)
 void vresize(void)
 {
     u32 rows, cols;
+    short peek;
 
     if (vscreen == 0)
         return;
@@ -236,7 +242,14 @@ void vresize(void)
     WCOLS = COLUMNS;
     vsetsiz(value(WINDOW));
     setwind();
+    /*
+     * vok() clears Peekkey, which is right when visual starts and wrong here:
+     * a resize and the retake after a shell escape both happen with a key
+     * already pushed back.
+     */
+    peek = Peekkey;
     vok(atube);
+    Peekkey = peek;
     vclear();
     vcnt = 0;
     vredraw(WTOP);
@@ -358,10 +371,19 @@ Task<void> vspawn_begin(void)
 
 Task<void> vspawn_end(exbool repaint)
 {
+    OutcharFn save;
+
     if (vscreen == 0 || !inopen)
         co_return;
     if (Task<Result<void>> t = vscreen_take())
         co_await t;
+    /*
+     * The escape left Outchar at termchar and half the redraw below goes
+     * through it, so without this the whole screen goes to the console as
+     * bytes. fixol() puts it back for good, later.
+     */
+    save    = Outchar;
+    Outchar = vputchar;
     /*
      * A filter is halfway through its range when it gets here -- the old
      * lines are gone and the new ones are not read yet -- so it repaints
@@ -379,4 +401,84 @@ Task<void> vspawn_end(exbool repaint)
         vclear();
         vcnt = 0;
     }
+    Outchar = save;
+}
+
+/* A newline unless the console cursor is in column zero already. */
+static Task<void> freshline(void)
+{
+    Result<CursorAt> at = Err(Error::NoMemory);
+
+    if (Task<Result<CursorAt>> t = cursor_get())
+        at = co_await t;
+    if (at.is_ok() && res_of(at).x != 0)
+        if (Task<Result<void>> t = write_all(SYS_STDOUT, "\n"))
+            co_await t;
+}
+
+/*
+ * [Hit return to continue], and the key that answers it. Answers the key as
+ * vi's decoder spells it, or zero when there is no keyboard to wait on.
+ *
+ * Neither half goes vi's way. The prompt cannot go through vtube: what it is
+ * protecting was written to stdout, which lands on the same cells the Grid
+ * does, and vflush()'s diff would put vtube back over it. The key cannot come
+ * from getkey(), which begins with that very vflush() -- and during a shell
+ * escape has no keyboard to read.
+ */
+Task<int> vpause_key(void)
+{
+    exbool took = 0;
+    int c       = 0;
+
+    /* Twice: once for the buffered output, once for the prompt under it. */
+    co_await freshline();
+    co_await exflush();
+    co_await freshline();
+    if (Task<Result<void>> t = write_all(SYS_STDOUT, "[Hit return to continue]"))
+        co_await t;
+
+    /* Claimed for this one keystroke: a claim held twice is Err(Perm). */
+    if (!vkeys) {
+        Result<Geometry> r = Err(Error::NoMemory);
+
+        if (Task<Result<Geometry>> t = keys_claim(true))
+            r = co_await t;
+        if (r.is_err()) {
+            if (Task<Result<void>> t = write_all(SYS_STDOUT, "\n"))
+                co_await t;
+            co_return (0);
+        }
+        took = 1;
+    }
+    for (;;) {
+        Result<KeyPress> r = Err(Error::NoMemory);
+
+        if (Task<Result<KeyPress>> t = key_read())
+            r = co_await t;
+        if (r.is_ok()) {
+            Key k;
+
+            k.code = res_of(r).code;
+            k.mods = res_of(r).mods;
+            c      = key_byte(k);
+            break;
+        }
+        /* Intr is ^C, which answers, or a resize, which vspawn_end() takes. */
+        if (r.error() == Error::Intr) {
+            if (sig_take(SIG_INT)) {
+                c = ATTN;
+                break;
+            }
+            continue;
+        }
+        if (r.error() != Error::Again)
+            break;
+    }
+    if (took)
+        if (Task<Result<Geometry>> t = keys_claim(false))
+            co_await t;
+    if (Task<Result<void>> t = write_all(SYS_STDOUT, "\n"))
+        co_await t;
+    co_return (c);
 }

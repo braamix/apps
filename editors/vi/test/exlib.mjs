@@ -162,6 +162,13 @@ export function press(k) {
     H.run(clock++);
 }
 
+// Extra ticks, for a step one run does not finish: spawning a child, waiting
+// for it, and taking the screen back are several.
+export function tick(n = 1) {
+    for (let i = 0; i < n; i++)
+        H.run(clock++);
+}
+
 export function screen(rows = 0) {
     const r = H.rows(H.screen()).map((s) => s.replace(/\s+$/, ""));
     return (rows ? r.slice(0, rows) : r).join("\n").replace(/\n+$/, "");

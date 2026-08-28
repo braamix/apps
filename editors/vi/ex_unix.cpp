@@ -271,8 +271,10 @@ Task<void> filter(int mode)
     if (fdout < 0)
         co_await vspawn_begin();
     co_await runsh((char *)"-c", uxb, fdin, fdout);
-    if (fdout < 0)
+    if (fdout < 0) {
+        co_await vcontin(1); /* the child wrote on the console; pause first */
         co_await vspawn_end(0);
+    }
 
     if (fdout >= 0)
         co_await ex_close(fdout);

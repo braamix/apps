@@ -60,6 +60,9 @@ EXTERN short WECHO;
  */
 EXTERN exbool splitw;
 
+/* Set by vcontin() when it prompted: one [Hit return] per : command. */
+EXTERN exbool vhitret;
+
 /*
  * Information about each line currently on the screen includes
  * the y coordinate associated with the line, the printing depth

@@ -3,7 +3,7 @@
 // The screen says the display kept up; the file says the buffer was right.
 // Both matter, and they are different assertions.
 
-import { boot, vi, press, screen, put, get, quitvi, is, ok } from "./exlib.mjs";
+import { boot, vi, press, tick, screen, put, get, quitvi, is, ok } from "./exlib.mjs";
 
 await boot("viinsert");
 
@@ -58,7 +58,13 @@ edit([":", "set nu", "CR"],
 edit([":", "map q dd", "CR", "q"], "beta\ngamma\ndelta\n~", ":map");
 edit([":", "ab xx hello", "CR", "i", "xx ", "ESC"],
      "hello alpha\nbeta\ngamma\ndelta", ":ab");
-edit([":", "!echo hi", "CR"], "alpha\nbeta\ngamma\ndelta", ":! comes back");
+// :! pauses on the console with [Hit return to continue]; vibang.mjs asserts
+// the pause itself, this only that the space answering it lands back in vi.
+put("/tmp/f", FILE);
+vi("/tmp/f", [":", "!echo hi", "CR"]);
+tick(4);
+press(" ");
+is(":! comes back", screen(4), "alpha\nbeta\ngamma\ndelta");
 edit(["!", "!", "cat", "CR"], "alpha\nbeta\ngamma\ndelta", "!!cat");
 
 // ZZ writes and leaves. The file is what this is really asserting.

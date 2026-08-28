@@ -491,18 +491,9 @@ Task<void> vcontin(exbool ask)
             co_return;
         }
         if (ask) {
-            /* merror writes through linebuf; the line is not ours to lose. */
-            char save[LBSIZE];
-
-            CP(save, linebuf);
-            merror("[Hit return to continue] ");
-            flush();
-            CP(linebuf, save);
-        }
-        if (ask) {
-            if (co_await getkey() == ':') {
-                /* Ugh. Extra newlines, but no other way */
-                putch('\n');
+            /* merror() and getkey() would erase what the pause is for. */
+            vhitret = 1;
+            if (co_await vpause_key() == ':') {
                 outline = WECHO;
                 ungetkey(':');
             }

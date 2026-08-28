@@ -904,13 +904,28 @@ Task<void> vmain(void)
                 olist    = value(LIST);
                 OPline   = Pline;
                 OPutchar = Putchar;
+                vhitret  = 0;
                 co_await commands(1, 1);
                 if (dot == zero && dol > zero)
                     dot = one;
             }
             vcatch = 0;
-            if (excatch())
-                copy(esave, vtube[WECHO], TUBECOLS * sizeof(int));
+            /*
+             * The [Hit return...] upstream did inside fixol(), which cannot
+             * await here: excatch() calls it, and excatch() has eight callers
+             * that are not coroutines. Whether the command printed is read
+             * before excatch(), whose own fixol() clears it.
+             */
+            {
+                exbool printed = Outchar != vputchar;
+                exbool caught  = excatch();
+
+                if (printed && !vhitret)
+                    co_await vcontin(1);
+                vhitret = 0;
+                if (caught)
+                    copy(esave, vtube[WECHO], TUBECOLS * sizeof(int));
+            }
             fixol();
             Pline   = OPline;
             Putchar = OPutchar;

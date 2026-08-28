@@ -595,5 +595,6 @@ Task<void> filter(int mode);
 Task<Result<void>> vflush(void);
 Task<void> vspawn_begin(void);
 Task<void> vspawn_end(exbool repaint = 1);
+Task<int> vpause_key(void);
 void setsize(int rows, int cols);
 void vresize(void);
