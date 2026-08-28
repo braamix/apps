@@ -101,6 +101,13 @@ set_source_files_properties(regex.c wcwidth.c PROPERTIES
     COMPILE_DEFINITIONS "REGEX_MALLOC=1"
     INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/cinc;${CMAKE_CURRENT_SOURCE_DIR};${GEN}")
 
+# The syntax file includes these by name, so they travel with it.
+file(GLOB LE_SYNTAX_D_FILES ${CMAKE_CURRENT_SOURCE_DIR}/share/syntax.d/*)
+foreach(f ${LE_SYNTAX_D_FILES})
+    get_filename_component(n ${f} NAME)
+    list(APPEND LE_SYNTAX_D ${f}=share/le/syntax.d/${n})
+endforeach()
+
 # The data travels with the binary. Only the flat bin/ entry becomes a command;
 # share/ is nested, so it is payload -- and /pkg/bin/le is the link into the
 # store directory it sits in, which is how epath.cpp finds it.
@@ -110,5 +117,6 @@ braam_add_package(NAME le VERSION 1.16.8-r0
                         ${CMAKE_CURRENT_SOURCE_DIR}/share/le.hlp=share/le/le.hlp
                         ${CMAKE_CURRENT_SOURCE_DIR}/share/keymap=share/le/keymap
                         ${CMAKE_CURRENT_SOURCE_DIR}/share/mainmenu=share/le/mainmenu
-                        ${CMAKE_CURRENT_SOURCE_DIR}/share/syntax=share/le/syntax)
+                        ${CMAKE_CURRENT_SOURCE_DIR}/share/syntax=share/le/syntax
+                        ${LE_SYNTAX_D})
 add_dependencies(packages pkg_le)

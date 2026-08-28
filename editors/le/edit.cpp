@@ -25,6 +25,7 @@
 #ifdef HAVE_LANGINFO_H
 #endif
 #include "edit.h"
+#include "epath.h"
 #include "proc/io.h"
 #include "lefile.h"
 #include "leio.h"
@@ -406,6 +407,12 @@ int optUseColor=-1;
 Task<void>    Initialize()
 {
    FILE    *f;
+
+   /* Where the package's share directory is: PKGDATADIR was a compile-time
+      string and this is a readlink. Everything that reads a data file -- the
+      keymap, the colours, the menu, the syntax rules, the help -- needs it,
+      so it comes first. */
+   co_await epath_init();
 
    InitModifyKeyTables();
    co_await init_chset();

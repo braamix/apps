@@ -607,6 +607,7 @@ read_it:
 	    co_await fskip(f);
 	    continue;
 	 }
+	 snprintf(str,sizeof(str),"%.*s",(int)tok.size(),tok.data());
 	 m[mi].SetText(strdup(str));
 	 if(!strcmp(func,"submenu"))
 	 {

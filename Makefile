@@ -74,6 +74,7 @@ test: all
 	@node editors/le/test/lesearch.mjs
 	@node editors/le/test/lesigint.mjs
 	@node editors/le/test/lescreen.mjs
+	@node editors/le/test/lesyntax.mjs
 	@node editors/vi/test/exscript.mjs
 	@node editors/vi/test/exerrors.mjs
 	@node editors/vi/test/exregex.mjs

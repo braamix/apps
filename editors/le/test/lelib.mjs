@@ -5,7 +5,7 @@
 // way to be driven down a pipe, so keys in and cells out is the whole of its
 // interface.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -68,6 +68,10 @@ function install() {
     for (const f of ["le.hlp", "keymap", "mainmenu", "syntax"])
         H.store.files.set(`${STORE}/share/le/${f}`,
                           new Uint8Array(readFileSync(join(HERE, "../share", f))));
+    /* The syntax file includes these by name; without them nothing highlights. */
+    for (const f of readdirSync(join(HERE, "../share/syntax.d")))
+        H.store.files.set(`${STORE}/share/le/syntax.d/${f}`,
+                          new Uint8Array(readFileSync(join(HERE, "../share/syntax.d", f))));
     /* Under sixty characters each: type() posts a whole line into a 64-key
        channel without checking. */
     submit(`mkdir -p ${STORE}/bin /pkg/gen/1/bin`);
