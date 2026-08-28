@@ -399,6 +399,23 @@ char *mesg(char *str)
     return (str);
 }
 
+/*
+ * Clear the echo line for a message. vclreol() raises an error of its own on a
+ * botched destline, and error() reports through here rather than unwinding, so
+ * a second trip would recurse until the stack ran out. Report it on the line
+ * as it stands.
+ */
+static void msgclreol(void)
+{
+    static exbool busy;
+
+    if (busy)
+        return;
+    busy = 1;
+    vclreol();
+    busy = 0;
+}
+
 /*VARARGS2*/
 void merror(char *seekpt, int i)
 {
@@ -410,7 +427,7 @@ void merror(char *seekpt, int i)
     if (*cp == '\n')
         putnl(), cp++;
     if (inopen && CE)
-        vclreol();
+        msgclreol();
     if (SO && SE)
         putpad(SO);
     printf(mesg(cp), i);
@@ -617,7 +634,7 @@ void smerror(char *seekpt, char *cp)
         return;
     merror1(seekpt);
     if (inopen && CE)
-        vclreol();
+        msgclreol();
     if (SO && SE)
         putpad(SO);
     lprintf(mesg(linebuf), cp);

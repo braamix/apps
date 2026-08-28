@@ -7,7 +7,7 @@
 // upstream's, word for word; the command is abandoned; and the next command
 // runs on a buffer that the failed one did not touch.
 
-import { boot, ex, put, is, ok } from "./exlib.mjs";
+import { boot, ex, vi, press, screen, quitvi, put, is, ok } from "./exlib.mjs";
 
 await boot("exerrors");
 
@@ -64,3 +64,36 @@ is("no match inside :g", ex("/tmp/f", "g/a/s/nosuch/x/\n%p\nq!\n"),
    `${HEAD}\nalpha\nbeta\ngamma`);
 
 ok(`${CASES.length + 2} errors: each message exact, each buffer intact`);
+
+// The same errors from a `:` line in visual, where vcatch is set and error0()
+// leaves inopen alone -- so the message goes through vclreol() on the echo
+// line rather than to a pipe. A command that ran on past its own throw used to
+// report twice here, and the second message ran the echo line off the bottom
+// of vtube; vclreol() then raised an error of its own, which is reported
+// through the same vclreol(), and the recursion took the process out with it.
+const VCASES = [
+    ["s", "No previous regular expression"],
+    ["&", "No previous regular expression"],
+    ["~", "No previous regular expression"],
+    ["syntax", "syntax: Not an editor command"],
+    ["s//x/", "No previous regular expression"],
+    ["s/\\(/x/", "More \\('s than \\)'s in regular expression"],
+    ["s/a/x/zz", 'Extra characters at end of "substitute" command'],
+    ["g//d", "No previous regular expression"],
+    ["g/a/s", "No previous substitute to repeat"],
+];
+
+for (const [cmd, want] of VCASES) {
+    put("/tmp/f", FILE);
+    vi("/tmp/f");
+    press(":");
+    for (const ch of cmd)
+        press(ch);
+    press("CR");
+    const rows = screen().split("\n");
+    is(`visual \`:${cmd}\``, `${rows.slice(0, 3).join("\n")}\n${rows[23] ?? ""}`,
+       `alpha\nbeta\ngamma\n${want}`);
+}
+quitvi();
+
+ok(`${VCASES.length} of them from a : line in visual, once each`);

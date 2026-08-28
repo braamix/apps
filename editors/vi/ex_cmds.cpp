@@ -695,6 +695,8 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
             Command = "substitute";
             if (c == 's')
                 tail(Command);
+            if (ex_thrown)
+                continue;
             co_await vmacchng(0);
             if (!co_await substitute(c))
                 pflag = 0;

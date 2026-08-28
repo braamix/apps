@@ -36,10 +36,12 @@ Task<void> global(exbool k)
     markDOT();
     setall();
     nonzero();
+    COCHK;
     if (skipend())
         COTHROW(error("Global needs re|Missing regular expression for global"));
     c = getchar();
     ignore(compile(c, 1));
+    COCHK;
     savere(scanre);
     gp = globuf;
     while ((c = getchar()) != '\n') {
@@ -72,6 +74,7 @@ brkwh:
     ungetchar(c);
 out:
     newline();
+    COCHK;
     *gp++ = c;
     *gp++ = 0;
     saveall();
@@ -168,14 +171,18 @@ Task<int> substitute(int c)
     int gsubf, hopcount = 0;
 
     gsubf = co_await compsub(c);
+    /* No compiled re past here: execute() would run off an empty expbuf. */
+    COCHKV(0);
     if (FIXUNDO)
         save12(), undkind = UNDCHANGE;
     stotal = 0;
     slines = 0;
     for (addr = addr1; addr <= addr2; addr++) {
         scount = 0;
-        if (co_await dosubcon(0, addr) == 0)
+        if (co_await dosubcon(0, addr) == 0) {
+            COCHKV(0);
             continue;
+        }
         if (gsubf) {
             /*
              * The loop can happen from s/\</&/g
@@ -187,12 +194,14 @@ Task<int> substitute(int c)
                 if (co_await dosubcon(1, addr) == 0)
                     break;
             }
+            COCHKV(0);
         }
         if (scount) {
             stotal += scount;
             slines++;
             putmark(addr);
             n = co_await append(getsub, addr);
+            COCHKV(0);
             addr += n;
             addr2 += n;
         }
@@ -221,9 +230,11 @@ Task<int> compsub(int ch)
         }
         if (isalpha(seof) || isdigit(seof))
             COTHROWV(0, error("Substitute needs re|Missing regular expression for substitute"));
-        seof      = compile(seof, 1);
+        seof = compile(seof, 1);
+        COCHKV(0);
         uselastre = 1;
         comprhs(seof);
+        COCHKV(0);
         gsubf = 0;
         cflag = 0;
         break;
@@ -258,6 +269,7 @@ Task<int> compsub(int ch)
             ungetchar(c);
             setcount();
             newline();
+            COCHKV(0);
             if (uselastre)
                 savere(subre);
             else
@@ -373,6 +385,7 @@ Task<int> dosubcon(exbool f, line *a)
         co_return (0);
     if (co_await confirmed(a)) {
         dosub();
+        COCHKV(0);
         scount++;
     }
     co_return (1);
