@@ -1,0 +1,901 @@
+/*	display.c
+ *
+ *      The functions in this file handle redisplay. There are two halves, the
+ *      ones that update the virtual display screen, and the ones that make the
+ *      physical display screen the same as the virtual display screen. These
+ *      functions use hints that are left in the windows by the commands.
+ *
+ *	Modified by Petri Kutvonen
+ */
+
+#include "estruct.h"
+#include "globals.h"
+#include "efunc.h"
+#include "line.h"
+#include "version.h"
+#include "utf8.h"
+#include "util.h"
+
+static int reframe(struct window *wp);
+static void update_cursor_position(void);
+static void paint_window(struct window *wp, bool check);
+static void modeline(struct window *wp);
+
+/*
+ * What the mode line says at the moment, and which row it is on.  The dot
+ * moving is the commonest thing that happens and almost never changes it,
+ * so this is worth knowing: it is the whole of the screen image the display
+ * keeps, one row of it.  A row of -1 means the screen was cleared under us
+ * and nothing is known about any of it any more.
+ *
+ * With several windows there are several mode lines and this only holds the
+ * one painted last, so the saving goes to whichever window is being worked
+ * in and the others simply repaint.  Remembering all of them would be a
+ * screen image again, for a case that does not repeat the way a single
+ * window's mode line does.
+ */
+static unsigned char shown_modeline[MAXCOL];
+static int shown_modeline_row = -1;
+
+/*
+ * Take the terminal over for editing.  Claiming the screen is a syscall,
+ * which is why this awaits; there is still nothing here to allocate,
+ * because the image of it belongs to screen.cpp.
+ */
+Task<void> display_open(void)
+{
+    co_await tcapopen(); /* open the screen */
+    tcapkopen();         /* open the keyboard */
+    tcaprev(FALSE);
+}
+
+/*
+ * Hand the terminal back, on the way out to the operating system.  Move
+ * down to the last line and clear it out, so the next system prompt has
+ * somewhere to go, and shut the channel down.
+ */
+Task<void> display_close(void)
+{
+    msg_erase();
+    movecursor(term.t_nrow, 0);
+    ttflush();
+    co_await tcapclose();
+    tcapkclose();
+}
+
+static void ttputs(const char *s)
+{
+    for (char c; (c = *s) != 0; s++)
+        ttputc(c);
+}
+
+/*
+ * Painting a row.
+ *
+ * 'col' counts columns in the line, which is not the same as columns on
+ * the screen: a line the cursor has run off the right of is shown
+ * scrolled sideways, and everything left of 'offset' is dropped on the
+ * floor on its way past.  'out' is what actually reached the terminal,
+ * which is where the cursor ends up.
+ */
+struct paint {
+    int col;       /* column in the line */
+    int offset;    /* leftmost column shown */
+    int out;       /* columns actually painted */
+    bool overflow; /* ran off the right edge */
+};
+
+/*
+ * One column.  Everything that expands to several of them comes through
+ * here one at a time, so the clipping and the counting are only written
+ * once.
+ */
+static void paint_raw(struct paint *p, unicode_t c)
+{
+    if (p->col >= p->offset + term.t_ncol) {
+        p->overflow = true;
+        p->col++;
+        return;
+    }
+    if (p->col >= p->offset) {
+        ttputc(c);
+        p->out++;
+    }
+    p->col++;
+}
+
+/*
+ * One character, expanded the way the screen shows it.  util.h's
+ * next_column() says how wide each of these comes out, and the two have
+ * to keep agreeing or the cursor lands in the wrong place.
+ */
+static void paint_char(struct paint *p, unicode_t c)
+{
+    if (c == '\t') {
+        do {
+            paint_raw(p, ' ');
+        } while ((p->col & tabmask) != 0);
+        return;
+    }
+
+    if (c < 0x20) {
+        paint_raw(p, '^');
+        paint_raw(p, c ^ 0x40);
+        return;
+    }
+
+    if (c == 0x7f) {
+        paint_raw(p, '^');
+        paint_raw(p, '?');
+        return;
+    }
+
+    if (c >= 0x80 && c <= 0xA0) {
+        static const char hex[] = "0123456789abcdef";
+        paint_raw(p, '\\');
+        paint_raw(p, hex[c >> 4]);
+        paint_raw(p, hex[c & 15]);
+        return;
+    }
+
+    paint_raw(p, c);
+}
+
+static void paint_bytes(struct paint *p, char *text, int from, int to)
+{
+    while (from < to) {
+        unicode_t c;
+
+        from += utf8_to_unicode(text, from, to, &c);
+        paint_char(p, c);
+    }
+}
+
+/*
+ * Words are handed to hunspell as the UTF-8 they already are.  The
+ * buffer is only here because Hunspell_spell() wants a C string; 128
+ * bytes is about forty accented letters, and anything longer is called
+ * correct rather than guessed at.
+ */
+static bool word_ok(char *text, int from, int to)
+{
+    char word[128];
+    int len = to - from;
+
+    // We're not doing German or Finnish...
+    if (len >= sizeof(word))
+        return true;
+
+    memcpy(word, text + from, len);
+    word[len] = 0;
+    return spellcheck(word);
+}
+
+#define SPELLSTART "\033[1m"
+#define SPELLSTOP  "\033[22m"
+
+static void paint_word(struct paint *p, char *text, int from, int to, bool check)
+{
+    bool bad = check && !word_ok(text, from, to);
+
+    if (bad)
+        ttputs(SPELLSTART);
+    paint_bytes(p, text, from, to);
+    if (bad)
+        ttputs(SPELLSTOP);
+}
+
+// A letter is any byte that is not something else.  That is the whole
+// trick: the bytes of a UTF-8 character are all >= 0x80, so words in
+// other alphabets fall out of a plain byte scan already encoded the way
+// hunspell wants them, without ever being decoded or re-encoded.
+static bool is_letter(unsigned char c)
+{
+    return c >= 0x80 || isalpha(c);
+}
+
+// Mixed letters and digits or underscores are hex numbers and variable
+// names rather than words, so the whole token goes unchecked.
+static bool is_notaword(unsigned char c)
+{
+    return c == '_' || (c >= '0' && c <= '9');
+}
+
+static bool is_token(unsigned char c)
+{
+    return is_letter(c) || is_notaword(c);
+}
+
+/*
+ * Paint one row of the screen, straight from the line it shows.
+ *
+ * 'lp' is NULL for a row past the end of the buffer, 'offset' is the
+ * first column to show, and 'check' asks for the spell checking.
+ *
+ * The word scanning walks the line's own UTF-8 rather than anything the
+ * layout has been through, so a tab or the right margin cannot break a
+ * word in half before hunspell sees it.
+ */
+static void paint_line(int row, struct line *lp, int offset, bool check)
+{
+    struct paint p = { .offset = offset };
+    char *text     = lp ? lp->l_text : NULL;
+    int len        = lp ? line_length(lp) : 0;
+    int i          = 0;
+
+    movecursor(row, 0);
+
+    while (i < len) {
+        if (!is_token(text[i])) {
+            paint_bytes(&p, text, i, i + 1);
+            i++;
+            continue;
+        }
+
+        int start = i;
+        bool word = true;
+
+        while (i < len) {
+            unsigned char c = text[i];
+
+            if (is_letter(c)) {
+                i++;
+            } else if (is_notaword(c)) {
+                word = false;
+                i++;
+            } else if (c == '\'' && word && i + 1 < len && isalpha((unsigned char)text[i + 1])) {
+                i++; /* an abbreviation, not an end */
+            } else
+                break;
+        }
+
+        paint_word(&p, text, start, i, check && word);
+    }
+
+    shown_col = p.out;
+    tcapeeol();
+
+    /* the markers that say the line carries on past the edge */
+    if (p.overflow) {
+        movecursor(row, term.t_ncol - 1);
+        ttputc('$');
+        shown_col = term.t_ncol;
+    }
+    if (offset) {
+        movecursor(row, 0);
+        ttputc('$');
+        shown_col = 1;
+    }
+}
+
+/*
+ * Paint every row of the window, and the mode line under it.
+ */
+static void paint_window(struct window *wp, bool check)
+{
+    struct line *end = wp->w_bufp->b_linep;
+    struct line *lp  = wp->w_linep;
+
+    for (int i = 0; i < wp->w_ntrows; i++) {
+        int row  = wp->w_toprow + i;
+        bool eob = lp == end;
+
+        /*
+         * Only the window the cursor is in can be scrolled
+         * sideways: update_cursor_position() works left_column out from the
+         * current dot, and cursor_row is a screen row that means
+         * nothing anywhere else.
+         */
+        paint_line(row, eob ? NULL : lp, wp == curwp && row == cursor_row ? left_column : 0, check);
+        if (!eob)
+            lp = line_next(lp);
+    }
+    modeline(wp);
+}
+
+/*
+ * The update-screen command: repaint whatever is on the screen, whether
+ * anything is thought to have changed or not.
+ */
+Task<int> cmd_update_screen(int f, int n)
+{
+    co_await update_now();
+    co_return TRUE;
+}
+
+/*
+ * Refresh the screen, unless a keyboard macro is replaying - the
+ * intermediate states of a macro are not worth painting, since what was
+ * asked for is the state it finishes in.  Anything that has to be seen
+ * whatever is going on calls update_now() instead.
+ */
+Task<void> update(void)
+{
+    if (keyboard_macro_mode == PLAY)
+        co_return;
+    co_await update_now();
+}
+
+/*
+ * Make sure that the display is right. Check the framing, work out where
+ * the cursor has ended up, and paint whatever the change reaches.
+ *
+ * There is no image of the screen to compare against, so what gets
+ * painted is decided from the buffer alone: everything, unless the
+ * window flags say the change cannot have reached further than the line
+ * the cursor is on.
+ */
+static void update_window(struct window *wp, int oldbound)
+{
+    bool check = (wp->w_bufp->b_mode & MDSPELL) != 0;
+    /*
+     * Sideways scrolling is the current window's business and nobody
+     * else's: update_cursor_position() works left_column out from the current dot.
+     */
+    int bound = wp == curwp ? left_column : 0;
+    int oldb  = wp == curwp ? oldbound : 0;
+
+    if (wp == curwp && (wp->w_flag & ~WFMODE) == WFEDIT && !bound && !oldb) {
+        /*
+         * The case that happens on every keystroke: a character
+         * went into the line the cursor is on, the line count did
+         * not change, and nothing is scrolled sideways.  No other
+         * row can have moved, so no other row is worth painting.
+         *
+         * Only ever the current window: buffer_changed() promotes
+         * the flag to WFHARD as soon as a second window is showing
+         * the buffer, exactly so that nobody has to paint one
+         * window's edit at another window's dot.
+         */
+        paint_line(cursor_row, wp->w_dotp, 0, check);
+        if (wp->w_flag & WFMODE)
+            modeline(wp);
+    } else if (!(wp->w_flag & ~(WFMOVE | WFMODE)) && !bound && !oldb) {
+        /*
+         * The dot moved and the frame did not have to follow it -
+         * reframe() sets WFHARD when it does - so no text changed
+         * and every row still says what it already said.  Only the
+         * mode line can differ, and the cursor has to move.
+         */
+        modeline(wp);
+    } else if (wp->w_flag || bound != oldb)
+        paint_window(wp, check);
+}
+
+Task<void> update_now(void)
+{
+    struct window *wp;
+    int oldbound = left_column;
+
+    for (wp = window_head; wp != NULL; wp = wp->w_wndp)
+        if (wp->w_flag)
+            reframe(wp); /* check the framing */
+
+    update_cursor_position(); /* currow, curcol and lbound */
+
+    if (screen_garbage != FALSE) {
+        /* the screen is not what we think it is; start over */
+        movecursor(0, 0);
+        tcapeeop();
+        screen_garbage     = FALSE;
+        message_present    = FALSE;
+        shown_modeline_row = -1; /* the mode line went with it */
+        for (wp = window_head; wp != NULL; wp = wp->w_wndp)
+            paint_window(wp, (wp->w_bufp->b_mode & MDSPELL) != 0);
+    } else {
+        /*
+         * The current window is looked at whether it says anything
+         * changed or not, because its mode line carries where the
+         * dot is; the others are only worth the visit when they
+         * have asked for one.
+         */
+        for (wp = window_head; wp != NULL; wp = wp->w_wndp)
+            if (wp == curwp || wp->w_flag)
+                update_window(wp, oldbound);
+    }
+
+    for (wp = window_head; wp != NULL; wp = wp->w_wndp) {
+        wp->w_flag  = 0;
+        wp->w_force = 0;
+    }
+
+    /* update the cursor and flush the buffers */
+    movecursor(cursor_row, cursor_col - left_column);
+    ttflush();
+
+    /* a resize that arrived while we were painting */
+    while (chg_width || chg_height)
+        co_await checkwinsize();
+}
+
+/*
+ * reframe:
+ *	check to see if the cursor is on in the window
+ *	and re-frame it if needed or wanted
+ */
+static int reframe(struct window *wp)
+{
+    struct line *lp, *lp0;
+    int i = 0;
+
+    /* if not a requested reframe, check for a needed one */
+    if ((wp->w_flag & WFFORCE) == 0) {
+        /* loop from one line above the window to one line after */
+        lp  = wp->w_linep;
+        lp0 = line_prev(lp);
+        if (lp0 == wp->w_bufp->b_linep)
+            i = 0;
+        else {
+            i  = -1;
+            lp = lp0;
+        }
+        for (; i <= wp->w_ntrows; i++) {
+            /* if the line is in the window, no reframe */
+            if (lp == wp->w_dotp) {
+                /* if not _quite_ in, we'll reframe gently */
+                if (i < 0 || i == wp->w_ntrows) {
+                    break;
+                }
+                return TRUE;
+            }
+
+            /* if we are at the end of the file, reframe */
+            if (lp == wp->w_bufp->b_linep)
+                break;
+
+            /* on to the next line */
+            lp = line_next(lp);
+        }
+    }
+    if (i == -1) {                  /* we're just above the window */
+        i = scroll_lines;           /* put dot at first line */
+    } else if (i == wp->w_ntrows) { /* we're just below the window */
+        i = -scroll_lines;          /* put dot at last line */
+    } else                          /* put dot where requested */
+        i = wp->w_force;            /* (is 0, unless reposition() was called) */
+
+    wp->w_flag |= WFMODE;
+
+    /* how far back to reframe? */
+    if (i > 0) { /* only one screen worth of lines max */
+        if (--i >= wp->w_ntrows)
+            i = wp->w_ntrows - 1;
+    } else if (i < 0) { /* negative update???? */
+        i += wp->w_ntrows;
+        if (i < 0)
+            i = 0;
+    } else
+        i = wp->w_ntrows / 2;
+
+    /* backup to new line at top of window */
+    lp = wp->w_dotp;
+    while (i != 0 && line_prev(lp) != wp->w_bufp->b_linep) {
+        --i;
+        lp = line_prev(lp);
+    }
+
+    /* and reset the current line at top of window */
+    wp->w_linep = lp;
+    wp->w_flag |= WFHARD;
+    wp->w_flag &= ~WFFORCE;
+    return TRUE;
+}
+
+/*
+ * update_cursor_position:
+ *	update the position of the hardware cursor and handle extended
+ *	lines. This is the only update for simple moves.
+ */
+static void update_cursor_position(void)
+{
+    struct line *lp;
+    int i;
+
+    /* find the current row, counting from the top of the screen */
+    lp         = curwp->w_linep;
+    cursor_row = curwp->w_toprow;
+    while (lp != curwp->w_dotp) {
+        ++cursor_row;
+        lp = line_next(lp);
+    }
+
+    /* find the current column */
+    cursor_col = 0;
+    i          = 0;
+    while (i < curwp->w_doto) {
+        unicode_t c;
+        int bytes;
+
+        bytes = utf8_to_unicode(lp->l_text, i, curwp->w_doto, &c);
+        i += bytes;
+        cursor_col = next_column(cursor_col, c);
+    }
+
+    /*
+     * If the cursor has run off the right, scroll the line sideways
+     * far enough to show it.  lbound is the leftmost column that
+     * still fits, and paint_line() drops everything to the left of
+     * it.
+     */
+    if (cursor_col >= term.t_ncol - 1) {
+        int rcursor = ((cursor_col - term.t_ncol) % term.t_scrsiz) + term.t_margin;
+        left_column = cursor_col - rcursor + 1;
+    } else
+        left_column = 0;
+}
+
+/*
+ * Add one character to the mode line image, expanding it the way the
+ * screen would, and marking an overlong line with a '$' in the last
+ * column.  The column counter is carried in *np.
+ */
+static void modeline_putc(unsigned char *mline, int *np, int c)
+{
+    /* In case somebody passes us a signed char.. */
+    if (c < 0) {
+        c += 256;
+        if (c < 0)
+            return;
+    }
+
+    if (*np >= term.t_ncol) {
+        mline[term.t_ncol - 1] = '$';
+        (*np)++;
+        return;
+    }
+
+    if (c == '\t') {
+        do {
+            modeline_putc(mline, np, ' ');
+        } while ((*np & tabmask) != 0);
+        return;
+    }
+
+    if (c < 0x20) {
+        modeline_putc(mline, np, '^');
+        modeline_putc(mline, np, c ^ 0x40);
+        return;
+    }
+
+    if (c == 0x7f) {
+        modeline_putc(mline, np, '^');
+        modeline_putc(mline, np, '?');
+        return;
+    }
+
+    if (c >= 0x80 && c <= 0xA0) {
+        static const char hex[] = "0123456789abcdef";
+        modeline_putc(mline, np, '\\');
+        modeline_putc(mline, np, hex[c >> 4]);
+        modeline_putc(mline, np, hex[c & 15]);
+        return;
+    }
+
+    mline[(*np)++] = c;
+}
+
+/*
+ * Redisplay the mode line for the window pointed to by the "wp". This is the
+ * only routine that has any idea of how the modeline is formatted. You can
+ * change the modeline format by hacking at this routine. Called by "update"
+ * any time there is a dirty window.
+ */
+static void modeline(struct window *wp)
+{
+    char *cp;
+    int c;
+    int n; /* cursor position count */
+    struct buffer *bp;
+    int i;                       /* loop index */
+    int lchar;                   /* character to draw line in buffer with */
+    int firstm;                  /* is this the first mode? */
+    char tline[NLINE];           /* buffer for part of mode line */
+    unsigned char mline[MAXCOL]; /* the assembled mode line */
+
+    memset(mline, ' ', sizeof(mline));
+    n = 0;
+    if (wp == curwp) /* mark the current buffer */
+        lchar = '-';
+    else if (can_reverse_video)
+        lchar = ' ';
+    else
+        lchar = '-';
+
+    bp = wp->w_bufp;
+    modeline_putc(mline, &n, lchar);
+
+    if ((bp->b_flag & BFCHG) != 0) /* "*" if changed. */
+        modeline_putc(mline, &n, '*');
+    else
+        modeline_putc(mline, &n, lchar);
+
+    strcpy(tline, " ");
+    strcat(tline, PROGRAM_NAME_LONG);
+    strcat(tline, " ");
+    strcat(tline, VERSION);
+    strcat(tline, ": ");
+    cp = &tline[0];
+    while ((c = *cp++) != 0)
+        modeline_putc(mline, &n, c);
+
+    cp = &bp->b_bname[0];
+    while ((c = *cp++) != 0)
+        modeline_putc(mline, &n, c);
+
+    strcpy(tline, " (");
+
+    /* display the modes */
+
+    firstm = TRUE;
+    if ((bp->b_flag & BFTRUNC) != 0) {
+        firstm = FALSE;
+        strcat(tline, "Truncated");
+    }
+    for (i = 0; i < NUMMODES; i++) /* add in the mode flags */
+        if (wp->w_bufp->b_mode & (1 << i)) {
+            if (firstm != TRUE)
+                strcat(tline, " ");
+            firstm = FALSE;
+            strcat(tline, mode2name[i]);
+        }
+    strcat(tline, ") ");
+
+    cp = &tline[0];
+    while ((c = *cp++) != 0)
+        modeline_putc(mline, &n, c);
+
+    if (bp->b_fname[0] != 0 && strcmp(bp->b_bname, bp->b_fname) != 0) {
+        cp = &bp->b_fname[0];
+
+        while ((c = *cp++) != 0)
+            modeline_putc(mline, &n, c);
+
+        modeline_putc(mline, &n, ' ');
+    }
+
+    while (n < term.t_ncol) /* Pad to full width. */
+        modeline_putc(mline, &n, lchar);
+
+    { /* determine if top line, bottom line, or both are visible */
+        struct line *lp = wp->w_linep;
+        int rows        = wp->w_ntrows;
+        char *msg       = NULL;
+
+        n -= 7; /* strlen(" top ") plus a couple */
+        while (rows--) {
+            lp = line_next(lp);
+            if (lp == wp->w_bufp->b_linep) {
+                msg = " Bot ";
+                break;
+            }
+        }
+        if (line_prev(wp->w_linep) == wp->w_bufp->b_linep) {
+            if (msg) {
+                if (wp->w_linep == wp->w_bufp->b_linep)
+                    msg = " Emp ";
+                else
+                    msg = " All ";
+            } else {
+                msg = " Top ";
+            }
+        }
+        if (!msg) {
+            struct line *lp;
+            int numlines, predlines, ratio;
+
+            lp        = line_next(bp->b_linep);
+            numlines  = 0;
+            predlines = 0;
+            while (lp != bp->b_linep) {
+                if (lp == wp->w_linep) {
+                    predlines = numlines;
+                }
+                ++numlines;
+                lp = line_next(lp);
+            }
+            if (wp->w_dotp == bp->b_linep) {
+                msg = " Bot ";
+            } else {
+                ratio = 0;
+                if (numlines != 0)
+                    ratio = (100L * predlines) / numlines;
+                if (ratio > 99)
+                    ratio = 99;
+                sprintf(tline, " %2d%% ", ratio);
+                msg = tline;
+            }
+        }
+
+        cp = msg;
+        while ((c = *cp++) != 0)
+            modeline_putc(mline, &n, c);
+    }
+
+    i = wp->w_toprow + wp->w_ntrows;
+
+    /* Already up there, and 145 bytes not to say it again. */
+    if (shown_modeline_row == i && memcmp(shown_modeline, mline, term.t_ncol) == 0)
+        return;
+    memcpy(shown_modeline, mline, term.t_ncol);
+    shown_modeline_row = i;
+
+    /* and paint it, in reverse video across the full width */
+    movecursor(i, 0);
+    tcaprev(TRUE);
+    for (i = 0; i < term.t_ncol; i++)
+        ttputc(mline[i]);
+    tcaprev(FALSE);
+    shown_col = term.t_ncol;
+}
+
+void update_modeline(void)
+{ /* update all the mode lines */
+    struct window *wp;
+
+    for (wp = window_head; wp != NULL; wp = wp->w_wndp)
+        wp->w_flag |= WFMODE;
+}
+
+/*
+ * Send a command to the terminal to move the hardware cursor to row "row"
+ * and column "col". The row and column arguments are origin 0. Optimize out
+ * random calls. Update "ttrow" and "ttcol".
+ */
+void movecursor(int row, int col)
+{
+    if (row != shown_row || col != shown_col) {
+        shown_row = row;
+        shown_col = col;
+        tcapmove(row, col);
+    }
+}
+
+/*
+ * Erase the message line. This is a special routine because the message line
+ * is not considered to be part of the virtual screen. It always works
+ * immediately; the terminal buffer is flushed via a call to the flusher.
+ */
+void msg_erase(void)
+{
+    int i;
+
+    movecursor(term.t_nrow, 0);
+    if (display_commands == FALSE)
+        return;
+
+    if (can_erase_to_eol == TRUE)
+        tcapeeol();
+    else {
+        for (i = 0; i < term.t_ncol - 1; i++)
+            ttputc(' ');
+        movecursor(term.t_nrow, 1); /* force the move! */
+        movecursor(term.t_nrow, 0);
+    }
+    ttflush();
+    message_present = FALSE;
+}
+
+/*
+ * The framing every message shares: get to the message line, and tidy
+ * up behind whatever was written there.
+ */
+static int msg_begin(void)
+{
+    /* if we are not currently echoing on the command line, abort this */
+    if (display_commands == FALSE) {
+        movecursor(term.t_nrow, 0);
+        return FALSE;
+    }
+
+    /* if we can not erase to end-of-line, do it manually */
+    if (can_erase_to_eol == FALSE) {
+        msg_erase();
+        ttflush();
+    }
+
+    movecursor(term.t_nrow, 0);
+    return TRUE;
+}
+
+static void msg_end(void)
+{
+    /* if we can, erase to the end of screen */
+    if (can_erase_to_eol == TRUE)
+        tcapeeol();
+    ttflush();
+    message_present = TRUE;
+}
+
+/*
+ * Write a string to the message line.  The string is text, not a
+ * format - which is what a caller with a run-time string wants, and
+ * saves it from having to double any '%' the user typed.
+ */
+void msg_puts(const char *s)
+{
+    if (!msg_begin())
+        return;
+    msg_append(s);
+    msg_end();
+}
+
+/*
+ * Write a message into the message line.  The format is a printf one
+ * and had better be a literal: anything built at run time goes to
+ * msg_puts() instead.
+ *
+ * A message longer than the screen could ever show is cut off rather
+ * than wrapped.
+ */
+void msg_printf(const char *fmt, ...)
+{
+    char buf[MAXCOL];
+    va_list ap;
+
+    if (!msg_begin())
+        return;
+
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+
+    msg_append(buf);
+    msg_end();
+}
+
+/*
+ * Force a string out to the message line regardless of the
+ * current $discmd setting. This is needed when $debug is TRUE
+ * and for the write-message and clear-message-line commands
+ *
+ * char *s;		string to force out
+ */
+void msg_force(char *s)
+{
+    int oldcmd; /* original command display flag */
+
+    oldcmd           = display_commands; /* save the discmd value */
+    display_commands = TRUE;             /* and turn display on */
+    msg_puts(s);                         /* write the string out */
+    display_commands = oldcmd;           /* and restore the original setting */
+}
+
+/*
+ * Write out a string. Update the physical cursor position. This assumes that
+ * the characters in the string all have width "1"; if this is not the case
+ * things will get screwed up a little.
+ */
+void msg_append(const char *s)
+{
+    int c;
+
+    while ((c = *s++) != 0) {
+        ttputc(c);
+        ++shown_col;
+    }
+}
+
+/* Get terminal size from system.
+   Store number of lines into *heightp and width into *widthp.
+   If zero or a negative number is stored, the value is not valid.  */
+
+/*
+ * Act on a size change, from a context that is allowed to paint.  There is
+ * no signal handler any more: the grid is resized under a key read, and
+ * screen.cpp writes the new geometry down there.
+ */
+Task<void> checkwinsize(void)
+{
+    int w = chg_width, h = chg_height;
+
+    if (!w && !h)
+        co_return;
+
+    chg_width = chg_height = 0;
+    if (h - 1 < term.t_mrow)
+        co_await cmd_change_screen_size(TRUE, h);
+    if (w < term.t_mcol)
+        co_await cmd_change_screen_width(TRUE, w);
+
+    co_await update_now();
+}

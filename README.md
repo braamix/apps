@@ -9,6 +9,7 @@ that runs in a browser tab.
 | --- | --- |
 | [archivers/zip](archivers/zip/) | Info-ZIP zip 3.0, and zipnote, zipsplit and zipcloak with it |
 | [converters/iconv](converters/iconv/) | Citrus iconv, and the two hundred character sets it converts between |
+| [editors/uemacs](editors/uemacs/) | uEmacs/PK 4.0, MicroEMACS as Linus Torvalds keeps it |
 | [editors/vi](editors/vi/) | UCB vi 3.6, and ex under it — the editor Bill Joy wrote |
 | [benchmarks/dhrystone](benchmarks/dhrystone/) | Dhrystone 2.1, the 1984 integer benchmark |
 | [benchmarks/duremark](benchmarks/duremark/) | DureMark 1.1, a small CoreMark-inspired benchmark |
@@ -39,7 +40,8 @@ builds the packages beside them, `<program>-<version>.zip`.
 
 runs what headless tests there are — `archivers/zip`, which writes archives and
 reads them back with Braam's own `/bin/unzip`; `games/adventure`, which plays a
-whole game of Colossal Cave and interrupts a second one with `^C`;
+whole game of Colossal Cave and interrupts a second one with `^C`; the two
+editors, driven a keystroke at a time and asserted cell by cell;
 `converters/iconv`, which checks 137,385 mappings against GNU libiconv's own
 answers; and the two benchmarks, each stopped partway by a signal. All of them
 need node and a sibling `../braam-core` built.

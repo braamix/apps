@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Six programs are ported so far**:
+**Seven programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -30,7 +30,14 @@ hard part is neither streams nor data but *control flow*: `error()` was a
 `longjmp` from arbitrary depth and there is no `setjmp` to be had, so it
 records and unwinds a frame at a time. Its other half is the screen — vi kept
 an exact image of the terminal in `vtube` to work out the fewest bytes to
-send, and that image is now the back buffer for a damage-tracked Grid. The
+send, and that image is now the back buffer for a damage-tracked Grid; and
+[editors/uemacs](editors/uemacs/), uEmacs/PK 4.0, whose hard part is
+*breadth*: the one blocking read sits under `ask_string()` and `getcmd()`,
+which nearly every command calls, and the commands are reached through two
+function-pointer tables — so changing `fn_t` converted 244 of 377 functions
+at once. It is also where the tree learned that **a `co_await` is a call and
+not a tail call**, so a loop that awaits without ever suspending grows the
+native stack until the process traps; see its README. The
 rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
 [emulators/simbesm](emulators/simbesm/TODO.md),
@@ -220,6 +227,15 @@ Rules that are a compile error, link error or trap rather than a warning:
 - A coroutine must not contain a hot loop by accident: inlining an ordinary
   function into one moves its locals into the heap-allocated frame. Mark the
   callee `__attribute__((noinline))` where that matters.
+- **A `co_await` is a call, not a tail call.** The wasm tail-call feature is
+  off, so entering a task and returning from it each leave a frame on the
+  native stack, and it is only given back where something *suspends* — a
+  syscall unwinds the whole stack and the kernel re-enters at `_resume`. So a
+  loop that awaits N times without ever suspending costs O(N) stack and traps
+  at a few hundred turns. Keep the callee a plain function where it cannot
+  block, and where the loop is unbounded, park on something every so often;
+  `exec_yield()` in [editors/uemacs/exec.cpp](editors/uemacs/exec.cpp) is the
+  worked example.
 
 A command whose work is running other commands should be a `/bin/sh` script
 instead, with an absolute `#!` interpreter; that needs no toolchain at all.

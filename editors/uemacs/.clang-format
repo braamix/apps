@@ -1,0 +1,5 @@
+# The tree's own style, less the include sorting: estruct.h and globals.h have
+# to come before efunc.h, which is written against what they define, so the
+# order of the includes is part of the source rather than a matter of taste.
+BasedOnStyle: InheritParentConfig
+SortIncludes: Never

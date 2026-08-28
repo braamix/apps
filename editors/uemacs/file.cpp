@@ -1,0 +1,609 @@
+/*	file.c
+ *
+ *	The routines in this file handle the reading, writing
+ *	and lookup of disk files.  All of details about the
+ *	reading and writing of the disk are in "fileio.c".
+ *
+ *	modified by Petri Kutvonen
+ */
+
+#include "estruct.h"
+#include "globals.h"
+#include "efunc.h"
+#include "line.h"
+#include "util.h"
+
+#include "proc/io.h"
+
+/* Max number of lines from one file. */
+#define MAXNLINE 10000000
+
+/*
+ * Remember what the file looks like now, as the state the buffer
+ * matches.  Called after reading the file, and after writing it.
+ */
+static Task<void> record_fstate(struct buffer *bp, char *fn)
+{
+    Result<FileInfo> r = Err(Error::NoMemory);
+
+    if (Task<Result<FileInfo>> t = stat_of(Str(fn, strlen(fn))))
+        r = co_await t;
+    if (r.is_err()) {
+        /* Not being there is a perfectly good answer, and the
+           one that matters: it is how two editors started on the
+           same new name find out about each other.  Anything
+           else and we simply do not know. */
+        bp->b_fstate.fs_what = r.error() == Error::NotFound ? FSTATE_ABSENT : FSTATE_UNKNOWN;
+        co_return;
+    }
+
+    bp->b_fstate.fs_what  = FSTATE_PRESENT;
+    bp->b_fstate.fs_kind  = r.value().kind;
+    bp->b_fstate.fs_size  = r.value().size;
+    bp->b_fstate.fs_mtime = r.value().mtime;
+}
+
+/*
+ * Has the file been changed by somebody else since we last matched it?
+ *
+ * With no baseline we say no: we have nothing to go on, and claiming a
+ * file changed when we never looked at it would be a lie.
+ */
+Task<int> file_changed(struct buffer *bp, char *fn)
+{
+    Result<FileInfo> r = Err(Error::NoMemory);
+    int there;
+
+    if (Task<Result<FileInfo>> t = stat_of(Str(fn, strlen(fn))))
+        r = co_await t;
+    there = !r.is_err();
+
+    switch (bp->b_fstate.fs_what) {
+    case FSTATE_ABSENT:
+        co_return there;
+    case FSTATE_PRESENT:
+        if (!there)
+            co_return TRUE;
+        co_return r.value().kind != bp->b_fstate.fs_kind ||
+            r.value().size != bp->b_fstate.fs_size || r.value().mtime != bp->b_fstate.fs_mtime;
+    default:
+        co_return FALSE;
+    }
+}
+
+/*
+ * Read a file into the current
+ * buffer. This is really easy; all you do it
+ * find the name of the file, and call the standard
+ * "read a file into the current buffer" code.
+ * Bound to "C-X C-R".
+ */
+Task<int> cmd_read_file(int f, int n)
+{
+    int s;
+    char fname[NFILEN];
+
+    if (restflag) /* don't allow this command if restricted */
+        co_return restricted_error();
+    if ((s = co_await ask_string("Read file: ", fname, NFILEN)) != TRUE)
+        co_return s;
+    co_return co_await readin(fname, TRUE);
+}
+
+/*
+ * Insert a file into the current
+ * buffer. This is really easy; all you do it
+ * find the name of the file, and call the standard
+ * "insert a file into the current buffer" code.
+ * Bound to "C-X C-I".
+ */
+Task<int> cmd_insert_file(int f, int n)
+{
+    int s;
+    char fname[NFILEN];
+
+    if (restflag) /* don't allow this command if restricted */
+        co_return restricted_error();
+    if (curbp->b_mode & MDVIEW)     /* don't allow this command if      */
+        co_return readonly_error(); /* we are in read only mode     */
+    if ((s = co_await ask_string("Insert file: ", fname, NFILEN)) != TRUE)
+        co_return s;
+    if ((s = co_await insert_file(fname)) != TRUE)
+        co_return s;
+    co_return co_await cmd_redraw_display(TRUE, -1);
+}
+
+/*
+ * Select a file for editing.
+ * Look around to see if you can find the
+ * fine in another buffer; if you can find it
+ * just switch to the buffer. If you cannot find
+ * the file, create a new buffer, read in the
+ * text, and switch to the new buffer.
+ * Bound to C-X C-F.
+ */
+Task<int> cmd_find_file(int f, int n)
+{
+    char fname[NFILEN]; /* file user wishes to find */
+    int s;              /* status return */
+
+    if (restflag) /* don't allow this command if restricted */
+        co_return restricted_error();
+    if ((s = co_await ask_string("Find file: ", fname, NFILEN)) != TRUE)
+        co_return s;
+    co_return co_await getfile(fname, TRUE);
+}
+
+Task<int> cmd_view_file(int f, int n)
+{                       /* visit a file in VIEW mode */
+    char fname[NFILEN]; /* file user wishes to find */
+    int s;              /* status return */
+
+    if (restflag) /* don't allow this command if restricted */
+        co_return restricted_error();
+    if ((s = co_await ask_string("View file: ", fname, NFILEN)) != TRUE)
+        co_return s;
+    s = co_await getfile(fname, FALSE);
+    if (s) { /* if we succeed, put it in view mode */
+        struct window *wp;
+
+        curwp->w_bufp->b_mode |= MDVIEW;
+
+        /* scan through and update mode lines of all windows */
+        wp = window_head;
+        while (wp != NULL) {
+            wp->w_flag |= WFMODE;
+            wp = wp->w_wndp;
+        }
+    }
+    co_return s;
+}
+
+/*
+ * getfile()
+ *
+ * char fname[];	file name to find
+ * int lockfl;		check the file for locks?
+ */
+Task<int> getfile(char *fname, int lockfl)
+{
+    struct buffer *bp;
+    struct line *lp;
+    int i;
+    int s;
+    char bname[NBUFN]; /* buffer name to put file */
+
+    for (bp = buffer_head; bp != NULL; bp = bp->b_bufp) {
+        if ((bp->b_flag & BFINVS) == 0 && strcmp(bp->b_fname, fname) == 0) {
+            co_await swbuffer(bp);
+            lp = curwp->w_dotp;
+            i  = curwp->w_ntrows / 2;
+            while (i-- && line_prev(lp) != curbp->b_linep)
+                lp = line_prev(lp);
+            curwp->w_linep = lp;
+            curwp->w_flag |= WFMODE | WFHARD;
+            co_await shown_buffer_changed();
+            msg_printf("(Old buffer)");
+            co_return TRUE;
+        }
+    }
+    makename(bname, fname); /* New buffer name.     */
+    while ((bp = find_buffer(bname, FALSE, 0)) != NULL) {
+        /* old buffer name conflict code */
+        s = co_await ask_string("Buffer name: ", bname, NBUFN);
+        if (s == ABORT) /* ^G to just quit      */
+            co_return s;
+        if (s == FALSE) { /* CR to clobber it     */
+            makename(bname, fname);
+            break;
+        }
+    }
+    if (bp == NULL && (bp = find_buffer(bname, TRUE, 0)) == NULL) {
+        msg_printf("Cannot create buffer");
+        co_return FALSE;
+    }
+    if (--curbp->b_nwnd == 0) { /* Undisplay.           */
+        curbp->b_dotp  = curwp->w_dotp;
+        curbp->b_doto  = curwp->w_doto;
+        curbp->b_markp = curwp->w_markp;
+        curbp->b_marko = curwp->w_marko;
+    }
+    curbp         = bp; /* Switch to it.        */
+    curwp->w_bufp = bp;
+    curbp->b_nwnd++;
+    s = co_await readin(fname, lockfl); /* Read it in.          */
+    co_await shown_buffer_changed();
+    co_return s;
+}
+
+/*
+ * Read file "fname" into the current buffer, blowing away any text
+ * found there.  Called by both the read and find commands.  Return
+ * the final status of the read.  Also called by the mainline, to
+ * read in a file specified on the command line as an argument.
+ * The command bound to M-FNR is called after the buffer is set up
+ * and before it is read.
+ *
+ * char fname[];	name of file to read
+ * int lockfl;		check for file locks?
+ */
+Task<int> readin(char *fname, int lockfl)
+{
+    struct line *lp1;
+    struct line *lp2;
+    int i;
+    struct window *wp;
+    struct buffer *bp;
+    int s;
+    int nbytes;
+    int nline;
+    char mesg[NSTRING];
+
+    /*
+     * lockchk() was an exclusive flock() on a descriptor kept open for
+     * as long as we held the file, keyed on device and inode.  Braam has
+     * neither advisory locking nor an inode, so the whole of lock.c went
+     * and nothing refuses to open a file somebody else is editing.  What
+     * catches the collision instead is file_changed(), which still asks
+     * before overwriting a file that moved under us.
+     */
+    (void)lockfl;
+    bp = curbp;                                  /* Cheap.               */
+    if ((s = co_await clear_buffer(bp)) != TRUE) /* Might be old.        */
+        co_return s;
+    bp->b_flag &= ~(BFINVS | BFCHG);
+    mystrscpy(bp->b_fname, fname, NFILEN);
+
+    /* let a user macro get hold of things...if he wants */
+    co_await execute(META | SPEC | 'R', FALSE, 1);
+
+    if ((s = co_await file_open_read(fname)) == FIOERR) /* Hard file open.      */
+        goto out;
+
+    if (s == FIOFNF) { /* File not found.      */
+        msg_printf("(New file)");
+        goto out;
+    }
+
+    /* read the file in */
+    msg_printf("(Reading file)");
+    nline = 0;
+    while ((s = co_await file_get_line()) == FIOSUC) {
+        nbytes = strlen(file_line);
+        if ((lp1 = line_alloc(nbytes)) == NULL) {
+            s = FIOMEM; /* Keep message on the  */
+            break;      /* display.             */
+        }
+        if (nline > MAXNLINE) {
+            s = FIOMEM;
+            break;
+        }
+        lp2                  = line_prev(curbp->b_linep);
+        lp2->l_fp            = lp1;
+        lp1->l_fp            = curbp->b_linep;
+        lp1->l_bp            = lp2;
+        curbp->b_linep->l_bp = lp1;
+        for (i = 0; i < nbytes; ++i)
+            lputc(lp1, i, file_line[i]);
+        ++nline;
+    }
+    co_await file_close(); /* Ignore errors.       */
+    strcpy(mesg, "(");
+    if (s == FIOERR) {
+        strcat(mesg, "I/O ERROR, ");
+        curbp->b_flag |= BFTRUNC;
+    }
+    if (s == FIOMEM) {
+        strcat(mesg, "OUT OF MEMORY, ");
+        curbp->b_flag |= BFTRUNC;
+    }
+    sprintf(&mesg[strlen(mesg)], "Read %d line", nline);
+    if (nline != 1)
+        strcat(mesg, "s");
+    strcat(mesg, ")");
+    msg_puts(mesg);
+
+out:
+    /* The buffer now matches the file, whatever the file turned out
+       to be - including not being there at all. */
+    if (bp->b_fname[0])
+        co_await record_fstate(bp, bp->b_fname);
+
+    wp = window_head;
+    while (wp != NULL) {
+        if (wp->w_bufp == curbp) {
+            wp->w_linep = line_next(curbp->b_linep);
+            wp->w_dotp  = line_next(curbp->b_linep);
+            wp->w_doto  = 0;
+            wp->w_markp = NULL;
+            wp->w_marko = 0;
+            wp->w_flag |= WFMODE | WFHARD;
+        }
+        wp = wp->w_wndp;
+    }
+    if (s == FIOERR || s == FIOFNF) /* False if error.      */
+        co_return FALSE;
+    co_return TRUE;
+}
+
+/*
+ * Take a file name, and from it
+ * fabricate a buffer name. This routine knows
+ * about the syntax of file names on the target system.
+ * I suppose that this information could be put in
+ * a better place than a line of code.
+ */
+void makename(char *bname, char *fname)
+{
+    char *cp1;
+    char *cp2;
+
+    cp1 = &fname[0];
+    while (*cp1 != 0)
+        ++cp1;
+
+    while (cp1 != &fname[0] && cp1[-1] != '/')
+        --cp1;
+    cp2 = &bname[0];
+    while (cp2 != &bname[NBUFN - 1] && *cp1 != 0 && *cp1 != ';')
+        *cp2++ = *cp1++;
+    *cp2 = 0;
+}
+
+/*
+ * make sure a buffer name is unique
+ *
+ * char *name;		name to check on
+ */
+void unique_buffer_name(char *name)
+{
+    char *sp;
+
+    /* check to see if it is in the buffer list */
+    while (find_buffer(name, 0, FALSE) != NULL) {
+        /* go to the end of the name */
+        sp = name;
+        while (*sp)
+            ++sp;
+        if (sp == name || (*(sp - 1) < '0' || *(sp - 1) > '8')) {
+            *sp++ = '0';
+            *sp   = 0;
+        } else
+            *(--sp) += 1;
+    }
+}
+
+/*
+ * Ask for a file name, and write the
+ * contents of the current buffer to that file.
+ * Update the remembered file name and clear the
+ * buffer changed flag. This handling of file names
+ * is different from the earlier versions, and
+ * is more compatable with Gosling EMACS than
+ * with ITS EMACS. Bound to "C-X C-W".
+ */
+Task<int> cmd_write_file(int f, int n)
+{
+    struct window *wp;
+    int s;
+    char fname[NFILEN];
+
+    if (restflag) /* don't allow this command if restricted */
+        co_return restricted_error();
+    if ((s = co_await ask_string("Write file: ", fname, NFILEN)) != TRUE)
+        co_return s;
+    if ((s = co_await writeout(fname)) == TRUE) {
+        strcpy(curbp->b_fname, fname);
+        co_await record_fstate(curbp, fname); /* This is our file now */
+        curbp->b_flag &= ~BFCHG;
+        wp = window_head; /* Update mode lines.   */
+        while (wp != NULL) {
+            if (wp->w_bufp == curbp)
+                wp->w_flag |= WFMODE;
+            wp = wp->w_wndp;
+        }
+    }
+    co_return s;
+}
+
+/*
+ * Save the contents of the current
+ * buffer in its associatd file. No nothing
+ * if nothing has changed (this may be a bug, not a
+ * feature). Error if there is no remembered file
+ * name for the buffer. Bound to "C-X C-S". May
+ * get called by "C-Z".
+ */
+Task<int> cmd_save_file(int f, int n)
+{
+    int s;
+
+    if (curbp->b_mode & MDVIEW)       /* don't allow this command if      */
+        co_return readonly_error();   /* we are in read only mode     */
+    if ((curbp->b_flag & BFCHG) == 0) /* Return, no changes.  */
+        co_return TRUE;
+    if (curbp->b_fname[0] == 0) { /* Must have a name.    */
+        msg_printf("No file name");
+        co_return FALSE;
+    }
+
+    /* complain about truncated files */
+    if ((curbp->b_flag & BFTRUNC) != 0) {
+        if (co_await ask_yesno("Truncated file ... write it out") == FALSE) {
+            msg_printf("(Aborted)");
+            co_return FALSE;
+        }
+    }
+
+    /* Somebody else may have been at it while we had it open */
+    if (co_await file_changed(curbp, curbp->b_fname)) {
+        if (co_await ask_yesno("File changed on disk, overwrite") != TRUE) {
+            msg_printf("(Aborted)");
+            co_return FALSE;
+        }
+    }
+
+    if ((s = co_await writeout(curbp->b_fname)) == TRUE) {
+        co_await record_fstate(curbp, curbp->b_fname);
+        curbp->b_flag &= ~BFCHG;
+        curwp->w_flag |= WFMODE; /* Update mode line.    */
+    }
+    co_return s;
+}
+
+/*
+ * This function performs the details of file
+ * writing. Uses the file management routines in the
+ * "fileio.c" package. The number of lines written is
+ * displayed. Sadly, it looks inside a struct line; provide
+ * a macro for this. Most of the grief is error
+ * checking of some sort.
+ */
+Task<int> writeout(char *fn)
+{
+    int s;
+    struct line *lp;
+    int nline;
+
+    if ((s = co_await file_open_write(fn)) != FIOSUC) { /* Open writes message. */
+        co_return FALSE;
+    }
+    msg_printf("(Writing...)");        /* tell us were writing */
+    lp    = line_next(curbp->b_linep); /* First line.          */
+    nline = 0;                         /* Number of lines.     */
+    while (lp != curbp->b_linep) {
+        if ((s = co_await file_put_line(&lp->l_text[0], line_length(lp))) != FIOSUC)
+            break;
+        ++nline;
+        lp = line_next(lp);
+    }
+    if (s == FIOSUC) { /* No write error.      */
+        s = co_await file_close();
+        if (s == FIOSUC) { /* No close error.      */
+            if (nline == 1)
+                msg_printf("(Wrote 1 line)");
+            else
+                msg_printf("(Wrote %d lines)", nline);
+        }
+    } else                     /* Ignore close error   */
+        co_await file_close(); /* if a write error.    */
+    if (s != FIOSUC)           /* Some sort of error.  */
+        co_return FALSE;
+    co_return TRUE;
+}
+
+/*
+ * The command allows the user
+ * to modify the file name associated with
+ * the current buffer. It is like the "f" command
+ * in UNIX "ed". The operation is simple; just zap
+ * the name in the buffer structure, and mark the windows
+ * as needing an update. You can type a blank line at the
+ * prompt if you wish.
+ */
+Task<int> cmd_change_file_name(int f, int n)
+{
+    int s;
+    char fname[NFILEN];
+
+    if (restflag) /* don't allow this command if restricted */
+        co_return restricted_error();
+    if ((s = co_await ask_string("Name: ", fname, NFILEN)) == ABORT)
+        co_return s;
+    if (s == FALSE)
+        strcpy(curbp->b_fname, "");
+    else
+        strcpy(curbp->b_fname, fname);
+    curwp->w_flag |= WFMODE;  /* Update mode lines.   */
+    curbp->b_mode &= ~MDVIEW; /* no longer read only mode */
+    co_return TRUE;
+}
+
+/*
+ * Insert file "fname" into the current
+ * buffer, Called by insert file command. Return the final
+ * status of the read.
+ */
+Task<int> insert_file(char *fname)
+{
+    struct line *lp0;
+    struct line *lp1;
+    struct line *lp2;
+    int i;
+    struct buffer *bp;
+    int s;
+    int nbytes;
+    int nline;
+    char mesg[NSTRING];
+
+    bp = curbp;                                         /* Cheap.               */
+    bp->b_flag |= BFCHG;                                /* we have changed      */
+    bp->b_flag &= ~BFINVS;                              /* and are not temporary */
+    if ((s = co_await file_open_read(fname)) == FIOERR) /* Hard file open.      */
+        goto out;
+    if (s == FIOFNF) { /* File not found.      */
+        msg_printf("(No such file)");
+        co_return FALSE;
+    }
+    msg_printf("(Inserting file)");
+
+    /* back up a line and save the mark here */
+    curwp->w_dotp  = line_prev(curwp->w_dotp);
+    curwp->w_doto  = 0;
+    curwp->w_markp = curwp->w_dotp;
+    curwp->w_marko = 0;
+
+    nline = 0;
+    while ((s = co_await file_get_line()) == FIOSUC) {
+        nbytes = strlen(file_line);
+        if ((lp1 = line_alloc(nbytes)) == NULL) {
+            s = FIOMEM; /* Keep message on the  */
+            break;      /* display.             */
+        }
+        lp0 = curwp->w_dotp; /* line previous to insert */
+        lp2 = lp0->l_fp;     /* line after insert */
+
+        /* re-link new line between lp0 and lp2 */
+        lp2->l_bp = lp1;
+        lp0->l_fp = lp1;
+        lp1->l_bp = lp0;
+        lp1->l_fp = lp2;
+
+        /* and advance and write out the current line */
+        curwp->w_dotp = lp1;
+        for (i = 0; i < nbytes; ++i)
+            lputc(lp1, i, file_line[i]);
+        ++nline;
+    }
+    co_await file_close(); /* Ignore errors.       */
+    curwp->w_markp = line_next(curwp->w_markp);
+    strcpy(mesg, "(");
+    if (s == FIOERR) {
+        strcat(mesg, "I/O ERROR, ");
+        curbp->b_flag |= BFTRUNC;
+    }
+    if (s == FIOMEM) {
+        strcat(mesg, "OUT OF MEMORY, ");
+        curbp->b_flag |= BFTRUNC;
+    }
+    sprintf(&mesg[strlen(mesg)], "Inserted %d line", nline);
+    if (nline > 1)
+        strcat(mesg, "s");
+    strcat(mesg, ")");
+    msg_puts(mesg);
+
+out:
+    /* advance to the next line and mark the window for changes */
+    curwp->w_dotp = line_next(curwp->w_dotp);
+    curwp->w_flag |= WFHARD | WFMODE;
+
+    /* copy window parameters back to the buffer structure */
+    curbp->b_dotp  = curwp->w_dotp;
+    curbp->b_doto  = curwp->w_doto;
+    curbp->b_markp = curwp->w_markp;
+    curbp->b_marko = curwp->w_marko;
+
+    if (s == FIOERR) /* False if error.      */
+        co_return FALSE;
+    co_return TRUE;
+}
