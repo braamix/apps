@@ -100,8 +100,9 @@ bind-to-key next-window			FN^X
 			set %hlpupdn "<PgUp> / <PgDn>"
 			set %hlphelp "<F1>"
 		!else
-			set %hlpupdn "<Prev Scrn> / <Next Scrn>"
-			set %hlphelp "<Help>"
+;			The keys this keyboard has, whatever $sres says.
+			set %hlpupdn "<PgUp> / <PgDn>"
+			set %hlphelp "<F1>"
 		!endif
 		execute-macro-39
 	!else
@@ -134,7 +135,8 @@ bind-to-key execute-macro-40 M-?
 !if &seq %system "PC"
 	bind-to-key execute-macro-40 FN;
 !else
-	bind-to-key execute-macro-40 FNh
+;	FNh is a key no keyboard here can send; F1 is FN; either way.
+	bind-to-key execute-macro-40 FN;
 !endif
 
 ;	Help on Help

@@ -39,6 +39,8 @@ the whole of them. The ones worth knowing before you start:
 | `C-s`, `C-r` | search forward and back, ending the pattern with ESC |
 | `M-r` | replace |
 | `C-k`, `C-y` | kill to end of line, and yank it back |
+| `Home`, `End`, `Delete` | the same as `C-a`, `C-e` and `C-d` |
+| `F1` | the help browser — `M-?` is the same key |
 | `M-space`, `C-w`, `M-w` | set the mark, then cut or copy to it |
 | `C-x !` | run a shell command |
 | `M-x` | a command by name |
@@ -151,6 +153,39 @@ message line uses; everything else was replaced rather than reimplemented.
   is the hard quit, and `C-g` is abort as it is everywhere else. After a shell
   escape the foreground set is empty and ^C arrives as an ordinary key instead,
   which is the same thing by the other route. `SIG_TERM` raises the quit flag.
+- **The named keys speak uEmacs's PC vocabulary, not the VT220's.** A named
+  key arrives whole, so the port picks the `FN` name itself, and it picks the
+  one uEmacs uses on a PC — the DOS scan code as a character, which is the set
+  [emacs.rc](emacs.rc) lists. The arrows had the ANSI `FNA`–`FND` the terminal
+  decoder used to produce, and those are F7 to F10, so they moved to `FNH`,
+  `FNK`, `FNM` and `FNP` and [ebind.cpp](ebind.cpp) moved with them. Home, End,
+  Insert and Delete are `FNG`, `FNO`, `FNR` and `FNS`, bound to
+  beginning-of-line, end-of-line, yank and delete-next-character; upstream
+  leaves them to a startup file, which is not good enough here, because a
+  user's own `.emacsrc` must not be what decides whether Delete works. What
+  they were decoded as before — `SPEC|'1'` through `SPEC|'4'`, the VT220
+  keypad's Find, Insert Here, Remove and Select — made Home start an
+  incremental search and Delete kill the region. `PgUp` and `PgDn` keep `FN5`
+  and `FN6`: paging means paging in both vocabularies, and that is the pair
+  `emacs.rc`'s help viewer rebinds.
+
+  **F1 to F12 arrive too**, as `FN;` through `FND` and `FNT` through `FN]` with
+  shift. Nothing binds them but the startup file: `emacs.rc` puts help on F1,
+  which the port's `emacs.rc` now does whatever `$sres` says — the PC test
+  there is a kludge upstream admits to, and it decides for a screen, not for a
+  keyboard. F11 and F12 have no `FN` spelling, so `M-K` is the way to bind
+  them; it takes the keystroke rather than a name.
+
+  **Control on a motion key** is the word and buffer motions: `C-Left` and
+  `C-Right` are `M-B`/`M-F`, `C-Home` and `C-End` are `M-<`/`M->`, and
+  `C-Backspace` and `C-Delete` are `M-^H`/`M-D`. Every other modifier on a
+  named key is still dropped.
+
+- **`&lef`, `&mid` and `&rig` terminate what they return.** Upstream's are
+  `strncpy` and `strcpy` into a static buffer the last call also used, so
+  `&lef $line 2` came back as `..` with the tail of an earlier answer stuck to
+  it — which is why the help viewer's `".."` test never matched and a topic
+  could not be opened. The three now copy, clamp and terminate.
 - **`C-x C-z` and `suspend-emacs` are gone.** `SIG_TSTP` is not in Braam's
   catchable set and nothing stops a process to give the shell its prompt back;
   the command says `(No job control)` rather than pretending.
@@ -221,8 +256,8 @@ to be driven down a pipe. [test/emlib.mjs](test/emlib.mjs) is the shared half.
 
 - `emkeys.mjs` — the first frame whole and its three colours, the mode line's
   reverse video, `C-f`/`C-b`/`C-n`/`C-p`/`C-a`/`C-e`, the arrow keys reaching
-  the same commands, `M-<` and `M->`, `C-u` with and without a count, and the
-  word motions.
+  the same commands, `Home`/`End`/`Delete`, `C-Left`/`C-Right`/`C-Home`/`C-End`,
+  `M-<` and `M->`, `C-u` with and without a count, and the word motions.
 - `emedit.mjs` — self-insert, `C-d`, `C-h`, `C-o`, `C-k` and `C-y` through the
   kill buffer, a region with `M-space`/`C-w`/`M-w`, `M-u`/`M-l`/`M-c`, and the
   two files `C-x C-s` and `C-x C-w` write.
@@ -235,7 +270,8 @@ to be driven down a pipe. [test/emlib.mjs](test/emlib.mjs) is the shared half.
 - `emmacro.mjs` — that the packaged `emacs.rc` ran and that one on disk
   overrides it, `!while`/`!if`/`&add`/`&cat`, `store-macro` with
   `bind-to-key`, a keyboard macro, a `$` variable, `M-?` opening the packaged
-  `emacs.hlp`, and what happens with no package at all.
+  `emacs.hlp` and `F1` opening a topic out of its index, and what happens with
+  no package at all.
 - `emwindow.mjs` — `C-x 2`, `C-x o`, `C-x 1`, `C-x z` with one window, and a
   resize both ways with the buffer and the cursor kept.
 - `embang.mjs` — `C-x !` with its output on the console under the pause, the

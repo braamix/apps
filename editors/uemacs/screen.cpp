@@ -365,15 +365,58 @@ static Task<void> vflush(void)
 }
 
 /*
- * A Key as the code uemacs expects.  Named keys go to the SPEC codes ebind.h
- * already binds -- the VT220 block, which is what the CSI decoder in getcmd()
- * used to produce -- so every default binding still lands where it did.
+ * A Key as the code uemacs expects.
+ *
+ * A named key takes uEmacs's own PC name for it -- the DOS scan code as a
+ * character, which is what emacs.rc lists.  The arrows move off the ANSI
+ * FNA..FND the CSI decoder in getcmd() produced, because those are F7 to F10.
+ * The number block keeps its upstream meaning, the VT220 keypad; nothing here
+ * can send it, but paging means paging in both vocabularies, so the two page
+ * keys stay on FN5 and FN6, which is what emacs.rc's help viewer rebinds.
  */
 static int key_code(Key k, int *code)
 {
     int c;
 
     *code = 0;
+
+    /* F1 to F10, and the shifted block.  F11 and F12 are 0x85 and 0x86, which
+       have no FN spelling: bind them by pressing the key. */
+    if (k.code >= KEY_F1 && k.code <= KEY_F12) {
+        int n = (int)(k.code - KEY_F1);
+
+        if (n >= 10)
+            *code = SPEC | (0x85 + n - 10);
+        else
+            *code = SPEC | ((k.mods & MOD_SHIFT ? 'T' : ';') + n);
+        return TRUE;
+    }
+
+    /* Control on a motion key is the word and buffer motions, which are Meta
+       keys here. */
+    if (k.mods & MOD_CTRL) {
+        switch (k.code) {
+        case KEY_LEFT:
+            *code = META | 'B';
+            return TRUE;
+        case KEY_RIGHT:
+            *code = META | 'F';
+            return TRUE;
+        case KEY_HOME:
+            *code = META | '<';
+            return TRUE;
+        case KEY_END:
+            *code = META | '>';
+            return TRUE;
+        case KEY_BACKSPACE:
+            *code = META | CONTROL | 'H';
+            return TRUE;
+        case KEY_DELETE:
+            *code = META | 'D';
+            return TRUE;
+        }
+    }
+
     switch (k.code) {
     case KEY_ENTER:
         *code = 0x0d;
@@ -387,29 +430,29 @@ static int key_code(Key k, int *code)
     case KEY_ESCAPE:
         *code = CONTROL | '[';
         return TRUE;
+    case KEY_HOME:
+        *code = SPEC | 'G';
+        return TRUE;
     case KEY_UP:
-        *code = SPEC | 'A';
-        return TRUE;
-    case KEY_DOWN:
-        *code = SPEC | 'B';
-        return TRUE;
-    case KEY_RIGHT:
-        *code = SPEC | 'C';
+        *code = SPEC | 'H';
         return TRUE;
     case KEY_LEFT:
-        *code = SPEC | 'D';
+        *code = SPEC | 'K';
         return TRUE;
-    case KEY_INSERT:
-        *code = SPEC | '2';
-        return TRUE;
-    case KEY_DELETE:
-        *code = SPEC | '3';
-        return TRUE;
-    case KEY_HOME:
-        *code = SPEC | '1';
+    case KEY_RIGHT:
+        *code = SPEC | 'M';
         return TRUE;
     case KEY_END:
-        *code = SPEC | '4';
+        *code = SPEC | 'O';
+        return TRUE;
+    case KEY_DOWN:
+        *code = SPEC | 'P';
+        return TRUE;
+    case KEY_INSERT:
+        *code = SPEC | 'R';
+        return TRUE;
+    case KEY_DELETE:
+        *code = SPEC | 'S';
         return TRUE;
     case KEY_PAGE_UP:
         *code = SPEC | '5';
@@ -418,7 +461,7 @@ static int key_code(Key k, int *code)
         *code = SPEC | '6';
         return TRUE;
     }
-    if (k.code >= KEY_NAMED) /* a function key we do not bind */
+    if (k.code >= KEY_NAMED) /* a named key we do not map */
         return FALSE;
 
     c = (int)k.code;

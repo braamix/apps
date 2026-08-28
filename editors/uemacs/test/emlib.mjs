@@ -136,6 +136,10 @@ const NAMED = { CR: "ENTER", ESC: "ESCAPE" };
 
 const name_of = (k) => NAMED[k] || k;
 
+// F1 to F12, which harness.mjs's KEY table stops short of. They are the last
+// twelve of key.h's enum, after PAGE_DOWN.
+const fkey = (k) => (/^F([1-9]|1[0-2])$/.test(k) ? H.KEY.PAGE_DOWN + Number(k.slice(1)) : 0);
+
 // One key.  A string is typed as itself; "^x" is control-x and "^LEFT" a named
 // key with control held.  Each is followed by a run, so the editor has
 // answered before the next arrives.
@@ -147,6 +151,8 @@ export function press(k) {
         H.press(k[1].toLowerCase().codePointAt(0), H.CTRL);
     else if (name_of(k) in H.KEY)
         H.press(H.KEY[name_of(k)]);
+    else if (fkey(k))
+        H.press(fkey(k));
     else
         H.type(k);
     H.run(clock++);

@@ -27,6 +27,28 @@ void varinit(void)
         uv[i].u_name[0] = 0;
 }
 
+/* n characters of s from `at`, clamped to the string and to the buffer. */
+static char *substring(char *out, unsigned size, const char *s, int at, int n)
+{
+    int len = (int)strlen(s);
+    int i;
+
+    if (at < 0)
+        at = 0;
+    if (at > len)
+        at = len;
+    if (n < 0)
+        n = 0;
+    if (n > len - at)
+        n = len - at;
+    if (n > (int)size - 1)
+        n = (int)size - 1;
+    for (i = 0; i < n; i++)
+        out[i] = s[at + i];
+    out[n] = 0;
+    return out;
+}
+
 /*
  * Evaluate a function.
  *
@@ -87,12 +109,20 @@ Task<char *> eval_function(char *fname)
     case UFCAT:
         strcpy(result, arg1);
         co_return strcat(result, arg2);
+    /*
+     * strncpy does not terminate what it truncates, and result is a static
+     * that keeps the last call's bytes -- so upstream's &lef returned its
+     * answer with the tail of an earlier one stuck to it, and the help
+     * viewer's ".." test never matched.  The counts are clamped for the same
+     * reason: nothing checks what a macro asks for.
+     */
     case UFLEFT:
-        co_return strncpy(result, arg1, atoi(arg2));
+        co_return substring(result, sizeof(result), arg1, 0, atoi(arg2));
     case UFRIGHT:
-        co_return (strcpy(result, &arg1[(strlen(arg1) - atoi(arg2))]));
+        co_return substring(result, sizeof(result), arg1, (int)strlen(arg1) - atoi(arg2),
+                            atoi(arg2));
     case UFMID:
-        co_return (strncpy(result, &arg1[atoi(arg2) - 1], atoi(arg3)));
+        co_return substring(result, sizeof(result), arg1, atoi(arg2) - 1, atoi(arg3));
     case UFNOT:
         co_return truth_text(truth_value(arg1) == FALSE);
     case UFEQUAL:

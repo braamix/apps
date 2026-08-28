@@ -147,10 +147,17 @@ struct key_tab keytab[NBINDS] = { { CONTROL | 'A', cmd_beginning_of_line },
                                   { SPEC | '4', cmd_set_mark },
                                   { SPEC | '5', cmd_previous_page },
                                   { SPEC | '6', cmd_next_page },
-                                  { SPEC | 'A', cmd_previous_line },
-                                  { SPEC | 'B', cmd_next_line },
-                                  { SPEC | 'C', cmd_forward_character },
-                                  { SPEC | 'D', cmd_backward_character },
+                                  /* The keys a PC keyboard has, under uEmacs's
+                                     own PC names.  The arrows were on SPEC|'A'
+                                     through SPEC|'D', which are F7 to F10. */
+                                  { SPEC | 'G', cmd_beginning_of_line },     /* Home  */
+                                  { SPEC | 'H', cmd_previous_line },         /* Up    */
+                                  { SPEC | 'K', cmd_backward_character },    /* Left  */
+                                  { SPEC | 'M', cmd_forward_character },     /* Right */
+                                  { SPEC | 'O', cmd_end_of_line },           /* End   */
+                                  { SPEC | 'P', cmd_next_line },             /* Down  */
+                                  { SPEC | 'R', cmd_yank },                  /* Ins   */
+                                  { SPEC | 'S', cmd_delete_next_character }, /* Del   */
                                   { SPEC | 'c', cmd_meta_prefix },
                                   { SPEC | 'd', cmd_backward_character },
                                   { SPEC | 'e', cmd_next_line },

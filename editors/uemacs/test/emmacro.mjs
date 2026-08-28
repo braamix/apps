@@ -133,7 +133,14 @@ tick(3);
 is("M-? shows the packaged help", H.rows(H.screen())[0].replace(/\s+$/, ""),
    "=>                      uEmacs/PK 4.0 HELP INDEX");
 is("and the macro says how to use it", screen().split("\n").pop(),
-   "Select topic from list and press <Help>");
+   "Select topic from list and press <F1>");
+
+// F1 is that key: emacs.rc binds the help macro to FN;, which is what
+// key_code() gives F1. On the index it opens the topic the cursor is on.
+keys("^n", "F1");
+tick(3);
+is("F1 opens a topic", H.rows(H.screen())[0].replace(/\s+$/, ""),
+   "=>                      THE VERY BASICS");
 
 // Last, because it takes the package away: with nothing to find, em still
 // starts -- no startup file is not an error -- and the help says so.

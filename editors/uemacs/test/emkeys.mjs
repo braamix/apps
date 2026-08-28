@@ -53,6 +53,27 @@ is("the arrows", cursor(), "2,1");
 keys("UP", "LEFT");
 is("up and left", cursor(), "1,0");
 
+// Home, End and Delete. They are not the VT220 keypad the SPEC number block
+// belongs to, so a wrong mapping is loud: End would set the mark and Delete
+// would kill a region.
+em("/tmp/f", ["^n", "^f", "END"]);
+is("End", cursor(), "4,1");
+keys("HOME");
+is("Home", cursor(), "0,1");
+keys("DELETE");
+is("Delete", screen(3), "alpha\neta\ngamma");
+
+// Control on a named key is the word and buffer motions, which key_code()
+// hands over as Meta keys.
+em("/tmp/f", ["^n", "^n", "^LEFT"]);
+is("C-Left is a word back", cursor(), "0,1");
+keys("^RIGHT");
+is("C-Right is a word on", cursor(), "0,2");
+keys("^END");
+is("C-End is the end of the buffer", cursor(), "0,4");
+keys("^HOME");
+is("C-Home is the start of it", cursor(), "0,0");
+
 // M-< and M-> are the ends of the buffer.
 keys("ESC", "<");
 is("M-<", cursor(), "0,0");

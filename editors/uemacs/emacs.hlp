@@ -1,6 +1,7 @@
 =>                      uEmacs/PK 4.0 HELP INDEX
 .. The very basics
 .. Cursor movement
+.. Named keys
 .. File commands
 .. Miscellaneous character commands
 .. Mode commands
@@ -34,6 +35,21 @@ Previous line .........      ^P         Next line .............      ^N
 Previous paragraph .... Meta  P         Next paragraph ........ Meta  N
 Previous page .........      ^Z         Next page .............      ^V
 Beginning of file ..... Meta  <         End of file ........... Meta  >
+-------------------------------------------------------------------------------
+=>                      NAMED KEYS
+Home ..................      ^A         End ...................      ^E
+Left ..................      ^B         Right .................      ^F
+Up ....................      ^P         Down ..................      ^N
+Page up ...............      ^Z         Page down .............      ^V
+Backspace .............      ^H         Delete ................      ^D
+Insert ................      ^Y         Enter .................      ^M
+Tab ...................      ^I         Escape ................    Meta
+Ctrl Left ............. Meta  B         Ctrl Right ............ Meta  F
+Ctrl Home ............. Meta  <         Ctrl End .............. Meta  >
+Ctrl Backspace ........ Meta ^H         Ctrl Delete ........... Meta  D
+F1 to F10 are FN; FN< FN= FN> FN? FN@ FNA FNB FNC FND, and FNT through FN]
+with shift.  Nothing is bound to them.  F11 and F12 have no FN spelling, so
+Meta K is the way to bind them: it takes the keystroke itself.
 -------------------------------------------------------------------------------
 =>                      FILE COMMANDS
 Find file .............   ^X ^F         Quick exit ............ Meta  Z
