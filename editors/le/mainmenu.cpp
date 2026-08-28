@@ -21,6 +21,6 @@
 #include "menu1.h"
 #include "keymap.h"
 
-Menu1 MainMenu[]={
+Menu1 MainMenu[] = {
 #include "mainmenu-default.h"
 };

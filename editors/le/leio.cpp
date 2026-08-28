@@ -67,9 +67,15 @@ Task<int> le_open(const char *path, int flags, mode_t)
     u32 f = 0;
 
     switch (flags & O_ACCMODE) {
-    case O_RDONLY: f = SYS_O_READ; break;
-    case O_WRONLY: f = SYS_O_WRITE; break;
-    default:       f = SYS_O_READ | SYS_O_WRITE; break;
+    case O_RDONLY:
+        f = SYS_O_READ;
+        break;
+    case O_WRONLY:
+        f = SYS_O_WRITE;
+        break;
+    default:
+        f = SYS_O_READ | SYS_O_WRITE;
+        break;
     }
     if (flags & O_CREAT)
         f |= SYS_O_CREATE;
@@ -111,7 +117,7 @@ Task<ssize_t> le_read(int fd, void *buf, size_t n)
         co_return fail(r.error());
     }
     memcpy(buf, r.value().data(), r.value().size());
-    co_return (ssize_t)r.value().size();
+    co_return (ssize_t) r.value().size();
 }
 
 Task<ssize_t> le_write(int fd, const void *buf, size_t n)

@@ -21,59 +21,54 @@
 #include "edit.h"
 #include "calc.h"
 
-Task<void>  editcalc()
+Task<void> editcalc()
 {
-   WIN   *w;
-   static   char  expr[256]="";
-   char  str[256];
-   int   i,y;
-   static Global<History> g_CalcHistory;
-   History &CalcHistory=g_CalcHistory.get();
+    WIN *w;
+    static char expr[256] = "";
+    char str[256];
+    int i, y;
+    static Global<History> g_CalcHistory;
+    History &CalcHistory = g_CalcHistory.get();
 
-   w=CreateWin(FRIGHT,FDOWN,40,16,DIALOGUE_WIN_ATTR," Calculator ",0);
-   DisplayWin(w);
+    w = CreateWin(FRIGHT, FDOWN, 40, 16, DIALOGUE_WIN_ATTR, " Calculator ", 0);
+    DisplayWin(w);
 
-   calcerrno=0;
-   do
-   {
-      Clear();
-      if(calcerrno)
-         PutStr(2,1,calcerrmsg());
-      if(sp<1)
-         PutStr(MIDDLE,2,"Stack empty");
-      else
-      {
-	 i=sp-Upper->h+3;
-	 if(i<0)
-	    i=0;
-         for(y=2; i<sp; i++,y++)
-         {
-            PutStr(MIDDLE,y,stack[i].to_string());
-            if(i==sp-2)
-               PutStr(2,y,"Y:");
-            if(i==sp-1)
-               PutStr(2,y,"X:");
-         }
-      }
+    calcerrno = 0;
+    do {
+        Clear();
+        if (calcerrno)
+            PutStr(2, 1, calcerrmsg());
+        if (sp < 1)
+            PutStr(MIDDLE, 2, "Stack empty");
+        else {
+            i = sp - Upper->h + 3;
+            if (i < 0)
+                i = 0;
+            for (y = 2; i < sp; i++, y++) {
+                PutStr(MIDDLE, y, stack[i].to_string());
+                if (i == sp - 2)
+                    PutStr(2, y, "Y:");
+                if (i == sp - 1)
+                    PutStr(2, y, "X:");
+            }
+        }
 
-      if(co_await getstring("Expression: ",expr,sizeof(expr)-1,&CalcHistory,NULL,"CalcHelp"," Calculator Help ")<1)
-         break;
-      if(!strcmp(expr,"ins"))
-      {
-	 for(i=sp-1; i>=0; i--)
-	 {
-            snprintf(str, sizeof(str), "%s%s", stack[i].to_string(), &" "[i==0]);
-	    InsertBlock(str,strlen(str));
-	    SetStdCol();
-	 }
-	 CalcHistory-=expr;
-	 break;
-      }
-      calcerrno=0;
-      calculator(expr);
-   }
-   while(1);
-   CloseWin();
-   DestroyWin(w);
-   co_return;
+        if (co_await getstring("Expression: ", expr, sizeof(expr) - 1, &CalcHistory, NULL,
+                               "CalcHelp", " Calculator Help ") < 1)
+            break;
+        if (!strcmp(expr, "ins")) {
+            for (i = sp - 1; i >= 0; i--) {
+                snprintf(str, sizeof(str), "%s%s", stack[i].to_string(), &" "[i == 0]);
+                InsertBlock(str, strlen(str));
+                SetStdCol();
+            }
+            CalcHistory -= expr;
+            break;
+        }
+        calcerrno = 0;
+        calculator(expr);
+    } while (1);
+    CloseWin();
+    DestroyWin(w);
+    co_return;
 }

@@ -16,81 +16,77 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#undef	lines
-#undef	cols
+#undef lines
+#undef cols
 
-#define  HISTORY_LINE_LEN  256
-#define  HISTORY_SIZE      128
+#define HISTORY_LINE_LEN 256
+#define HISTORY_SIZE     128
 
-class HistoryLine
-{
-   int	  len;
-   char   *line;
-   time_t cr_time;
-   friend class History;
+class HistoryLine {
+    int len;
+    char *line;
+    time_t cr_time;
+    friend class History;
 
 public:
-   HistoryLine();
-   HistoryLine(const HistoryLine &h);
-   HistoryLine(const HistoryLine *h);
-   HistoryLine(const char *s,unsigned short len=0);
+    HistoryLine();
+    HistoryLine(const HistoryLine &h);
+    HistoryLine(const HistoryLine *h);
+    HistoryLine(const char *s, unsigned short len = 0);
 
-   bool equals(const char *s,int n) const { return(len==n && !memcmp(line,s,len)); }
-   bool operator!=(const HistoryLine &h) const { return !equals(h.line,h.len); }
-   const HistoryLine& operator=(const HistoryLine&);
+    bool equals(const char *s, int n) const { return (len == n && !memcmp(line, s, len)); }
+    bool operator!=(const HistoryLine &h) const { return !equals(h.line, h.len); }
+    const HistoryLine &operator=(const HistoryLine &);
 
-   const char *get_line() const { return line; }
-   int get_len() const { return len; }
+    const char *get_line() const { return line; }
+    int get_len() const { return len; }
 };
 
-class History
-{
+class History {
 protected:
-   HistoryLine **lines;
-   int   curr;
+    HistoryLine **lines;
+    int curr;
 
 public:
-   History();
+    History();
 
-   void        Open();
-   const HistoryLine *Next();
-   const HistoryLine *Prev();
-   const HistoryLine *Curr();
-   void  operator+=(const HistoryLine&);
-   void  operator-=(const HistoryLine&);
-   void  operator+=(const HistoryLine *h) { *this+=*h; }
-   void  operator-=(const HistoryLine *h) { *this-=*h; }
-   void  Push();
-   Task<void>  ReadFrom(FILE*);
-   Task<void>  WriteTo(FILE*);
-   void  Merge(const History& h);
+    void Open();
+    const HistoryLine *Next();
+    const HistoryLine *Prev();
+    const HistoryLine *Curr();
+    void operator+=(const HistoryLine &);
+    void operator-=(const HistoryLine &);
+    void operator+=(const HistoryLine *h) { *this += *h; }
+    void operator-=(const HistoryLine *h) { *this -= *h; }
+    void Push();
+    Task<void> ReadFrom(FILE *);
+    Task<void> WriteTo(FILE *);
+    void Merge(const History &h);
 };
 
-class InodeInfo
-{
-   ino_t    inode;
-   dev_t    device;
-   time_t   time;
-   size_t   size;
+class InodeInfo {
+    ino_t inode;
+    dev_t device;
+    time_t time;
+    size_t size;
 
 public:
-   num      line,col,offset;
+    num line, col, offset;
 
-   InodeInfo(struct stat *st,num line=0,num col=0,num o=0);
-   InodeInfo(const HistoryLine *line);
-   InodeInfo();
+    InodeInfo(struct stat *st, num line = 0, num col = 0, num o = 0);
+    InodeInfo(const HistoryLine *line);
+    InodeInfo();
 
-   int   SameFile(const InodeInfo&) const;
-   int   SameFileModified(const InodeInfo&) const;
-   int   SameAndOlder(const InodeInfo&) const;
+    int SameFile(const InodeInfo &) const;
+    int SameFileModified(const InodeInfo &) const;
+    int SameAndOlder(const InodeInfo &) const;
 
-   const char *to_string() const;
+    const char *to_string() const;
 };
 
-class InodeHistory : public History
-{
+class InodeHistory : public History {
 public:
-   int FindInodeIndex(const InodeInfo&);
-   const InodeInfo *FindInode(const InodeInfo&);
-   void  operator+=(const InodeInfo&);
+    int FindInodeIndex(const InodeInfo &);
+    const InodeInfo *FindInode(const InodeInfo &);
+    void operator+=(const InodeInfo &);
 };

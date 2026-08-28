@@ -6,11 +6,11 @@
 #include "kernel/types.h"
 #else
 typedef unsigned long usize;
-typedef int wchar_t;   /* clang's for wasm32 */
+typedef int wchar_t; /* clang's for wasm32 */
 #endif
 
 #ifndef WEOF
-#define WEOF ((wint_t)-1)
+#define WEOF ((wint_t) - 1)
 #endif
 
 typedef int wint_t;

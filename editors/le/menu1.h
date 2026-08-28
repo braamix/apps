@@ -21,44 +21,43 @@
 #ifndef MENU1_H
 #define MENU1_H
 
-
-enum menu_conds
-{
-   SUBM=1,
-   FUNC=2,
-   HIDE=4,
-   FREE_TEXT=8,
-   MENU_COND_RW=16,
-   MENU_COND_RO=32,
-   MENU_COND_BLOCK=64,
-   MENU_COND_NO_MM=128,
-   MENU_COND_CLIPBOARD=256
+enum menu_conds {
+    SUBM                = 1,
+    FUNC                = 2,
+    HIDE                = 4,
+    FREE_TEXT           = 8,
+    MENU_COND_RW        = 16,
+    MENU_COND_RO        = 32,
+    MENU_COND_BLOCK     = 64,
+    MENU_COND_NO_MM     = 128,
+    MENU_COND_CLIPBOARD = 256
 };
 
-typedef struct sr_menu
-{
-   char	*text;	/* the text of the item, NULL means end of (sub)menu */
-   unsigned fl;
-   union {
-      int action;    // for FUNC
-      int curritem;  // for END (text==NULL)
-   };
-   union {
-      char *arg;     // for FUNC
-      WIN *win;	     // for SUBM
-   };
+typedef struct sr_menu {
+    char *text; /* the text of the item, NULL means end of (sub)menu */
+    unsigned fl;
+    union {
+        int action;   // for FUNC
+        int curritem; // for END (text==NULL)
+    };
+    union {
+        char *arg; // for FUNC
+        WIN *win;  // for SUBM
+    };
 
-   void FreeText() {
-      if(fl&FREE_TEXT) {
-	 free(text);
-	 text=0;
-      }
-   }
-   void SetText(char *new_text) {
-      FreeText();
-      text=new_text;
-      fl|=FREE_TEXT;
-   }
+    void FreeText()
+    {
+        if (fl & FREE_TEXT) {
+            free(text);
+            text = 0;
+        }
+    }
+    void SetText(char *new_text)
+    {
+        FreeText();
+        text = new_text;
+        fl |= FREE_TEXT;
+    }
 } Menu1;
 
 Task<void> LoadMainMenu();

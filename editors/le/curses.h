@@ -35,8 +35,8 @@ enum : chtype {
 
 enum { COLOR_PAIR_SHIFT = 26, COLOR_PAIRS = 64 };
 
-#define COLOR_PAIR(n)   ((chtype)((chtype)(n) << COLOR_PAIR_SHIFT) & A_COLOR)
-#define PAIR_NUMBER(a)  (int)(((chtype)(a) & A_COLOR) >> COLOR_PAIR_SHIFT)
+#define COLOR_PAIR(n)  ((chtype)((chtype)(n) << COLOR_PAIR_SHIFT) & A_COLOR)
+#define PAIR_NUMBER(a) (int)(((chtype)(a) & A_COLOR) >> COLOR_PAIR_SHIFT)
 
 // COLOR_BLACK..COLOR_WHITE are kernel/screen.h's, and they are curses'
 // numbers already -- which is why nothing translates.

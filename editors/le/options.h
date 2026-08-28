@@ -16,16 +16,15 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-struct init
-{
-   const char *name;
-   int   format;
-   void  *var;
+struct init {
+    const char *name;
+    int format;
+    void *var;
 };
 
-Task<void> SaveConfToOpenFile(FILE *f,const struct init *init);
-Task<void> SaveConfToFile(const char *f,const struct init *init);
-Task<void> ReadConfFromFile(const char *file,const struct init *init,bool mine);
+Task<void> SaveConfToOpenFile(FILE *f, const struct init *init);
+Task<void> SaveConfToFile(const char *f, const struct init *init);
+Task<void> ReadConfFromFile(const char *file, const struct init *init, bool mine);
 
 Task<void> ColorsOpt();
 Task<void> ProgOpt();

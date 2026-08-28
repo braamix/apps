@@ -402,9 +402,9 @@ int digit_of(int c, int base)
 
 unsigned long long scan_ull(const char *s, char **end, int base, int *neg)
 {
-    const char *start = s;
+    const char *start    = s;
     unsigned long long v = 0;
-    int any = 0;
+    int any              = 0;
 
     *neg = 0;
     while (isspace((unsigned char)*s))
@@ -427,7 +427,7 @@ unsigned long long scan_ull(const char *s, char **end, int base, int *neg)
     }
 
     for (int d; (d = digit_of((unsigned char)*s, base)) >= 0; s++) {
-        v = v * (unsigned)base + (unsigned)d;
+        v   = v * (unsigned)base + (unsigned)d;
         any = 1;
     }
     if (end)
@@ -673,7 +673,7 @@ extern "C" int vsnprintf(char *buf, usize size, const char *fmt, va_list ap)
         case 'i':
             base = 10;
             {
-                i64 sv = lng > 1  ? (i64)va_arg(ap, long long)
+                i64 sv = lng > 1 ? (i64)va_arg(ap, long long)
                          : lng   ? (i64)va_arg(ap, long)
                                  : (i64)va_arg(ap, int);
 
@@ -691,9 +691,9 @@ extern "C" int vsnprintf(char *buf, usize size, const char *fmt, va_list ap)
             goto unsigned_arg;
 
         case 'p':
-            alt   = 0;
-            base  = 16;
-            v     = (u64)(usize)va_arg(ap, void *);
+            alt  = 0;
+            base = 16;
+            v    = (u64)(usize)va_arg(ap, void *);
             o.put('0'), o.put('x');
             break;
 
@@ -703,7 +703,7 @@ extern "C" int vsnprintf(char *buf, usize size, const char *fmt, va_list ap)
         case 'x':
             base = 16;
         unsigned_arg:
-            v = lng > 1  ? (u64)va_arg(ap, unsigned long long)
+            v = lng > 1 ? (u64)va_arg(ap, unsigned long long)
                 : lng   ? (u64)va_arg(ap, unsigned long)
                         : (u64)va_arg(ap, unsigned);
             break;

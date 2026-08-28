@@ -19,36 +19,35 @@
 #ifndef HIGHLI_H
 #define HIGHLI_H
 
-
 extern "C" {
 #include <regex.h>
 }
 
-extern int hl_option,hl_active,hl_lines;
+extern int hl_option, hl_active, hl_lines;
 
 Task<void> InitHighlight();
 
-struct syntax_hl
-{
-   char *rexp;
-   int	 mask;
-   int	 color;
-   re_pattern_buffer rexp_c;
-   re_registers regs;
+struct syntax_hl {
+    char *rexp;
+    int mask;
+    int color;
+    re_pattern_buffer rexp_c;
+    re_registers regs;
 
-   syntax_hl *next;
-   syntax_hl *sub;
+    syntax_hl *next;
+    syntax_hl *sub;
 
-   static char *selector;
-   static syntax_hl *chain;
-   static void free_chain(syntax_hl*);
-   static void attrib_line(const char *buf1,int len1,const char *buf2,int len2,
-			   unsigned char *line);
-   static void make_els(const char *buf1,int len1,const char *buf2,int len2,int pos,int ll,syntax_hl *c,class element **els);
+    static char *selector;
+    static syntax_hl *chain;
+    static void free_chain(syntax_hl *);
+    static void attrib_line(const char *buf1, int len1, const char *buf2, int len2,
+                            unsigned char *line);
+    static void make_els(const char *buf1, int len1, const char *buf2, int len2, int pos, int ll,
+                         syntax_hl *c, class element **els);
 
-   syntax_hl(int color,int mask);
-   ~syntax_hl();
-   const char *set_rexp(const char *rexp,bool icase);
+    syntax_hl(int color, int mask);
+    ~syntax_hl();
+    const char *set_rexp(const char *rexp, bool icase);
 };
 
-#endif//HIGHLI_H
+#endif // HIGHLI_H

@@ -18,98 +18,107 @@
 
 #include "edit.h"
 
-class Undo
-{
-   struct GroupHead
-   {
-      offs pos;
-      num stdcol;
-      offs block_begin;
-      offs block_end;
-      bool block_hide;
+class Undo {
+    struct GroupHead {
+        offs pos;
+        num stdcol;
+        offs block_begin;
+        offs block_end;
+        bool block_hide;
 
-      GroupHead();
-      void Undo();
-   };
-   class Change
-   {
-      friend class Undo;
-      unsigned group;
-      GroupHead *group_head;
-      Change *next;
-      Change *prev;
-      bool Join(const Change *);
-   protected:
-      enum type_t { INSERT, DELETE, REPLACE } type;
-      offs pos;
-      char *left;
-      num left_size;
-      char *right;
-      num right_size;
-      bool old_modified;
-   public:
-      Change(type_t t,const char *l,num ls,const char *r,num rs);
-      ~Change() { free(left); free(right); }
-      size_t GetSize()
-	 {
-	    return (left?left_size:0)
-		  +(right?right_size:0)
-		  +(group_head?sizeof(*group_head):0)
-		  +sizeof(Change);
-	 }
-      void Undo();
-      void Redo();
-   };
+        GroupHead();
+        void Undo();
+    };
+    class Change {
+        friend class Undo;
+        unsigned group;
+        GroupHead *group_head;
+        Change *next;
+        Change *prev;
+        bool Join(const Change *);
 
-   Change *chain_head;
-   Change *chain_ptr;
-   Change *chain_tail;
-   int group_open;
-   unsigned current_group;
-   GroupHead *group_head;
+    protected:
+        enum type_t { INSERT, DELETE, REPLACE } type;
+        offs pos;
+        char *left;
+        num left_size;
+        char *right;
+        num right_size;
+        bool old_modified;
 
-   bool locked;
-   bool enabled;
+    public:
+        Change(type_t t, const char *l, num ls, const char *r, num rs);
+        ~Change()
+        {
+            free(left);
+            free(right);
+        }
+        size_t GetSize()
+        {
+            return (left ? left_size : 0) + (right ? right_size : 0) +
+                   (group_head ? sizeof(*group_head) : 0) + sizeof(Change);
+        }
+        void Undo();
+        void Redo();
+    };
 
-   time_t last_change_time;
+    Change *chain_head;
+    Change *chain_ptr;
+    Change *chain_tail;
+    int group_open;
+    unsigned current_group;
+    GroupHead *group_head;
 
-   bool glue_changes;
-   int glue_max_time;
-   num max_size;
-   int min_groups;
+    bool locked;
+    bool enabled;
 
-   void CheckSize();
+    time_t last_change_time;
+
+    bool glue_changes;
+    int glue_max_time;
+    num max_size;
+    int min_groups;
+
+    void CheckSize();
 
 public:
-   struct Delete : public Change {
-      Delete(const char *l,num ls,const char *r,num rs) : Change(DELETE,l,ls,r,rs) {} };
-   struct Insert : public Change {
-      Insert(const char *l,num ls,const char *r,num rs) : Change(INSERT,l,ls,r,rs) {} };
-   struct Replace : public Change {
-      Replace(const char *l,num ls,const char *r,num rs) : Change(REPLACE,l,ls,r,rs) {} };
+    struct Delete : public Change {
+        Delete(const char *l, num ls, const char *r, num rs) : Change(DELETE, l, ls, r, rs) {}
+    };
+    struct Insert : public Change {
+        Insert(const char *l, num ls, const char *r, num rs) : Change(INSERT, l, ls, r, rs) {}
+    };
+    struct Replace : public Change {
+        Replace(const char *l, num ls, const char *r, num rs) : Change(REPLACE, l, ls, r, rs) {}
+    };
 
-   void BeginUndoGroup();
-   void AddChange(Change *);
-   void EndUndoGroup();
+    void BeginUndoGroup();
+    void AddChange(Change *);
+    void EndUndoGroup();
 
-   void UndoGroup();
-   void RedoGroup();
-   void UndoOne();
-   void RedoOne();
-   void FileSaved();
+    void UndoGroup();
+    void RedoGroup();
+    void UndoOne();
+    void RedoOne();
+    void FileSaved();
 
-   void Clear();
+    void Clear();
 
-   Undo();
-   ~Undo();
+    Undo();
+    ~Undo();
 
-   bool Enabled() { return enabled&&!locked; }
-   bool Locked()  { return locked; }
+    bool Enabled() { return enabled && !locked; }
+    bool Locked() { return locked; }
 
-   void SetMaxSize(num ms) { max_size=ms; }
-   void SetMinGroups(int mg) { min_groups=mg; }
-   void SetEnable(bool en) { if(enabled!=en) Clear(); enabled=en; }
-   void SetGlue(bool g) { glue_changes=g; }
+    void SetMaxSize(num ms) { max_size = ms; }
+    void SetMinGroups(int mg) { min_groups = mg; }
+    void SetEnable(bool en)
+    {
+        if (enabled != en)
+            Clear();
+        enabled = en;
+    }
+    void SetGlue(bool g) { glue_changes = g; }
 };
 
 extern Global<Undo> g_undo;

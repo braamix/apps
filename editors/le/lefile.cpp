@@ -16,7 +16,7 @@ Task<int> le_getc(FILE *f)
 
     if (r.is_err() || r.value() == 0)
         co_return EOF;
-    co_return (unsigned char)b;
+    co_return (unsigned char) b;
 }
 
 void le_ungetc(int c, FILE *f)

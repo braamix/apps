@@ -31,47 +31,42 @@ static num bm_scrshift[N];
 
 void SetBookmark(int n)
 {
-   assert(n>=0 && n<N);
-   if(bm[n])
-   {
-      *bm[n]=CurrentPos;
-      *bm_scrtop[n]=ScreenTop;
-   }
-   else
-   {
-      bm[n]=heap_new<TextPoint>(CurrentPos);
-      bm_scrtop[n]=heap_new<TextPoint>(ScreenTop);
-   }
-   bm_scrshift[n]=ScrShift;
+    assert(n >= 0 && n < N);
+    if (bm[n]) {
+        *bm[n]        = CurrentPos;
+        *bm_scrtop[n] = ScreenTop;
+    } else {
+        bm[n]        = heap_new<TextPoint>(CurrentPos);
+        bm_scrtop[n] = heap_new<TextPoint>(ScreenTop);
+    }
+    bm_scrshift[n] = ScrShift;
 }
 
 void ClearBookmark(int n)
 {
-   assert(n>=0 && n<N);
-   if(bm[n])
-   {
-      heap_delete(bm[n]);
-      bm[n]=0;
-      heap_delete(bm_scrtop[n]);
-      bm_scrtop[n]=0;
-   }
+    assert(n >= 0 && n < N);
+    if (bm[n]) {
+        heap_delete(bm[n]);
+        bm[n] = 0;
+        heap_delete(bm_scrtop[n]);
+        bm_scrtop[n] = 0;
+    }
 }
 
 void GoBookmark(int n)
 {
-   assert(n>=0 && n<N);
-   if(bm[n])
-   {
-      CurrentPos=*bm[n];
-      SetStdCol();
-      ScreenTop=*bm_scrtop[n];
-      ScrShift=bm_scrshift[n];
-      flag=REDISPLAY_ALL;
-   }
+    assert(n >= 0 && n < N);
+    if (bm[n]) {
+        CurrentPos = *bm[n];
+        SetStdCol();
+        ScreenTop = *bm_scrtop[n];
+        ScrShift  = bm_scrshift[n];
+        flag      = REDISPLAY_ALL;
+    }
 }
 
 void ResetBookmarks()
 {
-   for(int i=0; i<N; i++)
-      ClearBookmark(i);
+    for (int i = 0; i < N; i++)
+        ClearBookmark(i);
 }

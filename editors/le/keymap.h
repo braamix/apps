@@ -24,72 +24,71 @@
 #include "lefile.h"
 
 // some compatibility defines
-#define CHAR_LEFT	A_BACKWARD_CHAR
-#define CHAR_RIGHT	A_FORWARD_CHAR
-#define LINE_UP		A_PREVIOUS_LINE
-#define LINE_DOWN	A_NEXT_LINE
-#define LINE_BEGIN	A_BEGINNING_OF_LINE
-#define LINE_END	A_END_OF_LINE
-#define CANCEL		A_ESCAPE
-#define QUIT_EDITOR	A_ESCAPE
-#define A_QUIT_EDITOR	A_ESCAPE
-#define NEWLINE		A_NEW_LINE
-#define NEXT_PAGE	A_NEXT_PAGE
-#define PREV_PAGE	A_PREVIOUS_PAGE
-#define EDITOR_HELP	A_HELP
-#define REFRESH_SCREEN	A_REFRESH_SCREEN
-#define BACKSPACE_CHAR	A_BACKWARD_DELETE_CHAR
-#define DELETE_CHAR	A_DELETE_CHAR
-#define DELETE_TO_EOL	A_DELETE_TO_EOL
-#define CHOOSE_CHAR	A_CHOOSE_CHARACTER
-#define ENTER_CHAR_CODE	   A_INSERT_CHAR_BY_CODE
+#define CHAR_LEFT          A_BACKWARD_CHAR
+#define CHAR_RIGHT         A_FORWARD_CHAR
+#define LINE_UP            A_PREVIOUS_LINE
+#define LINE_DOWN          A_NEXT_LINE
+#define LINE_BEGIN         A_BEGINNING_OF_LINE
+#define LINE_END           A_END_OF_LINE
+#define CANCEL             A_ESCAPE
+#define QUIT_EDITOR        A_ESCAPE
+#define A_QUIT_EDITOR      A_ESCAPE
+#define NEWLINE            A_NEW_LINE
+#define NEXT_PAGE          A_NEXT_PAGE
+#define PREV_PAGE          A_PREVIOUS_PAGE
+#define EDITOR_HELP        A_HELP
+#define REFRESH_SCREEN     A_REFRESH_SCREEN
+#define BACKSPACE_CHAR     A_BACKWARD_DELETE_CHAR
+#define DELETE_CHAR        A_DELETE_CHAR
+#define DELETE_TO_EOL      A_DELETE_TO_EOL
+#define CHOOSE_CHAR        A_CHOOSE_CHARACTER
+#define ENTER_CHAR_CODE    A_INSERT_CHAR_BY_CODE
 #define ENTER_WCHAR_CODE   A_INSERT_WCHAR_BY_CODE
 #define ENTER_CONTROL_CHAR A_QUOTED_INSERT
-#define ENTER_MENU	A_ENTER_MENU
-#define SAVE_FILE	A_SAVE_FILE_AS
-#define SAVE_FILE_AS	A_SAVE_FILE
+#define ENTER_MENU         A_ENTER_MENU
+#define SAVE_FILE          A_SAVE_FILE_AS
+#define SAVE_FILE_AS       A_SAVE_FILE
 
 /* Every bound command awaits a key or a syscall somewhere below it -- the
    dialogs, the prompts, the file I/O -- so all of them are coroutines. The
    table is what makes this one edit rather than a hundred and sixty-nine. */
-typedef  Task<void>  (*ActionProc)();
+typedef Task<void> (*ActionProc)();
 
-struct   ActionNameProcRec
-{
-   const char *name;
-   ActionProc  proc;
+struct ActionNameProcRec {
+    const char *name;
+    ActionProc proc;
 };
 
-struct   ActionCodeRec
-{
-   int   action;
-   char	 *code;
-   char	 *arg;
+struct ActionCodeRec {
+    int action;
+    char *code;
+    char *arg;
 };
 
 extern unsigned char StringTyped[];
-extern int   StringTypedLen;
-extern int   LastActionCode;
+extern int StringTypedLen;
+extern int LastActionCode;
 extern const char *ActionArgument;
-extern int   ActionArgumentLen;
+extern int ActionArgumentLen;
 extern const ActionCodeRec *ActionCodeTable;
 extern const ActionCodeRec DefaultActionCodeTable[];
 
 Task<int> GetNextAction(void);
 const char *GetActionString(int action);
-Task<const char *> GetActionArgument(const char *prompt,class History* history=0,const char *help=0,const char *title=0);
-Task<void>  ReadActionMap(FILE*);
-Task<void>  WriteActionMap(FILE*);
+Task<const char *> GetActionArgument(const char *prompt, class History *history = 0,
+                                     const char *help = 0, const char *title = 0);
+Task<void> ReadActionMap(FILE *);
+Task<void> WriteActionMap(FILE *);
 ActionProc GetActionProc(int action);
-Task<void>  EditorReadKeymap();
-void  RebuildKeyTree();
-void  FreeActionCodeTable();
+Task<void> EditorReadKeymap();
+void RebuildKeyTree();
+void FreeActionCodeTable();
 
-int   FindActionCode(const char *);
-int   ParseActionNameArg(char *action,const char **arg);
-char  *ParseActionArgumentAlloc(const char *);
+int FindActionCode(const char *);
+int ParseActionNameArg(char *action, const char **arg);
+char *ParseActionArgumentAlloc(const char *);
 
-const char *ShortcutPrettyPrint(int c,const char *arg);
+const char *ShortcutPrettyPrint(int c, const char *arg);
 
 Task<void> LoadKeymapEmacs();
 Task<void> LoadKeymapDefault();

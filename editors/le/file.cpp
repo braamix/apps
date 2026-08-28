@@ -35,515 +35,463 @@
 #endif
 
 #ifndef HAVE_STRCOLL
-#define	 strcoll  strcmp
+#define strcoll strcmp
 #endif
 
-static  char   directory[256];
-static  char   filename[256];
-struct  entry
-{
-   char     *name;
-   struct stat st;
-}   *dir=NULL;
+static char directory[256];
+static char filename[256];
+struct entry {
+    char *name;
+    struct stat st;
+} *dir = NULL;
 
-int   isslash(char c)
+int isslash(char c)
 {
 #ifdef MSDOS
-   return(c=='/' || c=='\\');
+    return (c == '/' || c == '\\');
 #else
-   return(c=='/');
+    return (c == '/');
 #endif
 }
 
-void  NormalizeFileName(char *s)
+void NormalizeFileName(char *s)
 {
-   for( ; *s; s++)
-   {
-     if(isslash(*s))
-     {
-       char  *p=s;
-       while(isslash(*(++p)));
-       if(!*p)
-       {
-         *s=0;
-         break;
-       }
-       memmove(s+1,p, strlen(p)+1);
-     }
-   }
+    for (; *s; s++) {
+        if (isslash(*s)) {
+            char *p = s;
+            while (isslash(*(++p)))
+                ;
+            if (!*p) {
+                *s = 0;
+                break;
+            }
+            memmove(s + 1, p, strlen(p) + 1);
+        }
+    }
 }
 
 const char *le_dirname(const char *f)
 {
-   static
-   char  dir[256];
-   char  *s;
+    static char dir[256];
+    char *s;
 
-   strcpy(dir,f);
-   NormalizeFileName(dir);
-   if(!*dir)
-     return("/");
-   for(s=dir+strlen(dir); s>dir && !isslash(*(s-1)); s--);
-   if(s==dir)
-     return(".");
-   *(s-1)=0;
-   return(dir);
+    strcpy(dir, f);
+    NormalizeFileName(dir);
+    if (!*dir)
+        return ("/");
+    for (s = dir + strlen(dir); s > dir && !isslash(*(s - 1)); s--)
+        ;
+    if (s == dir)
+        return (".");
+    *(s - 1) = 0;
+    return (dir);
 }
 const char *le_basename(const char *f)
 {
-   static
-   char  bn[256];
-   char  *s;
+    static char bn[256];
+    char *s;
 
-   strcpy(bn,f);
-   NormalizeFileName(bn);
-   if(!*bn)
-     return("/");
-   for(s=bn+strlen(bn); s>bn && !isslash(*(s-1)); s--);
-   return(s);
+    strcpy(bn, f);
+    NormalizeFileName(bn);
+    if (!*bn)
+        return ("/");
+    for (s = bn + strlen(bn); s > bn && !isslash(*(s - 1)); s--)
+        ;
+    return (s);
 }
 
-int    entry_compare(struct entry *a,struct entry *b)
+int entry_compare(struct entry *a, struct entry *b)
 {
-   int diff;
-   diff=((a->st.st_mode&S_IFMT)==S_IFDIR)-((b->st.st_mode&S_IFMT)==S_IFDIR);
-   if(diff)
-      return(diff);
-   diff=(strcmp(a->name,"..")==0)-(strcmp(b->name,"..")==0);
-   if(diff)
-      return(diff);
-   diff=(a->name[0]=='.')-(b->name[0]=='.');
-   if(diff)
-      return(diff);
-   diff=strcoll(a->name,b->name);
-   return(diff);
+    int diff;
+    diff = ((a->st.st_mode & S_IFMT) == S_IFDIR) - ((b->st.st_mode & S_IFMT) == S_IFDIR);
+    if (diff)
+        return (diff);
+    diff = (strcmp(a->name, "..") == 0) - (strcmp(b->name, "..") == 0);
+    if (diff)
+        return (diff);
+    diff = (a->name[0] == '.') - (b->name[0] == '.');
+    if (diff)
+        return (diff);
+    diff = strcoll(a->name, b->name);
+    return (diff);
 }
 
-Task<void>  condense(char *filename)
+Task<void> condense(char *filename)
 {
-   int    filenamelen;
-   char  *scan;
-   ino_t   *ino_scanned;
-   dev_t   *dev_scanned;
-   dev_t   root_dev,curr_dev;
-   ino_t   root_ino,curr_ino;
-   char  **point;
-   int    currpointno;
-   struct  stat   st;
-   char  *newfilename;
-   char  *store;
-   int i;
-   char  drive[3]="";
-   char  tmp[256];
+    int filenamelen;
+    char *scan;
+    ino_t *ino_scanned;
+    dev_t *dev_scanned;
+    dev_t root_dev, curr_dev;
+    ino_t root_ino, curr_ino;
+    char **point;
+    int currpointno;
+    struct stat st;
+    char *newfilename;
+    char *store;
+    int i;
+    char drive[3] = "";
+    char tmp[256];
 
 #ifdef MSDOS
-   if(isalpha(filename[0]) && filename[1]==':')
-      snprintf(drive,sizeof(drive),"%.2s",filename);
+    if (isalpha(filename[0]) && filename[1] == ':')
+        snprintf(drive, sizeof(drive), "%.2s", filename);
 #endif
 
-   filenamelen=strlen(filename);
-   newfilename=(char*)malloc(filenamelen+1);
-   if(newfilename==NULL)
-   {
-      co_return;
-   }
-   ino_scanned=(ino_t*)malloc((filenamelen/2+1)*sizeof(*ino_scanned));
-   if(ino_scanned==NULL)
-   {
-      free(newfilename);
-      co_return;
-   }
-   dev_scanned=(dev_t*)malloc((filenamelen/2+1)*sizeof(*dev_scanned));
-   if(dev_scanned==NULL)
-   {
-      free(newfilename);
-      free(ino_scanned);
-      co_return;
-   }
-   point=(char**)malloc((filenamelen/2+1)*sizeof(*point));
-   if(point==NULL)
-   {
-      free(newfilename);
-      free(ino_scanned);
-      free(dev_scanned);
-      co_return;
-   }
+    filenamelen = strlen(filename);
+    newfilename = (char *)malloc(filenamelen + 1);
+    if (newfilename == NULL) {
+        co_return;
+    }
+    ino_scanned = (ino_t *)malloc((filenamelen / 2 + 1) * sizeof(*ino_scanned));
+    if (ino_scanned == NULL) {
+        free(newfilename);
+        co_return;
+    }
+    dev_scanned = (dev_t *)malloc((filenamelen / 2 + 1) * sizeof(*dev_scanned));
+    if (dev_scanned == NULL) {
+        free(newfilename);
+        free(ino_scanned);
+        co_return;
+    }
+    point = (char **)malloc((filenamelen / 2 + 1) * sizeof(*point));
+    if (point == NULL) {
+        free(newfilename);
+        free(ino_scanned);
+        free(dev_scanned);
+        co_return;
+    }
 
-   snprintf(tmp,sizeof(tmp),"%s/",drive);
-   if(co_await le_stat(tmp,&st)!=-1)
-   {
-      root_dev=st.st_dev;
-      root_ino=st.st_ino;
-   }
-   else
-   {
-      root_dev=
-      root_ino=0;
-   }
-   snprintf(tmp,sizeof(tmp),"%s.",drive);
-   if(co_await le_stat(tmp,&st)!=-1)
-   {
-      curr_dev=st.st_dev;
-      curr_ino=st.st_ino;
-   }
-   else
-   {
-      curr_dev=
-      curr_ino=0;
-   }
+    snprintf(tmp, sizeof(tmp), "%s/", drive);
+    if (co_await le_stat(tmp, &st) != -1) {
+        root_dev = st.st_dev;
+        root_ino = st.st_ino;
+    } else {
+        root_dev = root_ino = 0;
+    }
+    snprintf(tmp, sizeof(tmp), "%s.", drive);
+    if (co_await le_stat(tmp, &st) != -1) {
+        curr_dev = st.st_dev;
+        curr_ino = st.st_ino;
+    } else {
+        curr_dev = curr_ino = 0;
+    }
 
-   scan=filename+strlen(drive);
-   store=newfilename;
-   currpointno=0;
-   while(*scan)
-   {
-      if(isslash(*scan))
-      {
-         while(isslash(*scan))
-            scan++;
-         /* append a slash if it meens root directory
-          or if it is not the end if filename and it is not added yet */
-         if(store==newfilename || (*scan && store[-1]!='/'))
-            *(store++)='/';
-      }
-      else
-      {
-         while(*scan && !isslash(*scan))
-            *(store++)=*(scan++);
-         *store=0;
-         snprintf(tmp,sizeof(tmp),"%s%s",drive,newfilename);
-         if(co_await le_stat(tmp,&st)!=-1)
-         {
-            for(i=0; i<currpointno; i++)
-            {
-               if(ino_scanned[i]==st.st_ino && dev_scanned[i]==st.st_dev)
-               {
-                  store=point[currpointno=i];
-                  break;
-               }
+    scan        = filename + strlen(drive);
+    store       = newfilename;
+    currpointno = 0;
+    while (*scan) {
+        if (isslash(*scan)) {
+            while (isslash(*scan))
+                scan++;
+            /* append a slash if it meens root directory
+             or if it is not the end if filename and it is not added yet */
+            if (store == newfilename || (*scan && store[-1] != '/'))
+                *(store++) = '/';
+        } else {
+            while (*scan && !isslash(*scan))
+                *(store++) = *(scan++);
+            *store = 0;
+            snprintf(tmp, sizeof(tmp), "%s%s", drive, newfilename);
+            if (co_await le_stat(tmp, &st) != -1) {
+                for (i = 0; i < currpointno; i++) {
+                    if (ino_scanned[i] == st.st_ino && dev_scanned[i] == st.st_dev) {
+                        store = point[currpointno = i];
+                        break;
+                    }
+                }
+                if (st.st_ino == root_ino && st.st_dev == root_dev) {
+                    strcpy(newfilename, "/");
+                    store       = newfilename + strlen(newfilename);
+                    currpointno = 0;
+                } else if (st.st_ino == curr_ino && st.st_dev == curr_dev) {
+                    strcpy(newfilename, ".");
+                    store       = newfilename + strlen(newfilename);
+                    currpointno = 0;
+                } else {
+                    ino_scanned[currpointno] = st.st_ino;
+                    dev_scanned[currpointno] = st.st_dev;
+                    point[currpointno++]     = store;
+                }
             }
-            if(st.st_ino==root_ino && st.st_dev==root_dev)
-            {
-               strcpy(newfilename,"/");
-               store=newfilename+strlen(newfilename);
-               currpointno=0;
-            }
-            else if(st.st_ino==curr_ino && st.st_dev==curr_dev)
-            {
-               strcpy(newfilename,".");
-               store=newfilename+strlen(newfilename);
-               currpointno=0;
-            }
-            else
-            {
-               ino_scanned[currpointno]=st.st_ino;
-               dev_scanned[currpointno]=st.st_dev;
-               point[currpointno++]=store;
-            }
-         }
-      }
-   }
-   *store=0;
-   snprintf(filename,sizeof(directory),"%s%s",drive,newfilename);
-   free(newfilename);
-   free(ino_scanned);
-   free(dev_scanned);
-   free(point);
+        }
+    }
+    *store = 0;
+    snprintf(filename, sizeof(directory), "%s%s", drive, newfilename);
+    free(newfilename);
+    free(ino_scanned);
+    free(dev_scanned);
+    free(point);
 }
 
 Task<int> ChooseFileName(char *fn, unsigned fn_size)
 {
-   char	    *a;
-   static WIN *w=NULL;
-   int      action;
-   int      shift,current;
-   struct stat st;
-   int      x,y;
-   char     str[300];
-   char     str1[300];
-   int      i,l;
-   int      dirsize;
-   Vec<DirEntry> ents;
-   char     drive[3]="";
+    char *a;
+    static WIN *w = NULL;
+    int action;
+    int shift, current;
+    struct stat st;
+    int x, y;
+    char str[300];
+    char str1[300];
+    int i, l;
+    int dirsize;
+    Vec<DirEntry> ents;
+    char drive[3] = "";
 
 #ifdef MSDOS
-   if(isalpha(fn[0]) && fn[1]==':')
-      snprintf(drive,sizeof(drive),"%.2s",fn);
+    if (isalpha(fn[0]) && fn[1] == ':')
+        snprintf(drive, sizeof(drive), "%.2s", fn);
 #endif
 
-   /* strip trailing slashes - they are not needed */
-   for(a=fn+strlen(fn)-1; *a=='/' && a>fn; a--);
-   a[1]=0;
+    /* strip trailing slashes - they are not needed */
+    for (a = fn + strlen(fn) - 1; *a == '/' && a > fn; a--)
+        ;
+    a[1] = 0;
 
-   a=strrchr(fn,'/');
-   if(a==NULL)
-   {
-      snprintf(directory,sizeof(directory),"%s.",drive);
-      strcpy(filename,fn+strlen(drive));
-   }
-   else
-   {
-      if(a!=fn+strlen(drive))
-      {
-         snprintf(directory,sizeof(directory),"%.*s",(int)(a-fn),fn);
-      }
-      else
-         snprintf(directory,sizeof(directory),"%s/",drive);
-      strcpy(filename,a+1);
-   }
+    a = strrchr(fn, '/');
+    if (a == NULL) {
+        snprintf(directory, sizeof(directory), "%s.", drive);
+        strcpy(filename, fn + strlen(drive));
+    } else {
+        if (a != fn + strlen(drive)) {
+            snprintf(directory, sizeof(directory), "%.*s", (int)(a - fn), fn);
+        } else
+            snprintf(directory, sizeof(directory), "%s/", drive);
+        strcpy(filename, a + 1);
+    }
 
-   if(directory[0]=='~' && (directory[1]==0 || directory[1]=='/'))
-   {
-      if(strlen(directory)+strlen(HOME)>254)
-      {
-         ErrMsg("Path name is too long");
-         co_return(-1);
-      }
-      snprintf(str,sizeof(str),"%s%s",HOME,directory+1);
-      strcpy(directory,str);
-   }
+    if (directory[0] == '~' && (directory[1] == 0 || directory[1] == '/')) {
+        if (strlen(directory) + strlen(HOME) > 254) {
+            ErrMsg("Path name is too long");
+            co_return (-1);
+        }
+        snprintf(str, sizeof(str), "%s%s", HOME, directory + 1);
+        strcpy(directory, str);
+    }
 
-   /* check if there is a wildcard(s) */
-   for(a=filename; *a; a++)
-   {
-      if(*a=='\\' && a[1])
-         a++;
-      else if(*a=='*' || *a=='?')
-         break;
-   }
-   if(*a==0) /* there is no wildcards */
-   {
-      LoadHistory-=fn;
-      co_await condense(directory);
-      for(a=filename; *a; a++)
-         if(*a=='\\' && a[1])
-            memmove(a,a+1,strlen(a));  /* delete backslashes */
-      if(directory[strlen(directory)-1]=='/')
-         snprintf(fn,fn_size,"%s%s",directory,filename);
-      else
-         snprintf(fn,fn_size,"%s/%s",directory,filename);
-      if(!strncmp(fn+strlen(drive),"./",2))
-         memmove(fn+strlen(drive),fn+strlen(drive)+2,strlen(fn+strlen(drive)+2)+1);
-      LoadHistory+=fn;
-      co_return(0);
-   }
+    /* check if there is a wildcard(s) */
+    for (a = filename; *a; a++) {
+        if (*a == '\\' && a[1])
+            a++;
+        else if (*a == '*' || *a == '?')
+            break;
+    }
+    if (*a == 0) /* there is no wildcards */
+    {
+        LoadHistory -= fn;
+        co_await condense(directory);
+        for (a = filename; *a; a++)
+            if (*a == '\\' && a[1])
+                memmove(a, a + 1, strlen(a)); /* delete backslashes */
+        if (directory[strlen(directory) - 1] == '/')
+            snprintf(fn, fn_size, "%s%s", directory, filename);
+        else
+            snprintf(fn, fn_size, "%s/%s", directory, filename);
+        if (!strncmp(fn + strlen(drive), "./", 2))
+            memmove(fn + strlen(drive), fn + strlen(drive) + 2, strlen(fn + strlen(drive) + 2) + 1);
+        LoadHistory += fn;
+        co_return (0);
+    }
 
-   w=CreateWin(MIDDLE,MIDDLE,(DIRSIZ+2)*4+4,12,DIALOGUE_WIN_ATTR," Directory ",0);
-   DisplayWin(w);
+    w = CreateWin(MIDDLE, MIDDLE, (DIRSIZ + 2) * 4 + 4, 12, DIALOGUE_WIN_ATTR, " Directory ", 0);
+    DisplayWin(w);
 
-   do
-   {
-      co_await condense(directory);
-      if(co_await le_stat(directory,&st)==-1)
-      {
-         FError(directory);
-         CloseWin();
-         DestroyWin(w);
-	 co_return(-1);
-      }
-      if((st.st_mode&S_IFMT)!=S_IFDIR)
-      {
-         char  msg[128];
-         snprintf(msg,sizeof(msg),"%.60s: not a directory",directory);
-         ErrMsg(msg);
-         CloseWin();
-         DestroyWin(w);
-	 co_return(-1);
-      }
+    do {
+        co_await condense(directory);
+        if (co_await le_stat(directory, &st) == -1) {
+            FError(directory);
+            CloseWin();
+            DestroyWin(w);
+            co_return (-1);
+        }
+        if ((st.st_mode & S_IFMT) != S_IFDIR) {
+            char msg[128];
+            snprintf(msg, sizeof(msg), "%.60s: not a directory", directory);
+            ErrMsg(msg);
+            CloseWin();
+            DestroyWin(w);
+            co_return (-1);
+        }
 
-      if(dir)
-         free(dir);
-
-      PutStr(MIDDLE,FDOWN-1,"READING");
-      refresh();
-
-      /* One listing rather than opendir/readdir/rewinddir, and .. is not in
-	 it -- a listing never resolves -- so it is put in front by hand. */
-      {
-	 Result<Vec<DirEntry>> r=Err(Error::NoMemory);
-	 if(Task<Result<Vec<DirEntry>>> t=list_dir(Str(directory,strlen(directory))))
-	    r=co_await t;
-	 if(r.is_err())
-	 {
-	    FError(directory);
-	    CloseWin();
-	    DestroyWin(w);
-	    co_return(-1);
-	 }
-	 ents=move(r.value());
-      }
-      dirsize=(int)ents.size()+1;
-      dir=(struct entry*)malloc(dirsize*sizeof(*dir));
-      if(dir==NULL)
-      {
-         NotMemory();
-         CloseWin();
-         DestroyWin(w);
-         co_return(-1);
-      }
-      for(i=0; i<dirsize; i++)
-      {
-	 const char *d_name;
-	 char namebuf[256];
-
-	 if(i==0)
-	    d_name="..";
-	 else
-	 {
-	    Str nm=ents[i-1].name.str();
-	    if(nm.size()>=sizeof(namebuf))
-	    {
-	       i--;
-	       dirsize--;
-	       continue;
-	    }
-	    memcpy(namebuf,nm.data(),nm.size());
-	    namebuf[nm.size()]=0;
-	    d_name=namebuf;
-	 }
-         snprintf(str,sizeof(str),"%s/%s",directory,d_name);
-         if(co_await le_stat(str,&(dir[i].st))==-1
-         || ((dir[i].st.st_mode&S_IFMT)==S_IFREG && fnmatch(filename,d_name,0)!=0)
-         || ((dir[i].st.st_mode&S_IFMT)!=S_IFREG && (dir[i].st.st_mode&S_IFMT)!=S_IFDIR)
-         || !strcmp(d_name,"."))
-         {
-            i--;
-            continue;
-         }
-         dir[i].name=strdup(d_name);
-         if(dir[i].name==NULL)
-         {
-            for(i=i-1; i>=0; i--)
-               free(dir[i].name);
+        if (dir)
             free(dir);
+
+        PutStr(MIDDLE, FDOWN - 1, "READING");
+        refresh();
+
+        /* One listing rather than opendir/readdir/rewinddir, and .. is not in
+           it -- a listing never resolves -- so it is put in front by hand. */
+        {
+            Result<Vec<DirEntry>> r = Err(Error::NoMemory);
+            if (Task<Result<Vec<DirEntry>>> t = list_dir(Str(directory, strlen(directory))))
+                r = co_await t;
+            if (r.is_err()) {
+                FError(directory);
+                CloseWin();
+                DestroyWin(w);
+                co_return (-1);
+            }
+            ents = move(r.value());
+        }
+        dirsize = (int)ents.size() + 1;
+        dir     = (struct entry *)malloc(dirsize * sizeof(*dir));
+        if (dir == NULL) {
             NotMemory();
             CloseWin();
             DestroyWin(w);
-            co_return(-1);
-         }
-      }
+            co_return (-1);
+        }
+        for (i = 0; i < dirsize; i++) {
+            const char *d_name;
+            char namebuf[256];
 
-      qsort(dir,dirsize,sizeof(*dir),(int (*)(const void*,const void*))entry_compare);
-
-      shift=current=0;
-      do
-      {
-         Clear();
-         if(current<shift)
-            shift=current&~3;
-         else if(current>=shift+(Upper->h-2)*4)
-            shift=(current-(Upper->h-3)*4)&~3;
-         for(i=shift,y=1; y<Upper->h-1 && i<dirsize; y++)
-         {
-            for(x=1; x<Upper->w-DIRSIZ-2-1 && i<dirsize; x+=DIRSIZ+2,i++)
-            {
-               l=strlen(dir[i].name);
-               if(l>DIRSIZ)
-                  snprintf(str,sizeof(str)," %.*s..%-.*s",DIRSIZ/2-1,dir[i].name,
-                   DIRSIZ-(DIRSIZ/2)-1,dir[i].name+l-(DIRSIZ-(DIRSIZ/2)-1));
-               else
-                  snprintf(str,sizeof(str)," %.*s",DIRSIZ,dir[i].name);
-               if((dir[i].st.st_mode&S_IFMT)==S_IFDIR)
-                  strcat(str,"/");
-               snprintf(str1,sizeof(str1),"%-*.*s",DIRSIZ+2,DIRSIZ+2,str);
-               SetAttr(i==current?CURR_BUTTON_ATTR:DIALOGUE_WIN_ATTR);
-               PutStr(x+1,y,str1);
+            if (i == 0)
+                d_name = "..";
+            else {
+                Str nm = ents[i - 1].name.str();
+                if (nm.size() >= sizeof(namebuf)) {
+                    i--;
+                    dirsize--;
+                    continue;
+                }
+                memcpy(namebuf, nm.data(), nm.size());
+                namebuf[nm.size()] = 0;
+                d_name             = namebuf;
             }
-         }
-         SetAttr(DIALOGUE_WIN_ATTR);
-         for(x=0; x<12; x++)
-            PutACS(FRIGHT-14+x,FDOWN,HLINE);
-         if(shift>0 && (shift+(Upper->h-2)*4)<dirsize)
-            PutStr(FRIGHT-3,FDOWN," PgUp/PgDn ");
-         else if(shift>0)
-            PutStr(FRIGHT-6,FDOWN," PgUp ");
-         else if((shift+(Upper->h-2)*4)<dirsize)
-            PutStr(FRIGHT-6,FDOWN," PgDn ");
+            snprintf(str, sizeof(str), "%s/%s", directory, d_name);
+            if (co_await le_stat(str, &(dir[i].st)) == -1 ||
+                ((dir[i].st.st_mode & S_IFMT) == S_IFREG && fnmatch(filename, d_name, 0) != 0) ||
+                ((dir[i].st.st_mode & S_IFMT) != S_IFREG &&
+                 (dir[i].st.st_mode & S_IFMT) != S_IFDIR) ||
+                !strcmp(d_name, ".")) {
+                i--;
+                continue;
+            }
+            dir[i].name = strdup(d_name);
+            if (dir[i].name == NULL) {
+                for (i = i - 1; i >= 0; i--)
+                    free(dir[i].name);
+                free(dir);
+                NotMemory();
+                CloseWin();
+                DestroyWin(w);
+                co_return (-1);
+            }
+        }
 
-	 if(directory[strlen(directory)-1]=='/')
-	    snprintf(str,sizeof(str),"%s%s - %s",directory,filename,dir[current].name);
-	 else
-	    snprintf(str,sizeof(str),"%s/%s - %s",directory,filename,dir[current].name);
-	 Message(str);
+        qsort(dir, dirsize, sizeof(*dir), (int (*)(const void *, const void *))entry_compare);
 
-         action=co_await GetNextAction();
-         switch(action)
-         {
-         case(CHAR_LEFT):
-            if(current>0)
-               current--;
-            break;
-         case(CHAR_RIGHT):
-            if(current<dirsize-1)
-               current++;
-            break;
-         case(LINE_DOWN):
-            if(current>dirsize-4-1)
-               current=dirsize-1;
-            else
-               current+=4;
-            break;
-         case(LINE_UP):
-            if(current<4)
-               current=0;
-            else
-               current-=4;
-            break;
-         case(PREV_PAGE):
-            if(current>4*(Upper->h-3))
-               current-=4*(Upper->h-3);
-            else
-               current=0;
-            break;
-         case(NEXT_PAGE):
-            if(current>=dirsize-4*(Upper->h-3)-1)
-               current=dirsize-1;
-            else
-               current+=4*(Upper->h-3);
-            break;
-         case(LINE_BEGIN):
-            current=shift=0;
-            break;
-         case(LINE_END):
-            current=dirsize-1;
-            break;
-         }
-      }
-      while(action!=CANCEL && action!=NEWLINE);
+        shift = current = 0;
+        do {
+            Clear();
+            if (current < shift)
+                shift = current & ~3;
+            else if (current >= shift + (Upper->h - 2) * 4)
+                shift = (current - (Upper->h - 3) * 4) & ~3;
+            for (i = shift, y = 1; y < Upper->h - 1 && i < dirsize; y++) {
+                for (x = 1; x < Upper->w - DIRSIZ - 2 - 1 && i < dirsize; x += DIRSIZ + 2, i++) {
+                    l = strlen(dir[i].name);
+                    if (l > DIRSIZ)
+                        snprintf(str, sizeof(str), " %.*s..%-.*s", DIRSIZ / 2 - 1, dir[i].name,
+                                 DIRSIZ - (DIRSIZ / 2) - 1,
+                                 dir[i].name + l - (DIRSIZ - (DIRSIZ / 2) - 1));
+                    else
+                        snprintf(str, sizeof(str), " %.*s", DIRSIZ, dir[i].name);
+                    if ((dir[i].st.st_mode & S_IFMT) == S_IFDIR)
+                        strcat(str, "/");
+                    snprintf(str1, sizeof(str1), "%-*.*s", DIRSIZ + 2, DIRSIZ + 2, str);
+                    SetAttr(i == current ? CURR_BUTTON_ATTR : DIALOGUE_WIN_ATTR);
+                    PutStr(x + 1, y, str1);
+                }
+            }
+            SetAttr(DIALOGUE_WIN_ATTR);
+            for (x = 0; x < 12; x++)
+                PutACS(FRIGHT - 14 + x, FDOWN, HLINE);
+            if (shift > 0 && (shift + (Upper->h - 2) * 4) < dirsize)
+                PutStr(FRIGHT - 3, FDOWN, " PgUp/PgDn ");
+            else if (shift > 0)
+                PutStr(FRIGHT - 6, FDOWN, " PgUp ");
+            else if ((shift + (Upper->h - 2) * 4) < dirsize)
+                PutStr(FRIGHT - 6, FDOWN, " PgDn ");
 
-      if((dir[current].st.st_mode&S_IFMT)==S_IFDIR && action==NEWLINE)
-      {
-         if(strlen(directory)>256-strlen(dir[current].name)-1)
-         {
-            ErrMsg("Path is too long");
-            continue;
-         }
-         strcat(directory,"/");
-         strcat(directory,dir[current].name);
-      }
-      else
-         break;
-   }
-   while(1);
+            if (directory[strlen(directory) - 1] == '/')
+                snprintf(str, sizeof(str), "%s%s - %s", directory, filename, dir[current].name);
+            else
+                snprintf(str, sizeof(str), "%s/%s - %s", directory, filename, dir[current].name);
+            Message(str);
 
-   LoadHistory-=HistoryLine(fn); /* delete the pattern from the history */
-   if(directory[strlen(directory)-1]=='/')
-      snprintf(fn,fn_size,"%s%s",directory,dir[current].name);
-   else
-      snprintf(fn,fn_size,"%s/%s",directory,dir[current].name);
-   char *fn_d=fn+strlen(drive);
-   if(!strncmp(fn_d,"./",2))
-      memmove(fn_d,fn_d+2,strlen(fn_d+1));
-   CloseWin();
-   DestroyWin(w);
-   for(i=dirsize; i>0; )
-      free(dir[--i].name);
-   free(dir);
-   dir=NULL;
-   if(action==NEWLINE)
-   {
-      LoadHistory+=HistoryLine(fn);
-      co_return(0);
-   }
-   co_return(-2);
+            action = co_await GetNextAction();
+            switch (action) {
+            case (CHAR_LEFT):
+                if (current > 0)
+                    current--;
+                break;
+            case (CHAR_RIGHT):
+                if (current < dirsize - 1)
+                    current++;
+                break;
+            case (LINE_DOWN):
+                if (current > dirsize - 4 - 1)
+                    current = dirsize - 1;
+                else
+                    current += 4;
+                break;
+            case (LINE_UP):
+                if (current < 4)
+                    current = 0;
+                else
+                    current -= 4;
+                break;
+            case (PREV_PAGE):
+                if (current > 4 * (Upper->h - 3))
+                    current -= 4 * (Upper->h - 3);
+                else
+                    current = 0;
+                break;
+            case (NEXT_PAGE):
+                if (current >= dirsize - 4 * (Upper->h - 3) - 1)
+                    current = dirsize - 1;
+                else
+                    current += 4 * (Upper->h - 3);
+                break;
+            case (LINE_BEGIN):
+                current = shift = 0;
+                break;
+            case (LINE_END):
+                current = dirsize - 1;
+                break;
+            }
+        } while (action != CANCEL && action != NEWLINE);
+
+        if ((dir[current].st.st_mode & S_IFMT) == S_IFDIR && action == NEWLINE) {
+            if (strlen(directory) > 256 - strlen(dir[current].name) - 1) {
+                ErrMsg("Path is too long");
+                continue;
+            }
+            strcat(directory, "/");
+            strcat(directory, dir[current].name);
+        } else
+            break;
+    } while (1);
+
+    LoadHistory -= HistoryLine(fn); /* delete the pattern from the history */
+    if (directory[strlen(directory) - 1] == '/')
+        snprintf(fn, fn_size, "%s%s", directory, dir[current].name);
+    else
+        snprintf(fn, fn_size, "%s/%s", directory, dir[current].name);
+    char *fn_d = fn + strlen(drive);
+    if (!strncmp(fn_d, "./", 2))
+        memmove(fn_d, fn_d + 2, strlen(fn_d + 1));
+    CloseWin();
+    DestroyWin(w);
+    for (i = dirsize; i > 0;)
+        free(dir[--i].name);
+    free(dir);
+    dir = NULL;
+    if (action == NEWLINE) {
+        LoadHistory += HistoryLine(fn);
+        co_return (0);
+    }
+    co_return (-2);
 }

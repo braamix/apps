@@ -16,18 +16,18 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-Task<void>     NotFound();
-int      CharMatch();
-int      Match1();
-int      Match();
-void     ReplaceFound();
-Task<void>     FindMatch();
+Task<void> NotFound();
+int CharMatch();
+int Match1();
+int Match();
+void ReplaceFound();
+Task<void> FindMatch();
 
-Task<void>     StartSearch(void);
-Task<void>     ContSearch(void);
-Task<void>     StartReplace(void);
-Task<void>     ContReplace(void);
-Task<void>     StartSearchBackward(void);
+Task<void> StartSearch(void);
+Task<void> ContSearch(void);
+Task<void> StartReplace(void);
+Task<void> ContReplace(void);
+Task<void> StartSearchBackward(void);
 
 extern Global<History> g_SearchHistory;
 #define SearchHistory (g_SearchHistory.get())

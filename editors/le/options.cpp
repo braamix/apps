@@ -31,18 +31,18 @@
 #include "colormnu.h"
 #include "undo.h"
 
-bool ExplicitInitName=false;
+bool ExplicitInitName = false;
 char InitName[256];
 
 extern int MaxBackup;
 
 extern int le_use_default_colors;
 
-int useidl=0;
-int min_undo_levels=4;
-int max_undo_memory=128;
-int glue_small_changes=1;
-int undo_enable=1;
+int useidl             = 0;
+int min_undo_levels    = 4;
+int max_undo_memory    = 128;
+int glue_small_changes = 1;
+int undo_enable        = 1;
 
 extern int grsetno;
 
@@ -57,1239 +57,1149 @@ static int OldTabSize;
 #define _StrPos 16
 #define _StrLen 49
 
-struct  opt
-{
-   const char *name;
-   int    type;
-   void  *var;
-   int    x,y;
-   int   len;
-   int   maxlen;
-   int   flags;
-   union {
-      char *s;
-      int n;
-   } old;
-} opt[]=
-{
-{"&Insert",          ONE,  (void*)&insert,    3,2},
-{"&Autoindent",      ONE,  (void*)&autoindent, 3,3},
+struct opt {
+    const char *name;
+    int type;
+    void *var;
+    int x, y;
+    int len;
+    int maxlen;
+    int flags;
+    union {
+        char *s;
+        int n;
+    } old;
+} opt[] = { { "&Insert", ONE, (void *)&insert, 3, 2 },
+            { "&Autoindent", ONE, (void *)&autoindent, 3, 3 },
 
-{"Save history",     ONE,  (void*)&SaveHst,  22,2},
-{"Save positions",   ONE,  (void*)&SavePos,  22,3},
+            { "Save history", ONE, (void *)&SaveHst, 22, 2 },
+            { "Save positions", ONE, (void *)&SavePos, 22, 3 },
 
-// {"rectangle &Blocks",ONE,  (void*)&rblock,  45,2},
-{"No regular expr.", ONE,  (void*)&noreg,	      45,2},
-{"Match case",	     ONE,  (void*)&match_case,	      45,3},
-{"Use &colors",      ONE,  (void*)&UseColor,	      45,4},
-{"&Syntax highlight",ONE,  (void*)&hl_option,	      45,5},
-{"Use tabs",         ONE,  (void*)&UseTabs,	      45,6},
-{"BackSp unindents", ONE,  (void*)&BackspaceUnindents,45,7},
-{"Lazy page scroll", ONE,  (void*)&PreferPageTop,     45,8},
+            // {"rectangle &Blocks",ONE,  (void*)&rblock,  45,2},
+            { "No regular expr.", ONE, (void *)&noreg, 45, 2 },
+            { "Match case", ONE, (void *)&match_case, 45, 3 },
+            { "Use &colors", ONE, (void *)&UseColor, 45, 4 },
+            { "&Syntax highlight", ONE, (void *)&hl_option, 45, 5 },
+            { "Use tabs", ONE, (void *)&UseTabs, 45, 6 },
+            { "BackSp unindents", ONE, (void *)&BackspaceUnindents, 45, 7 },
+            { "Lazy page scroll", ONE, (void *)&PreferPageTop, 45, 8 },
 #ifdef WITH_MOUSE
-{"Use mouse",	     ONE,  (void*)&UseMouse,	      45,9},
+            { "Use mouse", ONE, (void *)&UseMouse, 45, 9 },
 #endif
 
-{"&Latin",           MANY, (void*)&inputmode,	3,5},
-{"r&Ussian",         MANY, (void*)&inputmode,	3,6},
-{"&Graphic",         MANY, (void*)&inputmode,	3,7},
+            { "&Latin", MANY, (void *)&inputmode, 3, 5 },
+            { "r&Ussian", MANY, (void *)&inputmode, 3, 6 },
+            { "&Graphic", MANY, (void *)&inputmode, 3, 7 },
 
-{"&Exact",           MANY, (void*)&editmode,	22,5},
-{"te&Xt",            MANY, (void*)&editmode,	22,6},
-{"&Hex",             MANY, (void*)&editmode,	22,7},
+            { "&Exact", MANY, (void *)&editmode, 22, 5 },
+            { "te&Xt", MANY, (void *)&editmode, 22, 6 },
+            { "&Hex", MANY, (void *)&editmode, 22, 7 },
 
-{"&Tab size",        NUM,  (void*)&TabSize,	3,9},
-{"Indent size",      NUM,  (void*)&IndentSize,	3,10},
+            { "&Tab size", NUM, (void *)&TabSize, 3, 9 },
+            { "Indent size", NUM, (void *)&IndentSize, 3, 10 },
 
-{"Vertical scroll",  NUM,  (void*)&Scroll,	22,9},
-{"Horizontal scroll",NUM,  (void*)&hscroll,	22,10},
+            { "Vertical scroll", NUM, (void *)&Scroll, 22, 9 },
+            { "Horizontal scroll", NUM, (void *)&hscroll, 22, 10 },
 
-{"Make backup",      ONE,  (void*)&makebak,	3,12},
-{"Number of backups",NUM,  (void*)&MaxBackup,	22,12},
-{"Backup suffix",    STR,  (void*)bak,		17,13,8,sizeof(bak)   },
-{"backup &Path",     STR,  (void*)BakPath,	17,14,48,sizeof(BakPath)  },
+            { "Make backup", ONE, (void *)&makebak, 3, 12 },
+            { "Number of backups", NUM, (void *)&MaxBackup, 22, 12 },
+            { "Backup suffix", STR, (void *)bak, 17, 13, 8, sizeof(bak) },
+            { "backup &Path", STR, (void *)BakPath, 17, 14, 48, sizeof(BakPath) },
 
-/*
-{"  Save  ",   BUTTON, NULL,   MIDDLE-15,FDOWN-2},
-{" Update ",   BUTTON, NULL,   MIDDLE-5,FDOWN-2},
-{"  Use   ",   BUTTON, NULL,   MIDDLE+5,FDOWN-2},
-{" Cancel ",   BUTTON, NULL,   MIDDLE+15,FDOWN-2},*/
-{NULL}
-},
-   TOpt[]=
-{
-{"No cyrillic",      MANY,   (void*)&coding, 3,2},
-{"Alternative",      MANY,   (void*)&coding, 3,3},
-{"Alternative with 'jo'",MANY,   (void*)&coding, 3,4},
-{"KOI-8",            MANY,   (void*)&coding, 3,5},
-{"KOI-8-BESTA",      MANY,   (void*)&coding, 3,6},
-{"Main",             MANY,   (void*)&coding, 3,7},
+            /*
+            {"  Save  ",   BUTTON, NULL,   MIDDLE-15,FDOWN-2},
+            {" Update ",   BUTTON, NULL,   MIDDLE-5,FDOWN-2},
+            {"  Use   ",   BUTTON, NULL,   MIDDLE+5,FDOWN-2},
+            {" Cancel ",   BUTTON, NULL,   MIDDLE+15,FDOWN-2},*/
+            { NULL } },
+  TOpt[]         = { { "No cyrillic", MANY, (void *)&coding, 3, 2 },
+                     { "Alternative", MANY, (void *)&coding, 3, 3 },
+                     { "Alternative with 'jo'", MANY, (void *)&coding, 3, 4 },
+                     { "KOI-8", MANY, (void *)&coding, 3, 5 },
+                     { "KOI-8-BESTA", MANY, (void *)&coding, 3, 6 },
+                     { "Main", MANY, (void *)&coding, 3, 7 },
 
-{"IBM coding      ≥≈ø⁄¬√¥¿Ÿ¡ƒ",MANY, (void*)&grsetno,32,2},
-{"KOI-8 coding 1  ãùó≤öõåò±ôú",MANY, (void*)&grsetno,32,3},
-{"KOI-8 coding 2  Éïè™íìÑê©ëî",MANY, (void*)&grsetno,32,4},
-{"No graphics     |+++++++++-",MANY, (void*)&grsetno,32,5},
+                     { "IBM coding      ≥≈ø⁄¬√¥¿Ÿ¡ƒ", MANY, (void *)&grsetno, 32, 2 },
+                     { "KOI-8 coding 1  ãùó≤öõåò±ôú", MANY, (void *)&grsetno, 32, 3 },
+                     { "KOI-8 coding 2  Éïè™íìÑê©ëî", MANY, (void *)&grsetno, 32, 4 },
+                     { "No graphics     |+++++++++-", MANY, (void *)&grsetno, 32, 5 },
 
-{"Use insert/delete line cap.",ONE, &useidl,32,7},
-{"Number of functional keys",NUM,   (void*)&FuncKeysNum,32,8},
-{NULL}
-},
-   FormatOpt[]=
-{
-{"Left Margin",      NUM, (void*)&LeftMargin,     3,2,3},
-{"Line Length",      NUM, (void*)&LineLen,        3,3,3},
-{"First line margin",NUM, (void*)&FirstLineMargin,3,4,3},
-{"Left adjustment",  ONE, &LeftAdj,               3,6},
-{"Right adjustment", ONE, &RightAdj,              3,7},
-{"Auto word wrap",   ONE, &wordwrap, 	      	  3,9},
-{NULL}
-},
-   AppearOptTbl[]=
-{
-{"Right scroll bar", MANY,   &ShowScrollBar,3,2},
-{"No scroll bar",    MANY,   &ShowScrollBar,3,3},
-{"Left scroll bar",  MANY,   &ShowScrollBar,3,4},
+                     { "Use insert/delete line cap.", ONE, &useidl, 32, 7 },
+                     { "Number of functional keys", NUM, (void *)&FuncKeysNum, 32, 8 },
+                     { NULL } },
+  FormatOpt[]    = { { "Left Margin", NUM, (void *)&LeftMargin, 3, 2, 3 },
+                     { "Line Length", NUM, (void *)&LineLen, 3, 3, 3 },
+                     { "First line margin", NUM, (void *)&FirstLineMargin, 3, 4, 3 },
+                     { "Left adjustment", ONE, &LeftAdj, 3, 6 },
+                     { "Right adjustment", ONE, &RightAdj, 3, 7 },
+                     { "Auto word wrap", ONE, &wordwrap, 3, 9 },
+                     { NULL } },
+  AppearOptTbl[] = { { "Right scroll bar", MANY, &ShowScrollBar, 3, 2 },
+                     { "No scroll bar", MANY, &ShowScrollBar, 3, 3 },
+                     { "Left scroll bar", MANY, &ShowScrollBar, 3, 4 },
 
-{"Bottom status line",MANY,   &ShowStatusLine,3,6},
-{"No status line",   MANY,   &ShowStatusLine,3,7},
-{"Top status line",  MANY,   &ShowStatusLine,3,8},
-{NULL}
-},
-   ProgOptTbl[]=
-{
-{"&Compile",         STR,  (void*)Compile,   _StrPos,2,_StrLen,sizeof(Compile)  },
-{"&Make",            STR,  (void*)Make,      _StrPos,3,_StrLen,sizeof(Make)     },
-{"&Run",             STR,  (void*)Run,       _StrPos,4,_StrLen,sizeof(Run)      },
-{"&Shell",           STR,  (void*)Shell,     _StrPos,5,_StrLen,sizeof(Shell)    },
-{"&Help",	     STR,  (void*)HelpCmd,   _StrPos,6,_StrLen,sizeof(HelpCmd)  },
-{NULL}
-},
-   UndoOptTbl[]=
-{
-{"Enable undo", ONE, &undo_enable, 3,2},
-{"Glue small changes together", ONE, &glue_small_changes, 3,3},
-{"Mininum undo levels", NUM, (void*)&min_undo_levels,     3,4,3},
-{"Maximum undo memory (Mb)", NUM, (void*)&max_undo_memory,3,5,4},
-{NULL}
-};
+                     { "Bottom status line", MANY, &ShowStatusLine, 3, 6 },
+                     { "No status line", MANY, &ShowStatusLine, 3, 7 },
+                     { "Top status line", MANY, &ShowStatusLine, 3, 8 },
+                     { NULL } },
+  ProgOptTbl[]   = { { "&Compile", STR, (void *)Compile, _StrPos, 2, _StrLen, sizeof(Compile) },
+                     { "&Make", STR, (void *)Make, _StrPos, 3, _StrLen, sizeof(Make) },
+                     { "&Run", STR, (void *)Run, _StrPos, 4, _StrLen, sizeof(Run) },
+                     { "&Shell", STR, (void *)Shell, _StrPos, 5, _StrLen, sizeof(Shell) },
+                     { "&Help", STR, (void *)HelpCmd, _StrPos, 6, _StrLen, sizeof(HelpCmd) },
+                     { NULL } },
+  UndoOptTbl[]   = { { "Enable undo", ONE, &undo_enable, 3, 2 },
+                     { "Glue small changes together", ONE, &glue_small_changes, 3, 3 },
+                     { "Mininum undo levels", NUM, (void *)&min_undo_levels, 3, 4, 3 },
+                     { "Maximum undo memory (Mb)", NUM, (void *)&max_undo_memory, 3, 5, 4 },
+                     { NULL } };
 
-const struct init init[]=
-{
-   { "tabsize",      NUM,  (void*)&TabSize            },
-   { "indentsize",   NUM,  (void*)&IndentSize         },
-   { "autoindent",   NUM,  (void*)&autoindent         },
-   { "bsunindents",  NUM,  (void*)&BackspaceUnindents },
-   { "insert",       NUM,  (void*)&insert             },
-   { "inputmode",    NUM,  (void*)&inputmode          },
-   { "editmode",     NUM,  (void*)&editmode           },
-   { "makebak",      NUM,  (void*)&makebak            },
-   { "bakpath",      STR,  (void*)BakPath             },
-   { "make",         STR,  (void*)Make                },
-   { "shell",        STR,  (void*)Shell               },
-   { "run",          STR,  (void*)Run                 },
-   { "compile",      STR,  (void*)Compile             },
-   { "scroll",       NUM,  (void*)&Scroll             },
-   { "hscroll",      NUM,  (void*)&hscroll            },
-   { "rblock",       NUM,  (void*)&rblock             },
-   { "savepos",      NUM,  (void*)&SavePos            },
-   { "savehst",      NUM,  (void*)&SaveHst            },
-   { "noreg",        NUM,  (void*)&noreg              },
-   { "match_case",   NUM,  (void*)&match_case         },
-   { "linelen",      NUM,  (void*)&LineLen            },
-   { "leftmrg",      NUM,  (void*)&LeftMargin         },
-   { "flnmarg",      NUM,  (void*)&FirstLineMargin    },
-   { "leftadj",      NUM,  (void*)&LeftAdj            },
-   { "rightadj",     NUM,  (void*)&RightAdj           },
-   { "helpcmd",      STR,  (void*)HelpCmd             },
-   { "usecolor",     NUM,  (void*)&UseColor           },
-   { "usetabs",      NUM,  (void*)&UseTabs            },
-   { "scrollbar",    NUM,  &ShowScrollBar             },
-   { "statusline",   NUM,  &ShowStatusLine            },
-   { "backupext",    STR,  bak                        },
-   { "backupnum",    NUM,  &MaxBackup		      },
-   { "preferpagetop",NUM,  &PreferPageTop	      },
-   { "wordwrap",     NUM,  &wordwrap		      },
-   { "syntaxhl",     NUM,  &hl_option		      },
-   { "undo_enable",  NUM,  &undo_enable		      },
-   { "undo_min_levels",NUM,&min_undo_levels	      },
-   { "undo_max_memory",NUM,&max_undo_memory	      },
-   { "undo_glue",    NUM,  &glue_small_changes	      },
+const struct init init[] = { { "tabsize", NUM, (void *)&TabSize },
+                             { "indentsize", NUM, (void *)&IndentSize },
+                             { "autoindent", NUM, (void *)&autoindent },
+                             { "bsunindents", NUM, (void *)&BackspaceUnindents },
+                             { "insert", NUM, (void *)&insert },
+                             { "inputmode", NUM, (void *)&inputmode },
+                             { "editmode", NUM, (void *)&editmode },
+                             { "makebak", NUM, (void *)&makebak },
+                             { "bakpath", STR, (void *)BakPath },
+                             { "make", STR, (void *)Make },
+                             { "shell", STR, (void *)Shell },
+                             { "run", STR, (void *)Run },
+                             { "compile", STR, (void *)Compile },
+                             { "scroll", NUM, (void *)&Scroll },
+                             { "hscroll", NUM, (void *)&hscroll },
+                             { "rblock", NUM, (void *)&rblock },
+                             { "savepos", NUM, (void *)&SavePos },
+                             { "savehst", NUM, (void *)&SaveHst },
+                             { "noreg", NUM, (void *)&noreg },
+                             { "match_case", NUM, (void *)&match_case },
+                             { "linelen", NUM, (void *)&LineLen },
+                             { "leftmrg", NUM, (void *)&LeftMargin },
+                             { "flnmarg", NUM, (void *)&FirstLineMargin },
+                             { "leftadj", NUM, (void *)&LeftAdj },
+                             { "rightadj", NUM, (void *)&RightAdj },
+                             { "helpcmd", STR, (void *)HelpCmd },
+                             { "usecolor", NUM, (void *)&UseColor },
+                             { "usetabs", NUM, (void *)&UseTabs },
+                             { "scrollbar", NUM, &ShowScrollBar },
+                             { "statusline", NUM, &ShowStatusLine },
+                             { "backupext", STR, bak },
+                             { "backupnum", NUM, &MaxBackup },
+                             { "preferpagetop", NUM, &PreferPageTop },
+                             { "wordwrap", NUM, &wordwrap },
+                             { "syntaxhl", NUM, &hl_option },
+                             { "undo_enable", NUM, &undo_enable },
+                             { "undo_min_levels", NUM, &min_undo_levels },
+                             { "undo_max_memory", NUM, &max_undo_memory },
+                             { "undo_glue", NUM, &glue_small_changes },
 #ifdef WITH_MOUSE
-   { "usemouse",     NUM,  &UseMouse		      },
+                             { "usemouse", NUM, &UseMouse },
 #endif
-   { NULL }
+                             { NULL } };
+const struct init term[] = {
+    { "coding", NUM, (void *)&coding }, { "grsetno", NUM, (void *)&grsetno },
+    { "chset", STR, (void *)&chset },   { "fknum", NUM, (void *)&FuncKeysNum },
+    { "useidl", NUM, &useidl },         { NULL }
 };
-const struct init term[]=
-{
-   { "coding",       NUM,  (void*)&coding	      },
-   { "grsetno",      NUM,  (void*)&grsetno	      },
-   { "chset",        STR,  (void*)&chset	      },
-   { "fknum",        NUM,  (void*)&FuncKeysNum	      },
-   { "useidl",       NUM,  &useidl      	      },
-   { NULL }
-};
-const struct init colors[]=
-{
-   { "default_colors",	NUM,  &le_use_default_colors			   },
-   { "status_line",	STR,  color_descriptions[STATUS_LINE]		   },
-   { "status_line_bw",	STR,  color_descriptions[STATUS_LINE+MAX_COLOR_NO] },
-   { "normal_text",	STR,  color_descriptions[NORMAL_TEXT]		   },
-   { "normal_text_bw",	STR,  color_descriptions[NORMAL_TEXT+MAX_COLOR_NO] },
-   { "block_text",	STR,  color_descriptions[BLOCK_TEXT]		   },
-   { "block_text_bw",	STR,  color_descriptions[BLOCK_TEXT+MAX_COLOR_NO]  },
-   { "error_win",	STR,  color_descriptions[ERROR_WIN]		   },
-   { "error_win_bw",	STR,  color_descriptions[ERROR_WIN+MAX_COLOR_NO]   },
-   { "verify_win",	STR,  color_descriptions[VERIFY_WIN]		   },
-   { "verify_win_bw",	STR,  color_descriptions[VERIFY_WIN+MAX_COLOR_NO]  },
-   { "curr_button",	STR,  color_descriptions[CURR_BUTTON]              },
-   { "curr_button_bw",	STR,  color_descriptions[CURR_BUTTON+MAX_COLOR_NO] },
-   { "help_win",	STR,  color_descriptions[HELP_WIN]  		   },
-   { "help_win_bw",	STR,  color_descriptions[HELP_WIN+MAX_COLOR_NO]    },
-   { "dialogue_win",	STR,  color_descriptions[DIALOGUE_WIN]             },
-   { "dialogue_win_bw",	STR,  color_descriptions[DIALOGUE_WIN+MAX_COLOR_NO]},
-   { "menu_win",	STR,  color_descriptions[MENU_WIN]  		   },
-   { "menu_win_bw",	STR,  color_descriptions[MENU_WIN+MAX_COLOR_NO]    },
-   { "disabled_item",	STR,  color_descriptions[DISABLED_ITEM]            },
-   { "disabled_item_bw",STR,  color_descriptions[DISABLED_ITEM+MAX_COLOR_NO]},
-   { "scroll_bar",	STR,  color_descriptions[SCROLL_BAR]		   },
-   { "scroll_bar_bw",	STR,  color_descriptions[SCROLL_BAR+MAX_COLOR_NO]  },
-   { "shadowed",	STR,  color_descriptions[SHADOWED]  		   },
-   { "shadowed_bw",	STR,  color_descriptions[SHADOWED+MAX_COLOR_NO]    },
-   { "syntax1",		STR,  color_descriptions[SYNTAX1]		   },
-   { "syntax1_bw",	STR,  color_descriptions[SYNTAX1+MAX_COLOR_NO]	   },
-   { "syntax2",		STR,  color_descriptions[SYNTAX2]		   },
-   { "syntax2_bw",	STR,  color_descriptions[SYNTAX2+MAX_COLOR_NO]	   },
-   { "syntax3",		STR,  color_descriptions[SYNTAX3]		   },
-   { "syntax3_bw",	STR,  color_descriptions[SYNTAX3+MAX_COLOR_NO]	   },
-   { "syntax4",		STR,  color_descriptions[SYNTAX4]		   },
-   { "syntax4_bw",	STR,  color_descriptions[SYNTAX4+MAX_COLOR_NO]	   },
-   { "syntax5",		STR,  color_descriptions[SYNTAX5]		   },
-   { "syntax5_bw",	STR,  color_descriptions[SYNTAX5+MAX_COLOR_NO]	   },
-   { "syntax6",		STR,  color_descriptions[SYNTAX6]		   },
-   { "syntax6_bw",	STR,  color_descriptions[SYNTAX6+MAX_COLOR_NO]	   },
-   { "highlight",	STR,  color_descriptions[HIGHLIGHT]		   },
-   { "highlight_bw",	STR,  color_descriptions[HIGHLIGHT+MAX_COLOR_NO]   },
-   { NULL }
+const struct init colors[] = {
+    { "default_colors", NUM, &le_use_default_colors },
+    { "status_line", STR, color_descriptions[STATUS_LINE] },
+    { "status_line_bw", STR, color_descriptions[STATUS_LINE + MAX_COLOR_NO] },
+    { "normal_text", STR, color_descriptions[NORMAL_TEXT] },
+    { "normal_text_bw", STR, color_descriptions[NORMAL_TEXT + MAX_COLOR_NO] },
+    { "block_text", STR, color_descriptions[BLOCK_TEXT] },
+    { "block_text_bw", STR, color_descriptions[BLOCK_TEXT + MAX_COLOR_NO] },
+    { "error_win", STR, color_descriptions[ERROR_WIN] },
+    { "error_win_bw", STR, color_descriptions[ERROR_WIN + MAX_COLOR_NO] },
+    { "verify_win", STR, color_descriptions[VERIFY_WIN] },
+    { "verify_win_bw", STR, color_descriptions[VERIFY_WIN + MAX_COLOR_NO] },
+    { "curr_button", STR, color_descriptions[CURR_BUTTON] },
+    { "curr_button_bw", STR, color_descriptions[CURR_BUTTON + MAX_COLOR_NO] },
+    { "help_win", STR, color_descriptions[HELP_WIN] },
+    { "help_win_bw", STR, color_descriptions[HELP_WIN + MAX_COLOR_NO] },
+    { "dialogue_win", STR, color_descriptions[DIALOGUE_WIN] },
+    { "dialogue_win_bw", STR, color_descriptions[DIALOGUE_WIN + MAX_COLOR_NO] },
+    { "menu_win", STR, color_descriptions[MENU_WIN] },
+    { "menu_win_bw", STR, color_descriptions[MENU_WIN + MAX_COLOR_NO] },
+    { "disabled_item", STR, color_descriptions[DISABLED_ITEM] },
+    { "disabled_item_bw", STR, color_descriptions[DISABLED_ITEM + MAX_COLOR_NO] },
+    { "scroll_bar", STR, color_descriptions[SCROLL_BAR] },
+    { "scroll_bar_bw", STR, color_descriptions[SCROLL_BAR + MAX_COLOR_NO] },
+    { "shadowed", STR, color_descriptions[SHADOWED] },
+    { "shadowed_bw", STR, color_descriptions[SHADOWED + MAX_COLOR_NO] },
+    { "syntax1", STR, color_descriptions[SYNTAX1] },
+    { "syntax1_bw", STR, color_descriptions[SYNTAX1 + MAX_COLOR_NO] },
+    { "syntax2", STR, color_descriptions[SYNTAX2] },
+    { "syntax2_bw", STR, color_descriptions[SYNTAX2 + MAX_COLOR_NO] },
+    { "syntax3", STR, color_descriptions[SYNTAX3] },
+    { "syntax3_bw", STR, color_descriptions[SYNTAX3 + MAX_COLOR_NO] },
+    { "syntax4", STR, color_descriptions[SYNTAX4] },
+    { "syntax4_bw", STR, color_descriptions[SYNTAX4 + MAX_COLOR_NO] },
+    { "syntax5", STR, color_descriptions[SYNTAX5] },
+    { "syntax5_bw", STR, color_descriptions[SYNTAX5 + MAX_COLOR_NO] },
+    { "syntax6", STR, color_descriptions[SYNTAX6] },
+    { "syntax6_bw", STR, color_descriptions[SYNTAX6 + MAX_COLOR_NO] },
+    { "highlight", STR, color_descriptions[HIGHLIGHT] },
+    { "highlight_bw", STR, color_descriptions[HIGHLIGHT + MAX_COLOR_NO] },
+    { NULL }
 };
 
-Task<void>  SaveConfToOpenFile(FILE *f,const struct init *init)
+Task<void> SaveConfToOpenFile(FILE *f, const struct init *init)
 {
-   const struct  init   *p;
+    const struct init *p;
 
-   for(p=init; p->name; p++)
-   {
-      char line[64];
-      snprintf(line,sizeof(line),"%s=",p->name);
-      co_await le_puts(line,f);
-      if(p->format==NUM)
-      {
-         snprintf(line,sizeof(line),"%d",*(int*)(p->var));
-         co_await le_puts(line,f);
-      }
-      else if(p->format==STR)
-         co_await le_puts((char*)(p->var),f);
-      co_await le_putc('\n',f);
-   }
+    for (p = init; p->name; p++) {
+        char line[64];
+        snprintf(line, sizeof(line), "%s=", p->name);
+        co_await le_puts(line, f);
+        if (p->format == NUM) {
+            snprintf(line, sizeof(line), "%d", *(int *)(p->var));
+            co_await le_puts(line, f);
+        } else if (p->format == STR)
+            co_await le_puts((char *)(p->var), f);
+        co_await le_putc('\n', f);
+    }
 }
 
-Task<void>  SaveConfToFile(const char *f,const struct init *init)
+Task<void> SaveConfToFile(const char *f, const struct init *init)
 {
-   FILE  *conf;
+    FILE *conf;
 
-   conf=co_await le_fopen(f,true);
-   if(conf==NULL)
-   {
-      FError(f);
-      co_return;
-   }
-   co_await SaveConfToOpenFile(conf,init);
-   if(conf->failed())
-   {
-      co_await le_fclose(conf);
-      FError(f);
-      co_return;
-   }
-   co_await le_fclose(conf);
+    conf = co_await le_fopen(f, true);
+    if (conf == NULL) {
+        FError(f);
+        co_return;
+    }
+    co_await SaveConfToOpenFile(conf, init);
+    if (conf->failed()) {
+        co_await le_fclose(conf);
+        FError(f);
+        co_return;
+    }
+    co_await le_fclose(conf);
 }
 
-Task<void>  SaveConf(const char *f)
+Task<void> SaveConf(const char *f)
 {
-   MessageSync("Saving the editor options...");
-   co_await SaveConfToFile(f,init);
-   strcpy(InitName,f);
-   ClearMessage();
+    MessageSync("Saving the editor options...");
+    co_await SaveConfToFile(f, init);
+    strcpy(InitName, f);
+    ClearMessage();
 }
 
-Task<void>  SaveTermOpt()
+Task<void> SaveTermOpt()
 {
-   char  t[256];
-   MessageSync("Saving the terminal options...");
+    char t[256];
+    MessageSync("Saving the terminal options...");
 #ifndef MSDOS
-   snprintf(t,sizeof(t),"%s/.le/term-%s",HOME,TERM);
+    snprintf(t, sizeof(t), "%s/.le/term-%s", HOME, TERM);
 #else
-   snprintf(t,sizeof(t),"%s/le-%s",HOME,TERM);
+    snprintf(t, sizeof(t), "%s/le-%s", HOME, TERM);
 #endif
-   co_await SaveConfToFile(t,term);
-   ClearMessage();
-   co_return;
+    co_await SaveConfToFile(t, term);
+    ClearMessage();
+    co_return;
 }
 
-Task<void>  fskip(FILE *f)
+Task<void> fskip(FILE *f)
 {
-   int i;
-   while((i=co_await le_getc(f))!=EOF && i!='\n');
+    int i;
+    while ((i = co_await le_getc(f)) != EOF && i != '\n')
+        ;
 }
 
-Task<void>  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
+Task<void> ReadConfFromOpenFile(FILE *f, const struct init *init, bool mine)
 {
-   const struct init *ptr;
-   int    i;
-   char  str[256];
-   char  *s;
+    const struct init *ptr;
+    int i;
+    char str[256];
+    char *s;
 
-   /* Upstream refused to read a config file owned by someone else. There is
-      no owner here. */
-   (void)mine;
+    /* Upstream refused to read a config file owned by someone else. There is
+       no owner here. */
+    (void)mine;
 
-   for(;;)
-   {
-      String name;
-      if(!(co_await f->scan_until(name,"=\n",255)).value_or(false)
-      || !(co_await f->scan_lit('=')).value_or(false))
-      {
-	 co_await fskip(f);
-	 if(f->eof())
-	    break;
-	 continue;
-      }
-      snprintf(str,sizeof(str),"%.*s",(int)name.size(),name.data());
-      for(i=0; str[i]; i++)
-	 if(!isspace((unsigned char)str[i]))
-	    break;
-      memmove(str,str+i,strlen(str+i)+1);
-      for(i=strlen(str); i>0; i--)
-	 if(!isspace((unsigned char)str[i-1]))
-	    break;
-      str[i]=0;
-      for(i=strlen(str); i>0; i--)
-         str[i-1]=tolower(str[i-1]);
-      for(ptr=init; ptr->name; ptr++)
-      {
-         if(!strcmp(ptr->name,str))
-         {
-            if(ptr->format==NUM)
-            {
-               {
-                  Result<i64> n=co_await f->scan_i64();
-                  if(n.is_ok())
-                     *(int*)(ptr->var)=(int)n.value();
-                  co_await fskip(f);
-               }
-               break;
+    for (;;) {
+        String name;
+        if (!(co_await f->scan_until(name, "=\n", 255)).value_or(false) ||
+            !(co_await f->scan_lit('=')).value_or(false)) {
+            co_await fskip(f);
+            if (f->eof())
+                break;
+            continue;
+        }
+        snprintf(str, sizeof(str), "%.*s", (int)name.size(), name.data());
+        for (i = 0; str[i]; i++)
+            if (!isspace((unsigned char)str[i]))
+                break;
+        memmove(str, str + i, strlen(str + i) + 1);
+        for (i = strlen(str); i > 0; i--)
+            if (!isspace((unsigned char)str[i - 1]))
+                break;
+        str[i] = 0;
+        for (i = strlen(str); i > 0; i--)
+            str[i - 1] = tolower(str[i - 1]);
+        for (ptr = init; ptr->name; ptr++) {
+            if (!strcmp(ptr->name, str)) {
+                if (ptr->format == NUM) {
+                    {
+                        Result<i64> n = co_await f->scan_i64();
+                        if (n.is_ok())
+                            *(int *)(ptr->var) = (int)n.value();
+                        co_await fskip(f);
+                    }
+                    break;
+                } else if (ptr->format == STR) {
+                    s = (char *)(ptr->var);
+                    do {
+                        if ((i = co_await le_getc(f)) == EOF || i == '\n')
+                            break;
+                        *s++ = i;
+                        if (s - (char *)(ptr->var) >= 255) {
+                            co_await fskip(f);
+                            break;
+                        }
+                    } while (1);
+                    *s = '\0';
+                }
+                break;
             }
-            else if(ptr->format==STR)
-            {
-               s=(char*)(ptr->var);
-               do
-               {
-                  if((i=co_await le_getc(f))==EOF || i=='\n')
-                     break;
-                  *s++=i;
-                  if(s-(char*)(ptr->var)>=255)
-                  {
-                     co_await fskip(f);
-                     break;
-                  }
-               }
-               while(1);
-               *s='\0';
-            }
-            break;
-         }
-      }
-      if(!ptr->name)
-         co_await fskip(f);
-   }
+        }
+        if (!ptr->name)
+            co_await fskip(f);
+    }
 }
 
-Task<void>  ReadConfFromFile(const char *ini,const struct init *init,bool mine)
+Task<void> ReadConfFromFile(const char *ini, const struct init *init, bool mine)
 {
-   FILE  *f;
-   f=co_await le_fopen(ini,false);
-   if(f==NULL)
-      co_return;
-   co_await ReadConfFromOpenFile(f,init,mine);
-   co_await le_fclose(f);
+    FILE *f;
+    f = co_await le_fopen(ini, false);
+    if (f == NULL)
+        co_return;
+    co_await ReadConfFromOpenFile(f, init, mine);
+    co_await le_fclose(f);
 }
 
-static Task<bool> ConfOK(const char *f,bool mine)
+static Task<bool> ConfOK(const char *f, bool mine)
 {
-   /* Upstream refused a config file owned by someone else; there is no owner. */
-   (void)mine;
-   if(co_await le_access(f,R_OK)==-1)
-      co_return false;
-   co_return true;
+    /* Upstream refused a config file owned by someone else; there is no owner. */
+    (void)mine;
+    if (co_await le_access(f, R_OK) == -1)
+        co_return false;
+    co_return true;
 }
 
-Task<void>  ReadConf()
+Task<void> ReadConf()
 {
-   char  t[256];
+    char t[256];
 
 #ifndef __MSDOS__
-   bool mine;
+    bool mine;
 
-   snprintf(t,sizeof(t),"%s/.le/term-%s",HOME,TERM);
-   if(!co_await ConfOK(t,false))
-   {
-      snprintf(t,sizeof(t),"%s/term-%s",datadir,TERM);
-      if(!co_await ConfOK(t,false))
-      {
-	 snprintf(t,sizeof(t),"%s/.le/term",HOME);
-	 if(!co_await ConfOK(t,false))
-            snprintf(t,sizeof(t),"%s/term",datadir);
-      }
-   }
-   co_await ReadConfFromFile(t,term,false);
+    snprintf(t, sizeof(t), "%s/.le/term-%s", HOME, TERM);
+    if (!co_await ConfOK(t, false)) {
+        snprintf(t, sizeof(t), "%s/term-%s", datadir, TERM);
+        if (!co_await ConfOK(t, false)) {
+            snprintf(t, sizeof(t), "%s/.le/term", HOME);
+            if (!co_await ConfOK(t, false))
+                snprintf(t, sizeof(t), "%s/term", datadir);
+        }
+    }
+    co_await ReadConfFromFile(t, term, false);
 
-   if(chset[0]=='7') // workaround for older version
-      co_await init_chset();
+    if (chset[0] == '7') // workaround for older version
+        co_await init_chset();
 
-   snprintf(t,sizeof(t),"%s/.le/colors-%s",HOME,TERM);
-   if(!co_await ConfOK(t,false))
-   {
-      snprintf(t,sizeof(t),"%s/colors-%s",datadir,TERM);
-      if(!co_await ConfOK(t,false))
-      {
-	 snprintf(t,sizeof(t),"%s/.le/colors",HOME);
-	 if(!co_await ConfOK(t,false))
-	    snprintf(t,sizeof(t),"%s/colors",datadir);
-      }
-   }
-   co_await ReadConfFromFile(t,colors,false);
-   ParseColors();
+    snprintf(t, sizeof(t), "%s/.le/colors-%s", HOME, TERM);
+    if (!co_await ConfOK(t, false)) {
+        snprintf(t, sizeof(t), "%s/colors-%s", datadir, TERM);
+        if (!co_await ConfOK(t, false)) {
+            snprintf(t, sizeof(t), "%s/.le/colors", HOME);
+            if (!co_await ConfOK(t, false))
+                snprintf(t, sizeof(t), "%s/colors", datadir);
+        }
+    }
+    co_await ReadConfFromFile(t, colors, false);
+    ParseColors();
 
-   mine=false;
-   if(!ExplicitInitName)
-   {
-      strcpy(InitName,".le.ini");
-      if(!co_await ConfOK(InitName,mine=true))
-      {
-	 snprintf(InitName,sizeof(InitName),"%s/.le/le.ini",HOME);
-	 if(!co_await ConfOK(InitName,mine=false))
-	 {
-	    snprintf(t,sizeof(t),"%s/le.ini",datadir);
-	    co_await ReadConfFromFile(t,init,false);
-	    goto ini_done;
-	 }
-      }
-   }
-   co_await ReadConfFromFile(InitName,init,mine);
+    mine = false;
+    if (!ExplicitInitName) {
+        strcpy(InitName, ".le.ini");
+        if (!co_await ConfOK(InitName, mine = true)) {
+            snprintf(InitName, sizeof(InitName), "%s/.le/le.ini", HOME);
+            if (!co_await ConfOK(InitName, mine = false)) {
+                snprintf(t, sizeof(t), "%s/le.ini", datadir);
+                co_await ReadConfFromFile(t, init, false);
+                goto ini_done;
+            }
+        }
+    }
+    co_await ReadConfFromFile(InitName, init, mine);
 
 ini_done:
 
 #else
-   snprintf(t,sizeof(t),"%s/le-%s",HOME,TERM);
-   co_await ReadConfFromFile(t,term,false);
-   strcpy(InitName,"le.ini");
-   if(co_await le_access(InitName,R_OK)==-1)
-     snprintf(InitName,sizeof(InitName),"%s/le.ini",HOME);
-   co_await ReadConfFromFile(InitName,init,false);
+    snprintf(t, sizeof(t), "%s/le-%s", HOME, TERM);
+    co_await ReadConfFromFile(t, term, false);
+    strcpy(InitName, "le.ini");
+    if (co_await le_access(InitName, R_OK) == -1)
+        snprintf(InitName, sizeof(InitName), "%s/le.ini", HOME);
+    co_await ReadConfFromFile(InitName, init, false);
 #endif
 
-   CorrectParameters();
+    CorrectParameters();
 }
 
-void  CorrectParameters()
+void CorrectParameters()
 {
-   if(TabSize>99)
-      TabSize=99;
-   if(TabSize<2)
-      TabSize=2;
-   if(hscroll>40)
-      hscroll=40;
-   if(hscroll<1)
-      hscroll=1;
-   if(Scroll>LINES/2)
-      Scroll=LINES/2;
-   if(Scroll<1)
-      Scroll=1;
-   if(LineLen<10)
-      LineLen=10;
-   if(LineLen>999)
-      LineLen=999;
-   if(LeftMargin<0)
-      LeftMargin=0;
-   if(LeftMargin>999)
-      LeftMargin=999;
-   if(FirstLineMargin<0)
-      FirstLineMargin=0;
-   if(FirstLineMargin>LineLen/2)
-      FirstLineMargin=LineLen/2;
-   if(MaxBackup<1)
-      MaxBackup=1;
-   if(MaxBackup>99)
-      MaxBackup=99;
-   if(min_undo_levels<1)
-      min_undo_levels=1;
-   if(max_undo_memory<1)
-      max_undo_memory=1;
+    if (TabSize > 99)
+        TabSize = 99;
+    if (TabSize < 2)
+        TabSize = 2;
+    if (hscroll > 40)
+        hscroll = 40;
+    if (hscroll < 1)
+        hscroll = 1;
+    if (Scroll > LINES / 2)
+        Scroll = LINES / 2;
+    if (Scroll < 1)
+        Scroll = 1;
+    if (LineLen < 10)
+        LineLen = 10;
+    if (LineLen > 999)
+        LineLen = 999;
+    if (LeftMargin < 0)
+        LeftMargin = 0;
+    if (LeftMargin > 999)
+        LeftMargin = 999;
+    if (FirstLineMargin < 0)
+        FirstLineMargin = 0;
+    if (FirstLineMargin > LineLen / 2)
+        FirstLineMargin = LineLen / 2;
+    if (MaxBackup < 1)
+        MaxBackup = 1;
+    if (MaxBackup > 99)
+        MaxBackup = 99;
+    if (min_undo_levels < 1)
+        min_undo_levels = 1;
+    if (max_undo_memory < 1)
+        max_undo_memory = 1;
 
-   switch(ShowScrollBar)
-   {
-   case(SHOW_LEFT):
-     TextWinX=1;
-     TextWinWidth=COLS-1;
-     ScrollBarX=0;
-     break;
-   default:
-     ShowScrollBar=SHOW_RIGHT;
-     TextWinX=0;
-     TextWinWidth=COLS-1;
-     ScrollBarX=COLS-1;
-     break;
-   case(SHOW_NONE):
-     TextWinX=0;
-     TextWinWidth=COLS;
-     ScrollBarX=-1;
-     break;
-   }
-   switch(ShowStatusLine)
-   {
-   case(SHOW_TOP):
-     TextWinY=1;
-     TextWinHeight=LINES-1;
-     StatusLineY=0;
-     break;
-   default:
-     ShowStatusLine=SHOW_BOTTOM;
-     TextWinY=0;
-     TextWinHeight=LINES-1;
-     StatusLineY=LINES-1;
-     break;
-   case(SHOW_NONE):
-     TextWinY=0;
-     TextWinHeight=LINES;
-     StatusLineY=-1;
-     break;
-   }
+    switch (ShowScrollBar) {
+    case (SHOW_LEFT):
+        TextWinX     = 1;
+        TextWinWidth = COLS - 1;
+        ScrollBarX   = 0;
+        break;
+    default:
+        ShowScrollBar = SHOW_RIGHT;
+        TextWinX      = 0;
+        TextWinWidth  = COLS - 1;
+        ScrollBarX    = COLS - 1;
+        break;
+    case (SHOW_NONE):
+        TextWinX     = 0;
+        TextWinWidth = COLS;
+        ScrollBarX   = -1;
+        break;
+    }
+    switch (ShowStatusLine) {
+    case (SHOW_TOP):
+        TextWinY      = 1;
+        TextWinHeight = LINES - 1;
+        StatusLineY   = 0;
+        break;
+    default:
+        ShowStatusLine = SHOW_BOTTOM;
+        TextWinY       = 0;
+        TextWinHeight  = LINES - 1;
+        StatusLineY    = LINES - 1;
+        break;
+    case (SHOW_NONE):
+        TextWinY      = 0;
+        TextWinHeight = LINES;
+        StatusLineY   = -1;
+        break;
+    }
 
-   idlok(stdscr,useidl);
-   undo.SetMinGroups(min_undo_levels);
-   undo.SetMaxSize(max_undo_memory*1024*1024);
-   undo.SetEnable(undo_enable);
-   undo.SetGlue(glue_small_changes);
+    idlok(stdscr, useidl);
+    undo.SetMinGroups(min_undo_levels);
+    undo.SetMaxSize(max_undo_memory * 1024 * 1024);
+    undo.SetEnable(undo_enable);
+    undo.SetGlue(glue_small_changes);
 
-   if(buffer)
-   {
-     if(in_hex_mode)
-       ScreenTop=ScreenTop&~15;
-     if(TabSize!=OldTabSize)
-       TextPoint::OrFlags(COLUNDEFINED);
-   }
+    if (buffer) {
+        if (in_hex_mode)
+            ScreenTop = ScreenTop & ~15;
+        if (TabSize != OldTabSize)
+            TextPoint::OrFlags(COLUNDEFINED);
+    }
 
-   init_attrs();
+    init_attrs();
 
 #ifdef WITH_MOUSE
-   SetupMouse();
+    SetupMouse();
 #endif
 }
 
-int GetNo(const struct opt *p,const struct opt *p1)
+int GetNo(const struct opt *p, const struct opt *p1)
 {
-   int i;
-   for(i=0; p1!=p; p1++)
-   {
-      if(p1->var==p->var)
-         i++;
-   }
-   return(i);
+    int i;
+    for (i = 0; p1 != p; p1++) {
+        if (p1->var == p->var)
+            i++;
+    }
+    return (i);
 }
 
-static int GetDist(int fx,int fy,const struct opt *to,int action)
+static int GetDist(int fx, int fy, const struct opt *to, int action)
 {
-   int d=30000;
-   int tx=to->x,ty=to->y;
+    int d  = 30000;
+    int tx = to->x, ty = to->y;
 
-   Absolute(&tx,1,Upper->w);
-   Absolute(&ty,1,Upper->h);
-   Absolute(&fx,1,Upper->w);
-   Absolute(&fy,1,Upper->h);
+    Absolute(&tx, 1, Upper->w);
+    Absolute(&ty, 1, Upper->h);
+    Absolute(&fx, 1, Upper->w);
+    Absolute(&fy, 1, Upper->h);
 
-   switch(action)
-   {
-   case(LINE_UP):
-      d=fy-ty;
-      if(d<=0)
-         d+=Upper->h;
-      d*=256;
-      d+=abs(fx-tx);
-      break;
-   case(LINE_DOWN):
-      d=ty-fy;
-      if(d<=0)
-         d+=Upper->h;
-      d*=256;
-      d+=abs(fx-tx);
-      break;
-   case(CHAR_LEFT):
-      d=fx-tx;
-      if(d<=0)
-         d+=Upper->w;
-/*   d*=256;*/
-      d+=abs(fy-ty)*20;
-      break;
-   case(CHAR_RIGHT):
-      d=tx-fx;
-      if(d<=0)
-         d+=Upper->w;
-/*   d*=256;*/
-      d+=abs(fy-ty)*20;
-      break;
-   }
-   return(d);
+    switch (action) {
+    case (LINE_UP):
+        d = fy - ty;
+        if (d <= 0)
+            d += Upper->h;
+        d *= 256;
+        d += abs(fx - tx);
+        break;
+    case (LINE_DOWN):
+        d = ty - fy;
+        if (d <= 0)
+            d += Upper->h;
+        d *= 256;
+        d += abs(fx - tx);
+        break;
+    case (CHAR_LEFT):
+        d = fx - tx;
+        if (d <= 0)
+            d += Upper->w;
+        /*   d*=256;*/
+        d += abs(fy - ty) * 20;
+        break;
+    case (CHAR_RIGHT):
+        d = tx - fx;
+        if (d <= 0)
+            d += Upper->w;
+        /*   d*=256;*/
+        d += abs(fy - ty) * 20;
+        break;
+    }
+    return (d);
 }
 
 #ifdef WITH_MOUSE
-static bool InOptField(int y,int x,struct opt *o)
+static bool InOptField(int y, int x, struct opt *o)
 {
-   int oy=o->y;
-   int ox=o->x;
+    int oy = o->y;
+    int ox = o->x;
 
-   int w=3;
-   if(o->type==NUM)
-   {
-      w=o->len;
-      if(w==0)
-	 w=4;
-   }
-   else if(o->type==STR)
-      w=o->len;
-   else if(o->type==BUTTON)
-      w=ItemLen(o->name);
+    int w = 3;
+    if (o->type == NUM) {
+        w = o->len;
+        if (w == 0)
+            w = 4;
+    } else if (o->type == STR)
+        w = o->len;
+    else if (o->type == BUTTON)
+        w = ItemLen(o->name);
 
-   Absolute(&ox,w,Upper->w);
-   Absolute(&oy,1,Upper->h);
+    Absolute(&ox, w, Upper->w);
+    Absolute(&oy, 1, Upper->h);
 
-   return (y==oy && x>=ox && x<ox+w);
+    return (y == oy && x >= ox && x < ox + w);
 }
 #endif /* WITH_MOUSE */
 
-Task<void>  W_Dialogue(struct opt *opt,
-             const char *SetupHelp,const char *SetupTitle,
-             Task<int> (*EatKey)(int),Task<int> (*HandleButton)(const char *,int))
+Task<void> W_Dialogue(struct opt *opt, const char *SetupHelp, const char *SetupTitle,
+                      Task<int> (*EatKey)(int), Task<int> (*HandleButton)(const char *, int))
 {
-   int newitem=0;
-   int first=1;
-   char  s[512];
-   struct opt *p,*p1,*n,*curr=opt;
-   int shift=0,pos=0,col=0,i,key=0,d,dist;
-   int   action=-1;
-   int   OldShowStatusLine=ShowStatusLine;
-   const attr *a=Upper->a;
-   int len,ch_len;
+    int newitem = 0;
+    int first   = 1;
+    char s[512];
+    struct opt *p, *p1, *n, *curr = opt;
+    int shift = 0, pos = 0, col = 0, i, key = 0, d, dist;
+    int action            = -1;
+    int OldShowStatusLine = ShowStatusLine;
+    const attr *a         = Upper->a;
+    int len, ch_len;
 
-   OldTabSize=TabSize;
+    OldTabSize = TabSize;
 
-   int fx=curr->x;
-   int fy=curr->y;
+    int fx = curr->x;
+    int fy = curr->y;
 
-   for(p=opt; p->name; p++)
-   {
-      if(p->type==STR)
-         p->old.s=(char*)strdup((char*)p->var);
-      else if(p->type==NUM || p->type==ONE || p->type==MANY)
-         p->old.n=*(int*)p->var;
-   }
+    for (p = opt; p->name; p++) {
+        if (p->type == STR)
+            p->old.s = (char *)strdup((char *)p->var);
+        else if (p->type == NUM || p->type == ONE || p->type == MANY)
+            p->old.n = *(int *)p->var;
+    }
 
-   for(p=opt; p->name; p++)
-   {
-      switch(p->type)
-      {
-      case(ONE):
-         PutStr(p->x-1,p->y,"[ ]");
-         DisplayItem(p->x+3,p->y,p->name,DIALOGUE_WIN_ATTR);
-         break;
-      case(MANY):
-         PutStr(p->x-1,p->y,"( )");
-         DisplayItem(p->x+3,p->y,p->name,DIALOGUE_WIN_ATTR);
-         break;
-      case(STR):
-         if(p->flags&FRIGHT)
-            DisplayItem(p->x+p->len+2,p->y,p->name,DIALOGUE_WIN_ATTR);
-         else
-            DisplayItem(p->x-ItemLen(p->name)-2,p->y,p->name,DIALOGUE_WIN_ATTR);
-         PutStr(p->x-1,p->y,"[");
-         PutStr(p->x+p->len,p->y,"]");
-         break;
-      case(NUM):
-         PutStr(p->x-1,p->y,"[");
-	 PutStr(p->x+(p->len?p->len:2),p->y,"]");
-         DisplayItem(p->x+2+(p->len?p->len:2),p->y,p->name,DIALOGUE_WIN_ATTR);
-         break;
-      }
-   }
-
-   for(;;)
-   {
-      for(p=opt; p->name; p++)
-      {
-         SetAttr(a);
-         switch(p->type)
-         {
-         case(ONE):
-            if(*(int*)(p->var))
-               PutCh(p->x,p->y,'X');
+    for (p = opt; p->name; p++) {
+        switch (p->type) {
+        case (ONE):
+            PutStr(p->x - 1, p->y, "[ ]");
+            DisplayItem(p->x + 3, p->y, p->name, DIALOGUE_WIN_ATTR);
+            break;
+        case (MANY):
+            PutStr(p->x - 1, p->y, "( )");
+            DisplayItem(p->x + 3, p->y, p->name, DIALOGUE_WIN_ATTR);
+            break;
+        case (STR):
+            if (p->flags & FRIGHT)
+                DisplayItem(p->x + p->len + 2, p->y, p->name, DIALOGUE_WIN_ATTR);
             else
-               PutCh(p->x,p->y,' ');
+                DisplayItem(p->x - ItemLen(p->name) - 2, p->y, p->name, DIALOGUE_WIN_ATTR);
+            PutStr(p->x - 1, p->y, "[");
+            PutStr(p->x + p->len, p->y, "]");
             break;
-         case(MANY):
-            if(*(int*)(p->var)==GetNo(p,opt))
-               PutCh(p->x,p->y,'*');
-            else
-               PutCh(p->x,p->y,' ');
+        case (NUM):
+            PutStr(p->x - 1, p->y, "[");
+            PutStr(p->x + (p->len ? p->len : 2), p->y, "]");
+            DisplayItem(p->x + 2 + (p->len ? p->len : 2), p->y, p->name, DIALOGUE_WIN_ATTR);
             break;
-         case(STR):
-            if(p==curr)
-               snprintf(s,sizeof(s),"%-*.*s",p->len,p->len,(char*)(p->var)+mb_get_pos_for_col((char*)(p->var),shift,strlen((char*)(p->var))));
-            else
-               snprintf(s,sizeof(s),"%-*.*s",p->len,p->len,(char*)(p->var));
-            if(curr==p)
-               SetAttr(CURR_BUTTON_ATTR);
-            PutStr(p->x,p->y,s);
-            break;
-         case(BUTTON):
-            DisplayItem(p->x,p->y,p->name,curr==p?CURR_BUTTON_ATTR:DIALOGUE_WIN_ATTR);
-            break;
-         case(NUM):
-            snprintf(s,sizeof(s),"%-*d",(p->len?p->len:2),*(int*)(p->var));
-            if(curr==p)
-               SetAttr(CURR_BUTTON_ATTR);
-            PutStr(p->x,p->y,s);
-            break;
-         }
-      }
-      if(OldShowStatusLine==SHOW_BOTTOM && ShowStatusLine==SHOW_BOTTOM)
-         StatusLine();
-      switch(curr->type)
-      {
-         case(BUTTON):
-            move(LINES-1,COLS-1);
+        }
+    }
+
+    for (;;) {
+        for (p = opt; p->name; p++) {
+            SetAttr(a);
+            switch (p->type) {
+            case (ONE):
+                if (*(int *)(p->var))
+                    PutCh(p->x, p->y, 'X');
+                else
+                    PutCh(p->x, p->y, ' ');
+                break;
+            case (MANY):
+                if (*(int *)(p->var) == GetNo(p, opt))
+                    PutCh(p->x, p->y, '*');
+                else
+                    PutCh(p->x, p->y, ' ');
+                break;
+            case (STR):
+                if (p == curr)
+                    snprintf(s, sizeof(s), "%-*.*s", p->len, p->len,
+                             (char *)(p->var) + mb_get_pos_for_col((char *)(p->var), shift,
+                                                                   strlen((char *)(p->var))));
+                else
+                    snprintf(s, sizeof(s), "%-*.*s", p->len, p->len, (char *)(p->var));
+                if (curr == p)
+                    SetAttr(CURR_BUTTON_ATTR);
+                PutStr(p->x, p->y, s);
+                break;
+            case (BUTTON):
+                DisplayItem(p->x, p->y, p->name, curr == p ? CURR_BUTTON_ATTR : DIALOGUE_WIN_ATTR);
+                break;
+            case (NUM):
+                snprintf(s, sizeof(s), "%-*d", (p->len ? p->len : 2), *(int *)(p->var));
+                if (curr == p)
+                    SetAttr(CURR_BUTTON_ATTR);
+                PutStr(p->x, p->y, s);
+                break;
+            }
+        }
+        if (OldShowStatusLine == SHOW_BOTTOM && ShowStatusLine == SHOW_BOTTOM)
+            StatusLine();
+        switch (curr->type) {
+        case (BUTTON):
+            move(LINES - 1, COLS - 1);
             curs_set(0);
             break;
-         case(ONE):
-         case(MANY):
+        case (ONE):
+        case (MANY):
             curs_set(1);
-            GotoXY(curr->x,curr->y);
+            GotoXY(curr->x, curr->y);
             break;
-         case(STR):
+        case (STR):
             curs_set(1);
-            GotoXY(curr->x+col-shift,curr->y);
+            GotoXY(curr->x + col - shift, curr->y);
             break;
-         case(NUM):
+        case (NUM):
             curs_set(1);
-            GotoXY(curr->x+pos,curr->y);
+            GotoXY(curr->x + pos, curr->y);
             break;
-      }
-      action=co_await GetNextAction();
-use_key:
-      if(action==-1)
-         continue;
-      switch(action)
-      {
+        }
+        action = co_await GetNextAction();
+    use_key:
+        if (action == -1)
+            continue;
+        switch (action) {
 #ifdef WITH_MOUSE
-      case(MOUSE_ACTION):
-      {
-	 MEVENT mev;
-	 if(getmouse(&mev)==ERR)
-	    continue;
-	 if(!(mev.bstate&ALL_MOUSE_EVENTS))
-	    continue;
-	 for(p=opt; p->name; p++)
-	 {
-	    if(InOptField(mev.y-Upper->y,mev.x-Upper->x,p))
-	    {
-	       curr=p;
-	       if(curr->type==ONE || curr->type==MANY || curr->type==BUTTON)
-	       {
-		  ungetch(' ');
-	       }
-	       continue;
-	    }
-	 }
-	 continue;
-      }
+        case (MOUSE_ACTION): {
+            MEVENT mev;
+            if (getmouse(&mev) == ERR)
+                continue;
+            if (!(mev.bstate & ALL_MOUSE_EVENTS))
+                continue;
+            for (p = opt; p->name; p++) {
+                if (InOptField(mev.y - Upper->y, mev.x - Upper->x, p)) {
+                    curr = p;
+                    if (curr->type == ONE || curr->type == MANY || curr->type == BUTTON) {
+                        ungetch(' ');
+                    }
+                    continue;
+                }
+            }
+            continue;
+        }
 #endif // WITH_MOUSE
-      case(NEWLINE):
-      case(CANCEL):
-         goto leave_cycle;
-      case(EDITOR_HELP):
-         if(SetupHelp)
-            co_await Help(SetupHelp,SetupTitle);
-         break;
-      case(CHAR_LEFT):
-      case(CHAR_RIGHT):
-         if(curr->type==STR)
+        case (NEWLINE):
+        case (CANCEL):
+            goto leave_cycle;
+        case (EDITOR_HELP):
+            if (SetupHelp)
+                co_await Help(SetupHelp, SetupTitle);
             break;
-      case(LINE_UP):
-      case(LINE_DOWN):
-         if(action==LINE_UP || action==LINE_DOWN)
-            fy=curr->y;
-         else
-            fx=curr->x;
-         dist=30000; /* a large value */
-         n=NULL;
-         for(p1=opt; p1->name; p1++)
-         {
-            if(p1!=curr)
-            {
-               d=GetDist(fx,fy,p1,action);
-               if(d<dist)
-                 dist=d,n=p1;
-            }
-         }
-         if(n)
-         {
-            CorrectParameters();
-	    curr=n;
-	    newitem=1;
-            if(action==LINE_UP || action==LINE_DOWN)
-               fy=curr->y;
+        case (CHAR_LEFT):
+        case (CHAR_RIGHT):
+            if (curr->type == STR)
+                break;
+        case (LINE_UP):
+        case (LINE_DOWN):
+            if (action == LINE_UP || action == LINE_DOWN)
+                fy = curr->y;
             else
-               fx=curr->x;
-         }
-         break;
-      default:
-         if(action!=NO_ACTION || StringTypedLen!=1)
-         {
-            if(curr->type==STR)
-               break;
-            action=co_await EatKey(action);
-            goto use_key;
-            break;
-         }
-         key=StringTyped[0];
-         if(key==9)
-         {
-            curr++;
-            if(curr->name==NULL)
-               curr=opt;
-            newitem=1;
-            fx=curr->x;
-            fy=curr->y;
-            break;
-         }
-         if(curr->type==STR)
-            break;
-         if(curr->type==NUM && isdigit(key))
-            break;
-         if(key==' ')
-         {
-            switch(curr->type)
-            {
-            case(ONE):
-               *(int*)(curr->var)=!*(int*)(curr->var);
-               break;
-            case(MANY):
-               *(int*)(curr->var)=GetNo(curr,opt);
-               break;
-	    case(BUTTON):
-	       action=co_await HandleButton(curr->name,curr-opt);
-	       goto use_key;
+                fx = curr->x;
+            dist = 30000; /* a large value */
+            n    = NULL;
+            for (p1 = opt; p1->name; p1++) {
+                if (p1 != curr) {
+                    d = GetDist(fx, fy, p1, action);
+                    if (d < dist)
+                        dist = d, n = p1;
+                }
+            }
+            if (n) {
+                CorrectParameters();
+                curr    = n;
+                newitem = 1;
+                if (action == LINE_UP || action == LINE_DOWN)
+                    fy = curr->y;
+                else
+                    fx = curr->x;
             }
             break;
-         }
-         key=toupper(key);
-         for(p1=opt; p1->name; p1++)
-         {
-            if(ItemChar(p1->name)==key)
-            {
-               curr=p1;
-               newitem=1;
-               fx=curr->x;
-               fy=curr->y;
-               if(p1->type==BUTTON)
-               {
-                  action=NEWLINE;
-                  StringTyped[0]='\n';
-		  StringTypedLen=1;
-               }
-               else if(p1->type==ONE || p1->type==MANY)
-               {
-                  action=NO_ACTION;
-                  StringTyped[0]=' ';
-		  StringTypedLen=1;
-               }
-               else
-                  break;
-               goto use_key;
+        default:
+            if (action != NO_ACTION || StringTypedLen != 1) {
+                if (curr->type == STR)
+                    break;
+                action = co_await EatKey(action);
+                goto use_key;
+                break;
             }
-         }
-      }
-      if(newitem)
-      {
-         newitem=0;
-         shift=0;
-         pos=0;
-	 col=0;
-         first=1;
-         continue;
-      }
-      switch(curr->type)
-      {
-      case(NUM):
-         if(StringTypedLen==1 && isdigit(key=StringTyped[0]))
-         {
-            if(pos==0)
-            {
-               pos=1;
-               *(int*)(curr->var)=key-'0';
+            key = StringTyped[0];
+            if (key == 9) {
+                curr++;
+                if (curr->name == NULL)
+                    curr = opt;
+                newitem = 1;
+                fx      = curr->x;
+                fy      = curr->y;
+                break;
             }
-            else
-            {
-               *(int*)(curr->var) = *(int*)(curr->var)*10+key-'0';
-               pos++;
-	       if(pos>=curr->len || curr->len==0)
-	       {
-		  pos=0;
-		  CorrectParameters();
-               }
-	    }
-         }
-         break;
-      case(STR):
-         switch(action)
-         {
-         case(CHAR_LEFT):
-	    if(pos>0)
-	       mb_char_left((char*)(curr->var),&pos,&col,strlen((char*)(curr->var)));
-            break;
-         case(CHAR_RIGHT):
-            if(pos<(int)strlen((char*)(curr->var)))
-	       mb_char_right((char*)(curr->var),&pos,&col,strlen((char*)(curr->var)));
-            break;
-         case(LINE_BEGIN):
-            pos=col=0;
-            break;
-         case(LINE_END):
-            pos=strlen((char*)(curr->var));
-	    mb_get_col((char*)(curr->var),pos,&col,strlen((char*)(curr->var)));
-            break;
-         case(BACKSPACE_CHAR):
-            if(pos==0)
-               break;
-	    mb_char_left((char*)(curr->var),&pos,&col,strlen((char*)(curr->var)));
-            if(shift>0)
-               shift--;
-         case(DELETE_CHAR):
-	    ch_len=mb_len((char*)(curr->var)+pos,strlen((char*)(curr->var))-pos);
-	    len=strlen((char*)(curr->var))-ch_len;
-            for(i=pos; i<=len; i++)
-               ((char*)(curr->var))[i]=((char*)(curr->var))[i+ch_len];
-            break;
-         case(DELETE_TO_EOL):
-            ((char*)(curr->var))[pos]=0;
-            break;
-         case(ENTER_CHAR_CODE):
-            key=co_await getcode_char();
-            goto do_insert;
-         case(CHOOSE_CHAR):
-            key=co_await choose_ch();
-            goto do_insert;
-         case(ENTER_CONTROL_CHAR):
-            key=co_await GetRawKey();
-            goto do_insert;
-         default:
-            if(action!=NO_ACTION || StringTypedLen!=1)
-            {
-               action=co_await EatKey(action);
-               goto use_key;
+            if (curr->type == STR)
+                break;
+            if (curr->type == NUM && isdigit(key))
+                break;
+            if (key == ' ') {
+                switch (curr->type) {
+                case (ONE):
+                    *(int *)(curr->var) = !*(int *)(curr->var);
+                    break;
+                case (MANY):
+                    *(int *)(curr->var) = GetNo(curr, opt);
+                    break;
+                case (BUTTON):
+                    action = co_await HandleButton(curr->name, curr - opt);
+                    goto use_key;
+                }
+                break;
             }
-            key=StringTyped[0];
-            if(key>=0 && key<' ')
-               break;
-         do_insert:
-            if(key<=0 || key=='\n')
-               break;
-            if(first)
-               ((char*)(curr->var))[0]=0;
-            if((int)strlen((char*)(curr->var))>=curr->maxlen-1)
-               break;
-            for(i=strlen((char*)(curr->var)); i>=pos; i--)
-               ((char*)(curr->var))[i+1]=((char*)(curr->var))[i];
-            ((char*)(curr->var))[pos++]=key;
-	    mb_get_col((char*)(curr->var),pos,&col,strlen((char*)(curr->var)));
-         }
-         first=0;
-         if(col-shift>=curr->len)
-            shift=col-curr->len+1;
-         if(col-shift<0)
-            shift=col;
-      }
-   }
+            key = toupper(key);
+            for (p1 = opt; p1->name; p1++) {
+                if (ItemChar(p1->name) == key) {
+                    curr    = p1;
+                    newitem = 1;
+                    fx      = curr->x;
+                    fy      = curr->y;
+                    if (p1->type == BUTTON) {
+                        action         = NEWLINE;
+                        StringTyped[0] = '\n';
+                        StringTypedLen = 1;
+                    } else if (p1->type == ONE || p1->type == MANY) {
+                        action         = NO_ACTION;
+                        StringTyped[0] = ' ';
+                        StringTypedLen = 1;
+                    } else
+                        break;
+                    goto use_key;
+                }
+            }
+        }
+        if (newitem) {
+            newitem = 0;
+            shift   = 0;
+            pos     = 0;
+            col     = 0;
+            first   = 1;
+            continue;
+        }
+        switch (curr->type) {
+        case (NUM):
+            if (StringTypedLen == 1 && isdigit(key = StringTyped[0])) {
+                if (pos == 0) {
+                    pos                 = 1;
+                    *(int *)(curr->var) = key - '0';
+                } else {
+                    *(int *)(curr->var) = *(int *)(curr->var) * 10 + key - '0';
+                    pos++;
+                    if (pos >= curr->len || curr->len == 0) {
+                        pos = 0;
+                        CorrectParameters();
+                    }
+                }
+            }
+            break;
+        case (STR):
+            switch (action) {
+            case (CHAR_LEFT):
+                if (pos > 0)
+                    mb_char_left((char *)(curr->var), &pos, &col, strlen((char *)(curr->var)));
+                break;
+            case (CHAR_RIGHT):
+                if (pos < (int)strlen((char *)(curr->var)))
+                    mb_char_right((char *)(curr->var), &pos, &col, strlen((char *)(curr->var)));
+                break;
+            case (LINE_BEGIN):
+                pos = col = 0;
+                break;
+            case (LINE_END):
+                pos = strlen((char *)(curr->var));
+                mb_get_col((char *)(curr->var), pos, &col, strlen((char *)(curr->var)));
+                break;
+            case (BACKSPACE_CHAR):
+                if (pos == 0)
+                    break;
+                mb_char_left((char *)(curr->var), &pos, &col, strlen((char *)(curr->var)));
+                if (shift > 0)
+                    shift--;
+            case (DELETE_CHAR):
+                ch_len = mb_len((char *)(curr->var) + pos, strlen((char *)(curr->var)) - pos);
+                len    = strlen((char *)(curr->var)) - ch_len;
+                for (i = pos; i <= len; i++)
+                    ((char *)(curr->var))[i] = ((char *)(curr->var))[i + ch_len];
+                break;
+            case (DELETE_TO_EOL):
+                ((char *)(curr->var))[pos] = 0;
+                break;
+            case (ENTER_CHAR_CODE):
+                key = co_await getcode_char();
+                goto do_insert;
+            case (CHOOSE_CHAR):
+                key = co_await choose_ch();
+                goto do_insert;
+            case (ENTER_CONTROL_CHAR):
+                key = co_await GetRawKey();
+                goto do_insert;
+            default:
+                if (action != NO_ACTION || StringTypedLen != 1) {
+                    action = co_await EatKey(action);
+                    goto use_key;
+                }
+                key = StringTyped[0];
+                if (key >= 0 && key < ' ')
+                    break;
+            do_insert:
+                if (key <= 0 || key == '\n')
+                    break;
+                if (first)
+                    ((char *)(curr->var))[0] = 0;
+                if ((int)strlen((char *)(curr->var)) >= curr->maxlen - 1)
+                    break;
+                for (i = strlen((char *)(curr->var)); i >= pos; i--)
+                    ((char *)(curr->var))[i + 1] = ((char *)(curr->var))[i];
+                ((char *)(curr->var))[pos++] = key;
+                mb_get_col((char *)(curr->var), pos, &col, strlen((char *)(curr->var)));
+            }
+            first = 0;
+            if (col - shift >= curr->len)
+                shift = col - curr->len + 1;
+            if (col - shift < 0)
+                shift = col;
+        }
+    }
 leave_cycle:
-   if(action==CANCEL)
-   {
-      for(p=opt; p->name; p++)
-      {
-         if(p->type==STR)
-	 {
-            if(p->old.s)
-	       strcpy((char*)(p->var),p->old.s);
-         }
-	 else if(p->type==NUM || p->type==ONE || p->type==MANY)
-            *(int*)(p->var) = p->old.n;
-      }
-   }
-   else
-   {
-      flag=REDISPLAY_ALL;
-      SetStdCol();
-      if(curr->type==BUTTON)
-      {
-         action=co_await HandleButton(curr->name,curr-opt);
-	 goto use_key;
-      }
-   }
-   for(p=opt; p->name; p++)
-   {
-      if(p->type==STR)
-      {
-	 if(p->old.s)
-	    free(p->old.s);
-      }
-   }
-   CorrectParameters();
-   curs_set(0);
-   idlok(stdscr,useidl);
+    if (action == CANCEL) {
+        for (p = opt; p->name; p++) {
+            if (p->type == STR) {
+                if (p->old.s)
+                    strcpy((char *)(p->var), p->old.s);
+            } else if (p->type == NUM || p->type == ONE || p->type == MANY)
+                *(int *)(p->var) = p->old.n;
+        }
+    } else {
+        flag = REDISPLAY_ALL;
+        SetStdCol();
+        if (curr->type == BUTTON) {
+            action = co_await HandleButton(curr->name, curr - opt);
+            goto use_key;
+        }
+    }
+    for (p = opt; p->name; p++) {
+        if (p->type == STR) {
+            if (p->old.s)
+                free(p->old.s);
+        }
+    }
+    CorrectParameters();
+    curs_set(0);
+    idlok(stdscr, useidl);
 }
 
-Task<void>  Dialogue(struct opt *opt,int WinWidth,int WinHeight,const char *WinTitle,
-             const char *SetupHelp,const char *SetupTitle,
-             Task<int> (*EatKey)(int),Task<int> (*HandleButton)(const char *,int))
+Task<void> Dialogue(struct opt *opt, int WinWidth, int WinHeight, const char *WinTitle,
+                    const char *SetupHelp, const char *SetupTitle, Task<int> (*EatKey)(int),
+                    Task<int> (*HandleButton)(const char *, int))
 {
-   WIN *optw;
-   optw=CreateWin(MIDDLE,MIDDLE,WinWidth,WinHeight,DIALOGUE_WIN_ATTR,WinTitle,0);
-   DisplayWin(optw);
+    WIN *optw;
+    optw = CreateWin(MIDDLE, MIDDLE, WinWidth, WinHeight, DIALOGUE_WIN_ATTR, WinTitle, 0);
+    DisplayWin(optw);
 
-   co_await W_Dialogue(opt,SetupHelp,SetupTitle,EatKey,HandleButton);
+    co_await W_Dialogue(opt, SetupHelp, SetupTitle, EatKey, HandleButton);
 
-   CloseWin();
-   DestroyWin(optw);
+    CloseWin();
+    DestroyWin(optw);
 }
 
-Task<int>    OptEatKey(int k)
+Task<int> OptEatKey(int k)
 {
-   if(k==SAVE_FILE)
-   {
-      co_await SaveConf(InitName);
-      co_return(NEWLINE);
-   }
-   if(k==SAVE_FILE_AS)
-   {
-      co_await SaveOpt();
-      co_return(NEWLINE);
-   }
-   co_return(-1);
+    if (k == SAVE_FILE) {
+        co_await SaveConf(InitName);
+        co_return (NEWLINE);
+    }
+    if (k == SAVE_FILE_AS) {
+        co_await SaveOpt();
+        co_return (NEWLINE);
+    }
+    co_return (-1);
 }
 
-Task<int>    OptHandleBut(const char *,int)
+Task<int> OptHandleBut(const char *, int)
 {
-   co_return(0);
+    co_return (0);
 }
 
-Task<void>  Options()
+Task<void> Options()
 {
-   co_await Dialogue(opt,68,17," Options ","OptionsHelp"," Setup Help ",OptEatKey,OptHandleBut);
-   co_return;
+    co_await Dialogue(opt, 68, 17, " Options ", "OptionsHelp", " Setup Help ", OptEatKey,
+                      OptHandleBut);
+    co_return;
 }
 
-Task<void>  SaveOpt()
+Task<void> SaveOpt()
 {
 #ifndef __MSDOS__
-   co_await SaveConf(".le.ini");
+    co_await SaveConf(".le.ini");
 #else
-   co_await SaveConf("le.ini");
+    co_await SaveConf("le.ini");
 #endif
-   co_return;
+    co_return;
 }
-Task<void>  UpdtOpt()
+Task<void> UpdtOpt()
 {
-   co_await SaveConf(InitName);
-   co_return;
+    co_await SaveConf(InitName);
+    co_return;
 }
-Task<int>   TOEatKey(int k)
+Task<int> TOEatKey(int k)
 {
-   (void)k;
-   co_return(-1);
+    (void)k;
+    co_return (-1);
 }
-Task<int>   TOHandleBut(const char *,int)
+Task<int> TOHandleBut(const char *, int)
 {
-   co_return(0);
+    co_return (0);
 }
-Task<void>  TermOpt(void)
+Task<void> TermOpt(void)
 {
-   co_await Dialogue(TOpt,70,11," Terminal Options ",NULL,NULL,TOEatKey,TOHandleBut);
-   RebuildKeyTree();
-   co_return;
+    co_await Dialogue(TOpt, 70, 11, " Terminal Options ", NULL, NULL, TOEatKey, TOHandleBut);
+    RebuildKeyTree();
+    co_return;
 }
-Task<void>  FormatOptions(void)
+Task<void> FormatOptions(void)
 {
-   co_await Dialogue(FormatOpt,30,12," Format Options ",NULL,NULL,TOEatKey,TOHandleBut);
-   co_return;
+    co_await Dialogue(FormatOpt, 30, 12, " Format Options ", NULL, NULL, TOEatKey, TOHandleBut);
+    co_return;
 }
-Task<void>  AppearOpt(void)
+Task<void> AppearOpt(void)
 {
-   co_await Dialogue(AppearOptTbl,26,11," Appearance Options ",NULL,NULL,TOEatKey,TOHandleBut);
-   co_return;
+    co_await Dialogue(AppearOptTbl, 26, 11, " Appearance Options ", NULL, NULL, TOEatKey,
+                      TOHandleBut);
+    co_return;
 }
-Task<void>  ProgOpt(void)
+Task<void> ProgOpt(void)
 {
-   co_await Dialogue(ProgOptTbl,70,9," External Programs ",NULL,NULL,TOEatKey,TOHandleBut);
-   co_return;
+    co_await Dialogue(ProgOptTbl, 70, 9, " External Programs ", NULL, NULL, TOEatKey, TOHandleBut);
+    co_return;
 }
-Task<void>  UndoOpt(void)
+Task<void> UndoOpt(void)
 {
-   co_await Dialogue(UndoOptTbl,40,8," Undo Options ",NULL,NULL,TOEatKey,TOHandleBut);
-   co_return;
+    co_await Dialogue(UndoOptTbl, 40, 8, " Undo Options ", NULL, NULL, TOEatKey, TOHandleBut);
+    co_return;
 }
 
-static int bg,fg,c_bold,c_rev,c_ul,c_dim,b_bold,b_rev,b_ul,b_dim;
+static int bg, fg, c_bold, c_rev, c_ul, c_dim, b_bold, b_rev, b_ul, b_dim;
 
-Task<void>  EditColor(color *cp,color *bp)
+Task<void> EditColor(color *cp, color *bp)
 {
-   static struct opt color_opt[]=
-   {
-      {"None",	  MANY,&fg,4,3},
-      {"Black",	  MANY,&fg,4,4},
-      {"Green",	  MANY,&fg,4,5},
-      {"Red",	  MANY,&fg,4,6},
-      {"Yellow",  MANY,&fg,4,7},
-      {"Blue",	  MANY,&fg,4,8},
-      {"Cyan",	  MANY,&fg,4,9},
-      {"Magenta", MANY,&fg,4,10},
-      {"White",	  MANY,&fg,4,11},
+    static struct opt color_opt[] = { { "None", MANY, &fg, 4, 3 },
+                                      { "Black", MANY, &fg, 4, 4 },
+                                      { "Green", MANY, &fg, 4, 5 },
+                                      { "Red", MANY, &fg, 4, 6 },
+                                      { "Yellow", MANY, &fg, 4, 7 },
+                                      { "Blue", MANY, &fg, 4, 8 },
+                                      { "Cyan", MANY, &fg, 4, 9 },
+                                      { "Magenta", MANY, &fg, 4, 10 },
+                                      { "White", MANY, &fg, 4, 11 },
 
-      {"None",	  MANY,&bg,19,3},
-      {"Black",	  MANY,&bg,19,4},
-      {"Green",	  MANY,&bg,19,5},
-      {"Red",	  MANY,&bg,19,6},
-      {"Yellow",  MANY,&bg,19,7},
-      {"Blue",	  MANY,&bg,19,8},
-      {"Cyan",	  MANY,&bg,19,9},
-      {"Magenta", MANY,&bg,19,10},
-      {"White",	  MANY,&bg,19,11},
+                                      { "None", MANY, &bg, 19, 3 },
+                                      { "Black", MANY, &bg, 19, 4 },
+                                      { "Green", MANY, &bg, 19, 5 },
+                                      { "Red", MANY, &bg, 19, 6 },
+                                      { "Yellow", MANY, &bg, 19, 7 },
+                                      { "Blue", MANY, &bg, 19, 8 },
+                                      { "Cyan", MANY, &bg, 19, 9 },
+                                      { "Magenta", MANY, &bg, 19, 10 },
+                                      { "White", MANY, &bg, 19, 11 },
 
-      {"Bold",	  ONE,&c_bold,	 34,3},
-      {"Reverse", ONE,&c_rev, 	 34,4},
-      {"Underline",ONE,&c_ul,	 34,5},
-      {"Dim",	  ONE,&c_dim,	 34,6},
+                                      { "Bold", ONE, &c_bold, 34, 3 },
+                                      { "Reverse", ONE, &c_rev, 34, 4 },
+                                      { "Underline", ONE, &c_ul, 34, 5 },
+                                      { "Dim", ONE, &c_dim, 34, 6 },
 
-      {"Bold",	  ONE,&b_bold,	 49,3},
-      {"Reverse", ONE,&b_rev, 	 49,4},
-      {"Underline",ONE,&b_ul,	 49,5},
-      {"Dim",	  ONE,&b_dim,	 49,6},
+                                      { "Bold", ONE, &b_bold, 49, 3 },
+                                      { "Reverse", ONE, &b_rev, 49, 4 },
+                                      { "Underline", ONE, &b_ul, 49, 5 },
+                                      { "Dim", ONE, &b_dim, 49, 6 },
 
-      {NULL}
-   };
+                                      { NULL } };
 
-   static int color_xlat[]={NO_COLOR,COLOR_BLACK,COLOR_GREEN,COLOR_RED,COLOR_YELLOW,
-			    COLOR_BLUE,COLOR_CYAN,COLOR_MAGENTA,COLOR_WHITE};
+    static int color_xlat[] = { NO_COLOR,   COLOR_BLACK, COLOR_GREEN,   COLOR_RED,  COLOR_YELLOW,
+                                COLOR_BLUE, COLOR_CYAN,  COLOR_MAGENTA, COLOR_WHITE };
 
-   for(bg=0; bg<9 && color_xlat[bg]!=cp->bg; bg++);
-   for(fg=0; fg<9 && color_xlat[fg]!=cp->fg; fg++);
-   if(bg==9) bg=0;
-   if(fg==9) fg=0;
+    for (bg = 0; bg < 9 && color_xlat[bg] != cp->bg; bg++)
+        ;
+    for (fg = 0; fg < 9 && color_xlat[fg] != cp->fg; fg++)
+        ;
+    if (bg == 9)
+        bg = 0;
+    if (fg == 9)
+        fg = 0;
 
-   c_bold=!!(cp->attr&A_BOLD);
-   c_rev =!!(cp->attr&A_REVERSE);
-   c_ul  =!!(cp->attr&A_UNDERLINE);
-   c_dim =!!(cp->attr&A_DIM);
-   b_bold=!!(bp->attr&A_BOLD);
-   b_rev =!!(bp->attr&A_REVERSE);
-   b_ul  =!!(bp->attr&A_UNDERLINE);
-   b_dim =!!(bp->attr&A_DIM);
+    c_bold = !!(cp->attr & A_BOLD);
+    c_rev  = !!(cp->attr & A_REVERSE);
+    c_ul   = !!(cp->attr & A_UNDERLINE);
+    c_dim  = !!(cp->attr & A_DIM);
+    b_bold = !!(bp->attr & A_BOLD);
+    b_rev  = !!(bp->attr & A_REVERSE);
+    b_ul   = !!(bp->attr & A_UNDERLINE);
+    b_dim  = !!(bp->attr & A_DIM);
 
-   WIN *w=CreateWin(MIDDLE,MIDDLE+4,66,14,DIALOGUE_WIN_ATTR," Edit color ");
-   DisplayWin(w);
-   PutStr(3,2, "Foreground");
-   PutStr(18,2,"Background");
-   PutStr(33,2,"Color options");
-   PutStr(48,2,"B/W attributes");
+    WIN *w = CreateWin(MIDDLE, MIDDLE + 4, 66, 14, DIALOGUE_WIN_ATTR, " Edit color ");
+    DisplayWin(w);
+    PutStr(3, 2, "Foreground");
+    PutStr(18, 2, "Background");
+    PutStr(33, 2, "Color options");
+    PutStr(48, 2, "B/W attributes");
 
-   co_await W_Dialogue(color_opt,NULL,NULL,TOEatKey,TOHandleBut);
+    co_await W_Dialogue(color_opt, NULL, NULL, TOEatKey, TOHandleBut);
 
-   CloseWin();
-   DestroyWin(w);
+    CloseWin();
+    DestroyWin(w);
 
-   cp->fg=color_xlat[fg];
-   cp->bg=color_xlat[bg];
-   cp->attr=(c_bold?A_BOLD:0)|(c_rev?A_REVERSE:0)|(c_ul?A_UNDERLINE:0)|(c_dim?A_DIM:0);
-   bp->attr=(b_bold?A_BOLD:0)|(b_rev?A_REVERSE:0)|(b_ul?A_UNDERLINE:0)|(b_dim?A_DIM:0);
+    cp->fg   = color_xlat[fg];
+    cp->bg   = color_xlat[bg];
+    cp->attr = (c_bold ? A_BOLD : 0) | (c_rev ? A_REVERSE : 0) | (c_ul ? A_UNDERLINE : 0) |
+               (c_dim ? A_DIM : 0);
+    bp->attr = (b_bold ? A_BOLD : 0) | (b_rev ? A_REVERSE : 0) | (b_ul ? A_UNDERLINE : 0) |
+               (b_dim ? A_DIM : 0);
 }
 
-static color new_color_pal[MAX_COLOR_NO+1];
-static color new_bw_pal[MAX_COLOR_NO+1];
+static color new_color_pal[MAX_COLOR_NO + 1];
+static color new_bw_pal[MAX_COLOR_NO + 1];
 static bool color_applied;
 
-Task<int> ColorHandleBut(const char *button,int index)
+Task<int> ColorHandleBut(const char *button, int index)
 {
-   static int color_xlat[]={
-      NORMAL_TEXT,BLOCK_TEXT,STATUS_LINE,SCROLL_BAR,ERROR_WIN,VERIFY_WIN,
-      HELP_WIN,DIALOGUE_WIN,MENU_WIN,CURR_BUTTON,DISABLED_ITEM,SHADOWED,
-      SYNTAX1,SYNTAX2,SYNTAX3,SYNTAX4,SYNTAX5,SYNTAX6};
-   if(index<(int)(sizeof(color_xlat)/sizeof(*color_xlat)))
-   {
-      int color_no=color_xlat[index];
-      co_await EditColor(FindColor(new_color_pal,color_no),
-                FindColor(new_bw_pal,color_no));
-      co_return -1;
-   }
-   const char *l=strchr(button,'&');
-   if(!l)
-      co_return -1;
-   char res=toupper(l[1]);
-   if(res=='S' || res=='U' || res=='T' || res=='O')
-   {
-      memcpy(color_pal,new_color_pal,sizeof(new_color_pal));
-      memcpy(bw_pal,new_bw_pal,sizeof(new_bw_pal));
-      init_attrs();
-      color_applied=true;
-   }
-   if(res=='S')
-      co_await ColorsSave();
-   else if(res=='T')
-      co_await ColorsSaveForTerminal();
-   co_return CANCEL;
+    static int color_xlat[] = { NORMAL_TEXT,   BLOCK_TEXT, STATUS_LINE,  SCROLL_BAR, ERROR_WIN,
+                                VERIFY_WIN,    HELP_WIN,   DIALOGUE_WIN, MENU_WIN,   CURR_BUTTON,
+                                DISABLED_ITEM, SHADOWED,   SYNTAX1,      SYNTAX2,    SYNTAX3,
+                                SYNTAX4,       SYNTAX5,    SYNTAX6 };
+    if (index < (int)(sizeof(color_xlat) / sizeof(*color_xlat))) {
+        int color_no = color_xlat[index];
+        co_await EditColor(FindColor(new_color_pal, color_no), FindColor(new_bw_pal, color_no));
+        co_return -1;
+    }
+    const char *l = strchr(button, '&');
+    if (!l)
+        co_return -1;
+    char res = toupper(l[1]);
+    if (res == 'S' || res == 'U' || res == 'T' || res == 'O') {
+        memcpy(color_pal, new_color_pal, sizeof(new_color_pal));
+        memcpy(bw_pal, new_bw_pal, sizeof(new_bw_pal));
+        init_attrs();
+        color_applied = true;
+    }
+    if (res == 'S')
+        co_await ColorsSave();
+    else if (res == 'T')
+        co_await ColorsSaveForTerminal();
+    co_return CANCEL;
 }
 
-Task<void>  ColorsOpt()
+Task<void> ColorsOpt()
 {
-   memcpy(new_color_pal,color_pal,sizeof(new_color_pal));
-   memcpy(new_bw_pal,bw_pal,sizeof(new_bw_pal));
+    memcpy(new_color_pal, color_pal, sizeof(new_color_pal));
+    memcpy(new_bw_pal, bw_pal, sizeof(new_bw_pal));
 
-   static struct opt m[]={
-      {" Normal text      ",BUTTON,NULL,2,2},{" Block text       ",BUTTON,NULL,22,2},
-      {" Status line      ",BUTTON,NULL,2,3},{" Scroll bar       ",BUTTON,NULL,22,3},
-      {" Error window     ",BUTTON,NULL,2,4},{" Verify window    ",BUTTON,NULL,22,4},
-      {" Help window      ",BUTTON,NULL,2,5},{" Dialogue window  ",BUTTON,NULL,22,5},
-      {" Menu             ",BUTTON,NULL,2,6},{" Current button   ",BUTTON,NULL,22,6},
-      {" Disabled button  ",BUTTON,NULL,2,7},{" Shadow           ",BUTTON,NULL,22,7},
-      {" Syntax 1         ",BUTTON,NULL,2,8},{" Syntax 2         ",BUTTON,NULL,22,8},
-      {" Syntax 3         ",BUTTON,NULL,2,9},{" Syntax 4         ",BUTTON,NULL,22,9},
-      {" Syntax 5         ",BUTTON,NULL,2,10},{" Syntax 6         ",BUTTON,NULL,22,10},
-      {"[   &Ok   ]",                         BUTTON,NULL,MIDDLE-8,FDOWN-2},
-      {"[ &Cancel ]",			      BUTTON,NULL,MIDDLE+8,FDOWN-2},
-      {NULL}};
+    static struct opt m[] = { { " Normal text      ", BUTTON, NULL, 2, 2 },
+                              { " Block text       ", BUTTON, NULL, 22, 2 },
+                              { " Status line      ", BUTTON, NULL, 2, 3 },
+                              { " Scroll bar       ", BUTTON, NULL, 22, 3 },
+                              { " Error window     ", BUTTON, NULL, 2, 4 },
+                              { " Verify window    ", BUTTON, NULL, 22, 4 },
+                              { " Help window      ", BUTTON, NULL, 2, 5 },
+                              { " Dialogue window  ", BUTTON, NULL, 22, 5 },
+                              { " Menu             ", BUTTON, NULL, 2, 6 },
+                              { " Current button   ", BUTTON, NULL, 22, 6 },
+                              { " Disabled button  ", BUTTON, NULL, 2, 7 },
+                              { " Shadow           ", BUTTON, NULL, 22, 7 },
+                              { " Syntax 1         ", BUTTON, NULL, 2, 8 },
+                              { " Syntax 2         ", BUTTON, NULL, 22, 8 },
+                              { " Syntax 3         ", BUTTON, NULL, 2, 9 },
+                              { " Syntax 4         ", BUTTON, NULL, 22, 9 },
+                              { " Syntax 5         ", BUTTON, NULL, 2, 10 },
+                              { " Syntax 6         ", BUTTON, NULL, 22, 10 },
+                              { "[   &Ok   ]", BUTTON, NULL, MIDDLE - 8, FDOWN - 2 },
+                              { "[ &Cancel ]", BUTTON, NULL, MIDDLE + 8, FDOWN - 2 },
+                              { NULL } };
 
-   color_applied=false;
+    color_applied = false;
 
-   co_await Dialogue(m,42,15," Select color to tune ",NULL,NULL,TOEatKey,ColorHandleBut);
+    co_await Dialogue(m, 42, 15, " Select color to tune ", NULL, NULL, TOEatKey, ColorHandleBut);
 
-   if(color_applied)
-   {
-      clearok(stdscr,1);
-      flag=REDISPLAY_ALL;
-      RedisplayAll();
-   }
-   co_return;
+    if (color_applied) {
+        clearok(stdscr, 1);
+        flag = REDISPLAY_ALL;
+        RedisplayAll();
+    }
+    co_return;
 }

@@ -28,67 +28,50 @@
 #include "getch.h"
 #include "keynames.h"
 
-static const struct { const char *name; int code; } KeyNameTable[]={
-   {"Up",	K_UP},
-   {"Down",	K_DOWN},
-   {"Left",	K_LEFT},
-   {"Right",	K_RIGHT},
-   {"Home",	K_HOME},
-   {"End",	K_END},
-   {"PgUp",	K_PGUP},
-   {"PgDn",	K_PGDN},
-   {"Ins",	K_INSERT},
-   {"Del",	K_DELETE},
-   {"BackTab",	K_BACKTAB},
-   {"F1",	K_F1},
-   {"F2",	K_F2},
-   {"F3",	K_F3},
-   {"F4",	K_F4},
-   {"F5",	K_F5},
-   {"F6",	K_F6},
-   {"F7",	K_F7},
-   {"F8",	K_F8},
-   {"F9",	K_F9},
-   {"F10",	K_F10},
-   {"F11",	K_F11},
-   {"F12",	K_F12},
-   {NULL,	0}
-};
+static const struct {
+    const char *name;
+    int code;
+} KeyNameTable[] = { { "Up", K_UP },       { "Down", K_DOWN },       { "Left", K_LEFT },
+                     { "Right", K_RIGHT }, { "Home", K_HOME },       { "End", K_END },
+                     { "PgUp", K_PGUP },   { "PgDn", K_PGDN },       { "Ins", K_INSERT },
+                     { "Del", K_DELETE },  { "BackTab", K_BACKTAB }, { "F1", K_F1 },
+                     { "F2", K_F2 },       { "F3", K_F3 },           { "F4", K_F4 },
+                     { "F5", K_F5 },       { "F6", K_F6 },           { "F7", K_F7 },
+                     { "F8", K_F8 },       { "F9", K_F9 },           { "F10", K_F10 },
+                     { "F11", K_F11 },     { "F12", K_F12 },         { NULL, 0 } };
 
 int FindKeyCode(const char *name)
 {
-   int mods=0;
+    int mods = 0;
 
-   for(;;)
-   {
-      if(!strncasecmp(name,"C-",2))
-	 mods|=K_CTRL,name+=2;
-      else if(!strncasecmp(name,"S-",2))
-	 mods|=K_SHIFT,name+=2;
-      else
-	 break;
-   }
-   for(int i=0; KeyNameTable[i].name; i++)
-      if(!strcasecmp(name,KeyNameTable[i].name))
-	 return KeyNameTable[i].code|mods;
-   return 0;
+    for (;;) {
+        if (!strncasecmp(name, "C-", 2))
+            mods |= K_CTRL, name += 2;
+        else if (!strncasecmp(name, "S-", 2))
+            mods |= K_SHIFT, name += 2;
+        else
+            break;
+    }
+    for (int i = 0; KeyNameTable[i].name; i++)
+        if (!strcasecmp(name, KeyNameTable[i].name))
+            return KeyNameTable[i].code | mods;
+    return 0;
 }
 
 const char *FindKeyName(int code)
 {
-   static char buf[32];
-   char *store=buf;
+    static char buf[32];
+    char *store = buf;
 
-   if(code&K_CTRL)
-      *store++='C',*store++='-';
-   if(code&K_SHIFT)
-      *store++='S',*store++='-';
-   *store=0;
-   for(int i=0; KeyNameTable[i].name; i++)
-      if(KeyNameTable[i].code==(code&~(K_CTRL|K_SHIFT)))
-      {
-	 strcpy(store,KeyNameTable[i].name);
-	 return buf;
-      }
-   return NULL;
+    if (code & K_CTRL)
+        *store++ = 'C', *store++ = '-';
+    if (code & K_SHIFT)
+        *store++ = 'S', *store++ = '-';
+    *store = 0;
+    for (int i = 0; KeyNameTable[i].name; i++)
+        if (KeyNameTable[i].code == (code & ~(K_CTRL | K_SHIFT))) {
+            strcpy(store, KeyNameTable[i].name);
+            return buf;
+        }
+    return NULL;
 }

@@ -25,232 +25,217 @@
 #include "getch.h"
 #include "mb.h"
 
-Task<int>   getstring(const char *pr,char *buf,int maxlen,History* history,int *len,
-                const char *help,const char *title)
+Task<int> getstring(const char *pr, char *buf, int maxlen, History *history, int *len,
+                    const char *help, const char *title)
 {
-   int      pos,col,action,ch;
-   int      width,start;
-   int      shift,i,c,stuff;
-   int	    ch_len;
-   const HistoryLine *hl;
+    int pos, col, action, ch;
+    int width, start;
+    int shift, i, c, stuff;
+    int ch_len;
+    const HistoryLine *hl;
 
-   if(history)
-      history->Open();
+    if (history)
+        history->Open();
 
-   if(message_sp==0)
-      message_sp=1;
-   width=COLS-strlen(pr)-1;
-   pos=0;
-   col=0;
-   shift=0;
-   start=TRUE;
-   if(len==NULL)
-   {
-      len=(&stuff);
-      (*len)=strlen(buf);
-   }
+    if (message_sp == 0)
+        message_sp = 1;
+    width = COLS - strlen(pr) - 1;
+    pos   = 0;
+    col   = 0;
+    shift = 0;
+    start = TRUE;
+    if (len == NULL) {
+        len    = (&stuff);
+        (*len) = strlen(buf);
+    }
 
-   if(history)
-   {
-      for(;;)
-      {
-	 hl=history->Prev();
-	 if(!hl)
-	    break;
-	 if(hl->equals(buf,*len))
-	    break;
-      }
-   }
+    if (history) {
+        for (;;) {
+            hl = history->Prev();
+            if (!hl)
+                break;
+            if (hl->equals(buf, *len))
+                break;
+        }
+    }
 
-   do
-   {
-      if(col==-1)
-	 mb_get_col(buf,pos,&col,*len);
-      if(col-shift>width)
-         shift=col-width;
-      if(col-shift<0)
-         shift=col;
-      SetAttr(STATUS_LINE_ATTR);
-      mvaddstr(LINES-1,0,(char*)pr);
-      for(i=0,c=0; c<=width+shift && i<(*len); )
-      {
+    do {
+        if (col == -1)
+            mb_get_col(buf, pos, &col, *len);
+        if (col - shift > width)
+            shift = col - width;
+        if (col - shift < 0)
+            shift = col;
+        SetAttr(STATUS_LINE_ATTR);
+        mvaddstr(LINES - 1, 0, (char *)pr);
+        for (i = 0, c = 0; c <= width + shift && i < (*len);) {
 #if USE_MULTIBYTE_CHARS
-	 if(mb_mode)
-	 {
-	    wchar_t wc;
-	    int ch_len=mbtowc(&wc,buf+i,(*len)-i);
-	    if(ch_len<1 || (ch_len==1 && !chset_isprint(buf[i])))
-	    {
-	       if(c>=shift)
-		  addch_visual((byte)buf[i]);
-	       i++; c++;
-	    }
-	    else
-	    {
-	       wchar_t vwc=visualize_wchar(wc);
-	       if(c>=shift)
-	       {
-		  if(wc!=vwc)
-		     attrset(curr_attr->so_attr);
-		  addnwstr(&vwc,1);
-		  attrset(curr_attr->n_attr);
-	       }
-	       i+=ch_len;
-	       c+=wcwidth(vwc);
-	    }
-	 }
-	 else // note the following block
+            if (mb_mode) {
+                wchar_t wc;
+                int ch_len = mbtowc(&wc, buf + i, (*len) - i);
+                if (ch_len < 1 || (ch_len == 1 && !chset_isprint(buf[i]))) {
+                    if (c >= shift)
+                        addch_visual((byte)buf[i]);
+                    i++;
+                    c++;
+                } else {
+                    wchar_t vwc = visualize_wchar(wc);
+                    if (c >= shift) {
+                        if (wc != vwc)
+                            attrset(curr_attr->so_attr);
+                        addnwstr(&vwc, 1);
+                        attrset(curr_attr->n_attr);
+                    }
+                    i += ch_len;
+                    c += wcwidth(vwc);
+                }
+            } else // note the following block
 #endif
-	 {
-	    if(c>=shift)
-	       addch_visual((byte)buf[i]);
-	    i++; c++;
-	 }
-      }
-      while(c++<=width+shift)
-	 addch(' ');
-
-      move(LINES-1,col-shift+strlen(pr));
-      curs_set(1);
-      action=co_await GetNextAction();
-      switch(action)
-      {
-         case(EDITOR_HELP):
-            if(!help)
-               break;
-            co_await Help(help,title);
-            break;
-         case(CANCEL):
-            co_return(-1);
-         case(NEWLINE):
-            if(history!=NULL && *len!=0)
-               *history+=HistoryLine(buf,*len);
-            buf[*len]=0;
-            co_return(*len);
-         case(LINE_UP):
-            if(history==NULL)
-               break;
-            hl=history->Prev();
-            if(hl) {
-	       *len=hl->get_len();
-               memcpy(buf,hl->get_line(),*len);
-	    } else
-               *len=0;
-            pos=0;
-	    col=0;
-	    start=1;
-            break;
-         case(LINE_DOWN):
-            if(history==NULL)
-               break;
-            hl=history->Next();
-            if(hl) {
-	       *len=hl->get_len();
-               memcpy(buf,hl->get_line(),*len);
-	    } else
-               *len=0;
-            pos=0;
-	    col=0;
-            start=1;
-            break;
-         case(BACKSPACE_CHAR):
-            if(pos==0)
-               break;
-	    mb_char_left(buf,&pos,&col,*len);
-         case(DELETE_CHAR):
-            if(pos==*len)
-               break;
-	    ch_len=mb_len(buf+pos,*len-pos);
-            for(i=pos; i+ch_len<=*len; i++)
-               buf[i]=buf[i+ch_len];
-            (*len)-=ch_len;
-            start=FALSE;
-            break;
-         case(LINE_END):
-            pos=(*len);
-	    col=-1;
-            start=0;
-            break;
-         case(LINE_BEGIN):
-            pos=col=start=0;
-            break;
-         case(CHAR_LEFT):
-            start=0;
-	    if(pos)
-	       mb_char_left(buf,&pos,&col,*len);
-            break;
-         case(DELETE_TO_EOL):
-            (*len)=pos;
-            buf[pos]=0;
-            break;
-         case(CHAR_RIGHT):
-            start=0;
-            if(pos<(*len))
-	       mb_char_right(buf,&pos,&col,*len);
-            break;
-         case(CHOOSE_CHAR):
-	    if(mb_mode)
-	    {
-	       ch=co_await choose_wch();
-	       if(ch==-1)
-		  break;
-	       StringTypedLen=wctomb((char*)StringTyped,ch);
-	       if(StringTypedLen<1)
-		  break;
-	    }
-	    else
-	    {
-	       ch=co_await choose_ch();
-	       if(ch==-1)
-		  break;
-	       StringTyped[0]=ch;
-	       StringTypedLen=1;
-	    }
-            goto ins;
-         case(ENTER_CHAR_CODE):
-            ch=co_await getcode_char();
-            if(ch==-1)
-               break;
-	    StringTyped[0]=ch;
-	    StringTypedLen=1;
-            goto ins;
-         case(ENTER_WCHAR_CODE):
-            ch=co_await getcode_wchar();
-            if(ch==-1)
-               break;
-	    StringTypedLen=wctomb((char*)StringTyped,ch);
-	    if(StringTypedLen<1)
-	       break;
-            goto ins;
-         case(ENTER_CONTROL_CHAR):
-	    ch=co_await GetRawKey();
-	    StringTyped[0]=ch;
-	    StringTypedLen=1;
-            goto ins;
-         default:
-            if(StringTypedLen!=1)
-               break;
-            ch=StringTyped[0];
-            if(ch>=0 && ch<' ')
-               break;
-      ins:
-            if(start)
             {
-               buf[(*len)=shift=pos=0]='\0';
-               if(history)
-                  history->Open();  // reopen history so it seeks to the begin
+                if (c >= shift)
+                    addch_visual((byte)buf[i]);
+                i++;
+                c++;
             }
-            start=FALSE;
-            if((*len)+StringTypedLen>maxlen)
-               break;
-            for(i=(*len); i>=pos; i--)
-               buf[i+StringTypedLen]=buf[i];
-            (*len)+=StringTypedLen;
-	    for(i=0; i<StringTypedLen; i++)
-	       buf[pos++]=ModifyKey(StringTyped[i]);
-	    col=-1;
-      }
-   }
-   while(TRUE);
-/*NOTREACHED*/
+        }
+        while (c++ <= width + shift)
+            addch(' ');
+
+        move(LINES - 1, col - shift + strlen(pr));
+        curs_set(1);
+        action = co_await GetNextAction();
+        switch (action) {
+        case (EDITOR_HELP):
+            if (!help)
+                break;
+            co_await Help(help, title);
+            break;
+        case (CANCEL):
+            co_return (-1);
+        case (NEWLINE):
+            if (history != NULL && *len != 0)
+                *history += HistoryLine(buf, *len);
+            buf[*len] = 0;
+            co_return (*len);
+        case (LINE_UP):
+            if (history == NULL)
+                break;
+            hl = history->Prev();
+            if (hl) {
+                *len = hl->get_len();
+                memcpy(buf, hl->get_line(), *len);
+            } else
+                *len = 0;
+            pos   = 0;
+            col   = 0;
+            start = 1;
+            break;
+        case (LINE_DOWN):
+            if (history == NULL)
+                break;
+            hl = history->Next();
+            if (hl) {
+                *len = hl->get_len();
+                memcpy(buf, hl->get_line(), *len);
+            } else
+                *len = 0;
+            pos   = 0;
+            col   = 0;
+            start = 1;
+            break;
+        case (BACKSPACE_CHAR):
+            if (pos == 0)
+                break;
+            mb_char_left(buf, &pos, &col, *len);
+        case (DELETE_CHAR):
+            if (pos == *len)
+                break;
+            ch_len = mb_len(buf + pos, *len - pos);
+            for (i = pos; i + ch_len <= *len; i++)
+                buf[i] = buf[i + ch_len];
+            (*len) -= ch_len;
+            start = FALSE;
+            break;
+        case (LINE_END):
+            pos   = (*len);
+            col   = -1;
+            start = 0;
+            break;
+        case (LINE_BEGIN):
+            pos = col = start = 0;
+            break;
+        case (CHAR_LEFT):
+            start = 0;
+            if (pos)
+                mb_char_left(buf, &pos, &col, *len);
+            break;
+        case (DELETE_TO_EOL):
+            (*len)   = pos;
+            buf[pos] = 0;
+            break;
+        case (CHAR_RIGHT):
+            start = 0;
+            if (pos < (*len))
+                mb_char_right(buf, &pos, &col, *len);
+            break;
+        case (CHOOSE_CHAR):
+            if (mb_mode) {
+                ch = co_await choose_wch();
+                if (ch == -1)
+                    break;
+                StringTypedLen = wctomb((char *)StringTyped, ch);
+                if (StringTypedLen < 1)
+                    break;
+            } else {
+                ch = co_await choose_ch();
+                if (ch == -1)
+                    break;
+                StringTyped[0] = ch;
+                StringTypedLen = 1;
+            }
+            goto ins;
+        case (ENTER_CHAR_CODE):
+            ch = co_await getcode_char();
+            if (ch == -1)
+                break;
+            StringTyped[0] = ch;
+            StringTypedLen = 1;
+            goto ins;
+        case (ENTER_WCHAR_CODE):
+            ch = co_await getcode_wchar();
+            if (ch == -1)
+                break;
+            StringTypedLen = wctomb((char *)StringTyped, ch);
+            if (StringTypedLen < 1)
+                break;
+            goto ins;
+        case (ENTER_CONTROL_CHAR):
+            ch             = co_await GetRawKey();
+            StringTyped[0] = ch;
+            StringTypedLen = 1;
+            goto ins;
+        default:
+            if (StringTypedLen != 1)
+                break;
+            ch = StringTyped[0];
+            if (ch >= 0 && ch < ' ')
+                break;
+        ins:
+            if (start) {
+                buf[(*len) = shift = pos = 0] = '\0';
+                if (history)
+                    history->Open(); // reopen history so it seeks to the begin
+            }
+            start = FALSE;
+            if ((*len) + StringTypedLen > maxlen)
+                break;
+            for (i = (*len); i >= pos; i--)
+                buf[i + StringTypedLen] = buf[i];
+            (*len) += StringTypedLen;
+            for (i = 0; i < StringTypedLen; i++)
+                buf[pos++] = ModifyKey(StringTyped[i]);
+            col = -1;
+        }
+    } while (TRUE);
+    /*NOTREACHED*/
 }

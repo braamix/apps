@@ -24,378 +24,373 @@
 #include "calc.h"
 
 /* <float.h>'s DBL_MIN, the smallest normal double. */
-#define  EPS   2.2250738585072014e-308
+#define EPS 2.2250738585072014e-308
 
 calc_value stack[STSIZE];
-int   sp;
+int sp;
 
-int   calcerrno=OKAY;
+int calcerrno = OKAY;
 
 static int add()
 {
-   if(sp<2)
-      return(STUNDERFLOW);
-   stack[sp-2].value+=stack[sp-1];
-   sp--;
-   return(OKAY);
+    if (sp < 2)
+        return (STUNDERFLOW);
+    stack[sp - 2].value += stack[sp - 1];
+    sp--;
+    return (OKAY);
 }
 static int sub()
 {
-   if(sp<2)
-      return(STUNDERFLOW);
-   stack[sp-2].value-=stack[sp-1];
-   sp--;
-   return(OKAY);
+    if (sp < 2)
+        return (STUNDERFLOW);
+    stack[sp - 2].value -= stack[sp - 1];
+    sp--;
+    return (OKAY);
 }
 static int mul()
 {
-   if(sp<2)
-      return(STUNDERFLOW);
-   stack[sp-2].value*=stack[sp-1];
-   sp--;
-   return(OKAY);
+    if (sp < 2)
+        return (STUNDERFLOW);
+    stack[sp - 2].value *= stack[sp - 1];
+    sp--;
+    return (OKAY);
 }
 static int div()
 {
-   if(sp<2)
-      return(STUNDERFLOW);
-   if(fabs(stack[sp-1])<EPS)
-      return(ILLEGALFN);
-   stack[sp-2].value/=stack[sp-1];
-   sp--;
-   return(OKAY);
+    if (sp < 2)
+        return (STUNDERFLOW);
+    if (fabs(stack[sp - 1]) < EPS)
+        return (ILLEGALFN);
+    stack[sp - 2].value /= stack[sp - 1];
+    sp--;
+    return (OKAY);
 }
 static int rem()
 {
-   if(sp<2)
-      return(STUNDERFLOW);
-   stack[sp-2].value=fmod(stack[sp-2],stack[sp-1]);
-   sp--;
-   return(OKAY);
+    if (sp < 2)
+        return (STUNDERFLOW);
+    stack[sp - 2].value = fmod(stack[sp - 2], stack[sp - 1]);
+    sp--;
+    return (OKAY);
 }
 static int cpy()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   if(sp>=STSIZE)
-      return(STOVERFLOW);
-   stack[sp].value=stack[sp-1];
-   stack[sp].base=stack[sp-1].base;
-   sp++;
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    if (sp >= STSIZE)
+        return (STOVERFLOW);
+    stack[sp].value = stack[sp - 1];
+    stack[sp].base  = stack[sp - 1].base;
+    sp++;
+    return (OKAY);
 }
 static int pwr()
 {
-   if(sp<2)
-      return(STUNDERFLOW);
-   if(stack[sp-1]<0)
-      return(ILLEGALFN);
-   stack[sp-2].value=pow(stack[sp-1],stack[sp-2]);
-   sp--;
-   return(OKAY);
+    if (sp < 2)
+        return (STUNDERFLOW);
+    if (stack[sp - 1] < 0)
+        return (ILLEGALFN);
+    stack[sp - 2].value = pow(stack[sp - 1], stack[sp - 2]);
+    sp--;
+    return (OKAY);
 }
 static int mpi()
 {
-   if(sp>=STSIZE)
-      return(STOVERFLOW);
-   stack[sp].base=10;
-   stack[sp++].value=M_PI;
-   return(OKAY);
+    if (sp >= STSIZE)
+        return (STOVERFLOW);
+    stack[sp].base    = 10;
+    stack[sp++].value = M_PI;
+    return (OKAY);
 }
 static int me()
 {
-   if(sp>=STSIZE)
-      return(STOVERFLOW);
-   stack[sp].base=10;
-   stack[sp++].value=M_E;
-   return(OKAY);
+    if (sp >= STSIZE)
+        return (STOVERFLOW);
+    stack[sp].base    = 10;
+    stack[sp++].value = M_E;
+    return (OKAY);
 }
 static int sqr()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=sqrt(fabs(stack[sp-1]));
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = sqrt(fabs(stack[sp - 1]));
+    return (OKAY);
 }
 static int sq()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value*=stack[sp-1];
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value *= stack[sp - 1];
+    return (OKAY);
 }
 static int del()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   sp--;
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    sp--;
+    return (OKAY);
 }
 static int clr()
 {
-   initcalc();
-   return(OKAY);
+    initcalc();
+    return (OKAY);
 }
 static int ln()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   if(fabs(stack[sp-1])<EPS)
-      return(ILLEGALFN);
-   stack[sp-1].value=log(fabs(stack[sp-1]));
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    if (fabs(stack[sp - 1]) < EPS)
+        return (ILLEGALFN);
+    stack[sp - 1].value = log(fabs(stack[sp - 1]));
+    return (OKAY);
 }
 static int lg()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   if(fabs(stack[sp-1])<EPS)
-      return(ILLEGALFN);
-   stack[sp-1].value=log10(fabs(stack[sp-1]));
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    if (fabs(stack[sp - 1]) < EPS)
+        return (ILLEGALFN);
+    stack[sp - 1].value = log10(fabs(stack[sp - 1]));
+    return (OKAY);
 }
 static int neg()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=(-stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = (-stack[sp - 1]);
+    return (OKAY);
 }
 static int rev()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=1/stack[sp-1];
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = 1 / stack[sp - 1];
+    return (OKAY);
 }
 static int xy()
 {
-   calc_value ox;
-   if(sp<2)
-      return(STUNDERFLOW);
-   ox=stack[sp-1];
-   stack[sp-1]=stack[sp-2];
-   stack[sp-2]=ox;
-   return(OKAY);
+    calc_value ox;
+    if (sp < 2)
+        return (STUNDERFLOW);
+    ox            = stack[sp - 1];
+    stack[sp - 1] = stack[sp - 2];
+    stack[sp - 2] = ox;
+    return (OKAY);
 }
 static int expx()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=exp(stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = exp(stack[sp - 1]);
+    return (OKAY);
 }
 static int sinx()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=sin(stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = sin(stack[sp - 1]);
+    return (OKAY);
 }
 static int cosx()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=cos(stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = cos(stack[sp - 1]);
+    return (OKAY);
 }
 static int tgx()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=tan(stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = tan(stack[sp - 1]);
+    return (OKAY);
 }
 static int ctgx()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=1/tan(stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = 1 / tan(stack[sp - 1]);
+    return (OKAY);
 }
 static int asinx()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=asin(stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = asin(stack[sp - 1]);
+    return (OKAY);
 }
 static int acosx()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=acos(stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = acos(stack[sp - 1]);
+    return (OKAY);
 }
 static int atgx()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=atan(stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = atan(stack[sp - 1]);
+    return (OKAY);
 }
 static int actgx()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=atan(1/stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = atan(1 / stack[sp - 1]);
+    return (OKAY);
 }
 
 static int fact()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   if(stack[sp-1]<0)
-      return(ILLEGALFN);
-   long long n=(long long)stack[sp-1].value;
-   if(stack[sp-1].value==0)
-      stack[sp-1].value=1;
-   while(--n>0 && !isnan(stack[sp-1].value))
-      stack[sp-1].value*=n;
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    if (stack[sp - 1] < 0)
+        return (ILLEGALFN);
+    long long n = (long long)stack[sp - 1].value;
+    if (stack[sp - 1].value == 0)
+        stack[sp - 1].value = 1;
+    while (--n > 0 && !isnan(stack[sp - 1].value))
+        stack[sp - 1].value *= n;
+    return (OKAY);
 }
 
 static int f_and()
 {
-   if(sp<2)
-      return(STUNDERFLOW);
-   stack[sp-2].value=(long long)(stack[sp-1])&(long long)(stack[sp-2]);
-   sp--;
-   return(OKAY);
+    if (sp < 2)
+        return (STUNDERFLOW);
+    stack[sp - 2].value = (long long)(stack[sp - 1]) & (long long)(stack[sp - 2]);
+    sp--;
+    return (OKAY);
 }
 static int f_or()
 {
-   if(sp<2)
-      return(STUNDERFLOW);
-   stack[sp-2].value=(long long)(stack[sp-1])|(long long)(stack[sp-2]);
-   sp--;
-   return(OKAY);
+    if (sp < 2)
+        return (STUNDERFLOW);
+    stack[sp - 2].value = (long long)(stack[sp - 1]) | (long long)(stack[sp - 2]);
+    sp--;
+    return (OKAY);
 }
 static int f_xor()
 {
-   if(sp<2)
-      return(STUNDERFLOW);
-   stack[sp-2].value=(long long)(stack[sp-1])^(long long)(stack[sp-2]);
-   sp--;
-   return(OKAY);
+    if (sp < 2)
+        return (STUNDERFLOW);
+    stack[sp - 2].value = (long long)(stack[sp - 1]) ^ (long long)(stack[sp - 2]);
+    sp--;
+    return (OKAY);
 }
 static int f_not()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].value=~(long long)(stack[sp-1]);
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].value = ~(long long)(stack[sp - 1]);
+    return (OKAY);
 }
 
 static int b16()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].base=16;
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].base = 16;
+    return (OKAY);
 }
 static int b10()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].base=10;
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].base = 10;
+    return (OKAY);
 }
 static int b8()
 {
-   if(sp<1)
-      return(STUNDERFLOW);
-   stack[sp-1].base=8;
-   return(OKAY);
+    if (sp < 1)
+        return (STUNDERFLOW);
+    stack[sp - 1].base = 8;
+    return (OKAY);
 }
 
 static int f_sum()
 {
-   if(sp<1)
-      return STUNDERFLOW;
-   while(add()==OKAY);
-   return OKAY;
+    if (sp < 1)
+        return STUNDERFLOW;
+    while (add() == OKAY)
+        ;
+    return OKAY;
 }
 
-struct   func_def
-{
-   const char *name;
-   int (*func)();
-}
-const func[]={
+struct func_def {
+    const char *name;
+    int (*func)();
+} const func[] = {
 
-{"+",add}, {"-",sub}, {"/",div}, {"*",mul},
-{"cp",cpy}, {"**",pwr}, {"pi",mpi}, {"e",me},
-{"sqr",sqr}, {"sq",sq}, {"del",del}, {"clr",clr},
-{"ln",ln}, {"lg",lg}, {"xy",xy}, {"neg",neg},
-{"rev",rev}, {"exp",expx}, {"%",rem}, {"fact",fact},
+    { "+", add },      { "-", sub },    { "/", div },      { "*", mul },     { "cp", cpy },
+    { "**", pwr },     { "pi", mpi },   { "e", me },       { "sqr", sqr },   { "sq", sq },
+    { "del", del },    { "clr", clr },  { "ln", ln },      { "lg", lg },     { "xy", xy },
+    { "neg", neg },    { "rev", rev },  { "exp", expx },   { "%", rem },     { "fact", fact },
 
-{"sin",sinx}, {"cos",cosx}, {"tg",tgx}, {"ctg",ctgx},
-{"asin",asinx}, {"acos",acosx}, {"atg",atgx}, {"actg",actgx},
+    { "sin", sinx },   { "cos", cosx }, { "tg", tgx },     { "ctg", ctgx },  { "asin", asinx },
+    { "acos", acosx }, { "atg", atgx }, { "actg", actgx },
 
-{"and",f_and}, {"or",f_or}, {"xor",f_xor}, {"not",f_not},
-{"b16",b16}, {"b10",b10}, {"b8",b8},
+    { "and", f_and },  { "or", f_or },  { "xor", f_xor },  { "not", f_not }, { "b16", b16 },
+    { "b10", b10 },    { "b8", b8 },
 
-{"sum",f_sum},
+    { "sum", f_sum },
 
-{NULL}};
+    { NULL }
+};
 
 static int check_for_number(char *w)
 {
-   return(isdigit(w[0]) || ((w[0]=='-'||w[0]=='.') && isdigit(w[1])));
+    return (isdigit(w[0]) || ((w[0] == '-' || w[0] == '.') && isdigit(w[1])));
 }
 const char *calc_value::to_string()
 {
-   static char s[256];
-   if(base==10)
-      /* 17 significant digits round-trip a double exactly. */
-      snprintf(s,sizeof(s),"%.17g",value);
-   else if(base==8)
-      snprintf(s,sizeof(s),"%#llo",(long long)value);
-   else if(base==16)
-      snprintf(s,sizeof(s),"0x%llX",(long long)value);
-   else
-      strcpy(s,"unsupported base");
-   return s;
+    static char s[256];
+    if (base == 10)
+        /* 17 significant digits round-trip a double exactly. */
+        snprintf(s, sizeof(s), "%.17g", value);
+    else if (base == 8)
+        snprintf(s, sizeof(s), "%#llo", (long long)value);
+    else if (base == 16)
+        snprintf(s, sizeof(s), "0x%llX", (long long)value);
+    else
+        strcpy(s, "unsupported base");
+    return s;
 }
 
-int   calculator(const char *in)
+int calculator(const char *in)
 {
-   char  word[256];
-   int   wl;
-   const func_def *f;
-   do
-   {
-      while(*in && isspace(*in))
-         in++;
-      if(!*in)
-         break;
-      wl=0;
-      while(*in && !isspace(*in) && wl<255)
-         word[wl++]=(*(in++));
-      while(*in && !isspace(*in))
-         in++;
-      word[wl]=0;
-      if(check_for_number(word))
-      {
-         if(sp>=STSIZE)
-            return(calcerrno=STOVERFLOW);
-	 if(word[0]=='0' || (word[0]=='-' && word[1]=='0'))
-	 {
-	    char base_char=(word[0]=='-'?word[2]:word[1]);
-	    long long n;
-	    if(base_char=='x' || base_char=='X')
-	    {
-	       stack[sp].base=16;
-	       usize used;
-	       Option<u64> got=scan_u64(Str(word,strlen(word)),used,0);
-	       if(!got.has_value())
-		  return(calcerrno=INVALIDNUM);
-	       n=(long long)got.value();
-	       stack[sp++].value=n;
-	       continue;
-	    }
+    char word[256];
+    int wl;
+    const func_def *f;
+    do {
+        while (*in && isspace(*in))
+            in++;
+        if (!*in)
+            break;
+        wl = 0;
+        while (*in && !isspace(*in) && wl < 255)
+            word[wl++] = (*(in++));
+        while (*in && !isspace(*in))
+            in++;
+        word[wl] = 0;
+        if (check_for_number(word)) {
+            if (sp >= STSIZE)
+                return (calcerrno = STOVERFLOW);
+            if (word[0] == '0' || (word[0] == '-' && word[1] == '0')) {
+                char base_char = (word[0] == '-' ? word[2] : word[1]);
+                long long n;
+                if (base_char == 'x' || base_char == 'X') {
+                    stack[sp].base = 16;
+                    usize used;
+                    Option<u64> got = scan_u64(Str(word, strlen(word)), used, 0);
+                    if (!got.has_value())
+                        return (calcerrno = INVALIDNUM);
+                    n                 = (long long)got.value();
+                    stack[sp++].value = n;
+                    continue;
+                }
 #if 0
 	    if(base_char=='b' || base_char=='B')
 	    {
@@ -409,83 +404,72 @@ int   calculator(const char *in)
 	       continue;
 	    }
 #endif
-	    if(base_char>='0' && base_char<='9')
-	    {
-	       stack[sp].base=8;
-	       usize used;
-	       Option<u64> got=scan_u64(Str(word,strlen(word)),used,8);
-	       if(!got.has_value())
-		  return(calcerrno=INVALIDNUM);
-	       n=(long long)got.value();
-	       stack[sp++].value=n;
-	       continue;
-	    }
-	 }
-	 stack[sp].base=10;
-         {
-            Option<f64> v=parse_f64(Str(word,strlen(word)));
-            if(!v.has_value())
-               return(calcerrno=INVALIDNUM);
-            stack[sp].value=v.value();
-         }
-         sp++;
-      }
-      else
-      {
-         for(f=func; f->name && strcmp(f->name,word); f++);
-         if(!f->name)
-            return(calcerrno=INVALIDFN);
-         calcerrno=f->func();
-         if(calcerrno!=OKAY)
-            return(calcerrno);
-      }
-   }
-   while(1);
-   return(OKAY);
+                if (base_char >= '0' && base_char <= '9') {
+                    stack[sp].base = 8;
+                    usize used;
+                    Option<u64> got = scan_u64(Str(word, strlen(word)), used, 8);
+                    if (!got.has_value())
+                        return (calcerrno = INVALIDNUM);
+                    n                 = (long long)got.value();
+                    stack[sp++].value = n;
+                    continue;
+                }
+            }
+            stack[sp].base = 10;
+            {
+                Option<f64> v = parse_f64(Str(word, strlen(word)));
+                if (!v.has_value())
+                    return (calcerrno = INVALIDNUM);
+                stack[sp].value = v.value();
+            }
+            sp++;
+        } else {
+            for (f = func; f->name && strcmp(f->name, word); f++)
+                ;
+            if (!f->name)
+                return (calcerrno = INVALIDFN);
+            calcerrno = f->func();
+            if (calcerrno != OKAY)
+                return (calcerrno);
+        }
+    } while (1);
+    return (OKAY);
 }
 
-void  initcalc()
+void initcalc()
 {
-   sp=0;
+    sp = 0;
 }
 
-#define  MAXCALCERR  5
-const char  *const calc_errlist[MAXCALCERR]=
-{
-   "Stack underflow",
-   "Stack overflow",
-   "Illegal function call",
-   "Invalid function name",
-   "Invalid number format"
-};
+#define MAXCALCERR 5
+const char *const calc_errlist[MAXCALCERR] = { "Stack underflow", "Stack overflow",
+                                               "Illegal function call", "Invalid function name",
+                                               "Invalid number format" };
 const char *calcerrmsg()
 {
-   if(calcerrno>=0)
-      return("No error");
-   if(-calcerrno>MAXCALCERR)
-      return("Unknown error");
-   return(calc_errlist[-calcerrno-1]);
+    if (calcerrno >= 0)
+        return ("No error");
+    if (-calcerrno > MAXCALCERR)
+        return ("Unknown error");
+    return (calc_errlist[-calcerrno - 1]);
 }
 
-#ifdef   MAIN
-Task<co_await> main(argc,argv)
-char  **argv;
+#ifdef MAIN
+Task<co_await> main(argc, argv) char **argv;
 {
-   int   i;
-   char  str[256];
-   initcalc();
-   printf("Calculator | Version 1.0 | Copyright (c) 1993 by Alexander V. Lukyanov\n");
-   do
-   {
-      printf(sp?"Stack:\n":"Stack is empty\n");
-      for(i=0; i<sp; i++)
-         printf("\t%.40lg\n",stack[i]);
-      if(scanf("%s",str)<1)
-         break;
-      if(calculator(str)!=OKAY)
-         printf("Error: %s\n",calcerrmsg());
-   }
-   while(1);
-   co_return(0);
+    int i;
+    char str[256];
+    initcalc();
+    printf("Calculator | Version 1.0 | Copyright (c) 1993 by Alexander V. Lukyanov\n");
+    do {
+        printf(sp ? "Stack:\n" : "Stack is empty\n");
+        for (i = 0; i < sp; i++)
+            printf("\t%.40lg\n", stack[i]);
+        if (scanf("%s", str) < 1)
+            break;
+        if (calculator(str) != OKAY)
+            printf("Error: %s\n", calcerrmsg());
+    } while (1);
+    co_return (0);
 }
 #endif

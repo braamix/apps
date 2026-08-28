@@ -28,8 +28,7 @@
 #include "braam.h"
 #include "keymap.h"
 
-const ActionCodeRec DefaultActionCodeTable[]=
-{
+const ActionCodeRec DefaultActionCodeTable[] = {
 #include "keymap-default.h"
-   {-1,NULL}
+    { -1, NULL }
 };

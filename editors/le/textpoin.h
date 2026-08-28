@@ -21,98 +21,85 @@
 
 #include "leglobal.h"
 
+#define COLUNDEFINED  1
+#define LINEUNDEFINED 2
+#define CHAR_SPLIT    4
 
-#define  COLUNDEFINED      1
-#define  LINEUNDEFINED     2
-#define  CHAR_SPLIT	   4
+class TextPoint {
+    offs offset;
+    num line, col;
+    int flags;
+    static Global<TextPoint> cached_array[];
+    static int cached_array_ptr;
 
-class TextPoint
-{
-   offs  offset;
-   num   line,col;
-   int   flags;
-   static Global<TextPoint> cached_array[];
-   static int cached_array_ptr;
+    TextPoint *next;
+    static TextPoint *base;
 
-   TextPoint   *next;
-   static TextPoint   *base;
+    void AddTextPoint();
+    void DeleteTextPoint();
 
-   void  AddTextPoint();
-   void  DeleteTextPoint();
+    void FindOffset();
+    void FindLineCol();
 
-   void  FindOffset();
-   void  FindLineCol();
-
-   void  Init() {
-      offset=line=col=flags=0;
-   }
+    void Init() { offset = line = col = flags = 0; }
 
 public:
-   offs  Offset() const
-   {
-      return(offset);
-   }
-   num   Line();
-   num   Col();
+    offs Offset() const { return (offset); }
+    num Line();
+    num Col();
 
-   num	 LineSimple() const
-   {
-      if(flags&LINEUNDEFINED)
-         return -1;
-      return(line);
-   }
-   num	 ColSimple() const
-   {
-      if(flags&(COLUNDEFINED|LINEUNDEFINED))
-         return -1;
-      return(col);
-   }
+    num LineSimple() const
+    {
+        if (flags & LINEUNDEFINED)
+            return -1;
+        return (line);
+    }
+    num ColSimple() const
+    {
+        if (flags & (COLUNDEFINED | LINEUNDEFINED))
+            return -1;
+        return (col);
+    }
 
-   TextPoint();
-   TextPoint(offs);
-   TextPoint(num,num);
-   TextPoint(const TextPoint&);
-   TextPoint(offs,num,num);
+    TextPoint();
+    TextPoint(offs);
+    TextPoint(num, num);
+    TextPoint(const TextPoint &);
+    TextPoint(offs, num, num);
 
-   void CacheTextPoint() const;
+    void CacheTextPoint() const;
 
-   ~TextPoint();
+    ~TextPoint();
 
-   const TextPoint& operator=(const TextPoint& tp)
-   {
-      offset=tp.offset;
-      line=tp.line;
-      col=tp.col;
-      flags=tp.flags;
-      return(*this);
-   }
-   const TextPoint& operator+=(num shift);
-   const TextPoint& operator-=(num shift)
-   {
-      return(*this+=-shift);
-   }
-   operator offs() const
-   {
-      return(offset);
-   }
+    const TextPoint &operator=(const TextPoint &tp)
+    {
+        offset = tp.offset;
+        line   = tp.line;
+        col    = tp.col;
+        flags  = tp.flags;
+        return (*this);
+    }
+    const TextPoint &operator+=(num shift);
+    const TextPoint &operator-=(num shift) { return (*this += -shift); }
+    operator offs() const { return (offset); }
 
-   static TextPoint ForcedLineCol(num l,num c);
+    static TextPoint ForcedLineCol(num l, num c);
 
-   static   void  ResetTextPoints();
-   static   void  OrFlags(int mask);
-   static   void  CheckSplit(offs,offs);
+    static void ResetTextPoints();
+    static void OrFlags(int mask);
+    static void CheckSplit(offs, offs);
 
-   friend   int   InsertBlock(const char *,num,const char *,num);
-   friend   int   DeleteBlock(num,num);
-   friend   int   ReplaceBlock(const char *,num);
+    friend int InsertBlock(const char *, num, const char *, num);
+    friend int DeleteBlock(num, num);
+    friend int ReplaceBlock(const char *, num);
 
-   void Check() const {};
+    void Check() const {};
 };
 
 /* Built on first use and never destroyed; see leglobal.h. The macro keeps
    every use site as upstream wrote it. */
-extern Global<TextPoint> g_CurrentPos, g_ScreenTop, g_BlockBegin,
-                         g_BlockEnd, g_TextEnd, g_TextBegin;
+extern Global<TextPoint> g_CurrentPos, g_ScreenTop, g_BlockBegin, g_BlockEnd, g_TextEnd,
+    g_TextBegin;
 #define CurrentPos (g_CurrentPos.get())
 #define ScreenTop  (g_ScreenTop.get())
 #define BlockBegin (g_BlockBegin.get())

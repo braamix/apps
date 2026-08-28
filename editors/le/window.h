@@ -21,60 +21,67 @@
 
 #ifdef USE_MULTIBYTE_CHARS
 #define win_cell cchar_t
-# ifdef CURSES_CCHAR_MAX // NetBSD
-#define win_cell_set_attrs(ch,a) (ch)->attributes=((ch)->attributes&A_ALTCHARSET)|((a)&~(A_CHARTEXT|A_ALTCHARSET))
-# else // ncurses
-#define win_cell_set_attrs(ch,a) (ch)->attr=((ch)->attr&A_ALTCHARSET)|((a)&~(A_CHARTEXT|A_ALTCHARSET))
-# endif
-#define scr_get_cell(y,x,out) mvin_wch(y,x,out)
-#define scr_put_cell(y,x,ch)  mvadd_wchnstr(y,x,ch,1)
+#ifdef CURSES_CCHAR_MAX // NetBSD
+#define win_cell_set_attrs(ch, a) \
+    (ch)->attributes = ((ch)->attributes & A_ALTCHARSET) | ((a) & ~(A_CHARTEXT | A_ALTCHARSET))
+#else // ncurses
+#define win_cell_set_attrs(ch, a) \
+    (ch)->attr = ((ch)->attr & A_ALTCHARSET) | ((a) & ~(A_CHARTEXT | A_ALTCHARSET))
+#endif
+#define scr_get_cell(y, x, out) mvin_wch(y, x, out)
+#define scr_put_cell(y, x, ch)  mvadd_wchnstr(y, x, ch, 1)
 #else
 #define win_cell chtype
-#define win_cell_set_attrs(ch,a) (*ch)=((*ch)&(A_CHARTEXT|A_ALTCHARSET))|((a)&~(A_CHARTEXT|A_ALTCHARSET))
-#define scr_get_cell(y,x,out) (*out)=mvinch(y,x)
-#define scr_put_cell(y,x,ch)  mvaddch(y,x,*(ch))
+#define win_cell_set_attrs(ch, a) \
+    (*ch) = ((*ch) & (A_CHARTEXT | A_ALTCHARSET)) | ((a) & ~(A_CHARTEXT | A_ALTCHARSET))
+#define scr_get_cell(y, x, out) (*out) = mvinch(y, x)
+#define scr_put_cell(y, x, ch)  mvaddch(y, x, *(ch))
 #endif
 
-typedef struct  win
-{
+typedef struct win {
     win_cell *buf;
-    int     x,y;
-    int     w,h;
-    int	    clip_x;
+    int x, y;
+    int w, h;
+    int clip_x;
     const attr *a;
-    const char  *title;
-    struct win  *prev;
-    int     flags;
+    const char *title;
+    struct win *prev;
+    int flags;
 } WIN;
 
-#define SIGN    0x1000
-#define FRIGHT  0x2000
-#define MIDDLE  0x4000
-#define FDOWN   FRIGHT
+#define SIGN   0x1000
+#define FRIGHT 0x2000
+#define MIDDLE 0x4000
+#define FDOWN  FRIGHT
 
 /* window flags */
-#define NOSHADOW    1
+#define NOSHADOW 1
 
-WIN   *CreateWin(int x,int y,unsigned w,unsigned h,const attr *a,
-                 const char *title,int flags=0);
-void  DisplayWin(WIN *);
-void  CloseWin();
-void  DestroyWin(WIN *);
+WIN *CreateWin(int x, int y, unsigned w, unsigned h, const attr *a, const char *title,
+               int flags = 0);
+void DisplayWin(WIN *);
+void CloseWin();
+void DestroyWin(WIN *);
 
-void  Absolute(int *x,int width,int field);
-void  GotoXY(int x,int y);
-void  Clear();
-void  PutStr(int x,int y,const char *s);
-void  PutCh(int x,int y,chtype ch);
+void Absolute(int *x, int width, int field);
+void GotoXY(int x, int y);
+void Clear();
+void PutStr(int x, int y, const char *s);
+void PutCh(int x, int y, chtype ch);
 #ifdef USE_MULTIBYTE_CHARS
-void  PutWCh(int x,int y,wchar_t ch);
-void  PutCCh(int x,int y,const cchar_t *ch);
-# define PutACS(x,y,a) do { int x0=(x),y0=(y);\
-      if(mb_mode) PutCCh(x0,y0,WACS_##a);\
-      else PutCh(x0,y0,ACS_##a); } while(0)
+void PutWCh(int x, int y, wchar_t ch);
+void PutCCh(int x, int y, const cchar_t *ch);
+#define PutACS(x, y, a)               \
+    do {                              \
+        int x0 = (x), y0 = (y);       \
+        if (mb_mode)                  \
+            PutCCh(x0, y0, WACS_##a); \
+        else                          \
+            PutCh(x0, y0, ACS_##a);   \
+    } while (0)
 #else
-# define PutWCh(x,y,c) PutCh((x),(y),(c))
-# define PutACS(x,y,a) PutCh((x),(y),ACS_##a)
+#define PutWCh(x, y, c) PutCh((x), (y), (c))
+#define PutACS(x, y, a) PutCh((x), (y), ACS_##a)
 #endif
 
 extern const struct attr *curr_attr;
@@ -82,8 +89,8 @@ extern WIN *Upper;
 
 static inline void SetAttr(const struct attr *a)
 {
-   curr_attr=a;
-   attrset(a->n_attr);
+    curr_attr = a;
+    attrset(a->n_attr);
 }
 
 #endif /* WINDOW_H */

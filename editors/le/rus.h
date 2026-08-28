@@ -24,18 +24,33 @@
 #ifndef RUS_H
 #define RUS_H
 
-extern	int	coding;
-#define	NONE		0
-#define	ALT			1
-#define	JO_ALT		2
-#define	KOI8		3
-#define	D211_KOI	4
-#define	MAIN		5
+extern int coding;
+#define NONE     0
+#define ALT      1
+#define JO_ALT   2
+#define KOI8     3
+#define D211_KOI 4
+#define MAIN     5
 
-static inline int  isrussian(byte)   { return 0; }
-static inline int  islowerrus(byte)  { return 0; }
-static inline int  isupperrus(byte)  { return 0; }
-static inline byte tolowerrus(byte c) { return c; }
-static inline byte toupperrus(byte c) { return c; }
+static inline int isrussian(byte)
+{
+    return 0;
+}
+static inline int islowerrus(byte)
+{
+    return 0;
+}
+static inline int isupperrus(byte)
+{
+    return 0;
+}
+static inline byte tolowerrus(byte c)
+{
+    return c;
+}
+static inline byte toupperrus(byte c)
+{
+    return c;
+}
 
 #endif /* RUS_H */

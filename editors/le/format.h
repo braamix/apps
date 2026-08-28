@@ -19,17 +19,17 @@
 #ifndef FORMAT_H
 #define FORMAT_H
 
-Task<void>  FormatAll();
-Task<void>  FormatFunc();
-Task<void>  FormatPara();
-Task<void>  CenterLine();
-Task<void>  ShiftRightLine();
-void  WordWrapInsertHook();
+Task<void> FormatAll();
+Task<void> FormatFunc();
+Task<void> FormatPara();
+Task<void> CenterLine();
+Task<void> ShiftRightLine();
+void WordWrapInsertHook();
 
 extern int LineLen;
 extern int LeftMargin;
 extern int FirstLineMargin;
-extern int RightAdj,LeftAdj;
+extern int RightAdj, LeftAdj;
 extern int wordwrap;
 
 #endif // FORMAT_H

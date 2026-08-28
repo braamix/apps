@@ -19,48 +19,42 @@
 #ifndef SCREEN_H
 #define SCREEN_H
 
-void  CenterView();
-void  Redisplay(num line,offs ptr,num limit);
-void  RedisplayAll();
-void  RedisplayLine();
-void  RedisplayAfter();
-void  StatusLine();
-void  LocateCursor();
-void  SetCursor();
-void  SyncTextWin();
+void CenterView();
+void Redisplay(num line, offs ptr, num limit);
+void RedisplayAll();
+void RedisplayLine();
+void RedisplayAfter();
+void StatusLine();
+void LocateCursor();
+void SetCursor();
+void SyncTextWin();
 
-void  Message(const char *msg);
-void  MessageSync(const char *msg);
-void  AddMessage(const char *msg);
-void  ClearMessage();
+void Message(const char *msg);
+void MessageSync(const char *msg);
+void AddMessage(const char *msg);
+void ClearMessage();
 
 /* The error box records; Edit()'s loop shows it. See screen.cpp. */
-void  ErrMsg(const char *msg);
-bool  ErrorPending();
-Task<void>  ShowPendingError();
+void ErrMsg(const char *msg);
+bool ErrorPending();
+Task<void> ShowPendingError();
 
-void  TestPosition();
+void TestPosition();
 
-#define   HexPos    11
-#define   AsciiPos   (HexPos+3*16+2)
+#define HexPos   11
+#define AsciiPos (HexPos + 3 * 16 + 2)
 
 extern int ScrollBarPos;
 
-extern int TextWinX,TextWinY,TextWinWidth,TextWinHeight,ScrollBarX,StatusLineY;
+extern int TextWinX, TextWinY, TextWinWidth, TextWinHeight, ScrollBarX, StatusLineY;
 
 extern int ShowScrollBar;
 extern int ShowStatusLine;
 
 extern int ShowMatchPos; // for hex mode
 
-enum {
-    SHOW_RIGHT=0,
-    SHOW_NONE=1,
-    SHOW_LEFT=2,
-    SHOW_BOTTOM=0,
-    SHOW_TOP=2
-};
+enum { SHOW_RIGHT = 0, SHOW_NONE = 1, SHOW_LEFT = 2, SHOW_BOTTOM = 0, SHOW_TOP = 2 };
 
 extern num ScrShift;
 
-#endif//SCREEN_H
+#endif // SCREEN_H

@@ -19,19 +19,19 @@
 #ifndef MENU_H
 #define MENU_H
 
-struct  menu
-{
-   const char *text;
-   int   x,y;
+struct menu {
+    const char *text;
+    int x, y;
 };
 
-char  ItemChar(const char *i);
-int   ItemLen(const char *i);
-void  DisplayItem(int x,int y,const char *i,const attr *a);
-Task<int>   ReadMenu(const struct menu *m,int dir,const attr *a,const attr *a1,int curr=0);
-Task<int>   ReadMenuBox(struct menu *m,int dir,const char *msg,const char *title,const attr *a,const attr *a1);
+char ItemChar(const char *i);
+int ItemLen(const char *i);
+void DisplayItem(int x, int y, const char *i, const attr *a);
+Task<int> ReadMenu(const struct menu *m, int dir, const attr *a, const attr *a1, int curr = 0);
+Task<int> ReadMenuBox(struct menu *m, int dir, const char *msg, const char *title, const attr *a,
+                      const attr *a1);
 
-#define HORIZ   1
-#define VERT    2
+#define HORIZ 1
+#define VERT  2
 
-#endif//MENU_H
+#endif // MENU_H

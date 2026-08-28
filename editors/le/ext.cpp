@@ -20,152 +20,145 @@
 #include "edit.h"
 #include "undo.h"
 
-void  ReplaceCharExtMove(byte ch)
+void ReplaceCharExtMove(byte ch)
 {
-   if(Char()=='\t' && ch!='\t')
-     ExpandTab();
-   InsertChar(ch);
-   if(!Eol() || Bol())
-     DeleteChar();
+    if (Char() == '\t' && ch != '\t')
+        ExpandTab();
+    InsertChar(ch);
+    if (!Eol() || Bol())
+        DeleteChar();
 }
-void  ReplaceCharExt(byte ch)
+void ReplaceCharExt(byte ch)
 {
-   ReplaceCharExtMove(ch);
-   MoveLeft();
-   SetStdCol();
+    ReplaceCharExtMove(ch);
+    MoveLeft();
+    SetStdCol();
 }
-void  ReplaceWCharExtMove(wchar_t ch)
+void ReplaceWCharExtMove(wchar_t ch)
 {
-   if(Char()=='\t' && ch!='\t')
-      ExpandTab();
-   InsertWChar(ch);
-   if(!Eol() || Bol())
-      DeleteChar();
+    if (Char() == '\t' && ch != '\t')
+        ExpandTab();
+    InsertWChar(ch);
+    if (!Eol() || Bol())
+        DeleteChar();
 }
-void  ReplaceWCharExt(wchar_t ch)
+void ReplaceWCharExt(wchar_t ch)
 {
-   ReplaceWCharExtMove(ch);
-   MoveLeftOverEOL();
-   SetStdCol();
-}
-
-Task<void>  ExpandAllTabs()
-{
-   num ol=GetLine(),oc=GetCol();
-   static  struct  menu EATmenu[]={
-   {"   &Ok   ",MIDDLE-6,FDOWN-2},
-   {" &Cancel ",MIDDLE+6,FDOWN-2},
-   {NULL}};
-
-   switch(co_await ReadMenuBox(EATmenu,HORIZ,"ALL tab characters will be\nexpanded to spaces",
-      " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
-   {
-   case(0):
-   case('C'):
-      co_return;
-   }
-   MessageSync("Expanding...");
-   CurrentPos=TextBegin;
-   while(!Eof())
-   {
-      if(Char()=='\t')
-         ExpandTab();
-      MoveRight();
-   }
-   MoveLineCol(ol,oc);
-   SetStdCol();
+    ReplaceWCharExtMove(ch);
+    MoveLeftOverEOL();
+    SetStdCol();
 }
 
-Task<void>  ExpandSpanTabs()
+Task<void> ExpandAllTabs()
 {
-   num ol=GetLine(),oc=GetCol();
-   static  struct  menu EATmenu[]={
-   {"   &Ok   ",MIDDLE-6,FDOWN-2},
-   {" &Cancel ",MIDDLE+6,FDOWN-2},
-   {NULL}};
+    num ol = GetLine(), oc = GetCol();
+    static struct menu EATmenu[] = { { "   &Ok   ", MIDDLE - 6, FDOWN - 2 },
+                                     { " &Cancel ", MIDDLE + 6, FDOWN - 2 },
+                                     { NULL } };
 
-   switch(co_await ReadMenuBox(EATmenu,HORIZ,"Spans of tab characters will be\nexpanded to spaces + one tab",
-      " Verify ",VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
-   {
-   case(0):
-   case('C'):
-      co_return;
-   }
-   MessageSync("Expanding...");
-   CurrentPos=TextBegin;
-   while(!Eof())
-   {
-      if(Char()=='\t' && CharRel(1)=='\t')
-         ExpandTab();
-      MoveRight();
-   }
-   MoveLineCol(ol,oc);
-   SetStdCol();
+    switch (co_await ReadMenuBox(EATmenu, HORIZ, "ALL tab characters will be\nexpanded to spaces",
+                                 " Verify ", VERIFY_WIN_ATTR, CURR_BUTTON_ATTR)) {
+    case (0):
+    case ('C'):
+        co_return;
+    }
+    MessageSync("Expanding...");
+    CurrentPos = TextBegin;
+    while (!Eof()) {
+        if (Char() == '\t')
+            ExpandTab();
+        MoveRight();
+    }
+    MoveLineCol(ol, oc);
+    SetStdCol();
 }
 
-void ReplaceAll(const char *str1,const char *str2)
+Task<void> ExpandSpanTabs()
 {
-   int len1=strlen(str1);
-   int len2=strlen(str2);
-   offs pos=0;
-   for(;;) {
-      pos=ScanForCharForward(pos,str1[0]);
-      if(pos==-1)
-	 break;
-      if(BlockEqAt(pos,str1,len1)) {
-	 CurrentPos=pos;
-	 DeleteBlock(0,len1);
-	 InsertBlock(str2,len2,NULL,0);
-	 pos+=len2;
-      } else {
-	 ++pos;
-      }
-   }
+    num ol = GetLine(), oc = GetCol();
+    static struct menu EATmenu[] = { { "   &Ok   ", MIDDLE - 6, FDOWN - 2 },
+                                     { " &Cancel ", MIDDLE + 6, FDOWN - 2 },
+                                     { NULL } };
+
+    switch (co_await ReadMenuBox(EATmenu, HORIZ,
+                                 "Spans of tab characters will be\nexpanded to spaces + one tab",
+                                 " Verify ", VERIFY_WIN_ATTR, CURR_BUTTON_ATTR)) {
+    case (0):
+    case ('C'):
+        co_return;
+    }
+    MessageSync("Expanding...");
+    CurrentPos = TextBegin;
+    while (!Eof()) {
+        if (Char() == '\t' && CharRel(1) == '\t')
+            ExpandTab();
+        MoveRight();
+    }
+    MoveLineCol(ol, oc);
+    SetStdCol();
 }
 
-Task<void>  DOS_UNIX(void)
+void ReplaceAll(const char *str1, const char *str2)
 {
-   const char *TargetEol=(!EolIs(EOL_UNIX)?EOL_UNIX:EOL_DOS);
-
-   num ol=GetLine(),oc=GetCol();
-   static  struct  menu YesNoCancel[]={
-   {"   &Yes   ",MIDDLE-10,FDOWN-2},
-   {"   &No   ",MIDDLE,FDOWN-2},
-   {" &Cancel ",MIDDLE+10,FDOWN-2},
-   {NULL}};
-
-   switch(co_await ReadMenuBox(YesNoCancel,HORIZ,"Do you want to change EOLs?"," UNIX<->DOS ",
-      VERIFY_WIN_ATTR,CURR_BUTTON_ATTR))
-   {
-   case(0):
-   case('C'):
-      co_return;
-   case('Y'):
-      MessageSync("Changing EOLs between DOS and UNIX formats...");
-      undo.BeginUndoGroup();
-      CurrentPos=TextBegin;
-      ReplaceAll(EolStr,TargetEol);
-      SetEolStr(TargetEol);
-      CurrentPos=TextBegin;
-      ScrShift=0;
-      ScreenTop=CurrentPos;
-      TextPoint::OrFlags(COLUNDEFINED|LINEUNDEFINED);
-      MoveLineCol(ol,oc);
-      undo.EndUndoGroup();
-      break;
-   case('N'):
-      SetEolStr(TargetEol);
-      CurrentPos=TextBegin;
-      ScrShift=0;
-      ScreenTop=CurrentPos;
-      TextPoint::OrFlags(COLUNDEFINED|LINEUNDEFINED);
-   }
-   SetStdCol();
+    int len1 = strlen(str1);
+    int len2 = strlen(str2);
+    offs pos = 0;
+    for (;;) {
+        pos = ScanForCharForward(pos, str1[0]);
+        if (pos == -1)
+            break;
+        if (BlockEqAt(pos, str1, len1)) {
+            CurrentPos = pos;
+            DeleteBlock(0, len1);
+            InsertBlock(str2, len2, NULL, 0);
+            pos += len2;
+        } else {
+            ++pos;
+        }
+    }
 }
 
-int   Suffix(const char *str,const char*pr)
+Task<void> DOS_UNIX(void)
 {
-   int	 shift=strlen(str)-strlen(pr);
+    const char *TargetEol = (!EolIs(EOL_UNIX) ? EOL_UNIX : EOL_DOS);
 
-   return(shift>=0 && !strcmp(str+shift,pr));
+    num ol = GetLine(), oc = GetCol();
+    static struct menu YesNoCancel[] = { { "   &Yes   ", MIDDLE - 10, FDOWN - 2 },
+                                         { "   &No   ", MIDDLE, FDOWN - 2 },
+                                         { " &Cancel ", MIDDLE + 10, FDOWN - 2 },
+                                         { NULL } };
+
+    switch (co_await ReadMenuBox(YesNoCancel, HORIZ, "Do you want to change EOLs?", " UNIX<->DOS ",
+                                 VERIFY_WIN_ATTR, CURR_BUTTON_ATTR)) {
+    case (0):
+    case ('C'):
+        co_return;
+    case ('Y'):
+        MessageSync("Changing EOLs between DOS and UNIX formats...");
+        undo.BeginUndoGroup();
+        CurrentPos = TextBegin;
+        ReplaceAll(EolStr, TargetEol);
+        SetEolStr(TargetEol);
+        CurrentPos = TextBegin;
+        ScrShift   = 0;
+        ScreenTop  = CurrentPos;
+        TextPoint::OrFlags(COLUNDEFINED | LINEUNDEFINED);
+        MoveLineCol(ol, oc);
+        undo.EndUndoGroup();
+        break;
+    case ('N'):
+        SetEolStr(TargetEol);
+        CurrentPos = TextBegin;
+        ScrShift   = 0;
+        ScreenTop  = CurrentPos;
+        TextPoint::OrFlags(COLUNDEFINED | LINEUNDEFINED);
+    }
+    SetStdCol();
+}
+
+int Suffix(const char *str, const char *pr)
+{
+    int shift = strlen(str) - strlen(pr);
+
+    return (shift >= 0 && !strcmp(str + shift, pr));
 }

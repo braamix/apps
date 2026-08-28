@@ -25,8 +25,8 @@ namespace {
 
 ProcScreen *scr;
 
-int cy, cx;        // the current position: where the next addch goes
-chtype curattr;    // what attrset last said
+int cy, cx;     // the current position: where the next addch goes
+chtype curattr; // what attrset last said
 int cursor_vis = 1;
 bool full_blit = true;
 
@@ -235,8 +235,8 @@ int clearok(WINDOW *, bool)
 
 int curs_set(int visibility)
 {
-    int was     = cursor_vis;
-    cursor_vis  = visibility;
+    int was    = cursor_vis;
+    cursor_vis = visibility;
     return was;
 }
 

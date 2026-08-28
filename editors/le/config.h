@@ -9,7 +9,7 @@
 
 // truncate_fd exists; the fallback opens O_RDONLY|O_TRUNC, which the VFS
 // refuses because truncating is a write.
-#define HAVE_FTRUNCATE      1
+#define HAVE_FTRUNCATE 1
 
 // Deliberately absent, and each of them steers an #ifdef upstream:
 //   HAVE_MMAP HAVE_UNISTD_H HAVE_DIRENT_H HAVE_ALLOCA_H HAVE_LANGINFO_CODESET

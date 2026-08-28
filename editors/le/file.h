@@ -18,7 +18,13 @@
 
 const char *le_basename(const char *);
 const char *le_dirname(const char *);
-static inline char *le_basename(char *f) { return const_cast<char*>(le_basename(const_cast<const char*>(f))); }
-static inline char *le_dirname(char *f) { return const_cast<char*>(le_dirname(const_cast<const char*>(f))); }
+static inline char *le_basename(char *f)
+{
+    return const_cast<char *>(le_basename(const_cast<const char *>(f)));
+}
+static inline char *le_dirname(char *f)
+{
+    return const_cast<char *>(le_dirname(const_cast<const char *>(f)));
+}
 
 Task<int> ChooseFileName(char *pattern, unsigned nbytes);

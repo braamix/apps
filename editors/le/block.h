@@ -18,45 +18,45 @@
 
 static inline int InBlock(offs ptr)
 {
-   return(!hide && ptr>=BlockBegin && ptr<BlockEnd);
+    return (!hide && ptr >= BlockBegin && ptr < BlockEnd);
 }
 
-int   rInBlock(num line,num col);
+int rInBlock(num line, num col);
 
-static inline int InBlock(offs ptr,num line,num col)
+static inline int InBlock(offs ptr, num line, num col)
 {
-   return((rblock && !in_hex_mode) ? rInBlock(line,col) : InBlock(ptr));
+    return ((rblock && !in_hex_mode) ? rInBlock(line, col) : InBlock(ptr));
 }
 
-void    Copy();
-void    Move();
-int     Delete();
-Task<void>    Read();
-Task<void>    Write();
+void Copy();
+void Move();
+int Delete();
+Task<void> Read();
+Task<void> Write();
 
-Task<void>    Indent();
-Task<void>    Unindent();
-void    DoIndent(int i);
-void    DoUnindent(int i);
+Task<void> Indent();
+Task<void> Unindent();
+void DoIndent(int i);
+void DoUnindent(int i);
 
-int     Islower();
-int     Isupper();
-byte    Toupper();
-byte    Tolower();
-byte    Inverse();
+int Islower();
+int Isupper();
+byte Toupper();
+byte Tolower();
+byte Inverse();
 
-Task<void>    BlockFunc();
-Task<int> PipeBlock(const char *cmd,bool in,bool out);
-extern  char    BlockFile[256];
+Task<void> BlockFunc();
+Task<int> PipeBlock(const char *cmd, bool in, bool out);
+extern char BlockFile[256];
 
-Task<void>    ConvertToUpper();
-Task<void>    ConvertToLower();
-Task<void>    ExchangeCases();
+Task<void> ConvertToUpper();
+Task<void> ConvertToLower();
+Task<void> ExchangeCases();
 
-Task<void>    BlockType();
-void    CheckBlock();
+Task<void> BlockType();
+void CheckBlock();
 
-void  PrefixIndent(const char *,num);
+void PrefixIndent(const char *, num);
 
 Task<int> OptionallyConvertBlockNewLines(const char *bname);
 

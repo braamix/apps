@@ -6,7 +6,7 @@
 
 #ifdef __cplusplus
 #include "kernel/result.h"
-#include "kernel/text.h"   // the Str scanners, in place of sscanf
+#include "kernel/text.h" // the Str scanners, in place of sscanf
 #include "kernel/types.h"
 #else
 /* regex.c and wcwidth.c are C and want only the widths and the limits. */
@@ -48,13 +48,13 @@ extern int errno;
 // errno = int(r.error()) needs no mapping.
 #ifdef __cplusplus
 enum {
-    ENOENT       = int(Error::NotFound),
-    EACCES       = int(Error::Perm),
-    EEXIST       = int(Error::Exists),
-    ENOMEM       = int(Error::NoMemory),
-    EINTR        = int(Error::Intr),
-    EAGAIN       = int(Error::Again),
-    EWOULDBLOCK  = EAGAIN,
+    ENOENT      = int(Error::NotFound),
+    EACCES      = int(Error::Perm),
+    EEXIST      = int(Error::Exists),
+    ENOMEM      = int(Error::NoMemory),
+    EINTR       = int(Error::Intr),
+    EAGAIN      = int(Error::Again),
+    EWOULDBLOCK = EAGAIN,
 };
 #endif
 
@@ -69,30 +69,30 @@ struct stat {
 };
 
 enum : mode_t {
-    S_IFMT   = 0170000,
-    S_IFREG  = 0100000,
-    S_IFDIR  = 0040000,
-    S_IFLNK  = 0120000,
+    S_IFMT  = 0170000,
+    S_IFREG = 0100000,
+    S_IFDIR = 0040000,
+    S_IFLNK = 0120000,
     // No device is open-able as a file here, so these two match nothing.
-    S_IFCHR  = 0020000,
-    S_IFBLK  = 0060000,
-    S_IRUSR  = 0400,
-    S_IWUSR  = 0200,
-    S_IXUSR  = 0100,
-    S_IRGRP  = 0040,
-    S_IWGRP  = 0020,
-    S_IXGRP  = 0010,
-    S_IROTH  = 0004,
-    S_IWOTH  = 0002,
-    S_IXOTH  = 0001,
-    S_ISUID  = 04000,
-    S_ISGID  = 02000,
+    S_IFCHR = 0020000,
+    S_IFBLK = 0060000,
+    S_IRUSR = 0400,
+    S_IWUSR = 0200,
+    S_IXUSR = 0100,
+    S_IRGRP = 0040,
+    S_IWGRP = 0020,
+    S_IXGRP = 0010,
+    S_IROTH = 0004,
+    S_IWOTH = 0002,
+    S_IXOTH = 0001,
+    S_ISUID = 04000,
+    S_ISGID = 02000,
 };
 
-#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
-#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
-#define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
-#define S_ISBLK(m) (0)
-#define S_ISCHR(m) (0)
+#define S_ISREG(m)  (((m) & S_IFMT) == S_IFREG)
+#define S_ISDIR(m)  (((m) & S_IFMT) == S_IFDIR)
+#define S_ISLNK(m)  (((m) & S_IFMT) == S_IFLNK)
+#define S_ISBLK(m)  (0)
+#define S_ISCHR(m)  (0)
 #define S_ISFIFO(m) (0)
 #define S_ISSOCK(m) (0)

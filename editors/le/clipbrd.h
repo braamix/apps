@@ -19,29 +19,28 @@
 #ifndef CLIPBRD_H
 #define CLIPBRD_H
 
-class ClipBoard
-{
-   char *text;
-   int width;
-   int height;
-   bool rect;
-   bool	toeol;
+class ClipBoard {
+    char *text;
+    int width;
+    int height;
+    bool rect;
+    bool toeol;
 
 public:
-   ClipBoard();
-   ~ClipBoard();
+    ClipBoard();
+    ~ClipBoard();
 
-   void Empty();
-   bool IsEmpty() { return text==0; }
-   int Copy();
-   int Paste(bool mark=false);
-   int PasteAndMark() { return Paste(true); }
+    void Empty();
+    bool IsEmpty() { return text == 0; }
+    int Copy();
+    int Paste(bool mark = false);
+    int PasteAndMark() { return Paste(true); }
 
-   Task<int> Write(int fd);
-   int Linearize(char **buf,int *len);
+    Task<int> Write(int fd);
+    int Linearize(char **buf, int *len);
 };
 
 extern Global<ClipBoard> g_MainClipBoard;
 #define MainClipBoard (g_MainClipBoard.get())
 
-#endif//CLIPBRD_H
+#endif // CLIPBRD_H

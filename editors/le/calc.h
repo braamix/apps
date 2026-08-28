@@ -16,23 +16,22 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#define	STSIZE		256
+#define STSIZE 256
 
-#define	OKAY		0
-#define	STUNDERFLOW	(-1)
-#define	STOVERFLOW	(-2)
-#define	ILLEGALFN	(-3)
-#define	INVALIDFN	(-4)
-#define	INVALIDNUM	(-5)
+#define OKAY        0
+#define STUNDERFLOW (-1)
+#define STOVERFLOW  (-2)
+#define ILLEGALFN   (-3)
+#define INVALIDFN   (-4)
+#define INVALIDNUM  (-5)
 
-struct calc_value
-{
-   /* double, not long double: long double is 113-bit quad on this target
-      and every operation on one is a compiler-rt call nothing provides. */
-   double value;
-   unsigned char base;
-   const char *to_string();
-   operator double() { return value; }
+struct calc_value {
+    /* double, not long double: long double is 113-bit quad on this target
+       and every operation on one is a compiler-rt call nothing provides. */
+    double value;
+    unsigned char base;
+    const char *to_string();
+    operator double() { return value; }
 };
 
 extern int sp;
@@ -40,5 +39,5 @@ extern calc_value stack[STSIZE];
 extern int calcerrno;
 
 const char *calcerrmsg();
-int   calculator(const char *);
-void  initcalc();
+int calculator(const char *);
+void initcalc();
