@@ -51,7 +51,7 @@ target_link_libraries(bin_em PRIVATE em_quiet)
 # The data travels with the binary. Only the flat bin/ entry becomes a command;
 # share/ is nested, so it is payload — and /pkg/bin/em is the link into the
 # store directory it sits in, which is how epath.cpp finds it.
-braam_add_package(NAME uemacs VERSION 4.0-r2
+braam_add_package(NAME uemacs VERSION 4.0-r3
                   FIELD "T=uEmacs/PK 4.0, the MicroEMACS screen editor"
                   FILES $<TARGET_FILE:bin_em>=bin/em
                         ${CMAKE_CURRENT_SOURCE_DIR}/emacs.rc=share/emacs.rc

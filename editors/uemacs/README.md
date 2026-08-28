@@ -274,7 +274,7 @@ Upstream's file split and its names are kept; `.c` became `.cpp`.
 
 ```
 make                     # build/editors/uemacs/em.wasm, about 270 KB
-make package             # uemacs-4.0-r2.zip: bin/em, and four files in share/
+make package             # uemacs-4.0-r3.zip: bin/em, and four files in share/
 make test                # the seven cases below
 ```
 
