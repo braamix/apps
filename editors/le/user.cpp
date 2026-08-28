@@ -589,7 +589,7 @@ Task<void>  UserWordRight()
 
 Task<void>  UserMenu()
 {
-   ActivateMainMenu();
+   co_await ActivateMainMenu();
    co_return;
 }
 
@@ -1341,7 +1341,7 @@ void  UserRedoStep()
 void  UserInsertChar(char ch)
 {
    if(View)
-      return;
+      co_return;
    if(Text && autoindent && ch=='}' && MarginSizeAt(Offset())==-1 && MarginSizeAt(PrevLine(Offset()))==stdcol)
    {
       const offs match = co_await FindMatch(ch);

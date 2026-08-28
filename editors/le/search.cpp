@@ -496,7 +496,7 @@ Task<void>  Replace()
    num    pline,pcol;
 
    if(View)
-      return;
+      co_return;
 
    back_tp=CurrentPos;
 
@@ -528,13 +528,13 @@ Task<void>  Replace()
 	    Message(str);
             SetCursor();
             while(co_await WaitForKey()==ERR);
-            return;
+            co_return;
          }
          else
             CurrentPos=back_tp;
          SetStdCol();
          flag=TRUE;
-         return;
+         co_return;
       }
       first=FALSE;
       flag=REDISPLAY_ALL;
@@ -578,7 +578,7 @@ Task<void>  Replace()
          if(key=='L')
          {
             flag=TRUE;
-            return;
+            co_return;
          }
          if(key!='*')
          {
@@ -641,7 +641,7 @@ ret:     flag=TRUE;
          if(action!=CANCEL)
             CurrentPos=back_tp;
          SetStdCol();
-         return;
+         co_return;
       }
    }
    while(TRUE);
@@ -730,7 +730,7 @@ Task<void>  ContReplace()
    if(patlen==0)
    {
       co_await StartReplace();
-      return;
+      co_return;
    }
    co_await Replace();
 }

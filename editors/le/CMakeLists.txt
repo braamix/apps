@@ -54,7 +54,7 @@ set(LE_NOBUILTIN
     -fno-builtin-ispunct -fno-builtin-iscntrl
     -fno-builtin-getenv -fno-builtin-atoi -fno-builtin-abs -fno-builtin-labs
     -fno-builtin-strtol -fno-builtin-strtoul -fno-builtin-strtoll -fno-builtin-strtoull
-    -fno-builtin-qsort
+    -fno-builtin-qsort -fno-builtin-fnmatch
     -fno-builtin-snprintf -fno-builtin-sprintf -fno-builtin-vsnprintf)
 
 # Ported code keeps upstream's identifiers, its casts and its unused arguments.

@@ -290,20 +290,20 @@ void  SaveConfToFile(const char *f,const struct init *init)
 {
    FILE  *conf;
 
-   conf=fopen(f,"w");
+   conf=co_await le_fopen(f,true);
    if(conf==NULL)
    {
       FError(f);
-      return;
+      co_return;
    }
    SaveConfToOpenFile(conf,init);
    if(ferror(conf))
    {
-      fclose(conf);
+      co_await le_fclose(conf);
       FError(f);
-      return;
+      co_return;
    }
-   fclose(conf);
+   co_await le_fclose(conf);
 }
 
 void  SaveConf(const char *f)
@@ -348,7 +348,7 @@ void  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
       if(co_await le_fstat(fileno(f),&st)==0)
       {
 	 if(st.st_uid!=getuid()) // don't read conf from other's files.
-	    return;
+	    co_return;
       }
 #endif
    }
@@ -410,11 +410,11 @@ void  ReadConfFromOpenFile(FILE *f,const struct init *init,bool mine)
 void  ReadConfFromFile(const char *ini,const struct init *init,bool mine)
 {
    FILE  *f;
-   f=fopen(ini,"r");
+   f=co_await le_fopen(ini,false);
    if(f==NULL)
-      return;
+      co_return;
    ReadConfFromOpenFile(f,init,mine);
-   fclose(f);
+   co_await le_fclose(f);
 }
 
 static bool ConfOK(const char *f,bool mine)

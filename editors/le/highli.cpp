@@ -18,9 +18,9 @@
 
 #include "config.h"
 
-#include <fnmatch.h>
 #include "lesys.h"
 #include "edit.h"
+#include "epath.h"
 #include "leio.h"
 #include "highli.h"
 #include "screen.h"
@@ -31,8 +31,6 @@
 #ifdef HAVE_SYS_TIMES_H
 #endif
 
-#include <set>
-#include <string>
 
 int hl_option=1;
 int hl_active=0;
@@ -150,7 +148,17 @@ char *read_regex(FILE*f)
    int cont=1;
    while(cont)
    {
-      char *s=fgets(str,sizeof(str),f);
+      String ln;
+      bool got=(co_await f->getline(ln,true)).value_or(false);
+      char *s=str;
+      if(got)
+      {
+	 unsigned n=ln.size()<sizeof(str)-1?ln.size():sizeof(str)-1;
+	 memcpy(str,ln.data(),n);
+	 str[n]=0;
+      }
+      else
+	 s=0;
       if(!s)
       {
 	 if(accum)
@@ -212,22 +220,41 @@ static FILE *open_syntax_d(const char *name)
 {
    if(name[0]!='/') {
       const char *base_dir="syntax.d";
-      unsigned nbytes=strlen(PKGDATADIR)+strlen(HOME)+1+strlen(base_dir)+1+strlen(name)+1;
-      char *fn=(char*)alloca(nbytes);
+      static char fn[LE_PATHMAX];
+      unsigned nbytes=sizeof(fn);
       snprintf(fn,nbytes,"%s/.le/%s/%s",HOME,base_dir,name);
       if(co_await le_access(fn,R_OK)==-1)
-	 snprintf(fn,nbytes,"%s/%s/%s",PKGDATADIR,base_dir,name);
+	 snprintf(fn,nbytes,"%s/%s/%s",datadir,base_dir,name);
       name=fn;
    }
-   co_return fopen(name,"r");
+   co_return co_await le_fopen(name,false);
 }
 
-static std::set< std::string > files_loaded;
+/* The include guard: a syntax file may pull in another, and one that pulls in
+   itself would not end. Upstream kept a set<string>; a fixed table of names is
+   the whole of what it did, and it keeps <set> and <string> out of the
+   binary. */
+enum { SYNTAX_FILES_MAX = 64 };
+
+static char files_loaded[SYNTAX_FILES_MAX][64];
+static int files_loaded_n;
+
+/* False when `fn` was already taken, as set::insert's second was. */
+static bool remember_file(const char *fn)
+{
+   for(int i=0; i<files_loaded_n; i++)
+      if(!strcmp(files_loaded[i],fn))
+	 return false;
+   if(files_loaded_n>=SYNTAX_FILES_MAX || strlen(fn)>=sizeof(files_loaded[0]))
+      return false;
+   strcpy(files_loaded[files_loaded_n++],fn);
+   return true;
+}
 static bool hl_section_match;
 static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 {
-   if(!files_loaded.insert(fn).second)
-      return;
+   if(!remember_file(fn))
+      co_return;
 
    int ch;
    char str[1024];
@@ -235,6 +262,7 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
    unsigned len;
    int res;
    int color,mask;
+   String tok,fld;		// what the scanners fill
    const char *bn=le_basename(FileName);
    char *rx;
 
@@ -248,9 +276,15 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
       case('/'):
 	 if(hl_section_match)
 	    goto end;
-	 s=fgets(str,sizeof(str),f);
-	 if(!s)
-	    goto end;
+	 {
+	    String ln;
+	    if(!(co_await f->getline(ln,true)).value_or(false))
+	       goto end;
+	    unsigned n=ln.size()<sizeof(str)-1?ln.size():sizeof(str)-1;
+	    memcpy(str,ln.data(),n);
+	    str[n]=0;
+	    s=str;
+	 }
 	 len=strlen(s);
 	 if(s[len-1]=='\n')
 	    len--;
@@ -324,7 +358,19 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	    ignore_case=true;
 	 else
 	    le_ungetc(c,f);
-	 res=fscanf(f,"%d,%i=",&color,&mask);
+	 {
+	    Result<i64> c1=co_await f->scan_i64();
+	    res=c1.is_ok()?1:0;
+	    color=c1.value_or(0);
+	    if(res==1 && (co_await f->scan_lit(',')).value_or(false)) {
+	       Result<i64> m1=co_await f->scan_i64(0);
+	       if(m1.is_ok()) {
+		  mask=(int)m1.value();
+		  if((co_await f->scan_lit('=')).value_or(false))
+		     res=2;
+	       }
+	    }
+	 }
 	 if(res==1) {
 	    mask=1;
 	    if(co_await le_getc(f)!='=') {
@@ -358,8 +404,11 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	 break;
       }
       case('h'):
-	 if (fscanf(f,"%d",&hl_lines) < 0)
-	    /*ignore*/;
+	 {
+	    Result<i64> n=co_await f->scan_i64();
+	    if(n.is_ok())
+	       hl_lines=(int)n.value();
+	 }
 	 if(hl_lines<1)
 	    hl_lines=1;
 	 fskip(f);
@@ -372,7 +421,9 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	 }
 	 /*fallthrought*/
       case('I'):
-	 if(fscanf(f,"=%255s",str)==1) {
+	 if((co_await f->scan_lit('=')).value_or(false)
+	 && (co_await f->scan_token(tok,255)).value_or(false)
+	 && (snprintf(str,sizeof(str),"%.*s",(int)tok.size(),tok.data()),true)) {
 	    FILE *i_f=open_syntax_d(str);
 	    if(i_f) {
 	       ReadSyntaxFile(str,i_f,chain);
@@ -399,8 +450,18 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
 	    fskip(f);
 	    break;
 	 }
-	 if(fscanf(f,"%255[^)\n=])",str)==1) {
-	    res=fscanf(f,"%i=",&mask);
+	 if((co_await f->scan_until(fld,")\n=",255)).value_or(false)
+	 && (snprintf(str,sizeof(str),"%.*s",(int)fld.size(),fld.data()),true)) {
+	    co_await f->scan_lit(')');
+	    {
+	       Result<i64> m2=co_await f->scan_i64(0);
+	       res=0;
+	       if(m2.is_ok()) {
+		  mask=(int)m2.value();
+		  if((co_await f->scan_lit('=')).value_or(false))
+		     res=1;
+	       }
+	    }
 	    if(res!=1) {
 	       mask=1;
 	       if(co_await le_getc(f)!='=') {
@@ -443,12 +504,12 @@ static void ReadSyntaxFile(const char *fn,FILE *f,syntax_hl **chain)
       }
    }
 end:
-   fclose(f);
+   co_await le_fclose(f);
 }
 
-void InitHighlight()
+Task<void> InitHighlight()
 {
-   files_loaded.clear();
+   files_loaded_n=0;
    free(syntax_hl::selector);
    syntax_hl::selector=0;
    syntax_hl::free_chain(syntax_hl::chain);
@@ -456,30 +517,25 @@ void InitHighlight()
 
    hl_active=0;
    if(!hl_option)
-      return;
+      co_return;
 
    static const char base_fn[]="syntax";
-   unsigned nbytes1=strlen(PKGDATADIR)+1+strlen(base_fn)+1;
-   unsigned nbytes2=strlen(HOME)+1+3+1+ strlen(base_fn)+1;
-   unsigned nbytes3=4+strlen(base_fn)+1;
-   char *fn1=(char*)alloca(nbytes1);
-   char *fn2=(char*)alloca(nbytes2);
-   char *fn3=(char*)alloca(nbytes3);
+   static char fn1[LE_PATHMAX],fn2[LE_PATHMAX],fn3[LE_PATHMAX];
    char *fn;
 
-   snprintf(fn1,nbytes1,"%s/%s",PKGDATADIR,base_fn);
-   snprintf(fn2,nbytes2,"%s/.le/%s",HOME,base_fn);
-   snprintf(fn3,nbytes3,".le.%s",base_fn);
+   snprintf(fn1,sizeof(fn1),"%s/%s",datadir,base_fn);
+   snprintf(fn2,sizeof(fn2),"%s/.le/%s",HOME,base_fn);
+   snprintf(fn3,sizeof(fn3),".le.%s",base_fn);
 
    FILE *f=0;
    if(!f)
-      f=fopen(fn=fn3,"r");
+      f=co_await le_fopen(fn=fn3,false);
    if(!f)
-      f=fopen(fn=fn2,"r");
+      f=co_await le_fopen(fn=fn2,false);
    if(!f)
-      f=fopen(fn=fn1,"r");
+      f=co_await le_fopen(fn=fn1,false);
    if(!f)
-      return;
+      co_return;
    hl_section_match=false;
    ReadSyntaxFile(fn,f,&syntax_hl::chain);
 }

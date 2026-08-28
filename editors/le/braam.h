@@ -73,6 +73,11 @@ long labs(long n);
 
 void qsort(void *base, usize n, usize size, int (*cmp)(const void *, const void *));
 
+// fnmatch's *, ? and [...] over a whole string; FNM_PATHNAME and friends are
+// not here because no caller passes a flag. 0 on a match, FNM_NOMATCH else.
+enum { FNM_NOMATCH = 1 };
+int fnmatch(const char *pattern, const char *s, int flags);
+
 // %% %c %s %n$ no; %d %i %u %o %x %X with l/ll, %g/%e/%f, a field width, a
 // precision, and the - 0 # flags. Anything else is copied through as typed.
 int vsnprintf(char *buf, usize size, const char *fmt, va_list ap);

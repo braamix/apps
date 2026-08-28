@@ -5,6 +5,7 @@
 #pragma once
 
 #include "kernel/result.h"
+#include "kernel/text.h"   // the Str scanners, in place of sscanf
 #include "kernel/types.h"
 
 /* What a path buffer holds. alloca is gone -- a variable-length array in a
@@ -12,6 +13,9 @@
    whole 64 KiB span -- so the buffers it sized are fixed and, where the
    holder is a coroutine, at file scope. */
 enum { LE_PATHMAX = 512 };
+
+// <limits.h>, the three of it that are named here.
+enum { UCHAR_MAX = 255, INT_MAX = 0x7fffffff, LONG_MAX = 0x7fffffff };
 
 typedef usize size_t;
 typedef unsigned mode_t;
@@ -58,6 +62,9 @@ enum : mode_t {
     S_IFREG  = 0100000,
     S_IFDIR  = 0040000,
     S_IFLNK  = 0120000,
+    // No device is open-able as a file here, so these two match nothing.
+    S_IFCHR  = 0020000,
+    S_IFBLK  = 0060000,
     S_IRUSR  = 0400,
     S_IWUSR  = 0200,
     S_IXUSR  = 0100,

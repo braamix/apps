@@ -583,8 +583,9 @@ Task<void>  ReadActionMap(FILE *f)
                if(isdigit(ch))
                {
                   le_ungetc(ch,f);
-                  if (fscanf(f,"%3o",&ch) < 0)
-                     /*ignore*/;
+                  Result<u64> o=co_await f->scan_u64(8,3);
+                  if(o.is_ok())
+                     ch=(int)o.value();
                }
                else
                {

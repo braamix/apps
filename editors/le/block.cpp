@@ -695,7 +695,10 @@ Task<void>   Indent()
       snprintf(is,sizeof(is),"%d",IndentSize);
    if(getstring("Indent size: ",is,sizeof(is)-1,NULL,NULL,NULL)<1)
       co_return;
-   if(sscanf(is,"%d",&i)==0 || i==0 || abs(i)>1024)
+   usize used;
+   Option<i64> got=scan_i64(Str(is,strlen(is)),used);
+   i=got.has_value()?(int)got.value():0;
+   if(!got.has_value() || i==0 || abs(i)>1024)
    {
       is[0]=0;
       co_return;
@@ -718,7 +721,10 @@ Task<void>   Unindent()
       snprintf(is,sizeof(is),"%d",IndentSize);
    if(getstring("Unindent size: ",is,sizeof(is)-1,NULL,NULL,NULL)<1)
       co_return;
-   if(sscanf(is,"%d",&i)==0 || i==0 || abs(i)>1024)
+   usize used;
+   Option<i64> got=scan_i64(Str(is,strlen(is)),used);
+   i=got.has_value()?(int)got.value():0;
+   if(!got.has_value() || i==0 || abs(i)>1024)
    {
       is[0]=0;
       co_return;

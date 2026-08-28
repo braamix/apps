@@ -26,7 +26,7 @@ extern "C" {
 
 extern int hl_option,hl_active,hl_lines;
 
-void InitHighlight();
+Task<void> InitHighlight();
 
 struct syntax_hl
 {

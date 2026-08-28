@@ -303,7 +303,7 @@ offs  FindMatch(char op);
 void  Help(const char *help,const char *title);
 /*void  Help(char ***help,char *title);*/
 
-void  ActivateMainMenu();
+Task<void>  ActivateMainMenu();
 
 num   MarginSizeAt(offs);
 

@@ -391,7 +391,7 @@ int   LoadFile(char *name)
 
    LoadHistory+=HistoryLine(name);
 
-   InitHighlight();
+   co_await InitHighlight();
 
    ScrShift=0;
    CenterView();

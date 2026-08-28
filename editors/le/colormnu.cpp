@@ -20,6 +20,7 @@
 
 #include "lesys.h"
 #include "edit.h"
+#include "epath.h"
 #include "leio.h"
 #include "colormnu.h"
 #include "options.h"
@@ -56,7 +57,7 @@ void LoadColor(const char *f)
    if(co_await le_access(f,R_OK)==-1)
    {
       FError(f);
-      return;
+      co_return;
    }
    ReadConfFromFile(f,colors,false);
    ParseColors();
@@ -79,26 +80,26 @@ Task<void> LoadColorDefault()
 
 Task<void> LoadColorDefaultBG()
 {
-   LoadColor(PKGDATADIR"/colors-defbg");
+   LoadColor(datafile(cfile,sizeof(cfile),"/colors-defbg"+1));
    co_return;
 }
 Task<void> LoadColorBlue()
 {
-   LoadColor(PKGDATADIR"/colors-blue");
+   LoadColor(datafile(cfile,sizeof(cfile),"/colors-blue"+1));
    co_return;
 }
 Task<void> LoadColorBlack()
 {
-   LoadColor(PKGDATADIR"/colors-black");
+   LoadColor(datafile(cfile,sizeof(cfile),"/colors-black"+1));
    co_return;
 }
 Task<void> LoadColorWhite()
 {
-   LoadColor(PKGDATADIR"/colors-white");
+   LoadColor(datafile(cfile,sizeof(cfile),"/colors-white"+1));
    co_return;
 }
 Task<void> LoadColorGreen()
 {
-   LoadColor(PKGDATADIR"/colors-green");
+   LoadColor(datafile(cfile,sizeof(cfile),"/colors-green"+1));
    co_return;
 }

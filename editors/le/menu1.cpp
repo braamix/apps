@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "edit.h"
+#include "epath.h"
 #include "keymap.h"
 #include "clipbrd.h"
 #include "block.h"
@@ -348,7 +349,7 @@ int   MoveToValid(int n,int (*dir)(int))
    return(n);
 }
 
-void    ActivateMainMenu(void)
+Task<void>    ActivateMainMenu(void)
 {
    int     level=0,key,action;
    int     curr=0;
@@ -359,7 +360,7 @@ void    ActivateMainMenu(void)
 
    curr=MoveToValid(*CurrItem(0),NextItem);
    if(curr==-1)
-      return;
+      co_return;
    DisplayWin(RootWin);
    Clear();
    DisplayRoot();
@@ -459,7 +460,7 @@ void    ActivateMainMenu(void)
                   if(m[curr].fl&HIDE)
                   {
                      flag=1;
-                     return;
+                     co_return;
                   }
                }
             }
@@ -524,13 +525,13 @@ Task<void> LoadMainMenu()
 
    snprintf(fn,sizeof(fn),"%s/.le/mainmenu",HOME);
 
-   f=fopen(fn,"r");
+   f=co_await le_fopen(fn,false);
    if(f)
       goto read_it;
 
-   f=fopen(PKGDATADIR "/mainmenu","r");
+   f=co_await le_fopen(datafile(fn,sizeof(fn),"mainmenu"),false);
    if(f==0)
-      return;
+      co_return;
 
 read_it:
 
@@ -562,8 +563,8 @@ read_it:
    m=(Menu1*)calloc(1024,sizeof(Menu1));
    if(!m)
    {
-      fclose(f);
-      return;
+      co_await le_fclose(f);
+      co_return;
    }
    free_m=true;
 
@@ -685,6 +686,6 @@ read_it:
 	 fskip(f);
       }
    }
-   fclose(f);
+   co_await le_fclose(f);
    InitMenu();
 }

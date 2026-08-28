@@ -19,6 +19,7 @@
 #include "config.h"
 #include "lesys.h"
 #include "edit.h"
+#include "epath.h"
 #include "keymap.h"
 
 #include "block.h"
@@ -28,27 +29,27 @@
 #include "search.h"
 #include "colormnu.h"
 
-void  EditorReadKeymap()
+Task<void>  EditorReadKeymap()
 {
    char  filename[1024];
    FILE  *f;
 
    snprintf(filename,sizeof(filename),"%s/.le/keymap-%s",HOME,TERM);
-   f=fopen(filename,"r");
+   f=co_await le_fopen(filename,false);
    if(f==NULL)
    {
-      snprintf(filename,sizeof(filename),"%s/keymap-%s",PKGDATADIR,TERM);
-      f=fopen(filename,"r");
+      snprintf(filename,sizeof(filename),"%s/keymap-%s",datadir,TERM);
+      f=co_await le_fopen(filename,false);
       if(f==NULL)
       {
          snprintf(filename,sizeof(filename),"%s/.le/keymap",HOME);
-         f=fopen(filename,"r");
+         f=co_await le_fopen(filename,false);
          if(f==NULL)
          {
-            snprintf(filename,sizeof(filename),"%s/keymap",PKGDATADIR);
-            f=fopen(filename,"r");
+            snprintf(filename,sizeof(filename),"%s/keymap",datadir);
+            f=co_await le_fopen(filename,false);
             if(f==NULL)
-               return;
+               co_return;
          }
       }
    }
@@ -60,20 +61,21 @@ void  EditorReadKeymap()
       FError(filename);
    }
 
-   fclose(f);
+   co_await le_fclose(f);
 }
 
 Task<void> LoadKeymapEmacs()
 {
-   const char *k=PKGDATADIR"/keymap-emacs";
-   FILE *f=fopen(k,"r");
+   static char kpath[LE_PATHMAX];
+   const char *k=datafile(kpath,sizeof(kpath),"keymap-emacs");
+   FILE *f=co_await le_fopen(k,false);
    if(!f)
    {
       FError(k);
       co_return;
    }
    co_await ReadActionMap(f);
-   fclose(f);
+   co_await le_fclose(f);
    RebuildKeyTree();
    co_await LoadMainMenu();
 }
@@ -91,14 +93,14 @@ Task<void> SaveKeymap()
    FILE  *f;
 
    snprintf(filename,sizeof(filename),"%s/.le/keymap",HOME);
-   f=fopen(filename,"w");
+   f=co_await le_fopen(filename,true);
    if(!f)
    {
       FError(filename);
       co_return;
    }
    co_await WriteActionMap(f);
-   fclose(f);
+   co_await le_fclose(f);
 }
 Task<void> SaveKeymapForTerminal()
 {
@@ -106,12 +108,12 @@ Task<void> SaveKeymapForTerminal()
    FILE  *f;
 
    snprintf(filename,sizeof(filename),"%s/.le/keymap-%s",HOME,TERM);
-   f=fopen(filename,"w");
+   f=co_await le_fopen(filename,true);
    if(!f)
    {
       FError(filename);
       co_return;
    }
    co_await WriteActionMap(f);
-   fclose(f);
+   co_await le_fclose(f);
 }

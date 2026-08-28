@@ -18,6 +18,8 @@ const cchar_t WACS_LRCORNER_c = { A_NORMAL, { 0x2518, 0, 0, 0, 0 } };
 const cchar_t WACS_HLINE_c    = { A_NORMAL, { 0x2500, 0, 0, 0, 0 } };
 const cchar_t WACS_VLINE_c    = { A_NORMAL, { 0x2502, 0, 0, 0, 0 } };
 const cchar_t WACS_CKBOARD_c  = { A_NORMAL, { 0x2592, 0, 0, 0, 0 } };
+const cchar_t WACS_LTEE_c     = { A_NORMAL, { 0x251C, 0, 0, 0, 0 } };
+const cchar_t WACS_RTEE_c     = { A_NORMAL, { 0x2524, 0, 0, 0, 0 } };
 
 namespace {
 

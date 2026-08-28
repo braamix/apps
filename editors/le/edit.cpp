@@ -451,7 +451,7 @@ void    Initialize()
    l.l_whence=SEEK_SET;
    l.l_start=l.l_len=0;
    MessageSync("Loading history...");
-   f=fopen(HstName,"rb");
+   f=co_await le_fopen(HstName,false);
    if(f && fcntl(fileno(f),F_SETLKW,&l)!=-1)
    {
       PositionHistory.co_await ReadFrom(f);
@@ -459,10 +459,10 @@ void    Initialize()
       SearchHistory.co_await ReadFrom(f);
       ShellHistory.co_await ReadFrom(f);
       PipeHistory.co_await ReadFrom(f);
-      fclose(f);
+      co_await le_fclose(f);
    }
 
-   EditorReadKeymap();
+   co_await EditorReadKeymap();
    RebuildKeyTree();
 
    co_await LoadMainMenu();
@@ -520,7 +520,7 @@ void    Terminate()
 	    if (co_await le_ftruncate(fd,ftell(f)) < 0)
 	        /*ignore*/;
 #endif
-            fclose(f);
+            co_await le_fclose(f);
          }
          co_await le_close(fd);
       }

@@ -24,7 +24,6 @@
 #endif
 #ifdef HAVE_UNISTD_H
 #endif
-#include <fnmatch.h>
 
 #include "edit.h"
 #include "leio.h"
@@ -145,20 +144,20 @@ void  condense(char *filename)
    newfilename=(char*)malloc(filenamelen+1);
    if(newfilename==NULL)
    {
-      return;
+      co_return;
    }
    ino_scanned=(ino_t*)malloc((filenamelen/2+1)*sizeof(*ino_scanned));
    if(ino_scanned==NULL)
    {
       free(newfilename);
-      return;
+      co_return;
    }
    dev_scanned=(dev_t*)malloc((filenamelen/2+1)*sizeof(*dev_scanned));
    if(dev_scanned==NULL)
    {
       free(newfilename);
       free(ino_scanned);
-      return;
+      co_return;
    }
    point=(char**)malloc((filenamelen/2+1)*sizeof(*point));
    if(point==NULL)
@@ -166,7 +165,7 @@ void  condense(char *filename)
       free(newfilename);
       free(ino_scanned);
       free(dev_scanned);
-      return;
+      co_return;
    }
 
    snprintf(tmp,sizeof(tmp),"%s/",drive);

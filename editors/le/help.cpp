@@ -18,6 +18,7 @@
 
 #include "config.h"
 #include "edit.h"
+#include "epath.h"
 #include "keymap.h"
 
 #if 0
@@ -89,9 +90,10 @@ void  Help(char ***h,char *title)
 
 static char *LoadHelp(const char *tag)
 {
-   FILE *hf=fopen(PKGDATADIR "/le.hlp","r");
+   char hpath[LE_PATHMAX];
+   FILE *hf=co_await le_fopen(datafile(hpath,sizeof(hpath),"le.hlp"),false);
    if(!hf)
-      return 0;
+      co_return 0;
 
    int help_size=0;
    char *help=0;
@@ -103,11 +105,14 @@ static char *LoadHelp(const char *tag)
    buf[255]=0;
    while(fgets(buf,sizeof(buf)-1,hf)!=0)
    {
-      if(1==sscanf(buf,"[%[^]]]",this_tag))
+      usize used;
+      Str tag=(buf[0]=='[')?scan_until(Str(buf+1,strlen(buf+1)),"]",used):Str();
+      if(!tag.empty() && tag.size()<sizeof(this_tag)
+      && (memcpy(this_tag,tag.data(),tag.size()),this_tag[tag.size()]=0,true))
       {
 	 if(tag_match) {
-	    fclose(hf);
-	    return help;
+	    co_await le_fclose(hf);
+	    co_return help;
 	 }
 	 if(!strcasecmp(tag,this_tag))
 	    tag_match=true;
@@ -125,8 +130,8 @@ static char *LoadHelp(const char *tag)
 	    if(!new_help)
 	    {
 	       // out of memory
-	       fclose(hf);
-	       return help;
+	       co_await le_fclose(hf);
+	       co_return help;
 	    }
 	    help=new_help;
 	    help_end=help+help_len;
@@ -158,18 +163,18 @@ static char *LoadHelp(const char *tag)
 	 help_end+=buf_len;
       }
    }
-   fclose(hf);
+   co_await le_fclose(hf);
    if(tag_match)
-      return help;
+      co_return help;
    free(help);
-   return 0;
+   co_return 0;
 }
 
 void  Help(const char *helpf,const char *title)
 {
    char *help=LoadHelp(helpf);
    if(!help)
-      return;
+      co_return;
    const char  *ptr=help;
    WIN   *HelpWin;
    const int v_m=1;

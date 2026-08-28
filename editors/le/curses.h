@@ -65,7 +65,7 @@ struct cchar_t {
 // Line drawing. Unicode directly: there is no alternate character set to
 // switch into, and the renderer has the glyphs.
 extern const cchar_t WACS_ULCORNER_c, WACS_URCORNER_c, WACS_LLCORNER_c, WACS_LRCORNER_c,
-    WACS_HLINE_c, WACS_VLINE_c, WACS_CKBOARD_c;
+    WACS_HLINE_c, WACS_VLINE_c, WACS_CKBOARD_c, WACS_LTEE_c, WACS_RTEE_c;
 
 #define WACS_ULCORNER (&WACS_ULCORNER_c)
 #define WACS_URCORNER (&WACS_URCORNER_c)
@@ -74,6 +74,8 @@ extern const cchar_t WACS_ULCORNER_c, WACS_URCORNER_c, WACS_LLCORNER_c, WACS_LRC
 #define WACS_HLINE    (&WACS_HLINE_c)
 #define WACS_VLINE    (&WACS_VLINE_c)
 #define WACS_CKBOARD  (&WACS_CKBOARD_c)
+#define WACS_LTEE     (&WACS_LTEE_c)
+#define WACS_RTEE     (&WACS_RTEE_c)
 
 #define ACS_ULCORNER (A_ALTCHARSET | 0x250C)
 #define ACS_URCORNER (A_ALTCHARSET | 0x2510)
@@ -82,6 +84,8 @@ extern const cchar_t WACS_ULCORNER_c, WACS_URCORNER_c, WACS_LLCORNER_c, WACS_LRC
 #define ACS_HLINE    (A_ALTCHARSET | 0x2500)
 #define ACS_VLINE    (A_ALTCHARSET | 0x2502)
 #define ACS_CKBOARD  (A_ALTCHARSET | 0x2592)
+#define ACS_LTEE     (A_ALTCHARSET | 0x251C)
+#define ACS_RTEE     (A_ALTCHARSET | 0x2524)
 
 extern int LINES, COLS;
 

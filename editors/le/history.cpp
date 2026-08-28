@@ -19,6 +19,7 @@
 #include "config.h"
 #include "lesys.h"
 #include "edit.h"
+#include "proc/rt.h"
 
 static char *memdup(const char *s,int len)
 {
@@ -146,7 +147,7 @@ HistoryLine::HistoryLine(const char *s,unsigned short l)
       l=strlen(s);
    len=l;
    line=memdup(s,l);
-   time(&cr_time);
+   cr_time=(time_t)(proc_now()/1000);
 }
 const HistoryLine& HistoryLine::operator=(const HistoryLine& hl)
 {
@@ -180,7 +181,7 @@ void  History::Merge(const History& add)
    *this=newh;
 }
 
-void  History::WriteTo(FILE *f)
+Task<void>  History::WriteTo(FILE *f)
 {
    for(int i=0; i<HISTORY_SIZE; i++)
    {
@@ -188,36 +189,44 @@ void  History::WriteTo(FILE *f)
 	 break;
       else
       {
-	 fprintf(f,"%lu:%u:",(unsigned long)lines[i]->cr_time,lines[i]->len);
-	 fwrite(lines[i]->line,1,lines[i]->len,f);
+	 char hdr[40];
+	 snprintf(hdr,sizeof(hdr),"%lu:%u:",(unsigned long)lines[i]->cr_time,lines[i]->len);
+	 co_await le_puts(hdr,f);
+	 co_await f->write(Str(lines[i]->line,lines[i]->len));
       }
       co_await le_putc('\n',f);
    }
    co_await le_puts("0:0:\n",f);
 }
-void  History::ReadFrom(FILE *f)
+Task<void>  History::ReadFrom(FILE *f)
 {
    for(int i=0; i<HISTORY_SIZE; i++)
    {
       unsigned len=0;
       unsigned long cr_time;
-      if(fscanf(f,"%lu:%u:",&cr_time,&len)<2)
+      Result<u64> t1=co_await f->scan_u64();
+      bool ok1=t1.is_ok() && (co_await f->scan_lit(':')).value_or(false);
+      Result<u64> t2=ok1?co_await f->scan_u64():Result<u64>(Err(Error::Invalid));
+      bool ok2=t2.is_ok() && (co_await f->scan_lit(':')).value_or(false);
+      cr_time=ok1?(unsigned long)t1.value():0;
+      len=ok2?(unsigned)t2.value():0;
+      if(!ok2)
       {
-	 if(!feof(f) || ftell(f))
-	    fprintf(stderr,"error reading history at offset %ld\r\n",ftell(f));
-         return;
+	 /* Upstream complained on stderr about a malformed record. The screen
+	    is taken by then, so a bad history file is simply the end of it. */
+         co_return;
       }
       if(len==0)
       {
 	 co_await le_getc(f); // skip \n
-	 return;
+	 co_return;
       }
       char *line=(char*)malloc(len+1);
       if(!line)
-	 return;
-      if(fread(line,1,len,f)!=len) {
+	 co_return;
+      if((co_await f->read({line,len})).value_or(0)!=len) {
 	 free(line);
-	 return;
+	 co_return;
       }
       line[len]=0;
       lines[i]=new HistoryLine;
@@ -226,8 +235,11 @@ void  History::ReadFrom(FILE *f)
       lines[i]->len=len;
       co_await le_getc(f);	  // skip \n
    }
-   if (fscanf(f,"%*u:%*u:") < 0)
-      /*ignore*/
+   /* The two fields, discarded: this only steps past a record. */
+   co_await f->scan_u64();
+   co_await f->scan_lit(':');
+   co_await f->scan_u64();
+   co_await f->scan_lit(':');
    co_await le_getc(f);	  // skip \n
 }
 
@@ -292,11 +304,22 @@ void  InodeHistory::operator+=(const InodeInfo& file)
 }
 InodeInfo::InodeInfo(const HistoryLine *f_line)
 {
-   long inode=0,device=0,time=0,size=0,line=0,col=0,offset=0;
-   sscanf(f_line->get_line(),"%ld,%ld,%ld,%ld,%ld,%ld,%ld",
-		  &inode,&device,&time,&size,&line,&col,&offset);
-   this->inode=inode,this->device=device,this->time=time,this->size=size;
-   this->line=line,this->col=col,this->offset=offset;
+   /* Seven longs separated by commas, which was one %ld,%ld,... */
+   long v[7]={0,0,0,0,0,0,0};
+   Str rest(f_line->get_line(),strlen(f_line->get_line()));
+   for(int i=0; i<7 && !rest.empty(); i++)
+   {
+      usize used;
+      Option<i64> got=scan_i64(rest,used);
+      if(!got.has_value())
+	 break;
+      v[i]=(long)got.value();
+      rest=rest.substr(used);
+      if(!rest.empty() && rest[0]==',')
+	 rest=rest.substr(1);
+   }
+   this->inode=v[0],this->device=v[1],this->time=v[2],this->size=v[3];
+   this->line=v[4],this->col=v[5],this->offset=v[6];
 
 }
 const char *InodeInfo::to_string() const

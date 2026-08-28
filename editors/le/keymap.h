@@ -80,7 +80,7 @@ Task<const char *> GetActionArgument(const char *prompt,class History* history=0
 Task<void>  ReadActionMap(FILE*);
 Task<void>  WriteActionMap(FILE*);
 ActionProc GetActionProc(int action);
-void  EditorReadKeymap();
+Task<void>  EditorReadKeymap();
 void  RebuildKeyTree();
 void  FreeActionCodeTable();
 
