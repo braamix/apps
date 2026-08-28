@@ -473,10 +473,12 @@ Task<int> ttgetc(void)
          * Err(Intr) is a signal: the read was abandoned and nothing
          * was typed.  sig_take() says which one.
          *
-         * SIG_INT is ^C, which reaches a program in front of the
-         * console as a signal rather than as a key.  uemacs has its
-         * own abort key and everything already answers it, so this
-         * hands back whatever abort-command is bound to.
+         * SIG_INT is ^C, which reaches a foreground program as a
+         * signal and never as a key.  Handing the keystroke back is
+         * what makes upstream's bindings work: ^C is insert-space and
+         * C-x ^C is exit-emacs.  It also arrives as an ordinary key
+         * once a shell escape has cleared the foreground set, and both
+         * routes now mean the same thing.
          *
          * SIG_WINCH is a resize -- next_key() has already taken it
          * and reshaped the grid -- so note the size and paint;
@@ -490,7 +492,7 @@ Task<int> ttgetc(void)
                 co_return 0;
             }
             if (sig_take(SIG_INT))
-                co_return keycode_to_char(abort_char);
+                co_return keycode_to_char(CONTROL | 'C');
             note_size();
             co_await checkwinsize();
             continue;
@@ -534,7 +536,8 @@ Task<void> tcappause(const char *prompt)
         if (Task<Result<KeyPress>> t = key_read())
             r = co_await t;
         if (r.is_err()) {
-            if (r.error() == Error::Intr)
+            /* ^C is a key here too; anything else Intr means is a resize. */
+            if (r.error() == Error::Intr && !sig_take(SIG_INT))
                 continue;
             break;
         }

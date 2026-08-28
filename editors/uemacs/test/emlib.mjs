@@ -92,21 +92,18 @@ let running = false;
 // Leave the session that is up: a second em cannot be submitted while the
 // first still holds the screen.
 //
-// Not C-x C-c: ^C reaches whatever is in front whatever is claimed, so it
-// arrives as SIG_INT and never as a key.  "C-u 0 M-x exit-emacs" is the same
-// command by its own name, and the argument forces it -- a bare exit asks
-// about a changed buffer, and an answer typed to a question that was never
-// asked lands on the shell's next command line.
+// C-u 0 C-x C-c, which is upstream's hard quit: ^C arrives as SIG_INT and the
+// editor hands the keystroke back, so the chord works.  The argument forces it
+// -- a bare exit asks about a changed buffer, and an answer typed to a question
+// that was never asked lands on the shell's next command line.
 export function quit() {
     if (!running)
         return;
     press("^g");
     press("^u");
     press("0");
-    press("ESC");
-    press("x");
-    H.type("exit-emacs");
-    press("CR");
+    press("^x");
+    press("^c");
     /* The shell gets its screen back when the claim drops, and redraws its
        prompt a tick later. */
     tick(2);

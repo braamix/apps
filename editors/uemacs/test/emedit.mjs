@@ -3,7 +3,8 @@
 // The file written at the end is what makes this more than a screen test: it
 // says the buffer, the display and fileio.cpp all agree about what is there.
 
-import { boot, em, put, get, press, keys, screen, is, ok, tick, H } from "./emlib.mjs";
+import { boot, em, put, get, press, keys, screen, cursor, is, ok, tick, H }
+    from "./emlib.mjs";
 
 await boot("emedit");
 
@@ -15,6 +16,13 @@ em("/tmp/f", ["^n", "^e"]);
 H.type("!!");
 tick(1);
 is("typing", screen(3), "alpha\nbeta!!\ngamma");
+
+// ^C is insert-space, which says the signal came back as the key -- the console
+// raises SIG_INT on a foreground program and delivers no keystroke at all.
+// insert-space steps back after inserting, so the cursor does not move.
+em("/tmp/f", ["^c"]);
+is("^C inserts a space", screen(2), " alpha\nbeta");
+is("and the cursor stays", cursor(), "0,0");
 
 // C-d takes the character under the dot, C-h the one before it.
 em("/tmp/f", ["^n", "^f", "^d"]);

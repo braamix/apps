@@ -42,7 +42,8 @@ the whole of them. The ones worth knowing before you start:
 | `M-space`, `C-w`, `M-w` | set the mark, then cut or copy to it |
 | `C-x !` | run a shell command |
 | `M-x` | a command by name |
-| **`M-Z`** | **save everything and leave** — see below |
+| `C-x C-c` | leave, asking about a changed buffer |
+| **`M-Z`** | **save everything and leave** |
 
 ## What the port changed
 
@@ -142,12 +143,14 @@ message line uses; everything else was replaced rather than reimplemented.
 
 ## Differences from upstream worth knowing
 
-- **`C-x C-c` cannot be typed, and `M-Z` is the way out.** ^C reaches whatever
-  is in front of the console whatever it has claimed — a full-screen program
-  that stops answering must still be killable — so it arrives as `SIG_INT` and
-  never as a key. The port makes that signal the abort key, which is what every
-  other `^C` in the editor already means; `C-x C-c` is therefore unreachable,
-  and quitting is `M-Z` (quick-exit, which saves) or `M-x exit-emacs`.
+- **`^C` is a signal, and the port hands the keystroke back.** ^C reaches
+  whatever is in front of the console whatever it has claimed — a full-screen
+  program that stops answering must still be killable — so it arrives as
+  `SIG_INT` and never as a key. `ttgetc()` catches it and returns the ^C
+  keystroke, so upstream's bindings all work: `^C` is insert-space, `C-x C-c`
+  is the hard quit, and `C-g` is abort as it is everywhere else. After a shell
+  escape the foreground set is empty and ^C arrives as an ordinary key instead,
+  which is the same thing by the other route. `SIG_TERM` raises the quit flag.
 - **`C-x C-z` and `suspend-emacs` are gone.** `SIG_TSTP` is not in Braam's
   catchable set and nothing stops a process to give the shell its prompt back;
   the command says `(No job control)` rather than pretending.

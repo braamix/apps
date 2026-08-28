@@ -136,7 +136,7 @@ Task<i32> proc_main(Args args)
     }
 
     /*
-     * SIG_INT so that ^C reaches cmd_abort_command rather than killing
+     * SIG_INT so that ^C comes back as the ^C key rather than killing
      * the editor, and SIG_WINCH for the resize.  SIG_HUP and SIG_TSTP
      * are not in Braam's catchable set, so emergencyexit() went with
      * them; SIG_TERM raises the quit flag the command loop tests.
