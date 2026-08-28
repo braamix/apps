@@ -146,30 +146,27 @@ Task<void> UserOptimizeText();
 Task<void> UserSetBookmark();
 Task<void> UserGoBookmark();
 
-#define S(n) Task<void> UserSetBookmark##n();
-S(0)
-S(1)
-S(2)
-S(3)
-S(4)
-S(5)
-S(6)
-S(7)
-S(8)
-S(9)
-#undef S
-#define G(n) Task<void> UserGoBookmark##n();
-G(0)
-G(1)
-G(2)
-G(3)
-G(4)
-G(5)
-G(6)
-G(7)
-G(8)
-G(9)
-#undef G
+Task<void> UserSetBookmark0();
+Task<void> UserSetBookmark1();
+Task<void> UserSetBookmark2();
+Task<void> UserSetBookmark3();
+Task<void> UserSetBookmark4();
+Task<void> UserSetBookmark5();
+Task<void> UserSetBookmark6();
+Task<void> UserSetBookmark7();
+Task<void> UserSetBookmark8();
+Task<void> UserSetBookmark9();
+
+Task<void> UserGoBookmark0();
+Task<void> UserGoBookmark1();
+Task<void> UserGoBookmark2();
+Task<void> UserGoBookmark3();
+Task<void> UserGoBookmark4();
+Task<void> UserGoBookmark5();
+Task<void> UserGoBookmark6();
+Task<void> UserGoBookmark7();
+Task<void> UserGoBookmark8();
+Task<void> UserGoBookmark9();
 
 extern Global<class History> g_ShellHistory;
 #define ShellHistory (g_ShellHistory.get())

@@ -1688,35 +1688,122 @@ Task<void> UserGoBookmark()
     co_return;
 }
 
-#define S(n)                        \
-    Task<void> UserSetBookmark##n() \
-    {                               \
-        SetBookmark('0' + n);       \
-        co_return;                  \
-    }
-S(0)
-S(1)
-S(2)
-S(3)
-S(4)
-S(5)
-S(6)
-S(7)
-S(8)
-S(9)
-#define G(n)                       \
-    Task<void> UserGoBookmark##n() \
-    {                              \
-        GoBookmark('0' + n);       \
-        co_return;                 \
-    }
-G(0)
-G(1)
-G(2)
-G(3)
-G(4)
-G(5)
-G(6)
-G(7)
-G(8)
-G(9)
+Task<void> UserSetBookmark0()
+{
+    SetBookmark('0');
+    co_return;
+}
+
+Task<void> UserSetBookmark1()
+{
+    SetBookmark('1');
+    co_return;
+}
+
+Task<void> UserSetBookmark2()
+{
+    SetBookmark('2');
+    co_return;
+}
+
+Task<void> UserSetBookmark3()
+{
+    SetBookmark('3');
+    co_return;
+}
+
+Task<void> UserSetBookmark4()
+{
+    SetBookmark('4');
+    co_return;
+}
+
+Task<void> UserSetBookmark5()
+{
+    SetBookmark('5');
+    co_return;
+}
+
+Task<void> UserSetBookmark6()
+{
+    SetBookmark('6');
+    co_return;
+}
+
+Task<void> UserSetBookmark7()
+{
+    SetBookmark('7');
+    co_return;
+}
+
+Task<void> UserSetBookmark8()
+{
+    SetBookmark('8');
+    co_return;
+}
+
+Task<void> UserSetBookmark9()
+{
+    SetBookmark('9');
+    co_return;
+}
+
+Task<void> UserGoBookmark0()
+{
+    GoBookmark('0');
+    co_return;
+}
+
+Task<void> UserGoBookmark1()
+{
+    GoBookmark('1');
+    co_return;
+}
+
+Task<void> UserGoBookmark2()
+{
+    GoBookmark('2');
+    co_return;
+}
+
+Task<void> UserGoBookmark3()
+{
+    GoBookmark('3');
+    co_return;
+}
+
+Task<void> UserGoBookmark4()
+{
+    GoBookmark('4');
+    co_return;
+}
+
+Task<void> UserGoBookmark5()
+{
+    GoBookmark('5');
+    co_return;
+}
+
+Task<void> UserGoBookmark6()
+{
+    GoBookmark('6');
+    co_return;
+}
+
+Task<void> UserGoBookmark7()
+{
+    GoBookmark('7');
+    co_return;
+}
+
+Task<void> UserGoBookmark8()
+{
+    GoBookmark('8');
+    co_return;
+}
+
+Task<void> UserGoBookmark9()
+{
+    GoBookmark('9');
+    co_return;
+}
