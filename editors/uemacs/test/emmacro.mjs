@@ -3,7 +3,8 @@
 // emacs.hlp are in the binary and fileio.cpp serves them when nothing on disk
 // answers.
 
-import { boot, em, put, get, press, keys, screen, modeline, is, ok, tick, H } from "./emlib.mjs";
+import { boot, em, put, get, press, keys, submit, screen, modeline, is, ok, tick, H }
+    from "./emlib.mjs";
 
 await boot("emmacro");
 
@@ -14,15 +15,45 @@ em("/tmp/f");
 is("the compiled-in emacs.rc ran",
    /\(Spell utf-8\)/.test(modeline()) ? "Spell utf-8" : modeline(), "Spell utf-8");
 
-// A user's own .emacsrc on disk wins over the compiled-in one: nothing else
-// binds C-x q, so a session that answers it read the file.
+// A user's own .emacsrc on disk wins over the compiled-in one. Nothing else
+// binds C-x q, so a session that answers it read the file, and the mode line
+// says the compiled-in one did not run.
 put("/home/.emacsrc", "bind-to-key beginning-of-file ^Xq\n");
 em("/tmp/f", ["^n", "^x", "q"]);
-is("a .emacsrc on disk overrides it, and its binding works",
-   H.screen().cursor_y + "", "0");
+is("$HOME/.emacsrc overrides it, and its binding works", H.screen().cursor_y + "", "0");
 is("so the compiled-in one did not run", /Spell/.test(modeline()) ? "spell" : "no spell",
    "no spell");
 H.store.files.delete("/home/.emacsrc");
+
+// So does the system-wide copy, and so does one in the current directory:
+// $HOME, /etc, the cwd, then the built-in. A built-in answers a bare name
+// only -- matching the leaf of every spelling would have answered the $HOME
+// probe first and left every copy on disk but that one unreachable.
+//
+// Each binds C-x q to a different line, so the cursor says which was read.
+put("/etc/emacs.rc", "bind-to-key end-of-file ^Xq\n");
+put("/tmp/.emacsrc", "bind-to-key next-line ^Xq\n");
+submit("cd /tmp; em f");
+press("^x");
+press("q");
+is("/etc/emacs.rc comes before the current directory",
+   H.screen().cursor_y + "", "2");
+
+H.store.files.delete("/etc/emacs.rc");
+submit("cd /tmp; em f");
+press("^x");
+press("q");
+is("and the current directory before the built-in", H.screen().cursor_y + "", "1");
+H.store.files.delete("/tmp/.emacsrc");
+
+// /etc/emacs.hlp is the same for the help file, under its own name.
+put("/etc/emacs.hlp", "SYSTEM HELP\n");
+em("/tmp/f");
+keys("ESC", "?");
+tick(3);
+is("/etc/emacs.hlp overrides the compiled-in help",
+   H.rows(H.screen())[0].replace(/\s+$/, ""), "SYSTEM HELP");
+H.store.files.delete("/etc/emacs.hlp");
 
 // execute-file, and the directives: !if, !else, !endif, !while, !goto and a
 // user variable.

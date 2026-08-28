@@ -402,12 +402,19 @@ Task<char *> lookup_file(char *fname, int try_home)
                 co_await file_close();
                 co_return fspec;
             }
+        }
 
-            snprintf(fspec, sizeof(fspec), "%s/lib/%s", home, fname);
+        /* The system-wide copy, where upstream looked in $HOME/lib.  Not
+           conditional on $HOME, and under its own undotted name. */
+        for (i = 0; i < (int)ARRAY_SIZE(etcname); i++) {
+            if (strcmp(fname, pathname[i]) != 0)
+                continue;
+            strcpy(fspec, etcname[i]);
             if (co_await file_open_read(fspec) == FIOSUC) {
                 co_await file_close();
                 co_return fspec;
             }
+            break;
         }
     }
 

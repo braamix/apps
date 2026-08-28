@@ -9,12 +9,12 @@
 #define EPATH_H_
 
 /*
- * The two names, and where else to look for them.  Upstream listed the Unix
- * install directories the Makefile copied the files into; there is no install
- * step here and both files are compiled into the binary (fileio.cpp serves
- * them when nothing on disk answers), so what is left is the cwd and $HOME,
- * which is where a user's own copy would be.
+ * The two names, and the system-wide copy of each.  Upstream listed the
+ * install directories its Makefile copied into; both files are compiled in
+ * here (fileio.cpp serves them), so what is left is $HOME, /etc and the cwd.
+ * /etc drops the leading dot: it is not a home directory.
  */
 static char *pathname[] = { ".emacsrc", "emacs.hlp", "" };
+static char *etcname[]  = { "/etc/emacs.rc", "/etc/emacs.hlp" };
 
 #endif /* EPATH_H_ */

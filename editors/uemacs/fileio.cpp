@@ -36,18 +36,22 @@ static const struct builtin_file *fbuiltin;
 static unsigned fbpos;
 
 /*
- * The compiled-in file of that name, or NULL.  Only the leaf is compared:
- * lookup_file() prefixes $HOME and the directories in PATH, and a hit on any
- * of those spellings means the same file.
+ * The compiled-in file of that name, or NULL.
+ *
+ * A name with a directory in it never matches, and that is the whole of the
+ * ordering: lookup_file() tries $HOME/<name>, then $HOME/lib/<name>, then the
+ * bare name in the current directory, and only the last of those can be a
+ * built-in.  Matching the leaf of every spelling would answer the first probe
+ * instead, and a copy on disk anywhere but $HOME would never be reached.
  */
 static const struct builtin_file *builtin_of(const char *fn)
 {
-    const char *leaf = strrchr(fn, '/');
     const struct builtin_file *b;
 
-    leaf = leaf ? leaf + 1 : fn;
+    if (strchr(fn, '/'))
+        return NULL;
     for (b = builtin_files; b->name; b++)
-        if (strcmp(leaf, b->name) == 0)
+        if (strcmp(fn, b->name) == 0)
             return b;
     return NULL;
 }

@@ -95,6 +95,15 @@ export function quit() {
     running = false;
 }
 
+// Any shell line, for the cases that need one -- a cd before em, say. The
+// clock lives here, so it cannot be driven from outside the module.
+export function submit(line) {
+    quit();
+    running = true;
+    H.submit(line, clock++);
+    tick(6);
+}
+
 export function em(args = "", keys = []) {
     quit();
     running = true;

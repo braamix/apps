@@ -64,7 +64,7 @@ message line uses; everything else was replaced rather than reimplemented.
 | hunspell (`spell.c`) | built without it, which upstream's own Makefile supports: spell mode exists and never finds a misspelling |
 | `stat()`'s `st_dev`, `st_ino`, `st_mtim` | `FileInfo`'s kind, size and millisecond mtime |
 | `system("echo pat* >/tmp/meXXXXXX")` for TAB completion | `list_dir()` on the directory part — no shell, no temp file, and no `mkstemp` |
-| `/usr/local/lib/emacs.hlp` and `$HOME/.emacsrc` | both compiled into the binary, and served by `fileio.cpp` when nothing on disk answers |
+| `epath.h`'s `/usr/local/lib/` search path, and `$HOME/lib` | `/etc/emacs.rc` and `/etc/emacs.hlp`, with both files compiled into the binary behind them |
 | `exit()` from wherever | a flag the command loop tests |
 | K&R-era C with `int` command functions | C++20, where every bound command is a `Task<int>` |
 
@@ -115,8 +115,27 @@ message line uses; everything else was replaced rather than reimplemented.
   then have to know — the reason [games/adventure](../../games/adventure/)
   compiles its data in. The seam here is `file_open_read()`, which consults a
   compiled-in table after the real filesystem, so `dofile(".emacsrc")` and
-  `M-?` are untouched upstream code and a copy in `$HOME` or the current
-  directory still wins.
+  `M-?` are untouched upstream code.
+
+  **A built-in answers a bare name only.** Matching the leaf of every
+  spelling `lookup_file()` tries would have answered the `$HOME` probe first
+  and left every copy on disk but that one unreachable. So the search runs to
+  the end, with the compiled-in file behind it:
+
+  | the startup file, in order | the help file |
+  | --- | --- |
+  | `$HOME/.emacsrc` | `$HOME/emacs.hlp` |
+  | `/etc/emacs.rc` | `/etc/emacs.hlp` |
+  | `./.emacsrc` | `./emacs.hlp` |
+  | the compiled-in [emacs.rc](emacs.rc) | the compiled-in [emacs.hlp](emacs.hlp) |
+
+  `$HOME` is `/home` unless the environment says otherwise, and `/etc` drops
+  the leading dot because it is not a home directory — upstream looked in
+  `$HOME/lib` and then in the directories its Makefile installed into, and
+  that is what this replaces. Upstream then walked `$PATH`, which is no longer
+  reached: the built-in answers at the bare name, and the bare name is the
+  current directory's spelling. `em @file` and `execute-file` take a path and
+  do not search at all.
 
 ## Differences from upstream worth knowing
 
