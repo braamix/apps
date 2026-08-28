@@ -35,4 +35,4 @@ is("F1 opens the help", screen().split("\n")[1].includes("Help on Keys") ? "yes"
 is("with the keymap in it",
    screen().split("\n").some((l) => l.includes("- line up")) ? "yes" : "no", "yes");
 
-ok("syntax highlighting and the help, both out of share/le");
+ok("syntax highlighting and the help, both out of share/");

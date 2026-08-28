@@ -30,16 +30,16 @@ static bool put_str(char *buf, unsigned size, Str s)
     return true;
 }
 
-// Does <prefix>/share/le hold le.hlp? Sets datadir when it does.
+// Does <prefix>/share hold le.hlp? Sets datadir when it does.
 static Task<bool> holds_data(Str prefix)
 {
     Result<FileInfo> st = Err(Error::NoMemory);
 
     if (!put_str(datadir, sizeof(datadir), prefix))
         co_return false;
-    if (strlen(datadir) + sizeof("/share/le/le.hlp") > sizeof(datadir))
+    if (strlen(datadir) + sizeof("/share/le.hlp") > sizeof(datadir))
         co_return false;
-    strcat(datadir, "/share/le");
+    strcat(datadir, "/share");
     strcpy(spec, datadir);
     strcat(spec, "/le.hlp");
     if (Task<Result<FileInfo>> t = stat_of(Str(spec, strlen(spec))))

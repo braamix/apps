@@ -105,7 +105,7 @@ set_source_files_properties(regex.c wcwidth.c PROPERTIES
 file(GLOB LE_SYNTAX_D_FILES ${CMAKE_CURRENT_SOURCE_DIR}/share/syntax.d/*)
 foreach(f ${LE_SYNTAX_D_FILES})
     get_filename_component(n ${f} NAME)
-    list(APPEND LE_SYNTAX_D ${f}=share/le/syntax.d/${n})
+    list(APPEND LE_SYNTAX_D ${f}=share/syntax.d/${n})
 endforeach()
 
 # The data travels with the binary. Only the flat bin/ entry becomes a command;
@@ -114,9 +114,9 @@ endforeach()
 braam_add_package(NAME le VERSION 1.16.8-r0
                   FIELD "T=LE 1.16.8, a block-oriented text editor"
                   FILES $<TARGET_FILE:bin_le>=bin/le
-                        ${CMAKE_CURRENT_SOURCE_DIR}/share/le.hlp=share/le/le.hlp
-                        ${CMAKE_CURRENT_SOURCE_DIR}/share/keymap=share/le/keymap
-                        ${CMAKE_CURRENT_SOURCE_DIR}/share/mainmenu=share/le/mainmenu
-                        ${CMAKE_CURRENT_SOURCE_DIR}/share/syntax=share/le/syntax
+                        ${CMAKE_CURRENT_SOURCE_DIR}/share/le.hlp=share/le.hlp
+                        ${CMAKE_CURRENT_SOURCE_DIR}/share/keymap=share/keymap
+                        ${CMAKE_CURRENT_SOURCE_DIR}/share/mainmenu=share/mainmenu
+                        ${CMAKE_CURRENT_SOURCE_DIR}/share/syntax=share/syntax
                         ${LE_SYNTAX_D})
 add_dependencies(packages pkg_le)

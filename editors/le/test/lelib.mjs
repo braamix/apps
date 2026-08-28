@@ -66,11 +66,11 @@ export const STORE = "/pkg/store/le-1.16.8-r0";
 
 function install() {
     for (const f of ["le.hlp", "keymap", "mainmenu", "syntax"])
-        H.store.files.set(`${STORE}/share/le/${f}`,
+        H.store.files.set(`${STORE}/share/${f}`,
                           new Uint8Array(readFileSync(join(HERE, "../share", f))));
     /* The syntax file includes these by name; without them nothing highlights. */
     for (const f of readdirSync(join(HERE, "../share/syntax.d")))
-        H.store.files.set(`${STORE}/share/le/syntax.d/${f}`,
+        H.store.files.set(`${STORE}/share/syntax.d/${f}`,
                           new Uint8Array(readFileSync(join(HERE, "../share/syntax.d", f))));
     /* Under sixty characters each: type() posts a whole line into a 64-key
        channel without checking. */
