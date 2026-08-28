@@ -181,8 +181,9 @@ export function row(y) {
     return H.rows(H.screen())[y].replace(/\s+$/, "");
 }
 
-// The status line, which LE puts at the bottom.
-export const status = () => row(23);
+// The status line, which LE puts on the bottom row -- whatever row that is
+// after a resize.
+export const status = () => row(H.rows(H.screen()).length - 1);
 
 export function cursor() {
     const s = H.screen();

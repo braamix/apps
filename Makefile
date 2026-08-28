@@ -70,6 +70,10 @@ test: all
 	@node editors/uemacs/test/emwindow.mjs
 	@node editors/uemacs/test/embang.mjs
 	@node editors/le/test/leedit.mjs
+	@node editors/le/test/leblock.mjs
+	@node editors/le/test/lesearch.mjs
+	@node editors/le/test/lesigint.mjs
+	@node editors/le/test/lescreen.mjs
 	@node editors/vi/test/exscript.mjs
 	@node editors/vi/test/exerrors.mjs
 	@node editors/vi/test/exregex.mjs
