@@ -40,6 +40,14 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
         if (ex_thrown) {
             if (ex_quitting)
                 co_return (ex_status);
+            /*
+             * Under a visual :, the landing is excatch() and not this loop --
+             * upstream threw to vreslab rather than resetlab. Staying would
+             * read stdin for the next command, and in visual the keyboard is
+             * a claim rather than stdin, so it would never answer.
+             */
+            if (vcatch)
+                co_return (0);
             ex_reset();
         }
         if (ex_pendclose > 0) {

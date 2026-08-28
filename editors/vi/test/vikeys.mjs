@@ -90,4 +90,26 @@ put("/tmp/f", FILE);
 vi("/tmp/f", ["2", "^C", "d", "d"]);
 is("^C abandons a count", screen(3), "beta\ngamma\ndelta");
 
-ok("the first frame, x, counts, hjkl, word and arrow motions, ^F and ^C");
+/* ------------------------------------------- a : command that fails */
+
+// An error under : lands in the visual catch, not at the top of the command
+// loop: staying there would read stdin for the next command, and in visual the
+// keyboard is a claim rather than stdin, so the editor would park forever.
+// The message goes to the echo line and the editor is still live after it.
+function bad(cmd, want) {
+    put("/tmp/f", FILE);
+    vi("/tmp/f", []);
+    press(":");
+    for (const c of cmd)
+        press(c);
+    press("CR");
+    is(`:${cmd}`, screen().split("\n")[23] ?? "", want);
+    press("x"); /* and the editor still answers */
+    is(`:${cmd}, still live`, screen(1), "lpha");
+}
+
+bad("foo", "foo: Not an editor command");
+bad("99999", "Not that many lines in buffer");
+bad("s/zz/y/", "Substitute pattern match failed");
+
+ok("the first frame, x, counts, hjkl, word and arrow motions, ^F, ^C and a failed :");
