@@ -194,8 +194,11 @@ message line uses; everything else was replaced rather than reimplemented.
   the pushback is known — and a repaint costs the cells that changed, which is
   not the bargain it was at 1200 baud.
 - **The screen has colour**, which a termcap terminal did not: the message line
-  is cyan. The mode line keeps the reverse video it always had, as a cell
-  attribute rather than an escape sequence.
+  is bright yellow and the mode line is black on cyan. Upstream marked the mode
+  line with reverse video, which is what a terminal had instead of a palette;
+  that becomes the colour pair here rather than riding along with it, since the
+  renderer swaps foreground and background for the attribute and would undo
+  them.
 - **[`emacs.rc`](emacs.rc) is two thirds shorter**, because most of upstream's
   was addressed to a DOS box or a serial terminal and none of it ran. `$sres`
   answers `"NORMAL"` and nothing can set it, so the `%system` kludge always
@@ -269,8 +272,8 @@ Seven cases, each booting the kernel, planting `em`, and driving it through
 the grid — keys in, cells out, because uemacs has no command mode and no way
 to be driven down a pipe. [test/emlib.mjs](test/emlib.mjs) is the shared half.
 
-- `emkeys.mjs` — the first frame whole and its three colours, the mode line's
-  reverse video, `C-f`/`C-b`/`C-n`/`C-p`/`C-a`/`C-e`, the arrow keys reaching
+- `emkeys.mjs` — the first frame whole and its colours, the mode line black on
+  cyan, `C-f`/`C-b`/`C-n`/`C-p`/`C-a`/`C-e`, the arrow keys reaching
   the same commands, `Home`/`End`/`Delete`, `C-Left`/`C-Right`/`C-Home`/`C-End`,
   `M-<` and `M->`, `C-u` with and without a count, and the word motions.
 - `emedit.mjs` — self-insert, `C-d`, `C-h`, `C-o`, `C-k` and `C-y` through the

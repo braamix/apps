@@ -189,19 +189,16 @@ export function cursor() {
 
 const COLORS = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
 
+const color_of = (c) => COLORS[c & 7] + (c & 8 ? "+" : "");
+
 export function fg(y) {
-    const c = H.cell(H.screen(), 0, y).fg;
-    return COLORS[c & 7] + (c & 8 ? "+" : "");
+    return color_of(H.cell(H.screen(), 0, y).fg);
 }
 
-// The attribute byte, which harness.mjs's cell() does not unpack: the mode
-// line is the one row that carries one, and reverse video is what says so.
-export function attrs(y, x = 0) {
-    const s = H.screen();
-    return (H.mem.u32()[(s.cells + (y * s.cols + x) * 8) / 4 + 1] >>> 16) & 0xff;
+export function bg(y) {
+    return color_of(H.cell(H.screen(), 0, y).bg);
 }
 
-export const ATTR_REVERSE = 4;
 
 export function is(what, got, want) {
     const trim = (s) => s.replace(/[ \t]+$/gm, "").replace(/\n+$/, "");

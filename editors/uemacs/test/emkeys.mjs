@@ -4,8 +4,7 @@
 // this worth having: it is the only case that says the back buffer reached the
 // Grid at all.
 
-import { boot, em, put, press, keys, screen, cursor, fg, attrs, ATTR_REVERSE, is, ok }
-    from "./emlib.mjs";
+import { boot, em, put, press, keys, screen, cursor, fg, bg, is, ok } from "./emlib.mjs";
 
 await boot("emkeys");
 
@@ -23,10 +22,10 @@ delta
 ${BLANK}
 -- uEmacs/Pk 4.0.15: f (utf-8) /tmp/f ----------------------------------- All --`);
 
-// Three things the frame says that the text does not: the mode line is in
-// reverse video, the message line is cyan, and the text is white.
-is("the mode line stands out", String(attrs(22)), String(ATTR_REVERSE));
-is("the colours", [fg(0), fg(23)].join(" "), "white cyan");
+// Three things the frame says that the text does not: the mode line is black
+// on cyan, the message line is bright yellow, and the text is white.
+is("the mode line stands out", [fg(22), bg(22)].join(" on "), "black on cyan");
+is("the colours", [fg(0), fg(23)].join(" "), "white yellow+");
 
 // The cursor starts at the top left and reaches the screen in the header of a
 // blit -- a motion damages no cell, so this is the only thing that says it

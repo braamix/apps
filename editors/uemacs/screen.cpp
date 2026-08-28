@@ -310,8 +310,9 @@ void tcapkclose(void)
  * sends that and no more.
  *
  * Colour is this port's, since a termcap terminal had none: the message line
- * is cyan, and the mode line keeps the reverse video it always had, now as a
- * cell attribute rather than an escape sequence.
+ * is bright yellow, and the mode line is black on cyan.  Upstream's reverse
+ * video becomes that pair rather than riding along with it -- the renderer
+ * swaps fg and bg for the attribute, which would undo the colours.
  */
 static Task<void> vflush(void)
 {
@@ -325,22 +326,26 @@ static Task<void> vflush(void)
     cols = (int)g->cols < tubecols ? (int)g->cols : tubecols;
 
     for (y = 0; y < rows; y++) {
-        unsigned char fg = y == term.t_nrow ? COLOR_CYAN : COLOR_WHITE;
+        unsigned char row_fg = y == term.t_nrow ? COLOR_YELLOW | COLOR_BRIGHT : COLOR_WHITE;
 
         for (x = 0; x < cols; x++) {
             struct tcell *p = cell_at(y, x);
             Cell *cl        = g->at((u32)x, (u32)y);
             char32_t ch;
+            unsigned char fg, bg, attrs;
 
             if (!p || !cl)
                 continue;
-            ch = p->ch ? (char32_t)p->ch : U' ';
-            if (cl->ch == ch && cl->attrs == p->attrs && cl->fg == fg)
+            ch    = p->ch ? (char32_t)p->ch : U' ';
+            attrs = p->attrs & ~ATTR_REVERSE;
+            fg    = p->attrs & ATTR_REVERSE ? COLOR_BLACK : row_fg;
+            bg    = p->attrs & ATTR_REVERSE ? COLOR_CYAN : COLOR_BLACK;
+            if (cl->ch == ch && cl->attrs == attrs && cl->fg == fg && cl->bg == bg)
                 continue;
             cl->ch    = ch;
-            cl->attrs = p->attrs;
+            cl->attrs = attrs;
             cl->fg    = fg;
-            cl->bg    = COLOR_BLACK;
+            cl->bg    = bg;
             g->touch((u32)x, (u32)y, 1, 1);
         }
     }
