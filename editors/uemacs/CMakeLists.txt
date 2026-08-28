@@ -33,43 +33,29 @@ target_compile_options(em_quiet INTERFACE
     -Wno-parentheses -Wno-dangling-else -Wno-char-subscripts
     -Wno-missing-field-initializers)
 
-if(NOT Python3_EXECUTABLE)
-    find_package(Python3 COMPONENTS Interpreter REQUIRED)
-endif()
-
-# .emacsrc and emacs.hlp go into the binary. A package's non-bin payload lands
-# under a path that carries the version, which the program would then have to
-# know; fileio.cpp serves these when nothing on disk answers, so a user's own
-# copy in $HOME or the cwd still wins.
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rcdata.cpp
-                   COMMAND ${Python3_EXECUTABLE}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/mkdata.py
-                           ${CMAKE_CURRENT_BINARY_DIR}/rcdata.cpp
-                           .emacsrc=${CMAKE_CURRENT_SOURCE_DIR}/emacs.rc
-                           emacs.hlp=${CMAKE_CURRENT_SOURCE_DIR}/emacs.hlp
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mkdata.py
-                           ${CMAKE_CURRENT_SOURCE_DIR}/emacs.rc
-                           ${CMAKE_CURRENT_SOURCE_DIR}/emacs.hlp
-                   COMMENT "Generating rcdata.cpp"
-                   VERBATIM)
-
 # Upstream's file split and names are kept; what went is named in README.md.
 # screen.cpp is tcap.c and posix.c; there is no lock.c, usage.c or wrapper.c.
+# epath.cpp is new: epath.h was a table of install directories, and the one
+# directory that matters now has to be found at startup.
 braam_add_program(NAME em
                   SOURCES basic.cpp bind.cpp buffer.cpp display.cpp ebind.cpp
-                          eval.cpp exec.cpp file.cpp fileio.cpp globals.cpp
-                          input.cpp isearch.cpp line.cpp main.cpp names.cpp
-                          random.cpp region.cpp search.cpp spawn.cpp spell.cpp
-                          utf8.cpp version.cpp window.cpp word.cpp
-                          screen.cpp braam.cpp
-                          ${CMAKE_CURRENT_BINARY_DIR}/rcdata.cpp)
+                          epath.cpp eval.cpp exec.cpp file.cpp fileio.cpp
+                          globals.cpp input.cpp isearch.cpp line.cpp main.cpp
+                          names.cpp random.cpp region.cpp search.cpp spawn.cpp
+                          spell.cpp utf8.cpp version.cpp window.cpp word.cpp
+                          screen.cpp braam.cpp)
 
-# rcdata.cpp is generated into the build directory and includes builtin.h.
-target_include_directories(bin_em PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(bin_em PRIVATE ${EM_NOBUILTIN})
 target_link_libraries(bin_em PRIVATE em_quiet)
 
-braam_add_package(NAME uemacs VERSION 4.0-r0
+# The data travels with the binary. Only the flat bin/ entry becomes a command;
+# share/ is nested, so it is payload — and /pkg/bin/em is the link into the
+# store directory it sits in, which is how epath.cpp finds it.
+braam_add_package(NAME uemacs VERSION 4.0-r1
                   FIELD "T=uEmacs/PK 4.0, the MicroEMACS screen editor"
-                  FILES $<TARGET_FILE:bin_em>=bin/em)
+                  FILES $<TARGET_FILE:bin_em>=bin/em
+                        ${CMAKE_CURRENT_SOURCE_DIR}/emacs.rc=share/emacs.rc
+                        ${CMAKE_CURRENT_SOURCE_DIR}/emacs.hlp=share/emacs.hlp
+                        ${CMAKE_CURRENT_SOURCE_DIR}/emacs.pdf=share/emacs.pdf
+                        ${CMAKE_CURRENT_SOURCE_DIR}/UTF-8-demo.txt=share/UTF-8-demo.txt)
 add_dependencies(packages pkg_uemacs)

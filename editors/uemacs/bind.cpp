@@ -461,6 +461,20 @@ Task<char *> lookup_file(char *fname, int try_home)
         }
     }
 
+    /* The packaged copy, under its undotted name.  Last, where upstream's
+       install directories were, and not conditional on try_home. */
+    if (*datadir)
+        for (i = 0; i < (int)ARRAY_SIZE(sysname); i++) {
+            if (strcmp(fname, pathname[i]) != 0)
+                continue;
+            snprintf(fspec, sizeof(fspec), "%s/%s", datadir, sysname[i]);
+            if (co_await file_open_read(fspec) == FIOSUC) {
+                co_await file_close();
+                co_return fspec;
+            }
+            break;
+        }
+
     co_return NULL; /* no such luck */
 }
 

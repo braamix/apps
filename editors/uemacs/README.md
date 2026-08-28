@@ -64,7 +64,7 @@ message line uses; everything else was replaced rather than reimplemented.
 | hunspell (`spell.c`) | built without it, which upstream's own Makefile supports: spell mode exists and never finds a misspelling |
 | `stat()`'s `st_dev`, `st_ino`, `st_mtim` | `FileInfo`'s kind, size and millisecond mtime |
 | `system("echo pat* >/tmp/meXXXXXX")` for TAB completion | `list_dir()` on the directory part — no shell, no temp file, and no `mkstemp` |
-| `epath.h`'s `/usr/local/lib/` search path, and `$HOME/lib` | `/etc/emacs.rc` and `/etc/emacs.hlp`, with both files compiled into the binary behind them |
+| `epath.h`'s `/usr/local/lib/` search path, and `$HOME/lib` | `/etc/emacs.rc` and `/etc/emacs.hlp`, with the package's own `share/` behind them — found by reading `/pkg/bin/em` ([epath.cpp](epath.cpp)) |
 | `exit()` from wherever | a flag the command loop tests |
 | K&R-era C with `int` command functions | C++20, where every bound command is a `Task<int>` |
 
@@ -110,32 +110,35 @@ message line uses; everything else was replaced rather than reimplemented.
   `proc_main()` falls out to `display_close()` and the status. No mechanism,
   three checks.
 
-- **`.emacsrc` and `emacs.hlp` are in the binary.** A package's non-`bin/`
-  payload lands under a path that carries the version, which the program would
-  then have to know — the reason [games/adventure](../../games/adventure/)
-  compiles its data in. The seam here is `file_open_read()`, which consults a
-  compiled-in table after the real filesystem, so `dofile(".emacsrc")` and
-  `M-?` are untouched upstream code.
+- **`emacs.rc` and `emacs.hlp` ship in the package.** They land in
+  `/pkg/store/uemacs-<version>/share/`, a path carrying a version the binary
+  does not know — so at startup [epath.cpp](epath.cpp) reads the link `PATH`
+  found, `/pkg/bin/em`, and takes the directory of its directory. `readlink`
+  follows the directories on the way without following the leaf, so one
+  syscall recovers the prefix; [converters/iconv](../../converters/iconv/)
+  finds its character tables the same way. `$EMACS_PREFIX` overrides it, and a
+  candidate is accepted only if `emacs.hlp` is under it, so a stale link
+  cannot win.
 
-  **A built-in answers a bare name only.** Matching the leaf of every
-  spelling `lookup_file()` tries would have answered the `$HOME` probe first
-  and left every copy on disk but that one unreachable. So the search runs to
-  the end, with the compiled-in file behind it:
+  **The packaged copy is last**, where upstream's install directories were, so
+  every copy on disk wins over it and none is shadowed:
 
   | the startup file, in order | the help file |
   | --- | --- |
   | `$HOME/.emacsrc` | `$HOME/emacs.hlp` |
   | `/etc/emacs.rc` | `/etc/emacs.hlp` |
   | `./.emacsrc` | `./emacs.hlp` |
-  | the compiled-in [emacs.rc](emacs.rc) | the compiled-in [emacs.hlp](emacs.hlp) |
+  | each `$PATH` entry | the same |
+  | `<store>/share/`[`emacs.rc`](emacs.rc) | `<store>/share/`[`emacs.hlp`](emacs.hlp) |
 
-  `$HOME` is `/home` unless the environment says otherwise, and `/etc` drops
-  the leading dot because it is not a home directory — upstream looked in
-  `$HOME/lib` and then in the directories its Makefile installed into, and
-  that is what this replaces. Upstream then walked `$PATH`, which is no longer
-  reached: the built-in answers at the bare name, and the bare name is the
-  current directory's spelling. `em @file` and `execute-file` take a path and
-  do not search at all.
+  `$HOME` is `/home` unless the environment says otherwise, and both the `/etc`
+  and the packaged spelling drop the leading dot, because neither place is a
+  home directory — upstream looked in `$HOME/lib` and then in the directories
+  its Makefile installed into, and that is what this replaces. `em @file` and
+  `execute-file` take a path and do not search at all.
+
+  Two more files ride along as payload and nothing looks for them:
+  `share/emacs.pdf`, upstream's manual, and `share/UTF-8-demo.txt`.
 
 ## Differences from upstream worth knowing
 
@@ -194,7 +197,7 @@ Upstream's file split and its names are kept; `.c` became `.cpp`.
 | `spawn.cpp` | `spawn.c` — the escapes, over `spawn()` |
 | `spell.cpp` `utf8.cpp` `globals.cpp` `version.cpp` | the same |
 | `braam.cpp` / `braam.h` | — the C library uemacs calls |
-| `builtin.h`, `mkdata.py` | — the compiled-in `.emacsrc` and `emacs.hlp` |
+| `epath.cpp` | — where the package's own `share/` is, found at startup |
 | — | `lock.c`, `usage.c`, `wrapper.c` deleted |
 
 `tmp/` holds the upstream tree the port was made from.
@@ -202,8 +205,8 @@ Upstream's file split and its names are kept; `.c` became `.cpp`.
 ## Building and packaging
 
 ```
-make                     # build/editors/uemacs/em.wasm, about 280 KB
-make package             # uemacs-4.0-r0.zip, holding bin/em
+make                     # build/editors/uemacs/em.wasm, about 270 KB
+make package             # uemacs-4.0-r1.zip: bin/em, and four files in share/
 make test                # the seven cases below
 ```
 
@@ -226,10 +229,10 @@ to be driven down a pipe. [test/emlib.mjs](test/emlib.mjs) is the shared half.
 - `emsearch.mjs` — `C-s`, `C-r`, a search that fails, the incremental search
   and the key that ends it running as a command, `M-r`, and a regexp under
   MAGIC.
-- `emmacro.mjs` — that the compiled-in `emacs.rc` ran and that one on disk
+- `emmacro.mjs` — that the packaged `emacs.rc` ran and that one on disk
   overrides it, `!while`/`!if`/`&add`/`&cat`, `store-macro` with
-  `bind-to-key`, a keyboard macro, a `$` variable, and `M-?` opening the
-  compiled-in `emacs.hlp`.
+  `bind-to-key`, a keyboard macro, a `$` variable, `M-?` opening the packaged
+  `emacs.hlp`, and what happens with no package at all.
 - `emwindow.mjs` — `C-x 2`, `C-x o`, `C-x 1`, `C-x z` with one window, and a
   resize both ways with the buffer and the cursor kept.
 - `embang.mjs` — `C-x !` with its output on the console under the pause, the

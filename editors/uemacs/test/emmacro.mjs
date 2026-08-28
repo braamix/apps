@@ -1,9 +1,9 @@
-// The macro language, which is also the gate on the compiled-in emacs.rc: a
-// package's non-bin payload lands under a versioned path, so .emacsrc and
-// emacs.hlp are in the binary and fileio.cpp serves them when nothing on disk
-// answers.
+// The macro language, which is also the gate on the packaged emacs.rc: it
+// ships in the zip beside the binary, under a store path carrying a version
+// the binary does not know, so epath.cpp reads the link PATH found to recover
+// it and lookup_file() probes there last.
 
-import { boot, em, put, get, press, keys, submit, screen, modeline, is, ok, tick, H }
+import { boot, em, put, get, press, keys, submit, screen, modeline, is, ok, tick, STORE, H }
     from "./emlib.mjs";
 
 await boot("emmacro");
@@ -12,23 +12,23 @@ await boot("emmacro");
 // read, from the macro bound to META-SPEC-R.
 put("/tmp/f", "alpha\nbeta\n");
 em("/tmp/f");
-is("the compiled-in emacs.rc ran",
+is("the packaged emacs.rc ran",
    /\(Spell utf-8\)/.test(modeline()) ? "Spell utf-8" : modeline(), "Spell utf-8");
 
-// A user's own .emacsrc on disk wins over the compiled-in one. Nothing else
+// A user's own .emacsrc on disk wins over the packaged one. Nothing else
 // binds C-x q, so a session that answers it read the file, and the mode line
-// says the compiled-in one did not run.
+// says the packaged one did not run.
 put("/home/.emacsrc", "bind-to-key beginning-of-file ^Xq\n");
 em("/tmp/f", ["^n", "^x", "q"]);
 is("$HOME/.emacsrc overrides it, and its binding works", H.screen().cursor_y + "", "0");
-is("so the compiled-in one did not run", /Spell/.test(modeline()) ? "spell" : "no spell",
+is("so the packaged one did not run", /Spell/.test(modeline()) ? "spell" : "no spell",
    "no spell");
 H.store.files.delete("/home/.emacsrc");
 
 // So does the system-wide copy, and so does one in the current directory:
-// $HOME, /etc, the cwd, then the built-in. A built-in answers a bare name
-// only -- matching the leaf of every spelling would have answered the $HOME
-// probe first and left every copy on disk but that one unreachable.
+// $HOME, /etc, the cwd, $PATH, then the package. The packaged copy is last,
+// where upstream's install directories were, so every copy on disk wins over
+// it and none of them is shadowed.
 //
 // Each binds C-x q to a different line, so the cursor says which was read.
 put("/etc/emacs.rc", "bind-to-key end-of-file ^Xq\n");
@@ -43,7 +43,7 @@ H.store.files.delete("/etc/emacs.rc");
 submit("cd /tmp; em f");
 press("^x");
 press("q");
-is("and the current directory before the built-in", H.screen().cursor_y + "", "1");
+is("and the current directory before the packaged copy", H.screen().cursor_y + "", "1");
 H.store.files.delete("/tmp/.emacsrc");
 
 // /etc/emacs.hlp is the same for the help file, under its own name.
@@ -51,7 +51,7 @@ put("/etc/emacs.hlp", "SYSTEM HELP\n");
 em("/tmp/f");
 keys("ESC", "?");
 tick(3);
-is("/etc/emacs.hlp overrides the compiled-in help",
+is("/etc/emacs.hlp overrides the packaged help",
    H.rows(H.screen())[0].replace(/\s+$/, ""), "SYSTEM HELP");
 H.store.files.delete("/etc/emacs.hlp");
 
@@ -126,13 +126,25 @@ tick(1);
 is("an environment variable", screen().split("\n").pop(), "buffer=f");
 
 // M-? is the help, which emacs.rc binds to a macro that opens emacs.hlp in a
-// window of its own -- so this says both compiled-in files are reachable.
+// window of its own -- so this says both packaged files are reachable.
 em("/tmp/f");
 keys("ESC", "?");
 tick(3);
-is("M-? shows the compiled-in help", H.rows(H.screen())[0].replace(/\s+$/, ""),
+is("M-? shows the packaged help", H.rows(H.screen())[0].replace(/\s+$/, ""),
    "=>                      uEmacs/PK 4.0 HELP INDEX");
 is("and the macro says how to use it", screen().split("\n").pop(),
    "Select topic from list and press <Help>");
+
+// Last, because it takes the package away: with nothing to find, em still
+// starts -- no startup file is not an error -- and the help says so.
+H.store.files.delete(`${STORE}/share/emacs.rc`);
+H.store.files.delete(`${STORE}/share/emacs.hlp`);
+em("/tmp/f");
+is("without the package emacs.rc does not run",
+   /Spell/.test(modeline()) ? "spell" : "no spell", "no spell");
+keys("ESC", "?");
+tick(3);
+is("and the help says it is not there", screen().split("\n").pop(),
+   "(Help file is not online)");
 
 ok("emacs.rc, emacs.hlp, the directives, stored macros and a keyboard macro");

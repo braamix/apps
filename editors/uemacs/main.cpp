@@ -149,6 +149,7 @@ Task<i32> proc_main(Args args)
     co_await display_open(); /* Display */
     co_await edinit("main"); /* Buffers, windows */
     varinit();               /* user variables */
+    co_await epath_init();   /* where the package's share directory is */
 
     viewflag   = FALSE; /* view mode defaults off in command line */
     gotoflag   = FALSE; /* set to off to begin with */

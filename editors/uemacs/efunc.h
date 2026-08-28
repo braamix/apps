@@ -190,6 +190,9 @@ extern int unbindchar(int c);
 extern Task<unsigned int> getckey(int mflag);
 extern Task<int> startup(char *sfname);
 extern Task<char *> lookup_file(char *fname, int try_home);
+
+/* epath.c */
+extern Task<void> epath_init(void);
 extern void cmdstr(int c, char *seq);
 extern fn_t getbind(int c);
 extern char *getfname(fn_t);

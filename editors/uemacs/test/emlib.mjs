@@ -55,7 +55,25 @@ export async function boot(caseName) {
     H.regrid(80, 24, "resize returned no screen descriptor");
     if (!H.store.files.has("/bin/sh")) die("the archive did not unpack");
     H.store.files.set("/bin/em", new Uint8Array(readFileSync(opt.binary)));
+    install();
     return H;
+}
+
+// The package as pkg would have installed it: em reads /pkg/bin/em to find its
+// own share directory, so the whole link chain has to be real. The leaf may
+// dangle -- readlink does not follow it -- and the binary stays at /bin/em.
+export const STORE = "/pkg/store/uemacs-4.0-r1";
+
+function install() {
+    for (const f of ["emacs.rc", "emacs.hlp"])
+        H.store.files.set(`${STORE}/share/${f}`,
+                          new Uint8Array(readFileSync(join(HERE, "..", f))));
+    /* Under sixty characters each: type() posts a whole line into a 64-key
+       channel without checking. */
+    submit(`mkdir -p ${STORE}/bin /pkg/gen/1/bin`);
+    submit(`ln -s ${STORE}/bin/em /pkg/gen/1/bin/em`);
+    submit("ln -s /pkg/gen/1 /pkg/active");
+    submit("ln -s /pkg/active/bin /pkg/bin");
 }
 
 export function put(path, text) {
@@ -109,7 +127,7 @@ export function em(args = "", keys = []) {
     running = true;
     H.submit(`em ${args}`, clock++);
     /* Enough for the shell to spawn it, for it to claim the screen, and for
-       the compiled-in .emacsrc to run: a key pressed before that lands on the
+       the packaged emacs.rc to run: a key pressed before that lands on the
        shell's command line instead. */
     tick(6);
     for (const k of keys)

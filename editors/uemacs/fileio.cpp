@@ -10,7 +10,6 @@
 #include "estruct.h"
 #include "globals.h"
 #include "efunc.h"
-#include "builtin.h"
 
 #include "proc/io.h"
 
@@ -30,31 +29,6 @@ static int fhave;  /* bytes in it: read or unwritten */
 static int fnext;  /* how far read, reading only */
 
 static int fwriting; /* which of the two a file is open for */
-
-/* The compiled-in file being read, and how far, when ffd is -1. */
-static const struct builtin_file *fbuiltin;
-static unsigned fbpos;
-
-/*
- * The compiled-in file of that name, or NULL.
- *
- * A name with a directory in it never matches, and that is the whole of the
- * ordering: lookup_file() tries $HOME/<name>, then $HOME/lib/<name>, then the
- * bare name in the current directory, and only the last of those can be a
- * built-in.  Matching the leaf of every spelling would answer the first probe
- * instead, and a copy on disk anywhere but $HOME would never be reached.
- */
-static const struct builtin_file *builtin_of(const char *fn)
-{
-    const struct builtin_file *b;
-
-    if (strchr(fn, '/'))
-        return NULL;
-    for (b = builtin_files; b->name; b++)
-        if (strcmp(fn, b->name) == 0)
-            return b;
-    return NULL;
-}
 
 static int getbuf(void)
 {
@@ -78,14 +52,10 @@ Task<int> file_open_read(char *fn)
     ferr    = FALSE;
     fhave = fnext = 0;
     fwriting      = FALSE;
-    fbuiltin      = NULL;
-    fbpos         = 0;
 
-    /* Nothing on disk: .emacsrc and emacs.hlp are compiled in. */
     if (r.is_err()) {
-        ffd      = -1;
-        fbuiltin = builtin_of(fn);
-        co_return fbuiltin ? FIOSUC : FIOFNF;
+        ffd = -1;
+        co_return FIOFNF;
     }
     ffd = r.value();
     co_return FIOSUC;
@@ -114,7 +84,6 @@ Task<int> file_open_write(char *fn)
     ferr  = FALSE;
     fhave = fnext = 0;
     fwriting      = TRUE;
-    fbuiltin      = NULL;
     co_return FIOSUC;
 }
 
@@ -157,7 +126,6 @@ Task<int> file_close(void)
         ffd = -1;
     }
     fwriting = FALSE;
-    fbuiltin = NULL;
     if (!ok || ferr) {
         msg_printf("Error closing file");
         co_return FIOERR;
@@ -199,11 +167,6 @@ static int fgetbyte(void)
 {
     if (fnext < fhave)
         return (unsigned char)fbuf[fnext++];
-    if (fbuiltin) {
-        if (fbpos >= fbuiltin->size)
-            return -1;
-        return (unsigned char)fbuiltin->text[fbpos++];
-    }
     return -1;
 }
 
@@ -212,7 +175,7 @@ static Task<int> frefill(void)
 {
     Result<String> r = Err(Error::NoMemory);
 
-    if (fbuiltin || eofflag || ferr || ffd < 0)
+    if (eofflag || ferr || ffd < 0)
         co_return FALSE;
 
     if (Task<Result<String>> t = read_some((u32)ffd, FIOBUF))
@@ -329,7 +292,5 @@ Task<int> file_exists(char *fname)
 
     if (Task<Result<FileInfo>> t = stat_of(Str(fname, strlen(fname))))
         r = co_await t;
-    if (!r.is_err())
-        co_return TRUE;
-    co_return builtin_of(fname) ? TRUE : FALSE;
+    co_return r.is_err() ? FALSE : TRUE;
 }
