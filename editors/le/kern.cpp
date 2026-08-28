@@ -467,60 +467,60 @@ int   ReadBlock(int fd,num size,num *act_read)
 {
    if(buffer_mmapped)
    {
-      return ERR;
+      co_return ERR;
    }
 
    if(size==0)
    {
       *act_read=0;
-      return(OK);
+      co_return(OK);
    }
 
    PreModify();
 
    if(GetSpace(size)!=OK)
-      return(ERR);
+      co_return(ERR);
 
-   *act_read=read(fd,buffer+ptr1,size);
+   *act_read=co_await le_read(fd,buffer+ptr1,size);
    if(*act_read==-1)
-      return(ERR);
+      co_return(ERR);
    if(*act_read==0)
-      return(OK);
-   return(InsertBlock(buffer+ptr1,*act_read));
+      co_return(OK);
+   co_return(InsertBlock(buffer+ptr1,*act_read));
 }
 
-int   ReplaceTextFromFile(int fd,num size,num *act_read)
+Task<int>   ReplaceTextFromFile(int fd,num size,num *act_read)
 {
    // buffer should be clear
    assert(Size()==0);
 
    if(buffer_mmapped)
-      return ERR;
+      co_return ERR;
 
    if(size==0)
    {
       *act_read=0;
-      return(OK);
+      co_return(OK);
    }
 
    if(GetSpace(size)!=OK)
-      return(ERR);
+      co_return(ERR);
 
-   *act_read=read(fd,buffer+ptr1,size);
+   *act_read=co_await le_read(fd,buffer+ptr1,size);
    if(*act_read==-1)
-      return(ERR);
+      co_return(ERR);
    if(*act_read==0)
-      return(OK);
+      co_return(OK);
 
    ptr1+=*act_read;
    GapSize-=*act_read;
 
    TextEnd=TextPoint(Size());
 
-   return(OK);
+   co_return(OK);
 }
 
-int   ReadBlockOver(int fd,num size,num *act_read)
+Task<int>   ReadBlockOver(int fd,num size,num *act_read)
 {
    if(buffer_mmapped)
    {
@@ -530,7 +530,7 @@ int   ReadBlockOver(int fd,num size,num *act_read)
    if(size==0)
    {
       *act_read=0;
-      return(OK);
+      co_return(OK);
    }
    if(buffer_mmapped)
    {
@@ -538,9 +538,9 @@ int   ReadBlockOver(int fd,num size,num *act_read)
       if(buf==0)
       {
 	 NotMemory();
-	 return ERR;
+	 co_return ERR;
       }
-      *act_read=read(fd,buf,size);
+      *act_read=co_await le_read(fd,buf,size);
       int res=OK;
       if(*act_read==-1)
 	 res=ERR;
@@ -549,11 +549,11 @@ int   ReadBlockOver(int fd,num size,num *act_read)
       if(res==OK)
 	 CurrentPos+=*act_read;
       free(buf);
-      return res;
+      co_return res;
    }
    if(ReadBlock(fd,size,act_read)==OK)
-      return DeleteBlock(0,*act_read);
-   return ERR;
+      co_return DeleteBlock(0,*act_read);
+   co_return ERR;
 }
 
 int   GetBlock(char *copy,offs from,num size)

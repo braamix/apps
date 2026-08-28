@@ -370,7 +370,7 @@ again:
    switch(action)
    {
    case(LINE_UP):
-       co_await UserLineUp();
+       Task<co_await> UserLineUp();
        goto again;
    case(LINE_DOWN):
        co_await UserLineDown();

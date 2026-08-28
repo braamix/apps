@@ -43,7 +43,7 @@ void  init_chset()
    for(i=0; i<256; i++)
       if(iscntrl(i))
          chset[i/CHSET_BITS_PER_BYTE]|=(1<<i%CHSET_BITS_PER_BYTE);*/
-   co_await set_chset_8bit_noctrl();
+   Task<co_await> set_chset_8bit_noctrl();
 }
 
 Task<void>  set_chset_8bit()

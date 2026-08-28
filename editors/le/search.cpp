@@ -81,7 +81,7 @@ void  NotFound()
    Message("Search string not found.");
    SetStdCol();
    SetCursor();
-   co_await WaitForKey();
+   Task<co_await> WaitForKey();
 }
 
 unsigned char map_to_lower[256];
@@ -527,7 +527,7 @@ Task<void>  Replace()
             SyncTextWin();
 	    Message(str);
             SetCursor();
-            while(co_await WaitForKey()==ERR);
+            while(Task<co_await> co_await WaitForKey()==ERR);
             co_return;
          }
          else
@@ -758,7 +758,7 @@ Task<void>  FindMatch()
    {
       Message("Matching bracket not found.");
       SetCursor();
-      co_await WaitForKey();
+      Task<co_await> WaitForKey();
       co_return;
    }
    CurrentPos=ptr;

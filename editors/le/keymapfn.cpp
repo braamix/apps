@@ -19,6 +19,7 @@
 #include "config.h"
 #include "lesys.h"
 #include "edit.h"
+#include "lefile.h"
 #include "epath.h"
 #include "keymap.h"
 

@@ -20,6 +20,7 @@
 
 #include "lesys.h"
 #include "edit.h"
+#include "lefile.h"
 #include "epath.h"
 #include "leio.h"
 #include "highli.h"

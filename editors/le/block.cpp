@@ -549,7 +549,7 @@ Task<void>    Read()
    MessageSync("Reading...");
    PreUserEdit();
    if(buffer_mmapped || (in_hex_mode && !insert))
-      res=ReadBlockOver(fd,st.st_size,&act_read);
+      res=co_await ReadBlockOver(fd,st.st_size,&act_read);
    else
       res=ReadBlock(fd,st.st_size,&act_read);
    if(res!=OK)

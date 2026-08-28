@@ -93,7 +93,7 @@ int    LockFile(int fd,bool drop)
             errno=EACCES;
             while(fcntl(fd,F_SETLK,&Lock)==-1 && (errno==EACCES || errno==EAGAIN))
             {
-	       if(co_await WaitForKey(1000)!=ERR)
+	       if(Task<co_await> co_await WaitForKey(1000)!=ERR)
 	       {
 		  int action=co_await GetNextAction();
 		  if(action==CANCEL)
@@ -208,7 +208,7 @@ int   LoadFile(char *name)
    if(!hide)
       MainClipBoard.Copy();
 
-   co_await EmptyText();
+   Task<co_await> EmptyText();
    ResetBookmarks();
 
    flag=REDISPLAY_ALL;
@@ -235,7 +235,7 @@ int   LoadFile(char *name)
 	 || S_ISFIFO(FileMode))
       {
 	 ErrMsg("This is a special file or a pipe\nthat I cannot edit.");
-	 co_await EmptyText();
+	 Task<co_await> EmptyText();
 	 co_return(ERR);
       }
       if(S_ISDIR(FileMode))
@@ -254,7 +254,7 @@ int   LoadFile(char *name)
 	 ErrMsg("Cannot create the file.\n"
 		"The directory does not exist or is not accessible\n"
 	        "or does not permit writing");
-	 co_await EmptyText();
+	 Task<co_await> EmptyText();
 	 co_return(ERR);
       }
    }
@@ -271,7 +271,7 @@ int   LoadFile(char *name)
    if(file==-1)
    {
       FError(open_name);
-      co_await EmptyText();
+      Task<co_await> EmptyText();
       co_return(ERR);
    }
 
@@ -286,7 +286,7 @@ int   LoadFile(char *name)
       {
 	 co_await le_close(file);
 	 file=-1;
-	 co_await EmptyText();
+	 Task<co_await> EmptyText();
          co_return(ERR);
       }
       if(lock_res==-2)
@@ -295,11 +295,11 @@ int   LoadFile(char *name)
 
    if(!buffer_mmapped)
    {
-      if(ReplaceTextFromFile(file,st.st_size,&act_read)!=OK)
+      if(co_await ReplaceTextFromFile(file,st.st_size,&act_read)!=OK)
       {
 	 if(errno)
 	    FError(name);
-	 co_await EmptyText();
+	 Task<co_await> EmptyText();
 	 co_return(ERR);
       }
       CheckPoint();
@@ -341,7 +341,7 @@ int   LoadFile(char *name)
 	    if((off_t)mmap_len!=st.st_size) {
 	       errno=ENOMEM;
 	       FError(name);
-	       co_await EmptyText();
+	       Task<co_await> EmptyText();
 	       co_return ERR;
 	    }
 	 }
@@ -351,7 +351,7 @@ int   LoadFile(char *name)
 	 {
 	    buffer=0;
 	    FError(name);
-	    co_await EmptyText();
+	    Task<co_await> EmptyText();
 	    co_return ERR;
 	 }
 	 BufferSize=mmap_len;

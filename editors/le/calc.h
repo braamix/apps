@@ -27,10 +27,12 @@
 
 struct calc_value
 {
-   long double value;
+   /* double, not long double: long double is 113-bit quad on this target
+      and every operation on one is a compiler-rt call nothing provides. */
+   double value;
    unsigned char base;
    const char *to_string();
-   operator long double() { return value; }
+   operator double() { return value; }
 };
 
 extern int sp;

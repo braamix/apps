@@ -25,6 +25,7 @@
 #ifdef HAVE_LANGINFO_H
 #endif
 #include "edit.h"
+#include "lefile.h"
 #include "leio.h"
 #include "calc.h"
 #include "keymap.h"
@@ -472,7 +473,7 @@ void    Terminate()
    FILE    *f;
 
    alarm(0);
-   co_await EmptyText();
+   Task<co_await> EmptyText();
 
    curs_set(1);
 

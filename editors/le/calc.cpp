@@ -17,10 +17,14 @@
  */
 
 #include "config.h"
+#include "braam.h"
+#include "lesys.h"
+#include "math/ftoa.h"
 #include "math/math.h"
 #include "calc.h"
 
-#define  EPS   DBL_MIN
+/* <float.h>'s DBL_MIN, the smallest normal double. */
+#define  EPS   2.2250738585072014e-308
 
 calc_value stack[STSIZE];
 int   sp;
@@ -345,7 +349,8 @@ const char *calc_value::to_string()
 {
    static char s[256];
    if(base==10)
-      snprintf(s,sizeof(s),"%.28Lg",value);
+      /* 17 significant digits round-trip a double exactly. */
+      snprintf(s,sizeof(s),"%.17g",value);
    else if(base==8)
       snprintf(s,sizeof(s),"%#llo",(long long)value);
    else if(base==16)
@@ -383,8 +388,11 @@ int   calculator(const char *in)
 	    if(base_char=='x' || base_char=='X')
 	    {
 	       stack[sp].base=16;
-	       if(sscanf(word,"%llx",&n)==0)
+	       usize used;
+	       Option<u64> got=scan_u64(Str(word,strlen(word)),used,0);
+	       if(!got.has_value())
 		  return(calcerrno=INVALIDNUM);
+	       n=(long long)got.value();
 	       stack[sp++].value=n;
 	       continue;
 	    }
@@ -392,8 +400,11 @@ int   calculator(const char *in)
 	    if(base_char=='b' || base_char=='B')
 	    {
 	       stack[sp].base=2;
-	       if(sscanf(word,"%llb",&n)==0)
+	       usize used;
+	       Option<u64> got=scan_u64(Str(word,strlen(word)),used,0);
+	       if(!got.has_value())
 		  return(calcerrno=INVALIDNUM);
+	       n=(long long)got.value();
 	       stack[sp++].value=n;
 	       continue;
 	    }
@@ -401,15 +412,22 @@ int   calculator(const char *in)
 	    if(base_char>='0' && base_char<='9')
 	    {
 	       stack[sp].base=8;
-	       if(sscanf(word,"%llo",&n)==0)
+	       usize used;
+	       Option<u64> got=scan_u64(Str(word,strlen(word)),used,8);
+	       if(!got.has_value())
 		  return(calcerrno=INVALIDNUM);
+	       n=(long long)got.value();
 	       stack[sp++].value=n;
 	       continue;
 	    }
 	 }
 	 stack[sp].base=10;
-         if(sscanf(word,"%Lg",&stack[sp].value)==0)
-            return(calcerrno=INVALIDNUM);
+         {
+            Option<f64> v=parse_f64(Str(word,strlen(word)));
+            if(!v.has_value())
+               return(calcerrno=INVALIDNUM);
+            stack[sp].value=v.value();
+         }
          sp++;
       }
       else

@@ -19,6 +19,7 @@
 #include "config.h"
 #include "lesys.h"
 #include "edit.h"
+#include "lefile.h"
 #include "keymap.h"
 #include "keynames.h"
 #include "getch.h"
@@ -614,8 +615,8 @@ Task<void>  ReadActionMap(FILE *f)
             NewTable=(ActionCodeRec*)realloc(NewTable,(CurrTableSize*=2)*sizeof(*NewTable));
          if(!NewTable)
          {
-            fprintf(stderr,"le: Not enough memory!\n");
-            exit(1);
+            NoMemory();
+            co_return;
          }
       }
       NewTable[CurrTableCell].action=action_found;
@@ -623,8 +624,8 @@ Task<void>  ReadActionMap(FILE *f)
       NewTable[CurrTableCell].arg=ParseActionArgumentAlloc(ActionArg);
       if(NewTable[CurrTableCell].code==NULL)
       {
-         fprintf(stderr,"le: Not enough memory!\n");
-         exit(1);
+         NoMemory();
+         co_return;
       }
       CurrTableCell++;
    }
@@ -632,8 +633,8 @@ Task<void>  ReadActionMap(FILE *f)
    NewTable=(ActionCodeRec*)realloc(NewTable,(CurrTableCell+1)*sizeof(*NewTable));
    if(!NewTable)
    {
-      fprintf(stderr,"le: Not enough memory!\n");
-      exit(1);
+      NoMemory();
+      co_return;
    }
    NewTable[CurrTableCell].action=-1;
    NewTable[CurrTableCell].code=NULL;
@@ -714,12 +715,12 @@ Task<int>   GetNextAction()
    co_return (LastActionCode=kt->action);
 }
 
-const char *GetActionArgument(const char *prompt,History* history,const char *help,const char *title)
+Task<const char *> GetActionArgument(const char *prompt,History* history,const char *help,const char *title)
 {
    static char *buf[A__LAST-A__FIRST+1];
    static int buf_len[A__LAST-A__FIRST+1];
    if(ActionArgument)
-      return ActionArgument;
+      co_return ActionArgument;
    char **b=buf+LastActionCode-A__FIRST;
    int *len=buf_len+LastActionCode-A__FIRST;
    const int maxlen=256;
@@ -727,12 +728,12 @@ const char *GetActionArgument(const char *prompt,History* history,const char *he
       *b=(char*)malloc(maxlen);
    if(!*b) {
       NoMemory();
-      return NULL;
+      co_return NULL;
    }
    int res=getstring(prompt,*b,maxlen-1,history,len,help,title);
    if(res==-1)
-      return NULL;
+      co_return NULL;
    ActionArgument=*b;
    ActionArgumentLen=*len;
-   return *b;
+   co_return *b;
 }

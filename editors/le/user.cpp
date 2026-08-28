@@ -23,6 +23,9 @@
 #ifdef HAVE_ALLOCA_H
 #endif
 #include "edit.h"
+#include "proc/io.h"
+#include "proc/rt.h"
+#include "proc/time.h"
 #include "leio.h"
 #include "block.h"
 #include "keymap.h"
@@ -443,7 +446,7 @@ void UserScrollUp()
    } else {
       ScreenTop=PrevLine(ScreenTop);
       if(GetLine()>=ScreenTop.Line()+TextWinHeight)
-	 co_await UserLineUp();
+	 Task<co_await> UserLineUp();
    }
    flag=REDISPLAY_ALL;
 }
@@ -966,14 +969,6 @@ int   file_check(const char *fn)
    char	 *slash;
    char	 msg[1024];
 
-   if(buffer_mmapped) {
-      char *open_name1=(char*)alloca(strlen(fn)+1);
-      unsigned long long mmap_begin=0;
-      unsigned long mmap_len=0;
-      if(sscanf(fn,"%[^:]:%lli:%li",open_name1,&mmap_begin,&mmap_len)==3)
-	 fn=open_name1;
-   }
-
    if(co_await le_access(fn,R_OK)==-1)
    {
       if(co_await le_access(fn,F_OK)==0)
@@ -1109,23 +1104,24 @@ Task<void>  UserSwitch()
 Task<void>  UserInfo()
 {
    WIN   *InfoWin;
-   char  cwd[1024];
+   static char cwd[LE_PATHMAX];
    char  s[256];
    int   cl;
-   time_t t;
-   uid_t uid=geteuid();
-   gid_t gid=getegid();
-   struct passwd  *pw;
-   struct group   *gr;
 
    DisplayWin(InfoWin=CreateWin(MIDDLE,MIDDLE,50,20,DIALOGUE_WIN_ATTR," Info ",0));
 
-   pw=getpwuid(uid);
-   gr=getgrgid(gid);
-
+   /* There is no user and no group here; the owner line goes with them. */
    strcpy(cwd,"Unknown");
-   if (!getcwd(cwd,sizeof(cwd)))
-      /*ignore*/;
+   {
+      Result<String> d=Err(Error::NoMemory);
+      if(Task<Result<String>> t=cwd_get())
+	 d=co_await t;
+      if(d.is_ok() && d.value().size()<sizeof(cwd))
+      {
+	 memcpy(cwd,d.value().data(),d.value().size());
+	 cwd[d.value().size()]=0;
+      }
+   }
 
    do
    {
@@ -1139,13 +1135,12 @@ Task<void>  UserInfo()
       snprintf(s,sizeof(s),"CWD:  %.40s",cwd);
       PutStr(3,cl+=3,s);
 
-      time(&t);
-      snprintf(s,sizeof(s),"Date: %s",ctime(&t));
+      {
+	 Civil c=civil((i64)(proc_now()/1000));
+	 snprintf(s,sizeof(s),"Date: %04d-%02d-%02d %02d:%02d:%02d",
+		  c.year,c.month,c.day,c.hour,c.min,c.sec);
+      }
       PutStr(3,cl+=1,s);
-
-      snprintf(s,sizeof(s),"User: %s(%ld), Group: %s(%ld)",pw?pw->pw_name:"",(long)uid,
-                                              gr?gr->gr_name:"",(long)gid);
-      PutStr(3,cl+=2,s);
 
       if(syntax_hl::selector) {
 	 PutStr(3,cl+=2,"Syntax selector:");
@@ -1154,7 +1149,7 @@ Task<void>  UserInfo()
 
       refresh();
    }
-   while(co_await WaitForKey(1000)==ERR);
+   while(Task<co_await> co_await WaitForKey()==ERR);
 
    flushinp();
 
@@ -1253,7 +1248,7 @@ Task<void>  UserNewLine()
    if(View)
       co_return;
 
-   if(autoindent && !CheckPending())
+   if(autoindent)
       UserAutoindent();
    else
    {
@@ -1761,14 +1756,14 @@ static void post_mark_move()
    }
 }
 
-#define MarkMove(move)	   \
-   void UserMark##move()   \
-   {			   \
-      pre_mark_move();	   \
-      hide=1;		   \
-      User##move();	   \
-      SeekStdCol();	   \
-      post_mark_move();	   \
+#define MarkMove(move)		   \
+   Task<void> UserMark##move()	   \
+   {				   \
+      pre_mark_move();		   \
+      hide=1;			   \
+      co_await User##move();	   \
+      SeekStdCol();		   \
+      post_mark_move();		   \
    }
 MarkMove(CharLeft);
 MarkMove(CharRight);
@@ -1862,7 +1857,7 @@ Task<void> UserSetBookmark()
    Message("Mark: ");
    move(LINES-1,6);
    curs_set(1);
-   int key=getch();
+   int key=co_await GetRawKey();
    if(key<256 && key>=0)
       SetBookmark(key);
    else
@@ -1876,7 +1871,7 @@ Task<void> UserGoBookmark()
    Message("Go to mark: ");
    move(LINES-1,12);
    curs_set(1);
-   int key=getch();
+   int key=co_await GetRawKey();
    if(key<256 && key>=0)
       GoBookmark(key);
    else

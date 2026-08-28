@@ -19,6 +19,7 @@
 #include "config.h"
 #include "lesys.h"
 #include "edit.h"
+#include "lefile.h"
 #include "proc/rt.h"
 
 static char *memdup(const char *s,int len)

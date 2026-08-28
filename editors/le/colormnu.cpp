@@ -34,6 +34,9 @@ void ColorsSaveToFile(const char *f)
 }
 
 static const char *const colors_file="/.le/colors";
+
+/* The path datafile() builds, at file scope: these are coroutines. */
+static char cfile[LE_PATHMAX];
 Task<void> ColorsSave()
 {
    static char f[LE_PATHMAX];
