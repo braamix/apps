@@ -114,7 +114,6 @@ Task<int> getcode_char()
         co_return -1;
     co_return (int) ch;
 }
-#if USE_MULTIBYTE_CHARS
 Task<wchar_t> getcode_wchar()
 {
     long ch = co_await getcode("Wide Char: ");
@@ -122,7 +121,6 @@ Task<wchar_t> getcode_wchar()
         co_return -1;
     co_return (wchar_t) ch;
 }
-#endif
 
 Task<void> ProcessDragMark()
 {
@@ -492,10 +490,8 @@ Task<void> PrintUsage(int arg)
         "    --config=FILE  use specified file instead of le.ini\n"
         "    --dump-keymap  dump default keymap to stdout and exit\n"
         "    --dump-colors  dump default color map to stdout and exit\n"
-#if USE_MULTIBYTE_CHARS
         "    --multibyte    force multibyte mode\n"
         "    --no-multibyte disable multibyte mode\n"
-#endif
         "    --help         this description\n"
         "    --version      print LE version\n"
         "\n"
@@ -509,9 +505,7 @@ Task<i32> proc_main(Args args)
     int optView = -1, opteditmode = -1, optWarpLine = 0;
     int opt_use_mmap = -1;
     int opt;
-#if USE_MULTIBYTE_CHARS
     int opt_mb_mode = -1;
-#endif
 
     char newname[256];
     newname[0] = 0;
@@ -626,10 +620,8 @@ Task<i32> proc_main(Args args)
         UseColor = optUseColor;
     if (opt_use_mmap != -1)
         buffer_mmapped = opt_use_mmap;
-#if USE_MULTIBYTE_CHARS
     if (opt_mb_mode != -1)
         mb_mode = opt_mb_mode;
-#endif
 
     if (optind + 1 < args.size() && args[optind].size() > 1 && args[optind][0] == '+' &&
         isdigit((unsigned char)args[optind][1])) {

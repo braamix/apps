@@ -130,9 +130,7 @@ int ClipBoard::Copy()
                     i++;
                     *text_ptr++ = ch;
                 }
-            }
-#if USE_MULTIBYTE_CHARS
-            else // mb_mode
+            } else // mb_mode
             {
                 while (c < col1) {
                     if (EolAt(o))
@@ -172,7 +170,6 @@ int ClipBoard::Copy()
                     o += MBCharSize;
                 }
             }
-#endif
         next_line:;
             while (i < width) {
                 i++;
@@ -245,9 +242,7 @@ int ClipBoard::Paste(bool mark)
                 if (res != OK)
                     return false;
                 text_ptr += width;
-            }
-#if USE_MULTIBYTE_CHARS
-            else // !mb_mode
+            } else // !mb_mode
             {
                 int j = 0, ch_len, ch_width;
                 while (j < width) {
@@ -265,7 +260,6 @@ int ClipBoard::Paste(bool mark)
                     }
                 }
             }
-#endif
         }
         if (mark)
             HardMove(BlockBegin.Line() + height - 1, BlockBegin.Col() + (toeol ? 0 : width));

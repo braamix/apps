@@ -20,7 +20,6 @@
 #define CHSET_H
 
 #include "color.h"
-#include "config.h"
 #include "curses.h"
 #include "kernel/task.h"
 #include "letypes.h"
@@ -36,9 +35,7 @@ Task<void> set_chset_8bit_noctrl();
 
 void addch_visual(chtype ch);
 chtype visualize(const attr *a, chtype ch);
-#if USE_MULTIBYTE_CHARS
 wchar_t visualize_wchar(wchar_t ch);
-#endif
 
 bool chset_isprint(int);
 

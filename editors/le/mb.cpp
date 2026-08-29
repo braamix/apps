@@ -23,7 +23,6 @@
 #endif
 #include "mb.h"
 
-#ifdef USE_MULTIBYTE_CHARS
 bool mb_mode       = false;
 int MBCharSize     = 1;
 int MBCharWidth    = 1;
@@ -264,4 +263,3 @@ void ReplaceWCharMove(wchar_t ch)
         CurrentPos += len;
     }
 }
-#endif

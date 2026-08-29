@@ -19,11 +19,8 @@
 #ifndef MB_H
 #define MB_H
 
-#include "config.h"
 #include "gap.h"
 #include "kernel/task.h"
-
-#ifdef USE_MULTIBYTE_CHARS
 #include "lewchar.h"
 
 extern bool mb_mode;
@@ -91,43 +88,5 @@ void mb_char_right(const char *buf, int *pos, int *col, int len);
 int mb_get_pos_for_col(const char *buf, int width, int len);
 int mb_len(const char *buf, int len);
 wchar_t mb_to_wc(const char *buf, int len, int *ch_len, int *ch_width);
-
-#else
-#define mb_mode                             (false)
-#define MBCheckLeft()                       (false)
-#define MBCheckLeftAt(o)                    (false)
-#define MBCheckAt(o)                        (false)
-#define MBCharSize                          (1)
-#define MBCharWidth                         (1)
-#define MBCharInvalid                       (false)
-#define MBCharSplit                         (false)
-#define MBCheckRight()                      (false)
-#define CharWidthAt(o)                      (1)
-#define CharSizeAt(o)                       (1)
-#define CharWidth()                         (1)
-#define CharSize()                          (1)
-#define WCharAt(o)                          CharAt((o))
-#define WCharLeftAt(o)                      CharAt((o) - 1)
-#define WCharLeft()                         CharRel(-1)
-#define WChar()                             Char()
-#define WCharAtLC(l, c)                     CharAtLC(l, c)
-#define getcode_wchar()                     getcode_char()
-#define choose_wch()                        choose_ch()
-#define InsertWChar(ch)                     InsertChar(ch)
-#define ReplaceWCharExt(c)                  ReplaceCharExt(c)
-#define ReplaceWCharExtMove(c)              ReplaceCharExtMove(c)
-#define ReplaceWCharMove(c)                 ReplaceCharMove(c)
-#define mb_get_col(buf, pos, col, len)      *(col) = (pos)
-#define mb_char_left(buf, pos, col, len)    *(col) = --(*pos)
-#define mb_char_right(buf, pos, col, len)   *(col) = ++(*pos)
-#define mb_get_pos_for_col(buf, width, len) (width)
-#define mb_len(buf, len)                    (1)
-#define mb_to_wc(buf, len, ch_len, ch_width) \
-    (((ch_len) ? *(ch_len) = 1 : 0), ((ch_width) ? *(ch_width) = 1 : 0), *(buf))
-#ifndef MB_CUR_MAX
-#define MB_CUR_MAX 1
-#define MB_LEN_MAX 1
-#endif
-#endif
 
 #endif // MB_H

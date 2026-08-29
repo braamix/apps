@@ -1,11 +1,14 @@
 // What configure probed for. There is one target here, so it is written out
 // rather than generated: no mmap, no locking, no locale, always UTF-8.
+//
+// USE_MULTIBYTE_CHARS is not here because it was never a choice: upstream's
+// !USE_MULTIBYTE_CHARS arm is a set of macros that make a character one byte,
+// and the encoding is UTF-8. The arm is gone rather than switched off.
 #pragma once
 
 #define VERSION "1.16.8"
 
-#define USE_MULTIBYTE_CHARS 1
-#define DISABLE_FILE_LOCKS  1
+#define DISABLE_FILE_LOCKS 1
 
 // truncate_fd exists; the fallback opens O_RDONLY|O_TRUNC, which the VFS
 // refuses because truncating is a write.

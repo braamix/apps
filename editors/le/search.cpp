@@ -284,10 +284,8 @@ static bool le_isalnum(int ch)
 {
     if (ch == '_')
         return true;
-#if USE_MULTIBYTE_CHARS
     if (mb_mode)
         return iswalnum(ch);
-#endif
     return isalnum(ch);
 }
 

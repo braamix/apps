@@ -193,11 +193,9 @@ void ScrollBar(int check)
         return;
 
     for (i = TextWinY; i < TextWinY + TextWinHeight; i++) {
-#if USE_MULTIBYTE_CHARS
         if (mb_mode)
             mvadd_wch(i, ScrollBarX, WACS_CKBOARD);
         else
-#endif
             mvaddch(i, ScrollBarX, ACS_CKBOARD);
     }
     ScrollBarPos = NewPos;
@@ -324,7 +322,6 @@ void StatusLine()
     if (FileName[0]) {
         bn = le_basename(FileName);
         l  = strlen(bn);
-#if USE_MULTIBYTE_CHARS
         static wchar_t wnamebuf[256];
         if (l >= (int)(sizeof(wnamebuf) / sizeof(*wnamebuf)))
             l = sizeof(wnamebuf) / sizeof(*wnamebuf) - 1;
@@ -338,7 +335,6 @@ void StatusLine()
         }
         if (l <= 0)
             wname = 0;
-#endif // USE_MULTIBYTE_CHARS
         if (wname == 0) {
             if (l > 14)
                 snprintf(name, sizeof(name), "%.*s..%.*s", 6, bn, 6, bn + l - 6);
@@ -378,7 +374,6 @@ void StatusLine()
         return;
     addch('"');
     getyx(stdscr, y, x);
-#if USE_MULTIBYTE_CHARS
     if (wname) {
         for (wchar_t *w = wname; *w; w++) {
             prev_x     = x;
@@ -392,7 +387,6 @@ void StatusLine()
                 return;
         }
     } else // note the following block
-#endif
     {
         for (bn = name; *bn; bn++) {
             prev_x = x;
@@ -439,7 +433,6 @@ static const attr *FindPosAttr(offs ptr, num line, num col, byte *hlp)
         return norm_attr;
 }
 
-#ifdef USE_MULTIBYTE_CHARS
 static inline void le_add_cchar(cchar_t *&c, attr_t a, wchar_t wc)
 {
 #ifdef CURSES_CCHAR_MAX // NetBSD
@@ -469,7 +462,6 @@ static inline void le_combine_cchar(cchar_t *c, wchar_t wc)
     c->chars[i] = wc;
 #endif
 }
-#endif // USE_MULTIBYTE_CHARS
 
 void Redisplay(num line, offs ptr, num limit)
 {
@@ -522,11 +514,9 @@ void Redisplay(num line, offs ptr, num limit)
     chtype *clp;
     const attr *ca = norm_attr;
 
-#ifdef USE_MULTIBYTE_CHARS
     static cchar_t clwbuf[SCREEN_MAX_COLS + 1];
     cchar_t *clw = clwbuf;
     cchar_t *clwp;
-#endif
 
     if (in_hex_mode) {
         /* here goes drawing the text in HEX mode */
@@ -573,9 +563,7 @@ void Redisplay(num line, offs ptr, num limit)
 
                 attrset(0);
                 mvaddchnstr(TextWinY + line, TextWinX, cl, TextWinWidth);
-            }
-#ifdef USE_MULTIBYTE_CHARS
-            else // mb_mode
+            } else // mb_mode
             {
                 memset(clw, 0, ll * sizeof(cchar_t));
                 clwp = clw;
@@ -615,7 +603,6 @@ void Redisplay(num line, offs ptr, num limit)
                 attrset(0);
                 mvadd_wchnstr(TextWinY + line, TextWinX, clw, TextWinWidth);
             }
-#endif // USE_MULTIBYTE_CHARS
         }
     } else /* !in_hex_mode */
     {
@@ -741,9 +728,7 @@ void Redisplay(num line, offs ptr, num limit)
 
                 attrset(0);
                 mvaddchnstr(TextWinY + line, TextWinX, cl, TextWinWidth);
-            }
-#ifdef USE_MULTIBYTE_CHARS
-            else // mb_mode
+            } else // mb_mode
             {
                 memset(clw, 0, ll * sizeof(cchar_t));
                 clwp = clw;
@@ -795,7 +780,6 @@ void Redisplay(num line, offs ptr, num limit)
                 attrset(0);
                 mvadd_wchnstr(TextWinY + line, TextWinX, clw, TextWinWidth);
             } // end of mb_mode
-#endif
 
             if (++line >= limit)
                 break;

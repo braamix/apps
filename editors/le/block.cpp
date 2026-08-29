@@ -75,7 +75,6 @@ char CharAtLC(num l, num c)
     Last            = TextPoint(l, c);
     return ((EolAt(Last) || Last.Col() != c || Last.Line() != l) ? ' ' : CharAt(Last));
 }
-#if USE_MULTIBYTE_CHARS
 wchar_t WCharAtLC(num l, num c)
 {
     static Global<TextPoint> g_Last;
@@ -83,7 +82,6 @@ wchar_t WCharAtLC(num l, num c)
     Last            = TextPoint(l, c);
     return ((EolAt(Last) || Last.Col() != c || Last.Line() != l) ? ' ' : WCharAt(Last));
 }
-#endif
 void NewLine()
 {
     InsertBlock(EolStr, EolSize);
@@ -875,7 +873,6 @@ void Transform(byte (*func)(byte))
     CurrentPos = oldpos;
     SetStdCol();
 }
-#if USE_MULTIBYTE_CHARS
 wctrans_t trans_toupper;
 wchar_t ToupperW(wchar_t wc)
 {
@@ -929,19 +926,16 @@ void TransformW(wchar_t (*func)(wchar_t))
     CurrentPos = oldpos;
     SetStdCol();
 }
-#endif
 
 Task<void> ConvertToUpper()
 {
     if (DragMark)
         UserStopDragMark();
 
-#if USE_MULTIBYTE_CHARS
     if (mb_mode) {
         trans_toupper = wctrans("toupper");
         TransformW(ToupperW);
     } else
-#endif
         Transform(Toupper);
     co_return;
 }
@@ -950,12 +944,10 @@ Task<void> ConvertToLower()
     if (DragMark)
         UserStopDragMark();
 
-#if USE_MULTIBYTE_CHARS
     if (mb_mode) {
         trans_tolower = wctrans("tolower");
         TransformW(TolowerW);
     } else
-#endif
         Transform(Tolower);
     co_return;
 }
@@ -964,13 +956,11 @@ Task<void> ExchangeCases()
     if (DragMark)
         UserStopDragMark();
 
-#if USE_MULTIBYTE_CHARS
     if (mb_mode) {
         trans_toupper = wctrans("toupper");
         trans_tolower = wctrans("tolower");
         TransformW(InverseW);
     } else
-#endif
         Transform(Inverse);
     co_return;
 }

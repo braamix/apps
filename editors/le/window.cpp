@@ -78,7 +78,6 @@ void PutCh(int x, int y, chtype ch)
         addch_visual(ch);
     }
 }
-#if USE_MULTIBYTE_CHARS
 void PutWCh(int x, int y, wchar_t ch)
 {
     Absolute(&x, 1, Upper->w);
@@ -113,7 +112,6 @@ void PutCCh(int x, int y, const cchar_t *ch)
         attrset(curr_attr->n_attr);
     }
 }
-#endif
 void GotoXY(int x, int y)
 {
     Absolute(&x, 1, Upper->w);
@@ -129,7 +127,6 @@ void PutStr(int x, int y, const char *str)
 
     int bx = x;
 
-#if USE_MULTIBYTE_CHARS
     if (mb_mode) {
         int len = strlen(str);
         wchar_t wbuf[SCREEN_MAX_COLS + 1];
@@ -168,7 +165,6 @@ void PutStr(int x, int y, const char *str)
             wstr++;
         }
     } else // note the following block
-#endif     // !USE_MULTIBYTE_CHARS
     {
         while (*str && y < Upper->h) {
             if (*str == '\n') {

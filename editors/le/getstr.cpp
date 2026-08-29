@@ -69,7 +69,6 @@ Task<int> getstring(const char *pr, char *buf, int maxlen, History *history, int
         SetAttr(STATUS_LINE_ATTR);
         mvaddstr(LINES - 1, 0, (char *)pr);
         for (i = 0, c = 0; c <= width + shift && i < (*len);) {
-#if USE_MULTIBYTE_CHARS
             if (mb_mode) {
                 wchar_t wc;
                 int ch_len = mbtowc(&wc, buf + i, (*len) - i);
@@ -90,7 +89,6 @@ Task<int> getstring(const char *pr, char *buf, int maxlen, History *history, int
                     c += wcwidth(vwc);
                 }
             } else // note the following block
-#endif
             {
                 if (c >= shift)
                     addch_visual((byte)buf[i]);

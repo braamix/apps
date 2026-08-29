@@ -935,10 +935,8 @@ Task<void> EmptyText()
 
 bool IsAlNumAt(num o)
 {
-#if USE_MULTIBYTE_CHARS
     if (mb_mode)
         return iswalnum(WCharAt(o));
-#endif
     return isalnum(CharAt(o)) || isrussian(CharAt(o));
 }
 
