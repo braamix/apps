@@ -57,7 +57,10 @@ enum {
     K_F10,
     K_F11,
     K_F12,
-    K_NAMED_LAST = K_F12,
+    /* ESC is one of these too: byte 27 is the Alt prefix and nothing else, so
+       the key tree can act on ESC without waiting to see what follows. */
+    K_ESCAPE,
+    K_NAMED_LAST = K_ESCAPE,
 
     /* On a named key only: a printable one carries Ctrl in its control
        character and Alt in the ESC before it. */
@@ -67,6 +70,12 @@ enum {
     /* The resize that rides on a key reply, and the one LE already handles. */
     K_RESIZE = 0x8000,
 };
+
+/* Taken as data rather than as a binding, ESC is the byte again. */
+static inline int key_byte(int k)
+{
+    return k == K_ESCAPE ? 27 : k;
+}
 
 Task<int> GetRawKey();
 Task<int> WaitForKey(); /* peeks: the key is put back */

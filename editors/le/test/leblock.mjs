@@ -29,8 +29,7 @@ is("undo drops it", screen(6),
 beta
 gamma
 delta`);
-press("ESC");
-press("z");
+press("M-z");
 tick(1);
 is("redo brings it back", screen(6),
 `alpha

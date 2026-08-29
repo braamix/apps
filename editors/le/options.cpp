@@ -885,7 +885,7 @@ Task<void> W_Dialogue(struct opt *opt, const char *SetupHelp, const char *SetupT
                 key = co_await choose_ch();
                 goto do_insert;
             case (ENTER_CONTROL_CHAR):
-                key = co_await GetRawKey();
+                key = key_byte(co_await GetRawKey());
                 goto do_insert;
             default:
                 if (action != NO_ACTION || StringTypedLen != 1) {

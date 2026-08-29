@@ -53,7 +53,7 @@ the dialogs use; everything else was replaced rather than reimplemented.
 | --- | --- |
 | ncurses — `initscr`, `addch`, `attrset`, `refresh`, and terminfo behind them | [curses.cpp](curses.cpp): the screen is an array of cells with `fg`, `bg` and `attrs` as fields, so a colour is a number and cursor addressing is indexing |
 | `getch()` blocking, with a SIGWINCH `siglongjmp` out of it | [getch.cpp](getch.cpp): the one place the process parks. A resize arrives as `Err(Intr)` from `next_key()`, which is the same thing without the jump |
-| a key tree over terminfo escape sequences, with a timer to tell `ESC` from `ESC [ A` | [keymap.cpp](keymap.cpp): a key arrives whole, so there is nothing to time; the tree stays, keyed on the key |
+| a key tree over terminfo escape sequences, with a timer to tell `ESC` from `ESC [ A` | [keymap.cpp](keymap.cpp): a key arrives whole, so there is nothing to time; the tree stays, keyed on the key, and `ESC` has a code of its own so it needs no second press |
 | `fcntl` advisory locks on the edited file and the history | gone — the filesystem has no locking, and `DISABLE_FILE_LOCKS` is already upstream's own switch |
 | `mmap` mode, and `FILE:BEGIN:LENGTH` to map a window of a device | gone — there is no `mmap`; `buffer_mmapped` is a compile-time `false` and about twenty-five guards fall with it |
 | `fork` + `execl("/bin/sh")` to filter a block, `system()` for make and run | [pipe.cpp](pipe.cpp) and [cmd.cpp](cmd.cpp): `spawn()` takes the descriptors as an argument, and the filter's two pipes are temp files — one task cannot park on both ends of a pipeline |
@@ -111,6 +111,13 @@ escape sequence, and there are none here, so `${Left}`, `${C-Left}` and
 format survives, and most of the file did not have to change at all: **Ctrl on
 a letter is still the control character** and **Alt is still an `ESC` in
 front**, which is what upstream's own `\e|X` bindings always meant.
+
+**`ESC` is `${Esc}`, not `\e`.** Byte 27 is the Alt prefix and nothing else, so
+the `ESC` key gets a named code like `Left` and `F4` do. Upstream bound the
+`escape` action to `\e|\e` and told the two apart by timing the gap; with no
+timer that spelling makes `ESC` a prefix with no action of its own, and it
+takes two presses to escape. One key, one code, one press. The 55 `\e|X`
+bindings are unchanged and are reached with Alt.
 
 **A printable key is its UTF-8, one byte at a time.** Upstream read bytes and
 inserted them one by one, which is how a multibyte character got into the

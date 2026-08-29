@@ -112,11 +112,13 @@ static int decode(Key k)
         named = K_F12;
         break;
 
-    /* These three have a byte of their own and always have had. */
+    /* These two have a byte of their own and always have had. ESC does not:
+       byte 27 is the Alt prefix below, and a key tree that cannot tell the two
+       apart has to wait for a second key to find out. */
     case KEY_ENTER:
         return '\n';
     case KEY_ESCAPE:
-        return 27;
+        return K_ESCAPE;
     case KEY_BACKSPACE:
         return 0177;
     case KEY_TAB:
@@ -147,7 +149,7 @@ static int decode(Key k)
         else if (c >= 'A' && c <= 'Z')
             c = c - 'A' + 1;
         else if (c == '[')
-            c = 27;
+            c = K_ESCAPE; /* ^[ is Escape, as on a terminal */
         else if (c == '\\')
             c = 28;
         else if (c == ']')

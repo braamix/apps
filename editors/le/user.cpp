@@ -1266,7 +1266,7 @@ Task<void> UserEnterControlChar()
     attrset(STATUS_LINE_ATTR->n_attr);
     mvaddch(StatusLineY, COLS - 2, '^');
     SetCursor();
-    key = co_await GetRawKey();
+    key = key_byte(co_await GetRawKey());
     if (key == ERR)
         co_return;
     UserInsertControlChar((char)key);
@@ -1649,7 +1649,7 @@ Task<void> UserSetBookmark()
     Message("Mark: ");
     move(LINES - 1, 6);
     curs_set(1);
-    int key = co_await GetRawKey();
+    int key = key_byte(co_await GetRawKey());
     if (key < 256 && key >= 0)
         SetBookmark(key);
     else
@@ -1663,7 +1663,7 @@ Task<void> UserGoBookmark()
     Message("Go to mark: ");
     move(LINES - 1, 12);
     curs_set(1);
-    int key = co_await GetRawKey();
+    int key = key_byte(co_await GetRawKey());
     if (key < 256 && key >= 0)
         GoBookmark(key);
     else

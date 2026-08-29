@@ -31,8 +31,6 @@ is("and the text beside it is untouched", paint(5, 30), "  white/blue");
 
 press("ESC");
 tick(2);
-press("ESC");
-tick(2);
 is("the text comes back", paint(1, 2), "t white/blue");
 
 // The error box: ERROR_WIN, white on red. A different window, so the frame

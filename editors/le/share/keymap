@@ -53,7 +53,7 @@ end-of-line             \e|e
 enter-menu              ${F10}
 enter-menu              \e|0
 enter-menu              ^N
-escape                  \e|\e
+escape                  ${Esc}
 escape                  ^X
 exchange-cases          ${F4}X
 exchange-cases          ${F4}x

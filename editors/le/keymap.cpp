@@ -667,8 +667,20 @@ Task<int> GetNextAction()
         for (scan = kt->child; scan; scan = scan->sibling)
             if (scan->keycode == key || (key == 0 && scan->keycode == 128))
                 break;
-        if (!scan)
+        if (!scan) {
+            /* A prefix that goes nowhere. Upstream got here by timeout, with
+               the key still unread; put it back rather than swallow it. At the
+               root the key is not following anything -- it is the character to
+               self-insert -- so it stays. */
+            if (kt != KeyTree) {
+                ungetch(key);
+                if (key <= UCHAR_MAX) {
+                    *(--store) = 0;
+                    StringTypedLen--;
+                }
+            }
             break;
+        }
         kt = scan;
     }
 

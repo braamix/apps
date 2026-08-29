@@ -29,9 +29,7 @@ press("^n");
 tick(2);
 is("the menu bar", screen(1),
    "   File  Edit  Block  Search  Move  Format  Others  Options  Help");
-/* Two: the first leaves the submenu, the second the bar. */
-press("ESC");
-tick(2);
+/* One is enough: ESC has a code of its own and is no longer a prefix. */
 press("ESC");
 tick(2);
 is("and it closes again", screen(1), "alpha");

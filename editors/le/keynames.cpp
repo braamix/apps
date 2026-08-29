@@ -39,7 +39,8 @@ static const struct {
                      { "F2", K_F2 },       { "F3", K_F3 },           { "F4", K_F4 },
                      { "F5", K_F5 },       { "F6", K_F6 },           { "F7", K_F7 },
                      { "F8", K_F8 },       { "F9", K_F9 },           { "F10", K_F10 },
-                     { "F11", K_F11 },     { "F12", K_F12 },         { NULL, 0 } };
+                     { "F11", K_F11 },     { "F12", K_F12 },         { "Esc", K_ESCAPE },
+                     { NULL, 0 } };
 
 int FindKeyCode(const char *name)
 {

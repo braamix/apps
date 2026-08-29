@@ -139,7 +139,8 @@ const NAMED = { CR: "ENTER", ESC: "ESCAPE" };
 
 const name_of = (k) => NAMED[k] || k;
 
-// MOD_META from key.h: the Command key, which harness.mjs does not name.
+// MOD_ALT and MOD_META from key.h, neither of which harness.mjs names.
+export const ALT = 4;
 export const CMD = 8;
 
 // F1 to F12, which harness.mjs's KEY table stops short of. They are the last
@@ -147,14 +148,19 @@ export const CMD = 8;
 const fkey = (k) => (/^F([1-9]|1[0-2])$/.test(k) ? H.KEY.PAGE_DOWN + Number(k.slice(1)) : 0);
 
 // One key.  A string is typed as itself; "^x" is control-x and "^LEFT" a named
-// key with control held.  Each is followed by a run, so the editor has
-// answered before the next arrives.
+// key with control held.  "M-x" and "M-LEFT" are the same with Alt, which is
+// how LE's \e| bindings are reached.  Each is followed by a run, so the editor
+// has answered before the next arrives.
 export function press(k) {
-    const ctrl = k.startsWith("^") ? name_of(k.slice(1)) : "";
-    if (ctrl in H.KEY && ctrl)
-        H.press(H.KEY[ctrl], H.CTRL);
-    else if (k.startsWith("^") && k.length === 2)
-        H.press(k[1].toLowerCase().codePointAt(0), H.CTRL);
+    const mod = k.startsWith("^") ? H.CTRL : k.startsWith("M-") ? ALT : 0;
+    const bare = mod === ALT ? k.slice(2) : mod ? k.slice(1) : k;
+    const named = name_of(bare);
+    if (mod && named in H.KEY)
+        H.press(H.KEY[named], mod);
+    else if (mod && fkey(bare))
+        H.press(fkey(bare), mod);
+    else if (mod && bare.length === 1)
+        H.press(bare.toLowerCase().codePointAt(0), mod);
     else if (name_of(k) in H.KEY)
         H.press(H.KEY[name_of(k)]);
     else if (fkey(k))

@@ -192,7 +192,7 @@ Task<int> getstring(const char *pr, char *buf, int maxlen, History *history, int
                 break;
             goto ins;
         case (ENTER_CONTROL_CHAR):
-            ch             = co_await GetRawKey();
+            ch             = key_byte(co_await GetRawKey());
             StringTyped[0] = ch;
             StringTypedLen = 1;
             goto ins;
