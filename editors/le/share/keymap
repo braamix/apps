@@ -100,9 +100,11 @@ mark-forward-word       ${C-S-Right}
 mark-forward-word       \e|${S-Right}
 mark-line               ${S-F5}
 mark-line               \e|${F5}
-mark-next-line          ${C-Down}
+mark-next-line          ${S-Down}
 mark-next-page          ${S-PgDn}
-mark-previous-line      ${C-Up}
+mark-page-bottom        ${C-S-PgDn}
+mark-page-top           ${C-S-PgUp}
+mark-previous-line      ${S-Up}
 mark-previous-page      ${S-PgUp}
 mark-to-eol             ${S-F6}
 mark-to-eol             \e|${F6}

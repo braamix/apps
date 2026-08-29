@@ -110,7 +110,10 @@ escape sequence, and there are none here, so `${Left}`, `${C-Left}` and
 [keynames.cpp](keynames.cpp) rather than by terminfo. Everything else in the
 format survives, and most of the file did not have to change at all: **Ctrl on
 a letter is still the control character** and **Alt is still an `ESC` in
-front**, which is what upstream's own `\e|X` bindings always meant.
+front**, which is what upstream's own `\e|X` bindings always meant. A modified
+key was respelled by its xterm modifier number — `\e[1;2A` is `${S-Up}`,
+`\e[1;5D` is `${C-Left}`, `\e[1;6C` is `${C-S-Right}` — and terminfo's `$kri`
+and `$kind` are the same two shifted arrows under another name.
 
 **`ESC` is `${Esc}`, not `\e`.** Byte 27 is the Alt prefix and nothing else, so
 the `ESC` key gets a named code like `Left` and `F4` do. Upstream bound the
@@ -147,6 +150,11 @@ driven, one function each. See the 0.7 release notes in `../../braam-core`.
   set an mtime here.
 - **No mouse.** `WITH_MOUSE` was not defined by upstream's own CMake build
   either.
+- **The wheel extends the selection.** The page spells a wheel notch as
+  `Shift+Up`/`Shift+Down` rather than putting a mouse in the ABI, and a program
+  holding the screen cannot tell it from the key — so the wheel does what those
+  keys do, which here is mark a line. The kernel keeps the chord for its own
+  scrollback only while nobody holds the screen.
 - **No `^Z`.** There is no job control to stop into.
 - **The typeahead skip is gone.** `SyncTextWin` used to skip the redraw while
   a key was already queued and draw a spinner instead; that was a latency hack
@@ -243,7 +251,7 @@ node editors/le/test/leedit.mjs
 | | |
 | --- | --- |
 | [leedit.mjs](test/leedit.mjs) | load, edit, save, and read the file back |
-| [leblock.mjs](test/leblock.mjs) | stream blocks, undo and redo, and a `^G b` chord |
+| [leblock.mjs](test/leblock.mjs) | stream blocks, undo and redo, a `^G b` chord, and marking with `Shift+Down` |
 | [lesearch.mjs](test/lesearch.mjs) | literal and regexp search, and replace-all — which is `regex.c` and `re_search_2` reading across the gap |
 | [lesigint.mjs](test/lesigint.mjs) | `^C` reaches its binding rather than killing the editor |
 | [lescreen.mjs](test/lescreen.mjs) | hex mode, the menu bar and a resize |

@@ -148,24 +148,32 @@ const fkey = (k) => (/^F([1-9]|1[0-2])$/.test(k) ? H.KEY.PAGE_DOWN + Number(k.sl
 
 // One key.  A string is typed as itself; "^x" is control-x and "^LEFT" a named
 // key with control held.  "M-x" and "M-LEFT" are the same with Alt, which is
-// how LE's \e| bindings are reached.  Each is followed by a run, so the editor
-// has answered before the next arrives.
+// how LE's \e| bindings are reached, and "S-DOWN" the same with Shift.  The
+// prefixes stack, in either order: "^S-PAGE_UP" is Ctrl+Shift+PgUp.  Each is
+// followed by a run, so the editor has answered before the next arrives.
 export function press(k) {
-    const mod = k.startsWith("^") ? H.CTRL : k.startsWith("M-") ? ALT : 0;
-    const bare = mod === ALT ? k.slice(2) : mod ? k.slice(1) : k;
+    let mod = 0;
+    let bare = k;
+
+    for (;;) {
+        if (bare.startsWith("^"))
+            mod |= H.CTRL, bare = bare.slice(1);
+        else if (bare.startsWith("M-"))
+            mod |= ALT, bare = bare.slice(2);
+        else if (bare.startsWith("S-"))
+            mod |= H.SHIFT, bare = bare.slice(2);
+        else
+            break;
+    }
     const named = name_of(bare);
-    if (mod && named in H.KEY)
+    if (named in H.KEY)
         H.press(H.KEY[named], mod);
-    else if (mod && fkey(bare))
+    else if (fkey(bare))
         H.press(fkey(bare), mod);
     else if (mod && bare.length === 1)
         H.press(bare.toLowerCase().codePointAt(0), mod);
-    else if (name_of(k) in H.KEY)
-        H.press(H.KEY[name_of(k)]);
-    else if (fkey(k))
-        H.press(fkey(k));
     else
-        H.type(k);
+        H.type(bare);
     H.run(clock++);
 }
 

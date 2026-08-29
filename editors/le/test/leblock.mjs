@@ -48,4 +48,36 @@ press("^u");
 tick(1);
 is("undo takes the run", screen(1), "alpha");
 
-ok("stream blocks, undo and redo");
+// Marking by keyboard. F4 H hides the old block first, so pre_mark_move starts
+// a fresh one at the cursor.
+keys("^g", "b");
+keys("F4", "h");
+press("S-DOWN");
+press("S-DOWN");
+press("F11");
+tick(2);
+is("Shift+Down marks a line at a time", screen(7),
+`alpha
+beta
+alpha
+beta
+gamma
+delta`);
+
+// Ctrl+Down is unbound: it used to mark, which made the vertical pair the odd
+// one out. With the block hidden there is nothing for F11 to copy.
+press("^u");
+tick(1);
+keys("^g", "b");
+keys("F4", "h");
+press("^DOWN");
+press("^DOWN");
+press("F11");
+tick(2);
+is("Ctrl+Down does not mark", screen(5),
+`alpha
+beta
+gamma
+delta`);
+
+ok("stream blocks, undo, redo and marking by keyboard");
