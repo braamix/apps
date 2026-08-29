@@ -378,7 +378,6 @@ Task<void> Initialize()
     co_await epath_init();
 
     InitModifyKeyTables();
-    co_await init_chset();
     initcalc();
 
 #ifndef MSDOS

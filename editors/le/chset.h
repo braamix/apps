@@ -24,19 +24,7 @@
 #include "kernel/task.h"
 #include "letypes.h"
 
-#define CHSET_BITS_PER_BYTE 4
-#define CHSET_SIZE          ((256 + CHSET_BITS_PER_BYTE - 1) / CHSET_BITS_PER_BYTE)
-
-extern byte chset[CHSET_SIZE + 1];
-
-Task<void> init_chset();
-Task<void> set_chset_8bit();
-Task<void> set_chset_8bit_noctrl();
-
 void addch_visual(chtype ch);
-chtype visualize(const attr *a, chtype ch);
 wchar_t visualize_wchar(wchar_t ch);
-
-bool chset_isprint(int);
 
 #endif /* CHSET_H */

@@ -174,11 +174,6 @@ const struct init init[] = { { "tabsize", NUM, (void *)&TabSize },
                              { "usemouse", NUM, &UseMouse },
 #endif
                              { NULL } };
-const struct init term[] = {
-
-    { "chset", STR, (void *)&chset },
-    { NULL }
-};
 const struct init colors[] = {
     { "default_colors", NUM, &le_use_default_colors },
     { "status_line", STR, color_descriptions[STATUS_LINE] },
@@ -263,20 +258,6 @@ Task<void> SaveConf(const char *f)
     co_await SaveConfToFile(f, init);
     strcpy(InitName, f);
     ClearMessage();
-}
-
-Task<void> SaveTermOpt()
-{
-    char t[256];
-    MessageSync("Saving the terminal options...");
-#ifndef MSDOS
-    snprintf(t, sizeof(t), "%s/.le/term-%s", HOME, TERM);
-#else
-    snprintf(t, sizeof(t), "%s/le-%s", HOME, TERM);
-#endif
-    co_await SaveConfToFile(t, term);
-    ClearMessage();
-    co_return;
 }
 
 Task<void> fskip(FILE *f)
@@ -374,20 +355,6 @@ Task<void> ReadConf()
 #ifndef __MSDOS__
     bool mine;
 
-    snprintf(t, sizeof(t), "%s/.le/term-%s", HOME, TERM);
-    if (!co_await ConfOK(t, false)) {
-        snprintf(t, sizeof(t), "%s/term-%s", datadir, TERM);
-        if (!co_await ConfOK(t, false)) {
-            snprintf(t, sizeof(t), "%s/.le/term", HOME);
-            if (!co_await ConfOK(t, false))
-                snprintf(t, sizeof(t), "%s/term", datadir);
-        }
-    }
-    co_await ReadConfFromFile(t, term, false);
-
-    if (chset[0] == '7') // workaround for older version
-        co_await init_chset();
-
     snprintf(t, sizeof(t), "%s/.le/colors-%s", HOME, TERM);
     if (!co_await ConfOK(t, false)) {
         snprintf(t, sizeof(t), "%s/colors-%s", datadir, TERM);
@@ -417,8 +384,6 @@ Task<void> ReadConf()
 ini_done:
 
 #else
-    snprintf(t, sizeof(t), "%s/le-%s", HOME, TERM);
-    co_await ReadConfFromFile(t, term, false);
     strcpy(InitName, "le.ini");
     if (co_await le_access(InitName, R_OK) == -1)
         snprintf(InitName, sizeof(InitName), "%s/le.ini", HOME);

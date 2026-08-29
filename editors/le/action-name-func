@@ -34,7 +34,6 @@ delete-line                    UserDeleteLine
 delete-to-eol                  UserDeleteToEol
 delete-word                    UserDeleteWord
 draw-frames                    DrawFrames
-edit-charset                   edit_chset
 edit-colors                    ColorsOpt
 editor-options                 Options
 end-of-file                    UserFileEnd
@@ -128,7 +127,6 @@ save-keymap                    SaveKeymap
 save-keymap-for-terminal       SaveKeymapForTerminal
 save-options                   UpdtOpt
 save-options-local             SaveOpt
-save-terminal-options          SaveTermOpt
 search-backward                StartSearchBackward
 search-forward                 StartSearch
 set-block-begin                UserSetBlockBegin
@@ -144,8 +142,6 @@ set-bookmark-6                 UserSetBookmark6
 set-bookmark-7                 UserSetBookmark7
 set-bookmark-8                 UserSetBookmark8
 set-bookmark-9                 UserSetBookmark9
-set-charset-8bit               set_chset_8bit
-set-charset-8bit-no-control    set_chset_8bit_noctrl
 shell-command                  UserShellCommand
 shell-escape                   DoShell
 start-drag-mark                UserStartDragMark

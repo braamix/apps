@@ -192,6 +192,14 @@ moved into [chset.cpp](chset.cpp) as the identity it now is, and the terminal
 options that fed it — six Cyrillic codepages, four graphics codepages and a
 count of function keys — are gone with the things that read them.
 
+**And the `chset` bitmap with them.** Upstream asked a user-editable 256-bit
+map which bytes were unprintable, because only the user knew the terminal's
+8-bit encoding: a toggle grid under Options→Terminal, two presets, and a
+`$HOME/.le/term-$TERM` file to keep it in. A codepoint here says so itself, so
+`visualize_wchar` is `iswprint` and three cases, the sub-menu and the term
+file are gone, and the memoisation that made the old answer affordable went
+with them.
+
 The four tables upstream generated with perl are generated with Python here,
 byte for byte the same: [make-action-enum.py](make-action-enum.py),
 [make-action-name-func.py](make-action-name-func.py),

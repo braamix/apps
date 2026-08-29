@@ -152,51 +152,43 @@ option disables using regular
 expressions in search and replace.
 You will be able not to type '\\' before
 special characters.
-7. Latin. In this mode latin letters
-will be typed.
-8. Russian. In this mode russian
-letters will be typed. (works only on
-certain terminals)
-9. Graphic. In this mode graphic
-characters from extended ASCII will be
-typed. That is, bit 8 will be set.
-10. Exact. This mode will do for both
+7. Exact. This mode will do for both
 text and binary files. Strings are
 right limited, that is you have to
 type a space to get right from EOL.
-11. Text. This mode is only for text
+8. Text. This mode is only for text
 files. Strings are not right limited.
-12. Hex. This is hexadesimal mode for
+9. Hex. This is hexadesimal mode for
 binary files.
-13. Use colors. When set, LE tries to
+10. Use colors. When set, LE tries to
 use colors if possible.
-14. Syntax highlight. When set, syntax
+11. Syntax highlight. When set, syntax
 constructs will be highlighted, if there
 is support for current file type. If it
 works too slow, turn it off.
-15. Use tabs. Prefer tab inserting.
-16. BackSp unindents. Specifies if
+12. Use tabs. Prefer tab inserting.
+13. BackSp unindents. Specifies if
 backspace key should move to previous tab
 stop.
-17. Lazy page scroll. Specifies PageUp/Down
+14. Lazy page scroll. Specifies PageUp/Down
 keys behaviour. If set, PageUp moves to
 page top first, and on second press it
 moves page up.
-18. Tab size. Sets size of tab character.
-19. IndentSize. Sets virtual tab stops.
-20. Vertical scroll. Specifies how many lines
+15. Tab size. Sets size of tab character.
+16. IndentSize. Sets virtual tab stops.
+17. Vertical scroll. Specifies how many lines
 text should be scrolled when cursor moves
 outside of screen.
-21. Horizontal scroll. Same for horizontal
+18. Horizontal scroll. Same for horizontal
 scrolling.
-22. Backup suffix specifies the suffix for
+19. Backup suffix specifies the suffix for
 backup files (simple version control). In
 This field `%d' can be used, it will be
 replaced with a version number, the older
 the greater.
-23. Backup number specifies the maximum
+20. Backup number specifies the maximum
 number of backup files for each file.
-24. Backup path specifies a directory for
+21. Backup path specifies a directory for
 backup files to be placed into. Default -
 current directory.
 
@@ -263,11 +255,6 @@ Cursor arrows - draw line
 Tab           - switch between single,
                 double and no line mode
 Any other key - leave the mode
-
-You can select graphic character set
-when modifying terminal options.
-Note: on some terminals there is no
-double lines.
 
 [ReadBlockHelp]
    Enter file name to read block from.

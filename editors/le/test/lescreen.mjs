@@ -29,6 +29,20 @@ press("^n");
 tick(2);
 is("the menu bar", screen(1),
    "   File  Edit  Block  Search  Move  Format  Others  Options  Help");
+
+/* Options, eight along. Its items, which is also the check that the shipped
+   mainmenu still parses -- the harness reads the real file. */
+for (let i = 0; i < 7; i++)
+    press("RIGHT");
+press("CR");
+tick(2);
+const items = H.rows(H.screen())
+    .filter((r) => r.includes("│"))
+    .map((r) => r.slice(r.indexOf("│") + 1, r.lastIndexOf("│")).trim().split(/\s{2,}/)[0]);
+is("the Options menu", items.join(", "),
+   "Editor, Format, Undo, Appearance, Colors, Keyboard map, Programs, " +
+   "Save to current directory, Update current options file");
+
 /* One is enough: ESC has a code of its own and is no longer a prefix. */
 press("ESC");
 tick(2);

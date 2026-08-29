@@ -96,8 +96,6 @@ extern int hide;
 extern int message_sp;
 extern int flag;
 
-extern byte chset[];
-
 extern int EolSize;
 extern char EolStr[3];
 void SetEolStr(const char *);
@@ -279,8 +277,6 @@ extern Task<void> ExpandAllTabs(void);
 extern Task<void> SaveOpt(void);
 extern Task<void> UpdtOpt(void);
 extern Task<void> AppearOpt(void);
-extern Task<void> edit_chset(void);
-extern Task<void> SaveTermOpt(void);
 extern Task<void> FormatOptions(void);
 extern Task<void> DOS_UNIX(void);
 

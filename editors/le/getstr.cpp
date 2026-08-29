@@ -71,7 +71,7 @@ Task<int> getstring(const char *pr, char *buf, int maxlen, History *history, int
         for (i = 0, c = 0; c <= width + shift && i < (*len);) {
             wchar_t wc;
             int ch_len = mbtowc(&wc, buf + i, (*len) - i);
-            if (ch_len < 1 || (ch_len == 1 && !chset_isprint(buf[i]))) {
+            if (ch_len < 1 || (ch_len == 1 && !iswprint((byte)buf[i]))) {
                 if (c >= shift)
                     addch_visual((byte)buf[i]);
                 i++;

@@ -95,12 +95,6 @@ submenu "&Options"
    function "&Editor"	editor-options
    function "&Format"	format-options
    function "&Undo"	undo-options
-   submenu  "&Terminal"
-      function "&Character set visualization" edit-charset
-      function "Full 8-bit"		     set-charset-8bit		   hide
-      function "Full 8-bit, no ctrl chars"   set-charset-8bit-no-control   hide
-      function "&Save terminal options"	     save-terminal-options	   hide
-      end
    function "&Appearance"  appearance-options
    submenu  "&Colors"
       function "&Edit"	edit-colors    hide
