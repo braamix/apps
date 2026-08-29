@@ -16,21 +16,21 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include "config.h"
-#include "lesys.h"
-#include "kernel/alloc.h"
-#include "edit.h"
-#include "lefile.h"
 #include "keymap.h"
-#include "keynames.h"
-#include "getch.h"
 
 #include "block.h"
-#include "options.h"
-#include "keymap.h"
-#include "format.h"
-#include "search.h"
 #include "colormnu.h"
+#include "config.h"
+#include "edit.h"
+#include "format.h"
+#include "getch.h"
+#include "kernel/alloc.h"
+#include "keymap.h"
+#include "keynames.h"
+#include "lefile.h"
+#include "lesys.h"
+#include "options.h"
+#include "search.h"
 
 unsigned char StringTyped[256];
 int StringTypedLen;

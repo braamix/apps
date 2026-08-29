@@ -18,8 +18,8 @@
 
 #include "config.h"
 #include "edit.h"
-#include "menu1.h"
 #include "keymap.h"
+#include "menu1.h"
 
 Menu1 MainMenu[] = {
 #include "mainmenu-default.h"

@@ -24,6 +24,8 @@
 #ifndef RUS_H
 #define RUS_H
 
+#include "letypes.h"
+
 extern int coding;
 #define NONE     0
 #define ALT      1

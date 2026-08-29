@@ -16,19 +16,17 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include "config.h"
-#include "lesys.h"
-#include "edit.h"
-#include "lefile.h"
-#include "epath.h"
-#include "keymap.h"
-
 #include "block.h"
-#include "options.h"
-#include "keymap.h"
-#include "format.h"
-#include "search.h"
 #include "colormnu.h"
+#include "config.h"
+#include "edit.h"
+#include "epath.h"
+#include "format.h"
+#include "keymap.h"
+#include "lefile.h"
+#include "lesys.h"
+#include "options.h"
+#include "search.h"
 
 Task<void> EditorReadKeymap()
 {

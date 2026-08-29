@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-1997 by Alexander V. Lukyanov (lav@yars.free.net)
+ * Copyright (c) 1993-2021 by Alexander V. Lukyanov (lav@yars.free.net)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,14 +16,20 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#ifndef ABOUT_H
-#define ABOUT_H
+/* The three names every other header here is written against.
+ *
+ * Upstream declared them in edit.h, above the twelve headers edit.h then
+ * includes -- so those twelve compiled only in that order and only through
+ * it. They are here instead, so each of them can say what it needs and be
+ * included on its own. */
 
-#include "kernel/task.h"
+#ifndef LETYPES_H
+#define LETYPES_H
 
-void ShowAbout();
-void HideAbout();
+typedef unsigned char byte;
+typedef long offs;
+typedef long num;
 
-Task<void> PrintVersion();
+enum { NO_POS = -1L };
 
-#endif /* ABOUT_H */
+#endif /* LETYPES_H */

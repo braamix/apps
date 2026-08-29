@@ -19,6 +19,11 @@
 #ifndef WINDOW_H
 #define WINDOW_H
 
+#include "color.h"
+#include "config.h"
+#include "curses.h"
+#include "letypes.h"
+
 #ifdef USE_MULTIBYTE_CHARS
 #define win_cell cchar_t
 #ifdef CURSES_CCHAR_MAX // NetBSD

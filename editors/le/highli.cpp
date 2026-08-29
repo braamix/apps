@@ -16,15 +16,15 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include "config.h"
-
-#include "lesys.h"
-#include "kernel/alloc.h"
-#include "edit.h"
-#include "lefile.h"
-#include "epath.h"
-#include "leio.h"
 #include "highli.h"
+
+#include "config.h"
+#include "edit.h"
+#include "epath.h"
+#include "kernel/alloc.h"
+#include "lefile.h"
+#include "leio.h"
+#include "lesys.h"
 #include "screen.h"
 #include "search.h"
 #ifdef HAVE_ALLOCA_H

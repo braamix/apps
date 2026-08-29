@@ -24,17 +24,17 @@
 #endif
 #ifdef HAVE_LANGINFO_H
 #endif
+#include "about.h"
+#include "block.h"
+#include "calc.h"
 #include "edit.h"
 #include "epath.h"
-#include "proc/io.h"
+#include "keymap.h"
 #include "lefile.h"
 #include "leio.h"
-#include "calc.h"
-#include "keymap.h"
-#include "block.h"
-#include "screen.h"
 #include "options.h"
-#include "about.h"
+#include "proc/io.h"
+#include "screen.h"
 #include "search.h"
 #include "undo.h"
 #ifdef WITH_MOUSE

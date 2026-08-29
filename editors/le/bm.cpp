@@ -18,10 +18,11 @@
 
 /* $Id: bm.cc,v 1.2 2001/05/16 14:42:28 lav Exp $ */
 
-#include "config.h"
-#include "kernel/alloc.h"
-#include "edit.h"
 #include "bm.h"
+
+#include "config.h"
+#include "edit.h"
+#include "kernel/alloc.h"
 
 #define N 256
 

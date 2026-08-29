@@ -19,6 +19,9 @@
 #ifndef SCREEN_H
 #define SCREEN_H
 
+#include "kernel/task.h"
+#include "letypes.h"
+
 void CenterView();
 void Redisplay(num line, offs ptr, num limit);
 void RedisplayAll();

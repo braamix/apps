@@ -19,10 +19,10 @@
 /* getstr.c : Get string from the user */
 
 #include "config.h"
-#include "lesys.h"
 #include "edit.h"
-#include "keymap.h"
 #include "getch.h"
+#include "keymap.h"
+#include "lesys.h"
 #include "mb.h"
 
 Task<int> getstring(const char *pr, char *buf, int maxlen, History *history, int *len,

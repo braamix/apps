@@ -19,6 +19,10 @@
 #ifndef MB_H
 #define MB_H
 
+#include "config.h"
+#include "gap.h"
+#include "kernel/task.h"
+
 #ifdef USE_MULTIBYTE_CHARS
 #include "lewchar.h"
 

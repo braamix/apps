@@ -20,9 +20,9 @@
 #include "lesys.h"
 #ifdef HAVE_SYS_MMAN_H
 #endif
+#include "edit.h"
 #include "keymap.h"
 #include "leio.h"
-#include "edit.h"
 #include "mb.h"
 #include "undo.h"
 

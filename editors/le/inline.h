@@ -16,62 +16,14 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-static inline byte CharAt(offs offset)
-{
-    if (offset >= ptr1)
-        offset += GapSize;
-    if (offset >= 0 && offset < BufferSize)
-        return (buffer[offset]);
-    return (' ');
-}
-// same as above, but without bound check
-static inline byte CharAt_NoCheck(offs offset)
-{
-    if (offset >= ptr1)
-        offset += GapSize;
-    return (buffer[offset]);
-}
-static inline offs Size()
-{
-    return (BufferSize - GapSize);
-}
-static inline offs Offset()
-{
-    return (CurrentPos.Offset());
-}
-static inline int Eof()
-{
-    return (Offset() >= Size());
-}
-static inline int EofAt(offs o)
-{
-    return (o >= Size());
-}
-static inline int Bof()
-{
-    return (Offset() <= 0);
-}
-static inline int BofAt(offs o)
-{
-    return (o <= 0);
-}
-static inline byte Char()
-{
-    return (CharAt(Offset()));
-}
-static inline byte CharRel(offs sh)
-{
-    return (CharAt(Offset() + sh));
-}
-static inline byte CharRel_NoCheck(offs sh)
-{
-    return (CharAt_NoCheck(Offset() + sh));
-}
-static inline bool IsAlNumRel(offs sh)
-{
-    return IsAlNumAt(Offset() + sh);
-}
+/* The half of the old inline.h that is written against mb.h; the half mb.h is
+ * written against is gap.h. */
 
+#ifndef INLINE_H
+#define INLINE_H
+
+#include "block.h"
+#include "gap.h"
 #include "mb.h"
 
 static inline bool IsAlNumLeft()
@@ -150,3 +102,5 @@ static inline size_t xstrlen(const char *s)
         return 0;
     return strlen(s);
 }
+
+#endif /* INLINE_H */

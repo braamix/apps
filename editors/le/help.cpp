@@ -18,9 +18,9 @@
 
 #include "config.h"
 #include "edit.h"
-#include "lefile.h"
 #include "epath.h"
 #include "keymap.h"
+#include "lefile.h"
 
 #if 0
 Task<void>  Help(char ***h,char *title)

@@ -16,6 +16,13 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef FILE_H
+#define FILE_H
+
+#include "kernel/task.h"
+#include "lesys.h"
+#include "letypes.h"
+
 const char *le_basename(const char *);
 const char *le_dirname(const char *);
 static inline char *le_basename(char *f)
@@ -28,3 +35,5 @@ static inline char *le_dirname(char *f)
 }
 
 Task<int> ChooseFileName(char *pattern, unsigned nbytes);
+
+#endif /* FILE_H */

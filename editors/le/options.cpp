@@ -16,19 +16,20 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#include "options.h"
+
+#include "colormnu.h"
 #include "config.h"
-#include "lesys.h"
 #include "edit.h"
 #include "epath.h"
+#include "format.h"
+#include "getch.h"
+#include "highli.h"
+#include "keymap.h"
 #include "lefile.h"
 #include "leio.h"
+#include "lesys.h"
 #include "rus.h"
-#include "keymap.h"
-#include "options.h"
-#include "highli.h"
-#include "getch.h"
-#include "format.h"
-#include "colormnu.h"
 #include "undo.h"
 
 bool ExplicitInitName = false;

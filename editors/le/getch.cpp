@@ -21,13 +21,13 @@
    which is the same thing without the jump -- so there is no sigsetjmp and no
    getch_return. */
 
+#include "getch.h"
+
 #include "config.h"
 #include "edit.h"
-#include "getch.h"
-#include "keymap.h"
-
 #include "kernel/key.h"
 #include "kernel/sysabi.h"
+#include "keymap.h"
 #include "proc/rt.h"
 
 int resize_flag;

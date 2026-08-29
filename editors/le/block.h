@@ -16,6 +16,14 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef BLOCK_H
+#define BLOCK_H
+
+#include "edit.h"
+#include "kernel/task.h"
+#include "letypes.h"
+#include "textpoin.h"
+
 static inline int InBlock(offs ptr)
 {
     return (!hide && ptr >= BlockBegin && ptr < BlockEnd);
@@ -61,3 +69,5 @@ void PrefixIndent(const char *, num);
 Task<int> OptionallyConvertBlockNewLines(const char *bname);
 
 extern TextPoint *DragMark;
+
+#endif /* BLOCK_H */

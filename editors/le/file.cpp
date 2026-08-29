@@ -17,7 +17,6 @@
  */
 
 #include "config.h"
-
 #include "lesys.h"
 #ifdef HAVE_DIRENT_H
 #include <dirent.h>
@@ -26,9 +25,9 @@
 #endif
 
 #include "edit.h"
-#include "proc/io.h"
-#include "leio.h"
 #include "keymap.h"
+#include "leio.h"
+#include "proc/io.h"
 
 #ifndef DIRSIZ
 #define DIRSIZ 14

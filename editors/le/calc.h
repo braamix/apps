@@ -16,6 +16,9 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef CALC_H
+#define CALC_H
+
 #define STSIZE 256
 
 #define OKAY        0
@@ -41,3 +44,5 @@ extern int calcerrno;
 const char *calcerrmsg();
 int calculator(const char *);
 void initcalc();
+
+#endif /* CALC_H */

@@ -18,11 +18,12 @@
 
 /* $Id: clipbrd.cc,v 1.8 2006/04/12 05:46:05 lav Exp $ */
 
+#include "clipbrd.h"
+
 #include "config.h"
-#include "lesys.h"
 #include "edit.h"
 #include "leio.h"
-#include "clipbrd.h"
+#include "lesys.h"
 
 Global<ClipBoard> g_MainClipBoard;
 

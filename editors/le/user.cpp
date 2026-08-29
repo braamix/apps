@@ -22,21 +22,21 @@
 #endif
 #ifdef HAVE_ALLOCA_H
 #endif
-#include "kernel/alloc.h"
+#include "about.h"
+#include "block.h"
+#include "bm.h"
+#include "clipbrd.h"
 #include "edit.h"
+#include "format.h"
+#include "getch.h"
+#include "highli.h"
+#include "kernel/alloc.h"
+#include "keymap.h"
+#include "leio.h"
 #include "proc/io.h"
 #include "proc/rt.h"
 #include "proc/time.h"
-#include "leio.h"
-#include "block.h"
-#include "keymap.h"
-#include "clipbrd.h"
-#include "getch.h"
-#include "format.h"
-#include "about.h"
-#include "bm.h"
 #include "undo.h"
-#include "highli.h"
 
 Task<void> UserDeleteToEol()
 {

@@ -16,6 +16,12 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef COLOR_H
+#define COLOR_H
+
+#include "curses.h"
+#include "lefile.h"
+
 enum {
     STATUS_LINE = 0,
     NORMAL_TEXT,
@@ -81,3 +87,5 @@ extern const color default_bw_pal[MAX_COLOR_NO + 1];
 void le_start_color();
 
 #define NO_COLOR (-1)
+
+#endif /* COLOR_H */

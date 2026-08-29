@@ -22,11 +22,11 @@
 #include "lesys.h"
 #ifdef HAVE_UNISTD_H
 #endif
-#include "edit.h"
-#include "leio.h"
 #include "block.h"
-#include "keymap.h"
 #include "clipbrd.h"
+#include "edit.h"
+#include "keymap.h"
+#include "leio.h"
 
 TextPoint *DragMark = 0;
 

@@ -22,10 +22,11 @@
 **  Description:    Format functions for text editor
 **_____________________________________________________________________________
 */
+#include "format.h"
+
 #include "config.h"
 #include "edit.h"
 #include "keymap.h"
-#include "format.h"
 #include "undo.h"
 #ifdef HAVE_ALLOCA_H
 #endif

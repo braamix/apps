@@ -16,11 +16,12 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#include "menu.h"
+
 #include "config.h"
-#include "lesys.h"
 #include "edit.h"
 #include "keymap.h"
-#include "menu.h"
+#include "lesys.h"
 
 char ItemChar(const char *i)
 {

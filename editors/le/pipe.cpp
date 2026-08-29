@@ -33,15 +33,14 @@
  * see end of input until it is asked for.
  */
 
-#include "config.h"
-#include "kernel/sysabi.h"
-#include "lesys.h"
-#include "edit.h"
 #include "block.h"
 #include "clipbrd.h"
 #include "cmd.h"
+#include "config.h"
+#include "edit.h"
+#include "kernel/sysabi.h"
 #include "leio.h"
-
+#include "lesys.h"
 #include "proc/io.h"
 #include "proc/rt.h"
 

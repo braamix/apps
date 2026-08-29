@@ -20,6 +20,7 @@
 #define TEXTPOINT_H
 
 #include "leglobal.h"
+#include "letypes.h"
 
 #define COLUNDEFINED  1
 #define LINEUNDEFINED 2

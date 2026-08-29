@@ -21,11 +21,11 @@
 #ifdef HAVE_ALLOCA_H
 #endif
 
-#include "edit.h"
-#include "leio.h"
 #include "block.h"
-#include "highli.h"
+#include "edit.h"
 #include "getch.h"
+#include "highli.h"
+#include "leio.h"
 #include "mb.h"
 
 #ifndef max

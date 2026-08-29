@@ -17,7 +17,6 @@
  */
 
 #include "config.h"
-
 #include "edit.h"
 #include "keymap.h"
 

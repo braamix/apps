@@ -18,12 +18,13 @@
 
 /* Search & replace for the editor */
 
+#include "search.h"
+
 #include "config.h"
 #include "edit.h"
-#include "leio.h"
-#include "keymap.h"
 #include "getch.h"
-#include "search.h"
+#include "keymap.h"
+#include "leio.h"
 #include "mb.h"
 #ifdef HAVE_ALLOCA_H
 #endif

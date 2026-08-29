@@ -30,14 +30,14 @@
  * key taken with a bare keys_claim.
  */
 
-#include "config.h"
-#include "kernel/sysabi.h"
-#include "lesys.h"
-#include "edit.h"
 #include "cmd.h"
-#include "getch.h"
-#include "leio.h"
 
+#include "config.h"
+#include "edit.h"
+#include "getch.h"
+#include "kernel/sysabi.h"
+#include "leio.h"
+#include "lesys.h"
 #include "proc/io.h"
 #include "proc/rt.h"
 

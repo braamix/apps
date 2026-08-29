@@ -15,8 +15,15 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
+#ifndef CMD_H
+#define CMD_H
+
+#include "kernel/task.h"
+
 Task<void> cmd(const char *cmd, bool autosave, bool pauseafter);
 Task<void> DoMake();
 Task<void> DoCompile();
 Task<void> DoRun();
 Task<void> DoShell();
+
+#endif /* CMD_H */

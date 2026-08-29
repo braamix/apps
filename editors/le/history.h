@@ -16,6 +16,15 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef HISTORY_H
+#define HISTORY_H
+
+#include "braam.h"
+#include "kernel/task.h"
+#include "lefile.h"
+#include "lesys.h"
+#include "letypes.h"
+
 #undef lines
 #undef cols
 
@@ -90,3 +99,5 @@ public:
     const InodeInfo *FindInode(const InodeInfo &);
     void operator+=(const InodeInfo &);
 };
+
+#endif /* HISTORY_H */

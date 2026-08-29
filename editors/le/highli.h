@@ -19,6 +19,10 @@
 #ifndef HIGHLI_H
 #define HIGHLI_H
 
+#include "kernel/task.h"
+#include "letypes.h"
+#include "regex.h"
+
 extern "C" {
 #include <regex.h>
 }

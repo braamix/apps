@@ -17,10 +17,10 @@
  */
 
 #include "config.h"
-#include "lesys.h"
-#include "kernel/alloc.h"
 #include "edit.h"
+#include "kernel/alloc.h"
 #include "lefile.h"
+#include "lesys.h"
 #include "proc/rt.h"
 
 static char *memdup(const char *s, int len)

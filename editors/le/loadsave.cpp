@@ -30,15 +30,15 @@
 #endif
 
 #include "edit.h"
-#include "leio.h"
-#include "keymap.h"
 #include "highli.h"
+#include "keymap.h"
+#include "leio.h"
 #ifdef HAVE_ALLOCA_H
 #endif
 #include "block.h"
+#include "bm.h"
 #include "clipbrd.h"
 #include "getch.h"
-#include "bm.h"
 #include "undo.h"
 
 #ifndef MAP_FAILED

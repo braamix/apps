@@ -85,6 +85,13 @@ and `kern.cpp` has six, which are the ones that really do I/O.
 and `ptr2` are one `realloc`'d block and stayed exactly that. It is the reason
 this port was less work than the two before it.
 
+**Every header stands on its own.** Upstream's headers were written to be
+included through `edit.h` and in its order: they used `byte` and `offs`
+without declaring them, and a third of them had no include guard because each
+was included exactly once. Each says what it needs now, which is what lets the
+tree's own clang-format sort the includes — the two new headers above are
+where the cycles had to be cut.
+
 **A global with a constructor lives in storage of its own.** A namespace-scope
 object with a non-trivial destructor wants `__cxa_atexit`, and there is none:
 a process here is destroyed wholesale. [leglobal.h](leglobal.h) holds each of
@@ -163,6 +170,8 @@ Upstream's file split and its names are kept. What is new:
 | [lefile.cpp](lefile.cpp) | the four stdio calls the config parsers make, over `proc/file.h` |
 | [lewchar.cpp](lewchar.cpp) | UTF-8 in place of the locale's encoding |
 | [leglobal.h](leglobal.h) | a global that has a constructor |
+| [letypes.h](letypes.h) | `byte`, `offs` and `num`, which edit.h declared above the twelve headers it then included — so those twelve compiled only through it |
+| [gap.h](gap.h) | the gap buffer's accessors, which were the first half of inline.h. mb.h is written against them and the second half of inline.h is written against mb.h, so upstream's one file could be read only in that order |
 | [epath.cpp](epath.cpp) | where `share` is |
 | [cinc/](cinc/) | the handful of libc headers `regex.c` and `wcwidth.c` name, each forwarding to the shim; those two are the only files here that are C |
 

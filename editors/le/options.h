@@ -16,6 +16,13 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef OPTIONS_H
+#define OPTIONS_H
+
+#include "kernel/task.h"
+#include "lefile.h"
+#include "letypes.h"
+
 struct init {
     const char *name;
     int format;
@@ -34,3 +41,5 @@ extern const struct init colors[];
 
 extern bool ExplicitInitName;
 extern char InitName[256];
+
+#endif /* OPTIONS_H */

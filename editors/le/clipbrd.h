@@ -19,6 +19,10 @@
 #ifndef CLIPBRD_H
 #define CLIPBRD_H
 
+#include "kernel/task.h"
+#include "leglobal.h"
+#include "letypes.h"
+
 class ClipBoard {
     char *text;
     int width;

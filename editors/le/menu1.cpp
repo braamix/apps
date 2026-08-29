@@ -16,13 +16,13 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#include "block.h"
+#include "clipbrd.h"
 #include "config.h"
 #include "edit.h"
-#include "lefile.h"
 #include "epath.h"
 #include "keymap.h"
-#include "clipbrd.h"
-#include "block.h"
+#include "lefile.h"
 
 extern Menu1 MainMenu[];
 

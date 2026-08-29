@@ -23,8 +23,9 @@
 // here, so none of upstream's LE_CURSES_BOOL_TYPE dance is needed.
 #include "braam.h"
 #include "curses.h"
-#include "lesys.h"
 #include "lefile.h"
+#include "lesys.h"
+#include "letypes.h"
 #include "lewchar.h"
 
 #define EMAIL "lav@yars.free.net"
@@ -34,23 +35,17 @@
 #undef newline
 #undef newcol
 
-typedef unsigned char byte;
-typedef long offs;
-typedef long num;
-
-enum { NO_POS = -1L };
-
-#include "textpoin.h"
+#include "cmd.h"
 #include "color.h"
-#include "window.h"
-#include "rus.h"
-#include "user.h"
-#include "screen.h"
+#include "file.h"
+#include "history.h"
 #include "menu.h"
 #include "menu1.h"
-#include "cmd.h"
-#include "history.h"
-#include "file.h"
+#include "rus.h"
+#include "screen.h"
+#include "textpoin.h"
+#include "user.h"
+#include "window.h"
 
 extern int inputmode, editmode;
 extern int noreg, match_case;
@@ -372,9 +367,9 @@ bool BlockEqAt(offs, const char *, int);
 #define REDISPLAY_AFTER 4
 #define REDISPLAY_RANGE 8
 
+#include "chset.h"
 #include "inline.h"
 #include "mb.h"
-#include "chset.h"
 
 int isslash(char);
 

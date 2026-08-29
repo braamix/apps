@@ -16,6 +16,15 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef CHSET_H
+#define CHSET_H
+
+#include "color.h"
+#include "config.h"
+#include "curses.h"
+#include "kernel/task.h"
+#include "letypes.h"
+
 #define CHSET_BITS_PER_BYTE 4
 #define CHSET_SIZE          ((256 + CHSET_BITS_PER_BYTE - 1) / CHSET_BITS_PER_BYTE)
 
@@ -32,3 +41,5 @@ wchar_t visualize_wchar(wchar_t ch);
 #endif
 
 bool chset_isprint(int);
+
+#endif /* CHSET_H */

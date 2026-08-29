@@ -16,6 +16,14 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef SEARCH_H
+#define SEARCH_H
+
+#include "history.h"
+#include "kernel/task.h"
+#include "leglobal.h"
+#include "letypes.h"
+
 Task<void> NotFound();
 int CharMatch();
 int Match1();
@@ -34,3 +42,5 @@ extern Global<History> g_SearchHistory;
 
 extern unsigned char map_to_lower[256];
 void map_to_lower_init();
+
+#endif /* SEARCH_H */

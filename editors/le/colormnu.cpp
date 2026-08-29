@@ -16,13 +16,13 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include "config.h"
+#include "colormnu.h"
 
-#include "lesys.h"
+#include "config.h"
 #include "edit.h"
 #include "epath.h"
 #include "leio.h"
-#include "colormnu.h"
+#include "lesys.h"
 #include "options.h"
 #ifdef HAVE_ALLOCA_H
 #endif

@@ -29,11 +29,10 @@
  * handler. */
 
 #include "config.h"
-#include "lesys.h"
 #include "edit.h"
-#include "leio.h"
-
 #include "kernel/sysabi.h"
+#include "leio.h"
+#include "lesys.h"
 #include "proc/io.h"
 #include "proc/rt.h"
 

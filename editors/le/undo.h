@@ -16,7 +16,13 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef UNDO_H
+#define UNDO_H
+
 #include "edit.h"
+#include "kernel/task.h"
+#include "lesys.h"
+#include "letypes.h"
 
 class Undo {
     struct GroupHead {
@@ -123,3 +129,5 @@ public:
 
 extern Global<Undo> g_undo;
 #define undo (g_undo.get())
+
+#endif /* UNDO_H */

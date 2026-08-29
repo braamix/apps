@@ -23,10 +23,11 @@
  * extended ones. Braam sends a key and not a sequence, so a name is a code and
  * the table is the whole of it. `C-` and `S-` prefixes stack. */
 
+#include "keynames.h"
+
 #include "config.h"
 #include "edit.h"
 #include "getch.h"
-#include "keynames.h"
 
 static const struct {
     const char *name;

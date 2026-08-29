@@ -19,6 +19,8 @@
 #ifndef FORMAT_H
 #define FORMAT_H
 
+#include "kernel/task.h"
+
 Task<void> FormatAll();
 Task<void> FormatFunc();
 Task<void> FormatPara();

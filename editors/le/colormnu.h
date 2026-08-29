@@ -16,6 +16,11 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef COLORMNU_H
+#define COLORMNU_H
+
+#include "kernel/task.h"
+
 Task<void> ColorsOpt();
 Task<void> ColorsSave();
 Task<void> ColorsSaveForTerminal();
@@ -25,3 +30,5 @@ Task<void> LoadColorBlack();
 Task<void> LoadColorBlue();
 Task<void> LoadColorWhite();
 Task<void> LoadColorGreen();
+
+#endif /* COLORMNU_H */

@@ -19,6 +19,10 @@
 #ifndef MENU_H
 #define MENU_H
 
+#include "color.h"
+#include "kernel/task.h"
+#include "letypes.h"
+
 struct menu {
     const char *text;
     int x, y;

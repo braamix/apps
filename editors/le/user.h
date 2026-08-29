@@ -16,6 +16,13 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
+#ifndef USER_H
+#define USER_H
+
+#include "kernel/task.h"
+#include "leglobal.h"
+#include "letypes.h"
+
 /* functions, invoked with the keyboard by the user */
 
 Task<void> UserDeleteToEol();
@@ -172,3 +179,5 @@ extern Global<class History> g_ShellHistory;
 #define ShellHistory (g_ShellHistory.get())
 extern Global<class History> g_PipeHistory;
 #define PipeHistory (g_PipeHistory.get())
+
+#endif /* USER_H */

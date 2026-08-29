@@ -21,6 +21,9 @@
 #ifndef MENU1_H
 #define MENU1_H
 
+#include "braam.h"
+#include "window.h"
+
 enum menu_conds {
     SUBM                = 1,
     FUNC                = 2,

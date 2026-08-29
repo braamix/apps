@@ -16,12 +16,13 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include "config.h"
+#include "calc.h"
+
 #include "braam.h"
+#include "config.h"
 #include "lesys.h"
 #include "math/ftoa.h"
 #include "math/math.h"
-#include "calc.h"
 
 /* <float.h>'s DBL_MIN, the smallest normal double. */
 #define EPS 2.2250738585072014e-308
