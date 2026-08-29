@@ -187,10 +187,10 @@ void MoveBar(int n)
     }
 }
 
-void DisplayMenuWindow(int n)
+/* The items of the submenu under item n, into whatever window is Upper. */
+static void DisplayMenuItems(int n)
 {
     int pos, o;
-    DisplayWin(m[n].win);
     n++;
     pos = 0;
     do {
@@ -199,6 +199,12 @@ void DisplayMenuWindow(int n)
         o = n;
         n = NextItem(n);
     } while (o < n);
+}
+
+void DisplayMenuWindow(int n)
+{
+    DisplayWin(m[n].win);
+    DisplayMenuItems(n);
 }
 
 void FormatItemText(int n, int clear_len)
@@ -283,6 +289,28 @@ void InitMenu()
     } while (n != 0);
 }
 
+/* The bar spans the screen and the pull-downs were placed under it, so a resize
+   has to lay them all out again. Not InitMenu(): that also pads the item text,
+   which is done once. */
+void MenuResized()
+{
+    int n = 0, level = 0;
+
+    if (!RootWin)
+        return;
+    RootWin->ow = COLS;
+    RefitWin(RootWin);
+    do {
+        if (m[n].text == NULL) {
+            level--;
+            if (m[n].win)
+                RefitWin(m[n].win);
+        } else if (m[n].fl & SUBM)
+            level++;
+        n++;
+    } while (level > 0 || m[n].text != NULL);
+}
+
 void DisplayRoot()
 {
     int i = 0, pos = 2;
@@ -333,6 +361,22 @@ Task<void> ActivateMainMenu(void)
         move(LINES - 1, COLS - 1);
         action = co_await GetNextAction();
         switch (action) {
+        case (WINDOW_RESIZE): {
+            /* WindowsResized redrew every box on the stack; what is written in
+               them is painted here and not there -- the bar, and the pull-down
+               over it if one is open. */
+            WIN *top = Upper;
+
+            Upper = RootWin;
+            SetAttr(RootWin->a);
+            DisplayRoot();
+            Upper = top;
+            SetAttr(top->a);
+            if (level > 0)
+                DisplayMenuItems(FirstItem(curr) - 1);
+            MoveBar(curr);
+            break;
+        }
         case (LINE_BEGIN):
             n = MoveToValid(FirstItem(curr), NextItem);
             if (n == -1)

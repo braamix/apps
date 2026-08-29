@@ -74,6 +74,7 @@ test: all
 	@node editors/le/test/lesearch.mjs
 	@node editors/le/test/lesigint.mjs
 	@node editors/le/test/lescreen.mjs
+	@node editors/le/test/leresize.mjs
 	@node editors/le/test/lecolor.mjs
 	@node editors/le/test/leescape.mjs
 	@node editors/le/test/lesyntax.mjs

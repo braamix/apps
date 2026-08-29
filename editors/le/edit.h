@@ -315,6 +315,7 @@ int ModifyKey(int key);
 
 void define_pairs();
 void InitMenu();
+void MenuResized();
 
 int CountNewLines(offs start, num size, num *unix_nl = 0, num *dos_nl = 0, num *mac_nl = 0);
 void ConvertFromUnixToDos(offs start, num size);

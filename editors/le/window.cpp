@@ -165,12 +165,10 @@ void PutStr(int x, int y, const char *str)
     }
 }
 
-WIN *CreateWin(int x, int y, unsigned w, unsigned h, const attr *a, const char *title, int flags)
+/* Place a window in the current COLS and LINES, from the position and size it
+   was asked for. Split out of CreateWin so a resize can run it again. */
+static void fit_win(WIN *win, int x, int y, unsigned w, unsigned h)
 {
-    WIN *win;
-
-    win = (WIN *)malloc(sizeof(WIN));
-
     Absolute(&x, w, COLS);
     Absolute(&y, h, LINES);
 
@@ -193,7 +191,26 @@ WIN *CreateWin(int x, int y, unsigned w, unsigned h, const attr *a, const char *
     win->clip_x = w;
     if (w > 2 && h > 2)
         win->clip_x--;
-    win->h     = h;
+    win->h = h;
+}
+
+void RefitWin(WIN *win)
+{
+    fit_win(win, win->ox, win->oy, win->ow, win->oh);
+}
+
+WIN *CreateWin(int x, int y, unsigned w, unsigned h, const attr *a, const char *title, int flags)
+{
+    WIN *win;
+
+    win = (WIN *)malloc(sizeof(WIN));
+
+    win->ox = x;
+    win->oy = y;
+    win->ow = w;
+    win->oh = h;
+    fit_win(win, x, y, w, h);
+
     win->a     = a;
     win->title = title;
     win->buf   = NULL;
@@ -205,7 +222,9 @@ void DestroyWin(WIN *win)
 {
     free(win);
 }
-void DisplayWin(WIN *win)
+/* Save what is under `win` -- which must already be Upper -- shade its border,
+   and draw the box. The half of DisplayWin that a resize runs again. */
+static void paint_win(WIN *win)
 {
     win_cell *save;
     int x, y;
@@ -213,13 +232,15 @@ void DisplayWin(WIN *win)
     curs_set(0);
     attrset(0);
 
-    win->prev = Upper;
-    Upper     = win;
-
     save = win->buf = (win_cell *)malloc((win->h + 1) * (win->w + 2) * sizeof(win_cell));
 
     for (y = 0; y < win->h + 1; y++) {
         for (x = 0; x < win->w + 2; x++) {
+            /* Blank first: off the grid scr_get_cell reports ERR and leaves
+               `save` as it found it, which is whatever malloc handed over. */
+            save->attr     = NORMAL_TEXT_ATTR->n_attr;
+            save->chars[0] = L' ';
+            save->chars[1] = 0;
             scr_get_cell(y + win->y, x + win->x, save);
             if (!(y < win->h && x < win->w) && !(win->flags & NOSHADOW) && x > 1 && y > 0) {
                 if (y + win->y < LINES && x + win->x < COLS) {
@@ -234,6 +255,40 @@ void DisplayWin(WIN *win)
     SetAttr(win->a);
 
     Clear();
+}
+
+void DisplayWin(WIN *win)
+{
+    win->prev = Upper;
+    Upper     = win;
+    paint_win(win);
+}
+
+/* The stack after a resize. Bottom-up, so each window saves the one below it
+   as it has just been redrawn -- what is under the bottom one is the text
+   window, which CheckWindowResize has already asked for with REDISPLAY_ALL. */
+static void resize_win(WIN *win)
+{
+    if (!win)
+        return;
+    resize_win(win->prev);
+
+    free(win->buf);
+    win->buf = NULL;
+    RefitWin(win);
+    Upper = win;
+    paint_win(win);
+}
+
+void WindowsResized()
+{
+    WIN *top = Upper;
+
+    if (!top)
+        return;
+    resize_win(top);
+    Upper = top;
+    SetAttr(Upper->a);
 }
 void CloseWin()
 {

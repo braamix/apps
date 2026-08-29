@@ -191,6 +191,19 @@ static int decode(Key k)
     }
 }
 
+/* The geometry rides on every reply, so next_key() may have reshaped the grid
+   on either exit: on an Intr it always has, and on a key it has whenever the
+   SIG_WINCH landed where nothing was cancelled -- only Read, KeyRead, Sleep,
+   Wait and ClipRead are abandoned, so a resize during a blit or a redraw
+   arrives with the next keystroke and raises no Intr of its own. */
+static void note_size()
+{
+    if ((int)curses_grid().cols != COLS || (int)curses_grid().rows != LINES) {
+        curses_resized();
+        resize_flag = 1;
+    }
+}
+
 Task<int> GetRawKey()
 {
     if (curses_unget_pending())
@@ -212,20 +225,25 @@ Task<int> GetRawKey()
                 co_return ERR;
             /* next_key() takes SIG_WINCH itself and reshapes before it reports,
                so note the geometry before answering whatever signal is behind
-               this -- a resize arriving with a ^C is dropped otherwise. */
-            bool resized = (int)curses_grid().cols != COLS || (int)curses_grid().rows != LINES;
+               this -- a resize arriving with a ^C is dropped otherwise.
+
+               The whole frame, not the difference: the kernel blanks its screen
+               on every resize, keeping only the rows above the cursor, but
+               leaves the Grid alone when the shape did not change. A drag ends
+               where it began often enough -- every cell then compares equal,
+               nothing goes out, and the screen stays black below the cursor. */
+            note_size();
+            curses_full_blit();
             if (sig_take(SIG_TERM))
                 co_return ERR;
             if (sig_take(SIG_INT))
                 co_return 3; /* ^C, as the keystroke upstream bound */
-            if (resized) {
-                curses_resized();
-                resize_flag = 1;
+            if (resize_flag)
                 co_return ERR;
-            }
             continue;
         }
 
+        note_size();
         int key = decode(r.value());
         if (key != ERR)
             co_return key;

@@ -560,30 +560,11 @@ static bool InOptField(int y, int x, struct opt *o)
 }
 #endif /* WITH_MOUSE */
 
-Task<void> W_Dialogue(struct opt *opt, const char *SetupHelp, const char *SetupTitle,
-                      Task<int> (*EatKey)(int), Task<int> (*HandleButton)(const char *, int))
+/* The part of the dialogue that does not change: the labels and the brackets
+   round each field. Painted once, and again after a resize. */
+static void DisplayOptLabels(struct opt *opt)
 {
-    int newitem = 0;
-    int first   = 1;
-    char s[512];
-    struct opt *p, *p1, *n, *curr = opt;
-    int shift = 0, pos = 0, col = 0, i, key = 0, d, dist;
-    int action            = -1;
-    int OldShowStatusLine = ShowStatusLine;
-    const attr *a         = Upper->a;
-    int len, ch_len;
-
-    OldTabSize = TabSize;
-
-    int fx = curr->x;
-    int fy = curr->y;
-
-    for (p = opt; p->name; p++) {
-        if (p->type == STR)
-            p->old.s = (char *)strdup((char *)p->var);
-        else if (p->type == NUM || p->type == ONE || p->type == MANY)
-            p->old.n = *(int *)p->var;
-    }
+    struct opt *p;
 
     for (p = opt; p->name; p++) {
         switch (p->type) {
@@ -610,6 +591,34 @@ Task<void> W_Dialogue(struct opt *opt, const char *SetupHelp, const char *SetupT
             break;
         }
     }
+}
+
+Task<void> W_Dialogue(struct opt *opt, const char *SetupHelp, const char *SetupTitle,
+                      Task<int> (*EatKey)(int), Task<int> (*HandleButton)(const char *, int))
+{
+    int newitem = 0;
+    int first   = 1;
+    char s[512];
+    struct opt *p, *p1, *n, *curr = opt;
+    int shift = 0, pos = 0, col = 0, i, key = 0, d, dist;
+    int action            = -1;
+    int OldShowStatusLine = ShowStatusLine;
+    const attr *a         = Upper->a;
+    int len, ch_len;
+
+    OldTabSize = TabSize;
+
+    int fx = curr->x;
+    int fy = curr->y;
+
+    for (p = opt; p->name; p++) {
+        if (p->type == STR)
+            p->old.s = (char *)strdup((char *)p->var);
+        else if (p->type == NUM || p->type == ONE || p->type == MANY)
+            p->old.n = *(int *)p->var;
+    }
+
+    DisplayOptLabels(opt);
 
     for (;;) {
         for (p = opt; p->name; p++) {
@@ -675,6 +684,11 @@ Task<void> W_Dialogue(struct opt *opt, const char *SetupHelp, const char *SetupT
         if (action == -1)
             continue;
         switch (action) {
+        case (WINDOW_RESIZE):
+            /* WindowsResized cleared the box; the labels go back in it here,
+               and the loop paints the values on its next turn. */
+            DisplayOptLabels(opt);
+            continue;
 #ifdef WITH_MOUSE
         case (MOUSE_ACTION): {
             MEVENT mev;

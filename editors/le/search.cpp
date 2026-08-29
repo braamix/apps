@@ -476,7 +476,8 @@ Task<void> Replace()
             co_return;
         }
         first = FALSE;
-        flag  = REDISPLAY_ALL;
+    ask_again:
+        flag = REDISPLAY_ALL;
         if (key != '*' && key != '#') {
             int oldr                = rblock;
             TextPoint OldBlockBegin = BlockBegin;
@@ -499,6 +500,9 @@ Task<void> Replace()
         next_action:
             action = co_await GetNextAction();
             switch (action) {
+            case WINDOW_RESIZE:
+                /* Not a key: ask again rather than drop the prompt. */
+                goto ask_again;
             case REFRESH_SCREEN:
                 refresh();
                 goto next_action;

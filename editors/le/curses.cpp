@@ -165,11 +165,14 @@ Task<Result<void>> curses_flush()
         lastcx = g.cursor_x;
         lastcy = g.cursor_y;
     }
-    if (full_blit) {
+    if (full_blit)
         g.touch(0, 0, g.cols, g.rows);
-        full_blit = false;
-    }
-    co_return co_await scr->flush();
+
+    /* The damage is taken before the blit is awaited, so a frame the kernel
+       refuses -- a resize landing under it -- is gone. Ask for it again. */
+    Result<void> r = co_await scr->flush();
+    full_blit      = r.is_err();
+    co_return r;
 }
 
 int endwin()

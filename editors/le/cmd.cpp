@@ -60,13 +60,13 @@ static Task<void> give_screen()
 
 static Task<void> take_screen()
 {
-    if (Task<Result<Geometry>> t = keys_claim(true))
+    /* Through curses_open(), which claims both and sizes the Grid to what the
+       claims report -- the terminal may have been resized while the child had
+       the screen, and re-claiming by hand would discard that geometry. It ends
+       in curses_resized(), which is also what the blank alternate screen needs:
+       the Grid still holds what was on it, so a diff would send nothing. */
+    if (Task<Result<void>> t = curses_open())
         co_await t;
-    if (Task<Result<Geometry>> t = screen_claim(true))
-        co_await t;
-    /* The alternate screen comes back blank and the Grid still holds what was
-       on it, so the diff would find nothing to send. */
-    curses_resized();
 }
 
 /* [Press any key to continue], written as bytes and answered with one key.

@@ -649,8 +649,11 @@ Task<int> GetNextAction()
 
         key = co_await GetKey();
 
+        /* Wherever in the tree it lands: a resize noticed part-way through a
+           chord abandons the prefix rather than waiting for the next key, or
+           the screen stays wrong until something else is typed. */
         extern int resize_flag;
-        if (resize_flag && kt == KeyTree) {
+        if (resize_flag) {
             resize_flag = 0;
             if (key != ERR)
                 ungetch(key);

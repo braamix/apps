@@ -712,6 +712,9 @@ next:
     action = co_await GetNextAction();
     flag   = REDISPLAY_ALL;
     switch (action) {
+    case (WINDOW_RESIZE):
+        /* Not a key: put the prompt back up rather than drop it. */
+        goto next;
     case (EDITOR_HELP):
         co_await Help("BlockHelp", " Block Help ");
         goto next;

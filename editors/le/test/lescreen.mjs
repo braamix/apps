@@ -60,4 +60,31 @@ delta`);
 is("the grid is the new shape", `${H.screen().cols}x${H.rows(H.screen()).length}`, "60x16");
 is("and the status line moved with it", status().slice(0, 16), "Line=1     Col=1");
 
+/* A drag is a burst of resizes, and le sees none of them until it is next
+   scheduled -- so the geometry it wakes to can be the one it already had. The
+   kernel blanks its screen for each of them anyway, keeping only the rows above
+   the cursor, so a frame sent by difference would send nothing and the screen
+   would stay black. H.regrid() directly, since regrid() ticks. */
+H.regrid(100, 30, "resize returned no screen descriptor");
+H.regrid(60, 16, "resize returned no screen descriptor");
+tick(3);
+is("a burst of resizes ending where it started", screen(4),
+`alpha
+beta
+gamma
+delta`);
+
+/* And one that carries no Intr at all: the geometry rides on the key reply,
+   so a resize landing where nothing was cancelled arrives with the next key. */
+H.regrid(70, 20, "resize returned no screen descriptor");
+press("DOWN");
+tick(3);
+is("a resize that arrived with a key", screen(4),
+`alpha
+beta
+gamma
+delta`);
+is("and the grid is the new shape", `${H.screen().cols}x${H.rows(H.screen()).length}`, "70x20");
+is("with the status line on the new bottom row", status().slice(0, 16), "Line=2     Col=1");
+
 ok("hex mode, the menu and a resize");

@@ -53,7 +53,19 @@ void CheckWindowResize()
        editor out again. Upstream had to ask the terminal for its size and
        restart curses. */
     CorrectParameters();
+    MenuResized();
     flag |= REDISPLAY_ALL;
+
+    if (Upper) {
+        /* A dialogue is up, and Edit() will not get a turn to repaint the text
+           until it closes -- so the text goes down first, or every window on
+           the stack saves a blank background and then sits on one. */
+        int sp = message_sp;
+        SyncTextWin();
+        message_sp = sp;
+        WindowsResized();
+        flag |= REDISPLAY_ALL;
+    }
 }
 
 /* A path, which is all TmpFileName builds; upstream sized this for the

@@ -39,7 +39,6 @@ Task<int> getstring(const char *pr, char *buf, int maxlen, History *history, int
 
     if (message_sp == 0)
         message_sp = 1;
-    width = COLS - strlen(pr) - 1;
     pos   = 0;
     col   = 0;
     shift = 0;
@@ -60,6 +59,8 @@ Task<int> getstring(const char *pr, char *buf, int maxlen, History *history, int
     }
 
     do {
+        /* Per turn, not once: the screen can have been resized under us. */
+        width = COLS - strlen(pr) - 1;
         if (col == -1)
             mb_get_col(buf, pos, &col, *len);
         if (col - shift > width)

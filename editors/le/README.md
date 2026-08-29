@@ -152,6 +152,27 @@ driven, one function each. See the 0.7 release notes in `../../braam-core`.
   a key was already queued and draw a spinner instead; that was a latency hack
   against a terminal it had to write bytes to, and the Grid sends only the
   cells that changed.
+- **A resize sends the whole frame, not the difference.** The kernel
+  reallocates its screen on every resize and keeps only the rows above the
+  cursor, blanking the rest — but it leaves the process's own Grid alone when
+  the geometry has not changed, and that Grid is what `curses_flush()` diffs
+  against. A drag is a burst of resizes the process sees none of until it is
+  next scheduled, so the geometry it wakes to is often the one it already had:
+  every cell then compares equal, nothing is sent, and the screen stays black
+  below wherever the cursor was. So a `SIG_WINCH`, a screen handed back after
+  a shell escape, and a blit the kernel refuses each arm one unconditional
+  frame. The geometry also rides on every key reply, and a `SIG_WINCH` that
+  lands while the editor is blitting or redrawing cancels nothing — so
+  `GetRawKey` reads the grid's shape on both of `next_key()`'s exits, not only
+  on `Err(Intr)`.
+- **A resize is reported wherever it lands.** Upstream restarted curses from
+  the handler and every window went with it. Here `WINDOW_RESIZE` is an action
+  like any other: `CheckWindowResize` lays the menu bar and the displayed
+  window stack out again for the new `COLS` and `LINES`, and a dialogue that
+  paints outside its own loop — the menu, the options box, the Block, Format
+  and `Replace?` prompts — has an arm that paints it again rather than
+  dropping it. It abandons a half-typed chord, which upstream's `siglongjmp`
+  did too.
 - **`--dump-colors` and `--dump-keymap` still work**, and the keymap they print
   is the format the keymap file takes.
 - **`long double` is `double` in the calculator.** Quad is a compiler-rt call
@@ -226,6 +247,7 @@ node editors/le/test/leedit.mjs
 | [lesearch.mjs](test/lesearch.mjs) | literal and regexp search, and replace-all — which is `regex.c` and `re_search_2` reading across the gap |
 | [lesigint.mjs](test/lesigint.mjs) | `^C` reaches its binding rather than killing the editor |
 | [lescreen.mjs](test/lescreen.mjs) | hex mode, the menu bar and a resize |
+| [leresize.mjs](test/leresize.mjs) | a resize under the menu, a dialogue, a prompt and a half-typed chord |
 | [lesyntax.mjs](test/lesyntax.mjs) | the syntax colours and the help, both out of `share` |
 | [lespawn.mjs](test/lespawn.mjs) | a block filter, a failing one, and the shell escape |
 

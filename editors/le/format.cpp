@@ -326,6 +326,9 @@ again:
 
     action = co_await GetNextAction();
     switch (action) {
+    case (WINDOW_RESIZE):
+        /* Not a key: put the prompt back up rather than drop it. */
+        goto again;
     case (LINE_UP):
         co_await UserLineUp();
         goto again;

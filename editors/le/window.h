@@ -38,6 +38,11 @@ typedef struct win {
     win_cell *buf;
     int x, y;
     int w, h;
+    /* As asked for. x and y may be symbolic (MIDDLE, FRIGHT) and w and h are
+       unclamped, so a resize can lay the window out again from these; the
+       fields above have been through Absolute() and cannot. */
+    int ox, oy;
+    unsigned ow, oh;
     int clip_x;
     const attr *a;
     const char *title;
@@ -58,6 +63,12 @@ WIN *CreateWin(int x, int y, unsigned w, unsigned h, const attr *a, const char *
 void DisplayWin(WIN *);
 void CloseWin();
 void DestroyWin(WIN *);
+
+/* Place a window again in the current COLS and LINES, from the ox/oy/ow/oh it
+   was asked for. RefitWin moves one; WindowsResized does the displayed stack
+   and redraws it. */
+void RefitWin(WIN *);
+void WindowsResized();
 
 void Absolute(int *x, int width, int field);
 void GotoXY(int x, int y);
