@@ -198,12 +198,18 @@ const COLORS = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "w
 
 const color_of = (c) => COLORS[c & 7] + (c & 8 ? "+" : "");
 
-export function fg(y) {
-    return color_of(H.cell(H.screen(), 0, y).fg);
+export function fg(y, x = 0) {
+    return color_of(H.cell(H.screen(), x, y).fg);
 }
 
-export function bg(y) {
-    return color_of(H.cell(H.screen(), 0, y).bg);
+export function bg(y, x = 0) {
+    return color_of(H.cell(H.screen(), x, y).bg);
+}
+
+// The colour of one cell, as "fg/bg", with the glyph that carries it.
+export function paint(y, x) {
+    const c = H.cell(H.screen(), x, y);
+    return `${String.fromCodePoint(c.ch || 32)} ${color_of(c.fg)}/${color_of(c.bg)}`;
 }
 
 

@@ -36,6 +36,9 @@ struct Pair {
     short fg = -1, bg = -1;
 } pairs[COLOR_PAIRS];
 
+// One past the highest pair init_pair has seen.
+int npairs = 1;
+
 // The last cursor cell damaged, so a move that changes nothing else still
 // carries the blit's header out.
 u32 lastcx = ~0u, lastcy = ~0u;
@@ -54,6 +57,30 @@ void split(chtype a, u8 &fg, u8 &bg, u8 &at)
     if (a & A_REVERSE)
         at |= ATTR_REVERSE;
     // A_DIM has no counterpart; ncurses drops it on a terminal without one too.
+}
+
+// The inverse of split(), through split() so the round trip is exact. Pair 0
+// answers when none matches, and renders as the white on black it already is.
+int pair_of(u8 fg, u8 bg)
+{
+    for (int i = 1; i < npairs; i++) {
+        u8 f, b, a;
+
+        split(COLOR_PAIR(i), f, b, a);
+        if (f == fg && b == bg)
+            return i;
+    }
+    return 0;
+}
+
+// What ncurses merges in from the window: the pair only if the character has
+// none, the other attributes always.
+chtype merge_attr(chtype a)
+{
+    a |= curattr & A_ATTRIBUTES & ~A_COLOR;
+    if (!(a & A_COLOR))
+        a |= curattr & A_COLOR;
+    return a;
 }
 
 void put_at(int y, int x, char32_t ch, chtype a)
@@ -173,6 +200,8 @@ int init_pair(short pair, short fg, short bg)
         return ERR;
     pairs[pair].fg = fg;
     pairs[pair].bg = bg;
+    if (pair >= npairs)
+        npairs = pair + 1;
     return OK;
 }
 
@@ -343,7 +372,7 @@ int mvaddchnstr(int y, int x, const chtype *s, int n)
 // renderer does not compose, so they are dropped rather than drawn.
 int add_wch(const cchar_t *c)
 {
-    put_at(cy, cx, (char32_t)c->chars[0], c->attr);
+    put_at(cy, cx, (char32_t)c->chars[0], merge_attr(c->attr));
     advance(1);
     return OK;
 }
@@ -355,6 +384,7 @@ int mvadd_wch(int y, int x, const cchar_t *c)
     return add_wch(c);
 }
 
+// No merge_attr, unlike add_wch: every caller builds each cell's attribute.
 int mvadd_wchnstr(int y, int x, const cchar_t *s, int n)
 {
     for (int i = 0; i < n && x + i < COLS; i++)
@@ -371,15 +401,14 @@ int mvin_wch(int y, int x, cchar_t *out)
     for (int i = 0; i < CCHARW_MAX; i++)
         out->chars[i] = 0;
     out->chars[0] = (wchar_t)c->ch;
-    out->attr     = A_NORMAL;
+    // The pair too, so the window stack restores what it saved.
+    out->attr = COLOR_PAIR(pair_of(c->fg, c->bg));
     if (c->attrs & ATTR_BOLD)
         out->attr |= A_BOLD;
     if (c->attrs & ATTR_UNDERLINE)
         out->attr |= A_UNDERLINE;
     if (c->attrs & ATTR_REVERSE)
         out->attr |= A_REVERSE;
-    // The pair is not recoverable from the cell; the window stack repaints
-    // with an attribute of its own, so nothing needs it back.
     return OK;
 }
 
