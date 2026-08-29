@@ -97,12 +97,12 @@ let running = false;
 // Leave the session that is up: a second le cannot be submitted while the
 // first still holds the screen.
 //
-// ESC is LE's quit, and it asks about a modified buffer -- the menu's default
+// ^X is LE's quit, and it asks about a modified buffer -- the menu's default
 // button is Yes, so N says no and leaves without saving.
 export function quit() {
     if (!running)
         return;
-    press("ESC");
+    press("^x");
     press("n");
     /* The shell gets its screen back when the claim drops, and redraws its
        prompt a tick later. */
@@ -113,9 +113,8 @@ export function quit() {
 // Any shell line, for the cases that need one -- a mkdir before le, say. The
 // clock lives here, so it cannot be driven from outside the module.
 //
-// This does not mark a session running: only le() does. Upstream's quit chord
-// was control characters the shell ignored; LE's is ESC and a letter, and a
-// letter typed at a shell prompt is a command.
+// This does not mark a session running: only le() does. LE's quit is ^X and a
+// letter, and a letter typed at a shell prompt is a command.
 export function submit(line) {
     quit();
     H.submit(line, clock++);

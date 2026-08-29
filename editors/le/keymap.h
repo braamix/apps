@@ -68,6 +68,7 @@ struct ActionCodeRec {
 extern unsigned char StringTyped[];
 extern int StringTypedLen;
 extern int LastActionCode;
+extern int LastActionKey; /* the last key of the code that produced it */
 extern const char *ActionArgument;
 extern int ActionArgumentLen;
 extern const ActionCodeRec *ActionCodeTable;

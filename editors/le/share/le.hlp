@@ -73,7 +73,7 @@ F7 | ^F          - search forwards
 Ctrl-]           - find matching bracket
 
           Exit from the editor
-^X | Esc+Esc     - ask to save, then exit
+^X               - ask to save, then exit
 
              Editor control
 ^O               - start setting options

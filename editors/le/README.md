@@ -28,7 +28,7 @@ le --dump-keymap  # the key bindings, in the format the keymap file takes
 | | |
 | --- | --- |
 | `F2` | save |
-| `ESC` | leave, asking about a changed file |
+| `^X` | leave, asking about a changed file |
 | `F5`, `F6` | mark the start and the end of a block |
 | `F11`, `F12`, `Shift-F12` | copy, move, delete the block |
 | `F4` | the block menu — `F4 C`, `F4 D` and so on are the same commands |
@@ -118,6 +118,11 @@ the `ESC` key gets a named code like `Left` and `F4` do. Upstream bound the
 timer that spelling makes `ESC` a prefix with no action of its own, and it
 takes two presses to escape. One key, one code, one press. The 55 `\e|X`
 bindings are unchanged and are reached with Alt.
+
+**And `ESC` does nothing at the top level.** `escape` is the same action as
+cancel, so a press with no dialog to cancel used to quit — too easy to hit by
+accident. `Edit()` ignores it there and `^X`, the other binding, still quits;
+everywhere else both keys cancel as before.
 
 **A printable key is its UTF-8, one byte at a time.** Upstream read bytes and
 inserted them one by one, which is how a multibyte character got into the

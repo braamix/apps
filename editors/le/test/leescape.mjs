@@ -40,10 +40,17 @@ press("M-z");
 tick(2);
 is("and Alt-z redoes it", screen(1), "Xalpha");
 
-// And in the editor: one ESC asks about the modified buffer.
+// At the top level ESC does nothing at all, with the buffer modified and
+// something for a quit to ask about.
 press("ESC");
 tick(3);
-is("one ESC raises the quit prompt", screen(15).split("\n").slice(8).join("\n"),
+is("ESC at the top level is ignored", screen(15),
+   "Xalpha\nbeta\ngamma\ndelta");
+
+// ^X is the same action and still quits.
+press("^x");
+tick(3);
+is("^X raises the quit prompt", screen(15).split("\n").slice(8).join("\n"),
 `                     ┌───────────────────────────────────┐
                      │                                   │
                      │ The file has been modified. Save? │
@@ -52,4 +59,4 @@ is("one ESC raises the quit prompt", screen(15).split("\n").slice(8).join("\n"),
                      │                                   │
                      └───────────────────────────────────┘`);
 
-ok("one ESC acts, and Alt still reaches the meta bindings");
+ok("one ESC acts, is ignored at the top level, and Alt reaches the meta bindings");

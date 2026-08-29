@@ -29,6 +29,7 @@
 #include "calc.h"
 #include "edit.h"
 #include "epath.h"
+#include "getch.h"
 #include "keymap.h"
 #include "lefile.h"
 #include "leio.h"
@@ -198,6 +199,9 @@ Task<void> Edit()
 #endif // WITH_MOUSE
 
         if (action == QUIT_EDITOR) {
+            /* Nothing to cancel at the top level. ^X is the same action. */
+            if (LastActionKey == K_ESCAPE)
+                continue;
             co_await Quit();
             continue;
         }

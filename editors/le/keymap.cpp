@@ -35,6 +35,7 @@
 unsigned char StringTyped[256];
 int StringTypedLen;
 int LastActionCode;
+int LastActionKey;
 const char *ActionArgument;
 int ActionArgumentLen;
 
@@ -631,6 +632,7 @@ Task<int> GetNextAction()
     StringTypedLen = 0;
     *store         = 0;
     ActionArgument = NULL;
+    LastActionKey  = ERR;
 
     KeyTreeNode *kt = KeyTree;
 
@@ -657,6 +659,7 @@ Task<int> GetNextAction()
         }
         if (key == ERR)
             break;
+        LastActionKey = key;
 
         if (key <= UCHAR_MAX) {
             *(store++) = key;
@@ -674,6 +677,7 @@ Task<int> GetNextAction()
                self-insert -- so it stays. */
             if (kt != KeyTree) {
                 ungetch(key);
+                LastActionKey = kt->keycode;
                 if (key <= UCHAR_MAX) {
                     *(--store) = 0;
                     StringTypedLen--;
