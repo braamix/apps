@@ -305,11 +305,9 @@ void StatusLine()
             snprintf(flags, sizeof(flags), "R/O %c %c", rblock ? 'B' : ' ', eol);
     } else {
         if (buffer_mmapped)
-            snprintf(flags, sizeof(flags), "MM %c%c   ",
-                     inputmode ? (inputmode == 2 ? 'G' : 'R') : ' ', rblock ? 'B' : ' ');
+            snprintf(flags, sizeof(flags), "MM %c   ", rblock ? 'B' : ' ');
         else
-            snprintf(flags, sizeof(flags), "%c%c%c%c%c%c%c", modified ? '*' : ' ',
-                     inputmode ? (inputmode == 2 ? 'G' : 'R') : ' ', insert ? 'I' : 'O',
+            snprintf(flags, sizeof(flags), "%c%c%c%c%c%c", modified ? '*' : ' ', insert ? 'I' : 'O',
                      autoindent ? 'A' : ' ', rblock ? 'B' : ' ',
                      (oldptr1 > ptr1 || oldptr2 < ptr2)
                          ? 'U'

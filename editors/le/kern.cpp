@@ -67,8 +67,8 @@ int rblock     = FALSE;
 int right = FALSE;
 int ascii = FALSE;
 
-int editmode = EXACT, inputmode = LATIN;
-int noreg = FALSE;
+int editmode = EXACT;
+int noreg    = FALSE;
 
 int FileTypeDetect = 1;
 

@@ -29,7 +29,6 @@
 #include "lefile.h"
 #include "leio.h"
 #include "lesys.h"
-#include "rus.h"
 #include "undo.h"
 
 bool ExplicitInitName = false;
@@ -44,8 +43,6 @@ int min_undo_levels    = 4;
 int max_undo_memory    = 128;
 int glue_small_changes = 1;
 int undo_enable        = 1;
-
-extern int grsetno;
 
 #define STR    0
 #define ONE    1
@@ -88,10 +85,6 @@ struct opt {
             { "Use mouse", ONE, (void *)&UseMouse, 45, 9 },
 #endif
 
-            { "&Latin", MANY, (void *)&inputmode, 3, 5 },
-            { "r&Ussian", MANY, (void *)&inputmode, 3, 6 },
-            { "&Graphic", MANY, (void *)&inputmode, 3, 7 },
-
             { "&Exact", MANY, (void *)&editmode, 22, 5 },
             { "te&Xt", MANY, (void *)&editmode, 22, 6 },
             { "&Hex", MANY, (void *)&editmode, 22, 7 },
@@ -113,21 +106,7 @@ struct opt {
             {"  Use   ",   BUTTON, NULL,   MIDDLE+5,FDOWN-2},
             {" Cancel ",   BUTTON, NULL,   MIDDLE+15,FDOWN-2},*/
             { NULL } },
-  TOpt[]         = { { "No cyrillic", MANY, (void *)&coding, 3, 2 },
-                     { "Alternative", MANY, (void *)&coding, 3, 3 },
-                     { "Alternative with 'jo'", MANY, (void *)&coding, 3, 4 },
-                     { "KOI-8", MANY, (void *)&coding, 3, 5 },
-                     { "KOI-8-BESTA", MANY, (void *)&coding, 3, 6 },
-                     { "Main", MANY, (void *)&coding, 3, 7 },
-
-                     { "IBM coding      ≥≈ø⁄¬√¥¿Ÿ¡ƒ", MANY, (void *)&grsetno, 32, 2 },
-                     { "KOI-8 coding 1  ãùó≤öõåò±ôú", MANY, (void *)&grsetno, 32, 3 },
-                     { "KOI-8 coding 2  Éïè™íìÑê©ëî", MANY, (void *)&grsetno, 32, 4 },
-                     { "No graphics     |+++++++++-", MANY, (void *)&grsetno, 32, 5 },
-
-                     { "Use insert/delete line cap.", ONE, &useidl, 32, 7 },
-                     { "Number of functional keys", NUM, (void *)&FuncKeysNum, 32, 8 },
-                     { NULL } },
+  TOpt[]         = { { "Use insert/delete line cap.", ONE, &useidl, 32, 2 }, { NULL } },
   FormatOpt[]    = { { "Left Margin", NUM, (void *)&LeftMargin, 3, 2, 3 },
                      { "Line Length", NUM, (void *)&LineLen, 3, 3, 3 },
                      { "First line margin", NUM, (void *)&FirstLineMargin, 3, 4, 3 },
@@ -160,7 +139,6 @@ const struct init init[] = { { "tabsize", NUM, (void *)&TabSize },
                              { "autoindent", NUM, (void *)&autoindent },
                              { "bsunindents", NUM, (void *)&BackspaceUnindents },
                              { "insert", NUM, (void *)&insert },
-                             { "inputmode", NUM, (void *)&inputmode },
                              { "editmode", NUM, (void *)&editmode },
                              { "makebak", NUM, (void *)&makebak },
                              { "bakpath", STR, (void *)BakPath },
@@ -199,9 +177,10 @@ const struct init init[] = { { "tabsize", NUM, (void *)&TabSize },
 #endif
                              { NULL } };
 const struct init term[] = {
-    { "coding", NUM, (void *)&coding }, { "grsetno", NUM, (void *)&grsetno },
-    { "chset", STR, (void *)&chset },   { "fknum", NUM, (void *)&FuncKeysNum },
-    { "useidl", NUM, &useidl },         { NULL }
+
+    { "chset", STR, (void *)&chset },
+    { "useidl", NUM, &useidl },
+    { NULL }
 };
 const struct init colors[] = {
     { "default_colors", NUM, &le_use_default_colors },

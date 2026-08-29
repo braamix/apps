@@ -153,10 +153,8 @@ start-replace                  StartReplace
 suspend-editor                 SuspendEditor
 switch-autoindent-mode         UserSwitchAutoindentMode
 switch-file                    UserSwitch
-switch-graph-mode              UserSwitchGraphMode
 switch-hex-mode                UserSwitchHexMode
 switch-insert-mode             UserSwitchInsertMode
-switch-russian-mode            UserSwitchRussianMode
 switch-text-mode               UserSwitchTextMode
 terminal-options               TermOpt
 to-line-number                 UserToLineNumber

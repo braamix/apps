@@ -1399,22 +1399,6 @@ Task<void> UserSwitchTextMode()
     co_return;
 }
 
-Task<void> UserSwitchRussianMode()
-{
-    if (inputmode == RUSS)
-        inputmode = LATIN;
-    else
-        inputmode = RUSS;
-    co_return;
-}
-Task<void> UserSwitchGraphMode()
-{
-    if (inputmode == GRAPH)
-        inputmode = LATIN;
-    else
-        inputmode = GRAPH;
-    co_return;
-}
 Task<void> UserSwitchAutoindentMode()
 {
     autoindent = !autoindent;

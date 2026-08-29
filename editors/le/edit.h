@@ -41,13 +41,12 @@
 #include "history.h"
 #include "menu.h"
 #include "menu1.h"
-#include "rus.h"
 #include "screen.h"
 #include "textpoin.h"
 #include "user.h"
 #include "window.h"
 
-extern int inputmode, editmode;
+extern int editmode;
 extern int noreg, match_case;
 #define BACKUP_SUFFIX_LEN 16
 extern char bak[BACKUP_SUFFIX_LEN];
@@ -74,8 +73,6 @@ extern Global<InodeInfo> g_FileInfo;
 #define FileInfo (g_FileInfo.get())
 extern Global<History> g_LoadHistory;
 #define LoadHistory (g_LoadHistory.get())
-
-extern int FuncKeysNum;
 
 extern char Make[256], Shell[256], Run[256], Compile[256], HelpCmd[256], BakPath[256];
 extern char FileName[256];
@@ -134,11 +131,6 @@ extern char Program[];
 #define EXACT 0
 #define TEXT  1
 #define HEXM  2
-
-/* input modes (values for inputmode)*/
-#define LATIN 0
-#define RUSS  1
-#define GRAPH 2
 
 #define in_hex_mode (editmode == HEXM)
 #define Text        (editmode == TEXT && !buffer_mmapped)

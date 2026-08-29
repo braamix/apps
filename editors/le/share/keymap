@@ -158,9 +158,6 @@ switch-autoindent-mode  ^A|^A
 switch-autoindent-mode  ^A|a
 switch-file             ${S-F3}
 switch-file             \e|${F3}
-switch-graph-mode       ^A|G
-switch-graph-mode       ^A|^G
-switch-graph-mode       ^A|g
 switch-hex-mode         ^A|H
 switch-hex-mode         ^A|^H
 switch-hex-mode         ^A|h
@@ -168,9 +165,6 @@ switch-insert-mode      ${Ins}
 switch-insert-mode      ^A|I
 switch-insert-mode      ^A|^I
 switch-insert-mode      ^A|i
-switch-russian-mode     ^A|R
-switch-russian-mode     ^A|^R
-switch-russian-mode     ^A|r
 switch-text-mode        ^A|T
 switch-text-mode        ^A|^T
 switch-text-mode        ^A|t

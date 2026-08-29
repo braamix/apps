@@ -38,8 +38,6 @@ int LastActionCode;
 const char *ActionArgument;
 int ActionArgumentLen;
 
-int FuncKeysNum = 12;
-
 int MouseCounter = 0;
 
 const ActionNameProcRec ActionNameProcTable[] = {

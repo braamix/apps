@@ -463,10 +463,7 @@ wchar_t visualize_wchar(wchar_t wc)
  * ModifyKey was the software Cyrillic layout: upstream read a Latin key and
  * looked up the Russian letter on the same physical key, because a terminal
  * could not tell it which one the user had meant. The browser sends the
- * codepoint that was typed, so there is nothing to translate and inputmode
- * never leaves LATIN. rus.cc's `coding` goes the same way. */
-
-int coding = 0;
+ * codepoint that was typed, so there is nothing to translate. */
 
 void InitModifyKeyTables()
 {

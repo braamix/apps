@@ -135,8 +135,6 @@ Task<void> UserSwitchHexMode();
 Task<void> UserSwitchTextMode();
 Task<void> UserSwitchInsertMode();
 Task<void> UserSwitchAutoindentMode();
-Task<void> UserSwitchRussianMode();
-Task<void> UserSwitchGraphMode();
 
 Task<void> UserBlockPrefixIndent();
 

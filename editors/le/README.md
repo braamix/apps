@@ -59,7 +59,7 @@ the dialogs use; everything else was replaced rather than reimplemented.
 | `fork` + `execl("/bin/sh")` to filter a block, `system()` for make and run | [pipe.cpp](pipe.cpp) and [cmd.cpp](cmd.cpp): `spawn()` takes the descriptors as an argument, and the filter's two pipes are temp files — one task cannot park on both ends of a pipeline |
 | SIGSEGV/SIGBUS handlers dumping the buffer to `~/.le/tmp/DUMP-*`, a SIGHUP rescue, SIGTSTP | gone. `SIG_INT`, `SIG_TERM` and `SIG_WINCH` are the whole catchable set, and none of them is a handler |
 | `alarm(60)` driving the autosave | [signals.cpp](signals.cpp)'s `AutoSaveTick()`, asked from `Edit()`'s loop. It was already a resumable chunked state machine, which is what let it move |
-| eight-bit Cyrillic codepages, a software keyboard layout, D211 and VTA2000 tables | gone. The browser sends the codepoint that was typed |
+| eight-bit Cyrillic codepages, a software keyboard layout, D211 and VTA2000 tables | gone. The browser sends the codepoint that was typed, so `ModifyKey` is the identity and the input modes it served — `coding`, `inputmode`, rus.h — went with it, along with the terminal-options form that chose between them |
 | `mbtowc` against the locale | [lewchar.cpp](lewchar.cpp): UTF-8, and only UTF-8. `USE_MULTIBYTE_CHARS` and the `mb_mode` flag under it are both gone rather than switched on — the arm they guarded reads a character as one byte, and `--multibyte` / `--no-multibyte` went with them |
 | `PKGDATADIR`, fixed at compile time | [epath.cpp](epath.cpp): `readlink("/pkg/bin/le")`, because a package's payload lands under a path carrying a version the binary does not know |
 | `getpwuid`, `geteuid`, `chmod`, `utime`, `pathconf` | gone. There is no owner, no permission bit, and no way to set an mtime |
@@ -175,8 +175,10 @@ Upstream's file split and its names are kept. What is new:
 | [epath.cpp](epath.cpp) | where `share` is |
 | [cinc/](cinc/) | the handful of libc headers `regex.c` and `wcwidth.c` name, each forwarding to the shim; those two are the only files here that are C |
 
-Gone: `mouse.cc`, `rus.cc`, `tables.cc`. `tables.cc`'s `ModifyKey` moved into
-[chset.cpp](chset.cpp) as the identity it now is.
+Gone: `mouse.cc`, `rus.cc`, `tables.cc` and `rus.h`. `tables.cc`'s `ModifyKey`
+moved into [chset.cpp](chset.cpp) as the identity it now is, and the terminal
+options that fed it — six Cyrillic codepages, four graphics codepages and a
+count of function keys — are gone with the things that read them.
 
 The four tables upstream generated with perl are generated with Python here,
 byte for byte the same: [make-action-enum.py](make-action-enum.py),

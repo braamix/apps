@@ -17,7 +17,7 @@ gamma
 delta`);
 
 is("the status line", status(),
-   'Line=1     Col=1    Sz:23     Ch:97     IA   "f" Offs:0 (0%)');
+   'Line=1     Col=1    Sz:23     Ch:97    IA   "f" Offs:0 (0%)');
 is("the cursor starts home", cursor(), "0,0");
 
 // The arrow keys reach the action table, which is the whole of the keymap.
@@ -31,11 +31,11 @@ is("a typed character lands", screen(4),
 beta
 gamma!
 delta`);
-is("and marks the file modified", status().includes(" * ") ? "yes" : "no", "yes");
+is("and marks the file modified", status().includes("*IA") ? "yes" : "no", "yes");
 
 press("F2");
 tick(4);
 is("F2 saves", get("/tmp/f"), "alpha\nbeta\ngamma!\ndelta\n");
-is("and clears the modified mark", status().includes(" * ") ? "yes" : "no", "no");
+is("and clears the modified mark", status().includes("*IA") ? "yes" : "no", "no");
 
 ok("load, edit and save round trip");
