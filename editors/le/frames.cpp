@@ -182,12 +182,11 @@ void Prolong(int x, int y, byte how)
     int i;
     int j;
 
-    need                      = CurrGraphSet[CharIndex(mb_mode ? WChar() : Char())];
+    need                      = CurrGraphSet[CharIndex(WChar())];
     need.prol[DirIndex(x, y)] = how;
 
     for (i = 1, TurnXY(&x, &y); i < 4; i++, TurnXY(&x, &y)) {
-        int ch                    = mb_mode ? WCharAtLC(GetLine() + y, GetCol() + x)
-                                            : CharAtLC(GetLine() + y, GetCol() + x);
+        int ch                    = WCharAtLC(GetLine() + y, GetCol() + x);
         need.prol[DirIndex(x, y)] = HowProlonged(ch, -x, -y);
     }
 
@@ -209,15 +208,12 @@ void Prolong(int x, int y, byte how)
         }
     }
     PreUserEdit();
-    if (mb_mode)
-        ReplaceWCharExt(CurrGraphSet[best].ch);
-    else
-        ReplaceCharExt(CurrGraphSet[best].ch);
+    ReplaceWCharExt(CurrGraphSet[best].ch);
 }
 
 void Draw(int x, int y, byte how)
 {
-    if (IsProlonged(mb_mode ? WChar() : Char(), x, y, how)) {
+    if (IsProlonged(WChar(), x, y, how)) {
         if (GetCol() < -x || GetLine() < -y)
             return;
         Prolong(x, y, how);
@@ -239,9 +235,8 @@ Task<void> DrawFrames(void)
     if (in_hex_mode || View)
         co_return;
 
-    CurrGraphSet = GraphSets[grsetno];
-    if (mb_mode)
-        CurrGraphSet = UnicodeCoding;
+    /* GraphSets[] are the eight-bit codepages; the encoding is UTF-8. */
+    CurrGraphSet = UnicodeCoding;
 
     do {
         ClearMessage();

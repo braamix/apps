@@ -23,7 +23,6 @@
 #include "kernel/task.h"
 #include "lewchar.h"
 
-extern bool mb_mode;
 extern int MBCharSize;
 extern int MBCharWidth;
 extern bool MBCharInvalid;

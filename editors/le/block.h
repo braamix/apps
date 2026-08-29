@@ -47,12 +47,6 @@ Task<void> Unindent();
 void DoIndent(int i);
 void DoUnindent(int i);
 
-int Islower();
-int Isupper();
-byte Toupper();
-byte Tolower();
-byte Inverse();
-
 Task<void> BlockFunc();
 Task<int> PipeBlock(const char *cmd, bool in, bool out);
 extern char BlockFile[256];

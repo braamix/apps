@@ -193,10 +193,7 @@ void ScrollBar(int check)
         return;
 
     for (i = TextWinY; i < TextWinY + TextWinHeight; i++) {
-        if (mb_mode)
-            mvadd_wch(i, ScrollBarX, WACS_CKBOARD);
-        else
-            mvaddch(i, ScrollBarX, ACS_CKBOARD);
+        mvadd_wch(i, ScrollBarX, WACS_CKBOARD);
     }
     ScrollBarPos = NewPos;
     mvaddch(NewPos + TextWinY, ScrollBarX, ' ' | A_REVERSE);
@@ -524,85 +521,43 @@ void Redisplay(num line, offs ptr, num limit)
         for (; line < limit; line++) {
             lptr = ptr;
 
-            if (!mb_mode) {
-                clp = cl;
-
-                if (!EofAt(ptr) || line == (Size() - ScreenTop.Offset() + 15) / 16) {
-                    snprintf(s, sizeof(s), "%08lX   ", (unsigned long)ptr);
-                    for (sp = s; *sp; sp++)
-                        *clp++ = norm_attr->n_attr | *sp;
-                }
-                for (i = 0; i < 16 && !EofAt(ptr); i++) {
-                    if (EofAt(ptr))
-                        break;
-                    snprintf(s, sizeof(s), "%02X", CharAt(ptr));
-                    ca = (InBlock(ptr) ? blk_attr : norm_attr);
-                    if (ascii && ptr == Offset() && ShowMatchPos)
-                        ca = SHADOW_ATTR;
-                    *clp++ = ca->n_attr | s[0];
-                    *clp++ = ca->n_attr | s[1];
-                    ptr++;
-                    char b = ' '; // ((ptr&15)!=8 ? ' ' : '-');
-                    if (InBlock(ptr - 1) && InBlock(ptr) && (ptr & 15))
-                        *clp++ = blk_attr->n_attr | b;
-                    else
-                        *clp++ = norm_attr->n_attr | b;
-                }
-                while (clp - cl < AsciiPos)
-                    *clp++ = norm_attr->n_attr | ' ';
-                ptr = lptr;
-                for (i = 0; i < 16 && !EofAt(ptr); i++, ptr++) {
-                    ca = (InBlock(ptr) ? blk_attr : norm_attr);
-                    if (!ascii && ptr == Offset() && ShowMatchPos)
-                        ca = SHADOW_ATTR;
-                    *clp++ = visualize(ca, CharAt_NoCheck(ptr) | ca->n_attr);
-                }
-                // clear the rest of line
-                for (i = TextWinWidth - (clp - cl); i > 0; i--)
-                    *clp++ = norm_attr->n_attr | ' ';
-
-                attrset(0);
-                mvaddchnstr(TextWinY + line, TextWinX, cl, TextWinWidth);
-            } else // mb_mode
-            {
-                memset(clw, 0, ll * sizeof(cchar_t));
-                clwp = clw;
-                if (!EofAt(ptr) || line == (Size() - ScreenTop.Offset() + 15) / 16) {
-                    snprintf(s, sizeof(s), "%08lX   ", (unsigned long)ptr);
-                    for (sp = s; *sp; sp++)
-                        le_add_cchar(clwp, norm_attr->n_attr, *sp);
-                }
-                for (i = 0; i < 16 && !EofAt(ptr); i++) {
-                    if (EofAt(ptr))
-                        break;
-                    snprintf(s, sizeof(s), "%02X", CharAt(ptr));
-                    ca = (InBlock(ptr) ? blk_attr : norm_attr);
-                    if (ascii && ptr == Offset() && ShowMatchPos)
-                        ca = SHADOW_ATTR;
-                    le_add_cchar(clwp, ca->n_attr, s[0]);
-                    le_add_cchar(clwp, ca->n_attr, s[1]);
-                    ptr++;
-                    char b = ' '; // ((ptr&15)!=8 ? ' ' : '-');
-                    ca = ((InBlock(ptr - 1) && InBlock(ptr) && (ptr & 15)) ? blk_attr : norm_attr);
-                    le_add_cchar(clwp, ca->n_attr, b);
-                }
-                while (clwp - clw < AsciiPos)
-                    le_add_cchar(clwp, norm_attr->n_attr, ' ');
-                ptr = lptr;
-                for (i = 0; i < 16 && !EofAt(ptr); i++, ptr++) {
-                    ca = (InBlock(ptr) ? blk_attr : norm_attr);
-                    if (!ascii && ptr == Offset() && ShowMatchPos)
-                        ca = SHADOW_ATTR;
-                    wchar_t ch  = CharAt_NoCheck(ptr);
-                    wchar_t vch = visualize_wchar(ch);
-                    le_add_cchar(clwp, vch == ch ? ca->n_attr : ca->so_attr, vch);
-                }
-                // clear the rest of line
-                for (i = TextWinWidth - (clwp - clw); i > 0; i--)
-                    le_add_cchar(clwp, norm_attr->n_attr, ' ');
-                attrset(0);
-                mvadd_wchnstr(TextWinY + line, TextWinX, clw, TextWinWidth);
+            memset(clw, 0, ll * sizeof(cchar_t));
+            clwp = clw;
+            if (!EofAt(ptr) || line == (Size() - ScreenTop.Offset() + 15) / 16) {
+                snprintf(s, sizeof(s), "%08lX   ", (unsigned long)ptr);
+                for (sp = s; *sp; sp++)
+                    le_add_cchar(clwp, norm_attr->n_attr, *sp);
             }
+            for (i = 0; i < 16 && !EofAt(ptr); i++) {
+                if (EofAt(ptr))
+                    break;
+                snprintf(s, sizeof(s), "%02X", CharAt(ptr));
+                ca = (InBlock(ptr) ? blk_attr : norm_attr);
+                if (ascii && ptr == Offset() && ShowMatchPos)
+                    ca = SHADOW_ATTR;
+                le_add_cchar(clwp, ca->n_attr, s[0]);
+                le_add_cchar(clwp, ca->n_attr, s[1]);
+                ptr++;
+                char b = ' '; // ((ptr&15)!=8 ? ' ' : '-');
+                ca     = ((InBlock(ptr - 1) && InBlock(ptr) && (ptr & 15)) ? blk_attr : norm_attr);
+                le_add_cchar(clwp, ca->n_attr, b);
+            }
+            while (clwp - clw < AsciiPos)
+                le_add_cchar(clwp, norm_attr->n_attr, ' ');
+            ptr = lptr;
+            for (i = 0; i < 16 && !EofAt(ptr); i++, ptr++) {
+                ca = (InBlock(ptr) ? blk_attr : norm_attr);
+                if (!ascii && ptr == Offset() && ShowMatchPos)
+                    ca = SHADOW_ATTR;
+                wchar_t ch  = CharAt_NoCheck(ptr);
+                wchar_t vch = visualize_wchar(ch);
+                le_add_cchar(clwp, vch == ch ? ca->n_attr : ca->so_attr, vch);
+            }
+            // clear the rest of line
+            for (i = TextWinWidth - (clwp - clw); i > 0; i--)
+                le_add_cchar(clwp, norm_attr->n_attr, ' ');
+            attrset(0);
+            mvadd_wchnstr(TextWinY + line, TextWinX, clw, TextWinWidth);
         }
     } else /* !in_hex_mode */
     {
@@ -686,100 +641,55 @@ void Redisplay(num line, offs ptr, num limit)
             else
                 col = n.Col() - ScrShift;
 
-            if (!mb_mode) {
-                clp = cl;
-                for (; col < TextWinWidth && !EolAt(ptr); ptr++) {
-                    if (col > -TabSize)
-                        ca = FindPosAttr(ptr, line, col, hlp);
+            memset(clw, 0, ll * sizeof(cchar_t));
+            clwp = clw;
+            for (; col < TextWinWidth && !EolAt(ptr); ptr += MBCharSize) {
+                wchar_t ch = WCharAt(ptr);
 
-                    byte ch = CharAt_NoCheck(ptr);
-                    if (ch == '\t') {
-                        i = Tabulate(col + ScrShift) - ScrShift;
-                        if (i > 0) {
-                            if (col < 0)
-                                col = 0;
-                            *clp++ = ca->n_attr | ' ';
-                            col++;
-                            while (col < i && col < TextWinWidth) {
-                                ca     = FindPosAttr(ptr, line, col, hlp);
-                                *clp++ = ca->n_attr | ' ';
-                                col++;
-                            }
-                        } else
-                            col = i;
-                    } else {
-                        if (col >= 0)
-                            *clp++ = visualize(ca, ch | ca->n_attr);
+                if (col > -TabSize)
+                    ca = FindPosAttr(ptr, line, col, hlp);
+
+                if (ch == '\t') {
+                    i = Tabulate(col + ScrShift) - ScrShift;
+                    if (i > 0) {
+                        if (col < 0)
+                            col = 0;
+                        le_add_cchar(clwp, ca->n_attr, ' ');
                         col++;
-                    }
-                    if (hlp)
-                        hlp++;
-                }
-                if (col < 0)
-                    col = 0;
-
-                if (EofAt(ptr))
-                    hlp = 0;
-
-                for (; col < TextWinWidth; col++) {
-                    ca     = FindPosAttr(ptr, line, col, hlp);
-                    *clp++ = ca->n_attr | ' ';
-                }
-
-                attrset(0);
-                mvaddchnstr(TextWinY + line, TextWinX, cl, TextWinWidth);
-            } else // mb_mode
-            {
-                memset(clw, 0, ll * sizeof(cchar_t));
-                clwp = clw;
-                for (; col < TextWinWidth && !EolAt(ptr); ptr += MBCharSize) {
-                    wchar_t ch = WCharAt(ptr);
-
-                    if (col > -TabSize)
-                        ca = FindPosAttr(ptr, line, col, hlp);
-
-                    if (ch == '\t') {
-                        i = Tabulate(col + ScrShift) - ScrShift;
-                        if (i > 0) {
-                            if (col < 0)
-                                col = 0;
+                        while (col < i && col < TextWinWidth) {
+                            ca = FindPosAttr(ptr, line, col, hlp);
                             le_add_cchar(clwp, ca->n_attr, ' ');
                             col++;
-                            while (col < i && col < TextWinWidth) {
-                                ca = FindPosAttr(ptr, line, col, hlp);
-                                le_add_cchar(clwp, ca->n_attr, ' ');
-                                col++;
-                            }
-                        } else
-                            col = i;
-                    } else {
-                        if (col >= 0) {
-                            if (MBCharWidth == 0 && clwp > clw)
-                                le_combine_cchar(clwp - 1, ch);
-                            else if (MBCharWidth > 0) {
-                                wchar_t vch = visualize_wchar(ch);
-                                le_add_cchar(clwp, vch == ch ? ca->n_attr : ca->so_attr, vch);
-                            }
                         }
-                        col += MBCharWidth;
+                    } else
+                        col = i;
+                } else {
+                    if (col >= 0) {
+                        if (MBCharWidth == 0 && clwp > clw)
+                            le_combine_cchar(clwp - 1, ch);
+                        else if (MBCharWidth > 0) {
+                            wchar_t vch = visualize_wchar(ch);
+                            le_add_cchar(clwp, vch == ch ? ca->n_attr : ca->so_attr, vch);
+                        }
                     }
-                    if (hlp)
-                        hlp += MBCharSize;
+                    col += MBCharWidth;
                 }
-                if (col < 0)
-                    col = 0;
+                if (hlp)
+                    hlp += MBCharSize;
+            }
+            if (col < 0)
+                col = 0;
 
-                if (EofAt(ptr))
-                    hlp = 0;
+            if (EofAt(ptr))
+                hlp = 0;
 
-                for (; col < TextWinWidth; col++) {
-                    ca = FindPosAttr(ptr, line, col, hlp);
-                    le_add_cchar(clwp, ca->n_attr, ' ');
-                }
+            for (; col < TextWinWidth; col++) {
+                ca = FindPosAttr(ptr, line, col, hlp);
+                le_add_cchar(clwp, ca->n_attr, ' ');
+            }
 
-                attrset(0);
-                mvadd_wchnstr(TextWinY + line, TextWinX, clw, TextWinWidth);
-            } // end of mb_mode
+            attrset(0);
+            mvadd_wchnstr(TextWinY + line, TextWinX, clw, TextWinWidth);
 
             if (++line >= limit)
                 break;

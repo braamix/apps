@@ -23,7 +23,6 @@
 #endif
 #include "mb.h"
 
-bool mb_mode       = false;
 int MBCharSize     = 1;
 int MBCharWidth    = 1;
 bool MBCharInvalid = false;
@@ -59,8 +58,6 @@ static void MB_Prepare(offs o)
 bool MBCheckLeftAt(offs o)
 {
     MBCharInvalid = false;
-    if (!mb_mode)
-        return false;
     if (IsAscii(CharAt(o - 1))) {
         MBCharSize    = 1;
         MBCharWidth   = 1;
@@ -108,8 +105,6 @@ bool MBCheckLeftAt(offs o)
 bool MBCheckAt(offs o)
 {
     MBCharInvalid = false;
-    if (!mb_mode)
-        return false;
     if (IsAscii(CharAt(o))) {
         MBCharSize    = 1;
         MBCharWidth   = 1;
@@ -149,10 +144,6 @@ wchar_t WCharLeftAt(offs o)
 
 void mb_get_col(const char *buf, int pos, int *col, int len)
 {
-    if (!mb_mode) {
-        *col = pos;
-        return;
-    }
     *col = 0;
     for (int i = 0; i < pos;) {
         mbtowc(0, 0, 0);
@@ -167,10 +158,6 @@ void mb_get_col(const char *buf, int pos, int *col, int len)
 }
 void mb_char_left(const char *buf, int *pos, int *col, int len)
 {
-    if (!mb_mode) {
-        *col = --*pos;
-        return;
-    }
     *col = 0;
     for (int i = 0; i < *pos;) {
         mbtowc(0, 0, 0);
@@ -189,10 +176,6 @@ void mb_char_left(const char *buf, int *pos, int *col, int len)
 }
 void mb_char_right(const char *buf, int *pos, int *col, int len)
 {
-    if (!mb_mode) {
-        *col = ++*pos;
-        return;
-    }
     wchar_t wc = REPLACEMENT_CHARACTER;
     mbtowc(0, 0, 0);
     int ch_len = mbtowc(&wc, buf + *pos, len - *pos);
@@ -221,13 +204,6 @@ int mb_len(const char *buf, int len)
 }
 wchar_t mb_to_wc(const char *buf, int len, int *ch_len_out, int *ch_width)
 {
-    if (!mb_mode) {
-        if (ch_len_out)
-            *ch_len_out = 1;
-        if (ch_width)
-            *ch_width = 1;
-        return *buf;
-    }
     wchar_t wc = REPLACEMENT_CHARACTER;
     mbtowc(0, 0, 0);
     int ch_len = mbtowc(&wc, buf, len);

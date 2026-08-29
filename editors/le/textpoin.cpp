@@ -199,14 +199,12 @@ void TextPoint::FindOffset()
         }
         c = 0;
     }
-    while (c > col) {
-        if (CharAt(o - 1) == '\t' || mb_mode) {
-            o = LineBegin(o);
-            c = 0;
-            break;
-        }
-        c--;
-        o--;
+    /* Upstream stepped back a column at a time unless a tab or a multibyte
+       character made that meaningless, and in UTF-8 it always does: the loop
+       ran once and went to the line's start. */
+    if (c > col) {
+        o = LineBegin(o);
+        c = 0;
     }
     while (c < col) {
         if (EolAt(o))
@@ -265,12 +263,7 @@ void TextPoint::FindLineCol()
     } else
         o = c = l = 0;
 
-    while (o > offset) {
-        if (BolAt(o) || CharAt(o - 1) == '\t' || mb_mode)
-            break;
-        c--;
-        o--;
-    }
+    /* The same walk back, which UTF-8 leaves nothing of. */
     if (o > offset) {
         o          = LineBegin(o);
         c          = 0;

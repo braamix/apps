@@ -935,9 +935,7 @@ Task<void> EmptyText()
 
 bool IsAlNumAt(num o)
 {
-    if (mb_mode)
-        return iswalnum(WCharAt(o));
-    return isalnum(CharAt(o)) || isrussian(CharAt(o));
+    return iswalnum(WCharAt(o));
 }
 
 char *GetWord()

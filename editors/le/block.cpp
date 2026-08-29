@@ -684,38 +684,6 @@ Task<void> Unindent()
         DoIndent(-i);
 }
 
-int Islower(byte ch)
-{
-    return (islower(ch) || islowerrus(ch));
-}
-int Isupper(byte ch)
-{
-    return (isupper(ch) || isupperrus(ch));
-}
-byte Toupper(byte ch)
-{
-    if (islowerrus(ch))
-        ch = toupperrus(ch);
-    else if (islower(ch))
-        ch = toupper(ch);
-    return (ch);
-}
-byte Tolower(byte ch)
-{
-    if (isupperrus(ch))
-        ch = tolowerrus(ch);
-    else if (isupper(ch))
-        ch = tolower(ch);
-    return (ch);
-}
-byte Inverse(byte ch)
-{
-    if (Islower(ch))
-        return (Toupper(ch));
-    else
-        return (Tolower(ch));
-}
-
 Task<void> BlockFunc()
 {
     if (DragMark) {
@@ -837,42 +805,6 @@ next:
     }
 }
 
-void Transform(byte (*func)(byte))
-{
-    TextPoint oldpos = CurrentPos;
-
-    if (hide || (!rblock && BlockBegin == BlockEnd)) {
-        while (!Eol())
-            ReplaceCharMove(func(Char()));
-        flag |= REDISPLAY_LINE;
-    } else {
-        if (rblock) {
-            num i;
-            num line1 = BlockBegin.Line();
-            num line2 = BlockEnd.Line();
-            num col1  = BlockBegin.Col();
-            num col2  = BlockEnd.Col();
-
-            for (i = line1; i <= line2; i++) {
-                HardMove(i, col1);
-                if (col2 > col1) {
-                    while (GetCol() < col2 && !Eol())
-                        ReplaceCharMove(func(Char()));
-                } else {
-                    while (!Eol())
-                        ReplaceCharMove(func(Char()));
-                }
-            }
-        } else {
-            CurrentPos = BlockBegin;
-            while (CurrentPos < BlockEnd)
-                ReplaceCharMove(func(Char()));
-        }
-        flag = REDISPLAY_ALL;
-    }
-    CurrentPos = oldpos;
-    SetStdCol();
-}
 wctrans_t trans_toupper;
 wchar_t ToupperW(wchar_t wc)
 {
@@ -932,11 +864,8 @@ Task<void> ConvertToUpper()
     if (DragMark)
         UserStopDragMark();
 
-    if (mb_mode) {
-        trans_toupper = wctrans("toupper");
-        TransformW(ToupperW);
-    } else
-        Transform(Toupper);
+    trans_toupper = wctrans("toupper");
+    TransformW(ToupperW);
     co_return;
 }
 Task<void> ConvertToLower()
@@ -944,11 +873,8 @@ Task<void> ConvertToLower()
     if (DragMark)
         UserStopDragMark();
 
-    if (mb_mode) {
-        trans_tolower = wctrans("tolower");
-        TransformW(TolowerW);
-    } else
-        Transform(Tolower);
+    trans_tolower = wctrans("tolower");
+    TransformW(TolowerW);
     co_return;
 }
 Task<void> ExchangeCases()
@@ -956,12 +882,9 @@ Task<void> ExchangeCases()
     if (DragMark)
         UserStopDragMark();
 
-    if (mb_mode) {
-        trans_toupper = wctrans("toupper");
-        trans_tolower = wctrans("tolower");
-        TransformW(InverseW);
-    } else
-        Transform(Inverse);
+    trans_toupper = wctrans("toupper");
+    trans_tolower = wctrans("tolower");
+    TransformW(InverseW);
     co_return;
 }
 Task<void> BlockType()

@@ -60,7 +60,7 @@ the dialogs use; everything else was replaced rather than reimplemented.
 | SIGSEGV/SIGBUS handlers dumping the buffer to `~/.le/tmp/DUMP-*`, a SIGHUP rescue, SIGTSTP | gone. `SIG_INT`, `SIG_TERM` and `SIG_WINCH` are the whole catchable set, and none of them is a handler |
 | `alarm(60)` driving the autosave | [signals.cpp](signals.cpp)'s `AutoSaveTick()`, asked from `Edit()`'s loop. It was already a resumable chunked state machine, which is what let it move |
 | eight-bit Cyrillic codepages, a software keyboard layout, D211 and VTA2000 tables | gone. The browser sends the codepoint that was typed |
-| `mbtowc` against the locale | [lewchar.cpp](lewchar.cpp): UTF-8, and only UTF-8. `USE_MULTIBYTE_CHARS` is gone rather than switched on — its other arm is a set of macros that make a character one byte |
+| `mbtowc` against the locale | [lewchar.cpp](lewchar.cpp): UTF-8, and only UTF-8. `USE_MULTIBYTE_CHARS` and the `mb_mode` flag under it are both gone rather than switched on — the arm they guarded reads a character as one byte, and `--multibyte` / `--no-multibyte` went with them |
 | `PKGDATADIR`, fixed at compile time | [epath.cpp](epath.cpp): `readlink("/pkg/bin/le")`, because a package's payload lands under a path carrying a version the binary does not know |
 | `getpwuid`, `geteuid`, `chmod`, `utime`, `pathconf` | gone. There is no owner, no permission bit, and no way to set an mtime |
 

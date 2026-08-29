@@ -66,14 +66,7 @@ void PutStr(int x, int y, const char *s);
 void PutCh(int x, int y, chtype ch);
 void PutWCh(int x, int y, wchar_t ch);
 void PutCCh(int x, int y, const cchar_t *ch);
-#define PutACS(x, y, a)               \
-    do {                              \
-        int x0 = (x), y0 = (y);       \
-        if (mb_mode)                  \
-            PutCCh(x0, y0, WACS_##a); \
-        else                          \
-            PutCh(x0, y0, ACS_##a);   \
-    } while (0)
+#define PutACS(x, y, a) PutCCh((x), (y), WACS_##a)
 
 extern const struct attr *curr_attr;
 extern WIN *Upper;

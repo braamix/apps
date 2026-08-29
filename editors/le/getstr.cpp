@@ -69,31 +69,23 @@ Task<int> getstring(const char *pr, char *buf, int maxlen, History *history, int
         SetAttr(STATUS_LINE_ATTR);
         mvaddstr(LINES - 1, 0, (char *)pr);
         for (i = 0, c = 0; c <= width + shift && i < (*len);) {
-            if (mb_mode) {
-                wchar_t wc;
-                int ch_len = mbtowc(&wc, buf + i, (*len) - i);
-                if (ch_len < 1 || (ch_len == 1 && !chset_isprint(buf[i]))) {
-                    if (c >= shift)
-                        addch_visual((byte)buf[i]);
-                    i++;
-                    c++;
-                } else {
-                    wchar_t vwc = visualize_wchar(wc);
-                    if (c >= shift) {
-                        if (wc != vwc)
-                            attrset(curr_attr->so_attr);
-                        addnwstr(&vwc, 1);
-                        attrset(curr_attr->n_attr);
-                    }
-                    i += ch_len;
-                    c += wcwidth(vwc);
-                }
-            } else // note the following block
-            {
+            wchar_t wc;
+            int ch_len = mbtowc(&wc, buf + i, (*len) - i);
+            if (ch_len < 1 || (ch_len == 1 && !chset_isprint(buf[i]))) {
                 if (c >= shift)
                     addch_visual((byte)buf[i]);
                 i++;
                 c++;
+            } else {
+                wchar_t vwc = visualize_wchar(wc);
+                if (c >= shift) {
+                    if (wc != vwc)
+                        attrset(curr_attr->so_attr);
+                    addnwstr(&vwc, 1);
+                    attrset(curr_attr->n_attr);
+                }
+                i += ch_len;
+                c += wcwidth(vwc);
             }
         }
         while (c++ <= width + shift)
@@ -177,20 +169,12 @@ Task<int> getstring(const char *pr, char *buf, int maxlen, History *history, int
                 mb_char_right(buf, &pos, &col, *len);
             break;
         case (CHOOSE_CHAR):
-            if (mb_mode) {
-                ch = co_await choose_wch();
-                if (ch == -1)
-                    break;
-                StringTypedLen = wctomb((char *)StringTyped, ch);
-                if (StringTypedLen < 1)
-                    break;
-            } else {
-                ch = co_await choose_ch();
-                if (ch == -1)
-                    break;
-                StringTyped[0] = ch;
-                StringTypedLen = 1;
-            }
+            ch = co_await choose_wch();
+            if (ch == -1)
+                break;
+            StringTypedLen = wctomb((char *)StringTyped, ch);
+            if (StringTypedLen < 1)
+                break;
             goto ins;
         case (ENTER_CHAR_CODE):
             ch = co_await getcode_char();

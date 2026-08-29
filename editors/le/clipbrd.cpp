@@ -94,81 +94,42 @@ int ClipBoard::Copy()
                 l++;
                 c = 0;
             }
-            if (!mb_mode) {
-                while (c < col1) {
-                    if (EolAt(o))
-                        goto next_line;
-                    if (CharAt_NoCheck(o) == '\t') {
-                        num c1 = Tabulate(c);
-                        if (c1 > col1)
-                            break;
-                        c = c1;
-                    } else
-                        c++;
-                    o++;
-                }
-                while (i < width) {
-                    if (EolAt(o))
-                        goto next_line;
-                    byte ch = CharAt_NoCheck(o);
-                    if (ch == '\t') {
-                        num c1 = Tabulate(c);
-                        int k  = c1 - c;
-                        if (c < col1)
-                            k -= (col1 - c);
-                        if (k > (width - i))
-                            k = (width - i);
-                        i += k;
-                        while (k-- > 0)
-                            *text_ptr++ = ' ';
-                        c = c1;
-                        o++;
-                        continue;
-                    }
-                    c++;
-                    o++;
-                    i++;
-                    *text_ptr++ = ch;
-                }
-            } else // mb_mode
-            {
-                while (c < col1) {
-                    if (EolAt(o))
-                        goto next_line;
-                    wchar_t ch = WCharAt(o);
-                    if (ch == '\t') {
-                        num c1 = Tabulate(c);
-                        if (c1 > col1)
-                            break;
-                        c = c1;
-                    } else
-                        c += MBCharWidth;
-                    o += MBCharSize;
-                }
-                while (i < width) {
-                    if (EolAt(o))
-                        goto next_line;
-                    wchar_t ch = WCharAt(o);
-                    if (ch == '\t') {
-                        num c1 = Tabulate(c);
-                        int k  = c1 - c;
-                        if (c < col1)
-                            k -= (col1 - c);
-                        if (k > (width - i))
-                            k = (width - i);
-                        i += k;
-                        while (k-- > 0)
-                            *text_ptr++ = ' ';
-                        c = c1;
-                        o++;
-                        continue;
-                    }
+            while (c < col1) {
+                if (EolAt(o))
+                    goto next_line;
+                wchar_t ch = WCharAt(o);
+                if (ch == '\t') {
+                    num c1 = Tabulate(c);
+                    if (c1 > col1)
+                        break;
+                    c = c1;
+                } else
                     c += MBCharWidth;
-                    i += MBCharWidth;
-                    GetBlock(text_ptr, o, MBCharSize);
-                    text_ptr += MBCharSize;
-                    o += MBCharSize;
+                o += MBCharSize;
+            }
+            while (i < width) {
+                if (EolAt(o))
+                    goto next_line;
+                wchar_t ch = WCharAt(o);
+                if (ch == '\t') {
+                    num c1 = Tabulate(c);
+                    int k  = c1 - c;
+                    if (c < col1)
+                        k -= (col1 - c);
+                    if (k > (width - i))
+                        k = (width - i);
+                    i += k;
+                    while (k-- > 0)
+                        *text_ptr++ = ' ';
+                    c = c1;
+                    o++;
+                    continue;
                 }
+                c += MBCharWidth;
+                i += MBCharWidth;
+                GetBlock(text_ptr, o, MBCharSize);
+                text_ptr += MBCharSize;
+                o += MBCharSize;
             }
         next_line:;
             while (i < width) {
@@ -233,31 +194,19 @@ int ClipBoard::Paste(bool mark)
         for (i = 0; i < height; i++) {
             HardMove(l + i, c);
             num ll = width;
-            if (!mb_mode) {
-                if (Eol()) {
-                    while (ll > 0 && text[i * width + ll - 1] == ' ')
-                        ll--;
-                }
-                res = InsertBlock(text_ptr, ll);
+            int j  = 0, ch_len, ch_width;
+            while (j < width) {
+                mb_to_wc(text_ptr, MB_CUR_MAX, &ch_len, &ch_width);
+                res = InsertBlock(text_ptr, ch_len);
                 if (res != OK)
                     return false;
-                text_ptr += width;
-            } else // !mb_mode
-            {
-                int j = 0, ch_len, ch_width;
-                while (j < width) {
-                    mb_to_wc(text_ptr, MB_CUR_MAX, &ch_len, &ch_width);
-                    res = InsertBlock(text_ptr, ch_len);
-                    if (res != OK)
-                        return false;
-                    j += ch_width;
-                    text_ptr += ch_len;
-                }
-                if (Eol()) {
-                    while (CharRel(-1) == ' ') {
-                        BackSpace();
-                        j--;
-                    }
+                j += ch_width;
+                text_ptr += ch_len;
+            }
+            if (Eol()) {
+                while (CharRel(-1) == ' ') {
+                    BackSpace();
+                    j--;
                 }
             }
         }

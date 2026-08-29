@@ -1204,7 +1204,7 @@ void UserReplaceChar(char ch)
     if (!in_hex_mode && Eol())
         flag |= REDISPLAY_AFTER;
 
-    if (buffer_mmapped || in_hex_mode || !mb_mode)
+    if (buffer_mmapped || in_hex_mode)
         ReplaceCharMove(ch);
     else {
         InsertChar(ch);
@@ -1305,7 +1305,7 @@ Task<void> UserRefreshScreen()
 
 Task<void> UserChooseChar()
 {
-    if (mb_mode && !in_hex_mode)
+    if (!in_hex_mode)
         co_await UserChooseWChar();
     else
         co_await UserChooseByte();
@@ -1328,7 +1328,7 @@ Task<void> UserChooseWChar()
 
 Task<void> UserInsertCharCode()
 {
-    if (mb_mode && !in_hex_mode)
+    if (!in_hex_mode)
         co_await UserInsertWCharCode();
     else
         co_await UserInsertByteCode();

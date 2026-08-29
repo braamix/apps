@@ -490,8 +490,6 @@ Task<void> PrintUsage(int arg)
         "    --config=FILE  use specified file instead of le.ini\n"
         "    --dump-keymap  dump default keymap to stdout and exit\n"
         "    --dump-colors  dump default color map to stdout and exit\n"
-        "    --multibyte    force multibyte mode\n"
-        "    --no-multibyte disable multibyte mode\n"
         "    --help         this description\n"
         "    --version      print LE version\n"
         "\n"
@@ -505,7 +503,6 @@ Task<i32> proc_main(Args args)
     int optView = -1, opteditmode = -1, optWarpLine = 0;
     int opt_use_mmap = -1;
     int opt;
-    int opt_mb_mode = -1;
 
     char newname[256];
     newname[0] = 0;
@@ -525,9 +522,6 @@ Task<i32> proc_main(Args args)
     if (TERM == NULL)
         TERM = (char *)"braam";
     DISPLAY = getenv("DISPLAY");
-
-    /* One encoding, and it is UTF-8. */
-    mb_mode = true;
 
     for (; optind < args.size(); optind++) {
         Str a = args[optind];
@@ -588,10 +582,6 @@ Task<i32> proc_main(Args args)
             optUseColor = 0;
         else if (name == "color")
             optUseColor = 1;
-        else if (name == "multibyte")
-            opt_mb_mode = true;
-        else if (name == "no-multibyte")
-            opt_mb_mode = false;
         else if (name == "config") {
             ExplicitInitName = true;
             if (val.size() < sizeof(InitName)) {
@@ -620,8 +610,6 @@ Task<i32> proc_main(Args args)
         UseColor = optUseColor;
     if (opt_use_mmap != -1)
         buffer_mmapped = opt_use_mmap;
-    if (opt_mb_mode != -1)
-        mb_mode = opt_mb_mode;
 
     if (optind + 1 < args.size() && args[optind].size() > 1 && args[optind][0] == '+' &&
         isdigit((unsigned char)args[optind][1])) {

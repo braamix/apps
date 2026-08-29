@@ -284,9 +284,7 @@ static bool le_isalnum(int ch)
 {
     if (ch == '_')
         return true;
-    if (mb_mode)
-        return iswalnum(ch);
-    return isalnum(ch);
+    return iswalnum(ch);
 }
 
 Task<int> Search(int dir, offs offslim)
