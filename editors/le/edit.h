@@ -63,10 +63,6 @@ extern int UseColor;
 extern int UseTabs;
 extern int PreferPageTop;
 
-/* When useidl==1 then the editor uses
-   insert/delete line capability of a terminal */
-extern int useidl;
-
 extern Global<InodeHistory> g_PositionHistory;
 #define PositionHistory (g_PositionHistory.get())
 extern Global<InodeInfo> g_FileInfo;
@@ -280,7 +276,6 @@ extern Task<void> DoShell(void);
 extern Task<void> editcalc(void);
 extern Task<void> DrawFrames(void);
 extern Task<void> ExpandAllTabs(void);
-extern Task<void> TermOpt(void);
 extern Task<void> SaveOpt(void);
 extern Task<void> UpdtOpt(void);
 extern Task<void> AppearOpt(void);

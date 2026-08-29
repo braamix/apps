@@ -126,8 +126,6 @@ int raw();
 int meta(WINDOW *win, bool on);
 int intrflush(WINDOW *win, bool on);
 int keypad(WINDOW *win, bool on);
-int idlok(WINDOW *win, bool on);
-int scrollok(WINDOW *win, bool on);
 int leaveok(WINDOW *win, bool on);
 int clearok(WINDOW *win, bool on);
 int curs_set(int visibility);

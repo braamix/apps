@@ -352,9 +352,6 @@ Task<void> InitCurses()
     raw();
     intrflush(stdscr, FALSE);
     keypad(stdscr, TRUE);
-
-    idlok(stdscr, useidl);
-    scrollok(stdscr, FALSE);
 }
 void TermCurses()
 {

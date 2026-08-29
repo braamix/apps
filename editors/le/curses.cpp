@@ -215,14 +215,6 @@ int keypad(WINDOW *, bool)
 {
     return OK;
 }
-int idlok(WINDOW *, bool)
-{
-    return OK;
-}
-int scrollok(WINDOW *, bool)
-{
-    return OK;
-}
 int leaveok(WINDOW *, bool)
 {
     return OK;

@@ -38,7 +38,6 @@ extern int MaxBackup;
 
 extern int le_use_default_colors;
 
-int useidl             = 0;
 int min_undo_levels    = 4;
 int max_undo_memory    = 128;
 int glue_small_changes = 1;
@@ -106,7 +105,6 @@ struct opt {
             {"  Use   ",   BUTTON, NULL,   MIDDLE+5,FDOWN-2},
             {" Cancel ",   BUTTON, NULL,   MIDDLE+15,FDOWN-2},*/
             { NULL } },
-  TOpt[]         = { { "Use insert/delete line cap.", ONE, &useidl, 32, 2 }, { NULL } },
   FormatOpt[]    = { { "Left Margin", NUM, (void *)&LeftMargin, 3, 2, 3 },
                      { "Line Length", NUM, (void *)&LineLen, 3, 3, 3 },
                      { "First line margin", NUM, (void *)&FirstLineMargin, 3, 4, 3 },
@@ -179,7 +177,6 @@ const struct init init[] = { { "tabsize", NUM, (void *)&TabSize },
 const struct init term[] = {
 
     { "chset", STR, (void *)&chset },
-    { "useidl", NUM, &useidl },
     { NULL }
 };
 const struct init colors[] = {
@@ -503,7 +500,6 @@ void CorrectParameters()
         break;
     }
 
-    idlok(stdscr, useidl);
     undo.SetMinGroups(min_undo_levels);
     undo.SetMaxSize(max_undo_memory * 1024 * 1024);
     undo.SetEnable(undo_enable);
@@ -943,7 +939,6 @@ leave_cycle:
     }
     CorrectParameters();
     curs_set(0);
-    idlok(stdscr, useidl);
 }
 
 Task<void> Dialogue(struct opt *opt, int WinWidth, int WinHeight, const char *WinTitle,
@@ -1007,12 +1002,6 @@ Task<int> TOEatKey(int k)
 Task<int> TOHandleBut(const char *, int)
 {
     co_return (0);
-}
-Task<void> TermOpt(void)
-{
-    co_await Dialogue(TOpt, 70, 11, " Terminal Options ", NULL, NULL, TOEatKey, TOHandleBut);
-    RebuildKeyTree();
-    co_return;
 }
 Task<void> FormatOptions(void)
 {

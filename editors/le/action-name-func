@@ -156,7 +156,6 @@ switch-file                    UserSwitch
 switch-hex-mode                UserSwitchHexMode
 switch-insert-mode             UserSwitchInsertMode
 switch-text-mode               UserSwitchTextMode
-terminal-options               TermOpt
 to-line-number                 UserToLineNumber
 to-offset                      UserToOffset
 to-previous-edit               UserPreviousEdit

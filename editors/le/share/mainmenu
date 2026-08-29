@@ -96,7 +96,6 @@ submenu "&Options"
    function "&Format"	format-options
    function "&Undo"	undo-options
    submenu  "&Terminal"
-      function "coding, &Graphics, etc..."   terminal-options
       function "&Character set visualization" edit-charset
       function "Full 8-bit"		     set-charset-8bit		   hide
       function "Full 8-bit, no ctrl chars"   set-charset-8bit-no-control   hide
