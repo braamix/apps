@@ -1,6 +1,8 @@
 // The porting layer: printf, getchar, rand and time, none of which exist here.
 #include "braam.h"
 
+#include <string.h>
+
 #include "edit.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
@@ -72,17 +74,6 @@ constexpr Str WHO    = "adventure";
 constexpr Str PROMPT = "> ";
 
 } // namespace
-
-// Str's const char * constructor calls this, and where the pointer is not a
-// literal clang cannot fold it away. Built with -fno-builtin-strlen, or the
-// definition becomes a call to itself.
-extern "C" usize strlen(const char *s)
-{
-    const char *p = s;
-    while (*p)
-        p++;
-    return usize(p - s);
-}
 
 void adv_putc(char c)
 {

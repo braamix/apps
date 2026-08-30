@@ -29,16 +29,12 @@ braam_add_program(NAME adventure
                   SOURCES main.cpp init.cpp vocab.cpp wizard.cpp done.cpp
                           subr.cpp move.cpp verbs.cpp
                           io.cpp data.cpp save.cpp braam.cpp edit.cpp
-                          ${CMAKE_CURRENT_BINARY_DIR}/glorkz.cpp)
-
-# Str's const char * constructor calls strlen, and nothing provides one.
-# braam.cpp does; -fno-builtin-strlen keeps clang from turning that definition
-# into a call to itself.
-target_compile_options(bin_adventure PRIVATE -fno-builtin-strlen)
+                          ${CMAKE_CURRENT_BINARY_DIR}/glorkz.cpp
+                  PORT)
 
 # The package /bin/pkg installs. bin/ is what reaches PATH, and the entry's
 # leaf is the command's name.
-braam_add_package(NAME adventure VERSION 1.0-r4
+braam_add_package(NAME adventure VERSION 1.0-r5
                   FIELD "T=Colossal Cave Adventure"
                   FILES $<TARGET_FILE:bin_adventure>=bin/adventure)
 add_dependencies(packages pkg_adventure)

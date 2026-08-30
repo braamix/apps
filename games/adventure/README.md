@@ -32,14 +32,16 @@ With stdin redirected there is no prompt, no echo and no editor, so
 
 ## What the port changed
 
-No libc: no `stdio`, `malloc`, `signal`, `time` or `rand`, and a program is a
-coroutine rather than a `main`. The game logic and every line of its output are
-upstream's. Comments are `//`, and `hdr.h`'s macro layer is written out — the
-aliases for `printf` and `putchar` are `adv_printf` and `adv_putc`.
+No `stdio`, `signal`, `time` or `rand`, and a program is a coroutine rather
+than a `main`. `atoi` and `strlen` come from the port kit
+(`braam_add_program(... PORT)`), which is the whole of the C library this game
+asks for. The game logic and every line of its output are upstream's. Comments
+are `//`, and `hdr.h`'s macro layer is written out — the aliases for `printf`
+and `putchar` are `adv_printf` and `adv_putc`.
 
 | Upstream | Here |
 | --- | --- |
-| `printf`, `putchar` | a variadic formatter over one buffer, flushed once a turn |
+| `printf`, `putchar` | a variadic formatter over one buffer, flushed once a turn; `%d %u %c %s` and no float, so it stays hand-written rather than costing the kit's `snprintf` |
 | `getchar` + the terminal driver | `LineEditor`, or `LineReader` over stdin |
 | `malloc` for travel nodes | a `Vec<Travel>` per location, filled as `glorkz` is read |
 | `alloca` in `speak`/`pspeak` | a fixed 2 KB buffer; the longest message is 1460 bytes |
@@ -48,7 +50,7 @@ aliases for `printf` and `putchar` are `adv_printf` and `adv_putc`.
 | `unlink` | `remove_path` |
 | `srand`/`rand` | an xorshift32 seeded from `clock_now()`, or `ADVENTURE_SEED` |
 | `time`/`localtime` | `clock_now()` and `civil()` |
-| `atoi`, `strcmp` | one local `atoi` |
+| `atoi`, `strcmp` | the port kit's `<stdlib.h>` |
 | `exit(0)` | a status returned up the call chain |
 | `signal(SIGINT, trapdel)` | `sig_catch(SIG_INT)`, and `Err(Intr)` is the DEL |
 

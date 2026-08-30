@@ -23,6 +23,8 @@
 #include "braam.h"
 #include "kernel/alloc.h"
 #include "kernel/vec.h"
+
+#include <stdlib.h>
 #include "msg.h"
 #include "proc/io.h"
 
@@ -433,6 +435,5 @@ private:
 int ran(int);
 void datime(int *, int *);
 int length(const char *);
-int atoi(const char *);
 int weq(const char *, const char *);
 void copystr(const char *, char *);
