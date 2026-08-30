@@ -118,7 +118,7 @@ endforeach()
 # The data travels with the binary. Only the flat bin/ entry becomes a command;
 # share/ is nested, so it is payload -- and /pkg/bin/le is the link into the
 # store directory it sits in, which is how epath.cpp finds it.
-braam_add_package(NAME le VERSION 1.16.8-r1
+braam_add_package(NAME le VERSION 1.16.8-r2
                   FIELD "T=LE 1.16.8, a block-oriented text editor"
                   FILES $<TARGET_FILE:bin_le>=bin/le
                         ${CMAKE_CURRENT_SOURCE_DIR}/share/le.hlp=share/le.hlp
