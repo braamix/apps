@@ -95,10 +95,10 @@ Task<void> cmd(const char *c, bool autosave, bool pauseafter)
     extern struct menu ConCan4Menu[];
     int exitcode;
 
-    errno = 0;
+    le_errno = 0;
     if (modified && autosave) {
         co_await SaveFile(FileName);
-        if (errno) {
+        if (le_errno) {
             switch (co_await ReadMenuBox(ConCan4Menu, HORIZ, "Cannot save the file", " Warning ",
                                          VERIFY_WIN_ATTR, CURR_BUTTON_ATTR)) {
             case ('C'):

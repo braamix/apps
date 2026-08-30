@@ -45,12 +45,12 @@ Task<FILE *> le_fopen(const char *path, bool write)
         co_await File::open(Str(path, strlen(path)), write ? FileMode::Write : FileMode::Read);
 
     if (r.is_err()) {
-        errno = int(r.error());
+        le_errno = int(r.error());
         co_return nullptr;
     }
     FILE *f = heap_new<File>(move(r.value()));
     if (!f)
-        errno = int(Error::NoMemory);
+        le_errno = int(Error::NoMemory);
     co_return f;
 }
 

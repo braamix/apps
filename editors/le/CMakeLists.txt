@@ -37,36 +37,14 @@ foreach(g action-enum action-name-func keymap mainmenu)
     list(APPEND LE_GENERATED ${out})
 endforeach()
 
-# braam.cpp supplies the C library. Each name needs -fno-builtin, or clang
-# folds a call into inline code, or turns the definition into a call to itself.
-set(LE_NOBUILTIN
-    -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
-    -fno-builtin-memcpy -fno-builtin-memmove -fno-builtin-memset -fno-builtin-memcmp
-    -fno-builtin-memchr
-    -fno-builtin-strlen -fno-builtin-strcpy -fno-builtin-strncpy -fno-builtin-strcat
-    -fno-builtin-strncat -fno-builtin-strcmp -fno-builtin-strncmp -fno-builtin-strchr
-    -fno-builtin-strrchr -fno-builtin-strstr -fno-builtin-strdup -fno-builtin-strspn
-    -fno-builtin-strcspn -fno-builtin-strpbrk -fno-builtin-strtok
-    -fno-builtin-strcasecmp -fno-builtin-strncasecmp
-    -fno-builtin-toupper -fno-builtin-tolower -fno-builtin-isspace -fno-builtin-isblank
-    -fno-builtin-isdigit -fno-builtin-isxdigit -fno-builtin-isalpha -fno-builtin-isalnum
-    -fno-builtin-islower -fno-builtin-isupper -fno-builtin-isprint -fno-builtin-isgraph
-    -fno-builtin-ispunct -fno-builtin-iscntrl
-    -fno-builtin-getenv -fno-builtin-atoi -fno-builtin-abs -fno-builtin-labs
-    -fno-builtin-strtol -fno-builtin-strtoul -fno-builtin-strtoll -fno-builtin-strtoull
-    -fno-builtin-qsort -fno-builtin-fnmatch
-    -fno-builtin-snprintf -fno-builtin-sprintf -fno-builtin-vsnprintf)
-
-# Ported code keeps upstream's identifiers, its casts and its unused arguments.
-# An INTERFACE target rather than target_compile_options, because braam::flags
-# carries -Wall -Wextra -Wshadow and a library's options land after the
-# target's own -- so nothing else would come last.
+# What braam::portflags does not already carry. An INTERFACE target rather than
+# target_compile_options, because braam::flags carries -Wall -Wextra -Wshadow
+# and a library's options land after the target's own -- so nothing else would
+# come last.
 add_library(le_quiet INTERFACE)
 target_compile_options(le_quiet INTERFACE
-    -Wno-shadow -Wno-sign-compare -Wno-unused-parameter
-    -Wno-writable-strings -Wno-unused-but-set-variable
     -Wno-parentheses -Wno-dangling-else -Wno-char-subscripts
-    -Wno-missing-field-initializers -Wno-invalid-source-encoding)
+    -Wno-invalid-source-encoding)
 
 # Upstream's file split and names are kept; what went is named in README.md.
 # What is new: curses.cpp is the whole of ncurses this needs, leio.cpp the
@@ -88,18 +66,19 @@ braam_add_program(NAME le
                           braam.cpp curses.cpp epath.cpp lefile.cpp
                           leio.cpp lewchar.cpp
                           ${LE_GENERATED}
-                  LIBS braam::math)
+                  LIBS braam::math
+                  PORT)
 
 target_include_directories(bin_le PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GEN})
-target_compile_options(bin_le PRIVATE ${LE_NOBUILTIN} -fno-threadsafe-statics)
+target_compile_options(bin_le PRIVATE -fno-threadsafe-statics)
 target_link_libraries(bin_le PRIVATE le_quiet)
 
-# regex.c and wcwidth.c are the two files that are C. cinc/ is the handful of
-# libc headers they name, each forwarding to the shim; REGEX_MALLOC keeps
+# regex.c and wcwidth.c are the two files that are C. The libc headers they
+# name are the kit's, which PORT put on this target's path; REGEX_MALLOC keeps
 # regex.c off alloca.
 set_source_files_properties(regex.c wcwidth.c PROPERTIES
     COMPILE_DEFINITIONS "REGEX_MALLOC=1"
-    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/cinc;${CMAKE_CURRENT_SOURCE_DIR};${GEN}")
+    INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR};${GEN}")
 
 # The syntax file includes these by name, so they travel with it.
 file(GLOB LE_SYNTAX_D_FILES ${CMAKE_CURRENT_SOURCE_DIR}/share/syntax.d/*)
@@ -118,7 +97,7 @@ endforeach()
 # The data travels with the binary. Only the flat bin/ entry becomes a command;
 # share/ is nested, so it is payload -- and /pkg/bin/le is the link into the
 # store directory it sits in, which is how epath.cpp finds it.
-braam_add_package(NAME le VERSION 1.16.8-r3
+braam_add_package(NAME le VERSION 1.16.8-r4
                   FIELD "T=LE 1.16.8, a block-oriented text editor"
                   FILES $<TARGET_FILE:bin_le>=bin/le
                         ${CMAKE_CURRENT_SOURCE_DIR}/share/le.hlp=share/le.hlp

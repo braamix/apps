@@ -43,9 +43,9 @@ Task<void> EditorReadKeymap()
             co_return;
     }
 
-    errno = 0;
+    le_errno = 0;
     co_await ReadActionMap(f);
-    if (errno) {
+    if (le_errno) {
         FError(filename);
     }
 

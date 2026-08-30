@@ -5,7 +5,7 @@
 // because these differ from POSIX's in exactly one way -- the co_await -- and
 // a call that lost it would otherwise still compile.
 //
-// Failure is -1 with errno set to the kernel's own Error, which is what
+// Failure is -1 with le_errno set to the kernel's own Error, which is what
 // lesys.h's E* are.
 #pragma once
 

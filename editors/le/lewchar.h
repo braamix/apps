@@ -2,6 +2,8 @@
 // is no locale to ask and mb_mode is always on.
 #pragma once
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 #include "kernel/types.h"
 #else
@@ -21,7 +23,7 @@ typedef struct {
     int dummy;
 } mbstate_t;
 
-enum { MB_LEN_MAX = 4 };
+// MB_LEN_MAX is the kit's <limits.h>, and says 4 for the same reason.
 #define MB_CUR_MAX 4
 
 #ifdef __cplusplus

@@ -5,13 +5,13 @@
 #include "braam.h"
 #include "proc/io.h"
 
-int errno;
+int le_errno;
 
 namespace {
 
 int fail(Error e)
 {
-    errno = int(e);
+    le_errno = int(e);
     return -1;
 }
 

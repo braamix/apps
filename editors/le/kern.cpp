@@ -543,7 +543,7 @@ int GetBlock(char *copy, offs from, num size)
 // fight partial writes, count written bytes.
 Task<int> write_loop(int fd, const char *ptr, num size, num *written)
 {
-    errno = 0;
+    le_errno = 0;
     while (size > 0) {
         int res = co_await le_write(fd, ptr, size);
         if (res == -1)

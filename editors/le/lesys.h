@@ -1,8 +1,12 @@
-// The POSIX types and errno LE names, and nothing behind them but the kernel.
+// The POSIX types and error names LE uses, and nothing behind them but the
+// kernel.
 //
-// errno is vi's answer, not glibc's: the last syscall's Error as an int. There
-// is no table of messages here -- error_name() in kernel/result.h names them.
+// le_errno holds the last syscall's Error as an int, not an errno number, and
+// is spelled apart from the port kit's errno for that reason. There is no table
+// of messages here -- error_name() in kernel/result.h names them.
 #pragma once
+
+#include <limits.h>
 
 #ifdef __cplusplus
 #include "kernel/result.h"
@@ -23,9 +27,6 @@ typedef long long i64;
    holder is a coroutine, at file scope. */
 enum { LE_PATHMAX = 512 };
 
-// <limits.h>, the three of it that are named here.
-enum { UCHAR_MAX = 255, INT_MAX = 0x7fffffff, LONG_MAX = 0x7fffffff };
-
 typedef usize size_t;
 typedef unsigned mode_t;
 typedef long time_t;
@@ -42,19 +43,19 @@ typedef long clock_t;
 #endif
 
 // The last syscall's Error, as an int.
-extern int errno;
+extern int le_errno;
 
 // Only the five LE compares against; each is the kernel's own number so that
-// errno = int(r.error()) needs no mapping.
+// le_errno = int(r.error()) needs no mapping.
 #ifdef __cplusplus
 enum {
-    ENOENT      = int(Error::NotFound),
-    EACCES      = int(Error::Perm),
-    EEXIST      = int(Error::Exists),
-    ENOMEM      = int(Error::NoMemory),
-    EINTR       = int(Error::Intr),
-    EAGAIN      = int(Error::Again),
-    EWOULDBLOCK = EAGAIN,
+    LE_ENOENT      = int(Error::NotFound),
+    LE_EACCES      = int(Error::Perm),
+    LE_EEXIST      = int(Error::Exists),
+    LE_ENOMEM      = int(Error::NoMemory),
+    LE_EINTR       = int(Error::Intr),
+    LE_EAGAIN      = int(Error::Again),
+    LE_EWOULDBLOCK = LE_EAGAIN,
 };
 #endif
 

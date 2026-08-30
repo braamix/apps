@@ -361,7 +361,7 @@ Task<int> write_loop(int fd, const char *ptr, num size, num *written);
 
 static inline bool E_AGAIN(const int e)
 {
-    return (e == EAGAIN || e == EWOULDBLOCK || e == EINTR);
+    return (e == LE_EAGAIN || e == LE_EWOULDBLOCK || e == LE_EINTR);
 }
 
 Task<void> ProcessDragMark();

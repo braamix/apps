@@ -145,7 +145,7 @@ Task<int> PipeBlock(const char *filter, bool in, bool out)
             exitcode = w.is_err() ? -1 : (int)w.value().status;
             res      = OK;
         } else {
-            errno = int(pid_r.error());
+            le_errno = int(pid_r.error());
             FError(filter);
         }
         co_await le_close(fdin);

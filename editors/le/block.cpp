@@ -349,7 +349,7 @@ Task<void> Write()
     LoadHistory.Push();
 
     if (co_await le_stat(BlockFile, &st) == -1) {
-        if (errno != ENOENT) {
+        if (le_errno != LE_ENOENT) {
             FError(BlockFile);
             co_return;
         }
@@ -364,7 +364,7 @@ Task<void> Write()
     }
     fd = co_await le_open(BlockFile, O_CREAT | ((st.st_mode & S_IFCHR) ? 0 : O_EXCL) | O_WRONLY,
                           0666);
-    if (fd == -1 && errno == EEXIST) {
+    if (fd == -1 && le_errno == LE_EEXIST) {
         fd = co_await le_open(BlockFile, O_WRONLY);
         if (fd == -1) {
             FError(BlockFile);
@@ -404,10 +404,10 @@ Task<void> Write()
             co_await le_close(fd);
             co_return;
         }
-        errno = 0;
+        le_errno = 0;
         res   = co_await cb.Write(fd);
     } else {
-        errno = 0;
+        le_errno = 0;
         res   = co_await WriteBlock(fd, BlockBegin, BlockEnd - BlockBegin, &act_written);
     }
     if (res < 0)
@@ -500,7 +500,7 @@ Task<void> Read()
         FError(BlockFile);
         co_return;
     }
-    errno = 0;
+    le_errno = 0;
     if (co_await le_fstat(fd, &st) == -1) {
         co_await le_close(fd);
         FError(BlockFile);
@@ -518,7 +518,7 @@ Task<void> Read()
         res = co_await ReadBlock(fd, st.st_size, &act_read);
     if (res != OK) {
         co_await le_close(fd);
-        if (errno)
+        if (le_errno)
             FError(BlockFile);
         co_return;
     }

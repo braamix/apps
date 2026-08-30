@@ -55,7 +55,7 @@ Task<int> LockFile(int fd, bool drop)
     Lock.l_whence = SEEK_SET;
 
     if (fcntl(fd, F_SETLK, &Lock) == -1) {
-        if (errno == EACCES || errno == EAGAIN) {
+        if (le_errno == LE_EACCES || le_errno == LE_EAGAIN) {
             struct flock Lock1;
             char msg[100];
             static struct menu LockMenu[]  = { { " &Cancel ", MIDDLE - 10, FDOWN - 2 },
@@ -84,8 +84,8 @@ Task<int> LockFile(int fd, bool drop)
                 co_return (0);
             case ('W'):
                 MessageSync("Waiting for unlocking the file... (C-x - cancel)");
-                errno = EACCES;
-                while (fcntl(fd, F_SETLK, &Lock) == -1 && (errno == EACCES || errno == EAGAIN)) {
+                le_errno = LE_EACCES;
+                while (fcntl(fd, F_SETLK, &Lock) == -1 && (le_errno == LE_EACCES || le_errno == LE_EAGAIN)) {
                     if (co_await WaitForKey(1000) != ERR) {
                         int action = co_await GetNextAction();
                         if (action == CANCEL) {
@@ -93,9 +93,9 @@ Task<int> LockFile(int fd, bool drop)
                             co_return (-1);
                         }
                     }
-                    errno = 0;
+                    le_errno = 0;
                 }
-                if (errno != EACCES && errno != EAGAIN)
+                if (le_errno != LE_EACCES && le_errno != LE_EAGAIN)
                     co_return (-2);
             }
         } else {
@@ -197,7 +197,7 @@ Task<int> LoadFile(char *name)
 
     flag = REDISPLAY_ALL;
 
-    errno = 0;
+    le_errno = 0;
 
     if (!name[0]) {
         buffer_mmapped = false;
@@ -220,7 +220,7 @@ Task<int> LoadFile(char *name)
         }
         if (S_ISDIR(FileMode))
             View |= TMP_RO_MODE;
-    } else if (errno == ENOENT && !View && !buffer_mmapped) {
+    } else if (le_errno == LE_ENOENT && !View && !buffer_mmapped) {
         int f = co_await le_open(open_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
         if (f != -1) {
             co_await le_close(f);
@@ -267,7 +267,7 @@ Task<int> LoadFile(char *name)
 
     if (!buffer_mmapped) {
         if (co_await ReplaceTextFromFile(file, st.st_size, &act_read) != OK) {
-            if (errno)
+            if (le_errno)
                 FError(name);
             co_await EmptyText();
             co_return (ERR);
@@ -305,7 +305,7 @@ Task<int> LoadFile(char *name)
             if (mmap_len == 0) {
                 mmap_len = st.st_size;
                 if ((off_t)mmap_len != st.st_size) {
-                    errno = ENOMEM;
+                    le_errno = LE_ENOMEM;
                     FError(name);
                     co_await EmptyText();
                     co_return ERR;
@@ -583,7 +583,7 @@ Task<int> SaveFile(char *name)
             }
         }
     } else {
-        if (errno != ENOENT) {
+        if (le_errno != LE_ENOENT) {
             FError(name);
             co_return (ERR);
         }
@@ -598,7 +598,7 @@ Task<int> SaveFile(char *name)
 
     MessageSync(msg);
 
-    errno = 0;
+    le_errno = 0;
     nfile = co_await le_open(name, O_CREAT | O_RDWR, st.st_mode);
     if (nfile == -1) {
         FError(name);
@@ -625,9 +625,9 @@ Task<int> SaveFile(char *name)
        permission bits in the filesystem here. */
 
     /* now, after all that stuff, write the buffer contents */
-    errno = 0;
+    le_errno = 0;
     if (co_await WriteBlock(nfile, 0, Size(), &act_written) != OK) {
-        if (errno)
+        if (le_errno)
             FError(name);
         co_await le_close(nfile);
         co_return (ERR);

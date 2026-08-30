@@ -44,10 +44,23 @@ A pattern is a regular expression unless you turn that off in the options.
 
 ## What the port changed
 
-No libc: no `malloc`, no `printf`, no `errno`, no `<string.h>`, no exceptions
-and no `setjmp`. [braam.cpp](braam.cpp) supplies the string, character and
-allocation routines LE calls, plus the printf conversions the status line and
-the dialogs use; everything else was replaced rather than reimplemented.
+No `errno`, no exceptions and no `setjmp`. The string, character and allocation
+routines LE calls, its `strtol` family and the `snprintf` the status line and
+the dialogs use are the port kit's — `braam_add_program(... PORT)` in
+[CMakeLists.txt](CMakeLists.txt), which also puts `<string.h>` and the rest on
+this target's include path and nobody else's. Everything else was replaced
+rather than reimplemented.
+
+That took 700 lines out of `braam.cpp` and the whole of `cinc/`, and cost 3,563
+bytes: 528,064 to 531,627. `fnmatch` is all that is left of the file — the kit
+has none, and LE calls it at two sites.
+
+Two names stay LE's on purpose. **`FILE` is `proc/file.h`'s `File`**, so LE
+never includes the kit's `<stdio.h>`, which typedefs a `FILE` of its own;
+`braam.h` declares the three `snprintf` entry points instead. And **`le_errno`
+holds the last syscall's `Error` as an int**, not an errno number — it is read
+back through `error_name()`, whose prose the tests assert — so it is spelled
+apart from the kit's `errno`, which the kit's own `strtol` writes `ERANGE` into.
 
 | Upstream | Here |
 | --- | --- |
@@ -243,7 +256,7 @@ Upstream's file split and its names are kept. What is new:
 
 | | |
 | --- | --- |
-| [braam.cpp](braam.cpp) | the C library |
+| [braam.cpp](braam.cpp) | `fnmatch`, which the port kit has not got |
 | [curses.cpp](curses.cpp) | all of ncurses this needs, over the Grid |
 | [leio.cpp](leio.cpp) | the file syscalls, POSIX-shaped, with an `le_` prefix so a call that lost its `co_await` would not still compile |
 | [lefile.cpp](lefile.cpp) | the four stdio calls the config parsers make, over `proc/file.h` |
@@ -252,7 +265,6 @@ Upstream's file split and its names are kept. What is new:
 | [letypes.h](letypes.h) | `byte`, `offs` and `num`, which edit.h declared above the twelve headers it then included — so those twelve compiled only through it |
 | [gap.h](gap.h) | the gap buffer's accessors, which were the first half of inline.h. mb.h is written against them and the second half of inline.h is written against mb.h, so upstream's one file could be read only in that order |
 | [epath.cpp](epath.cpp) | where `share` is |
-| [cinc/](cinc/) | the handful of libc headers `regex.c` and `wcwidth.c` name, each forwarding to the shim; those two are the only files here that are C |
 
 Gone: `mouse.cc`, `rus.cc`, `tables.cc` and `rus.h`. `tables.cc`'s `ModifyKey`
 moved into [chset.cpp](chset.cpp) as the identity it now is, and the terminal

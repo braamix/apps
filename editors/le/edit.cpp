@@ -315,7 +315,7 @@ Task<int> AskToSave()
         switch (co_await ReadMenuBox(Menu, HORIZ, "The file has been modified. Save?", "",
                                      VERIFY_WIN_ATTR, CURR_BUTTON_ATTR)) {
         case ('Y'):
-            errno  = 0;
+            le_errno  = 0;
             result = (co_await UserSave() == OK);
             if (!result && modified) {
                 co_await UserSaveAs();

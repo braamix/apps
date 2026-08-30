@@ -60,7 +60,7 @@
  */
 
 #include <config.h>
-#include <wchar.h>
+#include "lewchar.h"
 
 struct interval {
   int first;

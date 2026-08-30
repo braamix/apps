@@ -784,9 +784,9 @@ void FError(const char *s)
     char err[64];
     char msg[256];
 
-    if (errno)
-        snprintf(err, sizeof(err), "%.*s", (int)error_name(Error(errno)).size(),
-                 error_name(Error(errno)).data());
+    if (le_errno)
+        snprintf(err, sizeof(err), "%.*s", (int)error_name(Error(le_errno)).size(),
+                 error_name(Error(le_errno)).data());
     else
         snprintf(err, sizeof(err), "The device is full,\nI cannot write");
 
