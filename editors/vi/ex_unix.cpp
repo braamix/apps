@@ -167,7 +167,7 @@ static Task<int> runsh(char *opt, char *up, int fdin, int fdout)
     if (Task<Result<u32>> t = spawn(v, cio))
         pid_r = co_await t;
     if (pid_r.is_err()) {
-        errno = int(pid_r.error());
+        ex_errno = int(pid_r.error());
         co_return (-1);
     }
     child = res_of(pid_r);
@@ -188,7 +188,7 @@ static Task<int> runsh(char *opt, char *up, int fdin, int fdout)
         if (Task<Result<void>> t = set_fg(0))
             co_await t;
         if (w.is_err()) {
-            errno = int(w.error());
+            ex_errno = int(w.error());
             co_return (-1);
         }
         status = res_of(w).status;

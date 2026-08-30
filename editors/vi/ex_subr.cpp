@@ -231,10 +231,10 @@ int fixindent(int indent)
 
 void filioerr(char *cp)
 {
-    int oerrno = errno;
+    int oerrno = ex_errno;
 
     lprintf("\"%s\"", cp);
-    errno = oerrno;
+    ex_errno = oerrno;
     THROW(syserror());
 }
 
@@ -662,7 +662,7 @@ void strcLIN(char *dp)
 void syserror(void)
 {
     static char buf[48];
-    Str m   = error_name(Error(errno));
+    Str m   = error_name(Error(ex_errno));
     usize n = m.size() < sizeof buf - 1 ? m.size() : sizeof buf - 1;
 
     putchar(' ');

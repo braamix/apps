@@ -37,9 +37,12 @@
  */
 #pragma once
 
-#include "braam.h"
 #include "proc/io.h"
 #include "proc/rt.h"
+
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* One definition of every global, in ex_data.cpp; a declaration everywhere. */
 #ifdef EX_DEFINE
@@ -180,7 +183,7 @@ EXTERN int tchng;                 /* If nonzero, then [Modified] */
 EXTERN exbool vcatch;             /* Want to catch an error (open/visual) */
 EXTERN exbool writing;            /* 1 if in middle of a file write */
 EXTERN int xchng;                 /* Suppresses multiple "No writes" in !cmd */
-EXTERN int errno;                 /* the last syscall's Error, as an int */
+EXTERN int ex_errno;              /* the last syscall's Error, as an int */
 EXTERN short ex_pendclose;        /* a descriptor an error left open */
 
 /*
@@ -387,7 +390,7 @@ exbool need_input(void);
 /*
  * What ex called by their Unix names. Each is a syscall and every syscall is
  * awaited, so each is a Task; each answers upstream's own convention and sets
- * errno beside it.
+ * ex_errno beside it.
  */
 struct exstat {
     long st_size;

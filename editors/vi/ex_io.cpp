@@ -257,7 +257,7 @@ Task<void> rop(int c)
 
     io = co_await ex_open(file, 0);
     if (io < 0) {
-        if (c == 'e' && errno == int(Error::NotFound)) {
+        if (c == 'e' && ex_errno == int(Error::NotFound)) {
             edited++;
             /*
              * If the user just did "ex foo" he is probably
@@ -594,7 +594,7 @@ Task<void> source(char *fil, exbool okfail)
         if (Task<Result<String>> t = read_file(Str(fil, strlen(fil))))
             r = co_await t;
         if (r.is_err()) {
-            errno = int(r.error());
+            ex_errno = int(r.error());
             peekc = savepeekc;
             globp = saveglobp;
             if (!okfail)

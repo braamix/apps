@@ -36,9 +36,11 @@ $ printf '%s\n' 'g/^#/d' '1,$s/  */ /g' 'w' 'q' | ex notes
 
 ## What the port changed
 
-No libc: no `malloc`, no `printf`, no `errno`, no `<cstring>`, no exceptions,
-no `setjmp`. `braam.cpp` supplies the string and character routines ex calls,
-over `heap_alloc`; everything else was replaced rather than reimplemented.
+No `printf`, no `errno`, no exceptions, no `setjmp`. The string, character and
+allocation routines ex calls are the port kit's — `braam_add_program(... PORT)`
+in [CMakeLists.txt](CMakeLists.txt) — and every one of them is Group A, so ex
+is the port whose C library went away entirely. Everything else was replaced
+rather than reimplemented.
 
 | Upstream | Here |
 | --- | --- |
@@ -53,7 +55,7 @@ over `heap_alloc`; everything else was replaced rather than reimplemented.
 | `SIGTSTP`, `SIGHUP`, and re-arming `SIGINT` on every delivery | `sig_catch(SIG_INT)` once; `SIG_WINCH` arrives as `Err(Intr)` and is a repaint |
 | `fork` and `execl` for `:!`, `:sh` and `:r !cmd` | `spawn()` with the console handed over and taken back |
 | a filter driven through two pipes, one written by a **second forked copy of the editor** | a temp file on each side: one task cannot park on both ends of a pipeline |
-| the errno message table, carried in the source | `error_name()`, because the kernel names its own errors |
+| the errno message table, carried in the source | `error_name()`, because the kernel names its own errors. `ex_errno` holds an `Error` rather than an errno number, and is spelled apart from the kit's `errno` for that reason |
 | `expreserve` and `exrecover`, two setuid helpers | gone with the temp file they existed for |
 | the `ex3.6strings` file and the `xstr` tool that built it | the messages are compiled in, as they were on VMUNIX |
 | `-x` and `:set key`, the crypt mode | gone |
@@ -277,7 +279,8 @@ make                     # both binaries
 make package             # vi-3.6-r0.zip, holding bin/ex and bin/vi
 ```
 
-Each is about 220 KB.
+Each is about 236 KB: 329 bytes more than the hand-written C library cost, for
+318 lines of it deleted.
 
 [tools/knr.py](tools/knr.py) is the converter the port was made with: it reads
 the prototypes out of `ex.h` and `ex_vis.h`, rewrites each K&R definition to
@@ -351,5 +354,4 @@ mode prints no prompt down a pipe, which is what makes a transcript assertable.
 | `ex_vget.cpp` | `ex_vget.c` — single keys, `:map`, the echo area |
 | `ex_vwind.cpp` | `ex_vwind.c` — window control and scrolls |
 | `ex_screen.cpp` | `ex_tty.c` — the terminal, which is no longer a terminal |
-| `braam.cpp` | — the C library ex calls |
 | `ex_err.h` | — the `longjmp` that is not |

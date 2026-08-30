@@ -262,7 +262,7 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
                         if (Task<Result<String>> t = cwd_set(Str(p, strlen(p))))
                             r = co_await t;
                         if (r.is_err()) {
-                            errno = int(r.error());
+                            ex_errno = int(r.error());
                             THROWC(filioerr(p));
                         }
                     }

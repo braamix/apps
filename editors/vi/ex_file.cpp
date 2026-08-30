@@ -2,9 +2,9 @@
  * The file system calls, in the shapes ex expects them.
  *
  * Upstream called open, close, read, write, lseek, stat and access directly,
- * and checked errno afterwards. Each is a syscall here and every syscall is
+ * and checked ex_errno afterwards. Each is a syscall here and every syscall is
  * awaited, so each becomes a Task; what each answers is upstream's own
- * convention -- a descriptor or -1, a count or -1 -- with errno set beside it,
+ * convention -- a descriptor or -1, a count or -1 -- with ex_errno set beside it,
  * so that filioerr() and syserror() still have something to report.
  */
 #include "ex.h"
@@ -28,7 +28,7 @@ Task<int> ex_open(char *path, int mode)
     if (Task<Result<i32>> t = open_at(path_of(path), flags))
         r = co_await t;
     if (r.is_err()) {
-        errno = int(r.error());
+        ex_errno = int(r.error());
         co_return (-1);
     }
     co_return (res_of(r));
@@ -41,7 +41,7 @@ Task<int> ex_creat(char *path)
     if (Task<Result<i32>> t = open_at(path_of(path), SYS_O_WRITE | SYS_O_CREATE | SYS_O_TRUNC))
         r = co_await t;
     if (r.is_err()) {
-        errno = int(r.error());
+        ex_errno = int(r.error());
         co_return (-1);
     }
     co_return (res_of(r));
@@ -69,7 +69,7 @@ Task<int> ex_read(int fd, char *buf, int n)
     if (r.is_err()) {
         if (r.error() == Error::Closed)
             co_return (0);
-        errno = int(r.error());
+        ex_errno = int(r.error());
         co_return (-1);
     }
     {
@@ -90,7 +90,7 @@ Task<int> ex_write(int fd, char *buf, int n)
     if (Task<Result<void>> t = write_all(fd, Str(buf, n)))
         r = co_await t;
     if (r.is_err()) {
-        errno = int(r.error());
+        ex_errno = int(r.error());
         co_return (-1);
     }
     co_return (n);
@@ -103,7 +103,7 @@ Task<long> ex_seek(int fd, long off, int whence)
     if (Task<Result<u64>> t = seek_fd(fd, (i64)off, (u32)whence))
         r = co_await t;
     if (r.is_err()) {
-        errno = int(r.error());
+        ex_errno = int(r.error());
         co_return (-1);
     }
     co_return ((long)res_of(r));
@@ -122,7 +122,7 @@ Task<int> ex_stat(char *path, struct exstat *sb)
     if (Task<Result<FileInfo>> t = stat_of(path_of(path)))
         r = co_await t;
     if (r.is_err()) {
-        errno = int(r.error());
+        ex_errno = int(r.error());
         co_return (-1);
     }
     sb->st_size  = (long)res_of(r).size;
@@ -137,7 +137,7 @@ Task<int> ex_fstat(int fd, struct exstat *sb)
     if (Task<Result<FileInfo>> t = stat_fd(fd))
         r = co_await t;
     if (r.is_err()) {
-        errno = int(r.error());
+        ex_errno = int(r.error());
         co_return (-1);
     }
     sb->st_size  = (long)res_of(r).size;

@@ -133,7 +133,7 @@ Task<Result<void>> ex_readline(void)
         if (r.is_err()) {
             if (r.error() == Error::Closed)
                 break;
-            errno = int(r.error());
+            ex_errno = int(r.error());
             co_return Err(r.error());
         }
         Str got = res_of(r).str();

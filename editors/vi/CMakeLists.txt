@@ -8,29 +8,12 @@ if(NOT TARGET braam::proc)
     find_package(braam REQUIRED)
 endif()
 
-# braam.cpp supplies the C library. Each name needs -fno-builtin, or clang
-# folds a call into inline code, or turns the definition into a call to itself.
-set(VI_NOBUILTIN
-    -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
-    -fno-builtin-memcpy -fno-builtin-memmove -fno-builtin-memset -fno-builtin-memcmp
-    -fno-builtin-strlen -fno-builtin-strcpy -fno-builtin-strncpy -fno-builtin-strcat
-    -fno-builtin-strcmp -fno-builtin-strncmp -fno-builtin-strchr -fno-builtin-strrchr
-    -fno-builtin-toupper -fno-builtin-tolower -fno-builtin-isspace -fno-builtin-isdigit
-    -fno-builtin-isalpha -fno-builtin-isalnum -fno-builtin-islower -fno-builtin-isupper
-    -fno-builtin-isprint -fno-builtin-iscntrl -fno-builtin-getenv -fno-builtin-atoi
-    -fno-builtin-qsort
-    # int is wchar_t's width here, so the key-buffer loops in ex_vget.cpp get
-    # recognised as these and folded into calls to them.
-    -fno-builtin-wcslen -fno-builtin-wcscpy)
-
-# Ported code keeps upstream's identifiers, its casts and its unused arguments.
-# An INTERFACE target rather than target_compile_options, because braam::flags
-# carries -Wall -Wextra -Wshadow and a library's options land after the
-# target's own — so nothing else would come last.
+# What braam::portflags does not already carry. An INTERFACE target rather than
+# target_compile_options, because braam::flags carries -Wall -Wextra -Wshadow
+# and a library's options land after the target's own — so nothing else would
+# come last.
 add_library(vi_quiet INTERFACE)
 target_compile_options(vi_quiet INTERFACE
-    -Wno-shadow -Wno-sign-compare -Wno-unused-parameter
-    -Wno-writable-strings -Wno-unused-but-set-variable
     -Wno-parentheses -Wno-dangling-else -Wno-char-subscripts)
 
 # ex and vi differ in one bit: which mode they start in. Upstream decided it by
@@ -47,13 +30,16 @@ set(VI_COMMON
     ex_get.cpp ex_io.cpp ex_re.cpp ex_set.cpp ex_subr.cpp ex_unix.cpp
     ex_v.cpp ex_vadj.cpp ex_vget.cpp ex_vmain.cpp ex_voper.cpp ex_vops.cpp
     ex_vops2.cpp ex_vops3.cpp ex_vput.cpp ex_vwind.cpp
-    ex_buf.cpp ex_out.cpp ex_file.cpp ex_screen.cpp braam.cpp)
+    ex_buf.cpp ex_out.cpp ex_file.cpp ex_screen.cpp)
 
-braam_add_program(NAME ex SOURCES ${VI_COMMON})
-braam_add_program(NAME vi SOURCES ${VI_COMMON})
+# PORT is the C library ex calls: the string, character and allocation
+# routines, all of it Group A. It carries -fno-builtin, which the key-buffer
+# loops in ex_vget.cpp need too — int is wchar_t's width here, so clang
+# recognises them as wcslen and wcscpy and calls functions that do not exist.
+braam_add_program(NAME ex SOURCES ${VI_COMMON} PORT)
+braam_add_program(NAME vi SOURCES ${VI_COMMON} PORT)
 
 foreach(t ex vi)
-    target_compile_options(bin_${t} PRIVATE ${VI_NOBUILTIN})
     target_link_libraries(bin_${t} PRIVATE vi_quiet)
 endforeach()
 
@@ -61,7 +47,7 @@ target_compile_definitions(bin_vi PRIVATE EX_DEFAULT_VISUAL=1)
 
 # One package, two commands: every flat bin/ entry becomes a cmd: provide and a
 # link in the installed generation's bin/, which /pkg/bin points at.
-braam_add_package(NAME vi VERSION 3.6-r9
+braam_add_package(NAME vi VERSION 3.6-r10
                   FIELD "T=UCB ex/vi 3.6, the visual editor"
                   FILES $<TARGET_FILE:bin_ex>=bin/ex
                         $<TARGET_FILE:bin_vi>=bin/vi)
