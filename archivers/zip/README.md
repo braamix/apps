@@ -31,17 +31,21 @@ piece has to be an archive first.
 
 ## What the port changed
 
-No libc: no `stdio`, `malloc`, `signal`, `time` or `mktime`, no `opendir`, no
-`termios`, and a program is a coroutine rather than a `main`. Every line zip
+No `stdio`, no `signal`, `time` or `mktime`, no `opendir`, no `termios`, and a
+program is a coroutine rather than a `main`. The rest of the C library is the
+port kit's — `braam_add_program(... PORT)` — so what `braam.cpp` still answers
+is only what the kit has not got: the streams, because a C signature cannot
+block, and the calendar. Every line zip
 prints is upstream's, and so is the archive it writes — a real Info-ZIP `unzip`
 reads it, encryption and all.
 
 | Upstream | Here |
 | --- | --- |
 | `FILE *`, `fopen`, `fread`, `fseek` | `proc/file.h`'s `File`, which is the same shape |
-| `malloc`, `realloc`, `free` | `heap_alloc` under an eight-byte header, since there is no `realloc` |
-| the `mem*` and `str*` families, `qsort` | written out in `braam.cpp`, each `extern "C"` with `-fno-builtin` |
-| `printf` and its conversions | the ones upstream uses, into one buffer, then one write |
+| `malloc`, `realloc`, `free` | the port kit's, over `heap_alloc` |
+| the `mem*` and `str*` families, `strtol` | the port kit's |
+| `qsort` | the kit's, except at two call sites — see below |
+| `printf` and its conversions | still `zvformat`, the ones upstream uses, into one buffer then one write: they are integers and strings, and the kit's `snprintf` would put its float arm in all four binaries |
 | `opendir`/`readdir` recursion | `list_dir`, one syscall for a whole directory |
 | `stat`'s `st_mode`, `st_uid`, `st_gid` | nothing keeps them; the mode an entry carries is synthesized |
 | `localtime`, `mktime`, `asctime` | `civil()` from `proc/time.h`, and its inverse written out |
@@ -52,6 +56,15 @@ reads it, encryption and all.
 | `srand`/`rand` for the crypt header | `proc_random()`, which is `crypto.getRandomValues` |
 | `exit()` from anywhere | a status recorded and returned up the call chain |
 | `-DUTIL`, a second build of the shared files | one build, and `--gc-sections` |
+
+**Two sorts are `mergesort`, not `qsort`.** The kit's `qsort` is heapsort and
+not stable, where the C library upstream was built against was stable in
+practice. It matters twice: `zipsplit`'s bin packing sorts entries by size, and
+equal sizes decide which output file each entry lands in; and the duplicate
+check in `fileio.cpp` reports a repeated name as a *first* and a *second*, which
+is the order they were found in. `mergesort` allocates, so both sites now have a
+`ZE_MEM` path they did not have before. Everywhere else the keys are unique and
+heapsort is what it should be.
 
 Structure:
 
@@ -158,7 +171,7 @@ running by hand over anything the tests produce.
 | `crypt.cpp`, `crypt.h` | traditional PKZIP encryption |
 | `ttyio.cpp`, `ttyio.h` | the password prompt, on the raw keyboard |
 | `unix.cpp` | what the OS answers about a file — upstream `unix/unix.c` |
-| `braam.cpp`, `braam.h` | the porting layer: the C library, and stdio over `proc/file.h` |
+| `braam.cpp`, `braam.h` | the porting layer: stdio over `proc/file.h`, and the calendar |
 | `revision.h`, `ziperr.h` | the version, and the error codes |
 | `zipnote.cpp` | archive and entry comments — upstream `zipnote.c` |
 | `zipsplit.cpp` | one archive into several — upstream `zipsplit.c` |

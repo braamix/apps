@@ -1432,7 +1432,10 @@ Task<int> check_dup(void)
         nodup = &s[k]; // Valid entries are at end of array s
 
         // sort only valid items and check for unique internal names (f->iname)
-        qsort((char *)nodup, fcount, sizeof(struct flist far *), fqcmpz);
+        // mergesort: a repeat is reported as a first and a second name, which
+        // is the order they were found in. qsort here is not stable.
+        if (mergesort((char *)nodup, fcount, sizeof(struct flist far *), fqcmpz) != 0)
+            co_return ZE_MEM;
         for (j = 1; j < fcount; j++)
             if (strcmp(nodup[j - 1]->iname, nodup[j]->iname) == 0) {
                 char tempbuf[FNMAX + 4081];

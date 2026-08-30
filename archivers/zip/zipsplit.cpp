@@ -276,7 +276,14 @@ local Task<extent> greedy(uzoff_t *a, extent n, uzoff_t c, uzoff_t d)
     for (t = i = 0; i < n; i++)
         t += *(s[i] = e + i);
     m = (extent)((t + c - 1) / c) - 1; // pre-decrement for loop
-    qsort((char *)s, n, sizeof(ulg *), descmp);
+    // mergesort: equal sizes are common, and their order decides which output
+    // file each lands in. qsort here is not stable.
+    if (mergesort((char *)s, n, sizeof(ulg *), descmp) != 0) {
+        free((zvoid *)s);
+        free((zvoid *)e);
+        ziperr(ZE_MEM, "was trying a smart split");
+        co_return 0; // only to make compiler happy
+    }
 
     // Stuff bins until successful
     do {

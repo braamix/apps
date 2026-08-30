@@ -1,11 +1,16 @@
-// The porting layer: a small libc, and stdio over proc/file.h.
+// The porting layer: stdio over proc/file.h, the calendar, and the raw reads.
 //
-// Each libc routine is extern "C" — the compiler emits calls under the C names
-// — and built with -fno-builtin-<name>, or the definition becomes a call to
-// itself. Replaces unix/unix.c and tailor.h's stream macros.
+// The C library is the port kit's — braam_add_program(... PORT) — and every
+// name it answers has gone from here. What is left is what the kit does not
+// have: everything that blocks, since a C signature cannot, plus <time.h>.
+// Replaces unix/unix.c and tailor.h's stream macros.
 #pragma once
 
 #include "kernel/types.h"
+
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
 
 // EOF is zip.h's, which this header is included by; getc needs one of its own.
 constexpr int EOF_ = -1;
@@ -14,51 +19,14 @@ typedef i64 time_t;
 #include "proc/file.h"
 #include "proc/io.h"
 
-// ------------------------------------------------------------------- the libc
+// -------------------------------------------------------- what the kit leaves
 
 extern "C" {
 
-void *malloc(usize n);
-void *calloc(usize n, usize size);
-void *realloc(void *p, usize n);
-void free(void *p);
-
-void *memcpy(void *d, const void *s, usize n);
-void *memmove(void *d, const void *s, usize n);
-void *memset(void *d, int c, usize n);
-int memcmp(const void *a, const void *b, usize n);
-
-usize strlen(const char *s);
-char *strcpy(char *d, const char *s);
-char *strncpy(char *d, const char *s, usize n);
-char *strcat(char *d, const char *s);
-int strcmp(const char *a, const char *b);
-int strncmp(const char *a, const char *b, usize n);
-char *strchr(const char *s, int c);
-char *strrchr(const char *s, int c);
-char *strstr(const char *h, const char *n);
-char *strncat(char *d, const char *s, usize n);
-
-int toupper(int c);
-int tolower(int c);
-int isspace(int c);
-int isdigit(int c);
-int isalpha(int c);
-int isalnum(int c);
-int isprint(int c);
-int iscntrl(int c);
-
-// getenv over the environment the spawn handed this process. There is no
-// setenv anywhere, so the answer never changes.
-char *getenv(const char *name);
-
-int atoi(const char *s);
-
 // The only two sscanf formats upstream uses, both for -t and -tt: an ISO
-// yyyy-mm-dd or an American mmddyyyy. A general sscanf would be the rest of
-// stdio for two call sites.
+// yyyy-mm-dd or an American mmddyyyy. The kit has no sscanf, and a general one
+// would be the rest of stdio for two call sites.
 int zparse_date(const char *s, int *yyyy, int *mm, int *dd);
-long strtol(const char *s, char **end, int base);
 
 } // extern "C"
 
@@ -67,12 +35,6 @@ inline long strtol_l(const char *s)
 {
     return strtol(s, nullptr, 10);
 }
-
-extern "C" {
-
-void qsort(void *base, usize n, usize size, int (*cmp)(const void *, const void *));
-
-} // extern "C"
 
 // ------------------------------------------------------------------- stdio
 
