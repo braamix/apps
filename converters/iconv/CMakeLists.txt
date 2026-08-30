@@ -12,46 +12,18 @@ if(NOT Python3_EXECUTABLE)
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
 endif()
 
-# braam.cpp supplies the C library. Each name needs -fno-builtin, or clang
-# folds a call into inline code, or turns the definition into a call to itself.
-set(ICONV_NOBUILTIN
-    -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
-    -fno-builtin-memcpy -fno-builtin-memmove -fno-builtin-memset -fno-builtin-memcmp
-    -fno-builtin-memchr -fno-builtin-bzero
-    -fno-builtin-strlen -fno-builtin-strcpy -fno-builtin-strncpy
-    -fno-builtin-strcmp -fno-builtin-strncmp -fno-builtin-strchr -fno-builtin-strrchr
-    -fno-builtin-strstr -fno-builtin-strdup -fno-builtin-strndup
-    -fno-builtin-strcasecmp -fno-builtin-strncasecmp -fno-builtin-strcasestr
-    -fno-builtin-strtol -fno-builtin-strtoul -fno-builtin-atoi
-    -fno-builtin-snprintf -fno-builtin-vsnprintf
-    -fno-builtin-abort -fno-builtin-exit -fno-builtin-getenv -fno-builtin-qsort
-    -fno-builtin-isspace -fno-builtin-isdigit -fno-builtin-isalpha
-    -fno-builtin-isalnum -fno-builtin-toupper -fno-builtin-tolower)
-
-# Ported code keeps upstream's identifiers, its casts and its unused arguments;
-# -Wall -Wextra -Wshadow is the tree's, and these fire all over 2000s BSD C.
-# An INTERFACE target rather than target_compile_options, because braam::flags
-# carries the -W flags and a library's options land after the target's own.
-add_library(iconv_quiet INTERFACE)
-target_compile_options(iconv_quiet INTERFACE
-    -Wno-shadow -Wno-sign-compare -Wno-unused-parameter -Wno-unused-function
-    -Wno-writable-strings -Wno-missing-field-initializers)
-
-# Upstream is Apple's libiconv, and its __APPLE__ branches are the ones whose
-# data format we generate — every .mps carries the transliteration table they
-# read. They are selected under a macro of our own rather than by claiming to
-# be a platform this is not.
 set(ICONV_DEFS -D_CITRUS_APPLE)
 
 # Upstream's headers use __BEGIN_DECLS, the BSD integer names and stdio's
 # SEEK_* without including anything for them, relying on the .c file having
 # done it first. clang-format sorts includes and does not know that, so the
 # prelude comes in ahead of the first line rather than depending on an order.
-set(ICONV_PRELUDE -include ${CMAKE_CURRENT_SOURCE_DIR}/include/prelude.h)
+set(ICONV_PRELUDE -include ${CMAKE_CURRENT_SOURCE_DIR}/bsd/prelude.h)
 
-# include/ holds the freestanding headers citrus's #includes name: sys/queue.h
-# vendored, and declarations for the C library braam.cpp supplies.
-set(ICONV_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+# bsd/ holds the headers citrus's #includes name that the port kit does not
+# answer: sys/queue.h vendored, the BSD spellings, the locale stubs. Named bsd/
+# rather than include/ because it is no longer a C library.
+set(ICONV_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/bsd)
 
 # The citrus core that needs no signature change: nothing here reaches a
 # stream, because citrus reads files only while a conversion is being opened.
@@ -114,13 +86,16 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp
                    VERBATIM)
 add_custom_target(iconv_i18n ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp)
 
+# PORT is the C library citrus calls -- mem*, str*, ctype, the allocator,
+# strtol, snprintf, qsort -- and -fno-builtin for all of it at once. What bsd/
+# and braam.cpp still answer is what the kit has not got.
 braam_add_program(NAME iconv
                   SOURCES iconv.cpp ${ICONV_PORT} ${ICONV_CORE} ${ICONV_OPEN}
-                          ${ICONV_MODULES})
+                          ${ICONV_MODULES}
+                  PORT)
 target_include_directories(bin_iconv PRIVATE ${ICONV_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}
                                              ${CMAKE_CURRENT_SOURCE_DIR}/modules)
-target_compile_options(bin_iconv PRIVATE ${ICONV_NOBUILTIN} ${ICONV_DEFS} ${ICONV_PRELUDE})
-target_link_libraries(bin_iconv PRIVATE iconv_quiet)
+target_compile_options(bin_iconv PRIVATE ${ICONV_DEFS} ${ICONV_PRELUDE})
 
 add_dependencies(bin_iconv iconv_i18n)
 
@@ -147,7 +122,7 @@ endforeach()
 # command; share/i18n is nested, so it is payload and nothing else. That is
 # what lets the binary find its own tables: /pkg/bin/iconv is a link into the
 # store directory the data sits in.
-braam_add_package(NAME iconv VERSION 1.16-r1
+braam_add_package(NAME iconv VERSION 1.16-r2
                   FIELD "T=Citrus iconv, character set conversion"
                   FILES $<TARGET_FILE:bin_iconv>=bin/iconv ${ICONV_PAYLOAD})
 add_dependencies(pkg_iconv iconv_i18n)

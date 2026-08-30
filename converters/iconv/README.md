@@ -35,8 +35,10 @@ The command says so once on stderr and converts anyway; redirect to a file.
 
 ## What the port changed
 
-No libc: no stdio, malloc, dlopen, mmap, locale or errno, and a program is a
-coroutine rather than a `main`. Citrus is also C, and this is C++.
+No stdio, no dlopen, mmap or locale, and a program is a coroutine rather than a
+`main`. Citrus is also C, and this is C++. The C library it calls is the port
+kit's — `braam_add_program(... PORT)` — so `bsd/` and `braam.cpp` answer only
+what the kit has not got. 210,240 bytes to 219,556.
 
 | Upstream | Here |
 | --- | --- |
@@ -45,7 +47,8 @@ coroutine rather than a `main`. Citrus is also C, and this is C++.
 | `_PATH_ESDB` at `/usr/share/i18n` | a suffix, with the prefix found at startup ([citrus_paths.cpp](citrus_paths.cpp)) |
 | `pthread_rwlock` around three caches | nothing; one thread |
 | `nl_langinfo`, `locale_charset` | `"UTF-8"`, the only locale there is |
-| `malloc`, `str*`, `snprintf`, `qsort` | [braam.cpp](braam.cpp), over `heap_alloc` |
+| `malloc`, `str*`, `snprintf`, `qsort`, `errno` | the port kit's |
+| `mbrtowc`, `wcrtomb` | still [braam.cpp](braam.cpp): the kit has no wide half |
 | `mbrtowc`, `wcrtomb` | the kernel's UTF-8 codec — `wchar_t` is UTF-32 here |
 | `getopt_long` | a hand-rolled parser; `OptParse` has no long options |
 | `stdio` | `proc/file.h`'s `File`, on its byte path |
@@ -68,9 +71,19 @@ Structure:
   Only a `.esdb`, `.mps` or `.646` — which depend on the encodings asked
   for — is read through the awaiting half.
 
-- **`PATH_MAX` is 256, not 1024.** Citrus builds paths in stack buffers, and a
-  coroutine's locals live in a heap frame that must stay under 512 bytes. The
-  longest path the library ever builds measures 81 bytes.
+- **`PATH_MAX` is 256, not the port kit's 512.** Citrus builds paths in stack
+  buffers — three `char[PATH_MAX]` in `_citrus_esdb_open`, four in
+  `_citrus_csmapper_open` — and a coroutine's locals live in a heap frame that
+  must stay under 512 bytes. The kit's 512 is a filesystem answer; this is a
+  frame-budget answer, so `bsd/prelude.h` redefines it after `<limits.h>` and
+  says why. The longest path the library ever builds measures 81 bytes.
+
+- **The errno numbers are the kit's**, which are musl's, where this port
+  carried Apple's. They never leave the library — citrus's whole error protocol
+  is "return an errno value" — and the one place a number becomes something
+  else is `iconv_error`, which stays. It is deliberately *not* `error_of()`
+  from `compat/cerr.h`: citrus means `E2BIG` as "the output buffer filled" and
+  `EILSEQ` as "bad input", and the kit's bridge folds both onto `Error::Io`.
 
 - **Upstream's Apple branches are the ones selected**, because the data we
   generate is theirs: every `.mps` carries the transliteration table they read.
@@ -152,7 +165,7 @@ becomes a command.
 | | |
 | --- | --- |
 | `iconv.cpp` | upstream `iconv/iconv.c`, the command |
-| `braam.h`, `braam.cpp` | the C library citrus calls, over the kernel's |
+| `braam.h`, `braam.cpp` | what the port kit has not got: the wide half, the locale stubs, and `iconv_error` |
 | `citrus_module.cpp` | the static module table, replacing `citrus_module.c` |
 | `citrus_mmap.cpp` | whole-file reads and the index cache, replacing `citrus_mmap.c` |
 | `citrus_paths.cpp` | where `/share/i18n` is |
@@ -166,7 +179,7 @@ becomes a command.
 | `citrus_memstream.cpp`, `citrus_prop.cpp`, `citrus_hash.cpp`, `citrus_bcs*.cpp` | upstream, unchanged but for casts |
 | `citrus_none.cpp` | upstream, the built-in `NONE` encoding |
 | `modules/` | upstream `libiconv_modules/`: 2 drivers, 17 encodings, 5 mappers |
-| `include/` | the freestanding headers citrus's `#include`s name |
+| `bsd/` | the headers citrus's `#include`s name that the port kit does not answer: `sys/queue.h` vendored, the BSD spellings, the locale stubs. Named `bsd/` rather than `include/` because it is no longer a C library, and because a directory of that name beside a `PORT` target is a silent race |
 | `data/` | upstream's `.src` sources, 512 files |
 | `mkcsmapper.py`, `mkesdb.py`, `mkdb.py`, `citrusdb.py`, `mki18n.py` | the table compilers |
 | `verify.py` | byte-identity against upstream's prebuilt tree |
