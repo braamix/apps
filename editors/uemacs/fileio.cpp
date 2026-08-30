@@ -6,7 +6,10 @@
  *	modified by Petri Kutvonen
  */
 
-#include "braam.h"
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "estruct.h"
 #include "globals.h"
 #include "efunc.h"

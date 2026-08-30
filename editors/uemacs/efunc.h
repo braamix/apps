@@ -352,7 +352,6 @@ extern int truth_value(char *val);
 extern char *truth_text(int val);
 extern char *mkupper(const char *str, char *result);
 extern char *mklower(const char *str, char *result);
-extern int abs(int x);
 extern int next_random(void);
 extern int sindex(char *source, char *pattern);
 extern char *xlat(char *source, char *lookup, char *trans);

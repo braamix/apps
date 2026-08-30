@@ -10,7 +10,10 @@
 #ifndef ESTRUCT_H_
 #define ESTRUCT_H_
 
-#include "braam.h"
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 /* Task and Result: every bound command is a coroutine, so struct name_bind
    and struct key_tab below hold one. */

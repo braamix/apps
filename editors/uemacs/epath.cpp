@@ -8,7 +8,10 @@
  *	follow the leaf -- so one syscall recovers the prefix.
  */
 
-#include "braam.h"
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "estruct.h"
 #include "globals.h"
 #include "efunc.h"

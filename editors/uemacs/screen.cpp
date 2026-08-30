@@ -14,7 +14,10 @@
  *	in ttgetc(), which is the one place the editor parks -- so a keystroke
  *	costs one syscall carrying the cells that changed.
  */
-#include "braam.h"
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "kernel/alloc.h"
 #include "proc/io.h"

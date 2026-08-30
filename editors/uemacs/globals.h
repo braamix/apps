@@ -13,7 +13,10 @@
 #ifndef GLOBALS_H_
 #define GLOBALS_H_
 
-#include "braam.h"
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "estruct.h"
 
 /* Some global fuction declarations.  Every bound command awaits a key or a

@@ -49,10 +49,18 @@ the whole of them. The ones worth knowing before you start:
 
 ## What the port changed
 
-No libc: no `malloc`, no `printf`, no `errno`, no `<string.h>`, no exceptions
-and no `setjmp`. [braam.cpp](braam.cpp) supplies the string and character
-routines uemacs calls, over `heap_alloc`, plus the six printf conversions the
-message line uses; everything else was replaced rather than reimplemented.
+No `errno`, no exceptions and no `setjmp`. The string and character routines
+uemacs calls, its allocator and the `snprintf` the message line uses are the
+port kit's — `braam_add_program(... PORT)` in
+[CMakeLists.txt](CMakeLists.txt) — and all of it is Group A, so uemacs is the
+second port whose hand-written C library went away entirely. Everything else
+was replaced rather than reimplemented.
+
+It costs 8,953 bytes: 263,839 before, 272,792 now, for 530 lines deleted. Very
+nearly all of it is the kit's float conversions, which are one function with
+the integer ones, so a port pays for them even where — as here — it formats
+nothing but integers and strings. Upstream Braam records that as P5 in its own
+TODO.
 
 | Upstream | Here |
 | --- | --- |
@@ -274,7 +282,6 @@ Upstream's file split and its names are kept; `.c` became `.cpp`.
 | `bind.cpp` `names.cpp` `ebind.cpp` | the tables. `ebind.c` was `ebind.h`, included once by `main.c`: a table of coroutine addresses has to live in a file that does not also call them |
 | `spawn.cpp` | `spawn.c` — the escapes, over `spawn()` |
 | `spell.cpp` `utf8.cpp` `globals.cpp` `version.cpp` | the same |
-| `braam.cpp` / `braam.h` | — the C library uemacs calls |
 | `epath.cpp` | — where the package's own `share/` is, found at startup |
 | — | `lock.c`, `usage.c`, `wrapper.c` deleted |
 
@@ -283,7 +290,7 @@ Upstream's file split and its names are kept; `.c` became `.cpp`.
 ## Building and packaging
 
 ```
-make                     # build/editors/uemacs/em.wasm, about 270 KB
+make                     # build/editors/uemacs/em.wasm, about 273 KB
 make package             # uemacs-4.0.15-r0.zip: bin/em, and four files in share/
 make test                # the seven cases below
 ```

@@ -857,14 +857,6 @@ char *mklower(const char *str, char *res)
 }
 
 /*
- * take the absolute value of an integer
- */
-int abs(int x)
-{
-    return x < 0 ? -x : x;
-}
-
-/*
  * returns a random integer
  */
 int next_random(void)
