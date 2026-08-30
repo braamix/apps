@@ -355,15 +355,10 @@ Task<void> ReadConf()
 #ifndef __MSDOS__
     bool mine;
 
-    snprintf(t, sizeof(t), "%s/.le/colors-%s", HOME, TERM);
-    if (!co_await ConfOK(t, false)) {
-        snprintf(t, sizeof(t), "%s/colors-%s", datadir, TERM);
-        if (!co_await ConfOK(t, false)) {
-            snprintf(t, sizeof(t), "%s/.le/colors", HOME);
-            if (!co_await ConfOK(t, false))
-                snprintf(t, sizeof(t), "%s/colors", datadir);
-        }
-    }
+    /* Upstream probed colors-$TERM first, twice. There is one terminal here. */
+    snprintf(t, sizeof(t), "%s/.le/colors", HOME);
+    if (!co_await ConfOK(t, false))
+        snprintf(t, sizeof(t), "%s/colors", datadir);
     co_await ReadConfFromFile(t, colors, false);
     ParseColors();
 
@@ -1100,7 +1095,7 @@ Task<int> ColorHandleBut(const char *button, int index)
     if (!l)
         co_return -1;
     char res = toupper(l[1]);
-    if (res == 'S' || res == 'U' || res == 'T' || res == 'O') {
+    if (res == 'S' || res == 'U' || res == 'O') {
         memcpy(color_pal, new_color_pal, sizeof(new_color_pal));
         memcpy(bw_pal, new_bw_pal, sizeof(new_bw_pal));
         init_attrs();
@@ -1108,8 +1103,6 @@ Task<int> ColorHandleBut(const char *button, int index)
     }
     if (res == 'S')
         co_await ColorsSave();
-    else if (res == 'T')
-        co_await ColorsSaveForTerminal();
     co_return CANCEL;
 }
 

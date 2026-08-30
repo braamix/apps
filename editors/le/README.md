@@ -172,6 +172,22 @@ driven, one function each. See the 0.7 release notes in `../../braam-core`.
   set an mtime here.
 - **No mouse.** `WITH_MOUSE` was not defined by upstream's own CMake build
   either.
+- **No `TERM`, and no `DISPLAY`.** Braam hands a program `PATH`, `HOME` and
+  `SHELL` and nothing else — the terminal is a cell grid with no terminfo entry
+  that could describe it — so upstream's per-terminal layer had one value to
+  work with. `keymap-$TERM` and `colors-$TERM` are gone, and with them the two
+  "Save as terminal specific" menu items, which wrote a second copy of what the
+  Save entry above them already wrote. `DISPLAY` went because nothing ever read
+  it, here or upstream. That leaves `getenv` one caller, which is what makes
+  its single `static` return buffer harmless.
+- **`share/keymap-emacs` is respelled**, the way `share/keymap` is: a terminfo
+  capability named an escape sequence and there are none here. Upstream gave a
+  modified key several spellings — terminfo's and two of xterm's — of which one
+  resolved per terminal; here they are one name, so the duplicates go and so do
+  the collisions they hid, where `$kPRV` and `\e[5;2~` were different actions on
+  the same key. Under it `^X` is a prefix rather than quit: `^X ^C` and `^G`
+  leave. `${Esc}` is bound because ESC is a key here, not the Alt prefix it was
+  upstream.
 - **The wheel extends the selection.** The page spells a wheel notch as
   `Shift+Up`/`Shift+Down` rather than putting a mouse in the ABI, and a program
   holding the screen cannot tell it from the key — so the wheel does what those
@@ -258,9 +274,10 @@ byte for byte the same: [make-action-enum.py](make-action-enum.py),
 
 ## Building and packaging
 
-`make` at the top of the tree. The package is `le`, and it carries
-`share/` — the keymap, the colours, the menu, the help and the syntax
-rules — because `epath.cpp` finds them there.
+`make` at the top of the tree. The package is `le`, and it carries all of
+`share/` — the two keymaps, the five colour schemes, the menu, the help and the
+syntax rules — because `epath.cpp` finds them there and a menu entry naming a
+file the zip does not hold is an error message.
 
 ## Testing
 
@@ -281,6 +298,7 @@ node editors/le/test/leedit.mjs
 | [lesyntax.mjs](test/lesyntax.mjs) | the syntax colours and the help, both out of `share` |
 | [lespawn.mjs](test/lespawn.mjs) | a block filter, a failing one, and the shell escape |
 | [lesession.mjs](test/lesession.mjs) | the history file, the position round trip, and a bare `le` per directory |
+| [ledata.mjs](test/ledata.mjs) | the colour schemes and the emacs keymap, loaded from the package |
 
 The harness plants the whole package link chain, because `readlink("/pkg/bin/le")`
 is how the editor finds its own data.

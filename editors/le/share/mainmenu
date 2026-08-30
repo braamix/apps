@@ -99,7 +99,6 @@ submenu "&Options"
    submenu  "&Colors"
       function "&Edit"	edit-colors    hide
       function "&Save"	save-colors    hide
-      function "Save as &terminal specific" save-colors-for-terminal hide
       hline
       function "&Default"		  load-color-default   hide
       function "Load default-background"  load-color-defbg     hide
@@ -113,7 +112,6 @@ submenu "&Options"
       function "Load Emacs-like keymap"	     load-keymap-emacs	  hide
       hline
       function "&Save"			     save-keymap	  hide
-      function "Save as &terminal specific"  save-keymap-for-terminal hide
       end
    function "&Programs"			     programs-options
    function "&Save to current directory"     save-options-local   hide

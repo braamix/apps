@@ -80,6 +80,7 @@ test: all
 	@node editors/le/test/lesyntax.mjs
 	@node editors/le/test/lespawn.mjs
 	@node editors/le/test/lesession.mjs
+	@node editors/le/test/ledata.mjs
 	@node editors/vi/test/exscript.mjs
 	@node editors/vi/test/exerrors.mjs
 	@node editors/vi/test/exregex.mjs

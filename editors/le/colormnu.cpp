@@ -46,15 +46,6 @@ Task<void> ColorsSave()
     co_return;
 }
 
-Task<void> ColorsSaveForTerminal()
-{
-    static char f[LE_PATHMAX];
-    unsigned nbytes = sizeof(f);
-    snprintf(f, nbytes, "%s%s-%s", HOME, colors_file, TERM);
-    co_await ColorsSaveToFile(f);
-    co_return;
-}
-
 Task<void> LoadColor(const char *f)
 {
     if (co_await le_access(f, R_OK) == -1) {

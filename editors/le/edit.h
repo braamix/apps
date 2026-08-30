@@ -82,7 +82,7 @@ enum { RO_MODE = 1, TMP_RO_MODE = 2 };
 
 extern int ascii, right; /* modifiers for HEX mode */
 
-extern char *HOME, *TERM, *DISPLAY;
+extern char *HOME;
 
 extern char *buffer;
 extern int modified;

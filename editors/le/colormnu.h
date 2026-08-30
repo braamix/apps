@@ -23,7 +23,6 @@
 
 Task<void> ColorsOpt();
 Task<void> ColorsSave();
-Task<void> ColorsSaveForTerminal();
 Task<void> LoadColorDefault();
 Task<void> LoadColorDefaultBG();
 Task<void> LoadColorBlack();

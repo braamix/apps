@@ -120,11 +120,9 @@ refresh-screen                 UserRefreshScreen
 remember-block                 UserRememberBlock
 reopen-file-rw                 (ActionProc)ReopenRW
 save-colors                    ColorsSave
-save-colors-for-terminal       ColorsSaveForTerminal
 save-file                      (ActionProc)UserSave
 save-file-as                   (ActionProc)UserSaveAs
 save-keymap                    SaveKeymap
-save-keymap-for-terminal       SaveKeymapForTerminal
 save-options                   UpdtOpt
 save-options-local             SaveOpt
 search-backward                StartSearchBackward

@@ -108,6 +108,13 @@ foreach(f ${LE_SYNTAX_D_FILES})
     list(APPEND LE_SYNTAX_D ${f}=share/syntax.d/${n})
 endforeach()
 
+# The colour schemes the Colors menu loads by name.
+file(GLOB LE_COLORS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/share/colors-*)
+foreach(f ${LE_COLORS_FILES})
+    get_filename_component(n ${f} NAME)
+    list(APPEND LE_COLORS ${f}=share/${n})
+endforeach()
+
 # The data travels with the binary. Only the flat bin/ entry becomes a command;
 # share/ is nested, so it is payload -- and /pkg/bin/le is the link into the
 # store directory it sits in, which is how epath.cpp finds it.
@@ -116,7 +123,8 @@ braam_add_package(NAME le VERSION 1.16.8-r1
                   FILES $<TARGET_FILE:bin_le>=bin/le
                         ${CMAKE_CURRENT_SOURCE_DIR}/share/le.hlp=share/le.hlp
                         ${CMAKE_CURRENT_SOURCE_DIR}/share/keymap=share/keymap
+                        ${CMAKE_CURRENT_SOURCE_DIR}/share/keymap-emacs=share/keymap-emacs
                         ${CMAKE_CURRENT_SOURCE_DIR}/share/mainmenu=share/mainmenu
                         ${CMAKE_CURRENT_SOURCE_DIR}/share/syntax=share/syntax
-                        ${LE_SYNTAX_D})
+                        ${LE_SYNTAX_D} ${LE_COLORS})
 add_dependencies(packages pkg_le)

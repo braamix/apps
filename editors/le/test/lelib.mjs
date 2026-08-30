@@ -65,7 +65,8 @@ export async function boot(caseName) {
 export const STORE = "/pkg/store/le-1.16.8-r0";
 
 function install() {
-    for (const f of ["le.hlp", "keymap", "mainmenu", "syntax"])
+    /* Everything share/ holds, which is what the package ships. */
+    for (const f of readdirSync(join(HERE, "../share")).filter((f) => f !== "syntax.d"))
         H.store.files.set(`${STORE}/share/${f}`,
                           new Uint8Array(readFileSync(join(HERE, "../share", f))));
     /* The syntax file includes these by name; without them nothing highlights. */

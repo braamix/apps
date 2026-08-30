@@ -94,6 +94,5 @@ const char *ShortcutPrettyPrint(int c, const char *arg);
 Task<void> LoadKeymapEmacs();
 Task<void> LoadKeymapDefault();
 Task<void> SaveKeymap();
-Task<void> SaveKeymapForTerminal();
 
 #endif /* KEYMAP_H */

@@ -73,7 +73,7 @@ int SaveHst = 1;
 
 int View = FALSE;
 
-char *HOME, *TERM, *DISPLAY;
+char *HOME;
 
 int UseColor           = 1;
 int UseTabs            = 1;
@@ -543,10 +543,6 @@ Task<i32> proc_main(Args args)
     HOME = getenv("HOME");
     if (HOME == NULL)
         HOME = (char *)"/home";
-    TERM = getenv("TERM");
-    if (TERM == NULL)
-        TERM = (char *)"braam";
-    DISPLAY = getenv("DISPLAY");
 
     /* Before Initialize(), which is where the history that keys off it loads. */
     {

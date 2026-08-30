@@ -33,21 +33,14 @@ Task<void> EditorReadKeymap()
     char filename[1024];
     FILE *f;
 
-    snprintf(filename, sizeof(filename), "%s/.le/keymap-%s", HOME, TERM);
+    /* Upstream probed keymap-$TERM first, twice. There is one terminal here. */
+    snprintf(filename, sizeof(filename), "%s/.le/keymap", HOME);
     f = co_await le_fopen(filename, false);
     if (f == NULL) {
-        snprintf(filename, sizeof(filename), "%s/keymap-%s", datadir, TERM);
+        snprintf(filename, sizeof(filename), "%s/keymap", datadir);
         f = co_await le_fopen(filename, false);
-        if (f == NULL) {
-            snprintf(filename, sizeof(filename), "%s/.le/keymap", HOME);
-            f = co_await le_fopen(filename, false);
-            if (f == NULL) {
-                snprintf(filename, sizeof(filename), "%s/keymap", datadir);
-                f = co_await le_fopen(filename, false);
-                if (f == NULL)
-                    co_return;
-            }
-        }
+        if (f == NULL)
+            co_return;
     }
 
     errno = 0;
@@ -87,20 +80,6 @@ Task<void> SaveKeymap()
     FILE *f;
 
     snprintf(filename, sizeof(filename), "%s/.le/keymap", HOME);
-    f = co_await le_fopen(filename, true);
-    if (!f) {
-        FError(filename);
-        co_return;
-    }
-    co_await WriteActionMap(f);
-    co_await le_fclose(f);
-}
-Task<void> SaveKeymapForTerminal()
-{
-    char filename[1024];
-    FILE *f;
-
-    snprintf(filename, sizeof(filename), "%s/.le/keymap-%s", HOME, TERM);
     f = co_await le_fopen(filename, true);
     if (!f) {
         FError(filename);
