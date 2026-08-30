@@ -131,8 +131,14 @@ void curses_full_blit()
 
 void curses_resized()
 {
-    LINES     = (int)curses_grid().rows;
-    COLS      = (int)curses_grid().cols;
+    LINES = (int)curses_grid().rows;
+    COLS  = (int)curses_grid().cols;
+    // curses_flush ships cx/cy whatever they are, and a touch off the grid is
+    // dropped -- so a shrink would send a cursor that is no longer there.
+    if (cx >= COLS)
+        cx = COLS - 1;
+    if (cy >= LINES)
+        cy = LINES - 1;
     full_blit = true;
     lastcx = lastcy = ~0u;
 }

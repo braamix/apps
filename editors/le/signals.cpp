@@ -54,18 +54,25 @@ void CheckWindowResize()
        restart curses. */
     CorrectParameters();
     MenuResized();
-    flag |= REDISPLAY_ALL;
 
-    if (Upper) {
-        /* A dialogue is up, and Edit() will not get a turn to repaint the text
-           until it closes -- so the text goes down first, or every window on
-           the stack saves a blank background and then sits on one. */
-        int sp = message_sp;
-        SyncTextWin();
-        message_sp = sp;
+    /* From scratch: what the old geometry left in the grid is stale wherever
+       no painter covers it. clear() blanks in the current attribute. */
+    attrset(NORMAL_TEXT_ATTR->n_attr);
+    clear();
+    curses_full_blit();
+
+    /* The message went with the clear; the count would reserve rows nothing
+       paints. Every prompt drawn as one asks again on WINDOW_RESIZE. */
+    message_sp = 0;
+
+    /* Text first -- paint_win saves what is under each box. */
+    flag |= REDISPLAY_ALL;
+    SyncTextWin();
+    if (Upper)
         WindowsResized();
-        flag |= REDISPLAY_ALL;
-    }
+
+    /* SyncTextWin cleared the flag; the caller repaints its own contents. */
+    flag |= REDISPLAY_ALL;
 }
 
 /* A path, which is all TmpFileName builds; upstream sized this for the
