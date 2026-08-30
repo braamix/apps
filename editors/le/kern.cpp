@@ -895,16 +895,22 @@ Task<void> EmptyText()
     if (FileName[0])
         LoadHistory += HistoryLine(FileName, strlen(FileName));
 
-    if (file != -1) {
+    /* Keyed on the name, not the descriptor: upstream held one all session and
+       stat'ed through it, but LoadFile lets the file go as soon as it is read,
+       so under that guard this never ran and switching away from an unmodified
+       file lost its cursor. */
+    if (FileName[0]) {
         struct stat st;
-        co_await le_close(file);
-        file = -1;
         if (co_await le_stat(FileName, &st) != -1) {
             if (newfile && st.st_size == 0)
                 co_await le_unlink(FileName);
             else if (!modified)
                 SavePosition();
         }
+    }
+    if (file != -1) {
+        co_await le_close(file);
+        file = -1;
     }
     FileName[0] = 0;
     undo.Clear();

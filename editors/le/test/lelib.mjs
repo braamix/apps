@@ -110,6 +110,16 @@ export function quit() {
     running = false;
 }
 
+// The same for an unmodified buffer, where ^X quits outright and there is no
+// box to answer -- a stray "n" would land on the shell's command line.
+export function leave() {
+    if (!running)
+        return;
+    press("^x");
+    tick(3);
+    running = false;
+}
+
 // Any shell line, for the cases that need one -- a mkdir before le, say. The
 // clock lives here, so it cannot be driven from outside the module.
 //

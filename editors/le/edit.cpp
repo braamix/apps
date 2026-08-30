@@ -421,6 +421,26 @@ Task<void> Initialize()
 
     co_await LoadMainMenu();
 }
+/* Where le was started. It never chdirs, so one call at startup is the key the
+   no-argument search below uses. */
+static char StartDir[LE_PATHMAX];
+
+/* Whether a load-history entry names a file in StartDir. An absolute entry is
+   matched on its directory; a relative one belongs to whatever directory it
+   resolves in, which is here. */
+static Task<bool> here(const char *f)
+{
+    if (f[0] != '/')
+        co_return co_await le_access(f, R_OK) != -1;
+
+    const char *slash = strrchr(f, '/');
+    usize n           = slash == f ? 1 : (usize)(slash - f);
+
+    if (strlen(StartDir) != n || memcmp(f, StartDir, n))
+        co_return false;
+    co_return co_await le_access(f, R_OK) != -1;
+}
+
 Task<void> Terminate()
 {
     FILE *f;
@@ -434,7 +454,12 @@ Task<void> Terminate()
             MessageSync("Saving history...");
             /* Upstream held a lock across the read-merge-write, and rewound one
                descriptor to do it. There is no lock here, so the old file is read
-               and then written over. */
+               and then written over.
+
+               The merge is what needs the old file; the write does not. Upstream
+               opened O_RDWR|O_CREAT and got both from one descriptor -- with the
+               write under `if (f)` there is no first run, so the file is never
+               created and nothing is ever remembered. */
             f = co_await le_fopen(HstName, false);
             if (f) {
                 InodeHistory oldPositionHistory;
@@ -455,11 +480,10 @@ Task<void> Terminate()
                 PipeHistory.Merge(oldPipeHistory);
 
                 co_await le_fclose(f);
+            }
 
-                f = co_await le_fopen(HstName, true);
-                if (!f)
-                    co_return;
-
+            f = co_await le_fopen(HstName, true);
+            if (f) {
                 co_await PositionHistory.WriteTo(f);
                 co_await LoadHistory.WriteTo(f);
                 co_await SearchHistory.WriteTo(f);
@@ -493,8 +517,9 @@ Task<void> PrintUsage(int arg)
         "    --help         this description\n"
         "    --version      print LE version\n"
         "\n"
-        "The last file will be loaded. If no files specified, last readable file\n"
-        "from history will be loaded if the path is relative or it is the last.\n");
+        "The last file will be loaded. If no files specified, the file last\n"
+        "edited in this directory is reopened where it was left, and switch-file\n"
+        "reaches the one before it.\n");
     co_await File::stdout().flush();
 }
 
@@ -522,6 +547,18 @@ Task<i32> proc_main(Args args)
     if (TERM == NULL)
         TERM = (char *)"braam";
     DISPLAY = getenv("DISPLAY");
+
+    /* Before Initialize(), which is where the history that keys off it loads. */
+    {
+        Result<String> d = Err(Error::NoMemory);
+
+        if (Task<Result<String>> t = cwd_get())
+            d = co_await t;
+        if (d.is_ok() && d.value().size() < sizeof(StartDir)) {
+            memcpy(StartDir, d.value().data(), d.value().size());
+            StartDir[d.value().size()] = 0;
+        }
+    }
 
     for (; optind < args.size(); optind++) {
         Str a = args[optind];
@@ -620,9 +657,37 @@ Task<i32> proc_main(Args args)
 
     if (optind >= args.size()) {
         const HistoryLine *hl = 0;
+        static char second[LE_PATHMAX];
+
+        /* This directory's session: the two most recent files edited here, so a
+           bare `le' picks up where it left off in this directory rather than
+           wherever it was last used. Upstream had only the walk below, which
+           takes relative entries after the first -- an implicit stand-in for
+           the same thing that answers wrong as soon as an absolute path is
+           typed. */
+        second[0] = 0;
+        if (StartDir[0]) {
+            LoadHistory.Open();
+            for (;;) {
+                const HistoryLine *h = LoadHistory.Prev();
+                if (!h)
+                    break;
+                const char *f = h->get_line();
+                if (!*f || !co_await here(f))
+                    continue;
+                if (!newname[0]) {
+                    snprintf(newname, sizeof(newname), "%s", f);
+                    hl = h;
+                } else {
+                    snprintf(second, sizeof(second), "%s", f);
+                    break;
+                }
+            }
+        }
+
         LoadHistory.Open();
         bool first = true;
-        for (;;) {
+        while (!newname[0]) {
             hl = LoadHistory.Prev();
             if (!hl)
                 break;
@@ -633,6 +698,11 @@ Task<i32> proc_main(Args args)
             }
             first = false;
         }
+
+        /* The other file of the pair. LoadFile puts newname in front of it, so
+           this is what switch-file steps back to. */
+        if (second[0])
+            LoadHistory += second;
 
         if (!hl) {
             ShowAbout();

@@ -145,7 +145,29 @@ driven, one function each. See the 0.7 release notes in `../../braam-core`.
   save fail; the text is in the buffer by then and the save opens by name.
 - **A file is identified by its path.** There are no inode numbers, so
   `st_ino` is a hash of the path — which is what `SameFile()` means anyway.
-  Two names for one file are two files to the position history.
+  Two names for one file are two files to the position history. The hash is 64
+  bits and `long` is 32 here, so `InodeInfo::to_string` writes it as `%llu`
+  rather than upstream's `%ld`: truncated, a record round-tripped to a value
+  `SameFile()` could never match and no position was ever restored.
+- **A bare `le` reopens this directory's file.** Upstream walked the load
+  history for the first readable entry, taking relative paths only after the
+  first — an implicit stand-in for "in this directory" that answers wrong as
+  soon as an absolute path is typed. Here the walk is keyed on the working
+  directory, read once with `cwd_get()`: an absolute entry matches on its own
+  directory, a relative one on resolving here. The next match in the same
+  directory is put back behind it, so `switch-file` reaches the other file of
+  *this* directory's pair, each at the line it was left on. With no entry for
+  the directory, upstream's walk still runs.
+- **The history file is created rather than only updated.** `Terminate()` had
+  the whole write under the `if` that opened the old file for reading, so on a
+  system without `~/.le/history2` nothing was written and the file never came
+  into being — no positions, no load history, no search history, ever.
+  Upstream opened `O_RDWR|O_CREAT` and got both from one descriptor.
+- **The position is recorded on the way out of a file**, not only when one is
+  saved. `EmptyText()`'s `SavePosition()` sat behind `if (file != -1)`, which
+  upstream could rely on because it held the descriptor all session; this port
+  lets the file go as soon as it is read, so the call never ran and switching
+  away from an unmodified file lost its cursor. It is keyed on the name now.
 - **A backup keeps the time it was written**, not the original's. Nothing can
   set an mtime here.
 - **No mouse.** `WITH_MOUSE` was not defined by upstream's own CMake build
@@ -258,6 +280,7 @@ node editors/le/test/leedit.mjs
 | [leresize.mjs](test/leresize.mjs) | a resize under the menu, a dialogue, a prompt and a half-typed chord |
 | [lesyntax.mjs](test/lesyntax.mjs) | the syntax colours and the help, both out of `share` |
 | [lespawn.mjs](test/lespawn.mjs) | a block filter, a failing one, and the shell escape |
+| [lesession.mjs](test/lesession.mjs) | the history file, the position round trip, and a bare `le` per directory |
 
 The harness plants the whole package link chain, because `readlink("/pkg/bin/le")`
 is how the editor finds its own data.

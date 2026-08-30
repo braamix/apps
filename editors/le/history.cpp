@@ -295,26 +295,36 @@ void InodeHistory::operator+=(const InodeInfo &file)
 }
 InodeInfo::InodeInfo(const HistoryLine *f_line)
 {
-    /* Seven longs separated by commas, which was one %ld,%ld,... */
-    long v[7] = { 0, 0, 0, 0, 0, 0, 0 };
+    /* Seven numbers separated by commas, which was one %ld,%ld,... The first is
+       the path's 64-bit hash and is unsigned; the rest are signed and fit a
+       long. */
+    usize used;
     Str rest(f_line->get_line(), strlen(f_line->get_line()));
-    for (int i = 0; i < 7 && !rest.empty(); i++) {
-        usize used;
+    Option<u64> ino = scan_u64(rest, used);
+
+    this->inode = ino.has_value() ? (ino_t)ino.value() : 0;
+    rest        = rest.substr(ino.has_value() ? used : 0);
+
+    long v[6] = { 0, 0, 0, 0, 0, 0 };
+    for (int i = 0; i < 6 && !rest.empty(); i++) {
+        if (rest[0] == ',')
+            rest = rest.substr(1);
         Option<i64> got = scan_i64(rest, used);
         if (!got.has_value())
             break;
         v[i] = (long)got.value();
         rest = rest.substr(used);
-        if (!rest.empty() && rest[0] == ',')
-            rest = rest.substr(1);
     }
-    this->inode = v[0], this->device = v[1], this->time = v[2], this->size = v[3];
-    this->line = v[4], this->col = v[5], this->offset = v[6];
+    this->device = v[0], this->time = v[1], this->size = v[2];
+    this->line = v[3], this->col = v[4], this->offset = v[5];
 }
 const char *InodeInfo::to_string() const
 {
-    static char s[80];
-    snprintf(s, sizeof(s), "%ld,%ld,%ld,%ld,%ld,%ld,%ld", (long)inode, (long)device, (long)time,
-             (long)size, (long)line, (long)col, (long)offset);
+    /* The inode is the path's 64-bit hash and long is 32 bits here, so it goes
+       out whole rather than through upstream's %ld -- truncated, it round-trips
+       to a value SameFile() never matches and no position is ever restored. */
+    static char s[128];
+    snprintf(s, sizeof(s), "%llu,%ld,%ld,%ld,%ld,%ld,%ld", (unsigned long long)inode, (long)device,
+             (long)time, (long)size, (long)line, (long)col, (long)offset);
     return s;
 }
