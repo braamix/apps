@@ -18,8 +18,8 @@ le("/tmp/c.c");
 is("the file", screen(5),
 `int main(void)
 {
-    /* hi */
-    return 0;
+        /* hi */
+        return 0;
 }`);
 
 // syntax.d/c, reached from the syntax file by `i=c`.

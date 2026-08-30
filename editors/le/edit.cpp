@@ -77,7 +77,7 @@ char *HOME;
 
 int UseColor           = 1;
 int UseTabs            = 0;
-int IndentSize         = 8;
+int IndentSize         = 4;
 int BackspaceUnindents = 1;
 int PreferPageTop      = 0;
 
