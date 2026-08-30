@@ -76,10 +76,10 @@ int View = FALSE;
 char *HOME;
 
 int UseColor           = 1;
-int UseTabs            = 1;
+int UseTabs            = 0;
 int IndentSize         = 8;
 int BackspaceUnindents = 1;
-int PreferPageTop      = 1;
+int PreferPageTop      = 0;
 
 void GoToLineNum(num line_num)
 {

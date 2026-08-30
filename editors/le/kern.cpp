@@ -56,7 +56,7 @@ int file = (-1); /* file descriptor */
 
 char FileName[256];
 
-int TabSize    = 8;
+int TabSize    = 4;
 int autoindent = TRUE;
 int insert     = TRUE;
 int makebak    = FALSE;
