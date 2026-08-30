@@ -11,10 +11,7 @@
 
 #include <errno.h>
 #include <limits.h>
-#include <paths.h>
 #include <string.h>
-#include <sys/cdefs.h>
-#include <sys/types.h>
 
 #include "braam.h"
 #include "citrus_namespace.h"

@@ -30,18 +30,12 @@
  *
  */
 
-#include <sys/cdefs.h>
-#include <sys/queue.h>
-#include <sys/types.h>
-
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 
 #ifdef _CITRUS_APPLE
 #define _ENCODING_NEED_INIT_STATE 1

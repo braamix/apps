@@ -29,16 +29,12 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 
 #ifdef _CITRUS_APPLE
 #include <stdbool.h>

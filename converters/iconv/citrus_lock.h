@@ -27,8 +27,6 @@
  * SUCH DAMAGE.
  */
 
-#include <pthread.h>
-
 /* One thread, so a lock is nothing. The declarations stay where upstream put
  * them, which is what keeps the three files that hold one unchanged. */
 #define WLOCK(lock)  ((void)0);

@@ -34,18 +34,6 @@
 #ifndef _ICONV_H_
 #define _ICONV_H_
 
-#include <sys/cdefs.h>
-#include <sys/types.h>
-
-#if defined(_CITRUS_APPLE) && (!defined(_POSIX_C_SOURCE) || defined(_DARWIN_C_SOURCE))
-#include <wchar.h>
-#endif
-
-#ifndef _CITRUS_APPLE
-#include <sys/cdefs.h>
-#include <sys/types.h>
-#endif
-
 #ifdef __cplusplus
 typedef bool __iconv_bool;
 #elif __STDC_VERSION__ >= 199901L

@@ -34,8 +34,6 @@
 #define _CITRUS_MAPPER_PARALLEL_H_
 
 #ifdef _CITRUS_APPLE
-#include <sys/cdefs.h>
-#include <sys/queue.h>
 
 #include "citrus_namespace.h"
 #include "citrus_types.h"

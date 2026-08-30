@@ -28,10 +28,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include <sys/cdefs.h>
-#include <sys/types.h>
 
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <stddef.h>
@@ -39,7 +36,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 #ifdef _CITRUS_APPLE
 #include <stdbool.h>
 #endif /* _CITRUS_APPLE */

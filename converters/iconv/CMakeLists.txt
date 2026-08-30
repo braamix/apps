@@ -14,16 +14,11 @@ endif()
 
 set(ICONV_DEFS -D_CITRUS_APPLE)
 
-# Upstream's headers use __BEGIN_DECLS, the BSD integer names and stdio's
-# SEEK_* without including anything for them, relying on the .c file having
-# done it first. clang-format sorts includes and does not know that, so the
-# prelude comes in ahead of the first line rather than depending on an order.
-set(ICONV_PRELUDE -include ${CMAKE_CURRENT_SOURCE_DIR}/bsd/prelude.h)
-
-# bsd/ holds the headers citrus's #includes name that the port kit does not
-# answer: sys/queue.h vendored, the BSD spellings, the locale stubs. Named bsd/
-# rather than include/ because it is no longer a C library.
-set(ICONV_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/bsd)
+# braam.h is the whole porting layer and comes in ahead of the first line of
+# every source: upstream's headers use __BEGIN_DECLS, the BSD integer names and
+# stdio's SEEK_* without including anything for them, relying on the .c file
+# having done it first, and clang-format sorts includes and does not know that.
+set(ICONV_PRELUDE -include ${CMAKE_CURRENT_SOURCE_DIR}/braam.h)
 
 # The citrus core that needs no signature change: nothing here reaches a
 # stream, because citrus reads files only while a conversion is being opened.
@@ -87,13 +82,13 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp
 add_custom_target(iconv_i18n ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp)
 
 # PORT is the C library citrus calls -- mem*, str*, ctype, the allocator,
-# strtol, snprintf, qsort -- and -fno-builtin for all of it at once. What bsd/
-# and braam.cpp still answer is what the kit has not got.
+# strtol, snprintf, qsort -- and -fno-builtin for all of it at once. What
+# braam.h and braam.cpp still answer is what the kit has not got.
 braam_add_program(NAME iconv
                   SOURCES iconv.cpp ${ICONV_PORT} ${ICONV_CORE} ${ICONV_OPEN}
                           ${ICONV_MODULES}
                   PORT)
-target_include_directories(bin_iconv PRIVATE ${ICONV_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR}
+target_include_directories(bin_iconv PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                                              ${CMAKE_CURRENT_SOURCE_DIR}/modules)
 target_compile_options(bin_iconv PRIVATE ${ICONV_DEFS} ${ICONV_PRELUDE})
 

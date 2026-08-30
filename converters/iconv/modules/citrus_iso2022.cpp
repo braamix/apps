@@ -31,10 +31,6 @@
  *	$Citrus: xpg4dl/FreeBSD/lib/libc/locale/iso2022.c,v 1.23 2001/06/21 01:51:44 yamt Exp $
  */
 
-#include <sys/cdefs.h>
-#include <sys/types.h>
-
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -42,7 +38,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 
 #ifdef _CITRUS_APPLE
 #define _ENCODING_NEED_INIT_STATE 1

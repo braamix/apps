@@ -37,7 +37,7 @@ The command says so once on stderr and converts anyway; redirect to a file.
 
 No stdio, no dlopen, mmap or locale, and a program is a coroutine rather than a
 `main`. Citrus is also C, and this is C++. The C library it calls is the port
-kit's — `braam_add_program(... PORT)` — so `bsd/` and `braam.cpp` answer only
+kit's — `braam_add_program(... PORT)` — so `braam.h` and `braam.cpp` answer only
 what the kit has not got. 210,240 bytes to 219,556.
 
 | Upstream | Here |
@@ -75,8 +75,8 @@ Structure:
   buffers — three `char[PATH_MAX]` in `_citrus_esdb_open`, four in
   `_citrus_csmapper_open` — and a coroutine's locals live in a heap frame that
   must stay under 512 bytes. The kit's 512 is a filesystem answer; this is a
-  frame-budget answer, so `bsd/prelude.h` redefines it after `<limits.h>` and
-  says why. The longest path the library ever builds measures 81 bytes.
+  frame-budget answer, so `braam.h` redefines it after `<limits.h>` and says
+  why. The longest path the library ever builds measures 81 bytes.
 
 - **The errno numbers are the kit's**, which are musl's, where this port
   carried Apple's. They never leave the library — citrus's whole error protocol
@@ -165,7 +165,7 @@ becomes a command.
 | | |
 | --- | --- |
 | `iconv.cpp` | upstream `iconv/iconv.c`, the command |
-| `braam.h`, `braam.cpp` | what the port kit has not got: the wide half, the locale stubs, and `iconv_error` |
+| `braam.h`, `braam.cpp` | the whole porting layer, force-included ahead of every source: the BSD spellings and integer names, `sys/queue.h` vendored, the wide half, the locale stubs, and `iconv_error` |
 | `citrus_module.cpp` | the static module table, replacing `citrus_module.c` |
 | `citrus_mmap.cpp` | whole-file reads and the index cache, replacing `citrus_mmap.c` |
 | `citrus_paths.cpp` | where `/share/i18n` is |
@@ -179,7 +179,6 @@ becomes a command.
 | `citrus_memstream.cpp`, `citrus_prop.cpp`, `citrus_hash.cpp`, `citrus_bcs*.cpp` | upstream, unchanged but for casts |
 | `citrus_none.cpp` | upstream, the built-in `NONE` encoding |
 | `modules/` | upstream `libiconv_modules/`: 2 drivers, 17 encodings, 5 mappers |
-| `bsd/` | the headers citrus's `#include`s name that the port kit does not answer: `sys/queue.h` vendored, the BSD spellings, the locale stubs. Named `bsd/` rather than `include/` because it is no longer a C library, and because a directory of that name beside a `PORT` target is a silent race |
 | `data/` | upstream's `.src` sources, 512 files |
 | `mkcsmapper.py`, `mkesdb.py`, `mkdb.py`, `citrusdb.py`, `mki18n.py` | the table compilers |
 | `verify.py` | byte-identity against upstream's prebuilt tree |

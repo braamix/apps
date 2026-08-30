@@ -29,14 +29,6 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-#ifdef _CITRUS_APPLE
-#include <sys/param.h> /* powerof2 */
-#endif
-#include <sys/types.h>
-#include <sys/queue.h>
-
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
@@ -55,10 +47,6 @@
 #include "citrus_module.h"
 #include "citrus_hash.h"
 #include "citrus_mapper.h"
-
-#if defined(_CITRUS_APPLE)
-#include <TargetConditionals.h>
-#endif
 
 #define _CITRUS_MAPPER_DIR "mapper.dir"
 

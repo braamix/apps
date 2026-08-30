@@ -29,10 +29,6 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-#include <sys/queue.h>
-
-#include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>

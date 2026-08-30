@@ -29,9 +29,6 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-
-#include <assert.h>
 #include <stdlib.h>
 
 #include "citrus_namespace.h"

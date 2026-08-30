@@ -34,7 +34,6 @@
 #define _CITRUS_STDENC_H_
 
 #ifdef _CITRUS_APPLE
-#include <sys/param.h> /* MAX */
 #include <errno.h>
 #endif
 

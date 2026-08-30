@@ -25,17 +25,12 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-#include <sys/types.h>
-
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 
 #ifdef _CITRUS_APPLE
 #define _ENCODING_HAVE_MBTOCSN 1
@@ -58,7 +53,6 @@
        Includes Unicode 3.2 decomposition code derived from Core Foundation
 */
 
-#include <libkern/OSByteOrder.h>
 #include <errno.h>
 
 #define UTF_REVERSE_ENDIAN 0x01 /* reverse UCS-2 byte order */

@@ -33,8 +33,6 @@
 #define _CITRUS_UTF1632_H_
 
 #ifdef _CITRUS_APPLE
-#include <sys/cdefs.h>
-#include <sys/queue.h>
 
 #include <string.h> /* memcpy */
 

@@ -29,13 +29,6 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-#ifdef _CITRUS_APPLE
-#include <sys/param.h>
-#endif
-#include <sys/queue.h>
-
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>

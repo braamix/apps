@@ -33,7 +33,6 @@
 #ifndef _CITRUS_REGION_H_
 #define _CITRUS_REGION_H_
 
-#include <sys/types.h>
 #ifdef _CITRUS_APPLE
 #include <string.h>
 #endif

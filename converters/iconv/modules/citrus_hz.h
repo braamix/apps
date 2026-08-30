@@ -33,8 +33,6 @@
 #define _CITRUS_HZ_H_
 
 #ifdef _CITRUS_APPLE
-#include <sys/cdefs.h>
-#include <sys/queue.h>
 
 #include <string.h> /* memcpy */
 

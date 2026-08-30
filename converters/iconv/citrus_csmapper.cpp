@@ -29,17 +29,12 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
 #ifndef _CITRUS_APPLE
 #include <sys/endian.h>
 #endif
-#include <sys/types.h>
-#include <sys/queue.h>
 
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
-#include <paths.h>
 #ifdef _CITRUS_APPLE
 #include <stdbool.h>
 #endif
@@ -64,8 +59,6 @@
 #include "citrus_lookup.h"
 
 #ifdef _CITRUS_APPLE
-
-#include <libkern/OSByteOrder.h>
 
 #define htobe16(x) OSSwapHostToBigInt16(x)
 #define htole16(x) OSSwapHostToLittleInt16(x)

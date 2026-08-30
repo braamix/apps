@@ -38,7 +38,6 @@
 #include <stdbool.h>
 
 #ifdef _CITRUS_APPLE
-#include <sys/queue.h>
 #include "citrus_module.h"
 #endif
 

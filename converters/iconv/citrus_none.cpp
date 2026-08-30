@@ -30,17 +30,12 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/cdefs.h>
-#include <sys/types.h>
-
-#include <assert.h>
 #include <errno.h>
 #include <iconv.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wchar.h>
 
 #include "citrus_namespace.h"
 #include "citrus_types.h"

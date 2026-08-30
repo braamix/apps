@@ -15,8 +15,6 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/cdefs.h>
-#include <sys/types.h>
 
 #include "citrus_namespace.h"
 

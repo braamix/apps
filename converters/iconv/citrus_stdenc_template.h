@@ -30,9 +30,7 @@
  */
 
 #ifdef _CITRUS_APPLE
-#include <sys/param.h>
 
-#include <assert.h>
 #endif
 #include <iconv.h>
 

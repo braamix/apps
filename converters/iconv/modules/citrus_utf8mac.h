@@ -28,9 +28,6 @@
 #ifndef _CITRUS_UTF8MAC_H_
 #define _CITRUS_UTF8MAC_H_
 
-#include <sys/cdefs.h>
-#include <sys/queue.h>
-
 #include "citrus_namespace.h"
 #include "citrus_types.h"
 #include "citrus_module.h"

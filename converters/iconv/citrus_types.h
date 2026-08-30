@@ -29,8 +29,6 @@
  * SUCH DAMAGE.
  */
 
-#include <sys/types.h>
-
 #ifdef _CITRUS_APPLE
 #include <stdbool.h>
 #endif

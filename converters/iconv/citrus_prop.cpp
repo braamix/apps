@@ -30,9 +30,6 @@
  *
  */
 
-#include <sys/cdefs.h>
-
-#include <assert.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdbool.h>

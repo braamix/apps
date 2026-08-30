@@ -32,7 +32,6 @@
 
 #ifdef _CITRUS_APPLE
 /* Satisfy InstallAPI requirements */
-#include <sys/types.h>
 #include "iconv.h"
 #endif
 
