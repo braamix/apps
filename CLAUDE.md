@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Seven programs are ported so far**:
+**Eight programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -37,8 +37,10 @@ which nearly every command calls, and the commands are reached through two
 function-pointer tables — so changing `fn_t` converted 244 of 377 functions
 at once. It is also where the tree learned that **a `co_await` is a call and
 not a tail call**, so a loop that awaits without ever suspending grows the
-native stack until the process traps; see its README. The
-rest of the tree is category directories, a few
+native stack until the process traps; see its README; and
+[editors/le](editors/le/), LE 1.16.8, the block editor — the largest surface of
+all of them, since it brings its own curses, its own regex and its own wide
+half. The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
 [emulators/simbesm](emulators/simbesm/TODO.md),
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).
@@ -49,8 +51,8 @@ is a stated intention, not work in progress.
 
 A port is a rewrite, and it keeps upstream's identifiers, structure and output
 text: the value of porting a historic program is that it is still the same
-program. Replace what touches the C library or the OS, and leave the rest —
-including the comments — alone. Say in the program's `README.md` what had to
+program. Replace what touches the OS, take the C library from the port kit, and
+leave the rest — including the comments — alone. Say in the program's `README.md` what had to
 change and why.
 
 ## Related trees
@@ -97,7 +99,7 @@ project(<name> LANGUAGES CXX)
 if(NOT TARGET braam::proc)
     find_package(braam REQUIRED)
 endif()
-braam_add_program(NAME <name> SOURCES <name>.cpp)   # optional LIBS <...>
+braam_add_program(NAME <name> SOURCES <name>.cpp)   # optional LIBS <...>, PORT
 ```
 
 The default build type is `MinSizeRel` (`-Os`), which the toolchain file sets.
@@ -119,12 +121,43 @@ links `braam::proc` and `braam::flags`, links `--import-memory`, and runs
 
 ## The program shape
 
-A port is a **rewrite, not a recompile.** There is no libc: no `malloc`, no
-`printf`, no `errno`, no `<cstring>`, no exceptions and no RTTI. `-nostdlib
--nostdinc++` is not negotiable. The whole standard library is
+A port is a **rewrite, not a recompile.** There are no exceptions and no RTTI,
+and `-nostdlib -nostdinc++` is not negotiable. The whole C++ standard library is
 `include/braam/kernel/` — `str.h`, `string.h`, `vec.h`, `span.h`, `result.h`,
 `fmt.h`, `text.h`, `path.h`. Expect to keep upstream's algorithm and structure
-and to replace every line that touches the C library or the OS.
+and to replace every line that touches the OS.
+
+**A ported program may ask for a C library; nothing else here has one.**
+`braam_add_program(... PORT)` links `braam::compat`, the port kit
+(`../braam-core/doc/Compat.md`), puts `<string.h>` and the rest on **that
+target's** include path and no other's, and applies `-fno-builtin` once — in
+place of the per-name lists five packages used to carry. Without `PORT`,
+`#include <string.h>` is still "file not found", and that is the guard.
+
+Three groups, and the difference decides how much of a port changes:
+
+- **Group A is drop-in**: `mem*`, `str*`, `ctype`, `malloc`/`calloc`/`realloc`/
+  `free`, the `strtol` family, `qsort`/`mergesort`/`bsearch`, `snprintf` and
+  friends, `errno`, `strerror`, `getenv`. Exact C signatures.
+- **Group B blocks, so it does not exist as C.** Streams, descriptors and
+  directories: a C signature cannot block here. `<stdio.h>` declares `fopen`,
+  `fgetc` and the rest `unavailable` so one build names every call site, but
+  the `b_*` replacements are **not in this SDK** — every port keeps the stream
+  layer it wrote (`zip`'s `zfopen`, `le`'s `lefile.cpp`, `uemacs`'s
+  `fileio.cpp`).
+- **Group C is absent**: `setjmp`/`longjmp`, `fork`, `setenv`, `dlopen`, `mmap`,
+  signal handlers, `<time.h>`. Also not yet in the kit: `wchar`/`wctype`,
+  `fnmatch`, `sscanf`, `strtod`.
+
+Watch for: `qsort` is heapsort and **not stable** — `mergesort` is the stable
+one, and `zip` uses it at two sites; `strerror` returns `"ENOENT"`, not prose;
+`PATH_MAX` is 512, which `iconv` overrides back to 256 because its paths live
+in coroutine frames; and a port that spells a global `errno` while storing an
+`Error` in it must rename it, as `vi` (`ex_errno`) and `le` (`le_errno`) did,
+or the kit's `strtol` will write `ERANGE` into it.
+
+`benchmarks/dhrystone` **never** links the kit: its `strcpy` and `strcmp` are
+what it measures.
 
 ```cpp
 #include "proc/io.h"
@@ -218,12 +251,14 @@ Rules that are a compile error, link error or trap rather than a warning:
   here, so the `l`-suffixed half of `<math.h>` does not exist. Ordinary
   `float`/`double` arithmetic and `sqrt` are native and fine, and everything
   else C99 declares is `braam::math` (below).
-- A libc routine a port supplies for itself must be **`extern "C"`**. The
-  compiler emits calls of its own — `strlen` behind `Str`'s `const char *`
-  constructor, for one — and they name the C symbol, which a C++-mangled
-  definition does not satisfy. Add `-fno-builtin-<name>` for each so clang
-  neither folds a call into inline code nor turns the implementation into a
-  call to itself.
+- A libc routine a port still supplies for itself — one the kit has not got —
+  must be **`extern "C"`**. The compiler emits calls of its own and they name
+  the C symbol, which a C++-mangled definition does not satisfy. `PORT` carries
+  `-fno-builtin` for the whole target, so clang neither folds a call into
+  inline code nor turns the implementation into a call to itself. **Never
+  define a name the kit already defines**: an archive member is pulled only
+  when something needs it, so a duplicate links today and breaks the day an
+  unrelated call reaches the member that also defines it.
 - A coroutine must not contain a hot loop by accident: inlining an ordinary
   function into one moves its locals into the heap-allocated frame. Mark the
   callee `__attribute__((noinline))` where that matters.

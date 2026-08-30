@@ -9,6 +9,7 @@ that runs in a browser tab.
 | --- | --- |
 | [archivers/zip](archivers/zip/) | Info-ZIP zip 3.0, and zipnote, zipsplit and zipcloak with it |
 | [converters/iconv](converters/iconv/) | Citrus iconv, and the two hundred character sets it converts between |
+| [editors/le](editors/le/) | LE 1.16.8, the block editor, with its own curses |
 | [editors/uemacs](editors/uemacs/) | uEmacs/PK 4.0.15, MicroEMACS as Linus Torvalds keeps it |
 | [editors/vi](editors/vi/) | UCB vi 3.6, and ex under it — the editor Bill Joy wrote |
 | [benchmarks/dhrystone](benchmarks/dhrystone/) | Dhrystone 2.1, the 1984 integer benchmark |
@@ -67,10 +68,16 @@ each Braam release: a binary carries the process ABI it was built for, and the
 kernel refuses one built for another. `make SDK=<prefix>` builds against an SDK
 already unpacked somewhere and skips the download.
 
-A program is freestanding C++20 compiled to wasm32. There is no libc, so a port
-is a rewrite rather than a recompile — and one that keeps the original's
-structure, names and output, replacing only what reached the C library or the
-OS.
+A program is freestanding C++20 compiled to wasm32, and a port is a rewrite
+rather than a recompile — one that keeps the original's structure, names and
+output, replacing only what reached the OS.
+
+The C library a port calls is the SDK's opt-in **port kit**, asked for with
+`PORT` on `braam_add_program`: `mem*`, `str*`, `ctype`, the allocator, `strtol`,
+`snprintf`, `qsort` and `getenv`, with exact C signatures. Nothing that blocks
+is in it — a C signature cannot block here — so each port still writes its own
+streams. `benchmarks/dhrystone` does not link it at all, because `strcpy` and
+`strcmp` are what it measures.
 
 ## Documents
 

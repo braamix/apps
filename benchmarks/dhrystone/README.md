@@ -115,6 +115,14 @@ Three consequences worth knowing:
 `Str_30` values are printed through `strlen`, which is in `dhry_lib.cpp` for
 the same reason it has to exist at all — it is not part of the benchmark.
 
+**This is the one port that must never link `braam::compat`.** Every other
+program here asks for the port kit with `PORT` on `braam_add_program` and
+deletes its hand-written C library; doing that to dhrystone would shadow
+`strcpy` and `strcmp` with the kit's, and those two *are* the measurement. The
+port kit's own documentation says so — `doc/Compat.md`, "Never link it" — and
+this paragraph is here because the change looks like an obvious tidy-up and is
+not.
+
 ## Running it
 
 ```

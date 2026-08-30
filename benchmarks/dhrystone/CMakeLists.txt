@@ -16,6 +16,9 @@ braam_add_program(NAME dhrystone
 # -O3, as the original Makefile used: the toolchain defaults to MinSizeRel, and
 # a benchmark built for size reports a number about size.
 #
+# No PORT here, and there must never be one: the port kit would shadow strcpy
+# and strcmp, which are what this benchmark measures. See README.md.
+#
 # -fno-builtin-str*: the three routines are written out in dhry_lib.cpp, and
 # clang must neither fold a call to one into inline code — which is not what
 # the benchmark measured — nor turn any of the three implementations into a
