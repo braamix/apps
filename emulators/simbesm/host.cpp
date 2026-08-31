@@ -427,7 +427,7 @@ int main(void)
     r = machine_init();
     if (r != SCPE_OK)
         return machine_exit(r);
-    sink_puts(sim_con, "\nBESM-6 Simulator Demo\n");
+    sink_puts(sim_con, "\nBESM-6 Simulator v" SIMBESM_VERSION "\n");
 
     if (img_slurp("unix", &kernel) != 0) {
         sim_printf("Cannot open 'unix'\n");

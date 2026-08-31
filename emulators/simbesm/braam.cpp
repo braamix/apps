@@ -609,7 +609,7 @@ Task<i32> proc_main(Args args)
         co_await con_drain();
         co_return machine_exit(r);
     }
-    sink_puts(sim_con, "\nBESM-6 Simulator Demo\n");
+    sink_puts(sim_con, "\nBESM-6 Simulator v" SIMBESM_VERSION "\n");
 
     Blob kernel = { reinterpret_cast<const unsigned char *>(kbytes.data()), kbytes.size(), 0 };
     r           = besm6_boot_unix(&kernel);

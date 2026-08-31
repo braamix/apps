@@ -26,6 +26,11 @@
 #define FALSE 0
 #endif
 
+/* The package's version, which the build defines.  See CMakeLists.txt. */
+#ifndef SIMBESM_VERSION
+#define SIMBESM_VERSION "unknown"
+#endif
+
 typedef int32_t int32;
 typedef uint8_t uint8;
 typedef uint32_t uint32;
