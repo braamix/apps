@@ -31,6 +31,7 @@
 #include "sim_defs.h" // simulator defns
 #include "scp.h"
 #include "debug.h"
+#include "machine.h"
 
 // Rename of global PC variable to avoid namespace conflicts on some platforms
 

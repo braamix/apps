@@ -127,11 +127,9 @@ t_stat drum_write(UNIT *u)
 
     ctlr    = (u == &drum_unit[1]);
     sysdata = ctlr ? &memory[020] : &memory[010];
-    if (fseek(u->fileref, ZONE_SIZE * drum_zone * 8, SEEK_SET) == 0) {
-        fwrite(sysdata, 8, 8, u->fileref);
-        fwrite(&memory[drum_memory], 8, 1024, u->fileref);
-    }
-    if (ferror(u->fileref))
+    img_write(u->image, ZONE_SIZE * drum_zone, sysdata, 8);
+    img_write(u->image, ZONE_SIZE * drum_zone + 8, &memory[drum_memory], 1024);
+    if (img_error(u->image))
         return SCPE_IOERR;
     return SCPE_OK;
 }
@@ -143,13 +141,9 @@ t_stat drum_write_sector(UNIT *u)
 
     ctlr    = (u == &drum_unit[1]);
     sysdata = ctlr ? &memory[020] : &memory[010];
-    if (fseek(u->fileref, (ZONE_SIZE * drum_zone + drum_sector * 2) * 8, SEEK_SET) == 0) {
-        fwrite(&sysdata[drum_sector * 2], 8, 2, u->fileref);
-        if (fseek(u->fileref, (ZONE_SIZE * drum_zone + 8 + drum_sector * 256) * 8, SEEK_SET) == 0) {
-            fwrite(&memory[drum_memory], 8, 256, u->fileref);
-        }
-    }
-    if (ferror(u->fileref))
+    img_write(u->image, ZONE_SIZE * drum_zone + drum_sector * 2, &sysdata[drum_sector * 2], 2);
+    img_write(u->image, ZONE_SIZE * drum_zone + 8 + drum_sector * 256, &memory[drum_memory], 256);
+    if (img_error(u->image))
         return SCPE_IOERR;
     return SCPE_OK;
 }
@@ -164,19 +158,18 @@ t_stat drum_read(UNIT *u)
 
     ctlr    = (u == &drum_unit[1]);
     sysdata = ctlr ? &memory[020] : &memory[010];
-    if (fseek(u->fileref, ZONE_SIZE * drum_zone * 8, SEEK_SET) != 0 ||
-        fread(sysdata, 8, 8, u->fileref) != 8) {
+    if (img_read(u->image, ZONE_SIZE * drum_zone, sysdata, 8) != 8) {
         /* Read from an unformatted drum */
         drum_fail |= 0100 >> ctlr;
         return SCPE_OK;
     }
     if (!(drum_op & DRUM_READ_SYSDATA) &&
-        fread(&memory[drum_memory], 8, 1024, u->fileref) != 1024) {
+        img_read(u->image, ZONE_SIZE * drum_zone + 8, &memory[drum_memory], 1024) != 1024) {
         /* Read from an unformatted drum */
         drum_fail |= 0100 >> ctlr;
         return SCPE_OK;
     }
-    if (ferror(u->fileref))
+    if (img_error(u->image))
         return SCPE_IOERR;
     return SCPE_OK;
 }
@@ -188,21 +181,21 @@ t_stat drum_read_sector(UNIT *u)
 
     ctlr    = (u == &drum_unit[1]);
     sysdata = ctlr ? &memory[020] : &memory[010];
-    if (fseek(u->fileref, (ZONE_SIZE * drum_zone + drum_sector * 2) * 8, SEEK_SET) != 0 ||
-        fread(&sysdata[drum_sector * 2], 8, 2, u->fileref) != 2) {
+    if (img_read(u->image, ZONE_SIZE * drum_zone + drum_sector * 2, &sysdata[drum_sector * 2], 2) !=
+        2) {
         /* Read from an unformatted drum */
         drum_fail |= 0100 >> ctlr;
         return SCPE_OK;
     }
     if (!(drum_op & DRUM_READ_SYSDATA)) {
-        if (fseek(u->fileref, (ZONE_SIZE * drum_zone + 8 + drum_sector * 256) * 8, SEEK_SET) != 0 ||
-            fread(&memory[drum_memory], 8, 256, u->fileref) != 256) {
+        if (img_read(u->image, ZONE_SIZE * drum_zone + 8 + drum_sector * 256, &memory[drum_memory],
+                     256) != 256) {
             /* Read from an unformatted drum */
             drum_fail |= 0100 >> ctlr;
             return SCPE_OK;
         }
     }
-    if (ferror(u->fileref))
+    if (img_error(u->image))
         return SCPE_IOERR;
     return SCPE_OK;
 }
@@ -253,7 +246,7 @@ t_stat drum(int ctlr, uint32 cmd)
                 clear_memory(&memory[drum_memory], 256);
         }
     }
-    if (!u->fileref) {
+    if (!u->image) {
         /* Device not attached. */
         drum_fail |= 0100 >> ctlr;
         return SCPE_OK;
@@ -263,11 +256,9 @@ t_stat drum(int ctlr, uint32 cmd)
         /* Not implemented. */
         return SCPE_NOFNC;
     }
+    t_stat (*serve)(UNIT *u);
     if (drum_op & DRUM_READ) {
-        if (drum_op & DRUM_PAGE_MODE)
-            CPU_TRY(drum_read(u));
-        else
-            CPU_TRY(drum_read_sector(u));
+        serve = (drum_op & DRUM_PAGE_MODE) ? drum_read : drum_read_sector;
     } else {
         if (drum_op & DRUM_PARITY_FLAG) {
             besm6_log("### drum write with bad parity not implemented");
@@ -277,10 +268,7 @@ t_stat drum(int ctlr, uint32 cmd)
             /* Read only. */
             return SCPE_RO;
         }
-        if (drum_op & DRUM_PAGE_MODE)
-            CPU_TRY(drum_write(u));
-        else
-            CPU_TRY(drum_write_sector(u));
+        serve = (drum_op & DRUM_PAGE_MODE) ? drum_write : drum_write_sector;
     }
 
     /* Clear the main interrupt register. */
@@ -289,11 +277,11 @@ t_stat drum(int ctlr, uint32 cmd)
     else
         GRP &= ~GRP_DRUM2_FREE;
 
-    /* Wait for an event from the device.
-     * Per the figures in G. L. Mazny's book,
-     * allow 20 ms for the transfer, or 200 thousand ticks. */
-    /*sim_activate (u, 20*MSEC);*/
-    sim_activate(u, 20 * USEC); /* sped up for debugging */
+    /* The driver performs the transfer and then waits for an event from the
+     * device.  Per the figures in G. L. Mazny's book, 20 ms for the transfer,
+     * or 200 thousand ticks. */
+    /*io_post(u, serve, 20*MSEC);*/
+    io_post(u, serve, 20 * USEC); /* sped up for debugging */
     return SCPE_OK;
 }
 

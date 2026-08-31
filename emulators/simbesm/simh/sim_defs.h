@@ -39,6 +39,9 @@ typedef unsigned long long t_uint64;
 /* The BESM-6 48-bit word requires a 64-bit t_value; there is no 32-bit build. */
 typedef t_uint64 t_value; /* value */
 
+/* Named after the types above, so it comes after them. */
+#include "image.h"
+
 /* System independent definitions */
 
 #if !defined(PATH_MAX) /* usually in limits */
@@ -136,7 +139,7 @@ struct UNIT {
     UNIT *next;                 /* next active */
     t_stat (*action)(UNIT *up); /* action routine */
     char *filename;             /* open file name */
-    FILE *fileref;              /* file reference */
+    Image *image;               /* the attached disk or drum image */
     int32 time;                 /* time out */
     uint32 flags;               /* flags */
     t_bool is_timer_unit;       /* registered as the calibrated timer */

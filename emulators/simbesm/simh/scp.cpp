@@ -143,6 +143,11 @@ static t_stat reset_all(void)
 
 t_stat attach_unit(UNIT *uptr, const char *cptr)
 {
+    int create    = (sim_switches & SWMASK('N')) != 0;
+    int must_have = (sim_switches & SWMASK('E')) != 0;
+    int how       = IMG_OPENED;
+    int why       = SCPE_OK;
+
     if (!(uptr->flags & UNIT_ATTABLE)) /* not attachable? */
         return SCPE_NOATT;
     if (find_dev_from_unit(uptr) == NULL)
@@ -151,42 +156,25 @@ t_stat attach_unit(UNIT *uptr, const char *cptr)
     if (uptr->filename == NULL)
         return SCPE_MEM;
     strlcpy(uptr->filename, cptr, CBUFSIZE); /* save name */
-    if (sim_switches & SWMASK('N')) {        /* new file only? */
-        uptr->fileref = fopen(cptr, "wb+");  /* open new file */
-        if (uptr->fileref == NULL)           /* open fail? */
-            return sim_messagef(attach_err(uptr, SCPE_OPENERR),
-                                "%s: Can't open '%s': %s\n", /* yes, error */
-                                sim_uname(uptr), cptr, strerror(errno));
-        sim_messagef(SCPE_OK, "%s: creating new file: %s\n", sim_uname(uptr), cptr);
-    } else {                                                                 /* normal */
-        uptr->fileref = fopen(cptr, "rb+");                                  /* open r/w */
-        if (uptr->fileref == NULL) {                                         /* open fail? */
-            if ((errno == EROFS) || (errno == EACCES) || (errno == EPERM)) { /* read only? */
-                if ((uptr->flags & UNIT_ROABLE) == 0)                        /* allowed? */
-                    return sim_messagef(attach_err(uptr, SCPE_NORO),
-                                        "%s: Read Only operation not allowed\n", /* no, error */
-                                        sim_uname(uptr));
-                uptr->fileref = fopen(cptr, "rb"); /* open rd only */
-                if (uptr->fileref == NULL)         /* open fail? */
-                    return sim_messagef(attach_err(uptr, SCPE_OPENERR),
-                                        "%s: Can't open '%s': %s\n", /* yes, error */
-                                        sim_uname(uptr), cptr, strerror(errno));
-                uptr->flags = uptr->flags | UNIT_RO; /* set rd only */
-                sim_messagef(SCPE_OK, "%s: unit is read only\n", sim_uname(uptr));
-            } else {                            /* doesn't exist */
-                if (sim_switches & SWMASK('E')) /* must exist? */
-                    return sim_messagef(attach_err(uptr, SCPE_OPENERR),
-                                        "%s: Can't open '%s': %s\n", /* yes, error */
-                                        sim_uname(uptr), cptr, strerror(errno));
-                uptr->fileref = fopen(cptr, "wb+"); /* open new file */
-                if (uptr->fileref == NULL)          /* open fail? */
-                    return sim_messagef(attach_err(uptr, SCPE_OPENERR),
-                                        "%s: Can't open '%s': %s\n", /* yes, error */
-                                        sim_uname(uptr), cptr, strerror(errno));
-                sim_messagef(SCPE_OK, "%s: creating new file\n", sim_uname(uptr));
-            }
-        } /* end if null */
-    } /* end else */
+
+    uptr->image = img_open(cptr, create, must_have, (uptr->flags & UNIT_ROABLE) != 0, &how, &why);
+    if (uptr->image == NULL) {
+        if (why == SCPE_NORO)
+            return sim_messagef(attach_err(uptr, why), "%s: Read Only operation not allowed\n",
+                                sim_uname(uptr));
+        return sim_messagef(attach_err(uptr, why), "%s: Can't open '%s': %s\n", sim_uname(uptr),
+                            cptr, strerror(errno));
+    }
+    if (how == IMG_RDONLY) {
+        uptr->flags |= UNIT_RO;
+        sim_messagef(SCPE_OK, "%s: unit is read only\n", sim_uname(uptr));
+    } else if (how == IMG_CREATED) {
+        if (create)
+            sim_messagef(SCPE_OK, "%s: creating new file: %s\n", sim_uname(uptr), cptr);
+        else
+            sim_messagef(SCPE_OK, "%s: creating new file\n", sim_uname(uptr));
+    }
+
     uptr->flags = uptr->flags | UNIT_ATT;
     return SCPE_OK;
 }
@@ -234,12 +222,11 @@ t_stat detach_unit(UNIT *uptr)
     uptr->flags = uptr->flags & ~(UNIT_ATT | ((uptr->flags & UNIT_ROABLE) ? UNIT_RO : 0));
     free(uptr->filename);
     uptr->filename = NULL;
-    if (uptr->fileref) { /* Only close open file */
-        if (fclose(uptr->fileref) == EOF) {
-            uptr->fileref = NULL;
+    if (uptr->image) { /* Only close an open image */
+        int bad     = img_close(uptr->image);
+        uptr->image = NULL;
+        if (bad)
             return SCPE_IOERR;
-        }
-        uptr->fileref = NULL;
     }
     return SCPE_OK;
 }
@@ -647,11 +634,13 @@ void _sim_scp_abort(const char *msg, const char *file, int linenum)
     UNIT *uptr;
 
     sim_printf("%s - aborting from %s:%d\n", msg, file, linenum);
-    for (i = 0; (dptr = sim_devices[i]) != NULL; i++) { /* flush attached files */
+    for (i = 0; (dptr = sim_devices[i]) != NULL; i++) { /* flush attached images */
         for (j = 0; j < dptr->numunits; j++) {
             uptr = dptr->units + j;
-            if ((uptr->flags & UNIT_ATT) && uptr->fileref && !(uptr->flags & UNIT_RO))
-                fflush(uptr->fileref);
+            if ((uptr->flags & UNIT_ATT) && uptr->image && !(uptr->flags & UNIT_RO)) {
+                img_close(uptr->image);
+                uptr->image = NULL;
+            }
         }
     }
     sim_debug_close();

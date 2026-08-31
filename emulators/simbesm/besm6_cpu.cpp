@@ -1656,6 +1656,17 @@ t_stat sim_instr(void)
             op_int_2();
         }
         r = cpu_one_inst(); /* one instr */
+        if (io_request.unit) {
+            /* The instruction asked for a disk or drum transfer.  It happens
+             * here rather than inside the instruction: on Braam it is a
+             * co_await, and this loop must not contain one (machine.h).  It
+             * happens even when the instruction went on to trap, and its own
+             * failure wins -- upstream raised an I/O error from inside the
+             * transfer, before anything later in the instruction ran. */
+            t_stat io = io_service();
+            if (io != SCPE_OK)
+                r = io;
+        }
         if (r) {
             /* The instruction trapped.  Either it becomes a guest interrupt
              * and the loop goes on, or the machine stops. */

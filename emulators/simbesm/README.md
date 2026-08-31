@@ -167,7 +167,14 @@ a new image, `-e` requires an existing one. Set it before the call and clear it
 after — `disk_attach()` ORs in `-e` itself.
 
 Disks and drums share a geometry: *zones* of `8 + 1024` words (8 service words,
-then 1 Kword of data), each word an 8-byte little-endian record.
+then 1 Kword of data), each word an 8-byte little-endian record. An image is
+reached through [image.h](image.h) — four calls over a file of words — and a
+transfer is **deferred**: the `увв` instruction posts a request and returns, and
+the driver performs it between two instructions and then arms the completion
+interrupt. Upstream did the host `fread()` inside the instruction and deferred
+only the interrupt; on Braam that read is a `co_await` and the instruction loop
+must not contain one. No instruction runs in between, so nothing the guest can
+observe moved — the packs a boot writes are byte-for-byte what they were.
 
 **Magnetic disks `MD0`…`MD7`** — eight controllers of 8 units, `md_unit[0..63]`.
 
