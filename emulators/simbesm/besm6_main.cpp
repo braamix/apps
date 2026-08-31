@@ -34,9 +34,9 @@
  * reads the flags `set ttyNN raw8' sets.  See unix.ini for why each step is
  * needed.  Run from the directory holding the images.
  */
-t_stat besm6_boot_unix(Blob *kernel)
+status_t besm6_boot_unix(Blob *kernel)
 {
-    t_stat r;
+    status_t r;
 
     /* set cpu latin */
     besm6_latin = 1;

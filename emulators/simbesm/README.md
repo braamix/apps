@@ -79,7 +79,7 @@ stop — and says which. Three consequences:
 - **Traps return a stop code.** There is no `setjmp` on wasm32, and upstream's
   43 `longjmp`s to `cpu_halt` came from arbitrary depth — an operand protection
   fault out of `mmu_load()`, an overflow out of `besm6_add()`. Every routine
-  that can raise one returns `t_stat` and every caller checks (`CPU_TRY`);
+  that can raise one returns `status_t` and every caller checks (`CPU_TRY`);
   `cpu_trap()` is what the landing pad became.
 
 Also gone: the telnet transport, the in-band `sim>` interpreter, the SCP command

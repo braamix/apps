@@ -80,15 +80,15 @@ typedef struct {
     int memory;       /* first memory address */
     int format;       /* the formatting flag */
     int status;       /* the status register */
-    t_value mask_grp; /* the ГРП ready mask */
+    value_t mask_grp; /* the ГРП ready mask */
     int mask_fail;    /* the transfer error mask */
-    t_value *sysdata; /* the system data buffer */
+    value_t *sysdata; /* the system data buffer */
 } KMD;
 
 static KMD controller[2]; /* the two КМД cabinets */
 int disk_fail;            /* per-channel error mask */
 
-t_stat disk_event(UNIT *u);
+status_t disk_event(UNIT *u);
 
 /*
  * DISK data structures
@@ -169,9 +169,9 @@ UNIT md_unit[64] = {
 #define DISK_TYPE_29M   (1 << UNIT_V_UF)
 #define IS_29MB(u)      (((u)->flags & DISK_TYPE_MASK) == DISK_TYPE_29M)
 
-t_stat disk_reset(DEVICE *dptr);
-t_stat disk_attach(UNIT *uptr, const char *cptr);
-t_stat disk_detach(UNIT *uptr);
+status_t disk_reset(DEVICE *dptr);
+status_t disk_attach(UNIT *uptr, const char *cptr);
+status_t disk_detach(UNIT *uptr);
 
 #define DEB_OPS 000001
 #define DEB_RRD 000002
@@ -233,7 +233,7 @@ static KMD *unit_to_ctlr(UNIT *u)
 /*
  * Reset routine
  */
-t_stat disk_reset(DEVICE *dptr)
+status_t disk_reset(DEVICE *dptr)
 {
     int i;
     int ctlr       = (dptr - md_dev) / 4;
@@ -250,16 +250,16 @@ t_stat disk_reset(DEVICE *dptr)
     return SCPE_OK;
 }
 
-t_stat disk_attach(UNIT *u, const char *cptr)
+status_t disk_attach(UNIT *u, const char *cptr)
 {
-    t_stat s;
-    int32 saved_switches = sim_switches;
+    status_t s;
+    int32_t saved_switches = sim_switches;
     sim_switches |= SWMASK('E');
 
     while (1) {
         s = attach_unit(u, cptr);
         if ((s == SCPE_OK) && (sim_switches & SWMASK('N'))) {
-            t_value control[4]; /* block (zone) number, key, userid, checksum */
+            value_t control[4]; /* block (zone) number, key, userid, checksum */
             int diskno, blkno, word;
             char *filenamepart = NULL;
             const char *pos;
@@ -304,10 +304,10 @@ t_stat disk_attach(UNIT *u, const char *cptr)
 
             /* Unlike the O/S routine, does not format the (useless) reserve tracks */
             for (blkno = 0; blkno < (IS_29MB(u) ? 4000 : 1000); ++blkno) {
-                uint32 val = IS_29MB(u) ? blkno : 2 * blkno;
-                control[0] = SET_PARITY((t_value)val << 36, PARITY_NUMBER);
+                uint32_t val = IS_29MB(u) ? blkno : 2 * blkno;
+                control[0]   = SET_PARITY((value_t)val << 36, PARITY_NUMBER);
                 img_append(u->image, control, 4);
-                control[0] = SET_PARITY((t_value)(val + 1) << 36, PARITY_NUMBER);
+                control[0] = SET_PARITY((value_t)(val + 1) << 36, PARITY_NUMBER);
                 img_append(u->image, control, 4);
                 for (word = 0; word < 02000; ++word) {
                     img_append(u->image, control + 2, 1);
@@ -321,16 +321,16 @@ t_stat disk_attach(UNIT *u, const char *cptr)
     return SCPE_OK;
 }
 
-t_stat disk_detach(UNIT *u)
+status_t disk_detach(UNIT *u)
 {
     /* TODO: clear the channel's ГРП ready bit when the last disk is detached. */
     return detach_unit(u);
 }
 
-t_value spread(t_value val)
+value_t spread(value_t val)
 {
     int i, j;
-    t_value res = 0;
+    value_t res = 0;
 
     for (i = 0; i < 5; i++)
         for (j = 0; j < 9; j++)
@@ -342,10 +342,10 @@ t_value spread(t_value val)
 /*
  * Debug dump of a transferred data array.
  */
-static void log_data(t_value *data, int nwords)
+static void log_data(value_t *data, int nwords)
 {
     int i;
-    t_value val;
+    value_t val;
 
     if (!sim_deb)
         return;
@@ -404,8 +404,8 @@ void disk_write_track(UNIT *u)
 void disk_format(UNIT *u)
 {
     KMD *c = unit_to_ctlr(u);
-    t_value fmtbuf[5];
-    t_value *ptr;
+    value_t fmtbuf[5];
+    value_t *ptr;
     int i;
     /* In effect the emulator has nothing to do. */
     if (!(u->dptr->dctrl & DEB_DAT))
@@ -435,7 +435,7 @@ void disk_format(UNIT *u)
                         (int)(fmtbuf[0] >> 8 & BITS(30)), (int)(fmtbuf[2] >> 14 & BITS(30)));
         else
             besm6_debug("::: disk %02o format half-zone %04o.%d mem %05o skip %02o hdr %010o %010o",
-                        c->dev, c->zone, c->track, c->memory, (uint32)(ptr - memory - c->memory),
+                        c->dev, c->zone, c->track, c->memory, (uint32_t)(ptr - memory - c->memory),
                         (int)(fmtbuf[0] >> 8 & BITS(30)), (int)(fmtbuf[2] >> 14 & BITS(30)));
     }
 }
@@ -455,10 +455,10 @@ void disk_read(UNIT *u)
         io_run(ZONE_SIZE * c->zone + 8, &memory[c->memory], 1024);
 }
 
-t_value collect(t_value val)
+value_t collect(value_t val)
 {
     int i, j;
-    t_value res = 0;
+    value_t res = 0;
 
     for (i = 0; i < 5; i++)
         for (j = 0; j < 9; j++)
@@ -486,7 +486,7 @@ void disk_read_track(UNIT *u)
 void disk_read_header(UNIT *u)
 {
     KMD *c           = unit_to_ctlr(u);
-    t_value *sysdata = IS_29MB(u) ? c->sysdata : c->sysdata + 4 * c->track;
+    value_t *sysdata = IS_29MB(u) ? c->sysdata : c->sysdata + 4 * c->track;
     int iaksa, i, cyl, head;
     int reserve_start = IS_29MB(u) ? 07640 : 01750;
 
@@ -512,9 +512,9 @@ void disk_read_header(UNIT *u)
     iaksa |= BITS(12) & ~sum_with_right_carry(iaksa >> 12, iaksa >> 24);
 
     /* An address marker, 42 zeros, an address marker, many ones. */
-    sysdata[0] = 07404000000000000LL | (t_value)iaksa << 8;
+    sysdata[0] = 07404000000000000LL | (value_t)iaksa << 8;
     sysdata[1] = 03740LL;
-    sysdata[2] = 00400000000037777LL | (t_value)iaksa << 14;
+    sysdata[2] = 00400000000037777LL | (value_t)iaksa << 14;
     sysdata[3] = BITS48;
 
     if (IS_29MB(u)) {
@@ -533,10 +533,10 @@ void disk_read_header(UNIT *u)
  * Set the memory address and the array length for a later disk access.
  * The unit and track numbers arrive later, with instruction 033 0023(0024).
  */
-void disk_io(int ctlr, uint32 cmd)
+void disk_io(int ctlr, uint32_t cmd)
 {
-    KMD *c     = &controller[ctlr];
-    uint32 rem = cmd & ~(DISK_PAGE_MODE | DISK_PAGE | DISK_BLOCK | DISK_READ | DISK_READ_SYSDATA);
+    KMD *c       = &controller[ctlr];
+    uint32_t rem = cmd & ~(DISK_PAGE_MODE | DISK_PAGE | DISK_BLOCK | DISK_READ | DISK_READ_SYSDATA);
     if (rem && md_dev[ctlr * 4].dctrl & DEB_RWR) {
         besm6_debug("::: disk ctlr %c: unknown bits in IO request %08o", ctlr + '3', rem);
     }
@@ -567,7 +567,7 @@ int has_debug(int ctlr)
 /*
  * Disk control: instruction 00 033 0023(0024).
  */
-t_stat disk_ctl(int ctlr, uint32 cmd)
+status_t disk_ctl(int ctlr, uint32_t cmd)
 {
     KMD *c  = &controller[ctlr];
     UNIT *u = c->dev < 0 ? &md_unit[0] : &md_unit[c->dev];
@@ -823,7 +823,7 @@ int disk_state(int ctlr)
  * Event: a disk transfer has finished.
  * Set the interrupt flag.
  */
-t_stat disk_event(UNIT *u)
+status_t disk_event(UNIT *u)
 {
     KMD *c = unit_to_ctlr(u);
 

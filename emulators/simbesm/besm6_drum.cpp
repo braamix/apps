@@ -55,7 +55,7 @@ int drum_memory; /* first memory address */
 int drum_nwords; /* number of words transferred */
 int drum_fail;   /* per-channel error mask */
 
-t_stat drum_event(UNIT *u);
+status_t drum_event(UNIT *u);
 
 /*
  * DRUM data structures
@@ -69,9 +69,9 @@ UNIT drum_unit[] = {
     { .action = drum_event, .flags = UNIT_ATTABLE | UNIT_ROABLE },
 };
 
-t_stat drum_reset(DEVICE *dptr);
-t_stat drum_attach(UNIT *uptr, const char *cptr);
-t_stat drum_detach(UNIT *uptr);
+status_t drum_reset(DEVICE *dptr);
+status_t drum_attach(UNIT *uptr, const char *cptr);
+status_t drum_detach(UNIT *uptr);
 
 DEVICE drum_dev = { .name     = "DRUM",
                     .units    = drum_unit,
@@ -82,7 +82,7 @@ DEVICE drum_dev = { .name     = "DRUM",
 /*
  * Reset routine
  */
-t_stat drum_reset(DEVICE *dptr)
+status_t drum_reset(DEVICE *dptr)
 {
     drum_op     = 0;
     drum_zone   = 0;
@@ -94,9 +94,9 @@ t_stat drum_reset(DEVICE *dptr)
     return SCPE_OK;
 }
 
-t_stat drum_attach(UNIT *u, const char *cptr)
+status_t drum_attach(UNIT *u, const char *cptr)
 {
-    t_stat s;
+    status_t s;
 
     s = attach_unit(u, cptr);
     if (s != SCPE_OK)
@@ -108,7 +108,7 @@ t_stat drum_attach(UNIT *u, const char *cptr)
     return SCPE_OK;
 }
 
-t_stat drum_detach(UNIT *u)
+status_t drum_detach(UNIT *u)
 {
     if (u == &drum_unit[0])
         GRP &= ~GRP_DRUM1_FREE;
@@ -123,7 +123,7 @@ t_stat drum_detach(UNIT *u)
 void drum_write(UNIT *u)
 {
     int ctlr         = (u == &drum_unit[1]);
-    t_value *sysdata = ctlr ? &memory[020] : &memory[010];
+    value_t *sysdata = ctlr ? &memory[020] : &memory[010];
 
     io_run(ZONE_SIZE * drum_zone, sysdata, 8);
     io_run(ZONE_SIZE * drum_zone + 8, &memory[drum_memory], 1024);
@@ -132,7 +132,7 @@ void drum_write(UNIT *u)
 void drum_write_sector(UNIT *u)
 {
     int ctlr         = (u == &drum_unit[1]);
-    t_value *sysdata = ctlr ? &memory[020] : &memory[010];
+    value_t *sysdata = ctlr ? &memory[020] : &memory[010];
 
     io_run(ZONE_SIZE * drum_zone + drum_sector * 2, &sysdata[drum_sector * 2], 2);
     io_run(ZONE_SIZE * drum_zone + 8 + drum_sector * 256, &memory[drum_memory], 256);
@@ -144,7 +144,7 @@ void drum_write_sector(UNIT *u)
 void drum_read(UNIT *u)
 {
     int ctlr         = (u == &drum_unit[1]);
-    t_value *sysdata = ctlr ? &memory[020] : &memory[010];
+    value_t *sysdata = ctlr ? &memory[020] : &memory[010];
 
     io_run(ZONE_SIZE * drum_zone, sysdata, 8);
     if (!(drum_op & DRUM_READ_SYSDATA))
@@ -154,14 +154,14 @@ void drum_read(UNIT *u)
 void drum_read_sector(UNIT *u)
 {
     int ctlr         = (u == &drum_unit[1]);
-    t_value *sysdata = ctlr ? &memory[020] : &memory[010];
+    value_t *sysdata = ctlr ? &memory[020] : &memory[010];
 
     io_run(ZONE_SIZE * drum_zone + drum_sector * 2, &sysdata[drum_sector * 2], 2);
     if (!(drum_op & DRUM_READ_SYSDATA))
         io_run(ZONE_SIZE * drum_zone + 8 + drum_sector * 256, &memory[drum_memory], 256);
 }
 
-static void clear_memory(t_value *p, int nwords)
+static void clear_memory(value_t *p, int nwords)
 {
     while (nwords-- > 0)
         *p++ = SET_PARITY(0, PARITY_NUMBER);
@@ -170,7 +170,7 @@ static void clear_memory(t_value *p, int nwords)
 /*
  * Perform a drum access.
  */
-t_stat drum(int ctlr, uint32 cmd)
+status_t drum(int ctlr, uint32_t cmd)
 {
     UNIT *u = &drum_unit[ctlr];
 
@@ -254,7 +254,7 @@ t_stat drum(int ctlr, uint32 cmd)
  * Event: a drum transfer has finished.
  * Set the interrupt flag.
  */
-t_stat drum_event(UNIT *u)
+status_t drum_event(UNIT *u)
 {
     if (u == &drum_unit[0])
         GRP |= GRP_DRUM1_FREE;

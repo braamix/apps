@@ -74,22 +74,22 @@ typedef struct UNIT UNIT;
 struct DEVICE {
     const char *name;
     UNIT *units;
-    uint32 numunits;
-    t_stat (*reset)(DEVICE *dp);
-    t_stat (*detach)(UNIT *up);
-    uint32 dctrl; /* trace control */
+    uint32_t numunits;
+    status_t (*reset)(DEVICE *dp);
+    status_t (*detach)(UNIT *up);
+    uint32_t dctrl; /* trace control */
 };
 
 struct UNIT {
-    UNIT *next;                 /* next on the event queue */
-    t_stat (*action)(UNIT *up); /* what its event does */
+    UNIT *next;                   /* next on the event queue */
+    status_t (*action)(UNIT *up); /* what its event does */
     char *filename;
     Image *image; /* the attached disk or drum */
-    int32 time;   /* timeout, relative to the entry in front */
-    uint32 flags;
+    int32_t time; /* timeout, relative to the entry in front */
+    uint32_t flags;
     char *uname;
     DEVICE *dptr; /* backpointer */
-    int32 wait;
+    int32_t wait;
 };
 
 #define UNIT_V_UF 16 /* where a device's own flags begin */
@@ -104,25 +104,25 @@ struct UNIT {
  * queue hung off a calibrated clock in another file and mutually recursive with
  * this one, so that several simulators' clocks could be kept honest at once.
  * There is one machine here and one clock in it. */
-extern int32 sim_interval;
+extern int32_t sim_interval;
 extern UNIT *sim_clock_queue;
-extern volatile t_bool stop_cpu; /* ^E, or a signal */
-extern int32 sim_switches;
+extern volatile bool stop_cpu; /* ^E, or a signal */
+extern int32_t sim_switches;
 
-t_stat sim_process_event(void);
-t_stat sim_activate(UNIT *uptr, int32 instructions);
-t_stat sim_activate_after(UNIT *uptr, double usecs);
-t_stat sim_cancel(UNIT *uptr);
-t_bool sim_is_active(UNIT *uptr);
+status_t sim_process_event(void);
+status_t sim_activate(UNIT *uptr, int32_t instructions);
+status_t sim_activate_after(UNIT *uptr, double usecs);
+status_t sim_cancel(UNIT *uptr);
+bool sim_is_active(UNIT *uptr);
 
 /* The model's clock: how many instructions a microsecond is, kept near the real
  * rate by the 250 Hz clock reporting in once a second. */
-t_stat sim_register_clock_unit(UNIT *uptr);
-int32 sim_rtcn_init(int32 instructions_per_tick);
-int32 sim_rtcn_calb(uint32 ticks_per_second);
+status_t sim_register_clock_unit(UNIT *uptr);
+int32_t sim_rtcn_init(int32_t instructions_per_tick);
+int32_t sim_rtcn_calb(uint32_t ticks_per_second);
 
 /* Runs `uptr' with the clock's next tick, `n' ticks from now. */
-t_stat sim_clock_coschedule(UNIT *uptr, int32 n);
+status_t sim_clock_coschedule(UNIT *uptr, int32_t n);
 
 /*
  * The wall clock, broken out.  <time.h> is not in the port kit -- there is no
@@ -141,10 +141,10 @@ void sim_get_time(SimTime *t); /* the platform's */
 /* Milliseconds since some fixed point: what the calibration measures against.
  * The platform's -- proc_now() on Braam, where it is frozen under the test
  * harness, which the calibration already survives. */
-uint32 sim_now_ms(void);
+uint32_t sim_now_ms(void);
 
-t_stat attach_unit(UNIT *uptr, const char *cptr);
-t_stat detach_unit(UNIT *uptr);
+status_t attach_unit(UNIT *uptr, const char *cptr);
+status_t detach_unit(UNIT *uptr);
 const char *sim_uname(UNIT *uptr);
 DEVICE *find_dev_from_unit(UNIT *uptr);
 char *sim_basename(const char *filepath);
@@ -155,9 +155,9 @@ char *sim_basename(const char *filepath);
 #define GCC_FMT_ATTR(n, m)
 #endif
 
-const char *sim_error_text(t_stat stat);
+const char *sim_error_text(status_t stat);
 void sim_printf(const char *fmt, ...) GCC_FMT_ATTR(1, 2);
-t_stat sim_messagef(t_stat stat, const char *fmt, ...) GCC_FMT_ATTR(2, 3);
+status_t sim_messagef(status_t stat, const char *fmt, ...) GCC_FMT_ATTR(2, 3);
 
 /*
  * A transfer the machine asked for and the driver has not performed yet.
@@ -171,8 +171,8 @@ t_stat sim_messagef(t_stat stat, const char *fmt, ...) GCC_FMT_ATTR(2, 3);
 /* The transfer as data, not as a function to call: on Braam the driver performs
  * it with co_awaits, and device code cannot be reached from there. */
 typedef struct {
-    uint32 off;   /* word offset in the image */
-    t_value *mem; /* where the words go or come from */
+    uint32_t off; /* word offset in the image */
+    value_t *mem; /* where the words go or come from */
     int n;        /* how many */
 } IoRun;
 
@@ -181,7 +181,7 @@ typedef struct {
     int write;
     int nrun; /* the system words, then the data */
     IoRun run[2];
-    int32 delay;   /* model time until the completion event */
+    int32_t delay; /* model time until the completion event */
     int *fail;     /* a short read is an unformatted zone, not an error: */
     int fail_mask; /* the device ORs this in and tells the guest */
 } IoRequest;
@@ -189,12 +189,12 @@ typedef struct {
 extern IoRequest io_request;
 
 /* Starts a request; io_run() appends to it.  Called from an instruction. */
-void io_post(UNIT *u, int write, int32 delay, int *fail, int fail_mask);
-void io_run(uint32 off, t_value *mem, int n);
+void io_post(UNIT *u, int write, int32_t delay, int *fail, int fail_mask);
+void io_run(uint32_t off, value_t *mem, int n);
 
 /* Performs them and arms the completion event.  The platform's: on Braam a
  * read is a co_await. */
-t_stat io_service(void);
+status_t io_service(void);
 
 /*
  * The driver.  cpu_burst() runs instructions until it has something for its
@@ -212,16 +212,16 @@ enum {
 };
 /* Anything >= 0 is a stop code and the machine has halted. */
 
-t_stat machine_init(void);
+status_t machine_init(void);
 void sim_run_begin(void);
 void sim_run_end(void);
-int machine_exit(t_stat stat);
+int machine_exit(status_t stat);
 
 /* Long enough to amortise what the caller does between bursts, short enough to
  * keep a console responsive. */
 #define BURST_INSTRUCTIONS 100000
 
-t_stat cpu_burst(void);
+status_t cpu_burst(void);
 
 extern DEVICE *sim_devices[];
 extern const char *sim_stop_messages[SCPE_BASE];

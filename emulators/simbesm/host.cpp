@@ -47,13 +47,13 @@ void deb_file_close(void)
     deb_sink.f = NULL;
 }
 
-uint32 sim_now_ms(void)
+uint32_t sim_now_ms(void)
 {
     struct timespec ts;
 
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
         return 0;
-    return (uint32)((t_int64)(ts.tv_sec * 1000) + (t_int64)((ts.tv_nsec + 500000) / 1000000));
+    return (uint32_t)((int64_t)(ts.tv_sec * 1000) + (int64_t)((ts.tv_nsec + 500000) / 1000000));
 }
 
 void sim_get_time(SimTime *t)
@@ -138,7 +138,7 @@ int img_close(Image *m)
     return bad;
 }
 
-int img_read(Image *m, uint32 off, t_value *dst, int n)
+int img_read(Image *m, uint32_t off, value_t *dst, int n)
 {
     size_t got;
 
@@ -150,7 +150,7 @@ int img_read(Image *m, uint32 off, t_value *dst, int n)
     return (int)got;
 }
 
-int img_write(Image *m, uint32 off, const t_value *src, int n)
+int img_write(Image *m, uint32_t off, const value_t *src, int n)
 {
     size_t put;
 
@@ -162,7 +162,7 @@ int img_write(Image *m, uint32 off, const t_value *src, int n)
     return (int)put;
 }
 
-int img_append(Image *m, const t_value *src, int n)
+int img_append(Image *m, const value_t *src, int n)
 {
     size_t put = fwrite(src, 8, n, m->f);
 
@@ -223,13 +223,13 @@ void blob_free(Blob *b)
 static struct termios cmdtty, runtty;
 static int cmdfl, runfl; /* TTY flags */
 
-static t_bool con_isatty(void)
+static bool con_isatty(void)
 {
     static int answer = -1;
 
     if (answer == -1)
         answer = isatty(0);
-    return (t_bool)(answer != 0);
+    return answer != 0;
 }
 
 /* One terminal here: a second screen is a browser tab's. */
@@ -264,7 +264,7 @@ static void con_poll(void)
         con_feed(CON_SCREEN, buf[i]);
 }
 
-t_stat con_init(void)
+status_t con_init(void)
 {
     cmdfl = fcntl(0, F_GETFL, 0); /* get old flags  and status */
     /*
@@ -325,11 +325,11 @@ t_stat con_init(void)
 static void int_handler(int sig)
 {
     (void)sig;
-    stop_cpu     = TRUE;
+    stop_cpu     = true;
     sim_interval = 0;
 }
 
-t_stat con_raw(void)
+status_t con_raw(void)
 {
     signal(SIGINT, int_handler);
     signal(SIGTERM, int_handler);
@@ -357,7 +357,7 @@ void con_cooked(void)
 
 /* The runs the machine asked for, performed here because on Braam this is
  * where a read may happen (machine.h). */
-t_stat io_service(void)
+status_t io_service(void)
 {
     IoRequest *q = &io_request;
     UNIT *u      = q->unit;
@@ -393,9 +393,9 @@ t_stat io_service(void)
  * The driver loop: what a Braam entry point will be a coroutine of.  Everything
  * that blocks is here and nothing below cpu_burst() may (machine.h).
  */
-static t_stat run_machine(void)
+static status_t run_machine(void)
 {
-    t_stat r;
+    status_t r;
 
     for (;;) {
         r = cpu_burst();
@@ -410,7 +410,7 @@ static t_stat run_machine(void)
             con_flush();
             con_poll();
             if (stop_cpu) {
-                stop_cpu = FALSE;
+                stop_cpu = false;
                 return SCPE_STOP;
             }
             continue;
@@ -422,7 +422,7 @@ static t_stat run_machine(void)
 int main(void)
 {
     Blob kernel = { NULL, 0, 0 };
-    t_stat r;
+    status_t r;
 
     r = machine_init();
     if (r != SCPE_OK)

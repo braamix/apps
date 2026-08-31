@@ -36,9 +36,9 @@
 /*
  * Previous register state, for printing only what has changed.
  */
-static t_value prev_ACC, prev_RMR, prev_GRP, prev_MGRP;
-static t_value prev_RP[8];
-static uint32 prev_M[NREGS], prev_RAU, prev_RUU, prev_PRP, prev_MPRP, prev_RZ;
+static value_t prev_ACC, prev_RMR, prev_GRP, prev_MGRP;
+static value_t prev_RP[8];
+static uint32_t prev_M[NREGS], prev_RAU, prev_RUU, prev_PRP, prev_MPRP, prev_RZ;
 
 /*
  * Symbol table extracted from an a.out image: function names and their
@@ -46,7 +46,7 @@ static uint32 prev_M[NREGS], prev_RAU, prev_RUU, prev_PRP, prev_MPRP, prev_RZ;
  * function that contains a given PC (nearest preceding symbol).
  */
 typedef struct {
-    uint32 addr;
+    uint32_t addr;
     char *name;
 } besm6_symbol_t;
 
@@ -69,7 +69,7 @@ void besm6_sym_clear()
 /*
  * Append one function symbol.  Names are copied; the array grows as needed.
  */
-void besm6_sym_add(uint32 addr, const char *name)
+void besm6_sym_add(uint32_t addr, const char *name)
 {
     if (sym_count >= sym_alloc) {
         sym_alloc = sym_alloc ? sym_alloc * 2 : 64;
@@ -85,8 +85,8 @@ void besm6_sym_add(uint32 addr, const char *name)
  */
 static int sym_compare(const void *a, const void *b)
 {
-    uint32 aa = ((const besm6_symbol_t *)a)->addr;
-    uint32 ba = ((const besm6_symbol_t *)b)->addr;
+    uint32_t aa = ((const besm6_symbol_t *)a)->addr;
+    uint32_t ba = ((const besm6_symbol_t *)b)->addr;
 
     return (aa > ba) - (aa < ba);
 }
@@ -105,7 +105,7 @@ void besm6_sym_sort()
  * largest address <= addr.  Sets *at_start when addr is exactly a function
  * entry.  Returns the name, or NULL if no symbol precedes the address.
  */
-const char *besm6_sym_find(uint32 addr, int *at_start)
+const char *besm6_sym_find(uint32_t addr, int *at_start)
 {
     int lo = 0, hi = sym_count - 1, found = -1;
 
@@ -126,7 +126,7 @@ const char *besm6_sym_find(uint32 addr, int *at_start)
 /*
  * Print a 48-bit word in octal, as four space-separated groups of four digits.
  */
-static void fprint_word_octal(Sink *of, t_value val)
+static void fprint_word_octal(Sink *of, value_t val)
 {
     sink_printf(of, "%04o %04o %04o %04o", (int)(val >> 36) & BITS(12), (int)(val >> 24) & BITS(12),
                 (int)(val >> 12) & BITS(12), (int)val & BITS(12));
@@ -155,7 +155,7 @@ void besm6_trace_reset()
  * Print the executive (effective) address of an extracode, if any.
  * Called only for short-form extracodes (opcodes 050...077).
  */
-static void trace_executive_address(uint32 cmd)
+static void trace_executive_address(uint32_t cmd)
 {
     int reg, addr;
 
@@ -263,7 +263,7 @@ void besm6_trace_registers()
 /*
  * Print a memory read or write.
  */
-void besm6_trace_memory(int addr, t_value val, const char *opname)
+void besm6_trace_memory(int addr, value_t val, const char *opname)
 {
     sink_printf(sim_deb, "      Memory %s [%05o] = ", opname, addr & BITS(15));
     fprint_word_octal(sim_deb, val);

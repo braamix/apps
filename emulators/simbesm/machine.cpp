@@ -6,15 +6,15 @@
  */
 #include "besm6_defs.h"
 
-int32 sim_interval;
-int32 sim_switches;
+int32_t sim_interval;
+int32_t sim_switches;
 UNIT *sim_clock_queue = QUEUE_LIST_END;
-volatile t_bool stop_cpu;
+volatile bool stop_cpu;
 
-static t_bool sim_is_running;
+static bool sim_is_running;
 static int exit_status = EXIT_SUCCESS;
 
-static t_stat reset_all(void);
+static status_t reset_all(void);
 static void detach_all(void);
 
 /* ------------------------------------------------------------------ messages */
@@ -30,7 +30,7 @@ static const char *const scp_errors[1 + SCPE_MAX_ERR - SCPE_BASE] = {
     "Too many arguments",
 };
 
-const char *sim_error_text(t_stat stat)
+const char *sim_error_text(status_t stat)
 {
     static char msgbuf[64];
 
@@ -71,12 +71,12 @@ void sim_printf(const char *fmt, ...)
     sink_puts(sim_deb, buf);
 }
 
-t_stat sim_messagef(t_stat stat, const char *fmt, ...)
+status_t sim_messagef(status_t stat, const char *fmt, ...)
 {
     char buf[CBUFSIZE];
     va_list arglist;
-    t_bool inhibit_message = (stat & SCPE_NOMESSAGE) != 0;
-    t_bool newline_prefix  = (*fmt == '\n');
+    bool inhibit_message = (stat & SCPE_NOMESSAGE) != 0;
+    bool newline_prefix  = (*fmt == '\n');
     int prefix_len;
 
     if ((stat == SCPE_OK) && (sim_switches & SWMASK('Q')))
@@ -121,7 +121,7 @@ char *sim_basename(const char *filepath)
 DEVICE *find_dev_from_unit(UNIT *uptr)
 {
     DEVICE *dptr;
-    uint32 i, j;
+    uint32_t i, j;
 
     if (uptr == NULL)
         return NULL;
@@ -157,14 +157,14 @@ const char *sim_uname(UNIT *uptr)
     return uptr->uname = strcpy((char *)malloc(1 + strlen(uname)), uname);
 }
 
-static t_stat attach_err(UNIT *uptr, t_stat stat)
+static status_t attach_err(UNIT *uptr, status_t stat)
 {
     free(uptr->filename);
     uptr->filename = NULL;
     return stat;
 }
 
-t_stat attach_unit(UNIT *uptr, const char *cptr)
+status_t attach_unit(UNIT *uptr, const char *cptr)
 {
     int create    = (sim_switches & SWMASK('N')) != 0;
     int must_have = (sim_switches & SWMASK('E')) != 0;
@@ -202,7 +202,7 @@ t_stat attach_unit(UNIT *uptr, const char *cptr)
     return SCPE_OK;
 }
 
-t_stat detach_unit(UNIT *uptr)
+status_t detach_unit(UNIT *uptr)
 {
     if (uptr == NULL)
         return SCPE_IERR;
@@ -226,7 +226,7 @@ t_stat detach_unit(UNIT *uptr)
 
 static void detach_all(void)
 {
-    uint32 i, j;
+    uint32_t i, j;
     DEVICE *dptr;
     UNIT *uptr;
 
@@ -241,11 +241,11 @@ static void detach_all(void)
     }
 }
 
-static t_stat reset_all(void)
+static status_t reset_all(void)
 {
     DEVICE *dptr;
-    uint32 i;
-    t_stat reason;
+    uint32_t i;
+    status_t reason;
 
     for (i = 0; (dptr = sim_devices[i]) != NULL; i++) {
         if (dptr->reset == NULL)
@@ -269,13 +269,13 @@ static t_stat reset_all(void)
  * timer had overshot; sim_interval only counts down by one here, so it reaches
  * zero exactly and there is nothing to catch up with.
  */
-t_stat sim_process_event(void)
+status_t sim_process_event(void)
 {
     UNIT *uptr;
-    t_stat reason = SCPE_OK;
+    status_t reason = SCPE_OK;
 
     if (stop_cpu) {
-        stop_cpu = FALSE;
+        stop_cpu = false;
         return SCPE_STOP;
     }
     if (sim_interval > 0)
@@ -301,16 +301,16 @@ t_stat sim_process_event(void)
     if (sim_clock_queue == QUEUE_LIST_END)
         sim_interval = NOQUEUE_WAIT;
     if (reason == SCPE_OK && stop_cpu) {
-        stop_cpu = FALSE;
+        stop_cpu = false;
         reason   = SCPE_STOP;
     }
     return reason;
 }
 
-t_stat sim_activate(UNIT *uptr, int32 event_time)
+status_t sim_activate(UNIT *uptr, int32_t event_time)
 {
     UNIT *cptr, *prvptr;
-    int32 accum;
+    int32_t accum;
 
     if (sim_is_active(uptr)) /* already active? */
         return SCPE_OK;
@@ -337,7 +337,7 @@ t_stat sim_activate(UNIT *uptr, int32 event_time)
     return SCPE_OK;
 }
 
-t_stat sim_cancel(UNIT *uptr)
+status_t sim_cancel(UNIT *uptr)
 {
     UNIT *cptr, *nptr;
 
@@ -370,9 +370,9 @@ t_stat sim_cancel(UNIT *uptr)
     return SCPE_OK;
 }
 
-t_bool sim_is_active(UNIT *uptr)
+bool sim_is_active(UNIT *uptr)
 {
-    return uptr->next ? TRUE : FALSE;
+    return uptr->next != nullptr;
 }
 
 /* --------------------------------------------------------------- the clock */
@@ -383,14 +383,14 @@ t_bool sim_is_active(UNIT *uptr)
 #define SIM_INITIAL_IPS 500000
 #define SIM_TMAX        500
 
-static uint32 rtc_ticks;   /* ticks this second */
-static uint32 rtc_hz;      /* tick rate */
-static uint32 rtc_last_hz; /* prior tick rate */
-static uint32 rtc_rtime;   /* real time, ms */
-static uint32 rtc_vtime;   /* virtual time, ms */
-static uint32 rtc_nxintv;  /* next interval */
-static int32 rtc_based;    /* base delay */
-static int32 rtc_currd;    /* current delay */
+static uint32_t rtc_ticks;   /* ticks this second */
+static uint32_t rtc_hz;      /* tick rate */
+static uint32_t rtc_last_hz; /* prior tick rate */
+static uint32_t rtc_rtime;   /* real time, ms */
+static uint32_t rtc_vtime;   /* virtual time, ms */
+static uint32_t rtc_nxintv;  /* next interval */
+static int32_t rtc_based;    /* base delay */
+static int32_t rtc_currd;    /* current delay */
 
 static double inst_per_sec(void)
 {
@@ -403,7 +403,7 @@ static double inst_per_sec(void)
     return ips;
 }
 
-int32 sim_rtcn_init(int32 time)
+int32_t sim_rtcn_init(int32_t time)
 {
     if (time == 0)
         time = 1;
@@ -424,14 +424,14 @@ int32 sim_rtcn_init(int32 time)
     return time;
 }
 
-int32 sim_rtcn_calb(uint32 ticksper)
+int32_t sim_rtcn_calb(uint32_t ticksper)
 {
-    uint32 new_rtime, delta_rtime;
-    int32 delta_vtime;
+    uint32_t new_rtime, delta_rtime;
+    int32_t delta_vtime;
 
     if (rtc_hz != ticksper) { /* changing tick rate? */
         if ((rtc_last_hz != 0) && (rtc_last_hz != ticksper) && (ticksper != 0))
-            rtc_currd = (int32)(inst_per_sec() / ticksper);
+            rtc_currd = (int32_t)(inst_per_sec() / ticksper);
         rtc_last_hz = rtc_hz;
         rtc_hz      = ticksper;
     }
@@ -443,7 +443,7 @@ int32 sim_rtcn_calb(uint32 ticksper)
     rtc_ticks = 0;            /* reset ticks */
     new_rtime = sim_now_ms(); /* wall time */
     if (new_rtime < rtc_rtime) {
-        /* Time running backwards: sim_now_ms() wrapped as a uint32, which
+        /* Time running backwards: sim_now_ms() wrapped as a uint32_t, which
            happens roughly every 49 days.  Rebase and skip this calibration. */
         rtc_vtime = rtc_rtime = new_rtime;
         rtc_nxintv            = 1000;
@@ -467,17 +467,17 @@ int32 sim_rtcn_calb(uint32 ticksper)
     if (delta_rtime == 0)                 /* gap too small? */
         rtc_based = rtc_based * ticksper; /* slew wide */
     else
-        rtc_based = (int32)(((double)rtc_based * (double)rtc_nxintv) /
-                            ((double)delta_rtime)); /* new base rate */
-    delta_vtime = rtc_vtime - rtc_rtime;            /* gap */
-    if (delta_vtime > SIM_TMAX)                     /* limit gap */
+        rtc_based = (int32_t)(((double)rtc_based * (double)rtc_nxintv) /
+                              ((double)delta_rtime)); /* new base rate */
+    delta_vtime = rtc_vtime - rtc_rtime;              /* gap */
+    if (delta_vtime > SIM_TMAX)                       /* limit gap */
         delta_vtime = SIM_TMAX;
     else {
         if (delta_vtime < -SIM_TMAX)
             delta_vtime = -SIM_TMAX;
     }
-    rtc_nxintv = 1000 + delta_vtime;                                         /* next wtime */
-    rtc_currd  = (int32)(((double)rtc_based * (double)rtc_nxintv) / 1000.0); /* next delay */
+    rtc_nxintv = 1000 + delta_vtime;                                           /* next wtime */
+    rtc_currd  = (int32_t)(((double)rtc_based * (double)rtc_nxintv) / 1000.0); /* next delay */
     if (rtc_based <= 0) /* never negative or zero! */
         rtc_based = 1;
     if (rtc_currd <= 0) /* never negative or zero! */
@@ -492,17 +492,17 @@ int32 sim_rtcn_calb(uint32 ticksper)
  */
 static UNIT *clock_unit;
 
-t_stat sim_register_clock_unit(UNIT *uptr)
+status_t sim_register_clock_unit(UNIT *uptr)
 {
     clock_unit = uptr;
     return SCPE_OK;
 }
 
 /* Instructions until `uptr' fires, or -1 when it is not queued. */
-static int32 queue_time(UNIT *uptr)
+static int32_t queue_time(UNIT *uptr)
 {
     UNIT *cptr;
-    int32 accum = 0;
+    int32_t accum = 0;
 
     for (cptr = sim_clock_queue; cptr != QUEUE_LIST_END; cptr = cptr->next) {
         accum += cptr->time;
@@ -512,17 +512,17 @@ static int32 queue_time(UNIT *uptr)
     return -1;
 }
 
-t_stat sim_activate_after(UNIT *uptr, double usecs)
+status_t sim_activate_after(UNIT *uptr, double usecs)
 {
-    int32 n = (int32)(usecs * inst_per_sec() / 1000000.0);
+    int32_t n = (int32_t)(usecs * inst_per_sec() / 1000000.0);
 
     return sim_activate(uptr, n > 0 ? n : 1);
 }
 
-t_stat sim_clock_coschedule(UNIT *uptr, int32 n)
+status_t sim_clock_coschedule(UNIT *uptr, int32_t n)
 {
-    int32 tick = rtc_currd > 0 ? rtc_currd : 1;
-    int32 when = clock_unit ? queue_time(clock_unit) : -1;
+    int32_t tick = rtc_currd > 0 ? rtc_currd : 1;
+    int32_t when = clock_unit ? queue_time(clock_unit) : -1;
 
     if (when < 0)
         when = tick;
@@ -533,7 +533,7 @@ t_stat sim_clock_coschedule(UNIT *uptr, int32 n)
 
 IoRequest io_request;
 
-void io_post(UNIT *u, int write, int32 delay, int *fail, int fail_mask)
+void io_post(UNIT *u, int write, int32_t delay, int *fail, int fail_mask)
 {
     io_request.unit      = u;
     io_request.write     = write;
@@ -543,7 +543,7 @@ void io_post(UNIT *u, int write, int32 delay, int *fail, int fail_mask)
     io_request.fail_mask = fail_mask;
 }
 
-void io_run(uint32 off, t_value *mem, int n)
+void io_run(uint32_t off, value_t *mem, int n)
 {
     IoRun *r;
 
@@ -557,16 +557,16 @@ void io_run(uint32 off, t_value *mem, int n)
 
 /* ---------------------------------------------------------------- the driver */
 
-t_stat machine_init(void)
+status_t machine_init(void)
 {
-    t_stat r;
+    status_t r;
 
     sink_init();
     sim_switches    = 0;
-    stop_cpu        = FALSE;
+    stop_cpu        = false;
     sim_interval    = 0;
     sim_clock_queue = QUEUE_LIST_END;
-    sim_is_running  = FALSE;
+    sim_is_running  = false;
 
     if ((r = con_init()) != SCPE_OK) {
         sim_printf("Fatal terminal initialization error\n%s\n", sim_error_text(r));
@@ -585,17 +585,17 @@ t_stat machine_init(void)
  * carriage: a bare \n does not, with the console in raw mode. */
 void sim_run_begin(void)
 {
-    sim_is_running = TRUE;
+    sim_is_running = true;
     con_flush(); /* whatever the setup said, before the machine starts */
 }
 
 void sim_run_end(void)
 {
-    sim_is_running = FALSE;
+    sim_is_running = false;
     con_flush();
 }
 
-int machine_exit(t_stat stat)
+int machine_exit(status_t stat)
 {
     detach_all();
     sim_debug_close();

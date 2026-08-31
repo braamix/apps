@@ -13,22 +13,8 @@
 
 #include <stdint.h>
 
-#ifndef TRUE
-#define TRUE  1
-#define FALSE 0
-#endif
-
-typedef int32_t int32;
-typedef uint8_t uint8;
-typedef uint32_t uint32;
-
-typedef int t_stat; /* status */
-typedef int t_bool; /* boolean */
-
-typedef signed long long t_int64;
-typedef unsigned long long t_uint64;
-
 /* The 48-bit word needs 64 bits; there is no 32-bit build. */
-typedef t_uint64 t_value;
+typedef uint64_t value_t;
+typedef int status_t;
 
 #endif /* BESM6_TYPES_H */

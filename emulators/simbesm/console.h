@@ -25,7 +25,7 @@ enum {
 
 /* The byte that stops the machine: ^E.  The host gets it as SIGINT, through
  * termios VINTR; Braam has neither, and its key task recognises it. */
-extern int32 con_stop_char;
+extern int32_t con_stop_char;
 
 /* ---------------------------------------------------------- the machine's side */
 
@@ -53,8 +53,8 @@ void con_feed(int con, int c);
 int con_second(void);
 
 /* The platform's: the console's terminal, and the keyboard for a run. */
-t_stat con_init(void);
-t_stat con_raw(void);
+status_t con_init(void);
+status_t con_raw(void);
 void con_cooked(void);
 
 /* Sends what gathered.  The platform's, because that is where the write is. */

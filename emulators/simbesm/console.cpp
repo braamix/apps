@@ -6,7 +6,7 @@
  */
 #include "besm6_defs.h"
 
-int32 con_stop_char = 005; /* ^E */
+int32_t con_stop_char = 005; /* ^E */
 
 /* Enough for a screenful; a full buffer flushes early rather than dropping. */
 #define CON_OUT 4096

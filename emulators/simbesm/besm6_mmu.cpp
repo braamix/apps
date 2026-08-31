@@ -38,12 +38,12 @@
  */
 UNIT mmu_unit = { 0 };
 
-t_value BRZ[8];
-uint32 BAZ[8], TABST, RZ, OLDEST, FLUSH;
+value_t BRZ[8];
+uint32_t BAZ[8], TABST, RZ, OLDEST, FLUSH;
 
-t_value BRS[4];
-uint32 BAS[4];
-uint32 BRSLRU;
+value_t BRS[4];
+uint32_t BAS[4];
+uint32_t BRSLRU;
 
 /*
  * The 64-bit registers RP0-RP7 hold the page registers for display, four to a
@@ -51,10 +51,10 @@ uint32 BRSLRU;
  * TLB0-TLB31 are the per-page page registers, copies of RPi.
  * Memory must be reached through TLBi.
  */
-t_value RP[8];
-uint32 TLB[32];
+value_t RP[8];
+uint32_t TLB[32];
 
-uint32 iintr_data; /* protected page number or parity check location */
+uint32_t iintr_data; /* protected page number or parity check location */
 
 /* There were several hardwired configurations of registers
  * corresponding to up to 7 first words of the memory space, selected by
@@ -66,7 +66,7 @@ uint32 iintr_data; /* protected page number or parity check location */
 unsigned pult_packet_switch;
 
 /* Location 0 of each configuration is the bitset of its hardwired locations */
-t_value pult[11][8] = {
+value_t pult[11][8] = {
     /* Switch registers */
     { 0 },
     /* Hardwired program 1, a simple CU test */
@@ -155,14 +155,14 @@ t_value pult[11][8] = {
     },
 };
 
-t_stat mmu_reset(DEVICE *dptr);
+status_t mmu_reset(DEVICE *dptr);
 
 DEVICE mmu_dev = { .name = "MMU", .units = &mmu_unit, .numunits = 1, .reset = &mmu_reset };
 
 /*
  * Reset routine
  */
-t_stat mmu_reset(DEVICE *dptr)
+status_t mmu_reset(DEVICE *dptr)
 {
     int i;
     for (i = 0; i < 8; ++i) {
@@ -209,7 +209,7 @@ static unsigned lose_mask[8] = { 0,
 
 #define set_wins(i) TABST = (TABST & ~lose_mask[i]) | win_mask[i]
 
-t_stat mmu_protection_check(int addr)
+status_t mmu_protection_check(int addr)
 {
     /* Protection is disabled in supervisor mode for physical (!) addresses 1-7 (ТО-8) - WTF? */
     int tmp_prot_disabled = (M[PSW] & PSW_PROT_DISABLE) ||
@@ -327,7 +327,7 @@ void mmu_flush_by_number()
 /*
  * Store a word into memory
  */
-t_stat mmu_store(int addr, t_value val)
+status_t mmu_store(int addr, value_t val)
 {
     int matching;
 
@@ -379,9 +379,9 @@ t_stat mmu_store(int addr, t_value val)
     return SCPE_OK;
 }
 
-t_stat mmu_memaccess(int addr, t_value *word)
+status_t mmu_memaccess(int addr, value_t *word)
 {
-    t_value val;
+    value_t val;
 
     /* Compute the physical address of the word */
     addr = (addr > 0100000) ? (addr - 0100000) : (addr & 01777) | (TLB[addr >> 10] << 10);
@@ -419,10 +419,10 @@ t_stat mmu_memaccess(int addr, t_value *word)
 /*
  * Read an operand
  */
-t_stat mmu_load(int addr, t_value *word)
+status_t mmu_load(int addr, value_t *word)
 {
     int matching = -1;
-    t_value val;
+    value_t val;
 
     addr &= BITS(15);
     if (addr == 0) {
@@ -493,7 +493,7 @@ static unsigned brs_lose_mask[8] = { 0, 1 << 0, 1 << 1 | 1 << 3, 1 << 2 | 1 << 4
 
 #define brs_set_wins(i) BRSLRU = (BRSLRU & ~brs_lose_mask[i]) | brs_win_mask[i]
 
-t_stat mmu_fetch_check(int addr)
+status_t mmu_fetch_check(int addr)
 {
     /* There is no protection in supervisor mode */
     if (!IS_SUPERVISOR(RUU)) {
@@ -515,9 +515,9 @@ t_stat mmu_fetch_check(int addr)
 /*
  * Prefetch an instruction into the БРС
  */
-t_value mmu_prefetch(int addr, int actual)
+value_t mmu_prefetch(int addr, int actual)
 {
-    t_value val;
+    value_t val;
     int i;
 
     if (mmu_unit.flags & CACHE_ENB) {
@@ -572,9 +572,9 @@ t_value mmu_prefetch(int addr, int actual)
 /*
  * Fetch an instruction
  */
-t_stat mmu_fetch(int addr, t_value *word)
+status_t mmu_fetch(int addr, value_t *word)
 {
-    t_value val;
+    value_t val;
 
     if (addr == 0) {
         if (mmu_dev.dctrl)
@@ -609,10 +609,10 @@ t_stat mmu_fetch(int addr, t_value *word)
     return SCPE_OK;
 }
 
-void mmu_setrp(int idx, t_value val)
+void mmu_setrp(int idx, value_t val)
 {
-    uint32 p0, p1, p2, p3;
-    const uint32 mask = (MEMSIZE >> 10) - 1;
+    uint32_t p0, p1, p2, p3;
+    const uint32_t mask = (MEMSIZE >> 10) - 1;
 
     /* The low 5 bits of the four page registers are packed five to a group in
      * bits 1-20, their 6th bits in bits 29-32, their 7th bits in bits 33-36 and so on.
@@ -631,7 +631,7 @@ void mmu_setrp(int idx, t_value val)
     p2 &= mask;
     p3 &= mask;
 
-    RP[idx]          = p0 | p1 << 12 | p2 << 24 | (t_value)p3 << 36;
+    RP[idx]          = p0 | p1 << 12 | p2 << 24 | (value_t)p3 << 36;
     TLB[idx * 4]     = p0;
     TLB[idx * 4 + 1] = p1;
     TLB[idx * 4 + 2] = p2;
@@ -640,7 +640,7 @@ void mmu_setrp(int idx, t_value val)
 
 void mmu_setup()
 {
-    const uint32 mask = (MEMSIZE >> 10) - 1;
+    const uint32_t mask = (MEMSIZE >> 10) - 1;
     int i;
 
     /* Copy РПi into TLBj. */
@@ -652,20 +652,20 @@ void mmu_setup()
     }
 }
 
-void mmu_setprotection(int idx, t_value val)
+void mmu_setprotection(int idx, value_t val)
 {
     /* The accumulator bits written into the protection register are 21-28 */
     int mask = 0xff << (idx * 8);
     val      = ((val >> 20) & 0xff) << (idx * 8);
-    RZ       = (uint32)((RZ & ~mask) | val);
+    RZ       = (uint32_t)((RZ & ~mask) | val);
 }
 
-void mmu_setcache(int idx, t_value val)
+void mmu_setcache(int idx, value_t val)
 {
     BRZ[idx] = SET_PARITY(val, RUU ^ PARITY_INSN);
 }
 
-t_value mmu_getcache(int idx)
+value_t mmu_getcache(int idx)
 {
     return BRZ[idx] & BITS48;
 }

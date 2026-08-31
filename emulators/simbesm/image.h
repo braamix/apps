@@ -30,11 +30,11 @@ int img_close(Image *m);
 
 /* Words transferred; short of `n' past the end, which is an unformatted zone
  * and not an error -- every caller reports it to the guest as its own. */
-int img_read(Image *m, uint32 off, t_value *dst, int n);
-int img_write(Image *m, uint32 off, const t_value *src, int n);
+int img_read(Image *m, uint32_t off, value_t *dst, int n);
+int img_write(Image *m, uint32_t off, const value_t *src, int n);
 
 /* Appends: what formatting a fresh image is. */
-int img_append(Image *m, const t_value *src, int n);
+int img_append(Image *m, const value_t *src, int n);
 
 /* Sticky, as ferror() was. */
 int img_error(Image *m);

@@ -29,11 +29,11 @@
 #include "besm6_defs.h"
 
 typedef struct {
-    t_uint64 mantissa;
+    uint64_t mantissa;
     unsigned exponent; /* offset by 64 */
 } alureg_t;            /* ALU register type */
 
-static alureg_t toalu(t_value val)
+static alureg_t toalu(value_t val)
 {
     alureg_t ret;
 
@@ -67,11 +67,11 @@ static void negate(alureg_t *val)
  * A one in bit 1, and a zero word, both -> 48,
  * as in the original version of the instruction set.
  */
-int besm6_highest_bit(t_value val)
+int besm6_highest_bit(value_t val)
 {
     int n = 32, cnt = 0;
     do {
-        t_value tmp = val;
+        value_t tmp = val;
         if (tmp >>= n) {
             cnt += n;
             val = tmp;
@@ -85,11 +85,11 @@ int besm6_highest_bit(t_value val)
  * The result goes to ACC and to bits 40-1 of RMR.
  * Bits 48-41 of RMR are preserved.
  */
-static t_stat normalize_and_round(alureg_t acc, t_uint64 mr, int rnd_rq)
+static status_t normalize_and_round(alureg_t acc, uint64_t mr, int rnd_rq)
 {
-    t_uint64 rr = 0;
+    uint64_t rr = 0;
     int i;
-    t_uint64 r;
+    uint64_t r;
 
     if (RAU & RAU_NORM_DISABLE)
         goto chk_rnd;
@@ -160,7 +160,7 @@ chk_rnd:
         return SCPE_OK;
     }
 
-    ACC = (t_value)(acc.exponent & BITS(7)) << 41 | (acc.mantissa & BITS41);
+    ACC = (value_t)(acc.exponent & BITS(7)) << 41 | (acc.mantissa & BITS41);
     RMR = (RMR & ~BITS40) | (mr & BITS40);
     /* On overflow the mantissa and the low bits of the exponent are correct */
     if (acc.exponent & 0x80) {
@@ -175,9 +175,9 @@ chk_rnd:
  * Operands: register ACC and the argument 'val'.
  * The result goes to ACC and to bits 40-1 of RMR.
  */
-t_stat besm6_add(t_value val, int negate_acc, int negate_val)
+status_t besm6_add(value_t val, int negate_acc, int negate_val)
 {
-    t_uint64 mr;
+    uint64_t mr;
     alureg_t acc, word, a1, a2;
     int diff, neg, rnd_rq = 0;
 
@@ -258,7 +258,7 @@ t_stat besm6_add(t_value val, int negate_acc, int negate_val)
 #define INT64(x) ((x) & BIT41 ? (0xFFFFFFFFFFFFFFFFLL << 40) | (x) : x)
 static alureg_t nrdiv(alureg_t n, alureg_t d)
 {
-    t_int64 nn, dd, q, res;
+    int64_t nn, dd, q, res;
     alureg_t quot;
 
     /* to compensate for potential normalization to the right  */
@@ -296,7 +296,7 @@ static alureg_t nrdiv(alureg_t n, alureg_t d)
  * Operands: register ACC and the argument 'val'.
  * The result goes to ACC; the contents of RMR are undefined.
  */
-t_stat besm6_divide(t_value val)
+status_t besm6_divide(value_t val)
 {
     alureg_t acc;
     alureg_t dividend, divisor;
@@ -318,13 +318,13 @@ t_stat besm6_divide(t_value val)
  * Operands: register ACC and the argument 'val'.
  * The result goes to ACC and to bits 40-1 of RMR.
  */
-t_stat besm6_multiply(t_value val)
+status_t besm6_multiply(value_t val)
 {
-    uint8 neg = 0;
+    uint8_t neg = 0;
     alureg_t acc, word, a, b;
-    t_uint64 mr, alo, blo, ahi, bhi;
+    uint64_t mr, alo, blo, ahi, bhi;
 
-    t_uint64 l;
+    uint64_t l;
 
     if (!ACC || !val) {
         /* multiplication by zero is zero */
@@ -375,7 +375,7 @@ t_stat besm6_multiply(t_value val)
  * Change the sign of the number in the accumulator ACC.
  * The result goes to ACC; RMR is cleared.
  */
-t_stat besm6_change_sign(int negate_acc)
+status_t besm6_change_sign(int negate_acc)
 {
     alureg_t acc;
 
@@ -390,7 +390,7 @@ t_stat besm6_change_sign(int negate_acc)
  * Change the exponent of the number in the accumulator ACC.
  * The result goes to ACC; RMR is cleared.
  */
-t_stat besm6_add_exponent(int val)
+status_t besm6_add_exponent(int val)
 {
     alureg_t acc;
 
@@ -403,9 +403,9 @@ t_stat besm6_add_exponent(int val)
 /*
  * Pack a value under a mask.
  */
-t_value besm6_pack(t_value val, t_value mask)
+value_t besm6_pack(value_t val, value_t mask)
 {
-    t_value result;
+    value_t result;
 
     result = 0;
     for (; mask; mask >>= 1, val >>= 1)
@@ -420,9 +420,9 @@ t_value besm6_pack(t_value val, t_value mask)
 /*
  * Unpack a value under a mask.
  */
-t_value besm6_unpack(t_value val, t_value mask)
+value_t besm6_unpack(value_t val, value_t mask)
 {
-    t_value result;
+    value_t result;
     int i;
 
     result = 0;
@@ -441,7 +441,7 @@ t_value besm6_unpack(t_value val, t_value mask)
 /*
  * Count the one bits in a word.
  */
-int besm6_count_ones(t_value word)
+int besm6_count_ones(value_t word)
 {
     int c;
 

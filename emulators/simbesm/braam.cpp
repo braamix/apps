@@ -104,12 +104,12 @@ int img_close(Image *m)
 }
 
 /* The transfers themselves are the driver's; nothing here moves data. */
-int img_read(Image *, uint32, t_value *, int)
+int img_read(Image *, uint32_t, value_t *, int)
 {
     return 0;
 }
 
-int img_write(Image *, uint32, const t_value *, int)
+int img_write(Image *, uint32_t, const value_t *, int)
 {
     return 0;
 }
@@ -125,7 +125,7 @@ void img_remove(const char *)
 
 /* The formatter appends; nothing formats a disk on Braam, where the packs
  * arrive already formatted from the package. */
-int img_append(Image *, const t_value *, int)
+int img_append(Image *, const value_t *, int)
 {
     return 0;
 }
@@ -153,7 +153,7 @@ void sim_get_time(SimTime *t)
     t->min  = 0;
 }
 
-uint32 sim_now_ms(void)
+uint32_t sim_now_ms(void)
 {
     return proc_now();
 }
@@ -209,12 +209,12 @@ void con_flush(void)
 
 /* The keyboard is claimed in proc_main, where a claim can be awaited, and
  * ~Proc gives it back.  There is no mode to set. */
-t_stat con_init(void)
+status_t con_init(void)
 {
     return SCPE_OK;
 }
 
-t_stat con_raw(void)
+status_t con_raw(void)
 {
     return SCPE_OK;
 }
@@ -278,7 +278,7 @@ Task<i32> keyboard(int con, ScreenRef on)
         if (b < 0)
             continue;
         if (b == con_stop_char) {
-            stop_cpu     = TRUE;
+            stop_cpu     = true;
             sim_interval = 0;
             continue;
         }
@@ -311,7 +311,7 @@ Task<void> con_drain()
 
 /* The runs the machine asked for.  One syscall per run: a zone is 8256 bytes
  * and SYS_READ_MAX is 64 KB, so a page transfer is one read. */
-Task<t_stat> io_service_async()
+Task<status_t> io_service_async()
 {
     IoRequest *q = &io_request;
     UNIT *u      = q->unit;
@@ -603,7 +603,7 @@ Task<i32> proc_main(Args args)
             screen2_ok = 0; /* no task for it: one console, then */
     }
 
-    t_stat r = machine_init();
+    status_t r = machine_init();
     if (r != SCPE_OK) {
         co_await con_drain();
         co_return machine_exit(r);
@@ -624,7 +624,7 @@ Task<i32> proc_main(Args args)
         r = cpu_burst();
 
         if (r == REASON_IO) {
-            if (Task<t_stat> t = io_service_async())
+            if (Task<status_t> t = io_service_async())
                 r = co_await t;
             if (r != SCPE_OK)
                 break;
@@ -633,7 +633,7 @@ Task<i32> proc_main(Args args)
         if (r == REASON_YIELD) {
             co_await con_drain();
             if (stop_cpu) {
-                stop_cpu = FALSE;
+                stop_cpu = false;
                 r        = SCPE_STOP;
                 break;
             }

@@ -50,13 +50,13 @@
  */
 #include "besm6_defs.h"
 
-t_value memory[MEMSIZE];
-uint32 PC, RK, Aex, M[NREGS], RAU, RUU;
-t_value ACC, RMR, GRP, MGRP;
-uint32 PRP, MPRP;
-uint32 READY, READY2;       /* ready flags of various devices */
-int32 tmr_poll = CLK_DELAY; /* pgm timer poll */
-uint32 trace_counter;
+value_t memory[MEMSIZE];
+uint32_t PC, RK, Aex, M[NREGS], RAU, RUU;
+value_t ACC, RMR, GRP, MGRP;
+uint32_t PRP, MPRP;
+uint32_t READY, READY2;       /* ready flags of various devices */
+int32_t tmr_poll = CLK_DELAY; /* pgm timer poll */
+uint32_t trace_counter;
 
 /* Wired (non-registered) bits of interrupt registers (GRP and PRP)
  * cannot be cleared by writing to the GRP and must be cleared by clearing
@@ -75,7 +75,7 @@ int corr_stack;
 int autotime;
 int besm6_latin; /* persistent Latin (MADLEN) mnemonic mode */
 
-t_stat cpu_reset(DEVICE *dptr);
+status_t cpu_reset(DEVICE *dptr);
 
 /*
  * CPU data structures
@@ -135,7 +135,7 @@ const char *sim_stop_messages[SCPE_BASE] = {
 /*
  * Reset routine
  */
-t_stat cpu_reset(DEVICE *dptr)
+status_t cpu_reset(DEVICE *dptr)
 {
     int i;
     ACC = 0;
@@ -167,7 +167,7 @@ t_stat cpu_reset(DEVICE *dptr)
 /*
  * The "рег" (reg) instruction
  */
-static t_stat cmd_002()
+static status_t cmd_002()
 {
 #if 0
     besm6_debug ("*** reg %03o", Aex & 0377);
@@ -291,12 +291,12 @@ static t_stat cmd_002()
 /*
  * The "увв" (ext) instruction
  */
-static t_stat cmd_033()
+static status_t cmd_033()
 {
-    static uint32 tableau;
+    static uint32_t tableau;
 #if 1
     if (Aex & ~04177)
-        besm6_debug("*** @%05o, ext %05o, ACC[24:1]=%08o", PC, Aex, (uint32)ACC & BITS(24));
+        besm6_debug("*** @%05o, ext %05o, ACC[24:1]=%08o", PC, Aex, (uint32_t)ACC & BITS(24));
 #endif
     switch (Aex & 04177) {
     case 0:
@@ -307,13 +307,13 @@ static t_stat cmd_033()
     case 1:
     case 2:
         /* Control a magnetic drum transfer */
-        CPU_TRY(drum(Aex - 1, (uint32)ACC));
+        CPU_TRY(drum(Aex - 1, (uint32_t)ACC));
         break;
     case 3:
     case 4:
         /* Hand over the control word for a magnetic
          * disk transfer */
-        disk_io(Aex - 3, (uint32)ACC);
+        disk_io(Aex - 3, (uint32_t)ACC);
         break;
     case 5:
     case 6:
@@ -338,7 +338,7 @@ static t_stat cmd_033()
     case 023:
     case 024:
         /* Control a magnetic disk transfer */
-        CPU_TRY(disk_ctl(Aex - 023, (uint32)ACC));
+        CPU_TRY(disk_ctl(Aex - 023, (uint32_t)ACC));
         break;
     case 030:
         /* Clear the ПРП */
@@ -391,7 +391,7 @@ static t_stat cmd_033()
         break;
     case 0140:
         /* Write to the telegraph channel register */
-        tty_send((uint32)ACC & BITS(24));
+        tty_send((uint32_t)ACC & BITS(24));
         break;
     case 0141:
         /* formatting magnetic tape: no tape */
@@ -402,7 +402,7 @@ static t_stat cmd_033()
         break;
     case 0143:
         /* sending a syllable to the muxed serial interface */
-        mux_send((uint32)ACC & BITS(16));
+        mux_send((uint32_t)ACC & BITS(16));
         break;
     case 0150:
     case 0151:
@@ -435,12 +435,12 @@ static t_stat cmd_033()
         break;
     case 0172:
     case 0173:
-        besm6_debug(">>> Potential plotter output: %03o", (uint32)ACC & BITS(8));
+        besm6_debug(">>> Potential plotter output: %03o", (uint32_t)ACC & BITS(8));
         break;
     case 0174:
     case 0175:
         /* Send a code to the operator's console */
-        consul_print(Aex & 1, (uint32)ACC & BITS(8));
+        consul_print(Aex & 1, (uint32_t)ACC & BITS(8));
         break;
     case 0147:
         /* Writing to the power supply control register
@@ -449,8 +449,8 @@ static t_stat cmd_033()
         // break;
     case 0177:
         /* control the display panel of the ГПВЦ СО АН СССР */
-        if (tableau != ((uint32)ACC & BITS(24))) {
-            tableau = (uint32)ACC & BITS(24);
+        if (tableau != ((uint32_t)ACC & BITS(24))) {
+            tableau = (uint32_t)ACC & BITS(24);
             // besm6_debug(">>> PANEL: %08o", tableau);
         }
         break;
@@ -604,10 +604,10 @@ void check_initial_setup()
     const int YEAR      = 0221;  /* fixed */
 
     /* bit 47 of the ЗАНЯТА cell enables operator commands at all */
-    const t_value SETUP_REQS_ENABLED = 1LL << 46;
+    const value_t SETUP_REQS_ENABLED = 1LL << 46;
 
     /* bit 7 of the ЗАНЯТА cell enables any command */
-    const t_value ALL_REQS_ENABLED = 1 << 6;
+    const value_t ALL_REQS_ENABLED = 1 << 6;
 
     if (!vt_is_idle()) {
         /* Avoid sending setup requests while the OS
@@ -636,12 +636,12 @@ void check_initial_setup()
     } else {
         SimTime d;
         int mon;
-        t_value date;
+        value_t date;
 
         /* The ГОД cell is updated here directly */
         sim_get_time(&d);
         mon  = d.mon + 1;
-        date = (t_value)(d.mday / 10) << 33 | (t_value)(d.mday % 10) << 29 | (mon / 10) << 28 |
+        date = (value_t)(d.mday / 10) << 33 | (value_t)(d.mday % 10) << 29 | (mon / 10) << 28 |
                (mon % 10) << 24 | (d.year % 10) << 20 | ((d.year / 10) % 10) << 16 |
                (memory[YEAR] & 7);
         memory[YEAR] = SET_PARITY(date, PARITY_NUMBER);
@@ -656,7 +656,7 @@ void check_initial_setup()
 static unsigned short extmem[32768];
 static unsigned short last;
 
-void write_032(int addr, t_value val)
+void write_032(int addr, value_t val)
 {
     int v = val & 077777777;
     // if (v || addr) besm6_debug("W32 %08o -> %05o", v, addr);
@@ -682,7 +682,7 @@ void write_032(int addr, t_value val)
     }
 }
 
-t_value read_032(int addr)
+value_t read_032(int addr)
 {
     // besm6_debug("R32 %05o", addr);
     switch (addr) {
@@ -700,10 +700,10 @@ t_value read_032(int addr)
  * Returns a stop code when the instruction trapped, and zero otherwise;
  * upstream longjmp'd to cpu_halt instead.
  */
-t_stat cpu_one_inst()
+status_t cpu_one_inst()
 {
     int reg, opcode, addr, nextpc, next_mod;
-    t_value word, op;
+    value_t word, op;
 
     /*
      * Instruction execution time in 100 ns ticks; not really used
@@ -711,13 +711,13 @@ t_stat cpu_one_inst()
      * The assignments of MEAN_TIME(x,y) to the delay variable
      * are kept as a reference.
      */
-    uint32 delay __attribute__((unused)); /* MEAN_TIME() assignments below are documentation */
+    uint32_t delay __attribute__((unused)); /* MEAN_TIME() assignments below are documentation */
     corr_stack = 0;
     CPU_TRY(mmu_fetch(PC, &word));
     if (RUU & RUU_RIGHT_INSTR)
-        RK = (uint32)word; /* get right instruction */
+        RK = (uint32_t)word; /* get right instruction */
     else
-        RK = (uint32)(word >> 24); /* get left instruction */
+        RK = (uint32_t)(word >> 24); /* get left instruction */
 
     RK &= BITS(24);
     reg = RK >> 20;
@@ -1041,7 +1041,7 @@ t_stat cpu_one_inst()
         break;
     case 030: /* счрж, rte */
         Aex   = ADDR(addr + M[reg]);
-        ACC   = (t_value)(RAU & Aex & 0177) << 41;
+        ACC   = (value_t)(RAU & Aex & 0177) << 41;
         RAU   = SET_LOGICAL(RAU);
         delay = MEAN_TIME(3, 3);
         break;
@@ -1050,7 +1050,7 @@ t_stat cpu_one_inst()
         if (IS_LOGICAL(RAU)) {
             ACC = RMR;
         } else {
-            t_value x = RMR;
+            value_t x = RMR;
             ACC       = (ACC & ~BITS41) | (RMR & BITS40);
             besm6_add_exponent((Aex & 0177) - 64);
             RMR = x;
@@ -1061,7 +1061,7 @@ t_stat cpu_one_inst()
         if (RK & BBIT(19))
             write_032(ADDR(addr - 070000 + M[reg]), ACC);
         else {
-            t_value res;
+            value_t res;
             res = read_032(ADDR(addr + M[reg]));
             ACC = (res << 24) | (ACC & 077777777);
         }
@@ -1488,7 +1488,7 @@ void op_int_2()
  * at the instruction following the one that caused the interrupt -- as though
  * the "ТП" (transfer type) button had been pressed.  See page 119 of ТО9.
  */
-static t_stat cpu_trap(t_stat r, int *iintr)
+static status_t cpu_trap(status_t r, int *iintr)
 {
     M[017] += corr_stack;
     if (sim_deb && cpu_dev.dctrl) {
@@ -1624,13 +1624,13 @@ static t_stat cpu_trap(t_stat r, int *iintr)
  * ran to a stop and did everything itself; nothing below here may block
  * (machine.h).
  */
-t_stat cpu_burst(void)
+status_t cpu_burst(void)
 {
     static int iintr;
     static int started;
-    static t_stat deferred_trap;
-    int32 left = BURST_INSTRUCTIONS;
-    t_stat r;
+    static status_t deferred_trap;
+    int32_t left = BURST_INSTRUCTIONS;
+    status_t r;
 
     if (!started) {
         started = 1;
@@ -1706,7 +1706,7 @@ t_stat cpu_burst(void)
  * Some installations used 50 Hz with a modified OS
  * for a better user time/system time ratio.
  */
-t_stat fast_clk(UNIT *self)
+status_t fast_clk(UNIT *self)
 {
     static unsigned counter;
     static unsigned tty_counter;
@@ -1743,7 +1743,7 @@ UNIT clocks[] = {
     { .action = fast_clk, .wait = CLK_DELAY }, /* Bit 40 of the GRP, 250 Hz */
 };
 
-t_stat clk_reset(DEVICE *dev)
+status_t clk_reset(DEVICE *dev)
 {
     sim_register_clock_unit(&clocks[0]);
 

@@ -111,30 +111,30 @@ int tty_rate = 300;
 /* Interrupt generator mode: 1 - model time, 0 - wallclock time */
 int tty_turbo = 1;
 
-uint32 vt_sending, vt_receiving;
-uint32 tt_sending, tt_receiving;
+uint32_t vt_sending, vt_receiving;
+uint32_t tt_sending, tt_receiving;
 
 // Attachments survive the reset
-uint32 tt_mask = 0, vt_mask = 0;
+uint32_t tt_mask = 0, vt_mask = 0;
 
-uint32 TTY_OUT = 0, TTY_IN = 0, vt_idle = 0;
-uint32 CONSUL_IN[2];
+uint32_t TTY_OUT = 0, TTY_IN = 0, vt_idle = 0;
+uint32_t CONSUL_IN[2];
 
 /* Set when a typed character is placed in CONSUL_IN and cleared when the guest reads
  * the register.  CONSUL_IN is one character deep, so without this consul_receive()
  * overwrites a character the guest has not taken yet -- see the comment there. */
 static char cons_input_pending[2];
-uint32 MUX_SYLLABLE, mux_reg_busy;
+uint32_t MUX_SYLLABLE, mux_reg_busy;
 
-uint32 CONS_CAN_PRINT[2] = { 01000, 00400 };
-uint32 CONS_HAS_INPUT[2] = { 04000, 02000 };
+uint32_t CONS_CAN_PRINT[2] = { 01000, 00400 };
+uint32_t CONS_HAS_INPUT[2] = { 04000, 02000 };
 
-uint32 CONS_READY[2] = { 0200, 040 };
+uint32_t CONS_READY[2] = { 0200, 040 };
 void tt_print();
 void consul_receive();
 void mux_receive(void);
-t_stat vt_clk(UNIT *);
-t_stat mux_event(UNIT *);
+status_t vt_clk(UNIT *);
+status_t mux_event(UNIT *);
 
 UNIT tty_unit[] = { { .action = vt_clk }, /* fake unit, clock */
                     { .action = mux_event },
@@ -211,7 +211,7 @@ static int tty_raw8(int num)
     return (tty_unit[num].flags & TTY_CHARSET_MASK) == TTY_RAW8_CHARSET;
 }
 
-t_stat tty_reset(DEVICE *dptr)
+status_t tty_reset(DEVICE *dptr)
 {
     memset(tty_active, 0, sizeof(tty_active));
     memset(tty_sym, 0, sizeof(tty_sym));
@@ -235,7 +235,7 @@ t_stat tty_reset(DEVICE *dptr)
 }
 
 /* Bit 19 of GRP, should be <tty_rate> Hz */
-t_stat vt_clk(UNIT *self)
+status_t vt_clk(UNIT *self)
 {
     GRP |= MGRP & GRP_SERIAL;
 
@@ -268,11 +268,11 @@ t_stat vt_clk(UNIT *self)
     }
 }
 
-t_stat tty_setmode(UNIT *u, int32 val, const char *cptr, void *desc)
+status_t tty_setmode(UNIT *u, int32_t val, const char *cptr, void *desc)
 {
-    int num     = u - tty_unit;
-    TTYLINE *t  = &tty_line[num];
-    uint32 mask = 1 << (TTY_MAX - num);
+    int num       = u - tty_unit;
+    TTYLINE *t    = &tty_line[num];
+    uint32_t mask = 1 << (TTY_MAX - num);
 
     switch (val & TTY_STATE_MASK) {
     case TTY_OFFLINE_STATE:
@@ -317,7 +317,7 @@ t_stat tty_setmode(UNIT *u, int32 val, const char *cptr, void *desc)
  * telnet; there is no socket in a browser tab, and a second screen is where
  * that line goes instead.
  */
-t_stat tty_attach(UNIT *u, const char *cptr)
+status_t tty_attach(UNIT *u, const char *cptr)
 {
     int num = u - tty_unit;
 
@@ -358,7 +358,7 @@ t_stat tty_attach(UNIT *u, const char *cptr)
 
 DEVICE tty_dev = { .name = "TTY", .units = tty_unit, .numunits = 27, .reset = &tty_reset };
 
-void tty_send(uint32 mask)
+void tty_send(uint32_t mask)
 {
     if (mask && tty_dev.dctrl)
         besm6_debug("*** TTY: transmit %08o", mask);
@@ -397,7 +397,7 @@ const char *koi7_rus_to_unicode[32] = {
 };
 
 /* Videoton-340 employed single byte control codes rather than ESC sequences. */
-void vt_send(int num, uint32 sym)
+void vt_send(int num, uint32_t sym)
 {
     if (tty_raw(num)) {
         vt_putc(num, sym);
@@ -473,7 +473,7 @@ void vt_send(int num, uint32 sym)
  */
 void vt_print()
 {
-    uint32 workset = (TTY_OUT & vt_mask) | vt_sending;
+    uint32_t workset = (TTY_OUT & vt_mask) | vt_sending;
     int num;
 
     if (workset == 0) {
@@ -519,7 +519,7 @@ void vt_print()
  */
 void tt_print()
 {
-    uint32 workset = (TTY_OUT & tt_mask) | tt_sending;
+    uint32_t workset = (TTY_OUT & tt_mask) | tt_sending;
     int num;
 
     if (workset == 0) {
@@ -879,13 +879,13 @@ int getsym(int num)
  */
 void vt_receive()
 {
-    uint32 workset = vt_mask;
+    uint32_t workset = vt_mask;
     int num;
 
     TTY_IN &= ~workset;
     for (num = besm6_highest_bit(workset) - TTY_MAX; workset;
          num = besm6_highest_bit(workset) - TTY_MAX) {
-        uint32 mask = 1 << (TTY_MAX - num);
+        uint32_t mask = 1 << (TTY_MAX - num);
         switch (tty_instate[num]) {
         case 0:
             if (tty_typed[num] <= -2) {
@@ -959,13 +959,13 @@ void vt_receive()
  */
 void tt_receive()
 {
-    uint32 workset = tt_mask;
+    uint32_t workset = tt_mask;
     int num;
 
     TT_CLEAR(TTY_IN, workset);
     for (num = besm6_highest_bit(workset) - TTY_MAX; workset;
          num = besm6_highest_bit(workset) - TTY_MAX) {
-        uint32 mask = 1 << (TTY_MAX - num);
+        uint32_t mask = 1 << (TTY_MAX - num);
         switch (tty_instate[num]) {
         case 0:
 #if 0            
@@ -1033,7 +1033,7 @@ int tty_query()
 
 static char cons_is_printing[2];
 
-void consul_print(int dev_num, uint32 cmd)
+void consul_print(int dev_num, uint32_t cmd)
 {
     int uni;
     char buf[5];
@@ -1110,7 +1110,7 @@ void consul_receive()
     }
 }
 
-uint32 consul_read(int num)
+uint32_t consul_read(int num)
 {
     if (tty_dev.dctrl)
         besm6_debug("<<< CONSUL%o: %03o", num + TTY_MAX + 1, CONSUL_IN[num]);
@@ -1119,20 +1119,20 @@ uint32 consul_read(int num)
     return CONSUL_IN[num];
 }
 
-uint32 mux_read()
+uint32_t mux_read()
 {
     //    if (tty_dev.dctrl)
     besm6_debug("<<< MUX: %03o %03o", MUX_SYLLABLE >> 8, MUX_SYLLABLE & 0377);
     return MUX_SYLLABLE;
 }
 
-t_stat mux_event(UNIT *u)
+status_t mux_event(UNIT *u)
 {
     PRP |= PRP_MUX_DONE;
     return SCPE_OK;
 }
 
-void mux_send(uint32 syl)
+void mux_send(uint32_t syl)
 {
     int line_num = (syl >> 8) & 0177;
     //    if (tty_dev.dctrl)

@@ -43,7 +43,7 @@
 // Drums and disks.
 //
 // One zone contains 1024 words of user memory and 8 system data words.
-// Every word (t_value) is stored as 8-byte record, low byte first.
+// Every word (value_t) is stored as 8-byte record, low byte first.
 // System data is stored first, then user data.
 //
 // Images are read and written with plain fread/fwrite, so the host must be
@@ -121,18 +121,18 @@ extern UNIT tty_unit[];
 extern UNIT md_unit[];
 extern UNIT drum_unit[];
 extern UNIT clocks[];
-extern t_value memory[MEMSIZE];
-extern t_value pult[11][8];
+extern value_t memory[MEMSIZE];
+extern value_t pult[11][8];
 extern unsigned pult_packet_switch; // selector of hardwired programs
 
-extern uint32 PC, RK, Aex, RAU, RUU;
-extern uint32 M[NREGS];
-extern t_value BRZ[8], RP[8], GRP, MGRP;
-extern uint32 PRP, MPRP;
-extern t_value ACC, RMR;
-extern uint32 BAZ[8], TABST, RZ;
-extern uint32 READY;  // read by ext 4031
-extern uint32 READY2; // read by ext 4102
+extern uint32_t PC, RK, Aex, RAU, RUU;
+extern uint32_t M[NREGS];
+extern value_t BRZ[8], RP[8], GRP, MGRP;
+extern uint32_t PRP, MPRP;
+extern value_t ACC, RMR;
+extern uint32_t BAZ[8], TABST, RZ;
+extern uint32_t READY;  // read by ext 4031
+extern uint32_t READY2; // read by ext 4102
 extern DEVICE cpu_dev, drum_dev, mmu_dev;
 extern DEVICE md_dev[];
 extern DEVICE clock_dev;
@@ -143,21 +143,21 @@ extern DEVICE tty_dev;
  * from arbitrary depth -- an operand protection fault out of mmu_load(), an
  * overflow out of besm6_add(), an I/O error out of the disk -- and sim_instr()
  * caught it with setjmp().  There is no setjmp on wasm32, so every routine that
- * can raise a trap returns t_stat and every caller checks; cpu_trap() below is
+ * can raise a trap returns status_t and every caller checks; cpu_trap() below is
  * what the landing pad became.
  *
  * Zero is "no trap": the STOP_ codes start at 1 and SCPE_ at SCPE_BASE.
  */
-#define CPU_TRY(expr)          \
-    do {                       \
-        t_stat trap_ = (expr); \
-        if (trap_)             \
-            return trap_;      \
+#define CPU_TRY(expr)            \
+    do {                         \
+        status_t trap_ = (expr); \
+        if (trap_)               \
+            return trap_;        \
     } while (0)
 
-t_stat disk_attach(UNIT *u, const char *cptr);
-t_stat drum_attach(UNIT *u, const char *cptr);
-t_stat tty_attach(UNIT *u, const char *cptr);
+status_t disk_attach(UNIT *u, const char *cptr);
+status_t drum_attach(UNIT *u, const char *cptr);
+status_t tty_attach(UNIT *u, const char *cptr);
 
 // MMU unit flags: `set mmu cache' / `set mmu check'.
 #define CACHE_ENB 1
@@ -313,15 +313,15 @@ t_stat tty_attach(UNIT *u, const char *cptr);
 
 // Memory access routines.  The four that can fault report a trap and hand
 // their value back through a pointer; mmu_prefetch() cannot fault.
-extern t_stat mmu_store(int addr, t_value word);
-extern t_stat mmu_load(int addr, t_value *word);
-extern t_stat mmu_fetch(int addr, t_value *word);
-extern t_value mmu_prefetch(int addr, int actual);
-extern void mmu_setcache(int idx, t_value word);
-extern t_value mmu_getcache(int idx);
-extern void mmu_setrp(int idx, t_value word);
+extern status_t mmu_store(int addr, value_t word);
+extern status_t mmu_load(int addr, value_t *word);
+extern status_t mmu_fetch(int addr, value_t *word);
+extern value_t mmu_prefetch(int addr, int actual);
+extern void mmu_setcache(int idx, value_t word);
+extern value_t mmu_getcache(int idx);
+extern void mmu_setrp(int idx, value_t word);
 extern void mmu_setup(void);
-extern void mmu_setprotection(int idx, t_value word);
+extern void mmu_setprotection(int idx, value_t word);
 extern void mmu_print_brz(void);
 
 // Utility functions
@@ -333,32 +333,32 @@ unsigned short gost_to_unicode(unsigned char ch);
 void uni2utf8(unsigned short ch, char buf[5]);
 
 // Drum access.
-t_stat drum(int ctlr, uint32 cmd);
+status_t drum(int ctlr, uint32_t cmd);
 int drum_errors(void);
 
 // Disk access.
-void disk_io(int ctlr, uint32 cmd);
-t_stat disk_ctl(int ctlr, uint32 cmd);
+void disk_io(int ctlr, uint32_t cmd);
+status_t disk_ctl(int ctlr, uint32_t cmd);
 int disk_state(int ctlr);
 int disk_errors(void);
 
 // Terminals (teletypes, Videotons, Consuls).
-void tty_send(uint32 mask);
+void tty_send(uint32_t mask);
 int tty_query(void);
 void vt_print(void);
 void tt_print(void);
 void vt_receive(void);
 void tt_receive(void);
-void consul_print(int num, uint32 cmd);
-uint32 consul_read(int num);
-void mux_send(uint32 syllable);
-uint32 mux_read(void);
+void consul_print(int num, uint32_t cmd);
+uint32_t consul_read(int num);
+void mux_send(uint32_t syllable);
+uint32_t mux_read(void);
 void mux_clear(void);
 int vt_is_idle(void);
 
 // Debug output.
-void besm6_fprint_cmd(Sink *of, uint32 cmd);
-void besm6_fprint_insn(Sink *of, uint32 insn);
+void besm6_fprint_cmd(Sink *of, uint32_t cmd);
+void besm6_fprint_insn(Sink *of, uint32_t insn);
 extern int besm6_latin;
 void besm6_log(const char *fmt, ...);
 void besm6_log_cont(const char *fmt, ...);
@@ -368,33 +368,33 @@ void besm6_debug(const char *fmt, ...);
 void besm6_trace_reset(void);
 void besm6_trace_instruction(void);
 void besm6_trace_registers(void);
-void besm6_trace_memory(int addr, t_value val, const char *opname);
+void besm6_trace_memory(int addr, value_t val, const char *opname);
 void besm6_trace_exception(const char *message);
 void besm6_trace_call_return(void);
 
 // Symbol table extracted from an a.out image (besm6_trace.c),
 // mapping function addresses to names for the call/return trace.
 void besm6_sym_clear(void);
-void besm6_sym_add(uint32 addr, const char *name);
+void besm6_sym_add(uint32_t addr, const char *name);
 void besm6_sym_sort(void);
-const char *besm6_sym_find(uint32 addr, int *at_start);
-t_stat fprint_sym(Sink *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw);
-t_stat sim_load(Blob *fi);
-t_stat besm6_boot_unix(Blob *kernel);
-t_stat besm6_dump(Sink *of, const char *fnam);
+const char *besm6_sym_find(uint32_t addr, int *at_start);
+status_t fprint_sym(Sink *of, uint32_t addr, value_t *val, UNIT *uptr, int32_t sw);
+status_t sim_load(Blob *fi);
+status_t besm6_boot_unix(Blob *kernel);
+status_t besm6_dump(Sink *of, const char *fnam);
 
 // Arithmetic.
-double besm6_to_ieee(t_value word);
-t_stat besm6_add(t_value val, int negate_acc, int negate_val);
-t_stat besm6_divide(t_value val);
-t_stat besm6_multiply(t_value val);
-t_stat besm6_change_sign(int sign);
-t_stat besm6_add_exponent(int val);
-int besm6_highest_bit(t_value val);
+double besm6_to_ieee(value_t word);
+status_t besm6_add(value_t val, int negate_acc, int negate_val);
+status_t besm6_divide(value_t val);
+status_t besm6_multiply(value_t val);
+status_t besm6_change_sign(int sign);
+status_t besm6_add_exponent(int val);
+int besm6_highest_bit(value_t val);
 void besm6_shift(int toright);
-int besm6_count_ones(t_value word);
-t_value besm6_pack(t_value val, t_value mask);
-t_value besm6_unpack(t_value val, t_value mask);
+int besm6_count_ones(value_t word);
+value_t besm6_pack(value_t val, value_t mask);
+value_t besm6_unpack(value_t val, value_t mask);
 
 // Bits of the main interrupt register ГРП (GRP)
 // External:
@@ -465,6 +465,6 @@ t_value besm6_unpack(t_value val, t_value mask);
 #define PRP_MUX_DONE  000000040 // 6
 
 // Number of the RAM block or page that raised the interrupt
-extern uint32 iintr_data;
-extern uint32 trace_counter;
+extern uint32_t iintr_data;
+extern uint32_t trace_counter;
 #endif

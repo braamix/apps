@@ -100,7 +100,7 @@ void sim_debug_from_env(void)
     const char *file = getenv("BESM6_DEBUG");
     const char *devs = getenv("BESM6_TRACE");
     DEVICE *dptr;
-    uint32 i;
+    uint32_t i;
 
     if ((file == NULL) || (*file == '\0'))
         return;

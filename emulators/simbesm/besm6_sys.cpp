@@ -169,9 +169,9 @@ void besm6_debug(const char *fmt, ...)
  *      48——–42 41   40————————————————–1
  *      exponent sign mantissa in two's complement
  */
-t_value ieee_to_besm6(double d)
+value_t ieee_to_besm6(double d)
 {
-    t_value word;
+    value_t word;
     int exponent;
     int sign;
 
@@ -181,7 +181,7 @@ t_value ieee_to_besm6(double d)
     d = frexp(d, &exponent);
     /* 0.5 <= d < 1.0 */
     d    = ldexp(d, 40);
-    word = (t_value)d;
+    word = (value_t)d;
     if (d - word >= 0.5)
         word += 1; /* Rounding. */
     if (exponent < -64)
@@ -192,11 +192,11 @@ t_value ieee_to_besm6(double d)
     }
     if (sign)
         word = 0x20000000000LL - word; /* Sign. */
-    word |= ((t_value)(exponent + 64)) << 41;
+    word |= ((value_t)(exponent + 64)) << 41;
     return word;
 }
 
-double besm6_to_ieee(t_value word)
+double besm6_to_ieee(value_t word)
 {
     double mantissa;
     int exponent;
@@ -207,7 +207,7 @@ double besm6_to_ieee(t_value word)
     /* Shift so that the sign of the mantissa lands on the sign of the integer;
      * `mantissa' is then the original mantissa multiplied by 2**63.
      */
-    mantissa = (double)(((t_int64)word) << (64 - 48 + 7));
+    mantissa = (double)(((int64_t)word) << (64 - 48 + 7));
 
     exponent = word >> 41;
 
@@ -276,7 +276,7 @@ static const char *get_alnum(const char *iptr, char *optr)
  * Parse single instruction (half word).
  * Allow mnemonics or octal code.
  */
-const char *parse_instruction(const char *cptr, uint32 *val)
+const char *parse_instruction(const char *cptr, uint32_t *val)
 {
     int opcode, reg, addr, negate;
     char gbuf[CBUFSIZE];
@@ -368,9 +368,9 @@ const char *parse_instruction(const char *cptr, uint32 *val)
 /*
  * Instruction parse: two commands per word.
  */
-t_stat parse_instruction_word(const char *cptr, t_value *val)
+status_t parse_instruction_word(const char *cptr, value_t *val)
 {
-    uint32 left, right;
+    uint32_t left, right;
 
     *val = 0;
     cptr = parse_instruction(cptr, &left);
@@ -388,14 +388,14 @@ t_stat parse_instruction_word(const char *cptr, t_value *val)
         /*printf ("Extra symbols at eoln: %s\n", cptr);*/
         return SCPE_2MARG;
     }
-    *val = (t_value)left << 24 | right;
+    *val = (value_t)left << 24 | right;
     return SCPE_OK;
 }
 
 /*
  * Print a machine instruction with its mnemonic.
  */
-void besm6_fprint_cmd(Sink *of, uint32 cmd)
+void besm6_fprint_cmd(Sink *of, uint32_t cmd)
 {
     int reg, opcode, addr;
 
@@ -427,7 +427,7 @@ void besm6_fprint_cmd(Sink *of, uint32 cmd)
 /*
  * Print a machine instruction in octal.
  */
-void besm6_fprint_insn(Sink *of, uint32 insn)
+void besm6_fprint_insn(Sink *of, uint32_t insn)
 {
     if (insn & BBIT(20))
         sink_printf(of, "%02o %02o %05o ", insn >> 20, (insn >> 15) & 037, insn & BITS(15));
@@ -447,9 +447,9 @@ void besm6_fprint_insn(Sink *of, uint32 insn)
  * Outputs:
  *      return  = status code
  */
-t_stat fprint_sym(Sink *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw)
+status_t fprint_sym(Sink *of, uint32_t addr, value_t *val, UNIT *uptr, int32_t sw)
 {
-    t_value cmd;
+    value_t cmd;
 
     if (uptr && (uptr != &cpu_unit)) /* must be CPU */
         return SCPE_ARG;
@@ -457,7 +457,7 @@ t_stat fprint_sym(Sink *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw)
     cmd = val[0];
 
     if (sw & SWMASK('M')) { /* symbolic decode? */
-        besm6_fprint_cmd(of, (uint32)(cmd >> 24));
+        besm6_fprint_cmd(of, (uint32_t)(cmd >> 24));
         sink_printf(of, ",\n\t");
         besm6_fprint_cmd(of, cmd & BITS(24));
     } else if (sw & SWMASK('I')) {
@@ -486,7 +486,7 @@ t_stat fprint_sym(Sink *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw)
  * с 0123 4567 0123 4567       - an octal word
  * к 00 22 00000 00 010 0000   - instructions
  */
-t_stat besm6_read_line(Blob *input, int *type, t_value *val)
+status_t besm6_read_line(Blob *input, int *type, value_t *val)
 {
     char buf[512];
     const char *p;
@@ -551,17 +551,17 @@ bad:
 
 /*
  * Read one 6-byte big-endian word from a binary a.out image.
- * Returns (t_value)-1 on end of file.
+ * Returns (value_t)-1 on end of file.
  */
-static t_value freadw(Blob *f)
+static value_t freadw(Blob *f)
 {
-    t_value w = 0;
+    value_t w = 0;
     int i, c;
 
     for (i = 0; i < 6; ++i) {
         c = blob_getc(f);
         if (c < 0)
-            return (t_value)-1;
+            return (value_t)-1;
         w = (w << 8) | (c & 0xff);
     }
     return w;
@@ -600,7 +600,7 @@ static void besm6_load_symbols(Blob *input, int nbytes)
 {
     char name[256];
     int n_len, n_type, i, c;
-    uint32 n_value;
+    uint32_t n_value;
 
     besm6_sym_clear();
     while (nbytes > 0) {
@@ -633,10 +633,10 @@ static void besm6_load_symbols(Blob *input, int nbytes)
  * Load a binary a.out image: header, then the const/text/data segments.
  * The entry point (a_entry) becomes the start address.
  */
-static t_stat besm6_load_aout(Blob *input)
+static status_t besm6_load_aout(Blob *input)
 {
-    t_value a_magic, a_const, a_text, a_data, a_bss, a_syms, a_entry, a_flag;
-    t_value word;
+    value_t a_magic, a_const, a_text, a_data, a_bss, a_syms, a_entry, a_flag;
+    value_t word;
     int addr, i, n;
 
     a_magic = freadw(input);
@@ -647,7 +647,7 @@ static t_stat besm6_load_aout(Blob *input)
     a_syms  = freadw(input);
     a_entry = freadw(input);
     a_flag  = freadw(input);
-    if (a_flag == (t_value)-1) {
+    if (a_flag == (value_t)-1) {
         besm6_log("Truncated a.out header");
         return SCPE_FMT;
     }
@@ -664,7 +664,7 @@ static t_stat besm6_load_aout(Blob *input)
     n = (int)(a_const / 6);
     for (i = 0; i < n; ++i) {
         word = freadw(input);
-        if (word == (t_value)-1 || addr > MEMSIZE)
+        if (word == (value_t)-1 || addr > MEMSIZE)
             return SCPE_FMT;
         /*
          * The const segment is data, and is tagged as such, EXCEPT for the
@@ -683,7 +683,7 @@ static t_stat besm6_load_aout(Blob *input)
     n = (int)(a_text / 6);
     for (i = 0; i < n; ++i) {
         word = freadw(input);
-        if (word == (t_value)-1 || addr > MEMSIZE)
+        if (word == (value_t)-1 || addr > MEMSIZE)
             return SCPE_FMT;
         memory[addr++] = SET_PARITY(word, PARITY_INSN);
     }
@@ -694,13 +694,13 @@ static t_stat besm6_load_aout(Blob *input)
     n = (int)(a_data / 6);
     for (i = 0; i < n; ++i) {
         word = freadw(input);
-        if (word == (t_value)-1 || addr > MEMSIZE)
+        if (word == (value_t)-1 || addr > MEMSIZE)
             return SCPE_FMT;
         memory[addr++] = SET_PARITY(word, PARITY_NUMBER);
     }
     /* symbol table - function names for the call/return trace */
     besm6_load_symbols(input, (int)a_syms);
-    PC = (uint32)a_entry;
+    PC = (uint32_t)a_entry;
     return SCPE_OK;
 }
 
@@ -709,11 +709,11 @@ static t_stat besm6_load_aout(Blob *input)
  * Automatically detects a binary a.out image and loads it; otherwise
  * falls back to the textual .b6 memory-image format.
  */
-t_stat besm6_load(Blob *input)
+status_t besm6_load(Blob *input)
 {
     int addr, type;
-    t_value word;
-    t_stat err;
+    value_t word;
+    status_t err;
     unsigned char magic[6];
 
     /* Peek at the first word to detect a binary a.out image. */
@@ -753,7 +753,7 @@ t_stat besm6_load(Blob *input)
             ++addr;
             break;
         case '@': /* start address */
-            PC = (uint32)word;
+            PC = (uint32_t)word;
             break;
         }
         if (addr > MEMSIZE)
@@ -765,10 +765,10 @@ t_stat besm6_load(Blob *input)
 /*
  * Dump memory to file.
  */
-t_stat besm6_dump(Sink *of, const char *fnam)
+status_t besm6_dump(Sink *of, const char *fnam)
 {
     int addr, last_addr = -1;
-    t_value word;
+    value_t word;
 
     sink_printf(of, "; %s\n", fnam);
     for (addr = 1; addr < MEMSIZE; ++addr) {
@@ -784,7 +784,7 @@ t_stat besm6_dump(Sink *of, const char *fnam)
         last_addr = addr;
         if (IS_INSN(word)) {
             sink_printf(of, "к ");
-            besm6_fprint_cmd(of, (uint32)(word >> 24));
+            besm6_fprint_cmd(of, (uint32_t)(word >> 24));
             sink_printf(of, ", ");
             besm6_fprint_cmd(of, word & BITS(24));
             sink_printf(of, "\t\t; %05o - ", addr);
@@ -804,7 +804,7 @@ t_stat besm6_dump(Sink *of, const char *fnam)
  * *input* file to write to, which nothing ever exercised; besm6_dump() is its
  * own entry point now and takes a Sink like everything else that formats.
  */
-t_stat sim_load(Blob *fi)
+status_t sim_load(Blob *fi)
 {
     return besm6_load(fi);
 }
