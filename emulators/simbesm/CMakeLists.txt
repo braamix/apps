@@ -41,6 +41,18 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "wasm32")
                       PORT LIBS braam::math)
     target_include_directories(bin_besm6 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_compile_options(bin_besm6 PRIVATE -O3) # an interpreter, like dhrystone
+
+    # The kernel and the two packs, which the program copies out of the store on
+    # its first run: they are written in place, and the store is read-only.
+    set(BESM6_DATA "")
+    foreach(f unix root3072.disk usr3100.disk)
+        list(APPEND BESM6_DATA "${CMAKE_CURRENT_SOURCE_DIR}/data/${f}=share/besm6/${f}")
+    endforeach()
+
+    braam_add_package(NAME simbesm VERSION 1.0-r0
+                      FIELD "T=BESM-6 mainframe simulator that boots Unix"
+                      FILES $<TARGET_FILE:bin_besm6>=bin/besm6 ${BESM6_DATA})
+    add_dependencies(packages pkg_simbesm)
 else()
     # --- the host build, which tests/unix.exp drives -------------------------
     option(SIMBESM_WERROR "Treat warnings as errors" ON)

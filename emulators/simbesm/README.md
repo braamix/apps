@@ -57,11 +57,22 @@ cd data && ../build/besm6 # boot Unix and get a shell
 make -C ../..             # the Braam program, in build/emulators/simbesm/
 ```
 
+The Braam build needs an SDK with `PROC_ABI` 20 — `Sys::TermOpen`, which the
+second screen is — and that release is not out yet. Until it is, build the core
+tree and name its SDK:
+
+```sh
+make -C ../../../braam-core release
+make -C ../.. SDK=../braam-core/build/sdk
+```
+
 Image names are hardcoded and relative, so run from the directory holding them.
 `^E` stops the run and exits.
 
-`make test` boots the same images under [tests/unix.exp](tests/unix.exp) and
-checks the replies. It needs `/usr/bin/expect`; CMake skips the test otherwise.
+`make test` here boots the same images under [tests/unix.exp](tests/unix.exp)
+and checks the replies; it needs `/usr/bin/expect`, and CMake skips the test
+otherwise. `test/boot.mjs` does the same under braam-core's system harness, on
+two screens, and is what `make test` at the top of the tree runs.
 
 `besm6_main.cpp` performs the steps the old `demo/unix.ini` command script did,
 in the same order, and then runs the driver loop.

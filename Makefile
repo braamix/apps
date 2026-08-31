@@ -97,6 +97,7 @@ test: all
 	@node converters/iconv/test/errors.mjs
 	@node benchmarks/dhrystone/test/interrupt.mjs
 	@node benchmarks/duremark/test/interrupt.mjs
+	@node emulators/simbesm/test/boot.mjs
 
 # The repository to upload: the signed index and the zips it vouches for, in
 # one directory, because a package's URL is derived from the index's own N.

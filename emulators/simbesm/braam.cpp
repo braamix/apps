@@ -396,6 +396,21 @@ Task<String> find_data()
         p.append("/share/besm6");
         co_return p;
     }
+
+    /* Installed, but reached by a path of its own rather than through
+     * /pkg/bin.  The store is one directory and the name is a prefix of it. */
+    Result<Vec<DirEntry>> ents = Err(Error::NoMemory);
+    if (Task<Result<Vec<DirEntry>>> t = list_dir("/pkg/store"))
+        ents = co_await t;
+    if (ents.is_ok())
+        for (const DirEntry &e : ents.value())
+            if (e.name.str().starts_with("simbesm-")) {
+                p.assign("/pkg/store/");
+                p.append(e.name.str());
+                p.append("/share/besm6");
+                co_return p;
+            }
+
     p.assign("/pkg/share/besm6");
     co_return p;
 }
