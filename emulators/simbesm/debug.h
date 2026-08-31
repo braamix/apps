@@ -37,4 +37,8 @@ void sink_init(void);
 void sim_debug_from_env(void);
 void sim_debug_close(void);
 
+/* The trace file itself: the platform's, like the image and the console. */
+Sink *deb_file_open(const char *path);
+void deb_file_close(void);
+
 #endif /* BESM6_DEBUG_H */

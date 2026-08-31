@@ -38,4 +38,27 @@ int img_error(Image *m);
 /* Deletes one rejected after being created. */
 void img_remove(const char *path);
 
+/*
+ * A whole file in memory, and the sequential reads the a.out loader makes of
+ * it.  Those were fgets/getc/fread/rewind over a FILE *; the kernel image is
+ * 110 KB and reading it once is what keeps sim_load() a plain function.
+ */
+typedef struct {
+    const unsigned char *base;
+    size_t len, pos;
+} Blob;
+
+/* Reads `path' whole into a heap block the caller frees.  The platform's. */
+int img_slurp(const char *path, Blob *b);
+void blob_free(Blob *b);
+
+/* The `ч' line of a .b6 image.  strtod is not in the port kit; math/ftoa.h has
+ * it under another name, so the platform answers this. */
+double sim_strtod(const char *s, char **end);
+
+int blob_getc(Blob *b); /* -1 at the end */
+size_t blob_read(Blob *b, void *p, size_t n);
+char *blob_gets(Blob *b, char *s, int n);
+void blob_rewind(Blob *b);
+
 #endif /* BESM6_IMAGE_H */

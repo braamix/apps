@@ -392,23 +392,6 @@ static uint32 rtc_nxintv;  /* next interval */
 static int32 rtc_based;    /* base delay */
 static int32 rtc_currd;    /* current delay */
 
-static uint32 sim_os_msec(void)
-{
-    struct timespec ts;
-
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
-        return 0;
-    return (uint32)((t_int64)(ts.tv_sec * 1000) + (t_int64)((ts.tv_nsec + 500000) / 1000000));
-}
-
-time_t sim_get_time(void)
-{
-    struct timespec ts_now;
-
-    clock_gettime(CLOCK_REALTIME, &ts_now);
-    return ts_now.tv_sec;
-}
-
 static double inst_per_sec(void)
 {
     double ips = (double)rtc_currd * rtc_hz;
@@ -430,7 +413,7 @@ int32 sim_rtcn_init(int32 time)
      */
     if (rtc_currd)
         time = rtc_currd;
-    rtc_rtime   = sim_os_msec();
+    rtc_rtime   = sim_now_ms();
     rtc_vtime   = rtc_rtime;
     rtc_nxintv  = 1000;
     rtc_ticks   = 0;
@@ -457,10 +440,10 @@ int32 sim_rtcn_calb(uint32 ticksper)
     rtc_ticks += 1;           /* count ticks */
     if (rtc_ticks < ticksper) /* 1 sec yet? */
         return rtc_currd;
-    rtc_ticks = 0;             /* reset ticks */
-    new_rtime = sim_os_msec(); /* wall time */
+    rtc_ticks = 0;            /* reset ticks */
+    new_rtime = sim_now_ms(); /* wall time */
     if (new_rtime < rtc_rtime) {
-        /* Time running backwards: sim_os_msec() wrapped as a uint32, which
+        /* Time running backwards: sim_now_ms() wrapped as a uint32, which
            happens roughly every 49 days.  Rebase and skip this calibration. */
         rtc_vtime = rtc_rtime = new_rtime;
         rtc_nxintv            = 1000;
@@ -550,31 +533,26 @@ t_stat sim_clock_coschedule(UNIT *uptr, int32 n)
 
 IoRequest io_request;
 
-void io_post(UNIT *u, t_stat (*serve)(UNIT *u), int32 delay)
+void io_post(UNIT *u, int write, int32 delay, int *fail, int fail_mask)
 {
-    io_request.unit  = u;
-    io_request.serve = serve;
-    io_request.delay = delay;
+    io_request.unit      = u;
+    io_request.write     = write;
+    io_request.nrun      = 0;
+    io_request.delay     = delay;
+    io_request.fail      = fail;
+    io_request.fail_mask = fail_mask;
 }
 
-t_stat io_service(void)
+void io_run(uint32 off, t_value *mem, int n)
 {
-    UNIT *u                 = io_request.unit;
-    t_stat (*serve)(UNIT *) = io_request.serve;
-    t_stat r;
+    IoRun *r;
 
-    if (!u)
-        return SCPE_OK;
-    io_request.unit = NULL;
-
-    /* A failed transfer halts the machine, which is where upstream's longjmp
-     * to cpu_halt landed for an SCPE_ code too. */
-    r = serve(u);
-    if (r != SCPE_OK)
-        return r;
-
-    sim_activate(u, io_request.delay);
-    return SCPE_OK;
+    if (io_request.nrun >= (int)(sizeof(io_request.run) / sizeof(io_request.run[0])))
+        return;
+    r      = &io_request.run[io_request.nrun++];
+    r->off = off;
+    r->mem = mem;
+    r->n   = n;
 }
 
 /* ---------------------------------------------------------------- the driver */

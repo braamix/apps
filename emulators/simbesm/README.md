@@ -5,9 +5,16 @@ the 1960s–80s: a 48-bit machine, octal throughout, with sign-magnitude
 floating point. Everything needed to boot **Unix** ships in [data/](data/).
 
 This is a fork of [Open SIMH](https://github.com/open-simh/simh) reduced to the
-BESM-6 simulator alone, being ported to
+BESM-6 simulator alone and ported to
 [Braam](https://braamix.github.io) — an operating system that runs in a browser
-tab. The build here is still the host one; the Braam target comes later.
+tab. It boots Unix there.
+
+**Two builds, one machine.** Under the Braam toolchain this is a wasm32
+program; configured without one it is a native binary that
+[tests/unix.exp](tests/unix.exp) drives, which is how every step of the port was
+verified. The difference between them is one file —
+[braam.cpp](braam.cpp) or [host.cpp](host.cpp) — because everything that blocks
+is there and nowhere else.
 
 The SIMH framework is gone. What it did for the BESM-6 is four files:
 [machine.h](machine.h)/[machine.cpp](machine.cpp) — the types, the devices, the
@@ -44,8 +51,10 @@ and with what the simulator puts on the screen.
 ## Build and run
 
 ```sh
-make                      # produces build/besm6
+make                      # the host build, in build/besm6
 cd data && ../build/besm6 # boot Unix and get a shell
+
+make -C ../..             # the Braam program, in build/emulators/simbesm/
 ```
 
 Image names are hardcoded and relative, so run from the directory holding them.

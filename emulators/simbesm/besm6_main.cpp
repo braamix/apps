@@ -34,10 +34,9 @@
  * reads the flags `set ttyNN raw8' sets.  See unix.ini for why each step is
  * needed.  Run from the directory holding the images.
  */
-static t_stat besm6_boot_unix(void)
+t_stat besm6_boot_unix(Blob *kernel)
 {
     t_stat r;
-    FILE *f;
 
     /* set cpu latin */
     besm6_latin = 1;
@@ -74,64 +73,7 @@ static t_stat besm6_boot_unix(void)
         return r;
     sim_switches = 0;
 
-    /* load unix: besm6_load() sets PC from a_entry. */
-    f = fopen("unix", "rb");
-    if (f == NULL)
-        return sim_messagef(SCPE_OPENERR, "Cannot open 'unix'\n");
-    r = sim_load(f);
-    fclose(f);
-    return r;
-}
-
-/*
- * The driver loop: what a Braam entry point will be a coroutine of.  Everything
- * that blocks is here and nothing below cpu_burst() may (machine.h).
- */
-static t_stat run_machine(void)
-{
-    t_stat r;
-
-    for (;;) {
-        r = cpu_burst();
-
-        if (r == REASON_IO) {
-            r = io_service();
-            if (r != SCPE_OK)
-                return r;
-            continue;
-        }
-        if (r == REASON_YIELD) {
-            con_flush();
-            if (stop_cpu) {
-                stop_cpu = FALSE;
-                return SCPE_STOP;
-            }
-            continue;
-        }
-        return r; /* a stop code */
-    }
-}
-
-int main(void)
-{
-    t_stat r;
-
-    r = machine_init();
-    if (r != SCPE_OK)
-        return machine_exit(r);
-    sink_puts(sim_con, "\nBESM-6 Simulator Demo\n");
-
-    r = besm6_boot_unix();
-    if (r != SCPE_OK) {
-        sim_printf("%s\n", sim_error_text(r));
-        return machine_exit(r);
-    }
-
-    con_raw();
-    sim_run_begin();
-    r = run_machine();
-    sim_run_end();
-    sink_printf(sim_con, "\n%s\n", (r >= SCPE_BASE) ? sim_error_text(r) : sim_stop_messages[r]);
-
-    return machine_exit(r);
+    /* load unix: besm6_load() sets PC from a_entry.  The platform read the
+     * image: on Braam that is a co_await, and this is not one. */
+    return sim_load(kernel);
 }

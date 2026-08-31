@@ -634,23 +634,21 @@ void check_initial_setup()
         // trace_counter = 2000;
         // besm6_debug("Setting operator shift number");
     } else {
-        struct tm *d;
+        SimTime d;
+        int mon;
+        t_value date;
 
         /* The ГОД cell is updated here directly */
-        time_t t;
-        t_value date;
-        t = sim_get_time();
-        d = localtime(&t);
-        ++d->tm_mon;
-        date         = (t_value)(d->tm_mday / 10) << 33 | (t_value)(d->tm_mday % 10) << 29 |
-                       (d->tm_mon / 10) << 28 | (d->tm_mon % 10) << 24 | (d->tm_year % 10) << 20 |
-                       ((d->tm_year / 10) % 10) << 16 | (memory[YEAR] & 7);
+        sim_get_time(&d);
+        mon  = d.mon + 1;
+        date = (t_value)(d.mday / 10) << 33 | (t_value)(d.mday % 10) << 29 | (mon / 10) << 28 |
+               (mon % 10) << 24 | (d.year % 10) << 20 | ((d.year / 10) % 10) << 16 |
+               (memory[YEAR] & 7);
         memory[YEAR] = SET_PARITY(date, PARITY_NUMBER);
         /* command ВРЕ: ТР6 = 016, ТР5 bits 9-14 are the hour, bits 1-8 the minute */
         pult[0][6] = 016;
         pult[0][4] = 0;
-        pult[0][5] = (d->tm_hour / 10) << 12 | (d->tm_hour % 10) << 8 | (d->tm_min / 10) << 4 |
-                     (d->tm_min % 10);
+        pult[0][5] = (d.hour / 10) << 12 | (d.hour % 10) << 8 | (d.min / 10) << 4 | (d.min % 10);
         GRP |= GRP_PANEL_REQ;
     }
 }

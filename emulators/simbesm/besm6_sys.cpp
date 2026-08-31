@@ -486,13 +486,13 @@ t_stat fprint_sym(Sink *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw)
  * с 0123 4567 0123 4567       - an octal word
  * к 00 22 00000 00 010 0000   - instructions
  */
-t_stat besm6_read_line(FILE *input, int *type, t_value *val)
+t_stat besm6_read_line(Blob *input, int *type, t_value *val)
 {
     char buf[512];
     const char *p;
     int i, c;
 again:
-    if (!fgets(buf, sizeof(buf), input)) {
+    if (!blob_gets(input, buf, sizeof(buf))) {
         *type = 0;
         return SCPE_OK;
     }
@@ -516,7 +516,7 @@ again:
         c == 'F') {
         /* A floating-point number. */
         *type = '=';
-        *val  = ieee_to_besm6(strtod(p, 0));
+        *val  = ieee_to_besm6(sim_strtod(p, 0));
         return SCPE_OK;
     }
     if (c == CYRILLIC_SMALL_LETTER_ES || c == CYRILLIC_CAPITAL_LETTER_ES || c == 'c' || c == 'C') {
@@ -553,14 +553,14 @@ bad:
  * Read one 6-byte big-endian word from a binary a.out image.
  * Returns (t_value)-1 on end of file.
  */
-static t_value freadw(FILE *f)
+static t_value freadw(Blob *f)
 {
     t_value w = 0;
     int i, c;
 
     for (i = 0; i < 6; ++i) {
-        c = getc(f);
-        if (c == EOF)
+        c = blob_getc(f);
+        if (c < 0)
             return (t_value)-1;
         w = (w << 8) | (c & 0xff);
     }
@@ -596,7 +596,7 @@ static t_value freadw(FILE *f)
  * stream: 1-byte name length (0 terminates), 1-byte type, 3-byte
  * big-endian word address, then the raw name.  Keeps only functions.
  */
-static void besm6_load_symbols(FILE *input, int nbytes)
+static void besm6_load_symbols(Blob *input, int nbytes)
 {
     char name[256];
     int n_len, n_type, i, c;
@@ -604,20 +604,20 @@ static void besm6_load_symbols(FILE *input, int nbytes)
 
     besm6_sym_clear();
     while (nbytes > 0) {
-        n_len = getc(input);
+        n_len = blob_getc(input);
         if (n_len <= 0) /* terminator or EOF */
             break;
-        n_type  = getc(input);
+        n_type  = blob_getc(input);
         n_value = 0;
         for (i = 0; i < 3; ++i) {
-            c = getc(input);
-            if (c == EOF)
+            c = blob_getc(input);
+            if (c < 0)
                 return;
             n_value = (n_value << 8) | (c & 0xff);
         }
         for (i = 0; i < n_len; ++i) {
-            c = getc(input);
-            if (c == EOF)
+            c = blob_getc(input);
+            if (c < 0)
                 return;
             name[i] = c;
         }
@@ -633,7 +633,7 @@ static void besm6_load_symbols(FILE *input, int nbytes)
  * Load a binary a.out image: header, then the const/text/data segments.
  * The entry point (a_entry) becomes the start address.
  */
-static t_stat besm6_load_aout(FILE *input)
+static t_stat besm6_load_aout(Blob *input)
 {
     t_value a_magic, a_const, a_text, a_data, a_bss, a_syms, a_entry, a_flag;
     t_value word;
@@ -709,7 +709,7 @@ static t_stat besm6_load_aout(FILE *input)
  * Automatically detects a binary a.out image and loads it; otherwise
  * falls back to the textual .b6 memory-image format.
  */
-t_stat besm6_load(FILE *input)
+t_stat besm6_load(Blob *input)
 {
     int addr, type;
     t_value word;
@@ -717,12 +717,12 @@ t_stat besm6_load(FILE *input)
     unsigned char magic[6];
 
     /* Peek at the first word to detect a binary a.out image. */
-    if (fread(magic, 1, 6, input) == 6 && magic[0] == 'B' && magic[1] == 'E' && magic[2] == 'S' &&
+    if (blob_read(input, magic, 6) == 6 && magic[0] == 'B' && magic[1] == 'E' && magic[2] == 'S' &&
         magic[3] == 'M' && magic[4] == 0x01 && (magic[5] == 0x07 || magic[5] == 0x08)) {
-        rewind(input);
+        blob_rewind(input);
         return besm6_load_aout(input);
     }
-    rewind(input);
+    blob_rewind(input);
 
     /* Textual .b6 image carries no symbols: drop any from a prior a.out. */
     besm6_sym_clear();
@@ -804,7 +804,7 @@ t_stat besm6_dump(Sink *of, const char *fnam)
  * *input* file to write to, which nothing ever exercised; besm6_dump() is its
  * own entry point now and takes a Sink like everything else that formats.
  */
-t_stat sim_load(FILE *fi)
+t_stat sim_load(Blob *fi)
 {
     return besm6_load(fi);
 }

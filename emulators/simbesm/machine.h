@@ -20,7 +20,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #ifndef TRUE
 #define TRUE  1
@@ -138,7 +137,24 @@ int32 sim_rtcn_calb(uint32 ticks_per_second);
 /* Runs `uptr' with the clock's next tick, `n' ticks from now. */
 t_stat sim_clock_coschedule(UNIT *uptr, int32 n);
 
-time_t sim_get_time(void); /* the wall clock, for the guest's date */
+/*
+ * The wall clock, broken out.  <time.h> is not in the port kit -- there is no
+ * localtime() on Braam -- and this is the whole of what the machine wants: the
+ * front-panel date and time DISPAK is given at boot.
+ */
+typedef struct {
+    int year; /* since 1900, as tm_year was */
+    int mon;  /* 0..11, as tm_mon was */
+    int mday;
+    int hour, min;
+} SimTime;
+
+void sim_get_time(SimTime *t); /* the platform's */
+
+/* Milliseconds since some fixed point: what the calibration measures against.
+ * The platform's -- proc_now() on Braam, where it is frozen under the test
+ * harness, which the calibration already survives. */
+uint32 sim_now_ms(void);
 
 t_stat attach_unit(UNIT *uptr, const char *cptr);
 t_stat detach_unit(UNIT *uptr);
@@ -165,15 +181,32 @@ t_stat sim_messagef(t_stat stat, const char *fmt, ...) GCC_FMT_ATTR(2, 3);
  *
  * One is enough: the driver runs before the next instruction.
  */
+/* The transfer as data, not as a function to call: on Braam the driver performs
+ * it with co_awaits, and device code cannot be reached from there. */
+typedef struct {
+    uint32 off;   /* word offset in the image */
+    t_value *mem; /* where the words go or come from */
+    int n;        /* how many */
+} IoRun;
+
 typedef struct {
     UNIT *unit; /* NULL when nothing is pending */
-    t_stat (*serve)(UNIT *u);
-    int32 delay; /* model time until the completion event */
+    int write;
+    int nrun; /* the system words, then the data */
+    IoRun run[2];
+    int32 delay;   /* model time until the completion event */
+    int *fail;     /* a short read is an unformatted zone, not an error: */
+    int fail_mask; /* the device ORs this in and tells the guest */
 } IoRequest;
 
 extern IoRequest io_request;
 
-void io_post(UNIT *u, t_stat (*serve)(UNIT *u), int32 delay);
+/* Starts a request; io_run() appends to it.  Called from an instruction. */
+void io_post(UNIT *u, int write, int32 delay, int *fail, int fail_mask);
+void io_run(uint32 off, t_value *mem, int n);
+
+/* Performs them and arms the completion event.  The platform's: on Braam a
+ * read is a co_await. */
 t_stat io_service(void);
 
 /*

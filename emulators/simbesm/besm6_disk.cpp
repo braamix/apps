@@ -376,44 +376,26 @@ static unsigned sum_with_right_carry(unsigned a, unsigned b)
 }
 
 /*
- * A transfer that moves nothing: formatting, and reading a track header, both
- * of which the emulator answers out of memory.  The driver still needs
- * something to post, so that the completion event is armed the same way.
- */
-static t_stat disk_nothing(UNIT *u)
-{
-    (void)u;
-    return SCPE_OK;
-}
-
-/*
  * Write to the disk.
  */
-t_stat disk_write(UNIT *u)
+void disk_write(UNIT *u)
 {
     KMD *c = unit_to_ctlr(u);
     if (u->dptr->dctrl & DEB_DAT)
         besm6_debug("::: disk %02o write zone %04o mem %05o-%05o", c->dev, c->zone, c->memory,
                     c->memory + 1023);
-    img_write(u->image, ZONE_SIZE * c->zone, c->sysdata, 8);
-    img_write(u->image, ZONE_SIZE * c->zone + 8, &memory[c->memory], 1024);
-
-    if (img_error(u->image))
-        return SCPE_IOERR;
-    return SCPE_OK;
+    io_run(ZONE_SIZE * c->zone, c->sysdata, 8);
+    io_run(ZONE_SIZE * c->zone + 8, &memory[c->memory], 1024);
 }
 
-t_stat disk_write_track(UNIT *u)
+void disk_write_track(UNIT *u)
 {
     KMD *c = unit_to_ctlr(u);
     if (u->dptr->dctrl & DEB_DAT)
         besm6_debug("::: disk %02o write half-zone %04o.%d mem %05o-%05o", c->dev, c->zone,
                     c->track, c->memory, c->memory + 511);
-    img_write(u->image, ZONE_SIZE * c->zone + 4 * c->track, c->sysdata + 4 * c->track, 4);
-    img_write(u->image, 8 + ZONE_SIZE * c->zone + 512 * c->track, &memory[c->memory], 512);
-    if (img_error(u->image))
-        return SCPE_IOERR;
-    return SCPE_OK;
+    io_run(ZONE_SIZE * c->zone + 4 * c->track, c->sysdata + 4 * c->track, 4);
+    io_run(8 + ZONE_SIZE * c->zone + 512 * c->track, &memory[c->memory], 512);
 }
 
 /*
@@ -461,28 +443,16 @@ void disk_format(UNIT *u)
 /*
  * Read from the disk.
  */
-t_stat disk_read(UNIT *u)
+void disk_read(UNIT *u)
 {
     KMD *c = unit_to_ctlr(u);
     if (u->dptr->dctrl & DEB_DAT)
         besm6_debug((c->op & DISK_READ_SYSDATA) ? "::: disk %02o read zone %04o system words"
                                                 : "::: disk %02o read zone %04o mem %05o-%05o",
                     c->dev, c->zone, c->memory, c->memory + 1023);
-    if (img_read(u->image, ZONE_SIZE * c->zone, c->sysdata, 8) != 8) {
-        /* Read from an unformatted disk */
-        disk_fail |= c->mask_fail;
-        return SCPE_OK;
-    }
-    if (!(c->op & DISK_READ_SYSDATA) &&
-        img_read(u->image, ZONE_SIZE * c->zone + 8, &memory[c->memory], 1024) != 1024) {
-        /* Read from an unformatted disk */
-        disk_fail |= c->mask_fail;
-        return SCPE_OK;
-    }
-
-    if (img_error(u->image))
-        return SCPE_IOERR;
-    return SCPE_OK;
+    io_run(ZONE_SIZE * c->zone, c->sysdata, 8);
+    if (!(c->op & DISK_READ_SYSDATA))
+        io_run(ZONE_SIZE * c->zone + 8, &memory[c->memory], 1024);
 }
 
 t_value collect(t_value val)
@@ -497,7 +467,7 @@ t_value collect(t_value val)
     return res & BITS48;
 }
 
-t_stat disk_read_track(UNIT *u)
+void disk_read_track(UNIT *u)
 {
     KMD *c = unit_to_ctlr(u);
     if (u->dptr->dctrl & DEB_DAT)
@@ -505,22 +475,9 @@ t_stat disk_read_track(UNIT *u)
                         ? "::: disk %02o read half-zone %04o.%d system words"
                         : "::: disk %02o read half-zone %04o.%d mem %05o-%05o",
                     c->dev, c->zone, c->track, c->memory, c->memory + 511);
-    if (img_read(u->image, ZONE_SIZE * c->zone + 4 * c->track, c->sysdata + 4 * c->track, 4) != 4) {
-        /* Read from an unformatted disk */
-        disk_fail |= c->mask_fail;
-        return SCPE_OK;
-    }
-    if (!(c->op & DISK_READ_SYSDATA)) {
-        if (img_read(u->image, 8 + ZONE_SIZE * c->zone + 512 * c->track, &memory[c->memory], 512) !=
-            512) {
-            /* Read from an unformatted disk */
-            disk_fail |= c->mask_fail;
-            return SCPE_OK;
-        }
-    }
-    if (img_error(u->image))
-        return SCPE_IOERR;
-    return SCPE_OK;
+    io_run(ZONE_SIZE * c->zone + 4 * c->track, c->sysdata + 4 * c->track, 4);
+    if (!(c->op & DISK_READ_SYSDATA))
+        io_run(8 + ZONE_SIZE * c->zone + 512 * c->track, &memory[c->memory], 512);
 }
 
 /*
@@ -647,27 +604,29 @@ t_stat disk_ctl(int ctlr, uint32 cmd)
                             ctlr + '3', cmd, c->zone, c->track);
         }
         disk_fail &= ~c->mask_fail;
-        t_stat (*serve)(UNIT *u);
-        if (c->op & DISK_READ) {
-            serve = (IS_29MB(u) || c->op & DISK_PAGE_MODE) ? disk_read : disk_read_track;
-        } else {
-            if (u->flags & UNIT_RO) {
-                /* Read only. */
-                /*return SCPE_RO;*/
-                disk_fail |= c->mask_fail;
-                return SCPE_OK;
-            }
-            if (c->format) {
-                /* Formatting moves no data; only the trace says anything. */
-                disk_format(u);
-                serve = disk_nothing;
-            } else
-                serve = (IS_29MB(u) || c->op & DISK_PAGE_MODE) ? disk_write : disk_write_track;
+        if (!(c->op & DISK_READ) && (u->flags & UNIT_RO)) {
+            /* Read only. */
+            /*return SCPE_RO;*/
+            disk_fail |= c->mask_fail;
+            return SCPE_OK;
         }
 
         /* The driver performs the transfer and then waits for an event from
          * the device. */
-        io_post(u, serve, 20 * USEC); /* sped up for debugging */
+        io_post(u, !(c->op & DISK_READ), 20 * USEC, /* sped up for debugging */
+                &disk_fail, c->mask_fail);
+        if (c->op & DISK_READ) {
+            if (IS_29MB(u) || c->op & DISK_PAGE_MODE)
+                disk_read(u);
+            else
+                disk_read_track(u);
+        } else if (c->format) {
+            /* Formatting moves no data; only the trace says anything. */
+            disk_format(u);
+        } else if (IS_29MB(u) || c->op & DISK_PAGE_MODE)
+            disk_write(u);
+        else
+            disk_write_track(u);
 
     } else if (cmd & BBIT(11)) {
         /* Select a unit number and put it in the КМД mask register.
@@ -786,7 +745,7 @@ t_stat disk_ctl(int ctlr, uint32 cmd)
             disk_read_header(u);
 
             /* Nothing to transfer: the header was built in memory. */
-            io_post(u, disk_nothing, 20 * USEC); /* sped up for debugging */
+            io_post(u, 0, 20 * USEC, NULL, 0); /* sped up for debugging */
             break;
         case 010: /* clear the status register */
 #if 1

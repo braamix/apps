@@ -1,5 +1,5 @@
 /*
- * Formatting into a Sink, and the sinks this build has.
+ * Formatting into a Sink, and where the two of them go.
  *
  * Copyright (c) 2026, Serge Vakulenko
  */
@@ -77,29 +77,12 @@ static void con_sink_put(Sink *s, const char *buf, int n)
 
 static Sink con_sink = { con_sink_put };
 
-/* The trace file, over stdio; Braam writes it to a descriptor. */
-typedef struct {
-    Sink base;
-    FILE *f;
-} FileSink;
-
-static void file_put(Sink *s, const char *buf, int n)
-{
-    FILE *f = ((FileSink *)s)->f;
-
-    fwrite(buf, 1, n, f);
-    fflush(f);
-}
-
-static FileSink deb_sink = { { file_put }, NULL };
-
 Sink *sim_con;
 Sink *sim_deb;
 
 /* -------------------------------------------------------------- the switches */
 
-/* The console is bound first, so that a failure during startup has somewhere
- * to be reported. */
+/* The console is bound first, so a startup failure has somewhere to go. */
 void sink_init(void)
 {
     sim_con = &con_sink;
@@ -108,7 +91,7 @@ void sink_init(void)
 /*
  * BESM6_DEBUG names the trace file, "-" being stderr; BESM6_TRACE is a
  * comma-separated device list, defaulting to "cpu".  With BESM6_DEBUG unset
- * sim_deb stays NULL and every trace site is a predictable branch on it.
+ * sim_deb stays NULL and every trace site is a branch on it.
  *
  *      BESM6_DEBUG=- BESM6_TRACE=cpu,mmu ./besm6
  */
@@ -121,13 +104,9 @@ void sim_debug_from_env(void)
 
     if ((file == NULL) || (*file == '\0'))
         return;
-    if (strcmp(file, "-") == 0)
-        deb_sink.f = stderr;
-    else if ((deb_sink.f = fopen(file, "w")) == NULL) {
-        fprintf(stderr, "Can't open debug file '%s': %s\n", file, strerror(errno));
+    sim_deb = deb_file_open(file);
+    if (sim_deb == NULL)
         return;
-    }
-    sim_deb = &deb_sink.base;
 
     if ((devs == NULL) || (*devs == '\0'))
         devs = "cpu";
@@ -154,8 +133,6 @@ void sim_debug_close(void)
 {
     if (sim_deb == NULL)
         return;
-    if (deb_sink.f != stderr)
-        fclose(deb_sink.f);
-    deb_sink.f = NULL;
-    sim_deb    = NULL;
+    deb_file_close();
+    sim_deb = NULL;
 }

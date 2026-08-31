@@ -379,7 +379,8 @@ void besm6_sym_add(uint32 addr, const char *name);
 void besm6_sym_sort(void);
 const char *besm6_sym_find(uint32 addr, int *at_start);
 t_stat fprint_sym(Sink *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw);
-t_stat sim_load(FILE *fi);
+t_stat sim_load(Blob *fi);
+t_stat besm6_boot_unix(Blob *kernel);
 t_stat besm6_dump(Sink *of, const char *fnam);
 
 // Arithmetic.
