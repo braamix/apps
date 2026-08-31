@@ -1,0 +1,4 @@
+# The root .clang-format, plus the one thing the SIMH headers need: sim_defs.h
+# must precede scp.h, and sorting them does not compile.
+BasedOnStyle: InheritParentConfig
+SortIncludes: Never
