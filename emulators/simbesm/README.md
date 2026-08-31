@@ -1,97 +1,108 @@
 # BESM-6 simulator
 
 A simulator of the **BESM-6** (БЭСМ-6), the most widely used Soviet mainframe of
-the 1960s–80s: a 48-bit machine, octal throughout, with sign-magnitude
-floating point. Everything needed to boot **Unix** ships in [data/](data/).
+the 1960s–80s: a 48-bit machine, octal throughout, with sign-magnitude floating
+point. It boots **Unix**, and everything needed to do that is in [data/](data/).
 
-This is a fork of [Open SIMH](https://github.com/open-simh/simh) reduced to the
-BESM-6 simulator alone and ported to
-[Braam](https://braamix.github.io) — an operating system that runs in a browser
-tab. It boots Unix there.
-
-**Two builds, one machine.** Under the Braam toolchain this is a wasm32
-program; configured without one it is a native binary that
-[tests/unix.exp](tests/unix.exp) drives, which is how every step of the port was
-verified. The difference between them is one file —
-[braam.cpp](braam.cpp) or [host.cpp](host.cpp) — because everything that blocks
-is there and nowhere else.
-
-The SIMH framework is gone. What it did for the BESM-6 is four files:
-[machine.h](machine.h)/[machine.cpp](machine.cpp) — the types, the devices, the
-event queue, the clock and the driver; [image.h](image.h) — disks and drums;
-[console.h](console.h) — the terminal lines; [debug.h](debug.h) — the one output
-path. Between them they are about a third of what `simh/` was, and the rule they
-exist for is that **nothing below `cpu_burst()` may block**: on Braam a read, a
-write and a sleep are coroutines, a coroutine cannot be entered from a plain
-function, and making the instruction loop one is worse — a `co_await` is a call
-and not a tail call, so awaiting without suspending grows the native stack until
-the process traps.
-
-So `cpu_burst()` runs instructions until it has something for its caller to do
-and says which: a transfer to perform, the burst being up, or a stop code. The
-caller is `main()` here and will be a coroutine on Braam, and that is the whole
-of the difference.
-
-This build has **no command interpreter** — no `sim>` prompt, no scripts. To
-change what the simulator does, edit [besm6_main.cpp](besm6_main.cpp) and rebuild.
-
-The machine, its software and its mnemonics are Russian. Registers have Cyrillic
-names with Latin synonyms, the disassembler speaks both БЕМШ and MADLEN, and
-terminals can type Cyrillic from a Latin keyboard — so a plain ASCII terminal is
-enough.
-
-**Comments in the sources are English.** Upstream's were largely Russian and
-this port translated them; what stays Cyrillic is what *names* something — the
-hardware's own mnemonics (`ГРП`, `ПРП`, `БлП`, `АУ`, `УУ`, `ПоП`, `БРЗ`, `КМД`,
-…), the two mnemonic sets the disassembler prints, the `.b6` type letters, and
-the stop messages the machine reports. Those are the machine's vocabulary, and
-translating them would make the code disagree with the hardware documentation
-and with what the simulator puts on the screen.
+A fork of [Open SIMH](https://github.com/open-simh/simh) reduced to this one
+simulator and ported to [Braam](https://braamix.github.io).
 
 ## Build and run
 
+Two builds, one machine. Under the Braam toolchain it is a wasm32 program;
+configured without one it is a native binary, which is what
+[tests/unix.exp](tests/unix.exp) drives and how every step of the port was
+checked. The difference between them is one file — [braam.cpp](braam.cpp) or
+[host.cpp](host.cpp) — because everything that blocks is there and nowhere else.
+
 ```sh
-make                      # the host build, in build/besm6
-cd data && ../build/besm6 # boot Unix and get a shell
+make                      # the native build, in build/besm6
+cd data && ../build/besm6 # boot Unix and get a shell; ^E stops it
 
 make -C ../..             # the Braam program, in build/emulators/simbesm/
 ```
 
 The Braam build needs an SDK with `PROC_ABI` 20 — `Sys::TermOpen`, which the
-second screen is — and that release is not out yet. Until it is, build the core
-tree and name its SDK:
+second screen is — and that release is not out yet. Until it is:
 
 ```sh
 make -C ../../../braam-core release
 make -C ../.. SDK=../braam-core/build/sdk
 ```
 
-Image names are hardcoded and relative, so run from the directory holding them.
-`^E` stops the run and exits.
+On Braam the program is `besm6`, from the `simbesm` package:
 
-`make test` here boots the same images under [tests/unix.exp](tests/unix.exp)
-and checks the replies; it needs `/usr/bin/expect`, and CMake skips the test
-otherwise. `test/boot.mjs` does the same under braam-core's system harness, on
-two screens, and is what `make test` at the top of the tree runs.
+```text
+besm6 [-r] [-S <screen>]
+    -r           copy the packs from the store again, discarding this Unix
+    -S <screen>  the second Consul line's terminal, or `none' to turn it off
+```
 
-`besm6_main.cpp` performs the steps the old `demo/unix.ini` command script did,
-in the same order, and then runs the driver loop.
+The packs are written in place and the store is read-only, so the first run
+copies them to `$HOME/.besm6` and creates the drums beside them. `$BESM6_PREFIX`
+overrides where they are copied from.
+
+`make test` here runs [tests/unix.exp](tests/unix.exp), which needs
+`/usr/bin/expect`. [test/boot.mjs](test/boot.mjs) does the same under
+braam-core's system harness, on two screens, and is what `make test` at the top
+of the tree runs.
+
+## What the port changed
+
+The BESM-6 sources keep upstream's structure; the SIMH framework does not exist
+any more. Four files replace it — 2.6k lines became 1.2k:
+
+| | |
+|---|---|
+| [machine.h](machine.h) / [.cpp](machine.cpp) | types, devices, the event queue, the clock, the driver |
+| [image.h](image.h) | disks and drums, as a file of words |
+| [console.h](console.h) | the terminal lines |
+| [debug.h](debug.h) | the one output path |
+
+**The rule they exist for is that nothing below `cpu_burst()` may block.** On
+Braam a read, a write and a sleep are coroutines; a coroutine cannot be entered
+from a plain function, and making the instruction loop one is worse — a
+`co_await` is a call and not a tail call, so awaiting without suspending grows
+the native stack until the process traps. So `cpu_burst()` runs plain C++ until
+it has something for its caller to do — a transfer, the burst being up, or a
+stop — and says which. Three consequences:
+
+- **A disk transfer is deferred** out of the instruction that starts it, and is
+  *data* the driver performs rather than a function to call. Upstream did the
+  host `fread()` inside the `увв` instruction and deferred only the completion
+  interrupt. The guest waits for its `ГРП` interrupt either way, so this is the
+  more faithful model too, and no instruction runs in between: the packs a boot
+  writes are byte-for-byte what they were.
+- **The console is a buffer the driver drains and a ring a task fills**, so
+  `con_put()` and `con_get()` can still be reached from inside an instruction,
+  as upstream's non-blocking `read(0)` and its `write(1)` per character were.
+- **Traps return a stop code.** There is no `setjmp` on wasm32, and upstream's
+  43 `longjmp`s to `cpu_halt` came from arbitrary depth — an operand protection
+  fault out of `mmu_load()`, an overflow out of `besm6_add()`. Every routine
+  that can raise one returns `t_stat` and every caller checks (`CPU_TRY`);
+  `cpu_trap()` is what the landing pad became.
+
+Also gone: the telnet transport, the in-band `sim>` interpreter, the SCP command
+language, and every peripheral Unix does not boot from — the line printer, punch
+tape, cards and magnetic tape. Their I/O addresses are still decoded by
+`cmd_033()`, but do nothing.
+
+**Comments are English.** What stays Cyrillic is what *names* something: the
+hardware's mnemonics (`ГРП`, `ПоП`, `БРЗ`, `КМД`, …), the two mnemonic sets the
+disassembler prints, the `.b6` type letters, and the stop messages the machine
+reports. Translating those would make the code disagree with the hardware
+documentation and with what the simulator puts on the screen.
 
 ## Machine model
 
-* **Word.** 48 data bits plus a 2-bit tag marking the word as an *instruction*
-  or a *number*. Fetching a data-tagged word raises a machine check.
-* **Memory.** 512 K words. Addresses are 15 bits.
-* **Radix.** Octal, everywhere.
-* **Switch registers.** Octal addresses `1`–`7` are not RAM — they are the
-  front-panel switches, in `memory[1]`…`memory[7]`.
-* **Floating point.** Sign-magnitude, base-2 exponent.
+- **Word.** 48 data bits plus a 2-bit tag marking it an *instruction* or a
+  *number*. Fetching a data-tagged word raises a machine check.
+- **Memory.** 512 K words, 15-bit addresses. Octal addresses `1`–`7` are the
+  front-panel switches, not RAM.
+- **Floating point.** Sign-magnitude, base-2 exponent.
 
-## Registers
-
-Cyrillic names are what appear in disassembly and traces; the Latin synonyms are
-the C identifiers. `M[]` holds the index and special registers, indexed by the
-constants in [besm6_defs.h](besm6_defs.h).
+Registers, indexed by the constants in [besm6_defs.h](besm6_defs.h). The
+Cyrillic names are what traces and disassembly print.
 
 | Cyrillic | Latin | Bits | Meaning |
 |----------|-------|------|---------|
@@ -103,56 +114,134 @@ constants in [besm6_defs.h](besm6_defs.h).
 | `РАУ` | `RAU` | 6 | ALU mode bits. |
 | `М1`…`М17` | `M1`…`M17` | 15 | Index/modifier registers (М17 is also SP). |
 | `М20` | `M20` | 15 | Address modifier (MOD). |
-| `М21` | `M21` | 15 | Program status (PSW). |
-| `М27` | `M27` | 15 | Saved status (SPSW). |
+| `М21`, `М27` | `M21`, `M27` | 15 | Program status, saved status. |
 | `М32`–`М33` | `M32`–`M33` | 15 | Extracode / interrupt return addresses. |
-| `М34` | `M34` (`IBP`) | 16 | Instruction breakpoint (hardware КРА). |
-| `М35` | `M35` (`DWP`) | 16 | Data watchpoint. |
+| `М34`, `М35` | `IBP`, `DWP` | 16 | Instruction breakpoint, data watchpoint. |
 | `РУУ` | `RUU` | 9 | Execution-mode bits. |
 | `ГРП` / `МГРП` | `GRP` / `MGRP` | 48 | Main interrupt register and mask. |
 | `ПРП` / `МПРП` | `PRP` / `MPRP` | 24 | Peripheral interrupt register and mask. |
 
-Also present: the write-cache registers `BRZ0`–`BRZ7` / `BAZ0`–`BAZ7`, the page
-table `TABST` / `RP0`–`RP7` / `RZ`. All ordinary C state.
-
-## Options
-
-Plain assignments in [besm6_main.cpp](besm6_main.cpp), before the run starts.
+There is no command interpreter: to change what the simulator does, edit
+[besm6_main.cpp](besm6_main.cpp), which performs the steps the old
+`demo/unix.ini` script did. Options are plain assignments made before the run:
 
 | C | Effect |
 |---|--------|
 | `besm6_latin = 1` | Disassemble as MADLEN (Latin) instead of БЕМШ. |
-| `autotime = 1` | Do the front-panel date/time setup DISPAK expects at boot. |
+| `autotime = 1` | The front-panel date/time setup DISPAK expects at boot. |
 | `GRP \|= GRP_PANEL_REQ` | Press the operator "request" button. |
 | `pult_packet_switch = n` | Boot source: `0` = switch registers, `1`–`10` = a hardwired bootstrap. |
 | `mmu_unit.flags \|= CACHE_ENB` | Model the БРЗ write cache. Accurate, ~20 % slower. |
 | `mmu_unit.flags \|= CHECK_ENB` | Parity checking. |
 
-The operator's switch registers and request button:
+## Terminals
+
+The `TTY` device carries **24 serial lines** (`tty1`…`tty24`) plus **two
+parallel "Consul" lines** (`tty25`, `tty26`). `tty25` is the console; `tty26` is
+a **second screen**.
 
 ```c
-memory[6] = 1;             /* switch register 6 */
-memory[5] = 010;           /* switch register 5 */
-GRP |= GRP_PANEL_REQ;      /* press "request" */
+tty_attach(&tty_unit[25], "console");   /* the program's own terminal */
+tty_attach(&tty_unit[26], "screen2");   /* a terminal it opened */
+tty_attach(&tty_unit[3],  "none");      /* mark the line unusable */
 ```
 
-The OS reads registers 5 and 6 as a console command code. Upstream SIMH could
-also open an SDL window of blinkenlights; this build has no graphics, and
-everything it showed is reachable as C state.
+Those three words are all `tty_attach()` takes. Upstream also accepted
+`Line=<n>,<port>` and listened for telnet; there is no socket in a browser tab,
+and a second screen is where that line went instead.
+
+**The second line wants a second canvas.** A page that mounts two —
+`mount({ screens: [{canvas}, {canvas, shell: false}] })`, the shape of
+`web/dual.html` — gets a Consul on each. The line is taken only when **both**
+halves come: `Sys::TermOpen` is free, but a screen whose own shell sits at its
+prompt holds the raw keys, and a terminal has to be typed at as well as printed
+on. That is what `shell: false` is for. Without them `tty26` is turned off and
+the machine runs with one console.
+
+A line's mode is a character set, a terminal type and a backspace style, set
+together in the unit's flag word **before** `tty_attach()`, which reads them:
+
+```c
+tty_unit[25].flags = (tty_unit[25].flags & ~TTY_CHARSET_MASK) | TTY_RAW8_CHARSET;
+```
+
+| Character set | |
+|------|---------|
+| `unicode` | UTF-8 in and out. |
+| `jcuken` | Russian via the ЙЦУКЕН layout on Latin keys. |
+| `qwerty` | Russian as transliterated Latin: `Q`=я, `W`=в, `Y`=ы, `J`=й, `X`=ь, `C`=ц, `V`=ж, `` ` ``=ю, `~`=ч, `{`=ш, `}`=щ, `\|`=э. |
+| `raw` | No conversion, but the hardware's 7-bits-plus-parity contract holds. |
+| `raw8` | The same, eight bits wide and with no parity. The guest owns the character set — what `v7besm` uses to carry UTF-8. |
+
+Terminal type: `vt` (Videoton-340, the default), `tt` (MTK-2 Baudot teletype,
+serial lines only), `consul` (Consul-254, lines 25/26 only), `off`. Backspace:
+`destrbs` (erasing, the default) or `authbs`. Device-wide: `tty_rate`
+(300…19200 Hz) and `tty_turbo` (interrupt timing follows model time when 1).
+
+## Peripherals
+
+Disks and drums share a geometry: *zones* of `8 + 1024` words (8 service words,
+then 1 Kword of data), each word an 8-byte little-endian record. Attach routines
+are in [besm6_defs.h](besm6_defs.h); the switches the old `ATTACH` took ride in
+`sim_switches` — `-n` creates a new image, `-e` requires an existing one.
+
+**Magnetic disks `MD0`…`MD7`** — eight controllers of 8 units, `md_unit[0..63]`.
+With `-n` the image is formatted and the volume number is taken from the digits
+in the filename; it **must be 2048–4095**. Drive type is a unit flag:
+`DISK_TYPE_7_25M` (1000 blocks) or `DISK_TYPE_29M` (4000).
+
+**Magnetic drums `DRUM`** — two units, the paging and swap store.
+
+```c
+disk_attach(&md_unit[0], "root3072.disk");
+
+sim_switches = SWMASK('N');                /* create empty */
+drum_attach(&drum_unit[0], "unix0.drum");
+sim_switches = 0;
+```
+
+## Booting Unix
+
+`besm6_boot_unix()` in [besm6_main.cpp](besm6_main.cpp), in this order:
+
+1. `besm6_latin = 1`, and `CACHE_ENB` so the БРЗ write-back cache is modelled —
+   the kernel writes user memory through the map, so a build that only worked
+   with the cache off would not have worked on the real machine.
+2. `tty25` to `raw8` on the console; `tty26` to a second screen, or off.
+3. Root pack on `md00`, `/usr` on `md01`, both writable; two drums created
+   empty. The drums are **swapdev**, and `exece()` stages the argument list in
+   swap before touching the new image — with no drum, every `exec` fails with
+   `error 5`.
+4. `sim_load()` on `unix`, a binary `a.out`, which sets the PC from its entry
+   point; then the driver loop.
+
+```text
+phys mem  = 3072 kbytes
+swap size = 3072 kbytes
+root size = 6000 kbytes
+
+Single-user mode -- type ^D to run /etc/rc and go multi-user
+# _
+```
+
+Line editing at that prompt is the *kernel's*: `^?` erases a character, `^U`
+kills the line. `^D` ends the shell, `init` runs `/etc/rc` and the machine comes
+up multi-user with a getty on each Consul line. `^E` stops the run. Nothing
+calls `sync(2)` for you.
+
+There is no clock-calendar, so the date starts at whatever the filesystem was
+stamped with; type `date` to set it.
+
+The native build writes `data/`'s packs in place, which is why the regression
+test copies them first; the Braam build copies them to `$HOME/.besm6` on its
+first run.
 
 ## Loading programs
 
 `sim_load()` in [besm6_sys.cpp](besm6_sys.cpp) reads a **text** file in DISPAK
-format (`.b6`) and auto-detects binary `a.out` images:
-
-```c
-FILE *f = fopen("file.b6", "rb");
-sim_load(f);                     /* a `п' line sets the PC */
-fclose(f);
-```
-
-Each line starts with a one-letter type code, Cyrillic or Latin,
-case-insensitive, followed by octal operands. `;` starts a comment.
+format (`.b6`) and auto-detects binary `a.out` images. Each line starts with a
+one-letter type code, Cyrillic or Latin, case-insensitive, followed by octal
+operands; `;` starts a comment.
 
 | Code | Meaning |
 |------|---------|
@@ -162,172 +251,53 @@ case-insensitive, followed by octal operands. `;` starts a comment.
 | `с` / `c` | An octal **data word**, up to 16 digits. |
 | `к` / `k` | One or two **instructions**, comma-separated. |
 
-Each word advances the load address by one; words below address `10` go to the
-switch registers. `besm6_dump()` writes memory back out in the same format; it
-used to hide behind a `dump_flag` on `sim_load()` and be handed the *input*
-file to write to, which nothing ever exercised.
-
 ```text
 в 1
 к сл  7,  зп   11
-к вчп 11, зп   10
 к пе  6,  стоп
 в 7
 ч 1.0
 п 1
 ```
 
-## Disassembly
+Each word advances the load address by one; words below address `10` go to the
+switch registers. `besm6_dump()` writes memory back out in the same format.
 
-`fprint_sym()` prints the instruction in stop messages and in the CPU trace. The
-format comes from the switch bits passed to it:
+`fprint_sym()` prints an instruction in stop messages and in the CPU trace; the
+switch bits it is given pick the format. One word, four ways:
+`0000 2000 0000 0210` raw, `сч 4412(1)` as БЕМШ, `xta 4412(1)` as MADLEN,
+`2.7e-20` as a real.
 
 | Switch | Format |
 |--------|--------|
 | *(none)* | Four 12-bit octal groups. |
-| `-m` | **БЕМШ** (Cyrillic) mnemonics. |
-| `-ml` | **MADLEN** (Latin) mnemonics. |
+| `-m` / `-ml` | **БЕМШ** (Cyrillic) / **MADLEN** (Latin) mnemonics. |
 | `-i` | Octal instruction fields: register, opcode, address. |
 | `-f` | The word as a floating-point number. |
-| `-b` | Six octal bytes. |
-| `-x` | 13 hexadecimal digits. |
-
-One word, four ways: `0000 2000 0000 0210` raw, `сч 4412(1)` as БЕМШ,
-`xta 4412(1)` as MADLEN, `2.7e-20` as a real.
-
-## Peripherals
-
-Attach routines are declared in [besm6_defs.h](besm6_defs.h). The switches the
-old `ATTACH` command took are passed in the global `sim_switches`: `-n` creates
-a new image, `-e` requires an existing one. Set it before the call and clear it
-after — `disk_attach()` ORs in `-e` itself.
-
-Disks and drums share a geometry: *zones* of `8 + 1024` words (8 service words,
-then 1 Kword of data), each word an 8-byte little-endian record. An image is
-reached through [image.h](image.h) — four calls over a file of words — and a
-transfer is **deferred**: the `увв` instruction posts a request and returns, and
-the driver performs it between two instructions and then arms the completion
-interrupt. Upstream did the host `fread()` inside the instruction and deferred
-only the interrupt; on Braam that read is a `co_await` and the instruction loop
-must not contain one. No instruction runs in between, so nothing the guest can
-observe moved — the packs a boot writes are byte-for-byte what they were.
-
-**Magnetic disks `MD0`…`MD7`** — eight controllers of 8 units, `md_unit[0..63]`.
-
-```c
-disk_attach(&md_unit[0], "root3072.disk");
-```
-
-With `-n` the image is formatted and the volume number is taken from the digits
-in the filename; it **must be 2048–4095** or the attach is rejected and the file
-removed. Drive type is a unit flag: `DISK_TYPE_7_25M` (1000 blocks) or
-`DISK_TYPE_29M` (4000 blocks).
-
-**Magnetic drums `DRUM`** — two units, used as paging and swap store.
-
-```c
-sim_switches = SWMASK('N');                /* create empty */
-drum_attach(&drum_unit[0], "unix0.drum");
-drum_attach(&drum_unit[1], "unix1.drum");
-sim_switches = 0;
-```
-
-**What is gone.** Unix boots from disks, drums and terminals, so nothing else is
-here: line printer, punch tape, cards and magnetic tape are all removed. Their
-I/O addresses are still decoded by `cmd_033()` in [besm6_cpu.cpp](besm6_cpu.cpp),
-but do nothing — writes ignored, reads return zero.
-
-## Terminals
-
-The `TTY` device carries **24 serial lines** (`tty1`…`tty24`) plus **two
-parallel "Consul" lines** (`tty25`, `tty26`). `tty25` is the console and
-`tty26` a **second screen**.
-
-```c
-tty_attach(&tty_unit[25], "console");        /* the program's own terminal */
-tty_attach(&tty_unit[26], "screen2");        /* a terminal it opened */
-tty_attach(&tty_unit[3],  "none");           /* mark the line unusable */
-```
-
-Those three words are all `tty_attach()` takes. Upstream also accepted
-`Line=<n>,<port>` and handed it to `tmxr_attach()`, which listened for telnet;
-there is no socket in a browser tab, so the multiplexer, the sockets and the
-in-band `sim>` interpreter that lived on a telnet line are gone — and a second
-screen is where that line went instead.
-
-**The second line wants a second canvas.** A page that mounts two
-(`mount({ screens: [{canvas}, {canvas, shell: false}] })` — `web/dual.html` is
-the shape) gets a Consul on each. `besm6 -S <n>` names the terminal, `-S none`
-turns the line off, and with neither the program tries terminal 1 and settles
-for one console where there is none. It commits only when **both** halves come:
-`Sys::TermOpen` is free, but a screen whose own shell sits at its prompt holds
-the raw keys, and a terminal line needs to be typed at as well as printed on —
-which is what `shell: false` is for.
-
-A line reaches its terminal through [console.h](console.h), and neither call
-there blocks — which is what lets both be reached from inside an instruction, as
-upstream's non-blocking `read(0)` and its `write(1)` per character were. Output
-gathers in a buffer that the driver empties between two instructions; input
-waits in a ring. Operator messages share that buffer, so a `besm6_debug()` from
-inside the MMU cannot overtake the guest output in front of it.
-
-A line's mode is a character set, a terminal type and a backspace style, all set
-together in the unit's flag word — **before** `tty_attach()`, which reads them:
-
-```c
-tty_unit[25].flags = (tty_unit[25].flags & ~TTY_CHARSET_MASK) | TTY_RAW8_CHARSET;
-```
-
-Character set — how bytes map to and from the machine's KOI-7:
-
-| Mode | Meaning |
-|------|---------|
-| `unicode` | UTF-8 in and out. |
-| `jcuken` | Russian via the ЙЦУКЕН layout on Latin keys. |
-| `qwerty` | Russian as transliterated Latin: `Q`=я, `W`=в, `Y`=ы, `J`=й, `X`=ь, `C`=ц, `V`=ж, `` ` ``=ю, `~`=ч, `{`=ш, `}`=щ, `\|`=э. |
-| `raw` | No conversion, but the hardware's 7-bits-plus-parity contract holds: input above `0177` is dropped, output masked to `0177`, parity synthesised. |
-| `raw8` | The same, eight bits wide: nothing truncated, nothing dropped, no parity. The guest owns the character set. This is what `v7besm` uses to carry UTF-8. |
-
-Terminal type: `vt` (Videoton-340, control codes translated to VT100 escapes;
-the default), `tt` (MTK-2 Baudot teletype, serial lines only), `consul`
-(Consul-254, lines 25/26 only), `off`.
-
-Backspace: `destrbs` (erasing, the default) or `authbs` (cursor-left only, as on
-the real hardware).
-
-Device-wide: `tty_rate` (300…19200 Hz, default 300) and `tty_turbo` (interrupt
-timing follows model time when 1, wall clock when 0). Both are plain C
-variables; the `MTAB` table that let `SET` reach them went with `SET`.
+| `-b` / `-x` | Six octal bytes / 13 hexadecimal digits. |
 
 ## Debugging
 
-Set a device's `dctrl` field non-zero to trace it:
-
-```c
-cpu_dev.dctrl = ~0;
-mmu_dev.dctrl = ~0;
-```
-
-The disk device has named categories to OR together instead of `~0`: `DEB_OPS`,
-`DEB_RRD`, `DEB_RWR`, `DEB_INT`, `DEB_TRC`, `DEB_DAT`, `DEB_STA`.
-
-Two environment variables do the same without recompiling — `BESM6_DEBUG` names
-the output file (`-` means stderr), `BESM6_TRACE` lists devices to trace:
+`BESM6_DEBUG` names the trace file (`-` is stderr) and `BESM6_TRACE` the devices
+to trace, comma separated; with `BESM6_DEBUG` unset nothing is traced. Setting a
+device's `dctrl` field does the same without the environment.
 
 ```sh
 BESM6_DEBUG=- BESM6_TRACE=cpu,mmu ./besm6     # trace to stderr
-BESM6_DEBUG=run.log BESM6_TRACE=none ./besm6  # log file, no instruction trace
+BESM6_DEBUG=run.log BESM6_TRACE=none ./besm6  # operator messages only
 ```
 
-`sim_deb` is the single output file and `sim_con` the operator's console; both
-are `Sink`s, a callback and its context, because there is no `FILE *` on Braam.
-`besm6_debug()`, `besm6_log()` and `besm6_log_cont()` write to both. A format
-string starting with `_` goes to the file only — that is how operator dumps stay
-off a terminal Unix is using.
+`sim_deb` is the trace file and `sim_con` the operator's console; both are
+`Sink`s, a callback and its context, because there is no `FILE *` on Braam.
+`besm6_debug()`, `besm6_log()` and `besm6_log_cont()` write to both — a format
+starting with `_` goes to the file only, which is how operator dumps stay off a
+terminal Unix is using. The disk device has named categories to OR into `dctrl`
+instead of `~0`: `DEB_OPS`, `DEB_RRD`, `DEB_RWR`, `DEB_INT`, `DEB_TRC`,
+`DEB_DAT`, `DEB_STA`.
 
-### The instruction trace
-
-`cpu_dev.dctrl` logs every executed instruction with the state it touches:
+`cpu_dev.dctrl` logs every executed instruction with the state it touches — the
+address, `L`/`R` for the half-word, the octal fields, the mnemonic, then only
+the registers that *changed* and any operand read or write:
 
 ```text
 32012 R: 00 100 7766 зп -12
@@ -336,36 +306,20 @@ off a terminal Unix is using.
       RAU = 00
 ```
 
-The address, `L`/`R` for the half-word, the octal fields, the mnemonic — then
-only the registers that *changed*, and any operand read or write. Instruction
-fetches are not traced. Extracodes append their executive address as `= addr`.
-The first line dumps every register. Faults get a line of their own:
+The first line dumps every register; extracodes append their executive address
+as `= addr`; faults get a line of their own. The trace runs to thousands of
+lines per millisecond of model time, so switch `cpu_dev.dctrl` on and off around
+the region you care about, or cap it with `trace_counter`.
 
-```text
------ 00500L: Запрещенная команда -----
-```
-
-The trace runs to thousands of lines per millisecond of model time, so switch
-`cpu_dev.dctrl` on and off around the region you care about. `trace_counter`
-limits it to that many instructions.
-
-### Breakpoints
-
-The machine's own are all that is left — `М34` stops on an instruction fetch,
-`М35` on a load or store:
+Breakpoints are the machine's own: `М34` stops on an instruction fetch, `М35` on
+a load or store. SIMH's software breakpoints are gone — nothing set one, and
+their `E`/`R`/`W` types duplicated these.
 
 ```c
 M[IBP] = 032013;   /* stop when PC reaches 032013 */
-PC     = 032000;
-r      = sim_run();
 ```
 
-SIMH's software breakpoints are gone; nothing set one, and its `E`/`R`/`W` types
-duplicated `М34`/`М35`.
-
 ### Stop codes
-
-`besm6_main.cpp` prints the reason from `sim_stop_messages[]`:
 
 | Message | Meaning |
 |---------|---------|
@@ -381,41 +335,3 @@ duplicated `М34`/`М35`.
 | Чтение неформатированного барабана / диска | Read from an unformatted drum / disk. |
 | Останов по КРА / считыванию / записи | Breakpoint / load / store watchpoint hit. |
 | Не реализовано | Unimplemented I/O or special-register feature. |
-
-## Booting Unix
-
-`besm6_boot_unix()` in [besm6_main.cpp](besm6_main.cpp) does it, in this order:
-
-1. `besm6_latin = 1`, and `CACHE_ENB` so the БРЗ write-back cache is modelled —
-   the kernel writes user memory through the map, so a build that only worked
-   with the cache off would not have worked on the real machine.
-2. `tty25` to `raw8` and attached to `console`; `tty26` turned off.
-3. Root pack on `md00`, `/usr` on `md01`, both writable; two drums with `-n`,
-   empty. The drums are **swapdev**, and `exece()` stages the argument list in
-   swap before touching the new image — with no drum, every `exec` fails with
-   `error 5`.
-4. `sim_load()` on `unix`, a binary `a.out`, which sets the PC from its entry
-   point; then `sim_run()`.
-
-```text
-phys mem  = 3072 kbytes
-user mem  = 2874 kbytes
-swap size = 3072 kbytes
-root size = 6000 kbytes
-
-Single-user mode -- type ^D to run /etc/rc and go multi-user
-# _
-```
-
-Line editing at that prompt is the *kernel's*: `^?` erases a character, `^U`
-kills the line. `^D` ends the shell, `init` runs `/etc/rc` and the machine comes
-up multi-user. `^E` stops the run. Nothing calls `sync(2)` for you.
-
-There is no clock-calendar, so the date starts at whatever the filesystem was
-stamped with; type `date` to set it.
-
-A session writes `root3072.disk` and `usr3100.disk` in place. They are tracked
-files, so `git status` shows them modified afterwards and `git checkout`
-restores them. The regression test copies the images instead, for this reason.
-Under Braam the program will copy them to a writable directory of its own on
-first run, which is the same answer.

@@ -15,6 +15,7 @@ that runs in a browser tab.
 | [benchmarks/dhrystone](benchmarks/dhrystone/) | Dhrystone 2.1, the 1984 integer benchmark |
 | [benchmarks/duremark](benchmarks/duremark/) | DureMark 1.1, a small CoreMark-inspired benchmark |
 | [games/adventure](games/adventure/) | Colossal Cave Adventure, the 1977 C re-coding |
+| [emulators/simbesm](emulators/simbesm/) | The BESM-6, the Soviet mainframe — it boots Unix |
 
 The rest of the tree is category directories, a few of them holding a `TODO.md`
 naming an upstream worth porting.
