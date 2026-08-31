@@ -78,7 +78,7 @@ static t_stat besm6_boot_unix(void)
     f = fopen("unix", "rb");
     if (f == NULL)
         return sim_messagef(SCPE_OPENERR, "Cannot open 'unix'\n");
-    r = sim_load(f, "", "unix", 0);
+    r = sim_load(f);
     fclose(f);
     return r;
 }
@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
     r = sim_scp_init(argc, argv);
     if (r != SCPE_OK)
         return sim_scp_exit(r);
-    printf("\nBESM-6 Simulator Demo\n");
+    sink_puts(sim_con, "\nBESM-6 Simulator Demo\n");
 
     r = besm6_boot_unix();
     if (r != SCPE_OK) {
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
      * housekeeping around the run has no other entry point.  PC is left
      * as besm6_load() set it. */
     r = sim_run();
-    printf("\n%s\n", (r >= SCPE_BASE) ? sim_error_text(r) : sim_stop_messages[r]);
+    sink_printf(sim_con, "\n%s\n", (r >= SCPE_BASE) ? sim_error_text(r) : sim_stop_messages[r]);
 
     return sim_scp_exit(r);
 }

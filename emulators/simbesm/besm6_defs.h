@@ -30,6 +30,7 @@
 
 #include "sim_defs.h" // simulator defns
 #include "scp.h"
+#include "debug.h"
 
 // Rename of global PC variable to avoid namespace conflicts on some platforms
 
@@ -356,8 +357,8 @@ void mux_clear(void);
 int vt_is_idle(void);
 
 // Debug output.
-void besm6_fprint_cmd(FILE *of, uint32 cmd);
-void besm6_fprint_insn(FILE *of, uint32 insn);
+void besm6_fprint_cmd(Sink *of, uint32 cmd);
+void besm6_fprint_insn(Sink *of, uint32 insn);
 extern int besm6_latin;
 void besm6_log(const char *fmt, ...);
 void besm6_log_cont(const char *fmt, ...);
@@ -377,8 +378,9 @@ void besm6_sym_clear(void);
 void besm6_sym_add(uint32 addr, const char *name);
 void besm6_sym_sort(void);
 const char *besm6_sym_find(uint32 addr, int *at_start);
-t_stat fprint_sym(FILE *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw);
-t_stat sim_load(FILE *fi, const char *cptr, const char *fnam, int dump_flag);
+t_stat fprint_sym(Sink *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw);
+t_stat sim_load(FILE *fi);
+t_stat besm6_dump(Sink *of, const char *fnam);
 
 // Arithmetic.
 double besm6_to_ieee(t_value word);

@@ -10,6 +10,7 @@
 #include <signal.h>
 
 #include "sim_defs.h"
+#include "debug.h"
 
 /* The head of the clock queue counts down in sim_interval; write the countdown
    back before touching the queue. */
@@ -33,7 +34,6 @@ int32 sim_interval             = 0;
 int32 sim_switches             = 0;
 volatile t_bool sim_is_running = FALSE;
 volatile t_bool stop_cpu       = FALSE;
-FILE *sim_deb                  = NULL; /* debug file */
 
 static volatile t_bool sigterm_received = FALSE;
 static int sim_exit_status              = EXIT_SUCCESS;
@@ -69,61 +69,6 @@ static const char *const scp_errors[1 + SCPE_MAX_ERR - SCPE_BASE] = {
     "SIGTERM received",
 };
 
-/* Turn on tracing from the environment.  There is no command interpreter to
-   say `set cpu debug' to any more, so BESM6_DEBUG names the trace file ("-"
-   means stderr) and BESM6_TRACE lists the devices to trace, comma separated:
-
-        BESM6_DEBUG=- BESM6_TRACE=cpu,mmu ./besm6
-
-   With BESM6_DEBUG unset, sim_deb stays NULL and every trace site is a
-   predictable branch on a null pointer, as before. */
-
-static void sim_debug_from_env(void)
-{
-    const char *file = getenv("BESM6_DEBUG");
-    const char *devs = getenv("BESM6_TRACE");
-    DEVICE *dptr;
-    uint32 i;
-
-    if ((file == NULL) || (*file == '\0'))
-        return;
-    if (strcmp(file, "-") == 0)
-        sim_deb = stderr;
-    else if ((sim_deb = fopen(file, "w")) == NULL) {
-        fprintf(stderr, "Can't open debug file '%s': %s\n", file, strerror(errno));
-        return;
-    }
-    setvbuf(sim_deb, NULL, _IOLBF, 0);
-    if ((devs == NULL) || (*devs == '\0'))
-        devs = "cpu";
-    for (i = 0; (dptr = sim_devices[i]) != NULL; i++) {
-        const char *p = devs;
-        size_t n      = strlen(dptr->name);
-
-        while (*p) { /* is dptr->name one of the comma separated words? */
-            const char *e = strchr(p, ',');
-            size_t len    = e ? (size_t)(e - p) : strlen(p);
-
-            if ((len == n) && (strncasecmp(p, dptr->name, n) == 0)) {
-                dptr->dctrl = 0xffffffff;
-                break;
-            }
-            if (!e)
-                break;
-            p = e + 1;
-        }
-    }
-}
-
-void sim_debug_close(void)
-{
-    if (sim_deb == NULL)
-        return;
-    if (sim_deb != stderr)
-        fclose(sim_deb);
-    sim_deb = NULL;
-}
-
 /* Startup and shutdown.  An entry point brackets its own work with these:
  * sim_scp_init returns SCPE_OK to proceed, anything else to stop; either way
  * the caller must finish with sim_scp_exit, which returns the exit status.
@@ -133,6 +78,7 @@ t_stat sim_scp_init(int argc, char *argv[])
 {
     t_stat stat;
 
+    sim_console_init();
     sim_switches = 0;
 
     signal(SIGPIPE, SIG_IGN); /* writing to a closed telnet line must not kill us */
@@ -143,7 +89,7 @@ t_stat sim_scp_init(int argc, char *argv[])
     sim_timer_init();
 
     if ((stat = sim_ttinit()) != SCPE_OK) {
-        fprintf(stderr, "Fatal terminal initialization error\n%s\n", sim_error_text(stat));
+        sink_printf(sim_con, "Fatal terminal initialization error\n%s\n", sim_error_text(stat));
         sim_exit_status = EXIT_FAILURE;
         return stat;
     }
@@ -183,10 +129,10 @@ static t_stat reset_all(void)
             continue;
         reason = dptr->reset(dptr);
         if (reason != SCPE_OK) {
-            fprintf(stderr,
-                    "Fatal simulator initialization error\n"
-                    "Device %s initial reset call returned: %s\n",
-                    dptr->name, sim_error_text(reason));
+            sink_printf(sim_con,
+                        "Fatal simulator initialization error\n"
+                        "Device %s initial reset call returned: %s\n",
+                        dptr->name, sim_error_text(reason));
             return reason;
         }
     }
@@ -712,7 +658,7 @@ void _sim_scp_abort(const char *msg, const char *file, int linenum)
     abort();
 }
 
-/* Format a message and write it to stdout, and to sim_deb if it is open.
+/* Format a message and write it to the console, and to sim_deb if it is open.
    With the console in raw mode a bare \n does not return the carriage, so
    while the machine is running every \n is expanded to \r\n. */
 
@@ -722,18 +668,16 @@ static void sim_emit(const char *buf)
         const char *c, *remnant = buf;
 
         while ((c = strchr(remnant, '\n'))) {
-            if ((c != buf) && (*(c - 1) != '\r'))
-                fprintf(stdout, "%.*s\r\n", (int)(c - remnant), remnant);
-            else
-                fprintf(stdout, "%.*s\n", (int)(c - remnant), remnant);
+            sink_write(sim_con, remnant, (int)(c - remnant));
+            sink_puts(sim_con, ((c != buf) && (*(c - 1) != '\r')) ? "\r\n" : "\n");
             remnant = c + 1;
         }
-        fprintf(stdout, "%s", remnant);
+        sink_puts(sim_con, remnant);
     } else
-        fprintf(stdout, "%s", buf);
+        sink_puts(sim_con, buf);
 }
 
-/* Print message to stdout and sim_deb (if enabled) */
+/* Print a message to the console, and to sim_deb if it is open. */
 void sim_printf(const char *fmt, ...)
 {
     char buf[CBUFSIZE];
@@ -744,11 +688,10 @@ void sim_printf(const char *fmt, ...)
     va_end(arglist);
 
     sim_emit(buf);
-    if (sim_deb && (sim_deb != stdout))
-        fprintf(sim_deb, "%s", buf);
+    sink_puts(sim_deb, buf);
 }
 
-/* Print command result message to stdout and sim_deb (if enabled) */
+/* Print a command result message to the console, and to sim_deb if it is open. */
 t_stat sim_messagef(t_stat stat, const char *fmt, ...)
 {
     char buf[CBUFSIZE];
@@ -771,8 +714,7 @@ t_stat sim_messagef(t_stat stat, const char *fmt, ...)
     if (!inhibit_message)
         sim_emit(buf);
     /* Always display messages in debug output */
-    if (sim_deb && ((sim_deb != stdout) || inhibit_message))
-        fprintf(sim_deb, "%s", buf);
+    sink_puts(sim_deb, buf);
 
     return stat | ((stat != SCPE_OK) ? SCPE_NOMESSAGE : 0);
 }
@@ -849,7 +791,6 @@ t_stat sim_run(void)
     }
     stop_cpu       = FALSE;
     sim_is_running = TRUE;
-    fflush(stdout);
 
     r = sim_instr();
 

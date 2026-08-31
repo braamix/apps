@@ -126,10 +126,10 @@ const char *besm6_sym_find(uint32 addr, int *at_start)
 /*
  * Print a 48-bit word in octal, as four space-separated groups of four digits.
  */
-static void fprint_word_octal(FILE *of, t_value val)
+static void fprint_word_octal(Sink *of, t_value val)
 {
-    fprintf(of, "%04o %04o %04o %04o", (int)(val >> 36) & BITS(12), (int)(val >> 24) & BITS(12),
-            (int)(val >> 12) & BITS(12), (int)val & BITS(12));
+    sink_printf(of, "%04o %04o %04o %04o", (int)(val >> 36) & BITS(12), (int)(val >> 24) & BITS(12),
+                (int)(val >> 12) & BITS(12), (int)val & BITS(12));
 }
 
 /*
@@ -166,7 +166,7 @@ static void trace_executive_address(uint32 cmd)
     addr = ADDR(addr + M[reg]);
     if (RUU & RUU_MOD_RK)
         addr = ADDR(addr + M[MOD]);
-    fprintf(sim_deb, " = %o", addr);
+    sink_printf(sim_deb, " = %o", addr);
 }
 
 /*
@@ -177,7 +177,7 @@ void besm6_trace_instruction()
 {
     int opcode;
 
-    fprintf(sim_deb, "%05o %c: ", PC, (RUU & RUU_RIGHT_INSTR) ? 'R' : 'L');
+    sink_printf(sim_deb, "%05o %c: ", PC, (RUU & RUU_RIGHT_INSTR) ? 'R' : 'L');
     besm6_fprint_insn(sim_deb, RK);
     besm6_fprint_cmd(sim_deb, RK);
 
@@ -187,7 +187,7 @@ void besm6_trace_instruction()
         if (opcode >= 050 && opcode <= 077)
             trace_executive_address(RK);
     }
-    fprintf(sim_deb, "\n");
+    sink_printf(sim_deb, "\n");
 }
 
 /*
@@ -199,50 +199,50 @@ void besm6_trace_registers()
     int i;
 
     if (ACC != prev_ACC) {
-        fprintf(sim_deb, "      ACC = ");
+        sink_printf(sim_deb, "      ACC = ");
         fprint_word_octal(sim_deb, ACC);
-        fprintf(sim_deb, "\n");
+        sink_printf(sim_deb, "\n");
     }
     if (RMR != prev_RMR) {
-        fprintf(sim_deb, "      RMR = ");
+        sink_printf(sim_deb, "      RMR = ");
         fprint_word_octal(sim_deb, RMR);
-        fprintf(sim_deb, "\n");
+        sink_printf(sim_deb, "\n");
     }
     /* Modifier registers M0...M17 and the special registers M20...M35. */
     for (i = 0; i < NREGS; i++) {
         if (M[i] != prev_M[i])
-            fprintf(sim_deb, "      M%o = %05o\n", i, M[i]);
+            sink_printf(sim_deb, "      M%o = %05o\n", i, M[i]);
     }
     if (RAU != prev_RAU)
-        fprintf(sim_deb, "      RAU = %02o\n", RAU);
+        sink_printf(sim_deb, "      RAU = %02o\n", RAU);
     /* Ignore the left/right half-word flag: it toggles every instruction
      * and is already shown by the L/R marker on the instruction line. */
     if ((RUU & ~RUU_RIGHT_INSTR) != prev_RUU)
-        fprintf(sim_deb, "      RUU = %03o\n", RUU & ~RUU_RIGHT_INSTR);
+        sink_printf(sim_deb, "      RUU = %03o\n", RUU & ~RUU_RIGHT_INSTR);
     if (GRP != prev_GRP) {
-        fprintf(sim_deb, "      GRP = ");
+        sink_printf(sim_deb, "      GRP = ");
         fprint_word_octal(sim_deb, GRP);
-        fprintf(sim_deb, "\n");
+        sink_printf(sim_deb, "\n");
     }
     if (MGRP != prev_MGRP) {
-        fprintf(sim_deb, "      MGRP = ");
+        sink_printf(sim_deb, "      MGRP = ");
         fprint_word_octal(sim_deb, MGRP);
-        fprintf(sim_deb, "\n");
+        sink_printf(sim_deb, "\n");
     }
     if (PRP != prev_PRP)
-        fprintf(sim_deb, "      PRP = %08o\n", PRP);
+        sink_printf(sim_deb, "      PRP = %08o\n", PRP);
     if (MPRP != prev_MPRP)
-        fprintf(sim_deb, "      MPRP = %08o\n", MPRP);
+        sink_printf(sim_deb, "      MPRP = %08o\n", MPRP);
     /* Page table: memory-mapping registers RP0...RP7 and protection RZ. */
     for (i = 0; i < 8; i++) {
         if (RP[i] != prev_RP[i]) {
-            fprintf(sim_deb, "      RP%o = ", i);
+            sink_printf(sim_deb, "      RP%o = ", i);
             fprint_word_octal(sim_deb, RP[i]);
-            fprintf(sim_deb, "\n");
+            sink_printf(sim_deb, "\n");
         }
     }
     if (RZ != prev_RZ)
-        fprintf(sim_deb, "      RZ = %011o\n", RZ);
+        sink_printf(sim_deb, "      RZ = %011o\n", RZ);
 
     /* Update the previous state. */
     prev_ACC  = ACC;
@@ -265,9 +265,9 @@ void besm6_trace_registers()
  */
 void besm6_trace_memory(int addr, t_value val, const char *opname)
 {
-    fprintf(sim_deb, "      Memory %s [%05o] = ", opname, addr & BITS(15));
+    sink_printf(sim_deb, "      Memory %s [%05o] = ", opname, addr & BITS(15));
     fprint_word_octal(sim_deb, val);
-    fprintf(sim_deb, "\n");
+    sink_printf(sim_deb, "\n");
 }
 
 /*
@@ -275,7 +275,8 @@ void besm6_trace_memory(int addr, t_value val, const char *opname)
  */
 void besm6_trace_exception(const char *message)
 {
-    fprintf(sim_deb, "----- %05o%c: %s -----\n", PC, (RUU & RUU_RIGHT_INSTR) ? 'R' : 'L', message);
+    sink_printf(sim_deb, "----- %05o%c: %s -----\n", PC, (RUU & RUU_RIGHT_INSTR) ? 'R' : 'L',
+                message);
 }
 
 /*
@@ -289,8 +290,8 @@ void besm6_trace_call_return()
     int at_start     = 0;
     const char *name = besm6_sym_find(PC, &at_start);
 
-    fprintf(sim_deb, "--------------------------------------------------");
+    sink_printf(sim_deb, "--------------------------------------------------");
     if (name)
-        fprintf(sim_deb, at_start ? " %s" : " back to %s", name);
-    fprintf(sim_deb, "\n");
+        sink_printf(sim_deb, at_start ? " %s" : " back to %s", name);
+    sink_printf(sim_deb, "\n");
 }

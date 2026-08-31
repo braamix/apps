@@ -111,7 +111,7 @@ format (`.b6`) and auto-detects binary `a.out` images:
 
 ```c
 FILE *f = fopen("file.b6", "rb");
-sim_load(f, "", "file.b6", 0);   /* a `п' line sets the PC */
+sim_load(f);                     /* a `п' line sets the PC */
 fclose(f);
 ```
 
@@ -127,8 +127,9 @@ case-insensitive, followed by octal operands. `;` starts a comment.
 | `к` / `k` | One or two **instructions**, comma-separated. |
 
 Each word advances the load address by one; words below address `10` go to the
-switch registers. A non-zero `dump_flag` writes memory back out in the same
-format instead of reading it.
+switch registers. `besm6_dump()` writes memory back out in the same format; it
+used to hide behind a `dump_flag` on `sim_load()` and be handed the *input*
+file to write to, which nothing ever exercised.
 
 ```text
 в 1
@@ -257,9 +258,11 @@ BESM6_DEBUG=- BESM6_TRACE=cpu,mmu ./besm6     # trace to stderr
 BESM6_DEBUG=run.log BESM6_TRACE=none ./besm6  # log file, no instruction trace
 ```
 
-`sim_deb` is the single output file; `besm6_debug()`, `besm6_log()` and
-`besm6_log_cont()` all write to it. A format string starting with `_` goes to
-the file only — that is how operator dumps stay off a terminal Unix is using.
+`sim_deb` is the single output file and `sim_con` the operator's console; both
+are `Sink`s, a callback and its context, because there is no `FILE *` on Braam.
+`besm6_debug()`, `besm6_log()` and `besm6_log_cont()` write to both. A format
+string starting with `_` goes to the file only — that is how operator dumps stay
+off a terminal Unix is using.
 
 ### The instruction trace
 

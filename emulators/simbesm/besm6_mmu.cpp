@@ -238,9 +238,9 @@ void mmu_flush(int idx)
     memory[waddr] = BRZ[idx];
     BAZ[idx]      = 0;
     if (sim_deb && mmu_dev.dctrl) {
-        fprintf(sim_deb, "--- (%05o) write ", waddr);
+        sink_printf(sim_deb, "--- (%05o) write ", waddr);
         fprint_sym(sim_deb, 0, &BRZ[idx], 0, 0);
-        fprintf(sim_deb, " from write cache[%d]\n", idx);
+        sink_printf(sim_deb, " from write cache[%d]\n", idx);
     }
 }
 
@@ -401,9 +401,9 @@ t_stat mmu_memaccess(int addr, t_value *word)
         }
     }
     if (sim_deb && (mmu_dev.dctrl || cpu_dev.dctrl)) {
-        fprintf(sim_deb, "--- (%05o) read ", addr & BITS(15));
+        sink_printf(sim_deb, "--- (%05o) read ", addr & BITS(15));
         fprint_sym(sim_deb, 0, &val, 0, 0);
-        fprintf(sim_deb, "\n");
+        sink_printf(sim_deb, "\n");
     }
 
     /* The switch registers carry no number parity */
@@ -461,7 +461,7 @@ t_stat mmu_load(int addr, t_value *word)
             set_wins(matching);
         val = BRZ[matching];
         if (sim_deb && mmu_dev.dctrl)
-            fprintf(sim_deb, "--- (%05o) read from write cache\n", addr & BITS(15));
+            sink_printf(sim_deb, "--- (%05o) read from write cache\n", addr & BITS(15));
         if (!IS_NUMBER(val)) {
             iintr_data = matching;
             besm6_debug("--- (%05o) write cache parity error", addr);
@@ -595,9 +595,9 @@ t_stat mmu_fetch(int addr, t_value *word)
     val = mmu_prefetch(addr, 1);
 
     if (sim_deb && mmu_dev.dctrl) {
-        fprintf(sim_deb, "--- (%05o) fetch ", addr);
+        sink_printf(sim_deb, "--- (%05o) fetch ", addr);
         fprint_sym(sim_deb, 0, &val, 0, SWMASK('I'));
-        fprintf(sim_deb, "\n");
+        sink_printf(sim_deb, "\n");
     }
 
     /* The switch registers so far carry an instruction tag only */

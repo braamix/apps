@@ -109,16 +109,15 @@ static void log_out(const char *fmt, va_list args, int newline)
         ++fmt;
     else {
         va_copy(console, args);
-        vprintf(fmt, console);
+        sink_vprintf(sim_con, fmt, console);
         if (newline)
-            printf("\r\n");
+            sink_puts(sim_con, "\r\n");
         va_end(console);
     }
-    if (sim_deb && sim_deb != stdout) {
-        vfprintf(sim_deb, fmt, args);
+    if (sim_deb) {
+        sink_vprintf(sim_deb, fmt, args);
         if (newline)
-            fprintf(sim_deb, "\n");
-        fflush(sim_deb);
+            sink_puts(sim_deb, "\n");
     }
 }
 
@@ -396,7 +395,7 @@ t_stat parse_instruction_word(const char *cptr, t_value *val)
 /*
  * Print a machine instruction with its mnemonic.
  */
-void besm6_fprint_cmd(FILE *of, uint32 cmd)
+void besm6_fprint_cmd(Sink *of, uint32 cmd)
 {
     int reg, opcode, addr;
 
@@ -410,30 +409,30 @@ void besm6_fprint_cmd(FILE *of, uint32 cmd)
         if (cmd & BBIT(19))
             addr |= 070000;
     }
-    fprintf(of, "%s", besm6_opname(opcode));
+    sink_printf(of, "%s", besm6_opname(opcode));
     if (addr) {
-        fprintf(of, " ");
+        sink_printf(of, " ");
         if (addr >= 077700)
-            fprintf(of, "-%o", (addr ^ 077777) + 1);
+            sink_printf(of, "-%o", (addr ^ 077777) + 1);
         else
-            fprintf(of, "%o", addr);
+            sink_printf(of, "%o", addr);
     }
     if (reg) {
         if (!addr)
-            fprintf(of, " ");
-        fprintf(of, "(%o)", reg);
+            sink_printf(of, " ");
+        sink_printf(of, "(%o)", reg);
     }
 }
 
 /*
  * Print a machine instruction in octal.
  */
-void besm6_fprint_insn(FILE *of, uint32 insn)
+void besm6_fprint_insn(Sink *of, uint32 insn)
 {
     if (insn & BBIT(20))
-        fprintf(of, "%02o %02o %05o ", insn >> 20, (insn >> 15) & 037, insn & BITS(15));
+        sink_printf(of, "%02o %02o %05o ", insn >> 20, (insn >> 15) & 037, insn & BITS(15));
     else
-        fprintf(of, "%02o %03o %04o ", insn >> 20, (insn >> 12) & 0177, insn & 07777);
+        sink_printf(of, "%02o %03o %04o ", insn >> 20, (insn >> 12) & 0177, insn & 07777);
 }
 
 /*
@@ -448,7 +447,7 @@ void besm6_fprint_insn(FILE *of, uint32 insn)
  * Outputs:
  *      return  = status code
  */
-t_stat fprint_sym(FILE *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw)
+t_stat fprint_sym(Sink *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw)
 {
     t_value cmd;
 
@@ -459,22 +458,22 @@ t_stat fprint_sym(FILE *of, uint32 addr, t_value *val, UNIT *uptr, int32 sw)
 
     if (sw & SWMASK('M')) { /* symbolic decode? */
         besm6_fprint_cmd(of, (uint32)(cmd >> 24));
-        fprintf(of, ",\n\t");
+        sink_printf(of, ",\n\t");
         besm6_fprint_cmd(of, cmd & BITS(24));
     } else if (sw & SWMASK('I')) {
         besm6_fprint_insn(of, (cmd >> 24) & BITS(24));
         besm6_fprint_insn(of, cmd & BITS(24));
     } else if (sw & SWMASK('F')) {
-        fprintf(of, "%#.2g", besm6_to_ieee(cmd));
+        sink_printf(of, "%#.2g", besm6_to_ieee(cmd));
     } else if (sw & SWMASK('B')) {
-        fprintf(of, "%03o %03o %03o %03o %03o %03o", (int)(cmd >> 40) & 0377,
-                (int)(cmd >> 32) & 0377, (int)(cmd >> 24) & 0377, (int)(cmd >> 16) & 0377,
-                (int)(cmd >> 8) & 0377, (int)cmd & 0377);
+        sink_printf(of, "%03o %03o %03o %03o %03o %03o", (int)(cmd >> 40) & 0377,
+                    (int)(cmd >> 32) & 0377, (int)(cmd >> 24) & 0377, (int)(cmd >> 16) & 0377,
+                    (int)(cmd >> 8) & 0377, (int)cmd & 0377);
     } else if (sw & SWMASK('X')) {
-        fprintf(of, "%013llx", cmd);
+        sink_printf(of, "%013llx", cmd);
     } else
-        fprintf(of, "%04o %04o %04o %04o", (int)(cmd >> 36) & 07777, (int)(cmd >> 24) & 07777,
-                (int)(cmd >> 12) & 07777, (int)cmd & 07777);
+        sink_printf(of, "%04o %04o %04o %04o", (int)(cmd >> 36) & 07777, (int)(cmd >> 24) & 07777,
+                    (int)(cmd >> 12) & 07777, (int)cmd & 07777);
     return SCPE_OK;
 }
 
@@ -766,12 +765,12 @@ t_stat besm6_load(FILE *input)
 /*
  * Dump memory to file.
  */
-t_stat besm6_dump(FILE *of, const char *fnam)
+t_stat besm6_dump(Sink *of, const char *fnam)
 {
     int addr, last_addr = -1;
     t_value word;
 
-    fprintf(of, "; %s\n", fnam);
+    sink_printf(of, "; %s\n", fnam);
     for (addr = 1; addr < MEMSIZE; ++addr) {
         if (addr < 010)
             word = pult[0][addr];
@@ -780,33 +779,32 @@ t_stat besm6_dump(FILE *of, const char *fnam)
         if (word == 0)
             continue;
         if (addr != last_addr + 1) {
-            fprintf(of, "\nв %05o\n", addr);
+            sink_printf(of, "\nв %05o\n", addr);
         }
         last_addr = addr;
         if (IS_INSN(word)) {
-            fprintf(of, "к ");
+            sink_printf(of, "к ");
             besm6_fprint_cmd(of, (uint32)(word >> 24));
-            fprintf(of, ", ");
+            sink_printf(of, ", ");
             besm6_fprint_cmd(of, word & BITS(24));
-            fprintf(of, "\t\t; %05o - ", addr);
-            fprintf(of, "%04o %04o %04o %04o\n", (int)(word >> 36) & 07777,
-                    (int)(word >> 24) & 07777, (int)(word >> 12) & 07777, (int)word & 07777);
+            sink_printf(of, "\t\t; %05o - ", addr);
+            sink_printf(of, "%04o %04o %04o %04o\n", (int)(word >> 36) & 07777,
+                        (int)(word >> 24) & 07777, (int)(word >> 12) & 07777, (int)word & 07777);
         } else {
-            fprintf(of, "с %04o %04o %04o %04o", (int)(word >> 36) & 07777,
-                    (int)(word >> 24) & 07777, (int)(word >> 12) & 07777, (int)word & 07777);
-            fprintf(of, "\t\t; %05o\n", addr);
+            sink_printf(of, "с %04o %04o %04o %04o", (int)(word >> 36) & 07777,
+                        (int)(word >> 24) & 07777, (int)(word >> 12) & 07777, (int)word & 07777);
+            sink_printf(of, "\t\t; %05o\n", addr);
         }
     }
     return SCPE_OK;
 }
 
 /*
- * Loader/dumper
+ * Loader.  Upstream folded the dumper in behind a `dump_flag' and passed it the
+ * *input* file to write to, which nothing ever exercised; besm6_dump() is its
+ * own entry point now and takes a Sink like everything else that formats.
  */
-t_stat sim_load(FILE *fi, const char *cptr, const char *fnam, int dump_flag)
+t_stat sim_load(FILE *fi)
 {
-    if (dump_flag)
-        return besm6_dump(fi, fnam);
-
     return besm6_load(fi);
 }

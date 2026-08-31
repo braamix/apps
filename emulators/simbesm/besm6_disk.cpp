@@ -351,13 +351,13 @@ static void log_data(t_value *data, int nwords)
         return;
     for (i = 0; i < nwords; ++i) {
         val = data[i];
-        fprintf(sim_deb, " %04o-%04o-%04o-%04o", (int)(val >> 36) & 07777, (int)(val >> 24) & 07777,
-                (int)(val >> 12) & 07777, (int)val & 07777);
+        sink_printf(sim_deb, " %04o-%04o-%04o-%04o", (int)(val >> 36) & 07777,
+                    (int)(val >> 24) & 07777, (int)(val >> 12) & 07777, (int)val & 07777);
         if ((i & 3) == 3)
-            fprintf(sim_deb, "\n");
+            sink_printf(sim_deb, "\n");
     }
     if ((i & 3) != 0)
-        fprintf(sim_deb, "\n");
+        sink_printf(sim_deb, "\n");
 }
 
 /*

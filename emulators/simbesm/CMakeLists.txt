@@ -26,6 +26,7 @@ set(SIM_SOURCES
 
 set(BESM6_SOURCES
     besm6_arith.cpp
+    debug.cpp
     besm6_cpu.cpp
     besm6_disk.cpp
     besm6_drum.cpp

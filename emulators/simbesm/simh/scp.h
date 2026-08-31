@@ -66,7 +66,6 @@ void _sim_scp_abort(const char *msg, const char *filename, int filelinenum);
 
 extern int32 sim_interval;
 extern int32 sim_switches;
-extern FILE *sim_deb; /* debug file */
 extern UNIT *sim_clock_queue;
 extern volatile t_bool sim_is_running;
 extern volatile t_bool stop_cpu;
