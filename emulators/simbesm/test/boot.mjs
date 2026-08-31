@@ -93,9 +93,8 @@ const type = (text, term = 0) => {
 
 type("BESM6_PREFIX=/data besm6");
 
-// The setup announces itself, and the second line found the other screen.
-want("*** console on T031", "tty25 on the console");
-want("*** second screen on T032", "tty26 on the second screen");
+// Attaching a console says so only under `set tty debug'; that both lines came
+// up is asserted below, where a getty reaches each of them.
 
 // main() sized memory and mounted the root, so the kernel loaded and md00 is
 // attached -- without it the boot panics in iinit().

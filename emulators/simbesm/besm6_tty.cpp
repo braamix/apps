@@ -332,7 +332,8 @@ t_stat tty_attach(UNIT *u, const char *cptr)
             vt_mask &= ~(1 << (TTY_MAX - num));
             tt_mask &= ~(1 << (TTY_MAX - num));
         }
-        besm6_debug("*** turning off T%03o", num);
+        if (tty_dev.dctrl)
+            besm6_debug("*** turning off T%03o", num);
         return SCPE_OK;
     }
     int con = CON_NONE;
@@ -350,7 +351,9 @@ t_stat tty_attach(UNIT *u, const char *cptr)
     tty_line[num].con  = con;
     if (num <= TTY_MAX)
         vt_mask |= 1 << (TTY_MAX - num);
-    besm6_debug(con == CON_SCREEN ? "*** console on T%03o" : "*** second screen on T%03o", num);
+    if (tty_dev.dctrl)
+        besm6_debug(con == CON_SCREEN ? "*** console on T%03o" : "*** second screen on T%03o",
+                    num);
     return SCPE_OK;
 }
 

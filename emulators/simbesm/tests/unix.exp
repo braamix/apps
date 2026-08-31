@@ -55,9 +55,9 @@ proc want {pat what} {
 
 spawn $sim
 
-# The setup steps announce themselves.
-want "console on T031"          "attach tty25 console"
-want "turning off T032"         "attach tty26 none"
+# The setup steps announce themselves -- except the terminals, which say what
+# they attached to only under `set tty debug', and BESM6_TRACE=none turns that
+# off.  The boot's own output is what proves tty25 came up.
 want "DRUM0: creating new file" "attach -n drum0"
 want "DRUM1: creating new file" "attach -n drum1"
 
