@@ -32,6 +32,7 @@
 #include "scp.h"
 #include "debug.h"
 #include "machine.h"
+#include "console.h"
 
 // Rename of global PC variable to avoid namespace conflicts on some platforms
 

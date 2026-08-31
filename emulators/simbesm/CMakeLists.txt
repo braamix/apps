@@ -21,11 +21,11 @@ endif()
 # what survives ends up in machine.cpp.
 set(SIM_SOURCES
     simh/scp.cpp
-    simh/sim_console.cpp
     simh/sim_timer.cpp)
 
 set(BESM6_SOURCES
     besm6_arith.cpp
+    console.cpp
     debug.cpp
     image.cpp
     machine.cpp

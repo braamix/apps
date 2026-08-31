@@ -36,8 +36,10 @@ void sink_write(Sink *s, const char *buf, int n);
 void sink_puts(Sink *s, const char *str);
 
 /* Binds sim_con.  First thing an entry point does, so that a failure during
- * startup has somewhere to be reported. */
-void sim_console_init(void);
+ * startup has somewhere to be reported.  Not to be confused with con_init()
+ * in console.h, which is the machine's terminal lines rather than the
+ * operator's messages. */
+void sink_init(void);
 
 /* BESM6_DEBUG names the trace file ("-" is stderr) and BESM6_TRACE the devices
  * to trace.  Called once at startup; the close flushes and releases the file. */

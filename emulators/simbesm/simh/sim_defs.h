@@ -162,7 +162,6 @@ struct UNIT {
 /* Function prototypes */
 
 #include "scp.h"
-#include "sim_console.h"
 #include "sim_timer.h"
 
 #if defined(assert)

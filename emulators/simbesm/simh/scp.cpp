@@ -11,6 +11,7 @@
 
 #include "sim_defs.h"
 #include "debug.h"
+#include "console.h"
 
 /* The head of the clock queue counts down in sim_interval; write the countdown
    back before touching the queue. */
@@ -78,7 +79,7 @@ t_stat sim_scp_init(int argc, char *argv[])
 {
     t_stat stat;
 
-    sim_console_init();
+    sink_init();
     sim_switches = 0;
 
     signal(SIGPIPE, SIG_IGN); /* writing to a closed telnet line must not kill us */
@@ -88,7 +89,7 @@ t_stat sim_scp_init(int argc, char *argv[])
     sim_is_running  = FALSE;
     sim_timer_init();
 
-    if ((stat = sim_ttinit()) != SCPE_OK) {
+    if ((stat = con_init()) != SCPE_OK) {
         sink_printf(sim_con, "Fatal terminal initialization error\n%s\n", sim_error_text(stat));
         sim_exit_status = EXIT_FAILURE;
         return stat;
@@ -106,7 +107,7 @@ int sim_scp_exit(t_stat stat)
 {
     detach_all();      /* close files */
     sim_debug_close(); /* close the debug file */
-    sim_ttcmd();       /* restore the console */
+    con_cooked();      /* restore the console */
     if (sim_exit_status != EXIT_SUCCESS)
         return sim_exit_status; /* startup failed */
     /* SCPE_STOP and SCPE_EXIT are how a normal run ends. */
@@ -758,28 +759,29 @@ t_stat sim_run(void)
 {
     t_stat r;
 
-    if ((r = sim_ttrun()) != SCPE_OK) { /* set console mode */
-        r = sim_messagef(SCPE_TTYERR, "sim_ttrun() returned: %s - errno: %d - %s\n",
+    if ((r = con_raw()) != SCPE_OK) { /* set console mode */
+        r = sim_messagef(SCPE_TTYERR, "con_raw() returned: %s - errno: %d - %s\n",
                          sim_error_text(r), errno, strerror(errno));
-        sim_ttcmd();
+        con_cooked();
         return r;
     }
 #ifdef SIGHUP
     if (signal(SIGHUP, int_handler) == SIG_ERR) {
         r = sim_messagef(SCPE_SIGERR, "Can't establish SIGHUP: errno: %d - %s", errno,
                          strerror(errno));
-        sim_ttcmd();
+        con_cooked();
         return r;
     }
 #endif
     if (signal(SIGTERM, int_handler) == SIG_ERR) {
         r = sim_messagef(SCPE_SIGERR, "Can't establish SIGTERM: errno: %d - %s", errno,
                          strerror(errno));
-        sim_ttcmd();
+        con_cooked();
         return r;
     }
     stop_cpu       = FALSE;
     sim_is_running = TRUE;
+    con_flush(); /* whatever the setup said, before the machine starts */
 
     r = sim_instr();
 
@@ -788,7 +790,7 @@ t_stat sim_run(void)
     if (SCPE_BARE_STATUS(r) == SCPE_STOP) /* WRU exit: wait a bit for SIGINT */
         sim_os_ms_sleep(250);
     sim_is_running = FALSE;
-    sim_ttcmd(); /* restore console */
+    con_cooked(); /* restore console */
 #ifdef SIGHUP
     signal(SIGHUP, sigterm_received ? SIG_IGN : SIG_DFL);
 #endif

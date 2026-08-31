@@ -71,9 +71,26 @@ void sink_printf(Sink *s, const char *fmt, ...)
 /* ---------------------------------------------------------------- backends */
 
 /*
- * The host build's two sinks.  Both are stdio, which the Braam build has none
- * of: there the console is the terminal's grid and the trace file is a
- * descriptor written from the driver loop.
+ * The operator's console is the machine's console: the same terminal, so the
+ * same buffer, or a message written from inside an instruction would overtake
+ * the guest output waiting in front of it.  It is also what makes besm6_debug()
+ * callable from the depths of the MMU on Braam, where a write is a coroutine
+ * and only the driver may perform one (console.h).
+ */
+static void con_sink_put(Sink *s, const char *buf, int n)
+{
+    int i;
+
+    (void)s;
+    for (i = 0; i < n; i++)
+        con_put(CON_SCREEN, (unsigned char)buf[i]);
+}
+
+static Sink con_sink = { con_sink_put };
+
+/*
+ * The trace file is the host build's stdio; the Braam build writes it to a
+ * descriptor from the driver loop.
  */
 typedef struct {
     Sink base;
@@ -88,7 +105,6 @@ static void file_put(Sink *s, const char *buf, int n)
     fflush(f);
 }
 
-static FileSink con_sink = { { file_put }, NULL }; /* stdout, set at startup */
 static FileSink deb_sink = { { file_put }, NULL };
 
 Sink *sim_con;
@@ -98,10 +114,9 @@ Sink *sim_deb;
 
 /* The console is bound first, so that a failure during startup has somewhere
  * to be reported. */
-void sim_console_init(void)
+void sink_init(void)
 {
-    con_sink.f = stdout;
-    sim_con    = &con_sink.base;
+    sim_con = &con_sink;
 }
 
 /*

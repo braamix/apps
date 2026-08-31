@@ -217,6 +217,13 @@ accepted `Line=<n>,<port>` and handed it to `tmxr_attach()`, which listened for
 telnet; there is no socket in a browser tab, so the multiplexer, the sockets and
 the in-band `sim>` command interpreter that lived on a telnet line are all gone.
 
+A line reaches its terminal through [console.h](console.h), and neither call
+there blocks — which is what lets both be reached from inside an instruction, as
+upstream's non-blocking `read(0)` and its `write(1)` per character were. Output
+gathers in a buffer that the driver empties between two instructions; input
+waits in a ring. Operator messages share that buffer, so a `besm6_debug()` from
+inside the MMU cannot overtake the guest output in front of it.
+
 A line's mode is a character set, a terminal type and a backspace style, all set
 together in the unit's flag word — **before** `tty_attach()`, which reads them:
 

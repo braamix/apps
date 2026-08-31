@@ -32,11 +32,6 @@
 #define TTY_MAX   24          /* Serial TTY lines */
 #define LINES_MAX TTY_MAX + 2 /* Including parallel "Consul" typewriters */
 
-/* Which local console carries a line.  There is one so far; the second screen
- * adds CON_SCREEN2. */
-#define CON_NONE   (-1)
-#define CON_SCREEN 0
-
 typedef struct {
     int conn; /* the line is in use */
     int con;  /* CON_*: which console carries it */
@@ -140,8 +135,6 @@ void consul_receive();
 void mux_receive(void);
 t_stat vt_clk(UNIT *);
 t_stat mux_event(UNIT *);
-
-int attached_console;
 
 UNIT tty_unit[] = { { .action = vt_clk }, /* fake unit, clock */
                     { .action = mux_event },
@@ -256,18 +249,6 @@ t_stat vt_clk(UNIT *self)
     consul_receive();
     mux_receive();
 
-    /*
-     * It the operator console is remote, we still need to probe the local keyboard
-     * for a WRU, say, 10 times a second.
-     */
-    if (!attached_console) {
-        static int divider;
-        if (++divider == CLK_TPS / 10) {
-            divider = 0;
-            sim_poll_kbd();
-        }
-    }
-
     /* If the TTY system is not idle, schedule the next interrupt
      * by instruction count using the target interrupt rate of 300 Hz;
      * otherwise we can wait for a roughly equivalent wallclock time period,
@@ -364,7 +345,6 @@ t_stat tty_attach(UNIT *u, const char *cptr)
     if (num <= TTY_MAX)
         vt_mask |= 1 << (TTY_MAX - num);
     besm6_debug("*** console on T%03o", num);
-    attached_console = 1;
     return SCPE_OK;
 }
 
@@ -387,7 +367,7 @@ void vt_putc(int num, int c)
 
     if (!t->conn || t->con == CON_NONE)
         return;
-    sim_putchar(c);
+    con_put(t->con, c);
 }
 
 /*
@@ -400,7 +380,7 @@ void vt_puts(int num, const char *s)
     if (!t->conn || t->con == CON_NONE)
         return;
     while (*s)
-        sim_putchar(*s++);
+        con_put(t->con, *s++);
 }
 
 const char *koi7_rus_to_unicode[32] = {
@@ -701,8 +681,8 @@ int vt_getc(int num)
     if (t->con == CON_NONE)
         return -1;
 
-    c = sim_poll_kbd();
-    if (!(c & SCPE_KFLAG))
+    c = con_get(t->con);
+    if (c < 0)
         return -1;
     c &= 0377;
     return c ? c : 8;

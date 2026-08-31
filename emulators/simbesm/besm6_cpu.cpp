@@ -1667,6 +1667,8 @@ t_stat sim_instr(void)
             if (io != SCPE_OK)
                 r = io;
         }
+        if (con_pending())
+            con_flush(); /* the driver's, not the instruction's (console.h) */
         if (r) {
             /* The instruction trapped.  Either it becomes a guest interrupt
              * and the loop goes on, or the machine stops. */
