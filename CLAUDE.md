@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Eight programs are ported so far**:
+**Nine programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -40,9 +40,24 @@ not a tail call**, so a loop that awaits without ever suspending grows the
 native stack until the process traps; see its README; and
 [editors/le](editors/le/), LE 1.16.8, the block editor — the largest surface of
 all of them, since it brings its own curses, its own regex and its own wide
-half. The rest of the tree is category directories, a few
+half; and
+[emulators/simbesm](emulators/simbesm/), the BESM-6 simulator, which boots
+Unix — a fourth shape, where the hard part is that **the program is a machine**
+and cannot stop to wait. A `co_await` cannot appear in an instruction loop, so
+the port is a *driver*: `cpu_burst()` runs plain C++ until it has something for
+its caller to do — a transfer, the burst being up, or a stop — and everything
+that blocks is in the one file the caller lives in, `braam.cpp` or `host.cpp`.
+A disk transfer is deferred out of the instruction that starts it and becomes
+*data* the driver performs, which is also the more faithful model; the console
+is a buffer the driver drains and a ring a key task fills; and upstream's
+telnet line is `Sys::TermOpen`, so the machine's second terminal is a second
+Braam screen. Its 43 `longjmp`s to `cpu_halt` became returned stop codes, and
+the SIMH framework it came with is gone: 2.6k lines of it are 620 of
+`machine.cpp`. It keeps a **native build** as well, which `tests/unix.exp`
+drives, and that is how every step of the port was checked — including
+byte-for-byte that the deferred transfers write the same packs.
+The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
-[emulators/simbesm](emulators/simbesm/TODO.md),
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).
 
 Layout is `<category>/<program>/`, categories borrowed from pkgsrc (`archivers`,
