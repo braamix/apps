@@ -232,6 +232,12 @@ static t_bool con_isatty(void)
     return (t_bool)(answer != 0);
 }
 
+/* One terminal here: a second screen is a browser tab's. */
+int con_second(void)
+{
+    return 0;
+}
+
 /* The console is stdout; there is nowhere else to write on the host. */
 void con_flush(void)
 {

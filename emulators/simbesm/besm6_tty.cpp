@@ -312,9 +312,10 @@ t_stat tty_setmode(UNIT *u, int32 val, const char *cptr, void *desc)
 }
 
 /*
- * A line is attached to a local console, or to nothing.  Upstream also took a
- * "Line=<n>,<port>" here and handed it to tmxr_attach(); there is no socket to
- * listen on in a browser tab, so the two magic words are all that is left.
+ * A line is attached to a console, or to nothing.  Upstream also took a
+ * "Line=<n>,<port>" here and handed it to tmxr_attach(), which listened for
+ * telnet; there is no socket in a browser tab, and a second screen is where
+ * that line goes instead.
  */
 t_stat tty_attach(UNIT *u, const char *cptr)
 {
@@ -334,17 +335,22 @@ t_stat tty_attach(UNIT *u, const char *cptr)
         besm6_debug("*** turning off T%03o", num);
         return SCPE_OK;
     }
-    if (strcasecmp(cptr, "console") != 0)
+    int con = CON_NONE;
+    if (strcasecmp(cptr, "console") == 0)
+        con = CON_SCREEN;
+    else if (strcasecmp(cptr, "screen2") == 0)
+        con = CON_SCREEN2;
+    else
         return SCPE_ARG;
 
-    /* Attaching the console to a particular terminal. */
+    /* Attaching a console to a particular terminal. */
     u->flags &= ~TTY_STATE_MASK;
     u->flags |= TTY_VT340_STATE;
     tty_line[num].conn = 1;
-    tty_line[num].con  = CON_SCREEN;
+    tty_line[num].con  = con;
     if (num <= TTY_MAX)
         vt_mask |= 1 << (TTY_MAX - num);
-    besm6_debug("*** console on T%03o", num);
+    besm6_debug(con == CON_SCREEN ? "*** console on T%03o" : "*** second screen on T%03o", num);
     return SCPE_OK;
 }
 

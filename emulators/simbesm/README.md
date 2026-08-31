@@ -229,18 +229,29 @@ but do nothing — writes ignored, reads return zero.
 ## Terminals
 
 The `TTY` device carries **24 serial lines** (`tty1`…`tty24`) plus **two
-parallel "Consul" lines** (`tty25`, `tty26`). The demo uses `tty25` as the
-console; `tty26` has no console of its own yet and is turned off.
+parallel "Consul" lines** (`tty25`, `tty26`). `tty25` is the console and
+`tty26` a **second screen**.
 
 ```c
-tty_attach(&tty_unit[25], "console");        /* bind to the local console */
-tty_attach(&tty_unit[26], "none");           /* mark the line unusable */
+tty_attach(&tty_unit[25], "console");        /* the program's own terminal */
+tty_attach(&tty_unit[26], "screen2");        /* a terminal it opened */
+tty_attach(&tty_unit[3],  "none");           /* mark the line unusable */
 ```
 
-`console` and `none` are the only two words `tty_attach()` takes. Upstream also
-accepted `Line=<n>,<port>` and handed it to `tmxr_attach()`, which listened for
-telnet; there is no socket in a browser tab, so the multiplexer, the sockets and
-the in-band `sim>` command interpreter that lived on a telnet line are all gone.
+Those three words are all `tty_attach()` takes. Upstream also accepted
+`Line=<n>,<port>` and handed it to `tmxr_attach()`, which listened for telnet;
+there is no socket in a browser tab, so the multiplexer, the sockets and the
+in-band `sim>` interpreter that lived on a telnet line are gone — and a second
+screen is where that line went instead.
+
+**The second line wants a second canvas.** A page that mounts two
+(`mount({ screens: [{canvas}, {canvas, shell: false}] })` — `web/dual.html` is
+the shape) gets a Consul on each. `besm6 -S <n>` names the terminal, `-S none`
+turns the line off, and with neither the program tries terminal 1 and settles
+for one console where there is none. It commits only when **both** halves come:
+`Sys::TermOpen` is free, but a screen whose own shell sits at its prompt holds
+the raw keys, and a terminal line needs to be typed at as well as printed on —
+which is what `shell: false` is for.
 
 A line reaches its terminal through [console.h](console.h), and neither call
 there blocks — which is what lets both be reached from inside an instruction, as

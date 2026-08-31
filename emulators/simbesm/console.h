@@ -12,11 +12,13 @@
 #ifndef BESM6_CONSOLE_H
 #define BESM6_CONSOLE_H
 
-/* Which console carries a line.  One so far; the second screen adds another. */
+/* Which console carries a line: the program's own terminal, or a second screen
+ * it opened (Sys::TermOpen).  The host build has only the first. */
 enum {
-    CON_NONE   = -1,
-    CON_SCREEN = 0,
-    CON_MAX    = 1,
+    CON_NONE    = -1,
+    CON_SCREEN  = 0,
+    CON_SCREEN2 = 1,
+    CON_MAX     = 2,
 };
 
 /* The byte that stops the machine: ^E.  The host gets it as SIGINT, through
@@ -43,6 +45,10 @@ int con_take(int con, const char **buf);
 /* A byte typed, from the platform.  Dropped when the ring is full, which is
  * what a terminal does. */
 void con_feed(int con, int c);
+
+/* Whether a second screen was opened, which decides what tty26 is attached to.
+ * The platform's: only Braam has one. */
+int con_second(void);
 
 /* The platform's: the console's terminal, and the keyboard for a run. */
 t_stat con_init(void);

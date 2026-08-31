@@ -54,8 +54,9 @@ t_stat besm6_boot_unix(Blob *kernel)
     if ((r = tty_attach(&tty_unit[25], "console")) != SCPE_OK)
         return r;
 
-    /* attach tty26 none: the second Consul line has no console yet. */
-    if ((r = tty_attach(&tty_unit[26], "none")) != SCPE_OK)
+    /* attach tty26: the second Consul line goes to a second screen where the
+     * page put one up, and is turned off where it did not. */
+    if ((r = tty_attach(&tty_unit[26], con_second() ? "screen2" : "none")) != SCPE_OK)
         return r;
 
     /* attach md00 root3072.disk; attach md01 usr3100.disk */

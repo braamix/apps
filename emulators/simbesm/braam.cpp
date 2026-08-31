@@ -14,6 +14,7 @@
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "kernel/key.h"
+#include "kernel/text.h"
 #include "fs/path.h"
 #include "math/ftoa.h"
 
@@ -190,6 +191,18 @@ void deb_file_close(void)
 
 /* ============================================================== the console */
 
+/*
+ * The second screen, where the page put one up.  Upstream's tty26 was a telnet
+ * line; Sys::TermOpen is where that goes in a browser tab.
+ */
+static ScreenRef screen2;
+static int screen2_ok;
+
+int con_second(void)
+{
+    return screen2_ok;
+}
+
 void con_flush(void)
 {
     /* The write is the driver's; con_drain() below does it. */
@@ -247,13 +260,15 @@ i32 key_byte(const Key &k)
     return k.code < 0x80 ? i32(k.code) : -1;
 }
 
-/* The second task: parked on the next key, feeding the ring the machine
- * drains.  con_get() only looks, which is what lets an instruction call it. */
-Task<i32> keyboard()
+/* A task per screen: parked on the next key, feeding the ring the machine
+ * drains.  con_get() only looks, which is what lets an instruction call it.
+ * One read per screen is the rule -- a key ring has one receiver -- so two
+ * screens are two tasks. */
+Task<i32> keyboard(int con, ScreenRef on)
 {
     for (;;) {
         Result<KeyPress> r = Err(Error::NoMemory);
-        if (Task<Result<KeyPress>> t = key_read())
+        if (Task<Result<KeyPress>> t = key_read(on))
             r = co_await t;
         if (r.is_err()) {
             if (r.error() == Error::Again || r.error() == Error::Intr)
@@ -268,7 +283,7 @@ Task<i32> keyboard()
             sim_interval = 0;
             continue;
         }
-        con_feed(CON_SCREEN, b);
+        con_feed(con, b);
     }
 }
 
@@ -281,6 +296,13 @@ Task<void> con_drain()
     if (n > 0)
         if (Task<Result<void>> t = write_all(SYS_STDOUT, Str(buf, usize(n))))
             (void)co_await t;
+    /* A write to a screen descriptor is text on that grid, as this is on ours. */
+    if (screen2_ok) {
+        n = con_take(CON_SCREEN2, &buf);
+        if (n > 0)
+            if (Task<Result<void>> t = write_all(u32(screen2.at), Str(buf, usize(n))))
+                (void)co_await t;
+    }
     if (deb_fd >= 0 && deb_len) {
         if (Task<Result<void>> t = write_all(u32(deb_fd), Str(deb_buf, deb_len)))
             (void)co_await t;
@@ -410,19 +432,48 @@ Task<Result<void>> stage(Str from, Str home, bool again)
     co_return {};
 }
 
+/*
+ * The second Consul line's screen.  With no -S the program tries terminal 1 and
+ * settles for one console where there is none: a page with one canvas is the
+ * ordinary case.
+ */
+Task<void> open_second(u32 term)
+{
+    Result<ScreenRef> ref = Err(Error::NoMemory);
+    if (Task<Result<ScreenRef>> t = screen_open(term))
+        ref = co_await t;
+    if (ref.is_err())
+        co_return; /* the page put up no such canvas */
+
+    /* Taking is what arbitrates, not opening: a screen whose own shell sits at
+     * its prompt holds the keys, and a line needs both halves. */
+    Result<Geometry> keys = Err(Error::NoMemory);
+    if (Task<Result<Geometry>> t = keys_claim(true, ref.value()))
+        keys = co_await t;
+    if (keys.is_err())
+        co_return;
+
+    screen2    = ref.value();
+    screen2_ok = 1;
+}
+
 constexpr Str USAGE =
     "Usage:\n"
-    "    besm6 [-r]\n"
+    "    besm6 [-r] [-S <screen>]\n"
     "Options:\n"
-    "    -r  copy the packs from the store again, discarding this Unix\n";
+    "    -r          copy the packs from the store again, discarding this Unix\n"
+    "    -S <screen> put the second Consul line on this terminal (/proc/terms),\n"
+    "                or `none' to turn the line off.  Terminal 1 by default.\n";
 
-constexpr Opts SPEC{ "r", "" };
+constexpr Opts SPEC{ "r", "S" };
 
 } // namespace
 
 Task<i32> proc_main(Args args)
 {
-    bool again = false;
+    bool again     = false;
+    bool no_second = false;
+    u32 second     = 1; /* the terminal a dual-screen page puts up beside this one */
 
     if (help_asked(args))
         co_return co_await usage_asked(USAGE);
@@ -434,8 +485,18 @@ Task<i32> proc_main(Args args)
             co_return co_await usage_error(USAGE);
         if (!more.value())
             break;
-        if (o.name == 'r')
+        if (o.name == 'r') {
             again = true;
+            continue;
+        }
+        if (o.value == "none") {
+            no_second = true;
+            continue;
+        }
+        Option<u32> n = parse_u32(o.value);
+        if (!n.has_value())
+            co_return co_await usage_error(USAGE);
+        second = n.value();
     }
 
     /* Where the images are, and where this run's copies live. */
@@ -517,9 +578,15 @@ Task<i32> proc_main(Args args)
 
     if (Task<Result<Geometry>> t = keys_claim(true))
         (void)co_await t;
-    if (!proc_spawn(keyboard())) {
+    if (!proc_spawn(keyboard(CON_SCREEN, ScreenRef{}))) {
         co_await errln("besm6", "no room for the keyboard task", Error::NoMemory);
         co_return 1;
+    }
+    if (!no_second) {
+        if (Task<void> t = open_second(second))
+            co_await t;
+        if (screen2_ok && !proc_spawn(keyboard(CON_SCREEN2, screen2)))
+            screen2_ok = 0; /* no task for it: one console, then */
     }
 
     t_stat r = machine_init();
