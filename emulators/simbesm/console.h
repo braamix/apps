@@ -12,6 +12,8 @@
 #ifndef BESM6_CONSOLE_H
 #define BESM6_CONSOLE_H
 
+#include "types.h"
+
 /* Which console carries a line: the program's own terminal, or a second screen
  * it opened (Sys::TermOpen).  The host build has only the first. */
 enum {

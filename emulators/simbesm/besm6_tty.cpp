@@ -352,8 +352,7 @@ t_stat tty_attach(UNIT *u, const char *cptr)
     if (num <= TTY_MAX)
         vt_mask |= 1 << (TTY_MAX - num);
     if (tty_dev.dctrl)
-        besm6_debug(con == CON_SCREEN ? "*** console on T%03o" : "*** second screen on T%03o",
-                    num);
+        besm6_debug(con == CON_SCREEN ? "*** console on T%03o" : "*** second screen on T%03o", num);
     return SCPE_OK;
 }
 

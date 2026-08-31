@@ -7,18 +7,17 @@
  * Everything that blocks is here, and only here.  The machine below runs as
  * plain C++ and hands the driver what it needs done (machine.h).
  */
-#include "proc/io.h"
-#include "proc/opt.h"
-#include "proc/rt.h"
-#include "proc/usage.h"
+#include "besm6_defs.h"
+#include "fs/path.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "kernel/key.h"
 #include "kernel/text.h"
-#include "fs/path.h"
 #include "math/ftoa.h"
-
-#include "besm6_defs.h"
+#include "proc/io.h"
+#include "proc/opt.h"
+#include "proc/rt.h"
+#include "proc/usage.h"
 
 /* ============================================================== the images
  *

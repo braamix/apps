@@ -28,9 +28,9 @@
 #ifndef _BESM6_DEFS_H_
 #define _BESM6_DEFS_H_ 0
 
-#include "machine.h"
-#include "debug.h"
 #include "console.h"
+#include "debug.h"
+#include "machine.h"
 
 // Rename of global PC variable to avoid namespace conflicts on some platforms
 

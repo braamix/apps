@@ -5,9 +5,9 @@
  * Copyright (c) 2026, Serge Vakulenko
  */
 #include <fcntl.h>
-#include <time.h>
 #include <signal.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "besm6_defs.h"

@@ -1,11 +1,11 @@
 /*
- * The machine: types, devices, the event queue and the driver.
+ * The machine: devices, the event queue and the driver.
  *
  * Copyright (c) 1993-2022, Robert M Supnik and the Open SIMH contributors
  * Copyright (c) 2026, Serge Vakulenko
  *
- * What is left of the SIMH framework.  Types and structures are upstream's,
- * because besm6/ is written against them.
+ * What is left of the SIMH framework.  The structures are upstream's, because
+ * besm6/ is written against them; the scalar types are in types.h.
  */
 #ifndef BESM6_MACHINE_H
 #define BESM6_MACHINE_H
@@ -16,35 +16,17 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef TRUE
-#define TRUE  1
-#define FALSE 0
-#endif
+#include "image.h"
+#include "types.h"
 
 /* The package's version, which the build defines.  See CMakeLists.txt. */
 #ifndef SIMBESM_VERSION
 #define SIMBESM_VERSION "unknown"
 #endif
-
-typedef int32_t int32;
-typedef uint8_t uint8;
-typedef uint32_t uint32;
-
-typedef int t_stat; /* status */
-typedef int t_bool; /* boolean */
-
-typedef signed long long t_int64;
-typedef unsigned long long t_uint64;
-
-/* The 48-bit word needs 64 bits; there is no 32-bit build. */
-typedef t_uint64 t_value;
-
-#include "image.h" /* names the types above */
 
 #if !defined(PATH_MAX)
 #define PATH_MAX 512

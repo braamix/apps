@@ -9,6 +9,10 @@
 #ifndef BESM6_IMAGE_H
 #define BESM6_IMAGE_H
 
+#include <stddef.h>
+
+#include "types.h"
+
 typedef struct Image Image;
 
 /* How an image came to be open; the caller reports it. */
