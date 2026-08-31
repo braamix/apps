@@ -83,26 +83,55 @@ static t_stat besm6_boot_unix(void)
     return r;
 }
 
-int main(int argc, char *argv[])
+/*
+ * The driver loop: what a Braam entry point will be a coroutine of.  Everything
+ * that blocks is here and nothing below cpu_burst() may (machine.h).
+ */
+static t_stat run_machine(void)
 {
     t_stat r;
 
-    r = sim_scp_init(argc, argv);
+    for (;;) {
+        r = cpu_burst();
+
+        if (r == REASON_IO) {
+            r = io_service();
+            if (r != SCPE_OK)
+                return r;
+            continue;
+        }
+        if (r == REASON_YIELD) {
+            con_flush();
+            if (stop_cpu) {
+                stop_cpu = FALSE;
+                return SCPE_STOP;
+            }
+            continue;
+        }
+        return r; /* a stop code */
+    }
+}
+
+int main(void)
+{
+    t_stat r;
+
+    r = machine_init();
     if (r != SCPE_OK)
-        return sim_scp_exit(r);
+        return machine_exit(r);
     sink_puts(sim_con, "\nBESM-6 Simulator Demo\n");
 
     r = besm6_boot_unix();
     if (r != SCPE_OK) {
         sim_printf("%s\n", sim_error_text(r));
-        return sim_scp_exit(r);
+        return machine_exit(r);
     }
 
-    /* sim_run() rather than sim_instr(): the console, timer and signal
-     * housekeeping around the run has no other entry point.  PC is left
-     * as besm6_load() set it. */
-    r = sim_run();
+    con_raw();
+    sim_run_begin();
+    r = run_machine();
+    sim_run_end();
     sink_printf(sim_con, "\n%s\n", (r >= SCPE_BASE) ? sim_error_text(r) : sim_stop_messages[r]);
 
-    return sim_scp_exit(r);
+    return machine_exit(r);
 }

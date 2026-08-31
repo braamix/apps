@@ -1,12 +1,8 @@
 /*
- * The host build's images, over stdio.
+ * The host build's images, over stdio.  The Braam build replaces this file with
+ * one over descriptors; nothing above it changes.
  *
  * Copyright (c) 2026, Serge Vakulenko
- *
- * The Braam build replaces this file with one over descriptors -- seek_fd and
- * read_some -- and nothing above it changes, because a transfer here is already
- * "seek to a word offset, move n words" and is already performed from the
- * driver loop rather than from inside an instruction.
  */
 #include "besm6_defs.h"
 

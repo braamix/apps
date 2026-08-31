@@ -1620,14 +1620,35 @@ static t_stat cpu_trap(t_stat r, int *iintr)
 /*
  * Main instruction fetch/decode loop
  */
-t_stat sim_instr(void)
+/*
+ * Run instructions until there is something for the driver to do, and say
+ * which: a transfer to perform, the burst being up, or a stop code.  Upstream
+ * ran to a stop and did everything itself; nothing below here may block
+ * (machine.h).
+ */
+t_stat cpu_burst(void)
 {
+    static int iintr;
+    static int started;
+    static t_stat deferred_trap;
+    int32 left = BURST_INSTRUCTIONS;
     t_stat r;
-    int iintr = 0;
 
-    /* Restore register state */
-    PC = PC & BITS(15); /* mask PC */
-    mmu_setup();        /* copy RP to TLB */
+    if (!started) {
+        started = 1;
+        PC      = PC & BITS(15); /* mask PC */
+        mmu_setup();             /* copy RP to TLB */
+    }
+
+    /* A trap taken by an instruction that also posted a transfer, held until
+     * the driver had performed it -- which is the order upstream had, doing
+     * the transfer inside the instruction.  No instruction does both: the one
+     * that starts an exchange has nothing left to fault on. */
+    if (deferred_trap) {
+        r             = deferred_trap;
+        deferred_trap = 0;
+        goto trapped;
+    }
 
     for (;;) {
         if (sim_interval <= 0) { /* check clock queue */
@@ -1657,19 +1678,11 @@ t_stat sim_instr(void)
         }
         r = cpu_one_inst(); /* one instr */
         if (io_request.unit) {
-            /* The instruction asked for a disk or drum transfer.  It happens
-             * here rather than inside the instruction: on Braam it is a
-             * co_await, and this loop must not contain one (machine.h).  It
-             * happens even when the instruction went on to trap, and its own
-             * failure wins -- upstream raised an I/O error from inside the
-             * transfer, before anything later in the instruction ran. */
-            t_stat io = io_service();
-            if (io != SCPE_OK)
-                r = io;
+            deferred_trap = r;
+            return REASON_IO;
         }
-        if (con_pending())
-            con_flush(); /* the driver's, not the instruction's (console.h) */
         if (r) {
+        trapped:
             /* The instruction trapped.  Either it becomes a guest interrupt
              * and the loop goes on, or the machine stops. */
             r = cpu_trap(r, &iintr);
@@ -1684,6 +1697,8 @@ t_stat sim_instr(void)
         iintr = 0;
 
         sim_interval -= 1; /* count down instructions */
+        if (--left <= 0)
+            return REASON_YIELD;
     }
 }
 
@@ -1736,10 +1751,10 @@ t_stat clk_reset(DEVICE *dev)
 
     /* The auto-start circuit is triggered by the unimplemented "МР" button */
 
-    if (!sim_is_running) {                        /* RESET (not IORESET)? */
-        tmr_poll = sim_rtcn_init(clocks[0].wait); /* init timer */
-        sim_activate(&clocks[0], tmr_poll);       /* activate unit */
-    }
+    /* Upstream guarded this with !sim_is_running, to tell RESET from IORESET;
+     * reset_all() is called once, at startup, and there is no IORESET. */
+    tmr_poll = sim_rtcn_init(clocks[0].wait); /* init timer */
+    sim_activate(&clocks[0], tmr_poll);       /* activate unit */
     return SCPE_OK;
 }
 

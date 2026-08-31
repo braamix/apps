@@ -1,14 +1,11 @@
 /*
- * The host build's consoles: stdin and stdout in raw mode.
+ * The host build's consoles: stdin and stdout in raw mode.  The Braam build
+ * replaces this file, where a console is a screen.
  *
  * Copyright (c) 2026, Serge Vakulenko
- *
- * The Braam build replaces this file.  There a console is a screen: con_flush()
- * writes the gathered bytes with one syscall, and the ring con_get() drains is
- * filled by a task parked on the next key -- which is why neither call above it
- * blocks, and why the buffering is here rather than at the call sites.
  */
 #include <fcntl.h>
+#include <signal.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -16,11 +13,7 @@
 
 int32 con_stop_char = 005; /* ^E */
 
-/*
- * Enough for a screenful; the machine writes a character at a time at 300 baud
- * and the driver empties this between two instructions, so it never comes close.
- * A full buffer is flushed early rather than dropped.
- */
+/* Enough for a screenful; a full buffer flushes early rather than dropping. */
 #define CON_BUF 4096
 
 static struct {
@@ -149,8 +142,19 @@ t_stat con_init(void)
     return SCPE_OK;
 }
 
+/* ^E reaches the host as SIGINT, because termios VINTR takes it before a read
+ * can see it.  Braam has neither, and recognises con_stop_char in con_get(). */
+static void int_handler(int sig)
+{
+    (void)sig;
+    stop_cpu     = TRUE;
+    sim_interval = 0;
+}
+
 t_stat con_raw(void)
 {
+    signal(SIGINT, int_handler);
+    signal(SIGTERM, int_handler);
     if (!con_isatty()) /* skip if !tty */
         return SCPE_OK;
     (void)fcntl(0, F_SETFL, runfl);     /* non-block mode */
@@ -163,6 +167,8 @@ t_stat con_raw(void)
 void con_cooked(void)
 {
     con_flush();
+    signal(SIGINT, SIG_DFL);
+    signal(SIGTERM, SIG_DFL);
     if (!con_isatty()) /* skip if !tty */
         return;
     (void)fcntl(0, F_SETFL, cmdfl); /* block mode */

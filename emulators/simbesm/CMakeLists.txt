@@ -17,12 +17,6 @@ endif()
 
 # --- sources ----------------------------------------------------------------
 
-# The SIMH framework, cut to what BESM-6 reaches.  It is dissolved in stages;
-# what survives ends up in machine.cpp.
-set(SIM_SOURCES
-    simh/scp.cpp
-    simh/sim_timer.cpp)
-
 set(BESM6_SOURCES
     besm6_arith.cpp
     console.cpp
@@ -39,10 +33,9 @@ set(BESM6_SOURCES
     besm6_trace.cpp
     besm6_tty.cpp)
 
-add_executable(besm6 ${SIM_SOURCES} ${BESM6_SOURCES})
+add_executable(besm6 ${BESM6_SOURCES})
 
-target_include_directories(besm6 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/simh
-                                         ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(besm6 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 set_target_properties(besm6 PROPERTIES CXX_STANDARD 20 CXX_EXTENSIONS ON)
 

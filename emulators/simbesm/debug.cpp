@@ -1,19 +1,12 @@
 /*
- * Formatting into a Sink, and the two sinks this build has.
+ * Formatting into a Sink, and the sinks this build has.
  *
  * Copyright (c) 2026, Serge Vakulenko
- *
- * The formatting half is portable: vsnprintf() into a stack buffer, growing on
- * the heap for the rare long line.  The two backends at the bottom are the host
- * build's, over stdio; the Braam build replaces them and nothing above changes.
  */
 #include "besm6_defs.h"
 
-/*
- * Most lines are short -- the longest the tracer emits is a register dump of
- * about 120 characters.  A line past this is formatted twice, into a heap block
- * the second time; the buffer stays on the stack, not in a coroutine frame.
- */
+/* The longest line the tracer emits is a register dump, about 120 characters.
+ * A longer one is formatted again into a heap block. */
 #define SINK_BUF 512
 
 void sink_write(Sink *s, const char *buf, int n)
@@ -70,13 +63,9 @@ void sink_printf(Sink *s, const char *fmt, ...)
 
 /* ---------------------------------------------------------------- backends */
 
-/*
- * The operator's console is the machine's console: the same terminal, so the
- * same buffer, or a message written from inside an instruction would overtake
- * the guest output waiting in front of it.  It is also what makes besm6_debug()
- * callable from the depths of the MMU on Braam, where a write is a coroutine
- * and only the driver may perform one (console.h).
- */
+/* The operator's console is the machine's: the same terminal, so the same
+ * buffer, or a message from inside an instruction would overtake the guest
+ * output in front of it -- and on Braam could not be written at all. */
 static void con_sink_put(Sink *s, const char *buf, int n)
 {
     int i;
@@ -88,10 +77,7 @@ static void con_sink_put(Sink *s, const char *buf, int n)
 
 static Sink con_sink = { con_sink_put };
 
-/*
- * The trace file is the host build's stdio; the Braam build writes it to a
- * descriptor from the driver loop.
- */
+/* The trace file, over stdio; Braam writes it to a descriptor. */
 typedef struct {
     Sink base;
     FILE *f;

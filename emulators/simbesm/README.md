@@ -9,6 +9,22 @@ BESM-6 simulator alone, being ported to
 [Braam](https://braamix.github.io) — an operating system that runs in a browser
 tab. The build here is still the host one; the Braam target comes later.
 
+The SIMH framework is gone. What it did for the BESM-6 is four files:
+[machine.h](machine.h)/[machine.cpp](machine.cpp) — the types, the devices, the
+event queue, the clock and the driver; [image.h](image.h) — disks and drums;
+[console.h](console.h) — the terminal lines; [debug.h](debug.h) — the one output
+path. Between them they are about a third of what `simh/` was, and the rule they
+exist for is that **nothing below `cpu_burst()` may block**: on Braam a read, a
+write and a sleep are coroutines, a coroutine cannot be entered from a plain
+function, and making the instruction loop one is worse — a `co_await` is a call
+and not a tail call, so awaiting without suspending grows the native stack until
+the process traps.
+
+So `cpu_burst()` runs instructions until it has something for its caller to do
+and says which: a transfer to perform, the burst being up, or a stop code. The
+caller is `main()` here and will be a coroutine on Braam, and that is the whole
+of the difference.
+
 This build has **no command interpreter** — no `sim>` prompt, no scripts. To
 change what the simulator does, edit [besm6_main.cpp](besm6_main.cpp) and rebuild.
 
@@ -39,7 +55,7 @@ Image names are hardcoded and relative, so run from the directory holding them.
 checks the replies. It needs `/usr/bin/expect`; CMake skips the test otherwise.
 
 `besm6_main.cpp` performs the steps the old `demo/unix.ini` command script did,
-in the same order.
+in the same order, and then runs the driver loop.
 
 ## Machine model
 
