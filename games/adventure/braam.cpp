@@ -2,13 +2,13 @@
 #include "braam.h"
 
 #include <string.h>
+#include <time.h>
 
 #include "edit.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "kernel/host.h"
 #include "proc/io.h"
-#include "proc/time.h"
 
 namespace {
 
@@ -206,9 +206,7 @@ Task<AdvEnd> adv_readline(String &out_line)
 
     if (!lines)
         co_return AdvEnd::Eof;
-    Result<bool> r = Err(Error::NoMemory);
-    if (Task<Result<bool>> t = lines->next(out_line))
-        r = co_await t;
+    Result<bool> r = co_await lines->next(out_line);
     // A ^C abandons the read with nothing taken from it: the DEL again.
     if (r.is_err() && r.error() == Error::Intr && sig_take(SIG_INT))
         co_return AdvEnd::Interrupt;
@@ -269,23 +267,16 @@ Task<void> adv_seed(void)
     co_return;
 }
 
-// Days before each month, for the tm_yday civil() does not carry.
-static const u32 CUM_DAYS[12] = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
-
 void datime(int *d, int *t)
 {
-    i64 secs  = i64(clock_ms / 1000) + i64(clock_tz) * 60;
-    Civil now = civil(secs);
+    time_t secs = time_t(clock_ms / 1000) + time_t(clock_tz) * 60;
+    struct tm now;
+    gmtime_r(&secs, &now);
 
-    bool leap = (now.year % 4 == 0 && now.year % 100 != 0) || now.year % 400 == 0;
-    u32 yday  = CUM_DAYS[now.month - 1] + now.day - 1;
-    if (leap && now.month > 2)
-        yday++;
-
-    *d = int(yday) + // day since 1977 (mod leap)
-         365 * (now.year - 1977);
+    *d = now.tm_yday + // day since 1977 (mod leap)
+         365 * (now.tm_year + 1900 - 1977);
     // bug: this will overflow in the year 2066 AD
     // it will be attributed to Wm the C's millenial celebration
-    *t = int(now.hour) * 60 + // and minutes since midnite
-         int(now.min);        // pretty painless
+    *t = now.tm_hour * 60 + // and minutes since midnite
+         now.tm_min;        // pretty painless
 }

@@ -49,10 +49,16 @@ and `putchar` are `adv_printf` and `adv_putc`.
 | `access` | `stat_of`, where `Err(NotFound)` is the good answer |
 | `unlink` | `remove_path` |
 | `srand`/`rand` | an xorshift32 seeded from `clock_now()`, or `ADVENTURE_SEED` |
-| `time`/`localtime` | `clock_now()` and `civil()` |
+| `time`/`localtime` | `clock_now()` for the epoch and the zone, then the port kit's `gmtime_r` |
 | `atoi`, `strcmp` | the port kit's `<stdlib.h>` |
 | `exit(0)` | a status returned up the call chain |
 | `signal(SIGINT, trapdel)` | `sig_catch(SIG_INT)`, and `Err(Intr)` is the DEL |
+
+The kit's Group B has a `b_*` for each of the four file rows above, and this
+port does not take them: they spell a path as `const char *` where every path
+here is a `Str`, so each call site would grow a NUL-terminated `char[PATH_MAX]`
+that has to live in a heap block rather than a coroutine frame. `vi` took Group
+B because `vi` is still C and its paths are already `char *`.
 
 Structure:
 

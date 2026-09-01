@@ -124,6 +124,14 @@ carries the float conversions whether or not a caller asks for `%f` — here one
 does, so the extra 2,386 bytes buy `%*d`, precision and a return value the old
 sixty lines never had. The benchmark itself is integer.
 
+Group B would let `du_printf` be upstream's own `#define du_printf printf`
+again, as `co_await b_printf(...)` — and it is not taken. Measured, that binary
+is 36,591 bytes: **+10,697**, or 41%, for a report of eleven lines written once.
+`b_printf` is the same `snprintf` engine this already pays for with a `FILE`
+under it, and the `FILE` brings `proc/file.h`'s buffered stream with it. On a
+benchmark whose whole surface is `printf` and `clock`, that is the wrong trade,
+and the buffered `du_printf`/`du_flush` pair stays.
+
 `PORT` applies `-fno-builtin` to every source, the three workloads included, so
 the question is whether it moved the thing being measured. It did not:
 `du_bench_state`, `du_bench_list` and the matrix workload compile byte for byte
