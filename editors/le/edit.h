@@ -23,10 +23,11 @@
 // here, so none of upstream's LE_CURSES_BOOL_TYPE dance is needed.
 #include "braam.h"
 #include "curses.h"
-#include "lefile.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "letypes.h"
-#include "lewchar.h"
+#include <wchar.h>
+#include <wctype.h>
 
 #define EMAIL "lav@yars.free.net"
 
@@ -361,7 +362,7 @@ Task<int> write_loop(int fd, const char *ptr, num size, num *written);
 
 static inline bool E_AGAIN(const int e)
 {
-    return (e == LE_EAGAIN || e == LE_EWOULDBLOCK || e == LE_EINTR);
+    return (e == EAGAIN || e == EWOULDBLOCK || e == EINTR);
 }
 
 Task<void> ProcessDragMark();

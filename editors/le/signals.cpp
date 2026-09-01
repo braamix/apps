@@ -31,7 +31,7 @@
 #include "config.h"
 #include "edit.h"
 #include "kernel/sysabi.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "proc/io.h"
 #include "proc/rt.h"
@@ -137,10 +137,10 @@ Task<void> AutoSaveTick()
         dump_pos = 0;
         if (fd != -1) {
             interrupted++;
-            co_await le_close(fd);
+            co_await b_close(fd);
         }
         char *s = TmpFileName();
-        fd      = co_await le_open(s, O_CREAT | O_WRONLY | O_TRUNC, 0600);
+        fd      = co_await b_open(s, O_CREAT | O_WRONLY | O_TRUNC, 0600);
         if (fd == -1) {
             due = now + ALARMDELAY * 1000;
             co_return;
@@ -152,7 +152,7 @@ Task<void> AutoSaveTick()
         if ((co_await WriteBlock(fd, dump_pos, (interrupted > 5 ? Size() - dump_pos : chunk),
                                  &act_written)) != OK) {
         done:
-            co_await le_close(fd);
+            co_await b_close(fd);
             fd       = -1;
             modified = 2;
         } else {

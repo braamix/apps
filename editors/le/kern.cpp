@@ -22,7 +22,7 @@
 #endif
 #include "edit.h"
 #include "keymap.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "mb.h"
 #include "undo.h"
 
@@ -444,7 +444,7 @@ Task<int> ReadBlock(int fd, num size, num *act_read)
     if (GetSpace(size) != OK)
         co_return (ERR);
 
-    *act_read = co_await le_read(fd, buffer + ptr1, size);
+    *act_read = co_await b_read(fd, buffer + ptr1, size);
     if (*act_read == -1)
         co_return (ERR);
     if (*act_read == 0)
@@ -468,7 +468,7 @@ Task<int> ReplaceTextFromFile(int fd, num size, num *act_read)
     if (GetSpace(size) != OK)
         co_return (ERR);
 
-    *act_read = co_await le_read(fd, buffer + ptr1, size);
+    *act_read = co_await b_read(fd, buffer + ptr1, size);
     if (*act_read == -1)
         co_return (ERR);
     if (*act_read == 0)
@@ -498,7 +498,7 @@ Task<int> ReadBlockOver(int fd, num size, num *act_read)
             NotMemory();
             co_return ERR;
         }
-        *act_read = co_await le_read(fd, buf, size);
+        *act_read = co_await b_read(fd, buf, size);
         int res   = OK;
         if (*act_read == -1)
             res = ERR;
@@ -543,9 +543,9 @@ int GetBlock(char *copy, offs from, num size)
 // fight partial writes, count written bytes.
 Task<int> write_loop(int fd, const char *ptr, num size, num *written)
 {
-    le_errno = 0;
+    errno = 0;
     while (size > 0) {
-        int res = co_await le_write(fd, ptr, size);
+        int res = co_await b_write(fd, ptr, size);
         if (res == -1)
             co_return ERR;
         if (res == 0)
@@ -890,7 +890,7 @@ void CheckPoint()
 
 Task<void> EmptyText()
 {
-    co_await le_unlink(TmpFileName());
+    co_await b_unlink(TmpFileName());
 
     if (FileName[0])
         LoadHistory += HistoryLine(FileName, strlen(FileName));
@@ -901,15 +901,15 @@ Task<void> EmptyText()
        file lost its cursor. */
     if (FileName[0]) {
         struct stat st;
-        if (co_await le_stat(FileName, &st) != -1) {
+        if (co_await b_stat(FileName, &st) != -1) {
             if (newfile && st.st_size == 0)
-                co_await le_unlink(FileName);
+                co_await b_unlink(FileName);
             else if (!modified)
                 SavePosition();
         }
     }
     if (file != -1) {
-        co_await le_close(file);
+        co_await b_close(file);
         file = -1;
     }
     FileName[0] = 0;

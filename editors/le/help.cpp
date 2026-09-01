@@ -20,7 +20,7 @@
 #include "edit.h"
 #include "epath.h"
 #include "keymap.h"
-#include "lefile.h"
+#include "compat/cio.h"
 
 #if 0
 Task<void>  Help(char ***h,char *title)
@@ -92,7 +92,7 @@ Task<void>  Help(char ***h,char *title)
 static Task<char *> LoadHelp(const char *tag)
 {
     char hpath[LE_PATHMAX];
-    FILE *hf = co_await le_fopen(datafile(hpath, sizeof(hpath), "le.hlp"), false);
+    FILE *hf = co_await b_fopen(datafile(hpath, sizeof(hpath), "le.hlp"), "r");
     if (!hf)
         co_return 0;
 
@@ -105,7 +105,7 @@ static Task<char *> LoadHelp(const char *tag)
     bool tag_match = false;
     buf[255]       = 0;
     String ln;
-    while ((co_await hf->getline(ln, true)).value_or(false)) {
+    while ((co_await hf->at->getline(ln, true)).value_or(false)) {
         {
             unsigned n = ln.size() < sizeof(buf) - 1 ? ln.size() : sizeof(buf) - 1;
             memcpy(buf, ln.data(), n);
@@ -116,7 +116,7 @@ static Task<char *> LoadHelp(const char *tag)
         if (!tag.empty() && tag.size() < sizeof(this_tag) &&
             (memcpy(this_tag, tag.data(), tag.size()), this_tag[tag.size()] = 0, true)) {
             if (tag_match) {
-                co_await le_fclose(hf);
+                co_await b_fclose(hf);
                 co_return help;
             }
             if (!strncasecmp(tag.data(), this_tag, tag.size()) && strlen(this_tag) == tag.size())
@@ -132,7 +132,7 @@ static Task<char *> LoadHelp(const char *tag)
                 char *new_help = (char *)realloc(help, help_size);
                 if (!new_help) {
                     // out of memory
-                    co_await le_fclose(hf);
+                    co_await b_fclose(hf);
                     co_return help;
                 }
                 help     = new_help;
@@ -165,7 +165,7 @@ static Task<char *> LoadHelp(const char *tag)
             help_end += buf_len;
         }
     }
-    co_await le_fclose(hf);
+    co_await b_fclose(hf);
     if (tag_match)
         co_return help;
     free(help);

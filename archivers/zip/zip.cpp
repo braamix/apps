@@ -46,34 +46,34 @@ Task<void> ziperr_msg(int c, ZCONST char *h)
     zip_fail(c, h);
 
     if (mesg_line_started) {
-        co_await zfputc('\n', mesg);
+        co_await b_fputc('\n', mesg);
         mesg_line_started = 0;
     }
-    co_await zfprintf(zstderr, "\nzip error: %s (%s)\n", ZIPERRORS(c), h ? h : "");
-    co_await zfflush(zstderr);
+    co_await b_fprintf(stderr, "\nzip error: %s (%s)\n", ZIPERRORS(c), h ? h : "");
+    co_await b_fflush(stderr);
 }
 
 Task<void> zipwarn(ZCONST char *a, ZCONST char *b)
 {
     if (mesg_line_started) {
-        co_await zfputc('\n', mesg);
+        co_await b_fputc('\n', mesg);
         mesg_line_started = 0;
     }
-    co_await zfprintf(zstderr, "\tzip warning: %s%s\n", a, b);
-    co_await zfflush(zstderr);
+    co_await b_fprintf(stderr, "\tzip warning: %s%s\n", a, b);
+    co_await b_fflush(stderr);
 }
 
 Task<void> zipmessage_nl(ZCONST char *a, int nl)
 {
     if (noisy) {
-        co_await zfprintf(mesg, "%s", a);
+        co_await b_fprintf(mesg, "%s", a);
         if (nl) {
-            co_await zfputc('\n', mesg);
+            co_await b_fputc('\n', mesg);
             mesg_line_started = 0;
         } else {
             mesg_line_started = 1;
         }
-        co_await zfflush(mesg);
+        co_await b_fflush(mesg);
     }
 }
 
@@ -81,11 +81,11 @@ Task<void> zipmessage(ZCONST char *a, ZCONST char *b)
 {
     if (noisy) {
         if (mesg_line_started) {
-            co_await zfputc('\n', mesg);
+            co_await b_fputc('\n', mesg);
             mesg_line_started = 0;
         }
-        co_await zfprintf(mesg, "%s%s\n", a, b);
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "%s%s\n", a, b);
+        co_await b_fflush(mesg);
     }
 }
 
@@ -174,13 +174,9 @@ local Task<int> add_filter(int flag, char *pattern)
         if (pattern[1] == '\0') {
             ZIPERR(ZE_PARMS, "missing file after @");
         }
-        Result<FILE> opened = Err(Error::NoMemory);
-        if (Task<Result<FILE>> t = File::open(Str(pattern + 1, strlen(pattern + 1))))
-            opened = co_await t;
-        FILE pf = opened.is_ok() ? move(opened.value()) : File::of(0, FileMode::Read);
-        fp      = opened.is_ok() ? &pf : NULL;
+        fp = co_await b_fopen(pattern + 1, FOPR);
         if (fp == NULL) {
-            zsprintf(errbuf, "%c pattern file '%s'", flag, pattern);
+            sprintf(errbuf, "%c pattern file '%s'", flag, pattern);
             ZIPERR(ZE_OPEN, errbuf);
         }
         while ((p = co_await getnam(fp)) != NULL) {
@@ -208,7 +204,7 @@ local Task<int> add_filter(int flag, char *pattern)
             pcount++;
             lastfilter->next = NULL;
         }
-        co_await zfclose(fp);
+        co_await b_fclose(fp);
     } else {
         // single pattern
         if ((filter = (struct filterlist_struct *)malloc(sizeof(struct filterlist_struct))) ==
@@ -302,30 +298,30 @@ local Task<int> DisplayRunningStats(void)
     char tempstrg[100];
 
     if (mesg_line_started) {
-        co_await zfprintf(mesg, "\n");
+        co_await b_fprintf(mesg, "\n");
         mesg_line_started = 0;
     }
     if (logfile_line_started) {
-        co_await zfprintf(logfile, "\n");
+        co_await b_fprintf(logfile, "\n");
         logfile_line_started = 0;
     }
     if (display_volume) {
         if (noisy) {
-            co_await zfprintf(mesg, "%lu>%lu: ", current_in_disk + 1, current_disk + 1);
+            co_await b_fprintf(mesg, "%lu>%lu: ", current_in_disk + 1, current_disk + 1);
             mesg_line_started = 1;
         }
         if (logall) {
-            co_await zfprintf(logfile, "%lu>%lu: ", current_in_disk + 1, current_disk + 1);
+            co_await b_fprintf(logfile, "%lu>%lu: ", current_in_disk + 1, current_disk + 1);
             logfile_line_started = 1;
         }
     }
     if (display_counts) {
         if (noisy) {
-            co_await zfprintf(mesg, "%3ld/%3ld ", files_so_far, files_total - files_so_far);
+            co_await b_fprintf(mesg, "%3ld/%3ld ", files_so_far, files_total - files_so_far);
             mesg_line_started = 1;
         }
         if (logall) {
-            co_await zfprintf(logfile, "%3ld/%3ld ", files_so_far, files_total - files_so_far);
+            co_await b_fprintf(logfile, "%3ld/%3ld ", files_so_far, files_total - files_so_far);
             logfile_line_started = 1;
         }
     }
@@ -334,31 +330,31 @@ local Task<int> DisplayRunningStats(void)
         // initial scan so all adds up
         WriteNumString(bytes_so_far, tempstrg);
         if (noisy) {
-            co_await zfprintf(mesg, "[%4s", tempstrg);
+            co_await b_fprintf(mesg, "[%4s", tempstrg);
             mesg_line_started = 1;
         }
         if (logall) {
-            co_await zfprintf(logfile, "[%4s", tempstrg);
+            co_await b_fprintf(logfile, "[%4s", tempstrg);
             logfile_line_started = 1;
         }
         if (bytes_total >= bytes_so_far) {
             WriteNumString(bytes_total - bytes_so_far, tempstrg);
             if (noisy)
-                co_await zfprintf(mesg, "/%4s] ", tempstrg);
+                co_await b_fprintf(mesg, "/%4s] ", tempstrg);
             if (logall)
-                co_await zfprintf(logfile, "/%4s] ", tempstrg);
+                co_await b_fprintf(logfile, "/%4s] ", tempstrg);
         } else {
             WriteNumString(bytes_so_far - bytes_total, tempstrg);
             if (noisy)
-                co_await zfprintf(mesg, "-%4s] ", tempstrg);
+                co_await b_fprintf(mesg, "-%4s] ", tempstrg);
             if (logall)
-                co_await zfprintf(logfile, "-%4s] ", tempstrg);
+                co_await b_fprintf(logfile, "-%4s] ", tempstrg);
         }
     }
     if (noisy)
-        co_await zfflush(mesg);
+        co_await b_fflush(mesg);
     if (logall)
-        co_await zfflush(logfile);
+        co_await b_fflush(logfile);
 
     co_return 0;
 }
@@ -399,12 +395,12 @@ local Task<void> help(void)
     };
 
     for (i = 0; i < sizeof(copyright) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, copyright[i], "zip");
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, copyright[i], "zip");
+        co_await b_fputc('\n', stdout);
     }
     for (i = 0; i < sizeof(text) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, text[i], VERSION, REVDATE);
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, text[i], VERSION, REVDATE);
+        co_await b_fputc('\n', stdout);
     }
 }
 
@@ -743,8 +739,8 @@ local Task<void> help_extended(void)
     };
 
     for (i = 0; i < sizeof(text) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, text[i]);
-        co_await zfputc_out('\n');
+        co_await b_fputs(text[i], stdout);
+        co_await b_fputc('\n', stdout);
     }
 }
 
@@ -774,43 +770,43 @@ local Task<void> version_info(void)
     static ZCONST char *zipenv_names[] = { "ZIP", "ZIPOPT" };
 
     for (i = 0; i < sizeof(copyright) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, copyright[i], "zip");
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, copyright[i], "zip");
+        co_await b_fputc('\n', stdout);
     }
 
     for (i = 0; i < sizeof(versinfolines) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, versinfolines[i], "Zip", VERSION, REVDATE);
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, versinfolines[i], "Zip", VERSION, REVDATE);
+        co_await b_fputc('\n', stdout);
     }
 
     co_await version_local();
 
-    co_await zfputs_nl("Zip special compilation options:");
+    co_await b_puts("Zip special compilation options:");
 #if WSIZE != 0x8000
-    co_await zfprintf(zstdout, "\tWSIZE=%u\n", WSIZE);
+    co_await b_fprintf(stdout, "\tWSIZE=%u\n", WSIZE);
 #endif
 
     // Fill in bzip2 version.  (32-char limit valid as of bzip 1.0.3.)
 
     for (i = 0; (int)i < (int)(sizeof(comp_opts) / sizeof(char *) - 1); i++) {
-        co_await zfprintf(zstdout, "\t%s\n", comp_opts[i]);
+        co_await b_fprintf(stdout, "\t%s\n", comp_opts[i]);
     }
 #if CRYPT
-    co_await zfprintf(zstdout, "\t[encryption, version %d.%d%s of %s] (modified for Zip 3)\n\n",
+    co_await b_fprintf(stdout, "\t[encryption, version %d.%d%s of %s] (modified for Zip 3)\n\n",
                       CR_MAJORVER, CR_MINORVER, CR_BETA_VER, CR_VERSION_DATE);
     for (i = 0; i < sizeof(cryptnote) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, cryptnote[i]);
-        co_await zfputc_out('\n');
+        co_await b_fputs(cryptnote[i], stdout);
+        co_await b_fputc('\n', stdout);
     }
     ++i; // crypt support means there IS at least one compilation option
 #endif   // CRYPT
     if (i == 0)
-        co_await zfputs_nl("\t[none]");
+        co_await b_puts("\t[none]");
 
-    co_await zfputs_nl("\nZip environment options:");
+    co_await b_puts("\nZip environment options:");
     for (i = 0; i < sizeof(zipenv_names) / sizeof(char *); i++) {
         envptr = getenv(zipenv_names[i]);
-        co_await zfprintf(zstdout, "%16s:  %s\n", zipenv_names[i],
+        co_await b_fprintf(stdout, "%16s:  %s\n", zipenv_names[i],
                           ((envptr == (char *)NULL || *envptr == 0) ? "[none]" : envptr));
     }
 }
@@ -996,7 +992,7 @@ local Task<void> license(void)
     extent i; // counter for copyright array
 
     for (i = 0; i < sizeof(swlicense) / sizeof(char *); i++)
-        co_await zfputs_nl(swlicense[i]);
+        co_await b_puts(swlicense[i]);
 }
 
 // Process -o and -m (if specified), free up malloc'ed stuff, and return the
@@ -1066,7 +1062,7 @@ Task<int> encr_passwd(int modeflag, char *pwbuf, int size, ZCONST char *zfn)
 // setup for writing zip file on stdout
 local Task<int> zipstdout(void)
 {
-    mesg = zstderr;
+    mesg = stderr;
 
     Result<TtyInfo> t = Err(Error::NoMemory);
     if (Task<Result<TtyInfo>> tk = tty_of(SYS_STDOUT))
@@ -1084,38 +1080,38 @@ local Task<int> BlankRunningStats(void)
 {
     if (display_volume) {
         if (noisy) {
-            co_await zfprintf(mesg, "%lu>%lu: ", current_in_disk + 1, current_disk + 1);
+            co_await b_fprintf(mesg, "%lu>%lu: ", current_in_disk + 1, current_disk + 1);
             mesg_line_started = 1;
         }
         if (logall) {
-            co_await zfprintf(logfile, "%lu>%lu: ", current_in_disk + 1, current_disk + 1);
+            co_await b_fprintf(logfile, "%lu>%lu: ", current_in_disk + 1, current_disk + 1);
             logfile_line_started = 1;
         }
     }
     if (display_counts) {
         if (noisy) {
-            co_await zfprintf(mesg, "   /    ");
+            co_await b_fprintf(mesg, "   /    ");
             mesg_line_started = 1;
         }
         if (logall) {
-            co_await zfprintf(logfile, "   /    ");
+            co_await b_fprintf(logfile, "   /    ");
             logfile_line_started = 1;
         }
     }
     if (display_bytes) {
         if (noisy) {
-            co_await zfprintf(mesg, "     /      ");
+            co_await b_fprintf(mesg, "     /      ");
             mesg_line_started = 1;
         }
         if (logall) {
-            co_await zfprintf(logfile, "     /      ");
+            co_await b_fprintf(logfile, "     /      ");
             logfile_line_started = 1;
         }
     }
     if (noisy)
-        co_await zfflush(mesg);
+        co_await b_fflush(mesg);
     if (logall)
-        co_await zfflush(logfile);
+        co_await b_fflush(logfile);
 
     co_return 0;
 }
@@ -1172,13 +1168,13 @@ local Task<int> zipmain(Args argv)
     FILE *comment_stream = NULL;
     char *e              = NULL;
 
-    mesg = zstdout;
+    mesg = stdout;
     init_upper();
     crc_32_tab = get_crc_table();
     co_await zclock_init();
 
     action         = ADD;
-    comment_stream = zstderr;
+    comment_stream = stderr;
 
     // Copy the arguments so envargs() and the parser may rewrite them. Str is
     // not NUL-terminated, so this is a copy either way — and args[0] is the
@@ -1301,7 +1297,7 @@ local Task<int> zipmain(Args argv)
             } else {
                 dot_size = (zoff_t)(co_await ReadNumString(value));
                 if (dot_size == (zoff_t)-1) {
-                    zsprintf(errbuf, "option -ds (--dot-size) has bad size:  '%s'", value);
+                    sprintf(errbuf, "option -ds (--dot-size) has bad size:  '%s'", value);
                     free(value);
                     ZIPERR(ZE_PARMS, errbuf);
                 }
@@ -1311,7 +1307,7 @@ local Task<int> zipmain(Args argv)
 
                 } else if (dot_size < 0x400L * 32) {
                     // 1K <= dot_size < 32K
-                    zsprintf(errbuf, "dot size must be at least 32 KB:  '%s'", value);
+                    sprintf(errbuf, "dot size must be at least 32 KB:  '%s'", value);
                     free(value);
                     ZIPERR(ZE_PARMS, errbuf);
 
@@ -1528,7 +1524,7 @@ local Task<int> zipmain(Args argv)
             } else {
                 split_size = co_await ReadNumString(value);
                 if (split_size == (uzoff_t)-1) {
-                    zsprintf(errbuf, "bad split size:  '%s'", value);
+                    sprintf(errbuf, "bad split size:  '%s'", value);
                     ZIPERR(ZE_PARMS, errbuf);
                 }
                 if (split_size == 0) {
@@ -1547,7 +1543,7 @@ local Task<int> zipmain(Args argv)
                     // which is required
                     if (split_size < 0x400L * 64) {
                         // split_size < 64K
-                        zsprintf(errbuf, "minimum split size is 64 KB:  '%s'", value);
+                        sprintf(errbuf, "minimum split size is 64 KB:  '%s'", value);
                         free(value);
                         ZIPERR(ZE_PARMS, errbuf);
                     }
@@ -1762,8 +1758,8 @@ local Task<int> zipmain(Args argv)
                         free(value);
                     }
                     if (show_what_doing) {
-                        co_await zfprintf(mesg, "sd: Zipfile name '%s'\n", zipfile);
-                        co_await zfflush(mesg);
+                        co_await b_fprintf(mesg, "sd: Zipfile name '%s'\n", zipfile);
+                        co_await b_fflush(mesg);
                     }
                     // if in_path not set, use zipfile path as usual for input
                     // in_path is used as the base path to find splits
@@ -1791,7 +1787,7 @@ local Task<int> zipmain(Args argv)
                         // if (strcmp(zipfile, "-") == 0) {
                         // ZIPERR(ZE_PARMS, "can't use - and -@ together");
                         // }
-                        while ((pp = co_await getnam(&File::stdin())) != NULL) {
+                        while ((pp = co_await getnam(stdin)) != NULL) {
                             kk = 4;
                             if (recurse == 2) {
                                 // reading patterns from stdin
@@ -1845,7 +1841,7 @@ local Task<int> zipmain(Args argv)
 
         default:
             // should never get here as get_option will exit if not in table
-            zsprintf(errbuf, "no such option ID: %ld", option);
+            sprintf(errbuf, "no such option ID: %ld", option);
             ZIPERR(ZE_PARMS, errbuf);
 
         } // switch
@@ -1891,65 +1887,65 @@ local Task<int> zipmain(Args argv)
     }
 
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: Command line read\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Command line read\n");
+        co_await b_fflush(mesg);
     }
 
     // show command line args
     if (show_args) {
-        co_await zfprintf(mesg, "command line:\n");
+        co_await b_fprintf(mesg, "command line:\n");
         for (i = 0; args[i]; i++) {
-            co_await zfprintf(mesg, "'%s'  ", args[i]);
+            co_await b_fprintf(mesg, "'%s'  ", args[i]);
         }
-        co_await zfprintf(mesg, "\n");
+        co_await b_fprintf(mesg, "\n");
         ZIPERR(ZE_ABORT, "show command line");
     }
 
     // show all options
     if (show_options) {
-        co_await zfprintf(zstdout, "available options:\n");
-        co_await zfprintf(zstdout, " %-2s  %-18s %-4s %-3s %-30s\n", "sh", "long", "val", "neg",
+        co_await b_fprintf(stdout, "available options:\n");
+        co_await b_fprintf(stdout, " %-2s  %-18s %-4s %-3s %-30s\n", "sh", "long", "val", "neg",
                           "description");
-        co_await zfprintf(zstdout, " %-2s  %-18s %-4s %-3s %-30s\n", "--", "----", "---", "---",
+        co_await b_fprintf(stdout, " %-2s  %-18s %-4s %-3s %-30s\n", "--", "----", "---", "---",
                           "-----------");
         for (i = 0; options[i].option_ID; i++) {
-            co_await zfprintf(zstdout, " %-2s  %-18s ", options[i].shortopt, options[i].longopt);
+            co_await b_fprintf(stdout, " %-2s  %-18s ", options[i].shortopt, options[i].longopt);
             switch (options[i].value_type) {
             case o_NO_VALUE:
-                co_await zfprintf(zstdout, "%-4s ", "");
+                co_await b_fprintf(stdout, "%-4s ", "");
                 break;
             case o_REQUIRED_VALUE:
-                co_await zfprintf(zstdout, "%-4s ", "req");
+                co_await b_fprintf(stdout, "%-4s ", "req");
                 break;
             case o_OPTIONAL_VALUE:
-                co_await zfprintf(zstdout, "%-4s ", "opt");
+                co_await b_fprintf(stdout, "%-4s ", "opt");
                 break;
             case o_VALUE_LIST:
-                co_await zfprintf(zstdout, "%-4s ", "list");
+                co_await b_fprintf(stdout, "%-4s ", "list");
                 break;
             case o_ONE_CHAR_VALUE:
-                co_await zfprintf(zstdout, "%-4s ", "char");
+                co_await b_fprintf(stdout, "%-4s ", "char");
                 break;
             case o_NUMBER_VALUE:
-                co_await zfprintf(zstdout, "%-4s ", "num");
+                co_await b_fprintf(stdout, "%-4s ", "num");
                 break;
             default:
-                co_await zfprintf(zstdout, "%-4s ", "unk");
+                co_await b_fprintf(stdout, "%-4s ", "unk");
             }
             switch (options[i].negatable) {
             case o_NEGATABLE:
-                co_await zfprintf(zstdout, "%-3s ", "neg");
+                co_await b_fprintf(stdout, "%-3s ", "neg");
                 break;
             case o_NOT_NEGATABLE:
-                co_await zfprintf(zstdout, "%-3s ", "");
+                co_await b_fprintf(stdout, "%-3s ", "");
                 break;
             default:
-                co_await zfprintf(zstdout, "%-3s ", "unk");
+                co_await b_fprintf(stdout, "%-3s ", "unk");
             }
             if (options[i].name)
-                co_await zfprintf(zstdout, "%-30s\n", options[i].name);
+                co_await b_fprintf(stdout, "%-30s\n", options[i].name);
             else
-                co_await zfprintf(zstdout, "\n");
+                co_await b_fprintf(stdout, "\n");
         }
         co_return (co_await finish(ZE_OK));
     }
@@ -1981,12 +1977,12 @@ local Task<int> zipmain(Args argv)
         }
 
         if (logfile_append) {
-            zsprintf(mode, "a");
+            sprintf(mode, "a");
         } else {
-            zsprintf(mode, "w");
+            sprintf(mode, "w");
         }
-        if ((logfile = co_await zfopen(logfile_path, mode)) == NULL) {
-            zsprintf(errbuf, "could not open logfile '%s'", logfile_path);
+        if ((logfile = co_await b_fopen(logfile_path, mode)) == NULL) {
+            sprintf(errbuf, "could not open logfile '%s'", logfile_path);
             ZIPERR(ZE_PARMS, errbuf);
         }
         {
@@ -1994,13 +1990,13 @@ local Task<int> zipmain(Args argv)
 
             // get current time. There is no localtime and no asctime: civil() is
             // the calendar, pure, and the offset is the caller's to add.
-            Civil now = civil(time(NULL) + ztz_min * 60);
+            Civil now = civil(ztime(NULL) + ztz_min * 60);
 
-            co_await zfprintf(logfile, "---------\n");
-            co_await zfprintf(logfile, "Zip log opened %s %s %2d %02d:%02d:%02d %d\n",
+            co_await b_fprintf(logfile, "---------\n");
+            co_await b_fprintf(logfile, "Zip log opened %s %s %2d %02d:%02d:%02d %d\n",
                               TIME_DAYS[now.weekday].data(), TIME_MONTHS[now.month - 1].data(),
                               now.day, now.hour, now.min, now.sec, now.year);
-            co_await zfprintf(logfile, "command line arguments:\n ");
+            co_await b_fprintf(logfile, "command line arguments:\n ");
             for (i = 1; args[i]; i++) {
                 extent j;
                 int has_space = 0;
@@ -2012,12 +2008,12 @@ local Task<int> zipmain(Args argv)
                     }
                 }
                 if (has_space)
-                    co_await zfprintf(logfile, "\"%s\" ", args[i]);
+                    co_await b_fprintf(logfile, "\"%s\" ", args[i]);
                 else
-                    co_await zfprintf(logfile, "%s ", args[i]);
+                    co_await b_fprintf(logfile, "%s ", args[i]);
             }
-            co_await zfprintf(logfile, "\n\n");
-            co_await zfflush(logfile);
+            co_await b_fprintf(logfile, "\n\n");
+            co_await b_fflush(logfile);
         }
     } else {
         // only set logall if logfile open
@@ -2056,7 +2052,7 @@ local Task<int> zipmain(Args argv)
     }
 
     if (have_out && namecmp(in_path, out_path) == 0) {
-        zsprintf(errbuf, "--out path must be different than in path: %s", out_path);
+        sprintf(errbuf, "--out path must be different than in path: %s", out_path);
         ZIPERR(ZE_PARMS, errbuf);
     }
 
@@ -2118,8 +2114,8 @@ local Task<int> zipmain(Args argv)
 
     if (zipfile && !strcmp(zipfile, "-")) {
         if (show_what_doing) {
-            co_await zfprintf(mesg, "sd: Zipping to stdout\n");
-            co_await zfflush(mesg);
+            co_await b_fprintf(mesg, "sd: Zipping to stdout\n");
+            co_await b_fflush(mesg);
         }
         zip_to_stdout = 1;
     }
@@ -2195,23 +2191,23 @@ local Task<int> zipmain(Args argv)
     // Now read the zip file here instead of when doing args above
     // Only read the central directory and build zlist
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: Reading archive\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Reading archive\n");
+        co_await b_fflush(mesg);
     }
 
     // If -FF we do it all here
     if (fix == 2) {
         // Open zip file and temporary output file
         if (show_what_doing) {
-            co_await zfprintf(mesg, "sd: Open zip file and create temp file (-FF)\n");
-            co_await zfflush(mesg);
+            co_await b_fprintf(mesg, "sd: Open zip file and create temp file (-FF)\n");
+            co_await b_fflush(mesg);
         }
         diag("opening zip file and creating temporary zip file");
         x      = NULL;
         tempzn = 0;
         if (show_what_doing) {
-            co_await zfprintf(mesg, "sd: Creating new zip file (-FF)\n");
-            co_await zfflush(mesg);
+            co_await b_fprintf(mesg, "sd: Creating new zip file (-FF)\n");
+            co_await b_fflush(mesg);
         }
         // Upstream built a "ziXXXXXX" template and handed it to mkstemp, then
         // fdopen'ed the descriptor. tempname() carries proc_random() instead and
@@ -2219,7 +2215,7 @@ local Task<int> zipmain(Args argv)
         if ((tempzip = tempname(tempath != NULL ? tempath : zipfile)) == NULL) {
             ZIPERR(ZE_MEM, "allocating temp filename");
         }
-        if ((y = co_await zfopen(tempzip, FOPW_TMP)) == NULL) {
+        if ((y = co_await b_fopen(tempzip, FOPW_TMP)) == NULL) {
             ZIPERR(ZE_TEMP, tempzip);
         }
 
@@ -2232,8 +2228,8 @@ local Task<int> zipmain(Args argv)
 
         // Write central directory and end header to temporary zip
         if (show_what_doing) {
-            co_await zfprintf(mesg, "sd: Writing central directory (-FF)\n");
-            co_await zfflush(mesg);
+            co_await b_fprintf(mesg, "sd: Writing central directory (-FF)\n");
+            co_await b_fflush(mesg);
         }
         diag("writing central directory");
         k = 0;      // keep count for end header
@@ -2255,11 +2251,11 @@ local Task<int> zipmain(Args argv)
         if ((r = co_await putend(k, t, c, zcomlen, zcomment)) != ZE_OK) {
             ZIPERR(r, tempzip);
         }
-        if (co_await zfclose(y)) {
+        if (co_await b_fclose(y)) {
             ZIPERR(d ? ZE_WRITE : ZE_TEMP, tempzip);
         }
         if (in_file != NULL) {
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
             in_file = NULL;
         }
 
@@ -2283,16 +2279,16 @@ local Task<int> zipmain(Args argv)
 
         // finish logfile (it gets closed in freeup() called by finish())
         if (logfile) {
-            co_await zfprintf(logfile, "\nTotal %ld entries (", files_total);
+            co_await b_fprintf(logfile, "\nTotal %ld entries (", files_total);
             co_await DisplayNumString(logfile, bytes_total);
-            co_await zfprintf(logfile, " bytes)");
+            co_await b_fprintf(logfile, " bytes)");
 
             // get current time
-            Civil done = civil(time(NULL) + ztz_min * 60);
-            co_await zfprintf(logfile, "\nDone %s %s %2d %02d:%02d:%02d %d\n",
+            Civil done = civil(ztime(NULL) + ztz_min * 60);
+            co_await b_fprintf(logfile, "\nDone %s %s %2d %02d:%02d:%02d %d\n",
                               TIME_DAYS[done.weekday].data(), TIME_MONTHS[done.month - 1].data(),
                               done.day, done.hour, done.min, done.sec, done.year);
-            co_await zfflush(logfile);
+            co_await b_fflush(logfile);
         }
 
         co_return (co_await finish(ZE_OK));
@@ -2353,8 +2349,8 @@ local Task<int> zipmain(Args argv)
         if (action == ARCHIVE) {
             // find in archive
             if (show_what_doing) {
-                co_await zfprintf(mesg, "sd: Scanning archive entries\n");
-                co_await zfflush(mesg);
+                co_await b_fprintf(mesg, "sd: Scanning archive entries\n");
+                co_await b_fflush(mesg);
             }
             for (; filelist;) {
                 if ((r = co_await proc_archive_name(filelist->name, filter_match_case)) != ZE_OK) {
@@ -2374,8 +2370,8 @@ local Task<int> zipmain(Args argv)
         } else {
             // try find matching files on OS first then try find entries in archive
             if (show_what_doing) {
-                co_await zfprintf(mesg, "sd: Scanning files\n");
-                co_await zfflush(mesg);
+                co_await b_fprintf(mesg, "sd: Scanning files\n");
+                co_await b_fflush(mesg);
             }
             for (; filelist;) {
                 if ((r = co_await procname(filelist->name, filter_match_case)) != ZE_OK) {
@@ -2415,8 +2411,8 @@ local Task<int> zipmain(Args argv)
     }
 
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: Applying filters\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Applying filters\n");
+        co_await b_fflush(mesg);
     }
     // Clean up selections ("3 <= kk <= 5" now)
     if (kk != 4 && first_listarg == 0 && (action == UPDATE || action == FRESHEN)) {
@@ -2426,8 +2422,8 @@ local Task<int> zipmain(Args argv)
         }
     }
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: Checking dups\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Checking dups\n");
+        co_await b_fflush(mesg);
     }
     if ((r = co_await check_dup()) != ZE_OK) { // remove duplicates in found list
         if (r == ZE_PARMS) {
@@ -2458,8 +2454,8 @@ local Task<int> zipmain(Args argv)
     // updating or freshening, compare date with entry in old zip file.
     // Unmark if it doesn't exist or is too old, else update marked count.
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: Scanning files to update\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Scanning files to update\n");
+        co_await b_fflush(mesg);
     }
     diag("stating marked entries");
     k            = 0; // Initialize marked count
@@ -2471,17 +2467,17 @@ local Task<int> zipmain(Args argv)
         if (noisy && scan_last) {
             scan_count++;
             if (scan_count % 100 == 0) {
-                time_t current = time(NULL);
+                time_t current = ztime(NULL);
 
                 if (current - scan_last > scan_dot_time) {
                     if (scan_started == 0) {
                         scan_started = 1;
-                        co_await zfprintf(mesg, " ");
-                        co_await zfflush(mesg);
+                        co_await b_fprintf(mesg, " ");
+                        co_await b_fflush(mesg);
                     }
                     scan_last = current;
-                    co_await zfprintf(mesg, ".");
-                    co_await zfflush(mesg);
+                    co_await b_fprintf(mesg, ".");
+                    co_await b_fflush(mesg);
                 }
             }
         }
@@ -2542,10 +2538,10 @@ local Task<int> zipmain(Args argv)
                     z->trash =
                         tf && tf >= before && (after == 0 || tf < after); // delete if -um or -fm
                     if (verbose)
-                        co_await zfprintf(mesg, "zip diagnostic: %s %s\n", z->oname,
+                        co_await b_fprintf(mesg, "zip diagnostic: %s %s\n", z->oname,
                                           z->trash ? "up to date" : "missing or early");
                     if (logfile)
-                        co_await zfprintf(logfile, "zip diagnostic: %s %s\n", z->oname,
+                        co_await b_fprintf(logfile, "zip diagnostic: %s %s\n", z->oname,
                                           z->trash ? "up to date" : "missing or early");
                 } else if (diff_mode && tf == z->tim &&
                            ((isdirname && (zoff_t)usize == -1) || (usize == z->len))) {
@@ -2579,8 +2575,8 @@ local Task<int> zipmain(Args argv)
 
     // Remove entries from found list that do not exist or are too old
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: fcount = %u\n", (unsigned)fcount);
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: fcount = %u\n", (unsigned)fcount);
+        co_await b_fflush(mesg);
     }
 
     diag("stating new entries");
@@ -2594,11 +2590,11 @@ local Task<int> zipmain(Args argv)
             // if updating archive and update was quick, scanning for new files
             // can still take a long time
             if (!zip_to_stdout && scan_last == 0 && scan_count % 100 == 0) {
-                time_t current = time(NULL);
+                time_t current = ztime(NULL);
 
                 if (current - scan_start > scan_delay) {
-                    co_await zfprintf(mesg, "Scanning files ");
-                    co_await zfflush(mesg);
+                    co_await b_fprintf(mesg, "Scanning files ");
+                    co_await b_fflush(mesg);
                     mesg_line_started = 1;
                     scan_last         = current;
                 }
@@ -2607,17 +2603,17 @@ local Task<int> zipmain(Args argv)
             if (scan_last) {
                 scan_count++;
                 if (scan_count % 100 == 0) {
-                    time_t current = time(NULL);
+                    time_t current = ztime(NULL);
 
                     if (current - scan_last > scan_dot_time) {
                         if (scan_started == 0) {
                             scan_started = 1;
-                            co_await zfprintf(mesg, " ");
-                            co_await zfflush(mesg);
+                            co_await b_fprintf(mesg, " ");
+                            co_await b_fflush(mesg);
                         }
                         scan_last = current;
-                        co_await zfprintf(mesg, ".");
-                        co_await zfflush(mesg);
+                        co_await b_fprintf(mesg, ".");
+                        co_await b_fflush(mesg);
                     }
                 }
             }
@@ -2642,7 +2638,7 @@ local Task<int> zipmain(Args argv)
         }
     }
     if (mesg_line_started) {
-        co_await zfprintf(mesg, "\n");
+        co_await b_fprintf(mesg, "\n");
         mesg_line_started = 0;
     }
 
@@ -2651,46 +2647,46 @@ local Task<int> zipmain(Args argv)
         uzoff_t bytes = 0;
 
         if (noisy) {
-            co_await zfflush(mesg);
+            co_await b_fflush(mesg);
         }
 
         if (noisy && (show_files == 1 || show_files == 3 || show_files == 5)) {
             // sf, su, sU
             if (mesg_line_started) {
-                co_await zfprintf(mesg, "\n");
+                co_await b_fprintf(mesg, "\n");
                 mesg_line_started = 0;
             }
             if (kk == 3)
                 // -sf alone
-                co_await zfprintf(mesg, "Archive contains:\n");
+                co_await b_fprintf(mesg, "Archive contains:\n");
             else if (action == DELETE)
-                co_await zfprintf(mesg, "Would Delete:\n");
+                co_await b_fprintf(mesg, "Would Delete:\n");
             else if (action == FRESHEN)
-                co_await zfprintf(mesg, "Would Freshen:\n");
+                co_await b_fprintf(mesg, "Would Freshen:\n");
             else if (action == ARCHIVE)
-                co_await zfprintf(mesg, "Would Copy:\n");
+                co_await b_fprintf(mesg, "Would Copy:\n");
             else
-                co_await zfprintf(mesg, "Would Add/Update:\n");
-            co_await zfflush(mesg);
+                co_await b_fprintf(mesg, "Would Add/Update:\n");
+            co_await b_fflush(mesg);
         }
 
         if (logfile) {
             if (logfile_line_started) {
-                co_await zfprintf(logfile, "\n");
+                co_await b_fprintf(logfile, "\n");
                 logfile_line_started = 0;
             }
             if (kk == 3)
                 // -sf alone
-                co_await zfprintf(logfile, "Archive contains:\n");
+                co_await b_fprintf(logfile, "Archive contains:\n");
             else if (action == DELETE)
-                co_await zfprintf(logfile, "Would Delete:\n");
+                co_await b_fprintf(logfile, "Would Delete:\n");
             else if (action == FRESHEN)
-                co_await zfprintf(logfile, "Would Freshen:\n");
+                co_await b_fprintf(logfile, "Would Freshen:\n");
             else if (action == ARCHIVE)
-                co_await zfprintf(logfile, "Would Copy:\n");
+                co_await b_fprintf(logfile, "Would Copy:\n");
             else
-                co_await zfprintf(logfile, "Would Add/Update:\n");
-            co_await zfflush(logfile);
+                co_await b_fprintf(logfile, "Would Add/Update:\n");
+            co_await b_fflush(logfile);
         }
 
         for (z = zfiles; z != NULL; z = z->nxt) {
@@ -2700,19 +2696,19 @@ local Task<int> zipmain(Args argv)
                     bytes += z->len;
                 if (noisy && (show_files == 1 || show_files == 3))
                     // sf, su
-                    co_await zfprintf(mesg, "  %s\n", z->oname);
+                    co_await b_fprintf(mesg, "  %s\n", z->oname);
                 if (logfile && !(show_files == 5 || show_files == 6))
                     // not sU or sU- show normal name in log
-                    co_await zfprintf(logfile, "  %s\n", z->oname);
+                    co_await b_fprintf(logfile, "  %s\n", z->oname);
 
                 if (show_files == 3 || show_files == 4) {
                     // su, su-
                     // Include escaped Unicode name if exists under standard name
                     if (z->ouname) {
                         if (noisy && show_files == 3)
-                            co_await zfprintf(mesg, "     Escaped Unicode:  %s\n", z->ouname);
+                            co_await b_fprintf(mesg, "     Escaped Unicode:  %s\n", z->ouname);
                         if (logfile)
-                            co_await zfprintf(logfile, "     Escaped Unicode:  %s\n", z->ouname);
+                            co_await b_fprintf(logfile, "     Escaped Unicode:  %s\n", z->ouname);
                     }
                 }
                 if (show_files == 5 || show_files == 6) {
@@ -2721,18 +2717,18 @@ local Task<int> zipmain(Args argv)
                     if (z->ouname) {
                         // Unicode name
                         if (noisy && show_files == 5) {
-                            co_await zfprintf(mesg, "  %s\n", z->ouname);
+                            co_await b_fprintf(mesg, "  %s\n", z->ouname);
                         }
                         if (logfile) {
-                            co_await zfprintf(logfile, "  %s\n", z->ouname);
+                            co_await b_fprintf(logfile, "  %s\n", z->ouname);
                         }
                     } else {
                         // No Unicode name so use standard name
                         if (noisy && show_files == 5) {
-                            co_await zfprintf(mesg, "  %s\n", z->oname);
+                            co_await b_fprintf(mesg, "  %s\n", z->oname);
                         }
                         if (logfile) {
-                            co_await zfprintf(logfile, "  %s\n", z->oname);
+                            co_await b_fprintf(logfile, "  %s\n", z->oname);
                         }
                     }
                 }
@@ -2747,23 +2743,23 @@ local Task<int> zipmain(Args argv)
                 escaped_unicode = local_to_escape_string(f->zname);
                 if (noisy && (show_files == 1 || show_files == 3 || show_files == 5))
                     // sf, su, sU
-                    co_await zfprintf(mesg, "  %s\n", escaped_unicode);
+                    co_await b_fprintf(mesg, "  %s\n", escaped_unicode);
                 if (logfile)
-                    co_await zfprintf(logfile, "  %s\n", escaped_unicode);
+                    co_await b_fprintf(logfile, "  %s\n", escaped_unicode);
                 free(escaped_unicode);
             } else {
                 if (noisy && (show_files == 1 || show_files == 3 || show_files == 5))
                     // sf, su, sU
-                    co_await zfprintf(mesg, "  %s\n", f->oname);
+                    co_await b_fprintf(mesg, "  %s\n", f->oname);
                 if (logfile)
-                    co_await zfprintf(logfile, "  %s\n", f->oname);
+                    co_await b_fprintf(logfile, "  %s\n", f->oname);
             }
         }
         if (noisy || logfile == NULL)
-            co_await zfprintf(mesg, "Total %s entries (%s bytes)\n", zip_fuzofft(count, NULL, NULL),
+            co_await b_fprintf(mesg, "Total %s entries (%s bytes)\n", zip_fuzofft(count, NULL, NULL),
                               zip_fuzofft(bytes, NULL, NULL));
         if (logfile)
-            co_await zfprintf(logfile, "Total %s entries (%s bytes)\n",
+            co_await b_fprintf(logfile, "Total %s entries (%s bytes)\n",
                               zip_fuzofft(count, NULL, NULL), zip_fuzofft(bytes, NULL, NULL));
         co_return (co_await finish(ZE_OK));
     }
@@ -2820,13 +2816,13 @@ local Task<int> zipmain(Args argv)
         if (tempdir && zfiles == NULL && zipbeg == 0) {
             zip_attributes = 0;
         } else {
-            x = (have_out || (zfiles == NULL && zipbeg == 0)) ? co_await zfopen(out_path, FOPW)
-                                                              : co_await zfopen(out_path, FOPM);
+            x = (have_out || (zfiles == NULL && zipbeg == 0)) ? co_await b_fopen(out_path, FOPW)
+                                                              : co_await b_fopen(out_path, FOPM);
             // Note: FOPW and FOPM expand to several parameters for VMS
             if (x == NULL) {
                 ZIPERR(ZE_CREAT, out_path);
             }
-            co_await zfclose(x);
+            co_await b_fclose(x);
             zip_attributes = getfileattr(out_path);
             if (zfiles == NULL && zipbeg == 0)
                 co_await destroy(out_path);
@@ -2840,14 +2836,14 @@ local Task<int> zipmain(Args argv)
 
     // Open zip file and temporary output file
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: Open zip file and create temp file\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Open zip file and create temp file\n");
+        co_await b_fflush(mesg);
     }
     diag("opening zip file and creating temporary zip file");
     x      = NULL;
     tempzn = 0;
     if (strcmp(zipfile, "-") == 0) {
-        y = zstdout;
+        y = stdout;
         // tempzip must be malloced so a later free won't barf
         tempzip = (char *)malloc(4);
         if (tempzip == NULL) {
@@ -2859,21 +2855,21 @@ local Task<int> zipmain(Args argv)
         if (total_disks > 1) {
             ZIPERR(ZE_PARMS, "cannot grow split archive");
         }
-        if ((y = co_await zfopen(zipfile, FOPM)) == NULL) {
+        if ((y = co_await b_fopen(zipfile, FOPM)) == NULL) {
             ZIPERR(ZE_NAME, zipfile);
         }
         tempzip = zipfile;
         // tempzf = y;
 
-        if (co_await zfseeko(y, cenbeg, SEEK_SET)) {
-            ZIPERR(zferror(y) ? ZE_READ : ZE_EOF, zipfile);
+        if (co_await b_fseeko(y, cenbeg, SEEK_SET)) {
+            ZIPERR(b_ferror(y) ? ZE_READ : ZE_EOF, zipfile);
         }
         bytes_this_split = cenbeg;
         tempzn           = cenbeg;
     } else {
         if (show_what_doing) {
-            co_await zfprintf(mesg, "sd: Creating new zip file\n");
-            co_await zfflush(mesg);
+            co_await b_fprintf(mesg, "sd: Creating new zip file\n");
+            co_await b_fflush(mesg);
         }
         // See if there is something at beginning of disk 1 to copy.
         // If not, do nothing as zipcopy() will open files to read
@@ -2881,7 +2877,7 @@ local Task<int> zipmain(Args argv)
         if (zipbeg) {
             in_split_path = get_in_split_path(in_path, 0);
 
-            while ((in_file = co_await zfopen(in_split_path, FOPR_EX)) == NULL) {
+            while ((in_file = co_await b_fopen(in_split_path, FOPR_EX)) == NULL) {
                 // could not open split
 
                 // Ask for directory with split.  Updates in_path
@@ -2898,7 +2894,7 @@ local Task<int> zipmain(Args argv)
         if ((tempzip = tempname(tempath != NULL ? tempath : zipfile)) == NULL) {
             ZIPERR(ZE_MEM, "allocating temp filename");
         }
-        if ((y = co_await zfopen(tempzip, FOPW_TMP)) == NULL) {
+        if ((y = co_await b_fopen(tempzip, FOPW_TMP)) == NULL) {
             ZIPERR(ZE_TEMP, tempzip);
         }
     }
@@ -2925,7 +2921,7 @@ local Task<int> zipmain(Args argv)
             ZIPERR(r, r == ZE_TEMP ? tempzip : zipfile);
         }
         if (in_file) {
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
             in_file = NULL;
             free(in_split_path);
         }
@@ -2933,9 +2929,9 @@ local Task<int> zipmain(Args argv)
         if (split_method) {
             // add spanning signature
             if (show_what_doing) {
-                co_await zfprintf(mesg,
+                co_await b_fprintf(mesg,
                                   "sd: Adding spanning/splitting signature at top of archive\n");
-                co_await zfflush(mesg);
+                co_await b_fflush(mesg);
             }
             // write the spanning signature at the top of the archive
             errbuf[0] = 0x50 /*'P' except for EBCDIC*/;
@@ -2952,8 +2948,8 @@ local Task<int> zipmain(Args argv)
 
     // Process zip file, updating marked files
     if (zfiles != NULL && show_what_doing) {
-        co_await zfprintf(mesg, "sd: Going through old zip file\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Going through old zip file\n");
+        co_await b_fflush(mesg);
     }
     w = &zfiles;
     while ((z = *w) != NULL) {
@@ -2973,36 +2969,36 @@ local Task<int> zipmain(Args argv)
                     co_await DisplayRunningStats();
                 if (noisy) {
                     if (action == FRESHEN) {
-                        co_await zfprintf(mesg, "freshening: %s", z->oname);
+                        co_await b_fprintf(mesg, "freshening: %s", z->oname);
                         mesg_line_started = 1;
-                        co_await zfflush(mesg);
+                        co_await b_fflush(mesg);
                     } else if (filesync && z->current) {
                         if (verbose) {
-                            co_await zfprintf(mesg, "      ok: %s", z->oname);
+                            co_await b_fprintf(mesg, "      ok: %s", z->oname);
                             mesg_line_started = 1;
-                            co_await zfflush(mesg);
+                            co_await b_fflush(mesg);
                         }
                     } else if (!(filesync && z->current)) {
-                        co_await zfprintf(mesg, "updating: %s", z->oname);
+                        co_await b_fprintf(mesg, "updating: %s", z->oname);
                         mesg_line_started = 1;
-                        co_await zfflush(mesg);
+                        co_await b_fflush(mesg);
                     }
                 }
                 if (logall) {
                     if (action == FRESHEN) {
-                        co_await zfprintf(logfile, "freshening: %s", z->oname);
+                        co_await b_fprintf(logfile, "freshening: %s", z->oname);
                         logfile_line_started = 1;
-                        co_await zfflush(logfile);
+                        co_await b_fflush(logfile);
                     } else if (filesync && z->current) {
                         if (verbose) {
-                            co_await zfprintf(logfile, " current: %s", z->oname);
+                            co_await b_fprintf(logfile, " current: %s", z->oname);
                             logfile_line_started = 1;
-                            co_await zfflush(logfile);
+                            co_await b_fflush(logfile);
                         }
                     } else {
-                        co_await zfprintf(logfile, "updating: %s", z->oname);
+                        co_await b_fprintf(logfile, "updating: %s", z->oname);
                         logfile_line_started = 1;
-                        co_await zfflush(logfile);
+                        co_await b_fflush(logfile);
                     }
                 }
 
@@ -3048,13 +3044,13 @@ local Task<int> zipmain(Args argv)
                     // fflush(logfile);
                     // }
                     // }
-                    zsprintf(errbuf, "was zipping %s", z->name);
+                    sprintf(errbuf, "was zipping %s", z->name);
                     ZIPERR(r, errbuf);
                 }
                 if (filesync && z->current) {
                     // if filesync if entry matches OS just copy
                     if ((r = co_await zipcopy(z)) != ZE_OK) {
-                        zsprintf(errbuf, "was copying %s", z->oname);
+                        sprintf(errbuf, "was copying %s", z->oname);
                         ZIPERR(r, errbuf);
                     }
                     co_await zipmessage_nl("", 1);
@@ -3091,7 +3087,7 @@ local Task<int> zipmain(Args argv)
                     if (r == ZE_OPEN) {
                         co_await zipwarn("could not open for reading: ", z->oname);
                         if (bad_open_is_error) {
-                            zsprintf(errbuf, "was zipping %s", z->name);
+                            sprintf(errbuf, "was zipping %s", z->name);
                             ZIPERR(r, errbuf);
                         }
                     } else {
@@ -3099,7 +3095,7 @@ local Task<int> zipmain(Args argv)
                     }
                     co_await zipwarn("will just copy entry over: ", z->oname);
                     if ((r = co_await zipcopy(z)) != ZE_OK) {
-                        zsprintf(errbuf, "was copying %s", z->oname);
+                        sprintf(errbuf, "was copying %s", z->oname);
                         ZIPERR(r, errbuf);
                     }
                     z->mark = 0;
@@ -3116,36 +3112,36 @@ local Task<int> zipmain(Args argv)
                 if (skip_this_disk - 1 == z->dsk) {
                     // skipping this disk
                     if (noisy) {
-                        co_await zfprintf(mesg, " skipping: %s", z->oname);
+                        co_await b_fprintf(mesg, " skipping: %s", z->oname);
                         mesg_line_started = 1;
-                        co_await zfflush(mesg);
+                        co_await b_fflush(mesg);
                     }
                     if (logall) {
-                        co_await zfprintf(logfile, " skipping: %s", z->oname);
+                        co_await b_fprintf(logfile, " skipping: %s", z->oname);
                         logfile_line_started = 1;
-                        co_await zfflush(logfile);
+                        co_await b_fflush(logfile);
                     }
                 } else {
                     // copying this entry
                     if (noisy) {
-                        co_await zfprintf(mesg, " copying: %s", z->oname);
+                        co_await b_fprintf(mesg, " copying: %s", z->oname);
                         if (display_usize) {
-                            co_await zfprintf(mesg, " (");
+                            co_await b_fprintf(mesg, " (");
                             co_await DisplayNumString(mesg, z->len);
-                            co_await zfprintf(mesg, ")");
+                            co_await b_fprintf(mesg, ")");
                         }
                         mesg_line_started = 1;
-                        co_await zfflush(mesg);
+                        co_await b_fflush(mesg);
                     }
                     if (logall) {
-                        co_await zfprintf(logfile, " copying: %s", z->oname);
+                        co_await b_fprintf(logfile, " copying: %s", z->oname);
                         if (display_usize) {
-                            co_await zfprintf(logfile, " (");
+                            co_await b_fprintf(logfile, " (");
                             co_await DisplayNumString(logfile, z->len);
-                            co_await zfprintf(logfile, ")");
+                            co_await b_fprintf(logfile, ")");
                         }
                         logfile_line_started = 1;
-                        co_await zfflush(logfile);
+                        co_await b_fflush(logfile);
                     }
                 }
 
@@ -3157,12 +3153,12 @@ local Task<int> zipmain(Args argv)
                         ZIPERR(r, "user requested abort");
                     } else if (fix != 1) {
                         // exit
-                        zsprintf(errbuf, "was copying %s", z->oname);
+                        sprintf(errbuf, "was copying %s", z->oname);
                         co_await zipwarn("(try -F to attempt to fix)", "");
                         ZIPERR(r, errbuf);
                     } else /* if (r == ZE_FORM) */ {
                         // seek back in output to start of this entry so can overwrite
-                        if (co_await zfseeko(y, current_local_offset, SEEK_SET) != 0) {
+                        if (co_await b_fseeko(y, current_local_offset, SEEK_SET) != 0) {
                             ZIPERR(r, "could not seek in output file");
                         }
                         co_await zipwarn("bad - skipping: ", z->oname);
@@ -3172,14 +3168,14 @@ local Task<int> zipmain(Args argv)
                 }
                 if (skip_this_disk || !(fix == 1 && r != ZE_OK)) {
                     if (noisy && mesg_line_started) {
-                        co_await zfprintf(mesg, "\n");
+                        co_await b_fprintf(mesg, "\n");
                         mesg_line_started = 0;
-                        co_await zfflush(mesg);
+                        co_await b_fflush(mesg);
                     }
                     if (logall && logfile_line_started) {
-                        co_await zfprintf(logfile, "\n");
+                        co_await b_fprintf(logfile, "\n");
                         logfile_line_started = 0;
-                        co_await zfflush(logfile);
+                        co_await b_fflush(logfile);
                     }
                 }
                 // input counts
@@ -3216,24 +3212,24 @@ local Task<int> zipmain(Args argv)
             } else {
                 co_await DisplayRunningStats();
                 if (noisy) {
-                    co_await zfprintf(mesg, "deleting: %s", z->oname);
+                    co_await b_fprintf(mesg, "deleting: %s", z->oname);
                     if (display_usize) {
-                        co_await zfprintf(mesg, " (");
+                        co_await b_fprintf(mesg, " (");
                         co_await DisplayNumString(mesg, z->len);
-                        co_await zfprintf(mesg, ")");
+                        co_await b_fprintf(mesg, ")");
                     }
-                    co_await zfflush(mesg);
-                    co_await zfprintf(mesg, "\n");
+                    co_await b_fflush(mesg);
+                    co_await b_fprintf(mesg, "\n");
                 }
                 if (logall) {
-                    co_await zfprintf(logfile, "deleting: %s", z->oname);
+                    co_await b_fprintf(logfile, "deleting: %s", z->oname);
                     if (display_usize) {
-                        co_await zfprintf(logfile, " (");
+                        co_await b_fprintf(logfile, " (");
                         co_await DisplayNumString(logfile, z->len);
-                        co_await zfprintf(logfile, ")");
+                        co_await b_fprintf(logfile, ")");
                     }
-                    co_await zfprintf(logfile, "\n");
-                    co_await zfflush(logfile);
+                    co_await b_fprintf(logfile, "\n");
+                    co_await b_fflush(logfile);
                 }
                 files_so_far++;
                 good_bytes_so_far += z->siz;
@@ -3281,31 +3277,31 @@ local Task<int> zipmain(Args argv)
                     // Delete entries if don't match a file on OS
                     co_await BlankRunningStats();
                     if (noisy) {
-                        co_await zfprintf(mesg, "deleting: %s", z->oname);
+                        co_await b_fprintf(mesg, "deleting: %s", z->oname);
                         if (display_usize) {
-                            co_await zfprintf(mesg, " (");
+                            co_await b_fprintf(mesg, " (");
                             co_await DisplayNumString(mesg, z->len);
-                            co_await zfprintf(mesg, ")");
+                            co_await b_fprintf(mesg, ")");
                         }
-                        co_await zfflush(mesg);
-                        co_await zfprintf(mesg, "\n");
+                        co_await b_fflush(mesg);
+                        co_await b_fprintf(mesg, "\n");
                         mesg_line_started = 0;
                     }
                     if (logall) {
-                        co_await zfprintf(logfile, "deleting: %s", z->oname);
+                        co_await b_fprintf(logfile, "deleting: %s", z->oname);
                         if (display_usize) {
-                            co_await zfprintf(logfile, " (");
+                            co_await b_fprintf(logfile, " (");
                             co_await DisplayNumString(logfile, z->len);
-                            co_await zfprintf(logfile, ")");
+                            co_await b_fprintf(logfile, ")");
                         }
-                        co_await zfprintf(logfile, "\n");
-                        co_await zfflush(logfile);
+                        co_await b_fprintf(logfile, "\n");
+                        co_await b_fflush(logfile);
                         logfile_line_started = 0;
                     }
                 }
                 // copy the original entry
                 else if (!d && !diff_mode && (r = co_await zipcopy(z)) != ZE_OK) {
-                    zsprintf(errbuf, "was copying %s", z->oname);
+                    sprintf(errbuf, "was copying %s", z->oname);
                     ZIPERR(r, errbuf);
                 }
                 w = &z->nxt;
@@ -3315,8 +3311,8 @@ local Task<int> zipmain(Args argv)
 
     // Process the edited found list, adding them to the zip file
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: Zipping up new entries\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Zipping up new entries\n");
+        co_await b_fflush(mesg);
     }
     diag("zipping up new entries, if any");
     Trace((stderr, "zip diagnostic: fcount=%u\n", (unsigned)fcount));
@@ -3366,14 +3362,14 @@ local Task<int> zipmain(Args argv)
         // zip it up
         co_await DisplayRunningStats();
         if (noisy) {
-            co_await zfprintf(mesg, "  adding: %s", z->oname);
+            co_await b_fprintf(mesg, "  adding: %s", z->oname);
             mesg_line_started = 1;
-            co_await zfflush(mesg);
+            co_await b_fflush(mesg);
         }
         if (logall) {
-            co_await zfprintf(logfile, "  adding: %s", z->oname);
+            co_await b_fprintf(logfile, "  adding: %s", z->oname);
             logfile_line_started = 1;
-            co_await zfflush(logfile);
+            co_await b_fflush(logfile);
         }
         // initial scan
         len = f->usize;
@@ -3394,7 +3390,7 @@ local Task<int> zipmain(Args argv)
             // logfile_line_started = 0;
             // fflush(logfile);
             // }
-            zsprintf(errbuf, "was zipping %s", z->oname);
+            sprintf(errbuf, "was zipping %s", z->oname);
             ZIPERR(r, errbuf);
         }
         if (r == ZE_OPEN || r == ZE_MISS) {
@@ -3414,10 +3410,10 @@ local Task<int> zipmain(Args argv)
             // }
             if (r == ZE_OPEN) {
                 if (logfile)
-                    co_await zfprintf(logfile, "zip warning: %s\n", "");
+                    co_await b_fprintf(logfile, "zip warning: %s\n", "");
                 co_await zipwarn("could not open for reading: ", z->oname);
                 if (bad_open_is_error) {
-                    zsprintf(errbuf, "was zipping %s", z->name);
+                    sprintf(errbuf, "was zipping %s", z->name);
                     ZIPERR(r, errbuf);
                 }
             } else {
@@ -3454,38 +3450,38 @@ local Task<int> zipmain(Args argv)
     if (noisy && bad_files_so_far) {
         char tempstrg[100];
 
-        co_await zfprintf(mesg, "\nzip warning: Not all files were readable\n");
-        co_await zfprintf(mesg, "  files/entries read:  %lu", files_total - bad_files_so_far);
+        co_await b_fprintf(mesg, "\nzip warning: Not all files were readable\n");
+        co_await b_fprintf(mesg, "  files/entries read:  %lu", files_total - bad_files_so_far);
         WriteNumString(good_bytes_so_far, tempstrg);
-        co_await zfprintf(mesg, " (%s bytes)", tempstrg);
-        co_await zfprintf(mesg, "  skipped:  %lu", bad_files_so_far);
+        co_await b_fprintf(mesg, " (%s bytes)", tempstrg);
+        co_await b_fprintf(mesg, "  skipped:  %lu", bad_files_so_far);
         WriteNumString(bad_bytes_so_far, tempstrg);
-        co_await zfprintf(mesg, " (%s bytes)\n", tempstrg);
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, " (%s bytes)\n", tempstrg);
+        co_await b_fflush(mesg);
     }
     if (logfile && bad_files_so_far) {
         char tempstrg[100];
 
-        co_await zfprintf(logfile, "\nzip warning: Not all files were readable\n");
-        co_await zfprintf(logfile, "  files/entries read:  %lu", files_total - bad_files_so_far);
+        co_await b_fprintf(logfile, "\nzip warning: Not all files were readable\n");
+        co_await b_fprintf(logfile, "  files/entries read:  %lu", files_total - bad_files_so_far);
         WriteNumString(good_bytes_so_far, tempstrg);
-        co_await zfprintf(logfile, " (%s bytes)", tempstrg);
-        co_await zfprintf(logfile, "  skipped:  %lu", bad_files_so_far);
+        co_await b_fprintf(logfile, " (%s bytes)", tempstrg);
+        co_await b_fprintf(logfile, "  skipped:  %lu", bad_files_so_far);
         WriteNumString(bad_bytes_so_far, tempstrg);
-        co_await zfprintf(logfile, " (%s bytes)", tempstrg);
+        co_await b_fprintf(logfile, " (%s bytes)", tempstrg);
     }
 
     // Get one line comment for each new entry
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: Get comment if any\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Get comment if any\n");
+        co_await b_fflush(mesg);
     }
     if (comadd) {
         {
             if (comment_stream == NULL) {
                 // Upstream dup'ed stderr so a redirected stdin could still feed the
                 // archive. There is no dup of a stream here: comments come from stdin.
-                comment_stream = &File::stdin();
+                comment_stream = stdin;
             }
             if ((e = (char *)malloc(MAXCOM + 1)) == NULL) {
                 ZIPERR(ZE_MEM, "was reading comment lines");
@@ -3494,8 +3490,8 @@ local Task<int> zipmain(Args argv)
         for (z = zfiles; z != NULL; z = z->nxt)
             if (z->mark) {
                 if (noisy)
-                    co_await zfprintf(mesg, "Enter comment for %s:\n", z->oname);
-                if (co_await zgets(e, MAXCOM + 1, comment_stream)) {
+                    co_await b_fprintf(mesg, "Enter comment for %s:\n", z->oname);
+                if (co_await b_fgets(e, MAXCOM + 1, comment_stream)) {
                     if ((p = (char *)malloc((extent)(k = strlen(e)) + 1)) == NULL) {
                         free((zvoid *)e);
                         ZIPERR(ZE_MEM, "was reading comment lines");
@@ -3515,24 +3511,24 @@ local Task<int> zipmain(Args argv)
     if (zipedit) {
         if (comment_stream == NULL) {
             // As above: comments come from stdin.
-            comment_stream = &File::stdin();
+            comment_stream = stdin;
         }
         if ((e = (char *)malloc(MAXCOM + 1)) == NULL) {
             ZIPERR(ZE_MEM, "was reading comment lines");
         }
         if (noisy && zcomlen) {
-            co_await zfputs("current zip file comment is:\n", mesg);
-            co_await zwrite(zcomment, 1, zcomlen, mesg);
+            co_await b_fputs("current zip file comment is:\n", mesg);
+            co_await b_fwrite(zcomment, 1, zcomlen, mesg);
             if (zcomment[zcomlen - 1] != '\n')
-                co_await zfputc('\n', mesg);
+                co_await b_fputc('\n', mesg);
             free((zvoid *)zcomment);
         }
         if ((zcomment = (char *)malloc(1)) == NULL)
             ZIPERR(ZE_MEM, "was setting comments to null");
         zcomment[0] = '\0';
         if (noisy)
-            co_await zfputs("enter new zip file comment (end with .):\n", mesg);
-        while (co_await zgets(e, MAXCOM + 1, comment_stream) && strcmp(e, ".\n")) {
+            co_await b_fputs("enter new zip file comment (end with .):\n", mesg);
+        while (co_await b_fgets(e, MAXCOM + 1, comment_stream) && strcmp(e, ".\n")) {
             if (e[(r = strlen(e)) - 1] == '\n')
                 e[--r] = 0;
             if ((p = (char *)malloc((*zcomment ? strlen(zcomment) + 3 : 1) + r)) == NULL) {
@@ -3551,14 +3547,14 @@ local Task<int> zipmain(Args argv)
     }
 
     if (display_globaldots) {
-        co_await zfputc('\n', mesg);
+        co_await b_fputc('\n', mesg);
         mesg_line_started = 0;
     }
 
     // Write central directory and end header to temporary zip
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: Writing central directory\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Writing central directory\n");
+        co_await b_fflush(mesg);
     }
     diag("writing central directory");
     k = 0;      // keep count for end header
@@ -3579,20 +3575,20 @@ local Task<int> zipmain(Args argv)
     if (k == 0)
         co_await zipwarn("zip file empty", "");
     if (verbose) {
-        co_await zfprintf(mesg, "total bytes=%s, compressed=%s -> %d%% savings\n",
+        co_await b_fprintf(mesg, "total bytes=%s, compressed=%s -> %d%% savings\n",
                           zip_fzofft(n, NULL, "u"), zip_fzofft(t, NULL, "u"), percent(n, t));
-        co_await zfflush(mesg);
+        co_await b_fflush(mesg);
     }
     if (logall) {
-        co_await zfprintf(logfile, "total bytes=%s, compressed=%s -> %d%% savings\n",
+        co_await b_fprintf(logfile, "total bytes=%s, compressed=%s -> %d%% savings\n",
                           zip_fzofft(n, NULL, "u"), zip_fzofft(t, NULL, "u"), percent(n, t));
-        co_await zfflush(logfile);
+        co_await b_fflush(logfile);
     }
     t = tempzn - c; // compute length of central
     diag("writing end of central directory");
     if (show_what_doing) {
-        co_await zfprintf(mesg, "sd: Writing end of central directory\n");
-        co_await zfflush(mesg);
+        co_await b_fprintf(mesg, "sd: Writing end of central directory\n");
+        co_await b_fflush(mesg);
     }
 
     if ((r = co_await putend(k, t, c, zcomlen, zcomment)) != ZE_OK) {
@@ -3600,12 +3596,12 @@ local Task<int> zipmain(Args argv)
     }
 
     // tempzf = NULL;
-    if (co_await zfclose(y)) {
+    if (co_await b_fclose(y)) {
         ZIPERR(d ? ZE_WRITE : ZE_TEMP, tempzip);
     }
     y = NULL;
     if (in_file != NULL) {
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         in_file = NULL;
     }
     // if (x != NULL)
@@ -3620,8 +3616,8 @@ local Task<int> zipmain(Args argv)
     if (strcmp(zipfile, "-") && !d) {
         diag("replacing old zip file with new zip file");
         if (show_what_doing) {
-            co_await zfprintf(mesg, "sd: Replacing old zip file\n");
-            co_await zfflush(mesg);
+            co_await b_fprintf(mesg, "sd: Replacing old zip file\n");
+            co_await b_fflush(mesg);
         }
         if ((r = co_await replace(out_path, tempzip)) != ZE_OK) {
             co_await zipwarn("new zip file left as: ", tempzip);
@@ -3637,8 +3633,8 @@ local Task<int> zipmain(Args argv)
     }
     if (strcmp(zipfile, "-")) {
         if (show_what_doing) {
-            co_await zfprintf(mesg, "sd: Setting file type\n");
-            co_await zfflush(mesg);
+            co_await b_fprintf(mesg, "sd: Setting file type\n");
+            co_await b_fflush(mesg);
         }
 
         set_filetype(out_path);
@@ -3646,22 +3642,22 @@ local Task<int> zipmain(Args argv)
 
     // finish logfile (it gets closed in freeup() called by finish())
     if (logfile) {
-        co_await zfprintf(logfile, "\nTotal %ld entries (", files_total);
+        co_await b_fprintf(logfile, "\nTotal %ld entries (", files_total);
         if (good_bytes_so_far != bytes_total) {
-            co_await zfprintf(logfile, "planned ");
+            co_await b_fprintf(logfile, "planned ");
             co_await DisplayNumString(logfile, bytes_total);
-            co_await zfprintf(logfile, " bytes, actual ");
+            co_await b_fprintf(logfile, " bytes, actual ");
             co_await DisplayNumString(logfile, good_bytes_so_far);
-            co_await zfprintf(logfile, " bytes)");
+            co_await b_fprintf(logfile, " bytes)");
         } else {
             co_await DisplayNumString(logfile, bytes_total);
-            co_await zfprintf(logfile, " bytes)");
+            co_await b_fprintf(logfile, " bytes)");
         }
 
         // get current time
 
-        Civil done = civil(time(NULL) + ztz_min * 60);
-        co_await zfprintf(logfile, "\nDone %s %s %2d %02d:%02d:%02d %d\n",
+        Civil done = civil(ztime(NULL) + ztz_min * 60);
+        co_await b_fprintf(logfile, "\nDone %s %s %2d %02d:%02d:%02d %d\n",
                           TIME_DAYS[done.weekday].data(), TIME_MONTHS[done.month - 1].data(),
                           done.day, done.hour, done.min, done.sec, done.year);
     }
@@ -3672,9 +3668,7 @@ local Task<int> zipmain(Args argv)
 
 Task<i32> proc_main(Args args)
 {
-    zstdout = &File::stdout();
-    zstderr = &File::stderr();
-    mesg    = zstdout;
+    mesg = stdout;
 
     // ^C is asked for, or the default action stands. There is no handler:
     // a delivered signal abandons the parked call with Err(Intr).
@@ -3689,22 +3683,22 @@ Task<i32> proc_main(Args args)
     // co_await one out. If nothing else reported the run, this does.
     if (r == ZE_OK && zip_fatal != ZE_OK) {
         r = zip_fatal;
-        co_await zfprintf(zstderr, "\nzip error: %s (%s)\n", ZIPERRORS(r),
+        co_await b_fprintf(stderr, "\nzip error: %s (%s)\n", ZIPERRORS(r),
                           zip_fatal_h ? zip_fatal_h : "");
     }
 
     // The temp archive must not outlive a failed run.
     if (r != ZE_OK && tempzip != NULL) {
         if (y != NULL) {
-            co_await zfclose(y);
+            co_await b_fclose(y);
             y = NULL;
         }
         co_await destroy(tempzip);
     }
 
     freeup();
-    co_await zfflush(zstdout);
-    co_await zfflush(zstderr);
+    co_await b_fflush(stdout);
+    co_await b_fflush(stderr);
 
     if (r == ZE_ABORT)
         co_return 130;

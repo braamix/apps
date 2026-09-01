@@ -30,9 +30,9 @@ Task<char *> getp(ZCONST char *m, char *p, int n)
     // get password
     w = "";
     do {
-        co_await zfputs(w, zstderr); // warning if back again
-        co_await zfputs(m, zstderr); // display prompt and flush
-        co_await zfflush(zstderr);
+        co_await b_fputs(w, stderr); // warning if back again
+        co_await b_fputs(m, stderr); // display prompt and flush
+        co_await b_fflush(stderr);
         i = 0;
         do { // read line, keeping first n characters
             Result<KeyPress> k = Err(Error::NoMemory);
@@ -52,8 +52,8 @@ Task<char *> getp(ZCONST char *m, char *p, int n)
             } else if (i < n)
                 p[i++] = (char)c; // truncate past n
         } while (c != '\n');
-        co_await zfputc('\n', zstderr);
-        co_await zfflush(zstderr);
+        co_await b_fputc('\n', stderr);
+        co_await b_fflush(stderr);
         w = "(line too long--try again)\n";
     } while (p[i - 1] != '\n');
     p[i - 1] = 0; // terminate at newline

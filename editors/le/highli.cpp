@@ -22,8 +22,7 @@
 #include "edit.h"
 #include "epath.h"
 #include "kernel/alloc.h"
-#include "lefile.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "screen.h"
 #include "search.h"
@@ -142,7 +141,7 @@ Task<char *> read_regex(FILE *f)
     int cont    = 1;
     while (cont) {
         String ln;
-        bool got = (co_await f->getline(ln, true)).value_or(false);
+        bool got = (co_await f->at->getline(ln, true)).value_or(false);
         char *s  = str;
         if (got) {
             unsigned n = ln.size() < sizeof(str) - 1 ? ln.size() : sizeof(str) - 1;
@@ -165,13 +164,13 @@ Task<char *> read_regex(FILE *f)
                 len--;
                 cont = 1;
                 for (;;) {
-                    int ch = co_await le_getc(f);
+                    int ch = co_await b_fgetc(f);
                     if (ch == EOF || ch == '\n') {
                         cont = 0;
                         break;
                     }
                     if (ch != ' ' && ch != '\t') {
-                        le_ungetc(ch, f);
+                        f->at->unget((char32_t)ch);
                         break;
                     }
                 }
@@ -205,11 +204,11 @@ static Task<FILE *> open_syntax_d(const char *name)
         static char fn[LE_PATHMAX];
         unsigned nbytes = sizeof(fn);
         snprintf(fn, nbytes, "%s/.le/%s/%s", HOME, base_dir, name);
-        if (co_await le_access(fn, R_OK) == -1)
+        if (co_await b_access(fn, R_OK) == -1)
             snprintf(fn, nbytes, "%s/%s/%s", datadir, base_dir, name);
         name = fn;
     }
-    co_return co_await le_fopen(name, false);
+    co_return co_await b_fopen(name, "r");
 }
 
 /* The include guard: a syntax file may pull in another, and one that pulls in
@@ -249,7 +248,7 @@ static Task<void> ReadSyntaxFile(const char *fn, FILE *f, syntax_hl **chain)
     char *rx;
 
     for (;;) {
-        ch = co_await le_getc(f);
+        ch = co_await b_fgetc(f);
         switch (ch) {
         case (EOF):
             goto end;
@@ -258,7 +257,7 @@ static Task<void> ReadSyntaxFile(const char *fn, FILE *f, syntax_hl **chain)
                 goto end;
             {
                 String ln;
-                if (!(co_await f->getline(ln, true)).value_or(false))
+                if (!(co_await f->at->getline(ln, true)).value_or(false))
                     goto end;
                 unsigned n = ln.size() < sizeof(str) - 1 ? ln.size() : sizeof(str) - 1;
                 memcpy(str, ln.data(), n);
@@ -325,27 +324,27 @@ static Task<void> ReadSyntaxFile(const char *fn, FILE *f, syntax_hl **chain)
                 continue;
             }
             bool ignore_case = false;
-            int c            = co_await le_getc(f);
+            int c            = co_await b_fgetc(f);
             if (c == 'i')
                 ignore_case = true;
             else
-                le_ungetc(c, f);
+                f->at->unget((char32_t)c);
             {
-                Result<i64> c1 = co_await f->scan_i64();
+                Result<i64> c1 = co_await f->at->scan_i64();
                 res            = c1.is_ok() ? 1 : 0;
                 color          = c1.value_or(0);
-                if (res == 1 && (co_await f->scan_lit(',')).value_or(false)) {
-                    Result<i64> m1 = co_await f->scan_i64(0);
+                if (res == 1 && (co_await f->at->scan_lit(',')).value_or(false)) {
+                    Result<i64> m1 = co_await f->at->scan_i64(0);
                     if (m1.is_ok()) {
                         mask = (int)m1.value();
-                        if ((co_await f->scan_lit('=')).value_or(false))
+                        if ((co_await f->at->scan_lit('=')).value_or(false))
                             res = 2;
                     }
                 }
             }
             if (res == 1) {
                 mask = 1;
-                if (co_await le_getc(f) != '=') {
+                if (co_await b_fgetc(f) != '=') {
                     co_await fskip(f);
                     continue;
                 }
@@ -373,7 +372,7 @@ static Task<void> ReadSyntaxFile(const char *fn, FILE *f, syntax_hl **chain)
             break;
         }
         case ('h'): {
-            Result<i64> n = co_await f->scan_i64();
+            Result<i64> n = co_await f->at->scan_i64();
             if (n.is_ok())
                 hl_lines = (int)n.value();
         }
@@ -388,8 +387,8 @@ static Task<void> ReadSyntaxFile(const char *fn, FILE *f, syntax_hl **chain)
             }
             /*fallthrought*/
         case ('I'):
-            if ((co_await f->scan_lit('=')).value_or(false) &&
-                (co_await f->scan_token(tok, 255)).value_or(false) &&
+            if ((co_await f->at->scan_lit('=')).value_or(false) &&
+                (co_await f->at->scan_token(tok, 255)).value_or(false) &&
                 (snprintf(str, sizeof(str), "%.*s", (int)tok.size(), tok.data()), true)) {
                 FILE *i_f = co_await open_syntax_d(str);
                 if (i_f) {
@@ -405,31 +404,31 @@ static Task<void> ReadSyntaxFile(const char *fn, FILE *f, syntax_hl **chain)
                 co_await fskip(f);
                 continue;
             }
-            ch               = co_await le_getc(f);
+            ch               = co_await b_fgetc(f);
             bool ignore_case = false;
             if (ch == 'i') {
                 ignore_case = true;
-                ch          = co_await le_getc(f);
+                ch          = co_await b_fgetc(f);
             }
             if (ch != '(') {
                 co_await fskip(f);
                 break;
             }
-            if ((co_await f->scan_until(fld, ")\n=", 255)).value_or(false) &&
+            if ((co_await f->at->scan_until(fld, ")\n=", 255)).value_or(false) &&
                 (snprintf(str, sizeof(str), "%.*s", (int)fld.size(), fld.data()), true)) {
-                co_await f->scan_lit(')');
+                co_await f->at->scan_lit(')');
                 {
-                    Result<i64> m2 = co_await f->scan_i64(0);
+                    Result<i64> m2 = co_await f->at->scan_i64(0);
                     res            = 0;
                     if (m2.is_ok()) {
                         mask = (int)m2.value();
-                        if ((co_await f->scan_lit('=')).value_or(false))
+                        if ((co_await f->at->scan_lit('=')).value_or(false))
                             res = 1;
                     }
                 }
                 if (res != 1) {
                     mask = 1;
-                    if (co_await le_getc(f) != '=') {
+                    if (co_await b_fgetc(f) != '=') {
                         co_await fskip(f);
                         continue;
                     }
@@ -469,7 +468,7 @@ static Task<void> ReadSyntaxFile(const char *fn, FILE *f, syntax_hl **chain)
         }
     }
 end:
-    co_await le_fclose(f);
+    co_await b_fclose(f);
 }
 
 Task<void> InitHighlight()
@@ -494,11 +493,11 @@ Task<void> InitHighlight()
 
     FILE *f = 0;
     if (!f)
-        f = co_await le_fopen(fn = fn3, false);
+        f = co_await b_fopen(fn = fn3, "r");
     if (!f)
-        f = co_await le_fopen(fn = fn2, false);
+        f = co_await b_fopen(fn = fn2, "r");
     if (!f)
-        f = co_await le_fopen(fn = fn1, false);
+        f = co_await b_fopen(fn = fn1, "r");
     if (!f)
         co_return;
     hl_section_match = false;

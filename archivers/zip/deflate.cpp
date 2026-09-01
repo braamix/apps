@@ -397,8 +397,8 @@ local Task<void> fill_window()
             if (dot_size > 0 && !display_globaldots) {
                 // initial space
                 if (noisy && dot_count == -1) {
-                    co_await zfputc(' ', mesg);
-                    co_await zfflush(mesg);
+                    co_await b_fputc(' ', mesg);
+                    co_await b_fflush(mesg);
                     dot_count++;
                 }
                 dot_count++;
@@ -406,8 +406,8 @@ local Task<void> fill_window()
                     dot_count = 0;
             }
             if ((verbose || noisy) && dot_size && !dot_count) {
-                co_await zfputc('.', mesg);
-                co_await zfflush(mesg);
+                co_await b_fputc('.', mesg);
+                co_await b_fflush(mesg);
                 mesg_line_started = 1;
             }
         }

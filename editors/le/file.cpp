@@ -26,7 +26,7 @@
 
 #include "edit.h"
 #include "keymap.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "proc/io.h"
 
 #ifndef DIRSIZ
@@ -162,14 +162,14 @@ Task<void> condense(char *filename)
     }
 
     snprintf(tmp, sizeof(tmp), "%s/", drive);
-    if (co_await le_stat(tmp, &st) != -1) {
+    if (co_await b_stat(tmp, &st) != -1) {
         root_dev = st.st_dev;
         root_ino = st.st_ino;
     } else {
         root_dev = root_ino = 0;
     }
     snprintf(tmp, sizeof(tmp), "%s.", drive);
-    if (co_await le_stat(tmp, &st) != -1) {
+    if (co_await b_stat(tmp, &st) != -1) {
         curr_dev = st.st_dev;
         curr_ino = st.st_ino;
     } else {
@@ -192,7 +192,7 @@ Task<void> condense(char *filename)
                 *(store++) = *(scan++);
             *store = 0;
             snprintf(tmp, sizeof(tmp), "%s%s", drive, newfilename);
-            if (co_await le_stat(tmp, &st) != -1) {
+            if (co_await b_stat(tmp, &st) != -1) {
                 for (i = 0; i < currpointno; i++) {
                     if (ino_scanned[i] == st.st_ino && dev_scanned[i] == st.st_dev) {
                         store = point[currpointno = i];
@@ -298,7 +298,7 @@ Task<int> ChooseFileName(char *fn, unsigned fn_size)
 
     do {
         co_await condense(directory);
-        if (co_await le_stat(directory, &st) == -1) {
+        if (co_await b_stat(directory, &st) == -1) {
             FError(directory);
             CloseWin();
             DestroyWin(w);
@@ -359,7 +359,7 @@ Task<int> ChooseFileName(char *fn, unsigned fn_size)
                 d_name             = namebuf;
             }
             snprintf(str, sizeof(str), "%s/%s", directory, d_name);
-            if (co_await le_stat(str, &(dir[i].st)) == -1 ||
+            if (co_await b_stat(str, &(dir[i].st)) == -1 ||
                 ((dir[i].st.st_mode & S_IFMT) == S_IFREG && fnmatch(filename, d_name, 0) != 0) ||
                 ((dir[i].st.st_mode & S_IFMT) != S_IFREG &&
                  (dir[i].st.st_mode & S_IFMT) != S_IFDIR) ||

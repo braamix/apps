@@ -460,7 +460,7 @@ char *zip_fzofft(zoff_t val, char *pre, char *post)
     fzofft_index = (fzofft_index + 1) % FZOFFT_NUM;
 
     // Write into the current chamber.
-    zsprintf(fzofft_buf[fzofft_index], fmt, val);
+    sprintf(fzofft_buf[fzofft_index], fmt, val);
 
     // Return a pointer to this chamber.
     return fzofft_buf[fzofft_index];
@@ -503,7 +503,7 @@ char *zip_fuzofft(uzoff_t val, char *pre, char *post)
     fuzofft_index = (fuzofft_index + 1) % FZOFFT_NUM;
 
     // Write into the current chamber.
-    zsprintf(fuzofft_buf[fuzofft_index], fmt, val);
+    sprintf(fuzofft_buf[fuzofft_index], fmt, val);
 
     // Return a pointer to this chamber.
     return fuzofft_buf[fuzofft_index];
@@ -525,7 +525,7 @@ Task<int> DisplayNumString(FILE *file, uzoff_t i)
             break;
         s++;
     }
-    co_await zfprintf(file, "%s", s);
+    co_await b_fprintf(file, "%s", s);
 
     co_return 0;
 }

@@ -560,7 +560,8 @@ extern void regfree(regex_t *__preg);
    support user defined character classes.  */
 #if WIDE_CHAR_SUPPORT
 /* Solaris 2.5 has a bug: <wchar.h> must be included before <wctype.h>.  */
-#include "lewchar.h"
+#include <wchar.h>
+#include <wctype.h>
 
 typedef wctype_t re_wctype_t;
 typedef wchar_t re_wchar_t;

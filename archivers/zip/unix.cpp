@@ -139,7 +139,7 @@ char *in2ex(char *n)
 
 Task<void> version_local(void)
 {
-    co_await zfprintf(mesg, "Compiled for Braam with clang, wasm32.\n\n");
+    co_await b_fprintf(mesg, "Compiled for Braam with clang, wasm32.\n\n");
 }
 
 // Process a name or sh expression to operate on (or exclude). Return an error
@@ -172,7 +172,7 @@ Task<int> procname(char *n, int caseflag)
             if (MATCH(p, z->iname, caseflag)) {
                 z->mark = pcount ? filter(z->zname, caseflag) : 1;
                 if (verbose)
-                    co_await zfprintf(mesg, "zip diagnostic: %scluding %s\n", z->mark ? "in" : "ex",
+                    co_await b_fprintf(mesg, "zip diagnostic: %scluding %s\n", z->mark ? "in" : "ex",
                                       z->name);
                 m = 0;
             }

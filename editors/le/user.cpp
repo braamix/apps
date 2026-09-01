@@ -32,7 +32,7 @@
 #include "highli.h"
 #include "kernel/alloc.h"
 #include "keymap.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "proc/io.h"
 #include "proc/rt.h"
 #include "proc/time.h"
@@ -839,8 +839,8 @@ Task<int> file_check(const char *fn)
     char *slash;
     char msg[1024];
 
-    if (co_await le_access(fn, R_OK) == -1) {
-        if (co_await le_access(fn, F_OK) == 0) {
+    if (co_await b_access(fn, R_OK) == -1) {
+        if (co_await b_access(fn, F_OK) == 0) {
             snprintf(msg, sizeof(msg), "File: %s\nThe specified file is not readable", fn);
             ErrMsg(msg);
             co_return ERR;
@@ -859,12 +859,12 @@ Task<int> file_check(const char *fn)
             *slash = 0;
         else
             strcpy(dir, ".");
-        if (co_await le_access(dir, F_OK) == -1) {
+        if (co_await b_access(dir, F_OK) == -1) {
             snprintf(msg, sizeof(msg), "File: %s\nThe specified directory does not exist", fn);
             ErrMsg(msg);
             co_return ERR;
         }
-        if (co_await le_access(dir, W_OK | X_OK) == -1) {
+        if (co_await b_access(dir, W_OK | X_OK) == -1) {
             snprintf(msg, sizeof(msg),
                      "File: %s\nThe specified file does not exist\n"
                      "and the directory does not permit creating",
@@ -945,7 +945,7 @@ Task<void> UserSwitch()
     if (co_await ChooseFileName(newname, sizeof(newname)) < 0)
         co_return;
 
-    if (co_await le_access(newname, R_OK) == -1) {
+    if (co_await b_access(newname, R_OK) == -1) {
         co_await UserLoad();
         co_return;
     }

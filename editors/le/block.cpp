@@ -26,7 +26,7 @@
 #include "clipbrd.h"
 #include "edit.h"
 #include "keymap.h"
-#include "leio.h"
+#include "compat/cio.h"
 
 TextPoint *DragMark = 0;
 
@@ -348,8 +348,8 @@ Task<void> Write()
         co_return;
     LoadHistory.Push();
 
-    if (co_await le_stat(BlockFile, &st) == -1) {
-        if (le_errno != LE_ENOENT) {
+    if (co_await b_stat(BlockFile, &st) == -1) {
+        if (errno != ENOENT) {
             FError(BlockFile);
             co_return;
         }
@@ -362,20 +362,20 @@ Task<void> Write()
             co_return;
         }
     }
-    fd = co_await le_open(BlockFile, O_CREAT | ((st.st_mode & S_IFCHR) ? 0 : O_EXCL) | O_WRONLY,
+    fd = co_await b_open(BlockFile, O_CREAT | ((st.st_mode & S_IFCHR) ? 0 : O_EXCL) | O_WRONLY,
                           0666);
-    if (fd == -1 && le_errno == LE_EEXIST) {
-        fd = co_await le_open(BlockFile, O_WRONLY);
+    if (fd == -1 && errno == EEXIST) {
+        fd = co_await b_open(BlockFile, O_WRONLY);
         if (fd == -1) {
             FError(BlockFile);
             co_return;
         }
         if (co_await LockFile(fd, false) == -1) /* check if the file is already locked */
         {
-            co_await le_close(fd);
+            co_await b_close(fd);
             co_return;
         }
-        co_await le_close(fd);
+        co_await b_close(fd);
 
         static struct menu OverwrMenu[] = {
             { " &Overwrite " }, { "  &Append  " }, { "  &Cancel  " }, { NULL }
@@ -386,10 +386,10 @@ Task<void> Write()
         case (0):
             co_return;
         case ('O'):
-            fd = co_await le_open(BlockFile, O_WRONLY | O_TRUNC);
+            fd = co_await b_open(BlockFile, O_WRONLY | O_TRUNC);
             break;
         case ('A'):
-            fd = co_await le_open(BlockFile, O_WRONLY | O_APPEND);
+            fd = co_await b_open(BlockFile, O_WRONLY | O_APPEND);
         }
     }
     if (fd == -1) {
@@ -401,18 +401,18 @@ Task<void> Write()
     if (rblock) {
         ClipBoard cb;
         if (!cb.Copy()) {
-            co_await le_close(fd);
+            co_await b_close(fd);
             co_return;
         }
-        le_errno = 0;
+        errno = 0;
         res   = co_await cb.Write(fd);
     } else {
-        le_errno = 0;
+        errno = 0;
         res   = co_await WriteBlock(fd, BlockBegin, BlockEnd - BlockBegin, &act_written);
     }
     if (res < 0)
         FError(BlockFile);
-    co_await le_close(fd);
+    co_await b_close(fd);
 }
 
 Task<int> OptionallyConvertBlockNewLines(const char *bname)
@@ -495,19 +495,19 @@ Task<void> Read()
         co_return;
     LoadHistory.Push();
 
-    fd = co_await le_open(BlockFile, O_RDONLY);
+    fd = co_await b_open(BlockFile, O_RDONLY);
     if (fd == -1) {
         FError(BlockFile);
         co_return;
     }
-    le_errno = 0;
-    if (co_await le_fstat(fd, &st) == -1) {
-        co_await le_close(fd);
+    errno = 0;
+    if (co_await b_fstat(fd, &st) == -1) {
+        co_await b_close(fd);
         FError(BlockFile);
         co_return;
     }
     if (!co_await CheckMode(st.st_mode)) {
-        co_await le_close(fd);
+        co_await b_close(fd);
         co_return;
     }
     MessageSync("Reading...");
@@ -517,12 +517,12 @@ Task<void> Read()
     else
         res = co_await ReadBlock(fd, st.st_size, &act_read);
     if (res != OK) {
-        co_await le_close(fd);
-        if (le_errno)
+        co_await b_close(fd);
+        if (errno)
             FError(BlockFile);
         co_return;
     }
-    co_await le_close(fd);
+    co_await b_close(fd);
     if (act_read == 0)
         co_return;
     BlockBegin = BlockEnd = CurrentPos;

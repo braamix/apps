@@ -21,7 +21,7 @@
 
 #include "braam.h"
 #include "kernel/task.h"
-#include "lefile.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "letypes.h"
 

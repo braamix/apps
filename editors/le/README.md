@@ -51,16 +51,24 @@ the dialogs use are the port kit's — `braam_add_program(... PORT)` in
 this target's include path and nobody else's. Everything else was replaced
 rather than reimplemented.
 
-That took 700 lines out of `braam.cpp` and the whole of `cinc/`, and cost 3,563
-bytes: 528,064 to 531,627. `fnmatch` is all that is left of the file — the kit
-has none, and LE calls it at two sites.
+Group A took 700 lines out of `braam.cpp` and the whole of `cinc/`, and cost
+3,563 bytes: 528,064 to 531,627. Group B and Group A's remainder then took
+`braam.cpp` itself and four more files — `leio.cpp`, `lefile.cpp`,
+`lewchar.cpp` and the vendored `wcwidth.c`, 1,079 lines — for 3,692 bytes:
+531,887 to 535,579. LE now asks the kit for everything a C library has:
+`fnmatch`, the wide half, `<wchar.h>`, `<wctype.h>`, the streams and the file
+syscalls.
 
-Two names stay LE's on purpose. **`FILE` is `proc/file.h`'s `File`**, so LE
-never includes the kit's `<stdio.h>`, which typedefs a `FILE` of its own;
-`braam.h` declares the three `snprintf` entry points instead. And **`le_errno`
-holds the last syscall's `Error` as an int**, not an errno number — it is read
-back through `error_name()`, whose prose the tests assert — so it is spelled
-apart from the kit's `errno`, which the kit's own `strtol` writes `ERANGE` into.
+Two things are worth knowing about the seam. **The config parsers reach the
+`File` inside the kit's `FILE`** — `f->at->scan_i64()` and its family, because
+`kernel/text.h`'s scanners are what stands in for the `sscanf` the kit has
+decided not to supply, and because `File::unget` is the pushback `b_fgetc`
+shares. And **`le_errno` is gone**: `errno` is the kit's now, so
+`error_name(error_of(errno))` is how a diagnostic reads like the rest of the
+system, as `vi`'s `syserror()` does. Two places had been probing `le_errno` as
+"did that fail" — a save and a keymap load — and had to start reading the
+operation's own status instead, because C's errno is only meaningful after a
+call that failed.
 
 | Upstream | Here |
 | --- | --- |
@@ -73,7 +81,7 @@ apart from the kit's `errno`, which the kit's own `strtol` writes `ERANGE` into.
 | SIGSEGV/SIGBUS handlers dumping the buffer to `~/.le/tmp/DUMP-*`, a SIGHUP rescue, SIGTSTP | gone. `SIG_INT`, `SIG_TERM` and `SIG_WINCH` are the whole catchable set, and none of them is a handler |
 | `alarm(60)` driving the autosave | [signals.cpp](signals.cpp)'s `AutoSaveTick()`, asked from `Edit()`'s loop. It was already a resumable chunked state machine, which is what let it move |
 | eight-bit Cyrillic codepages, a software keyboard layout, D211 and VTA2000 tables | gone. The browser sends the codepoint that was typed, so `ModifyKey` is the identity and the input modes it served — `coding`, `inputmode`, rus.h — went with it, along with the terminal-options form that chose between them |
-| `mbtowc` against the locale | [lewchar.cpp](lewchar.cpp): UTF-8, and only UTF-8. `USE_MULTIBYTE_CHARS` and the `mb_mode` flag under it are both gone rather than switched on — the arm they guarded reads a character as one byte, and `--multibyte` / `--no-multibyte` went with them |
+| `mbtowc` against the locale | the port kit's `<wchar.h>`: UTF-8, and only UTF-8. `USE_MULTIBYTE_CHARS` and the `mb_mode` flag under it are both gone rather than switched on — the arm they guarded reads a character as one byte, and `--multibyte` / `--no-multibyte` went with them |
 | `PKGDATADIR`, fixed at compile time | [epath.cpp](epath.cpp): `readlink("/pkg/bin/le")`, because a package's payload lands under a path carrying a version the binary does not know |
 | `getpwuid`, `geteuid`, `chmod`, `utime`, `pathconf` | gone. There is no owner, no permission bit, and no way to set an mtime |
 
@@ -256,11 +264,7 @@ Upstream's file split and its names are kept. What is new:
 
 | | |
 | --- | --- |
-| [braam.cpp](braam.cpp) | `fnmatch`, which the port kit has not got |
 | [curses.cpp](curses.cpp) | all of ncurses this needs, over the Grid |
-| [leio.cpp](leio.cpp) | the file syscalls, POSIX-shaped, with an `le_` prefix so a call that lost its `co_await` would not still compile |
-| [lefile.cpp](lefile.cpp) | the four stdio calls the config parsers make, over `proc/file.h` |
-| [lewchar.cpp](lewchar.cpp) | UTF-8 in place of the locale's encoding |
 | [leglobal.h](leglobal.h) | a global that has a constructor |
 | [letypes.h](letypes.h) | `byte`, `offs` and `num`, which edit.h declared above the twelve headers it then included — so those twelve compiled only through it |
 | [gap.h](gap.h) | the gap buffer's accessors, which were the first half of inline.h. mb.h is written against them and the second half of inline.h is written against mb.h, so upstream's one file could be read only in that order |

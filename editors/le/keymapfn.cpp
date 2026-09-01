@@ -23,7 +23,7 @@
 #include "epath.h"
 #include "format.h"
 #include "keymap.h"
-#include "lefile.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "options.h"
 #include "search.h"
@@ -35,34 +35,35 @@ Task<void> EditorReadKeymap()
 
     /* Upstream probed keymap-$TERM first, twice. There is one terminal here. */
     snprintf(filename, sizeof(filename), "%s/.le/keymap", HOME);
-    f = co_await le_fopen(filename, false);
+    f = co_await b_fopen(filename, "r");
     if (f == NULL) {
         snprintf(filename, sizeof(filename), "%s/keymap", datadir);
-        f = co_await le_fopen(filename, false);
+        f = co_await b_fopen(filename, "r");
         if (f == NULL)
             co_return;
     }
 
-    le_errno = 0;
     co_await ReadActionMap(f);
-    if (le_errno) {
+    /* The stream's own error, not errno: a parser that reached the end of a
+       keymap has left errno set by whatever it last scanned. */
+    if (b_ferror(f)) {
         FError(filename);
     }
 
-    co_await le_fclose(f);
+    co_await b_fclose(f);
 }
 
 Task<void> LoadKeymapEmacs()
 {
     static char kpath[LE_PATHMAX];
     const char *k = datafile(kpath, sizeof(kpath), "keymap-emacs");
-    FILE *f       = co_await le_fopen(k, false);
+    FILE *f       = co_await b_fopen(k, "r");
     if (!f) {
         FError(k);
         co_return;
     }
     co_await ReadActionMap(f);
-    co_await le_fclose(f);
+    co_await b_fclose(f);
     RebuildKeyTree();
     co_await LoadMainMenu();
 }
@@ -80,11 +81,11 @@ Task<void> SaveKeymap()
     FILE *f;
 
     snprintf(filename, sizeof(filename), "%s/.le/keymap", HOME);
-    f = co_await le_fopen(filename, true);
+    f = co_await b_fopen(filename, "w");
     if (!f) {
         FError(filename);
         co_return;
     }
     co_await WriteActionMap(f);
-    co_await le_fclose(f);
+    co_await b_fclose(f);
 }

@@ -196,7 +196,7 @@ Task<int> close_split(ulg disk_number, FILE *tempfile, char *temp_name)
     if (noisy_splits)
         co_await zipmessage("\tClosing split ", split_path);
 
-    co_await zfclose(tempfile);
+    co_await b_fclose(tempfile);
 
     co_await rename_split(temp_name, split_path);
     set_filetype(split_path);
@@ -216,18 +216,18 @@ Task<int> fcopy(FILE *f, FILE *g, uzoff_t n)
         co_return ZE_MEM;
     m = 0;
     while (n == (uzoff_t)(-1L) || m < n) {
-        if ((k = co_await zfread(
+        if ((k = co_await b_fread(
                  b, 1, n == (uzoff_t)(-1) ? CBSZ : (n - m < CBSZ ? (extent)(n - m) : CBSZ), f)) ==
             0) {
-            if (zferror(f)) {
+            if (b_ferror(f)) {
                 free((zvoid *)b);
                 co_return ZE_READ;
             } else
                 break;
         }
-        if (co_await zwrite(b, 1, k, g) != k) {
+        if (co_await b_fwrite(b, 1, k, g) != k) {
             free((zvoid *)b);
-            co_await zfprintf(mesg, " fcopy: write error\n");
+            co_await b_fprintf(mesg, " fcopy: write error\n");
             co_return ZE_TEMP;
         }
         m += k;
@@ -259,7 +259,7 @@ Task<int> bfcopy(uzoff_t n)
     }
 
     if (fix == 2 && n == (uzoff_t)-2) {
-        data_start = co_await zftello(in_file);
+        data_start = co_await b_ftello(in_file);
         for (kk = 0; kk < 4; kk++)
             sbuf[kk] = 0;
         des = 1;
@@ -274,13 +274,13 @@ Task<int> bfcopy(uzoff_t n)
         else
             brd = (n - m < CBSZ ? (extent)(n - m) : CBSZ);
 
-        des_start = co_await zftello(in_file);
+        des_start = co_await b_ftello(in_file);
 
-        if ((k = co_await zfread(b, 1, brd, in_file)) == 0) {
+        if ((k = co_await b_fread(b, 1, brd, in_file)) == 0) {
             if (fix == 2 && k < brd) {
                 free((zvoid *)b);
                 co_return ZE_READ;
-            } else if (zferror(in_file)) {
+            } else if (b_ferror(in_file)) {
                 free((zvoid *)b);
                 co_return ZE_READ;
             } else {
@@ -315,11 +315,11 @@ Task<int> bfcopy(uzoff_t n)
                          sbuf[1] == 0x4b /*'K' except EBCDIC*/ && sbuf[2] == '\07' &&
                          sbuf[3] == '\010')) {
                         kk -= 3;
-                        if (co_await zfseeko(in_file, bytes_this_split + kk, SEEK_SET) != 0) {
+                        if (co_await b_fseeko(in_file, bytes_this_split + kk, SEEK_SET) != 0) {
                             // seek error
                             ZIPERR(ZE_READ, "seek failed reading descriptor");
                         }
-                        des_start = co_await zftello(in_file);
+                        des_start = co_await b_ftello(in_file);
                         k         = kk;
                         break;
                     }
@@ -348,13 +348,13 @@ Task<int> bfcopy(uzoff_t n)
 
                             // write out signature as data
                             k = 4;
-                            if (co_await zfseeko(in_file, des_start + k, SEEK_SET) != 0) {
+                            if (co_await b_fseeko(in_file, des_start + k, SEEK_SET) != 0) {
                                 // seek error
                                 ZIPERR(ZE_READ, "seek failed reading descriptor");
                             }
                             if (co_await bfwrite(b, 1, k, BFWRITE_DATA) != k) {
                                 free((zvoid *)b);
-                                co_await zfprintf(mesg, " fcopy: write error\n");
+                                co_await b_fprintf(mesg, " fcopy: write error\n");
                                 co_return ZE_TEMP;
                             }
                             m += k;
@@ -368,12 +368,12 @@ Task<int> bfcopy(uzoff_t n)
                             // skip descriptor as will write out later
                             des_good   = 1;
                             k          = 24;
-                            data_start = co_await zftello(in_file);
-                            if (co_await zfseeko(in_file, des_start + k, SEEK_SET) != 0) {
+                            data_start = co_await b_ftello(in_file);
+                            if (co_await b_fseeko(in_file, des_start + k, SEEK_SET) != 0) {
                                 // seek error
                                 ZIPERR(ZE_READ, "seek failed reading descriptor");
                             }
-                            data_start = co_await zftello(in_file);
+                            data_start = co_await b_ftello(in_file);
                         }
                     }
 
@@ -396,13 +396,13 @@ Task<int> bfcopy(uzoff_t n)
 
                             // write out signature as data
                             k = 4;
-                            if (co_await zfseeko(in_file, des_start + k, SEEK_SET) != 0) {
+                            if (co_await b_fseeko(in_file, des_start + k, SEEK_SET) != 0) {
                                 // seek error
                                 ZIPERR(ZE_READ, "seek failed reading descriptor");
                             }
                             if (co_await bfwrite(b, 1, k, BFWRITE_DATA) != k) {
                                 free((zvoid *)b);
-                                co_await zfprintf(mesg, " fcopy: write error\n");
+                                co_await b_fprintf(mesg, " fcopy: write error\n");
                                 co_return ZE_TEMP;
                             }
                             m += k;
@@ -415,13 +415,13 @@ Task<int> bfcopy(uzoff_t n)
 
                             // skip descriptor as will write out later
                             des_good   = 1;
-                            data_start = co_await zftello(in_file);
+                            data_start = co_await b_ftello(in_file);
                             k          = 16;
-                            if (co_await zfseeko(in_file, des_start + k, SEEK_SET) != 0) {
+                            if (co_await b_fseeko(in_file, des_start + k, SEEK_SET) != 0) {
                                 // seek error
                                 ZIPERR(ZE_READ, "seek failed reading descriptor");
                             }
-                            data_start = co_await zftello(in_file);
+                            data_start = co_await b_ftello(in_file);
                         }
                     }
                 }
@@ -434,7 +434,7 @@ Task<int> bfcopy(uzoff_t n)
             // write out apparently wrong descriptor as data
             if (co_await bfwrite(b, 1, k, BFWRITE_DATA) != k) {
                 free((zvoid *)b);
-                co_await zfprintf(mesg, " fcopy: write error\n");
+                co_await b_fprintf(mesg, " fcopy: write error\n");
                 co_return ZE_TEMP;
             }
             m += k;
@@ -444,8 +444,8 @@ Task<int> bfcopy(uzoff_t n)
             if (dot_size > 0) {
                 // initial space
                 if (noisy && dot_count == -1) {
-                    co_await zfputc(' ', mesg);
-                    co_await zfflush(mesg);
+                    co_await b_fputc(' ', mesg);
+                    co_await b_fflush(mesg);
                     dot_count++;
                 }
                 dot_count += k;
@@ -453,8 +453,8 @@ Task<int> bfcopy(uzoff_t n)
                     dot_count = 0;
             }
             if ((verbose || noisy) && dot_size && !dot_count) {
-                co_await zfputc('.', mesg);
-                co_await zfflush(mesg);
+                co_await b_fputc('.', mesg);
+                co_await b_fflush(mesg);
                 mesg_line_started = 1;
             }
         }
@@ -465,7 +465,7 @@ Task<int> bfcopy(uzoff_t n)
         if (des)
             continue;
 
-        if ((des || n != (uzoff_t)(-1L)) && m < n && zfeof(in_file)) {
+        if ((des || n != (uzoff_t)(-1L)) && m < n && b_feof(in_file)) {
             // open next split
             current_in_disk++;
 
@@ -485,10 +485,10 @@ Task<int> bfcopy(uzoff_t n)
                 split_path = get_in_split_path(in_path, current_in_disk);
             }
 
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
 
             // open the split
-            while ((in_file = co_await zfopen(split_path, FOPR)) == NULL) {
+            while ((in_file = co_await b_fopen(split_path, FOPR)) == NULL) {
                 int r = 0;
 
                 // could not open split
@@ -598,49 +598,38 @@ Task<int> ask_for_split_read_path(ulg current_disk)
         strcpy(split_dir, "(current directory)");
     }
 
-    co_await zfprintf(mesg, "\n\nCould not find:\n");
-    co_await zfprintf(mesg, "  %s\n", split_path);
+    co_await b_fprintf(mesg, "\n\nCould not find:\n");
+    co_await b_fprintf(mesg, "  %s\n", split_path);
     // fprintf(mesg, "Please enter the path directory (. for cur dir) where\n");
     // fprintf(mesg, "  %s\n", split_name);
     // fprintf(mesg, "is located\n");
     for (;;) {
         if (is_readable) {
-            co_await zfprintf(mesg, "\nHit c      (change path to where this split file is)");
-            co_await zfprintf(mesg, "\n    q      (abort archive - quit)");
-            co_await zfprintf(mesg, "\n or ENTER  (continue with this split): ");
+            co_await b_fprintf(mesg, "\nHit c      (change path to where this split file is)");
+            co_await b_fprintf(mesg, "\n    q      (abort archive - quit)");
+            co_await b_fprintf(mesg, "\n or ENTER  (continue with this split): ");
         } else {
             if (fix == 1) {
-                co_await zfprintf(mesg, "\nHit c      (change path to where this split file is)");
-                co_await zfprintf(mesg, "\n    s      (skip this split)");
-                co_await zfprintf(mesg, "\n    q      (abort archive - quit)");
-                co_await zfprintf(mesg, "\n or ENTER  (try reading this split again): ");
+                co_await b_fprintf(mesg, "\nHit c      (change path to where this split file is)");
+                co_await b_fprintf(mesg, "\n    s      (skip this split)");
+                co_await b_fprintf(mesg, "\n    q      (abort archive - quit)");
+                co_await b_fprintf(mesg, "\n or ENTER  (try reading this split again): ");
             } else if (fix == 2) {
-                co_await zfprintf(mesg, "\nHit c      (change path to where this split file is)");
-                co_await zfprintf(mesg, "\n    s      (skip this split)");
-                co_await zfprintf(mesg, "\n    q      (abort archive - quit)");
-                co_await zfprintf(mesg, "\n    e      (end this archive - no more splits)");
-                co_await zfprintf(mesg, "\n    z      (look for .zip split - the last split)");
-                co_await zfprintf(mesg, "\n or ENTER  (try reading this split again): ");
+                co_await b_fprintf(mesg, "\nHit c      (change path to where this split file is)");
+                co_await b_fprintf(mesg, "\n    s      (skip this split)");
+                co_await b_fprintf(mesg, "\n    q      (abort archive - quit)");
+                co_await b_fprintf(mesg, "\n    e      (end this archive - no more splits)");
+                co_await b_fprintf(mesg, "\n    z      (look for .zip split - the last split)");
+                co_await b_fprintf(mesg, "\n or ENTER  (try reading this split again): ");
             } else {
-                co_await zfprintf(mesg, "\nHit c      (change path to where this split file is)");
-                co_await zfprintf(mesg, "\n    q      (abort archive - quit)");
-                co_await zfprintf(mesg, "\n or ENTER  (try reading this split again): ");
+                co_await b_fprintf(mesg, "\nHit c      (change path to where this split file is)");
+                co_await b_fprintf(mesg, "\n    q      (abort archive - quit)");
+                co_await b_fprintf(mesg, "\n or ENTER  (try reading this split again): ");
             }
         }
-        co_await zfflush(mesg);
-        {
-            // fgets(). getline() is File's, and it strips the newline the loop
-            // below would have.
-            String line;
-            bool got = false;
-            if (Task<Result<bool>> t = File::stdin().getline(line, false)) {
-                Result<bool> r = co_await t;
-                got            = r.is_ok() && r.value();
-            }
-            usize n = got && line.size() < SPLIT_MAXPATH ? line.size() : 0;
-            memcpy(buf, line.data(), n);
-            buf[n] = 0;
-        }
+        co_await b_fflush(mesg);
+        if (!co_await b_fgets(buf, SPLIT_MAXPATH, stdin))
+            buf[0] = 0;
         // remove any newline
         for (i = 0; buf[i]; i++) {
             if (buf[i] == '\n') {
@@ -657,23 +646,12 @@ Task<int> ask_for_split_read_path(ulg current_disk)
             skip_this_disk = current_in_disk + 1;
             co_return ZE_FORM;
         } else if (toupper(buf[0]) == 'C') {
-            co_await zfprintf(
+            co_await b_fprintf(
                 mesg, "\nEnter path where this split is (ENTER = same dir, . = current dir)");
-            co_await zfprintf(mesg, "\n: ");
-            co_await zfflush(mesg);
-            {
-                // fgets(). getline() is File's, and it strips the newline the loop
-                // below would have.
-                String line;
-                bool got = false;
-                if (Task<Result<bool>> t = File::stdin().getline(line, false)) {
-                    Result<bool> r = co_await t;
-                    got            = r.is_ok() && r.value();
-                }
-                usize n = got && line.size() < SPLIT_MAXPATH ? line.size() : 0;
-                memcpy(buf, line.data(), n);
-                buf[n] = 0;
-            }
+            co_await b_fprintf(mesg, "\n: ");
+            co_await b_fflush(mesg);
+            if (!co_await b_fgets(buf, SPLIT_MAXPATH, stdin))
+                buf[0] = 0;
             is_readable = 0;
             // remove any newline
             for (i = 0; buf[i]; i++) {
@@ -762,30 +740,30 @@ Task<int> ask_for_split_read_path(ulg current_disk)
             }
 
             // try to open it
-            if ((f = co_await zfopen(split_path, "r")) == NULL) {
-                co_await zfprintf(mesg, "\nCould not find or open\n");
-                co_await zfprintf(mesg, "  %s\n", split_path);
+            if ((f = co_await b_fopen(split_path, "r")) == NULL) {
+                co_await b_fprintf(mesg, "\nCould not find or open\n");
+                co_await b_fprintf(mesg, "  %s\n", split_path);
                 // fprintf(mesg, "Please enter the path (. for cur dir) where\n");
                 // fprintf(mesg, "  %s\n", split_name);
                 // fprintf(mesg, "is located\n");
                 continue;
             }
-            co_await zfclose(f);
+            co_await b_fclose(f);
             is_readable = 1;
-            co_await zfprintf(mesg, "Found:  %s\n", split_path);
+            co_await b_fprintf(mesg, "Found:  %s\n", split_path);
         } else {
             // try to open it
-            if ((f = co_await zfopen(split_path, "r")) == NULL) {
-                co_await zfprintf(mesg, "\nCould not find or open\n");
-                co_await zfprintf(mesg, "  %s\n", split_path);
+            if ((f = co_await b_fopen(split_path, "r")) == NULL) {
+                co_await b_fprintf(mesg, "\nCould not find or open\n");
+                co_await b_fprintf(mesg, "  %s\n", split_path);
                 // fprintf(mesg, "Please enter the path (. for cur dir) where\n");
                 // fprintf(mesg, "  %s\n", split_name);
                 // fprintf(mesg, "is located\n");
                 continue;
             }
-            co_await zfclose(f);
+            co_await b_fclose(f);
             is_readable = 1;
-            co_await zfprintf(mesg, "\nFound:  %s\n", split_path);
+            co_await b_fprintf(mesg, "\nFound:  %s\n", split_path);
             break;
         }
     }
@@ -831,27 +809,16 @@ Task<int> ask_for_split_write_path(ulg current_disk)
         strcpy(split_dir, "(current directory)");
     }
     if (mesg_line_started)
-        co_await zfprintf(mesg, "\n");
-    co_await zfprintf(mesg, "\nOpening disk %d\n", num);
-    co_await zfprintf(mesg, "Hit ENTER to write to default path of\n");
-    co_await zfprintf(mesg, "  %s\n", split_dir);
-    co_await zfprintf(mesg, "or enter a new directory path (. for cur dir) and hit ENTER\n");
+        co_await b_fprintf(mesg, "\n");
+    co_await b_fprintf(mesg, "\nOpening disk %d\n", num);
+    co_await b_fprintf(mesg, "Hit ENTER to write to default path of\n");
+    co_await b_fprintf(mesg, "  %s\n", split_dir);
+    co_await b_fprintf(mesg, "or enter a new directory path (. for cur dir) and hit ENTER\n");
     for (;;) {
-        co_await zfprintf(mesg, "\nPath (or hit ENTER to continue): ");
-        co_await zfflush(mesg);
-        {
-            // fgets(). getline() is File's, and it strips the newline the loop below
-            // would otherwise have to.
-            String line;
-            bool got = false;
-            if (Task<Result<bool>> t = File::stdin().getline(line, false)) {
-                Result<bool> r = co_await t;
-                got            = r.is_ok() && r.value();
-            }
-            usize n = got && line.size() < (usize)(FNMAX) ? line.size() : 0;
-            memcpy(buf, line.data(), n);
-            buf[n] = 0;
-        }
+        co_await b_fprintf(mesg, "\nPath (or hit ENTER to continue): ");
+        co_await b_fflush(mesg);
+        if (!co_await b_fgets(buf, FNMAX, stdin))
+            buf[0] = 0;
         // remove any newline
         for (i = 0; buf[i]; i++) {
             if (buf[i] == '\n') {
@@ -905,7 +872,7 @@ Task<int> ask_for_split_write_path(ulg current_disk)
                 strcpy(out_path, buf);
                 strcat(out_path, split_name);
             }
-            co_await zfprintf(mesg, "Writing to:\n  %s\n", buf);
+            co_await b_fprintf(mesg, "Writing to:\n  %s\n", buf);
             free(split_name);
             free(split_dir);
             if ((split_dir = (char *)malloc(strlen(out_path) + 40)) == NULL) {
@@ -965,7 +932,7 @@ char *get_in_split_path(char *base_path, ulg disk_number)
                 return NULL;
             }
         }
-        zsprintf(ext, "z%02lu", num);
+        sprintf(ext, "z%02lu", num);
     }
 
     // create path for this split - zip.c checked for .zip extension
@@ -1006,7 +973,7 @@ char *get_out_split_path(char *base_path, ulg disk_number)
             return NULL;
         }
     }
-    zsprintf(ext, "z%02lu", num);
+    sprintf(ext, "z%02lu", num);
 
     // create path for this split - zip.c checked for .zip extension
     base_len = strlen(base_path) - 3;
@@ -1077,7 +1044,7 @@ Task<usize> bfwrite(ZCONST void *buffer, usize size, usize count, int mode)
     // --------------------------------
     if (bytes_to_write > 0) {
         // write out the bytes for this split
-        r = co_await zwrite(buffer, size, bytes_to_write, y);
+        r = co_await b_fwrite(buffer, size, bytes_to_write, y);
         bytes_written += r;
         bytes_to_write = b - r;
         bytes_this_split += r;
@@ -1093,12 +1060,12 @@ Task<usize> bfwrite(ZCONST void *buffer, usize size, usize count, int mode)
             // still bytes to write so close split and open next split
             bytes_prev_splits += bytes_this_split;
 
-            if (split_method == 1 && zferror(y)) {
+            if (split_method == 1 && b_ferror(y)) {
                 // if writing all splits to same place and have problem then bad
                 ZIPERR(ZE_WRITE, "Could not write split");
             }
 
-            if (split_method == 2 && zferror(y)) {
+            if (split_method == 2 && b_ferror(y)) {
                 // A split must be at least 64K except last .zip split
                 if (bytes_this_split < 64 * (uzoff_t)0x400) {
                     ZIPERR(ZE_WRITE, "Not enough space to write split");
@@ -1125,8 +1092,8 @@ Task<usize> bfwrite(ZCONST void *buffer, usize size, usize count, int mode)
 
             if (split_method == 2 && split_bell) {
                 // bell when pause to ask for next split
-                co_await zfputc('\007', mesg);
-                co_await zfflush(mesg);
+                co_await b_fputc('\007', mesg);
+                co_await b_fflush(mesg);
             }
 
             for (;;) {
@@ -1167,12 +1134,12 @@ Task<usize> bfwrite(ZCONST void *buffer, usize size, usize count, int mode)
                         }
                     }
 
-                    if ((y = co_await zfopen(tempzip, FOPW_TMP)) == NULL) {
+                    if ((y = co_await b_fopen(tempzip, FOPW_TMP)) == NULL) {
                         ZIPERR(ZE_TEMP, tempzip);
                     }
                 }
 
-                r = co_await zwrite((char *)buffer + bytes_written, 1, bytes_to_write, y);
+                r = co_await b_fwrite((char *)buffer + bytes_written, 1, bytes_to_write, y);
                 bytes_written += r;
                 bytes_this_split += r;
                 if (!(mode == BFWRITE_HEADER || mode == BFWRITE_LOCALHEADER ||
@@ -1214,7 +1181,7 @@ Task<usize> bfwrite(ZCONST void *buffer, usize size, usize count, int mode)
             // probably already have error "no space left on device"
             // could let flush_outbuf() handle error but co_await bfwrite() is called for
             // headers also
-            if (zferror(y))
+            if (b_ferror(y))
                 ziperr(ZE_WRITE, "write error on zip file");
         }
     }
@@ -1224,8 +1191,8 @@ Task<usize> bfwrite(ZCONST void *buffer, usize size, usize count, int mode)
         if (dot_size > 0) {
             // initial space
             if (dot_count == -1) {
-                co_await zfputc(' ', mesg);
-                co_await zfflush(mesg);
+                co_await b_fputc(' ', mesg);
+                co_await b_fflush(mesg);
                 // assume a header will be written first, so avoid 0
                 dot_count = 1;
             }
@@ -1238,8 +1205,8 @@ Task<usize> bfwrite(ZCONST void *buffer, usize size, usize count, int mode)
         }
         if (dot_size && !dot_count) {
             dot_count++;
-            co_await zfputc('.', mesg);
-            co_await zfflush(mesg);
+            co_await b_fputc('.', mesg);
+            co_await b_fflush(mesg);
             mesg_line_started = 1;
         }
     }
@@ -1310,7 +1277,7 @@ Task<char *> getnam(FILE *fp)
     char *p; // pointer into name area
 
     p = name;
-    while ((c = co_await zfgetc(fp)) == '\n' || c == '\r')
+    while ((c = co_await b_fgetc(fp)) == '\n' || c == '\r')
         ;
     if (c == EOF)
         co_return NULL;
@@ -1318,7 +1285,7 @@ Task<char *> getnam(FILE *fp)
         if (p - name >= GETNAM_MAX)
             co_return NULL;
         *p++ = (char)c;
-        c    = co_await zfgetc(fp);
+        c    = co_await b_fgetc(fp);
     } while (c != EOF && (c != '\n' && c != '\r'));
     *p = 0;
     // malloc a copy
@@ -1377,7 +1344,7 @@ Task<int> proc_archive_name(char *n, int caseflag)
             if (MATCH(p, z->iname, caseflag)) {
                 z->mark = pcount ? filter(z->zname, caseflag) : 1;
                 if (verbose)
-                    co_await zfprintf(mesg, "zip diagnostic: %scluding %s\n", z->mark ? "in" : "ex",
+                    co_await b_fprintf(mesg, "zip diagnostic: %scluding %s\n", z->mark ? "in" : "ex",
                                       z->oname);
                 m = 0;
             }
@@ -1389,9 +1356,9 @@ Task<int> proc_archive_name(char *n, int caseflag)
                 if (MATCH(p, zuname, caseflag)) {
                     z->mark = pcount ? filter(zuname, caseflag) : 1;
                     if (verbose) {
-                        co_await zfprintf(mesg, "zip diagnostic: %scluding %s\n",
+                        co_await b_fprintf(mesg, "zip diagnostic: %scluding %s\n",
                                           z->mark ? "in" : "ex", z->oname);
-                        co_await zfprintf(mesg, "     Escaped Unicode:  %s\n", z->ouname);
+                        co_await b_fprintf(mesg, "     Escaped Unicode:  %s\n", z->ouname);
                     }
                     m = 0;
                 }
@@ -1440,11 +1407,11 @@ Task<int> check_dup(void)
             if (strcmp(nodup[j - 1]->iname, nodup[j]->iname) == 0) {
                 char tempbuf[FNMAX + 4081];
 
-                zsprintf(errbuf, "  first full name: %s\n", nodup[j - 1]->name);
-                zsprintf(tempbuf, " second full name: %s\n", nodup[j]->name);
+                sprintf(errbuf, "  first full name: %s\n", nodup[j - 1]->name);
+                sprintf(tempbuf, " second full name: %s\n", nodup[j]->name);
                 strcat(errbuf, "                     ");
                 strcat(errbuf, tempbuf);
-                zsprintf(tempbuf, "name in zip file repeated: %s", nodup[j]->iname);
+                sprintf(tempbuf, "name in zip file repeated: %s", nodup[j]->iname);
                 strcat(errbuf, "                     ");
                 strcat(errbuf, tempbuf);
                 if (pathput == 0) {
@@ -1539,12 +1506,12 @@ Task<int> newname(char *name, int isdir, int casesensitive)
     if (noisy) {
         // If find files then output message after delay
         if (scan_count == 0) {
-            time_t current = time(NULL);
+            time_t current = ztime(NULL);
             scan_start     = current;
         }
         scan_count++;
         if (scan_count % 100 == 0) {
-            time_t current = time(NULL);
+            time_t current = ztime(NULL);
 
             if (current - scan_start > scan_delay) {
                 if (scan_last == 0) {
@@ -1553,8 +1520,8 @@ Task<int> newname(char *name, int isdir, int casesensitive)
                 }
                 if (current - scan_last > scan_dot_time) {
                     scan_last = current;
-                    co_await zfprintf(mesg, ".");
-                    co_await zfflush(mesg);
+                    co_await b_fprintf(mesg, ".");
+                    co_await b_fflush(mesg);
                 }
             }
         }
@@ -1604,7 +1571,7 @@ Task<int> newname(char *name, int isdir, int casesensitive)
             // is in effect, two files with different filter options may hit the
             // same z entry.
             if (verbose)
-                co_await zfprintf(mesg, "excluding %s\n", oname);
+                co_await b_fprintf(mesg, "excluding %s\n", oname);
             free((zvoid *)iname);
             free((zvoid *)zname);
         } else {
@@ -1638,7 +1605,7 @@ Task<int> newname(char *name, int isdir, int casesensitive)
         // way.
         if (zipfile != NULL && strcmp(zipfile, "-") != 0 && strcmp(name, zipfile) == 0) {
             if (verbose)
-                co_await zfprintf(mesg, "file matches zip file -- skipping\n");
+                co_await b_fprintf(mesg, "file matches zip file -- skipping\n");
             if (undosm != zname)
                 free((zvoid *)zname);
             if (undosm != iname)
@@ -1952,7 +1919,7 @@ char *wide_char_to_escape_string(zwchar wide_char)
         strcat(r, "L");
     }
     for (i = len - 1; i >= 0; i--) {
-        zsprintf(e, "%02x", b[i]);
+        sprintf(e, "%02x", b[i]);
         strcat(r, e);
     }
     return r;
@@ -2269,16 +2236,16 @@ local int optionerr(char *buf, ZCONST char *err, int optind, int islong)
 
     if (options[optind].name && options[optind].name[0] != '\0') {
         if (islong)
-            zsprintf(optname, "'%s' (%s)", options[optind].longopt, options[optind].name);
+            sprintf(optname, "'%s' (%s)", options[optind].longopt, options[optind].name);
         else
-            zsprintf(optname, "'%s' (%s)", options[optind].shortopt, options[optind].name);
+            sprintf(optname, "'%s' (%s)", options[optind].shortopt, options[optind].name);
     } else {
         if (islong)
-            zsprintf(optname, "'%s'", options[optind].longopt);
+            sprintf(optname, "'%s'", options[optind].longopt);
         else
-            zsprintf(optname, "'%s'", options[optind].shortopt);
+            sprintf(optname, "'%s'", options[optind].shortopt);
     }
-    zsprintf(buf, err, optname);
+    sprintf(buf, err, optname);
     return 0;
 }
 
@@ -2649,7 +2616,7 @@ local Task<unsigned long> get_shortopt(char **args, int argnum, int *optchar, in
         *option_num = match;
         co_return options[match].option_ID;
     }
-    zsprintf(optionerrbuf, sh_op_not_sup_err, *shortopt);
+    sprintf(optionerrbuf, sh_op_not_sup_err, *shortopt);
     if (depth > 0) {
         // unwind
         oWARN(optionerrbuf);
@@ -2724,7 +2691,7 @@ local Task<unsigned long> get_longopt(char **args, int argnum, int *optchar, int
         }
         if (options[op].longopt && strncmp(options[op].longopt, longopt, strlen(longopt)) == 0) {
             if (match > -1) {
-                zsprintf(optionerrbuf, long_op_ambig_err, longopt);
+                sprintf(optionerrbuf, long_op_ambig_err, longopt);
                 free(arg);
                 if (depth > 0) {
                     // unwind
@@ -2739,7 +2706,7 @@ local Task<unsigned long> get_longopt(char **args, int argnum, int *optchar, int
     }
 
     if (match == -1) {
-        zsprintf(optionerrbuf, long_op_not_sup_err, longopt);
+        sprintf(optionerrbuf, long_op_not_sup_err, longopt);
         free(arg);
         if (depth > 0) {
             oWARN(optionerrbuf);

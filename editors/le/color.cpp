@@ -21,7 +21,7 @@
 #ifdef HAVE_ALLOCA_H
 #endif
 #include "edit.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "options.h"
 
 struct attr attr_table[MAX_COLOR_NO];

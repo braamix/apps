@@ -48,8 +48,13 @@ typedef u64 uzoff_t;
 #define CBSZ 16384 // copy buffer
 #define SBSZ CBSZ  // copy buffer for a stored entry, see zipup()
 
-#define NULL  nullptr
-#define EOF   (-1)
+// NULL and EOF are <stdio.h>'s now; upstream defined both and either spelling
+// is the same token.
+#undef NULL
+#define NULL nullptr
+#ifndef EOF
+#define EOF (-1)
+#endif
 #define TRUE  1
 #define FALSE 0
 

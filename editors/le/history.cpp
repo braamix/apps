@@ -19,7 +19,7 @@
 #include "config.h"
 #include "edit.h"
 #include "kernel/alloc.h"
-#include "lefile.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "proc/rt.h"
 
@@ -185,22 +185,22 @@ Task<void> History::WriteTo(FILE *f)
         else {
             char hdr[40];
             snprintf(hdr, sizeof(hdr), "%lu:%u:", (unsigned long)lines[i]->cr_time, lines[i]->len);
-            co_await le_puts(hdr, f);
-            co_await f->write(Str(lines[i]->line, lines[i]->len));
+            co_await b_fputs(hdr, f);
+            co_await f->at->write(Str(lines[i]->line, lines[i]->len));
         }
-        co_await le_putc('\n', f);
+        co_await b_fputc('\n', f);
     }
-    co_await le_puts("0:0:\n", f);
+    co_await b_fputs("0:0:\n", f);
 }
 Task<void> History::ReadFrom(FILE *f)
 {
     for (int i = 0; i < HISTORY_SIZE; i++) {
         unsigned len = 0;
         unsigned long cr_time;
-        Result<u64> t1 = co_await f->scan_u64();
-        bool ok1       = t1.is_ok() && (co_await f->scan_lit(':')).value_or(false);
-        Result<u64> t2 = ok1 ? co_await f->scan_u64() : Result<u64>(Err(Error::Invalid));
-        bool ok2       = t2.is_ok() && (co_await f->scan_lit(':')).value_or(false);
+        Result<u64> t1 = co_await f->at->scan_u64();
+        bool ok1       = t1.is_ok() && (co_await f->at->scan_lit(':')).value_or(false);
+        Result<u64> t2 = ok1 ? co_await f->at->scan_u64() : Result<u64>(Err(Error::Invalid));
+        bool ok2       = t2.is_ok() && (co_await f->at->scan_lit(':')).value_or(false);
         cr_time        = ok1 ? (unsigned long)t1.value() : 0;
         len            = ok2 ? (unsigned)t2.value() : 0;
         if (!ok2) {
@@ -209,13 +209,13 @@ Task<void> History::ReadFrom(FILE *f)
             co_return;
         }
         if (len == 0) {
-            co_await le_getc(f); // skip \n
+            co_await b_fgetc(f); // skip \n
             co_return;
         }
         char *line = (char *)malloc(len + 1);
         if (!line)
             co_return;
-        if ((co_await f->read({ line, len })).value_or(0) != len) {
+        if ((co_await f->at->read({ line, len })).value_or(0) != len) {
             free(line);
             co_return;
         }
@@ -224,14 +224,14 @@ Task<void> History::ReadFrom(FILE *f)
         lines[i]->cr_time = cr_time;
         lines[i]->line    = line;
         lines[i]->len     = len;
-        co_await le_getc(f); // skip \n
+        co_await b_fgetc(f); // skip \n
     }
     /* The two fields, discarded: this only steps past a record. */
-    co_await f->scan_u64();
-    co_await f->scan_lit(':');
-    co_await f->scan_u64();
-    co_await f->scan_lit(':');
-    co_await le_getc(f); // skip \n
+    co_await f->at->scan_u64();
+    co_await f->at->scan_lit(':');
+    co_await f->at->scan_u64();
+    co_await f->at->scan_lit(':');
+    co_await b_fgetc(f); // skip \n
 }
 
 InodeInfo::InodeInfo()

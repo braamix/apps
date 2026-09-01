@@ -47,11 +47,11 @@ target_compile_options(le_quiet INTERFACE
     -Wno-invalid-source-encoding)
 
 # Upstream's file split and names are kept; what went is named in README.md.
-# What is new: curses.cpp is the whole of ncurses this needs, leio.cpp the
-# file syscalls, lefile.cpp the stdio the config parsers make of proc/file.h,
-# lewchar.cpp the UTF-8 half of wchar.h, and epath.cpp the PKGDATADIR only the
-# running program can know. There is no mouse.cc, rus.cc
-# or tables.cc.
+# What is new: curses.cpp is the whole of ncurses this needs, and epath.cpp the
+# PKGDATADIR only the running program can know. The syscalls, the stdio the
+# config parsers make of it, the wide half and fnmatch were four more files
+# until the port kit answered all four. There is no mouse.cc, rus.cc or
+# tables.cc.
 braam_add_program(NAME le
                   SOURCES about.cpp block.cpp bm.cpp calc.cpp chset.cpp
                           clipbrd.cpp cmd.cpp color.cpp colormnu.cpp edit.cpp
@@ -62,9 +62,8 @@ braam_add_program(NAME le
                           menu.cpp menu1.cpp options.cpp pipe.cpp screen.cpp
                           search.cpp signals.cpp textpoin.cpp undo.cpp
                           user.cpp window.cpp
-                          regex.c wcwidth.c
-                          braam.cpp curses.cpp epath.cpp lefile.cpp
-                          leio.cpp lewchar.cpp
+                          regex.c
+                          curses.cpp epath.cpp
                           ${LE_GENERATED}
                   LIBS braam::math
                   PORT)
@@ -73,10 +72,9 @@ target_include_directories(bin_le PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GEN})
 target_compile_options(bin_le PRIVATE -fno-threadsafe-statics)
 target_link_libraries(bin_le PRIVATE le_quiet)
 
-# regex.c and wcwidth.c are the two files that are C. The libc headers they
-# name are the kit's, which PORT put on this target's path; REGEX_MALLOC keeps
-# regex.c off alloca.
-set_source_files_properties(regex.c wcwidth.c PROPERTIES
+# regex.c is the one file that is C. The libc headers it names are the kit's,
+# which PORT put on this target's path; REGEX_MALLOC keeps regex.c off alloca.
+set_source_files_properties(regex.c PROPERTIES
     COMPILE_DEFINITIONS "REGEX_MALLOC=1"
     INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR};${GEN}")
 

@@ -16,8 +16,9 @@ set(ZIP_COMMON zipfile.cpp fileio.cpp util.cpp globals.cpp crc32.cpp
                crypt.cpp ttyio.cpp unix.cpp braam.cpp)
 
 # PORT is the C library: the mem*, str*, ctype, allocation, strtol and qsort
-# names upstream calls, and -fno-builtin for all of them at once. What braam.cpp
-# still answers is what the kit has not got -- the streams, which block.
+# names upstream calls, Group B's streams as the b_* family, and -fno-builtin
+# for all of them at once. What braam.cpp still answers is what the kit has not
+# got -- two date formats, the DOS stamp, and a read a ^C has to reach.
 braam_add_program(NAME zip
                   SOURCES zip.cpp zipup.cpp deflate.cpp trees.cpp ${ZIP_COMMON}
                   PORT)

@@ -1,19 +1,26 @@
-// The POSIX types and error names LE uses, and nothing behind them but the
-// kernel.
+// What LE needs beside the port kit's own system headers.
 //
-// le_errno holds the last syscall's Error as an int, not an errno number, and
-// is spelled apart from the port kit's errno for that reason. There is no table
-// of messages here -- error_name() in kernel/result.h names them.
+// The POSIX types, struct stat, the S_IF* set, the O_* flags and the errno
+// names were all written out here once; the kit answers every one of them now,
+// so this is what is left. errno is the kit's, and error_of()/errno_of() in
+// compat/cerr.h are the bridge wherever a kernel Error has to become one.
 #pragma once
 
+#include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
+#include <stddef.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #ifdef __cplusplus
+#include "compat/cerr.h"
 #include "kernel/result.h"
 #include "kernel/text.h" // the Str scanners, in place of sscanf
 #include "kernel/types.h"
 #else
-/* regex.c and wcwidth.c are C and want only the widths and the limits. */
+/* regex.c is C and wants only the widths. */
 typedef unsigned long usize;
 typedef unsigned char u8;
 typedef unsigned int u32;
@@ -24,76 +31,5 @@ typedef long long i64;
 /* What a path buffer holds. alloca is gone -- a variable-length array in a
    coroutine would live in its frame, and a frame past 512 bytes costs a
    whole 64 KiB span -- so the buffers it sized are fixed and, where the
-   holder is a coroutine, at file scope. */
-enum { LE_PATHMAX = 512 };
-
-typedef usize size_t;
-typedef unsigned mode_t;
-typedef long time_t;
-typedef long off_t;
-typedef long ssize_t;
-typedef u64 ino_t;
-typedef u32 dev_t;
-typedef u32 uid_t;
-typedef u32 gid_t;
-typedef long clock_t;
-
-#ifndef EOF
-#define EOF (-1)
-#endif
-
-// The last syscall's Error, as an int.
-extern int le_errno;
-
-// Only the five LE compares against; each is the kernel's own number so that
-// le_errno = int(r.error()) needs no mapping.
-#ifdef __cplusplus
-enum {
-    LE_ENOENT      = int(Error::NotFound),
-    LE_EACCES      = int(Error::Perm),
-    LE_EEXIST      = int(Error::Exists),
-    LE_ENOMEM      = int(Error::NoMemory),
-    LE_EINTR       = int(Error::Intr),
-    LE_EAGAIN      = int(Error::Again),
-    LE_EWOULDBLOCK = LE_EAGAIN,
-};
-#endif
-
-// The stat LE looks at. Everything else in struct stat went with the syscalls
-// that filled it.
-struct stat {
-    mode_t st_mode;
-    off_t st_size;
-    time_t st_mtime;
-    ino_t st_ino;
-    dev_t st_dev;
-};
-
-enum : mode_t {
-    S_IFMT  = 0170000,
-    S_IFREG = 0100000,
-    S_IFDIR = 0040000,
-    S_IFLNK = 0120000,
-    // No device is open-able as a file here, so these two match nothing.
-    S_IFCHR = 0020000,
-    S_IFBLK = 0060000,
-    S_IRUSR = 0400,
-    S_IWUSR = 0200,
-    S_IXUSR = 0100,
-    S_IRGRP = 0040,
-    S_IWGRP = 0020,
-    S_IXGRP = 0010,
-    S_IROTH = 0004,
-    S_IWOTH = 0002,
-    S_IXOTH = 0001,
-    S_ISUID = 04000,
-    S_ISGID = 02000,
-};
-
-#define S_ISREG(m)  (((m) & S_IFMT) == S_IFREG)
-#define S_ISDIR(m)  (((m) & S_IFMT) == S_IFDIR)
-#define S_ISLNK(m)  (((m) & S_IFMT) == S_IFLNK)
-#define S_ISBLK(m)  (0)
-#define S_ISCHR(m)  (0)
-#define S_ISFIFO(m) (0)
-#define S_ISSOCK(m) (0)
+   holder is a coroutine, at file scope. The kit's PATH_MAX is the same 512. */
+enum { LE_PATHMAX = PATH_MAX };

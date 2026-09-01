@@ -32,7 +32,7 @@
 #include "edit.h"
 #include "highli.h"
 #include "keymap.h"
-#include "leio.h"
+#include "compat/cio.h"
 #ifdef HAVE_ALLOCA_H
 #endif
 #include "block.h"
@@ -55,7 +55,7 @@ Task<int> LockFile(int fd, bool drop)
     Lock.l_whence = SEEK_SET;
 
     if (fcntl(fd, F_SETLK, &Lock) == -1) {
-        if (le_errno == LE_EACCES || le_errno == LE_EAGAIN) {
+        if (errno == EACCES || errno == EAGAIN) {
             struct flock Lock1;
             char msg[100];
             static struct menu LockMenu[]  = { { " &Cancel ", MIDDLE - 10, FDOWN - 2 },
@@ -71,7 +71,7 @@ Task<int> LockFile(int fd, bool drop)
             if (Lock1.l_type == F_UNLCK) {
                 co_return (-2);
             }
-            co_await le_fstat(fd, &st);
+            co_await b_fstat(fd, &st);
 
             snprintf(msg, sizeof(msg), "This file is already locked by process %ld",
                      (long)Lock1.l_pid);
@@ -84,8 +84,8 @@ Task<int> LockFile(int fd, bool drop)
                 co_return (0);
             case ('W'):
                 MessageSync("Waiting for unlocking the file... (C-x - cancel)");
-                le_errno = LE_EACCES;
-                while (fcntl(fd, F_SETLK, &Lock) == -1 && (le_errno == LE_EACCES || le_errno == LE_EAGAIN)) {
+                errno = EACCES;
+                while (fcntl(fd, F_SETLK, &Lock) == -1 && (errno == EACCES || errno == EAGAIN)) {
                     if (co_await WaitForKey(1000) != ERR) {
                         int action = co_await GetNextAction();
                         if (action == CANCEL) {
@@ -93,9 +93,9 @@ Task<int> LockFile(int fd, bool drop)
                             co_return (-1);
                         }
                     }
-                    le_errno = 0;
+                    errno = 0;
                 }
-                if (le_errno != LE_EACCES && le_errno != LE_EAGAIN)
+                if (errno != EACCES && errno != EAGAIN)
                     co_return (-2);
             }
         } else {
@@ -132,10 +132,10 @@ Task<off_t> GetDevSize(int fd)
     char buf[1024];
 
     for (;;) {
-        off_t pos = co_await le_lseek(fd, upper, SEEK_SET);
+        off_t pos = co_await b_lseek(fd, upper, SEEK_SET);
         if (pos != upper)
             break;
-        int res = co_await le_read(fd, buf, sizeof(buf));
+        int res = co_await b_read(fd, buf, sizeof(buf));
         if (res <= 0)
             break;
         lower = upper;
@@ -145,12 +145,12 @@ Task<off_t> GetDevSize(int fd)
         if (upper <= lower)
             break;
         off_t mid = (upper + lower) / 2;
-        off_t pos = co_await le_lseek(fd, mid, SEEK_SET);
+        off_t pos = co_await b_lseek(fd, mid, SEEK_SET);
         if (pos != mid) {
             upper = mid;
             continue;
         }
-        int res = co_await le_read(fd, buf, sizeof(buf));
+        int res = co_await b_read(fd, buf, sizeof(buf));
         if (res > 0)
             lower = mid + res;
         else
@@ -197,7 +197,7 @@ Task<int> LoadFile(char *name)
 
     flag = REDISPLAY_ALL;
 
-    le_errno = 0;
+    errno = 0;
 
     if (!name[0]) {
         buffer_mmapped = false;
@@ -211,7 +211,7 @@ Task<int> LoadFile(char *name)
 
     const char *open_name = name;
 
-    if (co_await le_stat(open_name, &st) != -1) {
+    if (co_await b_stat(open_name, &st) != -1) {
         FileMode = st.st_mode;
         if ((!buffer_mmapped && (S_ISBLK(FileMode) || S_ISCHR(FileMode))) || S_ISFIFO(FileMode)) {
             ErrMsg("This is a special file or a pipe\nthat I cannot edit.");
@@ -220,10 +220,10 @@ Task<int> LoadFile(char *name)
         }
         if (S_ISDIR(FileMode))
             View |= TMP_RO_MODE;
-    } else if (le_errno == LE_ENOENT && !View && !buffer_mmapped) {
-        int f = co_await le_open(open_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    } else if (errno == ENOENT && !View && !buffer_mmapped) {
+        int f = co_await b_open(open_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
         if (f != -1) {
-            co_await le_close(f);
+            co_await b_close(f);
             newfile = 1;
         } else {
             ErrMsg(
@@ -237,10 +237,10 @@ Task<int> LoadFile(char *name)
     int open_flags = View ? O_RDONLY : O_RDWR;
     if (!View && !buffer_mmapped)
         open_flags |= O_CREAT;
-    file = co_await le_open(open_name, open_flags, 0664);
+    file = co_await b_open(open_name, open_flags, 0664);
     if (file == -1 && !View) {
         View |= TMP_RO_MODE;
-        file = co_await le_open(open_name, O_RDONLY);
+        file = co_await b_open(open_name, O_RDONLY);
         /* try to open the file in read-only mode */
     }
     if (file == -1) {
@@ -250,13 +250,13 @@ Task<int> LoadFile(char *name)
     }
 
     // re-stat the file in case it was created
-    co_await le_fstat(file, &st);
+    co_await b_fstat(file, &st);
     FileMode = st.st_mode;
 
     if (!View) {
         int lock_res = co_await LockFile(file, true);
         if (lock_res == -1) {
-            co_await le_close(file);
+            co_await b_close(file);
             file = -1;
             co_await EmptyText();
             co_return (ERR);
@@ -267,7 +267,7 @@ Task<int> LoadFile(char *name)
 
     if (!buffer_mmapped) {
         if (co_await ReplaceTextFromFile(file, st.st_size, &act_read) != OK) {
-            if (le_errno)
+            if (errno)
                 FError(name);
             co_await EmptyText();
             co_return (ERR);
@@ -305,7 +305,7 @@ Task<int> LoadFile(char *name)
             if (mmap_len == 0) {
                 mmap_len = st.st_size;
                 if ((off_t)mmap_len != st.st_size) {
-                    le_errno = LE_ENOMEM;
+                    errno = ENOMEM;
                     FError(name);
                     co_await EmptyText();
                     co_return ERR;
@@ -335,7 +335,7 @@ Task<int> LoadFile(char *name)
 
     /* By name rather than by descriptor: identity here is the path -- there
        are no inode numbers -- and fstat has no path to derive one from. */
-    co_await le_stat(name, &st);
+    co_await b_stat(name, &st);
     FileInfo = InodeInfo(&st);
     strcpy(FileName, name);
 
@@ -345,7 +345,7 @@ Task<int> LoadFile(char *name)
        so holding it would make the first save Err(Perm). The text is in the
        buffer by now and SaveFile opens the file again by name. */
     if (file != -1) {
-        co_await le_close(file);
+        co_await b_close(file);
         file = -1;
     }
 
@@ -390,19 +390,19 @@ static Task<void> MoveBackup(char *bp, char *filename, char *bak, int n)
     static char bakname[LE_PATHMAX];
 
     BackupName(bakname, sizeof(bakname), bp, filename, bak, n);
-    if (co_await le_access(bakname, F_OK) != -1) {
+    if (co_await b_access(bakname, F_OK) != -1) {
         if (n >= MaxBackup)
-            co_await le_unlink(bakname);
+            co_await b_unlink(bakname);
         else {
             unsigned nbytes1 = strlen(bp) + 1 + strlen(filename) + strlen(bak) + 40 + 1;
             static char bakname1[LE_PATHMAX];
             BackupName(bakname1, nbytes1, bp, filename, bak, n + 1);
             if (!strcmp(bakname, bakname1))
-                co_await le_unlink(bakname);
+                co_await b_unlink(bakname);
             else {
                 co_await MoveBackup(bp, filename, bak, n + 1);
-                if (co_await le_rename(bakname, bakname1) == -1)
-                    co_await le_unlink(bakname);
+                if (co_await b_rename(bakname, bakname1) == -1)
+                    co_await b_unlink(bakname);
             }
         }
     }
@@ -458,21 +458,21 @@ static Task<int> CreateBak(char *name)
     static char bakname[LE_PATHMAX];
     BackupName(bakname, sizeof(bakname), bp, filename, bak, 1);
 
-    if (co_await le_stat(name, &st) == -1) {
+    if (co_await b_stat(name, &st) == -1) {
         FError(name);
         co_return ERR;
     }
 
-    fd  = co_await le_open(name, O_RDONLY);
-    bfd = co_await le_open(bakname, O_TRUNC | O_CREAT | O_WRONLY, st.st_mode & ~0077);
+    fd  = co_await b_open(name, O_RDONLY);
+    bfd = co_await b_open(bakname, O_TRUNC | O_CREAT | O_WRONLY, st.st_mode & ~0077);
 
     if (fd == -1) {
         if (bfd != -1)
-            co_await le_close(bfd);
+            co_await b_close(bfd);
         FError(name);
         co_return ERR;
     } else if (bfd == -1) {
-        co_await le_close(fd);
+        co_await b_close(fd);
         FError(bakname);
         co_return ERR;
     }
@@ -485,7 +485,7 @@ static Task<int> CreateBak(char *name)
     } else {
         num written = 0;
         for (;;) {
-            bytesread = co_await le_read(fd, buf2, buf2size);
+            bytesread = co_await b_read(fd, buf2, buf2size);
             if (bytesread == -1) {
                 FError(name);
                 res = ERR;
@@ -504,8 +504,8 @@ static Task<int> CreateBak(char *name)
         free(buf2);
         buf2 = NULL;
     }
-    co_await le_close(fd);
-    co_await le_close(bfd);
+    co_await b_close(fd);
+    co_await b_close(bfd);
 
     /* Upstream gave the backup the original's mtime. There is no setter for
        one here -- touch_path moves a file to now and is the only thing that
@@ -541,7 +541,7 @@ Task<int> SaveFile(char *name)
     snprintf(msg, sizeof(msg), "Saving the file \"%.60s\"...", name);
     MessageSync(msg);
 
-    if (co_await le_stat(name, &st) != -1) {
+    if (co_await b_stat(name, &st) != -1) {
         if (!co_await CheckMode(st.st_mode))
             co_return (ERR);
 
@@ -583,7 +583,7 @@ Task<int> SaveFile(char *name)
             }
         }
     } else {
-        if (le_errno != LE_ENOENT) {
+        if (errno != ENOENT) {
             FError(name);
             co_return (ERR);
         }
@@ -598,8 +598,8 @@ Task<int> SaveFile(char *name)
 
     MessageSync(msg);
 
-    le_errno = 0;
-    nfile = co_await le_open(name, O_CREAT | O_RDWR, st.st_mode);
+    errno = 0;
+    nfile = co_await b_open(name, O_CREAT | O_RDWR, st.st_mode);
     if (nfile == -1) {
         FError(name);
         co_return (ERR);
@@ -607,7 +607,7 @@ Task<int> SaveFile(char *name)
 
     int lock_res = co_await LockFile(nfile, false);
     if (lock_res == -1) {
-        co_await le_close(nfile);
+        co_await b_close(nfile);
         co_return (ERR);
     }
     if (lock_res == -2)
@@ -615,31 +615,31 @@ Task<int> SaveFile(char *name)
 
     // now after locking truncate the file
 #ifdef HAVE_FTRUNCATE
-    if (co_await le_ftruncate(nfile, 0) < 0)
+    if (co_await b_ftruncate(nfile, 0) < 0)
         /*ignore*/;
 #else
-    co_await le_close(co_await le_open(name, O_TRUNC | O_RDONLY));
+    co_await b_close(co_await b_open(name, O_TRUNC | O_RDONLY));
 #endif
 
     /* Upstream forced the new file to the source's mode. There are no
        permission bits in the filesystem here. */
 
     /* now, after all that stuff, write the buffer contents */
-    le_errno = 0;
+    errno = 0;
     if (co_await WriteBlock(nfile, 0, Size(), &act_written) != OK) {
-        if (le_errno)
+        if (errno)
             FError(name);
-        co_await le_close(nfile);
+        co_await b_close(nfile);
         co_return (ERR);
     }
     if (act_written != Size()) {
         ErrMsg("Cannot write the file up to end\nPerhaps disk is full");
-        co_await le_close(nfile);
+        co_await b_close(nfile);
         co_return (ERR);
     }
 
     if (buffer_mmapped) {
-        co_await le_close(nfile);
+        co_await b_close(nfile);
         co_return OK;
     }
 
@@ -647,17 +647,17 @@ Task<int> SaveFile(char *name)
     CheckPoint();
     undo.FileSaved();
 
-    co_await le_stat(name, &st);
+    co_await b_stat(name, &st);
     FileInfo = InodeInfo(&st);
     SavePosition();
 
-    co_await le_close(file);
+    co_await b_close(file);
     file = nfile;
     co_await LockFile(file, true);
 
     if (delete_old_file) {
-        if (co_await le_stat(FileName, &st) != -1 && st.st_size == 0)
-            co_await le_unlink(FileName);
+        if (co_await b_stat(FileName, &st) != -1 && st.st_size == 0)
+            co_await b_unlink(FileName);
     }
 
     if (FileName != name)
@@ -673,8 +673,8 @@ Task<int> ReopenRW()
     if (View == 0)
         co_return (OK);
 
-    if (co_await le_access(FileName, W_OK | R_OK) == -1) {
-        if (co_await le_stat(FileName, &st) == -1) {
+    if (co_await b_access(FileName, W_OK | R_OK) == -1) {
+        if (co_await b_stat(FileName, &st) == -1) {
             FError(FileName);
             co_return ERR;
         }

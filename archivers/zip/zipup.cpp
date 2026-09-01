@@ -40,8 +40,8 @@ Task<int> is_seekable(FILE *y)
 {
     zoff_t pos;
 
-    pos = co_await zftello(y);
-    if (co_await zfseeko(y, pos, SEEK_SET)) {
+    pos = co_await b_ftello(y);
+    if (co_await b_fseeko(y, pos, SEEK_SET)) {
         co_return 0;
     }
 
@@ -167,18 +167,18 @@ Task<int> zipup(struct zlist far *z)
     // display uncompressed size
     uq = ((uzoff_t)q > (uzoff_t)-3) ? 0 : (uzoff_t)q;
     if (noisy && display_usize) {
-        co_await zfprintf(mesg, " (");
+        co_await b_fprintf(mesg, " (");
         co_await DisplayNumString(mesg, uq);
-        co_await zfprintf(mesg, ")");
+        co_await b_fprintf(mesg, ")");
         mesg_line_started = 1;
-        co_await zfflush(mesg);
+        co_await b_fflush(mesg);
     }
     if (logall && display_usize) {
-        co_await zfprintf(logfile, " (");
+        co_await b_fprintf(logfile, " (");
         co_await DisplayNumString(logfile, uq);
-        co_await zfprintf(logfile, ")");
+        co_await b_fprintf(logfile, ")");
         logfile_line_started = 1;
-        co_await zfflush(logfile);
+        co_await b_fflush(logfile);
     }
 
     // initial z->len so if error later have something
@@ -252,7 +252,7 @@ Task<int> zipup(struct zlist far *z)
             m     = STORE;
             q     = 0;
         } else {
-            if ((ifile = co_await zopen(z->name, fhow)) == fbad)
+            if ((ifile = co_await b_open(z->name, fhow)) == fbad)
                 co_return ZE_OPEN;
         }
 
@@ -341,7 +341,7 @@ Task<int> zipup(struct zlist far *z)
 
     if ((r = co_await putlocal(z, PUTLOCAL_WRITE)) != ZE_OK) {
         if (ifile != fbad)
-            co_await zclose(ifile);
+            co_await b_close(ifile);
         co_return r;
     }
 
@@ -360,19 +360,19 @@ Task<int> zipup(struct zlist far *z)
         tempzn += RAND_HEAD_LEN;
     }
 #endif // CRYPT
-    if (zferror(y)) {
+    if (b_ferror(y)) {
         if (ifile != fbad)
-            co_await zclose(ifile);
+            co_await b_close(ifile);
         ZIPERR(ZE_WRITE, "unexpected error on zip file");
     }
 
     last_o = o;
-    o      = co_await zftello(y); // for debugging only, ftell can fail on pipes
-    if (zferror(y))
-        y->clear_err();
+    o      = co_await b_ftello(y); // for debugging only, ftell can fail on pipes
+    if (b_ferror(y))
+        b_clearerr(y);
 
     if (o != -1 && last_o > o) {
-        co_await zfprintf(mesg, "last %s o %s\n", zip_fzofft(last_o, NULL, NULL),
+        co_await b_fprintf(mesg, "last %s o %s\n", zip_fzofft(last_o, NULL, NULL),
                           zip_fzofft(o, NULL, NULL));
         ZIPERR(ZE_BIG, "seek wrap - zip file too big to write");
     }
@@ -419,7 +419,7 @@ Task<int> zipup(struct zlist far *z)
             while ((k = co_await file_read(b, SBSZ)) > 0 && k != (extent)EOF) {
                 if (co_await zfwrite(b, 1, k) != k) {
                     if (ifile != fbad)
-                        co_await zclose(ifile);
+                        co_await b_close(ifile);
                     free((zvoid *)b);
                     co_return ZE_TEMP;
                 }
@@ -427,8 +427,8 @@ Task<int> zipup(struct zlist far *z)
                     if (dot_size > 0) {
                         // initial space
                         if (noisy && dot_count == -1) {
-                            co_await zfputc(' ', mesg);
-                            co_await zfflush(mesg);
+                            co_await b_fputc(' ', mesg);
+                            co_await b_fflush(mesg);
                             dot_count++;
                         }
                         dot_count++;
@@ -436,8 +436,8 @@ Task<int> zipup(struct zlist far *z)
                             dot_count = 0;
                     }
                     if ((verbose || noisy) && dot_size && !dot_count) {
-                        co_await zfputc('.', mesg);
-                        co_await zfflush(mesg);
+                        co_await b_fputc('.', mesg);
+                        co_await b_fflush(mesg);
                         mesg_line_started = 1;
                     }
                 }
@@ -452,7 +452,7 @@ Task<int> zipup(struct zlist far *z)
     // signal, which nothing here can do.
     if (zip_fatal != ZE_OK) {
         if (ifile != fbad)
-            co_await zclose(ifile);
+            co_await b_close(ifile);
         co_return zip_fatal;
     }
 
@@ -460,7 +460,7 @@ Task<int> zipup(struct zlist far *z)
         co_await zipwarn("could not read input file: ", z->oname);
     }
     if (ifile != fbad)
-        co_await zclose(ifile);
+        co_await b_close(ifile);
 
     tempzn += s;
     p = tempzn; // save for future fseek()
@@ -491,7 +491,7 @@ Task<int> zipup(struct zlist far *z)
 #endif // CRYPT
         z->len = zisize;
         // if can seek back to local header
-        if (use_descriptors || co_await zfseeko(y, z->off, SEEK_SET)) {
+        if (use_descriptors || co_await b_fseeko(y, z->off, SEEK_SET)) {
             if (z->how != (ush)m)
                 error("can't rewrite method");
             if (m == STORE && q < 0)
@@ -504,7 +504,7 @@ Task<int> zipup(struct zlist far *z)
         } else {
             // ftell() not as useful across splits
             if (bytes_this_entry != (uzoff_t)(key ? s + 12 : s)) {
-                co_await zfprintf(mesg, " s=%s, actual=%s ", zip_fzofft(s, NULL, NULL),
+                co_await b_fprintf(mesg, " s=%s, actual=%s ", zip_fzofft(s, NULL, NULL),
                                   zip_fzofft(bytes_this_entry, NULL, NULL));
                 error("incorrect compressed size");
             }
@@ -535,7 +535,7 @@ Task<int> zipup(struct zlist far *z)
 
             // If not using descriptors, back up and rewrite local header.
             if (split_method == 1 && current_local_file != y) {
-                if (co_await zfseeko(current_local_file, z->off, SEEK_SET))
+                if (co_await b_fseeko(current_local_file, z->off, SEEK_SET))
                     co_return ZE_READ;
             }
 
@@ -543,7 +543,7 @@ Task<int> zipup(struct zlist far *z)
             if ((r = co_await putlocal(z, PUTLOCAL_REWRITE)) != ZE_OK)
                 co_return r;
 
-            if (co_await zfseeko(y, bytes_this_split, SEEK_SET))
+            if (co_await b_fseeko(y, bytes_this_split, SEEK_SET))
                 co_return ZE_READ;
 
             if ((z->flg & 1) != 0) {
@@ -569,23 +569,23 @@ Task<int> zipup(struct zlist far *z)
     // Display statistics
     if (noisy) {
         if (verbose) {
-            co_await zfprintf(mesg, "\t(in=%s) (out=%s)", zip_fzofft(zisize, NULL, "u"),
+            co_await b_fprintf(mesg, "\t(in=%s) (out=%s)", zip_fzofft(zisize, NULL, "u"),
                               zip_fzofft(s, NULL, "u"));
         }
         if (m == DEFLATE)
-            co_await zfprintf(mesg, " (deflated %d%%)\n", percent(zisize, s));
+            co_await b_fprintf(mesg, " (deflated %d%%)\n", percent(zisize, s));
         else
-            co_await zfprintf(mesg, " (stored 0%%)\n");
+            co_await b_fprintf(mesg, " (stored 0%%)\n");
         mesg_line_started = 0;
-        co_await zfflush(mesg);
+        co_await b_fflush(mesg);
     }
     if (logall) {
         if (m == DEFLATE)
-            co_await zfprintf(logfile, " (deflated %d%%)\n", percent(zisize, s));
+            co_await b_fprintf(logfile, " (deflated %d%%)\n", percent(zisize, s));
         else
-            co_await zfprintf(logfile, " (stored 0%%)\n");
+            co_await b_fprintf(logfile, " (stored 0%%)\n");
         logfile_line_started = 0;
-        co_await zfflush(logfile);
+        co_await b_fflush(logfile);
     }
 
     co_return ZE_OK;

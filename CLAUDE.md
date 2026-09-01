@@ -159,21 +159,28 @@ Three groups, and the difference decides how much of a port changes:
   `<fcntl.h>`, `<unistd.h>` and `<dirent.h>` declare `fopen`, `open`, `stat`
   and the rest `unavailable`, each naming the `b_*` that answers it;
   `compat/cio.h` is the whole family, `co_await` in front and C's error
-  conventions kept. `vi` is migrated and is the worked example; `zip`'s `z*`,
-  `le`'s `leio.cpp`/`lefile.cpp` and `uemacs`'s `fileio.cpp` are the three
-  stream layers still to delete.
+  conventions kept. **Every port is migrated**: `zip`'s `z*` layer, `le`'s
+  `leio.cpp`/`lefile.cpp`, `uemacs`'s `fileio.cpp` and `vi`'s `ex_file.cpp`
+  are all gone, and no package here keeps a stream layer of its own.
 - **Group C is absent**: `setjmp`/`longjmp`, `fork`, `setenv`, `dlopen`, `mmap`,
   signal handlers, `sscanf`, and `<time.h>`'s `time`/`localtime`/`ctime`.
 
 Watch for: `qsort` is heapsort and **not stable** — `mergesort` is the stable
 one, and `zip` uses it at two sites; `strerror` returns `"ENOENT"`, not prose;
 `PATH_MAX` is 512, which `iconv` overrides back to 256 because its paths live
-in coroutine frames; and a port that spells a global `errno` while storing an
-`Error` in it must rename it, as `le` (`le_errno`) still does, or the kit's
-`strtol` will write `ERANGE` into it — `vi` dropped its `ex_errno` for the
-kit's own. `strerror` is **not** `error_name()`: for a diagnostic that reads
-like the rest of this system, write `error_name(error_of(errno))` over
-`compat/cerr.h`, as `vi`'s `syserror()` does.
+in coroutine frames; and **`errno` is C's, so it is only meaningful after a
+call that failed** — a port that probes `errno = 0; op(); if (errno)` to mean
+"did that fail" will fire on a benign miss, which is what `le` had to stop
+doing at two sites when it dropped `le_errno`. `strerror` is **not**
+`error_name()`: for a diagnostic that reads like the rest of this system, write
+`error_name(error_of(errno))` over `compat/cerr.h`, as `vi`'s `syserror()` and
+`le`'s `FError()` do.
+
+`long` is 32 bits here, so a file past 2 GiB wants `b_fseeko`/`b_ftello` rather
+than `b_fseek`/`b_ftell`; `zip` is why they exist. And a port whose parser
+needs `sscanf` has none: `kernel/text.h`'s scanners are the answer, reached
+through the `File` inside the kit's `FILE` (`f->at->scan_i64()`), which is what
+`le`'s config parsers do.
 
 `benchmarks/dhrystone` **never** links the kit: its `strcpy` and `strcmp` are
 what it measures.

@@ -36,7 +36,7 @@
 #include "edit.h"
 #include "getch.h"
 #include "kernel/sysabi.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "proc/io.h"
 #include "proc/rt.h"
@@ -95,10 +95,10 @@ Task<void> cmd(const char *c, bool autosave, bool pauseafter)
     extern struct menu ConCan4Menu[];
     int exitcode;
 
-    le_errno = 0;
     if (modified && autosave) {
-        co_await SaveFile(FileName);
-        if (le_errno) {
+        /* SaveFile's own status, not errno: errno is the kit's now and a
+           benign miss on the way out of a save leaves it set. */
+        if (co_await SaveFile(FileName) != OK) {
             switch (co_await ReadMenuBox(ConCan4Menu, HORIZ, "Cannot save the file", " Warning ",
                                          VERIFY_WIN_ATTR, CURR_BUTTON_ATTR)) {
             case ('C'):

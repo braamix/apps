@@ -39,7 +39,7 @@
 #include "config.h"
 #include "edit.h"
 #include "kernel/sysabi.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "proc/io.h"
 #include "proc/rt.h"
@@ -80,7 +80,7 @@ Task<int> PipeBlock(const char *filter, bool in, bool out)
     /* The block, out to a file the child will read. Rectangular blocks go
        through the clipboard, which is what linearises them. */
     if (out) {
-        fd = co_await le_open(out_name, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+        fd = co_await b_open(out_name, O_CREAT | O_TRUNC | O_WRONLY, 0600);
         if (fd == -1) {
             FError(out_name);
             co_return ERR;
@@ -88,20 +88,20 @@ Task<int> PipeBlock(const char *filter, bool in, bool out)
         if (rblock) {
             ClipBoard cb;
             if (!cb.Copy() || co_await cb.Write(fd) != OK) {
-                co_await le_close(fd);
-                co_await le_unlink(out_name);
+                co_await b_close(fd);
+                co_await b_unlink(out_name);
                 co_return ERR;
             }
         } else {
             num act_written;
             if (co_await WriteBlock(fd, BlockBegin, BlockEnd - BlockBegin, &act_written) != OK) {
                 FError(out_name);
-                co_await le_close(fd);
-                co_await le_unlink(out_name);
+                co_await b_close(fd);
+                co_await b_unlink(out_name);
                 co_return ERR;
             }
         }
-        co_await le_close(fd);
+        co_await b_close(fd);
     }
 
     if (in && !out) {
@@ -120,12 +120,12 @@ Task<int> PipeBlock(const char *filter, bool in, bool out)
         Result<u32> pid_r = Err(Error::NoMemory);
         int fdin = -1, fdout = -1, fderr = -1;
 
-        fdin = co_await le_open(out ? out_name : "/dev/null", O_RDONLY);
+        fdin = co_await b_open(out ? out_name : "/dev/null", O_RDONLY);
         if (in)
-            fdout = co_await le_open(in_name, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+            fdout = co_await b_open(in_name, O_CREAT | O_TRUNC | O_WRONLY, 0600);
         /* The third file is upstream's third pipe: the editor holds the screen,
            so anything the child says on stderr would land under it as bytes. */
-        fderr = co_await le_open(err_name, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+        fderr = co_await b_open(err_name, O_CREAT | O_TRUNC | O_WRONLY, 0600);
 
         words[0] = Str("/bin/sh", 7);
         words[1] = Str("-c", 2);
@@ -145,27 +145,27 @@ Task<int> PipeBlock(const char *filter, bool in, bool out)
             exitcode = w.is_err() ? -1 : (int)w.value().status;
             res      = OK;
         } else {
-            le_errno = int(pid_r.error());
+            errno = errno_of(pid_r.error());
             FError(filter);
         }
-        co_await le_close(fdin);
+        co_await b_close(fdin);
         if (fdout != -1)
-            co_await le_close(fdout);
+            co_await b_close(fdout);
         if (fderr != -1)
-            co_await le_close(fderr);
+            co_await b_close(fderr);
     }
 
     /* What the child said, in the box upstream showed it in. */
     {
         struct stat est;
 
-        if (co_await le_stat(err_name, &est) != -1 && est.st_size > 0) {
+        if (co_await b_stat(err_name, &est) != -1 && est.st_size > 0) {
             static char errtext[512];
-            int efd = co_await le_open(err_name, O_RDONLY);
+            int efd = co_await b_open(err_name, O_RDONLY);
 
             if (efd != -1) {
-                ssize_t n = co_await le_read(efd, errtext, sizeof(errtext) - 1);
-                co_await le_close(efd);
+                ssize_t n = co_await b_read(efd, errtext, sizeof(errtext) - 1);
+                co_await b_close(efd);
                 if (n > 0) {
                     errtext[n] = 0;
                     ErrMsg(errtext);
@@ -176,8 +176,8 @@ Task<int> PipeBlock(const char *filter, bool in, bool out)
 
     /* And the result back in, over the block it replaces. */
     if (res == OK && in) {
-        if (exitcode == 0 && co_await le_stat(in_name, &st) != -1 && st.st_size > 0) {
-            fd = co_await le_open(in_name, O_RDONLY);
+        if (exitcode == 0 && co_await b_stat(in_name, &st) != -1 && st.st_size > 0) {
+            fd = co_await b_open(in_name, O_RDONLY);
             if (fd == -1) {
                 FError(in_name);
                 res = ERR;
@@ -191,7 +191,7 @@ Task<int> PipeBlock(const char *filter, bool in, bool out)
                     NoMemory();
                     res = ERR;
                 }
-                co_await le_close(fd);
+                co_await b_close(fd);
             }
         } else if (out && exitcode == 0) {
             /* The filter answered nothing and said it meant to: the block goes.
@@ -203,10 +203,10 @@ Task<int> PipeBlock(const char *filter, bool in, bool out)
     }
 
     if (out)
-        co_await le_unlink(out_name);
+        co_await b_unlink(out_name);
     if (in)
-        co_await le_unlink(in_name);
-    co_await le_unlink(err_name);
+        co_await b_unlink(in_name);
+    co_await b_unlink(err_name);
 
     if (!in)
         CurrentPos = oldpos;

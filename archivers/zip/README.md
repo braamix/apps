@@ -31,24 +31,24 @@ piece has to be an archive first.
 
 ## What the port changed
 
-No `stdio`, no `signal`, `time` or `mktime`, no `opendir`, no `termios`, and a
-program is a coroutine rather than a `main`. The rest of the C library is the
-port kit's — `braam_add_program(... PORT)` — so what `braam.cpp` still answers
-is only what the kit has not got: the streams, because a C signature cannot
-block, and the calendar. Every line zip
-prints is upstream's, and so is the archive it writes — a real Info-ZIP `unzip`
-reads it, encryption and all.
+No `signal`, no `termios`, and a program is a coroutine rather than a `main`.
+The C library is the port kit's — `braam_add_program(... PORT)` — Group B and
+all, so `stdio` is `<stdio.h>` and `compat/cio.h`'s `b_*` family, with a
+`co_await` in front of every name that blocks. What `braam.cpp` still answers
+is only what the kit has not got. Every line zip prints is upstream's, and so
+is the archive it writes — a real Info-ZIP `unzip` reads it, encryption and
+all.
 
 | Upstream | Here |
 | --- | --- |
-| `FILE *`, `fopen`, `fread`, `fseek` | `proc/file.h`'s `File`, which is the same shape |
+| `FILE *`, `fopen`, `fread`, `fseek` | the kit's, as `b_fopen`, `b_fread`, `b_fseeko` — C's arguments and C's failures, awaited |
 | `malloc`, `realloc`, `free` | the port kit's, over `heap_alloc` |
 | the `mem*` and `str*` families, `strtol` | the port kit's |
 | `qsort` | the kit's, except at two call sites — see below |
-| `printf` and its conversions | still `zvformat`, the ones upstream uses, into one buffer then one write: they are integers and strings, and the kit's `snprintf` would put its float arm in all four binaries |
+| `printf`, `fprintf`, `sprintf` | `b_printf`, `b_fprintf` and the kit's `sprintf`; the 60-line `zvformat` that stood in for them is gone |
 | `opendir`/`readdir` recursion | `list_dir`, one syscall for a whole directory |
 | `stat`'s `st_mode`, `st_uid`, `st_gid` | nothing keeps them; the mode an entry carries is synthesized |
-| `localtime`, `mktime`, `asctime` | `civil()` from `proc/time.h`, and its inverse written out |
+| `localtime`, `mktime`, `asctime` | the kit's `<time.h>`: `gmtime_r` and `timegm`, with `clock_now()` for the zone |
 | `mkstemp` | `proc_random()` for the name and `SYS_O_EXCL` on the open |
 | `rename` with `EXDEV` | `rename_path`, whose `Err(Unsupported)` means copy instead |
 | `signal(SIGINT, handler)` | `sig_catch(SIG_INT)`, and `sig_take` at the parks |
@@ -171,7 +171,7 @@ running by hand over anything the tests produce.
 | `crypt.cpp`, `crypt.h` | traditional PKZIP encryption |
 | `ttyio.cpp`, `ttyio.h` | the password prompt, on the raw keyboard |
 | `unix.cpp` | what the OS answers about a file — upstream `unix/unix.c` |
-| `braam.cpp`, `braam.h` | the porting layer: stdio over `proc/file.h`, and the calendar |
+| `braam.cpp`, `braam.h` | the porting layer: the two dates, the DOS stamp, the argv copy and the read a `^C` reaches |
 | `revision.h`, `ziperr.h` | the version, and the error codes |
 | `zipnote.cpp` | archive and entry comments — upstream `zipnote.c` |
 | `zipsplit.cpp` | one archive into several — upstream `zipsplit.c` |

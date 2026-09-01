@@ -21,7 +21,7 @@
 #include "config.h"
 #include "edit.h"
 #include "epath.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "options.h"
 #ifdef HAVE_ALLOCA_H
@@ -48,7 +48,7 @@ Task<void> ColorsSave()
 
 Task<void> LoadColor(const char *f)
 {
-    if (co_await le_access(f, R_OK) == -1) {
+    if (co_await b_access(f, R_OK) == -1) {
         FError(f);
         co_return;
     }

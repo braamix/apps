@@ -14,54 +14,22 @@
 #include "globals.h"
 #include "efunc.h"
 
-#include "proc/io.h"
+#include "compat/cio.h"
 
 /*
- * There is no stdio, so the FILE * is a descriptor and a buffer of our own.
- * Reading refills from read_some(); writing accumulates and goes out at
- * file_close(), which is where a partial write can still be reported.
+ * One stream at a time, as upstream had one FILE *.  The kit's is stdio's
+ * shape -- a buffer, a sticky error, a flush -- so the descriptor, the
+ * buffer, the two counts and the refill this file used to carry are gone.
  */
-#define FIOBUF 4096
-
-static int ffd = -1; /* the open file, -1 for none */
-static int eofflag;  /* end-of-file flag */
-static int ferr;     /* a read or write failed */
-
-static char *fbuf; /* the buffer, FIOBUF bytes */
-static int fhave;  /* bytes in it: read or unwritten */
-static int fnext;  /* how far read, reading only */
-
-static int fwriting; /* which of the two a file is open for */
-
-static int getbuf(void)
-{
-    if (!fbuf)
-        fbuf = (char *)malloc(FIOBUF);
-    return fbuf != NULL;
-}
+static FILE *ffp;
 
 /*
  * Open a file for reading.
  */
 Task<int> file_open_read(char *fn)
 {
-    Result<i32> r = Err(Error::NoMemory);
-
-    if (!getbuf())
-        co_return FIOMEM;
-    if (Task<Result<i32>> t = open_read(Str(fn, strlen(fn))))
-        r = co_await t;
-    eofflag = FALSE;
-    ferr    = FALSE;
-    fhave = fnext = 0;
-    fwriting      = FALSE;
-
-    if (r.is_err()) {
-        ffd = -1;
-        co_return FIOFNF;
-    }
-    ffd = r.value();
-    co_return FIOSUC;
+    ffp = co_await b_fopen(fn, "r");
+    co_return ffp == NULL ? FIOFNF : FIOSUC;
 }
 
 /*
@@ -70,41 +38,12 @@ Task<int> file_open_read(char *fn)
  */
 Task<int> file_open_write(char *fn)
 {
-    Result<i32> r = Err(Error::NoMemory);
-
-    if (!getbuf()) {
+    ffp = co_await b_fopen(fn, "w");
+    if (ffp == NULL) {
         msg_printf("Cannot open file for writing");
         co_return FIOERR;
     }
-    if (Task<Result<i32>> t =
-            open_at(Str(fn, strlen(fn)), SYS_O_WRITE | SYS_O_CREATE | SYS_O_TRUNC))
-        r = co_await t;
-    if (r.is_err()) {
-        msg_printf("Cannot open file for writing");
-        co_return FIOERR;
-    }
-    ffd   = r.value();
-    ferr  = FALSE;
-    fhave = fnext = 0;
-    fwriting      = TRUE;
     co_return FIOSUC;
-}
-
-/* What has been put but not written. */
-static Task<int> fdrain(void)
-{
-    Result<void> r = Err(Error::NoMemory);
-
-    if (fhave == 0)
-        co_return TRUE;
-    if (Task<Result<void>> t = write_all((u32)ffd, Str(fbuf, (usize)fhave)))
-        r = co_await t;
-    fhave = 0;
-    if (r.is_err()) {
-        ferr = TRUE;
-        co_return FALSE;
-    }
-    co_return TRUE;
 }
 
 /*
@@ -112,24 +51,20 @@ static Task<int> fdrain(void)
  */
 Task<int> file_close(void)
 {
-    int ok = TRUE;
+    int bad;
 
     /* free this since we do not need it anymore */
     if (file_line) {
         free(file_line);
         file_line = NULL;
     }
-    eofflag = FALSE;
 
-    if (fwriting)
-        ok = co_await fdrain();
-    if (ffd >= 0) {
-        if (Task<void> t = close_fd((u32)ffd))
-            co_await t;
-        ffd = -1;
-    }
-    fwriting = FALSE;
-    if (!ok || ferr) {
+    if (ffp == NULL)
+        co_return FIOSUC;
+    /* fclose flushes, so a write held back until now is reported here. */
+    bad = co_await b_fclose(ffp);
+    ffp = NULL;
+    if (bad) {
         msg_printf("Error closing file");
         co_return FIOERR;
     }
@@ -143,64 +78,15 @@ Task<int> file_close(void)
  */
 Task<int> file_put_line(char *buf, int nbuf)
 {
-    int i;
-
-    for (i = 0; i <= nbuf; ++i) {
-        if (fhave == FIOBUF && !co_await fdrain())
-            break;
-        fbuf[fhave++] = i < nbuf ? (buf[i] & 0xFF) : '\n';
-    }
-
-    if (ferr) {
-        msg_printf("Write I/O error");
-        co_return FIOERR;
-    }
-
+    if (nbuf > 0 && co_await b_fwrite(buf, 1, (size_t)nbuf, ffp) != (size_t)nbuf)
+        goto bad;
+    if (co_await b_fputc('\n', ffp) == EOF)
+        goto bad;
     co_return FIOSUC;
-}
 
-/*
- * One byte out of the buffer, or -1 when it is dry.  A plain function on
- * purpose: a co_await is a call and not a tail call here, so awaiting once
- * per byte would grow the native stack by the length of the file.  frefill()
- * is the awaited half, and it suspends once per FIOBUF bytes, which is what
- * gives the stack back.
- */
-static int fgetbyte(void)
-{
-    if (fnext < fhave)
-        return (unsigned char)fbuf[fnext++];
-    return -1;
-}
-
-/* More bytes, or FALSE at the end of the file. */
-static Task<int> frefill(void)
-{
-    Result<String> r = Err(Error::NoMemory);
-
-    if (eofflag || ferr || ffd < 0)
-        co_return FALSE;
-
-    if (Task<Result<String>> t = read_some((u32)ffd, FIOBUF))
-        r = co_await t;
-    if (r.is_err()) {
-        if (r.error() != Error::Closed)
-            ferr = TRUE;
-        eofflag = TRUE;
-        co_return FALSE;
-    }
-    {
-        Str got = r.value().str();
-
-        fhave = (int)(got.size() < FIOBUF ? got.size() : FIOBUF);
-        fnext = 0;
-        if (fhave == 0) {
-            eofflag = TRUE;
-            co_return FALSE;
-        }
-        memcpy(fbuf, got.data(), (usize)fhave);
-    }
-    co_return TRUE;
+bad:
+    msg_printf("Write I/O error");
+    co_return FIOERR;
 }
 
 /*
@@ -210,8 +96,9 @@ static Task<int> frefill(void)
  * errors too. Return status.
  *
  * Upstream had two paths, fgets() and a byte loop, and took the second only
- * for -n; there is no fgets here, so the byte loop is the only one and -n is
- * what decides whether a NUL is kept.
+ * for -n; the byte loop is the only one here and -n is what decides whether a
+ * NUL is kept.  b_fgetc is an awaiter and not a Task, so a byte costs no
+ * coroutine frame -- which is the whole reason this may be a plain loop.
  */
 Task<int> file_get_line(void)
 {
@@ -232,23 +119,15 @@ Task<int> file_get_line(void)
 
     /* read the line in */
     i = 0;
-    c = fgetbyte();
-    if (c < 0 && co_await frefill())
-        c = fgetbyte();
-    while (c >= 0 && c != '\n') {
+    while ((c = co_await b_fgetc(ffp)) >= 0 && c != '\n') {
         /*
          * A NUL without -n ended the line: fgets() stopped at it and
          * ate the rest, so this does too.  With -n it is dropped and
          * the line goes on, which is what the byte loop always did.
          */
         if (c == 0 && !accept_nulls) {
-            for (;;) {
-                c = fgetbyte();
-                if (c < 0 && co_await frefill())
-                    continue;
-                if (c < 0 || c == '\n')
-                    break;
-            }
+            while ((c = co_await b_fgetc(ffp)) >= 0 && c != '\n')
+                ;
             break;
         }
         if (c) {
@@ -263,14 +142,11 @@ Task<int> file_get_line(void)
                 file_line = tmpline;
             }
         }
-        c = fgetbyte();
-        if (c < 0 && co_await frefill())
-            c = fgetbyte();
     }
 
     /* test for any errors that may have occured */
     if (c < 0) {
-        if (ferr) {
+        if (b_ferror(ffp)) {
             msg_printf("File read error");
             co_return FIOERR;
         }
@@ -291,9 +167,5 @@ Task<int> file_get_line(void)
  */
 Task<int> file_exists(char *fname)
 {
-    Result<FileInfo> r = Err(Error::NoMemory);
-
-    if (Task<Result<FileInfo>> t = stat_of(Str(fname, strlen(fname))))
-        r = co_await t;
-    co_return r.is_err() ? FALSE : TRUE;
+    co_return co_await b_access(fname, F_OK) == 0 ? TRUE : FALSE;
 }

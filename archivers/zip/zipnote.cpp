@@ -72,14 +72,14 @@ Task<int> rename_split(char *temp_name, char *out_path)
 Task<void> zipmessage_nl(ZCONST char *a, int nl)
 {
     if (noisy) {
-        co_await zfprintf(mesg, "%s", a);
+        co_await b_fprintf(mesg, "%s", a);
         if (nl) {
-            co_await zfprintf(mesg, "\n");
+            co_await b_fprintf(mesg, "\n");
             mesg_line_started = 0;
         } else {
             mesg_line_started = 1;
         }
-        co_await zfflush(mesg);
+        co_await b_fflush(mesg);
     }
 }
 
@@ -87,18 +87,18 @@ Task<void> zipmessage(ZCONST char *a, ZCONST char *b)
 {
     if (noisy) {
         if (mesg_line_started)
-            co_await zfprintf(mesg, "\n");
-        co_await zfprintf(mesg, "%s%s\n", a, b);
+            co_await b_fprintf(mesg, "\n");
+        co_await b_fprintf(mesg, "%s%s\n", a, b);
         mesg_line_started = 0;
-        co_await zfflush(mesg);
+        co_await b_fflush(mesg);
     }
 }
 
 Task<void> ziperr_msg(int c, ZCONST char *h)
 {
-    co_await zfprintf(mesg, "zipnote error: %s (%s)\n", ZIPERRORS(c), h);
+    co_await b_fprintf(mesg, "zipnote error: %s (%s)\n", ZIPERRORS(c), h);
     if (tempzf != NULL)
-        co_await zfclose(tempzf);
+        co_await b_fclose(tempzf);
     if (tempzip != NULL) {
         co_await destroy(tempzip);
         free((zvoid *)tempzip);
@@ -110,7 +110,7 @@ Task<void> ziperr_msg(int c, ZCONST char *h)
 
 Task<void> zipwarn(ZCONST char *a, ZCONST char *b)
 {
-    co_await zfprintf(mesg, "zipnote warning: %s%s\n", a, b);
+    co_await b_fprintf(mesg, "zipnote warning: %s%s\n", a, b);
 }
 
 local Task<void> license(void)
@@ -119,7 +119,7 @@ local Task<void> license(void)
     extent i; // counter for copyright array
 
     for (i = 0; i < sizeof(swlicense) / sizeof(char *); i++)
-        co_await zfputs_nl(swlicense[i]);
+        co_await b_puts(swlicense[i]);
 }
 
 local Task<void> help(void)
@@ -148,12 +148,12 @@ local Task<void> help(void)
     };
 
     for (i = 0; i < sizeof(copyright) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, copyright[i], "zipnote");
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, copyright[i], "zipnote");
+        co_await b_fputc('\n', stdout);
     }
     for (i = 0; i < sizeof(text) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, text[i], VERSION, REVDATE);
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, text[i], VERSION, REVDATE);
+        co_await b_fputc('\n', stdout);
     }
 }
 
@@ -169,23 +169,23 @@ local Task<void> version_info(void)
     static ZCONST char *comp_opts[] = { NULL };
 
     for (i = 0; i < sizeof(copyright) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, copyright[i], "zipnote");
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, copyright[i], "zipnote");
+        co_await b_fputc('\n', stdout);
     }
 
     for (i = 0; i < sizeof(versinfolines) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, versinfolines[i], "ZipNote", VERSION, REVDATE);
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, versinfolines[i], "ZipNote", VERSION, REVDATE);
+        co_await b_fputc('\n', stdout);
     }
 
     co_await version_local();
 
-    co_await zfputs_nl("ZipNote special compilation options:");
+    co_await b_puts("ZipNote special compilation options:");
     for (i = 0; (int)i < (int)(sizeof(comp_opts) / sizeof(char *) - 1); i++) {
-        co_await zfprintf(zstdout, "\t%s\n", comp_opts[i]);
+        co_await b_fprintf(stdout, "\t%s\n", comp_opts[i]);
     }
     if (i == 0)
-        co_await zfputs_nl("\t[none]");
+        co_await b_puts("\t[none]");
 }
 
 local Task<void> putclean(char *s, extent n)
@@ -197,14 +197,14 @@ local Task<void> putclean(char *s, extent n)
     while (n--) {
         c = *(uch *)s++;
         if (c == MARK || c == '\\')
-            co_await zfputc_out('\\');
+            co_await b_fputc('\\', stdout);
         if (c >= ' ' || c == '\t' || c == '\n') {
             e = c;
-            co_await zfputc_out(e);
+            co_await b_fputc(e, stdout);
         }
     }
     if (e != '\n')
-        co_await zfputc_out('\n');
+        co_await b_fputc('\n', stdout);
 }
 
 local Task<char *> zgetline(char *buf, extent size)
@@ -212,7 +212,7 @@ local Task<char *> zgetline(char *buf, extent size)
     char *line;
     unsigned len;
 
-    line = co_await zgets(buf, size, &File::stdin()) ? buf : NULL;
+    line = co_await b_fgets(buf, (int)size, stdin);
     if (line != NULL && (len = strlen(line)) > 0) {
         if (len == size - 1 && line[len - 1] != '\n') {
             // buffer is full and record delimiter not seen -> overflow
@@ -275,7 +275,7 @@ Task<i32> proc_main(Args args)
     }
 
     // Direct info messages to stderr; stdout is used for data output.
-    mesg = zstderr;
+    mesg = stderr;
 
     init_upper(); // build case map table
 
@@ -346,19 +346,19 @@ Task<i32> proc_main(Args args)
     // Put comments to stdout, if not -w
     if (!w) {
         for (z = zfiles; z != NULL; z = z->nxt) {
-            co_await zfprintf(zstdout, "%c %s\n", MARK, z->zname);
+            co_await b_fprintf(stdout, "%c %s\n", MARK, z->zname);
             co_await putclean(z->comment, z->com);
-            co_await zfprintf(zstdout, "%c%s\n", MARK, MARKE);
+            co_await b_fprintf(stdout, "%c%s\n", MARK, MARKE);
         }
-        co_await zfprintf(zstdout, "%c%s\n", MARK, MARKZ);
+        co_await b_fprintf(stdout, "%c%s\n", MARK, MARKZ);
         co_await putclean(zcomment, zcomlen);
         co_return ZE_OK;
     }
 
     // If updating comments, make sure zip file is writeable
-    if ((x = co_await zfopen(zipfile, "a")) == NULL)
+    if ((x = co_await b_fopen(zipfile, "a")) == NULL)
         ziperr(ZE_CREAT, zipfile);
-    co_await zfclose(x);
+    co_await b_fclose(x);
     t = getfileattr(zipfile);
 
     // Process stdin, replacing comments
@@ -440,13 +440,13 @@ Task<i32> proc_main(Args args)
                 ZIPERR(ZE_MEM, "allocating temp filename");
             }
         }
-        if ((tempzf = y = co_await zfopen(tempzip, FOPW)) == NULL) {
+        if ((tempzf = y = co_await b_fopen(tempzip, FOPW)) == NULL) {
             ZIPERR(ZE_TEMP, tempzip);
         }
     }
 
     // Open input zip file again, copy preamble if any
-    if ((in_file = co_await zfopen(zipfile, FOPR)) == NULL)
+    if ((in_file = co_await b_fopen(zipfile, FOPR)) == NULL)
         ziperr(ZE_NAME, zipfile);
 
     if (zipbeg && (r = co_await bfcopy(zipbeg)) != ZE_OK)
@@ -459,21 +459,21 @@ Task<i32> proc_main(Args args)
         if ((r = co_await zipcopy(z)) != ZE_OK)
             ziperr(r, "was copying an entry");
     }
-    co_await zfclose(x);
+    co_await b_fclose(x);
 
     // Write central directory and end of central directory with new comments
-    if ((c = co_await zftello(y)) == (zoff_t)-1) // get start of central
+    if ((c = co_await b_ftello(y)) == (zoff_t)-1) // get start of central
         ziperr(ZE_TEMP, tempzip);
     for (z = zfiles; z != NULL; z = z->nxt)
         if ((r = co_await putcentral(z)) != ZE_OK)
             ziperr(r, tempzip);
-    if ((s = co_await zftello(y)) == (zoff_t)-1) // get end of central
+    if ((s = co_await b_ftello(y)) == (zoff_t)-1) // get end of central
         ziperr(ZE_TEMP, tempzip);
     s -= c; // compute length of central
     if ((r = co_await putend((zoff_t)zcount, s, c, zcomlen, zcomment)) != ZE_OK)
         ziperr(r, tempzip);
     tempzf = NULL;
-    if (co_await zfclose(y))
+    if (co_await b_fclose(y))
         ziperr(ZE_TEMP, tempzip);
     if ((r = co_await replace(zipfile, tempzip)) != ZE_OK) {
         co_await zipwarn("new zip file left as: ", tempzip);

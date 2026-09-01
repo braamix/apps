@@ -20,7 +20,7 @@
 #define COLOR_H
 
 #include "curses.h"
-#include "lefile.h"
+#include "compat/cio.h"
 
 enum {
     STATUS_LINE = 0,

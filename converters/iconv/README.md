@@ -38,7 +38,9 @@ The command says so once on stderr and converts anyway; redirect to a file.
 No stdio, no dlopen, mmap or locale, and a program is a coroutine rather than a
 `main`. Citrus is also C, and this is C++. The C library it calls is the port
 kit's — `braam_add_program(... PORT)` — so `braam.h` and `braam.cpp` answer only
-what the kit has not got. 210,240 bytes to 219,556.
+what the kit has not got. 210,240 bytes to 219,556 for Group A, and 219,793
+once the kit's own `<sys/queue.h>` and `<wchar.h>` replaced the copies this
+header carried.
 
 | Upstream | Here |
 | --- | --- |
@@ -48,8 +50,8 @@ what the kit has not got. 210,240 bytes to 219,556.
 | `pthread_rwlock` around three caches | nothing; one thread |
 | `nl_langinfo`, `locale_charset` | `"UTF-8"`, the only locale there is |
 | `malloc`, `str*`, `snprintf`, `qsort`, `errno` | the port kit's |
-| `mbrtowc`, `wcrtomb` | still [braam.cpp](braam.cpp): the kit has no wide half |
-| `mbrtowc`, `wcrtomb` | the kernel's UTF-8 codec — `wchar_t` is UTF-32 here |
+| `mbrtowc`, `wcrtomb`, `mbstate_t` | the port kit's `<wchar.h>`, whose `mbstate_t` is this port's own `{buf[4], len}` |
+| `sys/queue.h` | the port kit's, in place of the three lists this header vendored |
 | `getopt_long` | a hand-rolled parser; `OptParse` has no long options |
 | `stdio` | `proc/file.h`'s `File`, on its byte path |
 | `mkcsmapper`, `mkesdb` (lex + yacc) | [mkcsmapper.py](mkcsmapper.py), [mkesdb.py](mkesdb.py) |
@@ -71,12 +73,19 @@ Structure:
   Only a `.esdb`, `.mps` or `.646` — which depend on the encodings asked
   for — is read through the awaiting half.
 
-- **`PATH_MAX` is 256, not the port kit's 512.** Citrus builds paths in stack
-  buffers — three `char[PATH_MAX]` in `_citrus_esdb_open`, four in
-  `_citrus_csmapper_open` — and a coroutine's locals live in a heap frame that
-  must stay under 512 bytes. The kit's 512 is a filesystem answer; this is a
-  frame-budget answer, so `braam.h` redefines it after `<limits.h>` and says
-  why. The longest path the library ever builds measures 81 bytes.
+- **`PATH_MAX` is 256 and `LINE_MAX` 256, not the port kit's 512 and 2048.**
+  Citrus builds paths in stack buffers — three `char[PATH_MAX]` in
+  `_citrus_esdb_open`, four in `_citrus_csmapper_open` — and a coroutine's
+  locals live in a heap frame that should stay under 512 bytes. The kit's
+  numbers are filesystem answers; these are frame-budget ones, so `braam.h`
+  redefines both after `<limits.h>` and says why. The longest path the library
+  ever builds measures 81 bytes.
+
+  The kit's own archive is compiled against 512, so the divergence is silent by
+  construction, and the rule that makes it safe is written beside it: no kit
+  function is ever handed one of these buffers with an implied size. Every call
+  that takes one passes the length — `strlcpy`, `snprintf`, `_lookup_alias` —
+  and there is no `getcwd` or `realpath` in this port to write past the end.
 
 - **The errno numbers are the kit's**, which are musl's, where this port
   carried Apple's. They never leave the library — citrus's whole error protocol
@@ -108,7 +117,9 @@ Structure:
 
 - **The `wchar_t` conversion path works, and did not have to.** The plan was to
   cut it, but the locale here is UTF-8 and `wchar_t` is UTF-32, so
-  `mbrtowc`/`wcrtomb` are forty lines over `kernel/text.h`.
+  `mbrtowc`/`wcrtomb` were forty lines over `kernel/text.h` — and are now the
+  port kit's, which answer `EILSEQ` for a malformed sequence where this port's
+  own let `utf8_decode` hand back U+FFFD.
 
 - **`iconv -l` buffers its output.** `iconvlist` walks the list through a plain
   callback, which cannot `co_await`; the names accumulate and go out in one
@@ -165,7 +176,7 @@ becomes a command.
 | | |
 | --- | --- |
 | `iconv.cpp` | upstream `iconv/iconv.c`, the command |
-| `braam.h`, `braam.cpp` | the whole porting layer, force-included ahead of every source: the BSD spellings and integer names, `sys/queue.h` vendored, the wide half, the locale stubs, and `iconv_error` |
+| `braam.h`, `braam.cpp` | the whole porting layer, force-included ahead of every source: the BSD spellings and integer names, the limits, the locale stubs, and `iconv_error` |
 | `citrus_module.cpp` | the static module table, replacing `citrus_module.c` |
 | `citrus_mmap.cpp` | whole-file reads and the index cache, replacing `citrus_mmap.c` |
 | `citrus_paths.cpp` | where `/share/i18n` is |

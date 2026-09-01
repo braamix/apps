@@ -82,8 +82,9 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp
 add_custom_target(iconv_i18n ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp)
 
 # PORT is the C library citrus calls -- mem*, str*, ctype, the allocator,
-# strtol, snprintf, qsort -- and -fno-builtin for all of it at once. What
-# braam.h and braam.cpp still answer is what the kit has not got.
+# strtol, snprintf, qsort, sys/queue.h and the wide half -- and -fno-builtin
+# for all of it at once. What braam.h and braam.cpp still answer is what the
+# kit has not got.
 braam_add_program(NAME iconv
                   SOURCES iconv.cpp ${ICONV_PORT} ${ICONV_CORE} ${ICONV_OPEN}
                           ${ICONV_MODULES}

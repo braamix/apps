@@ -26,8 +26,7 @@
 #include "getch.h"
 #include "highli.h"
 #include "keymap.h"
-#include "lefile.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "undo.h"
 
@@ -224,13 +223,13 @@ Task<void> SaveConfToOpenFile(FILE *f, const struct init *init)
     for (p = init; p->name; p++) {
         char line[64];
         snprintf(line, sizeof(line), "%s=", p->name);
-        co_await le_puts(line, f);
+        co_await b_fputs(line, f);
         if (p->format == NUM) {
             snprintf(line, sizeof(line), "%d", *(int *)(p->var));
-            co_await le_puts(line, f);
+            co_await b_fputs(line, f);
         } else if (p->format == STR)
-            co_await le_puts((char *)(p->var), f);
-        co_await le_putc('\n', f);
+            co_await b_fputs((char *)(p->var), f);
+        co_await b_fputc('\n', f);
     }
 }
 
@@ -238,18 +237,18 @@ Task<void> SaveConfToFile(const char *f, const struct init *init)
 {
     FILE *conf;
 
-    conf = co_await le_fopen(f, true);
+    conf = co_await b_fopen(f, "w");
     if (conf == NULL) {
         FError(f);
         co_return;
     }
     co_await SaveConfToOpenFile(conf, init);
-    if (conf->failed()) {
-        co_await le_fclose(conf);
+    if (conf->at->failed()) {
+        co_await b_fclose(conf);
         FError(f);
         co_return;
     }
-    co_await le_fclose(conf);
+    co_await b_fclose(conf);
 }
 
 Task<void> SaveConf(const char *f)
@@ -263,7 +262,7 @@ Task<void> SaveConf(const char *f)
 Task<void> fskip(FILE *f)
 {
     int i;
-    while ((i = co_await le_getc(f)) != EOF && i != '\n')
+    while ((i = co_await b_fgetc(f)) != EOF && i != '\n')
         ;
 }
 
@@ -280,10 +279,10 @@ Task<void> ReadConfFromOpenFile(FILE *f, const struct init *init, bool mine)
 
     for (;;) {
         String name;
-        if (!(co_await f->scan_until(name, "=\n", 255)).value_or(false) ||
-            !(co_await f->scan_lit('=')).value_or(false)) {
+        if (!(co_await f->at->scan_until(name, "=\n", 255)).value_or(false) ||
+            !(co_await f->at->scan_lit('=')).value_or(false)) {
             co_await fskip(f);
-            if (f->eof())
+            if (f->at->eof())
                 break;
             continue;
         }
@@ -302,7 +301,7 @@ Task<void> ReadConfFromOpenFile(FILE *f, const struct init *init, bool mine)
             if (!strcmp(ptr->name, str)) {
                 if (ptr->format == NUM) {
                     {
-                        Result<i64> n = co_await f->scan_i64();
+                        Result<i64> n = co_await f->at->scan_i64();
                         if (n.is_ok())
                             *(int *)(ptr->var) = (int)n.value();
                         co_await fskip(f);
@@ -311,7 +310,7 @@ Task<void> ReadConfFromOpenFile(FILE *f, const struct init *init, bool mine)
                 } else if (ptr->format == STR) {
                     s = (char *)(ptr->var);
                     do {
-                        if ((i = co_await le_getc(f)) == EOF || i == '\n')
+                        if ((i = co_await b_fgetc(f)) == EOF || i == '\n')
                             break;
                         *s++ = i;
                         if (s - (char *)(ptr->var) >= 255) {
@@ -332,18 +331,18 @@ Task<void> ReadConfFromOpenFile(FILE *f, const struct init *init, bool mine)
 Task<void> ReadConfFromFile(const char *ini, const struct init *init, bool mine)
 {
     FILE *f;
-    f = co_await le_fopen(ini, false);
+    f = co_await b_fopen(ini, "r");
     if (f == NULL)
         co_return;
     co_await ReadConfFromOpenFile(f, init, mine);
-    co_await le_fclose(f);
+    co_await b_fclose(f);
 }
 
 static Task<bool> ConfOK(const char *f, bool mine)
 {
     /* Upstream refused a config file owned by someone else; there is no owner. */
     (void)mine;
-    if (co_await le_access(f, R_OK) == -1)
+    if (co_await b_access(f, R_OK) == -1)
         co_return false;
     co_return true;
 }
@@ -380,7 +379,7 @@ ini_done:
 
 #else
     strcpy(InitName, "le.ini");
-    if (co_await le_access(InitName, R_OK) == -1)
+    if (co_await b_access(InitName, R_OK) == -1)
         snprintf(InitName, sizeof(InitName), "%s/le.ini", HOME);
     co_await ReadConfFromFile(InitName, init, false);
 #endif

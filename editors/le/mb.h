@@ -21,7 +21,8 @@
 
 #include "gap.h"
 #include "kernel/task.h"
-#include "lewchar.h"
+#include <wchar.h>
+#include <wctype.h>
 
 extern int MBCharSize;
 extern int MBCharWidth;

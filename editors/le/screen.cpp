@@ -25,7 +25,7 @@
 #include "edit.h"
 #include "getch.h"
 #include "highli.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "mb.h"
 
 #ifndef max
@@ -784,9 +784,9 @@ void FError(const char *s)
     char err[64];
     char msg[256];
 
-    if (le_errno)
-        snprintf(err, sizeof(err), "%.*s", (int)error_name(Error(le_errno)).size(),
-                 error_name(Error(le_errno)).data());
+    if (errno)
+        snprintf(err, sizeof(err), "%.*s", (int)error_name(error_of(errno)).size(),
+                 error_name(error_of(errno)).data());
     else
         snprintf(err, sizeof(err), "The device is full,\nI cannot write");
 

@@ -119,7 +119,7 @@ Task<int> zipcloak(struct zlist far *z, ZCONST char *passwd)
 
     // Set encrypted bit, clear extended local header bit and write local
     // header to output file
-    if ((n = (zoff_t) co_await zftello(y)) == (zoff_t)-1L)
+    if ((n = (zoff_t) co_await b_ftello(y)) == (zoff_t)-1L)
         co_return ZE_TEMP;
 
     // assume this archive is one disk and the file is open
@@ -149,8 +149,8 @@ Task<int> zipcloak(struct zlist far *z, ZCONST char *passwd)
     // Encrypt data
     b = 0;
     for (n = z->siz - RAND_HEAD_LEN; n; n--) {
-        if ((c = co_await zfgetc(in_file)) == EOF) {
-            co_return zferror(in_file) ? ZE_READ : ZE_EOF;
+        if ((c = co_await b_fgetc(in_file)) == EOF) {
+            co_return b_ferror(in_file) ? ZE_READ : ZE_EOF;
         }
         buf[b] = (uch)zencode(c, t);
         b++;
@@ -168,7 +168,7 @@ Task<int> zipcloak(struct zlist far *z, ZCONST char *passwd)
 
     // Since we seek to the start of each local header can skip
     // reading any extended local header
-    // if ((flag & 8) != 0 && zfseeko(in_file, 16L, SEEK_CUR)) {
+    // if ((flag & 8) != 0 && b_fseeko(in_file, 16L, SEEK_CUR)) {
     // co_return ferror(in_file) ? ZE_READ : ZE_EOF;
     // }
     // if (fflush(y) == EOF) co_return ZE_TEMP;
@@ -203,7 +203,7 @@ Task<int> zipbare(struct zlist far *z, ZCONST char *passwd)
     int res; // co_return code
 
     // Save position
-    if ((n = (zoff_t) co_await zftello(y)) == (zoff_t)-1L)
+    if ((n = (zoff_t) co_await b_ftello(y)) == (zoff_t)-1L)
         co_return ZE_TEMP;
 
     // Read local header
@@ -219,8 +219,8 @@ Task<int> zipbare(struct zlist far *z, ZCONST char *passwd)
     // Decrypt encryption header, save last two bytes
     c1 = 0;
     for (r = RAND_HEAD_LEN; r; r--) {
-        if ((c1 = co_await zfgetc(in_file)) == EOF) {
-            co_return zferror(in_file) ? ZE_READ : ZE_EOF;
+        if ((c1 = co_await b_fgetc(in_file)) == EOF) {
+            co_return b_ferror(in_file) ? ZE_READ : ZE_EOF;
         }
         Trace((stdout, " (%02x)", c1));
         zdecode(c1);
@@ -232,8 +232,8 @@ Task<int> zipbare(struct zlist far *z, ZCONST char *passwd)
     // case of an extended local header), back up and just copy. For
     // pkzip 2.0, the check has been reduced to one byte only.
     if ((ush)c1 != (z->flg & 8 ? (ush)z->tim >> 8 : (ush)(z->crc >> 24))) {
-        if (co_await zfseeko(in_file, n, SEEK_SET)) {
-            co_return zferror(in_file) ? ZE_READ : ZE_EOF;
+        if (co_await b_fseeko(in_file, n, SEEK_SET)) {
+            co_return b_ferror(in_file) ? ZE_READ : ZE_EOF;
         }
         if ((res = co_await zipcopy(z)) != ZE_OK) {
             ziperr(res, "was copying an entry");
@@ -253,8 +253,8 @@ Task<int> zipbare(struct zlist far *z, ZCONST char *passwd)
     // Decrypt data
     b = 0;
     for (size = z->siz; size; size--) {
-        if ((c1 = co_await zfgetc(in_file)) == EOF) {
-            co_return zferror(in_file) ? ZE_READ : ZE_EOF;
+        if ((c1 = co_await b_fgetc(in_file)) == EOF) {
+            co_return b_ferror(in_file) ? ZE_READ : ZE_EOF;
         }
         zdecode(c1);
         buf[b] = c1;

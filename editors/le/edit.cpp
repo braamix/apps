@@ -31,8 +31,7 @@
 #include "epath.h"
 #include "getch.h"
 #include "keymap.h"
-#include "lefile.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "options.h"
 #include "proc/io.h"
 #include "screen.h"
@@ -315,7 +314,7 @@ Task<int> AskToSave()
         switch (co_await ReadMenuBox(Menu, HORIZ, "The file has been modified. Save?", "",
                                      VERIFY_WIN_ATTR, CURR_BUTTON_ATTR)) {
         case ('Y'):
-            le_errno  = 0;
+            errno  = 0;
             result = (co_await UserSave() == OK);
             if (!result && modified) {
                 co_await UserSaveAs();
@@ -384,9 +383,9 @@ Task<void> Initialize()
     static char filename[LE_PATHMAX];
     unsigned nbytes = sizeof(filename);
     snprintf(filename, nbytes, "%s/.le", HOME);
-    co_await le_mkdir(filename, 0700);
+    co_await b_mkdir(filename, 0700);
     strcat(filename, "/tmp");
-    co_await le_mkdir(filename, 0700);
+    co_await b_mkdir(filename, 0700);
     snprintf(HstName, sizeof(HstName), "%s/.le/history2", HOME);
 #else
     snprintf(HstName, sizeof(HstName), "%s/le.hst", HOME);
@@ -406,14 +405,14 @@ Task<void> Initialize()
     InitMenu();
 
     MessageSync("Loading history...");
-    f = co_await le_fopen(HstName, false);
+    f = co_await b_fopen(HstName, "r");
     if (f) {
         co_await PositionHistory.ReadFrom(f);
         co_await LoadHistory.ReadFrom(f);
         co_await SearchHistory.ReadFrom(f);
         co_await ShellHistory.ReadFrom(f);
         co_await PipeHistory.ReadFrom(f);
-        co_await le_fclose(f);
+        co_await b_fclose(f);
     }
 
     co_await EditorReadKeymap();
@@ -431,14 +430,14 @@ static char StartDir[LE_PATHMAX];
 static Task<bool> here(const char *f)
 {
     if (f[0] != '/')
-        co_return co_await le_access(f, R_OK) != -1;
+        co_return co_await b_access(f, R_OK) != -1;
 
     const char *slash = strrchr(f, '/');
     usize n           = slash == f ? 1 : (usize)(slash - f);
 
     if (strlen(StartDir) != n || memcmp(f, StartDir, n))
         co_return false;
-    co_return co_await le_access(f, R_OK) != -1;
+    co_return co_await b_access(f, R_OK) != -1;
 }
 
 Task<void> Terminate()
@@ -460,7 +459,7 @@ Task<void> Terminate()
                opened O_RDWR|O_CREAT and got both from one descriptor -- with the
                write under `if (f)` there is no first run, so the file is never
                created and nothing is ever remembered. */
-            f = co_await le_fopen(HstName, false);
+            f = co_await b_fopen(HstName, "r");
             if (f) {
                 InodeHistory oldPositionHistory;
                 History oldLoadHistory;
@@ -479,10 +478,10 @@ Task<void> Terminate()
                 ShellHistory.Merge(oldShellHistory);
                 PipeHistory.Merge(oldPipeHistory);
 
-                co_await le_fclose(f);
+                co_await b_fclose(f);
             }
 
-            f = co_await le_fopen(HstName, true);
+            f = co_await b_fopen(HstName, "w");
             if (f) {
                 co_await PositionHistory.WriteTo(f);
                 co_await LoadHistory.WriteTo(f);
@@ -490,7 +489,7 @@ Task<void> Terminate()
                 co_await ShellHistory.WriteTo(f);
                 co_await PipeHistory.WriteTo(f);
 
-                co_await le_fclose(f);
+                co_await b_fclose(f);
             }
         }
     }
@@ -504,7 +503,7 @@ Task<void> Terminate()
 Task<void> PrintUsage(int arg)
 {
     (void)arg;
-    co_await File::stdout().write(
+    co_await b_fputs(
         "Usage: le [OPTIONS] [FILES...]\n"
         "\n"
         "-r  --read-only    permanent read only mode (view)\n"
@@ -519,8 +518,9 @@ Task<void> PrintUsage(int arg)
         "\n"
         "The last file will be loaded. If no files specified, the file last\n"
         "edited in this directory is reopened where it was left, and switch-file\n"
-        "reaches the one before it.\n");
-    co_await File::stdout().flush();
+        "reaches the one before it.\n",
+        stdout);
+    co_await b_fflush(stdout);
 }
 
 Task<i32> proc_main(Args args)
@@ -600,12 +600,12 @@ Task<i32> proc_main(Args args)
             co_await PrintVersion();
             co_return 0;
         } else if (name == "dump-keymap") {
-            co_await WriteActionMap(&File::stdout());
-            co_await File::stdout().flush();
+            co_await WriteActionMap(stdout);
+            co_await b_fflush(stdout);
             co_return 0;
         } else if (name == "dump-colors") {
-            co_await DumpDefaultColors(&File::stdout());
-            co_await File::stdout().flush();
+            co_await DumpDefaultColors(stdout);
+            co_await b_fflush(stdout);
             co_return 0;
         } else if (name == "read-only")
             optView = 1;
@@ -626,7 +626,7 @@ Task<i32> proc_main(Args args)
     }
 
     if (bad) {
-        co_await File::stderr().write("le: unknown option; try `le --help'\n");
+        co_await b_fputs("le: unknown option; try `le --help'\n", stderr);
         co_return 1;
     }
 
@@ -688,7 +688,7 @@ Task<i32> proc_main(Args args)
             if (!hl)
                 break;
             const char *f = hl->get_line();
-            if (*f && (first || f[0] != '/') && co_await le_access(f, R_OK) != -1) {
+            if (*f && (first || f[0] != '/') && co_await b_access(f, R_OK) != -1) {
                 strcpy(newname, f);
                 break;
             }

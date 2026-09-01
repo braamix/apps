@@ -67,8 +67,8 @@ Task<void> PrintVersion()
     char head[256];
 
     snprintf(head, sizeof(head), "%s - %s\n%s <%s>\n\n", Program, version_string, copyright, EMAIL);
-    co_await File::stdout().write(Str(head, strlen(head)));
-    co_await File::stdout().write(
+    co_await b_fputs(head, stdout);
+    co_await b_fputs(
         "LE is free software: you can redistribute it and/or modify it\n"
         "under the terms of the GNU General Public License as published by\n"
         "the Free Software Foundation, either version 3 of the License, or\n"
@@ -80,6 +80,7 @@ Task<void> PrintVersion()
         "GNU General Public License for more details.\n"
         "\n"
         "You should have received a copy of the GNU General Public License\n"
-        "along with LE.  If not, see <http://www.gnu.org/licenses/>.\n");
-    co_await File::stdout().flush();
+        "along with LE.  If not, see <http://www.gnu.org/licenses/>.\n",
+        stdout);
+    co_await b_fflush(stdout);
 }

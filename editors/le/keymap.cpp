@@ -27,7 +27,7 @@
 #include "kernel/alloc.h"
 #include "keymap.h"
 #include "keynames.h"
-#include "lefile.h"
+#include "compat/cio.h"
 #include "lesys.h"
 #include "options.h"
 #include "search.h"
@@ -254,11 +254,11 @@ Task<void> WriteActionMap(FILE *f)
     for (int i = 0; ActionCodeTable[i].action != -1; i++) {
         int pos            = 0;
         const char *a_name = GetActionName(ActionCodeTable[i].action);
-        co_await le_puts(a_name, f);
+        co_await b_fputs(a_name, f);
         pos += strlen(a_name);
         const char *arg = ActionCodeTable[i].arg;
         if (arg) {
-            co_await le_putc('(', f), pos++;
+            co_await b_fputc('(', f), pos++;
             while (*arg) {
                 char out   = *arg;
                 char bsout = 0;
@@ -281,17 +281,17 @@ Task<void> WriteActionMap(FILE *f)
                     break;
                 }
                 if (bsout)
-                    co_await le_putc('\\', f), pos++;
-                co_await le_putc(bsout ? bsout : out, f), pos++;
+                    co_await b_fputc('\\', f), pos++;
+                co_await b_fputc(bsout ? bsout : out, f), pos++;
                 arg++;
             }
-            co_await le_putc(')', f), pos++;
+            co_await b_fputc(')', f), pos++;
         }
-        co_await le_putc(' ', f), pos++;
+        co_await b_fputc(' ', f), pos++;
         while (pos < 23)
-            co_await le_putc(' ', f), pos++;
-        co_await le_puts(GetActionCodeText(ActionCodeTable[i].code), f);
-        co_await le_putc('\n', f);
+            co_await b_fputc(' ', f), pos++;
+        co_await b_fputs(GetActionCodeText(ActionCodeTable[i].code), f);
+        co_await b_fputc('\n', f);
     }
 }
 
@@ -511,7 +511,7 @@ Task<void> ReadActionMap(FILE *f)
         store = ActionName;
         for (;;) /* action name cycle */
         {
-            ch = co_await le_getc(f);
+            ch = co_await b_fgetc(f);
             if (ch == EOF || isspace(ch))
                 break;
             if (store - ActionName < (int)sizeof(ActionName) - 1)
@@ -522,7 +522,7 @@ Task<void> ReadActionMap(FILE *f)
         int action_found = ParseActionNameArg(ActionName, &ActionArg);
         if (action_found == -1) {
             while (ch != '\n' && ch != EOF)
-                ch = co_await le_getc(f);
+                ch = co_await b_fgetc(f);
             if (ch == EOF)
                 break;
             continue;
@@ -530,7 +530,7 @@ Task<void> ReadActionMap(FILE *f)
 
         /* skip spaces between action name and action code */
         while (ch != '\n' && ch != EOF && isspace(ch))
-            ch = co_await le_getc(f);
+            ch = co_await b_fgetc(f);
 
         if (ch == EOF || ch == '\n')
             break;
@@ -538,7 +538,7 @@ Task<void> ReadActionMap(FILE *f)
         store = ActionCode;
         for (;;) {
             if (ch == '\\') {
-                ch = co_await le_getc(f);
+                ch = co_await b_fgetc(f);
                 switch (ch) {
                 case ('e'):
                     ch = 27;
@@ -557,12 +557,12 @@ Task<void> ReadActionMap(FILE *f)
                     break;
                 default:
                     if (isdigit(ch)) {
-                        le_ungetc(ch, f);
-                        Result<u64> o = co_await f->scan_u64(8, 3);
+                        f->at->unget((char32_t)ch);
+                        Result<u64> o = co_await f->at->scan_u64(8, 3);
                         if (o.is_ok())
                             ch = (int)o.value();
                     } else {
-                        le_ungetc(ch, f);
+                        f->at->unget((char32_t)ch);
                         ch = '\\';
                     }
                 }
@@ -573,7 +573,7 @@ Task<void> ReadActionMap(FILE *f)
             if (store - ActionCode < (int)sizeof(ActionCode) - 1)
                 *(store++) = ch;
 
-            ch = co_await le_getc(f);
+            ch = co_await b_fgetc(f);
             if (ch == EOF || isspace(ch))
                 break;
         }

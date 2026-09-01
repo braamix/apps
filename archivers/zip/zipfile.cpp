@@ -23,8 +23,8 @@ local Task<int> at_signature OF((FILE *, ZCONST char *));
 // Macros for writing machine integers to little-endian format
 #define PUTSH(a, f)                               \
     {                                             \
-        co_await zfputc((char)((a) & 0xff), (f)); \
-        co_await zfputc((char)((a) >> 8), (f));   \
+        co_await b_fputc((char)((a) & 0xff), (f)); \
+        co_await b_fputc((char)((a) >> 8), (f));   \
     }
 #define PUTLG(a, f) { PUTSH((a) & 0xffff, (f)) PUTSH((a) >> 16, (f)) }
 
@@ -1004,7 +1004,7 @@ Task<int> putlocal(struct zlist far *z, int rewrite)
         // use fwrite as seeked back and not extending the archive
         // also if split_method 1 write to file with local header
         if (split_method == 1) {
-            if (co_await zwrite(block, 1, offset, current_local_file) != offset) {
+            if (co_await b_fwrite(block, 1, offset, current_local_file) != offset) {
                 free(block);
                 co_return ZE_TEMP;
             }
@@ -1017,7 +1017,7 @@ Task<int> putlocal(struct zlist far *z, int rewrite)
             }
         } else {
             // not doing splits
-            if (co_await zwrite(block, 1, offset, y) != offset) {
+            if (co_await b_fwrite(block, 1, offset, y) != offset) {
                 free(block);
                 co_return ZE_TEMP;
             }
@@ -1371,17 +1371,17 @@ Task<int> putend(OFT(uzoff_t) n, OFT(uzoff_t) s, OFT(uzoff_t) c, OFT(extent) m, 
 
 #ifdef HANDLE_AMIGA_SFX
     if (amiga_sfx_offset && zipbeg /* -J zeroes this */) {
-        s = co_await zftello(y);
+        s = co_await b_ftello(y);
         while (s & 3)
-            s++, co_await zfputc(0, f); // final marker must be longword aligned
+            s++, co_await b_fputc(0, f); // final marker must be longword aligned
         PUTLG(0xF2030000 /* 1010 in Motorola byte order */, f);
         c = (s - amiga_sfx_offset - 4) / 4; // size of archive part in longwords
-        if (co_await zfseeko(y, amiga_sfx_offset, SEEK_SET) != 0)
+        if (co_await b_fseeko(y, amiga_sfx_offset, SEEK_SET) != 0)
             co_return ZE_TEMP;
         c = ((c >> 24) & 0xFF) | ((c >> 8) & 0xFF00) | ((c & 0xFF00) << 8) |
             ((c & 0xFF) << 24); // invert byte order
         PUTLG(c, y);
-        co_await zfseeko(y, 0, SEEK_END); // just in case
+        co_await b_fseeko(y, 0, SEEK_END); // just in case
     }
 #endif
 
@@ -1478,7 +1478,7 @@ local Task<void> read_Unicode_Path_entry(struct zlist far *pZipListEntry)
     // If the checksums's don't match then likely iname has been modified and
     // the Unicode Path is no longer valid
     if (chksum != iname_chksum) {
-        co_await zfprintf(zstdout, "unicode_mismatch = %d\n", unicode_mismatch);
+        co_await b_fprintf(stdout, "unicode_mismatch = %d\n", unicode_mismatch);
         if (unicode_mismatch == 1) {
             // warn and continue
             co_await zipwarn("Unicode does not match path - ignoring Unicode: ",
@@ -1487,7 +1487,7 @@ local Task<void> read_Unicode_Path_entry(struct zlist far *pZipListEntry)
             // ignore and continue
         } else if (unicode_mismatch == 0) {
             // error
-            zsprintf(errbuf, "Unicode does not match path:  %s\n", pZipListEntry->oname);
+            sprintf(errbuf, "Unicode does not match path:  %s\n", pZipListEntry->oname);
             strcat(errbuf,
                    "                     Likely entry name changed but Unicode not updated\n");
             strcat(errbuf,
@@ -1588,7 +1588,7 @@ local Task<void> read_Unicode_Path_local_entry(struct zlist far *pZipListEntry)
             // ignore and continue
         } else if (unicode_mismatch == 0) {
             // error
-            zsprintf(errbuf, "Unicode does not match path:  %s\n", pZipListEntry->oname);
+            sprintf(errbuf, "Unicode does not match path:  %s\n", pZipListEntry->oname);
             strcat(errbuf,
                    "                     Likely entry name changed but Unicode not updated\n");
             strcat(errbuf,
@@ -1698,27 +1698,27 @@ Task<zoff_t> ffile_size(FILE *file)
     char waste[4];
 
     // Seek to actual EOF.
-    sts = co_await zfseeko(file, 0, SEEK_END);
+    sts = co_await b_fseeko(file, 0, SEEK_END);
     if (sts != 0) {
         // fseeko() failed.  (Unlikely.)
         ofs = EOF;
     } else {
         // Get apparent offset at EOF.
-        ofs = co_await zftello(file);
+        ofs = co_await b_ftello(file);
         if (ofs < 0) {
             // Offset negative (overflow).  File too big.
             ofs = EOF;
         } else {
             // Seek to apparent EOF offset.
             // Won't be at actual EOF if offset was truncated.
-            sts = co_await zfseeko(file, ofs, SEEK_SET);
+            sts = co_await b_fseeko(file, ofs, SEEK_SET);
             if (sts != 0) {
                 // fseeko() failed.  (Unlikely.)
                 ofs = EOF;
             } else {
                 // Read a byte at apparent EOF.  Should set EOF flag.
-                siz = co_await zfread(waste, 1, 1, file);
-                if (zfeof(file) == 0) {
+                siz = co_await b_fread(waste, 1, 1, file);
+                if (b_feof(file) == 0) {
                     // Not at EOF, but should be.  File too big.
                     ofs = EOF;
                 }
@@ -1729,12 +1729,9 @@ Task<zoff_t> ffile_size(FILE *file)
     //
     // 2007-05-23 SMS.
     // Note that a problem in a prehistoric VAX C run-time library
-    // requires that co_await zfseeko() be used instead of fseek(), or else
+    // requires that co_await b_fseeko() be used instead of fseek(), or else
     // the EOF flag is not cleared properly.
-    // Upstream rewound here to clear a stale EOF. A File's error is sticky and
-    // a seek does not clear it, so both are said outright.
-    file->clear_err();
-    co_await zfseeko(file, 0, SEEK_SET);
+    co_await b_fseeko(file, 0, SEEK_SET);
 
     co_return ofs;
 }
@@ -1742,13 +1739,13 @@ Task<zoff_t> ffile_size(FILE *file)
 local Task<void> zipoddities(struct zlist far *z)
 {
     if ((z->vem >> 8) >= NUM_HOSTS) {
-        zsprintf(errbuf,
+        sprintf(errbuf,
                  "made by version %d.%d on system type %d: ", (ush)(z->vem & 0xff) / (ush)10,
                  (ush)(z->vem & 0xff) % (ush)10, z->vem >> 8);
         co_await zipwarn(errbuf, z->oname);
     }
     if (z->ver != 10 && z->ver != 11 && z->ver != 20) {
-        zsprintf(errbuf, "needs unzip %d.%d on system type %d: ", (ush)(z->ver & 0xff) / (ush)10,
+        sprintf(errbuf, "needs unzip %d.%d on system type %d: ", (ush)(z->ver & 0xff) / (ush)10,
                  (ush)(z->ver & 0xff) % (ush)10, z->ver >> 8);
         co_await zipwarn(errbuf, z->oname);
     }
@@ -1761,24 +1758,24 @@ local Task<void> zipoddities(struct zlist far *z)
     // They have not yet been read when "zipoddities()" is called.
     // This change was neccessary to support multivolume archives.
     {
-        zsprintf(errbuf, "local flags = 0x%04x, central = 0x%04x: ", z->lflg, z->flg);
+        sprintf(errbuf, "local flags = 0x%04x, central = 0x%04x: ", z->lflg, z->flg);
         co_await zipwarn(errbuf, z->oname);
     } else if (z->flg & ~0xf && (z->flg & ~0xf0) != UTF8_BIT)
     // Only bit in high byte we support is the new UTF-8 bit
     {
-        zsprintf(errbuf, "undefined bits used in flags = 0x%04x: ", z->flg);
+        sprintf(errbuf, "undefined bits used in flags = 0x%04x: ", z->flg);
         co_await zipwarn(errbuf, z->oname);
     }
     if (z->how > LAST_KNOWN_COMPMETHOD) {
-        zsprintf(errbuf, "unknown compression method %u: ", z->how);
+        sprintf(errbuf, "unknown compression method %u: ", z->how);
         co_await zipwarn(errbuf, z->oname);
     }
     if (z->dsk) {
-        zsprintf(errbuf, "starts on disk %lu: ", z->dsk);
+        sprintf(errbuf, "starts on disk %lu: ", z->dsk);
         co_await zipwarn(errbuf, z->oname);
     }
     if (z->att != ASCII && z->att != BINARY && z->att != __EBCDIC) {
-        zsprintf(errbuf, "unknown internal attributes = 0x%04x: ", z->att);
+        sprintf(errbuf, "unknown internal attributes = 0x%04x: ", z->att);
         co_await zipwarn(errbuf, z->oname);
     }
 
@@ -1803,7 +1800,7 @@ Task<int> readlocal(struct zlist far **localz, struct zlist far *z)
 
     if (start_disk != current_in_disk) {
         if (in_file) {
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
             in_file = NULL;
         }
     }
@@ -1814,7 +1811,7 @@ Task<int> readlocal(struct zlist far **localz, struct zlist far *z)
     split_path = get_in_split_path(in_path, current_in_disk);
 
     if (in_file == NULL) {
-        while ((in_file = co_await zfopen(split_path, FOPR)) == NULL) {
+        while ((in_file = co_await b_fopen(split_path, FOPR)) == NULL) {
             // could not open split
 
             // Ask for directory with split.  Updates in_path
@@ -1828,24 +1825,24 @@ Task<int> readlocal(struct zlist far **localz, struct zlist far *z)
 
     // For utilities assume archive is on one disk for now
 
-    if (co_await zfseeko(in_file, z->off, SEEK_SET) != 0) {
-        co_await zfclose(in_file);
+    if (co_await b_fseeko(in_file, z->off, SEEK_SET) != 0) {
+        co_await b_fclose(in_file);
         in_file = NULL;
         co_await zipwarn("reading archive fseek: ", "");
         co_return ZE_READ;
     }
     if (!co_await at_signature(in_file, "PK\03\04")) {
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         in_file = NULL;
         co_await zipwarn("Did not find entry for ", z->iname);
         co_return ZE_FORM;
     }
 
     // read local header
-    if (co_await zfread(buf, LOCHEAD, 1, in_file) != 1) {
-        int f = zferror(in_file);
+    if (co_await b_fread(buf, LOCHEAD, 1, in_file) != 1) {
+        int f = b_ferror(in_file);
         co_await zipwarn("reading local entry: ", "");
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         co_return f ? ZE_READ : ZE_EOF;
     }
 
@@ -1867,7 +1864,7 @@ Task<int> readlocal(struct zlist far **localz, struct zlist far *z)
 
     if ((locz = (struct zlist far *)farmalloc(sizeof(struct zlist))) == NULL) {
         co_await zipwarn("reading entry", "");
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         co_return ZE_MEM;
     }
 
@@ -1890,9 +1887,9 @@ Task<int> readlocal(struct zlist far **localz, struct zlist far *z)
     if ((locz->iname = (char *)malloc(locz->nam + 1)) == NULL ||
         (locz->ext && (locz->extra = (char *)malloc(locz->ext)) == NULL))
         co_return ZE_MEM;
-    if (co_await zfread(locz->iname, locz->nam, 1, in_file) != 1 ||
-        (locz->ext && co_await zfread(locz->extra, locz->ext, 1, in_file) != 1))
-        co_return zferror(in_file) ? ZE_READ : ZE_EOF;
+    if (co_await b_fread(locz->iname, locz->nam, 1, in_file) != 1 ||
+        (locz->ext && co_await b_fread(locz->extra, locz->ext, 1, in_file) != 1))
+        co_return b_ferror(in_file) ? ZE_READ : ZE_EOF;
     locz->iname[z->nam] = '\0'; // terminate name
     if (unicode_mismatch != 3)
         co_await read_Unicode_Path_local_entry(locz);
@@ -1904,7 +1901,7 @@ Task<int> readlocal(struct zlist far **localz, struct zlist far *z)
 
     // Compare localz to z
     if (locz->ver != z->ver) {
-        zsprintf(errbuf, "Local Version Needed (%d) does not match CD (%d): ", locz->ver, z->ver);
+        sprintf(errbuf, "Local Version Needed (%d) does not match CD (%d): ", locz->ver, z->ver);
         co_await zipwarn(errbuf, z->iname);
     }
     if (locz->lflg != z->flg) {
@@ -1932,29 +1929,29 @@ local Task<int> find_next_signature(FILE *f)
 
     // look for P K ? ? signature
 
-    m = co_await zfgetc(f);
+    m = co_await b_fgetc(f);
 
-    // here = zftello(f);
+    // here = b_ftello(f);
 
     while (m != EOF) {
         if (m == 0x50 /*'P' except EBCDIC*/) {
             // found a P
             sigbuf[0] = (char)m;
 
-            if ((m = co_await zfgetc(f)) == EOF)
+            if ((m = co_await b_fgetc(f)) == EOF)
                 break;
             if (m != 0x4b /*'K' except EBCDIC*/) {
                 // not a signature
-                f->unget(m);
+                b_ungetc(m, f);
             } else {
                 // found P K
                 sigbuf[1] = (char)m;
 
-                if ((m = co_await zfgetc(f)) == EOF)
+                if ((m = co_await b_fgetc(f)) == EOF)
                     break;
                 if (m == 0x50 /*'P' except EBCDIC*/) {
                     // not a signature but maybe start of new one
-                    f->unget(m);
+                    b_ungetc(m, f);
                     continue;
                 } else if (m >= 16) {
                     // last 2 chars expect < 16 for signature
@@ -1962,11 +1959,11 @@ local Task<int> find_next_signature(FILE *f)
                 }
                 sigbuf[2] = (char)m;
 
-                if ((m = co_await zfgetc(f)) == EOF)
+                if ((m = co_await b_fgetc(f)) == EOF)
                     break;
                 if (m == 0x50 /*'P' except EBCDIC*/) {
                     // not a signature but maybe start of new one
-                    f->unget(m);
+                    b_ungetc(m, f);
                     continue;
                 } else if (m >= 16) {
                     // last 2 chars expect < 16
@@ -1978,9 +1975,9 @@ local Task<int> find_next_signature(FILE *f)
                 co_return 1;
             }
         }
-        m = co_await zfgetc(f);
+        m = co_await b_fgetc(f);
     }
-    if (zferror(f)) {
+    if (b_ferror(f)) {
         co_return 0;
     }
 
@@ -1992,7 +1989,7 @@ local Task<int> find_signature(FILE *f, ZCONST char *signature)
 {
     int i;
     char sig[4];
-    // zoff_t here = zftello(f);
+    // zoff_t here = b_ftello(f);
 
     for (i = 0; i < 4; i++)
         sig[i] = signature[i];
@@ -2003,7 +2000,7 @@ local Task<int> find_signature(FILE *f, ZCONST char *signature)
     if (sig[1] == 'K')
         sig[1] = 0x4b;
 
-    while (!zfeof(f)) {
+    while (!b_feof(f)) {
         if (!co_await find_next_signature(f)) {
             co_return 0;
         } else {
@@ -2073,7 +2070,7 @@ local Task<int> at_signature(FILE *f, ZCONST char *signature)
     if (sig[1] == 'K')
         sig[1] = 0x4b;
 
-    m = co_await zfread(b, 1, 4, f);
+    m = co_await b_fread(b, 1, 4, f);
     if (m != 4) {
         co_return 0;
     } else {
@@ -2167,16 +2164,16 @@ local Task<int> scanzipf_fixnew(void)
         co_return ZE_FORM;
     }
 
-    if ((in_file = co_await zfopen(in_path, FOPR)) == NULL) {
+    if ((in_file = co_await b_fopen(in_path, FOPR)) == NULL) {
         co_await zipwarn("could not open input archive: ", in_path);
     } else {
         // look for End Of Central Directory Record
 
         // back up 64k (the max size of the EOCDR) from end
-        if (co_await zfseeko(in_file, -0x40000L, SEEK_END) != 0) {
+        if (co_await b_fseeko(in_file, -0x40000L, SEEK_END) != 0) {
             // assume file is less than 64 KB so backup to beginning
-            if (co_await zfseeko(in_file, 0L, SEEK_SET) != 0) {
-                co_await zfclose(in_file);
+            if (co_await b_fseeko(in_file, 0L, SEEK_SET) != 0) {
+                co_await b_fclose(in_file);
                 in_file = NULL;
                 co_await zipwarn("unable to seek in input file ", in_path);
                 co_return ZE_READ;
@@ -2191,7 +2188,7 @@ local Task<int> scanzipf_fixnew(void)
             co_await zipwarn(errbuf, "");
         } else {
             // at start of data after EOCDR signature
-            eocdr_offset = (uzoff_t) co_await zftello(in_file);
+            eocdr_offset = (uzoff_t) co_await b_ftello(in_file);
 
             // OK, it is possible this is not the last EOCDR signature (might be
             // EOCDR signature from a stored archive in the last 64 KB) and so not
@@ -2202,7 +2199,7 @@ local Task<int> scanzipf_fixnew(void)
             // is stored in the comment, it's unlikely the binary \05 and \06
             // will be in the comment text.
             while (co_await find_signature(in_file, "PK\05\06")) {
-                eocdr_offset = (uzoff_t) co_await zftello(in_file);
+                eocdr_offset = (uzoff_t) co_await b_ftello(in_file);
             }
 
             // found EOCDR
@@ -2222,19 +2219,19 @@ local Task<int> scanzipf_fixnew(void)
             // .ZIP file comment length         2 bytes
             // .ZIP file comment        (variable size)
 
-            if (co_await zfseeko(in_file, eocdr_offset, SEEK_SET) != 0) {
-                co_await zfclose(in_file);
+            if (co_await b_fseeko(in_file, eocdr_offset, SEEK_SET) != 0) {
+                co_await b_fclose(in_file);
                 in_file = NULL;
                 co_await zipwarn("unable to seek in input file ", in_path);
                 co_return ZE_READ;
             }
 
             // read the EOCDR
-            s = co_await zfread(scbuf, 1, ENDHEAD, in_file);
+            s = co_await b_fread(scbuf, 1, ENDHEAD, in_file);
 
             // make sure we read enough bytes
             if (s < ENDHEAD) {
-                zsprintf(errbuf, "End record (EOCDR) only %s bytes - assume truncated",
+                sprintf(errbuf, "End record (EOCDR) only %s bytes - assume truncated",
                          zip_fzofft(s, NULL, "u"));
                 co_await zipwarn(errbuf, "");
             } else {
@@ -2263,7 +2260,7 @@ local Task<int> scanzipf_fixnew(void)
                     if (zcomlen) {
                         if ((zcomment = (char *)malloc(zcomlen + 1)) == NULL)
                             co_return ZE_MEM;
-                        if (co_await zfread(zcomment, zcomlen, 1, in_file) != 1) {
+                        if (co_await b_fread(zcomment, zcomlen, 1, in_file) != 1) {
                             free((zvoid *)zcomment);
                             zcomment = NULL;
                             co_await zipwarn("zipfile comment truncated - ignoring", "");
@@ -2273,10 +2270,10 @@ local Task<int> scanzipf_fixnew(void)
                     }
                 }
                 if (total_disks != 1)
-                    zsprintf(errbuf, " Found end record (EOCDR) - says expect %lu splits",
+                    sprintf(errbuf, " Found end record (EOCDR) - says expect %lu splits",
                              total_disks);
                 else
-                    zsprintf(errbuf, " Found end record (EOCDR) - says expect single disk archive");
+                    sprintf(errbuf, " Found end record (EOCDR) - says expect single disk archive");
                 co_await zipmessage(errbuf, "");
                 if (zcomment)
                     co_await zipmessage("  Found archive comment", "");
@@ -2293,8 +2290,8 @@ local Task<int> scanzipf_fixnew(void)
         if (total_disks == 0) {
             int issig;
             // seek to top
-            if (co_await zfseeko(in_file, 0, SEEK_SET) != 0) {
-                co_await zfclose(in_file);
+            if (co_await b_fseeko(in_file, 0, SEEK_SET) != 0) {
+                co_await b_fclose(in_file);
                 in_file = NULL;
                 co_await zipwarn("unable to seek in input file ", in_path);
                 co_return ZE_READ;
@@ -2302,7 +2299,7 @@ local Task<int> scanzipf_fixnew(void)
             // get next signature
             issig = co_await find_next_signature(in_file);
             if (issig) {
-                current_in_offset = co_await zftello(in_file);
+                current_in_offset = co_await b_ftello(in_file);
                 if (current_in_offset == 4 && is_signature(sigbuf, "PK\03\03")) {
                     // could be multi-disk aborted signature at top
                     // skip
@@ -2313,22 +2310,18 @@ local Task<int> scanzipf_fixnew(void)
                 }
             }
             if (issig && total_disks == 0) {
-                current_in_offset = co_await zftello(in_file);
+                current_in_offset = co_await b_ftello(in_file);
 
                 if (current_in_offset == 8 && is_signature(sigbuf, "PK\03\04")) {
                     // Local Header Record at top
 
-                    co_await zfprintf(zstdout, "Is this a single-disk archive?  (y/n): ");
-                    co_await zfflush(zstdout);
+                    co_await b_fprintf(stdout, "Is this a single-disk archive?  (y/n): ");
+                    co_await b_fflush(stdout);
 
-                    String answer;
-                    bool asked = false;
-                    if (Task<Result<bool>> t = File::stdin().getline(answer, false)) {
-                        Result<bool> r = co_await t;
-                        asked          = r.is_ok() && r.value();
-                    }
-                    errbuf[0] = asked && answer.size() ? answer[0] : 0;
-                    errbuf[1] = 0;
+                    char answer[8];
+                    bool asked = co_await b_fgets(answer, int(sizeof answer), stdin) != NULL;
+                    errbuf[0]  = asked ? answer[0] : 0;
+                    errbuf[1]  = 0;
                     if (asked) {
                         if (errbuf[0] == 'y' || errbuf[0] == 'Y') {
                             total_disks = 1;
@@ -2344,20 +2337,14 @@ local Task<int> scanzipf_fixnew(void)
 
         if (total_disks == 1000000) {
             // still don't know, so ask
-            co_await zfprintf(zstdout, "Is this a single-disk archive?  (y/n): ");
-            co_await zfflush(zstdout);
+            co_await b_fprintf(stdout, "Is this a single-disk archive?  (y/n): ");
+            co_await b_fflush(stdout);
 
-            String answer;
+            char answer[8];
 
-            bool asked = false;
+            bool asked = co_await b_fgets(answer, int(sizeof answer), stdin) != NULL;
 
-            if (Task<Result<bool>> t = File::stdin().getline(answer, false)) {
-                Result<bool> r = co_await t;
-
-                asked = r.is_ok() && r.value();
-            }
-
-            errbuf[0] = asked && answer.size() ? answer[0] : 0;
+            errbuf[0] = asked ? answer[0] : 0;
 
             errbuf[1] = 0;
 
@@ -2387,7 +2374,7 @@ local Task<int> scanzipf_fixnew(void)
     // only one disk.
     // If quiet, assume the file pointed to is a single file archive to fix.
     if (noisy && in_file) {
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         in_file = NULL;
     }
 
@@ -2402,7 +2389,7 @@ local Task<int> scanzipf_fixnew(void)
         // if in_file is not NULL then in_file is already open
         if (in_file == NULL) {
             // open the split
-            while ((in_file = co_await zfopen(split_path, FOPR)) == NULL) {
+            while ((in_file = co_await b_fopen(split_path, FOPR)) == NULL) {
                 int result;
                 // could not open split
 
@@ -2418,7 +2405,7 @@ local Task<int> scanzipf_fixnew(void)
                 } else if (result == ZE_FORM) {
                     // user asked to skip this disk
                     co_await zipmessage_nl("", 1);
-                    zsprintf(errbuf, "skipping disk %lu ...\n", current_in_disk);
+                    sprintf(errbuf, "skipping disk %lu ...\n", current_in_disk);
                     co_await zipwarn(errbuf, "");
                     skip_disk = 1;
                     break;
@@ -2444,26 +2431,26 @@ local Task<int> scanzipf_fixnew(void)
         // Main loop
         // Look for next signature and process it
         while (co_await find_next_signature(in_file)) {
-            current_in_offset = co_await zftello(in_file);
+            current_in_offset = co_await b_ftello(in_file);
 
             if (is_signature(sigbuf, "PK\05\06")) {
                 // End Of Central Directory Record
 
-                zsprintf(errbuf, "EOCDR found (%2lu %6s)...", current_in_disk + 1,
+                sprintf(errbuf, "EOCDR found (%2lu %6s)...", current_in_disk + 1,
                          zip_fzofft(current_in_offset - 4, NULL, "u"));
                 co_await zipmessage_nl(errbuf, 1);
 
             } else if (is_signature(sigbuf, "PK\06\06")) {
                 // Zip64 End Of Central Directory Record
 
-                zsprintf(errbuf, "Zip64 EOCDR found (%2lu %6s)...", current_in_disk + 1,
+                sprintf(errbuf, "Zip64 EOCDR found (%2lu %6s)...", current_in_disk + 1,
                          zip_fzofft(current_in_offset - 4, NULL, "u"));
                 co_await zipmessage_nl(errbuf, 1);
 
             } else if (is_signature(sigbuf, "PK\06\07")) {
                 // Zip64 End Of Central Directory Locator
 
-                zsprintf(errbuf, "Zip64 EOCDL found (%2lu %6s)...", current_in_disk + 1,
+                sprintf(errbuf, "Zip64 EOCDL found (%2lu %6s)...", current_in_disk + 1,
                          zip_fzofft(current_in_offset - 4, NULL, "u"));
                 co_await zipmessage_nl(errbuf, 1);
 
@@ -2471,7 +2458,7 @@ local Task<int> scanzipf_fixnew(void)
                 // Local Header Record
 
                 if (verbose) {
-                    zsprintf(errbuf, " Local (%2lu %6s):", current_in_disk + 1,
+                    sprintf(errbuf, " Local (%2lu %6s):", current_in_disk + 1,
                              zip_fzofft(current_in_offset - 4, NULL, "u"));
                     co_await zipmessage_nl(errbuf, 0);
                 }
@@ -2510,7 +2497,7 @@ local Task<int> scanzipf_fixnew(void)
                 r = co_await zipcopy(z);
 
                 if (in_central_directory) {
-                    zsprintf(errbuf, "Entry after central directory found (%2lu %6s)...",
+                    sprintf(errbuf, "Entry after central directory found (%2lu %6s)...",
                              current_in_disk + 1, zip_fzofft(current_in_offset - 4, NULL, "u"));
                     co_await zipmessage_nl(errbuf, 1);
                     in_central_directory = 0;
@@ -2559,7 +2546,7 @@ local Task<int> scanzipf_fixnew(void)
                 }
 
                 if (verbose) {
-                    zsprintf(errbuf, " Cen   (%2lu %6s): ", current_in_disk + 1,
+                    sprintf(errbuf, " Cen   (%2lu %6s): ", current_in_disk + 1,
                              zip_fzofft(current_in_offset - 4, NULL, "u"));
                     co_await zipmessage_nl(errbuf, 0);
                 }
@@ -2593,7 +2580,7 @@ local Task<int> scanzipf_fixnew(void)
                 // extra field (variable size)
                 // file comment (variable size)
 
-                if (co_await zfread(scbuf, CENHEAD, 1, in_file) != 1) {
+                if (co_await b_fread(scbuf, CENHEAD, 1, in_file) != 1) {
                     co_await zipwarn("reading central directory: ", "");
                     co_await zipwarn("bad archive - error reading central directory", "");
                     co_await zipwarn("skipping this entry...", "");
@@ -2629,7 +2616,7 @@ local Task<int> scanzipf_fixnew(void)
 
                 // Read file name, extra field and comment field
                 if (cz->nam == 0) {
-                    zsprintf(errbuf, "%lu", (ulg)zcount + 1);
+                    sprintf(errbuf, "%lu", (ulg)zcount + 1);
                     co_await zipwarn("zero-length name for entry #", errbuf);
                     co_await zipwarn("skipping this entry...", "");
                     continue;
@@ -2638,9 +2625,9 @@ local Task<int> scanzipf_fixnew(void)
                     (cz->cext && (cz->cextra = (char *)malloc(cz->cext + 1)) == NULL) ||
                     (cz->com && (cz->comment = (char *)malloc(cz->com + 1)) == NULL))
                     co_return ZE_MEM;
-                if (co_await zfread(cz->iname, cz->nam, 1, in_file) != 1 ||
-                    (cz->cext && co_await zfread(cz->cextra, cz->cext, 1, in_file) != 1) ||
-                    (cz->com && co_await zfread(cz->comment, cz->com, 1, in_file) != 1)) {
+                if (co_await b_fread(cz->iname, cz->nam, 1, in_file) != 1 ||
+                    (cz->cext && co_await b_fread(cz->cextra, cz->cext, 1, in_file) != 1) ||
+                    (cz->com && co_await b_fread(cz->comment, cz->com, 1, in_file) != 1)) {
                     co_await zipwarn("error reading entry:  ", "");
                     co_await zipwarn("skipping this entry...", "");
                     continue;
@@ -2656,12 +2643,12 @@ local Task<int> scanzipf_fixnew(void)
 
                     if (verbose) {
                         // cen dir name matches a local name
-                        zsprintf(errbuf, "updating: %s", cz->iname);
+                        sprintf(errbuf, "updating: %s", cz->iname);
                         co_await zipmessage_nl(errbuf, 0);
                     }
 
                     if (z->crc != cz->crc) {
-                        zsprintf(errbuf, "local (%lu) and cen (%lu) crc mismatch", z->crc, cz->crc);
+                        sprintf(errbuf, "local (%lu) and cen (%lu) crc mismatch", z->crc, cz->crc);
                         co_await zipwarn(errbuf, "");
                     }
 
@@ -2720,10 +2707,10 @@ local Task<int> scanzipf_fixnew(void)
                     if (verbose)
                         co_await zipoddities(z);
 
-                    current_offset = co_await zftello(y);
+                    current_offset = co_await b_ftello(y);
 
-                    if (co_await zfseeko(y, z->off, SEEK_SET) != 0) {
-                        co_await zfclose(in_file);
+                    if (co_await b_fseeko(y, z->off, SEEK_SET) != 0) {
+                        co_await b_fclose(in_file);
                         in_file = NULL;
                         co_await zipwarn("writing archive seek: ", "");
                         co_return ZE_WRITE;
@@ -2732,15 +2719,15 @@ local Task<int> scanzipf_fixnew(void)
                     if (co_await putlocal(z, PUTLOCAL_REWRITE) != ZE_OK)
                         co_await zipwarn("Error rewriting local header", "");
 
-                    if (co_await zfseeko(y, current_offset, SEEK_SET) != 0) {
-                        co_await zfclose(in_file);
+                    if (co_await b_fseeko(y, current_offset, SEEK_SET) != 0) {
+                        co_await b_fclose(in_file);
                         in_file = NULL;
                         co_await zipwarn("write archive seek: ", "");
                         co_return ZE_WRITE;
                     }
-                    offset = co_await zftello(y);
+                    offset = co_await b_ftello(y);
                     if (current_offset != offset) {
-                        co_await zfclose(in_file);
+                        co_await b_fclose(in_file);
                         in_file = NULL;
                         co_await zipwarn("seek after local: ", "");
                         co_return ZE_WRITE;
@@ -2751,7 +2738,7 @@ local Task<int> scanzipf_fixnew(void)
 
                 } else {
                     // cen dir name does not match local name
-                    zsprintf(errbuf, "no local entry: %s", cz->iname);
+                    sprintf(errbuf, "no local entry: %s", cz->iname);
                     co_await zipmessage_nl(errbuf, 1);
                 }
 
@@ -2779,10 +2766,10 @@ local Task<int> scanzipf_fixnew(void)
 
                 strcpy(errbuf, "unexpected signature ");
                 for (c = 0; c < 4; c++) {
-                    zsprintf(errbuftemp, "%02x ", sigbuf[c]);
+                    sprintf(errbuftemp, "%02x ", sigbuf[c]);
                     strcat(errbuf, errbuftemp);
                 }
-                zsprintf(errbuftemp, "on disk %lu at %s\n", current_in_disk,
+                sprintf(errbuftemp, "on disk %lu at %s\n", current_in_disk,
                          zip_fzofft(current_in_offset - 4, NULL, "u"));
                 strcat(errbuf, errbuftemp);
                 co_await zipwarn(errbuf, "");
@@ -2793,7 +2780,7 @@ local Task<int> scanzipf_fixnew(void)
 
         // close disk and do next disk
         if (in_file)
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
         in_file = NULL;
         free(split_path);
 
@@ -2869,7 +2856,7 @@ local Task<int> scanzipf_regnew(void)
     struct zlist far *z;        // current zip entry structure
 
     // open the zipfile
-    if ((in_file = co_await zfopen(in_path, FOPR)) == NULL) {
+    if ((in_file = co_await b_fopen(in_path, FOPR)) == NULL) {
         co_await zipwarn("could not open input archive", in_path);
         co_return ZE_OPEN;
     }
@@ -2879,15 +2866,15 @@ local Task<int> scanzipf_regnew(void)
     // In a valid Zip archive, the EOCDR can be at most (64k-1 + ENDHEAD + 4)
     // bytes (=65557 bytes) from the end of the file.
     // We back up 128k, to allow some junk being appended to a Zip file.
-    if ((co_await zfseeko(in_file, -0x20000L, SEEK_END) != 0) ||
+    if ((co_await b_fseeko(in_file, -0x20000L, SEEK_END) != 0) ||
         // Some fseek() implementations (e.g. MSC 8.0 16-bit) fail to signal
         // an error when seeking before the beginning of the file.
-        // As work-around, we check the position returned by zftello()
+        // As work-around, we check the position returned by b_ftello()
         // for the error value -1.
-        (co_await zftello(in_file) == (zoff_t)-1L)) {
+        (co_await b_ftello(in_file) == (zoff_t)-1L)) {
         // file is less than 128 KB so back up to beginning
-        if (co_await zfseeko(in_file, 0L, SEEK_SET) != 0) {
-            co_await zfclose(in_file);
+        if (co_await b_fseeko(in_file, 0L, SEEK_SET) != 0) {
+            co_await b_fclose(in_file);
             in_file = NULL;
             co_await zipwarn("unable to seek in input file ", in_path);
             co_return ZE_READ;
@@ -2897,7 +2884,7 @@ local Task<int> scanzipf_regnew(void)
     // find EOCD Record signature
     if (!co_await find_signature(in_file, "PK\05\06")) {
         // No End Of Central Directory Record
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         in_file = NULL;
         if (fix == 1) {
             co_await zipwarn("bad archive - missing end signature", "");
@@ -2913,7 +2900,7 @@ local Task<int> scanzipf_regnew(void)
     }
 
     // at start of data after EOCDR signature
-    eocdr_offset = (uzoff_t) co_await zftello(in_file);
+    eocdr_offset = (uzoff_t) co_await b_ftello(in_file);
 
     // OK, it is possible this is not the last EOCDR signature (might be
     // EOCDR signature from a stored archive in the last 128 KB) and so not
@@ -2923,7 +2910,7 @@ local Task<int> scanzipf_regnew(void)
     // .ZIP file comment.
     while (co_await find_signature(in_file, "PK\05\06")) {
         // previous one was not the one
-        eocdr_offset = (uzoff_t) co_await zftello(in_file);
+        eocdr_offset = (uzoff_t) co_await b_ftello(in_file);
     }
 
     // found EOCDR
@@ -2943,15 +2930,15 @@ local Task<int> scanzipf_regnew(void)
     // .ZIP file comment length         2 bytes
     // .ZIP file comment        (variable size)
 
-    if (co_await zfseeko(in_file, eocdr_offset, SEEK_SET) != 0) {
-        co_await zfclose(in_file);
+    if (co_await b_fseeko(in_file, eocdr_offset, SEEK_SET) != 0) {
+        co_await b_fclose(in_file);
         in_file = NULL;
         co_await zipwarn("unable to seek in input file ", in_path);
         co_return ZE_READ;
     }
 
     // read the EOCDR
-    s = co_await zfread(scbuf, 1, ENDHEAD, in_file);
+    s = co_await b_fread(scbuf, 1, ENDHEAD, in_file);
 
     // the first field should be number of this (the last) disk
     eocdr_disk  = (ulg)SH(scbuf);
@@ -2973,10 +2960,10 @@ local Task<int> scanzipf_regnew(void)
     if (zcomlen) {
         if ((zcomment = (char *)malloc(zcomlen + 1)) == NULL)
             co_return ZE_MEM;
-        if (co_await zfread(zcomment, zcomlen, 1, in_file) != 1) {
+        if (co_await b_fread(zcomment, zcomlen, 1, in_file) != 1) {
             free((zvoid *)zcomment);
             zcomment = NULL;
-            co_return zferror(in_file) ? ZE_READ : ZE_EOF;
+            co_return b_ferror(in_file) ? ZE_READ : ZE_EOF;
         }
         zcomment[zcomlen] = '\0';
     }
@@ -2984,7 +2971,7 @@ local Task<int> scanzipf_regnew(void)
     if (cd_total_entries == 0) {
         // empty archive
 
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         in_file = NULL;
         co_return ZE_OK;
     }
@@ -3005,7 +2992,7 @@ local Task<int> scanzipf_regnew(void)
         if (plen < 4 || in_path_ext[0] != '.' || toupper(in_path_ext[1]) != 'Z' ||
             toupper(in_path_ext[2]) != 'I' || toupper(in_path_ext[3]) != 'P') {
             co_await zipwarn("archive name must end in .zip for splits", "");
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
             in_file = NULL;
             co_return ZE_PARMS;
         }
@@ -3013,7 +3000,7 @@ local Task<int> scanzipf_regnew(void)
 
     // if input or output are split archives, must be different archives
     if ((total_disks != 1 || split_method) && !show_files && strcmp(in_path, out_path) == 0) {
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         in_file = NULL;
         co_await zipwarn("cannot update a split archive (use --out option)", "");
         co_return ZE_PARMS;
@@ -3021,7 +3008,7 @@ local Task<int> scanzipf_regnew(void)
 
     // if fixing archive, input and output must be different archives
     if (fix == 1 && strcmp(in_path, out_path) == 0) {
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         in_file = NULL;
         co_await zipwarn("must use --out when fixing an archive", "");
         co_return ZE_PARMS;
@@ -3041,8 +3028,8 @@ local Task<int> scanzipf_regnew(void)
             // There still might be a Zip64 EOCDR.  This assumes if there is
             // a Zip64 EOCDR, it's version 1 and 52 bytes
             cd_start = eocdr_offset - cd_total_size - 24 - 56;
-            if (co_await zfseeko(in_file, cd_start, SEEK_SET) != 0) {
-                co_await zfclose(in_file);
+            if (co_await b_fseeko(in_file, cd_start, SEEK_SET) != 0) {
+                co_await b_fclose(in_file);
                 in_file = NULL;
                 if (fix == 1) {
                     co_await zipwarn("could not seek back to start of central directory: ", "");
@@ -3054,7 +3041,7 @@ local Task<int> scanzipf_regnew(void)
             }
             if (co_await find_signature(in_file, "PK\01\02")) {
                 // Should now be after first central directory header signature in archive
-                adjust_offset = co_await zftello(in_file) - 4 - in_cd_start_offset;
+                adjust_offset = co_await b_ftello(in_file) - 4 - in_cd_start_offset;
             } else {
                 co_await zipwarn("central dir not where expected - could not adjust offsets", "");
                 co_await zipwarn("(try -FF)", "");
@@ -3076,8 +3063,8 @@ local Task<int> scanzipf_regnew(void)
             // total number of disks            4 bytes
 
             // back up 20 bytes from EOCDR to Z64 EOCDL
-            if (co_await zfseeko(in_file, eocdr_offset - 24, SEEK_SET) != 0) {
-                co_await zfclose(in_file);
+            if (co_await b_fseeko(in_file, eocdr_offset - 24, SEEK_SET) != 0) {
+                co_await b_fclose(in_file);
                 in_file = NULL;
                 if (fix == 1) {
                     co_await zipwarn("could not seek back to Zip64 EOCDL: ", "");
@@ -3088,18 +3075,18 @@ local Task<int> scanzipf_regnew(void)
                 co_return ZE_FORM;
             }
             if (co_await at_signature(in_file, "PK\06\07")) {
-                z64eocdl_offset = co_await zftello(in_file) - 4;
+                z64eocdl_offset = co_await b_ftello(in_file) - 4;
 
                 // read Z64 EOCDL
-                if (co_await zfread(scbuf, EC64LOC, 1, in_file) != 1) {
-                    co_await zfclose(in_file);
+                if (co_await b_fread(scbuf, EC64LOC, 1, in_file) != 1) {
+                    co_await b_fclose(in_file);
                     in_file = NULL;
                     co_await zipwarn("reading archive: ", "");
                     co_return ZE_READ;
                 }
                 // now should be back at the EOCD signature
                 if (!co_await at_signature(in_file, "PK\05\06")) {
-                    co_await zfclose(in_file);
+                    co_await b_fclose(in_file);
                     in_file = NULL;
                     co_await zipwarn("unable to read EOCD after seek: ", in_path);
                     co_return ZE_READ;
@@ -3118,8 +3105,8 @@ local Task<int> scanzipf_regnew(void)
                 }
 
                 // go to the Zip64 EOCDR
-                if (co_await zfseeko(in_file, z64eocdr_offset, SEEK_SET) != 0) {
-                    co_await zfclose(in_file);
+                if (co_await b_fseeko(in_file, z64eocdr_offset, SEEK_SET) != 0) {
+                    co_await b_fclose(in_file);
                     in_file = NULL;
                     co_await zipwarn("reading archive fseek: ", "");
                     co_return ZE_FORM;
@@ -3132,8 +3119,8 @@ local Task<int> scanzipf_regnew(void)
                     // Wasn't there, so calculate based on Zip64 EOCDL offset
 
                     zip64_eocdr_start = z64eocdl_offset - 24 - 56;
-                    if (co_await zfseeko(in_file, zip64_eocdr_start, SEEK_SET) != 0) {
-                        co_await zfclose(in_file);
+                    if (co_await b_fseeko(in_file, zip64_eocdr_start, SEEK_SET) != 0) {
+                        co_await b_fclose(in_file);
                         in_file = NULL;
                         if (fix == 1) {
                             co_await zipwarn("could not seek back to Zip64 EOCDR: ", "");
@@ -3145,7 +3132,7 @@ local Task<int> scanzipf_regnew(void)
                     }
                     if (co_await find_next_signature(in_file) && is_signature(sigbuf, "PK\06\06")) {
                         // Should now be after Zip64 EOCDR signature in archive
-                        adjust_offset = co_await zftello(in_file) - 4 - z64eocdr_offset;
+                        adjust_offset = co_await b_ftello(in_file) - 4 - z64eocdr_offset;
                     } else {
                         co_await zipwarn("Could not determine offset of entries", "");
                         co_await zipwarn("(try -FF)", "");
@@ -3156,10 +3143,10 @@ local Task<int> scanzipf_regnew(void)
         }
         if (noisy) {
             if (adjust_offset) {
-                zsprintf(errbuf, "Zip entry offsets appear off by %s bytes - correcting...",
+                sprintf(errbuf, "Zip entry offsets appear off by %s bytes - correcting...",
                          zip_fzofft(adjust_offset, NULL, NULL));
             } else {
-                zsprintf(errbuf, "Zip entry offsets do not need adjusting");
+                sprintf(errbuf, "Zip entry offsets do not need adjusting");
             }
             co_await zipmessage(errbuf, "");
         }
@@ -3178,8 +3165,8 @@ local Task<int> scanzipf_regnew(void)
     // total number of disks            4 bytes
 
     // back up 20 bytes from EOCDR to Z64 EOCDL
-    if (co_await zfseeko(in_file, eocdr_offset - 24, SEEK_SET) != 0) {
-        co_await zfclose(in_file);
+    if (co_await b_fseeko(in_file, eocdr_offset - 24, SEEK_SET) != 0) {
+        co_await b_fclose(in_file);
         in_file = NULL;
         if (fix == 1) {
             co_await zipwarn("bad archive - could not seek back to Zip64 EOCDL: ", "");
@@ -3190,17 +3177,17 @@ local Task<int> scanzipf_regnew(void)
         co_return ZE_FORM;
     }
     if (co_await at_signature(in_file, "PK\06\07")) {
-        z64eocdl_offset = co_await zftello(in_file) - 4;
+        z64eocdl_offset = co_await b_ftello(in_file) - 4;
         // read Z64 EOCDL
-        if (co_await zfread(scbuf, EC64LOC, 1, in_file) != 1) {
-            co_await zfclose(in_file);
+        if (co_await b_fread(scbuf, EC64LOC, 1, in_file) != 1) {
+            co_await b_fclose(in_file);
             in_file = NULL;
             co_await zipwarn("reading archive: ", "");
             co_return ZE_READ;
         }
         // now should be back at the EOCD signature
         if (!co_await at_signature(in_file, "PK\05\06")) {
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
             in_file = NULL;
             co_await zipwarn("unable to read EOCD after seek: ", in_path);
             co_return ZE_READ;
@@ -3222,13 +3209,13 @@ local Task<int> scanzipf_regnew(void)
 
             // done with this disk (since apparently there are no CD entries
             // on it)
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
             in_file = NULL;
 
             // get the path for the disk with the Zip64 EOCDR
             split_path = get_in_split_path(in_path, z64eocdr_disk);
 
-            while ((in_file = co_await zfopen(split_path, FOPR)) == NULL) {
+            while ((in_file = co_await b_fopen(split_path, FOPR)) == NULL) {
                 // could not open split
 
                 // Ask where this split is.  This call also updates global in_path.
@@ -3244,8 +3231,8 @@ local Task<int> scanzipf_regnew(void)
         current_in_disk = z64eocdr_disk;
 
         // go to the Zip64 EOCDR
-        if (co_await zfseeko(in_file, z64eocdr_offset, SEEK_SET) != 0) {
-            co_await zfclose(in_file);
+        if (co_await b_fseeko(in_file, z64eocdr_offset, SEEK_SET) != 0) {
+            co_await b_fclose(in_file);
             in_file = NULL;
             co_await zipwarn("reading archive fseek: ", "");
             co_return ZE_FORM;
@@ -3254,8 +3241,8 @@ local Task<int> scanzipf_regnew(void)
         if (!co_await at_signature(in_file, "PK\06\06")) {
             // Wasn't there, so calculate based on Zip64 EOCDL offset
             zip64_eocdr_start = z64eocdl_offset - 24 - 56;
-            if (co_await zfseeko(in_file, zip64_eocdr_start, SEEK_SET) != 0) {
-                co_await zfclose(in_file);
+            if (co_await b_fseeko(in_file, zip64_eocdr_start, SEEK_SET) != 0) {
+                co_await b_fclose(in_file);
                 in_file = NULL;
                 if (fix == 1) {
                     co_await zipwarn("bad archive - could not seek back to Zip64 EOCDR: ", "");
@@ -3267,11 +3254,11 @@ local Task<int> scanzipf_regnew(void)
             }
             if (co_await find_next_signature(in_file) && is_signature(sigbuf, "PK\06\06")) {
                 // Should now be after Zip64 EOCDR signature in archive
-                adjust_offset = co_await zftello(in_file) - 4 - z64eocdr_offset;
+                adjust_offset = co_await b_ftello(in_file) - 4 - z64eocdr_offset;
                 co_await zipwarn("Zip64 EOCDR not found where expected - compensating", "");
                 co_await zipwarn("(try -A to adjust offsets)", "");
             } else {
-                co_await zfclose(in_file);
+                co_await b_fclose(in_file);
                 in_file = NULL;
                 if (fix == 1) {
                     co_await zipwarn("bad archive - Zip64 EOCDR not found in split:  ", in_path);
@@ -3308,7 +3295,7 @@ local Task<int> scanzipf_regnew(void)
 
         // read the first 52 bytes of the Zip64 EOCDR (we don't support
         // version 2, which supports PKZip licensed features)
-        s = co_await zfread(scbuf, 1, EC64REC, in_file);
+        s = co_await b_fread(scbuf, 1, EC64REC, in_file);
         if (s < EC64REC) {
             if (fix == 1) {
                 co_await zipwarn("bad archive - Zip64 EOCDR bad or truncated", "");
@@ -3316,7 +3303,7 @@ local Task<int> scanzipf_regnew(void)
             } else {
                 co_await zipwarn("Zip64 EOCD Record bad or truncated", "");
             }
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
             in_file = NULL;
             co_return ZE_FORM;
         }
@@ -3330,7 +3317,7 @@ local Task<int> scanzipf_regnew(void)
         if (version_needed > 46) {
             int major = version_needed / 10;
             int minor = version_needed - (major * 10);
-            zsprintf(errbuf, "This archive requires version %d.%d", major, minor);
+            sprintf(errbuf, "This archive requires version %d.%d", major, minor);
             co_await zipwarn(errbuf, "");
             co_await zipwarn("Zip currently only supports up to version 4.6 archives", "");
             co_await zipwarn("(up to 4.5 if bzip2 is not compiled in)", "");
@@ -3340,7 +3327,7 @@ local Task<int> scanzipf_regnew(void)
                 co_await zipwarn("Attempting to salvage what can", "");
             else {
                 co_await zipwarn("Try -F to attempt to read anyway", "");
-                co_await zfclose(in_file);
+                co_await b_fclose(in_file);
                 in_file = NULL;
                 co_return ZE_FORM;
             }
@@ -3360,7 +3347,7 @@ local Task<int> scanzipf_regnew(void)
     // if the central directory starts on other than this disk, close this disk
     if (current_in_disk != in_cd_start_disk) {
         // close current disk
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         in_file = NULL;
     }
 
@@ -3383,7 +3370,7 @@ local Task<int> scanzipf_regnew(void)
         // if in_file is not NULL then in_file is already open
         if (in_file == NULL) {
             // open the split
-            while ((in_file = co_await zfopen(split_path, FOPR)) == NULL) {
+            while ((in_file = co_await b_fopen(split_path, FOPR)) == NULL) {
                 int result;
                 // could not open split
 
@@ -3394,7 +3381,7 @@ local Task<int> scanzipf_regnew(void)
                     co_return ZE_ABORT;
                 } else if (result == ZE_FORM) {
                     // user asked to skip this disk
-                    zsprintf(errbuf, "skipping disk %lu ...\n", current_in_disk);
+                    sprintf(errbuf, "skipping disk %lu ...\n", current_in_disk);
                     co_await zipwarn(errbuf, "");
                     skip_disk = 1;
                     break;
@@ -3427,8 +3414,8 @@ local Task<int> scanzipf_regnew(void)
         } else {
             // seek to the first CD entry
             if (first_CD) {
-                if (co_await zfseeko(in_file, in_cd_start_offset, SEEK_SET) != 0) {
-                    co_await zfclose(in_file);
+                if (co_await b_fseeko(in_file, in_cd_start_offset, SEEK_SET) != 0) {
+                    co_await b_fclose(in_file);
                     in_file = NULL;
                     co_await zipwarn("unable to seek in input file ", split_path);
                     co_return ZE_READ;
@@ -3441,7 +3428,7 @@ local Task<int> scanzipf_regnew(void)
         // Main loop
         // Look for next signature and process it
         while (co_await find_next_signature(in_file)) {
-            current_in_offset = co_await zftello(in_file);
+            current_in_offset = co_await b_ftello(in_file);
 
             if (is_signature(sigbuf, "PK\05\06")) {
                 // End Of Central Directory Record
@@ -3465,22 +3452,22 @@ local Task<int> scanzipf_regnew(void)
 
                     strcpy(errbuf, "bad archive - unexpected signature ");
                     for (c = 0; c < 4; c++) {
-                        zsprintf(errbuftemp, "%02x ", sigbuf[c]);
+                        sprintf(errbuftemp, "%02x ", sigbuf[c]);
                         strcat(errbuf, errbuftemp);
                     }
-                    zsprintf(errbuftemp, "on disk %lu at %s\n", current_in_disk,
+                    sprintf(errbuftemp, "on disk %lu at %s\n", current_in_disk,
                              zip_fzofft(current_in_offset - 4, NULL, "u"));
                     strcat(errbuf, errbuftemp);
                     co_await zipwarn(errbuf, "");
                     co_await zipwarn("skipping this signature...", "");
                     continue;
                 } else {
-                    zsprintf(errbuf, "unexpected signature on disk %lu at %s\n", current_in_disk,
+                    sprintf(errbuf, "unexpected signature on disk %lu at %s\n", current_in_disk,
                              zip_fzofft(current_in_offset - 4, NULL, "u"));
                     co_await zipwarn(errbuf, "");
                     co_await zipwarn("archive not in correct format: ", split_path);
                     co_await zipwarn("(try -F to attempt recovery)", "");
-                    co_await zfclose(in_file);
+                    co_await b_fclose(in_file);
                     in_file = NULL;
                     co_return ZE_FORM;
                 }
@@ -3488,7 +3475,7 @@ local Task<int> scanzipf_regnew(void)
 
             // central directory signature
             if (verbose && fix == 1) {
-                co_await zfprintf(mesg, "central directory header signature on disk %lu at %s\n",
+                co_await b_fprintf(mesg, "central directory header signature on disk %lu at %s\n",
                                   current_in_disk, zip_fzofft(current_in_offset - 4, NULL, "u"));
             }
 
@@ -3515,14 +3502,14 @@ local Task<int> scanzipf_regnew(void)
             // extra field (variable size)
             // file comment (variable size)
 
-            if (co_await zfread(scbuf, CENHEAD, 1, in_file) != 1) {
+            if (co_await b_fread(scbuf, CENHEAD, 1, in_file) != 1) {
                 co_await zipwarn("reading central directory: ", "");
                 if (fix == 1) {
                     co_await zipwarn("bad archive - error reading central directory", "");
                     co_await zipwarn("skipping this entry...", "");
                     continue;
                 } else {
-                    co_return zferror(in_file) ? ZE_READ : ZE_EOF;
+                    co_return b_ferror(in_file) ? ZE_READ : ZE_EOF;
                 }
             }
 
@@ -3555,7 +3542,7 @@ local Task<int> scanzipf_regnew(void)
 
             // Read file name, extra field and comment field
             if (z->nam == 0) {
-                zsprintf(errbuf, "%lu", (ulg)zcount + 1);
+                sprintf(errbuf, "%lu", (ulg)zcount + 1);
                 co_await zipwarn("zero-length name for entry #", errbuf);
                 if (fix == 1) {
                     co_await zipwarn("skipping this entry...", "");
@@ -3567,15 +3554,15 @@ local Task<int> scanzipf_regnew(void)
                 (z->cext && (z->cextra = (char *)malloc(z->cext)) == NULL) ||
                 (z->com && (z->comment = (char *)malloc(z->com)) == NULL))
                 co_return ZE_MEM;
-            if (co_await zfread(z->iname, z->nam, 1, in_file) != 1 ||
-                (z->cext && co_await zfread(z->cextra, z->cext, 1, in_file) != 1) ||
-                (z->com && co_await zfread(z->comment, z->com, 1, in_file) != 1)) {
+            if (co_await b_fread(z->iname, z->nam, 1, in_file) != 1 ||
+                (z->cext && co_await b_fread(z->cextra, z->cext, 1, in_file) != 1) ||
+                (z->com && co_await b_fread(z->comment, z->com, 1, in_file) != 1)) {
                 if (fix == 1) {
                     co_await zipwarn("error reading entry:  ", "");
                     co_await zipwarn("skipping this entry...", "");
                     continue;
                 }
-                co_return zferror(in_file) ? ZE_READ : ZE_EOF;
+                co_return b_ferror(in_file) ? ZE_READ : ZE_EOF;
             }
             z->iname[z->nam] = '\0'; // terminate name
             if (unicode_mismatch != 3) {
@@ -3697,7 +3684,7 @@ local Task<int> scanzipf_regnew(void)
         } // while reading file
 
         // close disk and do next disk
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         in_file = NULL;
         free(split_path);
 
@@ -3710,7 +3697,7 @@ local Task<int> scanzipf_regnew(void)
     } // for each disk
 
     if (zcount != cd_total_entries) {
-        zsprintf(errbuf, "expected %s entries but found %s",
+        sprintf(errbuf, "expected %s entries but found %s",
                  zip_fzofft(cd_total_entries, NULL, "u"), zip_fzofft(zcount, NULL, "u"));
         co_await zipwarn(errbuf, "");
         co_return ZE_FORM;
@@ -3741,7 +3728,7 @@ Task<int> readzipfile(void)
     // If zip file exists, read headers and check structure
     readable = (zipfile != NULL && *zipfile && strcmp(zipfile, "-"));
     if (readable) {
-        readable = ((f = co_await zfopen(zipfile, FOPR)) != NULL);
+        readable = ((f = co_await b_fopen(zipfile, FOPR)) != NULL);
     }
 
     // skip check if streaming
@@ -3765,7 +3752,7 @@ Task<int> readzipfile(void)
         co_await scanzipf_fixnew();
     } else if (readable) {
         // close file as the new scan opens the splits as needed
-        co_await zfclose(f);
+        co_await b_fclose(f);
         retval = (fix == 2 && !adjust) ? co_await scanzipf_fixnew() : co_await scanzipf_regnew();
     }
 
@@ -3821,7 +3808,7 @@ Task<int> zipcopy(struct zlist far *z)
         // if start not on current disk then close current disk
         if (start_disk != current_in_disk) {
             if (in_file) {
-                co_await zfclose(in_file);
+                co_await b_fclose(in_file);
                 in_file = NULL;
             }
         }
@@ -3832,7 +3819,7 @@ Task<int> zipcopy(struct zlist far *z)
         split_path = get_in_split_path(in_path, current_in_disk);
 
         if (in_file == NULL) {
-            while ((in_file = co_await zfopen(split_path, FOPR)) == NULL) {
+            while ((in_file = co_await b_fopen(split_path, FOPR)) == NULL) {
                 // could not open split
 
                 if (!noisy) {
@@ -3853,8 +3840,8 @@ Task<int> zipcopy(struct zlist far *z)
             }
         }
 
-        if (co_await zfseeko(in_file, start_offset, SEEK_SET) != 0) {
-            co_await zfclose(in_file);
+        if (co_await b_fseeko(in_file, start_offset, SEEK_SET) != 0) {
+            co_await b_fclose(in_file);
             in_file = NULL;
             co_await zipwarn("reading archive fseek: ", "");
             co_return ZE_READ;
@@ -3862,18 +3849,18 @@ Task<int> zipcopy(struct zlist far *z)
     } // fix != 2
 
     if (fix != 2 && !co_await at_signature(in_file, "PK\03\04")) {
-        co_await zfclose(in_file);
+        co_await b_fclose(in_file);
         in_file = NULL;
         co_await zipwarn("Did not find entry for ", z->iname);
         co_return ZE_FORM;
     }
 
     // read local header
-    if (co_await zfread(buf, LOCHEAD, 1, in_file) != 1) {
-        int f = zferror(in_file);
+    if (co_await b_fread(buf, LOCHEAD, 1, in_file) != 1) {
+        int f = b_ferror(in_file);
         co_await zipwarn("reading local entry: ", "");
         if (fix != 2)
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
         co_return f ? ZE_READ : ZE_EOF;
     }
 
@@ -3896,7 +3883,7 @@ Task<int> zipcopy(struct zlist far *z)
     if ((localz = (struct zlist far *)farmalloc(sizeof(struct zlist))) == NULL) {
         co_await zipwarn("reading entry", "");
         if (fix != 2)
-            co_await zfclose(in_file);
+            co_await b_fclose(in_file);
         co_return ZE_MEM;
     }
 
@@ -3919,7 +3906,7 @@ Task<int> zipcopy(struct zlist far *z)
 
         // OS - currently 0 - 18 (AppNote 6.3) and 30 (ATHEOS)
         if (os > 40) {
-            zsprintf(errbuf, "Illegal host system mapping in local header:  %d", os);
+            sprintf(errbuf, "Illegal host system mapping in local header:  %d", os);
             co_await zipwarn(errbuf, "");
             co_await zipwarn("Skipping:  ", z->iname);
             co_return ZE_FORM;
@@ -3932,7 +3919,7 @@ Task<int> zipcopy(struct zlist far *z)
         // still be able to recover the entries, but they may be unreadable
         // without the 62 support fields.
         if (pkver > 100) {
-            zsprintf(errbuf, "Illegal PK version mapping in local header:  %d", pkver);
+            sprintf(errbuf, "Illegal PK version mapping in local header:  %d", pkver);
             co_await zipwarn(errbuf, "");
             co_await zipwarn("Skipping:  ", z->iname);
             co_return ZE_FORM;
@@ -3941,7 +3928,7 @@ Task<int> zipcopy(struct zlist far *z)
         // We can still copy an entry we can't read, but something over 200 is
         // probably illegal
         if (localz->how > 200) {
-            zsprintf(errbuf, "Unrecognized compression method in local header:  %d", localz->how);
+            sprintf(errbuf, "Unrecognized compression method in local header:  %d", localz->how);
             co_await zipwarn(errbuf, "");
             co_await zipwarn("Skipping:  ", z->iname);
             co_return ZE_FORM;
@@ -3959,9 +3946,9 @@ Task<int> zipcopy(struct zlist far *z)
     if ((localz->iname = (char *)malloc(localz->nam + 1)) == NULL ||
         (localz->ext && (localz->extra = (char *)malloc(localz->ext)) == NULL))
         co_return ZE_MEM;
-    if (co_await zfread(localz->iname, localz->nam, 1, in_file) != 1 ||
-        (localz->ext && co_await zfread(localz->extra, localz->ext, 1, in_file) != 1))
-        co_return zferror(in_file) ? ZE_READ : ZE_EOF;
+    if (co_await b_fread(localz->iname, localz->nam, 1, in_file) != 1 ||
+        (localz->ext && co_await b_fread(localz->extra, localz->ext, 1, in_file) != 1))
+        co_return b_ferror(in_file) ? ZE_READ : ZE_EOF;
     localz->iname[localz->nam] = '\0'; // terminate name
     if ((localz->name = (char *)malloc(localz->nam + 1)) == NULL)
         co_return ZE_MEM;
@@ -4080,7 +4067,7 @@ Task<int> zipcopy(struct zlist far *z)
             co_return ZE_MEM;
         }
         strcpy(z->oname, localz->iname);
-        zsprintf(errbuf, " copying: %s ", z->oname);
+        sprintf(errbuf, " copying: %s ", z->oname);
         co_await zipmessage_nl(errbuf, 0);
     }
 
@@ -4092,7 +4079,7 @@ Task<int> zipcopy(struct zlist far *z)
     if (co_await putlocal(localz, PUTLOCAL_WRITE) != ZE_OK)
         co_return ZE_TEMP;
 
-    // if (zfseeko(in_file, start_offset, SEEK_SET) != 0) {
+    // if (b_fseeko(in_file, start_offset, SEEK_SET) != 0) {
     // fclose(in_file);
     // in_file = NULL;
     // zipwarn("reading archive fseek: ", strerror(errno));
@@ -4131,7 +4118,7 @@ Task<int> zipcopy(struct zlist far *z)
             skip_this_disk = 0;
 
             // seek back in output to start of this entry so can overwrite
-            if (co_await zfseeko(y, current_local_offset, SEEK_SET) != 0) {
+            if (co_await b_fseeko(y, current_local_offset, SEEK_SET) != 0) {
                 ZIPERR(ZE_WRITE, "seek failed on output file");
             }
             bytes_this_split = current_local_offset;
@@ -4166,7 +4153,7 @@ Task<int> zipcopy(struct zlist far *z)
             co_await zipwarn("rewinding and scanning for later entries", "");
 
             // seek back in output to start of this entry so can overwrite
-            if (co_await zfseeko(y, current_local_offset, SEEK_SET) != 0) {
+            if (co_await b_fseeko(y, current_local_offset, SEEK_SET) != 0) {
             }
 
             // tell scan to skip this entry
@@ -4243,12 +4230,12 @@ Task<int> zipcopy(struct zlist far *z)
     }
 
     if (fix == 2) {
-        zsprintf(errbuf, " (%s bytes)", zip_fzofft(z->siz, NULL, "u"));
+        sprintf(errbuf, " (%s bytes)", zip_fzofft(z->siz, NULL, "u"));
         co_await zipmessage_nl(errbuf, 1);
 
         if (r == ZE_READ) {
             co_await zipwarn("entry truncated: ", z->oname);
-            zsprintf(errbuf, "expected compressed/stored size %s, actual %s",
+            sprintf(errbuf, "expected compressed/stored size %s, actual %s",
                      zip_fzofft(localz->siz, NULL, "u"), zip_fzofft(bytes_this_entry, NULL, "u"));
             co_await zipwarn(errbuf, "");
         }
@@ -4337,7 +4324,7 @@ Task<int> trash(void)
             z->mark = 1;
             if (z->iname[z->nam - 1] != (char)0x2f) { // don't unlink directory
                 if (verbose)
-                    co_await zfprintf(mesg, "zip diagnostic: deleting file %s\n", z->name);
+                    co_await b_fprintf(mesg, "zip diagnostic: deleting file %s\n", z->name);
                 if (co_await destroy(z->name)) {
                     co_await zipwarn("error deleting ", z->name);
                 }
@@ -4406,7 +4393,7 @@ Task<int> trash(void)
             }
             if (i == 0 || strcmp(s[i]->name, s[i - 1]->name) != 0) {
                 if (verbose) {
-                    co_await zfprintf(mesg, "deleting directory %s (if empty)                \n",
+                    co_await b_fprintf(mesg, "deleting directory %s (if empty)                \n",
                                       s[i]->name);
                 }
                 co_await deletedir(s[i]->name);

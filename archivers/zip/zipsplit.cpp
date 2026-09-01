@@ -79,14 +79,14 @@ Task<int> rename_split(char *temp_name, char *out_path)
 Task<void> zipmessage_nl(ZCONST char *a, int nl)
 {
     if (noisy) {
-        co_await zfprintf(mesg, "%s", a);
+        co_await b_fprintf(mesg, "%s", a);
         if (nl) {
-            co_await zfprintf(mesg, "\n");
+            co_await b_fprintf(mesg, "\n");
             mesg_line_started = 0;
         } else {
             mesg_line_started = 1;
         }
-        co_await zfflush(mesg);
+        co_await b_fflush(mesg);
     }
 }
 
@@ -94,10 +94,10 @@ Task<void> zipmessage(ZCONST char *a, ZCONST char *b)
 {
     if (noisy) {
         if (mesg_line_started)
-            co_await zfprintf(mesg, "\n");
-        co_await zfprintf(mesg, "%s%s\n", a, b);
+            co_await b_fprintf(mesg, "\n");
+        co_await b_fprintf(mesg, "%s%s\n", a, b);
         mesg_line_started = 0;
-        co_await zfflush(mesg);
+        co_await b_fflush(mesg);
     }
 }
 
@@ -135,13 +135,13 @@ local void tfreeall()
 
 Task<void> ziperr_msg(int c, ZCONST char *h)
 {
-    co_await zfprintf(mesg, "zipsplit error: %s (%s)\n", ZIPERRORS(c), h);
+    co_await b_fprintf(mesg, "zipsplit error: %s (%s)\n", ZIPERRORS(c), h);
     if (indexmade) {
         strcpy(name, INDEX);
         co_await destroy(path);
     }
     for (; zipsmade; zipsmade--) {
-        zsprintf(name, namepat, zipsmade);
+        sprintf(name, namepat, zipsmade);
         co_await destroy(path);
     }
     tfreeall();
@@ -152,7 +152,7 @@ Task<void> ziperr_msg(int c, ZCONST char *h)
 
 Task<void> zipwarn(ZCONST char *a, ZCONST char *b)
 {
-    co_await zfprintf(mesg, "zipsplit warning: %s%s\n", a, b);
+    co_await b_fprintf(mesg, "zipsplit warning: %s%s\n", a, b);
 }
 
 local Task<void> license(void)
@@ -161,7 +161,7 @@ local Task<void> license(void)
     extent i; // counter for copyright array
 
     for (i = 0; i < sizeof(swlicense) / sizeof(char *); i++)
-        co_await zfputs_nl(swlicense[i]);
+        co_await b_puts(swlicense[i]);
 }
 
 local Task<void> help(void)
@@ -186,12 +186,12 @@ local Task<void> help(void)
     };
 
     for (i = 0; i < sizeof(copyright) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, copyright[i], "zipsplit");
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, copyright[i], "zipsplit");
+        co_await b_fputc('\n', stdout);
     }
     for (i = 0; i < sizeof(text) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, text[i], VERSION, REVDATE);
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, text[i], VERSION, REVDATE);
+        co_await b_fputc('\n', stdout);
     }
 }
 
@@ -205,18 +205,18 @@ local Task<void> version_info(void)
     static ZCONST char *comp_opts[] = { NULL };
 
     for (i = 0; i < sizeof(versinfolines) / sizeof(char *); i++) {
-        co_await zfprintf(zstdout, versinfolines[i], "ZipSplit", VERSION, REVDATE);
-        co_await zfputc_out('\n');
+        co_await b_fprintf(stdout, versinfolines[i], "ZipSplit", VERSION, REVDATE);
+        co_await b_fputc('\n', stdout);
     }
 
     co_await version_local();
 
-    co_await zfputs_nl("ZipSplit special compilation options:");
+    co_await b_puts("ZipSplit special compilation options:");
     for (i = 0; (int)i < (int)(sizeof(comp_opts) / sizeof(char *) - 1); i++) {
-        co_await zfprintf(zstdout, "\t%s\n", comp_opts[i]);
+        co_await b_fprintf(stdout, "\t%s\n", comp_opts[i]);
     }
     if (i == 0)
-        co_await zfputs_nl("\t[none]");
+        co_await b_puts("\t[none]");
 }
 
 local extent simple(uzoff_t *a, extent n, uzoff_t c, uzoff_t d)
@@ -337,8 +337,8 @@ struct option_struct far options[] = {
 local Task<int> retry(void)
 {
     char m[10];
-    co_await zfputs("Error writing to disk--redo entire disk? ", mesg);
-    co_await zgets(m, 10, &File::stdin());
+    co_await b_fputs("Error writing to disk--redo entire disk? ", mesg);
+    co_await b_fgets(m, 10, stdin);
     co_return *m == 'y' || *m == 'Y';
 }
 
@@ -385,7 +385,7 @@ Task<i32> proc_main(Args args)
     }
 
     // Informational messages are written to stdout.
-    mesg = zstdout;
+    mesg = stdout;
 
     init_upper(); // build case map table
 
@@ -463,12 +463,12 @@ Task<i32> proc_main(Args args)
                 k       = 0;
                 break;
             case 2:
-                if ((c = (ulg)strtol_l(argv[r])) < 100) // 100 is smallest zip file
+                if ((c = (ulg)atol(argv[r])) < 100) // 100 is smallest zip file
                     ziperr(ZE_PARMS, "invalid size given. Use option -h for help.");
                 k = 0;
                 break;
             default: // k must be 3
-                i = (ulg)strtol_l(argv[r]);
+                i = (ulg)atol(argv[r]);
                 k = 0;
                 break;
             }
@@ -503,7 +503,7 @@ Task<i32> proc_main(Args args)
         t += a[j] =
             8 + LOCHEAD + CENHEAD + 2 * (zoff_t)z->nam + 2 * (zoff_t)z->cext + z->com + z->siz;
         if (a[j] > c) {
-            zsprintf(errbuf, "Entry is larger than max split size of: %s",
+            sprintf(errbuf, "Entry is larger than max split size of: %s",
                      zip_fzofft(c, NULL, "u"));
             co_await zipwarn(errbuf, "");
             co_await zipwarn("use -n to set split size", "");
@@ -528,7 +528,7 @@ Task<i32> proc_main(Args args)
             s = g;
         }
     }
-    co_await zfprintf(zstdout, "%ld zip files w%s be made (%s%% efficiency)\n", (ulg)s,
+    co_await b_fprintf(stdout, "%ld zip files w%s be made (%s%% efficiency)\n", (ulg)s,
                       d ? "ould" : "ill",
                       zip_fzofft(((200 * ((t + c - 1) / c)) / s + 1) / 2, NULL, "d"));
     if (d) {
@@ -585,10 +585,10 @@ Task<i32> proc_main(Args args)
         namepat[r++] = '_';
     else if (g >= '0' && g <= '9')
         namepat[r - 1] = (char)(namepat[r - 1] == '_' ? '-' : '_');
-    zsprintf(namepat + r, TEMPL_FMT, k);
+    sprintf(namepat + r, TEMPL_FMT, k);
 
     // Make the zip files from the linked lists of entry numbers
-    if ((e = co_await zfopen(zipfile, FOPR)) == NULL)
+    if ((e = co_await b_fopen(zipfile, FOPR)) == NULL)
         ziperr(ZE_NAME, zipfile);
     free((zvoid *)zipfile);
     zipfile = NULL;
@@ -603,26 +603,26 @@ Task<i32> proc_main(Args args)
         // prompt if requested
         if (u) {
             char m[10];
-            co_await zfprintf(mesg, "Insert disk #%ld of %ld and hit return: ", (ulg)j + 1, (ulg)s);
-            co_await zgets(m, 10, &File::stdin());
+            co_await b_fprintf(mesg, "Insert disk #%ld of %ld and hit return: ", (ulg)j + 1, (ulg)s);
+            co_await b_fgets(m, 10, stdin);
         }
 
         // write index file on first disk if requested
         if (j == 0 && x) {
             strcpy(name, INDEX);
-            co_await zfprintf(zstdout, "creating: %s\n", path);
+            co_await b_fprintf(stdout, "creating: %s\n", path);
             indexmade = 1;
-            if ((f = co_await zfopen(path, "w")) == NULL) {
+            if ((f = co_await b_fopen(path, "w")) == NULL) {
                 if (u && co_await retry())
                     goto redobin;
                 ziperr(ZE_CREAT, path);
             }
             for (j = 0; j < zcount; j++)
-                co_await zfprintf(f, "%5s %s\n", zip_fzofft((a[j] + 1), NULL, "d"), w[j]->zname);
+                co_await b_fprintf(f, "%5s %s\n", zip_fzofft((a[j] + 1), NULL, "d"), w[j]->zname);
 
-            if ((j = zferror(f)) != 0 || co_await zfclose(f)) {
+            if ((j = b_ferror(f)) != 0 || co_await b_fclose(f)) {
                 if (j)
-                    co_await zfclose(f);
+                    co_await b_fclose(f);
                 if (u && co_await retry())
                     goto redobin;
                 ziperr(ZE_WRITE, path);
@@ -630,10 +630,10 @@ Task<i32> proc_main(Args args)
         }
 
         // create output zip file j
-        zsprintf(name, namepat, j + 1L);
-        co_await zfprintf(zstdout, "creating: %s\n", path);
+        sprintf(name, namepat, j + 1L);
+        co_await b_fprintf(stdout, "creating: %s\n", path);
         zipsmade = j + 1;
-        if ((y = f = co_await zfopen(path, FOPW)) == NULL) {
+        if ((y = f = co_await b_fopen(path, FOPW)) == NULL) {
             if (u && co_await retry())
                 goto redobin;
             ziperr(ZE_CREAT, path);
@@ -643,8 +643,8 @@ Task<i32> proc_main(Args args)
 
         // write local headers and copy compressed data
         for (g = b[j]; g != (extent)-1; g = (extent)n[g]) {
-            if (co_await zfseeko(e, w[g]->off, SEEK_SET))
-                ziperr(zferror(e) ? ZE_READ : ZE_EOF, zipfile);
+            if (co_await b_fseeko(e, w[g]->off, SEEK_SET))
+                ziperr(b_ferror(e) ? ZE_READ : ZE_EOF, zipfile);
             in_file = e;
             if ((r = co_await zipcopy(w[g])) != ZE_OK) {
                 if (r == ZE_TEMP) {
@@ -657,7 +657,7 @@ Task<i32> proc_main(Args args)
         }
 
         // write central headers
-        if ((c = co_await zftello(f)) == (uzoff_t)-1) {
+        if ((c = co_await b_ftello(f)) == (uzoff_t)-1) {
             if (u && co_await retry())
                 goto redobin;
             ziperr(ZE_WRITE, path);
@@ -672,19 +672,19 @@ Task<i32> proc_main(Args args)
         // write end-of-central header
         cd_start_offset  = c;
         total_cd_entries = k;
-        if ((t = co_await zftello(f)) == (zoff_t)-1 ||
+        if ((t = co_await b_ftello(f)) == (zoff_t)-1 ||
             (r = co_await putend((zoff_t)k, t - c, c, (extent)0, (char *)NULL)) != ZE_OK ||
-            zferror(f) || co_await zfclose(f)) {
+            b_ferror(f) || co_await b_fclose(f)) {
             if (u && co_await retry())
                 goto redobin;
             ziperr(ZE_WRITE, path);
         }
     }
-    co_await zfclose(e);
+    co_await b_fclose(e);
 
     // Done!
     if (u)
-        co_await zfputs("Done.\n", mesg);
+        co_await b_fputs("Done.\n", mesg);
     tfreeall();
 
     co_return (0);

@@ -52,15 +52,19 @@ the whole of them. The ones worth knowing before you start:
 No `errno`, no exceptions and no `setjmp`. The string and character routines
 uemacs calls, its allocator and the `snprintf` the message line uses are the
 port kit's — `braam_add_program(... PORT)` in
-[CMakeLists.txt](CMakeLists.txt) — and all of it is Group A, so uemacs is the
-second port whose hand-written C library went away entirely. Everything else
-was replaced rather than reimplemented.
+[CMakeLists.txt](CMakeLists.txt) — and Group B answers the streams, so
+[fileio.cpp](fileio.cpp) is one `FILE *` over `b_fopen`, `b_fgetc`, `b_fwrite`
+and `b_fclose` where it used to carry a descriptor, a 4 KB buffer, two counts
+and a refill of its own. Everything else was replaced rather than
+reimplemented.
 
-It costs 8,953 bytes: 263,839 before, 272,792 now, for 530 lines deleted. Very
-nearly all of it is the kit's float conversions, which are one function with
-the integer ones, so a port pays for them even where — as here — it formats
-nothing but integers and strings. Upstream Braam records that as P5 in its own
-TODO.
+Group A cost 8,953 bytes: 263,839 before, 272,792 now, for 530 lines deleted.
+Very nearly all of it is the kit's float conversions, which are one function
+with the integer ones, so a port pays for them even where — as here — it
+formats nothing but integers and strings. Upstream Braam records that as P5 in
+its own TODO. Group B added 17,765 more, 273,036 to 290,801, and took another
+150 lines: that is `proc/file.h`'s buffered stream, which the hand-written one
+was avoiding by being 4 KB and a `memcpy`.
 
 | Upstream | Here |
 | --- | --- |
@@ -102,9 +106,11 @@ TODO.
   grows the stack until it overflows, and the process traps. Three places had
   to answer it:
 
-  - `fgetbyte()` in [fileio.cpp](fileio.cpp) is a plain function over the
-    buffer, and `frefill()` is the awaited half. Awaiting once per byte grew
-    the stack by the length of the file.
+  - [fileio.cpp](fileio.cpp) used to split its reader into a plain
+    `fgetbyte()` over a buffer and an awaited `frefill()`, because awaiting
+    once per byte grew the stack by the length of the file. The kit's
+    `b_fgetc` is an *awaiter* and not a `Task` for exactly that reason, so the
+    split is gone and the loop awaits a byte at a time again.
   - `forwchar`, `backchar`, `forwline` and `backline` in
     [basic.cpp](basic.cpp) are plain functions again, as they were named in
     MicroEMACS 3.9 before this fork renamed them; `cmd_forward_character()` and

@@ -20,7 +20,7 @@
 #define OPTIONS_H
 
 #include "kernel/task.h"
-#include "lefile.h"
+#include "compat/cio.h"
 #include "letypes.h"
 
 struct init {

@@ -24,7 +24,7 @@
 #include "edit.h"
 #include "getch.h"
 #include "keymap.h"
-#include "leio.h"
+#include "compat/cio.h"
 #include "mb.h"
 #ifdef HAVE_ALLOCA_H
 #endif

@@ -22,7 +22,7 @@
 #include "edit.h"
 #include "epath.h"
 #include "keymap.h"
-#include "lefile.h"
+#include "compat/cio.h"
 
 extern Menu1 MainMenu[];
 
@@ -507,11 +507,11 @@ Task<void> LoadMainMenu()
 
     snprintf(fn, sizeof(fn), "%s/.le/mainmenu", HOME);
 
-    f = co_await le_fopen(fn, false);
+    f = co_await b_fopen(fn, "r");
     if (f)
         goto read_it;
 
-    f = co_await le_fopen(datafile(fn, sizeof(fn), "mainmenu"), false);
+    f = co_await b_fopen(datafile(fn, sizeof(fn), "mainmenu"), "r");
     if (f == 0)
         co_return;
 
@@ -539,13 +539,13 @@ read_it:
 
     m = (Menu1 *)calloc(1024, sizeof(Menu1));
     if (!m) {
-        co_await le_fclose(f);
+        co_await b_fclose(f);
         co_return;
     }
     free_m = true;
 
     for (;;) {
-        int c = co_await le_getc(f);
+        int c = co_await b_fgetc(f);
         if (c == '#') {
             co_await fskip(f);
             continue;
@@ -554,14 +554,14 @@ read_it:
             continue;
         if (c == EOF)
             break;
-        le_ungetc(c, f);
+        f->at->unget((char32_t)c);
 
-        if (!(co_await f->scan_token(tok, 255)).value_or(false))
+        if (!(co_await f->at->scan_token(tok, 255)).value_or(false))
             break;
         snprintf(func, sizeof(func), "%.*s", (int)tok.size(), tok.data());
         if (!strcmp(func, "submenu") || !strcmp(func, "function")) {
             for (;;) {
-                c = co_await le_getc(f);
+                c = co_await b_fgetc(f);
                 if (c != ' ' && c != '\t')
                     break;
             }
@@ -570,8 +570,8 @@ read_it:
                     co_await fskip(f);
                 continue;
             }
-            if (!(co_await f->scan_until(tok, "\"")).value_or(false) ||
-                !(co_await f->scan_lit('"')).value_or(false)) {
+            if (!(co_await f->at->scan_until(tok, "\"")).value_or(false) ||
+                !(co_await f->at->scan_lit('"')).value_or(false)) {
                 co_await fskip(f);
                 continue;
             }
@@ -585,17 +585,17 @@ read_it:
                 m[mi].fl = FUNC;
 
                 for (;;) {
-                    c = co_await le_getc(f);
+                    c = co_await b_fgetc(f);
                     if (c != ' ' && c != '\t')
                         break;
                 }
                 if (c == EOF)
                     break;
-                le_ungetc(c, f);
+                f->at->unget((char32_t)c);
                 if (c == '\n')
                     continue;
 
-                if ((co_await f->scan_token(tok)).value_or(false) &&
+                if ((co_await f->at->scan_token(tok)).value_or(false) &&
                     (snprintf(str, sizeof(str), "%.*s", (int)tok.size(), tok.data()), true)) {
                     const char *arg = 0;
                     int code        = ParseActionNameArg(str, &arg);
@@ -610,18 +610,18 @@ read_it:
             }
             for (;;) {
                 for (;;) {
-                    c = co_await le_getc(f);
+                    c = co_await b_fgetc(f);
                     if (c != ' ' && c != '\t')
                         break;
                 }
                 if (c == EOF)
                     break;
-                le_ungetc(c, f);
+                f->at->unget((char32_t)c);
 
                 if (c == '\n')
                     break;
 
-                if ((co_await f->scan_token(tok)).value_or(false) &&
+                if ((co_await f->at->scan_token(tok)).value_or(false) &&
                     (snprintf(str, sizeof(str), "%.*s", (int)tok.size(), tok.data()), true)) {
                     if (!strcmp(str, "hide"))
                         m[mi].fl |= HIDE;
@@ -648,6 +648,6 @@ read_it:
             co_await fskip(f);
         }
     }
-    co_await le_fclose(f);
+    co_await b_fclose(f);
     InitMenu();
 }
