@@ -154,22 +154,26 @@ Three groups, and the difference decides how much of a port changes:
 - **Group A is drop-in**: `mem*`, `str*`, `ctype`, `malloc`/`calloc`/`realloc`/
   `free`, the `strtol` family, `qsort`/`mergesort`/`bsearch`, `snprintf` and
   friends, `errno`, `strerror`, `getenv`. Exact C signatures.
-- **Group B blocks, so it does not exist as C.** Streams, descriptors and
-  directories: a C signature cannot block here. `<stdio.h>` declares `fopen`,
-  `fgetc` and the rest `unavailable` so one build names every call site, but
-  the `b_*` replacements are **not in this SDK** — every port keeps the stream
-  layer it wrote (`zip`'s `zfopen`, `le`'s `lefile.cpp`, `uemacs`'s
-  `fileio.cpp`).
+- **Group B blocks, so it is not spelled as C.** Streams, descriptors and
+  directories: a C signature cannot block here. `<stdio.h>`, `<sys/stat.h>`,
+  `<fcntl.h>`, `<unistd.h>` and `<dirent.h>` declare `fopen`, `open`, `stat`
+  and the rest `unavailable`, each naming the `b_*` that answers it;
+  `compat/cio.h` is the whole family, `co_await` in front and C's error
+  conventions kept. `vi` is migrated and is the worked example; `zip`'s `z*`,
+  `le`'s `leio.cpp`/`lefile.cpp` and `uemacs`'s `fileio.cpp` are the three
+  stream layers still to delete.
 - **Group C is absent**: `setjmp`/`longjmp`, `fork`, `setenv`, `dlopen`, `mmap`,
-  signal handlers, `<time.h>`. Also not yet in the kit: `wchar`/`wctype`,
-  `fnmatch`, `sscanf`, `strtod`.
+  signal handlers, `sscanf`, and `<time.h>`'s `time`/`localtime`/`ctime`.
 
 Watch for: `qsort` is heapsort and **not stable** — `mergesort` is the stable
 one, and `zip` uses it at two sites; `strerror` returns `"ENOENT"`, not prose;
 `PATH_MAX` is 512, which `iconv` overrides back to 256 because its paths live
 in coroutine frames; and a port that spells a global `errno` while storing an
-`Error` in it must rename it, as `vi` (`ex_errno`) and `le` (`le_errno`) did,
-or the kit's `strtol` will write `ERANGE` into it.
+`Error` in it must rename it, as `le` (`le_errno`) still does, or the kit's
+`strtol` will write `ERANGE` into it — `vi` dropped its `ex_errno` for the
+kit's own. `strerror` is **not** `error_name()`: for a diagnostic that reads
+like the rest of this system, write `error_name(error_of(errno))` over
+`compat/cerr.h`, as `vi`'s `syserror()` does.
 
 `benchmarks/dhrystone` **never** links the kit: its `strcpy` and `strcmp` are
 what it measures.

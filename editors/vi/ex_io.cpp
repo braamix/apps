@@ -253,11 +253,11 @@ Task<void> rop(int c)
 {
     static int ovro;   /* old value(READONLY) */
     static int denied; /* 1 if READONLY was set due to file permissions */
-    struct exstat stbuf;
+    struct stat stbuf;
 
-    io = co_await ex_open(file, 0);
+    io = co_await b_open(file, O_RDONLY);
     if (io < 0) {
-        if (c == 'e' && ex_errno == int(Error::NotFound)) {
+        if (c == 'e' && errno == ENOENT) {
             edited++;
             /*
              * If the user just did "ex foo" he is probably
@@ -272,9 +272,9 @@ Task<void> rop(int c)
         }
         COTHROW(syserror());
     }
-    if (co_await ex_fstat(io, &stbuf))
+    if (co_await b_fstat(io, &stbuf))
         COTHROW(syserror());
-    if (stbuf.st_isdir)
+    if (S_ISDIR(stbuf.st_mode))
         COTHROW(error(" Directory"));
     if (c != 'r') {
         if (value(READONLY) && denied) {
@@ -347,7 +347,7 @@ Task<void> rop3(int c)
 /*
  * Are these two really the same inode?
  */
-exbool samei(struct exstat *sp, char *cp)
+exbool samei(struct stat *sp, char *cp)
 {
     (void)sp;
     return (eq(file, cp));
@@ -365,7 +365,7 @@ Task<void> wop(exbool dofname)
 {
     int c, exclam, nonexist;
     line *saddr1, *saddr2;
-    struct exstat stbuf;
+    struct stat stbuf;
 
     c      = 0;
     exclam = 0;
@@ -393,7 +393,7 @@ Task<void> wop(exbool dofname)
         }
         lprintf("\"%s\"", file);
     }
-    nonexist = co_await ex_stat(file, &stbuf);
+    nonexist = co_await b_stat(file, &stbuf);
     switch (c) {
     case 0:
         if (!exclam && (!value(WRITEANY) || value(READONLY)))
@@ -414,7 +414,7 @@ Task<void> wop(exbool dofname)
                 COTHROW(error(" Use \"w!\" to write partial buffer"));
             }
     cre:
-        io = co_await ex_creat(file);
+        io = co_await b_creat(file, 0644);
         if (io < 0)
             COTHROW(syserror());
         writing = 1;
@@ -426,13 +426,13 @@ Task<void> wop(exbool dofname)
         break;
 
     case 2:
-        io = co_await ex_open(file, 1);
+        io = co_await b_open(file, O_WRONLY);
         if (io < 0) {
             if (exclam || value(WRITEANY))
                 goto cre;
             COTHROW(syserror());
         }
-        co_await ex_seek(io, 0L, 2);
+        co_await b_lseek(io, 0, SEEK_END);
         break;
     }
     co_await putfile();
@@ -478,7 +478,7 @@ Task<int> getfile(void)
     fp = nextip;
     do {
         if (--ninbuf < 0) {
-            ninbuf = co_await ex_read(io, genbuf, LBSIZE) - 1;
+            ninbuf = co_await b_read(io, genbuf, LBSIZE) - 1;
             if (ninbuf < 0) {
                 if (lp != linebuf) {
                     lp++;
@@ -536,7 +536,7 @@ Task<void> putfile(void)
         for (;;) {
             if (--nib < 0) {
                 nib = fp - genbuf;
-                if (co_await ex_write(io, genbuf, nib) != nib) {
+                if (co_await b_write(io, genbuf, nib) != nib) {
                     wrerror();
                     COCHK;
                 }
@@ -551,7 +551,7 @@ Task<void> putfile(void)
         }
     } while (a1 <= addr2);
     nib = fp - genbuf;
-    if (co_await ex_write(io, genbuf, nib) != nib) {
+    if (co_await b_write(io, genbuf, nib) != nib) {
         wrerror();
         COCHK;
     }
@@ -594,7 +594,7 @@ Task<void> source(char *fil, exbool okfail)
         if (Task<Result<String>> t = read_file(Str(fil, strlen(fil))))
             r = co_await t;
         if (r.is_err()) {
-            ex_errno = int(r.error());
+            errno = errno_of(r.error());
             peekc = savepeekc;
             globp = saveglobp;
             if (!okfail)
@@ -647,7 +647,7 @@ void clrstats(void)
  */
 Task<int> iostats(void)
 {
-    co_await ex_close(io);
+    co_await b_close(io);
     io = -1;
     if (hush == 0) {
         if (value(TERSE))

@@ -231,10 +231,10 @@ int fixindent(int indent)
 
 void filioerr(char *cp)
 {
-    int oerrno = ex_errno;
+    int oerrno = errno;
 
     lprintf("\"%s\"", cp);
-    ex_errno = oerrno;
+    errno = oerrno;
     THROW(syserror());
 }
 
@@ -657,12 +657,14 @@ void strcLIN(char *dp)
 /*
  * The last system call's complaint. Upstream carried a copy of the errno
  * message list, because perror wrote to standard error and ex wanted the text
- * in a buffer of its own; the kernel names its errors, so this asks.
+ * in a buffer of its own; the kernel names its errors, so this asks. Not
+ * strerror, which is the port kit's and answers "ENOENT" where this wants the
+ * prose every other program on this system prints.
  */
 void syserror(void)
 {
     static char buf[48];
-    Str m   = error_name(Error(ex_errno));
+    Str m   = error_name(error_of(errno));
     usize n = m.size() < sizeof buf - 1 ? m.size() : sizeof buf - 1;
 
     putchar(' ');

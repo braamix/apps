@@ -167,7 +167,7 @@ static Task<int> runsh(char *opt, char *up, int fdin, int fdout)
     if (Task<Result<u32>> t = spawn(v, cio))
         pid_r = co_await t;
     if (pid_r.is_err()) {
-        ex_errno = int(pid_r.error());
+        errno = errno_of(pid_r.error());
         co_return (-1);
     }
     child = res_of(pid_r);
@@ -188,7 +188,7 @@ static Task<int> runsh(char *opt, char *up, int fdin, int fdout)
         if (Task<Result<void>> t = set_fg(0))
             co_await t;
         if (w.is_err()) {
-            ex_errno = int(w.error());
+            errno = errno_of(w.error());
             co_return (-1);
         }
         status = res_of(w).status;
@@ -201,7 +201,7 @@ Task<void> unixex(char *opt, char *up, int newstdin, int mode)
     (void)mode;
     co_await runsh(opt, up, newstdin, -1);
     if (newstdin > 0)
-        co_await ex_close(newstdin);
+        co_await b_close(newstdin);
 }
 
 /*
@@ -242,22 +242,22 @@ Task<void> filter(int mode)
     tmpname(out_name, 'o');
 
     if (mode & 2) {
-        io = co_await ex_creat(in_name);
+        io = co_await b_creat(in_name, 0644);
         if (io < 0)
             COTHROW(filioerr(in_name));
         co_await putfile();
         COCHK;
-        co_await ex_close(io);
+        co_await b_close(io);
         io   = -1;
-        fdin = co_await ex_open(in_name, 0);
+        fdin = co_await b_open(in_name, O_RDONLY);
         if (fdin < 0)
             COTHROW(filioerr(in_name));
     }
     if (mode & 1) {
-        fdout = co_await ex_creat(out_name);
+        fdout = co_await b_creat(out_name, 0644);
         if (fdout < 0) {
             if (fdin >= 0)
-                co_await ex_close(fdin);
+                co_await b_close(fdin);
             COTHROW(filioerr(out_name));
         }
     }
@@ -277,7 +277,7 @@ Task<void> filter(int mode)
     }
 
     if (fdout >= 0)
-        co_await ex_close(fdout);
+        co_await b_close(fdout);
     if (mode == 3) {
         exdelete(0);
         addr2 = addr1 - 1;
@@ -285,24 +285,17 @@ Task<void> filter(int mode)
     if (mode & 1) {
         if (FIXUNDO)
             undap1 = undap2 = addr2 + 1;
-        io = co_await ex_open(out_name, 0);
+        io = co_await b_open(out_name, O_RDONLY);
         if (io < 0)
             COTHROW(filioerr(out_name));
         ignore(co_await append(getfile, addr2));
-        co_await ex_close(io);
+        co_await b_close(io);
     }
     io = saveio;
-    {
-        Str n = Str(in_name, strlen(in_name));
-        Str o = Str(out_name, strlen(out_name));
-
-        if (mode & 2)
-            if (Task<Result<void>> t = remove_path(n, false))
-                co_await t;
-        if (mode & 1)
-            if (Task<Result<void>> t = remove_path(o, false))
-                co_await t;
-    }
+    if (mode & 2)
+        co_await b_unlink(in_name);
+    if (mode & 1)
+        co_await b_unlink(out_name);
     co_await unixwt(!inopen, 0);
     netchHAD(lines);
 }

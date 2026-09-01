@@ -51,7 +51,7 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
             ex_reset();
         }
         if (ex_pendclose > 0) {
-            co_await ex_close(ex_pendclose);
+            co_await b_close(ex_pendclose);
             ex_pendclose = -1;
         }
 
@@ -256,16 +256,8 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
                     eol();
                     if (ex_thrown)
                         continue;
-                    {
-                        Result<String> r = Err(Error::NoMemory);
-
-                        if (Task<Result<String>> t = cwd_set(Str(p, strlen(p))))
-                            r = co_await t;
-                        if (r.is_err()) {
-                            ex_errno = int(r.error());
-                            THROWC(filioerr(p));
-                        }
-                    }
+                    if (co_await b_chdir(p) < 0)
+                        THROWC(filioerr(p));
                     if (savedfile[0] != '/')
                         edited = 0;
                     continue;

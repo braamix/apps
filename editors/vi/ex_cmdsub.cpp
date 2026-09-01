@@ -460,7 +460,7 @@ Task<void> tagfind(exbool quick)
         /*
          * Avoid stdio and scan tag file linearly.
          */
-        io = co_await ex_open(fn, 0);
+        io = co_await b_open(fn, O_RDONLY);
         if (io < 0)
             continue;
         tfcount++;
@@ -481,7 +481,7 @@ Task<void> tagfind(exbool quick)
             /*
              * We found the tag.  Decode the line in the file.
              */
-            co_await ex_close(io);
+            co_await b_close(io);
             io = -1;
             /* Rest of tag if abbreviated */
             while (!iswhite(*cp))
@@ -562,7 +562,7 @@ Task<void> tagfind(exbool quick)
         /*
          * No such tag in this file.  Close it and try the next.
          */
-        co_await ex_close(io);
+        co_await b_close(io);
         io = -1;
     } /* end of "for each file in path" */
     if (tfcount <= 0)

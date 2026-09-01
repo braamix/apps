@@ -37,10 +37,13 @@
  */
 #pragma once
 
+#include "compat/cerr.h"
+#include "compat/cio.h"
 #include "proc/io.h"
 #include "proc/rt.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -183,7 +186,6 @@ EXTERN int tchng;                 /* If nonzero, then [Modified] */
 EXTERN exbool vcatch;             /* Want to catch an error (open/visual) */
 EXTERN exbool writing;            /* 1 if in middle of a file write */
 EXTERN int xchng;                 /* Suppresses multiple "No writes" in !cmd */
-EXTERN int ex_errno;              /* the last syscall's Error, as an int */
 EXTERN short ex_pendclose;        /* a descriptor an error left open */
 
 /*
@@ -386,26 +388,6 @@ void setin(line *addr);
 Task<Result<void>> ex_readline(void);
 exbool need_input(void);
 
-/* ------------------------------------------------------------ ex_file.cpp */
-/*
- * What ex called by their Unix names. Each is a syscall and every syscall is
- * awaited, so each is a Task; each answers upstream's own convention and sets
- * ex_errno beside it.
- */
-struct exstat {
-    long st_size;
-    exbool st_isdir;
-};
-
-Task<int> ex_open(char *path, int mode);
-Task<int> ex_creat(char *path);
-Task<void> ex_close(int fd);
-Task<int> ex_read(int fd, char *buf, int n);
-Task<int> ex_write(int fd, char *buf, int n);
-Task<long> ex_seek(int fd, long off, int whence);
-Task<int> ex_stat(char *path, struct exstat *sb);
-Task<int> ex_fstat(int fd, struct exstat *sb);
-
 /* -------------------------------------------------------------- ex_io.cpp */
 void filename(int comm);
 int getargs(void);
@@ -415,7 +397,7 @@ void getone(void);
 Task<void> rop(int c);
 Task<void> rop2(void);
 Task<void> rop3(int c);
-exbool samei(struct exstat *sp, char *cp);
+exbool samei(struct stat *sp, char *cp);
 Task<void> wop(exbool dofname);
 exbool edfile(void);
 Task<int> getfile(void);

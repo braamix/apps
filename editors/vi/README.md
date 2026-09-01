@@ -342,7 +342,6 @@ mode prints no prompt down a pipe, which is what makes a transcript assertable.
 | `ex_unix.cpp` | `ex_unix.c` — `:!`, `:sh`, filters |
 | `ex_buf.cpp` | `ex_temp.c` — the buffer, which is no longer a temp file |
 | `ex_out.cpp` | `ex_put.c` — the half of it that formats |
-| `ex_file.cpp` | — the system calls, in the shapes ex expects them |
 | `ex_v.cpp` | `ex_v.c` — entering and leaving visual |
 | `ex_vmain.cpp` | `ex_vmain.c` — the visual keystroke loop |
 | `ex_voper.cpp` | `ex_voper.c` — operators, operands and word motions |

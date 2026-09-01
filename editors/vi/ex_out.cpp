@@ -235,7 +235,7 @@ Task<Result<void>> exflush(void)
         Result<void> r = co_await t;
         oblen          = 0;
         if (r.is_err())
-            ex_errno = int(r.error());
+            errno = errno_of(r.error());
         co_return r;
     }
     oblen = 0;

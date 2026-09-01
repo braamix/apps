@@ -30,10 +30,11 @@ set(VI_COMMON
     ex_get.cpp ex_io.cpp ex_re.cpp ex_set.cpp ex_subr.cpp ex_unix.cpp
     ex_v.cpp ex_vadj.cpp ex_vget.cpp ex_vmain.cpp ex_voper.cpp ex_vops.cpp
     ex_vops2.cpp ex_vops3.cpp ex_vput.cpp ex_vwind.cpp
-    ex_buf.cpp ex_out.cpp ex_file.cpp ex_screen.cpp)
+    ex_buf.cpp ex_out.cpp ex_screen.cpp)
 
 # PORT is the C library ex calls: the string, character and allocation
-# routines, all of it Group A. It carries -fno-builtin, which the key-buffer
+# routines, and Group B's b_* family, which replaced ex_file.cpp. It carries
+# -fno-builtin, which the key-buffer
 # loops in ex_vget.cpp need too — int is wchar_t's width here, so clang
 # recognises them as wcslen and wcscpy and calls functions that do not exist.
 braam_add_program(NAME ex SOURCES ${VI_COMMON} PORT)
