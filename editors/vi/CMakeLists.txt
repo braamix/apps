@@ -48,7 +48,7 @@ target_compile_definitions(bin_vi PRIVATE EX_DEFAULT_VISUAL=1)
 
 # One package, two commands: every flat bin/ entry becomes a cmd: provide and a
 # link in the installed generation's bin/, which /pkg/bin points at.
-braam_add_package(NAME vi VERSION 3.6-r10
+braam_add_package(NAME vi VERSION 3.6-r11
                   FIELD "T=UCB ex/vi 3.6, the visual editor"
                   FILES $<TARGET_FILE:bin_ex>=bin/ex
                         $<TARGET_FILE:bin_vi>=bin/vi)
