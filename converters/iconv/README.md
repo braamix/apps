@@ -49,7 +49,7 @@ header carried.
 | `_PATH_ESDB` at `/usr/share/i18n` | a suffix, with the prefix found at startup ([citrus_paths.cpp](citrus_paths.cpp)) |
 | `pthread_rwlock` around three caches | nothing; one thread |
 | `nl_langinfo`, `locale_charset` | `"UTF-8"`, the only locale there is |
-| `malloc`, `str*`, `snprintf`, `qsort`, `errno` | the port kit's |
+| `malloc`, `str*`, `snprintf`, `qsort`, `errno` | the port kit's, with `PORT NOFLOAT`: citrus formats no float, and the arm is 5,090 bytes |
 | `mbrtowc`, `wcrtomb`, `mbstate_t` | the port kit's `<wchar.h>`, whose `mbstate_t` is this port's own `{buf[4], len}` |
 | `sys/queue.h` | the port kit's, in place of the three lists this header vendored |
 | `getopt_long` | a hand-rolled parser; `OptParse` has no long options |

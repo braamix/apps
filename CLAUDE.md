@@ -149,6 +149,13 @@ target's** include path and no other's, and applies `-fno-builtin` once — in
 place of the per-name lists five packages used to carry. Without `PORT`,
 `#include <string.h>` is still "file not found", and that is the guard.
 
+`PORT NOFLOAT` drops `snprintf`'s float arm, ~5 KB a port that formats only
+integers pays for nothing. `zip`, `uemacs` and `iconv` take it; `le`,
+`duremark` and `simbesm` format floats and do not. A `%f` in a `NOFLOAT`
+binary **traps** with a message naming the flag, so check every format string
+before adding it — and a program with a `printf` of its own, as `vi` has,
+gains nothing because it never reaches the kit's.
+
 Three groups, and the difference decides how much of a port changes:
 
 - **Group A is drop-in**: `mem*`, `str*`, `ctype`, `malloc`/`calloc`/`realloc`/

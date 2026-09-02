@@ -21,10 +21,10 @@ set(ZIP_COMMON zipfile.cpp fileio.cpp util.cpp globals.cpp crc32.cpp
 # got -- two date formats, the DOS stamp, and a read a ^C has to reach.
 braam_add_program(NAME zip
                   SOURCES zip.cpp zipup.cpp deflate.cpp trees.cpp ${ZIP_COMMON}
-                  PORT)
-braam_add_program(NAME zipnote   SOURCES zipnote.cpp ${ZIP_COMMON} PORT)
-braam_add_program(NAME zipsplit  SOURCES zipsplit.cpp ${ZIP_COMMON} PORT)
-braam_add_program(NAME zipcloak  SOURCES zipcloak.cpp ${ZIP_COMMON} PORT)
+                  PORT NOFLOAT)
+braam_add_program(NAME zipnote   SOURCES zipnote.cpp ${ZIP_COMMON} PORT NOFLOAT)
+braam_add_program(NAME zipsplit  SOURCES zipsplit.cpp ${ZIP_COMMON} PORT NOFLOAT)
+braam_add_program(NAME zipcloak  SOURCES zipcloak.cpp ${ZIP_COMMON} PORT NOFLOAT)
 
 # One package, four commands: every flat bin/ entry becomes a cmd: provide and
 # a link in the installed generation's bin/, which /pkg/bin points at.

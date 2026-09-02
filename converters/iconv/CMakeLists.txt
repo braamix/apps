@@ -88,7 +88,7 @@ add_custom_target(iconv_i18n ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/i18n.stamp)
 braam_add_program(NAME iconv
                   SOURCES iconv.cpp ${ICONV_PORT} ${ICONV_CORE} ${ICONV_OPEN}
                           ${ICONV_MODULES}
-                  PORT)
+                  PORT NOFLOAT)
 target_include_directories(bin_iconv PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
                                              ${CMAKE_CURRENT_SOURCE_DIR}/modules)
 target_compile_options(bin_iconv PRIVATE ${ICONV_DEFS} ${ICONV_PRELUDE})

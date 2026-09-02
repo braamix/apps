@@ -59,12 +59,13 @@ and a refill of its own. Everything else was replaced rather than
 reimplemented.
 
 Group A cost 8,953 bytes: 263,839 before, 272,792 now, for 530 lines deleted.
-Very nearly all of it is the kit's float conversions, which are one function
-with the integer ones, so a port pays for them even where — as here — it
-formats nothing but integers and strings. Upstream Braam records that as P5 in
-its own TODO. Group B added 17,765 more, 273,036 to 290,801, and took another
-150 lines: that is `proc/file.h`'s buffered stream, which the hand-written one
-was avoiding by being 4 KB and a `memcpy`.
+Very nearly all of it was the kit's float conversions, which uemacs does not
+use — it formats nothing but integers and strings. That is what `PORT NOFLOAT`
+in [CMakeLists.txt](CMakeLists.txt) drops, and it is worth 5,091 bytes:
+290,881 to 285,790. A `%f` in a binary built that way traps rather than
+printing nothing. Group B added 17,765 more, 273,036 to 290,801, and took
+another 150 lines: that is `proc/file.h`'s buffered stream, which the
+hand-written one was avoiding by being 4 KB and a `memcpy`.
 
 | Upstream | Here |
 | --- | --- |

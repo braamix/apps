@@ -27,7 +27,7 @@ braam_add_program(NAME em
                           names.cpp random.cpp region.cpp search.cpp spawn.cpp
                           spell.cpp utf8.cpp version.cpp window.cpp word.cpp
                           screen.cpp
-                  PORT)
+                  PORT NOFLOAT)
 
 target_link_libraries(bin_em PRIVATE em_quiet)
 

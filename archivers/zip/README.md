@@ -45,7 +45,7 @@ all.
 | `malloc`, `realloc`, `free` | the port kit's, over `heap_alloc` |
 | the `mem*` and `str*` families, `strtol` | the port kit's |
 | `qsort` | the kit's, except at two call sites — see below |
-| `printf`, `fprintf`, `sprintf` | `b_printf`, `b_fprintf` and the kit's `sprintf`; the 60-line `zvformat` that stood in for them is gone |
+| `printf`, `fprintf`, `sprintf` | `b_printf`, `b_fprintf` and the kit's `sprintf`; the 60-line `zvformat` that stood in for them is gone. `PORT NOFLOAT`, since zip formats no float: 5,090 bytes off each of the four |
 | `opendir`/`readdir` recursion | `list_dir`, one syscall for a whole directory |
 | `stat`'s `st_mode`, `st_uid`, `st_gid` | nothing keeps them; the mode an entry carries is synthesized |
 | `localtime`, `mktime`, `asctime` | the kit's `<time.h>`: `gmtime_r` and `timegm`, with `clock_now()` for the zone |
