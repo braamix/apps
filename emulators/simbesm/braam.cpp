@@ -286,6 +286,19 @@ Task<i32> keyboard(int con, ScreenRef on)
     }
 }
 
+/* A screen's cursor is off until a process asks, and no shell runs on either
+ * of our lines.  A write moves it after, so once per screen is enough. */
+Task<void> cursor_show(ScreenRef on)
+{
+    Result<CursorAt> at = Err(Error::NoMemory);
+    if (Task<Result<CursorAt>> t = cursor_get(on))
+        at = co_await t;
+    if (at.is_err())
+        co_return;
+    if (Task<Result<CursorAt>> t = cursor_set(at.value().x, at.value().y, true, on))
+        (void)co_await t;
+}
+
 /* What con_flush() would have done, where a write is allowed. */
 Task<void> con_drain()
 {
@@ -480,6 +493,7 @@ Task<void> open_second(u32 term)
 
     screen2    = ref.value();
     screen2_ok = 1;
+    co_await cursor_show(screen2);
 }
 
 constexpr Str USAGE =
@@ -603,6 +617,7 @@ Task<i32> proc_main(Args args)
 
     if (Task<Result<Geometry>> t = keys_claim(true))
         (void)co_await t;
+    co_await cursor_show(ScreenRef{});
     if (!proc_spawn(keyboard(CON_SCREEN, ScreenRef{}))) {
         co_await errln("besm6", "no room for the keyboard task", Error::NoMemory);
         co_return 1;
