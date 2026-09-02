@@ -158,6 +158,12 @@ prompt holds the raw keys, and a terminal has to be typed at as well as printed
 on. That is what `shell: false` is for. Without them `tty26` is turned off and
 the machine runs with one console.
 
+The open is **retried for a second** before it settles for one. A terminal
+exists only once the page has measured its canvas, and that measurement arrives
+from a `ResizeObserver` — which a hidden or throttled tab runs late. A program
+`/etc/init` starts, with no prompt in front of it, can reach `Sys::TermOpen`
+first, and losing the second Consul to that would be silent.
+
 A line's mode is a character set, a terminal type and a backspace style, set
 together in the unit's flag word **before** `tty_attach()`, which reads them:
 

@@ -453,9 +453,20 @@ Task<Result<void>> stage(Str from, Str home, bool again)
  */
 Task<void> open_second(u32 term)
 {
+    /* Retried, because a terminal exists only once the page has measured its
+     * canvas and that measurement comes from a ResizeObserver -- which a
+     * hidden or throttled tab runs late, or not at all until it is shown.  A
+     * program /etc/init starts can easily get here first.  Twenty tries of
+     * 50 ms; after that the page really has no second canvas. */
     Result<ScreenRef> ref = Err(Error::NoMemory);
-    if (Task<Result<ScreenRef>> t = screen_open(term))
-        ref = co_await t;
+    for (int i = 0; i < 20; i++) {
+        if (Task<Result<ScreenRef>> t = screen_open(term))
+            ref = co_await t;
+        if (ref.is_ok())
+            break;
+        if (Task<Result<void>> t = sleep_for(50))
+            (void)co_await t;
+    }
     if (ref.is_err())
         co_return; /* the page put up no such canvas */
 
