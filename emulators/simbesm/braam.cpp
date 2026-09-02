@@ -65,9 +65,17 @@ static Task<Result<void>> img_prepare(Str dir, const char *name, bool create)
     if (create)
         flags |= SYS_O_TRUNC;
 
+    /* Perm is the file's one writer, and a page on its way out is still it for
+     * a moment.  Five seconds outlives that; a second tab it does not. */
     Result<i32> fd = Err(Error::NoMemory);
-    if (Task<Result<i32>> t = open_at(p.str(), flags))
-        fd = co_await t;
+    for (int i = 0; i < 20; i++) {
+        if (Task<Result<i32>> t = open_at(p.str(), flags))
+            fd = co_await t;
+        if (fd.is_ok() || fd.error() != Error::Perm)
+            break;
+        if (Task<Result<void>> t = sleep_for(250))
+            (void)co_await t;
+    }
     if (fd.is_err())
         co_return Err(fd.error());
 
@@ -427,6 +435,15 @@ Task<String> find_data()
     co_return p;
 }
 
+/* One writer per file across the origin (OPFS), so a refusal is another tab. */
+Task<void> disk_err(Str what, Error why)
+{
+    if (why == Error::Perm)
+        co_await errln("besm6", "the disks are open in another tab of this page", why);
+    else
+        co_await errln("besm6", what, why);
+}
+
 /* The packs are written in place, so they cannot be run from the store.  On the
  * first run they are copied to a directory of the program's own; after that the
  * user's Unix is what is there. */
@@ -452,9 +469,17 @@ Task<Result<void>> stage(Str from, Str home, bool again)
 
         Buf<256> src;
         src.put(from).put('/').put(Str(name, strlen(name)));
-        if (Task<Result<void>> t = copy_file(src.str(), dst.str()))
-            if (Result<void> r = co_await t; r.is_err())
-                co_return Err(r.error());
+        Result<void> r = Err(Error::NoMemory); /* Perm waits, as img_prepare does */
+        for (int i = 0; i < 20; i++) {
+            if (Task<Result<void>> t = copy_file(src.str(), dst.str()))
+                r = co_await t;
+            if (r.is_ok() || r.error() != Error::Perm)
+                break;
+            if (Task<Result<void>> t = sleep_for(250))
+                (void)co_await t;
+        }
+        if (r.is_err())
+            co_return Err(r.error());
     }
     co_return {};
 }
@@ -559,7 +584,7 @@ Task<i32> proc_main(Args args)
 
     if (Task<Result<void>> t = stage(data.str(), home_dir, again))
         if (Result<void> r = co_await t; r.is_err()) {
-            co_await errln("besm6", "cannot stage the disk images", r.error());
+            co_await disk_err("cannot stage the disk images", r.error());
             co_return 1;
         }
 
@@ -580,14 +605,14 @@ Task<i32> proc_main(Args args)
     for (const char *name : OPEN)
         if (Task<Result<void>> t = img_prepare(home_dir, name, false))
             if (Result<void> r = co_await t; r.is_err()) {
-                co_await errln("besm6", name, r.error());
+                co_await disk_err(name, r.error());
                 co_return 1;
             }
     static const char *const MAKE[] = { "unix0.drum", "unix1.drum" };
     for (const char *name : MAKE)
         if (Task<Result<void>> t = img_prepare(home_dir, name, true))
             if (Result<void> r = co_await t; r.is_err()) {
-                co_await errln("besm6", name, r.error());
+                co_await disk_err(name, r.error());
                 co_return 1;
             }
 
