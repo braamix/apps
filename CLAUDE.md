@@ -380,7 +380,49 @@ package that is already published.
 To check a repository end to end without uploading, drive
 `../braam-core/test/system/harness.mjs` with the unmodified rootfs and serve
 `index` and the zips from `net.routes` — the shipped anchor is the real one, so
-`pkg update` and `pkg install` exercise §7 in full.
+`pkg update` and `pkg install` exercise §7 in full. Boot it by hand, as no
+`run.mjs` case is being used: `await init(kernel, rootfs)`, then
+`kernel().init(0)`, `run(0)`, `resize(cols, rows)`, `run(1)` — without that
+first `init(0)` the kernel traps with `heap_alloc before heap_init`. Install
+every package and check the commands reached `/pkg/bin`; `ls` marks each with a
+trailing `@`, and the set is what the `FILES ...=bin/<name>` entries declare,
+not what upstream's name suggests (`vi` provides `vi` and `ex`, and `zip`
+provides no `unzip`).
+
+### braamix.github.io
+
+**The site is a git checkout at `~/Project/Braam/braamix.github.io`**, pushed
+to `git@github.com:braamix/braamix.github.io.git`; GitHub Pages serves its root,
+which is the `REPO_URL` the index is signed for. One flat directory holding
+both halves of the system:
+
+- **The runtime**, copied from `../braam-core/build/web/` — `kernel.wasm`,
+  `rootfs.zip`, the `.js` and the `.html`. This is what a browser loads at
+  `https://braamix.github.io`.
+- **The repository**, copied from `build/repo/` here — `index` and the nine
+  package zips, which is what `pkg` fetches.
+
+Publishing is by hand, and it is one commit over both:
+
+```
+cd ~/Project/Braam/braamix.github.io
+git rm -q $(ls *.zip)            # the superseded revisions go, or they pile up
+cp ../braam-apps/build/repo/*.zip ../braam-apps/build/repo/index .
+cp ../braam-core/build/web/* .   # only when the release itself moves
+git add -A && git commit && git push
+```
+
+`git rm` first because a package's file name carries its version: without it
+every old revision stays served for ever. The commit message names the Braam
+version, then every package and its new revision, then `Index at G:<n>`.
+
+**Move the runtime whenever the SDK moves**, even where `PROC_ABI` is
+unchanged: the packages are built against the new kernel's limits, and it is
+the kernel that enforces them. 0.9.245 is the worked example — the ABI stayed
+at 20, but `SYS_STAGE_MAX` rising from 1 MB to 100 MB is the whole reason
+`pkg install simbesm` stopped being refused. A stamp asking for more pages than
+the kernel's `PROC_MAX_PAGES` is clamped rather than refused
+(`../braam-core/src/user/exec.cpp`), so that half never breaks a package.
 
 ## Verifying a binary
 
