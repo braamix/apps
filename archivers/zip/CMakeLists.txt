@@ -28,7 +28,7 @@ braam_add_program(NAME zipcloak  SOURCES zipcloak.cpp ${ZIP_COMMON} PORT NOFLOAT
 
 # One package, four commands: every flat bin/ entry becomes a cmd: provide and
 # a link in the installed generation's bin/, which /pkg/bin points at.
-braam_add_package(NAME zip VERSION 3.0-r4
+braam_add_package(NAME zip VERSION 3.0-r5
                   FIELD "T=Info-ZIP zip 3.0, the archiver"
                   FILES $<TARGET_FILE:bin_zip>=bin/zip
                         $<TARGET_FILE:bin_zipnote>=bin/zipnote

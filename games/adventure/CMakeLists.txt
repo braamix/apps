@@ -34,7 +34,7 @@ braam_add_program(NAME adventure
 
 # The package /bin/pkg installs. bin/ is what reaches PATH, and the entry's
 # leaf is the command's name.
-braam_add_package(NAME adventure VERSION 1.0-r7
+braam_add_package(NAME adventure VERSION 1.0-r8
                   FIELD "T=Colossal Cave Adventure"
                   FILES $<TARGET_FILE:bin_adventure>=bin/adventure)
 add_dependencies(packages pkg_adventure)

@@ -118,7 +118,7 @@ endforeach()
 # command; share/i18n is nested, so it is payload and nothing else. That is
 # what lets the binary find its own tables: /pkg/bin/iconv is a link into the
 # store directory the data sits in.
-braam_add_package(NAME iconv VERSION 1.16-r4
+braam_add_package(NAME iconv VERSION 1.16-r5
                   FIELD "T=Citrus iconv, character set conversion"
                   FILES $<TARGET_FILE:bin_iconv>=bin/iconv ${ICONV_PAYLOAD})
 add_dependencies(pkg_iconv iconv_i18n)
