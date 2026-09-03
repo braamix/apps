@@ -1,12 +1,10 @@
-/*
- * The Braam platform: images over descriptors, the console over the screen, the
- * trace file, and proc_main.  host.cpp is the other one.
- *
- * Copyright (c) 2026, Serge Vakulenko
- *
- * Everything that blocks is here, and only here.  The machine below runs as
- * plain C++ and hands the driver what it needs done (machine.h).
- */
+// The Braam platform: images over descriptors, the console over the screen, the
+// trace file, and proc_main.  host.cpp is the other one.
+//
+// Copyright (c) 2026, Serge Vakulenko
+//
+// Everything that blocks is here, and only here.  The machine below runs as
+// plain C++ and hands the driver what it needs done (machine.h).
 #include "besm6_defs.h"
 #include "fs/path.h"
 #include "kernel/alloc.h"
@@ -19,12 +17,11 @@
 #include "proc/rt.h"
 #include "proc/usage.h"
 
-/* ============================================================== the images
- *
- * Opening a file is a co_await and attach_unit() is not one, so the images are
- * opened before the machine is configured and img_open() finds them by path.
- * Four is the whole of it: two packs and two drums.
- */
+// ============================================================== the images
+//
+// Opening a file is a co_await and attach_unit() is not one, so the images are
+// opened before the machine is configured and img_open() finds them by path.
+// Four is the whole of it: two packs and two drums.
 
 #define IMG_MAX 4
 
@@ -45,7 +42,7 @@ static Image *img_find(const char *path)
     return nullptr;
 }
 
-/* The platform's half of an attach: opens the image and remembers it. */
+// The platform's half of an attach: opens the image and remembers it.
 static Task<Result<void>> img_prepare(Str dir, const char *name, bool create)
 {
     Image *m = nullptr;
@@ -65,8 +62,8 @@ static Task<Result<void>> img_prepare(Str dir, const char *name, bool create)
     if (create)
         flags |= SYS_O_TRUNC;
 
-    /* Perm is the file's one writer, and a page on its way out is still it for
-     * a moment.  Five seconds outlives that; a second tab it does not. */
+    // Perm is the file's one writer, and a page on its way out is still it for
+    // a moment.  Five seconds outlives that; a second tab it does not.
     Result<i32> fd = Err(Error::NoMemory);
     for (int i = 0; i < 20; i++) {
         if (Task<Result<i32>> t = open_at(p.str(), flags))
@@ -111,7 +108,7 @@ int img_close(Image *m)
     return m ? m->err : 0;
 }
 
-/* The transfers themselves are the driver's; nothing here moves data. */
+// The transfers themselves are the driver's; nothing here moves data.
 int img_read(Image *, uint32_t, value_t *, int)
 {
     return 0;
@@ -131,8 +128,8 @@ void img_remove(const char *)
 {
 }
 
-/* The formatter appends; nothing formats a disk on Braam, where the packs
- * arrive already formatted from the package. */
+// The formatter appends; nothing formats a disk on Braam, where the packs
+// arrive already formatted from the package.
 int img_append(Image *, const value_t *, int)
 {
     return 0;
@@ -150,11 +147,11 @@ double sim_strtod(const char *s, char **end)
     return v.has_value() ? v.value() : 0.0;
 }
 
-/* The front-panel date DISPAK is given at boot.  Only `autotime' reaches it,
- * and booting Unix does not. */
+// The front-panel date DISPAK is given at boot.  Only `autotime' reaches it,
+// and booting Unix does not.
 void sim_get_time(SimTime *t)
 {
-    t->year = 126; /* 2026, as tm_year counted */
+    t->year = 126; // 2026, as tm_year counted
     t->mon  = 0;
     t->mday = 1;
     t->hour = 0;
@@ -166,7 +163,7 @@ uint32_t sim_now_ms(void)
     return proc_now();
 }
 
-/* ================================================================ the trace */
+// ================================================================ the trace
 
 #define DEB_BUF 8192
 
@@ -178,7 +175,7 @@ static void deb_put(Sink *, const char *buf, int n)
 {
     for (int i = 0; i < n; i++) {
         if (deb_len == DEB_BUF)
-            return; /* the driver drains it; a burst past this is dropped */
+            return; // the driver drains it; a burst past this is dropped
         deb_buf[deb_len++] = buf[i];
     }
 }
@@ -187,7 +184,7 @@ static Sink deb_sink = { deb_put };
 
 Sink *deb_file_open(const char *path)
 {
-    /* The open is a co_await; braam_open_trace() below did it. */
+    // The open is a co_await; braam_open_trace() below did it.
     (void)path;
     return deb_fd >= 0 ? &deb_sink : nullptr;
 }
@@ -196,12 +193,10 @@ void deb_file_close(void)
 {
 }
 
-/* ============================================================== the console */
+// ============================================================== the console
 
-/*
- * The second screen, where the page put one up.  Upstream's tty26 was a telnet
- * line; Sys::TermOpen is where that goes in a browser tab.
- */
+// The second screen, where the page put one up.  Upstream's tty26 was a telnet
+// line; Sys::TermOpen is where that goes in a browser tab.
 static ScreenRef screen2;
 static int screen2_ok;
 
@@ -212,11 +207,11 @@ int con_second(void)
 
 void con_flush(void)
 {
-    /* The write is the driver's; con_drain() below does it. */
+    // The write is the driver's; con_drain() below does it.
 }
 
-/* The keyboard is claimed in proc_main, where a claim can be awaited, and
- * ~Proc gives it back.  There is no mode to set. */
+// The keyboard is claimed in proc_main, where a claim can be awaited, and
+// ~Proc gives it back.  There is no mode to set.
 status_t con_init(void)
 {
     return SCPE_OK;
@@ -231,15 +226,15 @@ void con_cooked(void)
 {
 }
 
-/* ============================================================== the driver */
+// ============================================================== the driver
 
 namespace {
 
-/* Where this run's copies of the packs live. */
+// Where this run's copies of the packs live.
 char g_home[256];
 
-/* A key, as the byte the guest's terminal would have seen.  There are no
- * control characters on Braam: ^D is 'd' with the control modifier. */
+// A key, as the byte the guest's terminal would have seen.  There are no
+// control characters on Braam: ^D is 'd' with the control modifier.
 i32 key_byte(const Key &k)
 {
     if (k.mods & MOD_CTRL) {
@@ -256,7 +251,7 @@ i32 key_byte(const Key &k)
     case KEY_ENTER:
         return '\r';
     case KEY_BACKSPACE:
-        return 0177; /* the guest's erase character */
+        return 0177; // the guest's erase character
     case KEY_TAB:
         return '\t';
     case KEY_ESCAPE:
@@ -267,10 +262,10 @@ i32 key_byte(const Key &k)
     return k.code < 0x80 ? i32(k.code) : -1;
 }
 
-/* A task per screen: parked on the next key, feeding the ring the machine
- * drains.  con_get() only looks, which is what lets an instruction call it.
- * One read per screen is the rule -- a key ring has one receiver -- so two
- * screens are two tasks. */
+// A task per screen: parked on the next key, feeding the ring the machine
+// drains.  con_get() only looks, which is what lets an instruction call it.
+// One read per screen is the rule -- a key ring has one receiver -- so two
+// screens are two tasks.
 Task<i32> keyboard(int con, ScreenRef on)
 {
     for (;;) {
@@ -283,7 +278,7 @@ Task<i32> keyboard(int con, ScreenRef on)
             co_return 0;
         }
         const KeyPress &k = r.value();
-        if ((k.mods & MOD_ALT) && k.code == 'q') { /* the stop key */
+        if ((k.mods & MOD_ALT) && k.code == 'q') { // the stop key
             stop_cpu     = true;
             sim_interval = 0;
             continue;
@@ -295,8 +290,8 @@ Task<i32> keyboard(int con, ScreenRef on)
     }
 }
 
-/* A screen's cursor is off until a process asks, and no shell runs on either
- * of our lines.  A write moves it after, so once per screen is enough. */
+// A screen's cursor is off until a process asks, and no shell runs on either
+// of our lines.  A write moves it after, so once per screen is enough.
 Task<void> cursor_show(ScreenRef on)
 {
     Result<CursorAt> at = Err(Error::NoMemory);
@@ -308,7 +303,7 @@ Task<void> cursor_show(ScreenRef on)
         (void)co_await t;
 }
 
-/* What con_flush() would have done, where a write is allowed. */
+// What con_flush() would have done, where a write is allowed.
 Task<void> con_drain()
 {
     const char *buf;
@@ -317,7 +312,7 @@ Task<void> con_drain()
     if (n > 0)
         if (Task<Result<void>> t = write_all(SYS_STDOUT, Str(buf, usize(n))))
             (void)co_await t;
-    /* A write to a screen descriptor is text on that grid, as this is on ours. */
+    // A write to a screen descriptor is text on that grid, as this is on ours.
     if (screen2_ok) {
         n = con_take(CON_SCREEN2, &buf);
         if (n > 0)
@@ -331,8 +326,8 @@ Task<void> con_drain()
     }
 }
 
-/* The runs the machine asked for.  One syscall per run: a zone is 8256 bytes
- * and SYS_READ_MAX is 64 KB, so a page transfer is one read. */
+// The runs the machine asked for.  One syscall per run: a zone is 8256 bytes
+// and SYS_READ_MAX is 64 KB, so a page transfer is one read.
 Task<status_t> io_service_async()
 {
     IoRequest *q = &io_request;
@@ -368,7 +363,7 @@ Task<status_t> io_service_async()
             continue;
         }
 
-        /* A short read is a zone the image was never written that far into. */
+        // A short read is a zone the image was never written that far into.
         usize got = 0;
         while (got < bytes) {
             Result<String> chunk = Err(Error::NoMemory);
@@ -393,10 +388,10 @@ Task<status_t> io_service_async()
     co_return SCPE_OK;
 }
 
-/* ------------------------------------------------------------- the store */
+// ------------------------------------------------------------- the store
 
-/* Where the package put the images: /pkg/store/simbesm-<version>/share/besm6.
- * BESM6_PREFIX overrides, which is how a test and a hand-built tree find them. */
+// Where the package put the images: /pkg/store/simbesm-<version>/share/besm6.
+// BESM6_PREFIX overrides, which is how a test and a hand-built tree find them.
 Task<String> find_data()
 {
     String p;
@@ -411,15 +406,15 @@ Task<String> find_data()
     if (Task<Result<String>> t = read_link("/pkg/bin/besm6"))
         link = co_await t;
     if (link.is_ok()) {
-        Str dir  = path_dirname(link.value().str()); /* .../bin */
-        Str root = path_dirname(dir);                /* .../simbesm-<version> */
+        Str dir  = path_dirname(link.value().str()); // .../bin
+        Str root = path_dirname(dir);                // .../simbesm-<version>
         p.assign(root);
         p.append("/share/besm6");
         co_return p;
     }
 
-    /* Installed, but reached by a path of its own rather than through
-     * /pkg/bin.  The store is one directory and the name is a prefix of it. */
+    // Installed, but reached by a path of its own rather than through
+    // /pkg/bin.  The store is one directory and the name is a prefix of it.
     Result<Vec<DirEntry>> ents = Err(Error::NoMemory);
     if (Task<Result<Vec<DirEntry>>> t = list_dir("/pkg/store"))
         ents = co_await t;
@@ -436,7 +431,7 @@ Task<String> find_data()
     co_return p;
 }
 
-/* One writer per file across the origin (OPFS), so a refusal is another tab. */
+// One writer per file across the origin (OPFS), so a refusal is another tab.
 Task<void> disk_err(Str what, Error why)
 {
     if (why == Error::Perm)
@@ -445,9 +440,9 @@ Task<void> disk_err(Str what, Error why)
         co_await errln("besm6", what, why);
 }
 
-/* The packs are written in place, so they cannot be run from the store.  On the
- * first run they are copied to a directory of the program's own; after that the
- * user's Unix is what is there. */
+// The packs are written in place, so they cannot be run from the store.  On the
+// first run they are copied to a directory of the program's own; after that the
+// user's Unix is what is there.
 Task<Result<void>> stage(Str from, Str home, bool again)
 {
     static const char *const PACKS[] = { "root3072.disk", "usr3100.disk" };
@@ -465,12 +460,12 @@ Task<Result<void>> stage(Str from, Str home, bool again)
             if (Task<Result<FileInfo>> t = stat_of(dst.str()))
                 st = co_await t;
             if (st.is_ok())
-                continue; /* already staged */
+                continue; // already staged
         }
 
         Buf<256> src;
         src.put(from).put('/').put(Str(name, strlen(name)));
-        Result<void> r = Err(Error::NoMemory); /* Perm waits, as img_prepare does */
+        Result<void> r = Err(Error::NoMemory); // Perm waits, as img_prepare does
         for (int i = 0; i < 20; i++) {
             if (Task<Result<void>> t = copy_file(src.str(), dst.str()))
                 r = co_await t;
@@ -485,18 +480,16 @@ Task<Result<void>> stage(Str from, Str home, bool again)
     co_return {};
 }
 
-/*
- * The second Consul line's screen.  With no -S the program tries terminal 1 and
- * settles for one console where there is none: a page with one canvas is the
- * ordinary case.
- */
+// The second Consul line's screen.  With no -S the program tries terminal 1 and
+// settles for one console where there is none: a page with one canvas is the
+// ordinary case.
 Task<void> open_second(u32 term)
 {
-    /* Retried, because a terminal exists only once the page has measured its
-     * canvas and that measurement comes from a ResizeObserver -- which a
-     * hidden or throttled tab runs late, or not at all until it is shown.  A
-     * program /etc/init starts can easily get here first.  Twenty tries of
-     * 50 ms; after that the page really has no second canvas. */
+    // Retried, because a terminal exists only once the page has measured its
+    // canvas and that measurement comes from a ResizeObserver -- which a
+    // hidden or throttled tab runs late, or not at all until it is shown.  A
+    // program /etc/init starts can easily get here first.  Twenty tries of
+    // 50 ms; after that the page really has no second canvas.
     Result<ScreenRef> ref = Err(Error::NoMemory);
     for (int i = 0; i < 20; i++) {
         if (Task<Result<ScreenRef>> t = screen_open(term))
@@ -507,10 +500,10 @@ Task<void> open_second(u32 term)
             (void)co_await t;
     }
     if (ref.is_err())
-        co_return; /* the page put up no such canvas */
+        co_return; // the page put up no such canvas
 
-    /* Taking is what arbitrates, not opening: a screen whose own shell sits at
-     * its prompt holds the keys, and a line needs both halves. */
+    // Taking is what arbitrates, not opening: a screen whose own shell sits at
+    // its prompt holds the keys, and a line needs both halves.
     Result<Geometry> keys = Err(Error::NoMemory);
     if (Task<Result<Geometry>> t = keys_claim(true, ref.value()))
         keys = co_await t;
@@ -538,7 +531,7 @@ Task<i32> proc_main(Args args)
 {
     bool again     = false;
     bool no_second = false;
-    u32 second     = 1; /* the terminal a dual-screen page puts up beside this one */
+    u32 second     = 1; // the terminal a dual-screen page puts up beside this one
 
     if (help_asked(args))
         co_return co_await usage_asked(USAGE);
@@ -564,7 +557,7 @@ Task<i32> proc_main(Args args)
         second = n.value();
     }
 
-    /* Where the images are, and where this run's copies live. */
+    // Where the images are, and where this run's copies live.
     String data;
     if (Task<String> t = find_data())
         data = co_await t;
@@ -589,8 +582,8 @@ Task<i32> proc_main(Args args)
             co_return 1;
         }
 
-    /* The trace file, if BESM6_DEBUG names one.  Opened here because the open
-     * is a co_await; sim_debug_from_env() only asks for it. */
+    // The trace file, if BESM6_DEBUG names one.  Opened here because the open
+    // is a co_await; sim_debug_from_env() only asks for it.
     Str deb = proc_env("BESM6_DEBUG");
     if (!deb.empty() && deb != "-") {
         Result<i32> fd = Err(Error::NoMemory);
@@ -600,8 +593,8 @@ Task<i32> proc_main(Args args)
             deb_fd = fd.value();
     }
 
-    /* The four images, before the machine is configured: attach_unit() finds
-     * them by name, and opening one is a co_await. */
+    // The four images, before the machine is configured: attach_unit() finds
+    // them by name, and opening one is a co_await.
     static const char *const OPEN[] = { "root3072.disk", "usr3100.disk" };
     for (const char *name : OPEN)
         if (Task<Result<void>> t = img_prepare(home_dir, name, false))
@@ -617,7 +610,7 @@ Task<i32> proc_main(Args args)
                 co_return 1;
             }
 
-    /* The kernel image, read whole: sim_load() is a plain function. */
+    // The kernel image, read whole: sim_load() is a plain function.
     Buf<256> kpath;
     kpath.put(data.str()).put("/unix");
     String kbytes;
@@ -652,7 +645,7 @@ Task<i32> proc_main(Args args)
         if (Task<void> t = open_second(second))
             co_await t;
         if (screen2_ok && !proc_spawn(keyboard(CON_SCREEN2, screen2)))
-            screen2_ok = 0; /* no task for it: one console, then */
+            screen2_ok = 0; // no task for it: one console, then
     }
 
     status_t r = machine_init();
@@ -689,11 +682,11 @@ Task<i32> proc_main(Args args)
                 r        = SCPE_STOP;
                 break;
             }
-            /* The park that lets the keyboard task be resumed and gives the
-             * native stack back (machine.h).  A burst the clock did not tick
-             * over is faster than the clock can measure, so wait a millisecond
-             * rather than spin: a process that always asks for zero never lets
-             * its worker breathe. */
+            // The park that lets the keyboard task be resumed and gives the
+            // native stack back (machine.h).  A burst the clock did not tick
+            // over is faster than the clock can measure, so wait a millisecond
+            // rather than spin: a process that always asks for zero never lets
+            // its worker breathe.
             u32 t_now  = proc_now();
             u32 wait   = (t_now == last_yield) ? 1 : 0;
             last_yield = t_now;
@@ -702,9 +695,9 @@ Task<i32> proc_main(Args args)
             continue;
         }
         if (r == REASON_IDLE) {
-            /* The guest is spinning until a queued event.  Sleep the time those
-             * instructions would have taken and charge it to them (machine.h),
-             * rather than burn a core at a login prompt. */
+            // The guest is spinning until a queued event.  Sleep the time those
+            // instructions would have taken and charge it to them (machine.h),
+            // rather than burn a core at a login prompt.
             co_await con_drain();
             if (stop_cpu) {
                 stop_cpu = false;
@@ -720,7 +713,7 @@ Task<i32> proc_main(Args args)
             last_yield = proc_now();
             continue;
         }
-        break; /* a stop code */
+        break; // a stop code
     }
     sim_run_end();
 

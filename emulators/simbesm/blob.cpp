@@ -1,8 +1,6 @@
-/*
- * A file in memory, and the sequential reads the a.out loader makes of it.
- *
- * Copyright (c) 2026, Serge Vakulenko
- */
+// A file in memory, and the sequential reads the a.out loader makes of it.
+//
+// Copyright (c) 2026, Serge Vakulenko
 #include "besm6_defs.h"
 
 int blob_getc(Blob *b)

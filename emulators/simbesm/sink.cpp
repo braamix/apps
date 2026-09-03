@@ -1,12 +1,10 @@
-/*
- * Formatting into a Sink, and where the two of them go.
- *
- * Copyright (c) 2026, Serge Vakulenko
- */
+// Formatting into a Sink, and where the two of them go.
+//
+// Copyright (c) 2026, Serge Vakulenko
 #include "besm6_defs.h"
 
-/* The longest line the tracer emits is a register dump, about 120 characters.
- * A longer one is formatted again into a heap block. */
+// The longest line the tracer emits is a register dump, about 120 characters.
+// A longer one is formatted again into a heap block.
 #define SINK_BUF 512
 
 void sink_write(Sink *s, const char *buf, int n)
@@ -40,10 +38,10 @@ void sink_vprintf(Sink *s, const char *fmt, va_list args)
         return;
     }
 
-    /* Too long for the stack buffer: format it again into one that fits. */
+    // Too long for the stack buffer: format it again into one that fits.
     char *big = (char *)malloc(n + 1);
     if (!big) {
-        sink_write(s, buf, sizeof(buf) - 1); /* what did fit */
+        sink_write(s, buf, sizeof(buf) - 1); // what did fit
         return;
     }
     n = vsnprintf(big, n + 1, fmt, args);
@@ -61,11 +59,11 @@ void sink_printf(Sink *s, const char *fmt, ...)
     va_end(args);
 }
 
-/* ---------------------------------------------------------------- backends */
+// ---------------------------------------------------------------- backends
 
-/* The operator's console is the machine's: the same terminal, so the same
- * buffer, or a message from inside an instruction would overtake the guest
- * output in front of it -- and on Braam could not be written at all. */
+// The operator's console is the machine's: the same terminal, so the same
+// buffer, or a message from inside an instruction would overtake the guest
+// output in front of it -- and on Braam could not be written at all.
 static void con_sink_put(Sink *s, const char *buf, int n)
 {
     int i;
@@ -80,21 +78,19 @@ static Sink con_sink = { con_sink_put };
 Sink *sim_con;
 Sink *sim_deb;
 
-/* -------------------------------------------------------------- the switches */
+// -------------------------------------------------------------- the switches
 
-/* The console is bound first, so a startup failure has somewhere to go. */
+// The console is bound first, so a startup failure has somewhere to go.
 void sink_init(void)
 {
     sim_con = &con_sink;
 }
 
-/*
- * BESM6_DEBUG names the trace file, "-" being stderr; BESM6_TRACE is a
- * comma-separated device list, defaulting to "cpu".  With BESM6_DEBUG unset
- * sim_deb stays NULL and every trace site is a branch on it.
- *
- *      BESM6_DEBUG=- BESM6_TRACE=cpu,mmu ./besm6
- */
+// BESM6_DEBUG names the trace file, "-" being stderr; BESM6_TRACE is a
+// comma-separated device list, defaulting to "cpu".  With BESM6_DEBUG unset
+// sim_deb stays NULL and every trace site is a branch on it.
+//
+//      BESM6_DEBUG=- BESM6_TRACE=cpu,mmu ./besm6
 void sim_debug_from_env(void)
 {
     const char *file = getenv("BESM6_DEBUG");
@@ -114,7 +110,7 @@ void sim_debug_from_env(void)
         const char *p = devs;
         size_t n      = strlen(dptr->name);
 
-        while (*p) { /* is dptr->name one of the comma separated words? */
+        while (*p) { // is dptr->name one of the comma separated words?
             const char *e = strchr(p, ',');
             size_t len    = e ? (size_t)(e - p) : strlen(p);
 

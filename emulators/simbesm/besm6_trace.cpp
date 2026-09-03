@@ -1,50 +1,44 @@
-/*
- * besm6_trace.c: BESM-6 instruction and register tracing
- *
- * Copyright (c) 2026, Serge Vakulenko
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * SERGE VAKULENKO OR LEONID BROUKHIS BE LIABLE FOR ANY CLAIM, DAMAGES
- * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
- * OR OTHER DEALINGS IN THE SOFTWARE.
- *
- * Except as contained in this notice, the name of Leonid Broukhis or
- * Serge Vakulenko shall not be used in advertising or otherwise to promote
- * the sale, use or other dealings in this Software without prior written
- * authorization from Leonid Broukhis and Serge Vakulenko.
- *
- * Ported from the b6sim tracer (v7besm/cmd/sim/trace.cpp).  All tracing is
- * gated by the caller on `sim_deb && cpu_dev.dctrl' (SIMH `set cpu debug'),
- * which enables the whole trace at once: instructions, register changes,
- * memory read/write, and exceptions/interrupts.  Output goes to sim_deb.
- */
+// besm6_trace.c: BESM-6 instruction and register tracing
+//
+// Copyright (c) 2026, Serge Vakulenko
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the "Software"),
+// to deal in the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+// SERGE VAKULENKO OR LEONID BROUKHIS BE LIABLE FOR ANY CLAIM, DAMAGES
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+// OR OTHER DEALINGS IN THE SOFTWARE.
+//
+// Except as contained in this notice, the name of Leonid Broukhis or
+// Serge Vakulenko shall not be used in advertising or otherwise to promote
+// the sale, use or other dealings in this Software without prior written
+// authorization from Leonid Broukhis and Serge Vakulenko.
+//
+// Ported from the b6sim tracer (v7besm/cmd/sim/trace.cpp).  All tracing is
+// gated by the caller on `sim_deb && cpu_dev.dctrl' (SIMH `set cpu debug'),
+// which enables the whole trace at once: instructions, register changes,
+// memory read/write, and exceptions/interrupts.  Output goes to sim_deb.
 #include "besm6_defs.h"
 
-/*
- * Previous register state, for printing only what has changed.
- */
+// Previous register state, for printing only what has changed.
 static value_t prev_ACC, prev_RMR, prev_GRP, prev_MGRP;
 static value_t prev_RP[8];
 static uint32_t prev_M[NREGS], prev_RAU, prev_RUU, prev_PRP, prev_MPRP, prev_RZ;
 
-/*
- * Symbol table extracted from an a.out image: function names and their
- * addresses, kept sorted by address so besm6_sym_find() can locate the
- * function that contains a given PC (nearest preceding symbol).
- */
+// Symbol table extracted from an a.out image: function names and their
+// addresses, kept sorted by address so besm6_sym_find() can locate the
+// function that contains a given PC (nearest preceding symbol).
 typedef struct {
     uint32_t addr;
     char *name;
@@ -53,10 +47,8 @@ typedef struct {
 static besm6_symbol_t *sym_table;
 static int sym_count, sym_alloc;
 
-/*
- * Drop the current symbol table.  Called by the loader before parsing a
- * new image; the table survives CPU reset so names persist across `run'.
- */
+// Drop the current symbol table.  Called by the loader before parsing a
+// new image; the table survives CPU reset so names persist across `run'.
 void besm6_sym_clear()
 {
     int i;
@@ -66,9 +58,7 @@ void besm6_sym_clear()
     sym_count = 0;
 }
 
-/*
- * Append one function symbol.  Names are copied; the array grows as needed.
- */
+// Append one function symbol.  Names are copied; the array grows as needed.
 void besm6_sym_add(uint32_t addr, const char *name)
 {
     if (sym_count >= sym_alloc) {
@@ -80,9 +70,7 @@ void besm6_sym_add(uint32_t addr, const char *name)
     ++sym_count;
 }
 
-/*
- * Order two symbols by address, for qsort().
- */
+// Order two symbols by address, for qsort().
 static int sym_compare(const void *a, const void *b)
 {
     uint32_t aa = ((const besm6_symbol_t *)a)->addr;
@@ -91,20 +79,16 @@ static int sym_compare(const void *a, const void *b)
     return (aa > ba) - (aa < ba);
 }
 
-/*
- * Sort the table by address.  Called once, after the loader has added
- * every symbol, so that besm6_sym_find() can binary-search it.
- */
+// Sort the table by address.  Called once, after the loader has added
+// every symbol, so that besm6_sym_find() can binary-search it.
 void besm6_sym_sort()
 {
     qsort(sym_table, sym_count, sizeof(sym_table[0]), sym_compare);
 }
 
-/*
- * Find the function containing the given address: the symbol with the
- * largest address <= addr.  Sets *at_start when addr is exactly a function
- * entry.  Returns the name, or NULL if no symbol precedes the address.
- */
+// Find the function containing the given address: the symbol with the
+// largest address <= addr.  Sets *at_start when addr is exactly a function
+// entry.  Returns the name, or NULL if no symbol precedes the address.
 const char *besm6_sym_find(uint32_t addr, int *at_start)
 {
     int lo = 0, hi = sym_count - 1, found = -1;
@@ -123,19 +107,15 @@ const char *besm6_sym_find(uint32_t addr, int *at_start)
     return sym_table[found].name;
 }
 
-/*
- * Print a 48-bit word in octal, as four space-separated groups of four digits.
- */
+// Print a 48-bit word in octal, as four space-separated groups of four digits.
 static void fprint_word_octal(Sink *of, value_t val)
 {
     sink_printf(of, "%04o %04o %04o %04o", (int)(val >> 36) & BITS(12), (int)(val >> 24) & BITS(12),
                 (int)(val >> 12) & BITS(12), (int)val & BITS(12));
 }
 
-/*
- * Reset the previous-register snapshot, so the first besm6_trace_registers()
- * call after a reset dumps the non-zero initial state.
- */
+// Reset the previous-register snapshot, so the first besm6_trace_registers()
+// call after a reset dumps the non-zero initial state.
 void besm6_trace_reset()
 {
     prev_ACC  = 0;
@@ -151,10 +131,8 @@ void besm6_trace_reset()
     memset(prev_RP, 0, sizeof(prev_RP));
 }
 
-/*
- * Print the executive (effective) address of an extracode, if any.
- * Called only for short-form extracodes (opcodes 050...077).
- */
+// Print the executive (effective) address of an extracode, if any.
+// Called only for short-form extracodes (opcodes 050...077).
 static void trace_executive_address(uint32_t cmd)
 {
     int reg, addr;
@@ -169,10 +147,8 @@ static void trace_executive_address(uint32_t cmd)
     sink_printf(sim_deb, " = %o", addr);
 }
 
-/*
- * Print the current instruction: address, half-word flag, octal fields and
- * mnemonics.  For extracodes, the executive address is appended.
- */
+// Print the current instruction: address, half-word flag, octal fields and
+// mnemonics.  For extracodes, the executive address is appended.
 void besm6_trace_instruction()
 {
     int opcode;
@@ -181,7 +157,7 @@ void besm6_trace_instruction()
     besm6_fprint_insn(sim_deb, RK);
     besm6_fprint_cmd(sim_deb, RK);
 
-    /* Short-form extracodes 050...077: show the executive address. */
+    // Short-form extracodes 050...077: show the executive address.
     if (!(RK & BBIT(20))) {
         opcode = (RK >> 12) & 077;
         if (opcode >= 050 && opcode <= 077)
@@ -190,10 +166,8 @@ void besm6_trace_instruction()
     sink_printf(sim_deb, "\n");
 }
 
-/*
- * Print changes in CPU registers since the previous instruction.
- * Covers all registers, including supervisor-only ones and the page table.
- */
+// Print changes in CPU registers since the previous instruction.
+// Covers all registers, including supervisor-only ones and the page table.
 void besm6_trace_registers()
 {
     int i;
@@ -208,15 +182,15 @@ void besm6_trace_registers()
         fprint_word_octal(sim_deb, RMR);
         sink_printf(sim_deb, "\n");
     }
-    /* Modifier registers M0...M17 and the special registers M20...M35. */
+    // Modifier registers M0...M17 and the special registers M20...M35.
     for (i = 0; i < NREGS; i++) {
         if (M[i] != prev_M[i])
             sink_printf(sim_deb, "      M%o = %05o\n", i, M[i]);
     }
     if (RAU != prev_RAU)
         sink_printf(sim_deb, "      RAU = %02o\n", RAU);
-    /* Ignore the left/right half-word flag: it toggles every instruction
-     * and is already shown by the L/R marker on the instruction line. */
+    // Ignore the left/right half-word flag: it toggles every instruction
+    // and is already shown by the L/R marker on the instruction line.
     if ((RUU & ~RUU_RIGHT_INSTR) != prev_RUU)
         sink_printf(sim_deb, "      RUU = %03o\n", RUU & ~RUU_RIGHT_INSTR);
     if (GRP != prev_GRP) {
@@ -233,7 +207,7 @@ void besm6_trace_registers()
         sink_printf(sim_deb, "      PRP = %08o\n", PRP);
     if (MPRP != prev_MPRP)
         sink_printf(sim_deb, "      MPRP = %08o\n", MPRP);
-    /* Page table: memory-mapping registers RP0...RP7 and protection RZ. */
+    // Page table: memory-mapping registers RP0...RP7 and protection RZ.
     for (i = 0; i < 8; i++) {
         if (RP[i] != prev_RP[i]) {
             sink_printf(sim_deb, "      RP%o = ", i);
@@ -244,7 +218,7 @@ void besm6_trace_registers()
     if (RZ != prev_RZ)
         sink_printf(sim_deb, "      RZ = %011o\n", RZ);
 
-    /* Update the previous state. */
+    // Update the previous state.
     prev_ACC  = ACC;
     prev_RMR  = RMR;
     prev_GRP  = GRP;
@@ -260,9 +234,7 @@ void besm6_trace_registers()
         prev_RP[i] = RP[i];
 }
 
-/*
- * Print a memory read or write.
- */
+// Print a memory read or write.
 void besm6_trace_memory(int addr, value_t val, const char *opname)
 {
     sink_printf(sim_deb, "      Memory %s [%05o] = ", opname, addr & BITS(15));
@@ -270,21 +242,17 @@ void besm6_trace_memory(int addr, value_t val, const char *opname)
     sink_printf(sim_deb, "\n");
 }
 
-/*
- * Print an exception or interrupt.
- */
+// Print an exception or interrupt.
 void besm6_trace_exception(const char *message)
 {
     sink_printf(sim_deb, "----- %05o%c: %s -----\n", PC, (RUU & RUU_RIGHT_INSTR) ? 'R' : 'L',
                 message);
 }
 
-/*
- * Print a separator line naming the function at the new PC, after a call
- * (пв/vjm) or a register return (пб/uj through a saved link).  When the PC
- * is not exactly a function entry - i.e. a return landing in the middle of
- * the caller - the name is prefixed with "back to".
- */
+// Print a separator line naming the function at the new PC, after a call
+// (пв/vjm) or a register return (пб/uj through a saved link).  When the PC
+// is not exactly a function entry - i.e. a return landing in the middle of
+// the caller - the name is prefixed with "back to".
 void besm6_trace_call_return()
 {
     int at_start     = 0;

@@ -1,16 +1,14 @@
-/*
- * The console buffers: one out, one in, per line.  Only the syscalls that
- * empty and fill them are the platform's.
- *
- * Copyright (c) 2026, Serge Vakulenko
- */
+// The console buffers: one out, one in, per line.  Only the syscalls that
+// empty and fill them are the platform's.
+//
+// Copyright (c) 2026, Serge Vakulenko
 #include "besm6_defs.h"
 
-/* Enough for a screenful; a full buffer flushes early rather than dropping. */
+// Enough for a screenful; a full buffer flushes early rather than dropping.
 #define CON_OUT 4096
 
-/* A burst of typing between two drains.  Beyond it keys drop, which is what a
- * terminal does. */
+// A burst of typing between two drains.  Beyond it keys drop, which is what a
+// terminal does.
 #define CON_IN 256
 
 static struct {
@@ -26,9 +24,10 @@ void con_put(int con, int c)
         return;
     if (line[con].len == CON_OUT)
         con_flush();
+    // Full still -- con_flush() does nothing on Braam, where only the driver
+    // may write.  Drop it, as a terminal does.
     if (line[con].len == CON_OUT)
-        return; /* full still -- con_flush() does nothing on Braam, where only
-                 * the driver may write.  Drop it, as a terminal does. */
+        return;
     line[con].out[line[con].len++] = (char)c;
 }
 
@@ -59,7 +58,7 @@ void con_feed(int con, int c)
         return;
     next = (line[con].head + 1) % CON_IN;
     if (next == line[con].tail)
-        return; /* full: drop, as a terminal does */
+        return; // full: drop, as a terminal does
     line[con].in[line[con].head] = (unsigned char)c;
     line[con].head               = next;
 }

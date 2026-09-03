@@ -1,102 +1,90 @@
-/*
- * BESM-6 magnetic disk device
- *
- * Copyright (c) 2009, Serge Vakulenko
- * Copyright (c) 2009, Leonid Broukhis
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * SERGE VAKULENKO OR LEONID BROUKHIS BE LIABLE FOR ANY CLAIM, DAMAGES
- * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
- * OR OTHER DEALINGS IN THE SOFTWARE.
-
- * Except as contained in this notice, the name of Leonid Broukhis or
- * Serge Vakulenko shall not be used in advertising or otherwise to promote
- * the sale, use or other dealings in this Software without prior written
- * authorization from Leonid Broukhis and Serge Vakulenko.
- */
+// BESM-6 magnetic disk device
+//
+// Copyright (c) 2009, Serge Vakulenko
+// Copyright (c) 2009, Leonid Broukhis
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the "Software"),
+// to deal in the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+// SERGE VAKULENKO OR LEONID BROUKHIS BE LIABLE FOR ANY CLAIM, DAMAGES
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+// OR OTHER DEALINGS IN THE SOFTWARE.
+//
+// Except as contained in this notice, the name of Leonid Broukhis or
+// Serge Vakulenko shall not be used in advertising or otherwise to promote
+// the sale, use or other dealings in this Software without prior written
+// authorization from Leonid Broukhis and Serge Vakulenko.
 #include "besm6_defs.h"
 
-/*
- * The control word of a magnetic disk transfer.
- */
-#define DISK_BLOCK        0740000000 /* memory block number - bits 27-24 */
-#define DISK_READ_SYSDATA 004000000  /* read the system words only */
-#define DISK_PAGE_MODE    001000000  /* transfer a whole page */
-#define DISK_READ         000400000  /* read from the disk into memory */
-#define DISK_PAGE         000370000  /* memory page number */
-#define DISK_HALFPAGE     000004000  /* which half of the page */
-#define DISK_UNIT         000001600  /* unit number */
-#define DISK_HALFZONE     000000001  /* which half of the zone */
+// The control word of a magnetic disk transfer.
+#define DISK_BLOCK        0740000000 // memory block number - bits 27-24
+#define DISK_READ_SYSDATA 004000000  // read the system words only
+#define DISK_PAGE_MODE    001000000  // transfer a whole page
+#define DISK_READ         000400000  // read from the disk into memory
+#define DISK_PAGE         000370000  // memory page number
+#define DISK_HALFPAGE     000004000  // which half of the page
+#define DISK_UNIT         000001600  // unit number
+#define DISK_HALFZONE     000000001  // which half of the zone
 
-/*
- * Status register bits (most are unused: error conditions are not simulated)
- */
-#define STATUS_SEEK       000000377 /* "Seek done" mask, per unit */
-#define STATUS_READY      000000400 /* Selected unit is ready */
-#define STATUS_SEEK_FAIL  000001000 /* Head location unknown, unit not ready */
-#define STATUS_CHECKSUM   000002000 /* Bad checksum on read */
-#define STATUS_FAILURE    000004000 /* Failure, OR of some upper bits */
-#define STATUS_MAYDAY     000010000 /* Unspecified failure */
-#define STATUS_NO_AMRK    000020000 /* Address marker not found after a revolution */
-#define STATUS_WRONG_CYL  000040000 /* Wrong address marker */
-#define STATUS_WRONG_ID   000100000 /* Bad track ID */
-#define STATUS_BAD_ACSUM  000200000 /* Bad checksum of the address marker */
-#define STATUS_UNFINISHED 000400000 /* IO not finished after a revolution */
-#define STATUS_TRK_PARITY 001000000 /* Track parity in two-track IO */
-#define STATUS_READONLY   002000000 /* The selected unit is read-only */
-#define STATUS_POWERUP    004000000 /* The unit is powered up */
-#define STATUS_ABSENT     010000000 /* The unit is not connected */
-#define STATUS_BUF_ERR    020000000 /* Transfer buffer not ready */
+// Status register bits (most are unused: error conditions are not simulated)
+#define STATUS_SEEK       000000377 // "Seek done" mask, per unit
+#define STATUS_READY      000000400 // Selected unit is ready
+#define STATUS_SEEK_FAIL  000001000 // Head location unknown, unit not ready
+#define STATUS_CHECKSUM   000002000 // Bad checksum on read
+#define STATUS_FAILURE    000004000 // Failure, OR of some upper bits
+#define STATUS_MAYDAY     000010000 // Unspecified failure
+#define STATUS_NO_AMRK    000020000 // Address marker not found after a revolution
+#define STATUS_WRONG_CYL  000040000 // Wrong address marker
+#define STATUS_WRONG_ID   000100000 // Bad track ID
+#define STATUS_BAD_ACSUM  000200000 // Bad checksum of the address marker
+#define STATUS_UNFINISHED 000400000 // IO not finished after a revolution
+#define STATUS_TRK_PARITY 001000000 // Track parity in two-track IO
+#define STATUS_READONLY   002000000 // The selected unit is read-only
+#define STATUS_POWERUP    004000000 // The unit is powered up
+#define STATUS_ABSENT     010000000 // The unit is not connected
+#define STATUS_BUF_ERR    020000000 // Transfer buffer not ready
 
-/*
- * Total size of a "7.25 Mb" disk is 1000 (decimal) blocks;
- * of a "29 Mb" disk - 4000 blocks, out of which 4 are so called
- * pre-blocks. Logical blocks are mapped to physical by adding 4.
- * Physical blocks 0 to 2 are accesible only by standalone programs,
- * block 3 has the logical number "minus one".
- */
-/*
- * Parameters of a transfer with an external device.
- */
+// Total size of a "7.25 Mb" disk is 1000 (decimal) blocks;
+// of a "29 Mb" disk - 4000 blocks, out of which 4 are so called
+// pre-blocks. Logical blocks are mapped to physical by adding 4.
+// Physical blocks 0 to 2 are accesible only by standalone programs,
+// block 3 has the logical number "minus one".
+// Parameters of a transfer with an external device.
 typedef struct {
-    int op;           /* the transfer control word */
-    int group;        /* Unit group number */
-    int dev;          /* unit number, 0..7 */
-    int zone;         /* zone number on the disk */
-    int track;        /* which half of the zone */
-    int memory;       /* first memory address */
-    int format;       /* the formatting flag */
-    int status;       /* the status register */
-    value_t mask_grp; /* the ГРП ready mask */
-    int mask_fail;    /* the transfer error mask */
-    value_t *sysdata; /* the system data buffer */
+    int op;           // the transfer control word
+    int group;        // Unit group number
+    int dev;          // unit number, 0..7
+    int zone;         // zone number on the disk
+    int track;        // which half of the zone
+    int memory;       // first memory address
+    int format;       // the formatting flag
+    int status;       // the status register
+    value_t mask_grp; // the ГРП ready mask
+    int mask_fail;    // the transfer error mask
+    value_t *sysdata; // the system data buffer
 } KMD;
 
-static KMD controller[2]; /* the two КМД cabinets */
-int disk_fail;            /* per-channel error mask */
+static KMD controller[2]; // the two КМД cabinets
+int disk_fail;            // per-channel error mask
 
 status_t disk_event(UNIT *u);
 
-/*
- * DISK data structures
- *
- * md_dev     DISK device descriptor
- * md_unit    DISK unit descriptor
- * md_reg     DISK register list
- */
+// DISK data structures
+//
+// md_dev     DISK device descriptor
+// md_unit    DISK unit descriptor
+// md_reg     DISK register list
 UNIT md_unit[64] = {
     { .action = disk_event, .flags = UNIT_ATTABLE | UNIT_ROABLE },
     { .action = disk_event, .flags = UNIT_ATTABLE | UNIT_ROABLE },
@@ -222,17 +210,13 @@ DEVICE md_dev[8] = { { .name     = "MD0",
                        .reset    = &disk_reset,
                        .detach   = &disk_detach } };
 
-/*
- * Find the controller a unit belongs to.
- */
+// Find the controller a unit belongs to.
 static KMD *unit_to_ctlr(UNIT *u)
 {
     return &controller[(u - md_unit) / 32];
 }
 
-/*
- * Reset routine
- */
+// Reset routine
 status_t disk_reset(DEVICE *dptr)
 {
     int i;
@@ -259,14 +243,13 @@ status_t disk_attach(UNIT *u, const char *cptr)
     while (1) {
         s = attach_unit(u, cptr);
         if ((s == SCPE_OK) && (sim_switches & SWMASK('N'))) {
-            value_t control[4]; /* block (zone) number, key, userid, checksum */
+            value_t control[4]; // block (zone) number, key, userid, checksum
             int diskno, blkno, word;
             char *filenamepart = NULL;
             const char *pos;
-            /* Using the rightmost sequence of digits within the filename
-             * provided in the command line as a volume number,
-             * e.g. "/var/tmp/besm6/2052.bin" -> 2052
-             */
+            // Using the rightmost sequence of digits within the filename
+            // provided in the command line as a volume number,
+            // e.g. "/var/tmp/besm6/2052.bin" -> 2052
             filenamepart = sim_basename(u->filename);
             pos          = filenamepart + strlen(filenamepart);
             while (pos > filenamepart && !isdigit(*--pos))
@@ -291,7 +274,7 @@ status_t disk_attach(UNIT *u, const char *cptr)
                 detach_unit(u);
                 img_remove(filenamepart);
                 free(filenamepart);
-                return s; /* not formatting */
+                return s; // not formatting
             }
             sim_messagef(SCPE_OK, "%s: formatting disk volume %d\n", sim_uname(u), diskno);
 
@@ -299,10 +282,10 @@ status_t disk_attach(UNIT *u, const char *cptr)
             control[2] = SET_PARITY(0, PARITY_NUMBER);
             control[3] = SET_PARITY(0, PARITY_NUMBER);
 
-            control[1] |= 01370707LL << 24; /* Magic mark */
+            control[1] |= 01370707LL << 24; // Magic mark
             control[1] |= diskno << 12;
 
-            /* Unlike the O/S routine, does not format the (useless) reserve tracks */
+            // Unlike the O/S routine, does not format the (useless) reserve tracks
             for (blkno = 0; blkno < (IS_29MB(u) ? 4000 : 1000); ++blkno) {
                 uint32_t val = IS_29MB(u) ? blkno : 2 * blkno;
                 control[0]   = SET_PARITY((value_t)val << 36, PARITY_NUMBER);
@@ -323,7 +306,7 @@ status_t disk_attach(UNIT *u, const char *cptr)
 
 status_t disk_detach(UNIT *u)
 {
-    /* TODO: clear the channel's ГРП ready bit when the last disk is detached. */
+    // TODO: clear the channel's ГРП ready bit when the last disk is detached.
     return detach_unit(u);
 }
 
@@ -339,9 +322,7 @@ value_t spread(value_t val)
     return res & BITS48;
 }
 
-/*
- * Debug dump of a transferred data array.
- */
+// Debug dump of a transferred data array.
 static void log_data(value_t *data, int nwords)
 {
     int i;
@@ -360,9 +341,7 @@ static void log_data(value_t *data, int nwords)
         sink_printf(sim_deb, "\n");
 }
 
-/*
- * Addition with carry to the right.
- */
+// Addition with carry to the right.
 static unsigned sum_with_right_carry(unsigned a, unsigned b)
 {
     unsigned c;
@@ -375,9 +354,7 @@ static unsigned sum_with_right_carry(unsigned a, unsigned b)
     return a;
 }
 
-/*
- * Write to the disk.
- */
+// Write to the disk.
 void disk_write(UNIT *u)
 {
     KMD *c = unit_to_ctlr(u);
@@ -398,36 +375,34 @@ void disk_write_track(UNIT *u)
     io_run(8 + ZONE_SIZE * c->zone + 512 * c->track, &memory[c->memory], 512);
 }
 
-/*
- * Format a track.
- */
+// Format a track.
 void disk_format(UNIT *u)
 {
     KMD *c = unit_to_ctlr(u);
     value_t fmtbuf[5];
     value_t *ptr;
     int i;
-    /* In effect the emulator has nothing to do. */
+    // In effect the emulator has nothing to do.
     if (!(u->dptr->dctrl & DEB_DAT))
         return;
 
-    /* Find the start of the header being written. */
+    // Find the start of the header being written.
     ptr = &memory[c->memory];
     while ((*ptr & BITS48) == 0)
         ptr++;
 
-    /* Decode from the comb form into the normal one. */
+    // Decode from the comb form into the normal one.
     for (i = 0; i < 5; i++)
         fmtbuf[i] = spread(ptr[i]);
 
-    /* On the first formatting attempt the address marker starts in the top
-     * 5-bit syllable, so skip the first syllable. */
+    // On the first formatting attempt the address marker starts in the top
+    // 5-bit syllable, so skip the first syllable.
     for (i = 0; i < 5; i++)
         fmtbuf[i] = ((fmtbuf[i] & BITS48) << 5) | (i == 4 ? 0 : (fmtbuf[i + 1] >> 40) & BITS(5));
 
     log_data(fmtbuf, 5);
 
-    /* Print the identifier, the address and the address checksum. */
+    // Print the identifier, the address and the address checksum.
     if (u->dptr->dctrl & DEB_TRC) {
         if (IS_29MB(u))
             besm6_debug("::: disk %02o format zone %04o mem %05o skip %02o hdr %010o %010o", c->dev,
@@ -440,9 +415,7 @@ void disk_format(UNIT *u)
     }
 }
 
-/*
- * Read from the disk.
- */
+// Read from the disk.
 void disk_read(UNIT *u)
 {
     KMD *c = unit_to_ctlr(u);
@@ -480,9 +453,7 @@ void disk_read_track(UNIT *u)
         io_run(8 + ZONE_SIZE * c->zone + 512 * c->track, &memory[c->memory], 512);
 }
 
-/*
- * Read a track header.
- */
+// Read a track header.
 void disk_read_header(UNIT *u)
 {
     KMD *c           = unit_to_ctlr(u);
@@ -490,7 +461,7 @@ void disk_read_header(UNIT *u)
     int iaksa, i, cyl, head;
     int reserve_start = IS_29MB(u) ? 07640 : 01750;
 
-    /* The address: cylinder and head number. */
+    // The address: cylinder and head number.
     if (IS_29MB(u)) {
         head = c->zone;
         cyl  = head / 20;
@@ -504,14 +475,14 @@ void disk_read_header(UNIT *u)
         iaksa = (cyl << 20) | (head << 16);
     }
 
-    /* The spare track identifier. */
+    // The spare track identifier.
     if (c->zone >= reserve_start)
         iaksa |= BBIT(30);
 
-    /* The address checksum, added with carry to the right. */
+    // The address checksum, added with carry to the right.
     iaksa |= BITS(12) & ~sum_with_right_carry(iaksa >> 12, iaksa >> 24);
 
-    /* An address marker, 42 zeros, an address marker, many ones. */
+    // An address marker, 42 zeros, an address marker, many ones.
     sysdata[0] = 07404000000000000LL | (value_t)iaksa << 8;
     sysdata[1] = 03740LL;
     sysdata[2] = 00400000000037777LL | (value_t)iaksa << 14;
@@ -524,15 +495,13 @@ void disk_read_header(UNIT *u)
         }
     }
 
-    /* Encode the comb form. */
+    // Encode the comb form.
     for (i = 0; i < 4; i++)
         sysdata[i] = SET_PARITY(collect(sysdata[i]), PARITY_NUMBER);
 }
 
-/*
- * Set the memory address and the array length for a later disk access.
- * The unit and track numbers arrive later, with instruction 033 0023(0024).
- */
+// Set the memory address and the array length for a later disk access.
+// The unit and track numbers arrive later, with instruction 033 0023(0024).
 void disk_io(int ctlr, uint32_t cmd)
 {
     KMD *c       = &controller[ctlr];
@@ -543,10 +512,10 @@ void disk_io(int ctlr, uint32_t cmd)
     c->op     = cmd;
     c->format = 0;
     if (c->op & DISK_PAGE_MODE) {
-        /* Page transfer */
+        // Page transfer
         c->memory = (cmd & DISK_PAGE) >> 2 | (cmd & DISK_BLOCK) >> 8;
     } else {
-        /* Half-page (track) transfer */
+        // Half-page (track) transfer
         c->memory = (cmd & (DISK_PAGE | DISK_HALFPAGE)) >> 2 | (cmd & DISK_BLOCK) >> 8;
     }
     if (md_dev[ctlr * 4].dctrl & DEB_RWR)
@@ -554,7 +523,7 @@ void disk_io(int ctlr, uint32_t cmd)
                     (c->op & DISK_READ) ? "read" : "write", cmd, c->memory);
     disk_fail &= ~c->mask_fail;
 
-    /* Clear the main interrupt register. */
+    // Clear the main interrupt register.
     GRP &= ~c->mask_grp;
 }
 
@@ -564,9 +533,7 @@ int has_debug(int ctlr)
            (md_dev[ctlr * 4 + 2].dctrl & DEB_OPS) | (md_dev[ctlr * 4 + 3].dctrl & DEB_OPS);
 }
 
-/*
- * Disk control: instruction 00 033 0023(0024).
- */
+// Disk control: instruction 00 033 0023(0024).
 status_t disk_ctl(int ctlr, uint32_t cmd)
 {
     KMD *c  = &controller[ctlr];
@@ -580,11 +547,11 @@ status_t disk_ctl(int ctlr, uint32_t cmd)
         if (c->dev == -1)
             besm6_debug("Setting block address for unknown device");
 
-        /* Hand the track address to the КМД.
-         * The disk transfer is performed here as well.
-         * The unit number is already known by this point. */
+        // Hand the track address to the КМД.
+        // The disk transfer is performed here as well.
+        // The unit number is already known by this point.
         if (!(u->flags & UNIT_ATT)) {
-            /* Device not attached. */
+            // Device not attached.
             disk_fail |= c->mask_fail;
             return SCPE_OK;
         }
@@ -605,15 +572,15 @@ status_t disk_ctl(int ctlr, uint32_t cmd)
         }
         disk_fail &= ~c->mask_fail;
         if (!(c->op & DISK_READ) && (u->flags & UNIT_RO)) {
-            /* Read only. */
-            /*return SCPE_RO;*/
+            // Read only.
+            // return SCPE_RO;
             disk_fail |= c->mask_fail;
             return SCPE_OK;
         }
 
-        /* The driver performs the transfer and then waits for an event from
-         * the device. */
-        io_post(u, !(c->op & DISK_READ), 20 * USEC, /* sped up for debugging */
+        // The driver performs the transfer and then waits for an event from
+        // the device.
+        io_post(u, !(c->op & DISK_READ), 20 * USEC, // sped up for debugging
                 &disk_fail, c->mask_fail);
         if (c->op & DISK_READ) {
             if (IS_29MB(u) || c->op & DISK_PAGE_MODE)
@@ -621,7 +588,7 @@ status_t disk_ctl(int ctlr, uint32_t cmd)
             else
                 disk_read_track(u);
         } else if (c->format) {
-            /* Formatting moves no data; only the trace says anything. */
+            // Formatting moves no data; only the trace says anything.
             disk_format(u);
         } else if (IS_29MB(u) || c->op & DISK_PAGE_MODE)
             disk_write(u);
@@ -629,9 +596,9 @@ status_t disk_ctl(int ctlr, uint32_t cmd)
             disk_write_track(u);
 
     } else if (cmd & BBIT(11)) {
-        /* Select a unit number and put it in the КМД mask register.
-         * Bit 8 is unit 0, bit 7 is unit 1, ... bit 1 is unit 7.
-         * Bit 9 is also set -- what does it mean? */
+        // Select a unit number and put it in the КМД mask register.
+        // Bit 8 is unit 0, bit 7 is unit 1, ... bit 1 is unit 7.
+        // Bit 9 is also set -- what does it mean?
         if (cmd & BBIT(8))
             c->dev = 7;
         else if (cmd & BBIT(7))
@@ -649,7 +616,7 @@ status_t disk_ctl(int ctlr, uint32_t cmd)
         else if (cmd & BBIT(1))
             c->dev = 0;
         else if (cmd != BBIT(11)) {
-            /* A bad unit selection mask. */
+            // A bad unit selection mask.
             c->dev = -1;
             besm6_debug("Bad unit selection command %o", cmd);
             return SCPE_OK;
@@ -668,14 +635,14 @@ status_t disk_ctl(int ctlr, uint32_t cmd)
             besm6_debug("::: disk ctlr %c: cmd = %08o, unit select %02o", ctlr + '3', cmd, c->dev);
 
         if (!(u->flags & UNIT_ATT)) {
-            /* Device not attached. */
+            // Device not attached.
             disk_fail |= c->mask_fail;
             GRP &= ~c->mask_grp;
         }
         GRP |= c->mask_grp;
 
     } else if (cmd & BBIT(9)) {
-        /* Group selection, LSB of track #, interrupt */
+        // Group selection, LSB of track #, interrupt
         if ((cmd & 01774) == 01400) {
             // Understood with or without bit 13
             c->group = cmd & 3;
@@ -697,64 +664,64 @@ status_t disk_ctl(int ctlr, uint32_t cmd)
     } else if (cmd & BBIT(8)) {
         besm6_debug("::: disk ctlr %c: cmd = %08o\n", ctlr + '3', cmd);
     } else {
-        /* An instruction handed to the КМД. */
+        // An instruction handed to the КМД.
         switch (cmd & 077) {
-        case 000: /* DISPAK issues this once at the start of the boot */
+        case 000: // DISPAK issues this once at the start of the boot
             if (u->dptr->dctrl & DEB_OPS)
                 besm6_debug("::: disk ctlr %c: undocumented command %08o", ctlr + '3', cmd);
             break;
-        case 001: /* seek to cylinder 0 */
+        case 001: // seek to cylinder 0
 #if 1
             if (u->dptr->dctrl & DEB_OPS)
                 besm6_debug("::: disk ctlr %c: seek to cylinder 0", ctlr + '3');
 #endif
             break;
-        case 002: /* seek */
+        case 002: // seek
             if (u->dptr->dctrl & DEB_OPS)
                 besm6_debug("::: disk ctlr %c: seek", ctlr + '3');
             break;
-        case 003: /* read (НСМД to МОЗУ) */
-        case 043: /* of a spare track */
+        case 003: // read (НСМД to МОЗУ)
+        case 043: // of a spare track
 #if 1
             if (u->dptr->dctrl & DEB_OPS)
                 besm6_debug("::: disk ctlr %c: read", ctlr + '3');
 #endif
             break;
-        case 004: /* write (МОЗУ to НСМД) */
-        case 044: /* of a spare track */
+        case 004: // write (МОЗУ to НСМД)
+        case 044: // of a spare track
 #if 1
             if (u->dptr->dctrl & DEB_OPS)
                 besm6_debug("::: disk ctlr %c: write", ctlr + '3');
 #endif
             break;
-        case 005: /* format */
+        case 005: // format
             c->format = 1;
             break;
-        case 006: /* compare (МОЗУ against НСМД) */
+        case 006: // compare (МОЗУ against НСМД)
 #if 1
             if (u->dptr->dctrl & DEB_OPS)
                 besm6_debug("::: disk ctlr %c: compare", ctlr + '3');
 #endif
             break;
-        case 007: /* read the header */
-        case 047: /* of a spare track */
+        case 007: // read the header
+        case 047: // of a spare track
             if (u->dptr->dctrl & DEB_OPS)
                 besm6_debug("::: disk ctlr %c: read %sheader", ctlr + '3',
                             cmd & 040 ? "spare " : "");
             disk_fail &= ~c->mask_fail;
             disk_read_header(u);
 
-            /* Nothing to transfer: the header was built in memory. */
-            io_post(u, 0, 20 * USEC, NULL, 0); /* sped up for debugging */
+            // Nothing to transfer: the header was built in memory.
+            io_post(u, 0, 20 * USEC, NULL, 0); // sped up for debugging
             break;
-        case 010: /* clear the status register */
+        case 010: // clear the status register
 #if 1
             if (has_debug(ctlr))
                 besm6_debug("::: disk ctlr %c: clear status register", ctlr + '3');
 #endif
             c->status = 0;
             break;
-        case 011: /* poll bits 1-12 of the status register */
+        case 011: // poll bits 1-12 of the status register
             if (c->dev == -1) {
                 c->status = ~0;
                 if (has_debug(ctlr)) {
@@ -770,17 +737,17 @@ status_t disk_ctl(int ctlr, uint32_t cmd)
                 besm6_debug("::: disk ctlr %c: poll low status bits - %04o", ctlr + '3', c->status);
 #endif
             break;
-        case 031: /* poll bits 13-24 of the status register */
+        case 031: // poll bits 13-24 of the status register
             if (c->dev == -1) {
                 if (has_debug(ctlr)) {
                     besm6_debug("::: disk ctlr %c: status high req with no selection", ctlr + '3');
                 }
                 break;
             }
-            /* Always "no such unit": the old code tested UNIT_DISABLE, which
-               marks a unit as detachable rather than detached, and every disk
-               had it set -- so STATUS_POWERUP was never reported.  The
-               behaviour is preserved. */
+            // Always "no such unit": the old code tested UNIT_DISABLE, which
+            // marks a unit as detachable rather than detached, and every disk
+            // had it set -- so STATUS_POWERUP was never reported.  The
+            // behaviour is preserved.
             c->status = STATUS_ABSENT;
             if (md_unit[c->dev].flags & UNIT_RO)
                 c->status |= STATUS_READONLY;
@@ -791,7 +758,7 @@ status_t disk_ctl(int ctlr, uint32_t cmd)
                             c->status);
 #endif
             break;
-        case 050: /* release the disk unit */
+        case 050: // release the disk unit
 #if 1
             if (u->dptr->dctrl & DEB_OPS)
                 besm6_debug("::: disk ctlr %c: release drive", ctlr + '3');
@@ -799,16 +766,14 @@ status_t disk_ctl(int ctlr, uint32_t cmd)
             break;
         default:
             besm6_debug("::: disk ctlr %c: unknown command %02o", ctlr + '3', cmd & 077);
-            GRP |= c->mask_grp; /* so that it does not hang */
+            GRP |= c->mask_grp; // so that it does not hang
             break;
         }
     }
     return SCPE_OK;
 }
 
-/*
- * Query the controller status.
- */
+// Query the controller status.
 int disk_state(int ctlr)
 {
     KMD *c = &controller[ctlr];
@@ -819,10 +784,8 @@ int disk_state(int ctlr)
     return c->status;
 }
 
-/*
- * Event: a disk transfer has finished.
- * Set the interrupt flag.
- */
+// Event: a disk transfer has finished.
+// Set the interrupt flag.
 status_t disk_event(UNIT *u)
 {
     KMD *c = unit_to_ctlr(u);
@@ -831,9 +794,7 @@ status_t disk_event(UNIT *u)
     return SCPE_OK;
 }
 
-/*
- * Poll the transfer error register with instruction 033 4035.
- */
+// Poll the transfer error register with instruction 033 4035.
 int disk_errors()
 {
 #if 0

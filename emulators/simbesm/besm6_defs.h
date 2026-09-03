@@ -138,16 +138,14 @@ extern DEVICE md_dev[];
 extern DEVICE clock_dev;
 extern DEVICE tty_dev;
 
-/*
- * A trap unwinds by returning its stop code.  Upstream longjmp'd to cpu_halt
- * from arbitrary depth -- an operand protection fault out of mmu_load(), an
- * overflow out of besm6_add(), an I/O error out of the disk -- and sim_instr()
- * caught it with setjmp().  There is no setjmp on wasm32, so every routine that
- * can raise a trap returns status_t and every caller checks; cpu_trap() below is
- * what the landing pad became.
- *
- * Zero is "no trap": the STOP_ codes start at 1 and SCPE_ at SCPE_BASE.
- */
+// A trap unwinds by returning its stop code.  Upstream longjmp'd to cpu_halt
+// from arbitrary depth -- an operand protection fault out of mmu_load(), an
+// overflow out of besm6_add(), an I/O error out of the disk -- and sim_instr()
+// caught it with setjmp().  There is no setjmp on wasm32, so every routine that
+// can raise a trap returns status_t and every caller checks; cpu_trap() below is
+// what the landing pad became.
+//
+// Zero is "no trap": the STOP_ codes start at 1 and SCPE_ at SCPE_BASE.
 #define CPU_TRY(expr)            \
     do {                         \
         status_t trap_ = (expr); \

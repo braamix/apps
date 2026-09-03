@@ -1,69 +1,60 @@
-/*
- * besm6_drum.c: BESM-6 magnetic drum device
- *
- * Copyright (c) 2009, Serge Vakulenko
- *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * SERGE VAKULENKO OR LEONID BROUKHIS BE LIABLE FOR ANY CLAIM, DAMAGES
- * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
- * OR OTHER DEALINGS IN THE SOFTWARE.
-
- * Except as contained in this notice, the name of Leonid Broukhis or
- * Serge Vakulenko shall not be used in advertising or otherwise to promote
- * the sale, use or other dealings in this Software without prior written
- * authorization from Leonid Broukhis and Serge Vakulenko.
- */
+// besm6_drum.c: BESM-6 magnetic drum device
+//
+// Copyright (c) 2009, Serge Vakulenko
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the "Software"),
+// to deal in the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+// SERGE VAKULENKO OR LEONID BROUKHIS BE LIABLE FOR ANY CLAIM, DAMAGES
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+// OR OTHER DEALINGS IN THE SOFTWARE.
+//
+// Except as contained in this notice, the name of Leonid Broukhis or
+// Serge Vakulenko shall not be used in advertising or otherwise to promote
+// the sale, use or other dealings in this Software without prior written
+// authorization from Leonid Broukhis and Serge Vakulenko.
 #include "besm6_defs.h"
 
-/*
- * The control word of a magnetic drum transfer.
- */
-#define DRUM_READ_OVERLAY 020000000 /* read with overlay */
-#define DRUM_PARITY_FLAG                                                        \
-    010000000                        /* suppress reading words with bad parity, \
-                                      * or write with bad parity */
-#define DRUM_READ_SYSDATA 004000000  /* read the system words only */
-#define DRUM_PAGE_MODE    001000000  /* transfer a whole page */
-#define DRUM_READ         000400000  /* read from the drum into memory */
-#define DRUM_PAGE         000370000  /* memory page number */
-#define DRUM_BLOCK        0740000000 /* memory block number - bits 27-24 */
-#define DRUM_PARAGRAF     000006000  /* paragraph number */
-#define DRUM_UNIT         000001600  /* drum number */
-#define DRUM_CYLINDER     000000174  /* track number on the drum */
-#define DRUM_SECTOR       000000003  /* sector number */
+// The control word of a magnetic drum transfer.
+#define DRUM_READ_OVERLAY 020000000 // read with overlay
+// suppress reading words with bad parity, or write with bad parity
+#define DRUM_PARITY_FLAG  010000000
+#define DRUM_READ_SYSDATA 004000000  // read the system words only
+#define DRUM_PAGE_MODE    001000000  // transfer a whole page
+#define DRUM_READ         000400000  // read from the drum into memory
+#define DRUM_PAGE         000370000  // memory page number
+#define DRUM_BLOCK        0740000000 // memory block number - bits 27-24
+#define DRUM_PARAGRAF     000006000  // paragraph number
+#define DRUM_UNIT         000001600  // drum number
+#define DRUM_CYLINDER     000000174  // track number on the drum
+#define DRUM_SECTOR       000000003  // sector number
 
-/*
- * Parameters of a transfer with an external device.
- */
-int drum_op;     /* the transfer control word */
-int drum_zone;   /* zone number on the drum */
-int drum_sector; /* first sector number on the drum */
-int drum_memory; /* first memory address */
-int drum_nwords; /* number of words transferred */
-int drum_fail;   /* per-channel error mask */
+// Parameters of a transfer with an external device.
+int drum_op;     // the transfer control word
+int drum_zone;   // zone number on the drum
+int drum_sector; // first sector number on the drum
+int drum_memory; // first memory address
+int drum_nwords; // number of words transferred
+int drum_fail;   // per-channel error mask
 
 status_t drum_event(UNIT *u);
 
-/*
- * DRUM data structures
- *
- * drum_dev     DRUM device descriptor
- * drum_unit    DRUM unit descriptor
- * drum_reg     DRUM register list
- */
+// DRUM data structures
+//
+// drum_dev     DRUM device descriptor
+// drum_unit    DRUM unit descriptor
+// drum_reg     DRUM register list
 UNIT drum_unit[] = {
     { .action = drum_event, .flags = UNIT_ATTABLE | UNIT_ROABLE },
     { .action = drum_event, .flags = UNIT_ATTABLE | UNIT_ROABLE },
@@ -79,9 +70,7 @@ DEVICE drum_dev = { .name     = "DRUM",
                     .reset    = &drum_reset,
                     .detach   = &drum_detach };
 
-/*
- * Reset routine
- */
+// Reset routine
 status_t drum_reset(DEVICE *dptr)
 {
     drum_op     = 0;
@@ -117,9 +106,7 @@ status_t drum_detach(UNIT *u)
     return detach_unit(u);
 }
 
-/*
- * Write to the drum.
- */
+// Write to the drum.
 void drum_write(UNIT *u)
 {
     int ctlr         = (u == &drum_unit[1]);
@@ -138,9 +125,7 @@ void drum_write_sector(UNIT *u)
     io_run(ZONE_SIZE * drum_zone + 8 + drum_sector * 256, &memory[drum_memory], 256);
 }
 
-/*
- * Read from the drum.
- */
+// Read from the drum.
 void drum_read(UNIT *u)
 {
     int ctlr         = (u == &drum_unit[1]);
@@ -167,16 +152,14 @@ static void clear_memory(value_t *p, int nwords)
         *p++ = SET_PARITY(0, PARITY_NUMBER);
 }
 
-/*
- * Perform a drum access.
- */
+// Perform a drum access.
 status_t drum(int ctlr, uint32_t cmd)
 {
     UNIT *u = &drum_unit[ctlr];
 
     drum_op = cmd;
     if (drum_op & DRUM_PAGE_MODE) {
-        /* Page transfer */
+        // Page transfer
         drum_nwords = 1024;
         drum_zone   = (cmd & (DRUM_UNIT | DRUM_CYLINDER)) >> 2;
         drum_sector = 0;
@@ -191,7 +174,7 @@ status_t drum(int ctlr, uint32_t cmd)
                 clear_memory(&memory[drum_memory], 1024);
         }
     } else {
-        /* Sector transfer */
+        // Sector transfer
         drum_nwords = 256;
         drum_zone   = (cmd & (DRUM_UNIT | DRUM_CYLINDER)) >> 2;
         drum_sector = cmd & DRUM_SECTOR;
@@ -208,13 +191,13 @@ status_t drum(int ctlr, uint32_t cmd)
         }
     }
     if (!u->image) {
-        /* Device not attached. */
+        // Device not attached.
         drum_fail |= 0100 >> ctlr;
         return SCPE_OK;
     }
     drum_fail &= ~(0100 >> ctlr);
     if (drum_op & DRUM_READ_OVERLAY) {
-        /* Not implemented. */
+        // Not implemented.
         return SCPE_NOFNC;
     }
     if (!(drum_op & DRUM_READ)) {
@@ -223,20 +206,20 @@ status_t drum(int ctlr, uint32_t cmd)
             return SCPE_NOFNC;
         }
         if (u->flags & UNIT_RO) {
-            /* Read only. */
+            // Read only.
             return SCPE_RO;
         }
     }
 
-    /* Clear the main interrupt register. */
+    // Clear the main interrupt register.
     if (u == &drum_unit[0])
         GRP &= ~GRP_DRUM1_FREE;
     else
         GRP &= ~GRP_DRUM2_FREE;
 
-    /* The driver performs the transfer and then waits for an event from the
-     * device.  Per the figures in G. L. Mazny's book, 20 ms for the transfer,
-     * or 200 thousand ticks; sped up for debugging. */
+    // The driver performs the transfer and then waits for an event from the
+    // device.  Per the figures in G. L. Mazny's book, 20 ms for the transfer,
+    // or 200 thousand ticks; sped up for debugging.
     io_post(u, !(drum_op & DRUM_READ), 20 * USEC, &drum_fail, 0100 >> ctlr);
     if (drum_op & DRUM_READ) {
         if (drum_op & DRUM_PAGE_MODE)
@@ -250,10 +233,8 @@ status_t drum(int ctlr, uint32_t cmd)
     return SCPE_OK;
 }
 
-/*
- * Event: a drum transfer has finished.
- * Set the interrupt flag.
- */
+// Event: a drum transfer has finished.
+// Set the interrupt flag.
 status_t drum_event(UNIT *u)
 {
     if (u == &drum_unit[0])
@@ -263,9 +244,7 @@ status_t drum_event(UNIT *u)
     return SCPE_OK;
 }
 
-/*
- * Poll the transfer error register with instruction 033 4035.
- */
+// Poll the transfer error register with instruction 033 4035.
 int drum_errors()
 {
     return drum_fail;

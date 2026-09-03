@@ -1,9 +1,7 @@
-/*
- * The host build's platform: images over stdio, the console over termios, and
- * the trace file.  braam.cpp is the other one.
- *
- * Copyright (c) 2026, Serge Vakulenko
- */
+// The host build's platform: images over stdio, the console over termios, and
+// the trace file.  braam.cpp is the other one.
+//
+// Copyright (c) 2026, Serge Vakulenko
 #include <fcntl.h>
 #include <signal.h>
 #include <termios.h>
@@ -12,7 +10,7 @@
 
 #include "besm6_defs.h"
 
-/* =========================================================== the trace file */
+// =========================================================== the trace file
 
 typedef struct {
     Sink base;
@@ -68,7 +66,7 @@ void sim_get_time(SimTime *t)
     t->min  = d->tm_min;
 }
 
-/* ================================================================== images */
+// ================================================================== images
 
 struct Image {
     FILE *f;
@@ -218,14 +216,14 @@ void blob_free(Blob *b)
     b->len = b->pos = 0;
 }
 
-/* ================================================================ consoles */
+// ================================================================ consoles
 
 static struct termios cmdtty, runtty;
-static int cmdfl, runfl; /* TTY flags */
+static int cmdfl, runfl; // TTY flags
 
-/* Stops the machine: termios VINTR takes it, so it arrives as SIGINT.  Braam
- * has no VINTR and binds Alt+Q instead. */
-static const int32_t con_stop_char = 005; /* ^E */
+// Stops the machine: termios VINTR takes it, so it arrives as SIGINT.  Braam
+// has no VINTR and binds Alt+Q instead.
+static const int32_t con_stop_char = 005; // ^E
 
 static bool con_isatty(void)
 {
@@ -236,25 +234,25 @@ static bool con_isatty(void)
     return answer != 0;
 }
 
-/* One terminal here: a second screen is a browser tab's. */
+// One terminal here: a second screen is a browser tab's.
 int con_second(void)
 {
     return 0;
 }
 
-/* The console is stdout; there is nowhere else to write on the host. */
+// The console is stdout; there is nowhere else to write on the host.
 void con_flush(void)
 {
     const char *buf;
     int n = con_take(CON_SCREEN, &buf);
 
     if (n > 0 && write(1, buf, n) != n) {
-        /* nothing useful to do about a full or closed stdout */
+        // nothing useful to do about a full or closed stdout
     }
 }
 
-/* Whatever has been typed, into the ring.  Upstream read one byte where the
- * machine asked for one; the ring is what the two builds share. */
+// Whatever has been typed, into the ring.  Upstream read one byte where the
+// machine asked for one; the ring is what the two builds share.
 static void con_poll(void)
 {
     unsigned char buf[64];
@@ -270,39 +268,37 @@ static void con_poll(void)
 
 status_t con_init(void)
 {
-    cmdfl = fcntl(0, F_GETFL, 0); /* get old flags  and status */
-    /*
-     * make sure systems with broken termios (that don't honor
-     * VMIN=0 and VTIME=0) actually implement non blocking reads.
-     * This will have no negative effect on other systems since
-     * this is turned on and off depending on whether simulation
-     * is running or not.
-     */
+    cmdfl = fcntl(0, F_GETFL, 0); // get old flags  and status
+    // make sure systems with broken termios (that don't honor
+    // VMIN=0 and VTIME=0) actually implement non blocking reads.
+    // This will have no negative effect on other systems since
+    // this is turned on and off depending on whether simulation
+    // is running or not.
     runfl = cmdfl | O_NONBLOCK;
-    if (!con_isatty()) /* skip if !tty */
+    if (!con_isatty()) // skip if !tty
         return SCPE_OK;
-    if (tcgetattr(0, &cmdtty) < 0) /* get old flags */
+    if (tcgetattr(0, &cmdtty) < 0) // get old flags
         return SCPE_TTIERR;
     runtty              = cmdtty;
-    runtty.c_lflag      = runtty.c_lflag & ~(ECHO | ICANON); /* no echo or edit */
-    runtty.c_oflag      = runtty.c_oflag & ~OPOST;           /* no output edit */
-    runtty.c_iflag      = runtty.c_iflag & ~ICRNL;           /* no cr conversion */
-    runtty.c_iflag      = runtty.c_iflag & ~IGNCR;           /* don't ignore cr */
-    runtty.c_iflag      = runtty.c_iflag & ~IXANY;           /* don't restart after stop */
-    runtty.c_iflag      = runtty.c_iflag & ~IMAXBEL; /* don't ring bell on input queue full */
-    runtty.c_lflag      = runtty.c_lflag & ~PENDIN;  /* don't retype pending input (state) */
-    runtty.c_lflag      = runtty.c_lflag | ECHOK;    /* echo NL after line kill */
-    runtty.c_cc[VINTR]  = con_stop_char;             /* interrupt */
-    runtty.c_cc[VQUIT]  = 0;                         /* no quit */
+    runtty.c_lflag      = runtty.c_lflag & ~(ECHO | ICANON); // no echo or edit
+    runtty.c_oflag      = runtty.c_oflag & ~OPOST;           // no output edit
+    runtty.c_iflag      = runtty.c_iflag & ~ICRNL;           // no cr conversion
+    runtty.c_iflag      = runtty.c_iflag & ~IGNCR;           // don't ignore cr
+    runtty.c_iflag      = runtty.c_iflag & ~IXANY;           // don't restart after stop
+    runtty.c_iflag      = runtty.c_iflag & ~IMAXBEL;         // don't ring bell on input queue full
+    runtty.c_lflag      = runtty.c_lflag & ~PENDIN;          // don't retype pending input (state)
+    runtty.c_lflag      = runtty.c_lflag | ECHOK;            // echo NL after line kill
+    runtty.c_cc[VINTR]  = con_stop_char;                     // interrupt
+    runtty.c_cc[VQUIT]  = 0;                                 // no quit
     runtty.c_cc[VERASE] = 0;
     runtty.c_cc[VKILL]  = 0;
     runtty.c_cc[VEOF]   = 0;
     runtty.c_cc[VEOL]   = 0;
-    runtty.c_cc[VSTART] = 0; /* no host sync */
+    runtty.c_cc[VSTART] = 0; // no host sync
     runtty.c_cc[VSUSP]  = 0;
     runtty.c_cc[VSTOP]  = 0;
 #if defined(VREPRINT)
-    runtty.c_cc[VREPRINT] = 0; /* no specials */
+    runtty.c_cc[VREPRINT] = 0; // no specials
 #endif
 #if defined(VDISCARD)
     runtty.c_cc[VDISCARD] = 0;
@@ -313,7 +309,7 @@ status_t con_init(void)
 #if defined(VLNEXT)
     runtty.c_cc[VLNEXT] = 0;
 #endif
-    runtty.c_cc[VMIN]  = 0; /* no waiting */
+    runtty.c_cc[VMIN]  = 0; // no waiting
     runtty.c_cc[VTIME] = 0;
 #if defined(VDSUSP)
     runtty.c_cc[VDSUSP] = 0;
@@ -324,7 +320,7 @@ status_t con_init(void)
     return SCPE_OK;
 }
 
-/* The stop character arrives as SIGINT, VINTR having taken it. */
+// The stop character arrives as SIGINT, VINTR having taken it.
 static void int_handler(int sig)
 {
     (void)sig;
@@ -336,10 +332,10 @@ status_t con_raw(void)
 {
     signal(SIGINT, int_handler);
     signal(SIGTERM, int_handler);
-    if (!con_isatty()) /* skip if !tty */
+    if (!con_isatty()) // skip if !tty
         return SCPE_OK;
-    (void)fcntl(0, F_SETFL, runfl);     /* non-block mode */
-    runtty.c_cc[VINTR] = con_stop_char; /* in case changed */
+    (void)fcntl(0, F_SETFL, runfl);     // non-block mode
+    runtty.c_cc[VINTR] = con_stop_char; // in case changed
     if (tcsetattr(0, TCSAFLUSH, &runtty) < 0)
         return SCPE_TTIERR;
     return SCPE_OK;
@@ -350,16 +346,16 @@ void con_cooked(void)
     con_flush();
     signal(SIGINT, SIG_DFL);
     signal(SIGTERM, SIG_DFL);
-    if (!con_isatty()) /* skip if !tty */
+    if (!con_isatty()) // skip if !tty
         return;
-    (void)fcntl(0, F_SETFL, cmdfl); /* block mode */
+    (void)fcntl(0, F_SETFL, cmdfl); // block mode
     (void)tcsetattr(0, TCSAFLUSH, &cmdtty);
 }
 
-/* ==================================================== deferred transfers */
+// ==================================================== deferred transfers
 
-/* The runs the machine asked for, performed here because on Braam this is
- * where a read may happen (machine.h). */
+// The runs the machine asked for, performed here because on Braam this is
+// where a read may happen (machine.h).
 status_t io_service(void)
 {
     IoRequest *q = &io_request;
@@ -375,14 +371,14 @@ status_t io_service(void)
         int got  = q->write ? img_write(u->image, r->off, r->mem, r->n)
                             : img_read(u->image, r->off, r->mem, r->n);
         if (got != r->n) {
-            /* A zone the image was never written that far into. */
+            // A zone the image was never written that far into.
             if (q->fail)
                 *q->fail |= q->fail_mask;
             break;
         }
     }
-    /* A failed transfer halts the machine, which is where upstream's longjmp
-     * to cpu_halt landed for an SCPE_ code too. */
+    // A failed transfer halts the machine, which is where upstream's longjmp
+    // to cpu_halt landed for an SCPE_ code too.
     if (img_error(u->image))
         return SCPE_IOERR;
 
@@ -390,9 +386,9 @@ status_t io_service(void)
     return SCPE_OK;
 }
 
-/* =================================================== the entry point */
+// =================================================== the entry point
 
-/* The one sleep in the native build, and it is the idle path's. */
+// The one sleep in the native build, and it is the idle path's.
 static void ms_sleep(uint32_t ms)
 {
     struct timespec ts;
@@ -402,10 +398,8 @@ static void ms_sleep(uint32_t ms)
     nanosleep(&ts, NULL);
 }
 
-/*
- * The driver loop: what a Braam entry point will be a coroutine of.  Everything
- * that blocks is here and nothing below cpu_burst() may (machine.h).
- */
+// The driver loop: what a Braam entry point will be a coroutine of.  Everything
+// that blocks is here and nothing below cpu_burst() may (machine.h).
 static status_t run_machine(void)
 {
     status_t r;
@@ -429,8 +423,8 @@ static status_t run_machine(void)
             continue;
         }
         if (r == REASON_IDLE) {
-            /* The guest is spinning until a queued event: sleep the time those
-             * instructions would have taken and charge it to them (machine.h). */
+            // The guest is spinning until a queued event: sleep the time those
+            // instructions would have taken and charge it to them (machine.h).
             uint32_t ms;
 
             con_flush();
@@ -446,7 +440,7 @@ static status_t run_machine(void)
             }
             continue;
         }
-        return r; /* a stop code */
+        return r; // a stop code
     }
 }
 

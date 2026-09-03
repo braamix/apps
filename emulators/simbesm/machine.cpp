@@ -1,9 +1,7 @@
-/*
- * The machine: messages, devices, the event queue, the clock and the driver.
- *
- * Copyright (c) 1993-2022, Robert M Supnik and the Open SIMH contributors
- * Copyright (c) 2026, Serge Vakulenko
- */
+// The machine: messages, devices, the event queue, the clock and the driver.
+//
+// Copyright (c) 1993-2022, Robert M Supnik and the Open SIMH contributors
+// Copyright (c) 2026, Serge Vakulenko
 #include "besm6_defs.h"
 
 int32_t sim_interval;
@@ -17,7 +15,7 @@ static int exit_status = EXIT_SUCCESS;
 static status_t reset_all(void);
 static void detach_all(void);
 
-/* ------------------------------------------------------------------ messages */
+// ------------------------------------------------------------------ messages
 
 static const char *const scp_errors[1 + SCPE_MAX_ERR - SCPE_BASE] = {
     "Unit not attached",      "I/O error",
@@ -92,7 +90,7 @@ status_t sim_messagef(status_t stat, const char *fmt, ...)
 
     if (!inhibit_message)
         sim_emit(buf);
-    /* Always display messages in debug output */
+    // Always display messages in debug output
     sink_puts(sim_deb, buf);
 
     return stat | ((stat != SCPE_OK) ? SCPE_NOMESSAGE : 0);
@@ -116,7 +114,7 @@ char *sim_basename(const char *filepath)
     return result;
 }
 
-/* -------------------------------------------------------- units and devices */
+// -------------------------------------------------------- units and devices
 
 DEVICE *find_dev_from_unit(UNIT *uptr)
 {
@@ -171,14 +169,14 @@ status_t attach_unit(UNIT *uptr, const char *cptr)
     int how       = IMG_OPENED;
     int why       = SCPE_OK;
 
-    if (!(uptr->flags & UNIT_ATTABLE)) /* not attachable? */
+    if (!(uptr->flags & UNIT_ATTABLE)) // not attachable?
         return SCPE_NOATT;
     if (find_dev_from_unit(uptr) == NULL)
         return SCPE_NOATT;
-    uptr->filename = (char *)calloc(CBUFSIZE, sizeof(char)); /* alloc name buf */
+    uptr->filename = (char *)calloc(CBUFSIZE, sizeof(char)); // alloc name buf
     if (uptr->filename == NULL)
         return SCPE_MEM;
-    strlcpy(uptr->filename, cptr, CBUFSIZE); /* save name */
+    strlcpy(uptr->filename, cptr, CBUFSIZE); // save name
 
     uptr->image = img_open(cptr, create, must_have, (uptr->flags & UNIT_ROABLE) != 0, &how, &why);
     if (uptr->image == NULL) {
@@ -206,16 +204,16 @@ status_t detach_unit(UNIT *uptr)
 {
     if (uptr == NULL)
         return SCPE_IERR;
-    if (!(uptr->flags & UNIT_ATTABLE)) /* attachable? */
+    if (!(uptr->flags & UNIT_ATTABLE)) // attachable?
         return SCPE_NOATT;
-    if (!(uptr->flags & UNIT_ATT)) /* not attached? */
+    if (!(uptr->flags & UNIT_ATT)) // not attached?
         return SCPE_UNATT;
     if (find_dev_from_unit(uptr) == NULL)
         return SCPE_OK;
     uptr->flags = uptr->flags & ~(UNIT_ATT | ((uptr->flags & UNIT_ROABLE) ? UNIT_RO : 0));
     free(uptr->filename);
     uptr->filename = NULL;
-    if (uptr->image) { /* Only close an open image */
+    if (uptr->image) { // Only close an open image
         int bad     = img_close(uptr->image);
         uptr->image = NULL;
         if (bad)
@@ -230,12 +228,12 @@ static void detach_all(void)
     DEVICE *dptr;
     UNIT *uptr;
 
-    for (i = 0; (dptr = sim_devices[i]) != NULL; i++) { /* loop thru dev */
-        for (j = 0; j < dptr->numunits; j++) {          /* loop thru units */
+    for (i = 0; (dptr = sim_devices[i]) != NULL; i++) { // loop thru dev
+        for (j = 0; j < dptr->numunits; j++) {          // loop thru units
             uptr = (dptr->units) + j;
-            if ((uptr->flags & UNIT_ATT) ||      /* attached? */
-                (dptr->detach &&                 /* or a device routine, */
-                 !(uptr->flags & UNIT_ATTABLE))) /* !attachable? */
+            if ((uptr->flags & UNIT_ATT) ||      // attached?
+                (dptr->detach &&                 // or a device routine,
+                 !(uptr->flags & UNIT_ATTABLE))) // !attachable?
                 (dptr->detach != NULL) ? dptr->detach(uptr) : detach_unit(uptr);
         }
     }
@@ -262,13 +260,11 @@ static status_t reset_all(void)
     return SCPE_OK;
 }
 
-/* -------------------------------------------------------------- event queue */
+// -------------------------------------------------------------- event queue
 
-/*
- * Fire whatever is due.  Upstream also backed time up when an asynchronous
- * timer had overshot; sim_interval only counts down by one here, so it reaches
- * zero exactly and there is nothing to catch up with.
- */
+// Fire whatever is due.  Upstream also backed time up when an asynchronous
+// timer had overshot; sim_interval only counts down by one here, so it reaches
+// zero exactly and there is nothing to catch up with.
 status_t sim_process_event(void)
 {
     UNIT *uptr;
@@ -312,7 +308,7 @@ status_t sim_activate(UNIT *uptr, int32_t event_time)
     UNIT *cptr, *prvptr;
     int32_t accum;
 
-    if (sim_is_active(uptr)) /* already active? */
+    if (sim_is_active(uptr)) // already active?
         return SCPE_OK;
 
     prvptr = NULL;
@@ -323,11 +319,11 @@ status_t sim_activate(UNIT *uptr, int32_t event_time)
         accum  = accum + cptr->time;
         prvptr = cptr;
     }
-    if (prvptr == NULL) { /* insert at head */
+    if (prvptr == NULL) { // insert at head
         cptr = uptr->next = sim_clock_queue;
         sim_clock_queue   = uptr;
     } else {
-        cptr = uptr->next = prvptr->next; /* insert at prvptr */
+        cptr = uptr->next = prvptr->next; // insert at prvptr
         prvptr->next      = uptr;
     }
     uptr->time = event_time - accum;
@@ -349,13 +345,13 @@ status_t sim_cancel(UNIT *uptr)
 
     if (sim_clock_queue == uptr) {
         nptr = sim_clock_queue = uptr->next;
-        uptr->next             = NULL; /* hygiene */
+        uptr->next             = NULL; // hygiene
     } else {
         for (cptr = sim_clock_queue; cptr != QUEUE_LIST_END; cptr = cptr->next) {
             if (cptr->next == uptr) {
                 nptr = cptr->next = uptr->next;
-                uptr->next        = NULL; /* hygiene */
-                break;                    /* end queue scan */
+                uptr->next        = NULL; // hygiene
+                break;                    // end queue scan
             }
         }
     }
@@ -375,28 +371,28 @@ bool sim_is_active(UNIT *uptr)
     return uptr->next != nullptr;
 }
 
-/* --------------------------------------------------------------- the clock */
+// --------------------------------------------------------------- the clock
 
-/* The calibration's state.  CLK_TPS_GUESS is the rate assumed before the first
- * calibration; SIM_TMAX is the widest gap the loop will slew over. */
+// The calibration's state.  CLK_TPS_GUESS is the rate assumed before the first
+// calibration; SIM_TMAX is the widest gap the loop will slew over.
 #define CLK_TPS_GUESS   100
 #define SIM_INITIAL_IPS 500000
 #define SIM_TMAX        500
 
-static uint32_t rtc_ticks;   /* ticks this second */
-static uint32_t rtc_hz;      /* tick rate */
-static uint32_t rtc_last_hz; /* prior tick rate */
-static uint32_t rtc_rtime;   /* real time, ms */
-static uint32_t rtc_vtime;   /* virtual time, ms */
-static uint32_t rtc_nxintv;  /* next interval */
-static int32_t rtc_based;    /* base delay */
-static int32_t rtc_currd;    /* current delay */
+static uint32_t rtc_ticks;   // ticks this second
+static uint32_t rtc_hz;      // tick rate
+static uint32_t rtc_last_hz; // prior tick rate
+static uint32_t rtc_rtime;   // real time, ms
+static uint32_t rtc_vtime;   // virtual time, ms
+static uint32_t rtc_nxintv;  // next interval
+static int32_t rtc_based;    // base delay
+static int32_t rtc_currd;    // current delay
 
 static double inst_per_sec(void)
 {
     double ips = (double)rtc_currd * rtc_hz;
 
-    if (ips == 0.0) /* rate not calibrated yet? */
+    if (ips == 0.0) // rate not calibrated yet?
         ips = (double)rtc_currd * CLK_TPS_GUESS;
     if (ips == 0.0)
         ips = SIM_INITIAL_IPS;
@@ -407,10 +403,8 @@ int32_t sim_rtcn_init(int32_t time)
 {
     if (time == 0)
         time = 1;
-    /*
-     * If we'd previously succeeded in calibrating a tick value, then use that
-     * delay as a better default to setup when we're re-initialized.
-     */
+    // If we'd previously succeeded in calibrating a tick value, then use that
+    // delay as a better default to setup when we're re-initialized.
     if (rtc_currd)
         time = rtc_currd;
     rtc_rtime   = sim_now_ms();
@@ -429,67 +423,65 @@ int32_t sim_rtcn_calb(uint32_t ticksper)
     uint32_t new_rtime, delta_rtime;
     int32_t delta_vtime;
 
-    if (rtc_hz != ticksper) { /* changing tick rate? */
+    if (rtc_hz != ticksper) { // changing tick rate?
         if ((rtc_last_hz != 0) && (rtc_last_hz != ticksper) && (ticksper != 0))
             rtc_currd = (int32_t)(inst_per_sec() / ticksper);
         rtc_last_hz = rtc_hz;
         rtc_hz      = ticksper;
     }
-    if (ticksper == 0) /* running? */
+    if (ticksper == 0) // running?
         return 10000;
-    rtc_ticks += 1;           /* count ticks */
-    if (rtc_ticks < ticksper) /* 1 sec yet? */
+    rtc_ticks += 1;           // count ticks
+    if (rtc_ticks < ticksper) // 1 sec yet?
         return rtc_currd;
-    rtc_ticks = 0;            /* reset ticks */
-    new_rtime = sim_now_ms(); /* wall time */
+    rtc_ticks = 0;            // reset ticks
+    new_rtime = sim_now_ms(); // wall time
     if (new_rtime < rtc_rtime) {
-        /* Time running backwards: sim_now_ms() wrapped as a uint32_t, which
-           happens roughly every 49 days.  Rebase and skip this calibration. */
+        // Time running backwards: sim_now_ms() wrapped as a uint32_t, which
+        // happens roughly every 49 days.  Rebase and skip this calibration.
         rtc_vtime = rtc_rtime = new_rtime;
         rtc_nxintv            = 1000;
         rtc_based             = rtc_currd;
         return rtc_currd;
     }
-    delta_rtime = new_rtime - rtc_rtime; /* elapsed wtime */
-    rtc_rtime   = new_rtime;             /* adv wall time */
-    rtc_vtime += 1000;                   /* adv sim time */
+    delta_rtime = new_rtime - rtc_rtime; // elapsed wtime
+    rtc_rtime   = new_rtime;             // adv wall time
+    rtc_vtime += 1000;                   // adv sim time
     if (delta_rtime > 30000) {
-        /* Gap too big: the process was suspended, or the host slept.  Ignore
-           what happened and proceed from here. */
-        rtc_vtime  = rtc_rtime; /* sync virtual and real time */
-        rtc_nxintv = 1000;      /* reset next interval */
+        // Gap too big: the process was suspended, or the host slept.  Ignore
+        // what happened and proceed from here.
+        rtc_vtime  = rtc_rtime; // sync virtual and real time
+        rtc_nxintv = 1000;      // reset next interval
         rtc_based  = rtc_currd;
-        return rtc_currd; /* can't calibrate */
+        return rtc_currd; // can't calibrate
     }
-    /* This self regulating algorithm depends directly on the assumption */
-    /* that this routine is called back after processing the number of */
-    /* instructions which was returned the last time it was called. */
-    if (delta_rtime == 0)                 /* gap too small? */
-        rtc_based = rtc_based * ticksper; /* slew wide */
+    // This self regulating algorithm depends directly on the assumption
+    // that this routine is called back after processing the number of
+    // instructions which was returned the last time it was called.
+    if (delta_rtime == 0)                 // gap too small?
+        rtc_based = rtc_based * ticksper; // slew wide
     else
         rtc_based = (int32_t)(((double)rtc_based * (double)rtc_nxintv) /
-                              ((double)delta_rtime)); /* new base rate */
-    delta_vtime = rtc_vtime - rtc_rtime;              /* gap */
-    if (delta_vtime > SIM_TMAX)                       /* limit gap */
+                              ((double)delta_rtime)); // new base rate
+    delta_vtime = rtc_vtime - rtc_rtime;              // gap
+    if (delta_vtime > SIM_TMAX)                       // limit gap
         delta_vtime = SIM_TMAX;
     else {
         if (delta_vtime < -SIM_TMAX)
             delta_vtime = -SIM_TMAX;
     }
-    rtc_nxintv = 1000 + delta_vtime;                                           /* next wtime */
-    rtc_currd  = (int32_t)(((double)rtc_based * (double)rtc_nxintv) / 1000.0); /* next delay */
-    if (rtc_based <= 0) /* never negative or zero! */
+    rtc_nxintv = 1000 + delta_vtime;                                           // next wtime
+    rtc_currd  = (int32_t)(((double)rtc_based * (double)rtc_nxintv) / 1000.0); // next delay
+    if (rtc_based <= 0) // never negative or zero!
         rtc_based = 1;
-    if (rtc_currd <= 0) /* never negative or zero! */
+    if (rtc_currd <= 0) // never negative or zero!
         rtc_currd = 1;
     return rtc_currd;
 }
 
-/*
- * The clock unit and the two calls that schedule against it.  Upstream ran
- * these off a second queue with an assist unit standing in for the clock and a
- * "coschedule" list behind it; one machine with one clock needs neither.
- */
+// The clock unit and the two calls that schedule against it.  Upstream ran
+// these off a second queue with an assist unit standing in for the clock and a
+// "coschedule" list behind it; one machine with one clock needs neither.
 static UNIT *clock_unit;
 
 status_t sim_register_clock_unit(UNIT *uptr)
@@ -498,7 +490,7 @@ status_t sim_register_clock_unit(UNIT *uptr)
     return SCPE_OK;
 }
 
-/* Instructions until `uptr' fires, or -1 when it is not queued. */
+// Instructions until `uptr' fires, or -1 when it is not queued.
 static int32_t queue_time(UNIT *uptr)
 {
     UNIT *cptr;
@@ -529,21 +521,21 @@ status_t sim_clock_coschedule(UNIT *uptr, int32_t n)
     return sim_activate(uptr, when + n * tick);
 }
 
-/* ------------------------------------------------------------------- idling */
+// ------------------------------------------------------------------- idling
 
 int sim_idle_enab = 1;
 
-/* A sleep is a whole millisecond at best, so anything sooner is not worth
- * sleeping for -- a disk answers in 20 us of model time, and paying a
- * millisecond for it would make every transfer cost one.  A sleep also cannot
- * be woken early, so IDLE_MAX_MS is the longest a keystroke waits; the head
- * event is the CLK_TPS tick, 4 ms away, so the cap rarely binds. */
+// A sleep is a whole millisecond at best, so anything sooner is not worth
+// sleeping for -- a disk answers in 20 us of model time, and paying a
+// millisecond for it would make every transfer cost one.  A sleep also cannot
+// be woken early, so IDLE_MAX_MS is the longest a keystroke waits; the head
+// event is the CLK_TPS tick, 4 ms away, so the cap rarely binds.
 #define IDLE_MIN_MS 1.0
 #define IDLE_MAX_MS 20
 
-/* Zero means "do not idle": too soon to sleep for, or a frozen sim_now_ms()
- * making the rate nonsense.  Rounded rather than truncated, so a tick is slept
- * out whole; sleeping a little long is what the calibration corrects for. */
+// Zero means "do not idle": too soon to sleep for, or a frozen sim_now_ms()
+// making the rate nonsense.  Rounded rather than truncated, so a tick is slept
+// out whole; sleeping a little long is what the calibration corrects for.
 uint32_t sim_idle_ms(void)
 {
     double ms = sim_interval * 1000.0 / inst_per_sec();
@@ -559,13 +551,13 @@ void sim_idle_skip(uint32_t ms)
 {
     double n = ms * inst_per_sec() / 1000.0;
 
-    if (n >= sim_interval) /* never past the event the spin was waiting for */
+    if (n >= sim_interval) // never past the event the spin was waiting for
         sim_interval = 0;
     else
         sim_interval -= (int32_t)n;
 }
 
-/* ------------------------------------------------------- deferred transfers */
+// ------------------------------------------------------- deferred transfers
 
 IoRequest io_request;
 
@@ -591,7 +583,7 @@ void io_run(uint32_t off, value_t *mem, int n)
     r->n   = n;
 }
 
-/* ---------------------------------------------------------------- the driver */
+// ---------------------------------------------------------------- the driver
 
 status_t machine_init(void)
 {
@@ -619,12 +611,12 @@ status_t machine_init(void)
     return SCPE_OK;
 }
 
-/* Brackets the run.  sim_is_running is what makes sim_emit() return the
- * carriage: a bare \n does not, with the console in raw mode. */
+// Brackets the run.  sim_is_running is what makes sim_emit() return the
+// carriage: a bare \n does not, with the console in raw mode.
 void sim_run_begin(void)
 {
     sim_is_running = true;
-    con_flush(); /* whatever the setup said, before the machine starts */
+    con_flush(); // whatever the setup said, before the machine starts
 }
 
 void sim_run_end(void)
@@ -639,9 +631,9 @@ int machine_exit(status_t stat)
     sim_debug_close();
     con_cooked();
     if (exit_status != EXIT_SUCCESS)
-        return exit_status; /* startup failed */
-    /* SCPE_STOP is the stop key, and a STOP_ code is the machine halting: both
-     * are how a run ends normally.  Only a framework failure is a failure. */
+        return exit_status; // startup failed
+    // SCPE_STOP is the stop key, and a STOP_ code is the machine halting: both
+    // are how a run ends normally.  Only a framework failure is a failure.
     stat &= ~SCPE_NOMESSAGE;
     return (stat < SCPE_BASE || stat == SCPE_STOP) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

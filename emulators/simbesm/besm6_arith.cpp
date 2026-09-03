@@ -1,37 +1,35 @@
-/*
- * BESM-6 arithmetic instructions.
- *
- * Copyright (c) 1997-2009, Leonid Broukhis
- * Copyright (c) 2009, Serge Vakulenko
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
-
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
-
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * SERGE VAKULENKO OR LEONID BROUKHIS BE LIABLE FOR ANY CLAIM, DAMAGES
- * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
- * OR OTHER DEALINGS IN THE SOFTWARE.
-
- * Except as contained in this notice, the name of Leonid Broukhis or
- * Serge Vakulenko shall not be used in advertising or otherwise to promote
- * the sale, use or other dealings in this Software without prior written
- * authorization from Leonid Broukhis and Serge Vakulenko.
- */
+// BESM-6 arithmetic instructions.
+//
+// Copyright (c) 1997-2009, Leonid Broukhis
+// Copyright (c) 2009, Serge Vakulenko
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the "Software"),
+// to deal in the Software without restriction, including without limitation
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,
+// and/or sell copies of the Software, and to permit persons to whom the
+// Software is furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+// SERGE VAKULENKO OR LEONID BROUKHIS BE LIABLE FOR ANY CLAIM, DAMAGES
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+// OR OTHER DEALINGS IN THE SOFTWARE.
+//
+// Except as contained in this notice, the name of Leonid Broukhis or
+// Serge Vakulenko shall not be used in advertising or otherwise to promote
+// the sale, use or other dealings in this Software without prior written
+// authorization from Leonid Broukhis and Serge Vakulenko.
 #include "besm6_defs.h"
 
 typedef struct {
     uint64_t mantissa;
-    unsigned exponent; /* offset by 64 */
-} alureg_t;            /* ALU register type */
+    unsigned exponent; // offset by 64
+} alureg_t;            // ALU register type
 
 static alureg_t toalu(value_t val)
 {
@@ -62,11 +60,9 @@ static void negate(alureg_t *val)
         val->mantissa |= BIT42;
 }
 
-/*
- * Bit 48 -> 1, bit 47 -> 2 and so on.
- * A one in bit 1, and a zero word, both -> 48,
- * as in the original version of the instruction set.
- */
+// Bit 48 -> 1, bit 47 -> 2 and so on.
+// A one in bit 1, and a zero word, both -> 48,
+// as in the original version of the instruction set.
 int besm6_highest_bit(value_t val)
 {
     int n = 32, cnt = 0;
@@ -80,11 +76,9 @@ int besm6_highest_bit(value_t val)
     return 48 - cnt;
 }
 
-/*
- * Normalization and rounding.
- * The result goes to ACC and to bits 40-1 of RMR.
- * Bits 48-41 of RMR are preserved.
- */
+// Normalization and rounding.
+// The result goes to ACC and to bits 40-1 of RMR.
+// Bits 48-41 of RMR are preserved.
 static status_t normalize_and_round(alureg_t acc, uint64_t mr, int rnd_rq)
 {
     uint64_t rr = 0;
@@ -162,7 +156,7 @@ chk_rnd:
 
     ACC = (value_t)(acc.exponent & BITS(7)) << 41 | (acc.mantissa & BITS41);
     RMR = (RMR & ~BITS40) | (mr & BITS40);
-    /* On overflow the mantissa and the low bits of the exponent are correct */
+    // On overflow the mantissa and the low bits of the exponent are correct
     if (acc.exponent & 0x80) {
         if (!(RAU & RAU_OVF_DISABLE))
             return STOP_OVFL;
@@ -170,11 +164,9 @@ chk_rnd:
     return SCPE_OK;
 }
 
-/*
- * Addition and every variant of subtraction.
- * Operands: register ACC and the argument 'val'.
- * The result goes to ACC and to bits 40-1 of RMR.
- */
+// Addition and every variant of subtraction.
+// Operands: register ACC and the argument 'val'.
+// The result goes to ACC and to bits 40-1 of RMR.
 status_t besm6_add(value_t val, int negate_acc, int negate_val)
 {
     uint64_t mr;
@@ -185,17 +177,17 @@ status_t besm6_add(value_t val, int negate_acc, int negate_val)
     word = toalu(val);
     if (!negate_acc) {
         if (!negate_val) {
-            /* Addition */
+            // Addition
         } else {
-            /* Subtraction */
+            // Subtraction
             negate(&word);
         }
     } else {
         if (!negate_val) {
-            /* Reverse subtraction */
+            // Reverse subtraction
             negate(&acc);
         } else {
-            /* Subtraction of magnitudes */
+            // Subtraction of magnitudes
             if (is_negative(&acc))
                 negate(&acc);
             if (!is_negative(&word))
@@ -215,7 +207,7 @@ status_t besm6_add(value_t val, int negate_acc, int negate_val)
     mr  = 0;
     neg = is_negative(&a1);
     if (diff == 0) {
-        /* Nothing to do. */
+        // Nothing to do.
     } else if (diff <= 40) {
         rnd_rq      = (mr = (a1.mantissa << (40 - diff)) & BITS40) != 0;
         a1.mantissa = ((a1.mantissa >> diff) | (neg ? (~0ll << (40 - diff)) : 0)) & BITS42;
@@ -238,8 +230,8 @@ status_t besm6_add(value_t val, int negate_acc, int negate_val)
     acc.exponent = a2.exponent;
     acc.mantissa = a1.mantissa + a2.mantissa;
 
-    /* When normalization to the right is needed, bits 42:41
-     * take the value 01 or 10. */
+    // When normalization to the right is needed, bits 42:41
+    // take the value 01 or 10.
     switch ((acc.mantissa >> 40) & 3) {
     case 2:
     case 1:
@@ -251,9 +243,7 @@ status_t besm6_add(value_t val, int negate_acc, int negate_val)
     return normalize_and_round(acc, mr, rnd_rq);
 }
 
-/*
- * non-restoring division
- */
+// non-restoring division
 #define ABS(x)   ((x) < 0 ? -x : x)
 #define INT64(x) ((x) & BIT41 ? (0xFFFFFFFFFFFFFFFFLL << 40) | (x) : x)
 static alureg_t nrdiv(alureg_t n, alureg_t d)
@@ -261,13 +251,13 @@ static alureg_t nrdiv(alureg_t n, alureg_t d)
     int64_t nn, dd, q, res;
     alureg_t quot;
 
-    /* to compensate for potential normalization to the right  */
+    // to compensate for potential normalization to the right
     nn  = INT64(n.mantissa) * 2;
     dd  = INT64(d.mantissa) * 2;
     res = 0, q = BIT41;
 
     if (ABS(nn) >= ABS(dd)) {
-        /* normalization to the right */
+        // normalization to the right
         nn /= 2;
         n.exponent++;
     }
@@ -276,7 +266,7 @@ static alureg_t nrdiv(alureg_t n, alureg_t d)
             break;
 
         if (ABS(nn) < BIT40)
-            nn *= 2; /* magic shortcut */
+            nn *= 2; // magic shortcut
         else if ((nn > 0) ^ (dd > 0)) {
             res -= q;
             nn = 2 * nn + dd;
@@ -291,18 +281,16 @@ static alureg_t nrdiv(alureg_t n, alureg_t d)
     return quot;
 }
 
-/*
- * Division.
- * Operands: register ACC and the argument 'val'.
- * The result goes to ACC; the contents of RMR are undefined.
- */
+// Division.
+// Operands: register ACC and the argument 'val'.
+// The result goes to ACC; the contents of RMR are undefined.
 status_t besm6_divide(value_t val)
 {
     alureg_t acc;
     alureg_t dividend, divisor;
 
     if (((val ^ (val << 1)) & BIT41) == 0) {
-        /* An unnormalized divisor: division by zero. */
+        // An unnormalized divisor: division by zero.
         return STOP_DIVZERO;
     }
     dividend = toalu(ACC);
@@ -313,11 +301,9 @@ status_t besm6_divide(value_t val)
     return normalize_and_round(acc, 0, 0);
 }
 
-/*
- * Multiplication.
- * Operands: register ACC and the argument 'val'.
- * The result goes to ACC and to bits 40-1 of RMR.
- */
+// Multiplication.
+// Operands: register ACC and the argument 'val'.
+// The result goes to ACC and to bits 40-1 of RMR.
 status_t besm6_multiply(value_t val)
 {
     uint8_t neg = 0;
@@ -327,7 +313,7 @@ status_t besm6_multiply(value_t val)
     uint64_t l;
 
     if (!ACC || !val) {
-        /* multiplication by zero is zero */
+        // multiplication by zero is zero
         ACC = 0;
         RMR &= ~BITS40;
         return SCPE_OK;
@@ -371,10 +357,8 @@ status_t besm6_multiply(value_t val)
     return normalize_and_round(acc, mr, mr != 0);
 }
 
-/*
- * Change the sign of the number in the accumulator ACC.
- * The result goes to ACC; RMR is cleared.
- */
+// Change the sign of the number in the accumulator ACC.
+// The result goes to ACC; RMR is cleared.
 status_t besm6_change_sign(int negate_acc)
 {
     alureg_t acc;
@@ -386,10 +370,8 @@ status_t besm6_change_sign(int negate_acc)
     return normalize_and_round(acc, 0, 0);
 }
 
-/*
- * Change the exponent of the number in the accumulator ACC.
- * The result goes to ACC; RMR is cleared.
- */
+// Change the exponent of the number in the accumulator ACC.
+// The result goes to ACC; RMR is cleared.
 status_t besm6_add_exponent(int val)
 {
     alureg_t acc;
@@ -400,9 +382,7 @@ status_t besm6_add_exponent(int val)
     return normalize_and_round(acc, 0, 0);
 }
 
-/*
- * Pack a value under a mask.
- */
+// Pack a value under a mask.
 value_t besm6_pack(value_t val, value_t mask)
 {
     value_t result;
@@ -417,9 +397,7 @@ value_t besm6_pack(value_t val, value_t mask)
     return result;
 }
 
-/*
- * Unpack a value under a mask.
- */
+// Unpack a value under a mask.
 value_t besm6_unpack(value_t val, value_t mask)
 {
     value_t result;
@@ -438,9 +416,7 @@ value_t besm6_unpack(value_t val, value_t mask)
     return result;
 }
 
-/*
- * Count the one bits in a word.
- */
+// Count the one bits in a word.
 int besm6_count_ones(value_t word)
 {
     int c;
@@ -450,15 +426,13 @@ int besm6_count_ones(value_t word)
     return c;
 }
 
-/*
- * Shift the accumulator ACC, shifting out into the low-order register RMR.
- * The shift count is in the range -64..63.
- */
+// Shift the accumulator ACC, shifting out into the low-order register RMR.
+// The shift count is in the range -64..63.
 void besm6_shift(int i)
 {
     RMR = 0;
     if (i > 0) {
-        /* Shift right. */
+        // Shift right.
         if (i < 48) {
             RMR = (ACC << (48 - i)) & BITS48;
             ACC >>= i;
@@ -467,7 +441,7 @@ void besm6_shift(int i)
             ACC = 0;
         }
     } else if (i < 0) {
-        /* Shift left. */
+        // Shift left.
         i = -i;
         if (i < 48) {
             RMR = ACC >> (48 - i);
