@@ -50,17 +50,32 @@ int con_take(int con, const char **buf)
     return n;
 }
 
-void con_feed(int con, int c)
+// head == tail is empty, so the ring holds one less than it has.
+static int con_room(int con)
 {
-    int next;
+    return (line[con].tail + CON_IN - line[con].head - 1) % CON_IN;
+}
+
+int con_feed_all(int con, const char *buf, int len)
+{
+    int i;
 
     if (con < 0 || con >= CON_MAX)
-        return;
-    next = (line[con].head + 1) % CON_IN;
-    if (next == line[con].tail)
-        return; // full: drop, as a terminal does
-    line[con].in[line[con].head] = (unsigned char)c;
-    line[con].head               = next;
+        return 0;
+    if (len > con_room(con))
+        return 0; // full: drop, as a terminal does
+    for (i = 0; i < len; i++) {
+        line[con].in[line[con].head] = (unsigned char)buf[i];
+        line[con].head               = (line[con].head + 1) % CON_IN;
+    }
+    return len;
+}
+
+void con_feed(int con, int c)
+{
+    char b = (char)c;
+
+    con_feed_all(con, &b, 1);
 }
 
 int con_get(int con)

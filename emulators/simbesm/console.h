@@ -42,6 +42,10 @@ int con_take(int con, const char **buf);
 // what a terminal does.
 void con_feed(int con, int c);
 
+// A whole key's bytes, or none of them: half an escape sequence is worse than
+// no key at all.  Zero when it does not fit.
+int con_feed_all(int con, const char *buf, int len);
+
 // Whether a second screen was opened, which decides what tty26 is attached to.
 // The platform's: only Braam has one.
 int con_second(void);

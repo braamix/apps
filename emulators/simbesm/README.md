@@ -14,6 +14,9 @@ configured without one it is a native binary, which is what
 [tests/unix.exp](tests/unix.exp) drives and how every step of the port was
 checked. The difference between them is one file — [braam.cpp](braam.cpp) or
 [host.cpp](host.cpp) — because everything that blocks is there and nowhere else.
+Only `braam.cpp` encodes keys: termios hands the native build the escape
+sequences a real terminal already sent, and doing the same on Braam is what
+makes the two agree (Keys, below).
 
 ```sh
 make                      # the native build, in build/besm6
@@ -23,7 +26,8 @@ make -C ../..             # the Braam program, in build/emulators/simbesm/
 ```
 
 The Braam build needs an SDK with `PROC_ABI` 20 — `Sys::TermOpen`, which the
-second screen is — and that release is not out yet. Until it is:
+second screen is — and one carrying `proc/keyenc.h`, which is the key encoder
+below. Neither release is out yet. Until they are:
 
 ```sh
 make -C ../../../braam-core release
@@ -77,8 +81,9 @@ stop — and says which. Three consequences:
   `con_put()` and `con_get()` can still be reached from inside an instruction,
   as upstream's non-blocking `read(0)` and its `write(1)` per character were.
 - **The stop key is Alt+Q**, on either Consul line, because there is no `VINTR`
-  and no `SIGINT` here: the key task recognises the chord before it translates
-  the key to a byte, and sets `stop_cpu`. `^E` is what stops the native build,
+  and no `SIGINT` here: the key task recognises the chord before it encodes the
+  key, which is the order that matters — Alt+Q would otherwise go out as
+  `ESC q` — and sets `stop_cpu`. `^E` is what stops the native build,
   where termios takes it before a read can see it; on Braam it is an ordinary
   byte and reaches the guest.
 - **Traps return a stop code.** There is no `setjmp` on wasm32, and upstream's
@@ -228,6 +233,31 @@ serial lines only), `consul` (Consul-254, lines 25/26 only), `off`. Backspace:
 `destrbs` (erasing, the default) or `authbs`. Device-wide: `tty_rate`
 (300…19200 Hz) and `tty_turbo` (interrupt timing follows model time when 1).
 
+### Keys
+
+There are no control characters on Braam: a key arrives as `Key{code, mods}`
+and `^D` is `'d'` with the control modifier. So the program encodes, and the
+table it encodes with is braam-core's
+[ANSI_Escape_Codes.md](../../../braam-core/doc/ANSI_Escape_Codes.md) §5 —
+`key_encode()` from the SDK's `proc/keyenc.h`, so nothing here spells the table
+out. `con_feed_all()` puts a whole sequence in the ring or none of it:
+half an escape would leave the guest waiting for a final byte that the next
+keystroke would supply.
+
+What goes out: a printable key in **UTF-8**, which is what makes `raw8`'s "the
+guest owns the character set" true for input as well as output, and is why
+Cyrillic can be typed at all; CR for Enter, HT for Tab, DEL for Backspace and
+ESC for Escape; `ESC [ A` for the arrows and `ESC [ H`/`ESC [ F` for Home and
+End, always CSI and never SS3; `ESC [ 5 ~` and its family; `ESC O P` for F1–F4,
+which lose SS3 when modified; and `ESC [ 1 ; <m> A` when a named key carries a
+modifier.
+
+Four things never arrive. **Alt+Q** is taken as the stop chord above. **`^C`**
+is Braam's own console pump's, before any raw claim, so the guest's `stty intr`
+cannot be reached from here — natively `^E` does it, through `VINTR`. Shift with
+PageUp, PageDown, Up or Down is Braam's scrollback gesture. And Ctrl+@ or
+Ctrl+Space send NUL, which `vt_getc()` turns into BS as upstream had it.
+
 ## Peripherals
 
 Disks and drums share a geometry: *zones* of `8 + 1024` words (8 service words,
@@ -275,10 +305,12 @@ Single-user mode -- type ^D to run /etc/rc and go multi-user
 ```
 
 Line editing at that prompt is the *kernel's*: `^?` erases a character, `^U`
-kills the line. `^D` ends the shell, `init` runs `/etc/rc` and the machine comes
-up multi-user with a getty on each Consul line. **Alt+Q** stops the run;
-natively it is `^E`, which termios takes as `VINTR`. Nothing calls `sync(2)`
-for you.
+kills the line. The arrow keys send escapes its line discipline does not
+decode, so they insert bytes rather than recall anything — which is what a real
+VT100 on a real BESM-6 did. `^D` ends the shell, `init` runs `/etc/rc` and the
+machine comes up multi-user with a getty on each Consul line. **Alt+Q** stops
+the run; natively it is `^E`, which termios takes as `VINTR`. Nothing calls
+`sync(2)` for you.
 
 There is no clock-calendar, so the date starts at whatever the filesystem was
 stamped with; type `date` to set it.

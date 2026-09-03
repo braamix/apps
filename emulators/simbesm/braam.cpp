@@ -13,6 +13,7 @@
 #include "kernel/text.h"
 #include "math/ftoa.h"
 #include "proc/io.h"
+#include "proc/keyenc.h"
 #include "proc/opt.h"
 #include "proc/rt.h"
 #include "proc/usage.h"
@@ -233,35 +234,6 @@ namespace {
 // Where this run's copies of the packs live.
 char g_home[256];
 
-// A key, as the byte the guest's terminal would have seen.  There are no
-// control characters on Braam: ^D is 'd' with the control modifier.
-i32 key_byte(const Key &k)
-{
-    if (k.mods & MOD_CTRL) {
-        u32 c = k.code;
-        if (c >= 'a' && c <= 'z')
-            return i32(c - 'a' + 1);
-        if (c >= 'A' && c <= 'Z')
-            return i32(c - 'A' + 1);
-        if (c == '[')
-            return 033;
-        return -1;
-    }
-    switch (k.code) {
-    case KEY_ENTER:
-        return '\r';
-    case KEY_BACKSPACE:
-        return 0177; // the guest's erase character
-    case KEY_TAB:
-        return '\t';
-    case KEY_ESCAPE:
-        return 033;
-    default:
-        break;
-    }
-    return k.code < 0x80 ? i32(k.code) : -1;
-}
-
 // A task per screen: parked on the next key, feeding the ring the machine
 // drains.  con_get() only looks, which is what lets an instruction call it.
 // One read per screen is the rule -- a key ring has one receiver -- so two
@@ -278,15 +250,16 @@ Task<i32> keyboard(int con, ScreenRef on)
             co_return 0;
         }
         const KeyPress &k = r.value();
+        // Before the encoder, or the chord would go out as ESC q.
         if ((k.mods & MOD_ALT) && k.code == 'q') { // the stop key
             stop_cpu     = true;
             sim_interval = 0;
             continue;
         }
-        i32 b = key_byte(Key{ k.code, k.mods });
-        if (b < 0)
-            continue;
-        con_feed(con, b);
+        char seq[KEY_ENC_MAX];
+        usize n = key_encode(Key{ k.code, k.mods }, seq);
+        if (n)
+            con_feed_all(con, seq, int(n));
     }
 }
 

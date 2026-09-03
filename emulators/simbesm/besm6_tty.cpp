@@ -669,6 +669,8 @@ int vt_getc(int num)
     if (c < 0)
         return -1;
     c &= 0377;
+    // A NUL becomes BS, as upstream had it.  Ctrl+@ and Ctrl+Space are the
+    // only keys that send one (ANSI_Escape_Codes.md §5.3).
     return c ? c : 8;
 }
 
