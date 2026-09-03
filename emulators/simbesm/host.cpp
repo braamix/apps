@@ -389,6 +389,16 @@ status_t io_service(void)
 
 /* =================================================== the entry point */
 
+/* The one sleep in the native build, and it is the idle path's. */
+static void ms_sleep(uint32_t ms)
+{
+    struct timespec ts;
+
+    ts.tv_sec  = ms / 1000;
+    ts.tv_nsec = (long)(ms % 1000) * 1000000;
+    nanosleep(&ts, NULL);
+}
+
 /*
  * The driver loop: what a Braam entry point will be a coroutine of.  Everything
  * that blocks is here and nothing below cpu_burst() may (machine.h).
@@ -412,6 +422,24 @@ static status_t run_machine(void)
             if (stop_cpu) {
                 stop_cpu = false;
                 return SCPE_STOP;
+            }
+            continue;
+        }
+        if (r == REASON_IDLE) {
+            /* The guest is spinning until a queued event: sleep the time those
+             * instructions would have taken and charge it to them (machine.h). */
+            uint32_t ms;
+
+            con_flush();
+            con_poll();
+            if (stop_cpu) {
+                stop_cpu = false;
+                return SCPE_STOP;
+            }
+            ms = sim_idle_ms();
+            if (ms) {
+                ms_sleep(ms);
+                sim_idle_skip(ms);
             }
             continue;
         }

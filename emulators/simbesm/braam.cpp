@@ -700,6 +700,25 @@ Task<i32> proc_main(Args args)
                 (void)co_await t;
             continue;
         }
+        if (r == REASON_IDLE) {
+            /* The guest is spinning until a queued event.  Sleep the time those
+             * instructions would have taken and charge it to them (machine.h),
+             * rather than burn a core at a login prompt. */
+            co_await con_drain();
+            if (stop_cpu) {
+                stop_cpu = false;
+                r        = SCPE_STOP;
+                break;
+            }
+            u32 ms = sim_idle_ms();
+            if (ms) {
+                if (Task<Result<void>> t = sleep_for(ms))
+                    (void)co_await t;
+                sim_idle_skip(ms);
+            }
+            last_yield = proc_now();
+            continue;
+        }
         break; /* a stop code */
     }
     sim_run_end();

@@ -125,6 +125,16 @@ int32_t sim_rtcn_calb(uint32_t ticks_per_second);
 status_t sim_clock_coschedule(UNIT *uptr, int32_t n);
 
 /*
+ * Idling: the guest has no wait-for-interrupt, so its idle loop is a spin that
+ * the driver sleeps through rather than runs.  Charging the sleep to the
+ * instruction count is what keeps model time honest.  See the README.
+ */
+extern int sim_idle_enab; /* cleared by BESM6_NOIDLE */
+
+uint32_t sim_idle_ms(void);      /* time to the head event, ms */
+void sim_idle_skip(uint32_t ms); /* charge that sleep to the instructions */
+
+/*
  * The wall clock, broken out.  <time.h> is not in the port kit -- there is no
  * localtime() on Braam -- and this is the whole of what the machine wants: the
  * front-panel date and time DISPAK is given at boot.
@@ -209,6 +219,7 @@ status_t io_service(void);
 enum {
     REASON_IO    = -1, /* a transfer waits: io_service() */
     REASON_YIELD = -2, /* the burst is up: flush, take keys, let the world turn */
+    REASON_IDLE  = -3, /* the guest is spinning: sleep instead of running it */
 };
 /* Anything >= 0 is a stop code and the machine has halted. */
 

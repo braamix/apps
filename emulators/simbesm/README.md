@@ -93,6 +93,45 @@ disassembler prints, the `.b6` type letters, and the stop messages the machine
 reports. Translating those would make the code disagree with the hardware
 documentation and with what the simulator puts on the screen.
 
+## Idling
+
+**There is no wait-for-interrupt on this machine.** The only halt is `033 стоп`,
+which every simulator treats as the end of the run, so a guest with nothing to do
+spins — v7besm's kernel spins in `idle()` at `spl0` until the 250 Hz timer fires.
+Run faithfully, that costs a whole host core to accomplish nothing, and in a
+browser tab it is a core the page never gives back.
+
+So the guest says so, and `cpu_burst()` returns `REASON_IDLE` for the driver to
+sleep on. The way it says so is **`увв 0147`**, the power-supply control
+register, which neither the machine nor any simulator does anything with —
+upstream had already marked it "repurposed". v7besm writes it from inside the
+spin. An *unassigned* `увв` would not do: it reaches `besm6_debug()`, which the
+SIMH that tree's kernel tests boot under prints unconditionally.
+
+**A simulator cannot work it out by watching, and it is worth knowing why.** The
+obvious heuristic — a short backward branch taken over and over, in supervisor
+mode, with interrupts open — was tried and measured: booting to a prompt it is
+right, but during a `cat /bin/*` it fires 1478 times against one real idle, on
+the kernel's own short read-only loops. A directory scan and a hash-chain walk
+look exactly like a spin from outside. Sleeping through them cost 40 % of the
+machine's throughput. Ruling out loops that *write* memory removed only half of
+them. Hence the hint, and hence nothing else.
+
+The sleep is **as long as the skipped instructions would have taken**, and is
+charged to them (`sim_idle_ms()`, `sim_idle_skip()`). That is what keeps the
+guest's clock right: `sim_rtcn_calb()` still sees a second's worth of ticks in a
+real second, so the machine sees exactly `CLK_TPS` of them whether it idles for
+four milliseconds or an hour. Nothing is skipped *past*, either — the sleep runs
+to the head of the event queue, and every way the spin can end is an entry on it.
+An event under a millisecond off is not slept for at all: a disk answers in 20
+instructions, and paying a millisecond of real time for that would make every
+transfer cost one.
+
+An idle machine falls from 100 % of a core to about 2 %, and a busy one is not
+slowed at all. `BESM6_NOIDLE=1` turns the whole thing off. A guest that does not
+send the hint — DISPAK, or a v7besm kernel built before it — simply spins as it
+always did.
+
 ## Machine model
 
 - **Word.** 48 data bits plus a 2-bit tag marking it an *instruction* or a

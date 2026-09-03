@@ -288,6 +288,9 @@ static status_t cmd_002()
     return SCPE_OK;
 }
 
+/* Set by увв 0147, consumed by cpu_burst(). */
+static int idle_hint;
+
 /*
  * The "увв" (ext) instruction
  */
@@ -445,7 +448,10 @@ static status_t cmd_033()
     case 0147:
         /* Writing to the power supply control register
          * does not have any observable effect; repurposed
+         * as v7besm's idle hint (its kernel/intr.c).  A guest
+         * that means the panel still gets the fallthrough.
          */
+        idle_hint = 1;
         // break;
     case 0177:
         /* control the display panel of the ГПВЦ СО АН СССР */
@@ -1620,16 +1626,22 @@ static status_t cpu_trap(status_t r, int *iintr)
  */
 /*
  * Run instructions until there is something for the driver to do, and say
- * which: a transfer to perform, the burst being up, or a stop code.  Upstream
- * ran to a stop and did everything itself; nothing below here may block
- * (machine.h).
+ * which: a transfer to perform, the burst being up, the guest idling, or a stop
+ * code.  Upstream ran to a stop and did everything itself; nothing below here
+ * may block (machine.h).
  */
 status_t cpu_burst(void)
 {
     static int iintr;
     static int started;
     static status_t deferred_trap;
-    int32_t left = BURST_INSTRUCTIONS;
+    /* Static, so a REASON_IO return resumes the budget instead of starting it
+     * again: a disk-heavy phase re-enters that way constantly, and one that
+     * never reached REASON_YIELD would never drain the console -- output would
+     * sit in the buffer until the phase ended, and could fill it.  (^E is safe
+     * either way: sim_process_event() sees stop_cpu.)  Reset where the driver
+     * has had its turn. */
+    static int32_t left = BURST_INSTRUCTIONS;
     status_t r;
 
     if (!started) {
@@ -1695,8 +1707,23 @@ status_t cpu_burst(void)
         iintr = 0;
 
         sim_interval -= 1; /* count down instructions */
-        if (--left <= 0)
+
+        /* The guest says it is idling.  The gates: the kernel rather than a user
+         * program, a loop an interrupt can end, no terminal mid-character, and
+         * an event far enough off to be worth sleeping to. */
+        if (idle_hint) {
+            idle_hint = 0;
+            if (sim_idle_enab && IS_SUPERVISOR(RUU) && !(M[PSW] & PSW_INTR_DISABLE) &&
+                sim_interval > 0 && vt_is_idle() && sim_idle_ms() != 0) {
+                left = BURST_INSTRUCTIONS;
+                return REASON_IDLE;
+            }
+        }
+
+        if (--left <= 0) {
+            left = BURST_INSTRUCTIONS;
             return REASON_YIELD;
+        }
     }
 }
 

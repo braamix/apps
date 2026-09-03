@@ -28,6 +28,9 @@ void con_put(int con, int c)
         return;
     if (line[con].len == CON_OUT)
         con_flush();
+    if (line[con].len == CON_OUT)
+        return; /* full still -- con_flush() does nothing on Braam, where only
+                 * the driver may write.  Drop it, as a terminal does. */
     line[con].out[line[con].len++] = (char)c;
 }
 

@@ -529,6 +529,42 @@ status_t sim_clock_coschedule(UNIT *uptr, int32_t n)
     return sim_activate(uptr, when + n * tick);
 }
 
+/* ------------------------------------------------------------------- idling */
+
+int sim_idle_enab = 1;
+
+/* A sleep is a whole millisecond at best, so anything sooner is not worth
+ * sleeping for -- a disk answers in 20 us of model time, and paying a
+ * millisecond for it would make every transfer cost one.  A sleep also cannot
+ * be woken early, so IDLE_MAX_MS is the longest a keystroke waits; the head
+ * event is the CLK_TPS tick, 4 ms away, so the cap rarely binds. */
+#define IDLE_MIN_MS 1.0
+#define IDLE_MAX_MS 20
+
+/* Zero means "do not idle": too soon to sleep for, or a frozen sim_now_ms()
+ * making the rate nonsense.  Rounded rather than truncated, so a tick is slept
+ * out whole; sleeping a little long is what the calibration corrects for. */
+uint32_t sim_idle_ms(void)
+{
+    double ms = sim_interval * 1000.0 / inst_per_sec();
+
+    if (ms < IDLE_MIN_MS)
+        return 0;
+    if (ms > IDLE_MAX_MS)
+        ms = IDLE_MAX_MS;
+    return (uint32_t)(ms + 0.5);
+}
+
+void sim_idle_skip(uint32_t ms)
+{
+    double n = ms * inst_per_sec() / 1000.0;
+
+    if (n >= sim_interval) /* never past the event the spin was waiting for */
+        sim_interval = 0;
+    else
+        sim_interval -= (int32_t)n;
+}
+
 /* ------------------------------------------------------- deferred transfers */
 
 IoRequest io_request;
@@ -578,6 +614,8 @@ status_t machine_init(void)
         return r;
     }
     sim_debug_from_env();
+    if (getenv("BESM6_NOIDLE"))
+        sim_idle_enab = 0;
     return SCPE_OK;
 }
 
