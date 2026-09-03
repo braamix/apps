@@ -223,6 +223,10 @@ void blob_free(Blob *b)
 static struct termios cmdtty, runtty;
 static int cmdfl, runfl; /* TTY flags */
 
+/* Stops the machine: termios VINTR takes it, so it arrives as SIGINT.  Braam
+ * has no VINTR and binds Alt+Q instead. */
+static const int32_t con_stop_char = 005; /* ^E */
+
 static bool con_isatty(void)
 {
     static int answer = -1;
@@ -320,8 +324,7 @@ status_t con_init(void)
     return SCPE_OK;
 }
 
-/* ^E reaches the host as SIGINT, because termios VINTR takes it before a read
- * can see it.  Braam has neither, and its key task recognises con_stop_char. */
+/* The stop character arrives as SIGINT, VINTR having taken it. */
 static void int_handler(int sig)
 {
     (void)sig;

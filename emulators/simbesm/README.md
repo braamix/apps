@@ -76,6 +76,11 @@ stop — and says which. Three consequences:
 - **The console is a buffer the driver drains and a ring a task fills**, so
   `con_put()` and `con_get()` can still be reached from inside an instruction,
   as upstream's non-blocking `read(0)` and its `write(1)` per character were.
+- **The stop key is Alt+Q**, on either Consul line, because there is no `VINTR`
+  and no `SIGINT` here: the key task recognises the chord before it translates
+  the key to a byte, and sets `stop_cpu`. `^E` is what stops the native build,
+  where termios takes it before a read can see it; on Braam it is an ordinary
+  byte and reaches the guest.
 - **Traps return a stop code.** There is no `setjmp` on wasm32, and upstream's
   43 `longjmp`s to `cpu_halt` came from arbitrary depth — an operand protection
   fault out of `mmu_load()`, an overflow out of `besm6_add()`. Every routine
@@ -271,8 +276,9 @@ Single-user mode -- type ^D to run /etc/rc and go multi-user
 
 Line editing at that prompt is the *kernel's*: `^?` erases a character, `^U`
 kills the line. `^D` ends the shell, `init` runs `/etc/rc` and the machine comes
-up multi-user with a getty on each Consul line. `^E` stops the run. Nothing
-calls `sync(2)` for you.
+up multi-user with a getty on each Consul line. **Alt+Q** stops the run;
+natively it is `^E`, which termios takes as `VINTR`. Nothing calls `sync(2)`
+for you.
 
 There is no clock-calendar, so the date starts at whatever the filesystem was
 stamped with; type `date` to set it.

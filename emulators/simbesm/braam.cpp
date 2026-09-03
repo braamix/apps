@@ -239,7 +239,7 @@ namespace {
 char g_home[256];
 
 /* A key, as the byte the guest's terminal would have seen.  There are no
- * control characters on Braam: ^C is 'c' with the control modifier. */
+ * control characters on Braam: ^D is 'd' with the control modifier. */
 i32 key_byte(const Key &k)
 {
     if (k.mods & MOD_CTRL) {
@@ -282,14 +282,15 @@ Task<i32> keyboard(int con, ScreenRef on)
                 continue;
             co_return 0;
         }
-        i32 b = key_byte(Key{ r.value().code, r.value().mods });
-        if (b < 0)
-            continue;
-        if (b == con_stop_char) {
+        const KeyPress &k = r.value();
+        if ((k.mods & MOD_ALT) && k.code == 'q') { /* the stop key */
             stop_cpu     = true;
             sim_interval = 0;
             continue;
         }
+        i32 b = key_byte(Key{ k.code, k.mods });
+        if (b < 0)
+            continue;
         con_feed(con, b);
     }
 }
@@ -659,7 +660,7 @@ Task<i32> proc_main(Args args)
         co_await con_drain();
         co_return machine_exit(r);
     }
-    sink_puts(sim_con, "\nBESM-6 Simulator v" SIMBESM_VERSION "\n");
+    sink_puts(sim_con, "\nBESM-6 Simulator v" SIMBESM_VERSION " -- Alt+Q stops the machine\n");
 
     Blob kernel = { reinterpret_cast<const unsigned char *>(kbytes.data()), kbytes.size(), 0 };
     r           = besm6_boot_unix(&kernel);

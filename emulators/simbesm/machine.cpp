@@ -640,8 +640,8 @@ int machine_exit(status_t stat)
     con_cooked();
     if (exit_status != EXIT_SUCCESS)
         return exit_status; /* startup failed */
-    /* SCPE_STOP is ^E, and a STOP_ code is the machine halting: both are how a
-     * run ends normally.  Only a framework failure is a failure. */
+    /* SCPE_STOP is the stop key, and a STOP_ code is the machine halting: both
+     * are how a run ends normally.  Only a framework failure is a failure. */
     stat &= ~SCPE_NOMESSAGE;
     return (stat < SCPE_BASE || stat == SCPE_STOP) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

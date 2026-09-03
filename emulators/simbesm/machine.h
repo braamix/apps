@@ -106,7 +106,7 @@ struct UNIT {
  * There is one machine here and one clock in it. */
 extern int32_t sim_interval;
 extern UNIT *sim_clock_queue;
-extern volatile bool stop_cpu; /* ^E, or a signal */
+extern volatile bool stop_cpu; /* the stop key, or a signal */
 extern int32_t sim_switches;
 
 status_t sim_process_event(void);

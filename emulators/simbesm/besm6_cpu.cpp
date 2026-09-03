@@ -1638,9 +1638,9 @@ status_t cpu_burst(void)
     /* Static, so a REASON_IO return resumes the budget instead of starting it
      * again: a disk-heavy phase re-enters that way constantly, and one that
      * never reached REASON_YIELD would never drain the console -- output would
-     * sit in the buffer until the phase ended, and could fill it.  (^E is safe
-     * either way: sim_process_event() sees stop_cpu.)  Reset where the driver
-     * has had its turn. */
+     * sit in the buffer until the phase ended, and could fill it.  (The stop
+     * key is safe either way: sim_process_event() sees stop_cpu.)  Reset where
+     * the driver has had its turn. */
     static int32_t left = BURST_INSTRUCTIONS;
     status_t r;
 

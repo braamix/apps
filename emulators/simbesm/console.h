@@ -23,10 +23,6 @@ enum {
     CON_MAX     = 2,
 };
 
-/* The byte that stops the machine: ^E.  The host gets it as SIGINT, through
- * termios VINTR; Braam has neither, and its key task recognises it. */
-extern int32_t con_stop_char;
-
 /* ---------------------------------------------------------- the machine's side */
 
 /* One byte out.  Nothing leaves until the driver drains it. */
