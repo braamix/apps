@@ -72,7 +72,6 @@ Task<void> global(exbool k)
     }
 brkwh:
     ungetchar(c);
-out:
     newline();
     COCHK;
     *gp++ = c;
@@ -835,7 +834,6 @@ exbool execute(exbool gf, line *addr)
 exbool advance(char *lp, int *ep)
 {
     char *curlp;
-    char *sp, *sp1;
     int c, n;
 
     for (;;)

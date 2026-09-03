@@ -22,10 +22,10 @@
 #endif
 
 #include "block.h"
+#include "compat/cio.h"
 #include "edit.h"
 #include "getch.h"
 #include "highli.h"
-#include "compat/cio.h"
 #include "mb.h"
 
 #ifndef max
@@ -502,11 +502,8 @@ void Redisplay(num line, offs ptr, num limit)
         ptr = 0;
 
     int ll = max(TextWinWidth, 80);
-    static chtype clbuf[SCREEN_MAX_COLS + 1];
-    chtype *cl = clbuf;
     if (ll > SCREEN_MAX_COLS)
         ll = SCREEN_MAX_COLS;
-    chtype *clp;
     const attr *ca = norm_attr;
 
     static cchar_t clwbuf[SCREEN_MAX_COLS + 1];

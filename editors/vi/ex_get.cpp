@@ -62,7 +62,6 @@ int peekcd(void)
 int getach(void)
 {
     int c;
-    static char incurs[128];
 
     c = peekc;
     if (c != 0) {

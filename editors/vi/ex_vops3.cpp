@@ -33,7 +33,6 @@ exbool wasend;
  */
 int lfind(exbool pastatom, int cnt, Vopf f, line *limit)
 {
-    int c;
     int rc = 0;
     char save[LBSIZE];
 

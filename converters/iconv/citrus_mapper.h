@@ -45,18 +45,20 @@ struct _citrus_mapper_traits;
 __BEGIN_DECLS
 int _citrus_mapper_create_area(struct _citrus_mapper_area *__restrict *__restrict,
                                const char *__restrict);
-Task<int> _citrus_mapper_open(struct _citrus_mapper_area *__restrict,
-                              struct _citrus_mapper *__restrict *__restrict,
-                              const char *__restrict);
-Task<int> _citrus_mapper_open_direct(struct _citrus_mapper_area *__restrict,
-                                     struct _citrus_mapper *__restrict *__restrict,
-                                     const char *__restrict, const char *__restrict);
 void _citrus_mapper_close(struct _citrus_mapper *);
 void _citrus_mapper_set_persistent(struct _citrus_mapper *__restrict);
 #ifdef _CITRUS_APPLE
 int _citrus_mapper_get_mapdir_from_key(const char *);
 #endif
 __END_DECLS
+
+/* Coroutines, which have no C linkage. */
+Task<int> _citrus_mapper_open(struct _citrus_mapper_area *__restrict,
+                              struct _citrus_mapper *__restrict *__restrict,
+                              const char *__restrict);
+Task<int> _citrus_mapper_open_direct(struct _citrus_mapper_area *__restrict,
+                                     struct _citrus_mapper *__restrict *__restrict,
+                                     const char *__restrict, const char *__restrict);
 
 #include "citrus_mapper_local.h"
 

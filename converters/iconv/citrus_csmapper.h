@@ -50,7 +50,7 @@
 #define _citrus_csmapper_get_dst_max    _citrus_mapper_get_dst_max
 
 #define _CITRUS_CSMAPPER_F_PREVENT_PIVOT 0x00000001
-__BEGIN_DECLS
+/* A coroutine has no C linkage. */
 #ifdef _CITRUS_APPLE
 struct _citrus_csmapper;
 Task<int> _citrus_csmapper_open(struct _citrus_csmapper *__restrict *__restrict,
@@ -61,6 +61,5 @@ Task<int> _citrus_csmapper_open(struct _citrus_csmapper *__restrict *__restrict,
                                 const char *__restrict, const char *__restrict, uint32_t,
                                 unsigned long *);
 #endif
-__END_DECLS
 
 #endif

@@ -253,7 +253,8 @@ _citrus_mapper_serial_mapper_convert(struct _citrus_mapper *__restrict cm, _inde
     struct _citrus_mapper_convert_ctx child_ctx = *ctx;
     _index_t *dst = ctx->dst, *src = ctx->src;
     int *cnt = ctx->cnt;
-    int dir = 0, incnt = *cnt, tdir = 0;
+    int dir = 0, tdir = 0;
+    [[maybe_unused]] const int incnt = *cnt; /* asserts only */
     bool tentative;
 #endif
 

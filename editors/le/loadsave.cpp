@@ -29,10 +29,10 @@
 #ifdef HAVE_UNISTD_H
 #endif
 
+#include "compat/cio.h"
 #include "edit.h"
 #include "highli.h"
 #include "keymap.h"
-#include "compat/cio.h"
 #ifdef HAVE_ALLOCA_H
 #endif
 #include "block.h"
@@ -454,7 +454,6 @@ static Task<int> CreateBak(char *name)
 
     co_await MoveBackup(bp, filename, bak, 1);
 
-    unsigned nbytes = strlen(bp) + 1 + strlen(filename) + strlen(bak) + 40 + 1;
     static char bakname[LE_PATHMAX];
     BackupName(bakname, sizeof(bakname), bp, filename, bak, 1);
 

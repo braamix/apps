@@ -20,9 +20,9 @@
 
 #include "clipbrd.h"
 
+#include "compat/cio.h"
 #include "config.h"
 #include "edit.h"
-#include "compat/cio.h"
 #include "lesys.h"
 
 Global<ClipBoard> g_MainClipBoard;
@@ -193,8 +193,7 @@ int ClipBoard::Paste(bool mark)
         char *text_ptr = text;
         for (i = 0; i < height; i++) {
             HardMove(l + i, c);
-            num ll = width;
-            int j  = 0, ch_len, ch_width;
+            int j = 0, ch_len, ch_width;
             while (j < width) {
                 mb_to_wc(text_ptr, MB_CUR_MAX, &ch_len, &ch_width);
                 res = InsertBlock(text_ptr, ch_len);

@@ -27,11 +27,11 @@
 #include "about.h"
 #include "block.h"
 #include "calc.h"
+#include "compat/cio.h"
 #include "edit.h"
 #include "epath.h"
 #include "getch.h"
 #include "keymap.h"
-#include "compat/cio.h"
 #include "options.h"
 #include "proc/io.h"
 #include "screen.h"
@@ -527,7 +527,6 @@ Task<i32> proc_main(Args args)
 {
     int optView = -1, opteditmode = -1, optWarpLine = 0;
     int opt_use_mmap = -1;
-    int opt;
 
     char newname[256];
     newname[0] = 0;

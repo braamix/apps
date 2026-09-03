@@ -118,10 +118,10 @@ redo                           UserRedo
 redo-step                      UserUndoStep
 refresh-screen                 UserRefreshScreen
 remember-block                 UserRememberBlock
-reopen-file-rw                 (ActionProc)ReopenRW
+reopen-file-rw                 ReopenRWAction
 save-colors                    ColorsSave
-save-file                      (ActionProc)UserSave
-save-file-as                   (ActionProc)UserSaveAs
+save-file                      UserSaveAction
+save-file-as                   UserSaveAsAction
 save-keymap                    SaveKeymap
 save-options                   UpdtOpt
 save-options-local             SaveOpt

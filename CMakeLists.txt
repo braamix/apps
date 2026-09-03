@@ -15,6 +15,9 @@ endif()
 
 find_package(braam REQUIRED)
 
+# Warnings, for every language and every program below.
+add_compile_options(-Wall -Werror -Wshadow)
+
 # Every package, so one target builds the lot. A program attaches its own.
 add_custom_target(packages)
 

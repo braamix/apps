@@ -328,7 +328,6 @@ void vroll(int cnt)
  */
 void vrollR(int cnt)
 {
-    exbool fried  = 0;
     short oldhold = hold;
 
     if (WBOT == WECHO)

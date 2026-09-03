@@ -485,7 +485,6 @@ static __inline int iconv_std_mbtowc(struct _citrus_iconv *__restrict cv, char *
         ssz = n;
     }
 
-out:
     /*
      * cntoff is how many we actually processed, out is how many wchar_t we
      * actually sent out (could be different due to, e.g., NUL bytes).

@@ -172,7 +172,6 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
             notinvis:
                 tailprim(Command, 1, 1);
         }
-    choice:
         if (ex_thrown)
             continue;
 
@@ -756,7 +755,7 @@ Task<int> commands(exbool noprompt, exbool exitoneof)
                 setNAEOL();
                 if (ex_thrown)
                     continue;
-                printf("@(#) Version 3.6, 11/3/80." + 5);
+                printf("Version 3.6, 11/3/80.");
                 noonl();
                 continue;
 

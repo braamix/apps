@@ -53,10 +53,12 @@ struct _citrus_esdb {
 
 __BEGIN_DECLS
 const char *_citrus_esdb_alias(const char *, char *, size_t);
-Task<int> _citrus_esdb_open(struct _citrus_esdb *, const char *);
 void _citrus_esdb_close(struct _citrus_esdb *);
 void _citrus_esdb_free_list(char **, size_t);
 int _citrus_esdb_get_list(char ***, size_t *, bool);
 __END_DECLS
+
+/* A coroutine has no C linkage. */
+Task<int> _citrus_esdb_open(struct _citrus_esdb *, const char *);
 
 #endif

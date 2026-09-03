@@ -179,8 +179,6 @@ Task<void> vmacchng(exbool fromvis)
     char *savecursor;
     char savelb[LBSIZE];
     int nlines, more;
-    line *a1, *a2;
-    char ch; /* DEBUG */
 
     if (!inopen)
         co_return;

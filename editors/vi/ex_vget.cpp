@@ -64,13 +64,10 @@ static int keyqn;
  */
 Task<int> getbr(void)
 {
-    char ch;
-    int c, d;
-    char *colp;
+    int c;
 #define BEEHIVE
     extern short slevel, ttyindes;
 
-getATTN:
     if (Peekkey) {
         c       = Peekkey;
         Peekkey = 0;
@@ -547,7 +544,6 @@ Task<int> vgetcnt(void)
  */
 Task<int> fastpeekkey(void)
 {
-    int trapalarm();
     int c;
 
     /*

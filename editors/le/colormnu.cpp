@@ -18,10 +18,10 @@
 
 #include "colormnu.h"
 
+#include "compat/cio.h"
 #include "config.h"
 #include "edit.h"
 #include "epath.h"
-#include "compat/cio.h"
 #include "lesys.h"
 #include "options.h"
 #ifdef HAVE_ALLOCA_H
@@ -73,26 +73,26 @@ Task<void> LoadColorDefault()
 
 Task<void> LoadColorDefaultBG()
 {
-    co_await LoadColor(datafile(cfile, sizeof(cfile), "/colors-defbg" + 1));
+    co_await LoadColor(datafile(cfile, sizeof(cfile), "colors-defbg"));
     co_return;
 }
 Task<void> LoadColorBlue()
 {
-    co_await LoadColor(datafile(cfile, sizeof(cfile), "/colors-blue" + 1));
+    co_await LoadColor(datafile(cfile, sizeof(cfile), "colors-blue"));
     co_return;
 }
 Task<void> LoadColorBlack()
 {
-    co_await LoadColor(datafile(cfile, sizeof(cfile), "/colors-black" + 1));
+    co_await LoadColor(datafile(cfile, sizeof(cfile), "colors-black"));
     co_return;
 }
 Task<void> LoadColorWhite()
 {
-    co_await LoadColor(datafile(cfile, sizeof(cfile), "/colors-white" + 1));
+    co_await LoadColor(datafile(cfile, sizeof(cfile), "colors-white"));
     co_return;
 }
 Task<void> LoadColorGreen()
 {
-    co_await LoadColor(datafile(cfile, sizeof(cfile), "/colors-green" + 1));
+    co_await LoadColor(datafile(cfile, sizeof(cfile), "colors-green"));
     co_return;
 }

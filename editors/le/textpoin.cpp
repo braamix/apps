@@ -97,7 +97,10 @@ TextPoint::TextPoint(num l, num c)
 }
 TextPoint::TextPoint(const TextPoint &tp)
 {
-    memcpy(this, &tp, sizeof(tp));
+    offset = tp.offset;
+    line   = tp.line;
+    col    = tp.col;
+    flags  = tp.flags;
     AddTextPoint();
 }
 

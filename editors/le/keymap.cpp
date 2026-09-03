@@ -41,6 +41,20 @@ int ActionArgumentLen;
 
 int MouseCounter = 0;
 
+/* Table is Task<void>; these three return a status nothing reads. */
+static Task<void> ReopenRWAction()
+{
+    co_await ReopenRW();
+}
+static Task<void> UserSaveAction()
+{
+    co_await UserSave();
+}
+static Task<void> UserSaveAsAction()
+{
+    co_await UserSaveAs();
+}
+
 const ActionNameProcRec ActionNameProcTable[] = {
 #include "action-name-func.h"
 };
