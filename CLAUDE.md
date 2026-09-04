@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Nine programs are ported so far**:
+**Ten programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -55,7 +55,16 @@ Braam screen. Its 43 `longjmp`s to `cpu_halt` became returned stop codes, and
 the SIMH framework it came with is gone: 2.6k lines of it are 620 of
 `machine.cpp`. It keeps a **native build** as well, which `tests/unix.exp`
 drives, and that is how every step of the port was checked — including
-byte-for-byte that the deferred transfers write the same packs.
+byte-for-byte that the deferred transfers write the same packs; and
+[games/asciifluid](games/asciifluid/), IOCCC 2012's ASCII fluid simulator,
+which is the smallest port here and a fifth shape: a **frame clock**, twenty
+lines of `double complex` arithmetic between two syscalls. Nothing about it
+blocks except the sleep, so the work is in what C99 gives it and Braam does
+not — `<complex.h>`, whose multiply and divide are compiler-rt calls, becomes
+two doubles and four operators; `usleep` becomes `sleep_for`; and `puts(o)`
+stays exactly what it was, because the grid parses the `ESC [ 2 J` and
+`ESC [ 1 ; 1 H` its frame begins with. It is the one port whose fidelity can be
+*asserted*: its golden frames came out of upstream's own binary.
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).

@@ -15,6 +15,7 @@ that runs in a browser tab.
 | [benchmarks/dhrystone](benchmarks/dhrystone/) | Dhrystone 2.1, the 1984 integer benchmark |
 | [benchmarks/duremark](benchmarks/duremark/) | DureMark 1.1, a small CoreMark-inspired benchmark |
 | [games/adventure](games/adventure/) | Colossal Cave Adventure, the 1977 C re-coding |
+| [games/asciifluid](games/asciifluid/) | IOCCC 2012/endoh1, a fluid simulator that fits on a screen |
 | [emulators/simbesm](emulators/simbesm/) | The BESM-6, the Soviet mainframe — it boots Unix |
 
 The rest of the tree is category directories, a few of them holding a `TODO.md`
@@ -45,7 +46,8 @@ reads them back with Braam's own `/bin/unzip`; `games/adventure`, which plays a
 whole game of Colossal Cave and interrupts a second one with `^C`; the two
 editors, driven a keystroke at a time and asserted cell by cell;
 `converters/iconv`, which checks 137,385 mappings against GNU libiconv's own
-answers; and the two benchmarks, each stopped partway by a signal. All of them
+answers; `games/asciifluid`, whose frames are compared with the ones upstream's
+own binary paints; and the two benchmarks, each stopped partway by a signal. All of them
 need node and a sibling `../braam-core` built.
 
     make index

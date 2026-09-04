@@ -62,6 +62,9 @@ test: all
 	@node games/adventure/test/interrupt.mjs
 	@node games/adventure/test/suspend.mjs
 	@node games/adventure/test/back.mjs
+	@node games/asciifluid/test/frames.mjs
+	@node games/asciifluid/test/colour.mjs
+	@node games/asciifluid/test/interrupt.mjs
 	@node editors/uemacs/test/emkeys.mjs
 	@node editors/uemacs/test/emedit.mjs
 	@node editors/uemacs/test/emfiles.mjs
