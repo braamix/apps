@@ -128,6 +128,9 @@ constexpr usize PRE = 10;
 // A cell's escape and glyph: "\x1b[48;5;NNNm" and one byte.
 constexpr usize CELL = 12;
 
+// How long the opening frame stands.
+constexpr u32 PAUSE = 1000;
+
 u32 cols = 80, rows = 24;
 Cx gravity{ 1, 0 };
 f64 pressure = 4, viscosity = 8;
@@ -456,7 +459,8 @@ Task<i32> play()
         co_await t;
 
     // The first frame clears; the rest home and repaint, upstream's o = b + 4.
-    bool first = true;
+    bool first   = true;
+    bool opening = true;
     for (;;) {
         step();
         if (colour)
@@ -465,8 +469,12 @@ Task<i32> play()
             co_return 1;
         first = false;
 
+        // A second on the opening frame. Not upstream's, and not what -d sets.
+        u32 ms  = opening ? PAUSE : delay;
+        opening = false;
+
         Result<void> slept = Err(Error::NoMemory);
-        if (Task<Result<void>> t = sleep_for(delay))
+        if (Task<Result<void>> t = sleep_for(ms))
             slept = co_await t;
         if (slept.is_ok())
             continue;

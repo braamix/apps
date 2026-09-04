@@ -66,8 +66,8 @@ const cmd = "asciifluid /tmp/c";
 H.type(cmd);
 H.press(H.KEY.ENTER);
 
-// One frame a tick: the program paints, then parks for its twelve
-// milliseconds, and the next tick is past them.
+// One frame a tick: paint, park, and the next tick is past the wait. The
+// opening frame stands for a second.
 const want = Number(opt.frames);
 const shot = [];
 let now = 1;
@@ -76,7 +76,7 @@ for (let k = 0; k < want; k++) {
     // again when it expires.
     H.run(now);
     shot.push(H.rows(H.screen()).join("\n"));
-    now += 12.5;
+    now += k ? 12.5 : 1001;
 }
 
 const got = shot.map((f, k) => `--- frame ${k}\n${f}`).join("\n") + "\n";

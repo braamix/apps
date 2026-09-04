@@ -24,7 +24,7 @@ endforeach()
 
 # bin/ is what reaches PATH, and the entry's leaf is the command's name;
 # share/ is nested, so it is payload the program finds through /pkg/bin.
-braam_add_package(NAME asciifluid VERSION 1.0-r0
+braam_add_package(NAME asciifluid VERSION 1.0-r1
                   FIELD "T=IOCCC 2012 ASCII fluid simulator"
                   FILES $<TARGET_FILE:bin_asciifluid>=bin/asciifluid
                         ${ASCIIFLUID_DATA})

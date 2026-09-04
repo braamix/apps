@@ -32,7 +32,9 @@ asciifluid logo            # the entry's own logo, falling apart
 asciifluid /home/mine.txt  # a path, or nothing, which is stdin
 ```
 
-`^C` ends it; there is no other way out, and there was none upstream either.
+The opening frame stands for a second before the fluid starts to fall, so the
+configuration can be read. `^C` ends it; there is no other way out, and there
+was none upstream either.
 
 Upstream fixes the three factors at compile time — `-DG=1 -DP=4 -DV=8` — and a
 browser cannot recompile, so they are flags whose defaults are those numbers:
@@ -113,6 +115,8 @@ coroutine frame.
 - **`-c` builds the escapes in a second buffer** rather than `sprintf`ing each
   cell's escape into the twelve bytes that held its accumulator, which is what
   upstream does and what makes its offsets what they are.
+- **The opening frame stands for a second.** Upstream starts falling at once,
+  which gives no chance to see what was loaded. `-d` does not change it.
 - **Reading stops at a NUL**, as `0 < (x = getc(stdin))` does upstream, so a
   binary file is read as far as its first zero byte.
 
@@ -135,7 +139,7 @@ From the top of this repository:
 
 ```
 make            # build/games/asciifluid/asciifluid.wasm
-make package    # build/games/asciifluid/asciifluid-1.0-r0.zip
+make package    # build/games/asciifluid/asciifluid-1.0-r1.zip
 ```
 
 The package holds `.PKGINFO`, `bin/asciifluid` and `share/*.txt`.

@@ -62,10 +62,11 @@ H.store.files.set("/tmp/c",
 H.type("asciifluid -c /tmp/c");
 H.press(H.KEY.ENTER);
 
+// The opening frame stands for a second, the rest for twelve milliseconds.
 let now = 1;
 for (let k = 0; k <= AT; k++) {
     H.run(now);
-    now += 12.5;
+    now += k ? 12.5 : 1001;
 }
 
 // The frame as glyphs and as colours. The program paints 79 of the 80 columns.
