@@ -28,10 +28,9 @@ for (let y = 11; y <= 23; y++) {
 }
 if (!seen.has(GREY)) die(`no dark grey in the castle: ${[...seen]}`);
 if (!seen.has(YELLOW)) die(`no yellow in the castle: ${[...seen]}`);
-// Both whites: the castle mask is `W` throughout with one `w` in it, so a swap
-// of the two would show up here.
-if (!seen.has(BRIGHT_WHITE)) die(`no bright white (W) in the castle: ${[...seen]}`);
-if (!seen.has(WHITE)) die(`no plain white (w) in the castle: ${[...seen]}`);
+// Both whites: the castle mask has `W` and one `w`, and they differ.
+if (!seen.has(BRIGHT_WHITE)) die(`no bright white in the castle: ${[...seen]}`);
+if (!seen.has(WHITE)) die(`no plain white in the castle: ${[...seen]}`);
 
 // 3. A fish's mask is rewritten by randColor, so its cells are not all one
 // colour and not the default white.

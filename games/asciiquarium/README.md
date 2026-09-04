@@ -91,15 +91,6 @@ the program.
 **`--version` names Braam** where upstream names the Go runtime and the host
 architecture.
 
-**`W` is the bright white and `w` the plain one**, which is the other way round
-from goquarium. termbox's `ColorWhite` is terminal colour 7 and its
-`ColorLightGray` is 15, so its map — `'w'` to `ColorLightGray`, `'W'` to
-`ColorWhite` — makes lowercase the bright one, alone among `r`/`R`, `k`/`K` and
-the rest of the table. The masks were written for Term::Animation's
-lowercase-is-plain convention in the Perl original, and they show it: `W` is the
-shark's teeth, the whale's and the monsters' and the dolphin's eye and the
-castle's highlights, while `w` is the ship's sails and the ducks' bodies.
-
 **The bottom row is drawn on.** Upstream keeps `height = h - 1` back to dodge a
 terminal's bottom-row scroll; a cell written on the last row of a grid moves
 nothing, so the aquarium is a row deeper here and the castle stands on the
@@ -107,6 +98,10 @@ bottom of the screen.
 
 ## Differences from upstream worth knowing
 
+- **`w` is brighter than `W`.** termbox's `ColorWhite` is terminal colour 7 and
+  its `ColorLightGray` is 15, so upstream's map — `'w'` to `ColorLightGray`,
+  `'W'` to `ColorWhite` — makes lowercase the bright one, alone among `r`/`R`,
+  `k`/`K` and the rest of the table. It is reproduced as written.
 - **Lower depth is in front.** `depth.go`'s comment says the opposite; the code
   sorts descending by `Z` and paints in that order, so seaweed at 21 is drawn
   over the castle at 22. That is what you see, and it is what the port does.
@@ -142,7 +137,7 @@ From the top of this repository:
 
 ```
 make            # build/games/asciiquarium/asciiquarium.wasm
-make package    # build/games/asciiquarium/asciiquarium-2.2.0-r0.zip
+make package    # build/games/asciiquarium/asciiquarium-2.2.0-r1.zip
 ```
 
 No `PORT` and no `LIBS`: nothing here wants a C library, the arithmetic is plain

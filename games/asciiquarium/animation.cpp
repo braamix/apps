@@ -79,12 +79,12 @@ u8 mask_color(char c)
         return COLOR_CYAN;
     case 'C':
         return COLOR_CYAN | COLOR_BRIGHT;
-    // Lowercase plain, uppercase bright, as every other pair. goquarium has
-    // these two the other way round; the masks want the Perl convention.
+    // Upstream's map, the other way round from the pairs above: termbox's
+    // ColorLightGray is bright white and its ColorWhite is plain.
     case 'w':
-        return COLOR_WHITE;
-    case 'W':
         return COLOR_WHITE | COLOR_BRIGHT;
+    case 'W':
+        return COLOR_WHITE;
     case 'k':
         return COLOR_BLACK;
     case 'K':
