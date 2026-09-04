@@ -16,6 +16,7 @@ that runs in a browser tab.
 | [benchmarks/duremark](benchmarks/duremark/) | DureMark 1.1, a small CoreMark-inspired benchmark |
 | [games/adventure](games/adventure/) | Colossal Cave Adventure, the 1977 C re-coding |
 | [games/asciifluid](games/asciifluid/) | IOCCC 2012/endoh1, a fluid simulator that fits on a screen |
+| [games/asciiquarium](games/asciiquarium/) | goquarium, the ASCII aquarium — fish, sharks, whales and a castle |
 | [emulators/simbesm](emulators/simbesm/) | The BESM-6, the Soviet mainframe — it boots Unix |
 
 The rest of the tree is category directories, a few of them holding a `TODO.md`
@@ -47,8 +48,9 @@ whole game of Colossal Cave and interrupts a second one with `^C`; the two
 editors, driven a keystroke at a time and asserted cell by cell;
 `converters/iconv`, which checks 137,385 mappings against GNU libiconv's own
 answers; `games/asciifluid`, whose frames are compared with the ones upstream's
-own binary paints; and the two benchmarks, each stopped partway by a signal. All of them
-need node and a sibling `../braam-core` built.
+own binary paints; `games/asciiquarium`, a seeded aquarium asserted frame by
+frame and driven by its own keys; and the two benchmarks, each stopped partway
+by a signal. All of them need node and a sibling `../braam-core` built.
 
     make index
 

@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Ten programs are ported so far**:
+**Eleven programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -64,7 +64,19 @@ not — `<complex.h>`, whose multiply and divide are compiler-rt calls, becomes
 two doubles and four operators; `usleep` becomes `sleep_for`; and `puts(o)`
 stays exactly what it was, because the grid parses the `ESC [ 2 J` and
 `ESC [ 1 ; 1 H` its frame begins with. It is the one port whose fidelity can be
-*asserted*: its golden frames came out of upstream's own binary.
+*asserted*: its golden frames came out of upstream's own binary; and
+[games/asciiquarium](games/asciiquarium/), goquarium — the ASCII aquarium, from
+Go rather than from C, and a **sixth shape**: asciifluid's frame clock with a
+*screen* and a *keyboard* under it. Neither can be awaited in one task, so the
+clock keeps the root and `proc_spawn` gives the keyboard one of its own, parked
+on `next_key()` and feeding a ring the frame loop drains — which is upstream's
+goroutine and its channel, and which it has to be for a second reason:
+`ProcScreen::resize()` is private and only `next_key()` calls it, so the grid is
+reshaped where the keys arrive. The Go half is `CallbackArgs any` — an interface
+holding one of two shapes — becoming named fields and an enum, and five closures
+becoming plain functions. Its sprites were lifted out of the Go sources by a
+parser over `go/ast` and every literal compared against that dump, trailing
+spaces included, since a sprite's width is measured from them.
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).

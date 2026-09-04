@@ -65,6 +65,11 @@ test: all
 	@node games/asciifluid/test/frames.mjs
 	@node games/asciifluid/test/colour.mjs
 	@node games/asciifluid/test/interrupt.mjs
+	@node games/asciiquarium/test/frames.mjs
+	@node games/asciiquarium/test/colour.mjs
+	@node games/asciiquarium/test/keys.mjs
+	@node games/asciiquarium/test/resize.mjs
+	@node games/asciiquarium/test/interrupt.mjs
 	@node editors/uemacs/test/emkeys.mjs
 	@node editors/uemacs/test/emedit.mjs
 	@node editors/uemacs/test/emfiles.mjs
