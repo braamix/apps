@@ -81,11 +81,14 @@ stop — and says which. Three consequences:
   `con_put()` and `con_get()` can still be reached from inside an instruction,
   as upstream's non-blocking `read(0)` and its `write(1)` per character were.
 - **The stop key is Alt+Q**, on either Consul line, because there is no `VINTR`
-  and no `SIGINT` here: the key task recognises the chord before it encodes the
-  key, which is the order that matters — Alt+Q would otherwise go out as
-  `ESC q` — and sets `stop_cpu`. `^E` is what stops the native build,
-  where termios takes it before a read can see it; on Braam it is an ordinary
-  byte and reaches the guest.
+  here and no character a program can claim as one: the key task recognises the
+  chord before it encodes the key, which is the order that matters — Alt+Q
+  would otherwise go out as `ESC q` — and sets `stop_cpu`. `^E` is what stops
+  the native build, where termios takes it before a read can see it; on Braam
+  it is an ordinary byte and reaches the guest. `^C` is a signal rather than a
+  key (Keys below), and it is caught and handed to the guest as `003`;
+  `SIG_TERM` is caught too and stops the machine as the chord does, so a `kill`
+  from another screen detaches the packs instead of dropping the process.
 - **Traps return a stop code.** There is no `setjmp` on wasm32, and upstream's
   43 `longjmp`s to `cpu_halt` came from arbitrary depth — an operand protection
   fault out of `mmu_load()`, an overflow out of `besm6_add()`. Every routine
@@ -252,11 +255,21 @@ End, always CSI and never SS3; `ESC [ 5 ~` and its family; `ESC O P` for F1–F4
 which lose SS3 when modified; and `ESC [ 1 ; <m> A` when a named key carries a
 modifier.
 
-Four things never arrive. **Alt+Q** is taken as the stop chord above. **`^C`**
-is Braam's own console pump's, before any raw claim, so the guest's `stty intr`
-cannot be reached from here — natively `^E` does it, through `VINTR`. Shift with
-PageUp, PageDown, Up or Down is Braam's scrollback gesture. And Ctrl+@ or
-Ctrl+Space send NUL, which `vt_getc()` turns into BS as upstream had it.
+Three things never arrive as keys. **Alt+Q** is taken as the stop chord above.
+Shift with PageUp, PageDown, Up or Down is Braam's scrollback gesture. And
+Ctrl+@ or Ctrl+Space send NUL, which `vt_getc()` turns into BS as upstream had
+it.
+
+**`^C` is a signal and not a key.** Braam's console pump takes it before any raw
+claim and raises `SIG_INT` on whatever is in front, so it never reaches
+`key_read()`. `proc_main()` catches it and the driver loop feeds line 0 a `003`
+— the byte the native build's `VINTR`-to-`^E` remap lets through — so the two
+builds agree and the guest's `stty intr` works. The kernel echoes a literal
+`^C` and a newline on the Braam screen before the signal goes out; that is the
+pump's and not the program's. This is a deliberate departure: a program that
+catches `SIG_INT` is no longer killable by the key that kills everything, which
+simbesm can afford because Alt+Q is its own stop and a `kill` — `SIG_TERM`,
+caught too — stops it cleanly from another screen.
 
 ## Peripherals
 
@@ -309,8 +322,10 @@ kills the line. The arrow keys send escapes its line discipline does not
 decode, so they insert bytes rather than recall anything — which is what a real
 VT100 on a real BESM-6 did. `^D` ends the shell, `init` runs `/etc/rc` and the
 machine comes up multi-user with a getty on each Consul line. **Alt+Q** stops
-the run; natively it is `^E`, which termios takes as `VINTR`. Nothing calls
-`sync(2)` for you.
+the run; natively it is `^E`, which termios takes as `VINTR`. `^C` goes to the
+guest, so it interrupts what the guest is running and not the simulator; a
+`kill` from another screen is the other clean stop. Nothing calls `sync(2)` for
+you.
 
 There is no clock-calendar, so the date starts at whatever the filesystem was
 stamped with; type `date` to set it.

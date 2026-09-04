@@ -342,7 +342,14 @@ Task<status_t> io_service_async()
             Result<String> chunk = Err(Error::NoMemory);
             if (Task<Result<String>> t = read_some(u32(m->fd), u32(bytes - got)))
                 chunk = co_await t;
-            if (chunk.is_err() || chunk.value().empty())
+            if (chunk.is_err()) {
+                // A signal abandoned the read, consuming nothing; a short read
+                // here is a disk error to the guest.
+                if (chunk.error() == Error::Intr)
+                    continue;
+                break;
+            }
+            if (chunk.value().empty())
                 break;
             Str s = chunk.value().str();
             memcpy(reinterpret_cast<char *>(r->mem) + got, s.data(), s.size());
@@ -607,6 +614,14 @@ Task<i32> proc_main(Args args)
         co_await close_fd(u32(fd.value()));
     }
 
+    // ^C is the guest's byte: uncaught, SIG_INT would kill the machine mid-run.
+    // Alt+Q is the stop chord, and SIG_TERM stops the way it does.  The driver
+    // loop collects both: one signal wakes every task.
+    if (Task<Result<void>> t = sig_catch(SIG_INT))
+        (void)co_await t;
+    if (Task<Result<void>> t = sig_catch(SIG_TERM))
+        (void)co_await t;
+
     if (Task<Result<Geometry>> t = keys_claim(true))
         (void)co_await t;
     co_await cursor_show(ScreenRef{});
@@ -639,6 +654,14 @@ Task<i32> proc_main(Args args)
     sim_run_begin();
     u32 last_yield = proc_now();
     for (;;) {
+        // sig_take is a memory read, so this costs nothing per burst.
+        if (sig_take(SIG_INT))
+            con_feed(CON_SCREEN, 003); // ^C, what host.cpp lets through VINTR
+        if (sig_take(SIG_TERM)) {
+            stop_cpu     = true;
+            sim_interval = 0;
+        }
+
         r = cpu_burst();
 
         if (r == REASON_IO) {
