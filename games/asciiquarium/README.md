@@ -142,7 +142,7 @@ From the top of this repository:
 
 ```
 make            # build/games/asciiquarium/asciiquarium.wasm
-make package    # build/games/asciiquarium/asciiquarium-1.0-r0.zip
+make package    # build/games/asciiquarium/asciiquarium-2.2.0-r0.zip
 ```
 
 No `PORT` and no `LIBS`: nothing here wants a C library, the arithmetic is plain

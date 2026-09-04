@@ -14,7 +14,7 @@ braam_add_program(NAME asciiquarium
                   SOURCES asciiquarium.cpp animation.cpp entity.cpp
                           environment.cpp fish.cpp special.cpp info.cpp)
 
-braam_add_package(NAME asciiquarium VERSION 1.0-r0
+braam_add_package(NAME asciiquarium VERSION 2.2.0-r0
                   FIELD "T=ASCII art aquarium animation"
                   FILES $<TARGET_FILE:bin_asciiquarium>=bin/asciiquarium)
 
