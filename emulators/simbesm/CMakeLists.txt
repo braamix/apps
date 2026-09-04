@@ -10,7 +10,7 @@ project(simbesm LANGUAGES CXX)
 
 # The package's version, and what the banner prints.  apk's grammar (1.2-r0);
 # nothing checks the spelling, so read it back.
-set(SIMBESM_VERSION 1.0-r2)
+set(SIMBESM_VERSION 1.0-r3)
 
 # The machine, which is the same in both builds.
 set(BESM6_SOURCES
