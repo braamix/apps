@@ -9,7 +9,7 @@ await boot("colour");
 start();
 tick(3);
 
-const CYAN = 6, GREY = 8, WHITE = 7, YELLOW = 3;
+const CYAN = 6, GREY = 8, WHITE = 7, BRIGHT_WHITE = 15, YELLOW = 3;
 const at = (y, x) => parseInt(hue(y)[x] ?? "7", 16);
 
 // 1. The top water band is cyan, which is its DefaultColor and has no mask.
@@ -21,19 +21,22 @@ for (let x = 0; x < water.length; x++)
 // 2. The castle is dark grey where its mask says nothing and white or yellow
 // where it does. DARK_GREY is black with the bright bit, which is 8.
 const seen = new Set();
-for (let y = 10; y <= 22; y++) {
+for (let y = 11; y <= 23; y++) {
     const line = row(y);
     for (let x = 48; x < line.length; x++)
         if (line[x] !== " ") seen.add(at(y, x));
 }
 if (!seen.has(GREY)) die(`no dark grey in the castle: ${[...seen]}`);
-if (!seen.has(WHITE)) die(`no white in the castle: ${[...seen]}`);
 if (!seen.has(YELLOW)) die(`no yellow in the castle: ${[...seen]}`);
+// Both whites: the castle mask is `W` throughout with one `w` in it, so a swap
+// of the two would show up here.
+if (!seen.has(BRIGHT_WHITE)) die(`no bright white (W) in the castle: ${[...seen]}`);
+if (!seen.has(WHITE)) die(`no plain white (w) in the castle: ${[...seen]}`);
 
 // 3. A fish's mask is rewritten by randColor, so its cells are not all one
 // colour and not the default white.
 const fishes = [];
-for (let y = 9; y <= 22; y++) {
+for (let y = 9; y <= 23; y++) {
     const colours = new Set();
     const text = row(y);
     for (let x = 0; x < 45 && x < text.length; x++)

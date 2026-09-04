@@ -42,7 +42,7 @@ if (frame() === back) die("ESC did not unpause");
 press("r");
 tick();
 if ((row(5).match(/~/g) ?? []).length < 60) die(`no water after r: ${row(5)}`);
-if (!row(10).includes("T~~")) die(`no castle after r: ${row(10)}`);
+if (!row(11).includes("T~~")) die(`no castle after r: ${row(11)}`);
 
 // 6. q ends it, and the shell's screen comes back with a zero status.
 press("q");

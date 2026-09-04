@@ -91,14 +91,22 @@ the program.
 **`--version` names Braam** where upstream names the Go runtime and the host
 architecture.
 
+**`W` is the bright white and `w` the plain one**, which is the other way round
+from goquarium. termbox's `ColorWhite` is terminal colour 7 and its
+`ColorLightGray` is 15, so its map — `'w'` to `ColorLightGray`, `'W'` to
+`ColorWhite` — makes lowercase the bright one, alone among `r`/`R`, `k`/`K` and
+the rest of the table. The masks were written for Term::Animation's
+lowercase-is-plain convention in the Perl original, and they show it: `W` is the
+shark's teeth, the whale's and the monsters' and the dolphin's eye and the
+castle's highlights, while `w` is the ship's sails and the ducks' bodies.
+
+**The bottom row is drawn on.** Upstream keeps `height = h - 1` back to dodge a
+terminal's bottom-row scroll; a cell written on the last row of a grid moves
+nothing, so the aquarium is a row deeper here and the castle stands on the
+bottom of the screen.
+
 ## Differences from upstream worth knowing
 
-- **`w` is brighter than `W`.** termbox's `ColorWhite` is terminal colour 7 and
-  its `ColorLightGray` is 15, so upstream's map — `'w'` to `ColorLightGray`,
-  `'W'` to `ColorWhite` — makes lowercase the bright one, which is the other way
-  round from `r`/`R`, `k`/`K` and the rest, and from Term::Animation's
-  lowercase-is-plain convention in the Perl original. It is reproduced as
-  written.
 - **Lower depth is in front.** `depth.go`'s comment says the opposite; the code
   sorts descending by `Z` and paints in that order, so seaweed at 21 is drawn
   over the castle at 22. That is what you see, and it is what the port does.
@@ -108,8 +116,6 @@ architecture.
 - **A sprite's box is frame zero's**, computed once and never recomputed, so a
   multi-frame entity keeps the first frame's width and height for collisions and
   for dying off-screen however wide the later frames are.
-- **The bottom row is never drawn on**, since upstream keeps `height = h - 1` to
-  dodge a terminal's bottom-row scroll.
 - **The sprites are upstream's bytes.** They were lifted out of the Go sources by
   a parser over `go/ast` rather than by hand, and every literal in the port was
   compared against that dump before this was committed — trailing spaces on a
@@ -152,7 +158,7 @@ make test       # among the rest
 - **frames.mjs** boots the kernel, plants the binary, runs
   `ASCIIQUARIUM_SEED=1 asciiquarium` and drives twelve frames — `run(now)`
   advances the kernel's timer queue, which is what expires the 100 ms sleep. It
-  asserts the water bands, the castle and the untouched bottom row, that no two
+  asserts the water bands and the castle standing on the bottom row, that no two
   frames are alike, and then every frame against `frames.log`.
 - **colour.mjs** reads the foregrounds a hex digit a cell: the water band is
   cyan, the castle is dark grey with white and yellow through it, and a fish's

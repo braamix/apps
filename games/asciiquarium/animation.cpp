@@ -79,12 +79,12 @@ u8 mask_color(char c)
         return COLOR_CYAN;
     case 'C':
         return COLOR_CYAN | COLOR_BRIGHT;
-    // termbox's ColorLightGray is bright white and its ColorWhite is plain,
-    // so upstream's w and W come out this way round. Not the Perl original's.
+    // Lowercase plain, uppercase bright, as every other pair. goquarium has
+    // these two the other way round; the masks want the Perl convention.
     case 'w':
-        return COLOR_WHITE | COLOR_BRIGHT;
-    case 'W':
         return COLOR_WHITE;
+    case 'W':
+        return COLOR_WHITE | COLOR_BRIGHT;
     case 'k':
         return COLOR_BLACK;
     case 'K':
@@ -533,13 +533,12 @@ void Animation::animate()
     draw_frame();
 }
 
-// A row less than the screen, to dodge the bottom-row glitch upstream dodges.
+// The whole screen. Upstream keeps a row back for a terminal's bottom-row
+// scroll; a cell written on the last row of a grid moves nothing.
 bool Animation::size_to(u32 cols, u32 rows)
 {
-    width  = i32(cols);
-    height = i32(rows) - 1;
-    if (height < 0)
-        height = 0;
+    width      = i32(cols);
+    height     = i32(rows);
     usize want = usize(cols) * usize(rows);
     shadow.clear();
     if (!shadow.reserve(want))

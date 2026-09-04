@@ -44,9 +44,9 @@ for (let y = 5; y <= 8; y++) {
 }
 // Seaweed is in front of the castle, so its base is a run of underscores with
 // a stalk or two through it rather than the sprite as written.
-if (!row(10).includes("T~~")) fail(`no castle turret on row 10: ${row(10)}`);
-if ((row(22).match(/_/g) ?? []).length < 15) fail(`no castle base on row 22: ${row(22)}`);
-if (row(23) !== "") fail("the bottom row was drawn on");
+if (!row(11).includes("T~~")) fail(`no castle turret on row 11: ${row(11)}`);
+// The last row is the castle's base: upstream keeps a row back, this does not.
+if ((row(23).match(/_/g) ?? []).length < 15) fail(`no castle base on row 23: ${row(23)}`);
 
 // 3. Every frame, byte for byte.
 const golden = readFileSync(join(HERE, "frames.log"), "utf8");
