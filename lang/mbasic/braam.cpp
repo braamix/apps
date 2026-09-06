@@ -30,11 +30,10 @@ constexpr Str USAGE =
     "Usage:\n"
     "    mbasic              interactive\n"
     "    mbasic <file>       run the program in <file> and exit\n"
-    "    mbasic <script      read a session from stdin, as if typed\n"
+    "    mbasic < script     read a session from stdin, as if typed\n"
     "\n"
     "Microsoft BASIC 1.1 for the 6502, written by Weiland & Gates, ported\n"
     "from the 1978 sources.\n"
-    "A named file prints only what the program prints; INPUT reads stdin.\n"
     "A bare name not in this directory is looked for among the examples.\n";
 
 // With a console the editor runs; a pipe or a file reads stdin instead. All of
