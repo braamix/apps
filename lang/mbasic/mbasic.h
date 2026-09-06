@@ -89,6 +89,19 @@ struct TextPos {
     bool direct() const { return line == DIRECT; }
 };
 
+// A name's first character. CRUNCH folds what it stores, so crunched text
+// holds only the lowercase half; both halves stay under 0x80, where
+// Var::name keeps its type tag.
+inline bool isletc(u8 c)
+{
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
+}
+
+inline bool isdigit(u8 c)
+{
+    return c >= '0' && c <= '9';
+}
+
 // A stored line: the line number and its crunched text, NUL-terminated the way
 // upstream's was, so every scan still ends on a zero byte.
 struct Line {

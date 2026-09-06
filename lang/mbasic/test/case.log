@@ -1,0 +1,21 @@
+10 rem Sort the array -- this comment keeps its case
+20 print "MiXeD"; : print " kept"
+30 x = 3 : x = x + 1 : print x
+40 ab = 7 : print abcd
+50 data Alpha,Beta
+60 read a$,b$ : print a$; "/"; b$
+70 print 1e5; 1e5; val("2e3")
+80 def fns(q) = q * q : print fns(4); fns(5)
+90 if "Y" = "y" then print "FOLDED" 
+95 if "Y" <> "y" then print "String data is not folded"
+
+Ok
+MiXeD kept
+ 4 
+ 7 
+Alpha/Beta
+ 100000  100000  2000 
+ 16  25 
+String data is not folded
+
+Ok

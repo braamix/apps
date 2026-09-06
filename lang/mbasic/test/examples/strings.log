@@ -1,23 +1,23 @@
 
-OK
-STRING FUNCTIONS DEMO
+Ok
+String functions demo
 =====================
 
-ENTER A STRING? 
-YOUR STRING: 'HELLO WORLD'
-LENGTH:  11 
+Enter a string? 
+Your string: 'HELLO WORLD'
+Length:  11 
 
-FIRST CHAR: 'H' ASCII: 72 
-LAST CHAR:  'D'
-MIDDLE 3:   'O W'
+First char: 'H' ASCII: 72 
+Last char:  'D'
+Middle 3:   'O W'
 
-LEFT$(S$,3):  'HEL'
-RIGHT$(S$,3): 'RLD'
-MID$(S$,2,4): 'ELLO'
+left$(s$,3):  'HEL'
+right$(s$,3): 'RLD'
+mid$(s$,2,4): 'ELLO'
 
-CHR$(65) = 'A'
-STR$(42) = ' 42'
-VAL("123") = 123 
+chr$(65) = 'A'
+str$(42) = ' 42'
+val("123") = 123 
 
-ANOTHER (Y/N)? 
-OK
+Another (y/n)? 
+Ok

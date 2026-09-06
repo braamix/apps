@@ -1,43 +1,43 @@
 
-OK
-HANGMAN
+Ok
+Hangman
 =======
 
 
-WORD: _ _ _ _ _ _ _ 
-WRONG GUESSES: 0 / 6
-GUESS A LETTER? WRONG!
+Word: _ _ _ _ _ _ _ 
+Wrong guesses: 0 / 6
+Guess a letter? Wrong!
 
-WORD: _ _ _ _ _ _ _ 
-WRONG GUESSES: 1 / 6
-GUESSED: E
-GUESS A LETTER? 
-WORD: _ O _ _ _ O _ 
-WRONG GUESSES: 1 / 6
-GUESSED: EO
-GUESS A LETTER? ALREADY GUESSED!
-GUESS A LETTER? 
-WORD: _ O _ I _ O _ 
-WRONG GUESSES: 1 / 6
-GUESSED: EOI
-GUESS A LETTER? 
-WORD: _ O _ I T O _ 
-WRONG GUESSES: 1 / 6
-GUESSED: EOIT
-GUESS A LETTER? 
-WORD: _ O N I T O _ 
-WRONG GUESSES: 1 / 6
-GUESSED: EOITN
-GUESS A LETTER? 
-WORD: M O N I T O _ 
-WRONG GUESSES: 1 / 6
-GUESSED: EOITNM
-GUESS A LETTER? 
-WORD: M O N I T O R 
-WRONG GUESSES: 1 / 6
-GUESSED: EOITNMR
+Word: _ _ _ _ _ _ _ 
+Wrong guesses: 1 / 6
+Guessed: E
+Guess a letter? 
+Word: _ O _ _ _ O _ 
+Wrong guesses: 1 / 6
+Guessed: EO
+Guess a letter? Already guessed!
+Guess a letter? 
+Word: _ O _ I _ O _ 
+Wrong guesses: 1 / 6
+Guessed: EOI
+Guess a letter? 
+Word: _ O _ I T O _ 
+Wrong guesses: 1 / 6
+Guessed: EOIT
+Guess a letter? 
+Word: _ O N I T O _ 
+Wrong guesses: 1 / 6
+Guessed: EOITN
+Guess a letter? 
+Word: M O N I T O _ 
+Wrong guesses: 1 / 6
+Guessed: EOITNM
+Guess a letter? 
+Word: M O N I T O R 
+Wrong guesses: 1 / 6
+Guessed: EOITNMR
 
-YOU WIN! THE WORD WAS MONITOR
+You win! The word was MONITOR
 
-PLAY AGAIN (Y/N)? 
-OK
+Play again (y/n)? 
+Ok

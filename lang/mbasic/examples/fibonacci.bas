@@ -1,12 +1,12 @@
-10 REM FIBONACCI SEQUENCE GENERATOR
-20 REM DISPLAYS THE FIRST 20 FIBONACCI NUMBERS
-30 PRINT "FIBONACCI SEQUENCE"
-40 PRINT "=================="
-50 A = 0 : B = 1
-60 FOR I = 1 TO 20
-70   PRINT A;
-80   C = A + B
-90   A = B : B = C
-100 NEXT I
-110 PRINT
-120 END
+10 rem Fibonacci sequence generator
+20 rem Displays the first 20 fibonacci numbers
+30 print "Fibonacci sequence"
+40 print "=================="
+50 a = 0 : b = 1
+60 for i = 1 to 20
+70   print a;
+80   c = a + b
+90   a = b : b = c
+100 next i
+110 print
+120 end

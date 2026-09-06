@@ -219,7 +219,7 @@ void Interp::error_print()
     crdo();
     outdo('?');
     outstr(ERRTAB[errcode_]);
-    outstr(" ERROR");
+    outstr(" error");
 
     // STKINI is what makes an error unrecoverable: it discards every FOR and
     // GOSUB frame and zeroes the byte that lets CONT work. Variables and the
@@ -227,7 +227,7 @@ void Interp::error_print()
     stkini();
 
     if (curlin != DIRECT_LINE) {
-        outstr(" IN ");
+        outstr(" in ");
         linprt(curlin);
     }
 }
@@ -238,9 +238,9 @@ void Interp::error_print()
 // but not after an error.
 void Interp::break_print()
 {
-    outstr("\r\nBREAK");
+    outstr("\r\nBreak");
     if (curlin != DIRECT_LINE) {
-        outstr(" IN ");
+        outstr(" in ");
         linprt(curlin);
     }
 }
@@ -262,7 +262,7 @@ void Interp::stpend(bool print_break)
 void Interp::ready()
 {
     cntwfl = 0;
-    outstr("\r\nOK\r\n");
+    outstr("\r\nOk\r\n");
     curlin = DIRECT_LINE;
     suspend_line("", 0, Resume::Main);
 }

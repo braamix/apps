@@ -1,39 +1,39 @@
-10 REM SIEVE
-20 N=30:DIM P(30)
-30 FOR I=2 TO N
-40 IF P(I)<>0 THEN 60
-50 PRINT I;
-55 IF I*I>N THEN 60
-57 FOR J=I*I TO N STEP I:P(J)=1:NEXT J
-60 NEXT I
-70 PRINT
+10 rem SIEVE
+20 n=30:dim p(30)
+30 for i=2 to n
+40 if p(i)<>0 then 60
+50 print i;
+55 if i*i>n then 60
+57 for j=i*i to n step i:p(j)=1:next j
+60 next i
+70 print
 
-OK
+Ok
  2  3  5  7  11  13  17  19  23  29 
 
-OK
+Ok
 
-OK
+Ok
 HELLO, WORLD 12 
 HELLO|WORLD|WORLD
  72 B 4.5 -7
 LESS
 
-OK
+Ok
 
-OK
+Ok
  1  2 
  2  5 
  3  10 
 X IS 99 
 
-OK
-30 FOR I=1 TO 3:GOSUB 100:NEXT I
-40 PRINT "X IS";X
+Ok
+30 for i=1 to 3:gosub 100:next i
+40 print "X IS";x
 
-OK
+Ok
 
-OK
+Ok
 ONE/TWO
  11 
  5 
@@ -42,4 +42,4 @@ SUB
  0 
  5  1.7 S
 
-OK
+Ok

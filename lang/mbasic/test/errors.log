@@ -1,80 +1,80 @@
 
-?NEXT WITHOUT FOR ERROR
-OK
+?Next without for error
+Ok
 
-?RETURN WITHOUT GOSUB ERROR
-OK
+?Return without gosub error
+Ok
 
-?OUT OF DATA ERROR
-OK
+?Out of data error
+Ok
 
-?ILLEGAL QUANTITY ERROR
-OK
+?Illegal quantity error
+Ok
 
-?OVERFLOW ERROR
-OK
+?Overflow error
+Ok
 
-?OUT OF MEMORY ERROR
-OK
+?Out of memory error
+Ok
 
-?UNDEF'D STATEMENT ERROR
-OK
+?Undef'd statement error
+Ok
 
-?BAD SUBSCRIPT ERROR
-OK
+?Bad subscript error
+Ok
 
-?REDIM'D ARRAY ERROR
-OK
+?Redim'd array error
+Ok
 
-?DIVISION BY ZERO ERROR
-OK
+?Division by zero error
+Ok
 
-?ILLEGAL DIRECT ERROR
-OK
+?Illegal direct error
+Ok
 
-?TYPE MISMATCH ERROR
-OK
+?Type mismatch error
+Ok
 
-OK
+Ok
 
-?STRING TOO LONG ERROR
-OK
+?String too long error
+Ok
 
-?FILE DATA ERROR
-OK
+?File data error
+Ok
 
-?FORMULA TOO COMPLEX ERROR
-OK
+?Formula too complex error
+Ok
 
-?CAN'T CONTINUE ERROR
-OK
+?Can't continue error
+Ok
 
-?UNDEF'D FUNCTION ERROR
-OK
+?Undef'd function error
+Ok
 
-?SYNTAX ERROR
-OK
+?Syntax error
+Ok
 BEFORE
 
-?DIVISION BY ZERO ERROR IN 20
-OK
+?Division by zero error in 20
+Ok
 
-?CAN'T CONTINUE ERROR
-OK
+?Can't continue error
+Ok
 
-OK
+Ok
 ONE
 
-BREAK IN 10
-OK
+Break in 10
+Ok
 TWO
 THREE
 
-OK
+Ok
 ONE
 
-BREAK IN 10
-OK
+Break in 10
+Ok
 
-?CAN'T CONTINUE ERROR
-OK
+?Can't continue error
+Ok

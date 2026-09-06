@@ -1,22 +1,22 @@
 
-OK
-MATH FUNCTIONS DEMO
+Ok
+Math functions demo
 ===================
 
-ENTER A NUMBER? 
-ABS( 2 ) = 2 
-INT( 2 ) = 2 
-SGN( 2 ) = 1 
-SQR( 2 ) = 1.41421356 
+Enter a number? 
+abs( 2 ) = 2 
+int( 2 ) = 2 
+sgn( 2 ) = 1 
+sqr( 2 ) = 1.41421356 
 
-TRIGONOMETRY (RADIANS):
-SIN( 2 ) = .909297427 
-COS( 2 ) =-.416146837 
-TAN( 2 ) =-2.18503986 
-ATN( 2 ) = 1.10714872 
+Trigonometry (radians):
+sin( 2 ) = .909297427 
+cos( 2 ) =-.416146837 
+tan( 2 ) =-2.18503986 
+atn( 2 ) = 1.10714872 
 
-LOG( 2 ) = .693147181 
-EXP( 2 ) = 7.3890561 
+log( 2 ) = .693147181 
+exp( 2 ) = 7.3890561 
 
-ANOTHER (Y/N)? 
-OK
+Another (y/n)? 
+Ok

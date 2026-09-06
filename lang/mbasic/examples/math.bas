@@ -1,24 +1,24 @@
-10 REM MATH FUNCTIONS DEMO
-20 REM DEMONSTRATES BUILT-IN MATH FUNCTIONS
-30 PRINT "MATH FUNCTIONS DEMO"
-40 PRINT "==================="
-50 PRINT
-60 INPUT "ENTER A NUMBER"; X
-70 PRINT
-80 PRINT "ABS("; X; ") ="; ABS(X)
-90 PRINT "INT("; X; ") ="; INT(X)
-100 PRINT "SGN("; X; ") ="; SGN(X)
-110 IF X >= 0 THEN PRINT "SQR("; X; ") ="; SQR(X)
-120 PRINT
-130 PRINT "TRIGONOMETRY (RADIANS):"
-140 PRINT "SIN("; X; ") ="; SIN(X)
-150 PRINT "COS("; X; ") ="; COS(X)
-160 PRINT "TAN("; X; ") ="; TAN(X)
-170 PRINT "ATN("; X; ") ="; ATN(X)
-180 PRINT
-190 IF X > 0 THEN PRINT "LOG("; X; ") ="; LOG(X)
-200 PRINT "EXP("; X; ") ="; EXP(X)
-210 PRINT
-220 INPUT "ANOTHER (Y/N)"; A$
-230 IF A$ = "Y" THEN 50
-240 END
+10 rem Math functions demo
+20 rem Demonstrates built-in math functions
+30 print "Math functions demo"
+40 print "==================="
+50 print
+60 input "Enter a number"; x
+70 print
+80 print "abs("; x; ") ="; abs(x)
+90 print "int("; x; ") ="; int(x)
+100 print "sgn("; x; ") ="; sgn(x)
+110 if x >= 0 then print "sqr("; x; ") ="; sqr(x)
+120 print
+130 print "Trigonometry (radians):"
+140 print "sin("; x; ") ="; sin(x)
+150 print "cos("; x; ") ="; cos(x)
+160 print "tan("; x; ") ="; tan(x)
+170 print "atn("; x; ") ="; atn(x)
+180 print
+190 if x > 0 then print "log("; x; ") ="; log(x)
+200 print "exp("; x; ") ="; exp(x)
+210 print
+220 input "Another (y/n)"; a$
+230 if a$ = "Y" or a$ = "y" then 50
+240 end

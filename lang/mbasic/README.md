@@ -14,24 +14,22 @@ is what this is.
 
 ```
 $ mbasic
-MEMORY SIZE?
-TERMINAL WIDTH?
+Memory size?
+Terminal width?
 
-65535 BYTES FREE
+Braam BASIC v1.1
+Copyright 1978 Microsoft
 
-BRAAM BASIC V1.1
-COPYRIGHT 1978 MICROSOFT
-
-OK
-10 FOR I=1 TO 5:PRINT I;SQR(I):NEXT
-RUN
+Ok
+10 for i=1 to 5:print i;sqr(i):next
+run
  1  1
  2  1.41421356
  3  1.73205081
  4  2
  5  2.23606798
 
-OK
+Ok
 ```
 
 ## What it is
@@ -45,7 +43,7 @@ the Commodore's hardware-specific corners:
 | `INTPRC` | 1 | `%` integer variables and arrays |
 | `GETCMD` | 1 | `GET` |
 | `DISKO` | 1 | `LOAD` and `SAVE` |
-| `EXTIO` | 1 | `INPUT#`, `PRINT#`, `CMD`, `SYS`, `OPEN`, `CLOSE`, and `?FILE DATA` |
+| `EXTIO` | 1 | `INPUT#`, `PRINT#`, `CMD`, `SYS`, `OPEN`, `CLOSE`, and `?File data` |
 | `LNGERR` | 1 | spelled-out error messages instead of two-letter codes |
 | `NULCMD`, `TIME` | 0 | no `NULL`, no `TI`/`TI$` |
 
@@ -55,7 +53,7 @@ file, [tables.cpp](tables.cpp), because the connection between them is purely
 positional: a token's value is `128 + its ordinal in RESLST`, and adding a word
 under one switch renumbers everything after it in all four at once.
 
-`SYS` and `USR` raise `?ILLEGAL QUANTITY`. There is no machine code to call, and
+`SYS` and `USR` raise `?Illegal quantity`. There is no machine code to call, and
 upstream's `USR` did exactly that until the user `POKE`d a vector into it.
 `POKE`, `PEEK` and `WAIT` address 64 KiB of scratch of their own, so the
 statements and `GETADR`'s `0..65535` check still mean something.
@@ -103,7 +101,7 @@ never returned until it had a line; a read that unwinds has to name every
 field, which is what `InputState` is. Nothing is replayed on resume — the
 resume point is a position in the *variable list*, so variables already assigned
 are behind it.
-`?REDO FROM START`, which deliberately does restart the whole statement, needs
+`?Redo from start`, which deliberately does restart the whole statement, needs
 no special case: it sets `TXTPTR` back to `OLDTXT` and `NEWSTT` re-dispatches.
 
 ### The keyboard changes hands once, at the right boundary
@@ -141,7 +139,7 @@ than by a table, so `1E38` cost thirty-eight multiplications and accumulated the
 rounding error of each. The last digits of a long computation will differ.
 
 `INT` is still a floor and not a truncation, so `INT(-2.5)` is `-3`; `0^0` is
-still `1`; an exponent past `2^127` is still `?OVERFLOW`, and an underflow still
+still `1`; an exponent past `2^127` is still `?Overflow`, and an underflow still
 silently becomes zero.
 
 ### Containers in place of the arena, and what that keeps
@@ -151,7 +149,7 @@ between `TXTTAB` and `MEMSIZ`, kept adjacent and shuffled by block moves
 whenever any of them grew. Program text, variables and arrays grew upward and
 collided with string space growing downward, and the collision is what triggered
 garbage
-collection and, failing that, `?OUT OF MEMORY`.
+collection and, failing that, `?Out of memory`.
 
 That is a `Vec` and a `String` here, and with it goes the mark-and-move
 collector, the six-step string protocol, the copy-if-volatile rule and the whole
@@ -168,10 +166,10 @@ What is kept, because it is observable:
   variables;
 - reading an undefined variable does not create it; assigning does;
 - typing any program line still clears every variable;
-- `?STRING TOO LONG` above 255 characters, and `?FORMULA TOO COMPLEX` at the
+- `?String too long` above 255 characters, and `?Formula too complex` at the
   fourth live string temporary, so the language does not silently gain capacity;
-- `FRE` still answers a signed 16-bit count against the budget `MEMORY SIZE`
-  sets, and `?OUT OF MEMORY` still fires — including from `GETSTK`'s `NUMLEV`,
+- `FRE` still answers a signed 16-bit count against the budget `Memory size`
+  sets, and `?Out of memory` still fires — including from `GETSTK`'s `NUMLEV`,
   the 23 guaranteed levels of expression nesting.
 
 The `FOR`/`GOSUB` stack could not go. Upstream's was a typed structure scanned
@@ -220,15 +218,45 @@ Kept deliberately, because they are the language:
   same value.
 - Line numbers stop at 63999, and exceeding it is a *syntax* error.
 - A blank line typed to `INPUT` is a silent, continuable `STOP`.
-- `SYSTEM` is `SYS` followed by `TEM`, and raises `?ILLEGAL QUANTITY`.
+- `SYSTEM` is `SYS` followed by `TEM`, and raises `?Illegal quantity`.
+
+### Case is folded, which upstream's was not
+
+Upstream was uppercase only, and had no reason not to be: the Apple II and the
+PET had uppercase-only keyboards, so there was no case to fold and no bytes to
+spend folding it on the hottest path in the interpreter. Here `print`, `PRINT`
+and `PrInt` are one keyword and `x` and `X` are one variable.
+
+The fold is in `CRUNCH` and nowhere else. It is the one chokepoint every path
+reaches — the editor, direct mode and `load_line` all tokenize through it, and
+everything downstream reads the crunched bytes through `chrgot` — so
+[tables.cpp](tables.cpp) spells `RESLST` in lower case, `match_res` folds the
+source byte before comparing, and the byte it stores for anything unmatched is
+folded too. The stored line is therefore canonical, which keeps `LIST` the
+exact inverse of `CRUNCH` and makes `SAVE` write one spelling whatever was
+typed.
+
+Three things never reach the matcher, and keep the case they were typed in: a
+string literal, a `DATA` item, and a `REM` tail. So do `LOAD` and `SAVE`
+filenames, which are string literals. `FIN` had to learn `1e5` beside `1E5`,
+since a program's own exponent is folded on the way in; `FOUT` still prints
+`E`.
+
+**This is a departure from upstream, and so are the messages.** The tree's rule
+is that a port keeps the program's output text, and these no longer are 1978's
+bytes: `OK` is `Ok`, `?SYNTAX ERROR` is `?Syntax error`, and the free-memory
+line above the banner is gone, the memory here being the kernel's rather than
+the machine's. What is *not* touched is the part that makes it this BASIC — the
+arithmetic, `FOUT`'s format to the digit, the four tables and every rule in
+*Things that look like bugs and are not* below.
 
 ### Two questions asked only at a console
 
-`MEMORY SIZE?` and `TERMINAL WIDTH?` are asked when stdin is a terminal and not
+`Memory size?` and `Terminal width?` are asked when stdin is a terminal and not
 otherwise: down a pipe there is nobody to answer them, and a run reading its
 program from a file should not have the first two lines of it eaten. The width
 otherwise comes from `tty_of`, and is zero — meaning no automatic wrap — for a
-pipe. Answering `A` to `MEMORY SIZE` still prints `WRITTEN BY WEILAND & GATES`.
+pipe. Answering `A` to `Memory size` still prints `Written by Weiland & Gates`.
 
 ## Files
 
@@ -270,8 +298,8 @@ a path carrying a version the binary does not know — so `LOAD` resolves a bare
 name against it when the working directory has no such file:
 
 ```
-LOAD "wumpus.bas"
-RUN
+load "wumpus.bas"
+run
 ```
 
 [epath.cpp](epath.cpp) finds the directory once at startup, by reading the
@@ -280,18 +308,27 @@ that by scanning `/pkg/store` for the name it is a prefix of. `SAVE` has no
 such fallback: the store is read-only. A name with a `/` in it is a path of the
 caller's own and is taken as given.
 
+They are written in lower case, which the tokenizer folds (below); their
+messages are ordinary English sentences.
+
 They are new code rather than upstream's, and writing them found four things
 this BASIC does that a modern eye does not expect. A reserved word matches
-*anywhere*, so `MONEY` is `M`, `ON`, `EY` and `WRONG` is `WR`, `ON`, `G`. A
-variable name is significant in its first two characters, so `PIT1` and `PIT2`
-are one variable and so are `FEED` and `FED`. There is no `ELSE`, and no
-backslash escape inside a string. And a `FOR` body always runs once, which is
-why [primes.bas](examples/primes.bas) has to keep 2 and 3 away from its trial
-division — `FOR I = 2 TO SQR(2)` would divide 2 by 2.
+*anywhere*, so `money` is `m`, `on`, `ey` and `wrong` is `wr`, `on`, `g` —
+case makes no difference to that. A variable name is significant in its first
+two characters, so `pit1` and `pit2` are one variable and so are `feed` and
+`fed`. There is no `else`, and no backslash escape inside a string. And a `for`
+body always runs once, which is why [primes.bas](examples/primes.bas) has to
+keep 2 and 3 away from its trial division — `for i = 2 to sqr(2)` would divide
+2 by 2.
+
+A fifth is not the language's: **string data is never folded**, so a program
+that prompts `(y/n)` and tests `if a$ = "Y"` rejects a typed `y`. Each example
+takes both, and [hangman.bas](examples/hangman.bas) upcases the letter it is
+given with `asc`/`chr$`.
 
 ## Testing
 
-`make test` at the top of the tree runs six cases from [test/](test/). Five
+`make test` at the top of the tree runs seven cases from [test/](test/). Six
 drive a session through stdin and stdout redirected to files and compare the
 transcript byte for byte against a golden beside the script — exact, because the
 run is deterministic and down a pipe nothing echoes and no prompt is printed.
@@ -303,5 +340,10 @@ example's stream cannot shift another's. Its answers are that particular
 sequence's moves — the number is 54, the word is `MONITOR`, the wumpus is in
 room 9 — so a change to an example that consumes a different number of `RND`
 values means re-choosing them, not just re-blessing.
+
+`case.mjs` is the case rules stated once: one keyword whatever the case, one
+variable whatever the case, `LIST` canonical in lower case, and a string, a
+`DATA` item, a `REM` tail and a filename keeping theirs. It also runs a program
+typed the old way, since the point is that both spellings work.
 
 Re-bless a golden with `--bless` after reading the diff.

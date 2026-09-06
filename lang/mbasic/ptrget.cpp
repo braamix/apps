@@ -3,20 +3,6 @@
 // m6502.asm:3600-4234; 07-variables-arrays.md.
 #include "mbasic.h"
 
-namespace {
-
-bool isletc(u8 c)
-{
-    return c >= 'A' && c <= 'Z';
-}
-
-bool isdigit(u8 c)
-{
-    return c >= '0' && c <= '9';
-}
-
-} // namespace
-
 // ============================================================== PTRGET
 //
 // Returns where the variable's value lives, leaving TXTPTR on the terminating

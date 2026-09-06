@@ -210,7 +210,7 @@ void Interp::trmnok()
         // The ENTIRE INPUT statement re-executes, including any variables it
         // has already assigned. That is upstream's documented behaviour, and
         // it needs no special case: NEWSTT re-dispatches INPUT from OLDTXT.
-        outstr("?REDO FROM START\r\n");
+        outstr("?Redo from start\r\n");
         if (oldtxt.valid) {
             txtptr = oldtxt.txt;
             curlin = oldtxt.lin;
@@ -231,7 +231,7 @@ void Interp::varend()
         return;
     if (inp.inpflg == INPFLG_READ)
         return; // READ just leaves DATPTR where it is
-    outstr("?EXTRA IGNORED\r\n");
+    outstr("?Extra ignored\r\n");
 }
 
 // ============================================================== INPUT

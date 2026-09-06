@@ -1,19 +1,19 @@
 
-OK
-MASTERMIND
+Ok
+Mastermind
 ==========
 
-I'M THINKING OF A 4-DIGIT CODE (1-6)
-AFTER EACH GUESS I'LL TELL YOU:
-  BLACK = RIGHT NUMBER, RIGHT PLACE
-  WHITE = RIGHT NUMBER, WRONG PLACE
+I'm thinking of a 4-digit code (1-6)
+After each guess I'll tell you:
+  Black = right number, right place
+  White = right number, wrong place
 
 
-YOUR GUESS (4 DIGITS, E.G. 1234)? BLACK: 0  WHITE: 3 
+Your guess (4 digits, e.g. 1234)? Black: 0  White: 3 
 
-YOUR GUESS (4 DIGITS, E.G. 1234)? BLACK: 4  WHITE: 0 
+Your guess (4 digits, e.g. 1234)? Black: 4  White: 0 
 
-YOU CRACKED THE CODE IN 2 TRIES!
+You cracked the code in 2 tries!
 
-PLAY AGAIN (Y/N)? 
-OK
+Play again (y/n)? 
+Ok

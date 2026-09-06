@@ -15,15 +15,6 @@
 #include "math/math.h"
 #include "mbasic.h"
 
-namespace {
-
-bool isletc(u8 c)
-{
-    return c >= 'A' && c <= 'Z';
-}
-
-} // namespace
-
 // ============================================================== type checks
 //
 // m6502.asm:3169-3180. The convention is carry in = "I require a string".

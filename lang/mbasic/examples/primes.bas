@@ -1,22 +1,22 @@
-10 REM PRIME NUMBER FINDER
-20 REM FINDS ALL PRIMES UP TO A GIVEN LIMIT
-30 PRINT "PRIME NUMBER FINDER"
-40 PRINT "==================="
-50 PRINT
-60 INPUT "FIND PRIMES UP TO"; LIMIT
-70 PRINT
-80 PRINT "PRIMES:";
-90 COUNT = 0
-100 FOR N = 2 TO LIMIT
-110   ISPRIME = 1
-115   REM A FOR BODY ALWAYS RUNS ONCE, SO 2 AND 3 MUST NOT REACH THE DIVISION
-117   IF N < 4 THEN 150
-120   FOR I = 2 TO SQR(N)
-130     IF N / I = INT(N / I) THEN ISPRIME = 0 : I = N
-140   NEXT I
-150   IF ISPRIME = 1 THEN PRINT N; : COUNT = COUNT + 1
-160 NEXT N
-170 PRINT
-180 PRINT
-190 PRINT "FOUND"; COUNT; "PRIMES"
-200 END
+10 rem Prime number finder
+20 rem Finds all primes up to a given limit
+30 print "Prime number finder"
+40 print "==================="
+50 print
+60 input "Find primes up to"; limit
+70 print
+80 print "Primes:";
+90 count = 0
+100 for n = 2 to limit
+110   isprime = 1
+115   rem A for body always runs once, so 2 and 3 must not reach the division
+117   if n < 4 then 150
+120   for i = 2 to sqr(n)
+130     if n / i = int(n / i) then isprime = 0 : i = n
+140   next i
+150   if isprime = 1 then print n; : count = count + 1
+160 next n
+170 print
+180 print
+190 print "Found"; count; "primes"
+200 end

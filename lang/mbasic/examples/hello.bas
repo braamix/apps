@@ -1,3 +1,3 @@
-10 REM HELLO WORLD - THE CLASSIC FIRST PROGRAM
-20 PRINT "HELLO, WORLD!"
-30 END
+10 rem Hello world - the classic first program
+20 print "Hello, world!"
+30 end

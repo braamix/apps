@@ -23,7 +23,7 @@ const flat = (s) => H.rows(s).join("\n");
 line("mb");
 line(""); // MEMORY SIZE?
 line(""); // TERMINAL WIDTH?
-if (!flat(H.screen()).includes("BRAAM BASIC V1.1"))
+if (!flat(H.screen()).includes("Braam BASIC v1.1"))
     die("the banner did not appear");
 
 line("10 PRINT 1;:GOTO 10");
@@ -39,7 +39,7 @@ for (let i = 0; i < 60 && H.run(now++) !== -1; i++)
     ;
 
 let s = H.screen();
-if (!flat(s).includes("BREAK IN 10"))
+if (!flat(s).includes("Break in 10"))
     die(`^C did not break the program:\n${flat(s)}`);
 
 // STOP and ^C are continuable; an error is not. The frames survive too.

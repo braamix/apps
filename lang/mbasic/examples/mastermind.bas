@@ -1,58 +1,58 @@
-10 REM MASTERMIND - CODE BREAKING GAME
-20 REM GUESS THE SECRET 4-DIGIT CODE
-25 DIM S(4), G(4), U(4), V(4) : REM DIMENSIONED ONCE, AHEAD OF THE LOOPS
-30 PRINT "MASTERMIND"
-40 PRINT "=========="
-50 PRINT
-60 PRINT "I'M THINKING OF A 4-DIGIT CODE (1-6)"
-70 PRINT "AFTER EACH GUESS I'LL TELL YOU:"
-80 PRINT "  BLACK = RIGHT NUMBER, RIGHT PLACE"
-90 PRINT "  WHITE = RIGHT NUMBER, WRONG PLACE"
-100 PRINT
-110 REM GENERATE SECRET CODE
-130 FOR I = 1 TO 4
-140   S(I) = INT(RND(1) * 6) + 1
-150 NEXT I
-160 TRIES = 0
-170 REM GET GUESS
-180 PRINT
-190 INPUT "YOUR GUESS (4 DIGITS, E.G. 1234)"; G$
-200 IF LEN(G$) <> 4 THEN PRINT "ENTER 4 DIGITS!" : GOTO 190
-210 REM PARSE GUESS
-220 FOR I = 1 TO 4
-230   G(I) = VAL(MID$(G$, I, 1))
-240   IF G(I) < 1 OR G(I) > 6 THEN PRINT "USE DIGITS 1-6!" : GOTO 190
-250 NEXT I
-260 TRIES = TRIES + 1
-270 REM COUNT BLACK (EXACT MATCHES)
-280 BLACK = 0
-290 REM USED FLAGS
-300 FOR I = 1 TO 4 : U(I) = 0 : V(I) = 0 : NEXT I
-310 FOR I = 1 TO 4
-320   IF G(I) = S(I) THEN BLACK = BLACK + 1 : U(I) = 1 : V(I) = 1
-330 NEXT I
-340 REM COUNT WHITE (WRONG PLACE)
-350 WHITE = 0
-360 FOR I = 1 TO 4
-370   IF U(I) = 1 THEN 420
-380   FOR J = 1 TO 4
-390     IF V(J) = 1 THEN 410
-400     IF G(I) = S(J) THEN WHITE = WHITE + 1 : V(J) = 1 : J = 4
-410   NEXT J
-420 NEXT I
-430 REM DISPLAY RESULT
-440 PRINT "BLACK:"; BLACK; " WHITE:"; WHITE
-450 IF BLACK = 4 THEN 500
-460 IF TRIES >= 10 THEN 550
-470 GOTO 170
-500 PRINT
-510 PRINT "YOU CRACKED THE CODE IN"; TRIES; "TRIES!"
-520 GOTO 600
-550 PRINT
-560 PRINT "OUT OF TRIES! THE CODE WAS:";
-570 FOR I = 1 TO 4 : PRINT S(I); : NEXT I
-580 PRINT
-600 PRINT
-610 INPUT "PLAY AGAIN (Y/N)"; A$
-620 IF A$ = "Y" THEN 110
-630 END
+10 rem Mastermind - code breaking game
+20 rem Guess the secret 4-digit code
+25 dim s(4), g(4), u(4), v(4) : rem DIMENSIONED ONCE, AHEAD OF THE LOOPS
+30 print "Mastermind"
+40 print "=========="
+50 print
+60 print "I'm thinking of a 4-digit code (1-6)"
+70 print "After each guess I'll tell you:"
+80 print "  Black = right number, right place"
+90 print "  White = right number, wrong place"
+100 print
+110 rem Generate secret code
+130 for i = 1 to 4
+140   s(i) = int(rnd(1) * 6) + 1
+150 next i
+160 tries = 0
+170 rem Get guess
+180 print
+190 input "Your guess (4 digits, e.g. 1234)"; g$
+200 if len(g$) <> 4 then print "Enter 4 digits!" : goto 190
+210 rem Parse guess
+220 for i = 1 to 4
+230   g(i) = val(mid$(g$, i, 1))
+240   if g(i) < 1 or g(i) > 6 then print "Use digits 1-6!" : goto 190
+250 next i
+260 tries = tries + 1
+270 rem Count black (exact matches)
+280 black = 0
+290 rem Used flags
+300 for i = 1 to 4 : u(i) = 0 : v(i) = 0 : next i
+310 for i = 1 to 4
+320   if g(i) = s(i) then black = black + 1 : u(i) = 1 : v(i) = 1
+330 next i
+340 rem Count white (wrong place)
+350 white = 0
+360 for i = 1 to 4
+370   if u(i) = 1 then 420
+380   for j = 1 to 4
+390     if v(j) = 1 then 410
+400     if g(i) = s(j) then white = white + 1 : v(j) = 1 : j = 4
+410   next j
+420 next i
+430 rem Display result
+440 print "Black:"; black; " White:"; white
+450 if black = 4 then 500
+460 if tries >= 10 then 550
+470 goto 170
+500 print
+510 print "You cracked the code in"; tries; "tries!"
+520 goto 600
+550 print
+560 print "Out of tries! The code was:";
+570 for i = 1 to 4 : print s(i); : next i
+580 print
+600 print
+610 input "Play again (y/n)"; a$
+620 if a$ = "Y" or a$ = "y" then 110
+630 end

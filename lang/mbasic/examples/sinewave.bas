@@ -1,16 +1,16 @@
-10 REM SINE WAVE - APPLE II GRAPHICS IN TEXT
-20 REM DRAWS A SINE WAVE USING CHARACTERS
-30 PRINT "SINE WAVE DISPLAY"
-40 PRINT "================="
-50 PRINT
-60 FOR Y = 0 TO 50
-70   X = INT(20 + SIN(Y / 5) * 18)
-80   FOR I = 1 TO X
-90     PRINT " ";
-100   NEXT I
-110   PRINT "*"
-120 NEXT Y
-130 PRINT
-140 INPUT "AGAIN (Y/N)"; A$
-150 IF A$ = "Y" THEN 50
-160 END
+10 rem Sine wave - Apple ii graphics in text
+20 rem Draws a sine wave using characters
+30 print "Sine wave display"
+40 print "================="
+50 print
+60 for y = 0 to 50
+70   x = int(20 + sin(y / 5) * 18)
+80   for i = 1 to x
+90     print " ";
+100   next i
+110   print "*"
+120 next y
+130 print
+140 input "Again (y/n)"; a$
+150 if a$ = "Y" or a$ = "y" then 50
+160 end

@@ -62,15 +62,17 @@ const CASES = [
 for (const [file, answers] of CASES) {
     put("/tmp/x.bas", readFileSync(join(HERE, "../examples", file), "utf8"));
     const out = body(session(['LOAD "/tmp/x.bas"', "RUN", ...answers]));
-    // ?REDO FROM START and ?EXTRA IGNORED are INPUT's two complaints and carry
-    // no "ERROR": they mean the answers stopped lining up with the prompts,
-    // which is exactly the mistake this table is easy to make.
-    for (const bad of ["ERROR", "REDO FROM START", "EXTRA IGNORED"])
-        if (out.includes(bad))
+    // ?Redo from start and ?Extra ignored are INPUT's two complaints and carry
+    // no "error": they mean the answers stopped lining up with the prompts,
+    // which is exactly the mistake this table is easy to make. Matched without
+    // regard to case, so a change of spelling cannot silently stop catching.
+    const flat = out.toLowerCase();
+    for (const bad of ["error", "redo from start", "extra ignored"])
+        if (flat.includes(bad))
             die(`${file} printed ${bad}:\n${out}`);
     // A run that fell off the end of its answers stops mid-prompt instead of
     // returning to the interpreter.
-    if (!out.endsWith("\r\nOK\r\n"))
+    if (!flat.endsWith("\r\nok\r\n"))
         die(`${file} did not run to completion:\n${out}`);
     golden(`examples/${file.replace(/\.bas$/, ".log")}`, out);
 }
@@ -85,7 +87,7 @@ for (const d of ["/pkg", "/pkg/store", STORE, `${STORE}/share`])
     H.store.dirs.add(d);
 put(`${STORE}/share/hello.bas`, readFileSync(join(HERE, "../examples/hello.bas"), "utf8"));
 const bare = body(session(['LOAD "hello.bas"', "RUN"]));
-if (!bare.includes("HELLO, WORLD!"))
+if (!bare.includes("Hello, world!"))
     die(`LOAD of a bare name did not reach the package's share:\n${bare}`);
 
 ok();

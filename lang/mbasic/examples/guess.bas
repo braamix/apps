@@ -1,20 +1,20 @@
-10 REM NUMBER GUESSING GAME
-20 REM GUESS A RANDOM NUMBER BETWEEN 1 AND 100
-30 PRINT "NUMBER GUESSING GAME"
-40 PRINT "===================="
-50 PRINT
-60 N = INT(RND(1) * 100) + 1
-70 T = 0
-80 PRINT "I'M THINKING OF A NUMBER BETWEEN 1 AND 100."
-90 PRINT
-100 INPUT "YOUR GUESS"; G
-110 T = T + 1
-120 IF G < N THEN PRINT "TOO LOW!" : GOTO 100
-130 IF G > N THEN PRINT "TOO HIGH!" : GOTO 100
-140 PRINT
-150 PRINT "CORRECT! YOU GOT IT IN"; T; "TRIES!"
-160 PRINT
-170 INPUT "PLAY AGAIN (Y/N)"; A$
-180 IF A$ = "Y" THEN 50
-190 PRINT "THANKS FOR PLAYING!"
-200 END
+10 rem Number guessing game
+20 rem Guess a random number between 1 and 100
+30 print "Number guessing game"
+40 print "===================="
+50 print
+60 n = int(rnd(1) * 100) + 1
+70 t = 0
+80 print "I'm thinking of a number between 1 and 100."
+90 print
+100 input "Your guess"; g
+110 t = t + 1
+120 if g < n then print "Too low!" : goto 100
+130 if g > n then print "Too high!" : goto 100
+140 print
+150 print "Correct! You got it in"; t; "tries!"
+160 print
+170 input "Play again (y/n)"; a$
+180 if a$ = "Y" or a$ = "y" then 50
+190 print "Thanks for playing!"
+200 end

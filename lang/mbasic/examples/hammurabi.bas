@@ -1,79 +1,79 @@
-10 REM HAMMURABI - CLASSIC RESOURCE MANAGEMENT GAME
-20 REM RULE THE ANCIENT CITY OF SUMERIA
-30 PRINT "HAMMURABI"
-40 PRINT "========="
-50 PRINT
-60 PRINT "TRY YOUR HAND AT GOVERNING ANCIENT SUMERIA"
-70 PRINT "FOR 10 YEARS. GOOD LUCK!"
-80 PRINT
-90 REM INITIALIZE
-100 YEAR = 0
-110 POP = 100 : REM POPULATION
-120 ACRES = 1000 : REM ACRES OF LAND
-130 GRAIN = 2800 : REM BUSHELS IN STORE
-140 HARVEST = 3 : REM BUSHELS PER ACRE
-150 STARVED = 0 : REM STARVED THIS YEAR
-160 ILL = 0
-170 REM MAIN GAME LOOP
-180 YEAR = YEAR + 1
-190 IF YEAR > 10 THEN 700
-200 PRINT
-210 PRINT "YEAR"; YEAR; "OF YOUR REIGN"
-220 PRINT "POPULATION:"; POP
-230 PRINT "ACRES:"; ACRES
-240 PRINT "GRAIN IN STORE:"; GRAIN; "BUSHELS"
-250 PRINT
-260 REM RANDOM LAND PRICE
-270 PRICE = INT(RND(1) * 10) + 17
-280 PRINT "LAND IS TRADING AT"; PRICE; "BUSHELS/ACRE"
-290 REM BUY LAND
-300 INPUT "ACRES TO BUY"; BUY
-310 IF BUY < 0 THEN 300
-320 IF BUY * PRICE > GRAIN THEN PRINT "NOT ENOUGH GRAIN!" : GOTO 300
-330 ACRES = ACRES + BUY
-340 GRAIN = GRAIN - BUY * PRICE
-350 IF BUY > 0 THEN 420
-360 REM SELL LAND
-370 INPUT "ACRES TO SELL"; SELL
-380 IF SELL < 0 THEN 370
-390 IF SELL > ACRES THEN PRINT "NOT ENOUGH LAND!" : GOTO 370
-400 ACRES = ACRES - SELL
-410 GRAIN = GRAIN + SELL * PRICE
-420 REM FEED PEOPLE
-430 PRINT "GRAIN IN STORE:"; GRAIN
-440 INPUT "BUSHELS TO FEED PEOPLE"; FEED
-450 IF FEED < 0 THEN 440
-460 IF FEED > GRAIN THEN PRINT "NOT ENOUGH GRAIN!" : GOTO 440
-470 GRAIN = GRAIN - FEED
-480 REM PLANT CROPS
-490 PRINT "GRAIN IN STORE:"; GRAIN
-500 INPUT "ACRES TO PLANT"; PLANT
-510 IF PLANT < 0 THEN 500
-520 IF PLANT > ACRES THEN PRINT "NOT ENOUGH LAND!" : GOTO 500
-530 IF PLANT > GRAIN * 2 THEN PRINT "NOT ENOUGH SEED!" : GOTO 500
-540 IF PLANT > POP * 10 THEN PRINT "NOT ENOUGH PEOPLE!" : GOTO 500
-550 GRAIN = GRAIN - INT(PLANT / 2)
-560 REM CALCULATE HARVEST
-570 HARVEST = INT(RND(1) * 6) + 1
-580 GRAIN = GRAIN + HARVEST * PLANT
-590 REM RATS
-600 IF RND(1) > 0.4 THEN 630
-610 RATS = INT(GRAIN * RND(1) * 0.2)
-620 GRAIN = GRAIN - RATS : PRINT "RATS ATE"; RATS; "BUSHELS!"
-630 REM STARVATION
-640 ATE = INT(FEED / 20)
-650 IF ATE >= POP THEN STARVED = 0 : GOTO 670
-660 STARVED = POP - ATE : POP = ATE
-670 REM BIRTHS
-680 BIRTHS = INT(RND(1) * 6) + 1
-690 POP = POP + BIRTHS
-695 GOTO 180
-700 REM END OF GAME
-710 PRINT
-720 PRINT "YOUR REIGN HAS ENDED!"
-730 PRINT "FINAL POPULATION:"; POP
-740 PRINT "ACRES PER PERSON:"; INT(ACRES / POP)
-750 IF POP < 50 THEN PRINT "TERRIBLE! THE PEOPLE REVOLTED!"
-760 IF POP >= 50 AND POP < 100 THEN PRINT "MEDIOCRE RULE."
-770 IF POP >= 100 THEN PRINT "EXCELLENT! HAIL HAMMURABI!"
-780 END
+10 rem Hammurabi - classic resource management game
+20 rem Rule the ancient city of Sumeria
+30 print "Hammurabi"
+40 print "========="
+50 print
+60 print "Try your hand at governing ancient Sumeria"
+70 print "For 10 years. Good luck!"
+80 print
+90 rem Initialize
+100 year = 0
+110 pop = 100 : rem POPULATION
+120 acres = 1000 : rem ACRES OF LAND
+130 grain = 2800 : rem BUSHELS IN STORE
+140 harvest = 3 : rem BUSHELS PER ACRE
+150 starved = 0 : rem STARVED THIS YEAR
+160 ill = 0
+170 rem Main game loop
+180 year = year + 1
+190 if year > 10 then 700
+200 print
+210 print "Year"; year; "of your reign"
+220 print "Population:"; pop
+230 print "Acres:"; acres
+240 print "Grain in store:"; grain; "bushels"
+250 print
+260 rem Random land price
+270 price = int(rnd(1) * 10) + 17
+280 print "Land is trading at"; price; "bushels/acre"
+290 rem Buy land
+300 input "Acres to buy"; buy
+310 if buy < 0 then 300
+320 if buy * price > grain then print "Not enough grain!" : goto 300
+330 acres = acres + buy
+340 grain = grain - buy * price
+350 if buy > 0 then 420
+360 rem Sell land
+370 input "Acres to sell"; sell
+380 if sell < 0 then 370
+390 if sell > acres then print "Not enough land!" : goto 370
+400 acres = acres - sell
+410 grain = grain + sell * price
+420 rem Feed people
+430 print "Grain in store:"; grain
+440 input "Bushels to feed people"; feed
+450 if feed < 0 then 440
+460 if feed > grain then print "Not enough grain!" : goto 440
+470 grain = grain - feed
+480 rem Plant crops
+490 print "Grain in store:"; grain
+500 input "Acres to plant"; plant
+510 if plant < 0 then 500
+520 if plant > acres then print "Not enough land!" : goto 500
+530 if plant > grain * 2 then print "Not enough seed!" : goto 500
+540 if plant > pop * 10 then print "Not enough people!" : goto 500
+550 grain = grain - int(plant / 2)
+560 rem Calculate harvest
+570 harvest = int(rnd(1) * 6) + 1
+580 grain = grain + harvest * plant
+590 rem Rats
+600 if rnd(1) > 0.4 then 630
+610 rats = int(grain * rnd(1) * 0.2)
+620 grain = grain - rats : print "Rats ate"; rats; "bushels!"
+630 rem Starvation
+640 ate = int(feed / 20)
+650 if ate >= pop then starved = 0 : goto 670
+660 starved = pop - ate : pop = ate
+670 rem Births
+680 births = int(rnd(1) * 6) + 1
+690 pop = pop + births
+695 goto 180
+700 rem End of game
+710 print
+720 print "Your reign has ended!"
+730 print "Final population:"; pop
+740 print "Acres per person:"; int(acres / pop)
+750 if pop < 50 then print "Terrible! The people revolted!"
+760 if pop >= 50 and pop < 100 then print "Mediocre rule."
+770 if pop >= 100 then print "Excellent! Hail Hammurabi!"
+780 end

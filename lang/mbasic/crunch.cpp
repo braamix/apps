@@ -74,7 +74,14 @@ void Interp::synchr(u8 want)
 // next ':'.
 namespace {
 
-// A reserved word matches at `at` if its characters are there. Matching is
+// ASCII, inline: every byte of every line entered goes through it.
+inline char lower(char c)
+{
+    return c >= 'A' && c <= 'Z' ? char(c + 32) : c;
+}
+
+// A reserved word matches at `at` if its characters are there, in either case
+// -- RESLST is spelled lowercase and the source byte is folded. Matching is
 // first-fit in table order and does no space skipping of its own, which is
 // what makes IF 2 > F OR T=5 THEN mis-tokenize -- the danger the source warns
 // about at m6502.asm:1208-1216, and a property of the language, not a defect.
@@ -86,7 +93,7 @@ usize match_res(Str src, usize at)
             continue;
         bool eq = true;
         for (usize k = 0; k < w.size(); k++)
-            if (src[at + k] != w[k]) {
+            if (lower(src[at + k]) != w[k]) {
                 eq = false;
                 break;
             }
@@ -164,9 +171,11 @@ void Interp::crunch(Str src, Vec<u8> &dst)
             continue;
         }
 
+        // Folded here, so the stored line is canonical. A string literal, a
+        // DATA item and a REM tail never reach this point and keep their case.
         usize w = match_res(src, i);
         if (w == RESLST_COUNT) {
-            if (!reason(dst.push(c)))
+            if (!reason(dst.push(u8(lower(char(c))))))
                 return;
             i++;
             continue;

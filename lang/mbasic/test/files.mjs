@@ -39,7 +39,9 @@ const out = body(session([
 ]));
 
 const saved = get("/tmp/p.bas");
-if (saved !== "10 REM SAVED\n20 FOR I=1 TO 3:PRINT I*I;:NEXT I\n30 PRINT\n")
+// The keywords come back canonical lower case; the REM tail is verbatim, so
+// SAVED keeps the case it was typed in.
+if (saved !== "10 rem SAVED\n20 for i=1 to 3:print i*i;:next i\n30 print\n")
     die(`SAVE did not write LIST-format text:\n${JSON.stringify(saved)}`);
 const data = get("/tmp/d.txt");
 if (data !== "ALPHA\r\nBETA\r\n")

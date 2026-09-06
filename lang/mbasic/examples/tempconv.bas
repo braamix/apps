@@ -1,23 +1,23 @@
-10 REM TEMPERATURE CONVERTER
-20 REM CONVERTS BETWEEN CELSIUS AND FAHRENHEIT
-30 DEF FN C2F(C) = C * 9 / 5 + 32
-40 DEF FN F2C(F) = (F - 32) * 5 / 9
-50 PRINT "TEMPERATURE CONVERTER"
-60 PRINT "====================="
-70 PRINT
-80 PRINT "1. CELSIUS TO FAHRENHEIT"
-90 PRINT "2. FAHRENHEIT TO CELSIUS"
-100 PRINT "3. EXIT"
-110 PRINT
-120 INPUT "CHOICE"; CH
-130 IF CH = 3 THEN 220
-140 IF CH < 1 OR CH > 3 THEN 70
-150 PRINT
-160 IF CH = 1 THEN INPUT "ENTER CELSIUS"; T : PRINT T; "C ="; FN C2F(T); "F"
-170 IF CH = 2 THEN INPUT "ENTER FAHRENHEIT"; T : PRINT T; "F ="; FN F2C(T); "C"
-180 PRINT
-190 INPUT "ANOTHER CONVERSION (Y/N)"; A$
-200 IF A$ = "Y" THEN 70
-210 PRINT
-220 PRINT "GOODBYE!"
-230 END
+10 rem Temperature converter
+20 rem Converts between celsius and fahrenheit
+30 def fn c2f(c) = c * 9 / 5 + 32
+40 def fn f2c(f) = (f - 32) * 5 / 9
+50 print "Temperature converter"
+60 print "====================="
+70 print
+80 print "1. Celsius to Fahrenheit"
+90 print "2. Fahrenheit to Celsius"
+100 print "3. Exit"
+110 print
+120 input "Choice"; ch
+130 if ch = 3 then 220
+140 if ch < 1 or ch > 3 then 70
+150 print
+160 if ch = 1 then input "Enter Celsius"; t : print t; "C ="; fn c2f(t); "F"
+170 if ch = 2 then input "Enter Fahrenheit"; t : print t; "F ="; fn f2c(t); "C"
+180 print
+190 input "Another conversion (y/n)"; a$
+200 if a$ = "Y" or a$ = "y" then 70
+210 print
+220 print "Goodbye!"
+230 end

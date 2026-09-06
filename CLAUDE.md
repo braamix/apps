@@ -100,9 +100,16 @@ package here whose payload is *programs*: nineteen `.bas` examples ship as
 `/pkg/bin` link leads to, so a user types `LOAD "wumpus.bas"` and not a
 versioned path. They are the first code written *in* a ported language rather
 than ported into one, and the four rules they had to learn are this BASIC's,
-not a modern language's: a reserved word matches anywhere (`MONEY` is `M` `ON`
-`EY`), a name is two characters (`PIT1` and `PIT2` are one variable), there is
-no `ELSE` and no backslash escape, and a `FOR` body always runs once.
+not a modern language's: a reserved word matches anywhere (`money` is `m` `on`
+`ey`), a name is two characters (`pit1` and `pit2` are one variable), there is
+no `else` and no backslash escape, and a `for` body always runs once. They are
+written in lower case, because **case is folded** here and upstream's was not:
+`CRUNCH` is the one chokepoint every path tokenizes through, so `RESLST` is
+spelled lower and the byte stored for anything unmatched is folded — which
+leaves the stored line canonical, `LIST` still the exact inverse of `CRUNCH`,
+and a string, a `DATA` item, a `REM` tail and a filename keeping the case they
+were typed in. The messages are sentence case with it (`Ok`, `?Syntax error`),
+which is the one place this port stops being 1978's bytes.
 
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:

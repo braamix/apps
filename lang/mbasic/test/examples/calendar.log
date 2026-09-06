@@ -1,11 +1,11 @@
 
-OK
-CALENDAR GENERATOR
+Ok
+Calendar generator
 ==================
 
-YEAR? MONTH (1-12)? 
-     SEPTEMBER  2026 
- SU MO TU WE TH FR SA
+Year? Month (1-12)? 
+     September  2026 
+ Su Mo Tu We Th Fr Sa
 ---------------------
             1    2    3    4 
    5    6    7    8    9   10   11 
@@ -13,5 +13,5 @@ YEAR? MONTH (1-12)?
   19   20   21   22   23   24   25 
   26   27   28   29   30 
 
-ANOTHER MONTH (Y/N)? 
-OK
+Another month (y/n)? 
+Ok

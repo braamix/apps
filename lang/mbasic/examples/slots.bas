@@ -1,40 +1,40 @@
-10 REM SLOT MACHINE - APPLE II CLASSIC
-20 REM TRY YOUR LUCK AT THE SLOTS!
-30 DIM S$(6)
-40 S$(1) = "CHERRY" : S$(2) = "LEMON" : S$(3) = "ORANGE"
-50 S$(4) = "PLUM" : S$(5) = "BELL" : S$(6) = "SEVEN"
-60 PRINT "SLOT MACHINE"
-70 PRINT "============"
-80 PRINT
-90 PRINT "MATCH 2 = 2X BET"
-100 PRINT "MATCH 3 = 10X BET"
-110 PRINT "THREE 7S = 100X BET!"
-120 PRINT
-130 CASH = 100
-140 PRINT "YOU HAVE $"; CASH
-150 IF CASH <= 0 THEN PRINT "YOU'RE BROKE!" : GOTO 400
-160 INPUT "BET (0 TO QUIT)"; BET
-170 IF BET = 0 THEN 400
-180 IF BET > CASH THEN PRINT "NOT ENOUGH CASH!" : GOTO 160
-190 IF BET < 1 THEN 160
-200 CASH = CASH - BET
-210 REM SPIN THE WHEELS
-220 PRINT
-230 R1 = INT(RND(1) * 6) + 1
-240 R2 = INT(RND(1) * 6) + 1
-250 R3 = INT(RND(1) * 6) + 1
-260 PRINT "[ "; S$(R1); " ]  [ "; S$(R2); " ]  [ "; S$(R3); " ]"
-270 PRINT
-280 REM CHECK FOR WINS
-290 IF R1 = 6 AND R2 = 6 AND R3 = 6 THEN WIN = BET * 100 : PRINT "JACKPOT!!!" : GOTO 350
-300 IF R1 = R2 AND R2 = R3 THEN WIN = BET * 10 : PRINT "THREE OF A KIND!" : GOTO 350
-310 IF R1 = R2 OR R2 = R3 OR R1 = R3 THEN WIN = BET * 2 : PRINT "TWO MATCH!" : GOTO 350
-320 PRINT "NO MATCH"
-330 GOTO 140
-350 PRINT "YOU WIN $"; WIN
-360 CASH = CASH + WIN
-370 GOTO 140
-400 PRINT
-410 PRINT "THANKS FOR PLAYING!"
-420 PRINT "FINAL TOTAL: $"; CASH
-430 END
+10 rem Slot machine - Apple ii classic
+20 rem Try your luck at the slots!
+30 dim s$(6)
+40 s$(1) = "Cherry" : s$(2) = "Lemon" : s$(3) = "Orange"
+50 s$(4) = "Plum" : s$(5) = "Bell" : s$(6) = "Seven"
+60 print "Slot machine"
+70 print "============"
+80 print
+90 print "Match 2 = 2x bet"
+100 print "Match 3 = 10x bet"
+110 print "Three 7s = 100x bet!"
+120 print
+130 cash = 100
+140 print "You have $"; cash
+150 if cash <= 0 then print "You're broke!" : goto 400
+160 input "Bet (0 to quit)"; bet
+170 if bet = 0 then 400
+180 if bet > cash then print "Not enough cash!" : goto 160
+190 if bet < 1 then 160
+200 cash = cash - bet
+210 rem Spin the wheels
+220 print
+230 r1 = int(rnd(1) * 6) + 1
+240 r2 = int(rnd(1) * 6) + 1
+250 r3 = int(rnd(1) * 6) + 1
+260 print "[ "; s$(r1); " ]  [ "; s$(r2); " ]  [ "; s$(r3); " ]"
+270 print
+280 rem Check for wins
+290 if r1 = 6 and r2 = 6 and r3 = 6 then win = bet * 100 : print "Jackpot!!!" : goto 350
+300 if r1 = r2 and r2 = r3 then win = bet * 10 : print "Three of a kind!" : goto 350
+310 if r1 = r2 or r2 = r3 or r1 = r3 then win = bet * 2 : print "Two match!" : goto 350
+320 print "No match"
+330 goto 140
+350 print "You win $"; win
+360 cash = cash + win
+370 goto 140
+400 print
+410 print "Thanks for playing!"
+420 print "Final total: $"; cash
+430 end

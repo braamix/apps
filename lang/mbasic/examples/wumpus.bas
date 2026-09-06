@@ -1,69 +1,69 @@
-10 REM HUNT THE WUMPUS - CLASSIC TEXT ADVENTURE
-20 REM NAVIGATE A CAVE TO HUNT THE WUMPUS
-30 DIM C(20, 3) : REM CAVE CONNECTIONS
-40 REM CAVE MAP (DODECAHEDRON)
-50 FOR I = 1 TO 20 : READ C(I, 1), C(I, 2), C(I, 3) : NEXT I
-60 DATA 2,5,8, 1,3,10, 2,4,12, 3,5,14, 1,4,6
-70 DATA 5,7,15, 6,8,17, 1,7,9, 8,10,18, 2,9,11
-80 DATA 10,12,19, 3,11,13, 12,14,20, 4,13,15, 6,14,16
-90 DATA 15,17,20, 7,16,18, 9,17,19, 11,18,20, 13,16,19
-100 PRINT "HUNT THE WUMPUS"
-110 PRINT "==============="
-120 PRINT
-130 PRINT "THE WUMPUS LIVES IN A CAVE OF 20 ROOMS."
-140 PRINT "EACH ROOM HAS 3 TUNNELS TO OTHER ROOMS."
-150 PRINT "HAZARDS: BOTTOMLESS PITS, SUPER BATS, AND THE WUMPUS!"
-160 PRINT
-170 REM PLACE THINGS RANDOMLY
-180 YOU = INT(RND(1) * 20) + 1
-190 WUMP = INT(RND(1) * 20) + 1
-200 IF WUMP = YOU THEN 190
-210 P1 = INT(RND(1) * 20) + 1
-220 IF P1 = YOU OR P1 = WUMP THEN 210
-230 P2 = INT(RND(1) * 20) + 1
-240 IF P2 = YOU OR P2 = WUMP OR P2 = P1 THEN 230
-250 B1 = INT(RND(1) * 20) + 1
-260 IF B1 = YOU OR B1 = WUMP OR B1 = P1 OR B1 = P2 THEN 250
-270 B2 = INT(RND(1) * 20) + 1
-280 IF B2 = YOU OR B2 = WUMP OR B2 = P1 OR B2 = P2 OR B2 = B1 THEN 270
-290 ARROWS = 5
-300 REM MAIN LOOP
-310 PRINT
-320 PRINT "YOU ARE IN ROOM"; YOU
-330 PRINT "TUNNELS LEAD TO"; C(YOU, 1); C(YOU, 2); C(YOU, 3)
-340 REM CHECK FOR HAZARDS NEARBY
-350 FOR I = 1 TO 3
-360   R = C(YOU, I)
-370   IF R = WUMP THEN PRINT "I SMELL A WUMPUS!"
-380   IF R = P1 OR R = P2 THEN PRINT "I FEEL A DRAFT!"
-390   IF R = B1 OR R = B2 THEN PRINT "BATS NEARBY!"
-400 NEXT I
-410 PRINT
-420 INPUT "SHOOT OR MOVE (S/M)"; A$
-430 IF A$ = "S" THEN 500
-440 IF A$ = "M" THEN 600
-450 GOTO 420
-500 REM SHOOT
-510 INPUT "SHOOT INTO WHICH ROOM"; R
-520 IF R <> C(YOU, 1) AND R <> C(YOU, 2) AND R <> C(YOU, 3) THEN PRINT "CAN'T SHOOT THERE!" : GOTO 510
-530 ARROWS = ARROWS - 1
-540 IF R = WUMP THEN PRINT "YOU GOT THE WUMPUS!" : GOTO 900
-550 PRINT "MISSED!"
-560 REM WUMPUS WAKES UP
-570 IF RND(1) > 0.75 THEN WUMP = C(WUMP, INT(RND(1) * 3) + 1)
-580 IF WUMP = YOU THEN PRINT "THE WUMPUS GOT YOU!" : GOTO 900
-590 IF ARROWS = 0 THEN PRINT "OUT OF ARROWS!" : GOTO 900
-595 GOTO 300
-600 REM MOVE
-610 INPUT "MOVE TO WHICH ROOM"; R
-620 IF R <> C(YOU, 1) AND R <> C(YOU, 2) AND R <> C(YOU, 3) THEN PRINT "CAN'T GO THERE!" : GOTO 610
-630 YOU = R
-640 REM CHECK HAZARDS
-650 IF YOU = WUMP THEN PRINT "THE WUMPUS GOT YOU!" : GOTO 900
-660 IF YOU = P1 OR YOU = P2 THEN PRINT "FELL IN A PIT!" : GOTO 900
-670 IF YOU = B1 OR YOU = B2 THEN PRINT "SUPER BAT GRABBED YOU!" : YOU = INT(RND(1) * 20) + 1 : GOTO 640
-680 GOTO 300
-900 PRINT
-910 INPUT "PLAY AGAIN (Y/N)"; A$
-920 IF A$ = "Y" THEN 170
-930 END
+10 rem Hunt the wumpus - classic text adventure
+20 rem Navigate a cave to hunt the wumpus
+30 dim c(20, 3) : rem CAVE CONNECTIONS
+40 rem Cave map (dodecahedron)
+50 for i = 1 to 20 : read c(i, 1), c(i, 2), c(i, 3) : next i
+60 data 2,5,8, 1,3,10, 2,4,12, 3,5,14, 1,4,6
+70 data 5,7,15, 6,8,17, 1,7,9, 8,10,18, 2,9,11
+80 data 10,12,19, 3,11,13, 12,14,20, 4,13,15, 6,14,16
+90 data 15,17,20, 7,16,18, 9,17,19, 11,18,20, 13,16,19
+100 print "Hunt the wumpus"
+110 print "==============="
+120 print
+130 print "The wumpus lives in a cave of 20 rooms."
+140 print "Each room has 3 tunnels to other rooms."
+150 print "Hazards: bottomless pits, super bats, and the wumpus!"
+160 print
+170 rem Place things randomly
+180 you = int(rnd(1) * 20) + 1
+190 wump = int(rnd(1) * 20) + 1
+200 if wump = you then 190
+210 p1 = int(rnd(1) * 20) + 1
+220 if p1 = you or p1 = wump then 210
+230 p2 = int(rnd(1) * 20) + 1
+240 if p2 = you or p2 = wump or p2 = p1 then 230
+250 b1 = int(rnd(1) * 20) + 1
+260 if b1 = you or b1 = wump or b1 = p1 or b1 = p2 then 250
+270 b2 = int(rnd(1) * 20) + 1
+280 if b2 = you or b2 = wump or b2 = p1 or b2 = p2 or b2 = b1 then 270
+290 arrows = 5
+300 rem Main loop
+310 print
+320 print "You are in room"; you
+330 print "Tunnels lead to"; c(you, 1); c(you, 2); c(you, 3)
+340 rem Check for hazards nearby
+350 for i = 1 to 3
+360   r = c(you, i)
+370   if r = wump then print "I smell a wumpus!"
+380   if r = p1 or r = p2 then print "I feel a draft!"
+390   if r = b1 or r = b2 then print "Bats nearby!"
+400 next i
+410 print
+420 input "Shoot or move (s/m)"; a$
+430 if a$ = "S" or a$ = "s" then 500
+440 if a$ = "M" or a$ = "m" then 600
+450 goto 420
+500 rem Shoot
+510 input "Shoot into which room"; r
+520 if r <> c(you, 1) and r <> c(you, 2) and r <> c(you, 3) then print "Can't shoot there!" : goto 510
+530 arrows = arrows - 1
+540 if r = wump then print "You got the wumpus!" : goto 900
+550 print "Missed!"
+560 rem Wumpus wakes up
+570 if rnd(1) > 0.75 then wump = c(wump, int(rnd(1) * 3) + 1)
+580 if wump = you then print "The wumpus got you!" : goto 900
+590 if arrows = 0 then print "Out of arrows!" : goto 900
+595 goto 300
+600 rem Move
+610 input "Move to which room"; r
+620 if r <> c(you, 1) and r <> c(you, 2) and r <> c(you, 3) then print "Can't go there!" : goto 610
+630 you = r
+640 rem Check hazards
+650 if you = wump then print "The wumpus got you!" : goto 900
+660 if you = p1 or you = p2 then print "Fell in a pit!" : goto 900
+670 if you = b1 or you = b2 then print "Super bat grabbed you!" : you = int(rnd(1) * 20) + 1 : goto 640
+680 goto 300
+900 print
+910 input "Play again (y/n)"; a$
+920 if a$ = "Y" or a$ = "y" then 170
+930 end

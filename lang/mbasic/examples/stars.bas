@@ -1,19 +1,19 @@
-10 REM STAR PATTERN GENERATOR
-20 REM CREATES A TRIANGLE OF STARS
-30 PRINT "STAR TRIANGLE"
-40 PRINT "============="
-50 PRINT
-60 INPUT "NUMBER OF ROWS"; R
-70 PRINT
-80 FOR I = 1 TO R
-90   REM PRINT LEADING SPACES
-100   FOR J = 1 TO R - I
-110     PRINT " ";
-120   NEXT J
-130   REM PRINT STARS
-140   FOR J = 1 TO 2 * I - 1
-150     PRINT "*";
-160   NEXT J
-170   PRINT
-180 NEXT I
-190 END
+10 rem Star pattern generator
+20 rem Creates a triangle of stars
+30 print "Star triangle"
+40 print "============="
+50 print
+60 input "Number of rows"; r
+70 print
+80 for i = 1 to r
+90   rem Print leading spaces
+100   for j = 1 to r - i
+110     print " ";
+120   next j
+130   rem Print stars
+140   for j = 1 to 2 * i - 1
+150     print "*";
+160   next j
+170   print
+180 next i
+190 end

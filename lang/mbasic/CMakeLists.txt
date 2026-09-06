@@ -29,7 +29,7 @@ foreach(f ${MBASIC_BAS})
     list(APPEND MBASIC_EXAMPLES ${f}=share/${n})
 endforeach()
 
-braam_add_package(NAME mbasic VERSION 1.1-r1
+braam_add_package(NAME mbasic VERSION 1.1-r2
                   FIELD "T=Microsoft BASIC 1.1 for the 6502"
                   FILES $<TARGET_FILE:bin_mbasic>=bin/mbasic ${MBASIC_EXAMPLES})
 

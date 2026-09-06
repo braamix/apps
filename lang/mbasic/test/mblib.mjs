@@ -105,8 +105,7 @@ export function session(lines) {
 
 // Everything up to and including the banner is the same in every case and
 // says nothing about what is under test.
-const HEAD = "\r\n65535 BYTES FREE\r\n\r\nBRAAM BASIC V1.1\r\n" +
-             "COPYRIGHT 1978 MICROSOFT\r\n\r\nOK\r\n";
+const HEAD = "\r\nBraam BASIC v1.1\r\nCopyright 1978 Microsoft\r\n\r\nOk\r\n";
 
 export function body(out) {
     if (!out.startsWith(HEAD))

@@ -1,41 +1,41 @@
-10 REM LUNAR LANDER - CLASSIC APPLE II GAME
-20 REM LAND YOUR SPACECRAFT SAFELY ON THE MOON
-30 PRINT "LUNAR LANDER"
-40 PRINT "============"
-50 PRINT
-60 PRINT "YOU ARE LANDING ON THE MOON."
-70 PRINT "CONTROL YOUR DESCENT BY SETTING FUEL BURN RATE (0-30)."
-80 PRINT "LAND WITH VELOCITY < 5 TO SURVIVE!"
-90 PRINT
-100 REM INITIALIZE
-110 H = 1000 : REM HEIGHT IN FEET
-120 V = 50 : REM VELOCITY (FEET/SEC, POSITIVE = FALLING)
-130 F = 250 : REM FUEL REMAINING
-140 G = 5 : REM LUNAR GRAVITY
-150 PRINT "HEIGHT", "VELOCITY", "FUEL"
-160 PRINT "------", "--------", "----"
-170 REM MAIN LOOP
-180 PRINT INT(H), INT(V), INT(F)
-190 IF H <= 0 THEN 300
-200 INPUT "FUEL BURN RATE (0-30)"; B
-210 IF B < 0 THEN B = 0
-220 IF B > 30 THEN B = 30
-230 IF B > F THEN B = F
-240 REM UPDATE PHYSICS
-250 V = V + G - B
-260 H = H - V
-270 F = F - B
-280 GOTO 180
-300 REM LANDING
-310 IF V > 5 THEN 350
-320 PRINT
-330 PRINT "PERFECT LANDING! WELCOME TO THE MOON!"
-340 GOTO 400
-350 PRINT
-360 PRINT "CRASH! VELOCITY WAS"; INT(V); "FT/SEC"
-370 IF V > 20 THEN PRINT "NO SURVIVORS."
-380 IF V <= 20 THEN PRINT "RESCUE TEAM DISPATCHED."
-400 PRINT
-410 INPUT "PLAY AGAIN (Y/N)"; A$
-420 IF A$ = "Y" THEN 100
-430 END
+10 rem Lunar lander - classic Apple ii game
+20 rem Land your spacecraft safely on the moon
+30 print "Lunar lander"
+40 print "============"
+50 print
+60 print "You are landing on the moon."
+70 print "Control your descent by setting fuel burn rate (0-30)."
+80 print "Land with velocity < 5 to survive!"
+90 print
+100 rem Initialize
+110 h = 1000 : rem HEIGHT IN FEET
+120 v = 50 : rem VELOCITY (FEET/SEC, POSITIVE = FALLING)
+130 f = 250 : rem FUEL REMAINING
+140 g = 5 : rem LUNAR GRAVITY
+150 print "Height", "Velocity", "Fuel"
+160 print "------", "--------", "----"
+170 rem Main loop
+180 print int(h), int(v), int(f)
+190 if h <= 0 then 300
+200 input "Fuel burn rate (0-30)"; b
+210 if b < 0 then b = 0
+220 if b > 30 then b = 30
+230 if b > f then b = f
+240 rem Update physics
+250 v = v + g - b
+260 h = h - v
+270 f = f - b
+280 goto 180
+300 rem Landing
+310 if v > 5 then 350
+320 print
+330 print "Perfect landing! Welcome to the moon!"
+340 goto 400
+350 print
+360 print "Crash! Velocity was"; int(v); "ft/sec"
+370 if v > 20 then print "No survivors."
+380 if v <= 20 then print "Rescue team dispatched."
+400 print
+410 input "Play again (y/n)"; a$
+420 if a$ = "Y" or a$ = "y" then 100
+430 end

@@ -175,7 +175,8 @@ f64 Interp::fin()
     if (!any)
         return 0; // FIN with no digits at all answers zero
 
-    if (c == 'E') {
+    // Either case: CRUNCH folds 1E5 to 1e5. FOUT still prints 'E'.
+    if (c == 'E' || c == 'e') {
         c = chrget();
         Buf<8> e;
         if (c == '-' || c == MINUTK) {

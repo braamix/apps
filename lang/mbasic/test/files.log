@@ -1,27 +1,27 @@
 
-OK
+Ok
 
-OK
+Ok
 
-OK
+Ok
 
-OK
-10 REM SAVED
-20 FOR I=1 TO 3:PRINT I*I;:NEXT I
-30 PRINT
+Ok
+10 rem SAVED
+20 for i=1 to 3:print i*i;:next i
+30 print
 
-OK
+Ok
  1  4  9 
 
-OK
+Ok
 
-OK
+Ok
 READ BACK: ALPHA BETA
 
-OK
+Ok
 
-?FILE DATA ERROR
-OK
+?File data error
+Ok
 
-?FILE DATA ERROR
-OK
+?File data error
+Ok

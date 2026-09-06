@@ -1,101 +1,101 @@
-10 REM ================================
-20 REM ELIZA - COMPUTER THERAPIST
-30 REM BASED ON WEIZENBAUM'S 1966 AI
-40 REM ================================
-50 PRINT "ELIZA - COMPUTER THERAPIST"
-60 PRINT "BASED ON WEIZENBAUM (1966)"
-70 PRINT
-80 PRINT "HELLO, I AM ELIZA."
-90 PRINT "PLEASE TELL ME YOUR PROBLEM."
-100 PRINT
-110 REM MAIN LOOP
-120 INPUT "YOU: ";A$
-130 IF A$ = "" THEN 120
-140 IF A$ = "BYE" OR A$ = "bye" THEN 900
-150 IF A$ = "QUIT" OR A$ = "quit" THEN 900
-160 REM CONVERT TO UPPERCASE
-170 U$ = ""
-180 FOR I = 1 TO LEN(A$)
-190 C$ = MID$(A$,I,1)
-200 C = ASC(C$)
-210 IF C >= 97 AND C <= 122 THEN C = C - 32
-220 U$ = U$ + CHR$(C)
-230 NEXT I
-240 A$ = U$
-250 REM CHECK FOR KEYWORDS USING GOSUB
-260 REM FAMILY WORDS
-270 K$ = "MOTHER": GOSUB 950: IF F = 1 THEN 500
-280 K$ = "FATHER": GOSUB 950: IF F = 1 THEN 510
-290 K$ = "SISTER": GOSUB 950: IF F = 1 THEN 520
-300 K$ = "BROTHER": GOSUB 950: IF F = 1 THEN 520
-310 K$ = "FAMILY": GOSUB 950: IF F = 1 THEN 530
-320 REM FEELING WORDS
-330 K$ = "SAD": GOSUB 950: IF F = 1 THEN 540
-340 K$ = "HAPPY": GOSUB 950: IF F = 1 THEN 550
-350 K$ = "ANGRY": GOSUB 950: IF F = 1 THEN 560
-360 K$ = "AFRAID": GOSUB 950: IF F = 1 THEN 570
-370 K$ = "DEPRESSED": GOSUB 950: IF F = 1 THEN 580
-380 REM QUESTIONS
-390 K$ = "WHY": GOSUB 950: IF F = 1 THEN 590
-400 K$ = "HOW": GOSUB 950: IF F = 1 THEN 600
-410 K$ = "WHAT": GOSUB 950: IF F = 1 THEN 610
-420 K$ = "WHO": GOSUB 950: IF F = 1 THEN 620
-430 REM I STATEMENTS
-440 K$ = "I AM ": GOSUB 950: IF F = 1 THEN 630
-450 K$ = "I FEEL ": GOSUB 950: IF F = 1 THEN 640
-460 K$ = "I WANT ": GOSUB 950: IF F = 1 THEN 650
-470 K$ = "I NEED ": GOSUB 950: IF F = 1 THEN 660
-480 K$ = "I THINK ": GOSUB 950: IF F = 1 THEN 670
-490 GOTO 700
-500 PRINT "ELIZA: TELL ME MORE ABOUT YOUR MOTHER.": GOTO 120
-510 PRINT "ELIZA: HOW DO YOU FEEL ABOUT YOUR FATHER?": GOTO 120
-520 PRINT "ELIZA: TELL ME ABOUT YOUR FAMILY.": GOTO 120
-530 PRINT "ELIZA: FAMILY IS IMPORTANT. GO ON.": GOTO 120
-540 PRINT "ELIZA: I AM SORRY TO HEAR YOU ARE SAD.": GOTO 120
-550 PRINT "ELIZA: WHAT MAKES YOU HAPPY?": GOTO 120
-560 PRINT "ELIZA: WHY DOES THAT MAKE YOU ANGRY?": GOTO 120
-570 PRINT "ELIZA: WHAT ARE YOU AFRAID OF?": GOTO 120
-580 PRINT "ELIZA: WHY DO YOU FEEL DEPRESSED?": GOTO 120
-590 PRINT "ELIZA: WHY DO YOU ASK?": GOTO 120
-600 PRINT "ELIZA: DOES THAT QUESTION INTEREST YOU?": GOTO 120
-610 PRINT "ELIZA: WHY DO YOU ASK THAT?": GOTO 120
-620 PRINT "ELIZA: WHO DO YOU THINK?": GOTO 120
-630 K$ = "I AM ": GOSUB 950
-635 PRINT "ELIZA: WHY DO YOU SAY YOU ARE ";
-636 PRINT MID$(A$,P+5); "?": GOTO 120
-640 K$ = "I FEEL ": GOSUB 950
-645 PRINT "ELIZA: DO YOU OFTEN FEEL ";
-646 PRINT MID$(A$,P+7); "?": GOTO 120
-650 K$ = "I WANT ": GOSUB 950
-655 PRINT "ELIZA: WHY DO YOU WANT ";
-656 PRINT MID$(A$,P+7); "?": GOTO 120
-660 K$ = "I NEED ": GOSUB 950
-665 PRINT "ELIZA: DO YOU REALLY NEED ";
-666 PRINT MID$(A$,P+7); "?": GOTO 120
-670 K$ = "I THINK ": GOSUB 950
-675 PRINT "ELIZA: WHY DO YOU THINK ";
-676 PRINT MID$(A$,P+8); "?": GOTO 120
-700 REM GENERIC RESPONSES
-710 R = INT(RND(1)*8) + 1
-720 ON R GOTO 730,740,750,760,770,780,790,795
-730 PRINT "ELIZA: PLEASE GO ON.": GOTO 120
-740 PRINT "ELIZA: TELL ME MORE.": GOTO 120
-750 PRINT "ELIZA: THAT IS INTERESTING.": GOTO 120
-760 PRINT "ELIZA: HOW DOES THAT MAKE YOU FEEL?": GOTO 120
-770 PRINT "ELIZA: CAN YOU ELABORATE?": GOTO 120
-780 PRINT "ELIZA: I SEE.": GOTO 120
-790 PRINT "ELIZA: PLEASE CONTINUE.": GOTO 120
-795 PRINT "ELIZA: VERY INTERESTING.": GOTO 120
-900 PRINT
-910 PRINT "ELIZA: GOODBYE. IT WAS NICE"
-920 PRINT "       TALKING WITH YOU."
-930 END
-940 REM
-950 REM FIND K$ IN A$, SET F=1 IF FOUND, P=POSITION
-960 F = 0: P = 0
-970 L = LEN(K$)
-980 IF L > LEN(A$) THEN RETURN
-990 FOR J = 1 TO LEN(A$) - L + 1
-1000 IF MID$(A$,J,L) = K$ THEN F = 1: P = J: RETURN
-1010 NEXT J
-1020 RETURN
+10 rem ================================
+20 rem Eliza - computer therapist
+30 rem Based on weizenbaum's 1966 ai
+40 rem ================================
+50 print "Eliza - computer therapist"
+60 print "Based on Weizenbaum (1966)"
+70 print
+80 print "Hello, I am Eliza."
+90 print "Please tell me your problem."
+100 print
+110 rem Main loop
+120 input "You: ";a$
+130 if a$ = "" then 120
+140 if a$ = "BYE" or a$ = "bye" then 900
+150 if a$ = "QUIT" or a$ = "quit" then 900
+160 rem Convert to uppercase
+170 u$ = ""
+180 for i = 1 to len(a$)
+190 c$ = mid$(a$,i,1)
+200 c = asc(c$)
+210 if c >= 97 and c <= 122 then c = c - 32
+220 u$ = u$ + chr$(c)
+230 next i
+240 a$ = u$
+250 rem Check for keywords using gosub
+260 rem Family words
+270 k$ = "MOTHER": gosub 950: if f = 1 then 500
+280 k$ = "FATHER": gosub 950: if f = 1 then 510
+290 k$ = "SISTER": gosub 950: if f = 1 then 520
+300 k$ = "BROTHER": gosub 950: if f = 1 then 520
+310 k$ = "FAMILY": gosub 950: if f = 1 then 530
+320 rem Feeling words
+330 k$ = "SAD": gosub 950: if f = 1 then 540
+340 k$ = "HAPPY": gosub 950: if f = 1 then 550
+350 k$ = "ANGRY": gosub 950: if f = 1 then 560
+360 k$ = "AFRAID": gosub 950: if f = 1 then 570
+370 k$ = "DEPRESSED": gosub 950: if f = 1 then 580
+380 rem Questions
+390 k$ = "WHY": gosub 950: if f = 1 then 590
+400 k$ = "HOW": gosub 950: if f = 1 then 600
+410 k$ = "WHAT": gosub 950: if f = 1 then 610
+420 k$ = "WHO": gosub 950: if f = 1 then 620
+430 rem I statements
+440 k$ = "I AM ": gosub 950: if f = 1 then 630
+450 k$ = "I FEEL ": gosub 950: if f = 1 then 640
+460 k$ = "I WANT ": gosub 950: if f = 1 then 650
+470 k$ = "I NEED ": gosub 950: if f = 1 then 660
+480 k$ = "I THINK ": gosub 950: if f = 1 then 670
+490 goto 700
+500 print "Eliza: Tell me more about your mother.": goto 120
+510 print "Eliza: How do you feel about your father?": goto 120
+520 print "Eliza: Tell me about your family.": goto 120
+530 print "Eliza: Family is important. go on.": goto 120
+540 print "Eliza: I am sorry to hear you are sad.": goto 120
+550 print "Eliza: What makes you happy?": goto 120
+560 print "Eliza: Why does that make you angry?": goto 120
+570 print "Eliza: What are you afraid of?": goto 120
+580 print "Eliza: Why do you feel depressed?": goto 120
+590 print "Eliza: Why do you ask?": goto 120
+600 print "Eliza: Does that question interest you?": goto 120
+610 print "Eliza: Why do you ask that?": goto 120
+620 print "Eliza: Who do you think?": goto 120
+630 k$ = "I AM ": gosub 950
+635 print "Eliza: Why do you say you are ";
+636 print mid$(a$,p+5); "?": goto 120
+640 k$ = "I FEEL ": gosub 950
+645 print "Eliza: Do you often feel ";
+646 print mid$(a$,p+7); "?": goto 120
+650 k$ = "I WANT ": gosub 950
+655 print "Eliza: Why do you want ";
+656 print mid$(a$,p+7); "?": goto 120
+660 k$ = "I NEED ": gosub 950
+665 print "Eliza: Do you really need ";
+666 print mid$(a$,p+7); "?": goto 120
+670 k$ = "I THINK ": gosub 950
+675 print "Eliza: Why do you think ";
+676 print mid$(a$,p+8); "?": goto 120
+700 rem Generic responses
+710 r = int(rnd(1)*8) + 1
+720 on r goto 730,740,750,760,770,780,790,795
+730 print "Eliza: Please go on.": goto 120
+740 print "Eliza: Tell me more.": goto 120
+750 print "Eliza: That is interesting.": goto 120
+760 print "Eliza: How does that make you feel?": goto 120
+770 print "Eliza: Can you elaborate?": goto 120
+780 print "Eliza: I see.": goto 120
+790 print "Eliza: Please continue.": goto 120
+795 print "Eliza: Very interesting.": goto 120
+900 print
+910 print "Eliza: Goodbye. it was nice"
+920 print "       Talking with you."
+930 end
+940 rem
+950 rem Find k$ in a$, set f=1 if found, p=position
+960 f = 0: p = 0
+970 l = len(k$)
+980 if l > len(a$) then return
+990 for j = 1 to len(a$) - l + 1
+1000 if mid$(a$,j,l) = k$ then f = 1: p = j: return
+1010 next j
+1020 return

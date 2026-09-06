@@ -58,7 +58,7 @@ Reason Interp::start(u32 cols, bool interactive)
         return want_;
     }
 
-    outstr("MEMORY SIZE");
+    outstr("Memory size");
     suspend_line("? ", 0, Resume::MemSize);
     halt_ = Halt::None;
     return want_;
@@ -80,21 +80,21 @@ void Interp::memsize_resume()
     if (s.size() == 1 && (s[0] == 'A' || s[0] == 'a')) {
         outstr("\r\n");
         outdo(12);
-        outstr("WRITTEN BY WEILAND & GATES\r\n");
-        outstr("MEMORY SIZE");
+        outstr("Written by Weiland & Gates\r\n");
+        outstr("Memory size");
         SUSPEND(suspend_line("? ", 0, Resume::MemSize));
     }
 
     if (!s.empty()) {
         Option<u32> n = whole_number(s);
         if (!n.has_value()) {
-            outstr("MEMORY SIZE");
+            outstr("Memory size");
             SUSPEND(suspend_line("? ", 0, Resume::MemSize));
         }
         memsiz = n.value();
     }
 
-    outstr("TERMINAL WIDTH");
+    outstr("Terminal width");
     SUSPEND(suspend_line("? ", 0, Resume::TtyWidth));
 }
 
@@ -116,7 +116,7 @@ void Interp::ttywidth_resume()
     if (!s.empty()) {
         Option<u32> n = whole_number(s);
         if (!n.has_value() || n.value() >= 256 || n.value() < 16) {
-            outstr("TERMINAL WIDTH");
+            outstr("Terminal width");
             SUSPEND(suspend_line("? ", 0, Resume::TtyWidth));
         }
         linwid = n.value();
@@ -129,15 +129,12 @@ void Interp::ttywidth_resume()
     halt_ = Halt::Ready;
 }
 
-// m6502.asm:6873-6907 and 6909-6948. For every target but the Commodore,
-// WORDS and the sign-on are one contiguous NUL-terminated string, so the
-// banner comes AFTER the free-memory line. Braam is a sixth REALIO target, the
-// way STM was a fifth.
+// m6502.asm:6873-6907 and 6909-6948. Upstream printed the free-memory line
+// ahead of the sign-on; the memory here is the kernel's, not the machine's, so
+// the number said nothing and is dropped.
 void Interp::banner()
 {
     crdo();
-    linprt(memsiz);
-    outstr(" BYTES FREE\r\n\r\n");
-    outstr("BRAAM BASIC V1.1\r\n");
-    outstr("COPYRIGHT 1978 MICROSOFT\r\n");
+    outstr("Braam BASIC v1.1\r\n");
+    outstr("Copyright 1978 Microsoft\r\n");
 }
