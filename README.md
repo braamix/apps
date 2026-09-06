@@ -18,6 +18,7 @@ that runs in a browser tab.
 | [games/asciifluid](games/asciifluid/) | IOCCC 2012/endoh1, a fluid simulator that fits on a screen |
 | [games/asciiquarium](games/asciiquarium/) | goquarium, the ASCII aquarium — fish, sharks, whales and a castle |
 | [emulators/simbesm](emulators/simbesm/) | The BESM-6, the Soviet mainframe — it boots Unix |
+| [lang/mbasic](lang/mbasic/) | Microsoft BASIC 1.1 for the 6502, the one that shipped on the Apple II |
 
 The rest of the tree is category directories, a few of them holding a `TODO.md`
 naming an upstream worth porting.
@@ -25,8 +26,8 @@ naming an upstream worth porting.
 ## Layout
 
 Categories, as in pkgsrc — `archivers`, `benchmarks`, `converters`, `editors`,
-`games`, `misc` — each holding one sub-directory per program. Every program
-builds into a ZIP package that `/bin/pkg` installs.
+`games`, `lang`, `misc` — each holding one sub-directory per program. Every
+program builds into a ZIP package that `/bin/pkg` installs.
 
 ## Building
 
@@ -49,8 +50,10 @@ editors, driven a keystroke at a time and asserted cell by cell;
 `converters/iconv`, which checks 137,385 mappings against GNU libiconv's own
 answers; `games/asciifluid`, whose frames are compared with the ones upstream's
 own binary paints; `games/asciiquarium`, a seeded aquarium asserted frame by
-frame and driven by its own keys; and the two benchmarks, each stopped partway
-by a signal. All of them need node and a sibling `../braam-core` built.
+frame and driven by its own keys; the two benchmarks, each stopped partway
+by a signal; and `lang/mbasic`, whose sessions are compared line for line and
+whose `^C` is asserted on the grid. All of them need node and a sibling
+`../braam-core` built.
 
     make index
 

@@ -1,0 +1,294 @@
+#include "edit.h"
+
+#include "kernel/key.h"
+#include "kernel/screen.h"
+#include "kernel/text.h"
+#include "kernel/traits.h"
+
+namespace {
+
+bool is_word(char32_t c)
+{
+    return c != ' ' && c != '\t';
+}
+
+} // namespace
+
+// One repaint from the anchor. There is no erase-to-end-of-line, so a
+// shortened line's tail is blanked by hand, and it is one syscall: a keystroke
+// pays a round trip for each.
+Task<Result<void>> LineEditor::redraw()
+{
+    if (!cols_)
+        co_return {};
+    if (x0_ >= cols_)
+        x0_ = 0;
+
+    String out;
+    char b[4];
+    for (usize i = 0; i < buf_.size(); i++)
+        if (!out.append(Str(b, utf8_encode(buf_[i], b))))
+            co_return Err(Error::NoMemory);
+    for (usize i = buf_.size(); i < painted_; i++)
+        if (!out.push(' '))
+            co_return Err(Error::NoMemory);
+
+    painted_ = buf_.size();
+
+    // Anchor, bytes and cursor in one operation: one tick, one present, and
+    // `scrolled` says where the write ended.
+    const StyledRun runs[]  = { { SYS_STYLE_KEEP, out.str() } };
+    Task<Result<Painted>> t = cursor_echo(x0_, y0_, cur_, SYS_ECHO_SHOW, runs);
+    if (!t)
+        co_return Err(Error::NoMemory);
+    Result<Painted> r = co_await t;
+    if (r.is_err())
+        co_return Err(r.error());
+
+    cols_ = r.value().cursor.at.cols;
+    rows_ = r.value().cursor.at.rows;
+    y0_   = r.value().scrolled < y0_ ? y0_ - r.value().scrolled : 0;
+    co_return {};
+}
+
+// The anchor is wherever the interpreter's prompt left the cursor -- after
+// "OK" and a newline for MAIN, after "? " for INPUT -- so this asks rather
+// than moves. FRESH would put the edit on a row of its own, which is right for
+// a game's prompt and wrong for INPUT's, whose "? " is already on this one.
+Task<Result<void>> LineEditor::anchor()
+{
+    Task<Result<CursorAt>> t = cursor_get();
+    if (!t)
+        co_return Err(Error::NoMemory);
+    Result<CursorAt> r = co_await t;
+    if (r.is_err())
+        co_return Err(r.error());
+
+    x0_   = r.value().x;
+    y0_   = r.value().y;
+    cols_ = r.value().at.cols;
+    rows_ = r.value().at.rows;
+    co_return {};
+}
+
+bool LineEditor::set_text(Str utf8)
+{
+    buf_.clear();
+    usize i = 0;
+    char32_t ch;
+    while (usize n = utf8_decode(utf8, i, ch)) {
+        if (!buf_.push(ch))
+            return false;
+        i += n;
+    }
+    cur_ = buf_.size();
+    return true;
+}
+
+bool LineEditor::set_text(const Vec<char32_t> &from)
+{
+    buf_.clear();
+    if (!buf_.reserve(from.size()))
+        return false;
+    for (usize i = 0; i < from.size(); i++)
+        buf_.push(from[i]);
+    cur_ = buf_.size();
+    return true;
+}
+
+bool LineEditor::text_of(const Vec<char32_t> &from, String &out) const
+{
+    out.clear();
+    char b[4];
+    for (usize i = 0; i < from.size(); i++)
+        if (!out.append(Str(b, utf8_encode(from[i], b))))
+            return false;
+    return true;
+}
+
+bool LineEditor::remember(Str s)
+{
+    if (s.empty() || (!history_.empty() && history_.back() == s))
+        return true;
+
+    String copy;
+    if (!copy.assign(s) || !history_.push(move(copy)))
+        return false;
+    if (history_.size() > HISTORY_MAX)
+        history_.erase(0);
+    return true;
+}
+
+// Back over any spaces, then back over the word before them.
+usize LineEditor::word_start() const
+{
+    usize i = cur_;
+    while (i && !is_word(buf_[i - 1]))
+        i--;
+    while (i && is_word(buf_[i - 1]))
+        i--;
+    return i;
+}
+
+Task<Result<InLine>> LineEditor::read_line()
+{
+    buf_.clear();
+    pending_.clear();
+    cur_     = 0;
+    painted_ = 0;
+    hist_    = history_.size();
+
+    if (Task<Result<void>> t = anchor()) {
+        if (Result<void> r = co_await t; r.is_err())
+            co_return Err(r.error());
+    } else
+        co_return Err(Error::NoMemory);
+
+    for (;;) {
+        Task<Result<KeyPress>> kt = key_read();
+        if (!kt)
+            co_return Err(Error::NoMemory);
+        Result<KeyPress> r = co_await kt;
+
+        Key k{};
+        if (r.is_err()) {
+            if (r.error() != Error::Intr)
+                co_return Err(r.error());
+
+            // A caught signal abandoned the read, so no key is behind it. A
+            // resize repaints and asks again; the reply carries the new
+            // geometry. SIG_INT is the DEL, which the ^C branch below answers.
+            if (sig_take(SIG_WINCH)) {
+                if (Task<Result<void>> t = redraw()) {
+                    if (Result<void> bad = co_await t; bad.is_err())
+                        co_return Err(bad.error());
+                }
+                continue;
+            }
+            if (!sig_take(SIG_INT))
+                co_return Err(r.error());
+            k = Key{ 'c', MOD_CTRL };
+        } else {
+            k     = Key{ r.value().code, r.value().mods };
+            cols_ = r.value().at.cols;
+            rows_ = r.value().at.rows;
+        }
+
+        bool ctrl = (k.mods & MOD_CTRL) != 0;
+        bool alt  = (k.mods & MOD_ALT) != 0;
+
+        if (k.printable()) {
+            if (!buf_.insert(cur_, k.code))
+                co_return Err(Error::NoMemory);
+            cur_++;
+        } else if (k.code == KEY_ENTER) {
+            cur_ = buf_.size();
+            if (Task<Result<void>> t = redraw()) {
+                if (Result<void> bad = co_await t; bad.is_err())
+                    co_return Err(bad.error());
+            }
+            if (Task<Result<void>> t = write_all(SYS_STDOUT, "\n"))
+                co_await t;
+            InLine line;
+            if (!text_of(buf_, line.text) || !remember(line.text.str()))
+                co_return Err(Error::NoMemory);
+            co_return move(line);
+        } else if (ctrl && k.code == 'c') {
+            cur_ = buf_.size();
+            if (Task<Result<void>> t = redraw()) {
+                if (Result<void> bad = co_await t; bad.is_err())
+                    co_return Err(bad.error());
+            }
+            if (Task<Result<void>> t = write_all(SYS_STDOUT, "^C\n"))
+                co_await t;
+            InLine line;
+            line.how = LineEnd::Interrupt;
+            co_return move(line);
+        } else if (k.code == KEY_BACKSPACE || (ctrl && k.code == 'h')) {
+            if (alt) {
+                usize at = word_start();
+                buf_.erase(at, cur_ - at);
+                cur_ = at;
+            } else if (cur_) {
+                buf_.erase(cur_ - 1);
+                cur_--;
+            }
+        } else if (k.code == KEY_DELETE || (ctrl && k.code == 'd')) {
+            // ^D on an empty line is end of input, as it is at the shell and
+            // in cooked mode. Upstream had no way to leave BASIC at all: it
+            // owned the machine.
+            if (ctrl && k.code == 'd' && buf_.empty()) {
+                if (Task<Result<void>> t = write_all(SYS_STDOUT, "\n"))
+                    co_await t;
+                InLine line;
+                line.how = LineEnd::Eof;
+                co_return move(line);
+            }
+            if (cur_ < buf_.size())
+                buf_.erase(cur_);
+        } else if (k.code == KEY_LEFT || (ctrl && k.code == 'b')) {
+            if (cur_)
+                cur_--;
+        } else if (k.code == KEY_RIGHT || (ctrl && k.code == 'f')) {
+            if (cur_ < buf_.size())
+                cur_++;
+        } else if (k.code == KEY_HOME || (ctrl && k.code == 'a')) {
+            cur_ = 0;
+        } else if (k.code == KEY_END || (ctrl && k.code == 'e')) {
+            cur_ = buf_.size();
+        } else if (ctrl && k.code == 'k') {
+            buf_.erase(cur_, buf_.size() - cur_);
+        } else if (ctrl && k.code == 'u') {
+            buf_.erase(0, cur_);
+            cur_ = 0;
+        } else if (ctrl && k.code == 'w') {
+            usize at = word_start();
+            buf_.erase(at, cur_ - at);
+            cur_ = at;
+        } else if (ctrl && k.code == 'l') {
+            if ((co_await sys_call(Sys::ScreenClear, 0)).is_err())
+                co_return Err(Error::Io);
+            painted_ = 0;
+            if (Task<Result<void>> t = anchor()) {
+                if (Result<void> bad = co_await t; bad.is_err())
+                    co_return Err(bad.error());
+            }
+        } else if (k.code == KEY_UP) {
+            if (!hist_)
+                continue;
+            // The line being typed is parked, and comes back when Down walks
+            // past the newest entry.
+            if (hist_ == history_.size() && !set_pending())
+                co_return Err(Error::NoMemory);
+            hist_--;
+            if (!set_text(history_[hist_].str()))
+                co_return Err(Error::NoMemory);
+        } else if (k.code == KEY_DOWN) {
+            if (hist_ == history_.size())
+                continue;
+            hist_++;
+            bool ok =
+                hist_ == history_.size() ? set_text(pending_) : set_text(history_[hist_].str());
+            if (!ok)
+                co_return Err(Error::NoMemory);
+        } else {
+            continue; // an unbound key changed nothing
+        }
+
+        if (Task<Result<void>> t = redraw()) {
+            if (Result<void> bad = co_await t; bad.is_err())
+                co_return Err(bad.error());
+        } else
+            co_return Err(Error::NoMemory);
+    }
+}
+
+bool LineEditor::set_pending()
+{
+    pending_.clear();
+    if (!pending_.reserve(buf_.size()))
+        return false;
+    for (usize i = 0; i < buf_.size(); i++)
+        pending_.push(buf_[i]);
+    return true;
+}

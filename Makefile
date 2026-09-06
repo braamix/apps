@@ -106,6 +106,11 @@ test: all
 	@node benchmarks/dhrystone/test/interrupt.mjs
 	@node benchmarks/duremark/test/interrupt.mjs
 	@node emulators/simbesm/test/boot.mjs
+	@node lang/mbasic/test/repl.mjs
+	@node lang/mbasic/test/numbers.mjs
+	@node lang/mbasic/test/errors.mjs
+	@node lang/mbasic/test/files.mjs
+	@node lang/mbasic/test/interrupt.mjs
 
 # The repository to upload: the signed index and the zips it vouches for, in
 # one directory, because a package's URL is derived from the index's own N.

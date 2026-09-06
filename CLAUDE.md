@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Eleven programs are ported so far**:
+**Twelve programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -76,14 +76,33 @@ reshaped where the keys arrive. The Go half is `CallbackArgs any` — an interfa
 holding one of two shapes — becoming named fields and an enum, and five closures
 becoming plain functions. Its sprites were lifted out of the Go sources by a
 parser over `go/ast` and every literal compared against that dump, trailing
-spaces included, since a sprite's width is measured from them.
+spaces included, since a sprite's width is measured from them; and
+[lang/mbasic](lang/mbasic/), Microsoft BASIC 1.1 for the 6502 — the first
+*language* here, and a **seventh shape**: a read-eval-print loop over a program
+it is also editing. Its hard part is that `ERROR` was a stack-pointer reset
+from arbitrary depth, and the answer is vi's — a sticky flag and a
+frame-at-a-time return — which then carries the *blocking read* as well,
+because a read that has to unwind to a driver unwinds for the same reason to
+the same place. `INPUT` is the one statement that can want a line midway
+through itself, at the `?? ` prompt, and naming every field of what upstream
+kept in page zero is what a suspension costs; nothing is replayed, because the
+resume point is a position in the variable list. The interpreter is plain C++
+and only `braam.cpp` awaits, simbesm-fashion. It is also where the keyboard has
+to change hands: a key ring has one receiver and there is no non-blocking key
+read, so the line editor holds it at the prompt and gives it back the moment a
+program yields — which is exactly when the console's pump, not the editor,
+should be the thing that sees a `^C`. Arithmetic is `double`, but `FOUT`'s
+format is reproduced to the digit, and the four positionally-coupled tables
+(`RESLST`, `STMDSP`, `FUNDSP`, `OPTAB`) are in one file because adding a word
+under one switch renumbers every later token in all four.
+
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).
 
 Layout is `<category>/<program>/`, categories borrowed from pkgsrc (`archivers`,
-`benchmarks`, `editors`, `games`, `misc`, …). A directory with only a `TODO.md`
-is a stated intention, not work in progress.
+`benchmarks`, `editors`, `games`, `lang`, `misc`, …). A directory with only a
+`TODO.md` is a stated intention, not work in progress.
 
 A port is a rewrite, and it keeps upstream's identifiers, structure and output
 text: the value of porting a historic program is that it is still the same
