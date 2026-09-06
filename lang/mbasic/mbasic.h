@@ -24,41 +24,44 @@
 // and OPTAB are four parallel tables guarded by the same conditionals: adding
 // a word under one renumbers everything after it in all four. This build is
 // the Apple base (INTPRC, ADDPRC, GETCMD) plus EXTIO, DISKO and LNGERR, with
-// no VERIFY, DDT, NULL or TIME. See tables.cpp.
+// no VERIFY, DDT, NULL or TIME, plus RENUM from the later releases. See
+// tables.cpp.
 
 enum : u8 {
     ENDTK  = 0x80, // the first statement token
     FORTK  = 0x81,
     DATATK = 0x83,
     GOTOTK = 0x89,
+    RUNTK  = 0x8A,
     GOSUTK = 0x8D,
     REMTK  = 0x8F,
     PRINTK = 0x98,
-    SCRATK = 0xA1, // NEW, the last statement token
-    TABTK  = 0xA2,
-    TOTK   = 0xA3,
-    FNTK   = 0xA4,
-    SPCTK  = 0xA5,
-    THENTK = 0xA6,
-    NOTTK  = 0xA7,
-    STEPTK = 0xA8,
-    PLUSTK = 0xA9, // the seven binary operators, contiguous for OPTAB
-    MINUTK = 0xAA,
-    MULTK  = 0xAB,
-    DIVTK  = 0xAC,
-    PWRTK  = 0xAD,
-    ANDTK  = 0xAE,
-    ORTK   = 0xAF,
-    GREATK = 0xB0, // the relationals, adjacent and in this order
-    EQULTK = 0xB1,
-    LESSTK = 0xB2,
-    ONEFUN = 0xB3, // SGN, the first function
-    LASNUM = 0xC6, // CHR$, the last taking one argument
-    MIDTK  = 0xC9,
-    GOTK   = 0xCA, // GO: a token with no STMDSP entry
+    SCRATK = 0xA1, // NEW
+    RENUTK = 0xA2, // RENUM, the last statement token -- not upstream's
+    TABTK  = 0xA3,
+    TOTK   = 0xA4,
+    FNTK   = 0xA5,
+    SPCTK  = 0xA6,
+    THENTK = 0xA7,
+    NOTTK  = 0xA8,
+    STEPTK = 0xA9,
+    PLUSTK = 0xAA, // the seven binary operators, contiguous for OPTAB
+    MINUTK = 0xAB,
+    MULTK  = 0xAC,
+    DIVTK  = 0xAD,
+    PWRTK  = 0xAE,
+    ANDTK  = 0xAF,
+    ORTK   = 0xB0,
+    GREATK = 0xB1, // the relationals, adjacent and in this order
+    EQULTK = 0xB2,
+    LESSTK = 0xB3,
+    ONEFUN = 0xB4, // SGN, the first function
+    LASNUM = 0xC7, // CHR$, the last taking one argument
+    MIDTK  = 0xCA,
+    GOTK   = 0xCB, // GO: a token with no STMDSP entry
 };
 
-constexpr u8 STMT_COUNT = SCRATK - ENDTK + 1;
+constexpr u8 STMT_COUNT = RENUTK - ENDTK + 1;
 constexpr u8 FUNC_COUNT = MIDTK - ONEFUN + 1;
 
 // RESLST, one entry per token, in order from ENDTK.
@@ -442,6 +445,9 @@ struct Interp {
     // ---- list.cpp
     void list();
 
+    // ---- renum.cpp
+    void renum();
+
     // ---- print.cpp
     void outdo(u8 c);
     void outstr(Str s);
@@ -488,6 +494,7 @@ struct Interp {
     void stmt_close();
     void stmt_get();
     void stmt_new();
+    void stmt_renum();
 
     usize fndfor(VarRef v) const;
     void scan_to(bool stop_colon);

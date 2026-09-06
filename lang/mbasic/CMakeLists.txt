@@ -15,8 +15,8 @@ endif()
 braam_add_program(NAME mbasic
                   SOURCES braam.cpp crunch.cpp edit.cpp epath.cpp file.cpp
                           fout.cpp frmevl.cpp init.cpp input.cpp list.cpp
-                          math.cpp newstt.cpp print.cpp ptrget.cpp stmt.cpp
-                          string.cpp sys.cpp tables.cpp
+                          math.cpp newstt.cpp print.cpp ptrget.cpp renum.cpp
+                          stmt.cpp string.cpp sys.cpp tables.cpp
                   LIBS braam::math)
 
 # The examples, which LOAD finds by bare name through /pkg/bin (epath.cpp).
@@ -29,7 +29,7 @@ foreach(f ${MBASIC_BAS})
     list(APPEND MBASIC_EXAMPLES ${f}=share/${n})
 endforeach()
 
-braam_add_package(NAME mbasic VERSION 1.1-r3
+braam_add_package(NAME mbasic VERSION 1.1-r4
                   FIELD "T=Microsoft BASIC 1.1 for the 6502"
                   FILES $<TARGET_FILE:bin_mbasic>=bin/mbasic
                         ${CMAKE_CURRENT_SOURCE_DIR}/Manual.md=share/Manual.md

@@ -6,7 +6,7 @@
 //
 //   - a token's value is 128 + its ordinal in RESLST;
 //   - the statement dispatcher indexes STMDSP by token - ENDTK and range-checks
-//     against SCRATK - ENDTK + 1;
+//     against RENUTK - ENDTK + 1;
 //   - the function dispatcher indexes FUNDSP by token - ONEFUN, with LASNUM
 //     separating the one-argument functions from the rest;
 //   - FRMEVL computes OPTAB's index as 3*(token - PLUSTK) upstream, so the
@@ -16,7 +16,8 @@
 // Adding a word under one conditional shifts every later token in all four at
 // once. This build is EXTIO=1 DISKO=1 GETCMD=1 INTPRC=1 ADDPRC=1 LNGERR=1,
 // NULCMD=0 TIME=0, and no VERIFY, DDT or CLR -- those are Commodore- and
-// simulator-only.
+// simulator-only. RENUM is under no conditional: upstream has no such
+// statement. See renum.cpp.
 #include "mbasic.h"
 
 // Matching is first-fit in table order, so a word that is a prefix of another
@@ -30,7 +31,7 @@
 // TAB( and SPC( carry their open paren, because the DCI macro could not take
 // one as an argument -- ";MACRO DOESNT LIKE ('S IN ARGUMENTS."
 const Str RESLST[] = {
-    // statements, 0x80..0xA1
+    // statements, 0x80..0xA2
     "end",
     "for",
     "next",
@@ -65,7 +66,10 @@ const Str RESLST[] = {
     "close",
     "get",
     "new",
-    // keywords, 0xA2..0xA8
+    // RENUM is not upstream's -- it is from the later releases. Last among the
+    // statements, so only what follows shifts.
+    "renum",
+    // keywords, 0xA3..0xA9
     "tab(",
     "to",
     "fn",
@@ -73,7 +77,7 @@ const Str RESLST[] = {
     "then",
     "not",
     "step",
-    // operators, 0xA9..0xB2
+    // operators, 0xAA..0xB3
     "+",
     "-",
     "*",
@@ -84,7 +88,7 @@ const Str RESLST[] = {
     ">",
     "=",
     "<",
-    // functions, 0xB3..0xC9
+    // functions, 0xB4..0xCA
     "sgn",
     "int",
     "abs",
@@ -125,7 +129,7 @@ const StmtFn STMDSP[STMT_COUNT] = {
     &Interp::stmt_save,    &Interp::stmt_def,    &Interp::stmt_poke,   &Interp::stmt_printn,
     &Interp::stmt_print,   &Interp::stmt_cont,   &Interp::stmt_list,   &Interp::stmt_clear,
     &Interp::stmt_cmd,     &Interp::stmt_sys,    &Interp::stmt_open,   &Interp::stmt_close,
-    &Interp::stmt_get,     &Interp::stmt_new,
+    &Interp::stmt_get,     &Interp::stmt_new,    &Interp::stmt_renum,
 };
 
 const FuncFn FUNDSP[FUNC_COUNT] = {

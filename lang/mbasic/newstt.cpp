@@ -170,7 +170,7 @@ void Interp::gone2(u8 c)
         return;
     }
 
-    if (c > SCRATK) {
+    if (c > RENUTK) {
         // SNERRX. GO is a reserved word with a token but no STMDSP entry, so
         // it lands here; this arm checks for it, consumes the following TO and
         // enters GOTO. It exists purely because the tokenizer cannot match

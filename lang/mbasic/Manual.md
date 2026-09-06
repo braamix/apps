@@ -270,11 +270,34 @@ A `GOSUB` that leaves loops open still returns correctly.
 | `CONT` | carry on after `STOP`, `^C` or an empty `INPUT` |
 | `NEW` | erase the program and the variables |
 | `LIST` | show the program |
+| `RENUM` | renumber the program |
 | `REM text` | a comment, to the end of the line |
 
 `LIST` forms: `LIST`, `LIST 100`, `LIST 100-`, `LIST -200`, `LIST 100-200`.
 
+`RENUM [new][,[old][,inc]]` renumbers from line *old* onwards, giving the first
+of them the number *new* and stepping by *inc*. Left out, *new* and *inc* are
+both 10 and *old* is the first line of the program.
+
+```
+renum                  10, 20, 30, …
+renum 100              100, 110, 120, …
+renum 1000, 500, 5     lines below 500 keep their numbers
+```
+
+Every line number a statement refers to is renumbered with it — after `GOTO`,
+`GO TO`, `GOSUB`, `THEN`, `ON … GOTO`, `ON … GOSUB` and `RUN`. Numbers inside
+`DATA`, inside strings and after `REM` are left alone.
+
+**⚠ `RENUM` cannot reorder the program**, and cannot carry a line past 63999.
+Either is `?Illegal quantity`, and nothing is changed.
+
+A reference to a line that does not exist is reported as `Undefined line 999 in
+500` — naming the new number of the line it is in — and left as you typed it.
+The rest of the program is renumbered anyway.
+
 **⚠ `CONT` does not work after an error, or after you edit the program.**
+`RENUM` counts as editing: it erases the variables too.
 
 ### Definitions
 
@@ -424,13 +447,13 @@ running.
 None of these may appear **anywhere inside** a variable name.
 
 ```
-abs   and   asc   atn   chr$  clear close cmd   cont  cos
-data  def   dim   end   exp   fn    for   fre   get   go
-gosub goto  if    input input# int   left$ len   let   list
-load  log   mid$  new   next  not   on    open  or    peek
-poke  pos   print print# read  rem   restore return right$ rnd
-run   save  sgn   sin   spc(  sqr   step  stop  str$  sys
-tab(  tan   then  to    usr   val   wait
+abs   and   asc   atn    chr$   clear close cmd     cont   cos
+data  def   dim   end    exp    fn    for   fre     get    go
+gosub goto  if    input  input# int   left$ len     let    list
+load  log   mid$  new    next   not   on    open    or     peek
+poke  pos   print print# read   rem   renum restore return right$
+rnd   run   save  sgn    sin    spc(  sqr   step    stop   str$
+sys   tab(  tan   then   to     usr   val   wait
 ```
 
 Also the operators `+ - * / ^ > = <`.
@@ -467,6 +490,8 @@ the `IF`.
 - Messages are in sentence case — `Ok`, `?Syntax error` — not capitals.
 - Arithmetic is 64-bit, so long calculations are more accurate in their last
   digits. The printed format is unchanged.
+- `RENUM` is here, from the later Microsoft releases; the 1978 original had no
+  way to renumber a program.
 - `LOAD` and `SAVE` use named files instead of cassette tape.
 - `SYS` and `USR` have no machine to call.
 - `WAIT` tests its condition once instead of spinning for ever.

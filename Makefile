@@ -110,6 +110,7 @@ test: all
 	@node lang/mbasic/test/numbers.mjs
 	@node lang/mbasic/test/errors.mjs
 	@node lang/mbasic/test/files.mjs
+	@node lang/mbasic/test/renum.mjs
 	@node lang/mbasic/test/examples.mjs
 	@node lang/mbasic/test/case.mjs
 	@node lang/mbasic/test/script.mjs

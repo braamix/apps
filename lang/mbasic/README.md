@@ -45,7 +45,8 @@ the Commodore's hardware-specific corners:
 | `LNGERR` | 1 | spelled-out error messages instead of two-letter codes |
 | `NULCMD`, `TIME` | 0 | no `NULL`, no `TI`/`TI$` |
 
-That gives 75 reserved words, `$80` (`END`) through `$CA` (`GO`). The four
+That gives 75 reserved words, and `RENUM` below makes 76: `$80` (`END`)
+through `$CB` (`GO`). The four
 tables that decide them — `RESLST`, `STMDSP`, `FUNDSP` and `OPTAB` — are in one
 file, [tables.cpp](tables.cpp), because the connection between them is purely
 positional: a token's value is `128 + its ordinal in RESLST`, and adding a word
@@ -267,7 +268,7 @@ simply "stdin is a terminal". The file itself is one `read_file` at startup,
 with `epath_file`'s fallback, so a bare name finds a shipped example.
 
 Redirected stdin is untouched: `mbasic <session` is still the whole typed
-transcript, banner and every `Ok`, which is what six of the eight test cases
+transcript, banner and every `Ok`, which is what seven of the nine test cases
 drive.
 
 ### Neither of upstream's two questions is asked
@@ -284,6 +285,44 @@ since a `PRINT` with commas has to line up somewhere, and that is `LINLEN`, 80.
 Upstream's easter egg went with the first question: answering `A` to it printed
 `WRITTEN BY WEILAND & GATES`. The authors are named in `--help` instead.
 
+### `RENUM`, which upstream could not have had
+
+The one statement here that is not in `m6502.asm`. It comes from the later
+Microsoft releases, and the reason the 1978 version has no such thing is
+structural rather than a matter of taste: a program was a linked list, each
+line beginning with the absolute address of the next, so renumbering meant
+rewriting every reference *and* relinking — and a reference whose digits grew
+by one moved every line above it.
+
+Neither half survives the port. `prog` is a sorted `Vec<Line>` with no links at
+all, and a line-number **reference** is plain ASCII in the crunched text:
+`CRUNCH` enters `0`–`9` straightaway without attempting a match
+([crunch.cpp](crunch.cpp)), and `LINGET` re-parses the digits at execution
+time. There is no `$0E` binary line-number token in this dialect — that is the
+8080 lineage — so there is no fixed-width field to patch and nothing to
+relocate. [renum.cpp](renum.cpp) is one pass rewriting digit runs into a fresh
+`Vec<u8>` per line.
+
+What it has to know is where a digit run is a reference and where it is data,
+and that is `CRUNCH`'s own structure read backwards: a `"` copies through to
+the closing quote, `REMTK` swallows the rest of the line, `DATATK` copies to
+the next `:`, and only after `GOTO`, `GOSUB`, `THEN`, `RUN` and the `GO`+`TO`
+pair is a number a reference. `GOTO` and `GOSUB` take a comma-separated list,
+which is what serves `ON X GOTO a,b,c` without a case of its own.
+
+Two behaviours are Microsoft's and are kept. It refuses — `?Illegal quantity`,
+nothing changed — to reorder the program or to carry a line past `MAXLIN`. And
+a reference to a line that does not exist is a *warning*, `Undefined line 999
+in 500`, not an error: the reference is left as typed and the rest of the
+program is renumbered anyway. Afterwards it does what the editor does on any
+typed line, `runc()`, since every saved `TextPos` names a line whose text has
+just moved, and exits to the prompt the way `LIST` does.
+
+Adding the word cost the four tables their numbering: `renum` goes last among
+the statements, so `RENUTK` is `$A2` and everything from `TAB(` up shifted by
+one. That is invisible outside the binary — `LIST`, `SAVE` and `LOAD` all
+detokenize by index into `RESLST`, and stored programs are text.
+
 ## Files
 
 Upstream is one file with 46 `SUBTTL` sections. The split follows them, and each
@@ -296,6 +335,7 @@ source names the chapter of `tmp/doc/internals/` it implements.
 | [tables.cpp](tables.cpp) | `RESLST`, `STMDSP`, `FUNDSP`, `OPTAB`, `ERRTAB` |
 | [crunch.cpp](crunch.cpp) | `CHRGET`, `CRUNCH`, `LINGET`, `FNDLIN`, the editor |
 | [list.cpp](list.cpp) | `LIST`, the exact inverse of `CRUNCH` |
+| [renum.cpp](renum.cpp) | `RENUM` — the one statement that is not upstream's |
 | [newstt.cpp](newstt.cpp) | the statement fetcher, dispatch, errors, the burst |
 | [stmt.cpp](stmt.cpp) | the statements, and the `FOR`/`GOSUB` frames |
 | [print.cpp](print.cpp) | `PRINT`, the column machinery, the output sink |
@@ -360,13 +400,18 @@ given with `asc`/`chr$`.
 
 ## Testing
 
-`make test` at the top of the tree runs eight cases from [test/](test/). Seven
+`make test` at the top of the tree runs nine cases from [test/](test/). Eight
 drive a session through stdin and stdout redirected to files and compare the
 transcript byte for byte against a golden beside the script — exact, because the
 run is deterministic and down a pipe nothing echoes and no prompt is printed.
 `interrupt.mjs` is on the grid, because a pipe has no keyboard.
 
-`examples.mjs` is the fifth: it `LOAD`s and `RUN`s each of the nineteen in a
+`renum.mjs` is every reference `RENUM` rewrites in one program, the three ways
+it refuses, and the three places a digit run is data and not a reference — a
+`DATA` item, a string and a `REM` tail. Each renumber is listed and run, since
+a reference it missed shows up as a `?Undef'd statement` and not as a diff.
+
+`examples.mjs` `LOAD`s and `RUN`s each of the nineteen in a
 process of its own, so `RND` restarts from its fixed seed every time and one
 example's stream cannot shift another's. Its answers are that particular
 sequence's moves — the number is 54, the word is `MONITOR`, the wumpus is in

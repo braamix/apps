@@ -1,0 +1,106 @@
+
+Ok
+10 x=1
+20 if x=1 then 40
+30 go to 20
+40 on x gosub 60,70
+50 if x=1 then goto 80
+60 print "SIXTY":return
+70 print "SEVENTY":return
+80 goto 90
+90 end
+
+Ok
+SIXTY
+
+Ok
+
+Ok
+100 x=1
+110 if x=1 then 130
+120 go to 110
+130 on x gosub 150,160
+
+Ok
+
+Ok
+100 x=1
+110 if x=1 then 200
+120 go to 110
+200 on x gosub 210,215
+205 if x=1 then goto 220
+210 print "SIXTY":return
+215 print "SEVENTY":return
+220 goto 225
+225 end
+
+Ok
+
+Ok
+1000 x=1
+1025 if x=1 then 1075
+1050 go to 1025
+1075 on x gosub 1125,1150
+1100 if x=1 then goto 1175
+1125 print "SIXTY":return
+1150 print "SEVENTY":return
+1175 goto 1200
+1200 end
+
+Ok
+SIXTY
+
+Ok
+
+Ok
+
+Ok
+1 data 100,"a:b":read a,b$:print a;b$
+2 print "GOTO 10"
+3 rem GOTO 10 : GOSUB 20
+4 if "A"<"B" and "C"<"D" then 6
+5 print "SKIPPED"
+6 end
+
+Ok
+ 100 a:b
+GOTO 10
+
+Ok
+
+Ok
+Undefined line 999 in 500
+Undefined line 888 in 510
+
+Ok
+500 goto 999
+510 on 1 goto 500,888
+520 end
+
+Ok
+
+Ok
+
+?Illegal quantity error
+Ok
+
+?Illegal quantity error
+Ok
+
+?Illegal quantity error
+Ok
+10 print 1
+20 print 2
+30 print 3
+
+Ok
+
+Ok
+
+Break in 10
+Ok
+
+Ok
+
+?Can't continue error
+Ok
