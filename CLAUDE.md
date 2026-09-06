@@ -95,7 +95,7 @@ should be the thing that sees a `^C`. Arithmetic is `double`, but `FOUT`'s
 format is reproduced to the digit, and the four positionally-coupled tables
 (`RESLST`, `STMDSP`, `FUNDSP`, `OPTAB`) are in one file because adding a word
 under one switch renumbers every later token in all four. It is also the only
-package here whose payload is *programs*: nineteen `.bas` examples ship as
+package here whose payload is *programs*: twenty `.bas` examples ship as
 `share/`, and `LOAD` resolves a bare name against the store directory the
 `/pkg/bin` link leads to, so a user types `LOAD "wumpus.bas"` and not a
 versioned path. They are the first code written *in* a ported language rather

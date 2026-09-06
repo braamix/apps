@@ -279,7 +279,7 @@ fold below. A **digit** is still a boundary, deliberately, so `1to10`,
 `print1`, `goto100` and `5and3` are unchanged; and `FN` is exempt from the
 trailing guard, a name always following it, so `DEF FNA(X)` still means `FN A`.
 
-None of the nineteen examples tokenizes differently — they were written with
+None of the examples tokenizes differently — they were written with
 the old rule in mind, which is to say with spaces.
 
 ### Case is folded, which upstream's was not
@@ -423,7 +423,7 @@ ships in the package as `share/Manual.md`, beside the examples.
 
 ## Examples
 
-[examples/](examples/) holds nineteen programs, and the package ships them as
+[examples/](examples/) holds twenty programs, and the package ships them as
 its `share/` payload. That lands them in `/pkg/store/mbasic-<version>/share/`,
 a path carrying a version the binary does not know — so a bare name is resolved
 against it when the working directory has no such file, both on the command
@@ -457,6 +457,23 @@ that prompts `(y/n)` and tests `if a$ = "Y"` rejects a typed `y`. Each example
 takes both, and [hangman.bas](examples/hangman.bas) upcases the letter it is
 given with `asc`/`chr$`.
 
+[maze.bas](examples/maze.bas) is the one that could not have been written
+before UTF-8 went in. It digs an 8×8 maze with a recursive backtracker — the
+recursion written out over an array, there being none to be had here — and
+draws it with the sixteen box-drawing glyphs, held in one string and picked by
+a bitmask of the walls that touch a square:
+
+```
+70 b$ = " ╵╶└╷│┌├╴┘─┴┐┤┬┼"
+...
+650 l$ = l$ + mid$(b$, m + 1, 1)
+```
+
+Each of those glyphs is three bytes, so `mid$(b$, m + 1, 1)` is only the right
+one because `mid$` counts characters; `len(b$)` answering 16 rather than 46 is
+the same fact. The maze it prints is a `LIST` away from being unreadable under
+the old rules, since `b$`'s bytes would have listed back as keywords.
+
 ## Testing
 
 `make test` at the top of the tree runs eleven cases from [test/](test/). Ten
@@ -470,7 +487,7 @@ it refuses, and the three places a digit run is data and not a reference — a
 `DATA` item, a string and a `REM` tail. Each renumber is listed and run, since
 a reference it missed shows up as a `?Undef'd statement` and not as a diff.
 
-`examples.mjs` `LOAD`s and `RUN`s each of the nineteen in a
+`examples.mjs` `LOAD`s and `RUN`s each of the twenty in a
 process of its own, so `RND` restarts from its fixed seed every time and one
 example's stream cannot shift another's. Its answers are that particular
 sequence's moves — the number is 54, the word is `MONITOR`, the wumpus is in

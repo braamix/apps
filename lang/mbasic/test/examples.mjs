@@ -1,4 +1,4 @@
-// The nineteen programs in examples/, each LOADed and RUN once.
+// The twenty programs in examples/, each LOADed and RUN once.
 //
 // LOAD rather than `mb <file>`, because a file argument is read as if typed and
 // there is no implicit RUN -- a file-argument run would tokenize the program and
@@ -25,6 +25,9 @@ const CASES = [
     ["hello.bas", []],
     ["fibonacci.bas", []],
     ["sort.bas", []],
+    // The box-drawing one: its glyph table is indexed with mid$, so it only
+    // draws at all because that counts characters.
+    ["maze.bas", []],
     // One prompt, or a handful.
     ["stars.bas", ["5"]],
     ["primes.bas", ["50"]],
