@@ -1,7 +1,7 @@
 // Microsoft BASIC 1.1 for the 6502, ported to Braam.
 //
 // Upstream is one MACRO-10 file, m6502.asm, and the design documents recovered
-// from it are in tmp/doc/internals/. This header is what upstream kept in page
+// from it are in internals/. This header is what upstream kept in page
 // zero -- "THESE ARE THE MOST COMMONLY USED LOCATIONS. THEY HOLD BOOKKEEPING
 // INFO AND ALL OTHER FREQUENTLY USED INFORMATION" -- turned into fields of one
 // object, plus the shapes that replace the ones that were byte layouts.

@@ -82,9 +82,15 @@ inline char lower(char c)
 
 // A reserved word matches at `at` if its characters are there, in either case
 // -- RESLST is spelled lowercase and the source byte is folded. Matching is
-// first-fit in table order and does no space skipping of its own, which is
-// what makes IF 2 > F OR T=5 THEN mis-tokenize -- the danger the source warns
-// about at m6502.asm:1208-1216, and a property of the language, not a defect.
+// first-fit in table order, with no word boundary on either side: TOTAL=1
+// stores as TOTK 'tal' EQULTK '1' and is ?Syntax error. LIST prints it back
+// as "total=1", being the exact inverse, so it cannot be seen in a listing.
+// The danger m6502.asm:1209-1215 warns about, and the rule tables.cpp follows.
+//
+// Its two examples no longer bite, there or here: a space is stored verbatim
+// and never reaches the matcher (CMPSPC, m6502.asm:1795, before MUSTCR), so
+// IF 2 > F OR T=5 THEN and IF T OR Q THEN tokenize correctly. They predate
+// 2/11/78 (m6502.asm:229). What is left is the case with no space in it.
 usize match_res(Str src, usize at)
 {
     for (usize i = 0; i < RESLST_COUNT; i++) {

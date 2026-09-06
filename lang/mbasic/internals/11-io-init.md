@@ -16,7 +16,7 @@ own implementations of the two lowest.
 
 ### 1.1 `INCHR`
 
-[m6502.asm:1742-1771](../../m6502.asm#L1742-L1771).
+[m6502.asm:1742-1771](../m6502.asm#L1742-L1771).
 
 | Target | Source |
 |---|---|
@@ -32,12 +32,12 @@ non-terminal channels.
 
 ### 1.2 `INLIN`
 
-[m6502.asm:1673-1741](../../m6502.asm#L1673-L1741). The contract, from
-[m6502.asm:1673-1680](../../m6502.asm#L1673-L1680): read into `BUF` using backarrow/underscore as the
+[m6502.asm:1673-1741](../m6502.asm#L1673-L1741). The contract, from
+[m6502.asm:1673-1680](../m6502.asm#L1673-L1680): read into `BUF` using backarrow/underscore as the
 character delete and `@` as the line delete; beyond `BUFLEN` characters, stop echoing and emit a
 ^G for each extra one. Returns a pointer to `BUF-1` in `[X,Y]`.
 
-The Apple version ([m6502.asm:1681-1699](../../m6502.asm#L1681-L1699)) is quite different: it delegates
+The Apple version ([m6502.asm:1681-1699](../m6502.asm#L1681-L1699)) is quite different: it delegates
 the whole line edit to the monitor's `GETLN`, then truncates to `BUFLEN-1`, plants a terminating
 zero, and **masks bit 7 off every byte of the buffer** — the Apple monitor returns characters with
 the high bit set, which would otherwise look like tokens to `CRUNCH`.
@@ -47,13 +47,13 @@ except carriage return. So control characters cannot be typed into a program lin
 
 ### 1.3 `OUTDO`
 
-[m6502.asm:2818-2848](../../m6502.asm#L2818-L2848). Covered in
+[m6502.asm:2818-2848](../m6502.asm#L2818-L2848). Covered in
 [05-statements.md](05-statements.md#25-crdo-and-outdo). The four responsibilities are output
 suppression, `TRMPOS` maintenance, automatic wrap at `LINWID`, and the per-target call.
 
 ### 1.4 Prompting
 
-`QINLIN` ([m6502.asm:2941-2947](../../m6502.asm#L2941-L2947)) is `OUTQST` + `OUTSPC` + `INLIN` — it emits
+`QINLIN` ([m6502.asm:2941-2947](../m6502.asm#L2941-L2947)) is `OUTQST` + `OUTSPC` + `INLIN` — it emits
 `"? "` before reading. This is why `INPUT` shows `?` and why the startup questions read
 `MEMORY SIZE? ` and `TERMINAL WIDTH? `.
 
@@ -69,7 +69,7 @@ LINWID: LINLEN          ; 40
 NCMWID: NCMPOS          ; ((LINLEN/CLMWID)-1)*CLMWID = 14
 ```
 
-([m6502.asm:798-800](../../m6502.asm#L798-L800))
+([m6502.asm:798-800](../m6502.asm#L798-L800))
 
 They are preloaded in the source image and rewritten by `INIT`, because in a ROM build the source
 image's page-zero values never reach RAM.
@@ -78,10 +78,10 @@ image's page-zero values never reach RAM.
 
 ## 3. `INIT`, step by step
 
-[m6502.asm:6670-6907](../../m6502.asm#L6670-L6907). `RADIX 10` resumes at
-[m6502.asm:6671](../../m6502.asm#L6671). The source notes that this block "SHOULD BE LOCATED WHERE IT WILL
+[m6502.asm:6670-6907](../m6502.asm#L6670-L6907). `RADIX 10` resumes at
+[m6502.asm:6671](../m6502.asm#L6671). The source notes that this block "SHOULD BE LOCATED WHERE IT WILL
 BE WIPED OUT IN RAM IF CODE IS ALL IN RAM"
-([m6502.asm:6672-6673](../../m6502.asm#L6672-L6673)) — in a RAM build, the initialization code becomes
+([m6502.asm:6672-6673](../m6502.asm#L6672-L6673)) — in a RAM build, the initialization code becomes
 program storage once it has run.
 
 ### 3.1 Vectors and flags
@@ -95,7 +95,7 @@ program storage once it has run.
 5. Write the `JMP` opcode (76) into `START`, `RDYJSR` and `JMPER`; with `ROMSW`, also into `USRPOK`,
    whose target is set to `FCERR` so `USR` errors until the user `POKE`s it.
 6. `LINWID = LINLEN`, `NCMWID = NCMPOS`. The comment at
-   [m6502.asm:6727-6730](../../m6502.asm#L6727-L6730) explains why these must be non-zero: with
+   [m6502.asm:6727-6730](../m6502.asm#L6727-L6730) explains why these must be non-zero: with
    `BUFPAG=0` they sit immediately before `BUF` and serve as the fake link that `CHEAD` reads after
    a new line is moved into the program.
 
@@ -124,7 +124,7 @@ listing. See
 
 ### 3.4 Sizing memory
 
-[m6502.asm:6759-6819](../../m6502.asm#L6759-L6819).
+[m6502.asm:6759-6819](../m6502.asm#L6759-L6819).
 
 ```
         print "MEMORY SIZE"
@@ -142,18 +142,18 @@ USEDEC: MEMSIZ = FRETOP = the result
 The probe writes `0x55` then `0xAA` — complementary bit patterns, so a bus line stuck either way is
 detected — and stops at the first address that does not read back. `REALIO=2` additionally checks
 for wrapping into page zero and plants a `JMP` opcode there
-([m6502.asm:6801-6807](../../m6502.asm#L6801-L6807)).
+([m6502.asm:6801-6807](../m6502.asm#L6801-L6807)).
 
 For `REALIO=0` with `LONGI=0`, `MEMSIZ` is simply 16190, which the source calls "A STRANGE NUMBER"
-([m6502.asm:6817](../../m6502.asm#L6817)).
+([m6502.asm:6817](../m6502.asm#L6817)).
 
 Typing `A` at the prompt prints `WRITTEN BY WEILAND & GATES`
-([m6502.asm:6700-6702](../../m6502.asm#L6700-L6702), [m6502.asm:6913-6919](../../m6502.asm#L6913-L6919)) and
+([m6502.asm:6700-6702](../m6502.asm#L6700-L6702), [m6502.asm:6913-6919](../m6502.asm#L6913-L6919)) and
 then re-enters `INIT`.
 
 ### 3.5 Terminal width
 
-[m6502.asm:6820-6843](../../m6502.asm#L6820-L6843).
+[m6502.asm:6820-6843](../m6502.asm#L6820-L6843).
 
 ```
 TTYW:   print "TERMINAL WIDTH"    ; just "WIDTH" when KIMROM
@@ -174,7 +174,7 @@ MORCPS: SBCI CLMWID / BCS MORCPS  ; A mod CLMWID
 
 ### 3.6 Deleting the trigonometric functions
 
-[m6502.asm:6845-6870](../../m6502.asm#L6845-L6870). Assembled **only when `ROMSW=0`** — so not in this
+[m6502.asm:6845-6870](../m6502.asm#L6845-L6870). Assembled **only when `ROMSW=0`** — so not in this
 build.
 
 ```
@@ -185,7 +185,7 @@ ASKAGN: print "WANT SIN-COS-TAN-ATN"
 ```
 
 `SINFIX`, `COSFIX`, `TANFIX` and `ATNFIX` are labels on the `FUNDSP` dispatch slots
-([m6502.asm:1071-1074](../../m6502.asm#L1071-L1074)). Overwriting a slot with `FCERR` turns the function
+([m6502.asm:1071-1074](../m6502.asm#L1071-L1074)). Overwriting a slot with `FCERR` turns the function
 into an `?FC ERROR` and frees the code from `COS` (or `ATN`) upward for program text — the tokens
 still exist, but nothing dispatches to the routines.
 
@@ -193,11 +193,11 @@ This is why `FUNDSP` entries for the four trigonometric functions have individua
 other entry does.
 
 `KIMROM=1` achieves the same at assembly time by emitting four `ADR(FCERR)` entries instead
-([m6502.asm:1066-1070](../../m6502.asm#L1066-L1070)).
+([m6502.asm:1066-1070](../m6502.asm#L1066-L1070)).
 
 ### 3.7 Finishing
 
-[m6502.asm:6873-6907](../../m6502.asm#L6873-L6907).
+[m6502.asm:6873-6907](../m6502.asm#L6873-L6907).
 
 ```
         (ROMSW=1) TXTTAB = RAMLOC
@@ -216,7 +216,7 @@ meaning "return to the prompt", and `RDYJSR` stops routing errors back into `INI
 
 ### 3.8 The startup messages
 
-[m6502.asm:6909-6948](../../m6502.asm#L6909-L6948).
+[m6502.asm:6909-6948](../m6502.asm#L6909-L6948).
 
 ```
 MEMORY: "MEMORY SIZE", 0
@@ -259,9 +259,9 @@ Only assembled when `DISKO=1`, which this build does not set.
 
 | Target | Mechanism |
 |---|---|
-| KIM (`REALIO=1`) | cassette, [m6502.asm:2281-2322](../../m6502.asm#L2281-L2322). Stashes the stack pointer in `INPFLG`, patches location 1 as a return vector, and finishes at `FINI` so the program is relinked |
+| KIM (`REALIO=1`) | cassette, [m6502.asm:2281-2322](../m6502.asm#L2281-L2322). Stashes the stack pointer in `INPFLG`, patches location 1 as a return vector, and finishes at `FINI` so the program is relinked |
 | Commodore (`REALIO=3`) | external ROM vectors `CQLOAD`, `CQSAVE`, `CQVERF` |
-| Apple (`REALIO=4`) | cassette code exists at [m6502.asm:2323-2363](../../m6502.asm#L2323-L2363) but, because `DISKO=0`, has **no token and no dispatch entry** — it is dead code in this build |
+| Apple (`REALIO=4`) | cassette code exists at [m6502.asm:2323-2363](../m6502.asm#L2323-L2363) but, because `DISKO=0`, has **no token and no dispatch entry** — it is dead code in this build |
 | others | `LOAD`/`SAVE` stubs, or two `ADR(511)` placeholders in `STMDSP` |
 
 The KIM version's relink-on-load is necessary because the links are absolute addresses, so a program

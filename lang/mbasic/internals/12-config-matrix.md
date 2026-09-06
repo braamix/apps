@@ -1,6 +1,6 @@
 # 12 — Configuration matrix
 
-The switches are declared at [m6502.asm:10-107](../../m6502.asm#L10-L107). Roughly 330 `IFE`/`IFN` blocks
+The switches are declared at [m6502.asm:10-107](../m6502.asm#L10-L107). Roughly 330 `IFE`/`IFN` blocks
 depend on them.
 
 Setting `REALIO` is not a single choice: the per-target block below it **overrides other switches**,
@@ -23,8 +23,8 @@ so the effective configuration is the cascade, not the literal values at the top
 
 | Area | Difference |
 |---|---|
-| Page-zero head | `REALIO=3` has **no** `START`, `RDYJSR`, `ADRAYI`, `ADRGAY` ([m6502.asm:731](../../m6502.asm#L731)); `READY` calls `STROUT` directly and there is no restart vector at location 0 |
-| Apple page zero | `ORG 80` at [m6502.asm:790](../../m6502.asm#L790) leaves 24-79 for the Apple monitor |
+| Page-zero head | `REALIO=3` has **no** `START`, `RDYJSR`, `ADRAYI`, `ADRGAY` ([m6502.asm:731](../m6502.asm#L731)); `READY` calls `STROUT` directly and there is no restart vector at location 0 |
+| Apple page zero | `ORG 80` at [m6502.asm:790](../m6502.asm#L790) leaves 24-79 for the Apple monitor |
 | `TRMPOS` | external (`^O306`) on the Commodore, page zero elsewhere |
 | `ISCNTC` | absent for `REALIO=0`; separate implementations for 1, 2 and 4; external vector on 3 |
 | `INLIN` | Apple delegates to the monitor and masks bit 7 off the buffer; OSI echoes characters itself; Commodore uses an external vector |
@@ -34,7 +34,7 @@ so the effective configuration is the cascade, not the literal values at the top
 | `READY` message | `"READY."` on the Commodore, `"OK"` elsewhere |
 | `PRINT` width check | omitted on the Commodore |
 | `OUTSPC` | emits character 29 (cursor right) on the Commodore |
-| `PEEK` | returns 0 inside the BASIC ROM on the Commodore ([m6502.asm:4811-4815](../../m6502.asm#L4811-L4815)) |
+| `PEEK` | returns 0 inside the BASIC ROM on the Commodore ([m6502.asm:4811-4815](../m6502.asm#L4811-L4815)) |
 | `RND(positive)` | reads the VIA timers on the Commodore instead of advancing the sequence |
 | `NOTFNS` caller check | omits the high-byte test on the Commodore |
 | `DDT` statement | only `REALIO=0` |
@@ -65,7 +65,7 @@ so the effective configuration is the cascade, not the literal values at the top
 | Coefficient tables | separate shorter tables with lower degrees | the tables listed in [10-math-functions.md](10-math-functions.md#9-constant-tables) |
 
 `INTPRC` is only correct when `ADDPRC=1`; the source says so at
-[m6502.asm:3932-3934](../../m6502.asm#L3932-L3934) and [m6502.asm:4055](../../m6502.asm#L4055).
+[m6502.asm:3932-3934](../m6502.asm#L3932-L3934) and [m6502.asm:4055](../m6502.asm#L4055).
 
 ---
 
@@ -149,7 +149,7 @@ The Apple cassette code exists regardless but is unreachable without this switch
 | `DIRCON:` label after `LDYI 0` | before it |
 | `CRDONE` does not adjust `TXTPTR+1` | it does |
 
-The 1978-02-25 note ([m6502.asm:227](../../m6502.asm#L227)) records a bug where `INPFLG` was set wrongly
+The 1978-02-25 note ([m6502.asm:227](../m6502.asm#L227)) records a bug where `INPFLG` was set wrongly
 when `BUFPAG != 0`.
 
 ---
@@ -162,7 +162,7 @@ when `BUFPAG != 0`.
 | `GETCMD` | 1 | adds the `GET` token and statement, and the `BVS`/`BVC` branches through the input machinery |
 | `TIME` | 0 | adds `TI` and `TI$` handling in `INPCOM`, `ISVAR` and `NOTEVL`, and the base-60 extension to `FOUTBL` |
 | `RORSW` | 1 | when 0, defines a `ROR` macro emulating the instruction for early 6502s whose `ROR` was broken |
-| `KIMROM` | 0 | when 1, `FUNDSP`'s four trigonometric slots are assembled as `ADR(FCERR)`; the tokens still exist. Forced to 0 unless `ROMSW=1` and `REALIO=1` ([m6502.asm:34-35](../../m6502.asm#L34-L35)) |
+| `KIMROM` | 0 | when 1, `FUNDSP`'s four trigonometric slots are assembled as `ADR(FCERR)`; the tokens still exist. Forced to 0 unless `ROMSW=1` and `REALIO=1` ([m6502.asm:34-35](../m6502.asm#L34-L35)) |
 | `LONGI` | 1 | the "long initialization" switch; with `REALIO=0` and `LONGI=0`, `INIT` skips the questions and hard-codes `MEMSIZ=16190` |
 | `NUMLEV` | 23 | guaranteed expression nesting levels, enforced by `GETSTK` |
 | `STRSIZ` | 3 | string descriptor size |
@@ -177,8 +177,8 @@ when `BUFPAG != 0`.
 
 This is the constraint that makes the switches dangerous.
 
-`RESLST` ([m6502.asm:1112](../../m6502.asm#L1112)), `STMDSP` ([m6502.asm:997](../../m6502.asm#L997)) and
-`FUNDSP` ([m6502.asm:1055](../../m6502.asm#L1055)) are three parallel tables, each guarded by the same
+`RESLST` ([m6502.asm:1112](../m6502.asm#L1112)), `STMDSP` ([m6502.asm:997](../m6502.asm#L997)) and
+`FUNDSP` ([m6502.asm:1055](../m6502.asm#L1055)) are three parallel tables, each guarded by the same
 conditionals, and the connection between them is purely positional:
 
 - A token's value is `128 + its ordinal in RESLST`.
@@ -192,7 +192,7 @@ under one conditional shifts every later token in all three tables at once. Addi
 adding it to `RESLST` *and* `STMDSP` *at the same position, under the same conditional*, or the
 dispatch silently goes to the wrong handler.
 
-`OPTAB` ([m6502.asm:1084](../../m6502.asm#L1084)) is a fourth table with a positional link: `FRMEVL`
+`OPTAB` ([m6502.asm:1084](../m6502.asm#L1084)) is a fourth table with a positional link: `FRMEVL`
 computes its index as `3 * (token - PLUSTK)`, so the seven binary operators must stay contiguous and
 in the same order as in `RESLST`. The relational operators are similarly required to be adjacent and
 ordered `>`, `=`, `<`.

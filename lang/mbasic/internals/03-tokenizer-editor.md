@@ -4,7 +4,7 @@
 
 ## 1. `CHRGET` / `CHRGOT`
 
-[m6502.asm:943-976](../../m6502.asm#L943-L976). This is the single most-executed routine in the
+[m6502.asm:943-976](../m6502.asm#L943-L976). This is the single most-executed routine in the
 interpreter and it lives in RAM because it modifies itself.
 
 ```
@@ -23,7 +23,7 @@ QNUM:   CMP #':'
 CHRRTS: RTS
 ```
 
-`TXTPTR` is defined as `CHRGOT+1` ([m6502.asm:965](../../m6502.asm#L965)) — it *is* the address field of
+`TXTPTR` is defined as `CHRGOT+1` ([m6502.asm:965](../m6502.asm#L965)) — it *is* the address field of
 that `LDA`. Advancing the text pointer means incrementing the instruction, which is what
 `INC CHRGET+7` / `INC CHRGET+8` do.
 
@@ -54,14 +54,14 @@ Spaces are skipped transparently and without limit, which is why runs of spaces 
 cost time but nothing else — and why the *tokenizer* has to handle spaces itself (§2).
 
 Some callers rely on residual carry rather than calling again. `GONE2`
-([m6502.asm:2172](../../m6502.asm#L2172)) performs `SBCI ENDTK` with no preceding `SEC`, commented "carry
+([m6502.asm:2172](../m6502.asm#L2172)) performs `SBCI ENDTK` with no preceding `SEC`, commented "carry
 will be on if non-numeric".
 
 ### 1.2 There are two different copies of `CHRGET`
 
 The version listed above, at page-zero 178, is what the *source listing* shows. It is not what runs.
 
-`INIT` copies a template from ROM over it ([m6502.asm:6733-6737](../../m6502.asm#L6733-L6737)):
+`INIT` copies a template from ROM over it ([m6502.asm:6733-6737](../m6502.asm#L6733-L6737)):
 
 ```
         LDXI RNDX+4-CHRGET      ; = 28
@@ -72,7 +72,7 @@ MOVCHG: LDA INITAT-1,X
 ```
 
 **This copy is unconditional** — it is not guarded by `IFN ROMSW` — so it happens in RAM builds too.
-The template at `INITAT` ([m6502.asm:6678-6698](../../m6502.asm#L6678-L6698)) orders its two tests the
+The template at `INITAT` ([m6502.asm:6678-6698](../m6502.asm#L6678-L6698)) orders its two tests the
 other way round:
 
 | Offset from `CHRGET` | RAM listing (overwritten) | `INITAT` template (what runs) |
@@ -86,7 +86,7 @@ Both orderings are the same length and, entered at `CHRGET` or `CHRGOT`, behave 
 is below `':'` so it never takes the `BCS` exit, and reaches the space test either way.
 
 The difference matters only for the label `QNUM`, which is a documented *third* entry point at
-`CHRGET+13`, used by `TIMNUM` ([m6502.asm:2609-2610](../../m6502.asm#L2609-L2610)) to classify a character
+`CHRGET+13`, used by `TIMNUM` ([m6502.asm:2609-2610](../m6502.asm#L2609-L2610)) to classify a character
 that did not come from `TXTPTR`. In the copy that actually runs, `CHRGET+13` is `CMP #' '`, not
 `CMP #':'`. See [13-porting-notes.md](13-porting-notes.md#3-defects-in-the-1978-code) — that path is
 compiled out in this build (`TIME=0`) but not on the Commodore.
@@ -97,7 +97,7 @@ The copy is also 28 bytes, covering `CHRGET` (24 bytes) plus **four** of the fiv
 
 ## 2. `CRUNCH` — the tokenizer
 
-[m6502.asm:1785-1865](../../m6502.asm#L1785-L1865). Runs once per input line, in place, rewriting `BUF`.
+[m6502.asm:1785-1865](../m6502.asm#L1785-L1865). Runs once per input line, in place, rewriting `BUF`.
 
 ### 2.1 Token numbering
 
@@ -106,7 +106,7 @@ Q=128-1
 DEFINE DCI(A),<Q=Q+1
         DC(A)>
 ```
-([m6502.asm:1109-1111](../../m6502.asm#L1109-L1111))
+([m6502.asm:1109-1111](../m6502.asm#L1109-L1111))
 
 `DC` emits the word's characters with **bit 7 set on the last one** — that is the end-of-entry
 marker the matcher keys on. A token's value is `128 + its 0-based ordinal position in RESLST`.
@@ -135,7 +135,7 @@ CRUNCH: LDX TXTPTR       ; source index - the LOW BYTE of TXTPTR only
         STY DORES        ; 4 => bit 6 clear => crunching enabled
 ```
 
-`BUFOFS` ([m6502.asm:1780-1784](../../m6502.asm#L1780-L1784)) is 0 when `BUFPAG=0` and `(BUF/256)*256`
+`BUFOFS` ([m6502.asm:1780-1784](../m6502.asm#L1780-L1784)) is 0 when `BUFPAG=0` and `(BUF/256)*256`
 otherwise, so `LDA BUFOFS,X` is an absolute-indexed read into `BUF`'s page. Two consequences:
 `BUF` must be page-aligned when `BUFPAG≠0`, and **an input line can never exceed 255 characters**
 whatever `BUFLEN` says.
@@ -154,7 +154,7 @@ Per character, at `KLOOP`:
    without attempting a match. `'<'` (60) and above → try the matcher.
 
 After each store, `STUFFH` inspects what was stored
-([m6502.asm:1827-1841](../../m6502.asm#L1827-L1841)):
+([m6502.asm:1827-1841](../m6502.asm#L1827-L1841)):
 
 - `0` → `CRDONE`, line finished.
 - `:` → `DORES = 0`, crunching re-enabled.
@@ -167,7 +167,7 @@ After each store, `STUFFH` inspects what was stored
 
 Because step 2 emits a space immediately and the matcher never sees one, and the matcher itself does
 no space skipping. This was a deliberate change on 1978-02-11
-([m6502.asm:229](../../m6502.asm#L229)): "DISALLOWED SPACES IN RESERVED WORDS. PUT IN SPECIAL CHECK FOR
+([m6502.asm:229](../m6502.asm#L229)): "DISALLOWED SPACES IN RESERVED WORDS. PUT IN SPECIAL CHECK FOR
 `GO TO`".
 
 The consequence is that `GO TO` cannot be tokenized as `GOTO`. Instead `GO` exists as its own token
@@ -177,7 +177,7 @@ The consequence is that `GO TO` cannot be tokenized as `GOTO`. Instead `GO` exis
 ### 2.4 The prefix hazard
 
 Matching is first-fit in table order, and the source warns about it at
-[m6502.asm:1208-1216](../../m6502.asm#L1208-L1216):
+[m6502.asm:1208-1216](../m6502.asm#L1208-L1216):
 
 > NOTE DANGER OF ONE RESERVED WORD BEING A PART OF ANOTHER:
 > IE . . IF 2 GREATER THAN F OR T=5 THEN... WILL NOT WORK!!! SINCE "FOR" WILL BE CRUNCHED!!
@@ -189,7 +189,7 @@ obey is that when one word is a prefix of another, **the longer one must come fi
 
 ### 2.5 `CRDONE`
 
-[m6502.asm:1859-1865](../../m6502.asm#L1859-L1865). Stores a second zero at NUL+2 so that a direct line's
+[m6502.asm:1859-1865](../m6502.asm#L1859-L1865). Stores a second zero at NUL+2 so that a direct line's
 "next link high byte" reads zero; resets `TXTPTR` to `BUF-1`; returns with **`Y` = the total line
 length including the 4-byte link + line-number prefix**, which `MAIN1` stores in `COUNT`.
 
@@ -197,7 +197,7 @@ length including the 4-byte link + line-number prefix**, which `MAIN1` stores in
 
 ## 3. The reserved-word table
 
-`RESLST` at [m6502.asm:1112-1245](../../m6502.asm#L1112-L1245). Token values below are re-derived for the
+`RESLST` at [m6502.asm:1112-1245](../m6502.asm#L1112-L1245). Token values below are re-derived for the
 checked-in configuration (`EXTIO=0`, `NULCMD=0`, `DISKO=0`, `GETCMD=1`, `REALIO=4`).
 
 ### 3.1 Statements — tokens 128 to 153
@@ -225,7 +225,7 @@ These are the words with `STMDSP` entries; the dispatcher's range check is exact
 
 | Tok | Word | Note |
 |---|---|---|
-| 154 | `TAB(` (`TABTK`) | spelled out byte by byte, because the `DCI` macro cannot take a `(` as an argument ([m6502.asm:1169-1173](../../m6502.asm#L1169-L1173)) |
+| 154 | `TAB(` (`TABTK`) | spelled out byte by byte, because the `DCI` macro cannot take a `(` as an argument ([m6502.asm:1169-1173](../m6502.asm#L1169-L1173)) |
 | 155 | `TO` (`TOTK`) | |
 | 156 | `FN` (`FNTK`) | |
 | 157 | `SPC(` (`SPCTK`) | same byte-by-byte treatment |
@@ -296,7 +296,7 @@ longer, so `SCRATK` = 162 and `ONEFUN` = 180.
 
 ## 4. `LIST` — the exact inverse
 
-[m6502.asm:1973-2062](../../m6502.asm#L1973-L2062).
+[m6502.asm:1973-2062](../m6502.asm#L1973-L2062).
 
 ### 4.1 Argument parsing
 
@@ -343,14 +343,14 @@ abandoned rather than looped on forever.
 
 `LIST` calls `ISCNTC` once per line, so a long listing can be interrupted.
 
-> The comment at [m6502.asm:2030](../../m6502.asm#L2030) reads "YES. END OF LINE" on a `BNE`, which is
+> The comment at [m6502.asm:2030](../m6502.asm#L2030) reads "YES. END OF LINE" on a `BNE`, which is
 > backwards — the branch is taken when the byte is *not* zero, i.e. when it is *not* end of line.
 
 ---
 
 ## 5. The program editor
 
-`MAIN` at [m6502.asm:1556-1571](../../m6502.asm#L1556-L1571).
+`MAIN` at [m6502.asm:1556-1571](../m6502.asm#L1556-L1571).
 
 ```
 MAIN:   JSR INLIN               ; returns a pointer to BUF-1 in [X,Y]
@@ -383,7 +383,7 @@ above it, so no variable could survive anyway.
 
 ### 5.1 `FNDLIN` / `FNDLNC`
 
-[m6502.asm:1879-1904](../../m6502.asm#L1879-L1904). Input in `LINNUM`. `FNDLIN` starts at `TXTTAB`;
+[m6502.asm:1879-1904](../m6502.asm#L1879-L1904). Input in `LINNUM`. `FNDLIN` starts at `TXTTAB`;
 `FNDLNC` starts at an address given in `[X,A]`. Walks the link list comparing line numbers (high
 byte then low).
 
@@ -397,7 +397,7 @@ inserted".
 
 ### 5.2 Deletion
 
-[m6502.asm:1572-1610](../../m6502.asm#L1572-L1610). A downward block copy of everything from the deleted
+[m6502.asm:1572-1610](../m6502.asm#L1572-L1610). A downward block copy of everything from the deleted
 line's successor to `LOWTR`, done page at a time with `(zp),Y`:
 
 - The line's length is computed as a *negative* value by `LOWTR_low SBC (LOWTR),0`, and added to
@@ -411,20 +411,20 @@ is below the source.
 
 ### 5.3 Insertion
 
-[m6502.asm:1611-1637](../../m6502.asm#L1611-L1637). `HIGHTR = VARTAB` (top of what must move),
+[m6502.asm:1611-1637](../m6502.asm#L1611-L1637). `HIGHTR = VARTAB` (top of what must move),
 `HIGHDS = VARTAB + COUNT` (where it must end up), `LOWTR` = the insertion point from `FNDLIN`'s
 `C=0` exit, then `BLTU` opens the gap and sets `STREND`. `STOLOP` then copies `COUNT` bytes from
 `BUF-4` — the link placeholder, the line number, the text, and the NUL — into the gap.
 
 `RUNC` is called **before** the insertion as well as after. That is the 1978-07-01 fix
-([m6502.asm:224-225](../../m6502.asm#L224-L225)): `BLTU` calls `REASON`, which may trigger a garbage
+([m6502.asm:224-225](../m6502.asm#L224-L225)): `BLTU` calls `REASON`, which may trigger a garbage
 collection, and the collector must not run while `VARTAB` and `FRETOP` disagree about where things
 are.
 
 ### 5.4 `BLTU` / `BLTUC` — the block mover
 
-[m6502.asm:1413-1450](../../m6502.asm#L1413-L1450), contract at
-[m6502.asm:1398-1411](../../m6502.asm#L1398-L1411).
+[m6502.asm:1413-1450](../m6502.asm#L1413-L1450), contract at
+[m6502.asm:1398-1411](../m6502.asm#L1398-L1411).
 
 On entry: `[Y,A]` = the new `HIGHDS`, `LOWTR` = the lowest source byte, `HIGHTR` = one past the
 highest source byte, `HIGHDS` = where the high end must land. `BLTU` first calls `REASON` to verify
@@ -437,11 +437,11 @@ biased down by the low byte of the length so the inner loop can run `(zp),Y` fro
 On exit `LOWTR` is unchanged and `HIGHTR` and `HIGHDS` are each left **256 below** the region start.
 The header comment says "minus 200 octal", which is wrong — the code decrements the high byte, so it
 is 256. `GRBPAS` compensates with an explicit `INC HIGHDS+1`
-([m6502.asm:2511](../../m6502.asm#L2511)).
+([m6502.asm:2511](../m6502.asm#L2511)).
 
 ### 5.5 `LNKPRG` / `CHEAD` — relinking
 
-[m6502.asm:1642-1671](../../m6502.asm#L1642-L1671). Rebuilds every link from scratch rather than patching:
+[m6502.asm:1642-1671](../m6502.asm#L1642-L1671). Rebuilds every link from scratch rather than patching:
 
 ```
 CHEAD:  LDYI 1 / LDADY INDEX / BEQ LNKRTS   ; link high byte zero => end of program
@@ -457,12 +457,12 @@ at least one text byte. `BCCA CHEAD` is a branch the author knows is always take
 
 Rebuilding wholesale is O(program size) on every keystroke-completed line, which is slow but
 completely removes the class of bugs where a link is left stale — and the 1978-07-01 note at
-[m6502.asm:218-220](../../m6502.asm#L218-L220) records exactly such a bug being fixed by adding a
+[m6502.asm:218-220](../m6502.asm#L218-L220) records exactly such a bug being fixed by adding a
 `LNKPRG` call.
 
 ### 5.6 `SCRATH` / `SCRTCH` — `NEW`
 
-[m6502.asm:1909-1922](../../m6502.asm#L1909-L1922). `SCRATH` begins `BNE FLNRTS`: if a terminator does not
+[m6502.asm:1909-1922](../m6502.asm#L1909-L1922). `SCRATH` begins `BNE FLNRTS`: if a terminator does not
 follow, it simply returns, and `NEWSTT` then raises a syntax error because `TXTPTR` is not on a
 terminator. This "return and let `NEWSTT` complain" idiom is used by several statements that must
 not execute unless perfectly formed.
@@ -471,7 +471,7 @@ not execute unless perfectly formed.
 
 ### 5.7 `LINGET` — parsing a line number
 
-[m6502.asm:2508-2536](../../m6502.asm#L2508-L2536).
+[m6502.asm:2508-2536](../m6502.asm#L2508-L2536).
 
 ```
 LINGET: LDXI 0 / STX LINNUM / STX LINNUM+1

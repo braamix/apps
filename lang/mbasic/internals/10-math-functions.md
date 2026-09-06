@@ -1,7 +1,7 @@
 # 10 — Numeric conversion and the transcendental functions
 
-Still inside the `RADIX 8` region ([m6502.asm:4847](../../m6502.asm#L4847) to
-[m6502.asm:6671](../../m6502.asm#L6671)) except where noted. Decimal first, octal source form in
+Still inside the `RADIX 8` region ([m6502.asm:4847](../m6502.asm#L4847) to
+[m6502.asm:6671](../m6502.asm#L6671)) except where noted. Decimal first, octal source form in
 parentheses.
 
 Every constant in §8 was decoded from its source bytes using the format described in
@@ -12,8 +12,8 @@ mathematical value it approximates.
 
 ## 1. `FIN` — decimal text to float
 
-[m6502.asm:5694-5807](../../m6502.asm#L5694-L5807). Entry contract
-([m6502.asm:5695-5703](../../m6502.asm#L5695-L5703)): `TXTPTR` points at the first character, that
+[m6502.asm:5694-5807](../m6502.asm#L5694-L5807). Entry contract
+([m6502.asm:5695-5703](../m6502.asm#L5695-L5703)): `TXTPTR` points at the first character, that
 character is in `A`, and the carry from `CHRGET` says whether it is a digit.
 
 ### 1.1 State
@@ -27,7 +27,7 @@ character is in `A`, and the carry from `CHRGET` says whether it is a digit.
 | `SGNFLG` | 255 = the mantissa is negative |
 
 All five, plus the six FAC bytes, are zeroed by one indexed loop
-([m6502.asm:5704-5708](../../m6502.asm#L5704-L5708)) — which is why those eleven page-zero cells must be
+([m6502.asm:5704-5708](../m6502.asm#L5704-L5708)) — which is why those eleven page-zero cells must be
 contiguous.
 
 ### 1.2 The parse
@@ -52,7 +52,7 @@ FINQNG: if SGNFLG < 0: NEGOP
 ```
 
 Accepting `PLUSTK` and `MINUTK` as well as `'+'` and `'-'` after the `E`
-([m6502.asm:5726-5733](../../m6502.asm#L5726-L5733)) is necessary because by the time `FIN` runs on
+([m6502.asm:5726-5733](../m6502.asm#L5726-L5733)) is necessary because by the time `FIN` runs on
 program text, the tokenizer has already replaced them.
 
 ### 1.3 Scaling by repeated multiplication
@@ -64,7 +64,7 @@ bit-for-bit.
 
 ### 1.4 Exponent overflow
 
-[m6502.asm:5786-5807](../../m6502.asm#L5786-L5807), commented "NOTE: EXP OVERFLOW IS NOT CHECKED FOR":
+[m6502.asm:5786-5807](../m6502.asm#L5786-L5807), commented "NOTE: EXP OVERFLOW IS NOT CHECKED FOR":
 
 ```
 FINEDG: LDA TENEXP
@@ -84,7 +84,7 @@ register.
 
 ## 2. `FOUT` — float to decimal text
 
-[m6502.asm:5809-6008](../../m6502.asm#L5809-L6008).
+[m6502.asm:5809-6008](../m6502.asm#L5809-L6008).
 
 ### 2.1 Entry points and the buffer
 
@@ -121,7 +121,7 @@ With `ADDPRC=0` the same code produces 6 digits instead of 9, using different bo
 
 ### 2.3 Choosing fixed or exponential notation
 
-[m6502.asm:5893-5907](../../m6502.asm#L5893-L5907):
+[m6502.asm:5893-5907](../m6502.asm#L5893-L5907):
 
 ```
         LDXI 1
@@ -141,11 +141,11 @@ So **fixed notation is used for 0.01 <= |x| < 10^9**, and exponential otherwise.
 the point goes after one digit and the printed exponent is `DECCNT+8`.
 
 For values below 1 a leading `.` is emitted, preceded by at most one `0`
-([m6502.asm:5908-5920](../../m6502.asm#L5908-L5920)) — so `0.5` prints as `.5`, never as `0.5`.
+([m6502.asm:5908-5920](../m6502.asm#L5908-L5920)) — so `0.5` prints as `.5`, never as `0.5`.
 
 ### 2.4 Digit generation
 
-[m6502.asm:5921-5970](../../m6502.asm#L5921-L5970). Digits come from repeatedly adding the entries of
+[m6502.asm:5921-5970](../m6502.asm#L5921-L5970). Digits come from repeatedly adding the entries of
 `FOUTBL`, which are **big-endian two's-complement integers with alternating signs**, not floats.
 
 ```
@@ -174,12 +174,12 @@ means one loop body does both, with no comparison and no division.
 
 ### 2.5 Trailing zeros and the exponent
 
-[m6502.asm:5971-6008](../../m6502.asm#L5971-L6008). Trailing `0`s are scanned off from the right, and if
+[m6502.asm:5971-6008](../m6502.asm#L5971-L6008). Trailing `0`s are scanned off from the right, and if
 the scan reaches the `.` that is dropped too. Then, if `TENEXP` is non-zero, `E`, a sign, and
 **exactly two digits** are appended.
 
 > The comments `;STORE HIGH DIGIT` and `;STORE LOW DIGIT` at
-> [m6502.asm:5998](../../m6502.asm#L5998) and [m6502.asm:6000](../../m6502.asm#L6000) are the wrong way round;
+> [m6502.asm:5998](../m6502.asm#L5998) and [m6502.asm:6000](../m6502.asm#L6000) are the wrong way round;
 > the bytes are emitted tens-then-units.
 
 ### 2.6 Output formats
@@ -201,7 +201,7 @@ exactly the size of `FBUFFR`.
 
 ## 3. `LOG`
 
-[m6502.asm:5165-5260](../../m6502.asm#L5165-L5260). Uses `ln(F * 2^N) = (N + log2(F)) * ln 2`.
+[m6502.asm:5165-5260](../m6502.asm#L5165-L5260). Uses `ln(F * 2^N) = (N + log2(F)) * ln 2`.
 
 ```
 LOG:    JSR SIGN / BEQ LOGERR / BPL LOG1
@@ -227,7 +227,7 @@ where an odd polynomial converges quickly.
 
 ### 4.1 `EXP`
 
-[m6502.asm:6153-6283](../../m6502.asm#L6153-L6283). Uses
+[m6502.asm:6153-6283](../m6502.asm#L6153-L6283). Uses
 `e^x = 2^(x log2 e)` and `2^y = 2^INT(y) * 2^frac(y)`.
 
 ```
@@ -249,20 +249,20 @@ The final `JSR`-then-`RTS` rather than a `JMP` is required because `MULDIV`'s `Z
 return address — see
 [09-float-format-arith.md](09-float-format-arith.md#51-muldiv--exponent-arithmetic).
 
-> The header comment at [m6502.asm:6160-6162](../../m6502.asm#L6160-L6162) describes an older formulation,
+> The header comment at [m6502.asm:6160-6162](../m6502.asm#L6160-L6162) describes an older formulation,
 > `P(LN(2)*(INT+1)-X)`. The code as written evaluates `P(y - INT(y))` with base-2 coefficients —
 > `EXPCON`'s linear term is 0.6931471861898899, i.e. ln 2.
 
 ### 4.2 `SQR` and `^`
 
-[m6502.asm:6102-6150](../../m6502.asm#L6102-L6150). `SQR` is literally `x ^ 0.5`:
+[m6502.asm:6102-6150](../m6502.asm#L6102-L6150). `SQR` is literally `x ^ 0.5`:
 
 ```
 SQR:    JSR MOVAF / LDWDI FHALF / JSR MOVFM
         (falls into FPWRT)
 ```
 
-The rules, stated at [m6502.asm:6111-6119](../../m6502.asm#L6111-L6119):
+The rules, stated at [m6502.asm:6111-6119](../m6502.asm#L6111-L6119):
 
 | Case | Result |
 |---|---|
@@ -287,7 +287,7 @@ NEGOP:  LDA FACEXP / BEQ NEGRTS / COM FACSGN
 ```
 
 Because `INT` floors, `INT(y) <= y` always, so the `BNE` path is only reached with `A = -1` — which
-is exactly what the comment at [m6502.asm:6133](../../m6502.asm#L6133) claims, and it leaves `FACSGN`
+is exactly what the comment at [m6502.asm:6133](../m6502.asm#L6133) claims, and it leaves `FACSGN`
 negative so `LOG` raises the domain error.
 
 `NEGOP` is a no-op on zero, so `-0` cannot be produced.
@@ -296,7 +296,7 @@ negative so `LOG` raises the domain error.
 
 ## 5. `POLY` and `POLYX`
 
-[m6502.asm:6287-6327](../../m6502.asm#L6287-L6327). Both take a pointer in `(A, Y)` to a **degree byte**
+[m6502.asm:6287-6327](../m6502.asm#L6287-L6327). Both take a pointer in `(A, Y)` to a **degree byte**
 followed by packed coefficients, **highest order first**.
 
 ```
@@ -324,8 +324,8 @@ which `TAN` exploits deliberately (§7).
 
 ## 6. `RND`
 
-[m6502.asm:6329-6397](../../m6502.asm#L6329-L6397). The scheme is described at
-[m6502.asm:6329-6342](../../m6502.asm#L6329-L6342): multiply the previous value by a constant, add another
+[m6502.asm:6329-6397](../m6502.asm#L6329-L6397). The scheme is described at
+[m6502.asm:6329-6342](../m6502.asm#L6329-L6342): multiply the previous value by a constant, add another
 constant, **swap the high and low mantissa bytes**, put the old exponent where `NORMAL` will shift
 it in, force the exponent so the result is below 1, normalise, and store back.
 
@@ -353,18 +353,18 @@ The byte swap is what makes the low-order bits, which the multiply disturbs most
 high-order bits of the result.
 
 On the Commodore, `RND(positive)` instead reads the free-running VIA timers
-([m6502.asm:6357-6371](../../m6502.asm#L6357-L6371)) — a hardware entropy source rather than a
+([m6502.asm:6357-6371](../m6502.asm#L6357-L6371)) — a hardware entropy source rather than a
 deterministic sequence.
 
 > `RMULZC` and `RADDZC` are declared as **four** bytes each
-> ([m6502.asm:6344](../../m6502.asm#L6344), [m6502.asm:6348](../../m6502.asm#L6348)) but read as five under
+> ([m6502.asm:6344](../m6502.asm#L6344), [m6502.asm:6348](../m6502.asm#L6348)) but read as five under
 > `ADDPRC=1`. See [13-porting-notes.md](13-porting-notes.md#3-defects-in-the-1978-code).
 
 ---
 
 ## 7. `SIN`, `COS`, `TAN`
 
-[m6502.asm:6400-6539](../../m6502.asm#L6400-L6539). Assembled only when `KIMROM=0`.
+[m6502.asm:6400-6539](../m6502.asm#L6400-L6539). Assembled only when `KIMROM=0`.
 
 ```
 COS:    FADD PI2                    ; cos(x) = sin(x + pi/2)
@@ -414,7 +414,7 @@ This is the most tightly coupled routine in the math package: it is correct only
 
 ## 8. `ATN`
 
-[m6502.asm:6541-6566](../../m6502.asm#L6541-L6566).
+[m6502.asm:6541-6566](../m6502.asm#L6541-L6566).
 
 ```
 ATN:    push FACSGN
@@ -442,26 +442,26 @@ and checked against the ideal they approximate.
 
 | Label | Line | Octal bytes (`ADDPRC=1`) | Value | Ideal |
 |---|---|---|---|---|
-| `FONE` | [5171](../../m6502.asm#L5171) | 201 000 000 000 000 | 1.0 | 1 |
-| `FHALF` | [5834](../../m6502.asm#L5834) | 200 000 000 000 000 | 0.5 | 0.5 |
-| `ZERO` | [6011](../../m6502.asm#L6011) | 000 … | 0.0 | 0 |
-| `TENZC` | [5381](../../m6502.asm#L5381) | 204 040 000 000 000 | 10.0 | 10 |
-| `SQRHLF` | [5213](../../m6502.asm#L5213) | 200 065 004 363 064 | 0.7071067811921239 | 0.7071067811865476 |
-| `SQRTWO` | [5218](../../m6502.asm#L5218) | 201 065 004 363 064 | 1.4142135623842478 | 1.4142135623730951 |
-| `NEGHLF` | [5223](../../m6502.asm#L5223) | 200 200 000 000 000 | -0.5 | -0.5 |
-| `LOG2` | [5228](../../m6502.asm#L5228) | 200 061 162 027 370 | 0.6931471806019545 | 0.6931471805599453 |
-| `LOGEB2` | [6165](../../m6502.asm#L6165) | 201 070 252 073 051 | 1.4426950407214463 | 1.4426950408889634 |
-| `PI2` | [6461](../../m6502.asm#L6461) | 201 111 017 332 242 | 1.5707963267341256 | 1.5707963267948966 |
-| `TWOPI` | [6466](../../m6502.asm#L6466) | 203 111 017 332 242 | 6.2831853069365025 | 6.283185307179586 |
-| `FR4` | [6471](../../m6502.asm#L6471) | 177 000 000 000 000 | 0.25 | 0.25 |
-| `N32768` | [3791](../../m6502.asm#L3791) | 144 128 0 0 *(decimal, 4 bytes only)* | -32768 as declared | see the defect note |
+| `FONE` | [5171](../m6502.asm#L5171) | 201 000 000 000 000 | 1.0 | 1 |
+| `FHALF` | [5834](../m6502.asm#L5834) | 200 000 000 000 000 | 0.5 | 0.5 |
+| `ZERO` | [6011](../m6502.asm#L6011) | 000 … | 0.0 | 0 |
+| `TENZC` | [5381](../m6502.asm#L5381) | 204 040 000 000 000 | 10.0 | 10 |
+| `SQRHLF` | [5213](../m6502.asm#L5213) | 200 065 004 363 064 | 0.7071067811921239 | 0.7071067811865476 |
+| `SQRTWO` | [5218](../m6502.asm#L5218) | 201 065 004 363 064 | 1.4142135623842478 | 1.4142135623730951 |
+| `NEGHLF` | [5223](../m6502.asm#L5223) | 200 200 000 000 000 | -0.5 | -0.5 |
+| `LOG2` | [5228](../m6502.asm#L5228) | 200 061 162 027 370 | 0.6931471806019545 | 0.6931471805599453 |
+| `LOGEB2` | [6165](../m6502.asm#L6165) | 201 070 252 073 051 | 1.4426950407214463 | 1.4426950408889634 |
+| `PI2` | [6461](../m6502.asm#L6461) | 201 111 017 332 242 | 1.5707963267341256 | 1.5707963267948966 |
+| `TWOPI` | [6466](../m6502.asm#L6466) | 203 111 017 332 242 | 6.2831853069365025 | 6.283185307179586 |
+| `FR4` | [6471](../m6502.asm#L6471) | 177 000 000 000 000 | 0.25 | 0.25 |
+| `N32768` | [3791](../m6502.asm#L3791) | 144 128 0 0 *(decimal, 4 bytes only)* | -32768 as declared | see the defect note |
 
 `PI2` and `TWOPI` share their mantissa bytes; the third is written `333-ADDPRC`, so it is 0o332 here
 and 0o333 with `ADDPRC=0`.
 
 ### 9.2 `LOGCN2` — degree byte 3, four coefficients
 
-[m6502.asm:5192](../../m6502.asm#L5192).
+[m6502.asm:5192](../m6502.asm#L5192).
 
 | Octal bytes | Value |
 |---|---|
@@ -473,12 +473,12 @@ and 0o333 with `ADDPRC=0`.
 The last is 2/ln 2 = 2.8853900817779268 — a minimax rather than Taylor fit, hence the small
 deviation.
 
-With `ADDPRC=0` ([m6502.asm:5177](../../m6502.asm#L5177)): degree 2, coefficients 0.598974347,
+With `ADDPRC=0` ([m6502.asm:5177](../m6502.asm#L5177)): degree 2, coefficients 0.598974347,
 0.961470783, 2.885391235.
 
 ### 9.3 `EXPCON` — degree byte 7, eight coefficients
 
-[m6502.asm:6204](../../m6502.asm#L6204).
+[m6502.asm:6204](../m6502.asm#L6204).
 
 | Octal bytes | Value |
 |---|---|
@@ -491,12 +491,12 @@ With `ADDPRC=0` ([m6502.asm:5177](../../m6502.asm#L5177)): degree 2, coefficient
 | 200 061 162 030 020 | 0.6931471861898899 (= ln 2) |
 | 201 000 000 000 000 | 1.0 |
 
-With `ADDPRC=0` ([m6502.asm:6172](../../m6502.asm#L6172)): degree 6, seven coefficients ending
+With `ADDPRC=0` ([m6502.asm:6172](../m6502.asm#L6172)): degree 6, seven coefficients ending
 0.6931470036506653, 1.0.
 
 ### 9.4 `SINCON` — degree byte 5, six coefficients
 
-[m6502.asm:6499](../../m6502.asm#L6499).
+[m6502.asm:6499](../m6502.asm#L6499).
 
 | Octal bytes | Value | Ideal `(2pi)^n/n!` |
 |---|---|---|
@@ -514,12 +514,12 @@ across the interval.
 **Two further 5-byte groups follow `SINCON`** (`241 124 106 217 023` and `217 122 103 211 315`).
 They are *not* coefficients — they are the Commodore easter-egg data, §10.
 
-With `ADDPRC=0` ([m6502.asm:6476](../../m6502.asm#L6476)): degree 4, five coefficients ending
+With `ADDPRC=0` ([m6502.asm:6476](../m6502.asm#L6476)): degree 4, five coefficients ending
 6.2831854820251465.
 
 ### 9.5 `ATNCON` — degree byte 11 (`13`), twelve coefficients
 
-[m6502.asm:6608](../../m6502.asm#L6608).
+[m6502.asm:6608](../m6502.asm#L6608).
 
 | Octal bytes | Value |
 |---|---|
@@ -538,7 +538,7 @@ With `ADDPRC=0` ([m6502.asm:6476](../../m6502.asm#L6476)): degree 4, five coeffi
 
 The last three converge on the arctangent series -1/3, 1/5, 1.
 
-With `ADDPRC=0` ([m6502.asm:6569](../../m6502.asm#L6569)): degree 8, nine coefficients ending
+With `ADDPRC=0` ([m6502.asm:6569](../m6502.asm#L6569)): degree 8, nine coefficients ending
 -0.333330720663, 1.0.
 
 ### 9.6 `FOUT` bounds
@@ -554,7 +554,7 @@ stored values are as computed above.
 
 ### 9.7 `FOUTBL`
 
-[m6502.asm:6037-6072](../../m6502.asm#L6037-L6072).
+[m6502.asm:6037-6072](../m6502.asm#L6037-L6072).
 
 Nine entries of four bytes, big-endian two's-complement integers, terminated by `FDCEND`:
 
@@ -570,11 +570,11 @@ Nine entries of four bytes, big-endian two's-complement integers, terminated by 
 | 000 000 000 012 | 10 |
 | 377 377 377 377 | -1 |
 
-With `ADDPRC=0` ([m6502.asm:6017-6034](../../m6502.asm#L6017-L6034)): six entries of three bytes,
+With `ADDPRC=0` ([m6502.asm:6017-6034](../m6502.asm#L6017-L6034)): six entries of three bytes,
 -100000 through -1.
 
 When `TIME=1` a second table of -2160000, 216000, -36000, 3600, -600, 60 is appended
-([m6502.asm:6074-6099](../../m6502.asm#L6074-L6099)) for the Commodore's time-of-day converter — the same
+([m6502.asm:6074-6099](../m6502.asm#L6074-L6099)) for the Commodore's time-of-day converter — the same
 digit generator, driven by a base-60 table.
 
 ### 9.8 `RND` constants
@@ -588,8 +588,8 @@ digit generator, driven by a base-60 table.
 The fifth byte read for `RMULZC` is `RADDZC`'s first byte; the fifth for `RADDZC` is the `JSR`
 opcode (32) that begins `RND`.
 
-The ROM template of the seed at [m6502.asm:6698](../../m6502.asm#L6698) ends in **88**, while the RAM
-declaration at [m6502.asm:982](../../m6502.asm#L982) ends in **89** — and `INIT` copies only the first
+The ROM template of the seed at [m6502.asm:6698](../m6502.asm#L6698) ends in **88**, while the RAM
+declaration at [m6502.asm:982](../m6502.asm#L982) ends in **89** — and `INIT` copies only the first
 four bytes anyway.
 
 ---
@@ -597,7 +597,7 @@ four bytes anyway.
 ## 10. The Commodore easter egg
 
 Under `REALIO=3`, `POKE`ing address 0x9166 triggers `ZSTORD`/`MRCHKR`
-([m6502.asm:4913-4939](../../m6502.asm#L4913-L4939)), which reads ten bytes from `SINCON+0o36` — the two
+([m6502.asm:4913-4939](../m6502.asm#L4913-L4939)), which reads ten bytes from `SINCON+0o36` — the two
 extra 5-byte groups appended to the coefficient table — masks each with 0o77, and writes them
 repeatedly to $8000, spelling `MICROSOFT!` in screen codes.
 

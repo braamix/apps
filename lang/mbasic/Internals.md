@@ -1,10 +1,10 @@
 # Internals of Microsoft BASIC 1.1 for the 6502
 
-A recovered design document for [m6502.asm](../m6502.asm), reconstructed by reading the source. It is
+A recovered design document for [m6502.asm](m6502.asm), reconstructed by reading the source. It is
 written for someone who intends to reimplement this interpreter: it describes what the code does and
 which of its mechanisms carry real semantics, but it proposes no replacement design.
 
-The source has its own explanatory comment block at [m6502.asm:245-729](../m6502.asm#L245-L729). It is
+The source has its own explanatory comment block at [m6502.asm:245-729](m6502.asm#L245-L729). It is
 worth reading, but it is incomplete and in several places wrong (see
 [Porting notes](internals/13-porting-notes.md#4-comment-defects-in-the-original)). Where this
 document and that comment block disagree, this document follows the code.
@@ -40,7 +40,7 @@ may be redefined; `::` makes a symbol global.
 
 ### 1.2 The macros defined in this file
 
-Defined at [m6502.asm:108-205](../m6502.asm#L108-L205). These do carry over to a reader:
+Defined at [m6502.asm:108-205](m6502.asm#L108-L205). These do carry over to a reader:
 
 | Macro | Expansion | Register convention |
 |---|---|---|
@@ -65,16 +65,16 @@ Defined at [m6502.asm:108-205](../m6502.asm#L108-L205). These do carry over to a
 `BIT <zero page>`, so the following *one* byte becomes its operand and is not executed; `SKIP2`
 does the same for a 2-byte operand. This is how the source implements "fall into the next routine
 but skip its first instruction" — for example
-[m6502.asm:3169-3177](../m6502.asm#L3169-L3177), where `CHKNUM` sets carry clear and then skips over
+[m6502.asm:3169-3177](m6502.asm#L3169-L3177), where `CHKNUM` sets carry clear and then skips over
 the `SEC` belonging to `CHKSTR`.
 
 ### 1.3 The radix trap
 
 This is the single most dangerous thing about reading the file.
 
-- [m6502.asm:4](../m6502.asm#L4) sets `RADIX 10`. Bare numbers are **decimal**.
-- [m6502.asm:4847](../m6502.asm#L4847) sets `RADIX 8` — the comment reads `;!!!! ALERT !!!!`. From
-  there to [m6502.asm:6671](../m6502.asm#L6671), every bare number in the floating-point package is
+- [m6502.asm:4](m6502.asm#L4) sets `RADIX 10`. Bare numbers are **decimal**.
+- [m6502.asm:4847](m6502.asm#L4847) sets `RADIX 8` — the comment reads `;!!!! ALERT !!!!`. From
+  there to [m6502.asm:6671](m6502.asm#L6671), every bare number in the floating-point package is
   **octal**.
 - `^O` forces octal anywhere; `^D` forces decimal.
 
@@ -87,7 +87,7 @@ parentheses.
 ## 2. Configuration
 
 The source is one codebase targeting six machines, selected by `REALIO` at
-[m6502.asm:10](../m6502.asm#L10), plus about a dozen feature switches. There are roughly 330
+[m6502.asm:10](m6502.asm#L10), plus about a dozen feature switches. There are roughly 330
 `IFE`/`IFN` blocks.
 
 | `REALIO` | Target |
@@ -260,7 +260,7 @@ Detail and line references in [13-porting-notes.md](internals/13-porting-notes.m
 
 ## 6. Conventions used in these documents
 
-- Every non-obvious claim cites its source as a link, e.g. [m6502.asm:3169](../m6502.asm#L3169).
+- Every non-obvious claim cites its source as a link, e.g. [m6502.asm:3169](m6502.asm#L3169).
 - Numbers are decimal. Where the source literal is octal (the `RADIX 8` region), the octal form
   follows in parentheses: "128 (`200`)".
 - Code excerpts are quoted as they appear, except that macro forms are occasionally expanded inline

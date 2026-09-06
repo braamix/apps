@@ -1,10 +1,10 @@
 # 09 — Floating-point format and arithmetic
 
-**Radix warning.** This whole subsystem lies between [m6502.asm:4847](../../m6502.asm#L4847)
-(`RADIX 8 ;!!!! ALERT !!!!`) and [m6502.asm:6671](../../m6502.asm#L6671). Every bare numeral in the source
+**Radix warning.** This whole subsystem lies between [m6502.asm:4847](../m6502.asm#L4847)
+(`RADIX 8 ;!!!! ALERT !!!!`) and [m6502.asm:6671](../m6502.asm#L6671). Every bare numeral in the source
 here is **octal**. This document gives decimal with the source's octal form in parentheses.
 
-The authoritative comment block is [m6502.asm:4849-4896](../../m6502.asm#L4849-L4896). It describes the
+The authoritative comment block is [m6502.asm:4849-4896](../m6502.asm#L4849-L4896). It describes the
 24-bit (`ADDPRC=0`) form; this build has `ADDPRC=1` and 32 bits.
 
 ---
@@ -33,13 +33,13 @@ value = (-1)^sign * (0x80 | byte1 : byte2 : byte3 : byte4) * 2^(exponent-128) / 
 |---|---|
 | Mantissa precision | 32 bits (24 with `ADDPRC=0`) — about 9 significant decimal digits |
 | Exponent range | 1..255 ⇒ 2^-127 .. 2^127, roughly 2.9e-39 .. 1.7e38 |
-| Zero | exponent byte 0; **the other bytes are undefined** ([m6502.asm:4861](../../m6502.asm#L4861)) |
+| Zero | exponent byte 0; **the other bytes are undefined** ([m6502.asm:4861](../m6502.asm#L4861)) |
 | Negative zero | does not exist |
 | Infinity, NaN, denormals | do not exist |
 | Overflow | `?OV ERROR` |
 | Underflow | silently becomes zero |
 
-Scaling rule ([m6502.asm:4862-4864](../../m6502.asm#L4862-L4864)): shifting the mantissa right increments
+Scaling rule ([m6502.asm:4862-4864](../m6502.asm#L4862-L4864)): shifting the mantissa right increments
 the exponent, shifting left decrements it.
 
 This format was independently verified by decoding every constant table in the source and comparing
@@ -71,11 +71,11 @@ Two layout facts a port must not tidy up:
   shift-out byte and `OLDOV` holds the FAC's real one.
 
 The source explains the reason for having two forms at
-[m6502.asm:4891-4896](../../m6502.asm#L4891-L4896): "THIS IS DONE FOR SPEED OF OPERATION". Unpacking once
+[m6502.asm:4891-4896](../m6502.asm#L4891-L4896): "THIS IS DONE FOR SPEED OF OPERATION". Unpacking once
 on load and packing once on store avoids masking the hidden bit on every arithmetic step.
 
 > `FACSGN` is not reliably 0 or 255. `FOUTC` stores `' '` or `'-'` in it
-> ([m6502.asm:5858](../../m6502.asm#L5858)); `FPWRT` stores 3 or 4 ([m6502.asm:6134](../../m6502.asm#L6134)).
+> ([m6502.asm:5858](../m6502.asm#L5858)); `FPWRT` stores 3 or 4 ([m6502.asm:6134](../m6502.asm#L6134)).
 > Every reader uses `BIT`, `BPL`, `BMI` or `ROL`. Model it as a byte whose bit 7 is the sign.
 
 ### 1.3 Relative-addressing constraints
@@ -87,14 +87,14 @@ and in order:
 |---|---|
 | `FAC+1`..`FAC+4` | `SHIFTR`, `QINT1`, `FADD3` as `1,X`..`4,X` with `X = FAC` |
 | `ARGEXP+1`..`ARGEXP+4` | the same, with `X = ARGEXP` |
-| `RESHO`, `RESMOH`, `RESMO`, `RESLO` | `MULSHF` as `1,X`..`4,X` ([m6502.asm:5092](../../m6502.asm#L5092)); `DIVIDE` as `RESLO,X` with `X` from -3 to +1 |
+| `RESHO`, `RESMOH`, `RESMO`, `RESLO` | `MULSHF` as `1,X`..`4,X` ([m6502.asm:5092](../m6502.asm#L5092)); `DIVIDE` as `RESLO,X` with `X` from -3 to +1 |
 | `FACHO`..`FACLO` | `NORM3`'s byte-shift reads `FACHO+1`, `FACMOH+1`, `FACMO+1` |
 
 ---
 
 ## 2. Calling conventions
 
-From [m6502.asm:4873-4890](../../m6502.asm#L4873-L4890):
+From [m6502.asm:4873-4890](../m6502.asm#L4873-L4890):
 
 - One-argument functions: argument in the FAC, result in the FAC.
 - Two-argument operations: **first operand in ARG, second in the FAC**, result in the FAC.
@@ -106,22 +106,22 @@ From [m6502.asm:4873-4890](../../m6502.asm#L4873-L4890):
 
 | Entry | Line | Semantics |
 |---|---|---|
-| `FADD` / `FADDT` | [4944](../../m6502.asm#L4944) / [4945](../../m6502.asm#L4945) | FAC := ARG + FAC |
-| `FADDH` | [4900](../../m6502.asm#L4900) | FAC := FAC + 0.5 |
-| `FSUB` / `FSUBT` | [4902](../../m6502.asm#L4902) / [4903](../../m6502.asm#L4903) | **FAC := ARG − FAC**, i.e. *memory minus FAC* |
-| `FMULT` / `FMULTT` | [5264](../../m6502.asm#L5264) / [5265](../../m6502.asm#L5265) | FAC := ARG × FAC |
-| `FDIV` / `FDIVT` | [5392](../../m6502.asm#L5392) / [5393](../../m6502.asm#L5393) | **FAC := ARG ÷ FAC**, i.e. *memory divided by FAC* |
-| `FCOMP` | [5602](../../m6502.asm#L5602) | compare memory against FAC, result in `A` |
-| `FPWRT` | [6120](../../m6502.asm#L6120) | FAC := ARG ^ FAC |
-| `MUL10` / `DIV10` | [5367](../../m6502.asm#L5367) / [5386](../../m6502.asm#L5386) | FAC := FAC × 10 / FAC ÷ 10 |
+| `FADD` / `FADDT` | [4944](../m6502.asm#L4944) / [4945](../m6502.asm#L4945) | FAC := ARG + FAC |
+| `FADDH` | [4900](../m6502.asm#L4900) | FAC := FAC + 0.5 |
+| `FSUB` / `FSUBT` | [4902](../m6502.asm#L4902) / [4903](../m6502.asm#L4903) | **FAC := ARG − FAC**, i.e. *memory minus FAC* |
+| `FMULT` / `FMULTT` | [5264](../m6502.asm#L5264) / [5265](../m6502.asm#L5265) | FAC := ARG × FAC |
+| `FDIV` / `FDIVT` | [5392](../m6502.asm#L5392) / [5393](../m6502.asm#L5393) | **FAC := ARG ÷ FAC**, i.e. *memory divided by FAC* |
+| `FCOMP` | [5602](../m6502.asm#L5602) | compare memory against FAC, result in `A` |
+| `FPWRT` | [6120](../m6502.asm#L6120) | FAC := ARG ^ FAC |
+| `MUL10` / `DIV10` | [5367](../m6502.asm#L5367) / [5386](../m6502.asm#L5386) | FAC := FAC × 10 / FAC ÷ 10 |
 
 The reversed sense of `FSUB` and `FDIV` is easy to misread. It is confirmed by `DIV10`
-([m6502.asm:5386-5391](../../m6502.asm#L5386-L5391)), which puts *x* into ARG and 10.0 into the FAC before
+([m6502.asm:5386-5391](../m6502.asm#L5386-L5391)), which puts *x* into ARG and 10.0 into the FAC before
 calling `FDIVT` to get *x*/10.
 
 ### 2.2 Movement routines
 
-[m6502.asm:5463-5557](../../m6502.asm#L5463-L5557).
+[m6502.asm:5463-5557](../m6502.asm#L5463-L5557).
 
 | Routine | Pointer in | Action |
 |---|---|---|
@@ -144,7 +144,7 @@ Note `MOVFM` takes its pointer in `(A,Y)` but `MOVMF` takes it in `(X,Y)`.
 
 ### 3.1 `NORMAL`
 
-[m6502.asm:5003-5065](../../m6502.asm#L5003-L5065).
+[m6502.asm:5003-5065](../m6502.asm#L5003-L5065).
 
 ```
 NORMAL: A = 0 (shift count), C = 0
@@ -168,12 +168,12 @@ cancellation.
 `NORMAL` never rounds. `FACOV` is only folded in by `ROUND`, which is called from `MOVMF`, `MOVAF`
 and `FDIVT`. So intermediate results carry a guard byte and only rounding-on-store loses it.
 
-`ZEROFC` / `ZEROF1` / `ZEROML` ([m6502.asm:5021-5023](../../m6502.asm#L5021-L5023)) are three entry points
+`ZEROFC` / `ZEROF1` / `ZEROML` ([m6502.asm:5021-5023](../m6502.asm#L5021-L5023)) are three entry points
 into "make the FAC zero", differing in what they preserve.
 
 ### 3.2 `SHIFTR` / `MULSHF` / `ROLSHF`
 
-[m6502.asm:5089-5163](../../m6502.asm#L5089-L5163). Shifts the four mantissa bytes at `[X+1..X+4]` plus
+[m6502.asm:5089-5163](../m6502.asm#L5089-L5163). Shifts the four mantissa bytes at `[X+1..X+4]` plus
 the accumulator right by `-A` bits, using `BITS` as the fill during whole-byte steps.
 
 ```
@@ -193,13 +193,13 @@ runs the loop `-Y` times and exits through `SHFTRT`. `MULSHF` likewise enters at
 reimplementation that turns these into functions has to reproduce the shared loop counter.
 
 With `RORSW=0` (early 6502s whose `ROR` was broken) an emulation is assembled instead
-([m6502.asm:5117-5124](../../m6502.asm#L5117-L5124), [m6502.asm:108-115](../../m6502.asm#L108-L115)).
+([m6502.asm:5117-5124](../m6502.asm#L5117-L5124), [m6502.asm:108-115](../m6502.asm#L108-L115)).
 
 ---
 
 ## 4. Addition and subtraction
 
-[m6502.asm:4899-5163](../../m6502.asm#L4899-L5163).
+[m6502.asm:4899-5163](../m6502.asm#L4899-L5163).
 
 ### 4.1 Alignment
 
@@ -224,11 +224,11 @@ FADD4:  BIT ARISGN / BPL FADD2  ; same signs => add
 
 The smaller operand is shifted right by the exponent difference, with the bits shifted out
 accumulating in `A` as the new guard byte. The constant 249 also "ALLOWS SHIFTING OF NEG NUMS BY
-QINT" ([m6502.asm:4967-4970](../../m6502.asm#L4967-L4970)).
+QINT" ([m6502.asm:4967-4970](../m6502.asm#L4967-L4970)).
 
 ### 4.2 Adding
 
-`FADD2` ([m6502.asm:5025-5040](../../m6502.asm#L5025-L5040)): `ADC OLDOV` to combine the guard bytes, then
+`FADD2` ([m6502.asm:5025-5040](../m6502.asm#L5025-L5040)): `ADC OLDOV` to combine the guard bytes, then
 a four-byte `ADC` chain, then `SQUEEZ` — which shifts right and increments the exponent if a carry
 came out of the top.
 
@@ -240,7 +240,7 @@ came out of the top.
 
 ### 4.3 Subtracting
 
-`FADD3` ([m6502.asm:4979-4999](../../m6502.asm#L4979-L4999)): `X` still holds the base address of whichever
+`FADD3` ([m6502.asm:4979-4999](../m6502.asm#L4979-L4999)): `X` still holds the base address of whichever
 operand was shifted (the smaller one), and `Y` is set to the other. The four bytes are subtracted
 `[Y+n] - [X+n]`, the guard byte is `OLDOV` minus the shifted-out bits, and then:
 
@@ -257,7 +257,7 @@ order in advance.
 
 ## 5. Multiplication
 
-[m6502.asm:5262-5314](../../m6502.asm#L5262-L5314).
+[m6502.asm:5262-5314](../m6502.asm#L5262-L5314).
 
 ```
 FMULT:  JSR CONUPK
@@ -295,7 +295,7 @@ The author's own comment on the inner loop is `;SLOW AS A TURTLE !`.
 
 ### 5.1 `MULDIV` — exponent arithmetic
 
-[m6502.asm:5342-5364](../../m6502.asm#L5342-L5364).
+[m6502.asm:5342-5364](../m6502.asm#L5342-L5364).
 
 ```
 MULDIV: LDA ARGEXP
@@ -318,11 +318,11 @@ C=0,N=1 (sum 128..255).
 
 **`ZEREMV` pops the caller's return address**, so `MULDIV` can return two levels up. `EXP` therefore
 has to call `MLDEXP` with a `JSR` and immediately `RTS` — the source notes "HAS TO DO JSR DUE TO
-PULAS IN MULDIV" ([m6502.asm:6283](../../m6502.asm#L6283)).
+PULAS IN MULDIV" ([m6502.asm:6283](../m6502.asm#L6283)).
 
 ### 5.2 `MUL10` and `DIV10`
 
-[m6502.asm:5366-5391](../../m6502.asm#L5366-L5391). `MUL10` computes 5x then doubles it, by lying to
+[m6502.asm:5366-5391](../m6502.asm#L5366-L5391). `MUL10` computes 5x then doubles it, by lying to
 `FADDC` about ARG's exponent:
 
 ```
@@ -341,7 +341,7 @@ this BASIC is iterative rather than table-driven.
 
 ## 6. Division
 
-[m6502.asm:5392-5461](../../m6502.asm#L5392-L5461). Non-restoring, MSB first.
+[m6502.asm:5392-5461](../m6502.asm#L5392-L5461). Non-restoring, MSB first.
 
 ```
 FDIV:   JSR CONUPK
@@ -367,12 +367,12 @@ DIVNRM: REPEAT 6,<ASL A> / STA FACOV    ; the last two bits become the guard byt
 ```
 
 The `PHP`/`PLP` pair preserves the comparison's carry across the `ROL A` that consumes it. The
-source's comment at [m6502.asm:5405](../../m6502.asm#L5405) is
+source's comment at [m6502.asm:5405](../m6502.asm#L5405) is
 `;THIS IS THE BEST CODE IN THE WHOLE PILE`.
 
 The quotient is four bytes plus two guard bits. The final `STA RESLO,X` with `X=1` writes into the
-spare byte declared at [m6502.asm:831](../../m6502.asm#L831); its content is discarded, and the source
-acknowledges the cost at [m6502.asm:5424](../../m6502.asm#L5424) — "NOTE THIS REQ 1 MO RAM THEN NECESS".
+spare byte declared at [m6502.asm:831](../m6502.asm#L831); its content is discarded, and the source
+acknowledges the cost at [m6502.asm:5424](../m6502.asm#L5424) — "NOTE THIS REQ 1 MO RAM THEN NECESS".
 
 Division by zero is detected at entry and raises `?/0` immediately, because there would be nowhere
 to put a result.
@@ -381,8 +381,8 @@ to put a result.
 
 ## 7. Comparison
 
-`FCOMP` [m6502.asm:5598-5637](../../m6502.asm#L5598-L5637). Convention stated at
-[m6502.asm:5599-5601](../../m6502.asm#L5599-L5601):
+`FCOMP` [m6502.asm:5598-5637](../m6502.asm#L5598-L5637). Convention stated at
+[m6502.asm:5599-5601](../m6502.asm#L5599-L5601):
 
 ```
 A =  1  if ARG < FAC       (memory operand less than the FAC)
@@ -405,7 +405,7 @@ It is a big-endian unsigned magnitude comparison, **including the FAC's guard by
 that differ only in `FACOV` compare unequal. That is why `NEXT` can use `FCOMPN` for the loop test
 and get a result consistent with what `FADD` just produced.
 
-`SIGN` / `FCSIGN` / `FCOMPS` ([m6502.asm:5562-5569](../../m6502.asm#L5562-L5569)) return 0, +1 or -1;
+`SIGN` / `FCSIGN` / `FCOMPS` ([m6502.asm:5562-5569](../m6502.asm#L5562-L5569)) return 0, +1 or -1;
 `SGN` is `JSR SIGN` falling into `FLOAT`. `ABS` is a single instruction, `LSR FACSGN`.
 
 ---
@@ -414,7 +414,7 @@ and get a result consistent with what `FADD` just produced.
 
 ### 8.1 `QINT`
 
-[m6502.asm:5641-5670](../../m6502.asm#L5641-L5670). "QUICK GREATEST INTEGER FUNCTION."
+[m6502.asm:5641-5670](../m6502.asm#L5641-L5670). "QUICK GREATEST INTEGER FUNCTION."
 
 ```
 QINT:   LDA FACEXP / BEQ CLRFAC
@@ -436,7 +436,7 @@ returns 0.
 
 ### 8.2 `INT`
 
-[m6502.asm:5672-5692](../../m6502.asm#L5672-L5692). Values already integral (exponent ≥ 160) are returned
+[m6502.asm:5672-5692](../m6502.asm#L5672-L5692). Values already integral (exponent ≥ 160) are returned
 untouched. Otherwise `QINT`, then rebuild a float with exponent 160 and re-normalise. Side effect:
 `INTEGR` = the result's low byte, which `^` and `EXP` both read.
 
@@ -446,7 +446,7 @@ See [06-expressions.md](06-expressions.md#61-ayint), including the `N32768` defe
 
 ### 8.4 Floating an integer
 
-[m6502.asm:4124-4132](../../m6502.asm#L4124-L4132), [m6502.asm:5574-5591](../../m6502.asm#L5574-L5591).
+[m6502.asm:4124-4132](../m6502.asm#L4124-L4132), [m6502.asm:5574-5591](../m6502.asm#L5574-L5591).
 
 | Routine | Input | Notes |
 |---|---|---|
@@ -457,7 +457,7 @@ See [06-expressions.md](06-expressions.md#61-ayint), including the `N32768` defe
 | `FLOATC` | — | entered with carry preset, so the caller controls signedness |
 
 `FLOATC` with `SEC` is how `LINPRT` prints line numbers and the free-byte count as **unsigned**
-0..65535 ([m6502.asm:5845-5848](../../m6502.asm#L5845-L5848)) even though the same code path normally
+0..65535 ([m6502.asm:5845-5848](../m6502.asm#L5845-L5848)) even though the same code path normally
 treats 16-bit values as signed.
 
 ---
@@ -466,8 +466,8 @@ treats 16-bit values as signed.
 
 | Routine | Line | Error |
 |---|---|---|
-| `OVERR` | [5086](../../m6502.asm#L5086) | `?OV` — raised on exponent overflow in `MULDIV`, `RNDSHF`, `MUL10`, `FIN` |
-| `DV0ERR` | [5460](../../m6502.asm#L5460) | `?/0` — division by zero |
+| `OVERR` | [5086](../m6502.asm#L5086) | `?OV` — raised on exponent overflow in `MULDIV`, `RNDSHF`, `MUL10`, `FIN` |
+| `DV0ERR` | [5460](../m6502.asm#L5460) | `?/0` — division by zero |
 | `FCERR` | — | `?FC` — domain errors in `LOG`, `SQR`, `AYINT`, `GETADR` |
 
 There is no underflow error: a result too small silently becomes zero, in `NORMAL` and in `MULDIV`.

@@ -15,19 +15,19 @@ None of these are visible to a BASIC program.
 
 | Mechanism | Where | Why it exists |
 |---|---|---|
-| Self-modifying `CHRGET`, with `TXTPTR` as an instruction operand | [m6502.asm:943-976](../../m6502.asm#L943-L976) | saves an index register and a zero-page indirect setup on the hottest path. A plain pointer is equivalent |
-| `SKIP1` / `SKIP2` opcode swallowing | [m6502.asm:188-189](../../m6502.asm#L188-L189) | "enter this routine one instruction in" — a fall-through with a different preset |
+| Self-modifying `CHRGET`, with `TXTPTR` as an instruction operand | [m6502.asm:943-976](../m6502.asm#L943-L976) | saves an index register and a zero-page indirect setup on the hottest path. A plain pointer is equivalent |
+| `SKIP1` / `SKIP2` opcode swallowing | [m6502.asm:188-189](../m6502.asm#L188-L189) | "enter this routine one instruction in" — a fall-through with a different preset |
 | Dispatch by pushing `address-1` and letting `RTS` jump | `STMDSP`, `FUNDSP`, `OPTAB` | the 6502 has no indirect `JSR` |
-| The `JMPER` trampoline in page zero | [m6502.asm:891](../../m6502.asm#L891) | likewise — a patched `JMP` standing in for an indirect call |
-| `ROR` emulation under `RORSW=0` | [m6502.asm:108-115](../../m6502.asm#L108-L115) | early 6502s shipped with a broken `ROR` |
-| `BCCA`, `BNEA` and friends | [m6502.asm:174-181](../../m6502.asm#L174-L181) | the 6502 has no unconditional branch; these document intent |
-| `JEQ` / `JNE` | [m6502.asm:169-173](../../m6502.asm#L169-L173) | long conditional branches, since 6502 branches reach only ±127 |
+| The `JMPER` trampoline in page zero | [m6502.asm:891](../m6502.asm#L891) | likewise — a patched `JMP` standing in for an indirect call |
+| `ROR` emulation under `RORSW=0` | [m6502.asm:108-115](../m6502.asm#L108-L115) | early 6502s shipped with a broken `ROR` |
+| `BCCA`, `BNEA` and friends | [m6502.asm:174-181](../m6502.asm#L174-L181) | the 6502 has no unconditional branch; these document intent |
+| `JEQ` / `JNE` | [m6502.asm:169-173](../m6502.asm#L169-L173) | long conditional branches, since 6502 branches reach only ±127 |
 | Most page-zero aliasing | [01-memory-map.md](01-memory-map.md#2-alias-table) | 256 bytes of fast memory, more names than bytes |
 | Byte-at-a-time then bit-at-a-time normalisation | `NORM3` | a speed optimisation |
-| The `MLTPLY` sentinel bit | [m6502.asm:5297](../../m6502.asm#L5297) | makes a loop run exactly 8 times with no counter |
-| `ZEREMV` popping the caller's return address | [m6502.asm:5361](../../m6502.asm#L5361) | a two-level early return |
-| `ROLSHF` / `MULSHF` as interior entry points of `SHIFTR`'s loop | [m6502.asm:5092-5125](../../m6502.asm#L5092-L5125) | code sharing; note these are *not* callable subroutines |
-| Rebuilding all program links after every edit (`LNKPRG`) | [m6502.asm:1642](../../m6502.asm#L1642) | simpler than patching; a port using offsets or indices needs neither |
+| The `MLTPLY` sentinel bit | [m6502.asm:5297](../m6502.asm#L5297) | makes a loop run exactly 8 times with no counter |
+| `ZEREMV` popping the caller's return address | [m6502.asm:5361](../m6502.asm#L5361) | a two-level early return |
+| `ROLSHF` / `MULSHF` as interior entry points of `SHIFTR`'s loop | [m6502.asm:5092-5125](../m6502.asm#L5092-L5125) | code sharing; note these are *not* callable subroutines |
+| Rebuilding all program links after every edit (`LNKPRG`) | [m6502.asm:1642](../m6502.asm#L1642) | simpler than patching; a port using offsets or indices needs neither |
 
 ---
 
@@ -39,7 +39,7 @@ These are observable from a BASIC program, or are required for the rest of the s
 
 `CHRGET` returns a character in `A` **and** two flags that mean "is a digit" and "is a statement
 terminator", and callers many levels away consume them. `GONE2` even relies on carry left over from
-a *previous* routine ([m6502.asm:2172](../../m6502.asm#L2172)).
+a *previous* routine ([m6502.asm:2172](../m6502.asm#L2172)).
 
 Other flag-based contracts: `FNDFOR`'s (Z, X, A); `CHKVAL`'s carry-in meaning "I want a string";
 `FCOMP`'s -1/0/+1 in `A`; `ISLETC`'s carry; `FNDLIN`'s carry distinguishing "found" from "here is
@@ -68,11 +68,11 @@ by *content*, not by depth.
 
 ### 2.3 A string in the FAC is a pointer, not a value
 
-`DSCTMP = FAC` ([m6502.asm:921](../../m6502.asm#L921)). When `VALTYP` is 255, `FACMO`/`FACLO` hold the
+`DSCTMP = FAC` ([m6502.asm:921](../m6502.asm#L921)). When `VALTYP` is 255, `FACMO`/`FACLO` hold the
 *address of a 3-byte descriptor*, not a number. Numeric and string values are genuinely different
 shapes sharing one register.
 
-The 1978-02-11 bug ([m6502.asm:230-231](../../m6502.asm#L230-L231)) is exactly this biting: rounding the
+The 1978-02-11 bug ([m6502.asm:230-231](../m6502.asm#L230-L231)) is exactly this biting: rounding the
 FAC before pushing it could increment a string pointer.
 
 ### 2.4 One descriptor per string body
@@ -89,7 +89,7 @@ that programs rely on to detect exhaustion.
 ### 2.5 The copy-if-volatile rule is observable
 
 Whether `A$ = "X"` copies depends on **which page the text is on**
-([m6502.asm:4295-4305](../../m6502.asm#L4295-L4305)). A string constant in a program line is not copied
+([m6502.asm:4295-4305](../m6502.asm#L4295-L4305)). A string constant in a program line is not copied
 and points into the program text; the same constant typed as a direct statement is copied. A program
 can observe the difference through `FRE`.
 
@@ -153,8 +153,8 @@ for fidelity, or fix it.
 
 ### 3.1 The Apple ^C check never breaks
 
-[m6502.asm:2221-2226](../../m6502.asm#L2221-L2226) with
-[m6502.asm:1756-1757](../../m6502.asm#L1756-L1757).
+[m6502.asm:2221-2226](../m6502.asm#L2221-L2226) with
+[m6502.asm:1756-1757](../m6502.asm#L1756-L1757).
 
 ```
 ISCNTC: LDA ^O140000     ; $C000 - keyboard, bit 7 set when a key is ready
@@ -174,7 +174,7 @@ checked in, ^C cannot interrupt a running program.**
 
 ### 3.2 `AYINT` rejects exactly -32768
 
-[m6502.asm:3791](../../m6502.asm#L3791): `N32768: EXP 144,128,0,0` — four bytes. `EXP` emits one byte per
+[m6502.asm:3791](../m6502.asm#L3791): `N32768: EXP 144,128,0,0` — four bytes. `EXP` emits one byte per
 expression, and with `ADDPRC=1` `FCOMP` reads five. The fifth byte is the first opcode of `INTIDX`,
 `JSR` = 32, so the constant compares as **-32768.00048828125**.
 
@@ -184,7 +184,7 @@ Exactly -32768 therefore fails and raises `?FC ERROR`, so
 
 ### 3.3 The `RND` constants read a stray byte
 
-[m6502.asm:6344](../../m6502.asm#L6344) and [m6502.asm:6348](../../m6502.asm#L6348) declare `RMULZC` and
+[m6502.asm:6344](../m6502.asm#L6344) and [m6502.asm:6348](../m6502.asm#L6348) declare `RMULZC` and
 `RADDZC` with four bytes and no `IFN ADDPRC` fifth, unlike every other constant in the file. Under
 `ADDPRC=1` they are read as five:
 
@@ -197,19 +197,19 @@ The generator still works; the sequence is simply not the one intended.
 
 ### 3.4 `INIT` copies only four of the five seed bytes
 
-[m6502.asm:6733](../../m6502.asm#L6733): `LDXI RNDX+4-CHRGET` = 28 bytes, covering `CHRGET` (24) plus
+[m6502.asm:6733](../m6502.asm#L6733): `LDXI RNDX+4-CHRGET` = 28 bytes, covering `CHRGET` (24) plus
 `RNDX[0..3]`. `RNDX+4` — the `ADDPRC` fifth byte — is never copied, so the seed's least significant
 byte is whatever the RAM happened to contain.
 
-Compounding it, the ROM template ends in **88** ([m6502.asm:6698](../../m6502.asm#L6698)) while the RAM
-declaration ends in **89** ([m6502.asm:982](../../m6502.asm#L982)), so the two disagree about a byte that
+Compounding it, the ROM template ends in **88** ([m6502.asm:6698](../m6502.asm#L6698)) while the RAM
+declaration ends in **89** ([m6502.asm:982](../m6502.asm#L982)), so the two disagree about a byte that
 is never transferred anyway.
 
 ### 3.5 The two copies of `CHRGET` are not identical
 
 `INIT`'s `MOVCHG` is unconditional, so the `INITAT` template
-([m6502.asm:6678-6692](../../m6502.asm#L6678-L6692)) overwrites the page-zero `CHRGET`
-([m6502.asm:958-975](../../m6502.asm#L958-L975)) **in every build**, RAM or ROM. The two order their `:`
+([m6502.asm:6678-6692](../m6502.asm#L6678-L6692)) overwrites the page-zero `CHRGET`
+([m6502.asm:958-975](../m6502.asm#L958-L975)) **in every build**, RAM or ROM. The two order their `:`
 and `' '` tests oppositely.
 
 Entered at `CHRGET` or `CHRGOT` the two are equivalent. But `QNUM` is a documented third entry point
@@ -222,7 +222,7 @@ at `CHRGET+13`, and in the copy that actually runs, that address holds `CMP #' '
 | `'A'` | C=1 (not numeric) | **C=0 — reports numeric** |
 | `' '` | C=1 | **branches to `CHRGET`, advancing `TXTPTR` and refetching** |
 
-`QNUM`'s only caller is `TIMNUM` ([m6502.asm:2609-2610](../../m6502.asm#L2609-L2610)), inside
+`QNUM`'s only caller is `TIMNUM` ([m6502.asm:2609-2610](../m6502.asm#L2609-L2610)), inside
 `IFN TIME` — compiled out here, but active on the Commodore, where it validates the digits assigned
 to `TI$`. There, a non-digit would be accepted rather than raising `?FC`.
 
@@ -230,7 +230,7 @@ This one was not in the source's revision log and appears to be unrecorded.
 
 ### 3.6 `ROMSW=0` builds never store `TXTTAB`
 
-[m6502.asm:6845-6875](../../m6502.asm#L6845-L6875). In the RAM build, `HAVFNS` leaves the intended start
+[m6502.asm:6845-6875](../m6502.asm#L6845-L6875). In the RAM build, `HAVFNS` leaves the intended start
 of program text in `[X,Y]` (and the `IFE REALIO!LONGI` path loads `INITAT-1`), but the only
 `STXY TXTTAB` is inside `IFN ROMSW`. The value in `[X,Y]` is discarded by the following
 `LDYI 0 / TYA`.
@@ -240,10 +240,10 @@ uses. Not reachable in this build, since `ROMSW=1`.
 
 ### 3.7 Two different formulas for `NCMWID`
 
-Compile-time ([m6502.asm:2749](../../m6502.asm#L2749)):
+Compile-time ([m6502.asm:2749](../m6502.asm#L2749)):
 `NCMPOS = ((LINLEN/CLMWID)-1)*CLMWID` → **14** for `LINLEN=40, CLMWID=14`.
 
-Run-time, `MORCPS` ([m6502.asm:6838-6843](../../m6502.asm#L6838-L6843)):
+Run-time, `MORCPS` ([m6502.asm:6838-6843](../m6502.asm#L6838-L6843)):
 `NCMWID = LINWID - (LINWID mod CLMWID)` → **28** for the same inputs.
 
 Answering `40` to `TERMINAL WIDTH?` therefore yields different comma-zone behaviour than pressing
@@ -251,9 +251,9 @@ return and keeping the default 40.
 
 ### 3.8 Equal-exponent `FADD` adds one to the guard byte
 
-`FADD` reaches `FADD2` from `BEQ FADD4` ([m6502.asm:4954](../../m6502.asm#L4954)) with carry **set**,
+`FADD` reaches `FADD2` from `BEQ FADD4` ([m6502.asm:4954](../m6502.asm#L4954)) with carry **set**,
 because the branch follows an `SBC` that produced zero. `FADD2`'s first instruction is
-`ADC OLDOV` ([m6502.asm:5025](../../m6502.asm#L5025)), so the guard byte becomes `OLDOV+1`, and an
+`ADC OLDOV` ([m6502.asm:5025](../m6502.asm#L5025)), so the guard byte becomes `OLDOV+1`, and an
 `OLDOV` of 255 carries into `FACLO`.
 
 On the shifted paths carry is clear, because both `SHFTRT` and the `ROLSHF` loop end with `CLC`. So
@@ -262,19 +262,19 @@ case.
 
 ### 3.9 `VAL` writes one byte past the string
 
-[m6502.asm:4763-4789](../../m6502.asm#L4763-L4789). It stores a zero at `body + length` to give `FIN` a
+[m6502.asm:4763-4789](../m6502.asm#L4763-L4789). It stores a zero at `body + length` to give `FIN` a
 terminator, then restores the original byte. Harmless on a 6502; a genuine out-of-bounds write for
 any bounded string type, and not re-entrant.
 
 ### 3.10 Dead code
 
-- `JSR MOV1F` at the head of `TAN` ([m6502.asm:6446](../../m6502.asm#L6446)) — `POLYX` inside `SIN`
+- `JSR MOV1F` at the head of `TAN` ([m6502.asm:6446](../m6502.asm#L6446)) — `POLYX` inside `SIN`
   overwrites `TEMPF1` before `TAN` reads it back.
-- `CLR ARISGN` before `FSUBT` in `SIN` ([m6502.asm:6424](../../m6502.asm#L6424)) — `FSUBT` recomputes it.
-- The Apple `LOAD`/`SAVE` routines ([m6502.asm:2323-2363](../../m6502.asm#L2323-L2363)) — no token, no
+- `CLR ARISGN` before `FSUBT` in `SIN` ([m6502.asm:6424](../m6502.asm#L6424)) — `FSUBT` recomputes it.
+- The Apple `LOAD`/`SAVE` routines ([m6502.asm:2323-2363](../m6502.asm#L2323-L2363)) — no token, no
   dispatch entry, because `DISKO=0`.
 - `REASON`'s save loop performs one load too many
-  ([m6502.asm:1495](../../m6502.asm#L1495)): the loop runs ten times but pushes only nine of the bytes it
+  ([m6502.asm:1495](../m6502.asm#L1495)): the loop runs ten times but pushes only nine of the bytes it
   loads, so the final `LDA HIGHDS-1,X` with `X=0` fetches address 150 and discards it. The nine
   bytes actually saved are 151-159, which is exactly what the restore loop puts back.
 
@@ -286,17 +286,17 @@ The source's comments are wrong in these places. Trust the code.
 
 | Location | Says | Actually |
 |---|---|---|
-| [m6502.asm:906-907](../../m6502.asm#L906-L907) | `TENEXP` is "HAS A DPT BEEN INPUT?", `DPTFLG` is "BASE TEN EXPONENT" | swapped; the names are right |
-| [m6502.asm:1410](../../m6502.asm#L1410) | `BLTU` leaves pointers "MINUS 200 OCTAL" | minus 256 — the high byte is decremented |
-| [m6502.asm:2030](../../m6502.asm#L2030) | "YES. END OF LINE" on a `BNE` | the branch is taken when it is *not* end of line |
-| [m6502.asm:3153](../../m6502.asm#L3153) | `LOOPDN` "adds 16 with carry" | 18, with `ADDPRC=1` |
-| [m6502.asm:576-580](../../m6502.asm#L576-L580) | the string flag is on the first name character | it is on the **second**; bit 7 of the first means integer or `DEF FN` |
-| [m6502.asm:766](../../m6502.asm#L766) | `VALTYP` "0=NUMERIC 1=STRING" | string is 255, not 1 |
-| [m6502.asm:3895](../../m6502.asm#L3895) | comment on the dimension-count check | misleading about which error is raised |
-| [m6502.asm:5998,6000](../../m6502.asm#L5998-L6000) | "STORE HIGH DIGIT" / "STORE LOW DIGIT" | swapped; tens are emitted first |
-| [m6502.asm:6160-6162](../../m6502.asm#L6160-L6162) | `EXP` uses `P(LN(2)*(INT+1)-X)` | the code evaluates `P(y - INT(y))` with base-2 coefficients |
-| [m6502.asm:5811-5825](../../m6502.asm#L5811-L5825) | `NZ0999` is 99999999.9499, `NZ9999` is 999999999.499 | 99999999.90625 and 999999999.25 |
-| [m6502.asm:4859](../../m6502.asm#L4859) | "THE MANTISSA IS 24 BITS LONG" | 32 bits when `ADDPRC=1`, as in this build |
+| [m6502.asm:906-907](../m6502.asm#L906-L907) | `TENEXP` is "HAS A DPT BEEN INPUT?", `DPTFLG` is "BASE TEN EXPONENT" | swapped; the names are right |
+| [m6502.asm:1410](../m6502.asm#L1410) | `BLTU` leaves pointers "MINUS 200 OCTAL" | minus 256 — the high byte is decremented |
+| [m6502.asm:2030](../m6502.asm#L2030) | "YES. END OF LINE" on a `BNE` | the branch is taken when it is *not* end of line |
+| [m6502.asm:3153](../m6502.asm#L3153) | `LOOPDN` "adds 16 with carry" | 18, with `ADDPRC=1` |
+| [m6502.asm:576-580](../m6502.asm#L576-L580) | the string flag is on the first name character | it is on the **second**; bit 7 of the first means integer or `DEF FN` |
+| [m6502.asm:766](../m6502.asm#L766) | `VALTYP` "0=NUMERIC 1=STRING" | string is 255, not 1 |
+| [m6502.asm:3895](../m6502.asm#L3895) | comment on the dimension-count check | misleading about which error is raised |
+| [m6502.asm:5998,6000](../m6502.asm#L5998-L6000) | "STORE HIGH DIGIT" / "STORE LOW DIGIT" | swapped; tens are emitted first |
+| [m6502.asm:6160-6162](../m6502.asm#L6160-L6162) | `EXP` uses `P(LN(2)*(INT+1)-X)` | the code evaluates `P(y - INT(y))` with base-2 coefficients |
+| [m6502.asm:5811-5825](../m6502.asm#L5811-L5825) | `NZ0999` is 99999999.9499, `NZ9999` is 999999999.499 | 99999999.90625 and 999999999.25 |
+| [m6502.asm:4859](../m6502.asm#L4859) | "THE MANTISSA IS 24 BITS LONG" | 32 bits when `ADDPRC=1`, as in this build |
 
 ---
 
@@ -312,7 +312,7 @@ The claims here were checked rather than assumed:
    powers of ten. This confirms the format description in
    [09-float-format-arith.md](09-float-format-arith.md#1-the-number-format).
 3. **Token numbering** — `RESLST` was recounted from
-   [m6502.asm:1112-1245](../../m6502.asm#L1112-L1245) under this build's switches, confirming the table in
+   [m6502.asm:1112-1245](../m6502.asm#L1112-L1245) under this build's switches, confirming the table in
    [03-tokenizer-editor.md](03-tokenizer-editor.md#3-the-reserved-word-table).
 4. **Structure sizes** — the `FOR` frame layout was re-derived from `FOR`'s push order and checked
    against the offsets `NEXT` indexes; likewise the `GOSUB` frame, the variable stride, array element

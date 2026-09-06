@@ -5,12 +5,13 @@ MIT and rewritten here in C++20 for Braam. It is the interpreter that shipped on
 the Apple II, the Commodore PET, the KIM-1 and the OSI — one codebase, six
 targets, selected by a `REALIO` switch. This is a seventh.
 
-Upstream is a single MACRO-10 file, `tmp/m6502.asm`, together with the design
-document recovered from it in `tmp/doc/`. It cannot be assembled: MACRO-10 was
-DEC's PDP-10 assembler used as a cross-assembler, and the universal file that
-`SEARCH M6502` on line 2 pulls in — the one defining every opcode macro — is not
-in the archive. The only way to run this program again is to rewrite it, which
-is what this is.
+Upstream is a single MACRO-10 file, [m6502.asm](m6502.asm), together with the
+design document recovered from it — [Internals.md](Internals.md) and the
+thirteen chapters in [internals/](internals/). It cannot be assembled:
+MACRO-10 was DEC's PDP-10 assembler used as a cross-assembler, and the
+universal file that `SEARCH M6502` on line 2 pulls in — the one defining every
+opcode macro — is not in the archive. The only way to run this program again is
+to rewrite it, which is what this is.
 
 ```
 $ mbasic
@@ -181,7 +182,7 @@ loops open still returns correctly. It is an explicit `Vec<Frame>` in
 ### The ten defects, fixed
 
 Section 3 of
-[tmp/doc/internals/13-porting-notes.md](tmp/doc/internals/13-porting-notes.md)
+[internals/13-porting-notes.md](internals/13-porting-notes.md)
 catalogues ten. All are fixed:
 
 | | |
@@ -326,7 +327,7 @@ detokenize by index into `RESLST`, and stored programs are text.
 ## Files
 
 Upstream is one file with 46 `SUBTTL` sections. The split follows them, and each
-source names the chapter of `tmp/doc/internals/` it implements.
+source names the chapter of [internals/](internals/) it implements.
 
 | | |
 |---|---|

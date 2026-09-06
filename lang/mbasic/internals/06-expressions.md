@@ -4,7 +4,7 @@
 
 ## 1. Type checking
 
-[m6502.asm:3169-3180](../../m6502.asm#L3169-L3180).
+[m6502.asm:3169-3180](../m6502.asm#L3169-L3180).
 
 ```
 FRMNUM: JSR FRMEVL
@@ -23,18 +23,18 @@ The convention is **carry in = "I require a string"**. `VALTYP` is 0 for numeric
 and is tested with `BIT` so the answer arrives in the N flag without disturbing `A`.
 
 On return the Z flag reflects `A AND VALTYP`, which `LET` exploits to distinguish the two store
-paths without a second test ([m6502.asm:2554](../../m6502.asm#L2554)).
+paths without a second test ([m6502.asm:2554](../m6502.asm#L2554)).
 
 ---
 
 ## 2. `FRMEVL` — the formula evaluator
 
-[m6502.asm:3193-3321](../../m6502.asm#L3193-L3321). A precedence-climbing evaluator that uses the 6502
+[m6502.asm:3193-3321](../m6502.asm#L3193-L3321). A precedence-climbing evaluator that uses the 6502
 hardware stack for its operand and operator stack.
 
 ### 2.1 `OPTAB`
 
-[m6502.asm:1084-1103](../../m6502.asm#L1084-L1103). Three bytes per entry: a precedence byte followed by
+[m6502.asm:1084-1103](../m6502.asm#L1084-L1103). Three bytes per entry: a precedence byte followed by
 the handler address **minus one** (an `RTS` target).
 
 | Index | `Y = 3i` | Token | Precedence | Handler |
@@ -52,7 +52,7 @@ the handler address **minus one** (an `RTS` target).
 
 Entries 0-6 are reached arithmetically from the token; 7, 8 and 9 only by explicit
 `LDYI NEGTAB-OPTAB` and friends. The precedences are arbitrary except in their ordering — the source
-says so at [m6502.asm:335-339](../../m6502.asm#L335-L339) — so `NOT` binding tighter than `AND` but looser
+says so at [m6502.asm:335-339](../m6502.asm#L335-L339) — so `NOT` binding tighter than `AND` but looser
 than a comparison, and unary minus binding tighter than `*`, are the design decisions encoded here.
 
 ### 2.2 Entry
@@ -80,23 +80,23 @@ tests for it.
 ### 2.3 The deferred-operation frame
 
 Built by `DOPRE1` + `PUSHF1`/`PUSHF`/`FORPSH`
-([m6502.asm:3262-3293](../../m6502.asm#L3262-L3293)) plus `LPOPER`. Layout in
+([m6502.asm:3262-3293](../m6502.asm#L3262-L3293)) plus `LPOPER`. Layout in
 [02-data-structures.md](02-data-structures.md#43-expression-frame--10-bytes-9addprc).
 
-`PUSHF` ([m6502.asm:3272](../../m6502.asm#L3272)) is worth reading closely because it does something
+`PUSHF` ([m6502.asm:3272](../m6502.asm#L3272)) is worth reading closely because it does something
 unusual: it **pops its own return address into `INDEX1`, increments it, pushes the operand, and
 returns by `JMPD INDEX1`**. It has to, because the value it is pushing must end up contiguous with
 the dispatch address already on the stack, and an ordinary `RTS` would leave its return address in
 the middle.
 
 `FORPSH` calls `ROUND` before pushing. The 1978-02-11 revision note
-([m6502.asm:230-231](../../m6502.asm#L230-L231)) records a bug here: rounding the FAC before pushing could
+([m6502.asm:230-231](../m6502.asm#L230-L231)) records a bug here: rounding the FAC before pushing could
 increment a *string pointer* held in the FAC, because for a string value the FAC holds a descriptor
 address rather than a number.
 
 ### 2.4 Relational accumulation
 
-`LOPREL` ([m6502.asm:3210-3223](../../m6502.asm#L3210-L3223)) runs before anything else, gathering a run
+`LOPREL` ([m6502.asm:3210-3223](../m6502.asm#L3210-L3223)) runs before anything else, gathering a run
 of relational characters into a bit mask:
 
 ```
@@ -126,7 +126,7 @@ This design means the relational operators must be adjacent and in the order `>`
 
 ### 2.5 Recognising an arithmetic operator
 
-`ENDREL` ([m6502.asm:3224-3235](../../m6502.asm#L3224-L3235)):
+`ENDREL` ([m6502.asm:3224-3235](../m6502.asm#L3224-L3235)):
 
 ```
 ENDREL: LDX OPMASK / BNE FINREL     ; relationals were seen
@@ -155,7 +155,7 @@ NEGPRC: JSR DOPRE1
 ```
 
 and after an operator routine returns, control resumes at
-[m6502.asm:3242](../../m6502.asm#L3242):
+[m6502.asm:3242](../m6502.asm#L3242):
 
 ```
         PLA                     ; next-older precedence
@@ -189,7 +189,7 @@ QOPRTS: LDA FACEXP
 UNPRTS: RTS                     ; lands on OPTAB's address-1 => the operator routine
 ```
 
-The final `RTS` at [m6502.asm:3321](../../m6502.asm#L3321) pops the two-byte dispatch address and enters
+The final `RTS` at [m6502.asm:3321](../m6502.asm#L3321) pops the two-byte dispatch address and enters
 the operator with:
 
 - **ARG** = the left operand, **FAC** = the right operand
@@ -198,11 +198,11 @@ the operator with:
 - carry = "this is a string comparison"
 
 `FRMEVL` returns with `A = FACEXP`, deliberately *not* the terminating character — stated at
-[m6502.asm:3185](../../m6502.asm#L3185). Callers must `CHRGOT` to see where they are.
+[m6502.asm:3185](../m6502.asm#L3185). Callers must `CHRGOT` to see where they are.
 
 ### 2.8 Recursion bound
 
-Every nesting level calls `GETSTK` with `A=1` ([m6502.asm:3204-3205](../../m6502.asm#L3204-L3205)),
+Every nesting level calls `GETSTK` with `A=1` ([m6502.asm:3204-3205](../m6502.asm#L3204-L3205)),
 demanding `S > 64`. `NUMLEV`=23 is the guaranteed depth. Exceeding it is `?OM ERROR`, not a crash —
 see [04-interpreter-loop.md](04-interpreter-loop.md#51-getstk--is-there-enough-6502-stack).
 
@@ -210,7 +210,7 @@ see [04-interpreter-loop.md](04-interpreter-loop.md#51-getstk--is-there-enough-6
 
 ## 3. `EVAL` — one term
 
-[m6502.asm:3323-3372](../../m6502.asm#L3323-L3372). Recognition order:
+[m6502.asm:3323-3372](../m6502.asm#L3323-L3372). Recognition order:
 
 | # | Test | Action |
 |---|---|---|
@@ -226,17 +226,17 @@ see [04-interpreter-loop.md](04-interpreter-loop.md#51-getstk--is-there-enough-6
 | 10 | `>= ONEFUN` | `ISFUN` |
 | 11 | anything else | `PARCHK` — require a parenthesised subexpression |
 
-`ISLETC` ([m6502.asm:3702-3707](../../m6502.asm#L3702-L3707)) is the same double-subtract trick as
+`ISLETC` ([m6502.asm:3702-3707](../m6502.asm#L3702-L3707)) is the same double-subtract trick as
 `CHRGET`'s digit test, returning carry set for `A`..`Z`.
 
-`GONPRC` ([m6502.asm:3395](../../m6502.asm#L3395)) does `PLA PLA` to discard `EVAL`'s own return address
+`GONPRC` ([m6502.asm:3395](../m6502.asm#L3395)) does `PLA PLA` to discard `EVAL`'s own return address
 and then jumps to `NEGPRC`. A unary operator is thus pushed as an ordinary `OPTAB` entry and its
 eventual `RTS` lands back in the *caller's* `FRMEVL` loop — unary minus and `NOT` need no special
 case beyond having their own precedence.
 
 ### 3.1 The syntax helpers
 
-[m6502.asm:3372-3393](../../m6502.asm#L3372-L3393):
+[m6502.asm:3372-3393](../m6502.asm#L3372-L3393):
 
 ```
 PARCHK: JSR CHKOPN / JSR FRMEVL
@@ -255,7 +255,7 @@ returning the *following* character. The `SYNCHK` macro is `LDAI q / JSR SYNCHR`
 
 ## 4. Function dispatch
 
-`ISFUN` [m6502.asm:3468-3516](../../m6502.asm#L3468-L3516).
+`ISFUN` [m6502.asm:3468-3516](../m6502.asm#L3468-L3516).
 
 ```
 ISFUN: ASL A / PHA / TAX / JSR CHRGET
@@ -267,7 +267,7 @@ ISFUN: ASL A / PHA / TAX / JSR CHRGET
 **one-argument** functions and take `OKNORM`: `PARCHK` to evaluate the parenthesised argument, then
 `FINGO`.
 
-`FINGO` ([m6502.asm:3510](../../m6502.asm#L3510)) self-modifies the `JMPER` trampoline in page zero with
+`FINGO` ([m6502.asm:3510](../m6502.asm#L3510)) self-modifies the `JMPER` trampoline in page zero with
 the address from `FUNDSP` and calls it:
 
 ```
@@ -281,7 +281,7 @@ Effective address = `FUNDSP + 2*(token - ONEFUN)`.
 
 ### 4.1 Multi-argument functions
 
-`LEFT$`, `RIGHT$` and `MID$` ([m6502.asm:3491-3506](../../m6502.asm#L3491-L3506)) are past `LASNUM` and
+`LEFT$`, `RIGHT$` and `MID$` ([m6502.asm:3491-3506](../m6502.asm#L3491-L3506)) are past `LASNUM` and
 take a different path: `CHKOPN`, `FRMEVL` for the string, `CHKCOM`, `CHKSTR`, then the descriptor
 pointer and the function number are juggled on the stack while `GETBYT` reads the numeric argument.
 At function entry the stack holds:
@@ -290,25 +290,25 @@ At function entry the stack holds:
 [length byte][descriptor lo][descriptor hi][JSR JMPER return address]...
 ```
 
-`PREAM` ([m6502.asm:4709-4725](../../m6502.asm#L4709-L4725)) is the shared prologue that unpicks this.
+`PREAM` ([m6502.asm:4709-4725](../m6502.asm#L4709-L4725)) is the shared prologue that unpicks this.
 
 ### 4.2 String-returning functions
 
 Any function that returns a string must **discard `FINGO`'s `JSR JMPER` return address** with
 `PLA PLA`, so that it returns directly to `FRMEVL` and skips the `JMP CHKNUM` that would otherwise
-reject its own result. `STR$` ([m6502.asm:4245-4246](../../m6502.asm#L4245-L4246)), `CHR$`
-([m6502.asm:4640-4641](../../m6502.asm#L4640-L4641)) and `PREAM`
-([m6502.asm:4714-4715](../../m6502.asm#L4714-L4715)) all do this.
+reject its own result. `STR$` ([m6502.asm:4245-4246](../m6502.asm#L4245-L4246)), `CHR$`
+([m6502.asm:4640-4641](../m6502.asm#L4640-L4641)) and `PREAM`
+([m6502.asm:4714-4715](../m6502.asm#L4714-L4715)) all do this.
 
 ---
 
 ## 5. Relational operators
 
-`DOREL` [m6502.asm:3547-3596](../../m6502.asm#L3547-L3596).
+`DOREL` [m6502.asm:3547-3596](../m6502.asm#L3547-L3596).
 
 ### 5.1 Getting the mask across
 
-`FINREL` ([m6502.asm:3248](../../m6502.asm#L3248)) packs the string flag into the mask before it is
+`FINREL` ([m6502.asm:3248](../m6502.asm#L3248)) packs the string flag into the mask before it is
 pushed:
 
 ```
@@ -319,8 +319,8 @@ FINREL: LSR VALTYP        ; string bit -> carry, AND turns VALTYP from $FF into 
 ```
 
 The `LSR VALTYP` does double duty: it captures the string flag *and* clears bit 7 of `VALTYP`, so
-the `CHKNUM` at [m6502.asm:3239](../../m6502.asm#L3239) will not reject the operand — noted in the comment
-at [m6502.asm:3258](../../m6502.asm#L3258).
+the `CHKNUM` at [m6502.asm:3239](../m6502.asm#L3239) will not reject the operand — noted in the comment
+at [m6502.asm:3258](../m6502.asm#L3258).
 
 `PULSTK` later does `PLA / LSR A / STA DOMASK`, putting the string flag back into carry and the
 three plain bits into `DOMASK`.
@@ -338,14 +338,14 @@ DOREL:  JSR CHKVAL                  ; carry selects string vs numeric, and enfor
 
 ### 5.3 String comparison
 
-`STRCMP` ([m6502.asm:3557-3589](../../m6502.asm#L3557-L3589)) frees both temporaries, takes the length
+`STRCMP` ([m6502.asm:3557-3589](../m6502.asm#L3557-L3589)) frees both temporaries, takes the length
 difference to establish a tie-break sign, then compares bytes up to the shorter length. The first
 differing byte decides; if none differs, the length difference does. So comparison is
 lexicographic with a shorter prefix ordering first, and there is no case folding.
 
 ### 5.4 Producing the result
 
-`DOCMP` ([m6502.asm:3590-3596](../../m6502.asm#L3590-L3596)):
+`DOCMP` ([m6502.asm:3590-3596](../m6502.asm#L3590-L3596)):
 
 ```
 DOCMP: INX / TXA / ROL A / AND DOMASK
@@ -364,7 +364,7 @@ identical values.
 
 ## 6. `AND`, `OR`, `NOT`
 
-[m6502.asm:3518-3540](../../m6502.asm#L3518-L3540).
+[m6502.asm:3518-3540](../m6502.asm#L3518-L3540).
 
 ```
 OROP:  LDYI 255 / SKIP2
@@ -397,7 +397,7 @@ too, since `GIVAYF` floats a signed 16-bit value.
 
 ### 6.1 `AYINT`
 
-[m6502.asm:3801-3810](../../m6502.asm#L3801-L3810).
+[m6502.asm:3801-3810](../m6502.asm#L3801-L3810).
 
 ```
 POSINT: JSR CHKNUM / LDA FACSGN / BMI NONONO
@@ -410,7 +410,7 @@ QINTGO: JMP QINT
 Exponent below 144 implies `|x| < 32768`; the only legal value at or above it is exactly -32768.
 `POSINT` additionally rejects negatives and is the entry used by array subscripts and `CONINT`.
 
-> `N32768` is declared as only four bytes ([m6502.asm:3791](../../m6502.asm#L3791)) but is read as five
+> `N32768` is declared as only four bytes ([m6502.asm:3791](../m6502.asm#L3791)) but is read as five
 > under `ADDPRC=1`, so the comparison value is -32768.00048828125 and **exactly -32768 is rejected
 > with `?FC ERROR`**. See [13-porting-notes.md](13-porting-notes.md#3-defects-in-the-1978-code).
 
@@ -418,7 +418,7 @@ Exponent below 144 implies `|x| < 32768`; the only legal value at or above it is
 
 ## 7. `ISVAR` — a variable as a term
 
-[m6502.asm:3399-3465](../../m6502.asm#L3399-L3465). `PTRGET` resolves the name, then:
+[m6502.asm:3399-3465](../m6502.asm#L3399-L3465). `PTRGET` resolves the name, then:
 
 ```
 ISVRET: STWD FACMO         ; the variable's ADDRESS becomes the FAC's low two bytes
