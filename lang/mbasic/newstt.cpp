@@ -50,14 +50,26 @@ Reason Interp::step()
             return Reason::Done;
         case Halt::Error:
             error_print();
+            if (script) {
+                status = 1; // sticky
+                crdo();     // no Ok to end the line for us
+            }
             break;
         case Halt::Break:
             break_print();
+            if (script) {
+                status = 130;
+                crdo();
+            }
             break;
         case Halt::None:
         case Halt::Ready:
             break;
         }
+        // A script ends when its implicit RUN does, or at a ^C; before that,
+        // round again for the next line of the file.
+        if (script && (running || h == Halt::Break))
+            return Reason::Done;
         ready();
         halt_ = Halt::None;
         return want_;
@@ -258,11 +270,12 @@ void Interp::stpend(bool print_break)
     halt_  = print_break ? Halt::Break : Halt::Ready;
 }
 
-// READY (m6502.asm:2194-2197), then MAIN.
+// READY (m6502.asm:2194-2197), then MAIN. A script prints no prompt.
 void Interp::ready()
 {
     cntwfl = 0;
-    outstr("\r\nOk\r\n");
+    if (!script)
+        outstr("\r\nOk\r\n");
     curlin = DIRECT_LINE;
     suspend_line("", 0, Resume::Main);
 }
@@ -271,6 +284,12 @@ void Interp::main_resume()
 {
     switch (in_end) {
     case InEnd::Eof:
+        // The file ran out: run what it stored, unless it ran itself.
+        if (script && !ran_ && !running && !prog.empty()) {
+            running = true;
+            runc();
+            return;
+        }
         halt_ = Halt::Quit;
         return;
     case InEnd::Error:
@@ -339,6 +358,7 @@ void Interp::suspend_line(Str prompt, u8 chan, Resume back)
 {
     outstr(prompt); // upstream wrote the '?' before it read
     req.chan   = chan;
+    req.main   = back == Resume::Main; // a script feeds these from the file
     req.prompt = prompt;
     want_      = Reason::NeedLine;
     resume_    = back;

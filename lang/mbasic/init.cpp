@@ -50,6 +50,13 @@ Reason Interp::start(u32 cols, bool interactive)
     ncmwid   = wide - wide % CLMWID;
     rndx     = 0.8116351573262364; // RNDX, the initial random number
 
+    if (script) { // no banner, no Ok: the file's output is the program's
+        scrtch();
+        suspend_line("", 0, Resume::Main);
+        halt_ = Halt::None;
+        return want_;
+    }
+
     if (!interactive) {
         banner();
         scrtch();

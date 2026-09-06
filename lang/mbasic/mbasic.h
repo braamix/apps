@@ -258,8 +258,9 @@ struct FileReq {
 };
 
 struct Request {
-    u8 chan = 0; // 0 is the console; otherwise the channel to read
-    Str prompt;  // "", "? " or "?? " -- already written to `out` as well
+    u8 chan   = 0;     // 0 is the console; otherwise the channel to read
+    bool main = false; // a MAIN line: in script mode the file supplies it
+    Str prompt;        // "", "? " or "?? " -- already written to `out` as well
     FileReq file;
 };
 
@@ -329,6 +330,13 @@ struct Interp {
     u8 in_char   = 0;     // NeedChar
     bool brkflg  = false; // ^C arrived; ISCNTC reads it
     i32 status   = 0;
+
+    // Script mode: a named file, whose lines the driver feeds as Main reads.
+    // No banner and no Ok, an implicit RUN when the lines run out, and exit
+    // when that run ends.
+    bool script  = false;
+    bool running = false; // the implicit RUN is under way
+    bool ran_    = false; // a RUN statement has executed
 
     // INIT. The two questions are asked only at a console: down a pipe there
     // is no one to answer them, and a run that reads its program from a file

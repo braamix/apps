@@ -254,6 +254,24 @@ the machine's. What is *not* touched is the part that makes it this BASIC — th
 arithmetic, `FOUT`'s format to the digit, the four tables and every rule in
 *Things that look like bugs and are not* below.
 
+### A named file is a program, not a typed session
+
+`mbasic prog.bas` runs it and prints what it prints — no banner, no `Ok`, and
+the process exits when the program does, with 0, or 1 if an error was reported,
+or 130 on `^C`. The lines are still fed as if typed, so an unnumbered one is a
+direct command; the implicit `RUN` happens when they run out, unless a `RUN`
+statement already fired (`ran_`).
+
+Two streams, not one. The file supplies `Resume::Main` lines only and `INPUT`
+reads stdin, which is what makes `mbasic guess.bas` playable at a terminal —
+`input_init` therefore no longer hands `paths` to `Input`, and `console` is
+simply "stdin is a terminal". The file itself is one `read_file` at startup,
+with `epath_file`'s fallback, so a bare name finds a shipped example.
+
+Redirected stdin is untouched: `mbasic <session` is still the whole typed
+transcript, banner and every `Ok`, which is what six of the eight test cases
+drive.
+
 ### Two questions asked only at a console
 
 `Memory size?` and `Terminal width?` are asked when stdin is a terminal and not
@@ -304,12 +322,12 @@ ships in the package as `share/Manual.md`, beside the examples.
 
 [examples/](examples/) holds nineteen programs, and the package ships them as
 its `share/` payload. That lands them in `/pkg/store/mbasic-<version>/share/`,
-a path carrying a version the binary does not know — so `LOAD` resolves a bare
-name against it when the working directory has no such file:
+a path carrying a version the binary does not know — so a bare name is resolved
+against it when the working directory has no such file, both on the command
+line and in `LOAD`:
 
 ```
-load "wumpus.bas"
-run
+$ mbasic wumpus.bas
 ```
 
 [epath.cpp](epath.cpp) finds the directory once at startup, by reading the
@@ -338,7 +356,7 @@ given with `asc`/`chr$`.
 
 ## Testing
 
-`make test` at the top of the tree runs seven cases from [test/](test/). Six
+`make test` at the top of the tree runs eight cases from [test/](test/). Seven
 drive a session through stdin and stdout redirected to files and compare the
 transcript byte for byte against a golden beside the script — exact, because the
 run is deterministic and down a pipe nothing echoes and no prompt is printed.

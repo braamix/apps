@@ -103,6 +103,31 @@ export function session(lines) {
     return out;
 }
 
+// Run a file the way `mbasic prog.bas` does: the file's own lines, stdin for
+// whatever the program's INPUTs want, and no banner to strip. Answers the
+// transcript and the exit status the shell reported.
+export function script(text, stdin = "") {
+    put("/tmp/x.bas", text);
+    put("/tmp/i", stdin);
+    let now = (clock += 100);
+    H.type("mb /tmp/x.bas </tmp/i >/tmp/o");
+    H.press(H.KEY.ENTER);
+    let i = 0;
+    for (let delay = H.run(now); delay !== -1; delay = H.run(now)) {
+        now += delay > 0 ? delay : 1;
+        if (++i > 200000)
+            die("the script did not finish");
+    }
+    clock = now;
+    const s = H.screen();
+    const row = H.row(s, s.cursor_y);
+    let status = 0;
+    while (status < 200 && row !== H.prompt(status))
+        status++;
+    if (status === 200) die(`the shell did not get its prompt back: ${JSON.stringify(row)}`);
+    return { out: get("/tmp/o") ?? "", status };
+}
+
 // Everything up to and including the banner is the same in every case and
 // says nothing about what is under test.
 const HEAD = "\r\nBraam BASIC v1.1\r\nCopyright 1978 Microsoft\r\n\r\nOk\r\n";

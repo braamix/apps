@@ -112,6 +112,7 @@ test: all
 	@node lang/mbasic/test/files.mjs
 	@node lang/mbasic/test/examples.mjs
 	@node lang/mbasic/test/case.mjs
+	@node lang/mbasic/test/script.mjs
 	@node lang/mbasic/test/interrupt.mjs
 
 # The repository to upload: the signed index and the zips it vouches for, in

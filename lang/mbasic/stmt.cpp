@@ -368,6 +368,7 @@ void Interp::stmt_cont()
 // CLEARC and then GOTO.
 void Interp::stmt_run()
 {
+    ran_ = true; // a script that runs itself gets no implicit RUN
     if (terminator(chrgot())) {
         runc();
         return;

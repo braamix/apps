@@ -14,6 +14,7 @@
 #include "edit.h"
 #include "epath.h"
 #include "kernel/alloc.h"
+#include "kernel/fmt.h"
 #include "kernel/key.h"
 #include "mbasic.h"
 #include "proc/io.h"
@@ -27,10 +28,13 @@ constexpr Str WHO = "mbasic";
 
 constexpr Str USAGE =
     "Usage:\n"
-    "    mbasic [<file>]\n"
+    "    mbasic              interactive\n"
+    "    mbasic <file>       run the program in <file> and exit\n"
+    "    mbasic <script      read a session from stdin, as if typed\n"
     "\n"
     "Microsoft BASIC 1.1 for the 6502, ported from the 1978 sources.\n"
-    "With a file, its lines are read as if typed; otherwise stdin is.\n";
+    "A named file prints only what the program prints; INPUT reads stdin.\n"
+    "A bare name not in this directory is looked for among the examples.\n";
 
 // With a console the editor runs; a pipe or a file reads stdin instead. All of
 // these outlive every read, so none sits in a coroutine frame. Built on first
@@ -40,6 +44,10 @@ bool have_keys;
 LineEditor *editor;
 Input *input;
 LineReader *lines;
+
+// Script mode: the file's text, and how far the MAIN reads have got.
+String *script;
+usize script_at;
 
 // ISCNTC's other half.
 //
@@ -74,7 +82,10 @@ Task<void> input_init(Args paths)
     if (Task<Result<TtyInfo>> t = tty_of(SYS_STDIN))
         tty = co_await t;
 
-    console = paths.size() == 0 && tty.is_ok() && tty.value().console;
+    // A script's own text does not come from stdin, so the editor is still
+    // available for the INPUT statements in it.
+    console = tty.is_ok() && tty.value().console;
+    (void)paths;
 
     // A signal is delivered where a process parks, so the burst's park is what
     // makes a ^C during RUN reachable at all.
@@ -91,7 +102,7 @@ Task<void> input_init(Args paths)
         if (Task<Result<void>> t = sig_catch(SIG_WINCH))
             co_await t;
     }
-    input = heap_new<Input>(paths, SYS_STDIN, WHO);
+    input = heap_new<Input>(Args{}, SYS_STDIN, WHO);
     if (input)
         lines = heap_new<LineReader>(*input);
     co_return;
@@ -135,6 +146,26 @@ Task<void> serve_line(Interp &b)
 {
     b.in_line.clear();
     b.in_end = InEnd::Line;
+
+    // A MAIN line in script mode comes from the file, never from stdin, which
+    // stays free for the INPUT statements in it.
+    if (b.req.main && script) {
+        Str t = script->str();
+        if (script_at >= t.size()) {
+            b.in_end = InEnd::Eof;
+            co_return;
+        }
+        usize e = script_at;
+        while (e < t.size() && t[e] != '\n')
+            e++;
+        usize n = e - script_at;
+        if (n && t[script_at + n - 1] == '\r')
+            n--;
+        if (!b.in_line.assign(t.substr(script_at, n)))
+            b.in_end = InEnd::Error;
+        script_at = e < t.size() ? e + 1 : e;
+        co_return;
+    }
 
     if (b.req.chan) { // INPUT#: a line from a channel, not from the console
         Chan *c = b.chan_find(b.req.chan);
@@ -346,6 +377,33 @@ Task<i32> proc_main(Args args)
 
     co_await input_init(rest);
     co_await epath_init(); // once, so LOAD's fallback costs no syscall
+
+    if (rest.size() > 1)
+        co_return co_await usage_error(USAGE);
+    if (rest.size() == 1) {
+        Str path         = rest[0];
+        Result<String> r = Err(Error::NoMemory);
+        if (Task<Result<String>> t = read_file(path))
+            r = co_await t;
+        String alt; // a bare name may be one of the shipped examples
+        if (r.is_err() && epath_file(path, alt))
+            if (Task<Result<String>> t = read_file(alt.str()))
+                r = co_await t;
+        if (r.is_err()) {
+            Buf<320> m;
+            m.put(WHO);
+            m.put(": cannot read ");
+            m.put(path);
+            m.put('\n');
+            if (Task<Result<void>> t = write_all(SYS_STDERR, m.str()))
+                (void)co_await t;
+            co_return 1;
+        }
+        script = heap_new<String>(static_cast<String &&>(r.value()));
+        if (!script)
+            co_return 1;
+        b->script = true;
+    }
 
     u32 cols = 0;
     if (Task<Result<TtyInfo>> t = tty_of(SYS_STDOUT)) {

@@ -10,13 +10,23 @@ surprising it is marked **⚠**; those are the language, not mistakes.
 
 ## 1. Running it
 
-```
-$ mbasic                 start, and type at the Ok prompt
-$ mbasic program.bas     read a file as if it were typed
-$ mbasic <in >out        read a script, write the transcript
-```
+| Command | What it does |
+| --- | --- |
+| `mbasic` | start, and type at the `Ok` prompt |
+| `mbasic prog.bas` | **run that program**, then exit |
+| `mbasic <script >out` | replay a whole typed session, banner and all |
 
-At a terminal it first asks two questions; press Enter for the defaults.
+`mbasic prog.bas` prints only what the program prints — no banner, no `Ok`. The
+file's lines are read as if typed, so a numbered line is stored and an
+unnumbered one runs at once; when the lines run out the program is `RUN`, unless
+the file already ran it itself. `INPUT` reads the keyboard, not the rest of the
+file, so a program that asks questions still works. A bare name that is not in
+the current directory is looked for among the examples shipped with mbasic.
+
+It exits 0 normally, 1 if any error was reported, and 130 on `^C`.
+
+At a terminal `mbasic` with no file first asks two questions; press Enter for
+the defaults.
 
 | Question | Default | Meaning |
 | --- | --- | --- |
