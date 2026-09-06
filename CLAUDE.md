@@ -99,10 +99,12 @@ package here whose payload is *programs*: nineteen `.bas` examples ship as
 `share/`, and `LOAD` resolves a bare name against the store directory the
 `/pkg/bin` link leads to, so a user types `LOAD "wumpus.bas"` and not a
 versioned path. They are the first code written *in* a ported language rather
-than ported into one, and the four rules they had to learn are this BASIC's,
-not a modern language's: a reserved word matches anywhere (`money` is `m` `on`
-`ey`), a name is two characters (`pit1` and `pit2` are one variable), there is
-no `else` and no backslash escape, and a `for` body always runs once. They are
+than ported into one, and the rules they had to learn are this BASIC's, not a
+modern language's: a name is two characters (`pit1` and `pit2` are one
+variable), there is no `else` and no backslash escape, and a `for` body always
+runs once. A fourth was fixed rather than documented — a reserved word used to
+match *anywhere*, so `money` was `m` `on` `ey`, and it is a word now, the price
+being that a keyword must stand alone and `fori=1ton` no longer works. They are
 written in lower case, because **case is folded** here and upstream's was not:
 `CRUNCH` is the one chokepoint every path tokenizes through, so `RESLST` is
 spelled lower and the byte stored for anything unmatched is folded — which

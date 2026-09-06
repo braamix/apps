@@ -1,0 +1,74 @@
+
+Ok
+ 1  2  3  4  5 
+
+Ok
+
+Ok
+ 6  7  8  9  10 
+
+Ok
+
+Ok
+ 11  12  13  14  15 
+
+Ok
+ 99 
+
+Ok
+ 1  1  1  2  1  3 AT 40
+
+Ok
+10 for i=1to3:print1;i;:next i
+20 if 5and3 then goto40
+30 print "NOT REACHED"
+40 print "AT 40"
+
+Ok
+
+Ok
+ 12 x  y
+
+Ok
+abbcA
+
+Ok
+-1 -1  7 
+
+Ok
+ 16  8 
+
+Ok
+10 def fns(q)=q*q:print fns(4);
+20 def fn t(q)=q+q:print fn t(4)
+
+Ok
+
+Ok
+10 total=1:positive=2:print total+positive
+20 def fna(x)=x+1:print fna(1)
+
+Ok
+ 3 
+ 2 
+
+Ok
+
+Ok
+
+?Syntax error
+Ok
+
+?Syntax error
+Ok
+ 0 
+
+Ok
+10 go to 30
+20 print "SKIPPED"
+30 print "AT 30"
+
+Ok
+AT 30
+
+Ok

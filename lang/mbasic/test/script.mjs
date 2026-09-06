@@ -41,7 +41,7 @@ is("INPUT reads stdin", r.out, "Guess? got 42 \r\n");
 
 // An error is reported on a line of its own and sets the status, and a later
 // line still runs -- the file is a session until its end.
-r = script('total = 1\nprint "after"\n10 print "prog"\n');
+r = script('print ((1)\nprint "after"\n10 print "prog"\n');
 is("an error mid-file", r.out, "\r\n?Syntax error\r\nafter\r\nprog\r\n");
 is("the error status", r.status, 1);
 

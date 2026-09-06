@@ -108,9 +108,9 @@ A name starts with a letter and continues with letters and digits.
 **⚠ Only the first two characters count.** `count` and `counter` are the same
 variable.
 
-**⚠ A reserved word is recognised anywhere inside a name.** `total` contains
-`to`, so `total = 1` is a syntax error. `money` contains `on`. Check §12 before
-choosing a name.
+A reserved word inside a name is fine: `total`, `money` and `positive` are
+ordinary variables, though a name that *is* a reserved word — `to`, `len` — is
+not. See §12.
 
 Three types, and a suffix picks it. `a`, `a$` and `a%` are three *different*
 variables.
@@ -335,7 +335,7 @@ that is theirs alone — it is not the interpreter's storage and not the
 computer's. Addresses run 0 to 65535.
 
 `SYS` and `USR` always give `?Illegal quantity`: there is no machine code to
-call. **⚠ `SYSTEM` is read as `SYS` followed by `TEM`**, so it fails that way.
+call. `SYSTEM` is an ordinary variable — a keyword must stand alone (§12).
 
 ---
 
@@ -405,7 +405,7 @@ running.
 
 | Message | Usual cause |
 | --- | --- |
-| `Syntax` | mistyped; or a reserved word hidden inside a name |
+| `Syntax` | mistyped; or a keyword with a letter against it |
 | `Next without for` | `NEXT` with no matching `FOR` |
 | `Return without gosub` | `RETURN` with no matching `GOSUB` |
 | `Out of data` | `READ` past the last `DATA` |
@@ -444,7 +444,8 @@ running.
 
 ## 12. Reserved words
 
-None of these may appear **anywhere inside** a variable name.
+A variable may not **be** one of these, though it may **contain** one: `total`
+and `positive` are names, `to` and `pos` are not.
 
 ```
 abs   and   asc   atn    chr$   clear close cmd     cont   cos
@@ -458,10 +459,13 @@ sys   tab(  tan   then   to     usr   val   wait
 
 Also the operators `+ - * / ^ > = <`.
 
-Names that trip on this include `total` and `store` (`to`), `money`, `wrong`
-and `month` (`on`), `sort` and `word` (`or`), `land` and `random` (`and`),
-`letters` (`let`), `already` (`read`), `sine` and `using` (`sin`), and
-`positive` (`pos`). When in doubt, use a short name.
+**⚠ A keyword must stand alone.** It is recognised only where a letter does not
+touch it on either side, so `for i = 1 to n` works and `fori=1ton` does not —
+that is the variable `fo`. A digit is not a letter, so `1to10`, `print1`,
+`goto100` and `5and3` are still read as keywords.
+
+`fn` is the exception, because a name always follows it: `fna(x)` is `fn a(x)`,
+so no variable may begin with `fn`.
 
 ---
 
@@ -487,6 +491,9 @@ the `IF`.
 ## 14. Differences from the 1978 original
 
 - Case is folded; the original was upper case only.
+- A keyword must stand alone, so `total` is a variable. The original matched a
+  reserved word anywhere and read it as `to` followed by `tal`; the cost of the
+  change is that `fori=1ton` no longer works.
 - Messages are in sentence case — `Ok`, `?Syntax error` — not capitals.
 - Arithmetic is 64-bit, so long calculations are more accurate in their last
   digits. The printed format is unchanged.

@@ -80,17 +80,21 @@ inline char lower(char c)
     return c >= 'A' && c <= 'Z' ? char(c + 32) : c;
 }
 
-// A reserved word matches at `at` if its characters are there, in either case
-// -- RESLST is spelled lowercase and the source byte is folded. Matching is
-// first-fit in table order, with no word boundary on either side: TOTAL=1
-// stores as TOTK 'tal' EQULTK '1' and is ?Syntax error. LIST prints it back
-// as "total=1", being the exact inverse, so it cannot be seen in a listing.
-// The danger m6502.asm:1209-1215 warns about, and the rule tables.cpp follows.
+// Case-folded, first-fit in table order -- so a word that is a prefix of
+// another comes second.
 //
-// Its two examples no longer bite, there or here: a space is stored verbatim
-// and never reaches the matcher (CMPSPC, m6502.asm:1795, before MUSTCR), so
-// IF 2 > F OR T=5 THEN and IF T OR Q THEN tokenize correctly. They predate
-// 2/11/78 (m6502.asm:229). What is left is the case with no space in it.
+// A reserved word is a WORD here, and upstream's was not: it does not begin
+// after a letter, nor, where it ends in one, precede a letter. That makes
+// `total` a name and not TO + "tal", which upstream stored and LIST printed
+// back as "total=1" -- an error invisible in a listing (m6502.asm:1209-1215).
+// The cost is that a keyword must be free-standing: FORI=1 is a variable.
+//
+// A digit is still a boundary, so 1TO10, PRINT1, GOTO100 and 5AND3 stand.
+// isletc is PTRGET's own test, so tokenizer and name scanner agree.
+//
+// Per end, which leaves the entries that are not all letters alone: `+` and
+// `>` are punctuation at both, `tab(` and `print#` at the last. FN is exempt
+// from the trailing guard -- a name always follows it, so FNA is FN A.
 usize match_res(Str src, usize at)
 {
     for (usize i = 0; i < RESLST_COUNT; i++) {
@@ -103,8 +107,16 @@ usize match_res(Str src, usize at)
                 eq = false;
                 break;
             }
-        if (eq)
-            return i;
+        if (!eq)
+            continue;
+
+        if (isletc(u8(w[0])) && at > 0 && isletc(u8(src[at - 1])))
+            continue;
+        usize end = at + w.size();
+        if (isletc(u8(w[w.size() - 1])) && u8(ENDTK + i) != FNTK && end < src.size() &&
+            isletc(u8(src[end])))
+            continue;
+        return i;
     }
     return RESLST_COUNT;
 }

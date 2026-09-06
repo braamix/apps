@@ -113,6 +113,7 @@ test: all
 	@node lang/mbasic/test/renum.mjs
 	@node lang/mbasic/test/examples.mjs
 	@node lang/mbasic/test/case.mjs
+	@node lang/mbasic/test/words.mjs
 	@node lang/mbasic/test/script.mjs
 	@node lang/mbasic/test/interrupt.mjs
 

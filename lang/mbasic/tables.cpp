@@ -21,12 +21,15 @@
 #include "mbasic.h"
 
 // Matching is first-fit in table order, so a word that is a prefix of another
-// must come second: INPUT# before INPUT, PRINT# before PRINT. And, from
-// m6502.asm:1208-1216:
+// must come second: INPUT# before INPUT, PRINT# before PRINT, GOTO before GO.
+// crunch.cpp's word boundary does not cover this -- '#' is not a letter, so
+// INPUT would match INPUT#1 and leave the '#' behind. From m6502.asm:1209-1215:
 //
 //   NOTE DANGER OF ONE RESERVED WORD BEING A PART OF ANOTHER:
 //   IE . . IF 2 GREATER THAN F OR T=5 THEN... WILL NOT WORK!!!
 //   SINCE "FOR" WILL BE CRUNCHED!!
+//
+// That half is answered: a reserved word is a word here (crunch.cpp).
 //
 // TAB( and SPC( carry their open paren, because the DCI macro could not take
 // one as an argument -- ";MACRO DOESNT LIKE ('S IN ARGUMENTS."

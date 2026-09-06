@@ -46,8 +46,8 @@ the Commodore's hardware-specific corners:
 | `LNGERR` | 1 | spelled-out error messages instead of two-letter codes |
 | `NULCMD`, `TIME` | 0 | no `NULL`, no `TI`/`TI$` |
 
-That gives 75 reserved words, and `RENUM` below makes 76: `$80` (`END`)
-through `$CB` (`GO`). The four
+That gives 75 reserved words, and `RENUM` below makes 76: `$80` (`END`) through
+`$CB` (`GO`). The four
 tables that decide them — `RESLST`, `STMDSP`, `FUNDSP` and `OPTAB` — are in one
 file, [tables.cpp](tables.cpp), because the connection between them is purely
 positional: a token's value is `128 + its ordinal in RESLST`, and adding a word
@@ -206,8 +206,6 @@ golden transcript possible.
 
 Kept deliberately, because they are the language:
 
-- `IF 2 > F OR T=5 THEN` mis-tokenizes, because the matcher sees `FORT` and
-  `FOR` comes first. The source warns about it at `m6502.asm:1208-1216`.
 - A `FOR` body always runs once: the test is at `NEXT`, so `FOR I=1 TO 0`
   prints once.
 - `FOR`/`NEXT` never terminates on equality, and a zero step loops for ever.
@@ -222,7 +220,36 @@ Kept deliberately, because they are the language:
   left pointing into the variable list rather than at a statement boundary, so
   `CONT` re-dispatches from mid-statement and raises `?Syntax error`. Upstream
   stored `TXTPTR` the same way and has the same wart.
-- `SYSTEM` is `SYS` followed by `TEM`, and raises `?Illegal quantity`.
+- `SYS` and `USR` raise `?Illegal quantity`, having no machine to call.
+
+### A reserved word is a word, which upstream's was not
+
+Upstream matched a reserved word at every character position with no boundary
+on either side, so `total = 1` was `TO` + `"tal"` and a bare `?Syntax error` —
+and since `LIST` is the exact inverse it printed the line back as `total=1`, so
+the fault could not be seen in a listing. Fourteen ordinary English words were
+unusable as names: `total store money wrong month sort word land random letters
+already sine using positive`. `m6502.asm:1209-1215` warns about it and draws
+only the rule that the shorter word goes second in the table.
+
+The fix is two guards on the same first-fit match ([crunch.cpp](crunch.cpp)): a
+reserved word beginning with a letter may not follow one, and one ending in a
+letter may not precede one. They are per end, so the entries that are not all
+letters need no case of their own — `+` and `>` are punctuation at both ends,
+`tab(` and `print#` at the last — and `OPTAB`'s `3*(token - PLUSTK)` arithmetic
+and the `INPUT#`-before-`INPUT` ordering are untouched.
+
+**It is a real trade and not a free win.** `TOTAL` and `1 TO X` are the same
+shape — `TO` followed by letters — and no rule that does not parse can tell
+them apart, so a keyword has to be free-standing now: `fori=1ton` is the
+variable `fo`, and `printa`, `nexti` and `ifaandb` are gone with it. That is
+the half of 1978 this gives up, and it is the same kind of departure as the
+fold below. A **digit** is still a boundary, deliberately, so `1to10`,
+`print1`, `goto100` and `5and3` are unchanged; and `FN` is exempt from the
+trailing guard, a name always following it, so `DEF FNA(X)` still means `FN A`.
+
+None of the nineteen examples tokenizes differently — they were written with
+the old rule in mind, which is to say with spaces.
 
 ### Case is folded, which upstream's was not
 
@@ -269,7 +296,7 @@ simply "stdin is a terminal". The file itself is one `read_file` at startup,
 with `epath_file`'s fallback, so a bare name finds a shipped example.
 
 Redirected stdin is untouched: `mbasic <session` is still the whole typed
-transcript, banner and every `Ok`, which is what seven of the nine test cases
+transcript, banner and every `Ok`, which is what eight of the ten test cases
 drive.
 
 ### Neither of upstream's two questions is asked
@@ -385,14 +412,14 @@ They are written in lower case, which the tokenizer folds (below); their
 messages are ordinary English sentences.
 
 They are new code rather than upstream's, and writing them found four things
-this BASIC does that a modern eye does not expect. A reserved word matches
-*anywhere*, so `money` is `m`, `on`, `ey` and `wrong` is `wr`, `on`, `g` —
-case makes no difference to that. A variable name is significant in its first
-two characters, so `pit1` and `pit2` are one variable and so are `feed` and
-`fed`. There is no `else`, and no backslash escape inside a string. And a `for`
-body always runs once, which is why [primes.bas](examples/primes.bas) has to
-keep 2 and 3 away from its trial division — `for i = 2 to sqr(2)` would divide
-2 by 2.
+this BASIC does that a modern eye does not expect. A reserved word used to
+match *anywhere*, so `money` was `m`, `on`, `ey` and `wrong` was `wr`, `on`,
+`g`; that is the one of the four that was fixed rather than documented, and it
+is below. A variable name is significant in its first two characters, so `pit1`
+and `pit2` are one variable and so are `feed` and `fed`. There is no `else`,
+and no backslash escape inside a string. And a `for` body always runs once,
+which is why [primes.bas](examples/primes.bas) has to keep 2 and 3 away from
+its trial division — `for i = 2 to sqr(2)` would divide 2 by 2.
 
 A fifth is not the language's: **string data is never folded**, so a program
 that prompts `(y/n)` and tests `if a$ = "Y"` rejects a typed `y`. Each example
@@ -401,7 +428,7 @@ given with `asc`/`chr$`.
 
 ## Testing
 
-`make test` at the top of the tree runs nine cases from [test/](test/). Eight
+`make test` at the top of the tree runs ten cases from [test/](test/). Nine
 drive a session through stdin and stdout redirected to files and compare the
 transcript byte for byte against a golden beside the script — exact, because the
 run is deterministic and down a pipe nothing echoes and no prompt is printed.
@@ -418,6 +445,11 @@ example's stream cannot shift another's. Its answers are that particular
 sequence's moves — the number is 54, the word is `MONITOR`, the wumpus is in
 room 9 — so a change to an example that consumes a different number of `RND`
 values means re-choosing them, not just re-blessing.
+
+`words.mjs` is the word rules stated once, the way `case.mjs` is the case
+rules: the fourteen names that used to be unusable, the boundaries that are not
+letters and so still crunch, the entries with punctuation at one end, and the
+three forms the change gives up.
 
 `case.mjs` is the case rules stated once: one keyword whatever the case, one
 variable whatever the case, `LIST` canonical in lower case, and a string, a
