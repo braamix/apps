@@ -12,6 +12,7 @@
 // input half is adventure's (games/adventure/braam.cpp): a LineEditor when
 // stdin is a console, an Input/LineReader when it is a pipe or a file.
 #include "edit.h"
+#include "epath.h"
 #include "kernel/alloc.h"
 #include "kernel/key.h"
 #include "mbasic.h"
@@ -255,8 +256,18 @@ Task<void> serve_file(Interp &b)
         Result<String> r = Err(Error::NoMemory);
         if (Task<Result<String>> t = read_file(f.name.str()))
             r = co_await t;
-        if (r.is_err())
-            co_return;
+        // A bare name the working directory does not hold is looked for among
+        // the examples the package ships. SAVE has no such fallback: the store
+        // is read-only.
+        if (r.is_err()) {
+            String alt;
+            if (!epath_file(f.name.str(), alt))
+                co_return;
+            if (Task<Result<String>> t = read_file(alt.str()))
+                r = co_await t;
+            if (r.is_err())
+                co_return;
+        }
         f.data = static_cast<String &&>(r.value());
         f.ok   = true;
         co_return;
@@ -334,6 +345,7 @@ Task<i32> proc_main(Args args)
         b->poke_space[i] = 0;
 
     co_await input_init(rest);
+    co_await epath_init(); // once, so LOAD's fallback costs no syscall
 
     u32 cols = 0;
     if (Task<Result<TtyInfo>> t = tty_of(SYS_STDOUT)) {

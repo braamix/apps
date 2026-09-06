@@ -6,7 +6,7 @@
 // WIDTH and the LineEditor never runs, so nothing echoes and the transcript is
 // exactly what BASIC printed. interrupt.mjs is the one case that needs the grid.
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -78,9 +78,24 @@ let clock = 1;
 // Run a session. The command line stays well under sixty characters: the
 // harness keyboard is a Channel<Key, 64> and type() posts a whole line without
 // checking.
+//
+// The clock has to be driven, not read: a burst the clock did not tick over
+// asks sleep_for(1) rather than spin (braam.cpp's Reason::Yield), and the
+// harness clock only moves when a case moves it. So run until the kernel is
+// idle rather than once, which is what a program of more than a burst needs.
 export function session(lines) {
     put("/tmp/i", lines.join("\n") + "\n");
-    const s = H.submit("mb </tmp/i >/tmp/o", (clock += 100));
+    let now = (clock += 100);
+    H.type("mb </tmp/i >/tmp/o");
+    H.press(H.KEY.ENTER);
+    let i = 0;
+    for (let delay = H.run(now); delay !== -1; delay = H.run(now)) {
+        now += delay > 0 ? delay : 1;
+        if (++i > 200000)
+            die("the session did not finish");
+    }
+    clock = now;
+    const s = H.screen();
     if (H.row(s, s.cursor_y) !== H.prompt())
         die("the shell did not get its prompt back at status 0");
     const out = get("/tmp/o");
@@ -105,6 +120,7 @@ export function body(out) {
 export function golden(file, text) {
     const path = join(HERE, file);
     if (opt.bless) {
+        mkdirSync(dirname(path), { recursive: true }); // examples/ is a subdirectory
         writeFileSync(path, text);
         console.error(`${name}: blessed ${file}`);
         return;

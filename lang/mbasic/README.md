@@ -256,17 +256,52 @@ source names the chapter of `tmp/doc/internals/` it implements.
 | [init.cpp](init.cpp) | the two questions and the banner |
 | [braam.cpp](braam.cpp) | the driver. Everything that blocks is here, and only here |
 | [edit.cpp](edit.cpp), [edit.h](edit.h) | `INLIN`, from `games/adventure` |
+| [epath.cpp](epath.cpp), [epath.h](epath.h) | where the shipped examples are |
 
 No `PORT`: this is a rewrite in Braam idiom, not a recompile of C, so the port
 kit is not linked and `#include <string.h>` is still "file not found".
 `braam::math` is, for the transcendentals and `ftoa`'s conversions.
 
+## Examples
+
+[examples/](examples/) holds nineteen programs, and the package ships them as
+its `share/` payload. That lands them in `/pkg/store/mbasic-<version>/share/`,
+a path carrying a version the binary does not know — so `LOAD` resolves a bare
+name against it when the working directory has no such file:
+
+```
+LOAD "wumpus.bas"
+RUN
+```
+
+[epath.cpp](epath.cpp) finds the directory once at startup, by reading the
+`/pkg/bin/mbasic` link `PATH` found and going two directories up, or failing
+that by scanning `/pkg/store` for the name it is a prefix of. `SAVE` has no
+such fallback: the store is read-only. A name with a `/` in it is a path of the
+caller's own and is taken as given.
+
+They are new code rather than upstream's, and writing them found four things
+this BASIC does that a modern eye does not expect. A reserved word matches
+*anywhere*, so `MONEY` is `M`, `ON`, `EY` and `WRONG` is `WR`, `ON`, `G`. A
+variable name is significant in its first two characters, so `PIT1` and `PIT2`
+are one variable and so are `FEED` and `FED`. There is no `ELSE`, and no
+backslash escape inside a string. And a `FOR` body always runs once, which is
+why [primes.bas](examples/primes.bas) has to keep 2 and 3 away from its trial
+division — `FOR I = 2 TO SQR(2)` would divide 2 by 2.
+
 ## Testing
 
-`make test` at the top of the tree runs five cases from [test/](test/). Four
+`make test` at the top of the tree runs six cases from [test/](test/). Five
 drive a session through stdin and stdout redirected to files and compare the
 transcript byte for byte against a golden beside the script — exact, because the
 run is deterministic and down a pipe nothing echoes and no prompt is printed.
 `interrupt.mjs` is on the grid, because a pipe has no keyboard.
+
+`examples.mjs` is the fifth: it `LOAD`s and `RUN`s each of the nineteen in a
+process of its own, so `RND` restarts from its fixed seed every time and one
+example's stream cannot shift another's. Its answers are that particular
+sequence's moves — the number is 54, the word is `MONITOR`, the wumpus is in
+room 9 — so a change to an example that consumes a different number of `RND`
+values means re-choosing them, not just re-blessing.
 
 Re-bless a golden with `--bless` after reading the diff.

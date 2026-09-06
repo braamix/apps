@@ -1,0 +1,65 @@
+
+OK
+LUNAR LANDER
+============
+
+YOU ARE LANDING ON THE MOON.
+CONTROL YOUR DESCENT BY SETTING FUEL BURN RATE (0-30).
+LAND WITH VELOCITY < 5 TO SURVIVE!
+
+HEIGHT        VELOCITY      FUEL
+------        --------      ----
+ 1000          50            250 
+FUEL BURN RATE (0-30)?  945 
+ 55            250 
+FUEL BURN RATE (0-30)?  885 
+ 60            250 
+FUEL BURN RATE (0-30)?  820 
+ 65            250 
+FUEL BURN RATE (0-30)?  750 
+ 70            250 
+FUEL BURN RATE (0-30)?  675 
+ 75            250 
+FUEL BURN RATE (0-30)?  595 
+ 80            250 
+FUEL BURN RATE (0-30)?  510 
+ 85            250 
+FUEL BURN RATE (0-30)?  420 
+ 90            250 
+FUEL BURN RATE (0-30)?  325 
+ 95            250 
+FUEL BURN RATE (0-30)?  225 
+ 100           250 
+FUEL BURN RATE (0-30)?  150 
+ 75            220 
+FUEL BURN RATE (0-30)?  100 
+ 50            190 
+FUEL BURN RATE (0-30)?  67   33 
+ 168 
+FUEL BURN RATE (0-30)?  45   22 
+ 152 
+FUEL BURN RATE (0-30)?  30   15 
+ 140 
+FUEL BURN RATE (0-30)?  20   10 
+ 130 
+FUEL BURN RATE (0-30)?  13   7 
+ 122 
+FUEL BURN RATE (0-30)?  9    4 
+ 114 
+FUEL BURN RATE (0-30)?  6    3 
+ 108 
+FUEL BURN RATE (0-30)?  4    2 
+ 102 
+FUEL BURN RATE (0-30)?  3    1 
+ 96 
+FUEL BURN RATE (0-30)?  2    1 
+ 91 
+FUEL BURN RATE (0-30)?  1    1 
+ 86 
+FUEL BURN RATE (0-30)?  0    1 
+ 81 
+
+PERFECT LANDING! WELCOME TO THE MOON!
+
+PLAY AGAIN (Y/N)? 
+OK

@@ -94,7 +94,15 @@ program yields — which is exactly when the console's pump, not the editor,
 should be the thing that sees a `^C`. Arithmetic is `double`, but `FOUT`'s
 format is reproduced to the digit, and the four positionally-coupled tables
 (`RESLST`, `STMDSP`, `FUNDSP`, `OPTAB`) are in one file because adding a word
-under one switch renumbers every later token in all four.
+under one switch renumbers every later token in all four. It is also the only
+package here whose payload is *programs*: nineteen `.bas` examples ship as
+`share/`, and `LOAD` resolves a bare name against the store directory the
+`/pkg/bin` link leads to, so a user types `LOAD "wumpus.bas"` and not a
+versioned path. They are the first code written *in* a ported language rather
+than ported into one, and the four rules they had to learn are this BASIC's,
+not a modern language's: a reserved word matches anywhere (`MONEY` is `M` `ON`
+`EY`), a name is two characters (`PIT1` and `PIT2` are one variable), there is
+no `ELSE` and no backslash escape, and a `FOR` body always runs once.
 
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
