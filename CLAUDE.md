@@ -454,22 +454,30 @@ both halves of the system:
 - **The runtime**, copied from `../braam-core/build/web/` — `kernel.wasm`,
   `rootfs.zip`, the `.js` and the `.html`. This is what a browser loads at
   `https://braamix.github.io`.
-- **The repository**, copied from `build/repo/` here — `index` and the nine
+- **The repository**, copied from `build/repo/` here — `index` and the twelve
   package zips, which is what `pkg` fetches.
 
 Publishing is by hand, and it is one commit over both:
 
 ```
 cd ~/Project/Braam/braamix.github.io
-git rm -q $(ls *.zip)            # the superseded revisions go, or they pile up
+git rm -q $(ls *-*-r*.zip)       # the superseded revisions go, or they pile up
 cp ../braam-apps/build/repo/*.zip ../braam-apps/build/repo/index .
 cp ../braam-core/build/web/* .   # only when the release itself moves
 git add -A && git commit && git push
 ```
 
 `git rm` first because a package's file name carries its version: without it
-every old revision stays served for ever. The commit message names the Braam
-version, then every package and its new revision, then `Index at G:<n>`.
+every old revision stays served for ever. **The glob is `*-*-r*.zip` and not
+`*.zip`**, because the directory is flat and `rootfs.zip` is in it: the wider
+one stages the runtime for deletion, and a commit that takes it leaves the
+site unbootable. `git checkout HEAD -- rootfs.zip` is the undo, if it has
+already been staged. The commit message names the Braam version, then every
+package and its new revision, then `Index at G:<n>`.
+
+Read the staged diff before committing. A publication that moves one package is
+three entries — the old zip deleted, the new one added, and `index` — plus the
+runtime only where it really moved.
 
 **Move the runtime whenever the SDK moves**, even where `PROC_ABI` is
 unchanged: the packages are built against the new kernel's limits, and it is
