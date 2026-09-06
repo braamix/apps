@@ -25,13 +25,8 @@ the current directory is looked for among the examples shipped with mbasic.
 
 It exits 0 normally, 1 if any error was reported, and 130 on `^C`.
 
-At a terminal `mbasic` with no file first asks two questions; press Enter for
-the defaults.
-
-| Question | Default | Meaning |
-| --- | --- | --- |
-| `Memory size?` | 65535 | the budget `FRE` reports against |
-| `Terminal width?` | your terminal, else 40 | column at which output wraps |
+Output wraps at your terminal's width. Redirected output is never wrapped, and
+`PRINT`'s comma zones then assume 80 columns.
 
 Keys while it runs:
 
@@ -372,11 +367,11 @@ gives what there is.
 | Function | Gives |
 | --- | --- |
 | `POS(x)` | current print column; the argument is ignored |
-| `FRE(x)` | bytes left of the memory-size budget |
+| `FRE(x)` | bytes left of a fixed 65535-byte budget |
 
 **⚠ `FRE` is a *signed* 16-bit count**, so anything above 32767 free shows as a
 negative number — an empty program reports `-1`. That is how the original
-behaved.
+behaved. The budget is fixed here; upstream asked for it at startup.
 
 ---
 

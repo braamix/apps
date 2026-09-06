@@ -2,9 +2,8 @@
 // with input and output redirected to files, and read the transcript back.
 //
 // A pipe rather than the grid, because a session does not fit on 24 rows -- and
-// because down a pipe the interpreter asks neither MEMORY SIZE nor TERMINAL
-// WIDTH and the LineEditor never runs, so nothing echoes and the transcript is
-// exactly what BASIC printed. interrupt.mjs is the one case that needs the grid.
+// because down a pipe the LineEditor never runs, so nothing echoes and the
+// transcript is exactly what BASIC printed. interrupt.mjs needs the grid.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";

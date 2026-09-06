@@ -10,54 +10,30 @@ Land with velocity < 5 to survive!
 Height        Velocity      Fuel
 ------        --------      ----
  1000          50            250 
-Fuel burn rate (0-30)?  945 
- 55            250 
-Fuel burn rate (0-30)?  885 
- 60            250 
-Fuel burn rate (0-30)?  820 
- 65            250 
-Fuel burn rate (0-30)?  750 
- 70            250 
-Fuel burn rate (0-30)?  675 
- 75            250 
-Fuel burn rate (0-30)?  595 
- 80            250 
-Fuel burn rate (0-30)?  510 
- 85            250 
-Fuel burn rate (0-30)?  420 
- 90            250 
-Fuel burn rate (0-30)?  325 
- 95            250 
-Fuel burn rate (0-30)?  225 
- 100           250 
-Fuel burn rate (0-30)?  150 
- 75            220 
-Fuel burn rate (0-30)?  100 
- 50            190 
-Fuel burn rate (0-30)?  67   33 
- 168 
-Fuel burn rate (0-30)?  45   22 
- 152 
-Fuel burn rate (0-30)?  30   15 
- 140 
-Fuel burn rate (0-30)?  20   10 
- 130 
-Fuel burn rate (0-30)?  13   7 
- 122 
-Fuel burn rate (0-30)?  9    4 
- 114 
-Fuel burn rate (0-30)?  6    3 
- 108 
-Fuel burn rate (0-30)?  4    2 
- 102 
-Fuel burn rate (0-30)?  3    1 
- 96 
-Fuel burn rate (0-30)?  2    1 
- 91 
-Fuel burn rate (0-30)?  1    1 
- 86 
-Fuel burn rate (0-30)?  0    1 
- 81 
+Fuel burn rate (0-30)?  945                55            250 
+Fuel burn rate (0-30)?  885                60            250 
+Fuel burn rate (0-30)?  820                65            250 
+Fuel burn rate (0-30)?  750                70            250 
+Fuel burn rate (0-30)?  675                75            250 
+Fuel burn rate (0-30)?  595                80            250 
+Fuel burn rate (0-30)?  510                85            250 
+Fuel burn rate (0-30)?  420                90            250 
+Fuel burn rate (0-30)?  325                95            250 
+Fuel burn rate (0-30)?  225                100           250 
+Fuel burn rate (0-30)?  150                75            220 
+Fuel burn rate (0-30)?  100                50            190 
+Fuel burn rate (0-30)?  67   33            168 
+Fuel burn rate (0-30)?  45   22            152 
+Fuel burn rate (0-30)?  30   15            140 
+Fuel burn rate (0-30)?  20   10            130 
+Fuel burn rate (0-30)?  13   7             122 
+Fuel burn rate (0-30)?  9    4             114 
+Fuel burn rate (0-30)?  6    3             108 
+Fuel burn rate (0-30)?  4    2             102 
+Fuel burn rate (0-30)?  3    1             96 
+Fuel burn rate (0-30)?  2    1             91 
+Fuel burn rate (0-30)?  1    1             86 
+Fuel burn rate (0-30)?  0    1             81 
 
 Perfect landing! Welcome to the moon!
 

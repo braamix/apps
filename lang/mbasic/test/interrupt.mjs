@@ -20,9 +20,9 @@ let now = 100;
 const line = (t) => H.submit(t, now++);
 const flat = (s) => H.rows(s).join("\n");
 
+// No question is asked here: start() is handed `have_keys`, which no read has
+// set yet, so the interactive path is not taken under the harness.
 line("mb");
-line(""); // MEMORY SIZE?
-line(""); // TERMINAL WIDTH?
 if (!flat(H.screen()).includes("Braam BASIC v1.1"))
     die("the banner did not appear");
 

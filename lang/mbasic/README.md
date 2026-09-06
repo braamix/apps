@@ -14,8 +14,6 @@ is what this is.
 
 ```
 $ mbasic
-Memory size?
-Terminal width?
 
 Braam BASIC v1.1
 Copyright 1978 Microsoft
@@ -168,8 +166,8 @@ What is kept, because it is observable:
 - typing any program line still clears every variable;
 - `?String too long` above 255 characters, and `?Formula too complex` at the
   fourth live string temporary, so the language does not silently gain capacity;
-- `FRE` still answers a signed 16-bit count against the budget `Memory size`
-  sets, and `?Out of memory` still fires — including from `GETSTK`'s `NUMLEV`,
+- `FRE` still answers a signed 16-bit count against a fixed budget,
+  and `?Out of memory` still fires — including from `GETSTK`'s `NUMLEV`,
   the 23 guaranteed levels of expression nesting.
 
 The `FOR`/`GOSUB` stack could not go. Upstream's was a typed structure scanned
@@ -272,13 +270,19 @@ Redirected stdin is untouched: `mbasic <session` is still the whole typed
 transcript, banner and every `Ok`, which is what six of the eight test cases
 drive.
 
-### Two questions asked only at a console
+### Neither of upstream's two questions is asked
 
-`Memory size?` and `Terminal width?` are asked when stdin is a terminal and not
-otherwise: down a pipe there is nobody to answer them, and a run reading its
-program from a file should not have the first two lines of it eaten. The width
-otherwise comes from `tty_of`, and is zero — meaning no automatic wrap — for a
-pipe. Answering `A` to `Memory size` still prints `Written by Weiland & Gates`.
+`MEMORY SIZE?` asked how much of the machine BASIC might take, and there is no
+machine to take it from: `FRE` reports against a fixed 65535 and `?Out of
+memory` still fires on it. `TERMINAL WIDTH?` asked what `tty_of` now answers.
+
+`LINWID` is the terminal's width, or zero for a pipe — zero meaning no
+automatic wrap, because wrapping a redirected transcript at some terminal's
+width would be a hard thing to explain. The comma zones still need a number,
+since a `PRINT` with commas has to line up somewhere, and that is `LINLEN`, 80.
+
+Upstream's easter egg went with the first question: answering `A` to it printed
+`WRITTEN BY WEILAND & GATES`.
 
 ## Files
 
@@ -303,7 +307,7 @@ source names the chapter of `tmp/doc/internals/` it implements.
 | [math.cpp](math.cpp) | the arithmetic functions, over `braam::math` |
 | [file.cpp](file.cpp) | `LOAD`, `SAVE`, and the channels |
 | [sys.cpp](sys.cpp) | `POKE`, `PEEK`, `WAIT`, `POS`, and the two that lost their machine |
-| [init.cpp](init.cpp) | the two questions and the banner |
+| [init.cpp](init.cpp) | the banner, and the widths it sets |
 | [braam.cpp](braam.cpp) | the driver. Everything that blocks is here, and only here |
 | [edit.cpp](edit.cpp), [edit.h](edit.h) | `INLIN`, from `games/adventure` |
 | [epath.cpp](epath.cpp), [epath.h](epath.h) | where the shipped examples are |

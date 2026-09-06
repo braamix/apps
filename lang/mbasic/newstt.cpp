@@ -27,12 +27,6 @@ Reason Interp::step()
     case Resume::File:
         file_resume();
         break;
-    case Resume::MemSize:
-        memsize_resume();
-        break;
-    case Resume::TtyWidth:
-        ttywidth_resume();
-        break;
     case Resume::Newstt:
         break;
     }

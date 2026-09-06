@@ -266,7 +266,7 @@ struct Request {
 
 // Where step() picks up. Upstream had a program counter for this; a read that
 // unwinds the native stack has to make it data.
-enum class Resume : u8 { Newstt, Main, Input, Get, File, MemSize, TtyWidth };
+enum class Resume : u8 { Newstt, Main, Input, Get, File };
 
 // The INPUT/READ/GET loop's state. Upstream held all of it in page zero and
 // never unwound out of it; naming every field is what a suspension costs.
@@ -295,7 +295,7 @@ constexpr u32 NUMTMP     = 3;   // string temporaries; exceeding them is ?ST
 constexpr u32 STMT_BURST = 512; // statements between parks -- see newstt()
 constexpr u32 BUFLEN     = 240; // the input line
 constexpr u32 CLMWID     = 14;  // PRINT's comma field width, an assembly constant
-constexpr u32 LINLEN     = 40;  // default terminal width
+constexpr u32 LINLEN     = 80;  // assumed width where there is no terminal
 constexpr u16 MAXLIN     = 63999;
 
 struct Interp;
@@ -342,8 +342,6 @@ struct Interp {
     // is no one to answer them, and a run that reads its program from a file
     // should not eat the first two lines of it.
     Reason start(u32 cols, bool interactive);
-    void memsize_resume();
-    void ttywidth_resume();
     void banner();
 
     // ---- page zero
@@ -399,7 +397,7 @@ struct Interp {
     // own so the statements still work and GETADR's 0..65535 check is unchanged.
     u8 *poke_space = nullptr;
 
-    u32 memsiz = 0; // MEMORY SIZE: the byte budget FRE reports against
+    u32 memsiz = 0; // the byte budget FRE reports against
     f64 rndx   = 0; // the last random number
 
     // ---- error and suspension (err.h)

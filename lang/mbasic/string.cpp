@@ -177,7 +177,7 @@ void Interp::fn_mid()
 // effect was the idiomatic use -- and returned FRETOP - STREND floated as a
 // SIGNED 16-bit value, so more than 32767 free bytes reported as negative.
 //
-// There is no collector to force. The count is the budget MEMORY SIZE set,
+// There is no collector to force. The count is against a fixed budget,
 // less what the program, the variables and the arrays actually hold, and it is
 // still signed, because a program comparing it against 32767 should still
 // behave.
