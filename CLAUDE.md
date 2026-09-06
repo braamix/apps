@@ -590,9 +590,10 @@ environment alone.
 at runtime is a command: `fimport` and pick the file (it lands in `/import/`),
 or `curl … > /home/<name>`. `PATH` is `/bin` at boot, which is a read-only view
 of the archive beside the kernel — putting a program *there* means rebuilding
-the image; anywhere else needs only a `PATH` that names it. While iterating,
-note the host caches a compiled module by path: replacing a program at a path
-already run in this page needs a reload, or write the new one beside the old.
+the image; anywhere else needs only a `PATH` that names it. Replacing a program
+at a path already run in the page is fine as of 0.9.254 — the host's compile
+cache keys on the image and not on the path, so a rebuild, an `fimport` or a
+`pkg upgrade` takes effect at the next run rather than at the next reload.
 
 ## Conventions
 
