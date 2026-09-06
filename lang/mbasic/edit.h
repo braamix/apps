@@ -58,6 +58,7 @@ private:
     usize hist_    = 0;     // history_.size() means "the line being typed"
     usize painted_ = 0;     // cells the last redraw covered, so the tail erases
     u32 x0_ = 0, y0_ = 0;   // where buf_[0] draws
-    u32 cols_ = 80;         // the last geometry the kernel reported
-    u32 rows_ = 24;
+    u32 cols_    = 80;      // the last geometry the kernel reported
+    u32 rows_    = 24;
+    bool echoed_ = false; // the console already printed this ^C
 };

@@ -291,8 +291,8 @@ void Interp::main_resume()
         return;
     case InEnd::Interrupt:
         // ^C at the prompt abandons the line and asks again; upstream's INLIN
-        // had no way to say this, because it could not fail.
-        outstr("\r\n");
+        // had no way to say this, because it could not fail. The echo and its
+        // newline are the console's (src/user/console.cpp), so none is added.
         suspend_line("", 0, Resume::Main);
         return;
     case InEnd::Line:

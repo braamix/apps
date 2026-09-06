@@ -136,6 +136,7 @@ Task<Result<InLine>> LineEditor::read_line()
     pending_.clear();
     cur_     = 0;
     painted_ = 0;
+    echoed_  = false;
     hist_    = history_.size();
 
     if (Task<Result<void>> t = anchor()) {
@@ -167,7 +168,8 @@ Task<Result<InLine>> LineEditor::read_line()
             }
             if (!sig_take(SIG_INT))
                 co_return Err(r.error());
-            k = Key{ 'c', MOD_CTRL };
+            k       = Key{ 'c', MOD_CTRL };
+            echoed_ = true; // the console printed it on its way to the signal
         } else {
             k     = Key{ r.value().code, r.value().mods };
             cols_ = r.value().at.cols;
@@ -199,8 +201,9 @@ Task<Result<InLine>> LineEditor::read_line()
                 if (Result<void> bad = co_await t; bad.is_err())
                     co_return Err(bad.error());
             }
-            if (Task<Result<void>> t = write_all(SYS_STDOUT, "^C\n"))
-                co_await t;
+            if (!echoed_)
+                if (Task<Result<void>> t = write_all(SYS_STDOUT, "^C\n"))
+                    co_await t;
             InLine line;
             line.how = LineEnd::Interrupt;
             co_return move(line);
