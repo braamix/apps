@@ -22,11 +22,39 @@
 // three live temporaries, so a deep enough string expression is ?FORMULA TOO
 // COMPLEX (frmevl.cpp).
 #include "kernel/fmt.h"
+#include "kernel/text.h"
 #include "mbasic.h"
 
 namespace {
 
 constexpr usize STRMAX = 255;
+
+// Characters, not bytes: 255 is a count of runes here, LEN answers runes, and
+// LEFT$/RIGHT$/MID$ cut on rune boundaries so none of them can halve one.
+// utf8_decode answers 0 on a truncated tail, so every loop tests it.
+usize runes(Str s)
+{
+    usize n = 0;
+    for (usize i = 0; i < s.size();) {
+        char32_t c;
+        usize k = utf8_decode(s, i, c);
+        i += k ? k : 1;
+        n++;
+    }
+    return n;
+}
+
+// The byte offset of rune `n`, or s.size() past the end.
+usize rune_at(Str s, usize n)
+{
+    usize i = 0;
+    for (; n && i < s.size(); n--) {
+        char32_t c;
+        usize k = utf8_decode(s, i, c);
+        i += k ? k : 1;
+    }
+    return i;
+}
 
 } // namespace
 
@@ -46,7 +74,7 @@ void Interp::cat()
     chkstr();
     CHK;
 
-    if (left.s.size() + fac.s.size() > STRMAX)
+    if (runes(left.s.str()) + runes(fac.s.str()) > STRMAX)
         ERR(ERRLS);
 
     String r;
@@ -62,7 +90,7 @@ void Interp::fn_len()
 {
     chkstr();
     CHK;
-    f64 n = f64(fac.s.size());
+    f64 n = f64(runes(fac.s.str()));
     fac.s.clear();
     fac.valtyp = VNUM;
     fac.n      = n;
@@ -109,39 +137,44 @@ void Interp::fn_val()
     fac.n      = v;
 }
 
-// ASC (m6502.asm:4741-4746): a null string gives ?FC.
+// ASC (m6502.asm:4741-4746): a null string gives ?FC. The codepoint, not the
+// first byte, so ASC and CHR$ are inverses over the whole range.
 void Interp::fn_asc()
 {
     chkstr();
     CHK;
     if (fac.s.empty())
         ERR(ERRFC);
-    f64 n = f64(u8(fac.s[0]));
+    char32_t r;
+    f64 n = f64(utf8_decode(fac.s.str(), 0, r) ? u32(r) : 0xFFFD);
     fac.s.clear();
     fac.valtyp = VNUM;
     fac.n      = n;
 }
 
-// CHR$ (m6502.asm:4632-4642): CONINT, so the argument is 0..255.
+// CHR$ (m6502.asm:4632-4642). Upstream was CONINT, so 0..255 and one byte; a
+// codepoint here, encoded, which is the only way to write a non-ASCII
+// character from a program and the one thing that keeps CHR$ from building an
+// invalid sequence.
 void Interp::fn_chr()
 {
     chknum();
     CHK;
-    if (fac.n < 0 || fac.n > 255)
+    if (fac.n < 0 || fac.n > 0x10FFFF)
         ERR(ERRFC);
-    u8 c       = u8(fac.n);
+    char b[4];
+    usize n    = utf8_encode(char32_t(u32(fac.n)), b);
     fac.valtyp = VSTR;
     fac.s.clear();
-    reason(fac.s.push(char(c)));
+    reason(fac.s.assign(Str(b, n)));
 }
 
 // LEFT$ (m6502.asm:4648-4671): n >= len uses len and offset 0.
 void Interp::fn_left()
 {
     Str s      = fnstr.str();
-    usize n    = fnn1 < s.size() ? fnn1 : s.size();
     fac.valtyp = VSTR;
-    reason(fac.s.assign(s.substr(0, n)));
+    reason(fac.s.assign(s.substr(0, rune_at(s, fnn1))));
 }
 
 // RIGHT$ (m6502.asm:4672-4676): computes offset = len - n, then shares LEFT$'s
@@ -149,9 +182,11 @@ void Interp::fn_left()
 void Interp::fn_right()
 {
     Str s      = fnstr.str();
-    usize n    = fnn1 < s.size() ? fnn1 : s.size();
+    usize len  = runes(s);
+    usize n    = fnn1 < len ? fnn1 : len;
+    usize at   = rune_at(s, len - n);
     fac.valtyp = VSTR;
-    reason(fac.s.assign(s.substr(s.size() - n, n)));
+    reason(fac.s.assign(s.substr(at, s.size() - at)));
 }
 
 // MID$ (m6502.asm:4684-4704): the length defaults to 255, position 0 gives
@@ -161,15 +196,15 @@ void Interp::fn_mid()
     Str s = fnstr.str();
     if (fnn1 == 0)
         ERR(ERRFC);
-    usize at   = fnn1 - 1;
     usize want = fnhas2 ? fnn2 : STRMAX;
+    usize at   = rune_at(s, fnn1 - 1);
     fac.valtyp = VSTR;
     if (at >= s.size()) {
         fac.s.clear();
         return;
     }
-    usize n = s.size() - at;
-    reason(fac.s.assign(s.substr(at, want < n ? want : n)));
+    usize end = rune_at(s, fnn1 - 1 + want);
+    reason(fac.s.assign(s.substr(at, end - at)));
 }
 
 // FRE (m6502.asm:4113-4122). Upstream freed its argument if it was a string,

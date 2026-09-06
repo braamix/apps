@@ -3,6 +3,68 @@
 // m6502.asm:1973-2062; 03-tokenizer-editor.md §4.
 #include "mbasic.h"
 
+// DETOK. Upstream rescanned RESLST from the beginning to expand a token; an
+// indexed table does not.
+//
+// It needs CRUNCH's regions, because a token and a UTF-8 byte are both >= 0x80:
+// inside a literal, a DATA item or a REM tail the bytes are text, and expanding
+// one there turns "café" into "caflenstep". Outside them CRUNCH stores no byte
+// >= 0x80 at all, so there it is always a token. SAVE shares this (file.cpp).
+bool Interp::detok(const Vec<u8> &src, String &dst)
+{
+    // Everything but the terminating NUL.
+    usize n = src.size() ? src.size() - 1 : 0;
+    usize i = 0;
+
+    while (i < n) {
+        u8 c = src[i];
+
+        if (c == '"') { // a literal, closing quote included
+            if (!reason(dst.push('"')))
+                return false;
+            i++;
+            while (i < n) {
+                if (!reason(dst.push(char(src[i]))))
+                    return false;
+                if (src[i++] == '"')
+                    break;
+            }
+            continue;
+        }
+        if (c == REMTK) { // the tail is verbatim, ':' and '"' included
+            if (!reason(dst.append(RESLST[REMTK - ENDTK])))
+                return false;
+            for (i++; i < n; i++)
+                if (!reason(dst.push(char(src[i]))))
+                    return false;
+            break;
+        }
+        if (c == DATATK) { // verbatim to an unquoted ':', as CRUNCH stored it
+            bool quoted = false;
+            if (!reason(dst.append(RESLST[DATATK - ENDTK])))
+                return false;
+            for (i++; i < n && (quoted || src[i] != ':'); i++) {
+                if (src[i] == '"')
+                    quoted = !quoted;
+                if (!reason(dst.push(char(src[i]))))
+                    return false;
+            }
+            continue;
+        }
+
+        i++;
+        if (c < 0x80) {
+            if (!reason(dst.push(char(c))))
+                return false;
+            continue;
+        }
+        usize w = usize(c - ENDTK);
+        if (!reason(dst.append(w < RESLST_COUNT ? RESLST[w] : Str("?"))))
+            return false;
+    }
+    return true;
+}
+
 // Argument parsing (m6502.asm:1975-1990). LINGET reads the start bound; if a
 // '-' follows, LINGET runs again and overwrites it with the end bound, and at
 // LSTEND a zero end becomes 65535. With no digits at all LINGET returns zero,
@@ -42,19 +104,10 @@ void Interp::list()
         linprt(l.num);
         outdo(' ');
 
-        for (usize k = 0; k + 1 < l.text.size(); k++) {
-            u8 c = l.text[k];
-            if (c < 0x80) {
-                outdo(c);
-                continue;
-            }
-            // Upstream expanded a token by rescanning RESLST from the
-            // beginning, skipping ordinal-1 whole entries by looking for bytes
-            // with bit 7 set, and stripping that marker off the last character
-            // it printed. An indexed table needs neither.
-            usize w = usize(c - ENDTK);
-            outstr(w < RESLST_COUNT ? RESLST[w] : Str("?"));
-        }
+        String text;
+        if (!detok(l.text, text))
+            return;
+        outstr(text.str());
         crdo();
         CHK;
     }

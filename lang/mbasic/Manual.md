@@ -91,6 +91,11 @@ dropped, and so is a bare decimal point. `.5` prints as `.5`, never `0.5`.
 Up to **255 characters**. Written between double quotes; there is no way to put
 a `"` inside a string literal — use `CHR$(34)`.
 
+Text is UTF-8, and everything counts **characters**, not bytes: `len("café")`
+is 4 and `mid$` never cuts one in half. Any script may appear inside a string,
+after `REM` and in a `DATA` item — those three places and no other. Elsewhere a
+non-ASCII character is a syntax error, because a variable name is ASCII.
+
 `+` joins strings. Comparison is by character code, shortest-first on a tie, and
 is **case-sensitive**: `"A"` does not equal `"a"`.
 
@@ -372,10 +377,13 @@ is the same every run** unless you reseed it.
 | `RIGHT$(a$, n)` | last *n* characters |
 | `MID$(a$, p)` | from position *p* to the end |
 | `MID$(a$, p, n)` | *n* characters from position *p* |
-| `CHR$(n)` | the character with code *n* (0–255) |
+| `CHR$(n)` | the character with code *n* (0 – 1114111) |
 | `ASC(a$)` | code of the first character; empty is `?Illegal quantity` |
 | `STR$(x)` | the number as text, with its leading space |
 | `VAL(a$)` | the number at the front of the text, else 0 |
+
+`ASC` and `CHR$` carry Unicode: `asc("é")` is 233 and `chr$(26085)` is `日`.
+The original stopped at 255.
 
 Positions start at **1**. `MID$(a$, 0, …)` is `?Illegal quantity`; a position
 past the end gives the empty string. Asking for more characters than there are
@@ -433,6 +441,7 @@ running.
 | Line numbers | 0 – 63999 |
 | Input line | 240 characters |
 | String length | 255 characters |
+| Character codes | 0 – 1114111 (Unicode) |
 | Integer variables (`%`) | −32768 – 32767 |
 | Number range | about ±1.7e38, 9 significant digits |
 | Expression nesting | 23 levels |
@@ -491,6 +500,8 @@ the `IF`.
 ## 14. Differences from the 1978 original
 
 - Case is folded; the original was upper case only.
+- Text is UTF-8 and counted in characters, so a string may hold any script.
+  `CHR$` reaches 1114111 rather than the original 255.
 - A keyword must stand alone, so `total` is a variable. The original matched a
   reserved word anywhere and read it as `to` followed by `tal`; the cost of the
   change is that `fori=1ton` no longer works.

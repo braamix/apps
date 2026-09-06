@@ -16,6 +16,7 @@
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "kernel/key.h"
+#include "kernel/text.h"
 #include "mbasic.h"
 #include "proc/io.h"
 #include "proc/opt.h"
@@ -255,8 +256,9 @@ Task<void> serve_char(Interp &b)
             co_return;
         }
         // GET yields the null string for a key with no character, which is
-        // upstream's behaviour when nothing was ready.
-        b.in_char = k.code < 128 ? u8(k.code) : 0;
+        // upstream's behaviour when nothing was ready. A key is a codepoint,
+        // so a named key (KEY_NAMED and up) is what has none.
+        b.in_char = k.code < KEY_NAMED ? char32_t(k.code) : 0;
         co_return;
     }
 
@@ -269,7 +271,10 @@ Task<void> serve_char(Interp &b)
         b.in_end = InEnd::Eof;
         co_return;
     }
-    b.in_char = u8(r.value()[0]);
+    // Down a pipe the character arrives as bytes, so take a whole sequence.
+    char32_t c;
+    usize n   = utf8_decode(r.value().str(), 0, c);
+    b.in_char = n ? c : 0;
     co_return;
 }
 

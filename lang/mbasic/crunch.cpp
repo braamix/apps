@@ -189,6 +189,14 @@ void Interp::crunch(Str src, Vec<u8> &dst)
             continue;
         }
 
+        // Non-ASCII belongs in a literal, a DATA item or a REM tail -- the three
+        // arms above, which store it verbatim. Here it can begin no name, number
+        // or reserved word, and storing it would collide with the token space:
+        // LIST would expand it, GONE2 would dispatch on it, and PTRGET uses bit 7
+        // of a name byte as the type tag.
+        if (c >= 0x80)
+            ERR(ERRSN);
+
         // Folded here, so the stored line is canonical. A string literal, a
         // DATA item and a REM tail never reach this point and keep their case.
         usize w = match_res(src, i);

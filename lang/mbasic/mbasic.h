@@ -329,10 +329,10 @@ struct Interp {
     Vec<Chan> chans;
 
     String in_line; // NeedLine
-    InEnd in_end = InEnd::Line;
-    u8 in_char   = 0;     // NeedChar
-    bool brkflg  = false; // ^C arrived; ISCNTC reads it
-    i32 status   = 0;
+    InEnd in_end     = InEnd::Line;
+    char32_t in_char = 0;     // NeedChar: a codepoint, as a key is
+    bool brkflg      = false; // ^C arrived; ISCNTC reads it
+    i32 status       = 0;
 
     // Script mode: a named file, whose lines the driver feeds as Main reads.
     // No banner and no Ok, an implicit RUN when the lines run out, and exit
@@ -444,6 +444,7 @@ struct Interp {
 
     // ---- list.cpp
     void list();
+    bool detok(const Vec<u8> &src, String &dst); // LIST and SAVE share it
 
     // ---- renum.cpp
     void renum();

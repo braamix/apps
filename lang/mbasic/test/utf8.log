@@ -1,0 +1,63 @@
+10 a$ = "café"
+20 rem naïve — dash : gosub 99
+30 data café, 2 : read d$, d : print d$; d
+40 print a$
+
+Ok
+café 2 
+café
+
+Ok
+
+Ok
+
+Ok
+
+Ok
+10 a$ = "café"
+20 rem naïve — dash : gosub 99
+30 data café, 2 : read d$, d : print d$; d
+40 print a$
+
+Ok
+café 2 
+café
+
+Ok
+
+Ok
+ 4  3 
+caf|é|fé
+日|本|語
+ 99  26085  233 
+é日A
+ 1 
+
+Ok
+
+?Illegal quantity error
+Ok
+
+?Illegal quantity error
+Ok
+héllo     X
+
+Ok
+hello     X
+
+Ok
+日本        X
+
+Ok
+ab   X
+
+Ok
+日本            z
+
+Ok
+
+?Syntax error
+Ok
+ 0 
+
+Ok

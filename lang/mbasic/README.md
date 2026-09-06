@@ -222,6 +222,37 @@ Kept deliberately, because they are the language:
   stored `TXTPTR` the same way and has the same wart.
 - `SYS` and `USR` raise `?Illegal quantity`, having no machine to call.
 
+### Text is UTF-8, and a token is not
+
+A token is a byte `>= 0x80` and so is every byte of a UTF-8 sequence, and LIST
+expanded any such byte through `RESLST` without asking where it stood. So
+`10 PRINT "café"` listed back as `10 print "caflenstep"` — `C3 A9` being the
+ordinals of `LEN` and `STEP` — and since SAVE walks the same bytes it *wrote
+that to disk*. It was data loss, not a display fault.
+
+The fix is that `detok` ([list.cpp](list.cpp)) now carries CRUNCH's own
+regions, so inside a literal, a `DATA` item or a `REM` tail a byte is text and
+never a token; SAVE shares the routine rather than keeping a second copy of the
+loop. Outside those three, CRUNCH refuses a byte `>= 0x80` outright — it can
+begin no name, number or reserved word, and storing one would collide with the
+token space three ways over: LIST would expand it, `GONE2` would dispatch on
+it, and PTRGET uses bit 7 of a name byte as the `$`/`%` type tag.
+
+Above that, everything the user counts is a character. `LEN`, `LEFT$`,
+`RIGHT$` and `MID$` step codepoints, so `MID$` cannot halve one; `ASC` and
+`CHR$` carry Unicode, and `CHR$` reaching 1114111 rather than 255 is the
+departure worth naming — it is also what stops `CHR$` building an invalid
+sequence a byte at a time. The print column took one line: `OUTDO` skips a
+continuation byte, which makes `TRMPOS` count runes and settles a mismatch that
+was already there, `LINWID` having come from `tty_of` in cells all along.
+
+**There is no width table, and that is the tree's rule rather than a shortcut.**
+The grid is one codepoint per cell — `screen_put` writes one `Cell` and
+advances the cursor by one, whatever the codepoint — so a character *is* a
+column. `editors/vi` says the same thing; `editors/le` is the one port that
+uses `wcwidth`, and `../braam-core/doc/Compat.md` records that it therefore
+disagrees with the screen about a wide character.
+
 ### A reserved word is a word, which upstream's was not
 
 Upstream matched a reserved word at every character position with no boundary
@@ -296,7 +327,7 @@ simply "stdin is a terminal". The file itself is one `read_file` at startup,
 with `epath_file`'s fallback, so a bare name finds a shipped example.
 
 Redirected stdin is untouched: `mbasic <session` is still the whole typed
-transcript, banner and every `Ok`, which is what eight of the ten test cases
+transcript, banner and every `Ok`, which is what nine of the eleven test cases
 drive.
 
 ### Neither of upstream's two questions is asked
@@ -362,7 +393,7 @@ source names the chapter of [internals/](internals/) it implements.
 | [err.h](err.h) | the unwind — `Halt`, `ErrCode`, `CHK`/`ERR`/`SUSPEND` |
 | [tables.cpp](tables.cpp) | `RESLST`, `STMDSP`, `FUNDSP`, `OPTAB`, `ERRTAB` |
 | [crunch.cpp](crunch.cpp) | `CHRGET`, `CRUNCH`, `LINGET`, `FNDLIN`, the editor |
-| [list.cpp](list.cpp) | `LIST`, the exact inverse of `CRUNCH` |
+| [list.cpp](list.cpp) | `LIST` and `DETOK`, the exact inverse of `CRUNCH` |
 | [renum.cpp](renum.cpp) | `RENUM` — the one statement that is not upstream's |
 | [newstt.cpp](newstt.cpp) | the statement fetcher, dispatch, errors, the burst |
 | [stmt.cpp](stmt.cpp) | the statements, and the `FOR`/`GOSUB` frames |
@@ -428,7 +459,7 @@ given with `asc`/`chr$`.
 
 ## Testing
 
-`make test` at the top of the tree runs ten cases from [test/](test/). Nine
+`make test` at the top of the tree runs eleven cases from [test/](test/). Ten
 drive a session through stdin and stdout redirected to files and compare the
 transcript byte for byte against a golden beside the script — exact, because the
 run is deterministic and down a pipe nothing echoes and no prompt is printed.
@@ -450,6 +481,12 @@ values means re-choosing them, not just re-blessing.
 rules: the fourteen names that used to be unusable, the boundaries that are not
 letters and so still crunch, the entries with punctuation at one end, and the
 three forms the change gives up.
+
+`utf8.mjs` is the round trip that used to lose text: a program holding `café`,
+`naïve — dash` and `日本語` listed, run, saved, loaded and listed again, then
+the character counts, `ASC`/`CHR$` over the whole range, the columns lining up,
+and a raw `0xFF` planted in the store — which `put()` cannot express, since it
+encodes — coming back as one U+FFFD.
 
 `case.mjs` is the case rules stated once: one keyword whatever the case, one
 variable whatever the case, `LIST` canonical in lower case, and a string, a

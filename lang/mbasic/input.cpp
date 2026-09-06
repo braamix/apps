@@ -19,6 +19,7 @@
 // in the VARIABLE LIST, so variables already assigned are behind it. That is
 // distinct from ?REDO FROM START, which deliberately restarts the whole
 // statement from OLDTXT.
+#include "kernel/text.h"
 #include "mbasic.h"
 
 // ============================================================== helpers
@@ -351,8 +352,10 @@ void Interp::get_resume()
         return;
     }
     inp.buf.clear();
-    if (in_char)
-        reason(inp.buf.push(char(in_char)));
+    if (in_char) {
+        char t[4];
+        reason(inp.buf.assign(Str(t, utf8_encode(in_char, t))));
+    }
     inp.inpptr = 0;
     txtptr     = inp.varlist;
 

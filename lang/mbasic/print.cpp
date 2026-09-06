@@ -29,7 +29,11 @@ void Interp::outdo(u8 c)
         return;
     }
 
-    if (c >= ' ') {
+    // A UTF-8 continuation byte is not a character: skipping it here is what
+    // makes the column count runes, which is what LINWID and the comma zones
+    // are in -- tty_of reports cells, and the grid is one rune per cell. It
+    // also stops a wrap landing between a lead byte and its tail.
+    if (c >= ' ' && (c & 0xC0) != 0x80) {
         // Automatic line wrap, BEFORE the character. Upstream compared against
         // LINWID, a RAM byte, not a constant: it is settable at startup.
         if (linwid && trmpos == linwid)

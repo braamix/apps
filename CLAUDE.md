@@ -104,7 +104,13 @@ modern language's: a name is two characters (`pit1` and `pit2` are one
 variable), there is no `else` and no backslash escape, and a `for` body always
 runs once. A fourth was fixed rather than documented — a reserved word used to
 match *anywhere*, so `money` was `m` `on` `ey`, and it is a word now, the price
-being that a keyword must stand alone and `fori=1ton` no longer works. They are
+being that a keyword must stand alone and `fori=1ton` no longer works. **Text
+is UTF-8** with it: a token and a UTF-8 byte are both above `0x7F`, so `LIST`
+expanded `"café"` into `"caflenstep"` and `SAVE` wrote that down, and the
+detokenizer now carries `CRUNCH`'s quote/`DATA`/`REM` regions while `CRUNCH`
+refuses a non-ASCII byte outside them. Everything counted is a character —
+`LEN`, `MID$`, the print column, `CHR$` to 1114111 — and there is no width
+table, the grid being one codepoint per cell. They are
 written in lower case, because **case is folded** here and upstream's was not:
 `CRUNCH` is the one chokepoint every path tokenizes through, so `RESLST` is
 spelled lower and the byte stored for anything unmatched is folded — which

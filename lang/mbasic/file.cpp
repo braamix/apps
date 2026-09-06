@@ -47,7 +47,7 @@ void Interp::stmt_save()
         return;
 
     // The program as LIST would print it. LIST itself goes to the console and
-    // exits to READY, so this walks the same table rather than calling it.
+    // exits to READY, so this shares its detokenizer rather than calling it.
     String text;
     for (usize i = 0; i < prog.size(); i++) {
         const Line &l = prog[i];
@@ -64,14 +64,8 @@ void Interp::stmt_save()
         if (!reason(text.push(' ')))
             return;
 
-        for (usize j = 0; j + 1 < l.text.size(); j++) {
-            u8 c    = l.text[j];
-            bool ok = c < 0x80 ? text.push(char(c))
-                               : text.append(usize(c - ENDTK) < RESLST_COUNT ? RESLST[c - ENDTK]
-                                                                             : Str("?"));
-            if (!reason(ok))
-                return;
-        }
+        if (!detok(l.text, text))
+            return;
         if (!reason(text.push('\n')))
             return;
     }
