@@ -217,7 +217,11 @@ Kept deliberately, because they are the language:
 - True is `-1`, produced by masking, so `A<=B` and `(A<B) OR (A=B)` are the
   same value.
 - Line numbers stop at 63999, and exceeding it is a *syntax* error.
-- A blank line typed to `INPUT` is a silent, continuable `STOP`.
+- A blank line typed to `INPUT` is a silent `STOP` — `STPEND` with carry clear,
+  so no `BREAK` is printed. It is *not* continuable in practice: `OLDTXT` is
+  left pointing into the variable list rather than at a statement boundary, so
+  `CONT` re-dispatches from mid-statement and raises `?Syntax error`. Upstream
+  stored `TXTPTR` the same way and has the same wart.
 - `SYSTEM` is `SYS` followed by `TEM`, and raises `?Illegal quantity`.
 
 ### Case is folded, which upstream's was not
@@ -289,6 +293,12 @@ source names the chapter of `tmp/doc/internals/` it implements.
 No `PORT`: this is a rewrite in Braam idiom, not a recompile of C, so the port
 kit is not linked and `#include <string.h>` is still "file not found".
 `braam::math` is, for the transcendentals and `ftoa`'s conversions.
+
+## The language
+
+[Manual.md](Manual.md) is the reference: every statement, function, operator
+and error message, with the rules that surprise a modern reader marked. It
+ships in the package as `share/Manual.md`, beside the examples.
 
 ## Examples
 

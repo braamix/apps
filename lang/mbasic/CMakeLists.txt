@@ -31,7 +31,9 @@ endforeach()
 
 braam_add_package(NAME mbasic VERSION 1.1-r2
                   FIELD "T=Microsoft BASIC 1.1 for the 6502"
-                  FILES $<TARGET_FILE:bin_mbasic>=bin/mbasic ${MBASIC_EXAMPLES})
+                  FILES $<TARGET_FILE:bin_mbasic>=bin/mbasic
+                        ${CMAKE_CURRENT_SOURCE_DIR}/Manual.md=share/Manual.md
+                        ${MBASIC_EXAMPLES})
 
 if(TARGET packages)
     add_dependencies(packages pkg_mbasic)
