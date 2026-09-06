@@ -457,6 +457,17 @@ that prompts `(y/n)` and tests `if a$ = "Y"` rejects a typed `y`. Each example
 takes both, and [hangman.bas](examples/hangman.bas) upcases the letter it is
 given with `asc`/`chr$`.
 
+A sixth is `PRINT`'s, and [calendar.bas](examples/calendar.bas) is where it
+bites: a printed number carries a sign column ahead of it and a space behind
+it, so `print " "; day;` is four columns under ten and five over, and **a
+numeric column cannot be aligned by printing it**. `str$` is the way out,
+because it is the same conversion without the trailing space — so `str$(1)` is
+`" 1"`, `str$(10)` is `" 10"`, and `right$(str$(day), 2)` is a right-aligned
+day of the month with no case to test. The same free space separates the title
+from its year in `m$(mo) + str$(yr)`. The week is then built up in a string and
+printed once, the way maze.bas builds a row, since the leading blanks must not
+be a `for` loop: a month beginning on a Sunday would gain a phantom cell.
+
 [maze.bas](examples/maze.bas) is the one that could not have been written
 before UTF-8 went in. It digs an 8×8 maze with a recursive backtracker — the
 recursion written out over an array, there being none to be had here — and
