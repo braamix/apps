@@ -282,7 +282,7 @@ width would be a hard thing to explain. The comma zones still need a number,
 since a `PRINT` with commas has to line up somewhere, and that is `LINLEN`, 80.
 
 Upstream's easter egg went with the first question: answering `A` to it printed
-`WRITTEN BY WEILAND & GATES`.
+`WRITTEN BY WEILAND & GATES`. The authors are named in `--help` instead.
 
 ## Files
 
