@@ -35,21 +35,6 @@
   "image": true
  },
  {
-  "name": "bang3",
-  "setup": [
-   {
-    "path": "a.txt",
-    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
-   }
-  ],
-  "argv": [
-   "a.txt"
-  ],
-  "script": "j!!ls -d test/*Curses\nW\nQ",
-  "image": true,
-  "file": "a.txt"
- },
- {
   "name": "bang4",
   "setup": [
    {
@@ -287,7 +272,8 @@
    "a.txt"
   ],
   "script": "deQy\n",
-  "image": true
+  "image": true,
+  "mask": false
  },
  {
   "name": "del2",
@@ -1569,7 +1555,8 @@
    "a.txt"
   ],
   "script": "jww13w/Cent\nbb11b/Kono\nee12eQ",
-  "image": true
+  "image": true,
+  "mask": false
  },
  {
   "name": "word1",
@@ -1583,7 +1570,8 @@
    "a.txt"
   ],
   "script": "/Cent\n5w4b7eQ",
-  "image": true
+  "image": true,
+  "mask": false
  },
  {
   "name": "word2",
@@ -1597,20 +1585,14 @@
    "a.txt"
   ],
   "script": "2j4lwb4le3hbQ",
-  "image": true
+  "image": true,
+  "mask": false
  },
  {
   "name": "write0",
   "setup": [],
   "argv": [],
   "script": "iThe quick brown fox jumps over the lazy dog.\n\u001bWa.txt\nQ",
-  "image": true
- },
- {
-  "name": "write1",
-  "setup": [],
-  "argv": [],
-  "script": "iThe quick brown fox jumps over the lazy dog.\n\u001bWa.txt\nW\u0015b.txt\nQ",
   "image": true
  }
 ]

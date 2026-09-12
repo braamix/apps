@@ -115,7 +115,9 @@ const NAMED = {
 export function press(ch) {
     const n = NAMED[ch];
     if (n) H.press(H.KEY[n]);
-    else if (ch < " ") H.press(String.fromCharCode(ch.charCodeAt(0) + 96), H.CTRL);
+    // press() takes a codepoint, not a character: a string here reaches the
+    // kernel as key 0 and getch() drops it, so every ^X was a lost keystroke.
+    else if (ch < " ") H.press(ch.charCodeAt(0) + 96, H.CTRL);
     else H.type(ch);
     H.run(clock++);
 }

@@ -36,10 +36,27 @@ SKIP = {
     "term0": "TERM=BOGUS; there is no terminal type here",
     "bang6": "pipes through fmt(1), which Braam has not got",
     "bang7": "pipes through fmt(1), which Braam has not got",
+    # Upstream's `tests_skipped` names empty2 and write1. empty2 is live here
+    # (mvgetnstr is ours, so ^U works over a pipe); write1 is not -- and its
+    # golden predates the `L%lu` status line, so it asserts an eh that is gone.
+    "write1": "upstream skips it, and its golden predates the status line",
+    "bang3": "asserts upstream's own ls(1) over dirs in its test tree, and "
+             "Braam's ls marks a directory with a trailing /",
     "all": "a make target",
     "clean": "a make target",
     "distclean": "a make target",
     "clobber": "a make target",
+}
+
+# Cases whose mask cannot be asserted. display() draws a non-printable rune or
+# an invalid byte as an A_REVERSE '~', and textterm has only smso/rmso -- no
+# `rev` -- so the trace records no attribute at those cells. Their text half is
+# asserted as usual.
+NO_MASK = {
+    "word0": "U+10FFFF is drawn as the inverse '~' place holder",
+    "word1": "U+10FFFF is drawn as the inverse '~' place holder",
+    "word2": "U+10FFFF is drawn as the inverse '~' place holder",
+    "del14": "U+10FFFF is drawn as the inverse '~' place holder",
 }
 
 
@@ -388,6 +405,8 @@ def main():
                 with open(os.path.join(HERE, "golden", name + ".img"), "w",
                           encoding="utf-8", errors="surrogateescape") as f:
                     f.write(img)
+                if name in NO_MASK:
+                    case["mask"] = False
 
         if case.get("file"):
             src = os.path.join(UPT, "data", name + ".txt")

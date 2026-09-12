@@ -20,15 +20,9 @@ const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 // anywhere else still fails the run, and one of these starting to pass is
 // reported too. See README.md, "Known differences".
 const KNOWN = {
-    mark4: "a stale mark after undo reaches row_start()",
-    mark5: "a stale mark after undo reaches row_start()",
-    word0: "the kit's wcwidth accepts U+10FFFF where NetBSD's rejects it",
-    word1: "the kit's wcwidth accepts U+10FFFF where NetBSD's rejects it",
-    word2: "the kit's wcwidth accepts U+10FFFF where NetBSD's rejects it",
-    flip2: "the ^X hex/codepoint toggle",
-    bang3: "ls -d test/*Curses, a path on upstream's own machine",
-    del14: "the kit's wcwidth accepts U+10FFFF where NetBSD's rejects it",
-    write1: "the status line's percent field, and one standout cell",
+    // Fixed in braam-core's rune_lower/rune_upper; this passes from the first
+    // SDK that carries it, and the runner says so when it does.
+    flip2: "the SDK's case mapping stops at Greek, and U+1F0F is Greek Extended",
 };
 
 await boot("ehcases");
@@ -83,8 +77,15 @@ for (const c of CASES) {
     if (c.image) {
         // The goldens are runes, as the grid is: the replayer decoded the
         // trace's UTF-8. The data files below are raw bytes and stay latin1.
-        const want = readFileSync(join(HERE, "golden", c.name + ".img"), "utf8");
-        const got = last;
+        let want = readFileSync(join(HERE, "golden", c.name + ".img"), "utf8");
+        let got = last;
+        // `mask: false` says the trace could not record what the port draws:
+        // textterm has no `rev`, so an A_REVERSE cell carries no attribute in
+        // the golden. Assert the text half alone. See test/extract.py.
+        if (c.mask === false) {
+            want = want.split("\n---\n")[0];
+            got = got.split("\n---\n")[0];
+        }
         // Trailing blank rows and the mask's trailing dots are not content.
         const trim = (s) => s.replace(/[ \t]+$/gm, "").replace(/\n+$/, "");
         if (trim(got) !== trim(want)) report(c, "screen", got, want);

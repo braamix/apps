@@ -326,7 +326,11 @@ void undo_redo(const UndoOp op, const struct ubuf *const obj)
         adjmarks(obj->size);
     } else {
         // Delete.
-        adjmarks(-obj->size);
+        //
+        // The cast is the port's: size_t is 32 bits and off_t 64, so
+        // `-obj->size` zero-extends to 4294967286 instead of -10. Same
+        // width on LP64, which is why upstream needs no cast.
+        adjmarks(-(off_t)obj->size);
         egap += obj->size;
     }
     here  = pos(egap);
@@ -397,6 +401,21 @@ void ungetstr(const char *str)
     while (0 < n and 0 == ungetch(str[--n])) {
         ;
     }
+}
+
+// display()'s printability test. The kit's wcwidth() is Markus Kuhn's, which
+// answers 1 for a surrogate or a noncharacter; NetBSD's answers -1, and
+// upstream's goldens draw those as the invalid-byte '~'. The width itself is
+// still wcwidth()'s.
+int printable(const char32_t wc)
+{
+    if (0x10FFFF < wc or (0xD800 <= wc and wc <= 0xDFFF)) {
+        return 0;
+    }
+    if ((0xFDD0 <= wc and wc <= 0xFDEF) or (wc bitand 0xFFFE) == 0xFFFE) {
+        return 0;
+    }
+    return 0 < wcwidth(wc) or iswspace(wc);
 }
 
 int charwidth(const char *s, int col)
@@ -619,7 +638,7 @@ __attribute__((noinline)) void display(void)
             char32_t wc;
             mbstate_t mbs = {}; // Do NOT track state.
             mbl           = mbrtoc32(&wc, p, 4, &mbs);
-            if (0 < mbl and (0 < wcwidth(wc) or iswspace(wc))) {
+            if (0 < mbl and printable(wc)) {
                 // Use addnstr() family that already handles
                 // UTF8 instead of add_wch() to avoid all the
                 // complexity of using cchar_t.

@@ -161,20 +161,41 @@ on. `setlocale` is gone; this system is UTF-8 throughout.
 **`charwidth()` no longer returns `wcwidth()`'s answer.** The kit's `wcwidth`
 is Markus Kuhn's and reports 2 for East Asian Wide; the grid is one `Cell` per
 rune, so a wide character occupies one column here and a 2 would drift the
-cursor along a CJK line. `display()`'s own `0 < wcwidth(wc)` test is left
-alone — there it is a printability test, not a width.
+cursor along a CJK line.
 
-### Two more upstream assumptions that do not hold here
+**`display()`'s printability test is `printable()`, not `0 < wcwidth(wc)`.**
+Kuhn's function answers 1 for a surrogate and for a noncharacter; NetBSD's
+answers -1, and upstream's goldens draw those as the invalid-byte `~`. The
+width itself is still `wcwidth()`'s — the two questions were only ever spelled
+the same. That was `word0`–`word2` and `del14`.
+
+Case is the kit's and stops at Greek, so `~` on a Greek Extended letter was a
+no-op: `iswalpha(U+1F0F)` was false because `rune_lower`/`rune_upper` had no
+mapping for the block. Fixed in `braam-core`; `flip2` passes from the first SDK
+that carries it.
+
+### Three more upstream assumptions that do not hold here
 
 `off_t` is 64 bits and `long` is 32, so the status line's `%ld` read four bytes
 of an eight-byte vararg and shifted everything after it. Two sites take a
 `(long)` cast; under a 16 MB process cap the buffer cannot approach 2 GiB.
 
-`row_start()` now clips an offset past the end of the buffer, the way `bol()`
+**`off_t` is 64 bits and `size_t` is 32**, which is the other half of the same
+assumption and the one that hurt. `undo_redo()` undoes an insert with
+`adjmarks(-obj->size)`, and `-obj->size` is an *unsigned* negation: on LP64 it
+is the same width as `off_t` and wraps to the right answer, here it widens by
+zero extension, so undoing a ten-byte paste moved every mark past the gap
+4294967286 forward instead of ten back. The mark then looked plausible — its
+low 32 bits were exactly right — and only `` `a `` after a `u` went looking for
+it, four gigabytes past EOF, where `line_number()` walked off the end of
+memory. One `(off_t)` cast. That was `mark4` and `mark5`.
+
+`row_start()` clips an offset past the end of the buffer, the way `bol()`
 already clips a negative one and for the same reason: the walk never terminates
 otherwise, because `nextch()` stops advancing at EOF while `ptr()` stays inside
 the buffer. Upstream asserted it instead, and the assert is compiled out of a
-release build. See "Known differences" — a stale mark still reaches it.
+release build. The clip is what turned that stale mark into a wrong frame
+rather than a hang, and it stays.
 
 ## Building and packaging
 
@@ -188,7 +209,7 @@ release build. See "Known differences" — a stale mark still reaches it.
 
 ## Testing
 
-    node test/ehcases.mjs          # 123 of upstream's own cases
+    node test/ehcases.mjs          # 121 of upstream's own cases
     node test/ehreplace.mjs        # $n backreferences, which upstream never reaches
     sh test/regex.sh               # the ERE engine against the host's
 
@@ -220,22 +241,21 @@ make eats every one of them. `test/ehreplace.mjs` covers that separately —
 `replace_match()` is upstream's code carried unchanged, and nothing else would
 notice if the port broke it.
 
+**The mask of four cases is not asserted.** `textterm` has `smso` and `rmso`
+and no `rev`, so a trace cannot record the `A_REVERSE` `display()` draws for a
+non-printable rune: the golden's mask is blank where the port's is set.
+`extract.py` names those cases (`word0`–`word2`, `del14`) and marks them
+`"mask": false`; their text half is asserted as usual.
+
 ## Known differences
 
-Nine of the 123 cases still differ. They are listed in `test/ehcases.mjs` with
-their reasons rather than dropped, so a regression anywhere else still fails
-the run and one of these starting to pass is reported too. The goldens are
-upstream's:
+One of the 121 cases still differs. It is listed in `test/ehcases.mjs` with its
+reason rather than dropped, so a regression anywhere else still fails the run
+and this one starting to pass is reported too. The golden is upstream's:
 
-- `mark4`, `mark5` — after an undo, a mark reaches `gomark()` that
-  `row_start()` cannot walk to. The clip above turns what was an infinite loop
-  into a wrong frame; the stale mark itself is not yet understood.
-- `word0`–`word2`, `del14` — the kit's `wcwidth` accepts U+10FFFF where
-  NetBSD's rejects it, so upstream drew four reverse `~` and this draws the
-  rune.
-- `flip2` — the `^X` hex/codepoint toggle.
-- `bang3` — `ls -d test/*Curses`, a path on the machine upstream tested on.
-- `write1` — the status line's percent field, and one standout cell.
+- `flip2` — `~` on U+1F0F. The SDK's `rune_lower`/`rune_upper` stopped at
+  Greek, so `iswalpha()` said a Greek Extended letter has no case. Fixed in
+  `braam-core`; this passes from the first SDK that carries it.
 
 Skipped, with the reason recorded in `test/extract.py`:
 
@@ -243,6 +263,12 @@ Skipped, with the reason recorded in `test/extract.py`:
 - `bang6`, `bang7`, `select5` — they pipe through `fmt(1)`, which Braam has
   not got.
 - `mark0`, `mark1` — they run the editor twice in one case.
+- `bang3` — it asserts the output of upstream's own `ls(1)` over the two
+  directories of its test tree, and Braam's `ls` marks a directory with a
+  trailing `/`. `bang1`, `bang2`, `bang4` and `bang5` cover the filter.
+- `write1` — upstream skips it too (NetBSD lib/58151, a kill character over a
+  pipe), and its golden predates the `L%lu` status line: it asserts a percent
+  field this eh has not had since before 1.8.1.
 
 `empty2`, which upstream disabled over a tty-versus-pipe backspace difference,
 is **live again**: keys are keys here, and `mvgetnstr` is ours, so `^U` works
