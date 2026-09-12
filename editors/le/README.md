@@ -85,6 +85,20 @@ call that failed.
 | `PKGDATADIR`, fixed at compile time | [epath.cpp](epath.cpp): `readlink("/pkg/bin/le")`, because a package's payload lands under a path carrying a version the binary does not know |
 | `getpwuid`, `geteuid`, `chmod`, `utime`, `pathconf` | gone. There is no owner, no permission bit, and no way to set an mtime |
 
+**`regex.c` stays, and the SDK's `<regex.h>` is not it.** Braam has POSIX
+regular expressions now (`braam::regex`, lifted out of [../eh](../eh/README.md)
+when `/bin/grep` wanted them), and this is the one place in the tree that keeps
+its own engine anyway. Three reasons, and each is enough on its own:
+`re_search_2` searches the two halves of the gap buffer without copying the
+file, and the SDK's `regexec` takes one region; highlighting compiles with
+`RE_FRUGAL`, non-greedy matching the SDK's engine has not got; and the sixty
+files in [share/syntax.d](share/syntax.d/) are written in Emacs syntax with
+leftmost-*first* semantics, so `c3=/\*([^*]|\*[^/])*\*/` means something else
+under POSIX's longest match. The whole of `regex.c` is 26 KB of a 537 KB binary.
+What it did cost is one line each in [search.cpp](search.cpp) and
+[highli.h](highli.h): the include is quoted now, because `<regex.h>` is
+answered by the port kit and would otherwise win.
+
 ## Structure
 
 **A `co_await` is where the work is.** Every command LE binds a key to can

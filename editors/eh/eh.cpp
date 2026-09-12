@@ -20,7 +20,7 @@
 #include "curses.h"
 #include "proc/io.h"
 #include "proc/rt.h"
-#include "regex.h"
+#include <regex.h>
 
 #ifndef BUF
 #define BUF (64 * 1024)

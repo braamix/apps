@@ -19,11 +19,10 @@ const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 // Cases that still differ, and why. Listed rather than dropped: a regression
 // anywhere else still fails the run, and one of these starting to pass is
 // reported too. See README.md, "Known differences".
-const KNOWN = {
-    // Fixed in braam-core's rune_lower/rune_upper; this passes from the first
-    // SDK that carries it, and the runner says so when it does.
-    flip2: "the SDK's case mapping stops at Greek, and U+1F0F is Greek Extended",
-};
+// Empty since the SDK's rune_lower/rune_upper reached Greek Extended, which is
+// what flip2 was waiting for. A name here is a difference from upstream this
+// port accepts; the runner fails if one of them starts passing.
+const KNOWN = {};
 
 await boot("ehcases");
 

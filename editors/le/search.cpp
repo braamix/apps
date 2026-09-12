@@ -30,7 +30,7 @@
 #endif
 
 extern "C" {
-#include <regex.h>
+#include "regex.h" // le's own GNU engine, not the kit's <regex.h>
 }
 
 #define SEARCH  1

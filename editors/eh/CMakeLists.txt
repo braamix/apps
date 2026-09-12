@@ -17,10 +17,11 @@ target_compile_options(eh_quiet INTERFACE
     -Wno-invalid-source-encoding)
 
 # eh.cpp is upstream's single file, the IOCCC arms stripped. curses.cpp is the
-# whole of curses it needs over the Grid, getch.cpp the one place it parks, and
-# regex.cpp the POSIX ERE the C library gave it.
+# whole of curses it needs over the Grid, and getch.cpp the one place it parks.
+# The POSIX ERE the C library gave it is braam::regex now, which PORT carries
+# under the name <regex.h>.
 braam_add_program(NAME eh
-                  SOURCES eh.cpp curses.cpp getch.cpp regex.cpp
+                  SOURCES eh.cpp curses.cpp getch.cpp
                   PORT NOFLOAT)
 
 # -funsigned-char is not optional: mblength() asserts 0 <= ch < 256 and
@@ -34,7 +35,7 @@ target_compile_options(bin_eh PRIVATE
     -DVERSION="v1.8.1" -DBUILT="braam")
 target_link_libraries(bin_eh PRIVATE eh_quiet)
 
-braam_add_package(NAME eh VERSION 1.8.1-r0
+braam_add_package(NAME eh VERSION 1.8.1-r1
                   FIELD "T=EH 1.8.1, vi(1) the good parts version"
                   FILES $<TARGET_FILE:bin_eh>=bin/eh)
 add_dependencies(packages pkg_eh)

@@ -21,11 +21,10 @@
 
 #include "kernel/task.h"
 #include "letypes.h"
+// Quoted, and it matters: the port kit answers <regex.h> with braam::regex now,
+// and le stays on the GNU engine its syntax files are written for. Its own
+// __BEGIN_DECLS is the extern "C" this used to wrap it in.
 #include "regex.h"
-
-extern "C" {
-#include <regex.h>
-}
 
 extern int hl_option, hl_active, hl_lines;
 

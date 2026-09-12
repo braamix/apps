@@ -223,7 +223,8 @@ Three groups, and the difference decides how much of a port changes:
 
 - **Group A is drop-in**: `mem*`, `str*`, `ctype`, `malloc`/`calloc`/`realloc`/
   `free`, the `strtol` family, `qsort`/`mergesort`/`bsearch`, `snprintf` and
-  friends, `errno`, `strerror`, `getenv`. Exact C signatures.
+  friends, `errno`, `strerror`, `getenv`, `fnmatch`, the wide half and
+  `<regex.h>`. Exact C signatures.
 - **Group B blocks, so it is not spelled as C.** Streams, descriptors and
   directories: a C signature cannot block here. `<stdio.h>`, `<sys/stat.h>`,
   `<fcntl.h>`, `<unistd.h>` and `<dirent.h>` declare `fopen`, `open`, `stat`
@@ -288,6 +289,18 @@ prec, 'f')` into an ordinary `Buf<N>`, plus `parse_f64`/`scan_f64` for strtod.
 A program pays only for what it calls: `--gc-sections` extracts nothing else,
 and the float printf engine alone is 6–7 KB. Link it where a port formats a
 non-integer number by hand, and nowhere else.
+
+**Regular expressions are available and `le` deliberately does not use them.**
+`<regex.h>` on a `PORT` target, or `LIBS braam::regex` with `regex/regex.h` for
+a program that is not a port, is POSIX's `regcomp`/`regexec`/`regerror`/
+`regfree`: leftmost-longest, ERE with `REG_EXTENDED` and BRE without it,
+back-references in both, and `REG_STARTEND` so a subject needs no NUL. It is
+~14 KB, all or nothing. It was `editors/eh`'s own engine before `/bin/grep`
+wanted one; `editors/le` stays on its GNU `regex.c` because `re_search_2` reads
+across the gap without copying and its sixty syntax files are written for Emacs
+syntax with `RE_FRUGAL`. **A port that has its own `regex.h` must include it
+quoted**, or the kit's answers `<regex.h>` first — which is what `le`'s
+`search.cpp` and `highli.h` had to change.
 
 **A buffered stream is available and none of these three ports uses it.**
 `proc/file.h`'s `File` is stdio's shape — `get()` a rune, `put()`, `write()`,

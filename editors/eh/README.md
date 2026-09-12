@@ -6,8 +6,8 @@ from *ae*, Anthony's Editor (1991), the canonical Buffer Gap worked example,
 by way of an IOCCC 28 entry that still lives in upstream's single file behind
 `#ifdef IOCCC`.
 
-It is the smallest editor here by an order of magnitude — 2216 lines against
-vi's, le's and uemacs' tens of thousands — and the reason is that its whole OS
+It is the smallest editor here by an order of magnitude — 2,918 lines, of which
+upstream's own file is 2,160, against vi's, le's and uemacs' tens of thousands — and the reason is that its whole OS
 surface was already in one place: Curses for the screen, ten calls for the
 files, one function for the shell escape. There is no `setjmp`, no `stat`, no
 `dirent`, no `termios`, no time, no stdio and **no floating point at all**, so
@@ -32,12 +32,19 @@ nothing was added or removed except as noted below.
 | `eh.cpp` | upstream's single file, the IOCCC arms stripped |
 | `curses.h`, `curses.cpp` | the whole of curses eh needs, over the Grid |
 | `getch.cpp` | the one place the process parks |
-| `regex.h`, `regex.cpp` | the POSIX ERE the C library used to give it |
 | `braam.h` | what the port kit has not got |
 
 The editor stays one file because that is what it is. What moved out is only
-what upstream did not have: the library it linked, the library it got from
-libc, and the seam where the process blocks.
+what upstream did not have: the library it linked, and the seam where the
+process blocks.
+
+**The POSIX ERE was the third file and is not here any more.** It was written
+for this port, because the kit had no `<regex.h>`; when `/bin/grep` wanted one
+too it moved into the SDK as `braam::regex`, and `#include <regex.h>` is what
+eh says now. It gained a BRE arm, `REG_ICASE`, `REG_NOSUB`, `regerror` and
+back-references on the way, none of which eh asks for — except that `\1` in an
+ERE is a back-reference now where it used to be a literal `1`. See
+`../braam-core/doc/Programming_Manual.md` §6.
 
 ## What the port changed
 
@@ -211,7 +218,9 @@ rather than a hang, and it stays.
 
     node test/ehcases.mjs          # 121 of upstream's own cases
     node test/ehreplace.mjs        # $n backreferences, which upstream never reaches
-    sh test/regex.sh               # the ERE engine against the host's
+
+The engine's own suite went with it: `../braam-core/test/unit/test_regex.cpp`,
+which replays the cross product the differential harness here used to drive.
 
 Upstream drives 138 cases as `printf 'keys' | eh file >a.out` from a 1400-line
 make file, asserting two goldens each: a terminfo escape trace and the file the
