@@ -9,6 +9,7 @@ that runs in a browser tab.
 | --- | --- |
 | [archivers/zip](archivers/zip/) | Info-ZIP zip 3.0, and zipnote, zipsplit and zipcloak with it |
 | [converters/iconv](converters/iconv/) | Citrus iconv, and the two hundred character sets it converts between |
+| [editors/eh](editors/eh/) | EH 1.8.1, Edit Here — vi the good parts version, and the smallest editor here |
 | [editors/le](editors/le/) | LE 1.16.8, the block editor, with its own curses |
 | [editors/uemacs](editors/uemacs/) | uEmacs/PK 4.0.15, MicroEMACS as Linus Torvalds keeps it |
 | [editors/vi](editors/vi/) | UCB vi 3.6, and ex under it — the editor Bill Joy wrote |

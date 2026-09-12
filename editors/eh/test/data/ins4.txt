@@ -1,0 +1,5 @@
+Hello
+	world!
+insert at EOF
+push EOF down
+each newline

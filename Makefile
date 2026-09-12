@@ -58,6 +58,8 @@ test: all
 	@node archivers/zip/test/interrupt.mjs
 	@node archivers/zip/test/update.mjs
 	@node archivers/zip/test/tools.mjs
+	@node editors/eh/test/ehcases.mjs
+	@node editors/eh/test/ehreplace.mjs
 	@node games/adventure/test/play.mjs
 	@node games/adventure/test/interrupt.mjs
 	@node games/adventure/test/suspend.mjs

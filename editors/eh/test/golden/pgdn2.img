@@ -1,0 +1,49 @@
+test/usage.md 2570B L61
+count for `TAB` stops.  The terminal dimensions can be found with `stty -a` or c
+heck the `TERM` definition (see `/usr/share/misc/terminfo`) or both.
+
+Curses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`
+.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the
+terminal window size for easier testing and debugging, eg.
+
+    $ LINES=10 ./ae file
+
+^D
+
+
+
+
+
+
+
+
+
+
+
+
+
+---
+################################################################################
+
+
+
+
+
+
+
+
+
+##
+
+
+
+
+
+
+
+
+
+
+
+
+

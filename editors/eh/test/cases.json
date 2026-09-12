@@ -1,0 +1,1616 @@
+[
+ {
+  "name": "arg0",
+  "setup": [],
+  "argv": [],
+  "script": "\u0012Q",
+  "image": true
+ },
+ {
+  "name": "bang1",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "j!!false\nQy",
+  "image": true
+ },
+ {
+  "name": "bang2",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "j!!true\nQy",
+  "image": true
+ },
+ {
+  "name": "bang3",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "j!!ls -d test/*Curses\nW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "bang4",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "j!2jcat >b.txt\nW\nQ",
+  "image": true,
+  "file": "a.txt",
+  "extra": [
+   "test $$(wc -c <b.txt) -eq 43"
+  ]
+ },
+ {
+  "name": "bang5",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "j!2jtee b.txt\nW\nQ",
+  "image": true,
+  "file": "a.txt",
+  "extra": [
+   "test $$(wc -c <b.txt) -eq 43"
+  ]
+ },
+ {
+  "name": "cc0",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4wccwhisky tango foxtrot\n\u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "cc1",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4w2ccwhisky\ntango\nfoxtrot\n\u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "dd0",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4wddW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "dd1",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4w2ddW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "dd2",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4wd2dW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "dd3",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4w2d3dW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "dd4",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "ia\u001bddW\nQ",
+  "image": true,
+  "extra": [
+   "test ! -s a.txt"
+  ]
+ },
+ {
+  "name": "dd5",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "i\n123\nabc\u001bddW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del0",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "xQy",
+  "image": true
+ },
+ {
+  "name": "del1",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "i\u001bxQy",
+  "image": true
+ },
+ {
+  "name": "del10",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "wd/line\ndnW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del11",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "dGW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del12",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "wma2jd`aW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del13",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4w1d7wW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del14",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "There is nothing wrong with this source code.\nKono s\u00c5\u008dsuk\u00c5\u008ddo ni wa nani mo mondai wa arimasen.\n\u00e3\u0081\u0093\u00e3\u0081\u00ae\u00e3\u0082\u00bd\u00e3\u0083\u00bc\u00e3\u0082\u00b9\u00e3\u0082\u00b3\u00e3\u0083\u00bc\u00e3\u0083\u0089\u00e3\u0081\u00ab\u00e3\u0081\u00af\u00e4\u00bd\u0095\u00e3\u0082\u0082\u00e5\u0095\u008f\u00e9\u00a1\u008c\u00e3\u0081\u00af\u00e3\u0081\u0082\u00e3\u0082\u008a\u00e3\u0081\u00be\u00e3\u0081\u009b\u00e3\u0082\u0093\n\nfire \u00f0\u009f\u0094\u00a5\n\tup tack \u00e2\u008a\u00a5\n\t\tgrin \u00f0\u009f\u0098\u0081\n\tscissors \u00e2\u009c\u0084\nteddy \u00f0\u009f\u00a7\u00b8\n\u00e1\u009a\u00a0 \u00e1\u009b\u0089 \u00e1\u009a\u00a9\nvirgo \u00e2\u0099\u008d fire/flame/light \u00e7\u0081\u00ab\nCent \u00c2\u00a2\n\u00f4\u008f\u00bf\u00bf  = U+10FFFF = F4 8F BF BF\n-w 14 53 252 321 0 0\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "deQy\n",
+  "image": true
+ },
+ {
+  "name": "del2",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "iZ\u001bhxW\nQy",
+  "image": true,
+  "extra": [
+   "diff -u ${DATA}/empty.txt a.txt"
+  ]
+ },
+ {
+  "name": "del3",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "i123Z\u001bhxW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del4",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "i123Z\n\u001bhxW\nQy",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del5",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "Hello\n\tworld!\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "GkxhxW\nQy",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del6",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "Hello\n\tworld!\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "Gk6xW\nQy",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del7",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4wddW\nQy",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del8",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4wdjW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "del9",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4w|djW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "empty0",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "Q",
+  "image": true
+ },
+ {
+  "name": "empty1",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "W\nQ",
+  "image": true,
+  "extra": [
+   "diff -u ${DATA}/empty.txt a.txt"
+  ]
+ },
+ {
+  "name": "empty3",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "\u0003",
+  "image": true
+ },
+ {
+  "name": "ere0",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/)(\nQ",
+  "image": true
+ },
+ {
+  "name": "ere1",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/^\nnnnnnnnnnnQ",
+  "image": true
+ },
+ {
+  "name": "ere10",
+  "setup": [
+   {
+    "path": "test/short-nonl.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-"
+   }
+  ],
+  "argv": [
+   "test/short-nonl.txt"
+  ],
+  "script": "/line\nnnnQ",
+  "image": true
+ },
+ {
+  "name": "ere11",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "6w/WOOT\nQ",
+  "image": true
+ },
+ {
+  "name": "ere12",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/\\t\nnQ",
+  "image": true
+ },
+ {
+  "name": "ere13",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "Hello(int arg) {\n\tworld();\n\txyzzy(arg);\n\tcave(lost());\n}\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "/\\)\nnnnnn/\\}\nQ",
+  "image": true
+ },
+ {
+  "name": "ere2",
+  "setup": [
+   {
+    "path": "test/short-nonl.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-"
+   }
+  ],
+  "argv": [
+   "test/short-nonl.txt"
+  ],
+  "script": "/^\nnnnnnnnnnQ",
+  "image": true
+ },
+ {
+  "name": "ere3",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/$\nnnnnnnnnnnQ",
+  "image": true
+ },
+ {
+  "name": "ere4",
+  "setup": [
+   {
+    "path": "test/short-nonl.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-"
+   }
+  ],
+  "argv": [
+   "test/short-nonl.txt"
+  ],
+  "script": "/$\nnnnnnnnnnnQ",
+  "image": true
+ },
+ {
+  "name": "ere5",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/.$\nnnnnnnnnQ",
+  "image": true
+ },
+ {
+  "name": "ere6",
+  "setup": [
+   {
+    "path": "test/short-nonl.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-"
+   }
+  ],
+  "argv": [
+   "test/short-nonl.txt"
+  ],
+  "script": "/.$\nnnnnnnnnQ",
+  "image": true
+ },
+ {
+  "name": "ere7",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/^$\nnnQ",
+  "image": true
+ },
+ {
+  "name": "ere8",
+  "setup": [
+   {
+    "path": "test/short-nonl.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-"
+   }
+  ],
+  "argv": [
+   "test/short-nonl.txt"
+  ],
+  "script": "/^$\nnnQ",
+  "image": true
+ },
+ {
+  "name": "ere9",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/line\nnnnQ",
+  "image": true
+ },
+ {
+  "name": "flip0",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "iHELLO world!\u001b|~~~~~~~~~~~~W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "flip1",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "iHello World!\u001b|12~W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "flip2",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "ia 1f0f\u001b\u0018^3~\u0018W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "goto0",
+  "setup": [
+   {
+    "path": "test/usage.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file\n"
+   }
+  ],
+  "argv": [
+   "test/usage.md"
+  ],
+  "script": "7G15G2G1GQ",
+  "image": true
+ },
+ {
+  "name": "goto1",
+  "setup": [
+   {
+    "path": "test/usage.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file\n"
+   }
+  ],
+  "argv": [
+   "test/usage.md"
+  ],
+  "script": "jjjjjjjjjjjjjjj1GQ",
+  "image": true
+ },
+ {
+  "name": "goto2",
+  "setup": [
+   {
+    "path": "test/usage-nonl.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file"
+   }
+  ],
+  "argv": [
+   "test/usage-nonl.md"
+  ],
+  "script": "GhkkQ",
+  "image": true
+ },
+ {
+  "name": "goto3",
+  "setup": [
+   {
+    "path": "test/usage.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file\n"
+   }
+  ],
+  "argv": [
+   "test/usage.md"
+  ],
+  "script": "GhkkQ",
+  "image": true
+ },
+ {
+  "name": "imb2",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "[\u00e2\u0082]"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "xulXW\nQ",
+  "file": "a.txt"
+ },
+ {
+  "name": "imb3",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "[\u0082]"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "xulXW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "indent0",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "w>>W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "indent1",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "3>>W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "indent2",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "w3>>W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "indent3",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "\\2j>W\nQ",
+  "file": "a.txt"
+ },
+ {
+  "name": "indent4",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "w\\2j>W\nQ",
+  "file": "a.txt"
+ },
+ {
+  "name": "indent5",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "\\2jww>W\nQ",
+  "file": "a.txt"
+ },
+ {
+  "name": "indent6",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "w\\2j^>W\nQ",
+  "file": "a.txt"
+ },
+ {
+  "name": "indent7",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "i\n123\nabc\n\u001b1G3>>W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "indent8",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "i\n123\n\u001b1G2>>W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "indent9",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "i\n123\u001b1G2>>W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "ins0",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "i\u001bQ",
+  "image": true
+ },
+ {
+  "name": "ins1",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "iHello\n\tworld!\n\u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "ins2",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "iHello\n\twoot!\u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "ins3",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "iHello world!\u001b|wiWOOT! \u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "ins4",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "Hello\n\tworld!\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "Giinsert at EOF\npush EOF down\neach newline\n\u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "ins5",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "Hello\n\tworld!\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "j99|i WOOT!\u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "mark4",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/butt\nmajmb/rude\ny2wPP`a`bu`a`bQy",
+  "image": true
+ },
+ {
+  "name": "mark5",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/butt\nma/rude\nifuzz\u001b`au`aU`aQy",
+  "image": true
+ },
+ {
+  "name": "mb0",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "i\u00f0\u009f\u0094\u00a5\n\u001bW\nQ",
+  "file": "a.txt",
+  "extra": [
+   "${A_OUT_OR_SKIP}"
+  ]
+ },
+ {
+  "name": "mb4",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "i\u00f0\u009f\u0094\u00a5\b\n\u001bW\nQ",
+  "file": "a.txt",
+  "extra": [
+   "${A_OUT_OR_SKIP}"
+  ]
+ },
+ {
+  "name": "open0",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "o123\u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "open1",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "O123\u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "open2",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "oHello\u001boworld!\u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "open3",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "Oworld!\u001bOHello\u001bW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "outdent0",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "ji\t\u001b<<W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "outdent1",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "ji\t\u001bj^i\t\u001bk<<W\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "paste0",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "PQ",
+  "image": true
+ },
+ {
+  "name": "paste1",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "dGPQy",
+  "image": true
+ },
+ {
+  "name": "paste2",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4wdwj2w3PW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "paste3",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4wdwuGPkW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "pgdn0",
+  "setup": [
+   {
+    "path": "test/short-nonl.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-"
+   }
+  ],
+  "argv": [
+   "test/short-nonl.txt"
+  ],
+  "script": "JQ",
+  "image": true
+ },
+ {
+  "name": "pgdn1",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "JQ",
+  "image": true
+ },
+ {
+  "name": "pgdn2",
+  "setup": [
+   {
+    "path": "test/usage.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file\n"
+   }
+  ],
+  "argv": [
+   "test/usage.md"
+  ],
+  "script": "JJJJQ",
+  "image": true
+ },
+ {
+  "name": "pgdn3",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "3JQ",
+  "image": true
+ },
+ {
+  "name": "pgdn4",
+  "setup": [
+   {
+    "path": "test/usage.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file\n"
+   }
+  ],
+  "argv": [
+   "test/usage.md"
+  ],
+  "script": "3JJQ",
+  "image": true
+ },
+ {
+  "name": "pgup0",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "KJKQ",
+  "image": true
+ },
+ {
+  "name": "pgup1",
+  "setup": [
+   {
+    "path": "test/usage.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file\n"
+   }
+  ],
+  "argv": [
+   "test/usage.md"
+  ],
+  "script": "JJKKQ",
+  "image": true
+ },
+ {
+  "name": "pgup2",
+  "setup": [
+   {
+    "path": "test/usage.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file\n"
+   }
+  ],
+  "argv": [
+   "test/usage.md"
+  ],
+  "script": "GKKKKQ",
+  "image": true
+ },
+ {
+  "name": "pgup3",
+  "setup": [
+   {
+    "path": "test/usage.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file\n"
+   }
+  ],
+  "argv": [
+   "test/usage.md"
+  ],
+  "script": "G3KKQ",
+  "image": true
+ },
+ {
+  "name": "read0",
+  "setup": [],
+  "argv": [],
+  "script": "Rtest/short.txtWa.txt\nQy",
+  "image": true
+ },
+ {
+  "name": "read1",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "iThe quick brown fox jumps over the lazy dog.\n\u001b/fox\nRtest/short.txt\nW\nQ",
+  "image": true
+ },
+ {
+  "name": "redraw0",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "\u0012Q",
+  "image": true
+ },
+ {
+  "name": "replace0",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "/butt/xyzzy\nW\nQ",
+  "image": true
+ },
+ {
+  "name": "replace1",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "/butt/hole\nW\nQ",
+  "image": true
+ },
+ {
+  "name": "replace2",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "/line/plugh!\nnnnW\nQ",
+  "image": true
+ },
+ {
+  "name": "replace3",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "jjw/^/plugh!/a\nW\nQ",
+  "image": true
+ },
+ {
+  "name": "replace4",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "jjw/plugh!/a\nW\nQ",
+  "image": true
+ },
+ {
+  "name": "replace5",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "whiskey\nA:\nA:\nA:\nA:\ntango\nA:\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "/A:/ALIENS:/a\nW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "replace6",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "itest\ntest\n\u001b/test/testy/a\nW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "replace7",
+  "setup": [],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "itest\ntest\n\u001b/^/XYZ/a\nW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "scroll0",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "jjjjjjjjjjjkkkkkkkkkkkQ",
+  "image": true
+ },
+ {
+  "name": "scroll1",
+  "setup": [
+   {
+    "path": "test/usage.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file\n"
+   }
+  ],
+  "argv": [
+   "test/usage.md"
+  ],
+  "script": "jjjjjjjjjjjjjjjjjjjjjjjjkkkkkkkkkkkkkkkkkkkkkkkkQ",
+  "image": true
+ },
+ {
+  "name": "scroll2",
+  "setup": [
+   {
+    "path": "test/usage.md",
+    "text": "ae 1.3.0\n========\n\nA minimalist version of `vi(1)`.  It is an example of the \"Buffer Gap\" method outlined in the [The Craft Of Text Editing](http://www.finseth.com/craft/) used by many Emacs style editors.\n\n\nUsage\n-----\n\n    ae [filename]\n\nRead or create a text file; default filename is `a.txt`.  Text files consists of lines of printable text, tabs, or newline characters.  A physical line can be of arbitrary length and is delimited by either a newline or the end of file.  Tab stops are every eight columns.  The behaviour of non-printable characters may vary depending on the implementation of the Curses library, `stty(1)` settings, or terminal emulator.\n\n\nCommands\n--------\n\n    h j k l   left, down, up, right cursor movement\n    H J K L   word left, page down, page up, word right\n    [ ]       beginning and end of line\n    G         goto line number; 1G top of file, G bottom\n    i         enter insert mode, FF or ESC to quit\n    x         delete character under the cursor\n    W         write buffer to file\n    Q         quit\n\nAny other key will redraw the screen.\n\n\nExit Status\n-----------\n\n- 0 success\n- 1 file read error\n\n\nTesting\n-------\n\nThis document contains a mix of short and long physical lines.\n\n* Row = A physical screen row.\n* Short line = A physical line of text that display less that `COLS` columns factoring in tabs.\n* Long line = A physical line of text that can wrap onto two or more logical lines (screen rows) depending on the terminal width given by `COLS` factoring in tabs.\n* Logical line = portion of a long line that fits on a single screen row.\n* BOF = Beginning of file.\n* EOF = End of file just after last character or newline.\n* BOL = Beginning of line, which can be BOF.\n* EOL = End of line at a newline or EOF if no terminating newline.\n* TOP = Top of page.\n* BOP = Bottom of page.\n\n\n### Terminal Dimensions\n\nHistorical serial CRT terminals were 80 columns by 24 rows.  Later serial terminals were 80x25 to make room for a status line.  X Windows, Windows, and Mac systems have terminal emulators (typically `xterm`, `ansi`, or `vt100`) that can be resized on the fly.  Typically the column width is a multiple of eight (8) to account for `TAB` stops.  The terminal dimensions can be found with `stty -a` or check the `TERM` definition (see `/usr/share/misc/terminfo`) or both.\n\nCurses library supports the environment variables `TERM`, `LINES`, and `COLUMNS`.  It possible to temporarily set `LINES` or `COLUMNS` or both smaller than the terminal window size for easier testing and debugging, eg.\n\n    $ LINES=10 ./ae file\n"
+   }
+  ],
+  "argv": [
+   "test/usage.md"
+  ],
+  "script": "24j24kQ",
+  "image": true
+ },
+ {
+  "name": "select0",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "\\\\Q",
+  "image": true
+ },
+ {
+  "name": "select1",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/rude\n\\4w\\Q",
+  "image": true
+ },
+ {
+  "name": "select2",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "/rude\n\\4b\\Q",
+  "image": true
+ },
+ {
+  "name": "select3",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "/rude\n\\4wy/but\nPW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "select4",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "/rude\n\\4bd/but\nPW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "undo0",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "uUQ",
+  "image": true
+ },
+ {
+  "name": "undo1",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "3liWOOT!\u001buUW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "undo2",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "4wd3wuUW\nQ",
+  "image": true,
+  "file": "a.txt"
+ },
+ {
+  "name": "undo3",
+  "setup": [
+   {
+    "path": "test/short.txt",
+    "text": "hello\tworld\nthis file might be a\nlittle rude fart face\nempty line\n\nblank line\n    \nqwerty butt\n\ttab indent\n-last line-\n"
+   }
+  ],
+  "argv": [
+   "test/short.txt"
+  ],
+  "script": "dGuQ",
+  "image": true
+ },
+ {
+  "name": "undo4",
+  "setup": [],
+  "argv": [],
+  "script": "itest undo redo\u001bbbcwfoo \u001buuUUQy",
+  "image": true
+ },
+ {
+  "name": "word0",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "There is nothing wrong with this source code.\nKono s\u00c5\u008dsuk\u00c5\u008ddo ni wa nani mo mondai wa arimasen.\n\u00e3\u0081\u0093\u00e3\u0081\u00ae\u00e3\u0082\u00bd\u00e3\u0083\u00bc\u00e3\u0082\u00b9\u00e3\u0082\u00b3\u00e3\u0083\u00bc\u00e3\u0083\u0089\u00e3\u0081\u00ab\u00e3\u0081\u00af\u00e4\u00bd\u0095\u00e3\u0082\u0082\u00e5\u0095\u008f\u00e9\u00a1\u008c\u00e3\u0081\u00af\u00e3\u0081\u0082\u00e3\u0082\u008a\u00e3\u0081\u00be\u00e3\u0081\u009b\u00e3\u0082\u0093\n\nfire \u00f0\u009f\u0094\u00a5\n\tup tack \u00e2\u008a\u00a5\n\t\tgrin \u00f0\u009f\u0098\u0081\n\tscissors \u00e2\u009c\u0084\nteddy \u00f0\u009f\u00a7\u00b8\n\u00e1\u009a\u00a0 \u00e1\u009b\u0089 \u00e1\u009a\u00a9\nvirgo \u00e2\u0099\u008d fire/flame/light \u00e7\u0081\u00ab\nCent \u00c2\u00a2\n\u00f4\u008f\u00bf\u00bf  = U+10FFFF = F4 8F BF BF\n-w 14 53 252 321 0 0\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "jww13w/Cent\nbb11b/Kono\nee12eQ",
+  "image": true
+ },
+ {
+  "name": "word1",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "There is nothing wrong with this source code.\nKono s\u00c5\u008dsuk\u00c5\u008ddo ni wa nani mo mondai wa arimasen.\n\u00e3\u0081\u0093\u00e3\u0081\u00ae\u00e3\u0082\u00bd\u00e3\u0083\u00bc\u00e3\u0082\u00b9\u00e3\u0082\u00b3\u00e3\u0083\u00bc\u00e3\u0083\u0089\u00e3\u0081\u00ab\u00e3\u0081\u00af\u00e4\u00bd\u0095\u00e3\u0082\u0082\u00e5\u0095\u008f\u00e9\u00a1\u008c\u00e3\u0081\u00af\u00e3\u0081\u0082\u00e3\u0082\u008a\u00e3\u0081\u00be\u00e3\u0081\u009b\u00e3\u0082\u0093\n\nfire \u00f0\u009f\u0094\u00a5\n\tup tack \u00e2\u008a\u00a5\n\t\tgrin \u00f0\u009f\u0098\u0081\n\tscissors \u00e2\u009c\u0084\nteddy \u00f0\u009f\u00a7\u00b8\n\u00e1\u009a\u00a0 \u00e1\u009b\u0089 \u00e1\u009a\u00a9\nvirgo \u00e2\u0099\u008d fire/flame/light \u00e7\u0081\u00ab\nCent \u00c2\u00a2\n\u00f4\u008f\u00bf\u00bf  = U+10FFFF = F4 8F BF BF\n-w 14 53 252 321 0 0\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "/Cent\n5w4b7eQ",
+  "image": true
+ },
+ {
+  "name": "word2",
+  "setup": [
+   {
+    "path": "a.txt",
+    "text": "There is nothing wrong with this source code.\nKono s\u00c5\u008dsuk\u00c5\u008ddo ni wa nani mo mondai wa arimasen.\n\u00e3\u0081\u0093\u00e3\u0081\u00ae\u00e3\u0082\u00bd\u00e3\u0083\u00bc\u00e3\u0082\u00b9\u00e3\u0082\u00b3\u00e3\u0083\u00bc\u00e3\u0083\u0089\u00e3\u0081\u00ab\u00e3\u0081\u00af\u00e4\u00bd\u0095\u00e3\u0082\u0082\u00e5\u0095\u008f\u00e9\u00a1\u008c\u00e3\u0081\u00af\u00e3\u0081\u0082\u00e3\u0082\u008a\u00e3\u0081\u00be\u00e3\u0081\u009b\u00e3\u0082\u0093\n\nfire \u00f0\u009f\u0094\u00a5\n\tup tack \u00e2\u008a\u00a5\n\t\tgrin \u00f0\u009f\u0098\u0081\n\tscissors \u00e2\u009c\u0084\nteddy \u00f0\u009f\u00a7\u00b8\n\u00e1\u009a\u00a0 \u00e1\u009b\u0089 \u00e1\u009a\u00a9\nvirgo \u00e2\u0099\u008d fire/flame/light \u00e7\u0081\u00ab\nCent \u00c2\u00a2\n\u00f4\u008f\u00bf\u00bf  = U+10FFFF = F4 8F BF BF\n-w 14 53 252 321 0 0\n"
+   }
+  ],
+  "argv": [
+   "a.txt"
+  ],
+  "script": "2j4lwb4le3hbQ",
+  "image": true
+ },
+ {
+  "name": "write0",
+  "setup": [],
+  "argv": [],
+  "script": "iThe quick brown fox jumps over the lazy dog.\n\u001bWa.txt\nQ",
+  "image": true
+ },
+ {
+  "name": "write1",
+  "setup": [],
+  "argv": [],
+  "script": "iThe quick brown fox jumps over the lazy dog.\n\u001bWa.txt\nW\u0015b.txt\nQ",
+  "image": true
+ }
+]
