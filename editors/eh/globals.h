@@ -1,10 +1,11 @@
-// The screen eh paints, over Braam's Grid.
+// What the three files share: the screen eh paints over Braam's Grid, the two
+// calls that block, and the geometry both read.
 //
 // The screen is an array of Cells with fg, bg and attrs as fields, so cursor
 // addressing is indexing. Every writer takes the cell and the attribute; there
 // is no current position and no current attribute.
 //
-// Painting sends nothing. The one flush is in getch.cpp, just before the
+// Painting sends nothing. The one flush is in input.cpp, just before the
 // process parks, which is what keeps display() an ordinary function.
 //
 // The names are eh_*: kernel/screen.h, which this header must include, has
@@ -32,7 +33,7 @@ extern int LINES, COLS;
 
 // The two halves that are syscalls, and the only Tasks here.
 Task<Result<void>> eh_open();  // take the keys and the screen
-Task<Result<void>> eh_flush(); // send the frame; getch.cpp only
+Task<Result<void>> eh_flush(); // send the frame; input.cpp only
 
 ProcScreen &eh_screen();
 Grid &eh_grid();

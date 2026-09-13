@@ -6,8 +6,9 @@
 // continuation loop, display(), charwidth() and the gap buffer byte-oriented,
 // as upstream wrote them.
 
-#include "braam.h"
-#include "ehscreen.h"
+#include <wchar.h> // wctomb
+
+#include "globals.h"
 #include "kernel/key.h"
 #include "proc/rt.h"
 

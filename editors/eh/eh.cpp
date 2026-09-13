@@ -9,18 +9,33 @@
 // Commit $Id: 95b9dc5033ba4a91e96e4c229adaf36c4a30d90a $
 
 // The port's includes. <locale.h>, <signal.h>, <sys/wait.h> and <uchar.h> are
-// gone; <curses.h> is ehscreen.h, this directory's own, and <regex.h> is the
+// gone; <curses.h> is globals.h, this directory's own, and <regex.h> is the
 // SDK's; <iso646.h> is not needed because C++ spells `and` and `not_eq` itself.
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <regex.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
+#include <wctype.h>
 
-#include "braam.h"
 #include "compat/cerr.h"
 #include "compat/cio.h"
-#include "ehscreen.h"
+#include "globals.h"
 #include "proc/io.h"
 #include "proc/rt.h"
+
+// The kit has no <assert.h>, and there is nothing to print to at that point.
+// NDEBUG matters: OFF_DEC() lets bol(-1) through under it on purpose, and bol()
+// clips rather than asserting.
+#ifdef NDEBUG
+#define assert(e) ((void)0)
+#else
+#define assert(e) ((e) ? (void)0 : __builtin_trap())
+#endif
 
 #ifndef BUF
 #define BUF (64 * 1024)
@@ -422,7 +437,7 @@ int charwidth(const char *s, int col)
 {
     char32_t wc;
     mbstate_t mbs = {}; // Do NOT track state.
-    ssize_t mbl   = mbrtoc32(&wc, s, 4, &mbs);
+    ssize_t mbl   = mbrtowc((wchar_t *)&wc, s, 4, &mbs);
     // Invalid MB sequence or MB continuation byte, count
     // width one ASCII character (see display() '~' place
     // holder), or a control count one highlighted ASCII
@@ -637,7 +652,7 @@ __attribute__((noinline)) void display(void)
         } else {
             char32_t wc;
             mbstate_t mbs = {}; // Do NOT track state.
-            mbl           = mbrtoc32(&wc, p, 4, &mbs);
+            mbl           = mbrtowc((wchar_t *)&wc, p, 4, &mbs);
             if (0 < mbl and printable(wc)) {
                 // The writer takes UTF-8 and expands a TAB, which is what
                 // upstream used the addnstr() family for.
@@ -844,7 +859,7 @@ char32_t c32at(const off_t cur)
     char *s       = ptr(cur);
     mbstate_t mbs = {};           // Do NOT track state.
     char32_t wc   = (char32_t)*s; // Assume ASCI or invalid MB value.
-    (void)mbrtoc32(&wc, s, 4, &mbs);
+    (void)mbrtowc((wchar_t *)&wc, s, 4, &mbs);
     return wc;
 }
 
@@ -1007,7 +1022,7 @@ Task<void> insert(void)
             // @fallthrough@
             // Upstream had a `case KEY_BTAB:` here, below the guard
             // above, so a real one reached mblength() with a value its
-            // own assert forbids.  getch.cpp decodes Shift-Tab to a tab.
+            // own assert forbids.  input.cpp decodes Shift-Tab to a tab.
             // Input (multibyte) character.
             mbl = mblength(ch);
             // Read the remainder of a multibyte
@@ -1273,7 +1288,7 @@ Task<void> prompt(const char *const msg, const char *str)
     // Prime the input with initial input.
     ungetstr(str);
     // Upstream noted that NetBSD's Curses got erase right and kill wrong.
-    // getch.cpp's reader is ours, so ^U works.
+    // input.cpp's reader is ours, so ^U works.
     (void)co_await mvgetnstr(0, (int)len, gap, COLS, ATTR_UNDERLINE);
 }
 
@@ -1538,13 +1553,13 @@ void altx(void)
     if (gap == p) {
         // Erase UTF-8 character, insert code point.
         gap -= here - prevch(here);
-        i = mbrtoc32(&wc, gap, 4, &mbs);
+        i = mbrtowc((wchar_t *)&wc, gap, 4, &mbs);
         if (0 < i) {
             gap += snprintf(gap, 9, "%06X", wc);
         }
     } else if (wc <= 0x10FFFF) {
         // Erase code point, insert printable UTF-8 character.
-        gap += c32rtomb(gap, wc, &mbs);
+        gap += wcrtomb(gap, (wchar_t)wc, &mbs);
     } else {
         // Restore state, nothing converted.
         gap += i;
@@ -1595,11 +1610,11 @@ void flipcase(void)
     char32_t wc;
     movegap(here);
     mbstate_t mbs = {}; // Do NOT track state.
-    ssize_t mbl   = mbrtoc32(&wc, egap, 4, &mbs);
+    ssize_t mbl   = mbrtowc((wchar_t *)&wc, egap, 4, &mbs);
     if (iswalpha(wc)) {
         undo_save(UNDO_DEL_A, here, egap, mbl);
         wc = iswlower(wc) ? towupper(wc) : towlower(wc);
-        undo_save(UNDO_INS_B, here, egap, c32rtomb(egap, wc, &mbs));
+        undo_save(UNDO_INS_B, here, egap, wcrtomb(egap, (wchar_t)wc, &mbs));
         chg = CHANGED;
     }
     right();

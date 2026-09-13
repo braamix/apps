@@ -1,8 +1,9 @@
-// The screen. See ehscreen.h.
+// The screen. See globals.h.
 
-#include "ehscreen.h"
+#include "globals.h"
 
-#include "braam.h"
+#include <wchar.h> // mbtowc
+
 #include "kernel/alloc.h"
 
 int LINES = 24;
