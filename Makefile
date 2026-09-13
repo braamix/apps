@@ -10,6 +10,9 @@ SDK_URL := https://github.com/braamix/core/releases/download/$(SDK_RELEASE)/braa
 BUILD     ?= build
 GENERATOR ?= Unix Makefiles
 
+# Where `make test` keeps what it printed.
+TEST_LOG  ?= test.log
+
 # Fetched into the build directory, unless SDK names one already unpacked.
 SDK       ?= $(BUILD)/braam-sdk-$(SDK_VERSION)
 TOOLCHAIN := $(SDK)/lib/cmake/braam/wasm32-unknown-unknown.cmake
@@ -52,73 +55,86 @@ package: all
 
 # Headless tests, driving a built binary under ../braam-core's system harness.
 # Needs node and a built core tree.
+TESTS := \
+    archivers/zip/test/roundtrip.mjs \
+    archivers/zip/test/tree.mjs \
+    archivers/zip/test/interrupt.mjs \
+    archivers/zip/test/update.mjs \
+    archivers/zip/test/tools.mjs \
+    editors/eh/test/ehcases.mjs \
+    editors/eh/test/ehreplace.mjs \
+    games/adventure/test/play.mjs \
+    games/adventure/test/interrupt.mjs \
+    games/adventure/test/suspend.mjs \
+    games/adventure/test/back.mjs \
+    games/asciifluid/test/frames.mjs \
+    games/asciifluid/test/colour.mjs \
+    games/asciifluid/test/interrupt.mjs \
+    games/asciiquarium/test/frames.mjs \
+    games/asciiquarium/test/colour.mjs \
+    games/asciiquarium/test/keys.mjs \
+    games/asciiquarium/test/resize.mjs \
+    games/asciiquarium/test/interrupt.mjs \
+    editors/uemacs/test/emkeys.mjs \
+    editors/uemacs/test/emedit.mjs \
+    editors/uemacs/test/emfiles.mjs \
+    editors/uemacs/test/emsearch.mjs \
+    editors/uemacs/test/emmacro.mjs \
+    editors/uemacs/test/emwindow.mjs \
+    editors/uemacs/test/embang.mjs \
+    editors/le/test/leedit.mjs \
+    editors/le/test/leblock.mjs \
+    editors/le/test/lesearch.mjs \
+    editors/le/test/lesigint.mjs \
+    editors/le/test/lescreen.mjs \
+    editors/le/test/leresize.mjs \
+    editors/le/test/lecolor.mjs \
+    editors/le/test/leescape.mjs \
+    editors/le/test/lesyntax.mjs \
+    editors/le/test/lespawn.mjs \
+    editors/le/test/lesession.mjs \
+    editors/le/test/ledata.mjs \
+    editors/vi/test/exscript.mjs \
+    editors/vi/test/exerrors.mjs \
+    editors/vi/test/exregex.mjs \
+    editors/vi/test/exfiles.mjs \
+    editors/vi/test/exbang.mjs \
+    editors/vi/test/vikeys.mjs \
+    editors/vi/test/viinsert.mjs \
+    editors/vi/test/vikeypad.mjs \
+    editors/vi/test/viresize.mjs \
+    editors/vi/test/viutf8.mjs \
+    editors/vi/test/vibang.mjs \
+    converters/iconv/test/smoke.mjs \
+    converters/iconv/test/convert.mjs \
+    converters/iconv/test/errors.mjs \
+    benchmarks/dhrystone/test/interrupt.mjs \
+    benchmarks/duremark/test/interrupt.mjs \
+    emulators/simbesm/test/boot.mjs \
+    lang/mbasic/test/repl.mjs \
+    lang/mbasic/test/numbers.mjs \
+    lang/mbasic/test/errors.mjs \
+    lang/mbasic/test/files.mjs \
+    lang/mbasic/test/renum.mjs \
+    lang/mbasic/test/examples.mjs \
+    lang/mbasic/test/case.mjs \
+    lang/mbasic/test/words.mjs \
+    lang/mbasic/test/utf8.mjs \
+    lang/mbasic/test/script.mjs \
+    lang/mbasic/test/interrupt.mjs
+
+# Every run is teed into $(TEST_LOG) as well as the terminal, so the output can
+# be read again -- or read a second way -- without running the suite twice. The
+# status travels through a file because a pipeline's is tee's, not node's, and
+# `set -o pipefail` is not in every /bin/sh.
 test: all
-	@node archivers/zip/test/roundtrip.mjs
-	@node archivers/zip/test/tree.mjs
-	@node archivers/zip/test/interrupt.mjs
-	@node archivers/zip/test/update.mjs
-	@node archivers/zip/test/tools.mjs
-	@node editors/eh/test/ehcases.mjs
-	@node editors/eh/test/ehreplace.mjs
-	@node games/adventure/test/play.mjs
-	@node games/adventure/test/interrupt.mjs
-	@node games/adventure/test/suspend.mjs
-	@node games/adventure/test/back.mjs
-	@node games/asciifluid/test/frames.mjs
-	@node games/asciifluid/test/colour.mjs
-	@node games/asciifluid/test/interrupt.mjs
-	@node games/asciiquarium/test/frames.mjs
-	@node games/asciiquarium/test/colour.mjs
-	@node games/asciiquarium/test/keys.mjs
-	@node games/asciiquarium/test/resize.mjs
-	@node games/asciiquarium/test/interrupt.mjs
-	@node editors/uemacs/test/emkeys.mjs
-	@node editors/uemacs/test/emedit.mjs
-	@node editors/uemacs/test/emfiles.mjs
-	@node editors/uemacs/test/emsearch.mjs
-	@node editors/uemacs/test/emmacro.mjs
-	@node editors/uemacs/test/emwindow.mjs
-	@node editors/uemacs/test/embang.mjs
-	@node editors/le/test/leedit.mjs
-	@node editors/le/test/leblock.mjs
-	@node editors/le/test/lesearch.mjs
-	@node editors/le/test/lesigint.mjs
-	@node editors/le/test/lescreen.mjs
-	@node editors/le/test/leresize.mjs
-	@node editors/le/test/lecolor.mjs
-	@node editors/le/test/leescape.mjs
-	@node editors/le/test/lesyntax.mjs
-	@node editors/le/test/lespawn.mjs
-	@node editors/le/test/lesession.mjs
-	@node editors/le/test/ledata.mjs
-	@node editors/vi/test/exscript.mjs
-	@node editors/vi/test/exerrors.mjs
-	@node editors/vi/test/exregex.mjs
-	@node editors/vi/test/exfiles.mjs
-	@node editors/vi/test/exbang.mjs
-	@node editors/vi/test/vikeys.mjs
-	@node editors/vi/test/viinsert.mjs
-	@node editors/vi/test/vikeypad.mjs
-	@node editors/vi/test/viresize.mjs
-	@node editors/vi/test/viutf8.mjs
-	@node editors/vi/test/vibang.mjs
-	@node converters/iconv/test/smoke.mjs
-	@node converters/iconv/test/convert.mjs
-	@node converters/iconv/test/errors.mjs
-	@node benchmarks/dhrystone/test/interrupt.mjs
-	@node benchmarks/duremark/test/interrupt.mjs
-	@node emulators/simbesm/test/boot.mjs
-	@node lang/mbasic/test/repl.mjs
-	@node lang/mbasic/test/numbers.mjs
-	@node lang/mbasic/test/errors.mjs
-	@node lang/mbasic/test/files.mjs
-	@node lang/mbasic/test/renum.mjs
-	@node lang/mbasic/test/examples.mjs
-	@node lang/mbasic/test/case.mjs
-	@node lang/mbasic/test/words.mjs
-	@node lang/mbasic/test/utf8.mjs
-	@node lang/mbasic/test/script.mjs
-	@node lang/mbasic/test/interrupt.mjs
+	@: > $(TEST_LOG)
+	@for t in $(TESTS); do \
+	    { node $$t 2>&1; echo $$? > $(BUILD)/.teststatus; } | tee -a $(TEST_LOG); \
+	    read st < $(BUILD)/.teststatus; \
+	    [ "$$st" = 0 ] || exit "$$st"; \
+	done
+	@echo "$(TEST_LOG): `wc -l < $(TEST_LOG) | tr -d ' '` lines"
 
 # The repository to upload: the signed index and the zips it vouches for, in
 # one directory, because a package's URL is derived from the index's own N.
@@ -137,7 +153,7 @@ index: package
 	@echo "$(REPO): index $(INDEX_VERSION), `ls $(REPO)/*.zip | wc -l | tr -d ' '` package(s)"
 
 clean:
-	@rm -rf $(BUILD)
+	@rm -rf $(BUILD) $(TEST_LOG)
 
 # The zip holds one directory, braam-sdk-<version>/. Its entries carry the pack
 # time rather than now, so the toolchain file is stamped after unpacking.

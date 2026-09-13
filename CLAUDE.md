@@ -552,7 +552,10 @@ time reads zero. Check that in a browser instead.
 ## Testing a program
 
 `make test` runs every program's headless tests — adventure's four and one for
-each benchmark. [games/adventure/test/](games/adventure/test/) is the worked
+each benchmark — and tees the whole run into `test.log`, so reading the output a
+second way costs nothing. The list is the `TESTS` variable at the head of the
+[Makefile](Makefile); `make test TESTS=editors/eh/test/ehcases.mjs` runs one.
+The suite stops at the first failure, with that test's status. [games/adventure/test/](games/adventure/test/) is the worked
 example, the way dhrystone is the worked example for the build: `play.mjs`
 imports `../braam-core/test/system/harness.mjs` directly — `test/run.mjs` is not
 reusable, its case list is a literal and it never injects an out-of-tree

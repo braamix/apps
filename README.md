@@ -54,7 +54,9 @@ own binary paints; `games/asciiquarium`, a seeded aquarium asserted frame by
 frame and driven by its own keys; the two benchmarks, each stopped partway
 by a signal; and `lang/mbasic`, whose sessions are compared line for line and
 whose `^C` is asserted on the grid. All of them need node and a sibling
-`../braam-core` built.
+`../braam-core` built. Everything printed also lands in `test.log`, so a run
+can be read again without being repeated; `TESTS=<file>...` runs a few of them
+instead of all sixty-six.
 
     make index
 
