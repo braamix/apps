@@ -7,11 +7,11 @@
 // as upstream wrote them.
 
 #include "braam.h"
-#include "curses.h"
+#include "ehscreen.h"
 #include "kernel/key.h"
 #include "proc/rt.h"
 
-int curses_resize_flag;
+int eh_resize_flag;
 
 // eh.cpp's, repeated rather than shared: a header holding three defines is
 // less than it costs to keep them in one.
@@ -20,6 +20,19 @@ int curses_resize_flag;
 #define ESC    '\033'
 
 namespace {
+
+// A line, not a key: prompt() primes the field with a whole filename through
+// ungetstr(), whose own bound is COLS, and decode() pushes the tail of a UTF-8
+// sequence on top of that.
+enum { UNGET_MAX = 1024 };
+
+int unget_buf[UNGET_MAX];
+int unget_n;
+
+int unget_take()
+{
+    return unget_n > 0 ? unget_buf[--unget_n] : ERR;
+}
 
 // One Braam key as the byte, or the named code, that cmds[] and insert() want.
 int decode(Key k)
@@ -97,28 +110,36 @@ int decode(Key k)
 // on either exit.
 void note_size()
 {
-    if ((int)curses_grid().cols != COLS || (int)curses_grid().rows != LINES) {
-        curses_resized();
-        curses_resize_flag = 1;
+    if ((int)eh_grid().cols != COLS || (int)eh_grid().rows != LINES) {
+        eh_resized();
+        eh_resize_flag = 1;
     }
 }
 
 } // namespace
 
+int ungetch(int key)
+{
+    if (unget_n >= UNGET_MAX)
+        return ERR;
+    unget_buf[unget_n++] = key;
+    return 0;
+}
+
 Task<int> getch()
 {
-    if (curses_unget_pending())
-        co_return curses_unget_take();
+    if (unget_n)
+        co_return unget_take();
 
     for (;;) {
-        // refresh() only raised a flag; this is where the frame goes out, and
-        // it must go out before the process parks or the screen would lag a
-        // keystroke behind.
-        if (Task<Result<void>> t = curses_flush())
+        // Painting sent nothing; this is where the frame goes out, and it must
+        // go out before the process parks or the screen would lag a keystroke
+        // behind.
+        if (Task<Result<void>> t = eh_flush())
             co_await t;
 
         Result<Key> r = Err(Error::NoMemory);
-        if (Task<Result<Key>> t = curses_screen().next_key())
+        if (Task<Result<Key>> t = eh_screen().next_key())
             r = co_await t;
 
         if (r.is_err()) {
@@ -127,12 +148,12 @@ Task<int> getch()
             // next_key() takes SIG_WINCH itself and reshapes before it reports,
             // so note the geometry before answering whatever is behind this.
             note_size();
-            curses_full_blit();
+            eh_full_blit();
             if (sig_take(SIG_TERM))
                 co_return ERR;
             if (sig_take(SIG_INT))
                 co_return CTRL_C;
-            if (curses_resize_flag)
+            if (eh_resize_flag)
                 co_return ERR;
             continue;
         }
@@ -141,8 +162,8 @@ Task<int> getch()
         int key = decode(r.value());
         if (key != ERR)
             co_return key;
-        if (curses_unget_pending())
-            co_return curses_unget_take();
+        if (unget_n)
+            co_return unget_take();
     }
 }
 
@@ -152,22 +173,21 @@ Task<int> getch()
 // over a tty-vs-pipe backspace difference, is live again here.
 //
 // `buf` is the gap (prompt(), eh.cpp). Nothing in this loop may move it.
-Task<int> mvgetnstr(int y, int x, char *buf, int n)
+Task<int> mvgetnstr(int y, int x, char *buf, int n, u8 attr)
 {
     int len = 0;
 
-    if (n < 1)
+    // The field has to be on the screen, which move() used to say.
+    if (n < 1 or y < 0 or x < 0 or LINES <= y or COLS <= x)
         co_return ERR;
     for (;;) {
         // The whole field, every turn: it is one row, and repainting picks up a
-        // COLS that a resize moved. addnstr leaves the cursor past the text,
-        // and clrtoeol does not move it, so that is where it stays.
+        // COLS that a resize moved. The caret goes after the text, and the tail
+        // is cleared in no attribute -- the underline stops at the field.
         buf[len] = '\0';
-        if (move(y, x) == ERR) {
-            co_return ERR;
-        }
-        (void)addnstr(buf, len);
-        (void)clrtoeol();
+        int end  = eh_put(y, x, buf, len, attr);
+        eh_fill(y, end, 0);
+        eh_cursor(y, end);
 
         int ch = co_await getch();
 
@@ -179,7 +199,7 @@ Task<int> mvgetnstr(int y, int x, char *buf, int n)
         case '\r':
         case KEY_ENTER:
             buf[len] = '\0';
-            co_return OK;
+            co_return 0;
         case ESC:
         case CTRL_C:
             // An empty field: W and R then beep, and Q reads it as "not y".
@@ -204,7 +224,7 @@ Task<int> mvgetnstr(int y, int x, char *buf, int n)
                 break;
             }
             if (n - 1 <= len) {
-                (void)beep();
+                beep();
                 break;
             }
             buf[len++] = (char)ch;

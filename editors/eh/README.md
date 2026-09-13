@@ -6,8 +6,8 @@ from *ae*, Anthony's Editor (1991), the canonical Buffer Gap worked example,
 by way of an IOCCC 28 entry that still lives in upstream's single file behind
 `#ifdef IOCCC`.
 
-It is the smallest editor here by an order of magnitude — 2,918 lines, of which
-upstream's own file is 2,160, against vi's, le's and uemacs' tens of thousands — and the reason is that its whole OS
+It is the smallest editor here by an order of magnitude — 2,678 lines, of which
+upstream's own file is 2,147, against vi's, le's and uemacs' tens of thousands — and the reason is that its whole OS
 surface was already in one place: Curses for the screen, ten calls for the
 files, one function for the shell escape. There is no `setjmp`, no `stat`, no
 `dirent`, no `termios`, no time, no stdio and **no floating point at all**, so
@@ -30,7 +30,7 @@ nothing was added or removed except as noted below.
 | file | what |
 |---|---|
 | `eh.cpp` | upstream's single file, the IOCCC arms stripped |
-| `curses.h`, `curses.cpp` | the whole of curses eh needs, over the Grid |
+| `ehscreen.h`, `ehscreen.cpp` | the screen it paints, over the Grid |
 | `getch.cpp` | the one place the process parks |
 | `braam.h` | what the port kit has not got |
 
@@ -50,23 +50,53 @@ ERE is a back-reference now where it used to be a literal `1`. See
 
 ### The screen
 
-`curses.{h,cpp}` began as `editors/le`'s shim and kept its central decision:
-**`refresh()` sends nothing.** It raises a flag, and the one flush happens in
-`getch()` just before the process parks. That is what keeps `display()` and
-every painter an ordinary function, so only the readers became coroutines.
+**Painting sends nothing.** The one flush happens in `getch()` just before the
+process parks. That is what keeps `display()` and every painter an ordinary
+function, so only the readers became coroutines.
 
-Half of le's shim went — colour, windows, the wide-cell interface — and the
-most-used function was rewritten: `mvaddnstr()` writes one cell per **rune**,
-because `display()` hands it a whole multibyte sequence and expects a single
-column. A TAB blanks to the next eight-column stop, which is what curses drew;
-upstream expands tabs itself and only relies on curses not to move the cursor.
+**There is no curses left.** `ehscreen.{h,cpp}` began as `editors/le`'s shim
+and spent a while emulating one, which meant carrying two pieces of state eh
+does not want: a current position and a current attribute. It wants neither.
+Every write in `display()` already names the cell it writes — `mvaddch(i, j,
+…)`, `mvaddnstr(i, j, p, mbl)` — and every attribute it sets is per-cell,
+`standend()` in the loop's own condition clearing the last one. So the writers
+take `(y, x, attr)` and the emulation goes: with it went twelve functions that
+were `return OK;` and nothing else (`endwin`, `cbreak`, `noecho`, `echo`,
+`nonl`, `nl`, `raw`, `noraw`, `keypad`, `delwin`, `refresh`, `beep`), five more
+that no longer had a caller, and `WINDOW`, `stdscr`, `chtype`, the `A_*` word,
+`move`, `getcurx` and `printw`. What is left is five painters over the Grid,
+`eh_open`, `eh_flush`, and `beep()`, which stays a no-op because this system
+has no bell.
 
-`initscr()` is `curses_open()`, a `Task`, so `proc_main` awaits it and checks
+The names are `eh_*` and the file is not `screen.cpp`: `kernel/screen.h` —
+unavoidable, it is where `Cell` and `ATTR_REVERSE` come from — declares
+`screen_flush()`, `screen_put()`, `screen_cursor()` and `screen_clear()` of its
+own, and a `screen_flush()` returning a `Task` is a redeclaration conflict
+rather than an overload.
+
+`eh_put()` writes one cell per **rune**, because `display()` hands it a whole
+multibyte sequence and expects a single column, and it returns the column after
+the last — which is what `getcurx()` was for. LF and CR draw nothing:
+`display()` does *not* route a plain newline through its control arm, so the
+writer is handed one for every line on the screen and has to ignore it.
+
+A TAB blanks to the next eight-column stop, which is what curses drew; upstream
+expands tabs itself and only relies on curses not to move the cursor. **The
+stop is clipped to the right edge now, and that fixes a hang**: the column used
+to clamp at `COLS-1` while the stop did not, so a tab starting anywhere in
+columns 72–79 of an 80-column screen never reached it and `display()` spun for
+ever. Ten leading tabs were enough. Upstream's cases never get past column 56,
+which is why the suite never saw it; `test/ehtab.mjs` does.
+
+`initscr()` is `eh_open()`, a `Task`, so `proc_main` awaits it and checks
 `is_err()` where upstream checked for null — which is still exit status 1.
 
 Two Grid traps are handled and must stay handled: a cursor-only move damages no
-cell, so the cell under the cursor is damaged deliberately or `h`/`j`/`k`/`l`
-would move nothing; and after a resize the **whole** frame is blitted.
+cell, so the cell under the cursor is damaged deliberately in `eh_flush()` or
+`h`/`j`/`k`/`l` would move nothing; and after a resize the **whole** frame is
+blitted. A third is not a trap but pays for itself — the one cell writer drops
+a write that would not change the cell, because `Grid::damage` is a single
+bounding rect and `eh_erase()` touches every cell of every frame.
 
 `timeout(100)` and the `case ERR:` arm went with them: there is no non-blocking
 key read here, so the paste-coalescing heuristic had nothing to measure. **The
@@ -210,7 +240,7 @@ rather than a hang, and it stays.
     make package
 
 `PORT` for the C library, `NOFLOAT` because the only formats are
-`%s %d %ld %lu %c %X %*s`, and **`-funsigned-char`, which is not optional**:
+`%s %d %ld %lu %c %X %.*s`, and **`-funsigned-char`, which is not optional**:
 `mblength()` asserts `0 <= ch < 256` and `charwidth()` compares
 `127 < *s && *s < 194`.
 
@@ -218,6 +248,7 @@ rather than a hang, and it stays.
 
     node test/ehcases.mjs          # 121 of upstream's own cases
     node test/ehreplace.mjs        # $n backreferences, which upstream never reaches
+    node test/ehtab.mjs            # a TAB in the last eight columns of a row
 
 The engine's own suite went with it: `../braam-core/test/unit/test_regex.cpp`,
 which replays the cross product the differential harness here used to drive.

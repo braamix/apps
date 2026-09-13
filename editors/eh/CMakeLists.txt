@@ -16,12 +16,12 @@ target_compile_options(eh_quiet INTERFACE
     -Wno-parentheses -Wno-dangling-else -Wno-char-subscripts
     -Wno-invalid-source-encoding)
 
-# eh.cpp is upstream's single file, the IOCCC arms stripped. curses.cpp is the
-# whole of curses it needs over the Grid, and getch.cpp the one place it parks.
+# eh.cpp is upstream's single file, the IOCCC arms stripped. ehscreen.cpp is
+# the screen it paints over the Grid, and getch.cpp the one place it parks.
 # The POSIX ERE the C library gave it is braam::regex now, which PORT carries
 # under the name <regex.h>.
 braam_add_program(NAME eh
-                  SOURCES eh.cpp curses.cpp getch.cpp
+                  SOURCES eh.cpp ehscreen.cpp getch.cpp
                   PORT NOFLOAT)
 
 # -funsigned-char is not optional: mblength() asserts 0 <= ch < 256 and

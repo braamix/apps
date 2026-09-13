@@ -9,18 +9,18 @@
 // Commit $Id: 95b9dc5033ba4a91e96e4c229adaf36c4a30d90a $
 
 // The port's includes. <locale.h>, <signal.h>, <sys/wait.h> and <uchar.h> are
-// gone; <curses.h> and <regex.h> are this directory's own; <iso646.h> is not
-// needed because C++ spells `and` and `not_eq` itself.
+// gone; <curses.h> is ehscreen.h, this directory's own, and <regex.h> is the
+// SDK's; <iso646.h> is not needed because C++ spells `and` and `not_eq` itself.
 #include <errno.h>
 #include <fcntl.h>
+#include <regex.h>
 
 #include "braam.h"
 #include "compat/cerr.h"
 #include "compat/cio.h"
-#include "curses.h"
+#include "ehscreen.h"
 #include "proc/io.h"
 #include "proc/rt.h"
-#include <regex.h>
 
 #ifndef BUF
 #define BUF (64 * 1024)
@@ -559,11 +559,6 @@ off_t nextline(const off_t cur)
     return nextch(col_or_eol(cur, cur_col, COLS - 1));
 }
 
-void clr_to_eol(void)
-{
-    (void)printw("%*s", COLS - getcurx(stdscr), "");
-}
-
 __attribute__((noinline)) void display(void)
 {
     char *p;
@@ -593,13 +588,21 @@ __attribute__((noinline)) void display(void)
             page = epage;
         }
     } // Else still within page bounds, update cursor.
-    (void)erase();
-    (void)standout();
-    (void)printw(
+    eh_erase();
+    {
         // off_t is 64 bits here and long is 32, so %ld would read four
         // bytes of an eight-byte vararg and shift everything after it.
-        "%s %ldB L%lu %c %s", filename, (long)eof, line_number(here), chg, mode);
-    clr_to_eol();
+        char st[256];
+        int n = snprintf(st, sizeof(st), "%s %ldB L%lu %c %s", filename, (long)eof,
+                         line_number(here), chg, mode);
+        if (n < 0) {
+            n = 0;
+        } else if (n > (int)sizeof(st) - 1) {
+            n = (int)sizeof(st) - 1;
+        }
+        // The status line and its tail are reverse to the right edge.
+        eh_fill(0, eh_put(0, 0, st, n, ATTR_REVERSE), ATTR_REVERSE);
+    }
     if (marker < 0) {
         from = to = marker;
     } else if (here < marker) {
@@ -609,7 +612,7 @@ __attribute__((noinline)) void display(void)
         from = marker;
         to   = here;
     }
-    for (i = TOP_LINE, j = 0, epage = page; (void)standend(), i < LINES;) {
+    for (i = TOP_LINE, j = 0, epage = page; i < LINES;) {
         if (here == epage) {
             cur_row = i;
             cur_col = j;
@@ -618,9 +621,9 @@ __attribute__((noinline)) void display(void)
             break;
         }
         bool is_ctrl = iscntrl(*p) and (show_all or (*p not_eq '\t' and *p not_eq '\n'));
-        if ((from <= epage and epage < to) or is_ctrl) {
-            standout();
-        }
+        // Curses' standout() was sticky and standend() cleared it each turn;
+        // every cell carries its own attribute now.
+        u8 at = ((from <= epage and epage < to) or is_ctrl) ? ATTR_REVERSE : 0;
         // A multibyte character never straddles the gap,
         // assumes the gap moves by character, not by byte.
         // See also nextch() and prevch().
@@ -629,25 +632,21 @@ __attribute__((noinline)) void display(void)
             // Display control characters as a single byte
             // highlighted upper case letter (instead of two
             // byte ^X).
-            (void)mvaddch(i, j, *p + '@');
-            if (*p == '\n') {
-                (void)addch('\n');
-            }
+            eh_put_rune(i, j, (char32_t)(*p + '@'), at);
             mbl = 1;
         } else {
             char32_t wc;
             mbstate_t mbs = {}; // Do NOT track state.
             mbl           = mbrtoc32(&wc, p, 4, &mbs);
             if (0 < mbl and printable(wc)) {
-                // Use addnstr() family that already handles
-                // UTF8 instead of add_wch() to avoid all the
-                // complexity of using cchar_t.
-                (void)mvaddnstr(i, j, p, mbl);
+                // The writer takes UTF-8 and expands a TAB, which is what
+                // upstream used the addnstr() family for.
+                (void)eh_put(i, j, p, mbl, at);
             } else {
                 // Place holder for non-printable, invalid MB
                 // sequence or MB continuation byte; each byte
                 // of the invalid sequence becomes inverse '~'.
-                (void)mvaddch(i, j, A_REVERSE | '~');
+                eh_put_rune(i, j, U'~', ATTR_REVERSE);
                 // Force byte size.
                 mbl = 1;
             }
@@ -665,17 +664,14 @@ __attribute__((noinline)) void display(void)
     }
     assert(page <= here and here <= epage);
     if (i++ < LINES) {
-        (void)standout();
-        (void)mvaddstr(i, 0, "^D");
-        // A refresh() side effect is to standend().
+        (void)eh_put(i, 0, "^D", 2, ATTR_REVERSE);
     }
-    (void)move(cur_row, cur_col);
-    (void)refresh();
+    eh_cursor(cur_row, cur_col);
 }
 
 void redraw(void)
 {
-    (void)clear();
+    eh_erase();
     count = 0;
 }
 
@@ -998,11 +994,11 @@ Task<void> insert(void)
             }
             break;
         case CTRL_V:
-            // Insert literal character.
-            (void)nonl(); // CR as-is
+            // Insert literal character. Upstream's nonl()/nl() pair around this
+            // read has nothing to say: there is no line discipline here and the
+            // key arrives as typed.
             ch = co_await getch();
-            (void)nl(); // CR -> LF
-                        // @fallthrough@
+            // @fallthrough@
         default:
             if (ch < 0 || 255 < ch) {
                 // Ignore other KEY_s.
@@ -1265,13 +1261,10 @@ Task<void> lnmark(void)
 
 Task<void> prompt(const char *const msg, const char *str)
 {
-    (void)echo();
-    (void)noraw();
-    (void)standend();
-    (void)attron(A_UNDERLINE);
+    // The prompt row is underlined and, unlike the status line it replaces,
+    // not reversed.
     size_t len = strlen(msg);
-    (void)mvaddstr(0, 0, msg);
-    clr_to_eol();
+    eh_fill(0, eh_put(0, 0, msg, (int)len, ATTR_UNDERLINE), ATTR_UNDERLINE);
     // Limit the input to a phrase no wider than COLS, not lines.
     if (str == NULL or strchr(str, '\n') not_eq NULL) {
         str = "";
@@ -1281,11 +1274,7 @@ Task<void> prompt(const char *const msg, const char *str)
     ungetstr(str);
     // Upstream noted that NetBSD's Curses got erase right and kill wrong.
     // getch.cpp's reader is ours, so ^U works.
-    (void)co_await mvgetnstr(0, (int)len, gap, COLS);
-    (void)attroff(A_UNDERLINE);
-    (void)standout();
-    (void)noecho();
-    (void)raw();
+    (void)co_await mvgetnstr(0, (int)len, gap, COLS, ATTR_UNDERLINE);
 }
 
 Task<int> filewrite(const char *const fn)
@@ -1961,8 +1950,6 @@ void cleanup(void)
     // Most of these are to satisfy Valgrind or sanitisers.  The OS
     // reclaims memory when the program exits, making the need to
     // free() theoretically unnecessary.
-    (void)delwin(stdscr);
-    (void)endwin();
     undo_free(undo_list);
     undo_free(redo_list);
     free(yank_text);
@@ -2122,7 +2109,7 @@ Task<i32> proc_main(Args args)
     // setlocale() is gone: this system is UTF-8 throughout.
     {
         Result<void> r = Err(Error::NoMemory);
-        if (Task<Result<void>> t = curses_open()) {
+        if (Task<Result<void>> t = eh_open()) {
             r = co_await t;
         }
         if (r.is_err()) {
@@ -2149,9 +2136,9 @@ Task<i32> proc_main(Args args)
     while (mode not_eq NULL) {
         // A bare resize answers getch() with ERR and leaves the grid the new
         // shape; reframe against the new COLS before painting.
-        if (curses_resize_flag) {
-            curses_resize_flag = 0;
-            epage              = here + 1;
+        if (eh_resize_flag) {
+            eh_resize_flag = 0;
+            epage          = here + 1;
         }
         display();
         (void)co_await getcmd(ALL_CMDS);

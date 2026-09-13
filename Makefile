@@ -63,6 +63,7 @@ TESTS := \
     archivers/zip/test/tools.mjs \
     editors/eh/test/ehcases.mjs \
     editors/eh/test/ehreplace.mjs \
+    editors/eh/test/ehtab.mjs \
     games/adventure/test/play.mjs \
     games/adventure/test/interrupt.mjs \
     games/adventure/test/suspend.mjs \
