@@ -36,7 +36,7 @@ target_compile_options(bin_eh PRIVATE
     -DVERSION="v1.8.1" -DBUILT="braam")
 target_link_libraries(bin_eh PRIVATE eh_quiet)
 
-braam_add_package(NAME eh VERSION 1.8.1-r1
+braam_add_package(NAME eh VERSION 1.8.1-r2
                   FIELD "T=EH 1.8.1, vi(1) the good parts version"
                   FILES $<TARGET_FILE:bin_eh>=bin/eh)
 add_dependencies(packages pkg_eh)
