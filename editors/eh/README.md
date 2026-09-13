@@ -136,11 +136,25 @@ answers `ERR` on `ESC` or `^C`.
 
 ## Files
 
-`open`/`creat`/`read`/`write`/`close` are `co_await b_*` over `compat/cio.h`.
-`filewrite`'s partial-write loop and its `errno` handling are upstream's.
+The calls are `proc/io.h`'s own — `open_read`, `open_at`, `read_some`,
+`write_all`, `close_fd`, `dup_fd`, `remove_path` — not the port kit's POSIX
+emulation, so an `Error` stays an `Error` from the syscall to the status line
+and there is no `errno` in the program at all. A failed write reports
+`error_name()`, which is prose where `strerror()` answers `"ENOENT"`.
 
-Its error message is `error_name(error_of(errno))`, not `strerror`, which here
-answers `"ENOENT"` rather than prose.
+A write is one `write_all`, which retries a short write itself, so it either
+saves the buffer or reports why it could not. A create takes no permissions
+here, which is why upstream's `MODE` is gone.
+
+A read fills the gap from a `String` the call returns, in chunks of at most
+`SYS_READ_MAX`, growing the gap as it goes; `Err(Closed)` is the end of the
+file and not a failure. `gap_fill()` is that loop, and `fileread` and `!` share
+it.
+
+Opening a file to read sorts its failures. **A name that is not there is a new
+file**, which is what `eh newfile` has always meant, and so is no name at all.
+Anything else — a directory, a permission, an I/O error — is a failure: `<`
+and `*` beep, and a command line exits 2.
 
 `fileread` takes a pointer *into the gap* — every caller passes `gap` — and
 `growgap()` reallocs it, so `fn` is dead after the open and must stay dead: a
@@ -192,7 +206,7 @@ the buffer, so the walk would not terminate.
     make package
 
 `PORT` for the C library, `NOFLOAT` because the only formats are
-`%s %d %ld %lu %c %X %.*s`, and **`-funsigned-char`, which is not optional**:
+`%s %ld %lu %c %x %X %.*s`, and **`-funsigned-char`, which is not optional**:
 `mblength()` asserts `0 <= ch < 256` and `charwidth()` compares
 `127 < *s && *s < 194`.
 

@@ -27,11 +27,12 @@ braam_add_program(NAME eh
 # -funsigned-char is not optional: mblength() asserts 0 <= ch < 256 and
 # charwidth() compares 127 < *s && *s < 194.
 #
-# BUF and MODE are upstream's Makefile defaults. BUILT is its UTC build date;
-# a fixed string here instead, so two builds of the same sources agree.
+# BUF is upstream's Makefile default; its MODE is gone, because a create here
+# takes no permissions. BUILT is upstream's UTC build date; a fixed string
+# instead, so two builds of the same sources agree.
 target_compile_options(bin_eh PRIVATE
     -funsigned-char -fno-threadsafe-statics
-    -DFAST_MOVE -DNDEBUG -DBUF=131072 -DMODE=0600
+    -DFAST_MOVE -DNDEBUG -DBUF=131072
     -DVERSION="v1.8.1" -DBUILT="braam")
 target_link_libraries(bin_eh PRIVATE eh_quiet)
 

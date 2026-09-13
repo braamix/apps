@@ -3,34 +3,19 @@
 //
 // Copyright 2024, 2025 by Anthony C Howe.  All rights reserved.
 //
-// For TextPad suggest this Unicode font...
-// https://www.unifoundry.com/pub/unifont/unifont-16.0.03/font-builds/unifont-16.0.03.otf
-//
-// Commit $Id: 95b9dc5033ba4a91e96e4c229adaf36c4a30d90a $
-
-// The port's includes. <locale.h>, <signal.h>, <sys/wait.h> and <uchar.h> are
-// gone; <curses.h> is globals.h, this directory's own, and <regex.h> is the
-// SDK's; <iso646.h> is not needed because C++ spells `and` and `not_eq` itself.
 #include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <regex.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 #include <wchar.h>
 #include <wctype.h>
 
-#include "compat/cerr.h"
-#include "compat/cio.h"
 #include "globals.h"
 #include "proc/io.h"
 #include "proc/rt.h"
 
-// The kit has no <assert.h>, and there is nothing to print to at that point.
-// NDEBUG matters: OFF_DEC() lets bol(-1) through under it on purpose, and bol()
-// clips rather than asserting.
 #ifdef NDEBUG
 #define assert(e) ((void)0)
 #else
@@ -39,9 +24,6 @@
 
 #ifndef BUF
 #define BUF (64 * 1024)
-#endif
-#ifndef MODE
-#define MODE 0600
 #endif
 
 #define CTRL_B '\002'
@@ -1294,27 +1276,37 @@ Task<void> prompt(const char *const msg, const char *str)
 
 Task<int> filewrite(const char *const fn)
 {
-    int fd;
-    errno        = 0;
-    ssize_t n    = 0;
-    off_t offset = 0;
-    if (0 < (fd = co_await b_creat(fn, MODE))) {
+    Error err = Error::Io;
+    // A Task whose frame did not allocate panics when awaited, so every call
+    // here is guarded the way spawn() below is.
+    Result<i32> fd = Err(Error::NoMemory);
+    if (Task<Result<i32>> t = open_at(Str(fn), SYS_O_WRITE | SYS_O_CREATE | SYS_O_TRUNC)) {
+        fd = co_await t;
+    }
+    if (not fd.is_err()) {
         const off_t eof = pos(ebuf);
         movegap(eof);
-        while (offset < eof and 0 <= (n = co_await b_write(fd, buf + offset, eof - offset))) {
-            offset += n;
+        // write_all() retries a short write itself, so upstream's loop is one
+        // call and a failure means nothing was written.
+        Result<void> w = Err(Error::NoMemory);
+        if (Task<Result<void>> t = write_all((u32)fd.value(), Str(buf, (usize)eof))) {
+            w = co_await t;
         }
-        (void)co_await b_close(fd);
+        if (Task<void> t = close_fd((u32)fd.value())) {
+            co_await t;
+        }
+        if (not w.is_err()) {
+            co_return 0;
+        }
+        err = w.error();
+    } else {
+        err = fd.error();
     }
-    if (errno) {
-        // error_name(error_of()) rather than strerror(), which answers
-        // "ENOENT" here and not prose.  off_t is 64 bits and long is 32.
-        Str e = error_name(error_of(errno));
-        (void)snprintf(gap, COLS - 20, "%.*s (%d), wrote %ldB", (int)e.size(), e.data(), errno,
-                       (long)offset);
-        mode = gap;
-    }
-    co_return fd < 0 or n < 0;
+    // error_name() is prose, where strerror() answers "ENOENT".
+    Str e = error_name(err);
+    (void)snprintf(gap, COLS - 20, "%.*s", (int)e.size(), e.data());
+    mode = gap;
+    co_return 1;
 }
 
 Task<void> writefile(void)
@@ -1333,21 +1325,61 @@ Task<void> writefile(void)
     count = 0;
 }
 
+// Read what is left of fd into the gap, growing it as it fills, and close it.
+// The read answers a String rather than filling a buffer, so the bytes are
+// copied in; Err(Closed) is the end of the file and not a failure.
+static Task<int> gap_fill(u32 fd)
+{
+    int bad = 0;
+
+    for (;;) {
+        usize want = (usize)(egap - gap);
+        if (SYS_READ_MAX < want) {
+            want = SYS_READ_MAX;
+        }
+        Result<String> r = Err(Error::NoMemory);
+        if (Task<Result<String>> t = read_some(fd, (u32)want)) {
+            r = co_await t;
+        }
+        if (r.is_err()) {
+            bad = r.error() not_eq Error::Closed;
+            break;
+        }
+        usize n = r.value().str().size();
+        if (n == 0) {
+            break;
+        }
+        (void)memcpy(gap, r.value().str().data(), n);
+        gap += n;
+        growgap(BUF / 2);
+    }
+    if (Task<void> t = close_fd(fd)) {
+        co_await t;
+    }
+    co_return bad;
+}
+
 Task<int> fileread(const char *const fn)
 {
-    int fd;
-    ssize_t n = 0;
+    // No name at all is no file to read: `eh` with no argument, and the `<`
+    // prompt answered with nothing.
+    if (fn == NULL or *fn == '\0') {
+        co_return 0;
+    }
     // Callers pass `gap`, and growgap() below reallocs buf out from under it.
     // fn must therefore not be touched after the open -- it is not, and a copy
     // would be a PATH_MAX array in a coroutine frame.
-    if (0 < (fd = co_await b_open(fn, O_RDONLY))) {
-        while (0 < (n = co_await b_read(fd, gap, egap - gap))) {
-            gap += n;
-            growgap(BUF / 2);
-        }
-        (void)co_await b_close(fd);
+    Result<i32> fd = Err(Error::NoMemory);
+    if (Task<Result<i32>> t = open_read(Str(fn))) {
+        fd = co_await t;
     }
-    co_return (int) n;
+    if (fd.is_err()) {
+        // A name that is not there is a new file, which is upstream's answer to
+        // `eh newfile`. Anything else -- a directory, a permission, an I/O
+        // error -- is a failure the caller reports.
+        co_return fd.error() not_eq Error::NotFound;
+    }
+    co_return co_await gap_fill((u32)fd.value());
 }
 
 Task<void> readfile(void)
@@ -1420,19 +1452,34 @@ static Task<int> bang_spawn(void)
         // Upstream dereferenced this unchecked.
         shell = "/bin/sh";
     }
-    int fdin = co_await b_open(bang_in, O_RDONLY);
-    if (fdin < 0) {
+    Result<i32> fdin = Err(Error::NoMemory);
+    if (Task<Result<i32>> t = open_read(Str(bang_in))) {
+        fdin = co_await t;
+    }
+    if (fdin.is_err()) {
         co_return 127;
     }
-    int fdout = co_await b_creat(bang_out, MODE);
-    if (fdout < 0) {
-        (void)co_await b_close(fdin);
+    Result<i32> fdout = Err(Error::NoMemory);
+    if (Task<Result<i32>> t = open_at(Str(bang_out), SYS_O_WRITE | SYS_O_CREATE | SYS_O_TRUNC)) {
+        fdout = co_await t;
+    }
+    if (fdout.is_err()) {
+        if (Task<void> t = close_fd((u32)fdin.value())) {
+            co_await t;
+        }
         co_return 127;
     }
-    int fderr = co_await b_dup(fdout);
-    if (fderr < 0) {
-        (void)co_await b_close(fdin);
-        (void)co_await b_close(fdout);
+    Result<u32> fderr = Err(Error::NoMemory);
+    if (Task<Result<u32>> t = dup_fd((u32)fdout.value())) {
+        fderr = co_await t;
+    }
+    if (fderr.is_err()) {
+        if (Task<void> t = close_fd((u32)fdin.value())) {
+            co_await t;
+        }
+        if (Task<void> t = close_fd((u32)fdout.value())) {
+            co_await t;
+        }
         co_return 127;
     }
 
@@ -1442,9 +1489,9 @@ static Task<int> bang_spawn(void)
     v.v      = Span<const Str>(words, 3);
     // ChildIo moves a descriptor out of this process's table, so these three
     // must not be closed here.
-    cio.in  = (u32)fdin;
-    cio.out = (u32)fdout;
-    cio.err = (u32)fderr;
+    cio.in  = (u32)fdin.value();
+    cio.out = (u32)fdout.value();
+    cio.err = fderr.value();
 
     Result<u32> pid = Err(Error::NoMemory);
     if (Task<Result<u32>> t = spawn(v, cio)) {
@@ -1483,7 +1530,6 @@ static Task<int> bang_spawn(void)
 // If motion is `!` then read-only from command, eg. !! ls
 Task<void> bang(void)
 {
-    ssize_t n;
     int ex = 74;
     co_await deld();
     co_await prompt("!", "");
@@ -1493,33 +1539,41 @@ Task<void> bang(void)
     (void)snprintf(bang_out, sizeof(bang_out), "/tmp/eh-%08x-o", tag);
 
     // The region, or nothing at all for `!!`, is the child's standard input.
-    int fd = co_await b_creat(bang_in, MODE);
-    if (0 <= fd) {
-        off_t off = 0;
-        while (yank_text not_eq NULL and off < yank_length and
-               0 < (n = co_await b_write(fd, yank_text + off, yank_length - off))) {
-            off += n;
+    Result<i32> fd = Err(Error::NoMemory);
+    if (Task<Result<i32>> t = open_at(Str(bang_in), SYS_O_WRITE | SYS_O_CREATE | SYS_O_TRUNC)) {
+        fd = co_await t;
+    }
+    if (not fd.is_err()) {
+        if (yank_text not_eq NULL and 0 < yank_length) {
+            if (Task<Result<void>> t =
+                    write_all((u32)fd.value(), Str(yank_text, (usize)yank_length))) {
+                (void)co_await t;
+            }
         }
-        (void)co_await b_close(fd);
+        if (Task<void> t = close_fd((u32)fd.value())) {
+            co_await t;
+        }
 
         if (yank_text not_eq NULL) {
             ex = co_await bang_spawn();
 
-            // The child has exited and the source is a file, so read()
-            // answers 0 at the end -- upstream needed O_NONBLOCK here
+            // The child has exited and the source is a file, so the read
+            // answers Closed at the end -- upstream needed O_NONBLOCK here
             // because it raced waitpid against a pipe.
             const off_t eof = pos(ebuf);
-            if (0 <= (fd = co_await b_open(bang_out, O_RDONLY))) {
-                while (0 < (n = co_await b_read(fd, gap, egap - gap))) {
-                    gap += n;
-                    chg = CHANGED;
-                    growgap(BUF / 2);
-                }
-                (void)co_await b_close(fd);
+            Result<i32> out = Err(Error::NoMemory);
+            if (Task<Result<i32>> t = open_read(Str(bang_out))) {
+                out = co_await t;
+            }
+            if (not out.is_err()) {
+                (void)co_await gap_fill((u32)out.value());
             }
             // Convert delete to paired delete-insert.
             undo_list->paired = true;
             off_t len         = pos(ebuf) - eof;
+            if (0 < len) {
+                chg = CHANGED;
+            }
             undo_save(UNDO_INS_B, here, gap - len, len);
             adjmarks(len - undo_list->next->size);
             // Position after the last character read.
@@ -1529,8 +1583,12 @@ Task<void> bang(void)
             epage = 1;
         }
     }
-    (void)co_await b_unlink(bang_in);
-    (void)co_await b_unlink(bang_out);
+    if (Task<Result<void>> t = remove_path(Str(bang_in), false)) {
+        (void)co_await t;
+    }
+    if (Task<Result<void>> t = remove_path(Str(bang_out), false)) {
+        (void)co_await t;
+    }
 
     if (ex not_eq 0) {
         (void)beep();
