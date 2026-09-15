@@ -1,0 +1,37 @@
+<class 'bool'>
+1
+2
+3
+1
+12
+123
+1
+12
+123
+1
+12
+123
+123456
+123456
+123456
+123456
+123456
+123456
+ab
+1
+SyntaxError
+SyntaxError
+SyntaxError
+SyntaxError
+0
+SyntaxError
+byte 0: SyntaxError
+byte 1: SyntaxError
+byte 2: SyntaxError
+byte 3: SyntaxError
+byte 4: SyntaxError
+byte 5: SyntaxError
+byte 6: SyntaxError
+byte 7: SyntaxError
+byte 8: SyntaxError
+123

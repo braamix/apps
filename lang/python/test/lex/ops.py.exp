@@ -1,0 +1,196 @@
+1:1 name a
+1:3 op =
+1:5 name b
+1:7 op +
+1:9 name c
+1:11 op -
+1:13 name d
+1:15 op *
+1:17 name e
+1:19 op /
+1:21 name f
+1:23 op //
+1:26 name g
+1:28 op %
+1:30 name h
+1:32 op **
+1:35 name i
+1:36 newline
+2:1 name a
+2:3 op +=
+2:6 int 1
+2:7 newline
+3:1 name a
+3:3 op -=
+3:6 int 1
+3:7 newline
+4:1 name a
+4:3 op *=
+4:6 int 2
+4:7 newline
+5:1 name a
+5:3 op /=
+5:6 int 2
+5:7 newline
+6:1 name a
+6:3 op //=
+6:7 int 2
+6:8 newline
+7:1 name a
+7:3 op %=
+7:6 int 2
+7:7 newline
+8:1 name a
+8:3 op **=
+8:7 int 2
+8:8 newline
+9:1 name a
+9:3 op &=
+9:6 int 1
+9:7 newline
+10:1 name a
+10:3 op |=
+10:6 int 1
+10:7 newline
+11:1 name a
+11:3 op ^=
+11:6 int 1
+11:7 newline
+12:1 name a
+12:3 op <<=
+12:7 int 1
+12:8 newline
+13:1 name a
+13:3 op >>=
+13:7 int 1
+13:8 newline
+14:1 name x
+14:3 op =
+14:5 name a
+14:7 op <
+14:9 name b
+14:11 op <=
+14:14 name c
+14:16 op >
+14:18 name d
+14:20 op >=
+14:23 name e
+14:25 op ==
+14:28 name f
+14:30 op !=
+14:33 name g
+14:34 newline
+15:1 name y
+15:3 op =
+15:5 name a
+15:7 op &
+15:9 name b
+15:11 op |
+15:13 name c
+15:15 op ^
+15:17 name d
+15:19 op <<
+15:22 name e
+15:24 op >>
+15:27 name f
+15:28 newline
+16:1 name z
+16:3 op =
+16:5 op ~
+16:6 name a
+16:7 newline
+17:1 name w
+17:3 op =
+17:5 kw not
+17:9 name a
+17:11 kw and
+17:15 name b
+17:17 kw or
+17:20 name c
+17:21 newline
+18:1 name v
+18:3 op =
+18:5 name a
+18:7 kw if
+18:10 name b
+18:12 kw else
+18:17 name c
+18:18 newline
+19:1 name u
+19:3 op =
+19:5 name a
+19:7 kw is
+19:10 kw not
+19:14 name b
+19:15 newline
+20:1 name t
+20:3 op =
+20:5 name a
+20:7 kw not
+20:11 kw in
+20:14 name b
+20:15 newline
+21:1 name s
+21:3 op =
+21:5 op [
+21:6 int 1
+21:7 op ,
+21:9 int 2
+21:10 op ]
+21:11 op [
+21:12 int 0
+21:13 op ]
+21:14 newline
+22:1 name r
+22:3 op =
+22:5 op {
+22:6 str 'k'
+22:9 op :
+22:11 int 1
+22:12 op }
+22:13 newline
+23:1 name q
+23:3 op =
+23:5 op (
+23:6 int 1
+23:7 op ,
+23:8 op )
+23:9 newline
+24:1 name p
+24:3 op =
+24:5 kw lambda
+24:12 name x
+24:13 op :
+24:15 name x
+24:16 newline
+25:1 name o
+25:3 op =
+25:5 name f
+25:6 op (
+25:7 op *
+25:8 name args
+25:12 op ,
+25:14 op **
+25:16 name kwargs
+25:22 op )
+25:23 newline
+26:1 name n
+26:3 op =
+26:5 name a
+26:6 op .
+26:7 name b
+26:8 op .
+26:9 name c
+26:10 newline
+27:1 name m
+27:3 op =
+27:5 name a
+27:6 op [
+27:7 int 1
+27:8 op :
+27:9 int 2
+27:10 op :
+27:11 int 3
+27:12 op ]
+27:13 newline
+28:1 endmarker

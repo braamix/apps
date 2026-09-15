@@ -1,0 +1,144 @@
+1:1 kw from
+1:6 name x
+1:8 kw import
+1:15 name y
+1:17 kw as
+1:20 name z
+1:21 newline
+2:1 kw import
+2:8 name w
+2:9 newline
+3:1 kw global
+3:8 name g
+3:9 newline
+4:1 kw def
+4:5 name f
+4:6 op (
+4:7 name a
+4:8 op ,
+4:10 name b
+4:11 op =
+4:12 int 1
+4:13 op ,
+4:15 op *
+4:16 name c
+4:17 op ,
+4:19 op **
+4:21 name d
+4:22 op )
+4:24 op ->
+4:27 name int
+4:30 op :
+4:31 newline
+5:1 indent
+5:5 name nonlocal_
+5:15 op =
+5:17 kw None
+5:21 newline
+6:5 kw assert
+6:12 name a
+6:14 kw is
+6:17 kw not
+6:21 kw None
+6:25 op ,
+6:27 str 'boom'
+6:33 newline
+7:5 kw del
+7:9 name b
+7:10 newline
+8:5 kw try
+8:8 op :
+8:9 newline
+9:1 indent
+9:9 kw raise
+9:15 name ValueError
+9:25 newline
+10:5 dedent
+10:5 kw except
+10:12 name ValueError
+10:23 kw as
+10:26 name e
+10:27 op :
+10:28 newline
+11:1 indent
+11:9 kw pass
+11:13 newline
+12:5 dedent
+12:5 kw finally
+12:12 op :
+12:13 newline
+13:1 indent
+13:9 kw pass
+13:13 newline
+14:5 dedent
+14:5 kw with
+14:10 name open
+14:14 op (
+14:15 str 'f'
+14:18 op )
+14:20 kw as
+14:23 name h
+14:24 op :
+14:25 newline
+15:1 indent
+15:9 kw yield
+15:15 name a
+15:16 newline
+16:5 dedent
+16:5 kw return
+16:12 kw True
+16:17 kw if
+16:20 name a
+16:22 kw else
+16:27 kw False
+16:32 newline
+17:1 dedent
+17:1 kw class
+17:7 name K
+17:8 op (
+17:9 name object
+17:15 op )
+17:16 op :
+17:17 newline
+18:1 indent
+18:5 kw pass
+18:9 newline
+19:1 dedent
+19:1 kw while
+19:7 kw not
+19:11 op (
+19:12 name a
+19:14 kw and
+19:18 name b
+19:20 kw or
+19:23 name c
+19:24 op )
+19:25 op :
+19:26 newline
+20:1 indent
+20:5 kw continue
+20:13 newline
+21:1 dedent
+21:1 kw for
+21:5 name i
+21:7 kw in
+21:10 name x
+21:11 op :
+21:12 newline
+22:1 indent
+22:5 kw break
+22:10 newline
+23:1 dedent
+23:1 kw else
+23:5 op :
+23:6 newline
+24:1 indent
+24:5 kw pass
+24:9 newline
+25:1 dedent
+25:1 kw lambda
+25:8 name q
+25:9 op :
+25:11 name q
+25:12 newline
+26:1 endmarker

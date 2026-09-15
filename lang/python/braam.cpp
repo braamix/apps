@@ -4,7 +4,10 @@
 // and not a tail call.
 //
 // Phase 0 is the command line and the banner. TODO.md says what follows.
+#include "err.h"
+#include "kernel/args.h"
 #include "kernel/fmt.h"
+#include "lex.h"
 #include "proc/io.h"
 #include "proc/opt.h"
 #include "proc/rt.h"
@@ -24,6 +27,7 @@ constexpr Str USAGE =
     "    python -c <cmd> [arg]... run <cmd>\n"
     "    python - [arg]...        read the program from stdin\n"
     "    python -V                print the version\n"
+    "    python --dump-tokens <f> print the token stream of <f>\n"
     "\n"
     "Python 3, written for Braam: its own compiler, its own bytecode and its\n"
     "own virtual machine. Nothing runs yet -- see TODO.md.\n";
@@ -65,6 +69,22 @@ Task<i32> proc_main(Args args)
     for (usize i = 1; i < args.size(); i++) {
         if (args[i] == "--version")
             co_return co_await banner();
+        if (args[i] == "--dump-tokens") {
+            Input in(Args{ args.v.subspan(i + 1) }, SYS_STDIN, WHO);
+            Result<String> src = co_await in.read();
+            if (src.is_err())
+                co_return 1;
+            String out;
+            bool ok = lex_dump(src.value().str(), out);
+            co_await write_all(SYS_STDOUT, out.str());
+            if (!ok) {
+                Buf<128> b;
+                b.put(WHO).put(": ").put(u64(err_line())).put(':').put(u64(err_col()));
+                b.put(": ").put(err_kind()).put(": ").put(err_message()).put('\n');
+                co_await write_all(SYS_STDERR, b.str());
+            }
+            co_return ok ? 0 : 1;
+        }
         if (args[i] == "--selftest") {
             String out;
             bool good = selftest_run(out);

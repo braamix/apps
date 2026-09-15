@@ -15,7 +15,7 @@ endif()
 # Sources arrive a phase at a time; TODO.md names them.
 braam_add_program(NAME python
                   SOURCES braam.cpp bytes.cpp err.cpp float.cpp gc.cpp int.cpp
-                          intern.cpp list.cpp obj.cpp ops.cpp repr.cpp
+                          intern.cpp lex.cpp list.cpp obj.cpp ops.cpp repr.cpp
                           selftest.cpp str.cpp table.cpp tuple.cpp
                   LIBS braam::math)
 

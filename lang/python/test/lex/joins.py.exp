@@ -1,0 +1,44 @@
+1:1 name a
+1:3 op =
+1:5 op (
+1:6 int 1
+1:8 op +
+2:6 int 2
+2:8 op +
+3:6 int 3
+3:7 op )
+3:8 newline
+4:1 name b
+4:3 op =
+4:5 op [
+5:5 int 1
+5:6 op ,
+6:5 int 2
+6:6 op ,
+7:1 op ]
+7:2 newline
+8:1 name c
+8:3 op =
+8:5 op {
+9:5 str 'x'
+9:8 op :
+9:10 int 1
+9:11 op ,
+10:1 op }
+10:2 newline
+11:1 name d
+11:3 op =
+11:5 int 1
+11:7 op +
+12:5 int 2
+12:6 newline
+13:1 name e
+13:3 op =
+13:5 name f
+13:6 op (
+13:7 name a
+13:8 op ,
+14:7 name b
+14:8 op )
+14:9 newline
+15:1 endmarker

@@ -12,6 +12,8 @@ struct Pending {
 
 Pending *pending;
 bool live;
+u32 at_line;
+u32 at_col;
 
 Pending *slot()
 {
@@ -29,7 +31,17 @@ R err_set(Str kind, Str message)
         p->kind.assign(kind);
         p->message.assign(message);
     }
-    live = true;
+    live    = true;
+    at_line = 0;
+    at_col  = 0;
+    return R::Err;
+}
+
+R err_set_at(Str kind, Str message, u32 line, u32 col)
+{
+    err_set(kind, message);
+    at_line = line;
+    at_col  = col;
     return R::Err;
 }
 
@@ -46,6 +58,16 @@ R err_set2(Str kind, Str message, Str detail)
 bool err_pending()
 {
     return live;
+}
+
+u32 err_line()
+{
+    return live ? at_line : 0;
+}
+
+u32 err_col()
+{
+    return live ? at_col : 0;
 }
 
 Str err_kind()

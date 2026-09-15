@@ -1,0 +1,11 @@
+1:1 kw if
+1:4 name a
+1:5 op :
+1:6 newline
+2:1 indent
+2:5 name b
+2:7 op =
+2:9 int 1
+2:10 newline
+3:3 dedent
+python: 3:3: IndentationError: unindent does not match any outer indentation level

@@ -1,0 +1,27 @@
+a = b + c - d * e / f // g % h ** i
+a += 1
+a -= 1
+a *= 2
+a /= 2
+a //= 2
+a %= 2
+a **= 2
+a &= 1
+a |= 1
+a ^= 1
+a <<= 1
+a >>= 1
+x = a < b <= c > d >= e == f != g
+y = a & b | c ^ d << e >> f
+z = ~a
+w = not a and b or c
+v = a if b else c
+u = a is not b
+t = a not in b
+s = [1, 2][0]
+r = {'k': 1}
+q = (1,)
+p = lambda x: x
+o = f(*args, **kwargs)
+n = a.b.c
+m = a[1:2:3]

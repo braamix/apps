@@ -1,0 +1,95 @@
+1:1 op @
+1:2 name decorator
+1:11 newline
+2:1 op @
+2:2 name mod
+2:5 op .
+2:6 name deco
+2:10 op (
+2:11 int 1
+2:12 op )
+2:13 newline
+3:1 kw def
+3:5 name f
+3:6 op (
+3:7 op )
+3:8 op :
+3:9 newline
+4:1 indent
+4:5 op ...
+4:8 newline
+5:1 dedent
+5:1 kw if
+5:4 op (
+5:5 name n
+5:7 op :=
+5:10 int 10
+5:12 op )
+5:14 op >
+5:16 int 5
+5:17 op :
+5:18 newline
+6:1 indent
+6:5 kw pass
+6:9 newline
+7:1 dedent
+7:1 kw async
+7:7 kw def
+7:11 name g
+7:12 op (
+7:13 op )
+7:14 op :
+7:15 newline
+8:1 indent
+8:5 kw await
+8:11 name h
+8:12 op (
+8:13 op )
+8:14 newline
+9:5 kw async
+9:11 kw with
+9:16 name a
+9:18 kw as
+9:21 name b
+9:22 op :
+9:23 newline
+10:1 indent
+10:9 kw pass
+10:13 newline
+11:5 dedent
+11:5 kw async
+11:11 kw for
+11:15 name i
+11:17 kw in
+11:20 name c
+11:21 op :
+11:22 newline
+12:1 indent
+12:9 kw pass
+12:13 newline
+13:1 dedent
+13:1 dedent
+13:1 name café
+13:6 op =
+13:8 int 1
+13:9 newline
+14:1 name a
+14:3 op =
+14:5 int 1
+14:6 op ;
+14:8 name b
+14:10 op =
+14:12 int 2
+14:13 op ;
+14:15 name c
+14:17 op =
+14:19 int 3
+14:20 newline
+15:1 name x
+15:2 op [
+15:3 op ...
+15:6 op ]
+15:8 op =
+15:10 name y
+15:11 newline
+16:1 endmarker

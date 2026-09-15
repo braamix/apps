@@ -195,14 +195,37 @@ Three decisions worth recording:
 Nothing is Python-visible at the end of this phase either: there is no syntax
 yet, and phase 6 is where these types first reach a program.
 
-### Phase 3 — the lexer
+### Phase 3 — the lexer — **done**
 
-- [ ] `lex.cpp` — the full token set, significant indentation with
-      INDENT/DEDENT and the tab rule, implicit line joining inside brackets,
-      string prefixes and escapes, number literals, error positions.
-- [ ] `--dump-tokens`.
+- [x] [lex.h](lex.h), [lex.cpp](lex.cpp) — the full token set (34 keywords, 47
+      operators), significant indentation with `Indent`/`Dedent` and CPython's
+      tab rule, implicit line joining inside brackets and the backslash join,
+      string prefixes `r`/`b`/`u`/`f` and every escape, the number literals
+      including underscores and the three radices.
+- [x] Error positions: `err_set_at` carries a line and column, and each error
+      points at the construct that is wrong — the literal, the escape, the
+      character — not at wherever scanning stopped. Indentation errors carry
+      CPython's own `IndentationError` and `TabError`.
+- [x] `--dump-tokens`, one token per line as `line:col label value`.
+- [x] [tools/mklex.py](tools/mklex.py) and [test/pylex.mjs](test/pylex.mjs):
+      nine sources under [test/lex/](test/lex/) whose goldens come from
+      **CPython's own `tokenize` module**, so the lexer is measured against
+      CPython and not against itself — position, kind and decoded value. Nine
+      more are sources it must refuse, with the complaint pinned. Every
+      upstream test in the manifest must tokenize as well.
+- [x] `basics/lexer.py`, `basics/string_escape.py` and
+      `basics/string_escape_invalid.py` are in the manifest, marked `fail`
+      until there is something to run them with.
 
-Tests: `lexer.py`, `string_escape.py`, `string_escape_invalid.py`.
+Two things the CPython comparison caught that nothing else would have:
+
+- **`Indent` starts at column 1**, covering the whitespace, not at the first
+  token of the line.
+- **A file with no final newline** puts its dedents and its endmarker on the
+  line after the last, not at the end of it.
+
+An f-string is lexed as one `FStr` token holding the body as written; what is
+inside the braces is the parser's problem, in a later phase.
 
 ### Phase 4 — the parser
 

@@ -10,4 +10,7 @@
 # Whitespace separates; no field contains a space.
 #
 # state  case  exp  commit  upstream
-fail  basics/andor.py  cpython3.9  52b5fbc  tests/basics/andor.py
+fail  basics/andor.py                  cpython3.9  52b5fbc  tests/basics/andor.py
+fail  basics/lexer.py                  cpython3.9  52b5fbc  tests/basics/lexer.py
+fail  basics/string_escape.py          cpython3.9  52b5fbc  tests/basics/string_escape.py
+fail  basics/string_escape_invalid.py  upstream    52b5fbc  tests/basics/string_escape_invalid.py
