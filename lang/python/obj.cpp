@@ -1,42 +1,39 @@
-// The singletons, the type descriptors, and the three objects phase 1 needs.
+// The singletons and the two types that are only singletons.
 #include "obj.h"
 
 #include "gc.h"
-#include "kernel/hash.h"
 
 namespace {
 
-void tuple_trace(Obj *o)
+bool none_truth(Value)
 {
-    TupleObj *t = static_cast<TupleObj *>(o);
-    for (usize i = 0; i < t->len; i++)
-        gc_mark(t->items()[i]);
+    return false;
 }
 
-void list_trace(Obj *o)
+bool bool_truth(Value v)
 {
-    ListObj *l = static_cast<ListObj *>(o);
-    for (usize i = 0; i < l->items.size(); i++)
-        gc_mark(l->items[i]);
+    return is_true(v);
 }
 
-void list_fini(Obj *o)
+R bool_hash(Value v, u32 &out)
 {
-    static_cast<ListObj *>(o)->items.~Vec();
+    out = is_true(v) ? 1 : 0;
+    return R::Ok;
 }
 
-bool started = false;
+bool started;
 
 } // namespace
 
-// Constant-initialised, all of them: a namespace-scope global here must be
-// trivially destructible, and nothing guarantees a runtime constructor runs.
-constexpr Type none_type{ "NoneType", nullptr, nullptr };
-constexpr Type bool_type{ "bool", nullptr, nullptr };
-constexpr Type int_type{ "int", nullptr, nullptr };
-constexpr Type str_type{ "str", nullptr, nullptr };
-constexpr Type tuple_type{ "tuple", tuple_trace, nullptr };
-constexpr Type list_type{ "list", list_trace, list_fini };
+R none_repr(Value, String &out);
+R bool_repr(Value, String &out);
+
+constexpr Type none_type{ .name = "NoneType", .truth = none_truth, .repr = none_repr };
+
+constexpr Type bool_type{ .name  = "bool",
+                          .truth = bool_truth,
+                          .hash  = bool_hash,
+                          .repr  = bool_repr };
 
 Obj none_obj{ &none_type, nullptr, nullptr, OBJ_IMMORTAL };
 Obj true_obj{ &bool_type, nullptr, nullptr, OBJ_IMMORTAL };
@@ -59,40 +56,27 @@ const Type *type_of(Value v)
     return v.is_obj() ? v.obj()->type : nullptr;
 }
 
-StrObj *str_new(Str s)
+Str type_name(Value v)
 {
-    StrObj *o = static_cast<StrObj *>(obj_alloc(&str_type, sizeof(StrObj) + s.size()));
-    if (!o)
-        return nullptr;
-    o->len  = u32(s.size());
-    o->hash = hash_key(s);
-    for (usize i = 0; i < s.size(); i++)
-        o->bytes()[i] = s[i];
-    return o;
+    const Type *t = type_of(v);
+    return t ? t->name : Str("nil");
 }
 
-TupleObj *tuple_new(usize n)
+Str cmp_symbol(Cmp op)
 {
-    TupleObj *o =
-        static_cast<TupleObj *>(obj_alloc(&tuple_type, sizeof(TupleObj) + n * sizeof(Value)));
-    if (!o)
-        return nullptr;
-    o->len = u32(n);
-    for (usize i = 0; i < n; i++)
-        o->items()[i] = Value();
-    return o;
-}
-
-ListObj *list_new()
-{
-    ListObj *o = static_cast<ListObj *>(obj_alloc(&list_type, sizeof(ListObj)));
-    if (!o)
-        return nullptr;
-    new (&o->items) Vec<Value>();
-    return o;
-}
-
-bool list_push(ListObj *l, Value v)
-{
-    return l->items.push(v);
+    switch (op) {
+    case Cmp::Eq:
+        return "==";
+    case Cmp::Ne:
+        return "!=";
+    case Cmp::Lt:
+        return "<";
+    case Cmp::Le:
+        return "<=";
+    case Cmp::Gt:
+        return ">";
+    case Cmp::Ge:
+        return ">=";
+    }
+    return "?";
 }

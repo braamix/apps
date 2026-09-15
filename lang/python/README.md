@@ -20,8 +20,9 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 1 of ten.** The object heap and its collector exist and are checked
-from inside the program; nothing is Python-visible yet.
+**Phase 2 of ten.** The object heap, its collector and the core types — int,
+float, str, bytes, tuple, list, dict, set — exist and are checked from inside
+the program. There is still no syntax, so nothing is Python-visible yet.
 
 [TODO.md](TODO.md) is the plan: the ground rules the design is pinned to, the
 ten phases, and the upstream tests each one is expected to turn green.
@@ -32,9 +33,16 @@ ten phases, and the upstream tests each one is expected to turn green.
 | --- | --- |
 | [braam.cpp](braam.cpp) | The platform. The command line, and every `co_await` in the program |
 | [value.h](value.h) | A value in one 32-bit word: a 31-bit int, or a pointer |
-| [obj.h](obj.h), [obj.cpp](obj.cpp) | The object header, the type descriptors, and str, tuple and list |
+| [obj.h](obj.h), [obj.cpp](obj.cpp) | The object header, the type descriptor and its slots, the singletons |
 | [gc.h](gc.h), [gc.cpp](gc.cpp) | The object heap: allocation, precise mark and sweep, the pins |
 | [intern.cpp](intern.cpp) | The intern table, which is a root |
+| [err.h](err.h), [err.cpp](err.cpp) | The error channel: sticky, checked, not thrown |
+| [ops.h](ops.h), [ops.cpp](ops.cpp) | The generic operations and the number tower |
+| [int.cpp](int.cpp), [float.cpp](float.cpp) | The two number types, and CPython's float repr |
+| [str.cpp](str.cpp), [bytes.cpp](bytes.cpp) | Text in codepoints, and octets |
+| [tuple.cpp](tuple.cpp), [list.cpp](list.cpp) | The two sequences |
+| [table.cpp](table.cpp) | The insertion-ordered table behind dict and set |
+| [repr.cpp](repr.cpp) | repr for every type, quoting and all |
 | [selftest.cpp](selftest.cpp) | What `--selftest` checks |
 | [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary, run a command, read back what it wrote |
 | [test/pysmoke.mjs](test/pysmoke.mjs) | That the program starts, answers its flags, and reports the right status |
@@ -58,6 +66,18 @@ pin it:
 Forget the `Root` and the string is freed under you. `--selftest`'s `stress`
 check is there to catch exactly that: it collects at *every* allocation, so a
 missing pin becomes a wrong object count rather than a rare crash.
+
+## Known differences from CPython
+
+Two, both recorded rather than hidden, and both in reach later:
+
+- **A set iterates in insertion order.** CPython's order falls out of its hash
+  table's size and probing, and matching it exactly would mean copying that
+  table. Anything that prints a set directly will differ; anything that prints
+  `sorted(s)` will not.
+- **`repr` of a string keeps every codepoint from U+00A0 up as itself.**
+  CPython escapes the ones Unicode calls unprintable, which needs a
+  printability table this does not carry yet.
 
 ## Why the VM is a driver
 

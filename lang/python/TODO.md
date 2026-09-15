@@ -156,17 +156,44 @@ Two decisions worth recording, both forced:
 
 Nothing is Python-visible at the end of this phase.
 
-### Phase 2 — the core types
+### Phase 2 — the core types — **done**
 
-- [ ] `int.cpp` — small integers only; overflow raises with a `TODO(bigint)`.
-- [ ] `float.cpp` over `braam::math`.
-- [ ] `str.cpp` — UTF-8 with codepoint indexing, identifiers interned.
-- [ ] `bytes.cpp`, `tuple.cpp`, `list.cpp`, `dict.cpp`, `set.cpp`.
-- [ ] `repr.cpp` — `repr` and `str` for all of them.
-- [ ] Hash and equality across the set; the sequence and mapping protocols
-      filled into the slot table.
+- [x] [err.h](err.h), [err.cpp](err.cpp) — the error channel, needed before an
+      operation can fail: a sticky kind and message, checked rather than
+      thrown. `R` is `Ok`, `Err` or `NotImpl`, and every slot returns it.
+- [x] [obj.h](obj.h) — the `Type` descriptor grew its protocol slots: `truth`,
+      `hash`, `eq`, `order`, `repr`, `str`, `len`, `getitem`, `setitem`,
+      `contains`, `binop`.
+- [x] [ops.h](ops.h), [ops.cpp](ops.cpp) — the generic operations and the
+      fallbacks the slots do not answer, with the number tower inside them.
+      Floor division and modulo take the sign of the divisor, as in CPython.
+- [x] [int.cpp](int.cpp) — small integers only; what does not fit raises
+      `OverflowError` rather than wrapping, until there is a bignum.
+- [x] [float.cpp](float.cpp) — `braam::math` for the arithmetic, and CPython's
+      own repr rule: shortest round-trip digits, exponent form when the decimal
+      point is past 16 or at or before -4, a `.0` otherwise. Twenty-eight
+      values are checked against what CPython prints.
+- [x] [str.cpp](str.cpp) — UTF-8 validated on the way in, counted and indexed
+      in codepoints, with an ASCII flag so the common case indexes in O(1).
+- [x] [bytes.cpp](bytes.cpp), [tuple.cpp](tuple.cpp), [list.cpp](list.cpp).
+- [x] [table.cpp](table.cpp) — one insertion-ordered table behind dict and
+      set: the entries in order, an open-addressing index over them.
+- [x] [repr.cpp](repr.cpp) — repr for every type, with the quote rule, the
+      escapes, and a guard so a container holding itself prints `[...]`.
+- [x] Nine more `--selftest` checks — numbers, floats, compare, strtext,
+      reprs, dict, set, errors, truth. Twenty in all.
 
-Still driven by `--selftest`.
+Three decisions worth recording:
+
+- **A set iterates in insertion order**, not CPython's. Matching CPython would
+  mean copying its table's sizing and probing exactly. The README records it as
+  a known difference.
+- **An integral float hashes as the equal int**, or `{1: 'a'}[1.0]` would miss.
+- **`str` validates on the way in.** `str_new` rejects malformed UTF-8;
+  `str_raw` is the unchecked form, for bytes already known good.
+
+Nothing is Python-visible at the end of this phase either: there is no syntax
+yet, and phase 6 is where these types first reach a program.
 
 ### Phase 3 — the lexer
 

@@ -35,7 +35,7 @@ StrObj *str_intern(Str s)
     if (StrObj **found = t->by_bytes.find(s))
         return *found;
 
-    StrObj *o = str_new(s);
+    StrObj *o = str_raw(s);
     if (!o)
         return nullptr;
     // The key views the object's own bytes, which the table now keeps alive.
