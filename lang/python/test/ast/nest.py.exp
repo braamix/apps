@@ -1,0 +1,187 @@
+Module
+  body:
+    Assign
+      targets:
+        Name x
+      value:
+        ListComp
+          elt:
+            ListComp
+              elt:
+                Name y
+              generators:
+                Comprehen
+                  target:
+                    Name y
+                  iter:
+                    Name row
+                  ifs: []
+          generators:
+            Comprehen
+              target:
+                Name row
+              iter:
+                Name grid
+              ifs: []
+    Assign
+      targets:
+        Name z
+      value:
+        DictComp
+          key:
+            Name k
+          value:
+            ListComp
+              elt:
+                Name v
+              generators:
+                Comprehen
+                  target:
+                    Name v
+                  iter:
+                    Name vs
+                  ifs: []
+          generators:
+            Comprehen
+              target:
+                Tuple
+                  elts:
+                    Name k
+                    Name vs
+              iter:
+                Call
+                  func:
+                    Attribute items
+                      value:
+                        Name d
+                  args: []
+                  keywords: []
+              ifs: []
+    Assign
+      targets:
+        Name w
+      value:
+        Call
+          func:
+            Name sum
+          args:
+            GeneratorExp
+              elt:
+                BinOp *
+                  left:
+                    Name a
+                  right:
+                    Name b
+              generators:
+                Comprehen
+                  target:
+                    Tuple
+                      elts:
+                        Name a
+                        Name b
+                  iter:
+                    Name pairs
+                  ifs: []
+          keywords: []
+    Assign
+      targets:
+        Name q
+      value:
+        ListComp
+          elt:
+            Name a
+          generators:
+            Comprehen
+              target:
+                Name a
+              iter:
+                Name b
+              ifs: []
+            Comprehen
+              target:
+                Name c
+              iter:
+                Name d
+              ifs:
+                Name c
+                Name a
+    FunctionDef outer
+      args:
+        Arguments
+          posonly: []
+          args: []
+          vararg: -
+          kwonly: []
+          kw_defaults: []
+          kwarg: -
+          defaults: []
+      body:
+        FunctionDef inner
+          args:
+            Arguments
+              posonly: []
+              args: []
+              vararg: -
+              kwonly: []
+              kw_defaults: []
+              kwarg: -
+              defaults: []
+          body:
+            ClassDef Deep
+              bases: []
+              keywords: []
+              body:
+                FunctionDef m
+                  args:
+                    Arguments
+                      posonly: []
+                      args:
+                        Arg self
+                          annotation: -
+                      vararg: -
+                      kwonly: []
+                      kw_defaults: []
+                      kwarg: -
+                      defaults: []
+                  body:
+                    Return
+                      value:
+                        Lambda
+                          args:
+                            Arguments
+                              posonly: []
+                              args: []
+                              vararg: -
+                              kwonly: []
+                              kw_defaults: []
+                              kwarg: -
+                              defaults: []
+                          body:
+                            ListComp
+                              elt:
+                                Name i
+                              generators:
+                                Comprehen
+                                  target:
+                                    Name i
+                                  iter:
+                                    Call
+                                      func:
+                                        Name range
+                                      args:
+                                        Constant 3
+                                      keywords: []
+                                  ifs: []
+                  decorators: []
+                  returns: -
+              decorators: []
+            Return
+              value:
+                Name Deep
+          decorators: []
+          returns: -
+        Return
+          value:
+            Name inner
+      decorators: []
+      returns: -

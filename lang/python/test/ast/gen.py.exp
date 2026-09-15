@@ -1,0 +1,57 @@
+Module
+  body:
+    FunctionDef f
+      args:
+        Arguments
+          posonly: []
+          args: []
+          vararg: -
+          kwonly: []
+          kw_defaults: []
+          kwarg: -
+          defaults: []
+      body:
+        Expr
+          value:
+            Yield
+              value: -
+        Expr
+          value:
+            Yield
+              value:
+                Constant 1
+        Expr
+          value:
+            YieldFrom
+              value:
+                Call
+                  func:
+                    Name g
+                  args: []
+                  keywords: []
+        Assign
+          targets:
+            Name x
+          value:
+            Yield
+              value:
+                Constant 2
+      decorators: []
+      returns: -
+    FunctionDef h
+      args:
+        Arguments
+          posonly: []
+          args: []
+          vararg: -
+          kwonly: []
+          kw_defaults: []
+          kwarg: -
+          defaults: []
+      body:
+        Return
+          value:
+            Yield
+              value: -
+      decorators: []
+      returns: -

@@ -247,6 +247,9 @@ R py_eq(Value a, Value b, bool &out)
 
 R py_cmp(Value a, Value b, Cmp op, bool &out)
 {
+    // `in` and `is` are not orderings; the VM answers them itself.
+    if (op >= Cmp::In)
+        return err_set2("SystemError", "not an ordering", cmp_symbol(op));
     if (op == Cmp::Eq || op == Cmp::Ne) {
         R r = py_eq(a, b, out);
         if (r == R::Ok && op == Cmp::Ne)

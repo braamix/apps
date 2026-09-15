@@ -1,0 +1,219 @@
+Module
+  body:
+    Assign
+      targets:
+        Name a
+      value:
+        BinOp +
+          left:
+            Constant 1
+          right:
+            BinOp *
+              left:
+                Constant 2
+              right:
+                Constant 3
+    Assign
+      targets:
+        Name b
+      value:
+        BinOp *
+          left:
+            BinOp +
+              left:
+                Constant 1
+              right:
+                Constant 2
+          right:
+            Constant 3
+    Assign
+      targets:
+        Name c
+      value:
+        BinOp **
+          left:
+            Constant 2
+          right:
+            BinOp **
+              left:
+                Constant 3
+              right:
+                Constant 4
+    Assign
+      targets:
+        Name d
+      value:
+        UnaryOp -
+          operand:
+            BinOp **
+              left:
+                Constant 2
+              right:
+                Constant 2
+    Assign
+      targets:
+        Name e
+      value:
+        BinOp **
+          left:
+            UnaryOp -
+              operand:
+                Constant 2
+          right:
+            Constant 2
+    Assign
+      targets:
+        Name f
+      value:
+        UnaryOp not
+          operand:
+            Compare
+              left:
+                Name a
+              ops:
+                CmpOp ==
+                  operand:
+                    Name b
+    Assign
+      targets:
+        Name g
+      value:
+        BoolOp or
+          values:
+            Name a
+            BoolOp and
+              values:
+                Name b
+                Name c
+    Assign
+      targets:
+        Name h
+      value:
+        BinOp |
+          left:
+            Name a
+          right:
+            BinOp ^
+              left:
+                Name b
+              right:
+                BinOp &
+                  left:
+                    Name c
+                  right:
+                    Name d
+    Assign
+      targets:
+        Name i
+      value:
+        BinOp |
+          left:
+            BinOp <<
+              left:
+                Name a
+              right:
+                Constant 1
+          right:
+            BinOp >>
+              left:
+                Name b
+              right:
+                Constant 2
+    Assign
+      targets:
+        Name j
+      value:
+        BinOp -
+          left:
+            BinOp +
+              left:
+                UnaryOp ~
+                  operand:
+                    Name a
+              right:
+                UnaryOp -
+                  operand:
+                    Name b
+          right:
+            UnaryOp +
+              operand:
+                Name c
+    Assign
+      targets:
+        Name k
+      value:
+        Compare
+          left:
+            Name a
+          ops:
+            CmpOp <
+              operand:
+                Name b
+            CmpOp <
+              operand:
+                Name c
+            CmpOp <
+              operand:
+                Name d
+    Assign
+      targets:
+        Name m
+      value:
+        IfExp
+          test:
+            Name b
+          body:
+            Name a
+          orelse:
+            IfExp
+              test:
+                Name d
+              body:
+                Name c
+              orelse:
+                Name e
+    Assign
+      targets:
+        Name n
+      value:
+        Lambda
+          args:
+            Arguments
+              posonly: []
+              args: []
+              vararg: -
+              kwonly: []
+              kw_defaults: []
+              kwarg: -
+              defaults: []
+          body:
+            Lambda
+              args:
+                Arguments
+                  posonly: []
+                  args: []
+                  vararg: -
+                  kwonly: []
+                  kw_defaults: []
+                  kwarg: -
+                  defaults: []
+              body:
+                Constant 1
+    Assign
+      targets:
+        Name o
+      value:
+        Attribute c
+          value:
+            Call
+              func:
+                Subscript
+                  value:
+                    Attribute b
+                      value:
+                        Name a
+                  slice:
+                    Constant 0
+              args:
+                Constant 1
+              keywords: []

@@ -1,0 +1,173 @@
+Module
+  body:
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args: []
+          keywords: []
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args:
+            Constant 1
+          keywords: []
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args:
+            Constant 1
+            Constant 2
+          keywords: []
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args: []
+          keywords:
+            Keyword a
+              value:
+                Constant 1
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args:
+            Constant 1
+          keywords:
+            Keyword a
+              value:
+                Constant 2
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args:
+            Starred
+              value:
+                Name a
+          keywords: []
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args: []
+          keywords:
+            Keyword **
+              value:
+                Name k
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args:
+            Starred
+              value:
+                Name a
+          keywords:
+            Keyword **
+              value:
+                Name k
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args:
+            GeneratorExp
+              elt:
+                Name x
+              generators:
+                Comprehen
+                  target:
+                    Name x
+                  iter:
+                    Name y
+                  ifs: []
+          keywords: []
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args:
+            Call
+              func:
+                Name g
+              args:
+                Call
+                  func:
+                    Name h
+                  args:
+                    Constant 1
+                  keywords: []
+              keywords: []
+          keywords: []
+    Expr
+      value:
+        Call
+          func:
+            Attribute c
+              value:
+                Attribute b
+                  value:
+                    Name a
+          args: []
+          keywords: []
+    Expr
+      value:
+        Subscript
+          value:
+            Subscript
+              value:
+                Name a
+              slice:
+                Constant 0
+          slice:
+            Constant 1
+    Expr
+      value:
+        Subscript
+          value:
+            Call
+              func:
+                Attribute b
+                  value:
+                    Subscript
+                      value:
+                        Name a
+                      slice:
+                        Constant 0
+              args:
+                Constant 1
+              keywords: []
+          slice:
+            Constant 2
+    Expr
+      value:
+        Call
+          func:
+            Attribute method
+              value:
+                Name obj
+          args:
+            Starred
+              value:
+                Name args
+          keywords:
+            Keyword key
+              value:
+                Name value
+            Keyword **
+              value:
+                Name rest

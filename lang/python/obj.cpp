@@ -77,6 +77,14 @@ Str cmp_symbol(Cmp op)
         return ">";
     case Cmp::Ge:
         return ">=";
+    case Cmp::In:
+        return "in";
+    case Cmp::NotIn:
+        return "not in";
+    case Cmp::Is:
+        return "is";
+    case Cmp::IsNot:
+        return "is not";
     }
     return "?";
 }

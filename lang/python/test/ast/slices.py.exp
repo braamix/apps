@@ -1,0 +1,122 @@
+Module
+  body:
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Constant 1
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Slice
+              lower: -
+              upper: -
+              step: -
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Slice
+              lower:
+                Constant 1
+              upper: -
+              step: -
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Slice
+              lower: -
+              upper:
+                Constant 2
+              step: -
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Slice
+              lower:
+                Constant 1
+              upper:
+                Constant 2
+              step: -
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Slice
+              lower: -
+              upper: -
+              step:
+                Constant 2
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Slice
+              lower:
+                Constant 1
+              upper:
+                Constant 2
+              step:
+                Constant 3
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Slice
+              lower: -
+              upper: -
+              step:
+                UnaryOp -
+                  operand:
+                    Constant 1
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Tuple
+              elts:
+                Name x
+                Name y
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Tuple
+              elts:
+                Slice
+                  lower:
+                    Constant 1
+                  upper:
+                    Constant 2
+                  step: -
+                Constant 3
+    Expr
+      value:
+        Subscript
+          value:
+            Name a
+          slice:
+            Constant Ellipsis

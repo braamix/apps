@@ -8,6 +8,7 @@
 #include "kernel/args.h"
 #include "kernel/fmt.h"
 #include "lex.h"
+#include "parse.h"
 #include "proc/io.h"
 #include "proc/opt.h"
 #include "proc/rt.h"
@@ -28,6 +29,7 @@ constexpr Str USAGE =
     "    python - [arg]...        read the program from stdin\n"
     "    python -V                print the version\n"
     "    python --dump-tokens <f> print the token stream of <f>\n"
+    "    python --dump-ast <f>    print the parse tree of <f>\n"
     "\n"
     "Python 3, written for Braam: its own compiler, its own bytecode and its\n"
     "own virtual machine. Nothing runs yet -- see TODO.md.\n";
@@ -40,6 +42,15 @@ struct Job {
     Str file;    // a path, or "-" for stdin
     bool version = false;
 };
+
+// The pending error, with the place it was found.
+Buf<192> where()
+{
+    Buf<192> b;
+    b.put(WHO).put(": ").put(u64(err_line())).put(':').put(u64(err_col()));
+    b.put(": ").put(err_kind()).put(": ").put(err_message()).put('\n');
+    return b;
+}
 
 Task<i32> banner()
 {
@@ -77,12 +88,20 @@ Task<i32> proc_main(Args args)
             String out;
             bool ok = lex_dump(src.value().str(), out);
             co_await write_all(SYS_STDOUT, out.str());
-            if (!ok) {
-                Buf<128> b;
-                b.put(WHO).put(": ").put(u64(err_line())).put(':').put(u64(err_col()));
-                b.put(": ").put(err_kind()).put(": ").put(err_message()).put('\n');
-                co_await write_all(SYS_STDERR, b.str());
-            }
+            if (!ok)
+                co_await write_all(SYS_STDERR, where().str());
+            co_return ok ? 0 : 1;
+        }
+        if (args[i] == "--dump-ast") {
+            Input in(Args{ args.v.subspan(i + 1) }, SYS_STDIN, WHO);
+            Result<String> src = co_await in.read();
+            if (src.is_err())
+                co_return 1;
+            String out;
+            bool ok = ast_dump(src.value().str(), out);
+            co_await write_all(SYS_STDOUT, out.str());
+            if (!ok)
+                co_await write_all(SYS_STDERR, where().str());
             co_return ok ? 0 : 1;
         }
         if (args[i] == "--selftest") {

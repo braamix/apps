@@ -1,0 +1,292 @@
+Module
+  body:
+    Import
+      names:
+        Alias os
+    Import
+      names:
+        Alias os.path as p
+    ImportFrom - level=1
+      names:
+        Alias x
+    ImportFrom pkg.mod level=2
+      names:
+        Alias a as b
+        Alias c
+    ImportFrom x level=0
+      names:
+        Alias *
+    FunctionDef f
+      args:
+        Arguments
+          posonly: []
+          args:
+            Arg a
+              annotation: -
+            Arg b
+              annotation: -
+          vararg:
+            Arg args
+              annotation: -
+          kwonly:
+            Arg c
+              annotation: -
+            Arg d
+              annotation: -
+          kw_defaults:
+            -
+            Constant 2
+          kwarg:
+            Arg kw
+              annotation: -
+          defaults:
+            Constant 1
+      body:
+        Global
+          names:
+            Name g
+        AnnAssign simple
+          target:
+            Name x
+          annotation:
+            Name int
+          value:
+            Constant 1
+        AnnAssign simple
+          target:
+            Name y
+          annotation:
+            Name int
+          value: -
+        AugAssign +=
+          target:
+            Name x
+          value:
+            Constant 1
+        Delete
+          targets:
+            Name x
+        Return
+          value:
+            Name a
+      decorators: []
+      returns:
+        Name int
+    ClassDef C
+      bases:
+        Name Base
+      keywords:
+        Keyword metaclass
+          value:
+            Name M
+        Keyword **
+          value:
+            Name kw
+      body:
+        FunctionDef m
+          args:
+            Arguments
+              posonly: []
+              args:
+                Arg self
+                  annotation: -
+              vararg: -
+              kwonly: []
+              kw_defaults: []
+              kwarg: -
+              defaults: []
+          body:
+            Pass
+          decorators: []
+          returns: -
+      decorators:
+        Name deco
+        Call
+          func:
+            Attribute deco
+              value:
+                Name mod
+          args:
+            Constant 1
+          keywords: []
+    AsyncFunctionDef g2
+      args:
+        Arguments
+          posonly: []
+          args: []
+          vararg: -
+          kwonly: []
+          kw_defaults: []
+          kwarg: -
+          defaults: []
+      body:
+        Expr
+          value:
+            Await
+              value:
+                Call
+                  func:
+                    Name h
+                  args: []
+                  keywords: []
+        AsyncWith
+          items:
+            WithItem
+              context:
+                Name a
+              vars:
+                Name b
+          body:
+            Pass
+        AsyncFor
+          target:
+            Name i
+          iter:
+            Name c
+          body:
+            Pass
+          orelse: []
+      decorators: []
+      returns: -
+    For
+      target:
+        Name i
+      iter:
+        Call
+          func:
+            Name range
+          args:
+            Constant 3
+          keywords: []
+      body:
+        Continue
+      orelse:
+        Pass
+    While
+      test:
+        Constant True
+      body:
+        Break
+      orelse:
+        Pass
+    Try
+      body:
+        Pass
+      handlers:
+        ExceptHandler e
+          type:
+            Name ValueError
+          body:
+            Raise
+              exc: -
+              cause: -
+        ExceptHandler
+          type:
+            Tuple
+              elts:
+                Name TypeError
+                Name KeyError
+          body:
+            Raise
+              exc:
+                Name X
+              cause:
+                Name Y
+      orelse:
+        Pass
+      finalbody:
+        Pass
+    With
+      items:
+        WithItem
+          context:
+            Call
+              func:
+                Name open
+              args:
+                Constant 'a'
+              keywords: []
+          vars:
+            Name f
+        WithItem
+          context:
+            Call
+              func:
+                Name open
+              args:
+                Constant 'b'
+              keywords: []
+          vars: -
+      body:
+        Pass
+    If
+      test:
+        Name a
+      body:
+        Pass
+      orelse:
+        If
+          test:
+            Name b
+          body:
+            Pass
+          orelse:
+            Pass
+    Assert
+      test:
+        Name a
+      msg:
+        Constant 'msg'
+    Assign
+      targets:
+        Name a
+        Name b
+      value:
+        Name c
+    Assign
+      targets:
+        Tuple
+          elts:
+            Name a
+            Name b
+      value:
+        Tuple
+          elts:
+            Name b
+            Name a
+    Assign
+      targets:
+        Tuple
+          elts:
+            Tuple
+              elts:
+                Name a
+                Name b
+            Name c
+      value:
+        Name x
+    Assign
+      targets:
+        List
+          elts:
+            Name a
+            Name b
+      value:
+        Name y
+    Expr
+      value:
+        Name a
+    Expr
+      value:
+        Name b
+    If
+      test:
+        Name a
+      body:
+        Expr
+          value:
+            Name b
+        Expr
+          value:
+            Name c
+      orelse: []

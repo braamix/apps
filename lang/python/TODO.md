@@ -227,15 +227,42 @@ Two things the CPython comparison caught that nothing else would have:
 An f-string is lexed as one `FStr` token holding the body as written; what is
 inside the braces is the parser's problem, in a later phase.
 
-### Phase 4 — the parser
+### Phase 4 — the parser — **done**
 
-- [ ] `parse.h`, `parse.cpp` — recursive descent into the index arena; the
-      whole expression grammar with its precedence and associativity; every
-      statement form the core needs; target lists and unpacking; `MAX_NEST`.
-- [ ] A `SyntaxError` carrying line and offset.
-- [ ] `--dump-ast`.
+- [x] [parse.h](parse.h), [parse.cpp](parse.cpp) — recursive descent into the
+      index arena. The whole 3.9 grammar: every expression form with its
+      precedence and associativity, every statement form, comprehensions,
+      decorators, `async`, target lists and unpacking, the walrus.
+- [x] The node kinds and their fields **mirror CPython's `ast` module**, which
+      is what makes the goldens below possible; parse.h writes the layout out.
+- [x] [astdump.cpp](astdump.cpp) — `--dump-ast`, whose format is the contract
+      [tools/mkast.py](tools/mkast.py) writes to.
+- [x] `SyntaxError` with a line and a column, pointing at the construct that is
+      wrong: `fail_node` reports at a node's own token, so `1 = 2` complains
+      about the `1` rather than about what follows it.
+- [x] `MAX_NEST`, counted at the bracketed forms and at each block rather than
+      at every rung of the binary-operator ladder, which is a constant six
+      deep. A hundred nested brackets parse; a hundred and one are refused
+      cleanly rather than trapping.
+- [x] [test/pyast.mjs](test/pyast.mjs): seven sources under [test/ast/](test/)
+      whose goldens come from **CPython's own `ast` module**, and nine more
+      that must be refused, with the complaint pinned. Every upstream test in
+      the manifest must parse as well.
+- [x] `basics/parser.py`, `basics/op_precedence.py` and `basics/syntaxerror.py`
+      are in the manifest.
 
-Tests: `parser.py`, `op_precedence.py`, `syntaxerror.py`.
+Two things had to be got right twice:
+
+- **The kids arena is append-only**, so a node's run has to be written in one
+  go. Collecting children with interleaved pushes silently captured whatever a
+  nested parse had pushed in between, and a function's body turned up as a
+  sibling of the function. Every list is now gathered into a local `Vec` and
+  written to the arena at the end.
+- **A `for` target is not an expression.** Parsed as one, `in` is taken for the
+  comparison operator and swallows the iterable, so `for i in range(3)` then
+  complained that it expected an `in`. There is a `target_list()` for it.
+
+An f-string is still one `FString` node holding its body as written.
 
 ### Phase 5 — the compiler and the bytecode
 

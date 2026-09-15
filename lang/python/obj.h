@@ -10,7 +10,7 @@
 
 struct Obj;
 
-enum class Cmp : u8 { Eq, Ne, Lt, Le, Gt, Ge };
+enum class Cmp : u8 { Eq, Ne, Lt, Le, Gt, Ge, In, NotIn, Is, IsNot };
 
 // The binary operators the number and sequence protocols answer.
 enum class Op : u8 { Add, Sub, Mul, Div, FloorDiv, Mod, Pow, And, Or, Xor, Lsh, Rsh };

@@ -20,9 +20,10 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 3 of ten.** The object heap, its collector, the core types, and now a
-tokenizer — `python --dump-tokens f.py` prints the token stream, and it is
-checked against CPython's own `tokenize` module. There is no parser yet.
+**Phase 4 of ten.** The object heap, its collector, the core types, a
+tokenizer and a parser. `python --dump-tokens f.py` and `python --dump-ast
+f.py` print what each produced, and both are checked against CPython's own
+`tokenize` and `ast` modules. Nothing runs yet: the compiler is phase 5.
 
 [TODO.md](TODO.md) is the plan: the ground rules the design is pinned to, the
 ten phases, and the upstream tests each one is expected to turn green.
@@ -44,14 +45,18 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [table.cpp](table.cpp) | The insertion-ordered table behind dict and set |
 | [repr.cpp](repr.cpp) | repr for every type, quoting and all |
 | [lex.h](lex.h), [lex.cpp](lex.cpp) | The tokenizer, and the `--dump-tokens` listing |
+| [parse.h](parse.h), [parse.cpp](parse.cpp) | The grammar, by recursive descent into an index arena |
+| [astdump.cpp](astdump.cpp) | The `--dump-ast` listing, which is the format mkast.py writes to |
 | [selftest.cpp](selftest.cpp) | What `--selftest` checks |
 | [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary, run a command, read back what it wrote |
 | [test/pysmoke.mjs](test/pysmoke.mjs) | That the program starts, answers its flags, and reports the right status |
 | [test/pygc.mjs](test/pygc.mjs) | Drives `--selftest` and reads what it printed |
 | [test/pylex.mjs](test/pylex.mjs) | Every source under `test/lex/`, token for token |
+| [test/pyast.mjs](test/pyast.mjs) | Every source under `test/ast/`, node for node |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
 | [tools/mklex.py](tools/mklex.py) | Writes a token golden out of CPython's own tokenizer |
+| [tools/mkast.py](tools/mkast.py) | Writes a tree golden out of CPython's own ast module |
 
 The table grows a row per phase.
 
@@ -84,6 +89,8 @@ Three, all recorded rather than hidden, and all in reach later:
 - **An identifier may hold any codepoint from U+0080 up.** CPython follows
   Unicode's XID_Start and XID_Continue, which is another table. So this accepts
   some names CPython rejects, and rejects none it accepts.
+- **An f-string is one node holding its body as written.** What is inside the
+  braces is parsed in a later phase; CPython builds a `JoinedStr` here.
 
 ## Why the VM is a driver
 
@@ -115,14 +122,17 @@ which copies it into `test/cases/`, writes the expected output beside it —
 upstream's own `.exp` when there is one, host CPython otherwise — and adds a
 row to the manifest marked `fail`. Move the row to `pass` when it passes.
 
-A new tokenizer case is a `.py` under `test/lex/` plus
+A new tokenizer or parser case is a `.py` under `test/lex/` or `test/ast/`
+plus
 
     tools/mklex.py test/lex/<name>.py
+    tools/mkast.py test/ast/<name>.py
 
-which writes the golden from CPython's `tokenize` module, so the lexer is
-measured against CPython rather than against itself. A case whose name ends in
-`_err` is one the lexer must refuse, and its golden holds the complaint;
-`node test/pylex.mjs --bless` rewrites those, after reading the diff.
+which write the golden from CPython's own `tokenize` and `ast` modules, so both
+are measured against CPython rather than against themselves. A case whose name
+ends in `_err` is one that must be refused, and its golden holds the complaint;
+`node test/pylex.mjs --bless` and `node test/pyast.mjs --bless` rewrite those,
+after reading the diff.
 
 ## Licence
 
