@@ -1,0 +1,32 @@
+# CPython's own tests, one row per case. tools/mkcpy.py writes the copy and
+# the row; `node test/pycases.mjs --bless` fills in the rest. Columns:
+#
+#   state     pass, and the case runs; or fail, it does not run at all yet
+#   case      the file under cpython/, which is its name under Lib/test/
+#   result    <passing>/<ran> test methods for a pass row; for a fail row, the
+#             one word that says what stopped it -- the golden beside the case
+#             names the line and the construct
+#   commit    the cpython commit the copy was taken from
+#   upstream  the path it was taken from
+#
+# Whitespace separates; no field contains a space.
+#
+# These are not self-contained the way MicroPython's are: every one imports
+# unittest and most import test.support, so pycases.mjs plants the shims under
+# shim/ beside every case. The golden beside a case is the listing
+# unittest.main() printed, or -- for a fail row -- what it printed instead.
+# A case that cannot run stays byte for byte and its row says why.
+#
+# state  case  result  commit  upstream
+fail  test_augassign.py             syntax   82952e3  Lib/test/test_augassign.py
+fail  test_decorators.py            fstring  82952e3  Lib/test/test_decorators.py
+fail  test_exception_variations.py  syntax   82952e3  Lib/test/test_exception_variations.py
+fail  test_int_literal.py           bignum   82952e3  Lib/test/test_int_literal.py
+fail  test_keywordonlyarg.py        fstring  82952e3  Lib/test/test_keywordonlyarg.py
+pass  test_longexp.py               0/1      82952e3  Lib/test/test_longexp.py
+fail  test_named_expressions.py     syntax   82952e3  Lib/test/test_named_expressions.py
+fail  test_property.py              fstring  82952e3  Lib/test/test_property.py
+fail  test_typechecks.py            runtime  82952e3  Lib/test/test_typechecks.py
+fail  test_unary.py                 complex  82952e3  Lib/test/test_unary.py
+pass  test_unicode_identifiers.py   0/3      82952e3  Lib/test/test_unicode_identifiers.py
+pass  test_utf8source.py            1/3      82952e3  Lib/test/test_utf8source.py

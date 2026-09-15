@@ -5,13 +5,23 @@ lines that touch the OS replaced; this one is a Python implementation written
 from nothing — its own lexer, its own parser, its own compiler, its own
 bytecode and its own virtual machine.
 
-One thing is borrowed, and it is the reason the rest can be trusted:
-**MicroPython's test suite**. It is the best executable specification of the
-language at this size, it is MIT, and a test in it either matches CPython byte
-for byte or says in an `.exp` file what it expects instead. The copies that
-`make test` runs are under [test/cases/](test/), with their provenance in
-[test/manifest.txt](test/manifest.txt); the upstream clone they came from sits
-in `tmp/` and is not committed.
+What is borrowed is the measure. **MicroPython's test suite** is the best
+executable specification of the language at this size, it is MIT, and a test in
+it either matches CPython byte for byte or says in an `.exp` file what it
+expects instead. The copies that `make test` runs are under
+[test/cases/](test/), with their provenance in
+[test/manifest.txt](test/manifest.txt).
+
+**CPython's own `Lib/test/`** is the second and the unforgiving one, under
+[test/cpython/](test/cpython/) with its rows in
+[test/cpython.txt](test/cpython.txt). Those tests are not self-contained the
+way MicroPython's are — every one of them imports `unittest` and most import
+`test.support` — so [test/shim/](test/shim/) carries a `unittest` and a
+`test.support` written against what this interpreter has, and the harness
+plants them beside each case. The real `unittest` pulls in `asyncio`,
+`logging`, `argparse` and `inspect`, and is a much later milestone.
+
+Both upstream clones sit in `tmp/` and are not committed.
 
 ```
 $ python --version
@@ -20,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 11.**
+**Phase 12.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -62,6 +72,29 @@ live in the package's own `share/lib/`, which the binary finds through the
 families — **313 of 480**, up from 198 at phase 9. What stops most of the rest
 is `str.format` and the `%` operator, which are the next phase; generators,
 f-strings and bignums are the others.
+
+**CPython's tests are the second ruler, and it has barely any markings yet**:
+twelve are in [test/cpython.txt](test/cpython.txt), three of them run, and one
+test method out of seven passes. The wall is not the imports the plan expected
+but the compiler. Running the whole of `Lib/test/` under this interpreter —
+`node test/pycases.mjs --survey`, which needs the clone in `tmp/` — says why
+each of the 391 files stops:
+
+| | |
+| --- | --- |
+| 130 | a module that is not written yet |
+| 124 | f-strings |
+| 41 | complex numbers |
+| 31 | a unicode escape the lexer refuses |
+| 28 | other syntax — `@`, `except*`, `:=` in a subscript |
+| 17 | an integer past 2³⁰ |
+| 12 | `\N{...}` |
+| 3 | `async` |
+| 3 | these run |
+
+So f-strings alone are a quarter of the suite, which is phase 13, and the wave
+after it is chosen by running the survey again rather than by reading the
+imports.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -123,9 +156,15 @@ green.
 | [test/pyint.mjs](test/pyint.mjs) | That a `^C` reaches a running program, and that it may catch it |
 | [test/pymeth.mjs](test/pymeth.mjs) | Methods through a subclass, `sort(key=)`, the views, and the new types |
 | [test/pyimport.mjs](test/pyimport.mjs) | Fifty nested imports, the cache, the search path, the store |
+| [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
+| [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
 | [test/pystress.mjs](test/pystress.mjs) | Every case again, collecting at every allocation |
+| [test/shim/unittest.py](test/shim/unittest.py) | `TestCase`, the assertions, `subTest`, the skips and the loader |
+| [test/shim/test/support.py](test/shim/test/support.py) | The names CPython's tests take from `test.support` |
+| [test/shim/selfcheck.py](test/shim/selfcheck.py) | What `pyunit.mjs` runs: the shims measured against themselves |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
+| [tools/mkcpy.py](tools/mkcpy.py) | Copies one of CPython's tests in; `pycases.mjs --bless` writes its golden |
 | [tools/mklex.py](tools/mklex.py) | Writes a token golden out of CPython's own tokenizer |
 | [tools/mkast.py](tools/mkast.py) | Writes a tree golden out of CPython's own ast module |
 
@@ -376,6 +415,25 @@ which copies it into `test/cases/`, writes the expected output beside it —
 upstream's own `.exp` when there is one, host CPython otherwise — and adds a
 row to the manifest marked `fail`. Move the row to `pass` when it passes.
 
+One of CPython's goes in the same way, in two steps, because its golden is
+what this interpreter printed and only the harness can produce that:
+
+    tools/mkcpy.py test_unary.py
+    node test/pycases.mjs --bless
+
+The first copies it into `test/cpython/` and adds a row; the second runs it
+with the shims planted beside it, writes the `.res` golden, and fills in the
+row — the state and the `<passing>/<ran>` count together, so the manifest and
+the golden cannot disagree. **Read the diff before blessing.** A test that
+cannot run at all still gets a row and a golden holding the complaint, which is
+how a case that starts running is noticed.
+
+    node test/pycases.mjs --survey
+
+runs every file in the clone under `tmp/` and counts what stopped each one.
+It is not part of `make test` — the clone is not committed — and it is how the
+next wave of cases is chosen.
+
 A new tokenizer or parser case is a `.py` under `test/lex/` or `test/ast/`
 plus
 
@@ -401,5 +459,8 @@ compares; it costs a second and a half, and it found nine of them.
 
 ## Licence
 
-The interpreter is this repository's. The tests under `test/cases/` are
-MicroPython's, MIT, Damien P. George — see [LICENSE](LICENSE).
+The interpreter is this repository's, and so are the shims under `test/shim/`,
+which are not copies of anyone's code. The tests under `test/cases/` are
+MicroPython's, MIT, Damien P. George; those under `test/cpython/` are
+CPython's, under the PSF licence, copyright the Python Software Foundation.
+[LICENSE](LICENSE) carries both and says which files each covers.

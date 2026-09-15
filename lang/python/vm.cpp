@@ -1844,11 +1844,15 @@ void interpret()
 
             case Bc::WithExceptStart: {
                 Value exc = st[f->sp - 1];
-                Value t   = exc_type_value(exc_type_of(exc));
-                if (t.is_nil()) {
+                if (!is_exc(exc)) {
                     err_set("SystemError", "a with handler without an exception");
                     goto oops;
                 }
+                // The instance's own class, not the built-in it derives from:
+                // a class of one's own is what __exit__ is handed.
+                Value t = type_of_value(exc);
+                if (t.is_nil())
+                    goto oops;
                 if (!push(f, t) || !push(f, exc) || !push(f, value_none()))
                     goto oops;
                 // [exit, exc] became [exit, exc, type, exc, None]: __exit__ is

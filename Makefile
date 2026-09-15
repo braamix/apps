@@ -134,7 +134,9 @@ TESTS := \
     lang/python/test/pyint.mjs \
     lang/python/test/pymeth.mjs \
     lang/python/test/pyimport.mjs \
+    lang/python/test/pyunit.mjs \
     lang/python/test/runcases.mjs \
+    lang/python/test/pycases.mjs \
     lang/python/test/pystress.mjs
 
 # Every run is teed into $(TEST_LOG) as well as the terminal, so the output can

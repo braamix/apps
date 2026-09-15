@@ -4,19 +4,30 @@ Python 3 written for Braam: our own bytecode VM, our own compiler, our own
 object model. The interpreter is not a port and stays that way. What is
 borrowed is measured, and named here.
 
-**The language stands, the built-in types have their methods, and a file can
-be imported.** Phases 0 to 11 built the lexer, the parser, the compiler, the
-VM, the object heap and its collector, exceptions, functions and closures,
-classes with the whole type system, the method tables, and the module loader.
-They are done, and their record is the git history — `python: phase 0` through
-`python: phase 11` — not this file, which from here describes only what is
-left.
+**The language stands, the built-in types have their methods, a file can be
+imported, and CPython's own tests are now a ruler beside MicroPython's.**
+Phases 0 to 12 built the lexer, the parser, the compiler, the VM, the object
+heap and its collector, exceptions, functions and closures, classes with the
+whole type system, the method tables, the module loader, and the `unittest` and
+`test.support` shims every CPython test stands on. They are done, and their
+record is the git history — `python: phase 0` through `python: phase 12` — not
+this file, which from here describes only what is left.
 
 Where that leaves us, measured against MicroPython's suite: **284 of the 327
 tests in [test/manifest.txt](test/manifest.txt)**, and **313 of the 480** in
 `tests/basics/` once the bigint, generator, async and t-string families are set
 aside. The largest single cause of the rest is `str.format` and the `%`
 operator, which is phase 13. None stop at the object model.
+
+Measured against CPython's, which is the harder ruler: **three of the twelve
+in [test/cpython.txt](test/cpython.txt) run at all, and one test method of
+seven passes.** Phase 12 expected the wall to be the imports and it is not — it
+is the compiler. `node test/pycases.mjs --survey` runs the whole of
+`Lib/test/` and counts what stops each of the 391 files: 130 an unwritten
+module, **124 f-strings**, 41 complex numbers, 31 a unicode escape, 28 other
+syntax, 17 an integer past 2³⁰, 12 `\N{...}`, 3 `async`. So f-strings alone are
+a quarter of the suite, and the wave after phase 13 is chosen by running the
+survey again rather than by reading the imports.
 
 ## The two upstreams
 
@@ -47,13 +58,18 @@ It is the ruler for everything after the core, and it is two distinct things:
   real Python**, and writing that library again would be both enormous and
   worse. So we implement the floor and take the rest verbatim.
 
-Taking it has two prices, and both are owed before any of it ships. CPython's
-licence is the PSF licence, not MIT, so [LICENSE](LICENSE) has to carry both
-and say which files each covers. And **the library decides the syntax**: it is
-written in the Python of its own day, not 3.9's. `dataclasses.py` has 92
-f-strings in it and a `match` statement; `functools.py` has 29 f-strings. So
-f-strings are a prerequisite for borrowing anything at all, and the syntax
-phases below are ordered by what the modules we want actually use.
+Taking it has two prices. The first is paid: CPython's licence is the PSF
+licence, not MIT, and [LICENSE](LICENSE) now carries both and says which files
+each covers — phase 12 owed it the moment the first test file was copied in,
+and the library will owe it again.
+
+The second is still owed, and **the library decides the syntax**: it is written
+in the Python of its own day, not 3.9's. `dataclasses.py` has 92 f-strings in
+it and a `match` statement; `functools.py` has 29 f-strings. So f-strings are a
+prerequisite for borrowing anything at all, and the syntax phases below are
+ordered by what the modules we want actually use — which is now measurable,
+since `pycases.mjs --survey` says what stops each of CPython's own test files
+and the answer moves as each phase lands.
 
 ## Ground rules
 
@@ -127,36 +143,10 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-### Phase 12 — CPython's tests become the ruler
-
-Establish the mechanism before the phases that need it, the way phase 0
-established the MicroPython one.
-
-- [ ] `test/pycases.mjs` and `test/cpython.txt` on
-      [test/runcases.mjs](test/runcases.mjs)'s pattern: a row per test, its
-      state, its provenance and the commit it came from.
-- [ ] CPython's tests are not self-contained the way MicroPython's are — every
-      one of them imports `unittest`, and most import `test.support`. So the
-      harness ships **shims**: a `unittest` with `TestCase`, the `assert*`
-      family, `subTest`, `skipUnless` and a loader; and a `test.support` with
-      the names the tests we take actually use. The real `unittest` pulls in
-      `asyncio`, `logging`, `argparse` and `inspect`, and is a much later
-      milestone.
-- [ ] The first wave is the thirteen that import nothing but `unittest`, `sys`
-      and `test.support`: `test_augassign.py`, `test_unary.py`,
-      `test_decorators.py`, `test_keywordonlyarg.py`, `test_int_literal.py`,
-      `test_named_expressions.py`, `test_property.py`,
-      `test_exception_variations.py`, `test_longexp.py`, `test_typechecks.py`
-      and the rest. Everything else waits on a module.
-- [ ] A copy stays byte for byte, as MicroPython's do. Where a test cannot run
-      at all, the row says so rather than the file being edited.
-- [ ] Two lines in the top [Makefile](../../Makefile), and a number in
-      [README.md](README.md).
-
 ### Phase 13 — formatting, and f-strings
 
-`f"{x!r:>{w}}"` is in every module we want to borrow, so this comes before the
-borrowing.
+`f"{x!r:>{w}}"` is in every module we want to borrow, and it is what keeps a
+quarter of `Lib/test/` from compiling at all, so it comes before both.
 
 - [ ] The format-spec mini-language — fill, align, sign, `#`, `0`, width,
       grouping, precision, type — as one engine, because `format()`,
@@ -171,7 +161,8 @@ borrowing.
       each with its conversion and its own nested format spec, and the
       compiler has to emit the concatenation. `=` for debugging, and nesting.
 
-Tests: `test_format.py`, `test_fstring.py`, `test_str.py`'s formatting half.
+Tests: `test_format.py`, `test_fstring.py`, `test_str.py`'s formatting half,
+and the four rows in [test/cpython.txt](test/cpython.txt) that say `fstring`.
 
 ### Phase 14 — arbitrary-precision integers
 
@@ -192,8 +183,13 @@ unrunnable without them.
 - [ ] The three methods phase 10 left raising `OverflowError`:
       `int.to_bytes` past eight octets, `int.from_bytes` of more than eight
       significant ones, and `float.as_integer_ratio` of most values.
+- [ ] **`complex`**, which the plan did not have and the survey found: `2j` is
+      a `SyntaxError` today and 41 of `Lib/test/`'s files stop on it, more than
+      any other single type. The literal, the arithmetic, `real`/`imag`/
+      `conjugate`, `abs`, and the repr — but not `cmath`, which is phase 18.
 
-Tests: `test_int.py`, `test_long.py`, and MicroPython's 25 `int_big_*`.
+Tests: `test_int.py`, `test_long.py`, `test_complex.py`, and MicroPython's 25
+`int_big_*`.
 
 ### Phase 15 — generators
 
@@ -358,7 +354,13 @@ case. The library and `test_str.py` want more.
       `backslashreplace`), and `str.encode`/`bytes.decode` over them.
 - [ ] `\N{...}` escapes in the lexer, and identifiers by XID_Start and
       XID_Continue rather than "anything above U+0080", which is a known
-      difference today.
+      difference today. NFKC normalisation of an identifier goes with it, and
+      it is what `test_unicode_identifiers.py` stops on.
+- [ ] **A lone surrogate in a string literal.** `"\ud800"` is refused by the
+      lexer and CPython allows it; 31 of `Lib/test/`'s files stop there, which
+      is second only to f-strings among the lexer's refusals. It needs the
+      whole `surrogatepass`/`surrogateescape` question answered, not just the
+      range check relaxed.
 - [ ] Normalisation, if the table cost is bearable.
 
 Tests: `test_str.py`, `test_unicodedata.py`, `test_codecs.py`.
