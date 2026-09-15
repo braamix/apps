@@ -124,6 +124,7 @@ TESTS := \
     lang/mbasic/test/script.mjs \
     lang/mbasic/test/interrupt.mjs \
     lang/python/test/pysmoke.mjs \
+    lang/python/test/pygc.mjs \
     lang/python/test/runcases.mjs
 
 # Every run is teed into $(TEST_LOG) as well as the terminal, so the output can

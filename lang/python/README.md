@@ -20,8 +20,8 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 0 of ten.** The program builds, packages, boots under the test harness
-and prints its version. Nothing is interpreted yet.
+**Phase 1 of ten.** The object heap and its collector exist and are checked
+from inside the program; nothing is Python-visible yet.
 
 [TODO.md](TODO.md) is the plan: the ground rules the design is pinned to, the
 ten phases, and the upstream tests each one is expected to turn green.
@@ -31,12 +31,33 @@ ten phases, and the upstream tests each one is expected to turn green.
 | | |
 | --- | --- |
 | [braam.cpp](braam.cpp) | The platform. The command line, and every `co_await` in the program |
+| [value.h](value.h) | A value in one 32-bit word: a 31-bit int, or a pointer |
+| [obj.h](obj.h), [obj.cpp](obj.cpp) | The object header, the type descriptors, and str, tuple and list |
+| [gc.h](gc.h), [gc.cpp](gc.cpp) | The object heap: allocation, precise mark and sweep, the pins |
+| [intern.cpp](intern.cpp) | The intern table, which is a root |
+| [selftest.cpp](selftest.cpp) | What `--selftest` checks |
 | [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary, run a command, read back what it wrote |
 | [test/pysmoke.mjs](test/pysmoke.mjs) | That the program starts, answers its flags, and reports the right status |
+| [test/pygc.mjs](test/pygc.mjs) | Drives `--selftest` and reads what it printed |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
 
 The table grows a row per phase.
+
+## Why every root is explicit
+
+Conservative stack scanning has no mechanism on this target: there is no
+`__builtin_frame_address`, no exported stack base, and wasm keeps pointers in
+locals that a scan of linear memory cannot see. So the collector is precise and
+every root is named — and C++ that holds an object across an allocation has to
+pin it:
+
+    Root s{ obj_value(str_new("x")) };   // survives the tuple below
+    TupleObj *t = tuple_new(1);
+
+Forget the `Root` and the string is freed under you. `--selftest`'s `stress`
+check is there to catch exactly that: it collects at *every* allocation, so a
+missing pin becomes a wrong object count rather than a rare crash.
 
 ## Why the VM is a driver
 

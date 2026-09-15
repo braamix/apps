@@ -9,6 +9,7 @@
 #include "proc/opt.h"
 #include "proc/rt.h"
 #include "proc/usage.h"
+#include "selftest.h"
 
 namespace {
 
@@ -60,10 +61,17 @@ Task<i32> proc_main(Args args)
 {
     if (help_asked(args))
         co_return co_await usage_asked(USAGE);
-    // OptParse has no long options, so --version is answered before it.
-    for (usize i = 1; i < args.size(); i++)
+    // OptParse has no long options, so the two long ones are answered first.
+    for (usize i = 1; i < args.size(); i++) {
         if (args[i] == "--version")
             co_return co_await banner();
+        if (args[i] == "--selftest") {
+            String out;
+            bool good = selftest_run(out);
+            co_await write_all(good ? SYS_STDOUT : SYS_STDERR, out.str());
+            co_return good ? 0 : 1;
+        }
+    }
 
     Job job;
     OptParse opts(args, SPEC);

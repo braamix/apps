@@ -61,9 +61,11 @@ otherwise it is a pointer to an `Obj`, which is at least 4-byte aligned
 (`heap_alloc`'s smallest size class is 16). `None`, `True` and `False` are the
 addresses of static PODs.
 
-**`Obj` is `{ const Type *type; Obj *next; u32 flags; }`.** `next` threads
-every live object onto one list, because `kernel/alloc.h` has no heap iterator
-and the sweep needs something to walk.
+**`Obj` is `{ const Type *type; Obj *next; Obj *grey; u32 flags; }`** —
+sixteen bytes, the smallest size class. `next` threads every live object onto
+one list, because `kernel/alloc.h` has no heap iterator and the sweep needs
+something to walk; `grey` threads the marker's worklist, so marking neither
+allocates nor recurses.
 
 **Collection is precise mark-and-sweep.** Conservative scanning is not
 available here: there is no `__builtin_frame_address`, no exported stack base,
@@ -124,15 +126,33 @@ Test names below are real files under
 - [x] The first case, `basics/andor.py`, marked `fail`: the pipeline is proved
       end to end rather than only wired.
 
-### Phase 1 — values, the object heap, the collector
+### Phase 1 — values, the object heap, the collector — **done**
 
-- [ ] `value.h`, `obj.h` — the tagged `Value`, the `Obj` header, the `Type`
-      slot table, the singletons.
-- [ ] `heap.cpp` — object allocation over `heap_alloc`, the `next` list.
-- [ ] `gc.cpp` — mark and sweep, the `Root` guard, the collection trigger.
-- [ ] `intern.cpp` — the string intern table, itself a root.
-- [ ] A hidden `--selftest` that exercises allocation, collection under
-      pressure, cycles and interning; `test/pygc.mjs` drives it.
+- [x] [value.h](value.h) — the tagged `Value`: bit 0 set is a 31-bit signed
+      int, otherwise a pointer; zero is Nil, which is not `None`.
+- [x] [obj.h](obj.h), [obj.cpp](obj.cpp) — the 16-byte `Obj` header, the
+      static `Type` descriptor with its `trace` and `fini` slots, the
+      `None`/`True`/`False` singletons, and `StrObj`, `TupleObj` and `ListObj`
+      — enough to have something to trace, and something that can cycle.
+- [x] [gc.h](gc.h), [gc.cpp](gc.cpp) — `obj_alloc` over `heap_alloc`, the
+      `next` list every object is threaded onto, mark and sweep, the `Roots`
+      and `Root` pins, the allocation-pressure trigger, and `gc_stress` for
+      collecting at every allocation.
+- [x] [intern.cpp](intern.cpp) — the intern table, traced rather than swept,
+      so an interned string lives as long as the process.
+- [x] `--selftest` ([selftest.cpp](selftest.cpp)) and
+      [test/pygc.mjs](test/pygc.mjs): eleven checks — values, strings,
+      interning, collection, pins, tracing through tuples and lists, a cycle,
+      a ten-thousand-deep chain, the stress mode, and the automatic trigger.
+
+Two decisions worth recording, both forced:
+
+- **The marker threads its worklist through the objects themselves**, in a
+  `grey` field in the header. Marking therefore neither allocates nor recurses,
+  which a ten-thousand-deep structure needs on a 128 KiB stack.
+- **The `Type` descriptor is not an object.** Types become Python-visible in
+  phase 9; until then there is no metatype to want, and a static descriptor
+  keeps every namespace-scope global trivially destructible.
 
 Nothing is Python-visible at the end of this phase.
 
