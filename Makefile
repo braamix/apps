@@ -122,7 +122,9 @@ TESTS := \
     lang/mbasic/test/words.mjs \
     lang/mbasic/test/utf8.mjs \
     lang/mbasic/test/script.mjs \
-    lang/mbasic/test/interrupt.mjs
+    lang/mbasic/test/interrupt.mjs \
+    lang/python/test/pysmoke.mjs \
+    lang/python/test/runcases.mjs
 
 # Every run is teed into $(TEST_LOG) as well as the terminal, so the output can
 # be read again -- or read a second way -- without running the suite twice. The

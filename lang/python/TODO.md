@@ -87,35 +87,42 @@ the arrays reallocate as the parse grows. `sh/parse.h` states the rule.
 Test names below are real files under
 [tmp/micropython/tests/basics/](tmp/micropython/tests/basics/).
 
-### Phase 0 — the shell of a program
+### Phase 0 — the shell of a program — **done**
 
-- [ ] `CMakeLists.txt`, copied from
+- [x] [CMakeLists.txt](CMakeLists.txt), copied from
       [../mbasic/CMakeLists.txt](../mbasic/CMakeLists.txt) including the
-      standalone guard; add `python` to
+      standalone guard; `python` added to
       [../CMakeLists.txt](../CMakeLists.txt).
-- [ ] `braam_add_package(NAME python VERSION 0.1-r0 FIELD "T=..." FILES
-      $<TARGET_FILE:bin_python>=bin/python)`, and `add_dependencies(packages
-      pkg_python)`.
-- [ ] `LICENSE` — MIT, Damien P. George, covering the borrowed tests.
-- [ ] `README.md` skeleton and this file.
-- [ ] `braam.cpp` that prints a version banner and exits, so the shape is
-      proved before anything is built on it.
-- [ ] `test/pylib.mjs` on the
+- [x] `braam_add_package(NAME python VERSION 0.1-r0 …
+      FILES $<TARGET_FILE:bin_python>=bin/python)`, and
+      `add_dependencies(packages pkg_python)`.
+- [x] [LICENSE](LICENSE) — MIT, Damien P. George, covering the borrowed tests.
+- [x] [README.md](README.md) and this file.
+- [x] [braam.cpp](braam.cpp): the command line, the banner, the exit status.
+      `-V`, `--version`, `-h`, `-c` and a file argument are parsed; the last
+      two say there is no interpreter yet and exit 1.
+- [x] [test/pylib.mjs](test/pylib.mjs) on the
       [../mbasic/test/mblib.mjs](../mbasic/test/mblib.mjs) pattern: boot, plant
-      the `.wasm` at `/bin/py`, run `py /t/c.py >/t/o`, then read `/t/o` back
-      out of the store. Command lines stay under sixty
-      characters — the harness keyboard is a `Channel<Key, 64>`.
-- [ ] `test/runcases.mjs`: read `test/manifest.txt`, run every case in one
-      boot, compare against the `.exp` beside it, and fail both on an
-      unexpected failure and on a known failure that starts passing — the rule
+      the `.wasm` at `/bin/py`, run `py … >/tmp/o 2>/tmp/e`, then read those
+      back out of the store. It refuses a command line over sixty characters —
+      the harness keyboard is a `Channel<Key, 64>`.
+- [x] [test/pysmoke.mjs](test/pysmoke.mjs): the banner three ways in, the usage
+      block, an unknown option, a valued option with nothing after it, and the
+      status each one leaves.
+- [x] [test/runcases.mjs](test/runcases.mjs): read
+      [test/manifest.txt](test/manifest.txt), run every case in one boot,
+      compare against the `.exp` beside it, and fail both on an unexpected
+      failure and on a known failure that starts passing — the rule
       [ehcases.mjs](../../editors/eh/test/ehcases.mjs) follows.
-- [ ] One `TESTS` line in the top [Makefile](../../Makefile).
-- [ ] `tools/mkexp.py`: copy one named upstream test into `test/cases/` byte
-      for byte, write its `.exp` from upstream's own when there is one and from
-      host CPython otherwise, and refuse when the host's version cannot produce
-      it — the `*_cp310`, `*_py312` and `python34.py` family. Provenance, the
-      upstream path and commit, goes in the manifest and never into the copied
-      `.py`.
+- [x] Two `TESTS` lines in the top [Makefile](../../Makefile).
+- [x] [tools/mkexp.py](tools/mkexp.py): copy one named upstream test into
+      `test/cases/` byte for byte, write its `.exp` from upstream's own when
+      there is one and from host CPython otherwise, and refuse when the host's
+      version cannot produce it — the `*_cp310`, `*_py312` and `python34.py`
+      family. Provenance, the upstream path and commit, goes in the manifest
+      and never into the copied `.py`.
+- [x] The first case, `basics/andor.py`, marked `fail`: the pipeline is proved
+      end to end rather than only wired.
 
 ### Phase 1 — values, the object heap, the collector
 

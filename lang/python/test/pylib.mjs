@@ -1,0 +1,140 @@
+// Boot the kernel, plant python, run one command with its streams redirected
+// to files, read back what it wrote.
+//
+// A pipe rather than the grid: down a pipe nothing echoes, so the transcript is
+// exactly what the program printed -- which is what makes it comparable byte
+// for byte with CPython's.
+
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+export const APPS = resolve(HERE, "../../..");
+export const CORE = resolve(APPS, "../braam-core");
+
+export const opt = {
+    kernel: join(CORE, "build/kernel.wasm"),
+    rootfs: join(CORE, "build/web/rootfs.zip"),
+    binary: join(APPS, "build/lang/python/python.wasm"),
+    bless: "",
+};
+for (const a of process.argv.slice(2)) {
+    const m = /^--(\w+)(?:=(.*))?$/.exec(a);
+    if (m && m[1] in opt) opt[m[1]] = m[2] === undefined ? "1" : m[2];
+}
+
+export let name = "python";
+
+export function die(msg) {
+    console.error(`${name}: ${msg}`);
+    process.exit(1);
+}
+
+const enc = new TextEncoder();
+const dec = new TextDecoder();
+
+export let H;
+
+// Checked before the harness is imported: it exits the process itself and
+// would not say what to build.
+export async function boot(caseName) {
+    name = caseName;
+    for (const [what, path, how] of [
+        ["kernel", opt.kernel, "make -C ../braam-core"],
+        ["rootfs", opt.rootfs, "make -C ../braam-core"],
+        ["python", opt.binary, "make"],
+    ]) {
+        if (!existsSync(path)) {
+            console.error(`${caseName}: no ${what} at ${path} — run \`${how}\``);
+            process.exit(1);
+        }
+    }
+
+    H = await import(join(CORE, "test/system/harness.mjs"));
+    await H.init(opt.kernel, opt.rootfs);
+    H.kernel().init(0);
+    if (H.run(0) !== -1) die("the kernel did not settle after boot");
+    H.regrid(80, 24, "resize returned no screen descriptor");
+    if (!H.store.files.has("/bin/sh")) die("the archive did not unpack");
+    // Planted, not packed: exec takes any path carrying a stamp. `py`,
+    // because a command line here has sixty characters to live in.
+    H.store.files.set("/bin/py", new Uint8Array(readFileSync(opt.binary)));
+    return H;
+}
+
+export function put(path, text) {
+    H.store.files.set(path, typeof text === "string" ? enc.encode(text) : text);
+}
+
+export function get(path) {
+    const b = H.store.files.get(path);
+    return b === undefined ? null : dec.decode(b);
+}
+
+export function rm(path) {
+    H.store.files.delete(path);
+}
+
+let clock = 1;
+
+// One run. `tail` is the rest of the command line; stdout and stderr go to
+// files, stdin to /tmp/i when given. The clock is driven, not read, so run
+// until the kernel is idle rather than once.
+export function run(tail, stdin = null) {
+    rm("/tmp/o");
+    rm("/tmp/e");
+    let cmd = `py ${tail}`;
+    if (stdin !== null) {
+        put("/tmp/i", stdin);
+        cmd += " </tmp/i";
+    }
+    cmd += " >/tmp/o 2>/tmp/e";
+    if (cmd.length > 60)
+        die(`command line too long for the harness keyboard: ${cmd}`);
+
+    let now = (clock += 100);
+    H.type(cmd);
+    H.press(H.KEY.ENTER);
+    let i = 0;
+    for (let delay = H.run(now); delay !== -1; delay = H.run(now)) {
+        now += delay > 0 ? delay : 1;
+        if (++i > 200000) die(`the run did not finish: ${cmd}`);
+    }
+    clock = now;
+
+    const s = H.screen();
+    const row = H.row(s, s.cursor_y);
+    let status = 0;
+    while (status < 200 && row !== H.prompt(status)) status++;
+    if (status === 200)
+        die(`the shell did not get its prompt back: ${JSON.stringify(row)}`);
+
+    return { out: get("/tmp/o") ?? "", err: get("/tmp/e") ?? "", status };
+}
+
+// As `python prog.py`.
+export function script(source, stdin = null) {
+    put("/tmp/c.py", source);
+    return run("/tmp/c.py", stdin);
+}
+
+// One assertion, reported as a diff.
+export function same(what, got, want) {
+    if (got === want) return true;
+    const a = String(want).split("\n");
+    const b = String(got).split("\n");
+    for (let i = 0; i < Math.max(a.length, b.length); i++)
+        if (a[i] !== b[i]) {
+            console.error(`${name}: ${what} differs at line ${i + 1}`);
+            console.error(`  want ${JSON.stringify(a[i])}`);
+            console.error(`  got  ${JSON.stringify(b[i])}`);
+            return false;
+        }
+    console.error(`${name}: ${what} differs in length: want ${a.length}, got ${b.length}`);
+    return false;
+}
+
+export function ok(msg = "") {
+    console.log(`${name} ok${msg ? ": " + msg : ""}`);
+}

@@ -1,0 +1,13 @@
+# The upstream tests this interpreter is measured against, one row per case.
+# tools/mkexp.py writes a row; runcases.mjs reads it. Columns:
+#
+#   state     pass, and a failure is a regression; or fail, not reached yet
+#   case      the path under cases/, which is upstream's path under tests/
+#   exp       where the expected output came from: upstream, or a CPython
+#   commit    the micropython commit the copy was taken from
+#   upstream  the path it was taken from
+#
+# Whitespace separates; no field contains a space.
+#
+# state  case  exp  commit  upstream
+fail  basics/andor.py  cpython3.9  52b5fbc  tests/basics/andor.py
