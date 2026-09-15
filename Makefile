@@ -132,7 +132,9 @@ TESTS := \
     lang/python/test/pyfun.mjs \
     lang/python/test/pyclass.mjs \
     lang/python/test/pyint.mjs \
-    lang/python/test/runcases.mjs
+    lang/python/test/pymeth.mjs \
+    lang/python/test/runcases.mjs \
+    lang/python/test/pystress.mjs
 
 # Every run is teed into $(TEST_LOG) as well as the terminal, so the output can
 # be read again -- or read a second way -- without running the suite twice. The

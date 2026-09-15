@@ -20,11 +20,13 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 9 of ten.**
+**Phase 10.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
 285
+$ python -c 'print("-".join(sorted("the quick brown fox".split())))'
+brown-fox-quick-the
 $ python -c 'class P:
     def __init__(self, x): self.x = x
     def __repr__(self): return "P(" + str(self.x) + ")"
@@ -34,18 +36,22 @@ print(sorted([P(3), P(1)], key=lambda p: p.x))'
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
 whole argument grammar, decorators, closures, `global`, `nonlocal` and `del`,
-slicing, unpacking, thirty-odd builtins, `class` with multiple inheritance, the
+slicing, unpacking, forty-odd builtins, `class` with multiple inheritance, the
 descriptor protocol and the special methods, the exception hierarchy with
 `try`/`except`/`else`/`finally`, `with`, `raise … from` and exceptions of one's
 own, `sys.argv`, `sys.exit`, a `^C` that becomes a catchable
 `KeyboardInterrupt`, and a traceback on the way out.
 
-**141 of MicroPython's own tests pass unchanged**, and over the whole of
+The built-in types have their methods: str's forty-odd, bytes and a new
+`bytearray`, `memoryview`, list, tuple, dict with its three views, set and a
+new `frozenset`, and int and float. `divmod`, `round(x, n)`, `pow(a, b, m)`,
+`reversed`, `zip`, `map` and `filter` came with them.
+
+**264 of MicroPython's own tests pass unchanged**, and over the whole of
 `tests/basics/` — setting aside the bigint, generator, async and t-string
-families — **198 of 477**. What stops the rest is almost entirely one thing:
-**the built-in types have no methods**. `"".format`, `[].append` and `{}.keys`
-are an `AttributeError`, and they arrive with the standard library. Generators
-and f-strings are the other two.
+families — **310 of 480**, up from 198. What stops most of the rest is
+`str.format` and the `%` operator, which are the next phase; generators,
+f-strings and bignums are the others.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -53,7 +59,8 @@ checked against CPython's own `tokenize` and `ast` modules, and the third
 against goldens of its own, the bytecode being ours.
 
 [TODO.md](TODO.md) is the plan: the ground rules the design is pinned to, the
-ten phases, and the upstream tests each one is expected to turn green.
+phases still to come, and the upstream tests each one is expected to turn
+green.
 
 ## Files
 
@@ -67,9 +74,15 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [err.h](err.h), [err.cpp](err.cpp) | The error channel: sticky, checked, not thrown |
 | [ops.h](ops.h), [ops.cpp](ops.cpp) | The generic operations and the number tower |
 | [int.cpp](int.cpp), [float.cpp](float.cpp) | The two number types, and CPython's float repr |
-| [str.cpp](str.cpp), [bytes.cpp](bytes.cpp) | Text in codepoints, and octets |
+| [str.cpp](str.cpp), [bytes.cpp](bytes.cpp) | Text in codepoints, and octets both immutable and not |
 | [tuple.cpp](tuple.cpp), [list.cpp](list.cpp) | The two sequences |
 | [table.cpp](table.cpp) | The insertion-ordered table behind dict and set |
+| [method.h](method.h), [method.cpp](method.cpp) | The method mechanism: a static table becomes a built-in type's namespace |
+| [strmeth.cpp](strmeth.cpp) | str's methods |
+| [bytemeth.cpp](bytemeth.cpp) | bytes', bytearray's and memoryview's |
+| [seqmeth.cpp](seqmeth.cpp) | list's, tuple's and slice's |
+| [mapmeth.cpp](mapmeth.cpp) | dict's and set's, frozenset, and the three views |
+| [nummeth.cpp](nummeth.cpp) | int's and float's |
 | [repr.cpp](repr.cpp) | repr for every type, quoting and all |
 | [lex.h](lex.h), [lex.cpp](lex.cpp) | The tokenizer, and the `--dump-tokens` listing |
 | [parse.h](parse.h), [parse.cpp](parse.cpp) | The grammar, by recursive descent into an index arena |
@@ -97,7 +110,9 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [test/pyfun.mjs](test/pyfun.mjs) | Calls: the callback rule at four thousand turns, decorators, a deleted cell |
 | [test/pyclass.mjs](test/pyclass.mjs) | Classes: the diamond, the special methods, exceptions of one's own, all under gc stress |
 | [test/pyint.mjs](test/pyint.mjs) | That a `^C` reaches a running program, and that it may catch it |
+| [test/pymeth.mjs](test/pymeth.mjs) | Methods through a subclass, `sort(key=)`, the views, and the new types |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
+| [test/pystress.mjs](test/pystress.mjs) | Every case again, collecting at every allocation |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
 | [tools/mklex.py](tools/mklex.py) | Writes a token golden out of CPython's own tokenizer |
 | [tools/mkast.py](tools/mkast.py) | Writes a tree golden out of CPython's own ast module |
@@ -192,20 +207,34 @@ All recorded rather than hidden, and all in reach later:
 - **`async` is refused by the compiler.** The parser accepts the whole 3.9
   grammar; `async def`, `async for`, `async with` and `await` stop at the
   compiler with a `SyntaxError` that says so.
-- **The built-in types have no methods yet.** `[].append`, `{}.keys` and
-  `"".format` are an `AttributeError`; the builtins, the operators and the
-  special methods are the whole surface. They arrive with the standard
-  library, and they are what most of the remaining upstream tests are waiting
-  for.
+- **`str.format`, `format()` and `%` are not there.** They are one engine —
+  the format-spec mini-language — and it is the next phase, together with
+  f-strings.
 - **A class repr has no module in it.** CPython prints
   `<class '__main__.C'>`; this prints `<class 'C'>`, there being one module.
 - **`__set_name__` and `@` are not there.** The first is a descriptor hook the
   class body would have to call; the second is an operator the parser does not
   know.
-- **`map` and `filter` are not there**, though `sorted(key=)` and `min(key=)`
-  are. The difference is where the callback sits: a key function is called from
-  a loop a continuation can own, and `map`'s is called from inside `py_next`,
-  which has no way to suspend. See below.
+- **`map` and `filter` are eager.** CPython calls the function at each `next`;
+  these call it over the whole input first and hand back an iterator on the
+  result. The two differ only where the input is endless or the function has an
+  effect the program watches for. See below for why.
+- **A sort, a `min` or an `index` cannot call a Python `__lt__` or `__eq__`.**
+  The comparison happens inside C++, which cannot push a frame. So
+  `[A(1), A(2)].sort()` on a class with `__lt__` raises `TypeError` where `a <
+  b` on the same two works. `sorted`, `min` and `max` have had this since
+  phase 8; `list.sort` and `list.index` join them.
+- **A method that would need a bignum raises `OverflowError`.**
+  `int.to_bytes` past eight octets, `int.from_bytes` of more than eight
+  significant ones, and `float.as_integer_ratio` of most values. Phase 14.
+- **`memoryview` is one octet wide and has no stride.** A slice of a step
+  other than 1 raises `NotImplementedError`, and `itemsize` and `format` are
+  not there; `array` is what would give them meaning, and it is phase 18.
+- **`'ß'.isalpha()` is False.** The case table is by range and has no
+  one-codepoint upper for it, so it is not counted as a letter. Phase 22
+  replaces the ranges with the Unicode categories, and `isdecimal`,
+  `isnumeric` and `casefold` stop being aliases of `isdigit` and `lower` at
+  the same time.
 - **`import` finds only built-in modules**, which is `sys` and nothing else.
   There is no search path until there is a module object worth loading into.
 - **A traceback is a string, not an object.** It is collected as the frames go
@@ -283,8 +312,16 @@ one replaced by the text it answered. The list the program holds is untouched,
 and what gets printed is what CPython prints.
 
 What the mechanism does *not* reach is a callback from inside the iterator
-protocol. `py_next` returns a value, not a request, so `map` and `filter` — lazy
-iterators whose function is called at each `next` — have no shape here yet.
+protocol. `py_next` returns a value, not a request, so `map` and `filter` —
+whose function is called at each `next` — have nowhere to suspend. They are
+eager instead: one continuation runs the function over the whole input, and
+what comes back is an iterator over the list it built. The type is still `map`
+or `filter`, so it is once-only and not a list; only the timing differs.
+
+Nor does it reach a comparison. `list.sort()` merges inside C++, so a class
+with `__lt__` cannot be sorted — the same limit `sorted`, `min` and `max` have
+had since phase 8. A key function is fine, because a key is called from a loop
+the continuation owns.
 
 ## Testing
 
@@ -318,6 +355,11 @@ this implementation's, so there is nothing to generate the golden from and
 `node test/pydis.mjs --bless` writes what the compiler printed. **Read the diff
 before blessing** — that golden is the only thing standing between a change and
 a silent regression.
+
+`PY_GC_STRESS=1` in a program's environment collects at every allocation, which
+turns a missing `Root` from a rare crash into a wrong answer.
+[test/pystress.mjs](test/pystress.mjs) runs the whole manifest that way and
+compares; it costs a second and a half, and it found nine of them.
 
 ## Licence
 

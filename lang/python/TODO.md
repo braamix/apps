@@ -4,18 +4,18 @@ Python 3 written for Braam: our own bytecode VM, our own compiler, our own
 object model. The interpreter is not a port and stays that way. What is
 borrowed is measured, and named here.
 
-**The core language stands.** Phases 0 to 9 built the lexer, the parser, the
-compiler, the VM, the object heap and its collector, exceptions, functions and
-closures, and classes with the whole type system. They are done, and their
-record is the git history — `python: phase 0` through `python: phase 9` — not
-this file, which from here describes only what is left.
+**The core language stands, and the built-in types have their methods.**
+Phases 0 to 10 built the lexer, the parser, the compiler, the VM, the object
+heap and its collector, exceptions, functions and closures, classes with the
+whole type system, and the method tables. They are done, and their record is
+the git history — `python: phase 0` through `python: phase 10` — not this
+file, which from here describes only what is left.
 
-Where that leaves us, measured against MicroPython's suite: **141 of the 180
-tests in [test/manifest.txt](test/manifest.txt)**, and **198 of the 477** in
+Where that leaves us, measured against MicroPython's suite: **264 of the 304
+tests in [test/manifest.txt](test/manifest.txt)**, and **310 of the 480** in
 `tests/basics/` once the bigint, generator, async and t-string families are set
-aside. Of the 279 that fail, 89 stop at a method on a built-in type, 33 at a
-builtin that is not there, 23 at syntax this compiler refuses, and 6 at a
-generator. None stop at the object model.
+aside. Of the 170 that fail, the largest single cause is `str.format` and the
+`%` operator, which is phase 13. None stop at the object model.
 
 ## The two upstreams
 
@@ -126,40 +126,6 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-### Phase 10 — methods on the built-in types
-
-The single biggest gap: 89 of the 279 MicroPython failures stop at
-`"".format`, `[].append` or `{}.keys`, and nothing in CPython's library runs
-without them.
-
-- [ ] The mechanism first: a namespace on each built-in `TypeObj`, filled from
-      a static table of `{name, arity, fn}`, and a native that takes `self` as
-      its first argument. Phase 9 already binds a native reached through an
-      instance, so a method is a `MethodObj` over one and costs no new kind.
-- [ ] A method that must call back into Python — `list.sort(key=)` — is a
-      continuation, the way `sorted` already is.
-- [ ] `str`: the forty-odd of them, including `split`, `join`, `strip`,
-      `replace`, `find`/`index`, `startswith`/`endswith`, `partition`, the
-      `is*` predicates, `encode`, and the case operations over the range table
-      `kernel/text.h` already carries.
-- [ ] `bytes` and a new `bytearray`, sharing str's implementations where the
-      shape is the same; `memoryview` and the buffer protocol.
-- [ ] `list`, `tuple`, `dict`, `set` and a new `frozenset`; the dict views
-      (`keys`, `values`, `items`) as their own iterable types, with the set
-      operations on them.
-- [ ] `int` (`bit_length`, `to_bytes`, `from_bytes`) and `float`
-      (`is_integer`, `hex`, `fromhex`, `as_integer_ratio`).
-- [ ] `divmod`, `round(x, n)`, `pow(a, b, m)`, `sum` with `start=`,
-      `reversed`, `zip`, `map`, `filter`, `slice.indices` — and `map`/`filter`
-      are the ones that need a callback from *inside* the iterator protocol,
-      which is the one thing phase 8's continuation cannot reach. Either
-      `py_next` grows a way to suspend, or they are eager list builders and
-      the difference is recorded.
-
-Tests: `test_str.py`, `test_bytes.py`, `test_list.py`, `test_tuple.py`,
-`test_dict.py`, `test_set.py`, `test_int.py`, `test_float.py`, and the shared
-`string_tests.py`, `list_tests.py`, `seq_tests.py`, `mapping_tests.py`.
-
 ### Phase 11 — `import`, and where the library lives
 
 Nothing can be borrowed until a file can be imported.
@@ -240,6 +206,9 @@ unrunnable without them.
       with any base.
 - [ ] `float` interworking: exact comparison, `int(float)`, `float(int)` with
       overflow to `inf`, and `int.__truediv__` correctly rounded.
+- [ ] The three methods phase 10 left raising `OverflowError`:
+      `int.to_bytes` past eight octets, `int.from_bytes` of more than eight
+      significant ones, and `float.as_integer_ratio` of most values.
 
 Tests: `test_int.py`, `test_long.py`, and MicroPython's 25 `int_big_*`.
 
@@ -295,6 +264,11 @@ uses.
 - [ ] `__del__`, and `weakref` with callbacks — both of which make the
       collector's sweep observable and need a resurrection rule.
 - [ ] `__hash__ = None`, and the `__eq__`/`__hash__` interaction.
+- [ ] **A comparison made from C++.** `py_cmp` and `py_eq` cannot push a
+      frame, so a class with `__lt__` cannot be sorted and one with `__eq__`
+      cannot be found by `list.index`. `sorted`, `min` and `max` have had this
+      since phase 8 and `list.sort` joined them in phase 10. The fix is a
+      continuation that owns the merge itself, or a `py_cmp` that can suspend.
 - [ ] `abc`, `__instancecheck__` and `__subclasscheck__`, which is what
       `collections.abc` stands on.
 
@@ -314,6 +288,8 @@ difference between borrowing the library and not.
       (`reduce`, `partial`, `lru_cache`), `itertools`, `operator`, `_random`
       (Mersenne Twister), `_struct`, `array`, `math` and `cmath` over
       `braam::math`, `time` over `proc_now`, `errno`, `gc`, `_weakref`.
+- [ ] `memoryview`'s `itemsize`, `format` and strides, which only `array`
+      gives meaning to. Phase 10's is one octet wide and refuses a step.
 - [ ] Each is checked against the pure-Python fallback the library already
       carries beside it, which is a free oracle.
 
@@ -387,7 +363,9 @@ case. The library and `test_str.py` want more.
 - [ ] `unicodedata`: the category, the case mappings, the numeric values and
       the names, as a generated table whose size is measured before it ships.
 - [ ] `str.upper`/`lower`/`title`/`casefold` and the `is*` predicates by
-      category rather than by range.
+      category rather than by range. Phase 10 left `casefold` as `lower`,
+      `isdecimal` and `isnumeric` as `isdigit`, and `'ß'.isalpha()` False,
+      because the range table has no one-codepoint upper for it.
 - [ ] `codecs`: `utf-8`, `utf-16`, `utf-32`, `latin-1`, `ascii`, the error
       handlers (`strict`, `ignore`, `replace`, `surrogateescape`,
       `backslashreplace`), and `str.encode`/`bytes.decode` over them.

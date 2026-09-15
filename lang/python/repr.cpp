@@ -138,14 +138,15 @@ R str_repr(Value v, String &out)
     return out.push(q) ? R::Ok : oom();
 }
 
-R bytes_repr(Value v, String &out)
+namespace {
+
+R octets_repr(Str s, Str open, Str close, String &out)
 {
-    BytesObj *b = static_cast<BytesObj *>(v.obj());
-    char q      = quote_for(b->str());
-    if (!out.append("b") || !out.push(q))
+    char q = quote_for(s);
+    if (!out.append(open) || !out.push(q))
         return oom();
-    for (usize i = 0; i < b->len; i++) {
-        u8 c    = b->data()[i];
+    for (usize i = 0; i < s.size(); i++) {
+        u8 c    = u8(s[i]);
         bool ok = true;
         if (c == u8(q) || c == '\\')
             ok = out.push('\\') && out.push(char(c));
@@ -162,7 +163,19 @@ R bytes_repr(Value v, String &out)
         if (!ok)
             return oom();
     }
-    return out.push(q) ? R::Ok : oom();
+    return out.push(q) && out.append(close) ? R::Ok : oom();
+}
+
+} // namespace
+
+R bytes_repr(Value v, String &out)
+{
+    return octets_repr(static_cast<BytesObj *>(v.obj())->str(), "b", "", out);
+}
+
+R array_repr(Value v, String &out)
+{
+    return octets_repr(array_of(v)->str(), "bytearray(b", ")", out);
 }
 
 R tuple_repr(Value v, String &out)
@@ -206,7 +219,7 @@ R dict_repr(Value v, String &out)
 
 R set_repr(Value v, String &out)
 {
-    SetObj *s = static_cast<SetObj *>(v.obj());
+    SetObj *s = set_at(v);
     if (s->t.live == 0)
         return out.append("set()") ? R::Ok : oom();
     if (!enter(v))
@@ -222,4 +235,16 @@ R set_repr(Value v, String &out)
     }
     leave();
     return out.push('}') ? R::Ok : oom();
+}
+
+R frozenset_repr(Value v, String &out)
+{
+    SetObj *s = set_at(v);
+    if (s->t.live == 0)
+        return out.append("frozenset()") ? R::Ok : oom();
+    if (!out.append("frozenset("))
+        return oom();
+    if (set_repr(v, out) != R::Ok)
+        return R::Err;
+    return out.push(')') ? R::Ok : oom();
 }

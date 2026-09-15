@@ -498,6 +498,24 @@ R py_inplace(Value a, Value b, Op op, Value &out)
         out = ra.v;
         return R::Ok;
     }
+    // `s |= t` on a set replaces its members: the name keeps the same set.
+    if (is_set(a) && (op == Op::Or || op == Op::And || op == Op::Sub || op == Op::Xor)) {
+        Root ra{ a }, rb{ b };
+        Root made;
+        if (py_binop(ra.v, rb.v, op, made.v) != R::Ok)
+            return R::Err;
+        SetObj *self = set_at(ra.v);
+        self->t.entries.clear();
+        self->t.index.clear();
+        self->t.live = 0;
+        usize at     = 0;
+        Value k, val;
+        while (table_next(set_at(made.v)->t, at, k, val))
+            if (set_add(set_at(ra.v), k) != R::Ok)
+                return R::Err;
+        out = ra.v;
+        return R::Ok;
+    }
     return py_binop(a, b, op, out);
 }
 

@@ -2,6 +2,7 @@
 // addressing index over them.
 #include "gc.h"
 #include "iter.h"
+#include "method.h"
 #include "ops.h"
 
 namespace {
@@ -242,35 +243,11 @@ R set_contains(Value v, Value item, bool &out)
     return set_has(static_cast<SetObj *>(v.obj()), item, out);
 }
 
-R set_eq(Value a, Value b, bool &out)
-{
-    if (!b.is_obj() || b.obj()->type != &set_type)
-        return R::NotImpl;
-    SetObj *x = static_cast<SetObj *>(a.obj());
-    SetObj *y = static_cast<SetObj *>(b.obj());
-    if (x->t.live != y->t.live) {
-        out = false;
-        return R::Ok;
-    }
-    usize at = 0;
-    Value k, v;
-    while (table_next(x->t, at, k, v)) {
-        bool has = false;
-        if (set_has(y, k, has) != R::Ok)
-            return R::Err;
-        if (!has) {
-            out = false;
-            return R::Ok;
-        }
-    }
-    out = true;
-    return R::Ok;
-}
-
 } // namespace
 
 R dict_repr(Value v, String &out);
 R set_repr(Value v, String &out);
+R frozenset_repr(Value v, String &out);
 
 constexpr Type dict_type{ .name     = "dict",
                           .trace    = dict_trace,
@@ -284,14 +261,29 @@ constexpr Type dict_type{ .name     = "dict",
                           .contains = dict_contains,
                           .iter     = table_iter };
 
+// The set protocol is in mapmeth.cpp: a dict view answers it too.
 constexpr Type set_type{ .name     = "set",
                          .trace    = set_trace,
                          .fini     = set_fini,
-                         .eq       = set_eq,
+                         .eq       = anyset_eq,
+                         .order    = anyset_order,
                          .repr     = set_repr,
                          .len      = set_len_slot,
                          .contains = set_contains,
+                         .binop    = anyset_binop,
                          .iter     = table_iter };
+
+constexpr Type frozenset_type{ .name     = "frozenset",
+                               .trace    = set_trace,
+                               .fini     = set_fini,
+                               .hash     = frozenset_hash,
+                               .eq       = anyset_eq,
+                               .order    = anyset_order,
+                               .repr     = frozenset_repr,
+                               .len      = set_len_slot,
+                               .contains = set_contains,
+                               .binop    = anyset_binop,
+                               .iter     = table_iter };
 
 DictObj *dict_new()
 {
@@ -321,6 +313,15 @@ R dict_del(DictObj *d, Value key)
 SetObj *set_new()
 {
     SetObj *o = static_cast<SetObj *>(obj_alloc(&set_type, sizeof(SetObj)));
+    if (!o)
+        return nullptr;
+    new (&o->t) Table();
+    return o;
+}
+
+SetObj *frozenset_new()
+{
+    SetObj *o = static_cast<SetObj *>(obj_alloc(&frozenset_type, sizeof(SetObj)));
     if (!o)
         return nullptr;
     new (&o->t) Table();

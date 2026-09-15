@@ -106,6 +106,8 @@ extern const Type tuple_type;
 extern const Type list_type;
 extern const Type dict_type;
 extern const Type set_type;
+extern const Type bytearray_type;
+extern const Type frozenset_type;
 
 inline Value value_none()
 {
@@ -235,6 +237,25 @@ inline bool is_bytes(Value v)
     return v.is_obj() && v.obj()->type == &bytes_type;
 }
 
+// bytearray: the same octets, growable. A Vec, since it is resized.
+struct ArrayObj : Obj {
+    Vec<u8> data;
+
+    Str str() const { return Str(reinterpret_cast<const char *>(data.data()), data.size()); }
+};
+
+Value bytearray_new(Str s);
+
+inline bool is_bytearray(Value v)
+{
+    return v.is_obj() && v.obj()->type == &bytearray_type;
+}
+
+inline ArrayObj *array_of(Value v)
+{
+    return static_cast<ArrayObj *>(v.obj());
+}
+
 // ------------------------------------------------------------- tuple, list
 
 // Values stored inline after the header.
@@ -311,12 +332,29 @@ inline bool is_set(Value v)
     return v.is_obj() && v.obj()->type == &set_type;
 }
 
+// frozenset has set's layout and different slots.
+inline bool is_frozenset(Value v)
+{
+    return v.is_obj() && v.obj()->type == &frozenset_type;
+}
+
+inline bool is_anyset(Value v)
+{
+    return is_set(v) || is_frozenset(v);
+}
+
+inline SetObj *set_at(Value v)
+{
+    return static_cast<SetObj *>(v.obj());
+}
+
 inline usize dict_len(const DictObj *d)
 {
     return d->t.live;
 }
 
 SetObj *set_new();
+SetObj *frozenset_new();
 R set_add(SetObj *s, Value v);
 R set_has(SetObj *s, Value v, bool &out);
 R set_discard(SetObj *s, Value v, bool &out);

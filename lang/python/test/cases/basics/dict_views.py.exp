@@ -1,0 +1,18 @@
+dict_items([(1, 2)])
+[(1, 2)]
+dict_values([2])
+[2]
+dict_keys([1])
+[1]
+dict_values([1, 1])
+False False False
+0 0 0
+True True True
+1 1 1
+True True True
+2 2 2
+TypeError
+TypeError
+TypeError
+<class 'int'>
+TypeError

@@ -11,6 +11,10 @@
 #include "iter.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
+#include "kernel/text.h"
+#include "math/ftoa.h"
+#include "math/math.h"
+#include "method.h"
 #include "ops.h"
 #include "type.h"
 
@@ -499,12 +503,39 @@ R b_repr(const CallArgs &a, Value &out)
     return show(a.args[0], false, out);
 }
 
+// The encoding argument str(), bytes() and bytearray() take. UTF-8 and ASCII
+// only; phase 22 brings the codecs.
+R encoding_ok(const CallArgs &a, u32 at)
+{
+    for (u32 i = at; i < a.nargs; i++) {
+        if (!is_str(a.args[i]))
+            return err_set2("TypeError", "the encoding must be a str", type_name(a.args[i]));
+        if (i > at) // the errors argument: always strict here
+            continue;
+        Str e = str_of(a.args[i])->str();
+        if (!(e == "utf-8" || e == "utf8" || e == "UTF-8" || e == "UTF8" || e == "ascii" ||
+              e == "ASCII"))
+            return err_set2("LookupError", "unknown encoding", e);
+    }
+    return R::Ok;
+}
+
 R b_str(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "str", 0, 1))
+    if (!args_only(a, "str", 0, 3))
         return R::Err;
     if (!a.nargs) {
         out = str_new("");
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    if (a.nargs > 1) {
+        Str octets;
+        if (!bytes_like(a.args[0], octets))
+            return err_set2("TypeError", "decoding to str: a bytes-like object is required",
+                            type_name(a.args[0]));
+        if (encoding_ok(a, 1) != R::Ok)
+            return R::Err;
+        out = str_new(octets);
         return out.is_nil() ? R::Err : R::Ok;
     }
     if (is_str(a.args[0])) {
@@ -534,13 +565,92 @@ R b_bool(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// The value of digit `c` in `base`, or -1.
+i32 digit_in(char c, i64 base)
+{
+    i32 d = c >= '0' && c <= '9'   ? c - '0'
+            : c >= 'a' && c <= 'z' ? c - 'a' + 10
+            : c >= 'A' && c <= 'Z' ? c - 'A' + 10
+                                   : -1;
+    return d >= 0 && d < base ? d : -1;
+}
+
+// int(s, base): space, a sign, an optional 0x/0o/0b prefix, then digits with
+// `_` allowed between them.
+R int_of_text(Str s, i64 base, Value &out)
+{
+    usize i = 0;
+    while (i < s.size() && is_space(s[i]))
+        i++;
+    bool neg = false;
+    if (i < s.size() && (s[i] == '-' || s[i] == '+'))
+        neg = s[i++] == '-';
+
+    bool guessing = base == 0;
+    bool prefixed = false;
+    if (i + 1 < s.size() && s[i] == '0') {
+        char p   = s[i + 1] | 0x20;
+        i64 want = p == 'x' ? 16 : p == 'o' ? 8 : p == 'b' ? 2 : 0;
+        if (want && (base == want || base == 0)) {
+            base     = want;
+            prefixed = true;
+            i += 2;
+        }
+    }
+    if (base == 0)
+        base = 10;
+    if (base < 2 || base > 36)
+        return err_set("ValueError", "int() base must be >= 2 and <= 36, or 0");
+
+    i64 v    = 0;
+    bool any = false;
+    // With no base, a leading zero admits only more zeros: int('01', 0) is a
+    // ValueError.
+    bool lead_zero = guessing && !prefixed && i < s.size() && s[i] == '0';
+    for (; i < s.size(); i++) {
+        if (s[i] == '_' && any)
+            continue;
+        i32 d = digit_in(s[i], base);
+        if (d < 0)
+            break;
+        if (lead_zero && d != 0)
+            break;
+        i64 next = v * base + d;
+        if (next < v)
+            return err_set("OverflowError", "int too large (no bignum yet)");
+        v   = next;
+        any = true;
+    }
+    while (i < s.size() && is_space(s[i]))
+        i++;
+    if (!any || i != s.size()) {
+        Buf<64> b;
+        char tmp[24];
+        b.put("invalid literal for int() with base ").put(int_text(tmp, sizeof tmp, base));
+        return err_set2("ValueError", b.str(), s);
+    }
+    out = int_from_i64(neg ? -v : v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 R b_int(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "int", 0, 1))
+    if (!args_only(a, "int", 0, 2))
         return R::Err;
     if (!a.nargs) {
         out = Value::of_int(0);
         return R::Ok;
+    }
+    Str text;
+    bool textual =
+        is_str(a.args[0]) ? (text = str_of(a.args[0])->str(), true) : bytes_like(a.args[0], text);
+    if (a.nargs > 1) {
+        i64 base = 0;
+        if (!as_index(a.args[1], base))
+            return err_set2("TypeError", "int() base must be an integer", type_name(a.args[1]));
+        if (!textual)
+            return err_set("TypeError", "int() can't convert non-string with an explicit base");
+        return int_of_text(text, base, out);
     }
     out = one_special(a.args[0], "__int__", WANT_INT);
     if (!out.is_nil())
@@ -557,25 +667,8 @@ R b_int(const CallArgs &a, Value &out)
         out = int_from_i64(i64(float_of(a.args[0])));
         return out.is_nil() ? R::Err : R::Ok;
     }
-    if (is_str(a.args[0])) {
-        Str s   = str_of(a.args[0])->str();
-        usize i = 0;
-        while (i < s.size() && (s[i] == ' ' || s[i] == '\t'))
-            i++;
-        bool neg = false;
-        if (i < s.size() && (s[i] == '-' || s[i] == '+'))
-            neg = s[i++] == '-';
-        i64 v    = 0;
-        usize at = i;
-        for (; i < s.size() && s[i] >= '0' && s[i] <= '9'; i++)
-            v = v * 10 + (s[i] - '0');
-        while (i < s.size() && (s[i] == ' ' || s[i] == '\t'))
-            i++;
-        if (at == i || i != s.size())
-            return err_set2("ValueError", "invalid literal for int() with base 10", s);
-        out = int_from_i64(neg ? -v : v);
-        return out.is_nil() ? R::Err : R::Ok;
-    }
+    if (textual)
+        return int_of_text(text, 10, out);
     return err_set2("TypeError", "int() argument must be a number or a string",
                     type_name(a.args[0]));
 }
@@ -631,12 +724,28 @@ R b_chr(const CallArgs &a, Value &out)
 
 R b_bytes(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "bytes", 0, 1))
+    if (!args_only(a, "bytes", 0, 3))
         return R::Err;
+    if (a.nargs > 1) {
+        if (!is_str(a.args[0]))
+            return err_set2("TypeError", "encoding without a string argument",
+                            type_name(a.args[0]));
+        if (encoding_ok(a, 1) != R::Ok)
+            return R::Err;
+        out = bytes_new(str_of(a.args[0])->str());
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     if (!a.nargs || is_bytes(a.args[0])) {
         out = a.nargs ? a.args[0] : bytes_new(Str());
         return out.is_nil() ? R::Err : R::Ok;
     }
+    Str octets;
+    if (bytes_like(a.args[0], octets)) {
+        out = bytes_new(octets);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    if (is_str(a.args[0]))
+        return err_set("TypeError", "string argument without an encoding");
     i64 n = 0;
     if (as_index(a.args[0], n)) {
         if (n < 0)
@@ -751,17 +860,18 @@ R b_dict(const CallArgs &a, Value &out)
                 if (r == R::NotImpl)
                     break;
                 usize n = 0;
-                Value key, val;
+                Root key, val;
                 if (py_len(got.v, n) != R::Ok)
                     return R::Err;
                 if (n != 2)
                     return err_set("ValueError",
                                    "dictionary update sequence element "
                                    "has the wrong length");
-                if (py_getitem(got.v, Value::of_int(0), key) != R::Ok ||
-                    py_getitem(got.v, Value::of_int(1), val) != R::Ok)
+                // Pin the key: taking the value allocates.
+                if (py_getitem(got.v, Value::of_int(0), key.v) != R::Ok ||
+                    py_getitem(got.v, Value::of_int(1), val.v) != R::Ok)
                     return R::Err;
-                if (dict_set(static_cast<DictObj *>(rd.v.obj()), key, val) != R::Ok)
+                if (dict_set(static_cast<DictObj *>(rd.v.obj()), key.v, val.v) != R::Ok)
                     return R::Err;
             }
         }
@@ -844,6 +954,8 @@ R take_kw(const CallArgs &a, Str who, u32 allow, Value &key, bool &rev, Value &d
     return R::Ok;
 }
 
+} // namespace
+
 // Stable, bottom-up and iterative: a recursive sort is a risk on a 128 KiB
 // stack, and Python's sort is stable.
 R sort_idx(const Vec<Value> &keys, Vec<u32> &idx, bool rev)
@@ -874,6 +986,8 @@ R sort_idx(const Vec<Value> &keys, Vec<u32> &idx, bool rev)
     }
     return R::Ok;
 }
+
+namespace {
 
 // s[0] values, s[1] the key function, s[2] their keys, s[3] whether to reverse.
 R sort_finish(ContObj *k)
@@ -1294,6 +1408,368 @@ R b_id(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// --------------------------------------------------- arithmetic with a shape
+
+R b_divmod(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "divmod", 2, 2))
+        return R::Err;
+    Root q, r;
+    if (py_binop(a.args[0], a.args[1], Op::FloorDiv, q.v) != R::Ok ||
+        py_binop(a.args[0], a.args[1], Op::Mod, r.v) != R::Ok)
+        return R::Err;
+    TupleObj *t = tuple_new(2);
+    if (!t)
+        return oom();
+    t->items()[0] = q.v;
+    t->items()[1] = r.v;
+    out           = obj_value(t);
+    return R::Ok;
+}
+
+// To the nearest, ties to even. C's rint does not promise that.
+f64 round_half_even(f64 v)
+{
+    f64 down = floor(v);
+    f64 frac = v - down;
+    if (frac > 0.5)
+        return down + 1;
+    if (frac < 0.5)
+        return down;
+    return fmod(down, 2.0) == 0 ? down : down + 1;
+}
+
+R b_round(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "round", 1, 2))
+        return R::Err;
+    i64 digits = 0;
+    if (a.nargs > 1 && !is_none(a.args[1]) && !as_index(a.args[1], digits))
+        return err_set2("TypeError", "round() ndigits must be an integer", type_name(a.args[1]));
+    bool to_int = a.nargs < 2 || is_none(a.args[1]);
+
+    i64 n = 0;
+    if (as_index(a.args[0], n)) {
+        // An int rounds to itself at any precision above zero.
+        if (to_int || digits >= 0) {
+            out = int_from_i64(n);
+            return out.is_nil() ? R::Err : R::Ok;
+        }
+        f64 scale = pow(10.0, f64(-digits));
+        out       = int_from_i64(i64(round_half_even(f64(n) / scale) * scale));
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    f64 v = 0;
+    if (!as_number(a.args[0], v))
+        return err_set2("TypeError", "a number is required", type_name(a.args[0]));
+    if (to_int) {
+        out = int_from_i64(i64(round_half_even(v)));
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    // Round the decimal, not the value scaled by a power of ten: 2.675 * 100
+    // is exactly 267.5 in binary and would round up, where 2.675 rounds down.
+    // Format to `digits` places and read it back, as CPython does.
+    f64 mag = v < 0 ? -v : v;
+    if (digits >= 0 && digits < 18 && mag < 1e16) {
+        char tmp[64];
+        Option<f64> back = parse_f64(fmt_f64(tmp, sizeof tmp, v, i32(digits), 'f'));
+        if (back.has_value()) {
+            out = float_new(back.value());
+            return out.is_nil() ? R::Err : R::Ok;
+        }
+    }
+    f64 scale = pow(10.0, f64(digits));
+    if (isinf(scale) || scale == 0 || mag >= 1e16) {
+        out = float_new(v);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    out = float_new(round_half_even(v * scale) / scale);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_pow(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "pow", 2, 3))
+        return R::Err;
+    if (a.nargs < 3 || is_none(a.args[2]))
+        return py_binop(a.args[0], a.args[1], Op::Pow, out);
+
+    i64 base = 0, exp = 0, mod = 0;
+    if (!as_index(a.args[0], base) || !as_index(a.args[1], exp) || !as_index(a.args[2], mod))
+        return err_set("TypeError", "pow() 3rd argument not allowed unless all arguments are ints");
+    if (mod == 0)
+        return err_set("ValueError", "pow() 3rd argument cannot be 0");
+    if (exp < 0)
+        return err_set("ValueError", "base is not invertible for the given modulus");
+    // Square and multiply in 64 bits, so the modulus stays under 2^31.
+    if (mod > 0x7fffffff || mod < -0x7fffffff)
+        return err_set("OverflowError", "int too large (no bignum yet)");
+    i64 acc = 1, b = base % mod;
+    for (i64 e = exp; e > 0; e >>= 1) {
+        if (e & 1)
+            acc = acc * b % mod;
+        b = b * b % mod;
+    }
+    // A zero exponent skipped the loop, leaving the 1 unreduced.
+    acc %= mod;
+    if (acc != 0 && (acc < 0) != (mod < 0))
+        acc += mod;
+    out = int_from_i64(acc);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// ----------------------------------------------------------- the iterators
+
+R b_reversed(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "reversed", 1, 1))
+        return R::Err;
+    out = reversed_new(a.args[0]);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_zip(const CallArgs &a, Value &out)
+{
+    if (a.nkw)
+        return err_set("TypeError", "zip() takes no keyword arguments");
+    TupleObj *t = tuple_new(a.nargs);
+    if (!t)
+        return oom();
+    Root rt{ obj_value(t) };
+    for (u32 i = 0; i < a.nargs; i++) {
+        Value it = py_iter(a.args[i]);
+        if (it.is_nil())
+            return R::Err;
+        static_cast<TupleObj *>(rt.v.obj())->items()[i] = it;
+    }
+    out = zip_new(rt.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// map and filter call back from inside the iterator protocol, and py_next has
+// no way to suspend. So both run the function over the whole input first and
+// return an iterator on the result: eager where CPython is lazy. See README.md.
+//
+// s[0] the input, s[1] the function, s[2] what has been kept; j says filter.
+R apply_step(ContObj *k, Value in)
+{
+    ListObj *xs = list_of(k->s[0]);
+    if (k->i > 0) {
+        Value item = xs->items[k->i - 1];
+        if (!k->j) {
+            if (!list_push(list_of(k->s[2]), in))
+                return oom();
+        } else if (py_truth(in)) {
+            if (!list_push(list_of(k->s[2]), item))
+                return oom();
+        }
+    }
+    if (k->i < xs->items.size())
+        return cont_call(k, k->s[1], xs->items[k->i++]);
+    Value it = made_iter(k->s[2], k->j ? &filter_type : &map_type);
+    return it.is_nil() ? R::Err : cont_done(k, it);
+}
+
+// Several iterables: map(f, a, b) calls f(x, y).
+R map_many(const CallArgs &a, Value &out);
+
+R b_map(const CallArgs &a, Value &out)
+{
+    if (a.nkw || a.nargs < 2)
+        return err_set("TypeError", "map() must have at least two arguments");
+    if (a.nargs > 2)
+        return map_many(a, out);
+
+    ListObj *xs = py_list_of(a.args[1]);
+    if (!xs)
+        return R::Err;
+    Root rx{ obj_value(xs) };
+    ListObj *kept = list_new();
+    if (!kept)
+        return oom();
+    Root rk{ obj_value(kept) };
+    Root kv{ cont_new(apply_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = rx.v;
+    k->s[1]    = a.args[0];
+    k->s[2]    = rk.v;
+    k->j       = 0;
+    out        = kv.v;
+    return R::Ok;
+}
+
+// s[0] the tuples of arguments, s[1] the function, s[2] the results.
+R map_step(ContObj *k, Value in)
+{
+    ListObj *xs = list_of(k->s[0]);
+    if (k->i > 0 && !list_push(list_of(k->s[2]), in))
+        return oom();
+    if (k->i < xs->items.size())
+        return cont_call_v(k, k->s[1], xs->items[k->i++]);
+    Value it = made_iter(k->s[2], &map_type);
+    return it.is_nil() ? R::Err : cont_done(k, it);
+}
+
+R map_many(const CallArgs &a, Value &out)
+{
+    // Every argument tuple first, so the step only calls.
+    TupleObj *its = tuple_new(a.nargs - 1);
+    if (!its)
+        return oom();
+    Root ri{ obj_value(its) };
+    for (u32 i = 1; i < a.nargs; i++) {
+        Value it = py_iter(a.args[i]);
+        if (it.is_nil())
+            return R::Err;
+        static_cast<TupleObj *>(ri.v.obj())->items()[i - 1] = it;
+    }
+    ListObj *rows = list_new();
+    if (!rows)
+        return oom();
+    Root rr{ obj_value(rows) };
+    for (;;) {
+        TupleObj *row = tuple_new(a.nargs - 1);
+        if (!row)
+            return oom();
+        Root rw{ obj_value(row) };
+        bool done = false;
+        for (u32 i = 0; i + 1 < a.nargs && !done; i++) {
+            Value got;
+            R r = py_next(static_cast<TupleObj *>(ri.v.obj())->items()[i], got);
+            if (r == R::Err)
+                return R::Err;
+            if (r == R::NotImpl)
+                done = true;
+            else
+                static_cast<TupleObj *>(rw.v.obj())->items()[i] = got;
+        }
+        if (done)
+            break;
+        if (!list_push(list_of(rr.v), rw.v))
+            return oom();
+    }
+    ListObj *kept = list_new();
+    if (!kept)
+        return oom();
+    Root rk{ obj_value(kept) };
+    Root kv{ cont_new(map_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = rr.v;
+    k->s[1]    = a.args[0];
+    k->s[2]    = rk.v;
+    out        = kv.v;
+    return R::Ok;
+}
+
+R b_filter(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "filter", 2, 2))
+        return R::Err;
+    ListObj *xs = py_list_of(a.args[1]);
+    if (!xs)
+        return R::Err;
+    Root rx{ obj_value(xs) };
+    ListObj *kept = list_new();
+    if (!kept)
+        return oom();
+    Root rk{ obj_value(kept) };
+
+    // filter(None, xs) keeps what is true and calls nothing.
+    if (is_none(a.args[0])) {
+        Vec<Value> &items = list_of(rx.v)->items;
+        for (usize i = 0; i < items.size(); i++)
+            if (py_truth(items[i]) && !list_push(list_of(rk.v), items[i]))
+                return oom();
+        out = made_iter(rk.v, &filter_type);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    Root kv{ cont_new(apply_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = rx.v;
+    k->s[1]    = a.args[0];
+    k->s[2]    = rk.v;
+    k->j       = 1;
+    out        = kv.v;
+    return R::Ok;
+}
+
+// ------------------------------------------------------- the newer types
+
+R b_bytearray(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "bytearray", 0, 3))
+        return R::Err;
+    Str s;
+    if (a.nargs == 1 && bytes_like(a.args[0], s)) {
+        out = bytearray_new(s);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    // A count, a string with an encoding, or a sequence of octets: bytes'
+    // rule, and the run is then made growable.
+    Root made;
+    if (b_bytes(a, made.v) != R::Ok)
+        return R::Err;
+    bytes_like(made.v, s);
+    out = bytearray_new(s);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_frozenset(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "frozenset", 0, 1))
+        return R::Err;
+    SetObj *s = frozenset_new();
+    if (!s)
+        return oom();
+    Root rs{ obj_value(s) };
+    if (a.nargs) {
+        Root it{ py_iter(a.args[0]) };
+        if (it.v.is_nil())
+            return R::Err;
+        for (;;) {
+            Root got;
+            R r = py_next(it.v, got.v);
+            if (r == R::Err)
+                return R::Err;
+            if (r == R::NotImpl)
+                break;
+            if (set_add(set_at(rs.v), got.v) != R::Ok)
+                return R::Err;
+        }
+    }
+    out = rs.v;
+    return R::Ok;
+}
+
+R b_memoryview(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "memoryview", 1, 1))
+        return R::Err;
+    out = memview_new(a.args[0]);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_slice(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "slice", 1, 3))
+        return R::Err;
+    Value parts[3] = { value_none(), value_none(), value_none() };
+    if (a.nargs == 1) {
+        parts[1] = a.args[0];
+    } else {
+        for (u32 i = 0; i < a.nargs; i++)
+            parts[i] = a.args[i];
+    }
+    out = slice_new(parts[0], parts[1], parts[2]);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 // --------------------------------------------------------------------- sys
 
 R b_exit(const CallArgs &a, Value &out)
@@ -1327,7 +1803,9 @@ constexpr Builtin TABLE[] = {
     { "next", b_next },       { "sorted", b_sorted },     { "enumerate", b_enumerate },
     { "getattr", b_getattr }, { "hasattr", b_hasattr },   { "setattr", b_setattr },
     { "delattr", b_delattr }, { "callable", b_callable }, { "hash", b_hash },
-    { "id", b_id },
+    { "id", b_id },           { "divmod", b_divmod },     { "round", b_round },
+    { "pow", b_pow },         { "reversed", b_reversed }, { "zip", b_zip },
+    { "map", b_map },         { "filter", b_filter },
 };
 
 // Calling one of these is calling its type: `list(x)` is `list.__new__(x)`,
@@ -1338,10 +1816,20 @@ struct Ctor {
 };
 
 constexpr Ctor CTORS[] = {
-    { &str_type, b_str },     { &bool_type, b_bool }, { &int_type, b_int },
-    { &float_type, b_float }, { &list_type, b_list }, { &tuple_type, b_tuple },
-    { &dict_type, b_dict },   { &set_type, b_set },   { &range_type, b_range },
+    { &str_type, b_str },
+    { &bool_type, b_bool },
+    { &int_type, b_int },
+    { &float_type, b_float },
+    { &list_type, b_list },
+    { &tuple_type, b_tuple },
+    { &dict_type, b_dict },
+    { &set_type, b_set },
+    { &range_type, b_range },
     { &bytes_type, b_bytes },
+    { &bytearray_type, b_bytearray },
+    { &frozenset_type, b_frozenset },
+    { &memview_type, b_memoryview },
+    { &slice_type, b_slice },
 };
 
 } // namespace
@@ -1391,6 +1879,8 @@ DictObj *builtins_dict()
         if (fn.v.is_nil() || !type_set_ctor(c.type, fn.v))
             return nullptr;
     }
+    if (!methods_install())
+        return nullptr;
     return static_cast<DictObj *>(h->builtins.obj());
 }
 

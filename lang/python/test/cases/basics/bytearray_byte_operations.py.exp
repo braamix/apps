@@ -1,0 +1,31 @@
+2
+9
+2
+bytearray(b'bc  ef')
+bytearray(b'spacious   ')
+bytearray(b'example.com')
+bytearray(b'   spacious')
+bytearray(b'mississ')
+[bytearray(b''), bytearray(b'bc')]
+[bytearray(b'a'), bytearray(b'a'), bytearray(b'')]
+bytearray(b'bsdfbsdf')
+0
+3
+0
+3
+2
+ValueError
+3
+4
+4
+True
+True
+bytearray(b' t e \x00 s t')
+bytearray(b' TE \x00 ST')
+True
+False
+True
+True
+True
+bytearray(b'abc,def')
+<class 'bytearray'>

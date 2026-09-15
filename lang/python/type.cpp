@@ -8,6 +8,7 @@
 #include "intern.h"
 #include "iter.h"
 #include "kernel/fmt.h"
+#include "method.h"
 #include "ops.h"
 #include "vm.h"
 
@@ -640,6 +641,12 @@ Got py_attr(Value v, StrObj *name, Value &out)
             if (r == R::Err)
                 return Got::Error;
         }
+        // A method in the built-in type's own namespace: `"".split`.
+        R m = method_find(v, name, out);
+        if (m == R::Ok)
+            return Got::Ok;
+        if (m == R::Err)
+            return Got::Error;
         out = Value();
         return Got::Missing;
     }
@@ -1063,9 +1070,10 @@ constexpr Named CLASS_BUILTINS[] = {
 };
 
 // The built-in types a program can name, subclass or test against.
-const Type *const NAMED[] = { &int_type,   &float_type, &bool_type, &str_type,
-                              &bytes_type, &tuple_type, &list_type, &dict_type,
-                              &set_type,   &range_type, &type_type };
+const Type *const NAMED[] = { &int_type,       &float_type,     &bool_type,   &str_type,
+                              &bytes_type,     &bytearray_type, &tuple_type,  &list_type,
+                              &dict_type,      &set_type,       &range_type,  &type_type,
+                              &frozenset_type, &slice_type,     &memview_type };
 
 // `v` is pinned first: interning the name allocates, and a fresh native with
 // nothing pointing at it is exactly what a collection there would take.

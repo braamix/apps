@@ -3,6 +3,7 @@
 
 #include "gc.h"
 #include "kernel/fmt.h"
+#include "method.h"
 #include "ops.h"
 
 namespace {
@@ -15,6 +16,33 @@ void slice_trace(Obj *o)
     gc_mark(s->start);
     gc_mark(s->stop);
     gc_mark(s->step);
+}
+
+// start, stop and step, on a slice and on a range.
+R slice_getattr(Value v, StrObj *name, Value &out)
+{
+    SliceObj *s = static_cast<SliceObj *>(v.obj());
+    Str n       = name->str();
+    if (n == "start")
+        out = s->start;
+    else if (n == "stop")
+        out = s->stop;
+    else if (n == "step")
+        out = s->step;
+    else
+        return R::NotImpl;
+    return R::Ok;
+}
+
+R range_getattr(Value v, StrObj *name, Value &out)
+{
+    RangeObj *r = static_cast<RangeObj *>(v.obj());
+    Str n       = name->str();
+    i64 x       = n == "start" ? r->start : n == "stop" ? r->stop : r->step;
+    if (n != "start" && n != "stop" && n != "step")
+        return R::NotImpl;
+    out = int_from_i64(x);
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R slice_repr(Value v, String &out)
@@ -162,6 +190,41 @@ R enum_iter_next(Value v, Value &out)
     return R::Ok;
 }
 
+// reversed(): `at` counts from the end, so the length is read each time.
+R rev_iter_next(Value v, Value &out)
+{
+    IterObj *it = static_cast<IterObj *>(v.obj());
+    usize n     = 0;
+    if (py_len(it->owner, n) != R::Ok)
+        return R::Err;
+    if (it->at >= n)
+        return R::NotImpl;
+    Value key = Value::of_int(i32(n - 1 - it->at));
+    it->at++;
+    return py_getitem(it->owner, key, out);
+}
+
+// zip(): one item from each, until one runs out.
+R zip_iter_next(Value v, Value &out)
+{
+    IterObj *it = static_cast<IterObj *>(v.obj());
+    TupleObj *s = static_cast<TupleObj *>(it->owner.obj());
+    if (!s->len) // zip() with no arguments yields nothing
+        return R::NotImpl;
+    Root made{ obj_value(tuple_new(s->len)) };
+    if (made.v.is_nil())
+        return err_set("MemoryError", "out of memory");
+    for (usize i = 0; i < static_cast<TupleObj *>(it->owner.obj())->len; i++) {
+        Value got;
+        R r = py_next(static_cast<TupleObj *>(it->owner.obj())->items()[i], got);
+        if (r != R::Ok)
+            return r;
+        static_cast<TupleObj *>(made.v.obj())->items()[i] = got;
+    }
+    out = made.v;
+    return R::Ok;
+}
+
 R iter_repr(Value v, String &out)
 {
     Buf<64> b;
@@ -193,6 +256,18 @@ constexpr Type enum_iter_type{ .name  = "enumerate",
                                .iter  = iter_self,
                                .next  = enum_iter_next };
 
+constexpr Type rev_iter_type{ .name  = "reversed",
+                              .trace = iter_trace,
+                              .repr  = iter_repr,
+                              .iter  = iter_self,
+                              .next  = rev_iter_next };
+
+constexpr Type zip_iter_type{ .name  = "zip",
+                              .trace = iter_trace,
+                              .repr  = iter_repr,
+                              .iter  = iter_self,
+                              .next  = zip_iter_next };
+
 Value range_iter(Value v)
 {
     return obj_value(iter_new(&range_iter_type, v));
@@ -200,13 +275,49 @@ Value range_iter(Value v)
 
 } // namespace
 
-constexpr Type slice_type{ .name = "slice", .trace = slice_trace, .repr = slice_repr };
+// map() and filter() build their list first, so both are a sequence iterator
+// under another name. README says why.
+constexpr Type map_type{ .name  = "map",
+                         .trace = iter_trace,
+                         .repr  = iter_repr,
+                         .iter  = iter_self,
+                         .next  = seq_iter_next };
+
+constexpr Type filter_type{ .name  = "filter",
+                            .trace = iter_trace,
+                            .repr  = iter_repr,
+                            .iter  = iter_self,
+                            .next  = seq_iter_next };
+
+Value made_iter(Value list, const Type *t)
+{
+    return obj_value(iter_new(t, list));
+}
+
+Value reversed_new(Value seq)
+{
+    const Type *t = type_of(seq);
+    if (!t || !t->len || !t->getitem)
+        return err_set2("TypeError", "object is not reversible", type_name(seq)), Value();
+    return obj_value(iter_new(&rev_iter_type, seq));
+}
+
+Value zip_new(Value iters)
+{
+    return obj_value(iter_new(&zip_iter_type, iters));
+}
+
+constexpr Type slice_type{ .name    = "slice",
+                           .trace   = slice_trace,
+                           .repr    = slice_repr,
+                           .getattr = slice_getattr };
 
 constexpr Type range_type{ .name    = "range",
                            .repr    = range_repr,
                            .len     = range_len,
                            .getitem = range_getitem,
-                           .iter    = range_iter };
+                           .iter    = range_iter,
+                           .getattr = range_getattr };
 
 Value slice_new(Value start, Value stop, Value step)
 {

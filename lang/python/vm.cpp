@@ -611,11 +611,13 @@ R next_step(ContObj *k, Value in)
 // lands where a call's would, unless `what` says otherwise.
 bool run_special(FrameObj *f, Value m, const Value *args, u32 n, u32 pop, u32 what = SP_KEEP)
 {
+    // cont_new allocates, and nothing else points at `m` yet.
+    Root rm{ m };
     Root kv{ cont_new(once_step) };
     if (kv.v.is_nil())
         return false;
     ContObj *k = cont_of(kv.v);
-    k->s[0]    = m;
+    k->s[0]    = rm.v;
     if (n > 0)
         k->s[1] = args[0];
     if (n > 1)
@@ -1765,11 +1767,13 @@ void interpret()
             }
 
             case Bc::BeforeWith: {
-                Value enter, exit;
-                if (py_getattr(st[f->sp - 1], str_intern("__exit__"), exit) != R::Ok ||
+                // Looking __enter__ up allocates, so pin __exit__ first.
+                Value enter;
+                Root exit;
+                if (py_getattr(st[f->sp - 1], str_intern("__exit__"), exit.v) != R::Ok ||
                     py_getattr(st[f->sp - 1], str_intern("__enter__"), enter) != R::Ok)
                     goto oops;
-                st[f->sp - 1] = exit;
+                st[f->sp - 1] = exit.v;
                 if (!push(f, enter)) // the callable stays rooted while it runs
                     goto oops;
                 CallArgs a;
