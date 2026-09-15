@@ -7,8 +7,8 @@
 // Null with the error pending.
 DictObj *builtins_dict();
 
-// `sys`, and nothing else yet: there is no import path. Nil with ImportError
-// pending for any other name.
+// `sys`, and nothing else written in C++ yet. Nil with no error pending for
+// any other name: the loader then goes looking for a file.
 Value builtin_module(Str name);
 
 // What sys.argv answers, set by the driver before the program starts.

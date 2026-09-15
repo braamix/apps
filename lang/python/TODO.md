@@ -4,18 +4,19 @@ Python 3 written for Braam: our own bytecode VM, our own compiler, our own
 object model. The interpreter is not a port and stays that way. What is
 borrowed is measured, and named here.
 
-**The core language stands, and the built-in types have their methods.**
-Phases 0 to 10 built the lexer, the parser, the compiler, the VM, the object
-heap and its collector, exceptions, functions and closures, classes with the
-whole type system, and the method tables. They are done, and their record is
-the git history — `python: phase 0` through `python: phase 10` — not this
-file, which from here describes only what is left.
+**The language stands, the built-in types have their methods, and a file can
+be imported.** Phases 0 to 11 built the lexer, the parser, the compiler, the
+VM, the object heap and its collector, exceptions, functions and closures,
+classes with the whole type system, the method tables, and the module loader.
+They are done, and their record is the git history — `python: phase 0` through
+`python: phase 11` — not this file, which from here describes only what is
+left.
 
-Where that leaves us, measured against MicroPython's suite: **264 of the 304
-tests in [test/manifest.txt](test/manifest.txt)**, and **310 of the 480** in
+Where that leaves us, measured against MicroPython's suite: **284 of the 327
+tests in [test/manifest.txt](test/manifest.txt)**, and **313 of the 480** in
 `tests/basics/` once the bigint, generator, async and t-string families are set
-aside. Of the 170 that fail, the largest single cause is `str.format` and the
-`%` operator, which is phase 13. None stop at the object model.
+aside. The largest single cause of the rest is `str.format` and the `%`
+operator, which is phase 13. None stop at the object model.
 
 ## The two upstreams
 
@@ -126,24 +127,6 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-### Phase 11 — `import`, and where the library lives
-
-Nothing can be borrowed until a file can be imported.
-
-- [ ] The module object with a real `__dict__`, `__name__`, `__file__` and
-      `__spec__`; `sys.modules` as the cache; the circular-import rule.
-- [ ] `import a.b.c`, `from x import y`, `from x import *`, `as`, relative
-      imports, and packages with `__init__.py`.
-- [ ] `sys.path`, and the store directory the `/pkg/bin` link leads to —
-      [../mbasic/epath.cpp](../mbasic/epath.cpp) resolves its examples the
-      same way. The shipped library lands in `share/lib/`, so a program finds
-      `collections` without a versioned path.
-- [ ] The compiled-module question: parsing 1,667 lines of
-      `collections/__init__.py` on every run is a cost worth measuring before
-      deciding whether a marshalled code object is needed.
-
-Tests: `test_import/`, `test_module.py`, `test_pkgutil.py`.
-
 ### Phase 12 — CPython's tests become the ruler
 
 Establish the mechanism before the phases that need it, the way phase 0
@@ -237,7 +220,8 @@ compiling source at run time, so the library needs this.
 
 - [ ] `compile()` to a code object, `eval()` and `exec()` over one or over
       source, with explicit `globals` and `locals` mappings.
-- [ ] `globals()`, `locals()`, `vars()`, `dir()`, `__builtins__`.
+- [ ] `globals()`, `locals()`, `vars()`, `dir()`, `__builtins__`. Four of
+      upstream's import tests wait on `globals()` alone.
 - [ ] The code object made Python-visible: `__code__`, `co_varnames`,
       `co_consts`, `co_argcount`, `co_flags`, `co_filename`, `co_firstlineno`.
 - [ ] Function attributes: `__name__`, `__qualname__`, `__doc__`,
@@ -333,6 +317,9 @@ half of CPython's library can simply be copied.
 - [ ] Each module is a row in a manifest with the CPython commit it came from,
       and arrives with its own `test_*.py`. A module that needs syntax we do
       not have yet waits rather than being edited.
+- [ ] `importlib`, `__spec__`, `__loader__` and reloading. Phase 11's loader is
+      C++ and the only thing that finds a module: there is no `sys.meta_path`,
+      no `sys.path_hooks`, and nothing for a library module to hook.
 - [ ] The packaging question: `share/lib/` against a 4 MiB compressed package
       limit, and whether the whole library or a chosen set ships.
 
@@ -432,6 +419,7 @@ Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
 
 - [ ] `python` with no arguments, `-i`, `sys.ps1`/`sys.ps2`, and the
       incomplete-input rule `codeop` states.
+- [ ] `python -m <module>`, which needs `runpy` or its own small version of it.
 - [ ] The line editor, and the keyboard-ownership problem `mbasic` had to
       solve: a key ring has one receiver and there is no non-blocking key
       read, so the editor holds it at the prompt and gives it back the moment
@@ -441,7 +429,8 @@ Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
 ### Phase 27 — shipping
 
 - [ ] `share/lib/` with the library that fits, and `share/` examples written
-      in it.
+      in it. Phase 11 already puts that directory on `sys.path`, found through
+      the `/pkg/bin` link.
 - [ ] `Manual.md`, and the "what had to change" half of
       [README.md](README.md) — which for this program is "what was borrowed,
       and from where".

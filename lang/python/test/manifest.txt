@@ -9,6 +9,10 @@
 #
 # Whitespace separates; no field contains a space.
 #
+# A case outside basics/ may have modules beside it to import. Those are
+# upstream's too, from the same commit, and runcases.mjs plants the whole of
+# the directory before running any case in it.
+#
 # state  case  exp  commit  upstream
 pass  basics/andor.py                        cpython3.9  52b5fbc  tests/basics/andor.py
 pass  basics/bool1.py                        cpython3.9  52b5fbc  tests/basics/bool1.py
@@ -205,7 +209,7 @@ fail  basics/memoryview_slice_assign.py      cpython3.9  52b5fbc  tests/basics/m
 pass  basics/object1.py                      cpython3.9  52b5fbc  tests/basics/object1.py
 pass  basics/object_dict.py                  cpython3.9  52b5fbc  tests/basics/object_dict.py
 fail  basics/object_new.py                   cpython3.9  52b5fbc  tests/basics/object_new.py
-fail  basics/op_error.py                     cpython3.9  52b5fbc  tests/basics/op_error.py
+pass  basics/op_error.py                     cpython3.9  52b5fbc  tests/basics/op_error.py
 pass  basics/op_precedence.py                cpython3.9  52b5fbc  tests/basics/op_precedence.py
 fail  basics/parser.py                       upstream    52b5fbc  tests/basics/parser.py
 pass  basics/scope.py                        cpython3.9  52b5fbc  tests/basics/scope.py
@@ -314,3 +318,26 @@ pass  basics/with_break.py                   cpython3.9  52b5fbc  tests/basics/w
 pass  basics/with_continue.py                cpython3.9  52b5fbc  tests/basics/with_continue.py
 pass  basics/with_raise.py                   cpython3.9  52b5fbc  tests/basics/with_raise.py
 pass  basics/with_return.py                  cpython3.9  52b5fbc  tests/basics/with_return.py
+pass  import/builtin_import.py               cpython3.9  52b5fbc  tests/import/builtin_import.py
+pass  import/import1a.py                     cpython3.9  52b5fbc  tests/import/import1a.py
+pass  import/import1b.py                     cpython3.9  52b5fbc  tests/import/import1b.py
+pass  import/import2a.py                     cpython3.9  52b5fbc  tests/import/import2a.py
+pass  import/import3a.py                     cpython3.9  52b5fbc  tests/import/import3a.py
+fail  import/import_broken.py                cpython3.9  52b5fbc  tests/import/import_broken.py
+pass  import/import_circular.py              cpython3.9  52b5fbc  tests/import/import_circular.py
+fail  import/import_file.py                  cpython3.9  52b5fbc  tests/import/import_file.py
+pass  import/import_pkg1.py                  cpython3.9  52b5fbc  tests/import/import_pkg1.py
+pass  import/import_pkg2.py                  cpython3.9  52b5fbc  tests/import/import_pkg2.py
+pass  import/import_pkg3.py                  cpython3.9  52b5fbc  tests/import/import_pkg3.py
+pass  import/import_pkg4.py                  cpython3.9  52b5fbc  tests/import/import_pkg4.py
+pass  import/import_pkg5.py                  cpython3.9  52b5fbc  tests/import/import_pkg5.py
+pass  import/import_pkg6.py                  cpython3.9  52b5fbc  tests/import/import_pkg6.py
+pass  import/import_pkg7.py                  cpython3.9  52b5fbc  tests/import/import_pkg7.py
+pass  import/import_pkg8.py                  cpython3.9  52b5fbc  tests/import/import_pkg8.py
+pass  import/import_pkg9.py                  cpython3.9  52b5fbc  tests/import/import_pkg9.py
+fail  import/import_star.py                  cpython3.9  52b5fbc  tests/import/import_star.py
+fail  import/import_star_error.py            cpython3.9  52b5fbc  tests/import/import_star_error.py
+pass  import/module_dict.py                  cpython3.9  52b5fbc  tests/import/module_dict.py
+pass  import/module_getattr.py               cpython3.9  52b5fbc  tests/import/module_getattr.py
+pass  import/rel_import_inv.py               cpython3.9  52b5fbc  tests/import/rel_import_inv.py
+pass  import/try_module.py                   cpython3.9  52b5fbc  tests/import/try_module.py

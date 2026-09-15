@@ -64,6 +64,11 @@ export async function boot(caseName) {
 }
 
 export function put(path, text) {
+    // The directories too: the store keeps them in a set of their own, and
+    // without them `stat` says the path is not there. An import looking for a
+    // namespace package asks exactly that question.
+    for (let i = path.indexOf("/", 1); i > 0; i = path.indexOf("/", i + 1))
+        H.store.dirs.add(path.slice(0, i));
     H.store.files.set(path, typeof text === "string" ? enc.encode(text) : text);
 }
 

@@ -20,13 +20,17 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 10.**
+**Phase 11.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
 285
 $ python -c 'print("-".join(sorted("the quick brown fox".split())))'
 brown-fox-quick-the
+$ cat greet.py
+NAME = "world"
+$ python -c 'import greet; print(greet.NAME, greet.__file__)'
+world ./greet.py
 $ python -c 'class P:
     def __init__(self, x): self.x = x
     def __repr__(self): return "P(" + str(self.x) + ")"
@@ -47,10 +51,16 @@ The built-in types have their methods: str's forty-odd, bytes and a new
 new `frozenset`, and int and float. `divmod`, `round(x, n)`, `pow(a, b, m)`,
 `reversed`, `zip`, `map` and `filter` came with them.
 
-**264 of MicroPython's own tests pass unchanged**, and over the whole of
+**A program can import another file**: modules and packages, `import a.b.c`,
+`from x import y`, `as`, `from x import *`, relative imports, namespace
+packages, `sys.modules`, `sys.path` and `__import__`. The shipped library will
+live in the package's own `share/lib/`, which the binary finds through the
+`/pkg/bin` link.
+
+**284 of MicroPython's own tests pass unchanged**, and over the whole of
 `tests/basics/` — setting aside the bigint, generator, async and t-string
-families — **310 of 480**, up from 198. What stops most of the rest is
-`str.format` and the `%` operator, which are the next phase; generators,
+families — **313 of 480**, up from 198 at phase 9. What stops most of the rest
+is `str.format` and the `%` operator, which are the next phase; generators,
 f-strings and bignums are the others.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
@@ -98,7 +108,8 @@ green.
 | [call.h](call.h), [call.cpp](call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
 | [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices, ranges and the three iterators |
-| [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, and `sys` |
+| [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, `sys` and `builtins` |
+| [import.h](import.h), [import.cpp](import.cpp) | The module cache, the search path, and the loader |
 | [selftest.cpp](selftest.cpp) | What `--selftest` checks |
 | [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary, run a command, read back what it wrote |
 | [test/pysmoke.mjs](test/pysmoke.mjs) | That the program starts, answers its flags, and reports the right status |
@@ -111,6 +122,7 @@ green.
 | [test/pyclass.mjs](test/pyclass.mjs) | Classes: the diamond, the special methods, exceptions of one's own, all under gc stress |
 | [test/pyint.mjs](test/pyint.mjs) | That a `^C` reaches a running program, and that it may catch it |
 | [test/pymeth.mjs](test/pymeth.mjs) | Methods through a subclass, `sort(key=)`, the views, and the new types |
+| [test/pyimport.mjs](test/pyimport.mjs) | Fifty nested imports, the cache, the search path, the store |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pystress.mjs](test/pystress.mjs) | Every case again, collecting at every allocation |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
@@ -235,8 +247,18 @@ All recorded rather than hidden, and all in reach later:
   replaces the ranges with the Unicode categories, and `isdecimal`,
   `isnumeric` and `casefold` stop being aliases of `isdigit` and `lower` at
   the same time.
-- **`import` finds only built-in modules**, which is `sys` and nothing else.
-  There is no search path until there is a module object worth loading into.
+- **A namespace package can shadow a module on a later path entry.** CPython
+  scans the whole of sys.path for a real module before settling for a
+  directory; this settles per entry, so `a/` on the first entry wins over
+  `a.py` on the second.
+- **There is no `__spec__`, no `importlib` and no import hook.** The loader is
+  C++ and the only thing that finds a module. `sys.path_hooks`,
+  `sys.meta_path`, `__loader__` and reloading are not there.
+- **Nothing is cached in compiled form.** A module is parsed and compiled every
+  time the program runs: 1.8 ms for 1,667 lines against 3.6 ms to start the
+  process at all, measured under the harness, so a marshalled code object would
+  buy little.
+- **`python -m` is not there.** A program is a file, `-c` or stdin.
 - **A traceback is a string, not an object.** It is collected as the frames go
   and printed at the end; there is no `__traceback__` to read.
 
@@ -248,21 +270,32 @@ stack, given back only where something *suspends*. An interpreter loop that
 awaited would therefore grow the stack until the process trapped.
 
 So the VM is plain C++ that runs until it has something for its caller to do —
-a read, a write, an open, an exit — and returns saying what. Only
+a write, a file to read, an exit — and returns saying what. Only
 [braam.cpp](braam.cpp) awaits. It is the shape
 [emulators/simbesm](../../emulators/simbesm/) arrived at for the same reason,
 and it decides much else: a Python call pushes a frame rather than recursing,
 and an error is a sticky flag unwound a frame at a time, because there is no
 `setjmp` here either.
 
-The whole of the driver is eleven lines:
+The whole of the driver is a dozen lines:
 
     for (;;) {
         Req r = vm_burst();
         if (r.kind == ReqKind::Exit)
             co_return r.status;
+        if (r.kind == ReqKind::Read) {
+            Result<String> got = co_await read_file(r.path);
+            vm_read_done(got.is_ok(), false, got.value().str());
+            continue;
+        }
         vm_write_done(!(co_await write_all(r.fd, r.data)).is_err());
     }
+
+`ReqKind::Read` is what an `import` runs on. The loader cannot read a file
+inside an opcode, so it parks the continuation, the burst ends, the driver
+reads, and the next burst resumes the step with the source — or with `None`,
+which means try the next candidate. A name ending in `/` asks whether that is a
+directory, which is how a namespace package is found.
 
 `print` therefore does not write. It appends to a buffer the VM owns, and the
 VM asks for one write when that buffer passes four kilobytes or the program
@@ -322,6 +355,11 @@ Nor does it reach a comparison. `list.sort()` merges inside C++, so a class
 with `__lt__` cannot be sorted — the same limit `sorted`, `min` and `max` have
 had since phase 8. A key function is fine, because a key is called from a loop
 the continuation owns.
+
+`import` is the one continuation that needs both halves. It asks the driver for
+a file, and then asks the VM to run the module body — and a module that imports
+a module that imports a module nests neither the native stack nor the driver.
+[test/pyimport.mjs](test/pyimport.mjs) runs a chain of fifty.
 
 ## Testing
 

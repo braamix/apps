@@ -8,6 +8,7 @@
 
 enum class ReqKind : u8 {
     Write, // `data` to `fd`, then vm_write_done
+    Read,  // the whole of `path`, then vm_read_done
     Tick,  // the burst is up: park for a moment so a signal can arrive
     Exit,  // the program is over
 };
@@ -15,7 +16,8 @@ enum class ReqKind : u8 {
 struct Req {
     ReqKind kind = ReqKind::Exit;
     i32 fd       = 0;
-    Str data; // valid until vm_write_done
+    Str data; // Write: the bytes. Valid until vm_write_done
+    Str path; // Read: the file wanted. Valid until vm_read_done
     i32 status = 0;
 };
 
@@ -28,6 +30,11 @@ Req vm_burst();
 
 // The write the last burst asked for is done.
 void vm_write_done(bool ok);
+
+// The file the last burst asked for. `found` false means no such name, which
+// an import takes as "try the next candidate" and not as an error. A path
+// ending in `/` is asking whether that is a directory, and `dir` answers it.
+void vm_read_done(bool found, bool dir, Str text);
 
 // A ^C arrived. The next instruction boundary raises KeyboardInterrupt.
 void vm_interrupt();

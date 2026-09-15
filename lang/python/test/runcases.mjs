@@ -4,13 +4,33 @@
 // than dropped, so both a regression and an unpromoted fix are caught.
 // tools/mkexp.py writes the copy and the row.
 
-import { readFileSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { boot, put, run, ok, die } from "./pylib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+
+// A case that imports needs the modules it imports. Everything beside it goes
+// into /tmp, which is where the test itself is planted and therefore what
+// sys.path[0] names. Done once per directory: basics/ has no support files and
+// planting its 250 tests for each of them would be the whole of the run.
+const planted = new Set();
+
+function plant_support(dir) {
+    if (dir === "basics" || planted.has(dir)) return;
+    planted.add(dir);
+    const root = join(HERE, "cases", dir);
+    const walk = (at) => {
+        for (const e of readdirSync(at, { withFileTypes: true })) {
+            const p = join(at, e.name);
+            if (e.isDirectory()) walk(p);
+            else if (!p.endsWith(".exp")) put("/tmp/" + relative(root, p), readFileSync(p));
+        }
+    };
+    if (existsSync(root)) walk(root);
+}
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 
 // state case exp commit upstream — manifest.txt has the column notes.
@@ -51,6 +71,7 @@ for (const c of CASES) {
     if (!existsSync(src)) die(`${c.name}: no copy at ${src} — run tools/mkexp.py`);
     if (!existsSync(exp)) die(`${c.name}: no expected output at ${exp}`);
 
+    plant_support(dirname(c.name));
     put("/tmp/c.py", readFileSync(src));
     const r = run("/tmp/c.py");
     const want = readFileSync(exp, "utf8");

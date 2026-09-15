@@ -7,7 +7,9 @@
 // performs what vm_burst asks for. TODO.md says what is still missing.
 #include "compile.h"
 #include "err.h"
+#include "fs/path.h"
 #include "gc.h"
+#include "import.h"
 #include "kernel/args.h"
 #include "kernel/fmt.h"
 #include "lex.h"
@@ -37,8 +39,8 @@ constexpr Str USAGE =
     "    python --dis <f>         print the bytecode of <f>\n"
     "\n"
     "Python 3, written for Braam: its own compiler, its own bytecode and its\n"
-    "own virtual machine. Classes, exceptions and generators are not here\n"
-    "yet -- see TODO.md.\n";
+    "own virtual machine. Generators, f-strings and bignums are not here yet\n"
+    "-- see TODO.md.\n";
 
 constexpr Opts SPEC = { "V", "c" };
 
@@ -90,10 +92,59 @@ Task<bool> slurp(Args paths, String &out)
     }
 }
 
+// Is `root`/share/lib a directory? mbasic's epath.cpp resolves its examples
+// the same way, and for the same reason: the store path carries a version the
+// binary does not know.
+Task<bool> holds_library(Str root, String &out)
+{
+    if (!out.assign(root) || !out.append("/share/lib"))
+        co_return false;
+    Result<FileInfo> st = Err(Error::NoMemory);
+    if (Task<Result<FileInfo>> t = stat_of(out.str()))
+        st = co_await t;
+    if (st.is_ok() && st.value().kind == SYS_KIND_DIR)
+        co_return true;
+    out.clear();
+    co_return false;
+}
+
+// Where the shipped library is. pkg writes /pkg/bin/python as a symlink into
+// the store, and readlink does not follow the leaf, so one syscall recovers
+// the prefix; failing that, the store is scanned for the one directory this
+// package's name is a prefix of.
+Task<void> find_library(String &out)
+{
+    Result<String> link = Err(Error::NoMemory);
+    if (Task<Result<String>> t = read_link("/pkg/bin/python"))
+        link = co_await t;
+    if (link.is_ok()) {
+        Str dir = path_dirname(link.value().str()); // .../bin
+        if (Task<bool> t = holds_library(path_dirname(dir), out))
+            if (co_await t)
+                co_return;
+    }
+
+    Result<Vec<DirEntry>> ents = Err(Error::NoMemory);
+    if (Task<Result<Vec<DirEntry>>> t = list_dir("/pkg/store"))
+        ents = co_await t;
+    if (ents.is_err())
+        co_return;
+    String cand;
+    for (const DirEntry &e : ents.value()) {
+        if (!e.name.str().starts_with("python-"))
+            continue;
+        if (path_join("/pkg/store", e.name.str(), cand).is_err())
+            continue;
+        if (Task<bool> t = holds_library(cand.str(), out))
+            if (co_await t)
+                co_return;
+    }
+}
+
 // The whole of the platform half: compile, then hand the VM to the driver
 // loop below. Only this task awaits; the interpreter under it is plain C++
 // and says what it wants done.
-Task<i32> interpret(Str source, Str name, Args argv)
+Task<i32> interpret(Str source, Str name, Args argv, Str script)
 {
     // Collecting at every allocation turns a missing Root into a wrong answer
     // rather than a rare crash. It is slow, so a program asks for it by name.
@@ -114,6 +165,11 @@ Task<i32> interpret(Str source, Str name, Args argv)
         co_await write_all(SYS_STDERR, where().str());
         co_return 1;
     }
+    // sys.path: the directory the program came from, then the shipped library.
+    // A `-c` or a pipe has no directory of its own, and gets the cwd.
+    String lib;
+    co_await find_library(lib);
+    sys_set_path(script.empty() ? Str(".") : path_dirname(script), lib.str());
 
     for (;;) {
         Req r = vm_burst();
@@ -126,6 +182,27 @@ Task<i32> interpret(Str source, Str name, Args argv)
                 co_await t;
             if (sig_take(SIG_INT))
                 vm_interrupt();
+            continue;
+        }
+        if (r.kind == ReqKind::Read) {
+            // An import looking for a module. A missing name is an answer, not
+            // a failure: the loader tries the next candidate.
+            if (r.path.ends_with("/")) {
+                // A namespace package: is this a directory?
+                Result<FileInfo> st = Err(Error::NoMemory);
+                if (Task<Result<FileInfo>> t = stat_of(r.path.substr(0, r.path.size() - 1)))
+                    st = co_await t;
+                bool dir = st.is_ok() && st.value().kind == SYS_KIND_DIR;
+                vm_read_done(dir, dir, Str());
+                continue;
+            }
+            Result<String> got = Err(Error::NoMemory);
+            if (Task<Result<String>> t = read_file(r.path))
+                got = co_await t;
+            if (got.is_ok())
+                vm_read_done(true, false, got.value().str());
+            else
+                vm_read_done(false, false, Str());
             continue;
         }
         // A write is not in the set a signal can abandon, so nothing here has
@@ -220,5 +297,6 @@ Task<i32> proc_main(Args args)
         co_return co_await complain("out of memory", Str());
     }
 
-    co_return co_await interpret(source.str(), name, rest);
+    bool from_file = job.command.empty() && job.file != "-";
+    co_return co_await interpret(source.str(), name, rest, from_file ? job.file : Str());
 }

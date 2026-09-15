@@ -19,19 +19,25 @@ struct ContObj;
 // Ask for another call with cont_call, or stop with cont_done.
 using ContStep = R (*)(ContObj *k, Value in);
 
+// Called when an exception unwinds past a parked continuation. The step may
+// undo what it half-did; the exception carries on either way.
+using ContFail = void (*)(ContObj *k);
+
 struct ContObj : Obj {
     ContStep step;
-    Value s[6];   // the builtin's own state
-    Value fn;     // what to call next, Nil when there is nothing left to call
-    Value a[2];   // its arguments
-    Value argv;   // or a tuple of them, when there are more than two
-    Value out;    // the answer, once fn is Nil
-    Value next;   // the ContObj waiting on this one, or Nil
-    Value locals; // the namespace the next call's frame runs in, or Nil
+    ContFail fail; // null when there is nothing to undo
+    Value s[6];    // the builtin's own state
+    Value fn;      // what to call next, Nil when there is nothing left to call
+    Value a[2];    // its arguments
+    Value argv;    // or a tuple of them, when there are more than two
+    Value out;     // the answer, once fn is Nil
+    Value next;    // the ContObj waiting on this one, or Nil
+    Value locals;  // the namespace the next call's frame runs in, or Nil
     u32 nargs;
     u32 i, j;     // counters a step keeps across its requests
     u32 catching; // a CATCH_*: the step is resumed with Nil rather than unwound
     bool drop;    // the answer is not wanted: push nothing
+    bool reading; // parked on a file read; see cont_read
 };
 
 // What a continuation is willing to catch out of the call it asked for. The
@@ -79,3 +85,8 @@ inline R cont_done(ContObj *k, Value v)
     k->out = v;
     return R::Ok;
 }
+
+// Inside a step: read `path`, and come back with its text as a str. None means
+// there is no such file. The driver performs it, so the VM parks here; only
+// `import` needs this, and vm.h says what the driver sees.
+R cont_read(ContObj *k, Str path);

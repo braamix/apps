@@ -2,6 +2,7 @@
 #include "func.h"
 
 #include "gc.h"
+#include "intern.h"
 #include "kernel/fmt.h"
 #include "ops.h"
 
@@ -60,7 +61,15 @@ R module_repr(Value v, String &out)
 
 R module_getattr(Value v, StrObj *name, Value &out)
 {
-    return dict_get(module_dict(v), obj_value(name), out);
+    R r = dict_get(module_dict(v), obj_value(name), out);
+    if (r != R::NotImpl)
+        return r;
+    // The namespace itself, which is not in the namespace.
+    if (name->str() == "__dict__") {
+        out = obj_value(module_dict(v));
+        return R::Ok;
+    }
+    return R::NotImpl;
 }
 
 } // namespace
@@ -123,7 +132,13 @@ Value module_new(Str name)
         return err_set("MemoryError", "out of memory"), Value();
     m->name = n.v;
     m->dict = rd.v;
-    return obj_value(m);
+    Root rm{ obj_value(m) };
+    // The body of the module reads its own name, so it is in the namespace
+    // and not only on the object.
+    StrObj *key = str_intern("__name__");
+    if (!key || dict_set(static_cast<DictObj *>(rd.v.obj()), obj_value(key), n.v) != R::Ok)
+        return Value();
+    return rm.v;
 }
 
 bool args_only(const CallArgs &a, Str who, u32 least, u32 most)

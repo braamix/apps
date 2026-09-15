@@ -17,7 +17,7 @@ braam_add_program(NAME python
                   SOURCES astdump.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp
                           code.cpp compile.cpp
                           dis.cpp err.cpp exc.cpp float.cpp frame.cpp func.cpp gc.cpp
-                          int.cpp
+                          import.cpp int.cpp
                           intern.cpp iter.cpp lex.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
                           obj.cpp ops.cpp parse.cpp
                           repr.cpp selftest.cpp seqmeth.cpp str.cpp strmeth.cpp symtab.cpp

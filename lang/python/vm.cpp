@@ -15,6 +15,7 @@
 #include "frame.h"
 #include "func.h"
 #include "gc.h"
+#include "import.h"
 #include "intern.h"
 #include "iter.h"
 #include "kernel/alloc.h"
@@ -34,17 +35,23 @@ constexpr u32 MAX_FRAMES = 200;  // the frames are heap, but a limit says so
 constexpr u32 BURST = 20000;
 
 struct VM {
-    Value frame;              // the innermost FrameObj
-    Value globals;            // __main__'s namespace
-    Value builtins;           // the builtins namespace
-    Value handling;           // the exception an `except` clause is working on
-    Vec<Value> flat;          // CallEx's arguments, flattened
-    Vec<Value> kwnames;       // and their names
-    Vec<Value> bound;         // self, then a bound method's own arguments
-    Vec<String> tb;           // the traceback, innermost first, as it unwinds
-    String out;               // what print has buffered
-    String err;               // what goes to stderr, once there is any
-    String *sent   = nullptr; // which of the two the driver is writing
+    Value frame;            // the innermost FrameObj
+    Value globals;          // __main__'s namespace
+    Value builtins;         // the builtins namespace
+    Value handling;         // the exception an `except` clause is working on
+    Vec<Value> flat;        // CallEx's arguments, flattened
+    Vec<Value> kwnames;     // and their names
+    Vec<Value> bound;       // self, then a bound method's own arguments
+    Vec<String> tb;         // the traceback, innermost first, as it unwinds
+    String out;             // what print has buffered
+    String err;             // what goes to stderr, once there is any
+    String *sent = nullptr; // which of the two the driver is writing
+    Value reading;          // the ContObj waiting on a file, or Nil
+    Value resume;           // the same, once the answer is in
+    String want;            // the file it asked for
+    String text;            // what came back
+    bool found     = false; // whether there was such a name
+    bool isdir     = false; // and whether it is a directory
     u32 depth      = 0;
     u32 budget     = 0;
     i32 status     = 0;
@@ -66,6 +73,8 @@ void vm_mark()
     gc_mark(vm->globals);
     gc_mark(vm->builtins);
     gc_mark(vm->handling);
+    gc_mark(vm->reading);
+    gc_mark(vm->resume);
     for (usize i = 0; i < vm->flat.size(); i++)
         gc_mark(vm->flat[i]);
     for (usize i = 0; i < vm->kwnames.size(); i++)
@@ -440,6 +449,14 @@ bool run_cont(Value kv, Value in)
         k->fn      = Value();
         if (k->step(k, ri.v) != R::Ok)
             return false;
+
+        // The step wants a file. Park it: vm_burst asks the driver, and
+        // vm_read_done puts it back on vm->resume with the answer.
+        if (k->reading) {
+            k->reading  = false;
+            vm->reading = rk.v;
+            return true;
+        }
 
         if (k->fn.is_nil()) {
             if (k->next.is_nil())
@@ -822,6 +839,9 @@ bool dispatch(Value e)
             vm->tb.clear();
             return run_cont(kv, Value());
         }
+        // Abandoned rather than caught: the continuation gets to tidy up.
+        if (!kv.is_nil() && cont_of(kv)->fail)
+            cont_of(kv)->fail(cont_of(kv));
     }
 }
 
@@ -853,8 +873,24 @@ void interpret()
 {
     vm->budget = BURST;
     for (;;) {
-        if (vm->finished || vm->out.size() >= FLUSH_AT || !vm->budget--)
+        if (vm->finished || !vm->reading.is_nil() || vm->out.size() >= FLUSH_AT || !vm->budget--)
             return;
+
+        // The file an import asked for has arrived. Hand it to the step that
+        // parked, as a str, or None when there was no such file.
+        if (!vm->resume.is_nil()) {
+            Root k{ vm->resume };
+            vm->resume = Value();
+            Root text{ !vm->found  ? value_none()
+                       : vm->isdir ? value_bool(true)
+                                   : str_new(vm->text.str()) };
+            if (text.v.is_nil() || !run_cont(k.v, text.v)) {
+                vm->tb.clear();
+                if (!raise_value(pending_exception()))
+                    return;
+            }
+            continue;
+        }
 
         // A ^C the driver noticed between bursts, delivered here, which is the
         // only place the stack is in a state an exception can unwind from.
@@ -1633,19 +1669,37 @@ void interpret()
             }
 
             case Bc::ImportName: {
-                Value m = builtin_module(str_of(co->names[arg])->str());
-                if (m.is_nil())
-                    goto oops;
+                // The compiler left [level, fromlist] here, and the loader
+                // suspends, so what comes back is a continuation.
+                Root nm{ co->names[arg] }, lv{ st[f->sp - 2] }, fl{ st[f->sp - 1] };
                 f->sp -= 2;
-                st[f->sp++] = m;
+                Value a4[4] = { nm.v, lv.v, fl.v, f->globals };
+                CallArgs a;
+                a.args  = a4;
+                a.nargs = 4;
+                Value out;
+                if (py_import(a, out) != R::Ok || !land(out, false))
+                    goto oops;
                 break;
             }
             case Bc::ImportFrom: {
                 Value out;
-                if (py_getattr(st[f->sp - 1], str_of(co->names[arg]), out) != R::Ok)
+                StrObj *what = str_of(co->names[arg]);
+                if (py_getattr(st[f->sp - 1], what, out) != R::Ok) {
+                    // The name is missing, not the object: say so as an import.
+                    err_clear();
+                    import_missing(st[f->sp - 1], what);
                     goto oops;
+                }
                 if (!push(f, out))
                     goto oops;
+                break;
+            }
+            case Bc::ImportStar: {
+                Value into = f->locals.is_nil() ? f->globals : f->locals;
+                if (import_star(st[f->sp - 1], dict_at(into)) != R::Ok)
+                    goto oops;
+                f->sp--;
                 break;
             }
 
@@ -1871,6 +1925,15 @@ bool vm_start(Value code, Args argv)
     if (dict_set(dict_at(vm->globals), obj_value(name), main) != R::Ok)
         return false;
 
+    // The program is a module too, so `import __main__` and sys.modules both
+    // find it. Its namespace is the one already made, not a second one.
+    Root m{ module_new("__main__") };
+    if (m.v.is_nil())
+        return false;
+    static_cast<ModuleObj *>(m.v.obj())->dict = vm->globals;
+    if (!module_register("__main__", m.v))
+        return false;
+
     FrameObj *f = frame_push(code_of(rc.v), vm->globals, vm->globals, Value());
     return f != nullptr;
 }
@@ -1879,28 +1942,32 @@ Req vm_burst()
 {
     for (;;) {
         bool spent = false;
-        if (!vm->finished) {
+        if (!vm->finished && vm->reading.is_nil()) {
             interpret();
-            spent = !vm->finished && vm->out.size() < FLUSH_AT;
+            spent = !vm->finished && vm->reading.is_nil() && vm->out.size() < FLUSH_AT;
         }
 
         if (!vm->out.empty()) {
             vm->sent = &vm->out;
-            return Req{ ReqKind::Write, SYS_STDOUT, vm->out.str(), 0 };
+            return Req{ ReqKind::Write, SYS_STDOUT, vm->out.str(), Str(), 0 };
         }
+        // Output first, so anything already printed is out before the driver
+        // goes to the file system.
+        if (!vm->reading.is_nil())
+            return Req{ ReqKind::Read, 0, Str(), vm->want.str(), 0 };
         if (!vm->finished) {
             // The budget ran out rather than the work: give the driver its
             // turn, which is the only way a signal reaches this process.
             if (spent)
-                return Req{ ReqKind::Tick, 0, Str(), 0 };
+                return Req{ ReqKind::Tick, 0, Str(), Str(), 0 };
             continue;
         }
         if (!vm->err.empty() && !vm->reported) {
             vm->reported = true;
             vm->sent     = &vm->err;
-            return Req{ ReqKind::Write, SYS_STDERR, vm->err.str(), 0 };
+            return Req{ ReqKind::Write, SYS_STDERR, vm->err.str(), Str(), 0 };
         }
-        return Req{ ReqKind::Exit, 0, Str(), vm->status };
+        return Req{ ReqKind::Exit, 0, Str(), Str(), vm->status };
     }
 }
 
@@ -1912,6 +1979,28 @@ Value vm_frame()
 void vm_interrupt()
 {
     vm->interrupt = true;
+}
+
+R cont_read(ContObj *k, Str path)
+{
+    if (!vm->want.assign(path))
+        return err_set("MemoryError", "out of memory");
+    k->fn      = Value();
+    k->reading = true;
+    return R::Ok;
+}
+
+void vm_read_done(bool found, bool dir, Str text)
+{
+    vm->found = found;
+    vm->isdir = dir;
+    vm->text.clear();
+    if (found && !dir && !vm->text.append(text)) {
+        vm->found = false;
+        err_set("MemoryError", "out of memory");
+    }
+    vm->resume  = vm->reading;
+    vm->reading = Value();
 }
 
 void vm_write_done(bool ok)

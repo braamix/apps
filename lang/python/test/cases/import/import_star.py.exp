@@ -1,0 +1,26 @@
+True
+True
+False
+False
+42
+True
+True
+False
+False
+False
+False
+1
+True
+777
+True
+True
+False
+False
+2
+AttributeError triggered for bad __all__ definition
+TypeError triggered for bad __all__ definition
+__getattr__ __all__
+True
+3
+__getattr__ __all__
+ValueError triggered with args ('__all__',)

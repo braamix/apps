@@ -172,6 +172,13 @@ const ExcType EXC_TABLE[] = {
     { "TypeError", &EXC_TABLE[4] },
     { "ValueError", &EXC_TABLE[4] },
     { "UnicodeError", &EXC_TABLE[30] },
+
+    // Appended rather than slotted in: the bases above are by index, so a new
+    // row in the middle would renumber every one after it.
+    { "ModuleNotFoundError", &EXC_TABLE[14] },
+    { "UnicodeEncodeError", &EXC_TABLE[31] },
+    { "UnicodeDecodeError", &EXC_TABLE[31] },
+    { "BufferError", &EXC_TABLE[4] },
 };
 
 const usize EXC_COUNT = sizeof(EXC_TABLE) / sizeof(EXC_TABLE[0]);

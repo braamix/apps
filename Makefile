@@ -133,6 +133,7 @@ TESTS := \
     lang/python/test/pyclass.mjs \
     lang/python/test/pyint.mjs \
     lang/python/test/pymeth.mjs \
+    lang/python/test/pyimport.mjs \
     lang/python/test/runcases.mjs \
     lang/python/test/pystress.mjs
 

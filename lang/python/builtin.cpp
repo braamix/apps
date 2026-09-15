@@ -7,6 +7,7 @@
 #include "call.h"
 #include "exc.h"
 #include "gc.h"
+#include "import.h"
 #include "intern.h"
 #include "iter.h"
 #include "kernel/alloc.h"
@@ -25,6 +26,7 @@ namespace {
 // dict that is.
 struct Home {
     Value builtins;
+    Value builtins_mod;
     Value sys;
     Value argv;
     String *sink;
@@ -44,6 +46,7 @@ void home_mark()
     if (!home)
         return;
     gc_mark(home->builtins);
+    gc_mark(home->builtins_mod);
     gc_mark(home->sys);
     gc_mark(home->argv);
 }
@@ -356,7 +359,9 @@ R print_line(const Value *args, u32 n, Str sep, Str end)
 
 // A builtin whose work on a class instance is one special method. `j` says
 // what the answer has to be.
-enum : u32 { WANT_ANY, WANT_INT, WANT_STR, WANT_BOOL };
+// WANT_FOUND is hasattr's: True because the call returned at all, whatever
+// it returned. WANT_BOOL is __bool__'s, which is the value's own truth.
+enum : u32 { WANT_ANY, WANT_INT, WANT_STR, WANT_BOOL, WANT_FOUND };
 
 R one_step(ContObj *k, Value in)
 {
@@ -364,7 +369,7 @@ R one_step(ContObj *k, Value in)
         return cont_call(k, k->s[0], k->a[0], k->nargs);
     // An AttributeError this caught means getattr's default, or hasattr False.
     if (in.is_nil())
-        return cont_done(k, k->j == WANT_BOOL ? value_bool(false) : k->s[1]);
+        return cont_done(k, k->j == WANT_BOOL || k->j == WANT_FOUND ? value_bool(false) : k->s[1]);
     i64 n = 0;
     switch (k->j) {
     case WANT_INT:
@@ -377,6 +382,9 @@ R one_step(ContObj *k, Value in)
         break;
     case WANT_BOOL:
         in = value_bool(py_truth(in));
+        break;
+    case WANT_FOUND:
+        in = value_bool(true);
         break;
     default:
         break;
@@ -1296,7 +1304,7 @@ R attr_of(const CallArgs &a, Str who, bool want_bool, Value &out)
             return R::Err;
         cont_of(kv)->s[0]     = got.v;
         cont_of(kv)->s[1]     = a.nargs > 2 ? a.args[2] : Value();
-        cont_of(kv)->j        = want_bool ? WANT_BOOL : WANT_ANY;
+        cont_of(kv)->j        = want_bool ? WANT_FOUND : WANT_ANY;
         cont_of(kv)->catching = a.nargs > 2 || want_bool ? CATCH_ATTR : CATCH_NONE;
         out                   = kv;
         return R::Ok;
@@ -1313,7 +1321,7 @@ R attr_of(const CallArgs &a, Str who, bool want_bool, Value &out)
         cont_of(kv)->s[1]     = a.nargs > 2 ? a.args[2] : Value();
         cont_of(kv)->a[0]     = a.args[1];
         cont_of(kv)->nargs    = 1;
-        cont_of(kv)->j        = want_bool ? WANT_BOOL : WANT_ANY;
+        cont_of(kv)->j        = want_bool ? WANT_FOUND : WANT_ANY;
         cont_of(kv)->catching = a.nargs > 2 || want_bool ? CATCH_ATTR : CATCH_NONE;
         out                   = kv;
         return R::Ok;
@@ -1805,7 +1813,7 @@ constexpr Builtin TABLE[] = {
     { "delattr", b_delattr }, { "callable", b_callable }, { "hash", b_hash },
     { "id", b_id },           { "divmod", b_divmod },     { "round", b_round },
     { "pow", b_pow },         { "reversed", b_reversed }, { "zip", b_zip },
-    { "map", b_map },         { "filter", b_filter },
+    { "map", b_map },         { "filter", b_filter },     { "__import__", b_import },
 };
 
 // Calling one of these is calling its type: `list(x)` is `list.__new__(x)`,
@@ -1889,8 +1897,22 @@ Value builtin_module(Str name)
     Home *h = here();
     if (!h)
         return oom(), Value();
+    // `builtins` is the namespace every frame already falls back to, wrapped
+    // in a module so it can be imported like anything else.
+    if (name == "builtins") {
+        if (h->builtins_mod.is_nil()) {
+            DictObj *b = builtins_dict();
+            Root m{ module_new("builtins") };
+            if (!b || m.v.is_nil())
+                return Value();
+            static_cast<ModuleObj *>(m.v.obj())->dict = obj_value(b);
+            h->builtins_mod                           = m.v;
+        }
+        return h->builtins_mod;
+    }
+    // Nil and no error: the loader goes looking for a file instead.
     if (name != "sys")
-        return err_set2("ImportError", "no module named", name), Value();
+        return Value();
     if (!h->sys.is_nil())
         return h->sys;
 
@@ -1923,6 +1945,17 @@ Value builtin_module(Str name)
     if (!key || !pl || plat.is_nil() ||
         dict_set(module_dict(h->sys), obj_value(key), impl.v) != R::Ok ||
         dict_set(module_dict(h->sys), obj_value(pl), plat) != R::Ok)
+        return Value();
+
+    // The cache and the search path are the loader's, and a program reads and
+    // writes both through here.
+    StrObj *mods = str_intern("modules");
+    StrObj *path = str_intern("path");
+    DictObj *sm  = sys_modules();
+    Root sp{ sys_path() };
+    if (!mods || !path || !sm || sp.v.is_nil() ||
+        dict_set(module_dict(h->sys), obj_value(mods), obj_value(sm)) != R::Ok ||
+        dict_set(module_dict(h->sys), obj_value(path), sp.v) != R::Ok)
         return Value();
     return h->sys;
 }

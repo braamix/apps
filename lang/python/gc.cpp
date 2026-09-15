@@ -4,6 +4,7 @@
 #include "err.h"
 #include "intern.h"
 #include "kernel/alloc.h"
+#include "kernel/host.h"
 #include "obj.h"
 
 namespace {
@@ -15,8 +16,9 @@ Obj *grey    = nullptr; // the marker's worklist
 Roots *roots = nullptr; // the innermost pin
 
 // A handful of root providers, because more than one subsystem outlives an
-// operation: the VM's frames and the builtins namespace.
-constexpr usize MAX_HOOKS = 4;
+// operation: the VM's frames, the builtins namespace, the type objects, the
+// exception types and the module cache.
+constexpr usize MAX_HOOKS = 8;
 void (*hooks[MAX_HOOKS])();
 usize nhooks = 0;
 
@@ -113,8 +115,11 @@ void gc_root_hook(void (*f)())
     for (usize i = 0; i < nhooks; i++)
         if (hooks[i] == f)
             return;
-    if (nhooks < MAX_HOOKS)
-        hooks[nhooks++] = f;
+    // Dropping one would lose a whole subsystem's roots, and the wreckage
+    // would turn up somewhere else entirely.
+    if (nhooks >= MAX_HOOKS)
+        panic("gc: too many root hooks");
+    hooks[nhooks++] = f;
 }
 
 void gc_stress(bool on)

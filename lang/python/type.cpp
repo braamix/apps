@@ -648,6 +648,16 @@ Got py_attr(Value v, StrObj *name, Value &out)
         if (m == R::Err)
             return Got::Error;
         out = Value();
+        // A module may answer for itself (PEP 562). Its __getattr__ takes the
+        // name and nothing else, so it is not bound.
+        if (is_module(v)) {
+            StrObj *ga = str_intern("__getattr__");
+            Value fn;
+            if (!ga)
+                return oom(), Got::Error;
+            if (dict_get(module_dict(v), obj_value(ga), fn) == R::Ok)
+                out = fn;
+        }
         return Got::Missing;
     }
 

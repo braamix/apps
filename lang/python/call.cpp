@@ -73,6 +73,7 @@ Value cont_new(ContStep step)
     if (!k)
         return oom(), Value();
     k->step = step;
+    k->fail = nullptr;
     for (Value &v : k->s)
         v = Value();
     k->fn = Value();
@@ -86,6 +87,7 @@ Value cont_new(ContStep step)
     k->i = k->j = 0;
     k->catching = CATCH_NONE;
     k->drop     = false;
+    k->reading  = false;
     return obj_value(k);
 }
 

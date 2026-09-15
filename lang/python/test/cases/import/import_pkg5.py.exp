@@ -1,0 +1,7 @@
+pkg __name__: pkg3
+mod1 __name__: pkg3.mod1
+mod2 __name__: pkg3.mod2
+in mod2
+subpkg1 __name__: pkg3.subpkg1
+subpkg1.mod1 __name__: pkg3.subpkg1.mod1
+mod2.foo()
