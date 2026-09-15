@@ -45,9 +45,9 @@ R bytes_getitem(Value v, Value key, Value &out)
 {
     BytesObj *b = static_cast<BytesObj *>(v.obj());
     if (is_slice(key)) {
-        i64 start = 0, step = 1;
+        i64 start = 0, stop = 0, step = 1;
         usize count = 0;
-        if (!slice_resolve(key, b->len, start, step, count))
+        if (!slice_resolve(key, b->len, start, stop, step, count))
             return R::Err;
         String buf;
         for (usize k = 0; k < count; k++)

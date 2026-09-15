@@ -356,19 +356,65 @@ Three decisions worth recording:
   mechanism, and it belongs with the descriptor protocol in phase 9 rather
   than bolted on here.
 
-### Phase 7 — exceptions and control flow
+### Phase 7 — exceptions and control flow — **done**
 
-- [ ] `exc.cpp` — the exception type hierarchy, `raise` and `raise from`.
-- [ ] `try`/`except`/`else`/`finally`, the block stack, and its interaction
-      with `break`, `continue` and `return`.
-- [ ] `with` and the context-manager protocol.
-- [ ] The traceback printed on an uncaught exception, and `SystemExit`.
-- [ ] `KeyboardInterrupt`: `sig_catch(SIG_INT)` in the driver, delivered to the
-      VM as an exception at the next instruction boundary. A burst that never
-      returns to the driver cannot be interrupted, so the burst has a bound.
+- [x] [exc.h](exc.h), [exc.cpp](exc.cpp) — thirty-two exception types in one
+      static table, each a name and a base pointer, so matching is a few
+      pointer compares and no allocation; the type object `except` matches
+      against and the instance that carries the arguments; `raise`,
+      `raise … from`, and bare `raise`.
+- [x] The error channel learned to hold an *object* as well as a kind and a
+      message ([err.h](err.h)). A few hundred call sites still say
+      `err_set("TypeError", …)`, and the VM materialises an exception from
+      that only where an `except` might want one.
+- [x] `try`/`except`/`else`/`finally`, the block stack in the frame, and the
+      exits through it. `except (A, B)` and `except E as e` with the name
+      deleted afterwards.
+- [x] `with` and the context-manager protocol: `BeforeWith` and
+      `WithExceptStart` do what [code.h](code.h) says they do. Nothing
+      built-in is a context manager, so the tests for it wait for classes.
+- [x] The traceback, collected frame by frame as the exception unwinds and
+      printed with its cause or context first; `SystemExit`, which is the one
+      exception that sets a status rather than being an error; `sys.exit`.
+- [x] `KeyboardInterrupt`: `sig_catch(SIG_INT)` before the driver's first
+      park, `ReqKind::Tick` when the burst's twenty thousand instructions are
+      up, and `sleep_for(0)` between bursts — because a signal is delivered
+      where a process parks, and a compute loop parks nowhere.
+      [test/pyint.mjs](test/pyint.mjs) drives `kill -INT` at one.
+- [x] Four more builtins the tests wanted and the runtime already had the
+      parts for: `iter`, `next`, `ord`, `chr`. Slicing a `range` yields a
+      range.
+- [x] A twenty-third `--selftest` check over the hierarchy: every kind the
+      error channel can raise is in the table, and every row reaches
+      `BaseException`.
 
-Tests: the 32 `try_*` files, `with*.py`, `exception1.py`, `exceptpoly.py`,
-`except_match_tuple.py`, `sys_exit.py`.
+**Fifty-three upstream tests pass**, of the sixty-four in the manifest — up
+from seventeen. The 20 `try_*` files, `exception1`, `exceptpoly`,
+`exceptpoly2`, `except_match_tuple` and `sys_exit` are all green. Of the
+eleven that are not, three need `exec`/`compile`, six need methods on the
+built-in types, and two need `type()` and `getattr()`.
+
+Four decisions worth recording, three of them found by upstream's tests:
+
+- **The exception state is per frame.** A bare `raise` re-raises what the
+  innermost `except` is handling, and a called function can see it — but a
+  frame that dies while unwinding must not leave its handler visible to
+  whatever catches next. Each frame records what was being handled when it was
+  entered; `try_reraise.py` is the test that says so.
+- **A `finally` clause is emitted more than once, and the copies do not start
+  from the same stack.** The exception copy has the exception on it; a copy
+  emitted for a `return` has the return value. A `break` out of either has to
+  drop what it is standing on, and the compiler counts it.
+- **An exit from inside a `finally` does not unwind that clause again**: its
+  handler is popped and its body is what is running. Phase 5 refused this
+  outright, which cost five of the `try_finally_*` tests.
+- **`CheckExcMatch` pops the copy of the exception as well as the type.** The
+  `DupTop` before it exists for exactly that, and getting it wrong inflated
+  every stack-size estimate in a `try`.
+
+Two things the phase left alone: `with` cannot be exercised until there is a
+class to write `__enter__` on, and a traceback is a string collected as the
+frames go rather than a `__traceback__` object.
 
 ### Phase 8 — functions, closures, calls
 

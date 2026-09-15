@@ -188,6 +188,10 @@ void Lister::one(const CodeObj *c)
     num(c->kwonly);
     put(")  stack ");
     num(c->stacksize);
+    if (c->nblocks) {
+        put("  blocks ");
+        num(c->nblocks);
+    }
     put("  flags");
     flags(c->flags);
     put('\n');

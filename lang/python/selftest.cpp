@@ -5,6 +5,7 @@
 
 #include "code.h"
 #include "compile.h"
+#include "exc.h"
 #include "gc.h"
 #include "intern.h"
 #include "kernel/fmt.h"
@@ -742,20 +743,73 @@ Str t_scopes()
     return Str();
 }
 
+// ------------------------------------------------------------------ phase 7
+
+Str t_exceptions()
+{
+    // Every name the error channel can raise has to be in the table, or an
+    // `except` could never catch it.
+    constexpr Str RAISED[] = { "AttributeError",    "ImportError",       "IndexError",
+                               "KeyError",          "MemoryError",       "NameError",
+                               "OverflowError",     "RecursionError",    "SyntaxError",
+                               "SystemError",       "TypeError",         "ValueError",
+                               "ZeroDivisionError", "UnboundLocalError", "KeyboardInterrupt",
+                               "StopIteration",     "SystemExit" };
+    for (Str n : RAISED)
+        if (!exc_find(n))
+            return why_s("missing exception type", n, "in the table");
+
+    const ExcType *base = exc_find("BaseException");
+    const ExcType *any  = exc_find("Exception");
+    const ExcType *zero = exc_find("ZeroDivisionError");
+    if (!exc_is(zero, exc_find("ArithmeticError")) || !exc_is(zero, any) || !exc_is(zero, base))
+        return "ZeroDivisionError is not under ArithmeticError, Exception and BaseException";
+    if (exc_is(any, zero) || exc_is(exc_find("SystemExit"), any))
+        return "the hierarchy runs the wrong way";
+
+    // Every row has to reach BaseException, or matching would loop.
+    for (usize i = 0; i < EXC_COUNT; i++)
+        if (!exc_is(&EXC_TABLE[i], base))
+            return why_s("not under BaseException", EXC_TABLE[i].name, "it should be");
+
+    Root e{ exc_make("ValueError", "bad") };
+    if (e.v.is_nil() || exc_type_of(e.v) != exc_find("ValueError"))
+        return "exc_make did not build a ValueError";
+    String line;
+    if (!exc_line(e.v, line) || line.str() != "ValueError: bad")
+        return why_s("the last traceback line", line.str(), "ValueError: bad");
+    return check_repr(e.v, "ValueError('bad')");
+}
+
 struct Case {
     Str name;
     Str (*run)();
 };
 
 constexpr Case CASES[] = {
-    { "value", t_value },     { "strings", t_strings },     { "intern", t_intern },
-    { "collect", t_collect }, { "root", t_root },           { "tuple", t_tuple },
-    { "list", t_list },       { "cycle", t_cycle },         { "deep", t_deep },
-    { "stress", t_stress },   { "threshold", t_threshold }, { "numbers", t_numbers },
-    { "floats", t_floats },   { "compare", t_compare },     { "strtext", t_strtext },
-    { "reprs", t_reprs },     { "dict", t_dict },           { "set", t_set },
-    { "errors", t_errors },   { "truth", t_truth },         { "compile", t_compile },
+    { "value", t_value },
+    { "strings", t_strings },
+    { "intern", t_intern },
+    { "collect", t_collect },
+    { "root", t_root },
+    { "tuple", t_tuple },
+    { "list", t_list },
+    { "cycle", t_cycle },
+    { "deep", t_deep },
+    { "stress", t_stress },
+    { "threshold", t_threshold },
+    { "numbers", t_numbers },
+    { "floats", t_floats },
+    { "compare", t_compare },
+    { "strtext", t_strtext },
+    { "reprs", t_reprs },
+    { "dict", t_dict },
+    { "set", t_set },
+    { "errors", t_errors },
+    { "truth", t_truth },
+    { "compile", t_compile },
     { "scopes", t_scopes },
+    { "exceptions", t_exceptions },
 };
 
 } // namespace

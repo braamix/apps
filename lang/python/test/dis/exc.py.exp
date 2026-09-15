@@ -1,5 +1,5 @@
 code <module>  file /tmp/c.py  line 1
-  args 0 (posonly 0, kwonly 0)  stack 6  flags -
+  args 0 (posonly 0, kwonly 0)  stack 5  blocks 2  flags -
   names: x, ValueError, TypeError, KeyError, e, err, RuntimeError, open, f, range, i
   consts:
       0  1

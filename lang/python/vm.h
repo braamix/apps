@@ -8,6 +8,7 @@
 
 enum class ReqKind : u8 {
     Write, // `data` to `fd`, then vm_write_done
+    Tick,  // the burst is up: park for a moment so a signal can arrive
     Exit,  // the program is over
 };
 
@@ -27,3 +28,6 @@ Req vm_burst();
 
 // The write the last burst asked for is done.
 void vm_write_done(bool ok);
+
+// A ^C arrived. The next instruction boundary raises KeyboardInterrupt.
+void vm_interrupt();

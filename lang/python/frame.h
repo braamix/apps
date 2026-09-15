@@ -8,6 +8,13 @@
 
 #include "code.h"
 
+// One exception handler, pushed by SetupFinally and popped by PopBlock or by
+// the exception itself. `sp` is the depth the value stack is cut back to.
+struct Block {
+    u32 handler;
+    u32 sp;
+};
+
 struct FrameObj : Obj {
     Value code;     // CodeObj
     Value globals;  // DictObj
@@ -15,14 +22,20 @@ struct FrameObj : Obj {
     Value builtins; // DictObj
     Value cells;    // TupleObj of CellObj, cellvars then freevars, or Nil
     Value back;     // the caller's frame, or Nil
+    Value handling; // what the VM was handling when this frame was entered
     u32 pc;
     u32 sp;      // values on the stack
+    u32 nb;      // handlers on the block stack
     u32 nlocals; // slots before the stack begins
     u32 nslots;
+    u32 nblocks;
 
     Value *slots() { return reinterpret_cast<Value *>(this + 1); }
 
     Value *stack() { return slots() + nlocals; }
+
+    // After the slots, so an activation is still one allocation.
+    Block *blocks() { return reinterpret_cast<Block *>(slots() + nslots); }
 };
 
 extern const Type frame_type;

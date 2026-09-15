@@ -1,6 +1,7 @@
 // Mark and sweep over the heap list.
 #include "gc.h"
 
+#include "err.h"
 #include "intern.h"
 #include "kernel/alloc.h"
 #include "obj.h"
@@ -86,6 +87,7 @@ void gc_collect()
         for (usize i = 0; i < r->n; i++)
             gc_mark(r->p[i]);
     intern_mark();
+    err_mark();
     for (usize i = 0; i < nhooks; i++)
         hooks[i]();
 

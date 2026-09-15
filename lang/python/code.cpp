@@ -100,6 +100,7 @@ CodeObj *code_new(Value name, Value filename, u32 firstline)
     c->posonly   = 0;
     c->kwonly    = 0;
     c->stacksize = 0;
+    c->nblocks   = 0;
     c->firstline = firstline;
     return c;
 }

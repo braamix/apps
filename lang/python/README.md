@@ -20,19 +20,24 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 6 of ten. It runs.**
+**Phase 7 of ten.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
 285
+$ python -c 'try: 1/0
+except ZeroDivisionError as e: print("caught", e)'
+caught division by zero
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` with the whole
-argument grammar, closures, slicing, unpacking, eighteen builtins, `sys.argv`
-and a traceback on the way out. Seventeen of MicroPython's own tests pass
-unchanged. What is not here: **exceptions** (phase 7), **classes** (phase 9),
-generators and the methods on the built-in types — so `try`, `class`, `yield`
-and `"".format` each stop with a message that says so.
+argument grammar, closures, slicing, unpacking, twenty-two builtins, the
+exception hierarchy with `try`/`except`/`else`/`finally` and `raise … from`,
+`sys.argv`, `sys.exit`, a `^C` that becomes a catchable `KeyboardInterrupt`,
+and a traceback on the way out. Fifty-three of MicroPython's own tests pass
+unchanged. What is not here: **classes** (phase 9), generators, and the methods
+on the built-in types — so `class`, `yield` and `"".format` each stop with a
+message that says so.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -68,6 +73,7 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [frame.h](frame.h), [frame.cpp](frame.cpp) | One activation: locals and the value stack in one block |
 | [vm.h](vm.h), [vm.cpp](vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
 | [func.h](func.h), [func.cpp](func.cpp) | Cells, functions, builtins written in C++, and modules |
+| [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
 | [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices, ranges and the three iterators |
 | [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, and `sys` |
 | [selftest.cpp](selftest.cpp) | What `--selftest` checks |
@@ -78,6 +84,7 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [test/pyast.mjs](test/pyast.mjs) | Every source under `test/ast/`, node for node |
 | [test/pydis.mjs](test/pydis.mjs) | Every source under `test/dis/`, instruction for instruction |
 | [test/pyvm.mjs](test/pyvm.mjs) | The driver: the three ways in, `sys.argv`, tracebacks, the collector under load |
+| [test/pyint.mjs](test/pyint.mjs) | That a `^C` reaches a running program, and that it may catch it |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
 | [tools/mklex.py](tools/mklex.py) | Writes a token golden out of CPython's own tokenizer |
@@ -117,12 +124,38 @@ CPython 3.11 moved exception handling to a side table and made the happy path
 free. This does not: `SetupFinally` pushes a handler, `PopBlock` pops it, and
 the VM cuts the value stack back to the depth the block recorded. The 3.10
 shape is what a first VM can be written against and read, and it is what the
-opcode comments in [code.h](code.h) state exactly.
+opcode comments in [code.h](code.h) state exactly. The block stack lives in the
+frame, sized by a count the compiler worked out, so it is one allocation with
+everything else.
 
 What is *not* in the block stack is loops. A `break`, a `continue` or a
 `return` that leaves a `try`/`finally` or a `with` emits that cleanup inline
 before it jumps, which is what CPython has done since 3.9 — so the only thing
 the VM has to unwind at run time is an exception.
+
+That inlining is also where the hard cases are, and the tests upstream wrote
+for them are unkind on purpose. Two rules make them come out:
+
+- **A `finally` clause is emitted more than once**, and the copies do not start
+  from the same stack. The exception copy has the exception on it, waiting for
+  the `Reraise` at the end; a copy emitted on behalf of a `return` has the
+  return value on it. So a `break` or a `continue` *out of* a clause has to
+  drop whatever those copies are standing on — the compiler counts it.
+- **An exit from inside a clause does not unwind that clause again.** Its
+  handler has already been popped and its body is what is running, so the
+  compiler marks it busy and skips it. Refusing this, which is what phase 5
+  did, costs five of the `try_finally_*` tests.
+
+## Why the exception state is per frame
+
+`raise` with no arguments re-raises what the innermost `except` is handling,
+and a function called from inside that clause can see it too. So the VM keeps
+one "currently handling" value — but a frame that dies while unwinding must not
+leave its own handler visible to whatever catches next. Each frame therefore
+records what was being handled when it was *entered*, and returning or
+unwinding past it puts that back. `try_reraise.py` is the test that says so:
+without it, a bare `raise` at module level re-raises an exception a function
+had finished with.
 
 ## Known differences from CPython
 
@@ -152,6 +185,12 @@ All recorded rather than hidden, and all in reach later:
   are the whole surface. They arrive with the rest of the standard library.
 - **`import` finds only built-in modules**, which is `sys` and nothing else.
   There is no search path until there is a module object worth loading into.
+- **An exception type is a static descriptor, not a class.** `except
+  ValueError` matches by walking a base pointer, and `ValueError('x')` makes an
+  instance, but the types are not subclassable and `type(e)` has nothing to
+  return yet. Both wait for phase 9.
+- **A traceback is a string, not an object.** It is collected as the frames go
+  and printed at the end; there is no `__traceback__` to read.
 
 ## Why the VM is a driver
 

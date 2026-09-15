@@ -18,9 +18,11 @@ inline bool is_slice(Value v)
     return v.is_obj() && v.obj()->type == &slice_type;
 }
 
-// Resolve a slice against a length: the first index, the step, and how many
-// items it selects. False leaves the error pending.
-bool slice_resolve(Value v, usize len, i64 &start, i64 &step, usize &count);
+// Resolve a slice against a length: the first index, one past the last, the
+// step, and how many items it selects. `stop` is the adjusted index rather
+// than the last item's, which is what a slice of a range reports as its own.
+// False leaves the error pending.
+bool slice_resolve(Value v, usize len, i64 &start, i64 &stop, i64 &step, usize &count);
 
 struct RangeObj : Obj {
     i64 start, stop, step;

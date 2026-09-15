@@ -129,6 +129,7 @@ TESTS := \
     lang/python/test/pyast.mjs \
     lang/python/test/pydis.mjs \
     lang/python/test/pyvm.mjs \
+    lang/python/test/pyint.mjs \
     lang/python/test/runcases.mjs
 
 # Every run is teed into $(TEST_LOG) as well as the terminal, so the output can

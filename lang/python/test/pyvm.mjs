@@ -109,6 +109,49 @@ function check(what, got, want) {
     check("collecting under load", r.out, "4501500\n");
 }
 
+// An uncaught exception that was raised, rather than one the runtime found:
+// the traceback carries the exception's own arguments.
+{
+    const r = script("def f():\n    raise ValueError('nope', 2)\nf()\n");
+    check("raise stderr", r.err,
+          "Traceback (most recent call last):\n" +
+          '  File "/tmp/c.py", line 3, in <module>\n' +
+          '  File "/tmp/c.py", line 2, in f\n' +
+          "ValueError: ('nope', 2)\n");
+    check("raise status", String(r.status), "1");
+}
+
+// A chained one prints both halves, the way CPython does.
+{
+    const r = script("try:\n" +
+                     "    1 / 0\n" +
+                     "except ZeroDivisionError:\n" +
+                     "    raise ValueError('second')\n");
+    if (!r.err.includes("During handling of the above exception"))
+        die(`the context was not printed: ${JSON.stringify(r.err)}`);
+    if (!r.err.startsWith("Traceback"))
+        die(`the first traceback is missing: ${JSON.stringify(r.err)}`);
+}
+
+// SystemExit is the one exception that is not an error: it sets the status
+// and prints nothing.
+{
+    const r = script("import sys\nprint('bye')\nsys.exit(3)\n");
+    check("sys.exit stdout", r.out, "bye\n");
+    check("sys.exit stderr", r.err, "");
+    check("sys.exit status", String(r.status), "3");
+}
+{
+    const r = script("raise SystemExit\n");
+    check("bare SystemExit status", String(r.status), "0");
+    check("bare SystemExit stderr", r.err, "");
+}
+{
+    const r = script("import sys\nsys.exit('gone wrong')\n");
+    check("SystemExit message", r.err, "gone wrong\n");
+    check("SystemExit message status", String(r.status), "1");
+}
+
 // And the same again collecting at *every* allocation, which is what turns a
 // missing Root in the VM into a wrong answer rather than a rare crash.
 {

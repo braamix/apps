@@ -43,9 +43,9 @@ R list_getitem(Value v, Value key, Value &out)
 {
     ListObj *l = list_of(v);
     if (is_slice(key)) {
-        i64 start = 0, step = 1;
+        i64 start = 0, stop = 0, step = 1;
         usize count = 0;
-        if (!slice_resolve(key, l->items.size(), start, step, count))
+        if (!slice_resolve(key, l->items.size(), start, stop, step, count))
             return R::Err;
         Root rv{ v };
         ListObj *r = list_new();
@@ -69,9 +69,9 @@ R list_setitem(Value v, Value key, Value item)
 {
     ListObj *l = list_of(v);
     if (is_slice(key)) {
-        i64 start = 0, step = 1;
+        i64 start = 0, stop = 0, step = 1;
         usize count = 0;
-        if (!slice_resolve(key, l->items.size(), start, step, count))
+        if (!slice_resolve(key, l->items.size(), start, stop, step, count))
             return R::Err;
         Root rv{ v };
         ListObj *src = py_list_of(item);
@@ -107,9 +107,9 @@ R list_delitem(Value v, Value key)
 {
     ListObj *l = list_of(v);
     if (is_slice(key)) {
-        i64 start = 0, step = 1;
+        i64 start = 0, stop = 0, step = 1;
         usize count = 0;
-        if (!slice_resolve(key, l->items.size(), start, step, count))
+        if (!slice_resolve(key, l->items.size(), start, stop, step, count))
             return R::Err;
         // Largest index first, so the ones still to go do not shift.
         for (usize k = 0; k < count; k++)

@@ -55,9 +55,9 @@ R tuple_getitem(Value v, Value key, Value &out)
 {
     TupleObj *t = static_cast<TupleObj *>(v.obj());
     if (is_slice(key)) {
-        i64 start = 0, step = 1;
+        i64 start = 0, stop = 0, step = 1;
         usize count = 0;
-        if (!slice_resolve(key, t->len, start, step, count))
+        if (!slice_resolve(key, t->len, start, stop, step, count))
             return R::Err;
         Root rv{ v };
         TupleObj *r = tuple_new(count);

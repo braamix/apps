@@ -21,6 +21,7 @@ void frame_trace(Obj *o)
     gc_mark(f->builtins);
     gc_mark(f->cells);
     gc_mark(f->back);
+    gc_mark(f->handling);
     for (u32 i = 0; i < f->nlocals; i++)
         gc_mark(f->slots()[i]);
     for (u32 i = 0; i < f->sp; i++)
@@ -44,9 +45,10 @@ FrameObj *frame_new(CodeObj *c)
     Root rc{ obj_value(c) };
     u32 nlocals = u32(c->varnames.size());
     u32 nslots  = nlocals + c->stacksize + STACK_MARGIN;
+    u32 nblocks = c->nblocks;
 
-    FrameObj *f =
-        static_cast<FrameObj *>(obj_alloc(&frame_type, sizeof(FrameObj) + nslots * sizeof(Value)));
+    FrameObj *f = static_cast<FrameObj *>(obj_alloc(
+        &frame_type, sizeof(FrameObj) + nslots * sizeof(Value) + nblocks * sizeof(Block)));
     if (!f)
         return err_set("MemoryError", "out of memory"), nullptr;
     f->code     = rc.v;
@@ -55,10 +57,13 @@ FrameObj *frame_new(CodeObj *c)
     f->builtins = Value();
     f->cells    = Value();
     f->back     = Value();
+    f->handling = Value();
     f->pc       = 0;
     f->sp       = 0;
+    f->nb       = 0;
     f->nlocals  = nlocals;
     f->nslots   = nslots;
+    f->nblocks  = nblocks;
     for (u32 i = 0; i < nslots; i++)
         f->slots()[i] = Value();
     return f;

@@ -4,6 +4,7 @@
 // concrete.
 #include "builtin.h"
 
+#include "exc.h"
 #include "gc.h"
 #include "intern.h"
 #include "iter.h"
@@ -453,6 +454,47 @@ R b_any(const CallArgs &a, Value &out)
     return every(a, true, out);
 }
 
+R b_iter(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "iter", 1, 1))
+        return R::Err;
+    out = py_iter(a.args[0]);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_next(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "next", 1, 2))
+        return R::Err;
+    R r = py_next(a.args[0], out);
+    if (r != R::NotImpl)
+        return r;
+    if (a.nargs > 1) {
+        out = a.args[1];
+        return R::Ok;
+    }
+    Value e = exc_new(exc_find("StopIteration"), Value());
+    return e.is_nil() ? R::Err : err_set_value(e);
+}
+
+// --------------------------------------------------------------------- sys
+
+R b_exit(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "exit", 0, 1))
+        return R::Err;
+    TupleObj *args = tuple_new(a.nargs);
+    if (!args)
+        return oom();
+    for (u32 i = 0; i < a.nargs; i++)
+        args->items()[i] = a.args[i];
+    Value e = exc_new(exc_find("SystemExit"), obj_value(args));
+    if (e.is_nil())
+        return R::Err;
+    out = Value();
+    return err_set_value(e);
+}
+
 // ------------------------------------------------------------------ the map
 
 struct Builtin {
@@ -466,6 +508,7 @@ constexpr Builtin TABLE[] = {
     { "list", b_list },   { "tuple", b_tuple }, { "dict", b_dict }, { "set", b_set },
     { "range", b_range }, { "min", b_min },     { "max", b_max },   { "sum", b_sum },
     { "all", b_all },     { "any", b_any },     { "ord", b_ord },   { "chr", b_chr },
+    { "iter", b_iter },   { "next", b_next },
 };
 
 } // namespace
@@ -516,10 +559,14 @@ Value builtin_module(Str name)
         return Value();
     h->sys       = m;
     StrObj *argv = str_intern("argv");
-    if (!argv)
-        return oom(), Value();
+    StrObj *exit = str_intern("exit");
+    Value fn     = native_new("exit", b_exit);
+    if (!argv || !exit || fn.is_nil())
+        return Value();
+    Root rf{ fn };
     if (dict_set(module_dict(h->sys), obj_value(argv), h->argv.is_nil() ? value_none() : h->argv) !=
-        R::Ok)
+            R::Ok ||
+        dict_set(module_dict(h->sys), obj_value(exit), rf.v) != R::Ok)
         return Value();
     return h->sys;
 }

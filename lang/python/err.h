@@ -1,10 +1,16 @@
 // The error channel: a sticky flag plus a message, checked rather than thrown.
-// Phase 7 replaces the message with an exception object; the mechanism is the
-// same, and is ground rule 3.
+// That is ground rule 3, and it is what every operation here reports through.
+//
+// From phase 7 the channel can also hold the exception *object* a `raise`
+// named. The kind and the message stay, because a few hundred call sites say
+// `err_set("TypeError", ...)` and building an object for an error that is
+// about to be printed and forgotten would be waste; the VM materialises one
+// only where an `except` might want it.
 #pragma once
 
 #include "kernel/str.h"
 #include "kernel/string.h"
+#include "value.h"
 
 // NotImpl is not a failure: this type does not do that, and the caller may
 // try the other operand or raise its own.
@@ -18,6 +24,16 @@ R err_set_at(Str kind, Str message, u32 line, u32 col);
 
 // With one detail appended after ": " -- a type name, a key, an operator.
 R err_set2(Str kind, Str message, Str detail);
+
+// The pending error is this exception object. Always returns R::Err.
+R err_set_value(Value v);
+
+// The object a raise named, or Nil when the error came from a kind and a
+// message and nobody has needed an object for it.
+Value err_value();
+
+// A root: the pending exception outlives the operation that set it.
+void err_mark();
 
 bool err_pending();
 u32 err_line();

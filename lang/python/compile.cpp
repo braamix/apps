@@ -19,6 +19,7 @@ namespace {
 // What an exit has to walk back out of.
 enum class FK : u8 {
     Loop,    // break and continue land here
+    Try,     // a `try` body with handlers: the block has to be popped
     Finally, // a `finally` clause to run on the way out
     With,    // a context manager to call __exit__ on
     Handler, // an `except` clause in progress
@@ -41,7 +42,9 @@ struct Unit {
     u32 scope  = 0;
     Root code;
     Vec<FBlock> blocks;
-    u32 line = 0;
+    u32 line       = 0;
+    u32 blocks_max = 0; // the deepest the run-time block stack goes
+    u32 pending    = 0; // return values sitting under an inlined finally body
 };
 
 // The three opcodes a name binding answers.
@@ -219,6 +222,19 @@ struct Compiler {
 
     u32 kid(u32 n, u32 k) const { return ast->kids[ast->at(n).kid0 + k]; }
 
+    // Every push goes through here, so blocks_max is the frame's block stack.
+    bool block_push(FBlock &f)
+    {
+        if (!u->blocks.push(static_cast<FBlock &&>(f)))
+            return oom();
+        u32 n = 0;
+        for (usize i = 0; i < u->blocks.size(); i++)
+            n += u->blocks[i].kind != FK::Loop ? 1 : 0;
+        if (n > u->blocks_max)
+            u->blocks_max = n;
+        return true;
+    }
+
     bool stmts(u32 n, u32 from, u32 count)
     {
         for (u32 k = 0; k < count; k++)
@@ -284,14 +300,26 @@ bool Compiler::unwind(usize down_to, bool preserve_tos)
         case FK::Loop:
             break;
 
-        case FK::Finally: {
-            if (busy)
-                return fail("an exit from a 'finally' clause is not compiled yet", node);
+        case FK::Try:
             if (!emit(Bc::PopBlock, node))
                 return false;
+            break;
+
+        case FK::Finally: {
+            // Already being emitted: this exit is *inside* the clause, whose
+            // handler has been popped and whose body is running, so there is
+            // nothing left here to unwind.
+            if (busy)
+                break;
+            if (!emit(Bc::PopBlock, node))
+                return false;
+            // A `return` keeps its value on the stack while the clause runs,
+            // so a `break` out of the clause has to drop it.
             const Node &n         = ast->at(node);
             u->blocks[b - 1].busy = true;
-            bool ok               = stmts(node, n.a + n.b + n.c, n.d);
+            u->pending += preserve_tos ? 1 : 0;
+            bool ok = stmts(node, n.a + n.b + n.c, n.d);
+            u->pending -= preserve_tos ? 1 : 0;
             u->blocks[b - 1].busy = false;
             if (!ok)
                 return false;
@@ -333,6 +361,9 @@ bool Compiler::loop_exit(bool is_break, u32 node)
 
     if (!unwind(b, false))
         return false;
+    for (u32 k = 0; k < u->pending; k++)
+        if (!emit(Bc::PopTop, node))
+            return false;
     if (is_break) {
         for (u32 k = 0; k < u->blocks[b - 1].pops; k++)
             if (!emit(Bc::PopTop, node))
@@ -942,8 +973,19 @@ bool Compiler::try_except(u32 i)
 {
     const Node &n = ast->at(i);
     u32 handlers  = emit_jump(Bc::SetupFinally, i);
-    if (!stmts(i, 0, n.a) || !emit(Bc::PopBlock, i))
+
+    // The body is a block of its own: a `break` out of it has to pop the
+    // handler, or the next exception lands in a dead one.
+    FBlock tb;
+    tb.kind = FK::Try;
+    tb.node = i;
+    if (!block_push(tb))
         return false;
+    bool body_ok = stmts(i, 0, n.a);
+    u->blocks.pop();
+    if (!body_ok || !emit(Bc::PopBlock, i))
+        return false;
+
     u32 to_else = emit_jump(Bc::Jump, i);
     patch(handlers);
     if (!emit(Bc::PushExcInfo, i))
@@ -980,8 +1022,8 @@ bool Compiler::try_except(u32 i)
         } else if (!emit(Bc::PopTop, h)) {
             return false;
         }
-        if (!u->blocks.push(static_cast<FBlock &&>(f)))
-            return oom();
+        if (!block_push(f))
+            return false;
 
         bool ok = stmts(h, 0, x.b);
         u->blocks.pop();
@@ -1027,8 +1069,8 @@ bool Compiler::try_stmt(u32 i)
     FBlock f;
     f.kind = FK::Finally;
     f.node = i;
-    if (!u->blocks.push(static_cast<FBlock &&>(f)))
-        return oom();
+    if (!block_push(f))
+        return false;
     bool ok = n.b ? try_except(i) : stmts(i, 0, n.a);
     u->blocks.pop();
     if (!ok)
@@ -1038,7 +1080,12 @@ bool Compiler::try_stmt(u32 i)
         return false;
     u32 end = emit_jump(Bc::Jump, i);
     patch(fin);
-    if (!stmts(i, n.a + n.b + n.c, n.d) || !emit(Bc::Reraise, 0, i))
+    // The second copy runs with the exception on the stack, waiting for the
+    // Reraise below; an exit out of the clause has to drop that too.
+    u->pending++;
+    bool again = stmts(i, n.a + n.b + n.c, n.d);
+    u->pending--;
+    if (!again || !emit(Bc::Reraise, 0, i))
         return false;
     patch(end);
     return !failed;
@@ -1059,8 +1106,8 @@ bool Compiler::with_at(u32 i, u32 k)
     FBlock f;
     f.kind = FK::With;
     f.node = item;
-    if (!u->blocks.push(static_cast<FBlock &&>(f)))
-        return oom();
+    if (!block_push(f))
+        return false;
     bool ok = (x.b ? store(x.b) : emit(Bc::PopTop, item)) && with_at(i, k + 1);
     u->blocks.pop();
     if (!ok)
@@ -1176,8 +1223,8 @@ bool Compiler::stmt(u32 i)
         FBlock f;
         f.kind = FK::Loop;
         f.cont = top;
-        if (!u->blocks.push(static_cast<FBlock &&>(f)))
-            return oom();
+        if (!block_push(f))
+            return false;
         bool ok         = stmts(i, 0, n.b) && emit(Bc::Jump, top, i);
         Vec<u32> breaks = static_cast<Vec<u32> &&>(u->blocks.back().breaks);
         u->blocks.pop();
@@ -1201,8 +1248,8 @@ bool Compiler::stmt(u32 i)
         f.kind = FK::Loop;
         f.cont = top;
         f.pops = 1;
-        if (!u->blocks.push(static_cast<FBlock &&>(f)))
-            return oom();
+        if (!block_push(f))
+            return false;
         bool ok         = store(n.a) && stmts(i, 0, n.c) && emit(Bc::Jump, top, i);
         Vec<u32> breaks = static_cast<Vec<u32> &&>(u->blocks.back().breaks);
         u->blocks.pop();
@@ -1415,6 +1462,7 @@ i32 effect(Bc op, u32 arg)
     case Bc::ImportName:
     case Bc::ImportStar:
     case Bc::PopExcept:
+    case Bc::CheckExcMatch:
     case Bc::YieldFrom:
     case Bc::Return:
         return -1;
@@ -1577,6 +1625,7 @@ u32 Compiler::nested(u32 node)
     if (!ok)
         return 0;
     c->stacksize = stack_size(c);
+    c->nblocks   = nu.blocks_max;
     return add_const(nu.code.v);
 }
 
@@ -1613,6 +1662,7 @@ Value py_compile(const Ast &ast, Str filename)
 
     CodeObj *code   = code_of(mu.code.v);
     code->stacksize = stack_size(code);
+    code->nblocks   = mu.blocks_max;
     return mu.code.v;
 }
 

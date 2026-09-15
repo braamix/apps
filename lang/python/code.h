@@ -145,7 +145,8 @@ Arg bc_arg(Bc op);
 //                       the manager's __exit__ survives into the handler
 //   PushExcInfo         at a handler, slide what the frame was handling under
 //                       the new exception
-//   CheckExcMatch       pop a type, keep the exception, push whether it matches
+//   CheckExcMatch       pop a type and the copy of the exception under it,
+//                       and push whether they match; the original stays below
 //   Reraise n           re-raise the exception on top; n is 1 when a saved
 //                       exc-info sits under it and has to be restored first
 //   BeforeWith          pop the manager, push its __exit__ and then __enter__()
@@ -199,6 +200,7 @@ struct CodeObj : Obj {
     u32 posonly   = 0;
     u32 kwonly    = 0;
     u32 stacksize = 0;
+    u32 nblocks   = 0; // deepest SetupFinally nesting, for the frame's blocks
     u32 firstline = 0;
 };
 

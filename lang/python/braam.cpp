@@ -119,6 +119,17 @@ Task<i32> interpret(Str source, Str name, Args argv)
         Req r = vm_burst();
         if (r.kind == ReqKind::Exit)
             co_return r.status;
+        if (r.kind == ReqKind::Tick) {
+            // The burst is up. Parking is the only thing that lets a signal
+            // in, and a zero sleep is the cheapest park there is.
+            if (Task<Result<void>> t = sleep_for(0))
+                co_await t;
+            if (sig_take(SIG_INT))
+                vm_interrupt();
+            continue;
+        }
+        // A write is not in the set a signal can abandon, so nothing here has
+        // to worry about a half-written buffer.
         vm_write_done(!(co_await write_all(r.fd, r.data)).is_err());
     }
 }
@@ -127,6 +138,11 @@ Task<i32> interpret(Str source, Str name, Args argv)
 
 Task<i32> proc_main(Args args)
 {
+    // Before the first park, which is reading the program: a signal that
+    // arrives before this is acted on rather than delivered, and the process
+    // simply goes.
+    co_await sig_catch(SIG_INT);
+
     if (help_asked(args))
         co_return co_await usage_asked(USAGE);
     // OptParse has no long options, so the two long ones are answered first.

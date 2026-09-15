@@ -93,9 +93,9 @@ R str_getitem(Value v, Value key, Value &out)
 {
     StrObj *s = str_of(v);
     if (is_slice(key)) {
-        i64 start = 0, step = 1;
+        i64 start = 0, stop = 0, step = 1;
         usize count = 0;
-        if (!slice_resolve(key, s->chars, start, step, count))
+        if (!slice_resolve(key, s->chars, start, stop, step, count))
             return R::Err;
         String buf;
         for (usize k = 0; k < count; k++) {

@@ -48,6 +48,16 @@ R range_getitem(Value v, Value key, Value &out)
     RangeObj *r = static_cast<RangeObj *>(v.obj());
     usize n     = 0;
     range_len(v, n);
+    if (is_slice(key)) {
+        i64 start = 0, stop = 0, step = 1;
+        usize count = 0;
+        if (!slice_resolve(key, n, start, stop, step, count))
+            return R::Err;
+        // A slice of a range is a range: no items are made, and the bounds are
+        // the slice's own indices mapped back through this range's step.
+        out = range_new(r->start + start * r->step, r->start + stop * r->step, step * r->step);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     usize i = 0;
     if (index_of(key, n, i) != R::Ok)
         return R::Err;
@@ -187,7 +197,7 @@ Value slice_new(Value start, Value stop, Value step)
     return obj_value(s);
 }
 
-bool slice_resolve(Value v, usize len, i64 &start, i64 &step, usize &count)
+bool slice_resolve(Value v, usize len, i64 &start, i64 &stop, i64 &step, usize &count)
 {
     SliceObj *s = static_cast<SliceObj *>(v.obj());
     step        = 1;
@@ -220,6 +230,7 @@ bool slice_resolve(Value v, usize len, i64 &start, i64 &step, usize &count)
     i64 span = step > 0 ? last - first : first - last;
     i64 mag  = step > 0 ? step : -step;
     start    = first;
+    stop     = last;
     count    = span <= 0 ? 0 : usize((span + mag - 1) / mag);
     return true;
 }

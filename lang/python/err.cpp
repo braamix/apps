@@ -1,5 +1,6 @@
 #include "err.h"
 
+#include "gc.h"
 #include "kernel/alloc.h"
 
 namespace {
@@ -14,6 +15,7 @@ Pending *pending;
 bool live;
 u32 at_line;
 u32 at_col;
+Value object; // the exception a raise named, or Nil
 
 Pending *slot()
 {
@@ -34,7 +36,28 @@ R err_set(Str kind, Str message)
     live    = true;
     at_line = 0;
     at_col  = 0;
+    object  = Value();
     return R::Err;
+}
+
+R err_set_value(Value v)
+{
+    live    = true;
+    at_line = 0;
+    at_col  = 0;
+    object  = v;
+    return R::Err;
+}
+
+Value err_value()
+{
+    return live ? object : Value();
+}
+
+void err_mark()
+{
+    if (live)
+        gc_mark(object);
 }
 
 R err_set_at(Str kind, Str message, u32 line, u32 col)
@@ -82,7 +105,8 @@ Str err_message()
 
 void err_clear()
 {
-    live = false;
+    live   = false;
+    object = Value();
 }
 
 void err_format(String &out)

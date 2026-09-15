@@ -10,6 +10,7 @@
 #include "vm.h"
 
 #include "builtin.h"
+#include "exc.h"
 #include "frame.h"
 #include "func.h"
 #include "gc.h"
@@ -25,19 +26,29 @@ namespace {
 constexpr usize FLUSH_AT = 4000; // bytes buffered before a write is asked for
 constexpr u32 MAX_FRAMES = 200;  // the frames are heap, but a limit says so
 
+// How many instructions a burst runs before letting the driver back in. A
+// compute loop parks nowhere, so nothing else -- a ^C above all -- can reach
+// the process until it does.
+constexpr u32 BURST = 20000;
+
 struct VM {
-    Value frame;             // the innermost FrameObj
-    Value globals;           // __main__'s namespace
-    Value builtins;          // the builtins namespace
-    Vec<Value> flat;         // CallEx's arguments, flattened
-    Vec<Value> kwnames;      // and their names
-    String out;              // what print has buffered
-    String err;              // the traceback, once there is one
-    String *sent  = nullptr; // which of the two the driver is writing
-    u32 depth     = 0;
-    bool failed   = false;
-    bool finished = false;
-    bool reported = false;
+    Value frame;              // the innermost FrameObj
+    Value globals;            // __main__'s namespace
+    Value builtins;           // the builtins namespace
+    Value handling;           // the exception an `except` clause is working on
+    Vec<Value> flat;          // CallEx's arguments, flattened
+    Vec<Value> kwnames;       // and their names
+    Vec<String> tb;           // the traceback, innermost first, as it unwinds
+    String out;               // what print has buffered
+    String err;               // what goes to stderr, once there is any
+    String *sent   = nullptr; // which of the two the driver is writing
+    u32 depth      = 0;
+    u32 budget     = 0;
+    i32 status     = 0;
+    bool failed    = false;
+    bool finished  = false;
+    bool reported  = false;
+    bool interrupt = false; // a ^C the driver saw, to raise at the next step
 };
 
 // A String has a destructor, so this lives in a heap block rather than at file
@@ -51,6 +62,7 @@ void vm_mark()
     gc_mark(vm->frame);
     gc_mark(vm->globals);
     gc_mark(vm->builtins);
+    gc_mark(vm->handling);
     for (usize i = 0; i < vm->flat.size(); i++)
         gc_mark(vm->flat[i]);
     for (usize i = 0; i < vm->kwnames.size(); i++)
@@ -112,6 +124,7 @@ FrameObj *frame_push(CodeObj *co, Value globals, Value locals, Value cells)
     f->cells    = rc.v;
     f->builtins = vm->builtins;
     f->back     = vm->frame;
+    f->handling = vm->handling;
     vm->frame   = obj_value(f);
     vm->depth++;
     return f;
@@ -277,6 +290,8 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
     entered = false;
     if (is_native(callable))
         return static_cast<NativeObj *>(callable.obj())->fn(a, out);
+    if (is_exc_type(callable))
+        return exc_type_invoke(callable, a, out);
 
     if (!is_func(callable))
         return err_set2("TypeError", "object is not callable", type_name(callable));
@@ -292,7 +307,8 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
         return R::Err;
     R r = bind_args(fn, co, nf, a);
     if (r != R::Ok) {
-        vm->frame = nf->back;
+        vm->handling = nf->handling;
+        vm->frame    = nf->back;
         vm->depth--;
         return R::Err;
     }
@@ -302,41 +318,150 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
 
 // ---------------------------------------------------------------- unwinding
 
-void note_failure()
+// The pending error as an object. Most errors are set as a kind and a message
+// -- err_set("TypeError", ...) -- and only become an object here, where an
+// `except` might want one.
+Value pending_exception()
 {
-    vm->failed   = true;
-    vm->finished = true;
-    if (!vm->err.append("Traceback (most recent call last):\n"))
-        return;
+    Value v = err_value();
+    if (!v.is_nil())
+        return v;
+    v = exc_make(err_kind(), err_message());
+    if (v.is_nil())
+        v = exc_type_value(exc_find("MemoryError"));
+    return v;
+}
 
-    // The chain runs inwards; CPython prints it outwards.
-    Vec<Value> chain;
-    for (Value v = vm->frame; !v.is_nil(); v = frame_of(v)->back)
-        if (!chain.push(v))
-            return;
-    for (usize k = chain.size(); k > 0; k--) {
-        FrameObj *f = frame_of(chain[k - 1]);
-        CodeObj *c  = code_of(f->code);
-        char tmp[24];
-        Buf<192> b;
-        b.put("  File \"").put(is_str(c->filename) ? str_of(c->filename)->str() : Str("?"));
-        b.put("\", line ");
-        b.put(int_text(tmp, sizeof tmp, i64(code_line(c, f->pc ? f->pc - 1 : 0))));
-        b.put(", in ").put(is_str(c->name) ? str_of(c->name)->str() : Str("?")).put('\n');
-        if (!vm->err.append(b.str()))
-            return;
+// One line of the traceback, recorded as a frame is left behind.
+bool note_frame(FrameObj *f)
+{
+    CodeObj *c = code_of(f->code);
+    char tmp[24];
+    Buf<192> b;
+    b.put("  File \"").put(is_str(c->filename) ? str_of(c->filename)->str() : Str("?"));
+    b.put("\", line ");
+    b.put(int_text(tmp, sizeof tmp, i64(code_line(c, f->pc ? f->pc - 1 : 0))));
+    b.put(", in ").put(is_str(c->name) ? str_of(c->name)->str() : Str("?")).put('\n');
+    String line;
+    return line.append(b.str()) && vm->tb.push(static_cast<String &&>(line));
+}
+
+// Print an exception the way CPython does, its cause or context first. The
+// depth is a bound: a context chain can be made to loop.
+void report(Value e, u32 depth = 0)
+{
+    if (is_exc(e) && depth < 8) {
+        Value under = static_cast<ExcObj *>(e.obj())->cause;
+        Str joiner  = "\nThe above exception was the direct cause of the following exception:\n\n";
+        if (under.is_nil()) {
+            under  = static_cast<ExcObj *>(e.obj())->context;
+            joiner = "\nDuring handling of the above exception, another exception occurred:\n\n";
+        }
+        if (!under.is_nil() && under != e) {
+            report(under, depth + 1);
+            vm->err.append(joiner);
+        }
     }
-    err_format(vm->err);
+    if (vm->tb.size())
+        vm->err.append("Traceback (most recent call last):\n");
+    for (usize k = vm->tb.size(); k > 0; k--)
+        vm->err.append(vm->tb[k - 1].str());
+    vm->tb.clear();
+    exc_line(e, vm->err);
     vm->err.push('\n');
+}
+
+// Nothing caught it. SystemExit is the one that is not an error.
+void uncaught(Value e)
+{
+    vm->finished = true;
+    if (is_exc(e) && exc_is(exc_type_of(e), exc_find("SystemExit"))) {
+        TupleObj *a = static_cast<TupleObj *>(static_cast<ExcObj *>(e.obj())->args.obj());
+        i64 code    = 0;
+        if (a->len && !is_none(a->items()[0])) {
+            if (as_index(a->items()[0], code)) {
+                vm->status = i32(code);
+            } else {
+                py_str(a->items()[0], vm->err);
+                vm->err.push('\n');
+                vm->status = 1;
+            }
+        }
+        vm->tb.clear();
+        return;
+    }
+    vm->failed = true;
+    vm->status = 1;
+    report(e);
+}
+
+// Find the handler that wants `e`, unwinding frames until one does. False
+// when nothing did, and the program is over.
+bool dispatch(Value e)
+{
+    Root re{ e };
+    err_clear();
+    for (;;) {
+        FrameObj *f = frame_of(vm->frame);
+        if (f->nb) {
+            Block b = f->blocks()[--f->nb];
+            f->sp   = b.sp;
+            f->pc   = b.handler;
+            return push(f, re.v);
+        }
+        if (!note_frame(f))
+            return uncaught(re.v), false;
+        if (f->back.is_nil()) {
+            uncaught(re.v);
+            return false;
+        }
+        vm->handling = f->handling;
+        vm->frame    = f->back;
+        vm->depth--;
+    }
+}
+
+// Start an exception on its way. `e` may be a type, which is instantiated.
+bool raise_value(Value e)
+{
+    Root re{ e };
+    if (is_exc_type(re.v)) {
+        Value made = exc_new(static_cast<ExcTypeObj *>(re.v.obj())->t, Value());
+        if (made.is_nil())
+            return dispatch(pending_exception());
+        re = made;
+    }
+    if (!is_exc(re.v)) {
+        err_set2("TypeError", "exceptions must derive from BaseException", type_name(re.v));
+        return dispatch(pending_exception());
+    }
+    // Raised while handling another: CPython remembers what that was.
+    ExcObj *o = static_cast<ExcObj *>(re.v.obj());
+    if (o->context.is_nil() && !vm->handling.is_nil() && vm->handling != re.v)
+        o->context = vm->handling;
+    vm->tb.clear();
+    return dispatch(re.v);
 }
 
 // -------------------------------------------------------------- the loop
 
 void interpret()
 {
+    vm->budget = BURST;
     for (;;) {
-        if (vm->finished || vm->out.size() >= FLUSH_AT)
+        if (vm->finished || vm->out.size() >= FLUSH_AT || !vm->budget--)
             return;
+
+        // A ^C the driver noticed between bursts, delivered here, which is the
+        // only place the stack is in a state an exception can unwind from.
+        if (vm->interrupt) {
+            vm->interrupt = false;
+            err_set("KeyboardInterrupt", "");
+            vm->tb.clear();
+            if (!raise_value(pending_exception()))
+                return;
+            continue;
+        }
 
         FrameObj *f = frame_of(vm->frame);
         CodeObj *co = code_of(f->code);
@@ -959,6 +1084,168 @@ void interpret()
                 break;
             }
 
+                // ------------------------------------------------- exceptions
+
+            case Bc::SetupFinally:
+            case Bc::SetupWith: {
+                if (f->nb >= f->nblocks) {
+                    err_set("SystemError", "block stack overflow");
+                    goto oops;
+                }
+                // A `with` keeps the manager's __exit__ below the cut, so the
+                // handler still has it when the body has been discarded.
+                u32 keep             = in.op == Bc::SetupWith ? f->sp - 1 : f->sp;
+                f->blocks()[f->nb++] = Block{ arg, keep };
+                break;
+            }
+            case Bc::PopBlock:
+                if (f->nb)
+                    f->nb--;
+                break;
+
+            case Bc::PushExcInfo: {
+                Value exc     = st[f->sp - 1];
+                st[f->sp - 1] = vm->handling.is_nil() ? value_none() : vm->handling;
+                if (!push(f, exc))
+                    goto oops;
+                vm->handling = exc;
+                break;
+            }
+            case Bc::PopExcept: {
+                Value saved  = st[--f->sp];
+                vm->handling = is_exc(saved) ? saved : Value();
+                break;
+            }
+
+            case Bc::CheckExcMatch: {
+                Value want = st[f->sp - 1];
+                Value exc  = st[f->sp - 2];
+                bool hit   = false;
+                // `except (A, B)` is one tuple of types, and nothing else.
+                if (is_tuple(want)) {
+                    TupleObj *t = static_cast<TupleObj *>(want.obj());
+                    for (usize k = 0; k < t->len && !hit; k++) {
+                        if (!is_exc_type(t->items()[k])) {
+                            err_set("TypeError",
+                                    "catching classes that do not inherit from "
+                                    "BaseException is not allowed");
+                            goto oops;
+                        }
+                        hit = exc_is(exc_type_of(exc),
+                                     static_cast<ExcTypeObj *>(t->items()[k].obj())->t);
+                    }
+                } else if (is_exc_type(want)) {
+                    hit = exc_is(exc_type_of(exc), static_cast<ExcTypeObj *>(want.obj())->t);
+                } else {
+                    err_set("TypeError",
+                            "catching classes that do not inherit from "
+                            "BaseException is not allowed");
+                    goto oops;
+                }
+                // The type and the copy of the exception the compiler made
+                // for this rung both go; the original stays below.
+                f->sp -= 2;
+                st[f->sp++] = value_bool(hit);
+                break;
+            }
+
+            case Bc::Reraise: {
+                Value exc = st[--f->sp];
+                if (arg) {
+                    Value saved  = st[--f->sp];
+                    vm->handling = is_exc(saved) ? saved : Value();
+                }
+                if (!dispatch(exc))
+                    return;
+                continue;
+            }
+
+            case Bc::Raise: {
+                if (!arg) {
+                    if (vm->handling.is_nil()) {
+                        err_set("RuntimeError", "No active exception to re-raise");
+                        goto oops;
+                    }
+                    if (!dispatch(vm->handling))
+                        return;
+                    continue;
+                }
+                Value cause = arg == 2 ? st[f->sp - 1] : Value();
+                Value exc   = st[f->sp - (arg == 2 ? 2 : 1)];
+                f->sp -= arg;
+                if (!cause.is_nil()) {
+                    // `raise X from Y` needs X built before the cause is set.
+                    Root rc{ cause }, re{ exc };
+                    if (is_exc_type(re.v)) {
+                        Value made = exc_new(static_cast<ExcTypeObj *>(re.v.obj())->t, Value());
+                        if (made.is_nil())
+                            goto oops;
+                        re = made;
+                    }
+                    if (!is_exc(re.v)) {
+                        err_set2("TypeError", "exceptions must derive from BaseException",
+                                 type_name(re.v));
+                        goto oops;
+                    }
+                    static_cast<ExcObj *>(re.v.obj())->cause = rc.v;
+                    exc                                      = re.v;
+                }
+                if (!raise_value(exc))
+                    return;
+                continue;
+            }
+
+            case Bc::LoadAssertionError: {
+                Value t = exc_type_value(exc_find("AssertionError"));
+                if (t.is_nil() || !push(f, t))
+                    goto oops;
+                break;
+            }
+
+            case Bc::BeforeWith: {
+                Value enter, exit;
+                if (py_getattr(st[f->sp - 1], str_intern("__exit__"), exit) != R::Ok ||
+                    py_getattr(st[f->sp - 1], str_intern("__enter__"), enter) != R::Ok)
+                    goto oops;
+                st[f->sp - 1] = exit;
+                if (!push(f, enter)) // the callable stays rooted while it runs
+                    goto oops;
+                CallArgs a;
+                Value got;
+                bool entered = false;
+                if (do_call(st[f->sp - 1], a, got, entered) != R::Ok)
+                    goto oops;
+                f->sp--;
+                // A Python __enter__ pushes its own answer when it returns.
+                if (!entered)
+                    st[f->sp++] = got;
+                break;
+            }
+
+            case Bc::WithExceptStart: {
+                Value exc = st[f->sp - 1];
+                Value t   = exc_type_value(exc_type_of(exc));
+                if (t.is_nil()) {
+                    err_set("SystemError", "a with handler without an exception");
+                    goto oops;
+                }
+                if (!push(f, t) || !push(f, exc) || !push(f, value_none()))
+                    goto oops;
+                // [exit, exc] became [exit, exc, type, exc, None]: __exit__ is
+                // five down, and the three above it are its arguments.
+                CallArgs a;
+                a.args  = &st[f->sp - 3];
+                a.nargs = 3;
+                Value got;
+                bool entered = false;
+                if (do_call(st[f->sp - 5], a, got, entered) != R::Ok)
+                    goto oops;
+                f->sp -= 3;
+                if (!entered)
+                    st[f->sp++] = got;
+                break;
+            }
+
             default:
                 err_set2("SystemError", "opcode not implemented yet", bc_name(in.op));
                 goto oops;
@@ -966,9 +1253,13 @@ void interpret()
         }
         continue;
 
+        // Every failure lands here, wherever it was set: the pending error
+        // becomes an exception and goes looking for a handler. It is a new
+        // one, so whatever traceback was being collected is not its.
     oops:
-        note_failure();
-        return;
+        vm->tb.clear();
+        if (!raise_value(pending_exception()))
+            return;
     }
 }
 
@@ -985,7 +1276,7 @@ bool vm_start(Value code, Args argv)
     }
 
     DictObj *b = builtins_dict();
-    if (!b)
+    if (!b || !exc_install(b))
         return false;
     vm->builtins = obj_value(b);
 
@@ -1021,22 +1312,35 @@ bool vm_start(Value code, Args argv)
 Req vm_burst()
 {
     for (;;) {
-        if (!vm->finished)
+        bool spent = false;
+        if (!vm->finished) {
             interpret();
+            spent = !vm->finished && vm->out.size() < FLUSH_AT;
+        }
 
         if (!vm->out.empty()) {
             vm->sent = &vm->out;
             return Req{ ReqKind::Write, SYS_STDOUT, vm->out.str(), 0 };
         }
-        if (!vm->finished)
+        if (!vm->finished) {
+            // The budget ran out rather than the work: give the driver its
+            // turn, which is the only way a signal reaches this process.
+            if (spent)
+                return Req{ ReqKind::Tick, 0, Str(), 0 };
             continue;
-        if (vm->failed && !vm->reported) {
+        }
+        if (!vm->err.empty() && !vm->reported) {
             vm->reported = true;
             vm->sent     = &vm->err;
             return Req{ ReqKind::Write, SYS_STDERR, vm->err.str(), 0 };
         }
-        return Req{ ReqKind::Exit, 0, Str(), vm->failed ? 1 : 0 };
+        return Req{ ReqKind::Exit, 0, Str(), vm->status };
     }
+}
+
+void vm_interrupt()
+{
+    vm->interrupt = true;
 }
 
 void vm_write_done(bool ok)
