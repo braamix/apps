@@ -533,20 +533,23 @@ bool Compiler::call_args(u32 i, u32 at, u32 nargs, u32 nkw, u32 pre, u32 node)
 
     if (!emit(Bc::BuildMap, 0, node))
         return false;
+    // Every keyword goes in through DictMerge, a named one as a one-entry map,
+    // so that a duplicate is refused however it arrives. CPython's shape.
     for (u32 k = 0; k < nkw; k++) {
         u32 w         = kid(i, at + nargs + k);
         const Node &x = ast->at(w);
-        if (!x.flags) {
-            if (!expr(x.a) || !emit(Bc::DictUpdate, 1, w))
-                return false;
-        } else {
+        if (x.flags) {
             StrObj *s = ident(w);
             if (!s)
                 return oom();
             if (!emit(Bc::LoadConst, add_const(obj_value(s)), w) || !expr(x.a) ||
-                !emit(Bc::MapAdd, 1, w))
+                !emit(Bc::BuildMap, 1, w))
                 return false;
+        } else if (!expr(x.a)) {
+            return false;
         }
+        if (!emit(Bc::DictMerge, 1, w))
+            return false;
     }
     return emit(Bc::CallEx, CX_KWARGS, node);
 }
@@ -1459,6 +1462,7 @@ i32 effect(Bc op, u32 arg)
     case Bc::ListExtend:
     case Bc::SetUpdate:
     case Bc::DictUpdate:
+    case Bc::DictMerge:
     case Bc::ImportName:
     case Bc::ImportStar:
     case Bc::PopExcept:

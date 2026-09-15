@@ -37,3 +37,6 @@ Value seq_iter(Value seq);
 
 // An iterator over a dict's keys or a set's members, in insertion order.
 Value table_iter(Value owner);
+
+// enumerate(): an iterator over another, pairing each item with its index.
+Value enum_iter(Value seq, i64 start);

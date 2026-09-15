@@ -20,7 +20,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 7 of ten.**
+**Phase 8 of ten.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -30,14 +30,14 @@ except ZeroDivisionError as e: print("caught", e)'
 caught division by zero
 ```
 
-Expressions, `if`, `while`, `for`, comprehensions, `def` with the whole
-argument grammar, closures, slicing, unpacking, twenty-two builtins, the
-exception hierarchy with `try`/`except`/`else`/`finally` and `raise … from`,
-`sys.argv`, `sys.exit`, a `^C` that becomes a catchable `KeyboardInterrupt`,
-and a traceback on the way out. Fifty-three of MicroPython's own tests pass
-unchanged. What is not here: **classes** (phase 9), generators, and the methods
-on the built-in types — so `class`, `yield` and `"".format` each stop with a
-message that says so.
+Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
+whole argument grammar, decorators, closures, `global`, `nonlocal` and `del`,
+slicing, unpacking, twenty-five builtins, the exception hierarchy with
+`try`/`except`/`else`/`finally` and `raise … from`, `sys.argv`, `sys.exit`, a
+`^C` that becomes a catchable `KeyboardInterrupt`, and a traceback on the way
+out. Eighty of MicroPython's own tests pass unchanged. What is not here:
+**classes** (phase 9), generators, and the methods on the built-in types — so
+`class`, `yield` and `"".format` each stop with a message that says so.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -73,6 +73,7 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [frame.h](frame.h), [frame.cpp](frame.cpp) | One activation: locals and the value stack in one block |
 | [vm.h](vm.h), [vm.cpp](vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
 | [func.h](func.h), [func.cpp](func.cpp) | Cells, functions, builtins written in C++, and modules |
+| [call.h](call.h), [call.cpp](call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
 | [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices, ranges and the three iterators |
 | [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, and `sys` |
@@ -84,6 +85,7 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [test/pyast.mjs](test/pyast.mjs) | Every source under `test/ast/`, node for node |
 | [test/pydis.mjs](test/pydis.mjs) | Every source under `test/dis/`, instruction for instruction |
 | [test/pyvm.mjs](test/pyvm.mjs) | The driver: the three ways in, `sys.argv`, tracebacks, the collector under load |
+| [test/pyfun.mjs](test/pyfun.mjs) | Calls: the callback rule at four thousand turns, decorators, a deleted cell |
 | [test/pyint.mjs](test/pyint.mjs) | That a `^C` reaches a running program, and that it may catch it |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
@@ -181,8 +183,13 @@ All recorded rather than hidden, and all in reach later:
   grammar; `async def`, `async for`, `async with` and `await` stop at the
   compiler with a `SyntaxError` that says so.
 - **The built-in types have no methods yet.** `[].append`, `{}.keys` and
-  `"".format` are an `AttributeError`; the eighteen builtins and the operators
-  are the whole surface. They arrive with the rest of the standard library.
+  `"".format` are an `AttributeError`; the twenty-five builtins and the
+  operators are the whole surface. They arrive with the rest of the standard
+  library.
+- **`map` and `filter` are not there**, though `sorted(key=)` and `min(key=)`
+  are. The difference is where the callback sits: a key function is called from
+  a loop a continuation can own, and `map`'s is called from inside `py_next`,
+  which has no way to suspend. See below.
 - **`import` finds only built-in modules**, which is `sys` and nothing else.
   There is no search path until there is a module object worth loading into.
 - **An exception type is a static descriptor, not a class.** `except
@@ -223,6 +230,30 @@ ends — which is also why a syscall per `print` never happens.
 Because frames are heap objects rather than C++ ones, the recursion limit is
 ours to choose and ours to *report*: two hundred deep is a `RecursionError`
 with a traceback, not a trap.
+
+## How a builtin calls back into Python
+
+`sorted(xs, key=f)` is written in C++ and `f` is not, so somewhere the one has
+to call the other — and the same rule that keeps the VM out of the native stack
+keeps a builtin out of it. It **must not re-enter the dispatch loop**.
+
+So it does not call `f` at all. It parks what it knows in a `ContObj`
+([call.h](call.h)) and returns that as its result; the VM sees it, records the
+continuation on the frame it pushes for `f`, and returns to the loop. `Return`
+brings the answer back to `ContObj::step`, which asks for the next call or says
+it is finished. Nothing nests, and four thousand key calls cost the native
+stack exactly what one does — which is what
+[test/pyfun.mjs](test/pyfun.mjs) measures.
+
+It also decides how `sorted` is written: the keys are computed first, one
+request each, and only then is the list sorted — decorate, sort, undecorate,
+which is CPython's own answer. The sort itself calls nothing back, so it is an
+ordinary iterative merge over an index array, stable and with no recursion on a
+128 KiB stack.
+
+What the mechanism does *not* reach is a callback from inside the iterator
+protocol. `py_next` returns a value, not a request, so `map` and `filter` — lazy
+iterators whose function is called at each `next` — have no shape here yet.
 
 ## Testing
 

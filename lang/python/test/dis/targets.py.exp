@@ -120,7 +120,7 @@ code <module>  file /tmp/c.py  line 1
           108  ListToTuple
           109  BuildMap              0
           110  BuildMap              0
-          111  DictUpdate            1
+          111  DictMerge             1
           112  CallEx                1 (kwargs)
           113  PopTop
    19     114  BuildList             0

@@ -53,7 +53,7 @@ function check(what, got, want) {
 }
 {
     const r = script("def f():\n    x = x + 1\nf()\n");
-    if (!r.err.endsWith("UnboundLocalError: name 'x' is not defined\n"))
+    if (!r.err.endsWith("UnboundLocalError: local variable 'x' referenced before assignment\n"))
         die(`a local read too early: ${JSON.stringify(r.err)}`);
 }
 

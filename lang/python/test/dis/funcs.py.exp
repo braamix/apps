@@ -1,5 +1,5 @@
 code <module>  file /tmp/c.py  line 1
-  args 0 (posonly 0, kwonly 0)  stack 4  flags -
+  args 0 (posonly 0, kwonly 0)  stack 5  flags -
   names: plain, defaults, positional, deco, wrapped, f, d, kw
   consts:
       0  <code plain at line 1>
@@ -12,7 +12,8 @@ code <module>  file /tmp/c.py  line 1
       7  <code wrapped at line 15>
       8  <code <lambda> at line 18>
       9  ('b',)
-     10  None
+     10  'b'
+     11  None
     1       0  LoadConst             0 (<code plain at line 1>)
             1  MakeFunction          0
             2  StoreName             0 (plain)
@@ -55,11 +56,25 @@ code <module>  file /tmp/c.py  line 1
            39  ListToTuple
            40  BuildMap              0
            41  LoadName              7 (kw)
-           42  DictUpdate            1
+           42  DictMerge             1
            43  CallEx                1 (kwargs)
            44  PopTop
-           45  LoadConst            10 (None)
-           46  Return
+   21      45  LoadName              0 (plain)
+           46  BuildList             0
+           47  LoadName              6 (d)
+           48  ListExtend            1
+           49  ListToTuple
+           50  BuildMap              0
+           51  LoadConst            10 ('b')
+           52  LoadConst             1 (1)
+           53  BuildMap              1
+           54  DictMerge             1
+           55  LoadName              7 (kw)
+           56  DictMerge             1
+           57  CallEx                1 (kwargs)
+           58  PopTop
+           59  LoadConst            11 (None)
+           60  Return
 
 code plain  file /tmp/c.py  line 1
   args 2 (posonly 0, kwonly 0)  stack 2  flags newlocals

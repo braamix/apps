@@ -1,0 +1,8 @@
+True
+True
+False
+False
+inner
+(43, 42)
+(43, 'global', 'global2') global
+(42, 43)

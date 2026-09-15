@@ -1,9 +1,10 @@
-// The builtins. Only the ones that need no Python callback are here: anything
-// that would have to call back into the interpreter -- `sorted(key=)`, `map`,
-// `filter` -- waits for the rule ground rule 2 states and phase 8 makes
-// concrete.
+// The builtins. One that must call back into Python -- `sorted(key=)`,
+// `min(key=)` -- parks in a ContObj and lets the VM drive it, which is ground
+// rule 2; see call.h. `map` and `filter` still wait, because they call back
+// from inside the iterator protocol and py_next has no way to suspend.
 #include "builtin.h"
 
+#include "call.h"
 #include "exc.h"
 #include "gc.h"
 #include "intern.h"
@@ -263,35 +264,6 @@ R b_list(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-R fold(Value seq, bool least, Str who, Value &out)
-{
-    Root best;
-    Root it{ py_iter(seq) };
-    if (it.v.is_nil())
-        return R::Err;
-    for (;;) {
-        Root got;
-        R r = py_next(it.v, got.v);
-        if (r == R::Err)
-            return R::Err;
-        if (r == R::NotImpl)
-            break;
-        if (best.v.is_nil()) {
-            best = got.v;
-            continue;
-        }
-        bool better = false;
-        if (py_cmp(got.v, best.v, least ? Cmp::Lt : Cmp::Gt, better) != R::Ok)
-            return R::Err;
-        if (better)
-            best = got.v;
-    }
-    if (best.v.is_nil())
-        return err_set2("ValueError", "arg is an empty sequence", who);
-    out = best.v;
-    return R::Ok;
-}
-
 R b_tuple(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "tuple", 0, 1))
@@ -379,20 +351,233 @@ R b_range(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// ------------------------------------------------------ ordering the results
+
+enum : u32 { KW_KEY = 1 << 0, KW_REVERSE = 1 << 1, KW_DEFAULT = 1 << 2 };
+
+// The keyword arguments sorted, min and max take. `key` stays Nil when it is
+// absent or None, which is the case that needs no callback at all.
+R take_kw(const CallArgs &a, Str who, u32 allow, Value &key, bool &rev, Value &dflt, bool &has)
+{
+    for (u32 i = 0; i < a.nkw; i++) {
+        Str n = is_str(a.kwnames[i]) ? str_of(a.kwnames[i])->str() : Str();
+        if (n == "key" && (allow & KW_KEY)) {
+            if (!is_none(a.kwvals[i]))
+                key = a.kwvals[i];
+        } else if (n == "reverse" && (allow & KW_REVERSE)) {
+            rev = py_truth(a.kwvals[i]);
+        } else if (n == "default" && (allow & KW_DEFAULT)) {
+            dflt = a.kwvals[i];
+            has  = true;
+        } else {
+            Buf<96> b;
+            b.put(who).put("() got an unexpected keyword argument '").put(n).put("'");
+            return err_set("TypeError", b.str());
+        }
+    }
+    return R::Ok;
+}
+
+// Stable, bottom-up and iterative: a recursive sort is a risk on a 128 KiB
+// stack, and Python's sort is stable.
+R sort_idx(const Vec<Value> &keys, Vec<u32> &idx, bool rev)
+{
+    Vec<u32> tmp;
+    for (usize i = 0; i < idx.size(); i++)
+        if (!tmp.push(0))
+            return oom();
+    for (usize w = 1; w < idx.size(); w *= 2) {
+        for (usize lo = 0; lo < idx.size(); lo += 2 * w) {
+            usize mid = lo + w < idx.size() ? lo + w : idx.size();
+            usize hi  = lo + 2 * w < idx.size() ? lo + 2 * w : idx.size();
+            usize i = lo, j = mid, o = lo;
+            while (i < mid && j < hi) {
+                // The left run wins a tie, which is what makes it stable.
+                bool take = false;
+                if (py_cmp(keys[idx[j]], keys[idx[i]], rev ? Cmp::Gt : Cmp::Lt, take) != R::Ok)
+                    return R::Err;
+                tmp[o++] = take ? idx[j++] : idx[i++];
+            }
+            while (i < mid)
+                tmp[o++] = idx[i++];
+            while (j < hi)
+                tmp[o++] = idx[j++];
+        }
+        for (usize i = 0; i < idx.size(); i++)
+            idx[i] = tmp[i];
+    }
+    return R::Ok;
+}
+
+// s[0] values, s[1] the key function, s[2] their keys, s[3] whether to reverse.
+R sort_finish(ContObj *k)
+{
+    ListObj *vals = list_of(k->s[0]);
+    ListObj *keys = list_of(k->s[2]);
+    Vec<u32> idx;
+    for (usize i = 0; i < vals->items.size(); i++)
+        if (!idx.push(u32(i)))
+            return oom();
+    if (sort_idx(keys->items, idx, is_true(k->s[3])) != R::Ok)
+        return R::Err;
+
+    ListObj *sorted = list_new();
+    if (!sorted)
+        return oom();
+    Root rs{ obj_value(sorted) };
+    for (usize i = 0; i < idx.size(); i++)
+        if (!list_push(list_of(rs.v), list_of(k->s[0])->items[idx[i]]))
+            return oom();
+    return cont_done(k, rs.v);
+}
+
+// One key per value, the function called once each; then the sort itself,
+// which no longer needs Python.
+R sort_step(ContObj *k, Value in)
+{
+    ListObj *vals = list_of(k->s[0]);
+    if (k->i > 0 && !list_push(list_of(k->s[2]), in))
+        return oom();
+    if (k->i < vals->items.size())
+        return cont_call(k, k->s[1], vals->items[k->i++]);
+    return sort_finish(k);
+}
+
+R b_sorted(const CallArgs &a, Value &out)
+{
+    if (a.nargs != 1)
+        return err_set("TypeError", "sorted() takes exactly one positional argument");
+    Root key, dflt;
+    bool rev = false, has = false;
+    if (take_kw(a, "sorted", KW_KEY | KW_REVERSE, key.v, rev, dflt.v, has) != R::Ok)
+        return R::Err;
+
+    ListObj *l = py_list_of(a.args[0]);
+    if (!l)
+        return R::Err;
+    Root rl{ obj_value(l) };
+
+    if (key.v.is_nil()) {
+        Vec<u32> idx;
+        for (usize i = 0; i < list_of(rl.v)->items.size(); i++)
+            if (!idx.push(u32(i)))
+                return oom();
+        if (sort_idx(list_of(rl.v)->items, idx, rev) != R::Ok)
+            return R::Err;
+        ListObj *s = list_new();
+        if (!s)
+            return oom();
+        Root rs{ obj_value(s) };
+        for (usize i = 0; i < idx.size(); i++)
+            if (!list_push(list_of(rs.v), list_of(rl.v)->items[idx[i]]))
+                return oom();
+        out = rs.v;
+        return R::Ok;
+    }
+
+    Root kv{ cont_new(sort_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ListObj *keys = list_new();
+    if (!keys)
+        return oom();
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = rl.v;
+    k->s[1]    = key.v;
+    k->s[2]    = obj_value(keys);
+    k->s[3]    = value_bool(rev);
+    out        = kv.v;
+    return R::Ok;
+}
+
 // ------------------------------------------------------------- reductions
+
+// s[0] the candidates, s[1] the key function, s[2] the best so far, s[3] its
+// key; j is set when the smallest is wanted.
+R fold_step(ContObj *k, Value in)
+{
+    ListObj *xs = list_of(k->s[0]);
+    if (k->i > 0) {
+        Value item  = xs->items[k->i - 1];
+        bool better = k->s[2].is_nil();
+        if (!better && py_cmp(in, k->s[3], k->j ? Cmp::Lt : Cmp::Gt, better) != R::Ok)
+            return R::Err;
+        if (better) {
+            k->s[2] = item;
+            k->s[3] = in;
+        }
+    }
+    if (k->i < xs->items.size())
+        return cont_call(k, k->s[1], xs->items[k->i++]);
+    return cont_done(k, k->s[2]);
+}
+
+// min and max: one iterable, or two or more candidates spelled out.
+R fold(const CallArgs &a, bool least, Str who, Value &out)
+{
+    Root key, dflt;
+    bool rev = false, has = false;
+    if (take_kw(a, who, KW_KEY | KW_DEFAULT, key.v, rev, dflt.v, has) != R::Ok)
+        return R::Err;
+    if (!a.nargs)
+        return err_set2("TypeError", "expected at least one argument", who);
+
+    Root rl;
+    if (a.nargs == 1) {
+        ListObj *l = py_list_of(a.args[0]);
+        if (!l)
+            return R::Err;
+        rl = obj_value(l);
+    } else {
+        ListObj *l = list_new();
+        if (!l)
+            return oom();
+        rl = obj_value(l);
+        for (u32 i = 0; i < a.nargs; i++)
+            if (!list_push(list_of(rl.v), a.args[i]))
+                return oom();
+    }
+
+    Vec<Value> &xs = list_of(rl.v)->items;
+    if (xs.empty()) {
+        if (!has)
+            return err_set2("ValueError", "arg is an empty sequence", who);
+        out = dflt.v;
+        return R::Ok;
+    }
+
+    if (key.v.is_nil()) {
+        Root best{ xs[0] };
+        for (usize i = 1; i < xs.size(); i++) {
+            bool better = false;
+            if (py_cmp(xs[i], best.v, least ? Cmp::Lt : Cmp::Gt, better) != R::Ok)
+                return R::Err;
+            if (better)
+                best = xs[i];
+        }
+        out = best.v;
+        return R::Ok;
+    }
+
+    Root kv{ cont_new(fold_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = rl.v;
+    k->s[1]    = key.v;
+    k->j       = least ? 1 : 0;
+    out        = kv.v;
+    return R::Ok;
+}
 
 R b_min(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "min", 1, 1))
-        return R::Err;
-    return fold(a.args[0], true, "min", out);
+    return fold(a, true, "min", out);
 }
 
 R b_max(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "max", 1, 1))
-        return R::Err;
-    return fold(a.args[0], false, "max", out);
+    return fold(a, false, "max", out);
 }
 
 R b_sum(const CallArgs &a, Value &out)
@@ -454,6 +639,33 @@ R b_any(const CallArgs &a, Value &out)
     return every(a, true, out);
 }
 
+R b_enumerate(const CallArgs &a, Value &out)
+{
+    Root seq, start{ Value::of_int(0) };
+    if (a.nargs > 2)
+        return err_set("TypeError", "enumerate() takes from 1 to 2 arguments");
+    if (a.nargs > 0)
+        seq = a.args[0];
+    if (a.nargs > 1)
+        start = a.args[1];
+    for (u32 i = 0; i < a.nkw; i++) {
+        Str n = is_str(a.kwnames[i]) ? str_of(a.kwnames[i])->str() : Str();
+        if (n == "iterable")
+            seq = a.kwvals[i];
+        else if (n == "start")
+            start = a.kwvals[i];
+        else
+            return err_set2("TypeError", "enumerate() got an unexpected keyword argument", n);
+    }
+    if (seq.v.is_nil())
+        return err_set("TypeError", "enumerate() missing a required argument: 'iterable'");
+    i64 n = 0;
+    if (!as_index(start.v, n))
+        return err_set2("TypeError", "enumerate() start must be an integer", type_name(start.v));
+    out = enum_iter(seq.v, n);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 R b_iter(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "iter", 1, 1))
@@ -503,12 +715,14 @@ struct Builtin {
 };
 
 constexpr Builtin TABLE[] = {
-    { "print", b_print }, { "len", b_len },     { "abs", b_abs },   { "repr", b_repr },
-    { "str", b_str },     { "bool", b_bool },   { "int", b_int },   { "float", b_float },
-    { "list", b_list },   { "tuple", b_tuple }, { "dict", b_dict }, { "set", b_set },
-    { "range", b_range }, { "min", b_min },     { "max", b_max },   { "sum", b_sum },
-    { "all", b_all },     { "any", b_any },     { "ord", b_ord },   { "chr", b_chr },
-    { "iter", b_iter },   { "next", b_next },
+    { "print", b_print }, { "len", b_len },       { "abs", b_abs },
+    { "repr", b_repr },   { "str", b_str },       { "bool", b_bool },
+    { "int", b_int },     { "float", b_float },   { "list", b_list },
+    { "tuple", b_tuple }, { "dict", b_dict },     { "set", b_set },
+    { "range", b_range }, { "min", b_min },       { "max", b_max },
+    { "sum", b_sum },     { "all", b_all },       { "any", b_any },
+    { "ord", b_ord },     { "chr", b_chr },       { "iter", b_iter },
+    { "next", b_next },   { "sorted", b_sorted }, { "enumerate", b_enumerate },
 };
 
 } // namespace

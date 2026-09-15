@@ -22,6 +22,7 @@ void frame_trace(Obj *o)
     gc_mark(f->cells);
     gc_mark(f->back);
     gc_mark(f->handling);
+    gc_mark(f->cont);
     for (u32 i = 0; i < f->nlocals; i++)
         gc_mark(f->slots()[i]);
     for (u32 i = 0; i < f->sp; i++)
@@ -58,6 +59,7 @@ FrameObj *frame_new(CodeObj *c)
     f->cells    = Value();
     f->back     = Value();
     f->handling = Value();
+    f->cont     = Value();
     f->pc       = 0;
     f->sp       = 0;
     f->nb       = 0;

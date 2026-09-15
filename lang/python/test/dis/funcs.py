@@ -18,3 +18,4 @@ def wrapped():
 f = lambda x, y=2: x * y
 plain(1, b=2)
 plain(*d, **kw)
+plain(*d, b=1, **kw)

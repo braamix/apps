@@ -416,19 +416,55 @@ Two things the phase left alone: `with` cannot be exercised until there is a
 class to write `__enter__` on, and a traceback is a string collected as the
 frames go rather than a `__traceback__` object.
 
-### Phase 8 — functions, closures, calls
+### Phase 8 — functions, closures, calls — **done**
 
-- [ ] `func.cpp` — `def` and `lambda`.
-- [ ] `call.cpp` — binding positional, keyword, default, `*args`, `**kwargs`
-      and keyword-only arguments.
-- [ ] Cells and closures; `global` and `nonlocal`; `del`.
-- [ ] A recursion depth limit, since the frame stack is ours and the failure
-      should be a `RecursionError` and not a trap.
-- [ ] Decorators.
-- [ ] The builtin-callback rule from ground rule 2, made concrete.
+Phase 6 had already built most of this — `def`, `lambda`, decorators, cells,
+`global`, `nonlocal`, `del`, the whole argument grammar and the recursion
+limit — so what this phase owed was the *last* line of its own list, and it is
+the one the previous phases had been deferring.
 
-Tests: the `fun_*`, `closure*`, `lambda*` and `scope*` families,
-`decorator.py`, `unboundlocal.py`, `del_*`.
+- [x] [call.h](call.h), [call.cpp](call.cpp) — argument binding moved out of
+      [vm.cpp](vm.cpp), and beside it `ContObj`: **the builtin-callback rule**.
+      A builtin that needs Python parks its state and returns the continuation;
+      the VM records it on the frame it pushes and `Return` brings the answer
+      back to `step`. A frame gained a `cont` slot and that is the whole of it.
+- [x] [builtin.cpp](builtin.cpp) — the first three builtins to use it:
+      `sorted(key=, reverse=)`, `min(key=, default=)` and `max`, with the
+      keys computed one request at a time and the sort itself an iterative,
+      stable merge over an index array. `enumerate` came along because
+      `builtin_minmax.py` wanted it.
+- [x] `DictMerge` ([code.h](code.h)) — `DictUpdate` for a call's keywords,
+      where a key already present is a `TypeError`. Two `**` naming one
+      parameter used to overwrite in silence; a named keyword now goes in
+      through a one-entry map, which is CPython's own shape and puts every
+      path under the same check.
+- [x] `del` on a cell unbinds it, and `LoadDeref`/`DeleteDeref` on an unbound
+      one say *which* name and that it was referenced before assignment —
+      `local variable` for a cellvar, `free variable` for a freevar.
+      `UnboundLocalError` reads the same way now.
+- [x] [test/pyfun.mjs](test/pyfun.mjs) — the callback rule at four thousand
+      turns, under `PY_GC_STRESS=1`, with an exception through it and with a
+      key function that recurses into the same builtin; the duplicate keyword
+      three ways; stacked decorators; a deleted cell.
+
+**Eighty upstream tests pass**, of the 103 now in the manifest — up from 53.
+The `fun_*`, `closure*`, `lambda*`, `scope*` and `del_*` families are green
+bar the ones that want a `class`, a method on a built-in type, `exec`, or
+`__code__`.
+
+Three decisions worth recording:
+
+- **A suspended builtin is not a frame.** It is an object the *callee's* frame
+  points back at, so unwinding needs no new case: an exception that escapes the
+  key function drops the continuation with the frame and carries on out of the
+  builtin, which is what it should do.
+- **Decorate, sort, undecorate is forced, not copied.** A comparison sort that
+  called back would have to suspend inside its own recursion; computing every
+  key first makes the callback phase a flat indexed loop, which a continuation
+  can own, and leaves a sort that calls nothing.
+- **`map` and `filter` still cannot be written.** Their callback is inside
+  `py_next`, which returns a value rather than a request, and no continuation
+  can reach it. That is the next thing this mechanism has to grow.
 
 ### Phase 9 — classes and the type system
 

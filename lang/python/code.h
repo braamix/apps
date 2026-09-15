@@ -84,6 +84,7 @@ enum class Arg : u8 {
     X(ListExtend, Num)        \
     X(SetUpdate, Num)         \
     X(DictUpdate, Num)        \
+    X(DictMerge, Num)         \
     X(ListToTuple, None)      \
                               \
     X(UnpackSequence, Num)    \
@@ -132,6 +133,8 @@ Arg bc_arg(Bc op);
 //   ListAppend d        pop a value and add it to the container d below the
 //                       new top; SetAdd the same, MapAdd pops value then key
 //   ListExtend d        the same, but the popped value is iterated into it
+//   DictMerge d         DictUpdate for a call's keywords: a key already there
+//                       is a TypeError, since two ** cannot name one parameter
 //   UnpackEx n          n is (before) | (after << 16); the middle becomes a
 //                       list, so before + 1 + after values are pushed
 //   CallKw n            n values below a tuple of the trailing names

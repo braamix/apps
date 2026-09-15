@@ -145,6 +145,23 @@ R range_iter_next(Value v, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// `at` counts, `owner` is the iterator being walked.
+R enum_iter_next(Value v, Value &out)
+{
+    IterObj *it = static_cast<IterObj *>(v.obj());
+    Root got;
+    R r = py_next(it->owner, got.v);
+    if (r != R::Ok)
+        return r;
+    TupleObj *t = tuple_new(2);
+    if (!t)
+        return err_set("MemoryError", "out of memory");
+    t->items()[0] = Value::of_int(i32(it->at++));
+    t->items()[1] = got.v;
+    out           = obj_value(t);
+    return R::Ok;
+}
+
 R iter_repr(Value v, String &out)
 {
     Buf<64> b;
@@ -169,6 +186,12 @@ constexpr Type range_iter_type{ .name  = "range_iterator",
                                 .repr  = iter_repr,
                                 .iter  = iter_self,
                                 .next  = range_iter_next };
+
+constexpr Type enum_iter_type{ .name  = "enumerate",
+                               .trace = iter_trace,
+                               .repr  = iter_repr,
+                               .iter  = iter_self,
+                               .next  = enum_iter_next };
 
 Value range_iter(Value v)
 {
@@ -256,4 +279,16 @@ Value seq_iter(Value seq)
 Value table_iter(Value owner)
 {
     return obj_value(iter_new(&table_iter_type, owner));
+}
+
+Value enum_iter(Value seq, i64 start)
+{
+    Root it{ py_iter(seq) };
+    if (it.v.is_nil())
+        return Value();
+    IterObj *o = iter_new(&enum_iter_type, it.v);
+    if (!o)
+        return Value();
+    o->at = usize(start);
+    return obj_value(o);
 }

@@ -10,6 +10,7 @@
 #include "vm.h"
 
 #include "builtin.h"
+#include "call.h"
 #include "exc.h"
 #include "frame.h"
 #include "func.h"
@@ -109,6 +110,22 @@ R name_error(Str kind, StrObj *name)
     return err_set(kind, b.str());
 }
 
+R unbound(Str kind, Str what, Value name)
+{
+    Buf<96> b;
+    b.put(what).put(" '").put(is_str(name) ? str_of(name)->str() : Str("?"));
+    b.put("' referenced before assignment");
+    return err_set(kind, b.str());
+}
+
+// A cell slot is a cellvar or, past those, a freevar.
+R unbound_cell(CodeObj *co, u32 slot)
+{
+    usize own = co->cellvars.size();
+    return slot < own ? unbound("NameError", "local variable", co->cellvars[slot])
+                      : unbound("NameError", "free variable", co->freevars[slot - own]);
+}
+
 // --------------------------------------------------------------- the frames
 
 FrameObj *frame_push(CodeObj *co, Value globals, Value locals, Value cells)
@@ -156,135 +173,23 @@ Value make_cells(CodeObj *co, Value closure)
     return rt.v;
 }
 
-// ----------------------------------------------------------- binding a call
+// ------------------------------------------------------------------- calling
 
-bool same_name(Value a, Value b)
+// What to call a callable in a diagnostic.
+Str call_name(Value v)
 {
-    if (a == b)
-        return true;
-    bool eq = false;
-    return is_str(a) && is_str(b) && py_eq(a, b, eq) == R::Ok && eq;
-}
-
-R too_many(CodeObj *co, u32 given)
-{
-    char tmp[24];
-    Buf<128> m;
-    m.put(is_str(co->name) ? str_of(co->name)->str() : Str("?"));
-    m.put("() takes ").put(int_text(tmp, sizeof tmp, i64(co->argcount)));
-    m.put(" positional arguments but ").put(int_text(tmp, sizeof tmp, i64(given)));
-    m.put(" were given");
-    return err_set("TypeError", m.str());
-}
-
-R missing(CodeObj *co, Value name, Str what)
-{
-    Buf<128> m;
-    m.put(is_str(co->name) ? str_of(co->name)->str() : Str("?"));
-    m.put("() missing a required ").put(what).put(" argument: '");
-    m.put(is_str(name) ? str_of(name)->str() : Str("?")).put("'");
-    return err_set("TypeError", m.str());
-}
-
-// Fill the new frame's locals. `fn` and the arguments are rooted by the
-// caller; `nf` is rooted by the Root in do_call.
-R bind_args(FuncObj *fn, CodeObj *co, FrameObj *nf, const CallArgs &a)
-{
-    Value *lo   = nf->slots();
-    u32 argc    = co->argcount;
-    u32 named   = argc + co->kwonly;
-    u32 at_star = named;
-    u32 at_kw   = named + ((co->flags & CO_VARARGS) ? 1 : 0);
-
-    if (a.nargs > argc && !(co->flags & CO_VARARGS))
-        return too_many(co, a.nargs);
-
-    u32 direct = a.nargs < argc ? a.nargs : argc;
-    for (u32 i = 0; i < direct; i++)
-        lo[i] = a.args[i];
-
-    if (co->flags & CO_VARARGS) {
-        u32 extra   = a.nargs > argc ? a.nargs - argc : 0;
-        TupleObj *t = tuple_new(extra);
-        if (!t)
-            return oom();
-        for (u32 i = 0; i < extra; i++)
-            t->items()[i] = a.args[argc + i];
-        lo[at_star] = obj_value(t);
+    if (is_func(v)) {
+        Value n = code_of(func_of(v)->code)->name;
+        return is_str(n) ? str_of(n)->str() : Str("?");
     }
-
-    DictObj *rest = nullptr;
-    if (co->flags & CO_VARKW) {
-        rest = dict_new();
-        if (!rest)
-            return oom();
-        lo[at_kw] = obj_value(rest);
-    }
-
-    for (u32 k = 0; k < a.nkw; k++) {
-        Value key = a.kwnames[k], val = a.kwvals[k];
-        u32 slot = named;
-        for (u32 i = co->posonly; i < named; i++)
-            if (same_name(co->varnames[i], key)) {
-                slot = i;
-                break;
-            }
-        if (slot < named) {
-            if (!lo[slot].is_nil()) {
-                Buf<128> m;
-                m.put(is_str(co->name) ? str_of(co->name)->str() : Str("?"));
-                m.put("() got multiple values for argument '");
-                m.put(is_str(key) ? str_of(key)->str() : Str("?")).put("'");
-                return err_set("TypeError", m.str());
-            }
-            lo[slot] = val;
-            continue;
-        }
-        if (!rest) {
-            Buf<128> m;
-            m.put(is_str(co->name) ? str_of(co->name)->str() : Str("?"));
-            m.put("() got an unexpected keyword argument '");
-            m.put(is_str(key) ? str_of(key)->str() : Str("?")).put("'");
-            return err_set("TypeError", m.str());
-        }
-        if (dict_set(rest, key, val) != R::Ok)
-            return R::Err;
-    }
-
-    // Defaults line up with the last positional parameters.
-    if (!fn->defaults.is_nil()) {
-        TupleObj *d = static_cast<TupleObj *>(fn->defaults.obj());
-        u32 first   = argc - (d->len < argc ? u32(d->len) : argc);
-        for (u32 i = first; i < argc; i++)
-            if (lo[i].is_nil())
-                lo[i] = d->items()[i - first];
-    }
-    for (u32 i = 0; i < argc; i++)
-        if (lo[i].is_nil())
-            return missing(co, co->varnames[i], "positional");
-
-    if (!fn->kwdefaults.is_nil())
-        for (u32 i = argc; i < named; i++) {
-            if (!lo[i].is_nil())
-                continue;
-            Value got;
-            R r = dict_get(dict_at(fn->kwdefaults), co->varnames[i], got);
-            if (r == R::Err)
-                return R::Err;
-            if (r == R::Ok)
-                lo[i] = got;
-        }
-    for (u32 i = argc; i < named; i++)
-        if (lo[i].is_nil())
-            return missing(co, co->varnames[i], "keyword-only");
-
-    // A parameter some nested scope captures is copied into its cell by the
-    // first instructions of the body; nothing to do here.
-    return R::Ok;
+    if (is_native(v))
+        return static_cast<NativeObj *>(v.obj())->name;
+    return type_name(v);
 }
 
 // A call, whatever it lands on. `entered` says a Python frame was pushed and
-// the loop must not store a result; otherwise `out` is the answer.
+// the loop must not store a result; otherwise `out` is the answer -- or a
+// ContObj, which is a builtin saying it needs Python run before it can finish.
 R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
 {
     entered = false;
@@ -314,6 +219,60 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
     }
     entered = true;
     return R::Ok;
+}
+
+// Ground rule 2, made concrete: run a suspended builtin's continuation until it
+// stops asking for Python. A request that lands on another builtin is answered
+// on the spot; one that lands on a Python function pushes a frame and leaves,
+// with the continuation recorded on it -- Return brings us back here. Nothing
+// re-enters the dispatch loop, so the native stack does not grow.
+bool run_cont(Value kv, Value in)
+{
+    Root rk{ kv }, ri{ in };
+    for (;;) {
+        ContObj *k = cont_of(rk.v);
+        k->fn      = Value();
+        if (k->step(k, ri.v) != R::Ok)
+            return false;
+
+        if (k->fn.is_nil()) {
+            if (k->next.is_nil())
+                return push(frame_of(vm->frame), k->out);
+            ri = k->out;
+            rk = k->next;
+            continue;
+        }
+
+        CallArgs a;
+        a.args  = k->a;
+        a.nargs = k->nargs;
+        Value out;
+        bool entered = false;
+        if (do_call(k->fn, a, out, entered) != R::Ok)
+            return false;
+        if (entered) {
+            frame_of(vm->frame)->cont = rk.v;
+            return true;
+        }
+        if (is_cont(out)) { // a builtin that suspends in its turn
+            cont_of(out)->next = rk.v;
+            rk                 = out;
+            ri                 = Value();
+            continue;
+        }
+        ri = out;
+    }
+}
+
+// What a call left behind: an entered frame pushes its own answer, a suspended
+// builtin is driven here, and anything else is the value itself.
+bool land(Value out, bool entered)
+{
+    if (entered)
+        return true;
+    if (is_cont(out))
+        return run_cont(out, Value());
+    return push(frame_of(vm->frame), out);
 }
 
 // ---------------------------------------------------------------- unwinding
@@ -549,7 +508,7 @@ void interpret()
 
             case Bc::LoadFast:
                 if (f->slots()[arg].is_nil()) {
-                    name_error("UnboundLocalError", str_of(co->varnames[arg]));
+                    unbound("UnboundLocalError", "local variable", co->varnames[arg]);
                     goto oops;
                 }
                 if (!push(f, f->slots()[arg]))
@@ -561,7 +520,7 @@ void interpret()
                 break;
             case Bc::DeleteFast:
                 if (f->slots()[arg].is_nil()) {
-                    name_error("UnboundLocalError", str_of(co->varnames[arg]));
+                    unbound("UnboundLocalError", "local variable", co->varnames[arg]);
                     goto oops;
                 }
                 f->slots()[arg] = Value();
@@ -602,7 +561,7 @@ void interpret()
                 CellObj *c = static_cast<CellObj *>(
                     static_cast<TupleObj *>(f->cells.obj())->items()[arg].obj());
                 if (c->v.is_nil()) {
-                    err_set("NameError", "a free variable is not bound yet");
+                    unbound_cell(co, arg);
                     goto oops;
                 }
                 if (!push(f, c->v))
@@ -619,6 +578,10 @@ void interpret()
             case Bc::DeleteDeref: {
                 CellObj *c = static_cast<CellObj *>(
                     static_cast<TupleObj *>(f->cells.obj())->items()[arg].obj());
+                if (c->v.is_nil()) {
+                    unbound_cell(co, arg);
+                    goto oops;
+                }
                 c->v = Value();
                 break;
             }
@@ -885,7 +848,8 @@ void interpret()
                 f->sp--;
                 break;
             }
-            case Bc::DictUpdate: {
+            case Bc::DictUpdate:
+            case Bc::DictMerge: {
                 Value from = st[f->sp - 1];
                 if (!is_dict(from)) {
                     err_set2("TypeError", "argument after ** must be a mapping", type_name(from));
@@ -894,9 +858,21 @@ void interpret()
                 Value into = st[f->sp - 1 - arg];
                 usize at   = 0;
                 Value k, v;
-                while (table_next(dict_at(from)->t, at, k, v))
+                while (table_next(dict_at(from)->t, at, k, v)) {
+                    // Two keywords for one parameter: the callable is under
+                    // the map and the positional tuple.
+                    Value had;
+                    if (in.op == Bc::DictMerge && dict_get(dict_at(into), k, had) == R::Ok) {
+                        Buf<128> m;
+                        m.put(call_name(st[f->sp - 3 - arg]));
+                        m.put("() got multiple values for keyword argument '");
+                        m.put(is_str(k) ? str_of(k)->str() : Str("?")).put("'");
+                        err_set("TypeError", m.str());
+                        goto oops;
+                    }
                     if (dict_set(dict_at(into), k, v) != R::Ok)
                         goto oops;
+                }
                 f->sp--;
                 break;
             }
@@ -1026,12 +1002,9 @@ void interpret()
                 bool entered = false;
                 if (do_call(callable, a, out, entered) != R::Ok)
                     goto oops;
-                if (entered) {
-                    f->sp -= consumed;
-                } else {
-                    f->sp -= consumed;
-                    st[f->sp++] = out;
-                }
+                f->sp -= consumed;
+                if (!land(out, entered))
+                    goto oops;
                 break;
             }
 
@@ -1059,10 +1032,11 @@ void interpret()
                     vm->finished = true;
                     return;
                 }
+                Value k   = f->cont;
                 vm->frame = f->back;
                 vm->depth--;
-                FrameObj *c = frame_of(vm->frame);
-                if (!push(c, v))
+                // A builtin was waiting on this call rather than the caller.
+                if (!k.is_nil() ? !run_cont(k, v) : !push(frame_of(vm->frame), v))
                     goto oops;
                 break;
             }
@@ -1217,8 +1191,8 @@ void interpret()
                     goto oops;
                 f->sp--;
                 // A Python __enter__ pushes its own answer when it returns.
-                if (!entered)
-                    st[f->sp++] = got;
+                if (!land(got, entered))
+                    goto oops;
                 break;
             }
 
@@ -1241,8 +1215,8 @@ void interpret()
                 if (do_call(st[f->sp - 5], a, got, entered) != R::Ok)
                     goto oops;
                 f->sp -= 3;
-                if (!entered)
-                    st[f->sp++] = got;
+                if (!land(got, entered))
+                    goto oops;
                 break;
             }
 
