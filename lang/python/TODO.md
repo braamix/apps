@@ -1,22 +1,58 @@
 # Python for Braam — a development plan
 
 Python 3 written for Braam: our own bytecode VM, our own compiler, our own
-object model. This is **not** a port. Nothing is taken from CPython or from
-MicroPython except one thing — MicroPython's test suite, which is the best
-executable specification of the language that exists at this size, and which is
-MIT.
+object model. The interpreter is not a port and stays that way. What is
+borrowed is measured, and named here.
 
-The upstream clone lives at [tmp/micropython/](tmp/micropython/) (HEAD
-`52b5fbc`, September 2026) and is ignored by git. Its
-[tests/](tmp/micropython/tests/) directory holds 1,651 `.py` files across 31
-categories; [tests/basics/](tmp/micropython/tests/basics/) alone is 578 tests of
-the language core, and that is the target. Copies of the ones we pass are
-committed under [test/cases/](test/), because `tmp/` is not.
+**The core language stands.** Phases 0 to 9 built the lexer, the parser, the
+compiler, the VM, the object heap and its collector, exceptions, functions and
+closures, and classes with the whole type system. They are done, and their
+record is the git history — `python: phase 0` through `python: phase 9` — not
+this file, which from here describes only what is left.
 
-This plan is detailed through phase 9 — a working core interpreter with
-functions, classes, the built-in containers and exceptions. Arbitrary-precision
-integers, generators, `async`, the REPL, `import` and the standard library are
-named at the end but not planned.
+Where that leaves us, measured against MicroPython's suite: **141 of the 180
+tests in [test/manifest.txt](test/manifest.txt)**, and **198 of the 477** in
+`tests/basics/` once the bigint, generator, async and t-string families are set
+aside. Of the 279 that fail, 89 stop at a method on a built-in type, 33 at a
+builtin that is not there, 23 at syntax this compiler refuses, and 6 at a
+generator. None stop at the object model.
+
+## The two upstreams
+
+Both clones live under [tmp/](tmp/) and neither is committed; what we take from
+them is.
+
+**MicroPython** — [tmp/micropython/](tmp/micropython/), HEAD `52b5fbc`. Its
+`tests/basics/` is 578 small, self-contained programs that print and compare,
+and it has been the ruler for ten phases. It stays the ruler for the language
+core, and it is MIT ([LICENSE](LICENSE)).
+
+**CPython** — [tmp/cpython/](tmp/cpython/), HEAD `82952e3`, version 3.16.0a0.
+It is the ruler for everything after the core, and it is two distinct things:
+
+- **[tmp/cpython/Lib/test/](tmp/cpython/Lib/test/)** — 519 entries, the real
+  specification of the language. `test_descr.py` is the type system,
+  `test_grammar.py` the syntax, `test_str.py`/`test_dict.py`/`test_list.py`
+  the built-in types, and `list_tests.py`, `seq_tests.py`, `mapping_tests.py`
+  and `string_tests.py` are shared behaviour suites several of them mix in.
+  These are unforgiving in a way MicroPython's are not, and they are the
+  measure this plan ends on.
+- **[tmp/cpython/Lib/](tmp/cpython/Lib/)** — the standard library, most of it
+  pure Python written against a small C floor. `re/` is 3,258 lines of Python
+  over an `_sre` whose whole Python-visible surface is eight names;
+  `collections`, `functools`, `heapq`, `json`, `datetime` and `decimal` each
+  carry an `except ImportError` fallback for the day their C accelerator is
+  missing, which is our day. **A Python that runs CPython's own library is a
+  real Python**, and writing that library again would be both enormous and
+  worse. So we implement the floor and take the rest verbatim.
+
+Taking it has two prices, and both are owed before any of it ships. CPython's
+licence is the PSF licence, not MIT, so [LICENSE](LICENSE) has to carry both
+and say which files each covers. And **the library decides the syntax**: it is
+written in the Python of its own day, not 3.9's. `dataclasses.py` has 92
+f-strings in it and a `match` statement; `functools.py` has 29 f-strings. So
+f-strings are a prerequisite for borrowing anything at all, and the syntax
+phases below are ordered by what the modules we want actually use.
 
 ## Ground rules
 
@@ -31,14 +67,13 @@ platform, and getting one wrong is a rewrite.
    interpreter loop that awaited would grow the native stack until the process
    trapped.
 2. **The VM never recurses for a Python call.** A call pushes a frame and the
-   dispatch loop continues. A C++ builtin that must call back into Python —
-   `sorted(key=)`, `__init__`, `__str__` — pushes a frame and returns to the
-   loop with its continuation recorded on that frame. It does not re-enter the
-   loop.
-3. **There is no `longjmp` and nothing like it.** An error is a sticky
-   `vm.pending` exception plus a sentinel return, unwound a frame at a time.
-   `editors/vi` and `lang/mbasic` arrived at the same answer for the same
-   reason.
+   dispatch loop continues. A C++ builtin that must call back into Python
+   parks its state in a `ContObj` ([call.h](call.h)) and returns it; the VM
+   records the continuation on the frame it pushes, and `Return` brings the
+   answer back. It does not re-enter the loop.
+3. **There is no `longjmp` and nothing like it.** An error is a sticky pending
+   exception plus a sentinel return, unwound a frame at a time. `editors/vi`
+   and `lang/mbasic` arrived at the same answer for the same reason.
 4. **The parser is the only recursive thing.** It runs on the 128 KiB native
    stack and carries a nesting bound, the way
    `../braam-core/src/cmd/sh/parse.h` does with `MAX_NEST`.
@@ -71,517 +106,383 @@ allocates nor recurses.
 available here: there is no `__builtin_frame_address`, no exported stack base,
 and wasm keeps pointers in locals that a scan of linear memory cannot see. So
 the roots are exhaustive and explicit — the frame stack, each frame's locals
-and value stack, the module globals, the intern table, the static type objects,
-and an RAII `Root` chain for C++ code holding a value across an allocation.
-Mark from those, sweep the `next` list, collect on bytes-allocated pressure.
-Every builtin that allocates twice pins its operands first; that discipline is
-the price of collecting cycles, and Python makes cycles constantly.
+and value stack, the module globals, the intern table, the type objects, and an
+RAII `Root` chain for C++ code holding a value across an allocation. Mark from
+those, sweep the `next` list, collect on bytes-allocated pressure.
 
-**`Type` is a static struct of slots** — `repr`, `str`, `hash`, `eq`, `call`,
-`getattr`, `iter`, `next`, and the number, sequence and mapping protocols — so
-that a built-in type and a Python `class` answer the same dispatch.
+**`Type` is a struct of slots, and a type is an object.** A built-in type is a
+`TypeObj` wrapping the static `Type` its instances point at; a `class` is a
+`TypeObj` carrying a `Type` of its own. A slot cannot call Python, so a special
+method written in Python is not in the slot table: `type_lookup` finds it and
+the VM makes the call at the opcode, which is the one place a frame can be
+pushed. The slots hold only what a native base already answers.
 
 **The AST is an index arena.** Links are `u32` indices, not pointers, because
 the arrays reallocate as the parse grows. `sh/parse.h` states the rule.
 
 ## Phases
 
-Test names below are real files under
-[tmp/micropython/tests/basics/](tmp/micropython/tests/basics/).
+Numbering continues from the core, so a commit message and a phase still name
+the same thing. Test names are real files under
+[tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-### Phase 0 — the shell of a program — **done**
+### Phase 10 — methods on the built-in types
 
-- [x] [CMakeLists.txt](CMakeLists.txt), copied from
-      [../mbasic/CMakeLists.txt](../mbasic/CMakeLists.txt) including the
-      standalone guard; `python` added to
-      [../CMakeLists.txt](../CMakeLists.txt).
-- [x] `braam_add_package(NAME python VERSION 0.1-r0 …
-      FILES $<TARGET_FILE:bin_python>=bin/python)`, and
-      `add_dependencies(packages pkg_python)`.
-- [x] [LICENSE](LICENSE) — MIT, Damien P. George, covering the borrowed tests.
-- [x] [README.md](README.md) and this file.
-- [x] [braam.cpp](braam.cpp): the command line, the banner, the exit status.
-      `-V`, `--version`, `-h`, `-c` and a file argument are parsed; the last
-      two say there is no interpreter yet and exit 1.
-- [x] [test/pylib.mjs](test/pylib.mjs) on the
-      [../mbasic/test/mblib.mjs](../mbasic/test/mblib.mjs) pattern: boot, plant
-      the `.wasm` at `/bin/py`, run `py … >/tmp/o 2>/tmp/e`, then read those
-      back out of the store. It refuses a command line over sixty characters —
-      the harness keyboard is a `Channel<Key, 64>`.
-- [x] [test/pysmoke.mjs](test/pysmoke.mjs): the banner three ways in, the usage
-      block, an unknown option, a valued option with nothing after it, and the
-      status each one leaves.
-- [x] [test/runcases.mjs](test/runcases.mjs): read
-      [test/manifest.txt](test/manifest.txt), run every case in one boot,
-      compare against the `.exp` beside it, and fail both on an unexpected
-      failure and on a known failure that starts passing — the rule
-      [ehcases.mjs](../../editors/eh/test/ehcases.mjs) follows.
-- [x] Two `TESTS` lines in the top [Makefile](../../Makefile).
-- [x] [tools/mkexp.py](tools/mkexp.py): copy one named upstream test into
-      `test/cases/` byte for byte, write its `.exp` from upstream's own when
-      there is one and from host CPython otherwise, and refuse when the host's
-      version cannot produce it — the `*_cp310`, `*_py312` and `python34.py`
-      family. Provenance, the upstream path and commit, goes in the manifest
-      and never into the copied `.py`.
-- [x] The first case, `basics/andor.py`, marked `fail`: the pipeline is proved
-      end to end rather than only wired.
+The single biggest gap: 89 of the 279 MicroPython failures stop at
+`"".format`, `[].append` or `{}.keys`, and nothing in CPython's library runs
+without them.
 
-### Phase 1 — values, the object heap, the collector — **done**
+- [ ] The mechanism first: a namespace on each built-in `TypeObj`, filled from
+      a static table of `{name, arity, fn}`, and a native that takes `self` as
+      its first argument. Phase 9 already binds a native reached through an
+      instance, so a method is a `MethodObj` over one and costs no new kind.
+- [ ] A method that must call back into Python — `list.sort(key=)` — is a
+      continuation, the way `sorted` already is.
+- [ ] `str`: the forty-odd of them, including `split`, `join`, `strip`,
+      `replace`, `find`/`index`, `startswith`/`endswith`, `partition`, the
+      `is*` predicates, `encode`, and the case operations over the range table
+      `kernel/text.h` already carries.
+- [ ] `bytes` and a new `bytearray`, sharing str's implementations where the
+      shape is the same; `memoryview` and the buffer protocol.
+- [ ] `list`, `tuple`, `dict`, `set` and a new `frozenset`; the dict views
+      (`keys`, `values`, `items`) as their own iterable types, with the set
+      operations on them.
+- [ ] `int` (`bit_length`, `to_bytes`, `from_bytes`) and `float`
+      (`is_integer`, `hex`, `fromhex`, `as_integer_ratio`).
+- [ ] `divmod`, `round(x, n)`, `pow(a, b, m)`, `sum` with `start=`,
+      `reversed`, `zip`, `map`, `filter`, `slice.indices` — and `map`/`filter`
+      are the ones that need a callback from *inside* the iterator protocol,
+      which is the one thing phase 8's continuation cannot reach. Either
+      `py_next` grows a way to suspend, or they are eager list builders and
+      the difference is recorded.
 
-- [x] [value.h](value.h) — the tagged `Value`: bit 0 set is a 31-bit signed
-      int, otherwise a pointer; zero is Nil, which is not `None`.
-- [x] [obj.h](obj.h), [obj.cpp](obj.cpp) — the 16-byte `Obj` header, the
-      static `Type` descriptor with its `trace` and `fini` slots, the
-      `None`/`True`/`False` singletons, and `StrObj`, `TupleObj` and `ListObj`
-      — enough to have something to trace, and something that can cycle.
-- [x] [gc.h](gc.h), [gc.cpp](gc.cpp) — `obj_alloc` over `heap_alloc`, the
-      `next` list every object is threaded onto, mark and sweep, the `Roots`
-      and `Root` pins, the allocation-pressure trigger, and `gc_stress` for
-      collecting at every allocation.
-- [x] [intern.cpp](intern.cpp) — the intern table, traced rather than swept,
-      so an interned string lives as long as the process.
-- [x] `--selftest` ([selftest.cpp](selftest.cpp)) and
-      [test/pygc.mjs](test/pygc.mjs): eleven checks — values, strings,
-      interning, collection, pins, tracing through tuples and lists, a cycle,
-      a ten-thousand-deep chain, the stress mode, and the automatic trigger.
+Tests: `test_str.py`, `test_bytes.py`, `test_list.py`, `test_tuple.py`,
+`test_dict.py`, `test_set.py`, `test_int.py`, `test_float.py`, and the shared
+`string_tests.py`, `list_tests.py`, `seq_tests.py`, `mapping_tests.py`.
 
-Two decisions worth recording, both forced:
+### Phase 11 — `import`, and where the library lives
 
-- **The marker threads its worklist through the objects themselves**, in a
-  `grey` field in the header. Marking therefore neither allocates nor recurses,
-  which a ten-thousand-deep structure needs on a 128 KiB stack.
-- **The `Type` descriptor is not an object.** Types become Python-visible in
-  phase 9; until then there is no metatype to want, and a static descriptor
-  keeps every namespace-scope global trivially destructible.
+Nothing can be borrowed until a file can be imported.
 
-Nothing is Python-visible at the end of this phase.
+- [ ] The module object with a real `__dict__`, `__name__`, `__file__` and
+      `__spec__`; `sys.modules` as the cache; the circular-import rule.
+- [ ] `import a.b.c`, `from x import y`, `from x import *`, `as`, relative
+      imports, and packages with `__init__.py`.
+- [ ] `sys.path`, and the store directory the `/pkg/bin` link leads to —
+      [../mbasic/epath.cpp](../mbasic/epath.cpp) resolves its examples the
+      same way. The shipped library lands in `share/lib/`, so a program finds
+      `collections` without a versioned path.
+- [ ] The compiled-module question: parsing 1,667 lines of
+      `collections/__init__.py` on every run is a cost worth measuring before
+      deciding whether a marshalled code object is needed.
 
-### Phase 2 — the core types — **done**
+Tests: `test_import/`, `test_module.py`, `test_pkgutil.py`.
 
-- [x] [err.h](err.h), [err.cpp](err.cpp) — the error channel, needed before an
-      operation can fail: a sticky kind and message, checked rather than
-      thrown. `R` is `Ok`, `Err` or `NotImpl`, and every slot returns it.
-- [x] [obj.h](obj.h) — the `Type` descriptor grew its protocol slots: `truth`,
-      `hash`, `eq`, `order`, `repr`, `str`, `len`, `getitem`, `setitem`,
-      `contains`, `binop`.
-- [x] [ops.h](ops.h), [ops.cpp](ops.cpp) — the generic operations and the
-      fallbacks the slots do not answer, with the number tower inside them.
-      Floor division and modulo take the sign of the divisor, as in CPython.
-- [x] [int.cpp](int.cpp) — small integers only; what does not fit raises
-      `OverflowError` rather than wrapping, until there is a bignum.
-- [x] [float.cpp](float.cpp) — `braam::math` for the arithmetic, and CPython's
-      own repr rule: shortest round-trip digits, exponent form when the decimal
-      point is past 16 or at or before -4, a `.0` otherwise. Twenty-eight
-      values are checked against what CPython prints.
-- [x] [str.cpp](str.cpp) — UTF-8 validated on the way in, counted and indexed
-      in codepoints, with an ASCII flag so the common case indexes in O(1).
-- [x] [bytes.cpp](bytes.cpp), [tuple.cpp](tuple.cpp), [list.cpp](list.cpp).
-- [x] [table.cpp](table.cpp) — one insertion-ordered table behind dict and
-      set: the entries in order, an open-addressing index over them.
-- [x] [repr.cpp](repr.cpp) — repr for every type, with the quote rule, the
-      escapes, and a guard so a container holding itself prints `[...]`.
-- [x] Nine more `--selftest` checks — numbers, floats, compare, strtext,
-      reprs, dict, set, errors, truth. Twenty in all.
+### Phase 12 — CPython's tests become the ruler
 
-Three decisions worth recording:
+Establish the mechanism before the phases that need it, the way phase 0
+established the MicroPython one.
 
-- **A set iterates in insertion order**, not CPython's. Matching CPython would
-  mean copying its table's sizing and probing exactly. The README records it as
-  a known difference.
-- **An integral float hashes as the equal int**, or `{1: 'a'}[1.0]` would miss.
-- **`str` validates on the way in.** `str_new` rejects malformed UTF-8;
-  `str_raw` is the unchecked form, for bytes already known good.
+- [ ] `test/pycases.mjs` and `test/cpython.txt` on
+      [test/runcases.mjs](test/runcases.mjs)'s pattern: a row per test, its
+      state, its provenance and the commit it came from.
+- [ ] CPython's tests are not self-contained the way MicroPython's are — every
+      one of them imports `unittest`, and most import `test.support`. So the
+      harness ships **shims**: a `unittest` with `TestCase`, the `assert*`
+      family, `subTest`, `skipUnless` and a loader; and a `test.support` with
+      the names the tests we take actually use. The real `unittest` pulls in
+      `asyncio`, `logging`, `argparse` and `inspect`, and is a much later
+      milestone.
+- [ ] The first wave is the thirteen that import nothing but `unittest`, `sys`
+      and `test.support`: `test_augassign.py`, `test_unary.py`,
+      `test_decorators.py`, `test_keywordonlyarg.py`, `test_int_literal.py`,
+      `test_named_expressions.py`, `test_property.py`,
+      `test_exception_variations.py`, `test_longexp.py`, `test_typechecks.py`
+      and the rest. Everything else waits on a module.
+- [ ] A copy stays byte for byte, as MicroPython's do. Where a test cannot run
+      at all, the row says so rather than the file being edited.
+- [ ] Two lines in the top [Makefile](../../Makefile), and a number in
+      [README.md](README.md).
 
-Nothing is Python-visible at the end of this phase either: there is no syntax
-yet, and phase 6 is where these types first reach a program.
+### Phase 13 — formatting, and f-strings
 
-### Phase 3 — the lexer — **done**
+`f"{x!r:>{w}}"` is in every module we want to borrow, so this comes before the
+borrowing.
 
-- [x] [lex.h](lex.h), [lex.cpp](lex.cpp) — the full token set (34 keywords, 47
-      operators), significant indentation with `Indent`/`Dedent` and CPython's
-      tab rule, implicit line joining inside brackets and the backslash join,
-      string prefixes `r`/`b`/`u`/`f` and every escape, the number literals
-      including underscores and the three radices.
-- [x] Error positions: `err_set_at` carries a line and column, and each error
-      points at the construct that is wrong — the literal, the escape, the
-      character — not at wherever scanning stopped. Indentation errors carry
-      CPython's own `IndentationError` and `TabError`.
-- [x] `--dump-tokens`, one token per line as `line:col label value`.
-- [x] [tools/mklex.py](tools/mklex.py) and [test/pylex.mjs](test/pylex.mjs):
-      nine sources under [test/lex/](test/lex/) whose goldens come from
-      **CPython's own `tokenize` module**, so the lexer is measured against
-      CPython and not against itself — position, kind and decoded value. Nine
-      more are sources it must refuse, with the complaint pinned. Every
-      upstream test in the manifest must tokenize as well.
-- [x] `basics/lexer.py`, `basics/string_escape.py` and
-      `basics/string_escape_invalid.py` are in the manifest, marked `fail`
-      until there is something to run them with.
+- [ ] The format-spec mini-language — fill, align, sign, `#`, `0`, width,
+      grouping, precision, type — as one engine, because `format()`,
+      `str.format`, `__format__` and an f-string's suffix all reach it.
+- [ ] `%` on `str` and `bytes`, which is a different and older grammar.
+- [ ] `str.format` and `str.format_map` with the full field syntax:
+      `{0.attr[key]!r:spec}`, auto-numbering, `{{` and `}}`.
+- [ ] `__format__` on the built-in types and as a special method.
+- [ ] **f-strings**: the lexer already returns one `FStr` token holding the
+      body as written, and the parser builds one `FString` node. Both now have
+      to take it apart into a `JoinedStr` of literals and `FormattedValue`s,
+      each with its conversion and its own nested format spec, and the
+      compiler has to emit the concatenation. `=` for debugging, and nesting.
 
-Two things the CPython comparison caught that nothing else would have:
+Tests: `test_format.py`, `test_fstring.py`, `test_str.py`'s formatting half.
 
-- **`Indent` starts at column 1**, covering the whitespace, not at the first
-  token of the line.
-- **A file with no final newline** puts its dedents and its endmarker on the
-  line after the last, not at the end of it.
+### Phase 14 — arbitrary-precision integers
 
-An f-string is lexed as one `FStr` token holding the body as written; what is
-inside the braces is the parser's problem, in a later phase.
+Everything above assumes them, and `test_int.py` and `test_long.py` are
+unrunnable without them.
 
-### Phase 4 — the parser — **done**
+- [ ] Our own bignum: 32×32→64 limbs and long division, because `__int128`
+      division needs a compiler-rt builtin this target does not have.
+- [ ] The small-int fast path stays: a `Value` with bit 0 set is still a
+      31-bit int, and promotion happens at the overflow the current code
+      already detects and raises on.
+- [ ] Add, subtract, multiply, floor-divide, modulo, power, the bitwise
+      operators and the shifts; comparison; `hash` that agrees with the small
+      case; decimal, hex, octal and binary conversion both ways; `int(str)`
+      with any base.
+- [ ] `float` interworking: exact comparison, `int(float)`, `float(int)` with
+      overflow to `inf`, and `int.__truediv__` correctly rounded.
 
-- [x] [parse.h](parse.h), [parse.cpp](parse.cpp) — recursive descent into the
-      index arena. The whole 3.9 grammar: every expression form with its
-      precedence and associativity, every statement form, comprehensions,
-      decorators, `async`, target lists and unpacking, the walrus.
-- [x] The node kinds and their fields **mirror CPython's `ast` module**, which
-      is what makes the goldens below possible; parse.h writes the layout out.
-- [x] [astdump.cpp](astdump.cpp) — `--dump-ast`, whose format is the contract
-      [tools/mkast.py](tools/mkast.py) writes to.
-- [x] `SyntaxError` with a line and a column, pointing at the construct that is
-      wrong: `fail_node` reports at a node's own token, so `1 = 2` complains
-      about the `1` rather than about what follows it.
-- [x] `MAX_NEST`, counted at the bracketed forms and at each block rather than
-      at every rung of the binary-operator ladder, which is a constant six
-      deep. A hundred nested brackets parse; a hundred and one are refused
-      cleanly rather than trapping.
-- [x] [test/pyast.mjs](test/pyast.mjs): seven sources under [test/ast/](test/)
-      whose goldens come from **CPython's own `ast` module**, and nine more
-      that must be refused, with the complaint pinned. Every upstream test in
-      the manifest must parse as well.
-- [x] `basics/parser.py`, `basics/op_precedence.py` and `basics/syntaxerror.py`
-      are in the manifest.
+Tests: `test_int.py`, `test_long.py`, and MicroPython's 25 `int_big_*`.
 
-Two things had to be got right twice:
+### Phase 15 — generators
 
-- **The kids arena is append-only**, so a node's run has to be written in one
-  go. Collecting children with interleaved pushes silently captured whatever a
-  nested parse had pushed in between, and a function's body turned up as a
-  sibling of the function. Every list is now gathered into a local `Vec` and
-  written to the arena at the end.
-- **A `for` target is not an expression.** Parsed as one, `in` is taken for the
-  comparison operator and swallows the iterable, so `for i in range(3)` then
-  complained that it expected an `in`. There is a `target_list()` for it.
+The frames are already heap objects chained through `back`, which is most of
+what a generator is.
 
-An f-string is still one `FString` node holding its body as written.
+- [ ] `yield` and the generator object: a frame that is parked rather than
+      popped, with its own value stack and block stack intact.
+- [ ] `send`, `throw`, `close`, `GeneratorExit`, and `StopIteration.value`.
+- [ ] `yield from`, delegating send and throw through.
+- [ ] Generator expressions, which the compiler already builds as nested code
+      objects for comprehensions.
+- [ ] The interaction with the driver: a generator resumed from C++ is the
+      same callback problem as a special method, so `map`, `filter`, `zip` and
+      `sum` over a generator all go through the continuation.
 
-### Phase 5 — the compiler and the bytecode — **done**
+Tests: `test_generators.py`, `test_genexps.py`, `test_yield_from.py`, and
+MicroPython's `generator*` and `gen_yield_from*` families.
 
-- [x] [code.h](code.h), [code.cpp](code.cpp) — 74 opcodes in one X-macro table
-      that generates the enum, the names and the operand kinds together, so
-      they cannot drift; the code object with its constants, names, varnames,
-      cellvars, freevars and run-length line table. An operand is a whole
-      `u32`, so there is no `EXTENDED_ARG` and a jump is an absolute
-      instruction index that patches in one store.
-- [x] [symtab.h](symtab.h), [symtab.cpp](symtab.cpp) — the scope pass. One
-      walk collects what each scope binds and uses, a second decides Name,
-      Local, Cell, Free or Global and hands out the slot numbers, threading a
-      free name up through every scope between the use and the binding.
-- [x] [compile.cpp](compile.cpp) — the whole grammar the parser accepts, less
-      `async` and f-strings, which are refused with a `SyntaxError` that says
-      so. Comprehensions and class bodies are nested code objects; `with` and
-      `try` emit the 3.10 handler shapes; the stack size is a depth-first walk
-      over the finished instruction graph.
-- [x] `--dis` ([dis.cpp](dis.cpp)), and [test/pydis.mjs](test/pydis.mjs) over
-      eighteen sources under [test/dis/](test/) — ten listings and eight
-      refusals. Every upstream test in the manifest must compile as well.
-- [x] Two more `--selftest` checks, `compile` and `scopes`. Twenty-two in all.
-- [x] `Ellipsis`, which phase 2 had no reason to want and a `...` constant
-      does.
+### Phase 16 — `eval`, `exec`, `compile`, and the namespaces
 
-Three decisions worth recording:
+`collections.namedtuple`, `dataclasses` and `enum` all build classes by
+compiling source at run time, so the library needs this.
 
-- **Loops are not on the block stack.** A `break`, a `continue` or a `return`
-  leaving a `try`/`finally` or a `with` emits that cleanup *inline* before it
-  jumps, which is CPython's answer since 3.9. So the only thing the VM unwinds
-  at run time is an exception, and `SetupFinally`/`PopBlock` are the whole
-  mechanism. An exit from inside an inlined `finally` would recurse, and is
-  refused rather than mis-compiled.
-- **`SetupWith` is a separate opcode** from `SetupFinally` because the handler
-  needs the manager's `__exit__` to survive the cut: it records one below the
-  current depth, and the `with` handler therefore starts at `[exit, exc]`.
-- **A cell that is also a parameter keeps both slots.** It is in `varnames` at
-  its argument position and in `cellvars` as well, and the body starts with a
-  `LoadFast`/`StoreDeref` pair per such parameter, so a frame needs no
-  `cell2arg` table and the copy is visible in the listing.
+- [ ] `compile()` to a code object, `eval()` and `exec()` over one or over
+      source, with explicit `globals` and `locals` mappings.
+- [ ] `globals()`, `locals()`, `vars()`, `dir()`, `__builtins__`.
+- [ ] The code object made Python-visible: `__code__`, `co_varnames`,
+      `co_consts`, `co_argcount`, `co_flags`, `co_filename`, `co_firstlineno`.
+- [ ] Function attributes: `__name__`, `__qualname__`, `__doc__`,
+      `__defaults__`, `__globals__`, `__closure__`, `__module__`, and
+      assignment to them.
 
-Nothing runs yet.
+Tests: `test_compile.py`, `test_eval.py`, `test_exec.py`, `test_builtin.py`,
+`test_funcattrs.py`, and MicroPython's `fun_code*`.
 
-### Phase 6 — the VM and the driver — **done**
+### Phase 17 — the rest of the type system
 
-- [x] [frame.h](frame.h), [frame.cpp](frame.cpp) — one activation, with the
-      fast locals and the value stack as a single run of slots after the
-      header, so a call costs one allocation.
-- [x] [vm.h](vm.h), [vm.cpp](vm.cpp) — the dispatch loop over every opcode the
-      compiler emits bar the exception ones; the frame stack chained through
-      `back`; argument binding for the whole `def` grammar; cells and
-      closures; `Req` and the flush-and-exit half.
-- [x] Binary and unary operators through the slot table, subscription,
-      slicing, comparison chains, `is` and `in`.
-- [x] `if`, `while`, `for`, `break`, `continue`, and comprehensions with them.
-- [x] [iter.h](iter.h), [iter.cpp](iter.cpp) — `slice`, `range`, and the three
-      iterators every container is walked with. `Type` grew `iter`, `next`,
-      `getattr` and `delitem`.
-- [x] [func.h](func.h), [func.cpp](func.cpp) — cells, functions, C++ builtins
-      and module objects.
-- [x] [builtin.cpp](builtin.cpp) — eighteen builtins, none of which calls back
-      into Python: `print` (with `sep` and `end`), `len`, `abs`, `repr`, `str`,
-      `bool`, `int`, `float`, `list`, `tuple`, `dict`, `set`, `range`, `min`,
-      `max`, `sum`, `all`, `any`, `ord`, `chr`. `print` buffers, and the VM
-      asks for one write per four kilobytes.
-- [x] The driver in [braam.cpp](braam.cpp): `python file.py`, `python -c`,
-      `python -` , `sys.argv`, a traceback on stderr, and the exit status.
-- [x] [test/pyvm.mjs](test/pyvm.mjs) — the three ways in, argv, four kinds of
-      error, a run too long for one write, closures, and the collector under
-      load and under `PY_GC_STRESS=1`.
+Phase 9 built the half the language uses daily; this is the half the library
+uses.
 
-**Seventeen upstream tests pass**, of the thirty-four now in the manifest:
-`andor`, `builtin_abs`, `builtin_allany`, `builtin_len1`, `builtin_print`,
-`builtin_sum`, `compare_multi`, `comprehension1`, `equal`, `for1`, `ifcond`,
-`logic_constfolding`, `op_precedence`, `string_escape`,
-`string_escape_invalid`, `true_value`, `while1`. Every one of the seventeen
-that does not is waiting on `try`/`except`, on classes, or on the built-in
-types having methods — none on the VM.
+- [ ] Metaclasses: `class C(metaclass=M)`, `type.__call__`, `__prepare__`, and
+      the keyword arguments `__build_class__` currently refuses.
+- [ ] `__slots__`, and the instance layout without a dict.
+- [ ] The full descriptor protocol on any object — `__get__`, `__set__`,
+      `__delete__`, and data descriptors taking precedence over the instance
+      dict. Phase 9 does only `property`, which is one instance of it.
+- [ ] `__getattribute__`, `__setattr__` and `__delattr__` as overridable hooks.
+- [ ] `__init_subclass__`, `__set_name__`, `__class_getitem__`,
+      `__mro_entries__`.
+- [ ] `__del__`, and `weakref` with callbacks — both of which make the
+      collector's sweep observable and need a resurrection rule.
+- [ ] `__hash__ = None`, and the `__eq__`/`__hash__` interaction.
+- [ ] `abc`, `__instancecheck__` and `__subclasscheck__`, which is what
+      `collections.abc` stands on.
 
-Three decisions worth recording:
+Tests: `test_descr.py` above all, then `test_class.py`, `test_super.py`,
+`test_property.py`, `test_weakref.py`, `test_abc.py`, `test_metaclass.py`.
 
-- **An operand is read where it lies.** The value stack is a root, so popping
-  into a C++ local and *then* computing would leave the operands unreachable
-  across the allocation the operation itself makes. Every case peeks, computes
-  and only then moves `sp`. `PY_GC_STRESS=1` is what proves it.
-- **A cell parameter needs no `cell2arg` table.** The compiler already emits
-  `LoadFast`/`StoreDeref` at the top of the body, so the frame just makes empty
-  cells and the copy is ordinary bytecode.
-- **`Type` gained `getattr` but nothing gained methods.** A module answers an
-  attribute out of its dict; everything else raises. Bound methods are one
-  mechanism, and it belongs with the descriptor protocol in phase 9 rather
-  than bolted on here.
+### Phase 18 — the primitive modules, written natively
 
-### Phase 7 — exceptions and control flow — **done**
+The floor CPython's library stands on. Each is small; together they are the
+difference between borrowing the library and not.
 
-- [x] [exc.h](exc.h), [exc.cpp](exc.cpp) — thirty-two exception types in one
-      static table, each a name and a base pointer, so matching is a few
-      pointer compares and no allocation; the type object `except` matches
-      against and the instance that carries the arguments; `raise`,
-      `raise … from`, and bare `raise`.
-- [x] The error channel learned to hold an *object* as well as a kind and a
-      message ([err.h](err.h)). A few hundred call sites still say
-      `err_set("TypeError", …)`, and the VM materialises an exception from
-      that only where an `except` might want one.
-- [x] `try`/`except`/`else`/`finally`, the block stack in the frame, and the
-      exits through it. `except (A, B)` and `except E as e` with the name
-      deleted afterwards.
-- [x] `with` and the context-manager protocol: `BeforeWith` and
-      `WithExceptStart` do what [code.h](code.h) says they do. Nothing
-      built-in is a context manager, so the tests for it wait for classes.
-- [x] The traceback, collected frame by frame as the exception unwinds and
-      printed with its cause or context first; `SystemExit`, which is the one
-      exception that sets a status rather than being an error; `sys.exit`.
-- [x] `KeyboardInterrupt`: `sig_catch(SIG_INT)` before the driver's first
-      park, `ReqKind::Tick` when the burst's twenty thousand instructions are
-      up, and `sleep_for(0)` between bursts — because a signal is delivered
-      where a process parks, and a compute loop parks nowhere.
-      [test/pyint.mjs](test/pyint.mjs) drives `kill -INT` at one.
-- [x] Four more builtins the tests wanted and the runtime already had the
-      parts for: `iter`, `next`, `ord`, `chr`. Slicing a `range` yields a
-      range.
-- [x] A twenty-third `--selftest` check over the hierarchy: every kind the
-      error channel can raise is in the table, and every row reaches
-      `BaseException`.
+- [ ] `sys` in full: `argv`, `path`, `modules`, `stdin`/`stdout`/`stderr`,
+      `exc_info`, `maxsize`, `version_info`, `implementation`, `getsizeof`,
+      `setrecursionlimit`, `exit`.
+- [ ] `builtins` as a real module.
+- [ ] `_collections` (deque, defaultdict, OrderedDict), `_functools`
+      (`reduce`, `partial`, `lru_cache`), `itertools`, `operator`, `_random`
+      (Mersenne Twister), `_struct`, `array`, `math` and `cmath` over
+      `braam::math`, `time` over `proc_now`, `errno`, `gc`, `_weakref`.
+- [ ] Each is checked against the pure-Python fallback the library already
+      carries beside it, which is a free oracle.
 
-**Fifty-three upstream tests pass**, of the sixty-four in the manifest — up
-from seventeen. The 20 `try_*` files, `exception1`, `exceptpoly`,
-`exceptpoly2`, `except_match_tuple` and `sys_exit` are all green. Of the
-eleven that are not, three need `exec`/`compile`, six need methods on the
-built-in types, and two need `type()` and `getattr()`.
+Tests: `test_itertools.py`, `test_operator.py`, `test_struct.py`,
+`test_array.py`, `test_math.py`, `test_random.py`, `test_time.py`,
+`test_sys.py`, `test_gc.py`.
 
-Four decisions worth recording, three of them found by upstream's tests:
+### Phase 19 — `_sre`, and the whole of `re`
 
-- **The exception state is per frame.** A bare `raise` re-raises what the
-  innermost `except` is handling, and a called function can see it — but a
-  frame that dies while unwinding must not leave its handler visible to
-  whatever catches next. Each frame records what was being handled when it was
-  entered; `try_reraise.py` is the test that says so.
-- **A `finally` clause is emitted more than once, and the copies do not start
-  from the same stack.** The exception copy has the exception on it; a copy
-  emitted for a `return` has the return value. A `break` out of either has to
-  drop what it is standing on, and the compiler counts it.
-- **An exit from inside a `finally` does not unwind that clause again**: its
-  handler is popped and its body is what is running. Phase 5 refused this
-  outright, which cost five of the `try_finally_*` tests.
-- **`CheckExcMatch` pops the copy of the exception as well as the type.** The
-  `DupTop` before it exists for exactly that, and getting it wrong inflated
-  every stack-size estimate in a `try`.
+The best return of any phase here. `re/` is 3,258 lines of Python we do not
+write; what it stands on is one module whose Python-visible surface is
+`compile`, `template`, `MAGIC`, `CODESIZE`, `MAXREPEAT`, `MAXGROUPS` and four
+case-folding helpers.
 
-Two things the phase left alone: `with` cannot be exercised until there is a
-class to write `__enter__` on, and a traceback is a string collected as the
-frames go rather than a `__traceback__` object.
+- [ ] The `_sre` opcode VM: the pattern is a `u32` array `re/_compiler.py`
+      emits, and the matcher walks it with an explicit backtracking stack —
+      explicit because ground rule 4 leaves it no other choice.
+- [ ] The `Pattern` and `Match` objects: `match`, `search`, `fullmatch`,
+      `findall`, `finditer`, `split`, `sub`, `subn`, `group`, `groups`,
+      `groupdict`, `span`, `expand`.
+- [ ] `re/*.py` taken verbatim, with its provenance recorded.
+- [ ] Not `braam::regex`: it is POSIX leftmost-longest, and Python's is
+      leftmost-first with back-references, lazy quantifiers and lookaround.
+      The two engines answer different questions.
 
-### Phase 8 — functions, closures, calls — **done**
+Tests: `test_re.py`.
 
-Phase 6 had already built most of this — `def`, `lambda`, decorators, cells,
-`global`, `nonlocal`, `del`, the whole argument grammar and the recursion
-limit — so what this phase owed was the *last* line of its own list, and it is
-the one the previous phases had been deferring.
+### Phase 20 — the library, verbatim
 
-- [x] [call.h](call.h), [call.cpp](call.cpp) — argument binding moved out of
-      [vm.cpp](vm.cpp), and beside it `ContObj`: **the builtin-callback rule**.
-      A builtin that needs Python parks its state and returns the continuation;
-      the VM records it on the frame it pushes and `Return` brings the answer
-      back to `step`. A frame gained a `cont` slot and that is the whole of it.
-- [x] [builtin.cpp](builtin.cpp) — the first three builtins to use it:
-      `sorted(key=, reverse=)`, `min(key=, default=)` and `max`, with the
-      keys computed one request at a time and the sort itself an iterative,
-      stable merge over an index array. `enumerate` came along because
-      `builtin_minmax.py` wanted it.
-- [x] `DictMerge` ([code.h](code.h)) — `DictUpdate` for a call's keywords,
-      where a key already present is a `TypeError`. Two `**` naming one
-      parameter used to overwrite in silence; a named keyword now goes in
-      through a one-entry map, which is CPython's own shape and puts every
-      path under the same check.
-- [x] `del` on a cell unbinds it, and `LoadDeref`/`DeleteDeref` on an unbound
-      one say *which* name and that it was referenced before assignment —
-      `local variable` for a cellvar, `free variable` for a freevar.
-      `UnboundLocalError` reads the same way now.
-- [x] [test/pyfun.mjs](test/pyfun.mjs) — the callback rule at four thousand
-      turns, under `PY_GC_STRESS=1`, with an exception through it and with a
-      key function that recurses into the same builtin; the duplicate keyword
-      three ways; stacked decorators; a deleted cell.
+With `import`, f-strings, generators, `exec` and `re` in hand, the pure-Python
+half of CPython's library can simply be copied.
 
-**Eighty upstream tests pass**, of the 103 now in the manifest — up from 53.
-The `fun_*`, `closure*`, `lambda*`, `scope*` and `del_*` families are green
-bar the ones that want a `class`, a method on a built-in type, `exec`, or
-`__code__`.
+- [ ] First wave, which needs nothing but the language: `types`, `operator`,
+      `abc`, `functools`, `collections`, `collections.abc`, `contextlib`,
+      `heapq`, `bisect`, `copy`, `reprlib`, `enum`, `string`, `textwrap`,
+      `keyword`, `warnings` (`_py_warnings.py`).
+- [ ] Second wave: `json`, `csv`, `base64`, `binascii`, `hashlib`, `random`,
+      `statistics`, `fractions`, `decimal` (`_pydecimal.py`), `datetime`
+      (`_pydatetime.py`), `pprint`, `difflib`, `shlex`, `dataclasses`,
+      `traceback`, `argparse`.
+- [ ] Each module is a row in a manifest with the CPython commit it came from,
+      and arrives with its own `test_*.py`. A module that needs syntax we do
+      not have yet waits rather than being edited.
+- [ ] The packaging question: `share/lib/` against a 4 MiB compressed package
+      limit, and whether the whole library or a chosen set ships.
 
-Three decisions worth recording:
+### Phase 21 — `io`, `os`, and the file system
 
-- **A suspended builtin is not a frame.** It is an object the *callee's* frame
-  points back at, so unwinding needs no new case: an exception that escapes the
-  key function drops the continuation with the frame and carries on out of the
-  builtin, which is what it should do.
-- **Decorate, sort, undecorate is forced, not copied.** A comparison sort that
-  called back would have to suspend inside its own recursion; computing every
-  key first makes the callback phase a flat indexed loop, which a continuation
-  can own, and leaves a sort that calls nothing.
-- **`map` and `filter` still cannot be written.** Their callback is inside
-  `py_next`, which returns a value rather than a request, and no continuation
-  can reach it. That is the next thing this mechanism has to grow.
+Where ground rule 1 meets the library: every read and write is a `Req`, so the
+whole of `io` is continuations.
 
-### Phase 9 — classes and the type system — **done**
+- [ ] `open()` and the three layers — `RawIOBase` over Braam's descriptors,
+      `BufferedReader`/`BufferedWriter`, and `TextIOWrapper` with its codec
+      and its newline translation.
+- [ ] `sys.stdin`, `sys.stdout` and `sys.stderr` as real file objects, which
+      replaces the buffer the VM prints into today.
+- [ ] `os`: `listdir`, `stat`, `mkdir`, `remove`, `rename`, `getcwd`, `chdir`,
+      `environ`, `urandom`; `os.path` and `posixpath` verbatim; `stat`,
+      `fnmatch`, `glob`, `tempfile`, `pathlib`, `shutil`.
+- [ ] `signal` over `sig_catch`, and what `KeyboardInterrupt` means once a
+      program can install a handler of its own.
 
-- [x] [type.h](type.h), [type.cpp](type.cpp) — **one shape for every type.** A
-      built-in type is a `TypeObj` wrapping the static `Type` its instances
-      already point at; a `class` is a `TypeObj` carrying a `Type` of its own,
-      which its instances point at instead. So `type(1)` and `type(C())` answer
-      the same kind of thing, `int` and `C` are both callable and both
-      subclassable, and `Type` needed one new field — `owner`, the TypeObj a
-      descriptor belongs to, which is also what says a value is a class
-      instance.
-- [x] `__build_class__` over the shape the compiler already emitted: the body
-      is a Python call, so it is a continuation, with the namespace it runs in
-      carried on it (`ContObj::locals`).
-- [x] Attribute lookup down the MRO, and the descriptor protocol: a function
-      becomes a bound method, `staticmethod` and `classmethod` unwrap,
-      `property` is a getter the VM runs — and a setter, through
-      `@x.setter`. `__getattr__` is the last word, and `getattr`, `setattr`,
-      `delattr`, `hasattr`, `callable`, `hash` and `id` are builtins now.
-- [x] C3 linearisation, iterative and over the bases' own MROs. `super()`
-      with two arguments and with none — the zero-argument form finds its
-      class by looking for the running function in the MRO's namespaces, which
-      costs the compiler nothing where CPython spends a `__class__` cell.
-- [x] Special-method dispatch at the opcodes, which is the only place a frame
-      can be pushed: every binary and unary operator with its reflected
-      partner and `NotImplemented`, the comparisons, `in`, subscription and
-      its assignment and deletion, `__call__`, `__iter__`/`__next__`,
-      `__len__`, `__bool__`, `__int__`, `__abs__`, `__hash__`, and
-      `__str__`/`__repr__` through `print`, `str` and `repr`.
-- [x] Subclassing the built-in types, with the built-in kept inside the
-      instance and the slots redirected at it; `isinstance` and `issubclass`
-      over tuples as well as types, and `bool` a subclass of `int`.
-- [x] **A class of one's own deriving from an exception.** Phase 7's static
-      `ExcType` table became a hierarchy of ordinary type objects, so
-      `class AppError(Exception)` is caught by `except AppError`, by
-      `except Exception`, and prints its own name in a traceback.
-      `ExcObj` starts with `InstObj`'s fields in `InstObj`'s order, so such an
-      instance has a class, an attribute dict and the whole descriptor
-      protocol for nothing.
-- [x] [test/pyclass.mjs](test/pyclass.mjs) — the diamond, a thousand operator
-      calls in one native stack, the reflected call, iterating a class,
-      an exception through `__getitem__`, exceptions of one's own, a property
-      both ways, recursion through `__getattr__`, and all of it under
-      `PY_GC_STRESS=1`, where a class holding its methods and each method
-      holding its class back is a cycle the collector now has to break.
+Tests: `test_io.py`, `test_fileio.py`, `test_os.py`, `test_posixpath.py`,
+`test_pathlib/`, `test_tempfile.py`.
 
-**141 upstream tests pass**, of the 180 in the manifest — up from 80. Over the
-whole of `tests/basics/`, setting aside the bigint, generator, async and
-t-string families, **198 of 477** pass. Of the 279 that do not, 89 stop at a
-**method on a built-in type** (`"".format`, `[].append`, `{}.keys`), 33 at a
-builtin that is not there yet (`map`, `filter`, `exec`, `bytearray`), 23 at
-syntax this compiler still refuses (f-strings, `@`), and 6 at a generator.
-None stop at the class machinery.
+### Phase 22 — Unicode in full
 
-Four decisions worth recording:
+Until here, `str` is codepoints with an ASCII fast path and a range table for
+case. The library and `test_str.py` want more.
 
-- **A slot cannot call Python, so a Python special method is not in the slot
-  table.** `type_lookup` finds it and the VM makes the call at the opcode,
-  which is the one place a frame can be pushed. The slots hold only what a
-  native base already answers, which is what makes `class L(list)` work
-  without making `__len__` impossible.
-- **A continuation can catch.** `ContObj::catching` names an exception the
-  suspended builtin will take rather than unwind past, and `dispatch` honours
-  it. `StopIteration` out of a Python `__next__` is why it exists — a `for`
-  loop's jump is control flow no return value can express.
-- **An exception instance is an instance.** Making `ExcObj` start with
-  `InstObj`'s fields was the whole trick: `is_exc` moved to a flag in the
-  object header, and everything written for classes — the dict, the MRO, the
-  descriptors, `super()` — applied to exceptions unchanged.
-- **A container's repr cannot call Python, so the objects come out first.**
-  `print([obj])` gathers the instances nested inside, renders them one call at
-  a time, and rebuilds a *copy* with the text already in it. The program's own
-  list is untouched, and what is printed is what CPython prints.
-- **`__new__` and the built-in base disagree about arguments.** An immutable
-  built-in builds itself from the call's arguments even when the subclass
-  writes `__init__`; a mutable one is made empty and filled there. CPython
-  splits it the same way, in `tp_new` against `tp_init`.
+- [ ] `unicodedata`: the category, the case mappings, the numeric values and
+      the names, as a generated table whose size is measured before it ships.
+- [ ] `str.upper`/`lower`/`title`/`casefold` and the `is*` predicates by
+      category rather than by range.
+- [ ] `codecs`: `utf-8`, `utf-16`, `utf-32`, `latin-1`, `ascii`, the error
+      handlers (`strict`, `ignore`, `replace`, `surrogateescape`,
+      `backslashreplace`), and `str.encode`/`bytes.decode` over them.
+- [ ] `\N{...}` escapes in the lexer, and identifiers by XID_Start and
+      XID_Continue rather than "anything above U+0080", which is a known
+      difference today.
+- [ ] Normalisation, if the table cost is bearable.
 
-One thing the phase found in the *compiler*: a `return` out of a `for` inside
-a `with` left the loop's iterator on the value stack, and the inlined cleanup
-reads `__exit__` at a fixed depth. Phase 5's `unwind` walked past `FK::Loop`
-without dropping anything; it drops the loop's own values now. Nothing before
-classes could see it, because nothing before classes was a context manager.
+Tests: `test_str.py`, `test_unicodedata.py`, `test_codecs.py`.
 
-## Later, once the core stands
+### Phase 23 — `async` and `await`
 
-**Arbitrary-precision integers.** About 25 `int_big_*` tests plus the
-`*_intbig.py` variants elsewhere. Our own bignum: `__int128` division needs a
-compiler-rt builtin that does not exist on this target, so 32×32→64 limbs and
-long division.
+Coroutines are generators with a different protocol, so this lands on phase 15;
+what makes it interesting here is that Braam already *is* an event loop.
 
-**Generators, then `async`.** The frames are already heap objects, which is
-most of what a generator needs; `yield from` and then `async`/`await` on top.
+- [ ] `async def`, `await`, `async for` and `async with` — all four of which
+      the parser already accepts and the compiler refuses with a `SyntaxError`
+      that says so.
+- [ ] The coroutine object, `__await__`, `__aiter__`/`__anext__`,
+      `__aenter__`/`__aexit__`, and async generators.
+- [ ] `asyncio`: the event loop is `braam.cpp`'s park. A `Req` is what the loop
+      waits on and `proc_spawn` is what a task is — the mapping is closer than
+      it is on a POSIX host, and the selector layer CPython's `asyncio` assumes
+      is the part to replace rather than borrow.
+- [ ] `contextvars`, which `asyncio` and `unittest` both want.
 
-**The REPL.** The line editor, and the keyboard-ownership problem `mbasic`
-had to solve — a key ring has one receiver and there is no non-blocking key
-read, so the editor holds it at the prompt and gives it back the moment a
-program runs.
+Tests: `test_coroutines.py`, `test_asyncgen.py`, `test_await.py`, and the
+`asyncio` suite as far as it reaches.
 
-**`import`.** The module object, the search path, and `share/lib/` resolved
-through the `/pkg/bin` link the way [../mbasic/epath.cpp](../mbasic/epath.cpp)
-resolves its examples.
+### Phase 24 — the syntax since 3.9
 
-**The rest of the builtins and the standard library**: `math`, `array`,
-`struct`, `json`, `re`, `time`, `os`, `collections`, `random`.
+The parser was written to 3.9. The library is written to 3.16.
 
-**Float `repr` and format fidelity.** `fmt_f64_shortest` in `math/ftoa.h` is
-the round-trip printer; `str.format` and `%` are their own long tail.
+- [ ] `match`, with all seven pattern kinds — literal, capture, wildcard,
+      value, sequence, mapping, class — plus guards. `dataclasses.py` and
+      `traceback.py` both use it, so it gates the second library wave.
+- [ ] `except*` and the exception groups: `BaseExceptionGroup`,
+      `ExceptionGroup`, `split`, `subgroup`, and the unwinding rule.
+- [ ] `@` as an operator, with `__matmul__` and `__imatmul__`.
+- [ ] `X | Y` as a type union, PEP 695's `type` statement and generic syntax,
+      and whatever else the modules we actually ship turn out to use.
+- [ ] Decide and record the version this tracks, because "3.16" and "the
+      subset the shipped library needs" are not the same promise.
 
-**Unicode.** The 25 tests in `tests/unicode/`.
+Tests: `test_patma.py`, `test_exception_group.py`, `test_syntax.py`,
+`test_grammar.py`.
 
-**Error-message wording**, which is where a suite that compares against CPython
-byte for byte stops being forgiving.
+### Phase 25 — annotations and typing
 
-**Shipping**: the `share/` examples, `Manual.md`, the "what had to change"
-section of `README.md`, a version bump, `make index`, and one commit in
-`braamix.github.io`.
+Annotations are discarded today: `x: int = 1` compiles as `x = 1`, and a
+parameter annotation costs nothing at `def` time.
+
+- [ ] `__annotations__` on modules, classes and functions, under PEP 649's
+      lazy evaluation — what 3.14 onwards does and what `annotationlib.py`
+      implements.
+- [ ] `typing` verbatim: 3,955 lines that need `__class_getitem__`,
+      `__mro_entries__` and a working `functools`, all of which land earlier.
+- [ ] `dataclasses`, which is the first thing most code wants annotations for.
+
+Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
+`test_dataclasses.py`.
+
+### Phase 26 — the REPL
+
+- [ ] `python` with no arguments, `-i`, `sys.ps1`/`sys.ps2`, and the
+      incomplete-input rule `codeop` states.
+- [ ] The line editor, and the keyboard-ownership problem `mbasic` had to
+      solve: a key ring has one receiver and there is no non-blocking key
+      read, so the editor holds it at the prompt and gives it back the moment
+      a program runs.
+- [ ] History, and a traceback that reads well at a prompt.
+
+### Phase 27 — shipping
+
+- [ ] `share/lib/` with the library that fits, and `share/` examples written
+      in it.
+- [ ] `Manual.md`, and the "what had to change" half of
+      [README.md](README.md) — which for this program is "what was borrowed,
+      and from where".
+- [ ] [LICENSE](LICENSE) carrying both the MIT and the PSF terms, saying which
+      files each covers.
+- [ ] A version that is not `0.1-r0`, `make index`, and one commit in
+      `braamix.github.io`.
+
+## What is deliberately not here
+
+- **Threads.** A Braam process is one Web Worker. `_thread` can be a stub that
+  raises and `threading` the shim `asyncio` needs, but real concurrency here is
+  `proc_spawn` and message passing, not shared memory.
+- **C extension modules.** There is no `dlopen` and no stable ABI to offer.
+  Anything CPython writes in C is either implemented natively here or taken
+  from the pure-Python fallback beside it.
+- **`pickle` of arbitrary objects**, `marshal` compatibility, `ctypes`,
+  `socket`, `ssl`, `subprocess` — each wants something the platform has not
+  got.
 
 ## Conventions
 
@@ -592,4 +493,6 @@ section of `README.md`, a version bump, `make index`, and one commit in
   the top [Makefile](../../Makefile).
 - A test copied from upstream is copied byte for byte. Its provenance — the
   upstream path and the commit it came from — is recorded in the manifest, not
-  in the file.
+  in the file. The same rule holds for a library module taken from CPython.
+- A phase is done when its tests are in a manifest and green, and when
+  [README.md](README.md) says the new number.
