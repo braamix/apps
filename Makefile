@@ -130,6 +130,7 @@ TESTS := \
     lang/python/test/pydis.mjs \
     lang/python/test/pyvm.mjs \
     lang/python/test/pyfun.mjs \
+    lang/python/test/pyclass.mjs \
     lang/python/test/pyint.mjs \
     lang/python/test/runcases.mjs
 

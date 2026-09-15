@@ -12,6 +12,7 @@
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "ops.h"
+#include "type.h"
 
 namespace {
 
@@ -50,6 +51,233 @@ R oom()
 
 // ------------------------------------------------------------------- print
 
+// str() and repr() of a class instance are Python, so a builtin that shows one
+// has to ask the VM for it. `text_of` says which method, if any, is wanted.
+Value text_of(Value v, bool want_str)
+{
+    if (!is_inst(v))
+        return Value();
+    Root found;
+    StrObj *n = str_intern(want_str ? "__str__" : "__repr__");
+    if (n && type_lookup(inst_of(v)->cls, n, found.v) == R::Ok)
+        return method_new(found.v, v);
+    if (want_str) {
+        n = str_intern("__repr__");
+        if (n && type_lookup(inst_of(v)->cls, n, found.v) == R::Ok)
+            return method_new(found.v, v);
+    }
+    return Value();
+}
+
+R print_line(const Value *args, u32 n, Str sep, Str end);
+
+// Text already rendered, standing in for the instance that answered it. A
+// container's repr is C++ and cannot call Python, so an instance inside one is
+// replaced by this in a *copy* before that repr ever runs.
+struct RawObj : Obj {
+    Value text;
+};
+
+void raw_trace(Obj *o)
+{
+    gc_mark(static_cast<RawObj *>(o)->text);
+}
+
+R raw_repr(Value v, String &out)
+{
+    Value t = static_cast<RawObj *>(v.obj())->text;
+    return out.append(str_of(t)->str()) ? R::Ok : oom();
+}
+
+constexpr Type raw_type{ .name = "str", .trace = raw_trace, .repr = raw_repr, .str = raw_repr };
+
+Value raw_new(Value text)
+{
+    Root rt{ text };
+    RawObj *o = static_cast<RawObj *>(obj_alloc(&raw_type, sizeof(RawObj)));
+    if (!o)
+        return oom(), Value();
+    o->text = rt.v;
+    return obj_value(o);
+}
+
+constexpr u32 SHOW_DEEP = 8; // a container holding itself stops here
+
+// Every instance inside `v` that answers __repr__, in the order a repr reaches
+// them, as the bound method to call. Containers only; `v` itself is not one.
+bool collect_nested(Value v, ListObj *into, u32 depth);
+
+bool collect_one(Value v, ListObj *into, u32 depth)
+{
+    Value m = text_of(v, false);
+    if (!m.is_nil())
+        return list_push(into, m);
+    return collect_nested(v, into, depth);
+}
+
+bool collect_nested(Value v, ListObj *into, u32 depth)
+{
+    if (depth >= SHOW_DEEP)
+        return true;
+    if (is_tuple(v)) {
+        TupleObj *t = static_cast<TupleObj *>(v.obj());
+        for (usize i = 0; i < t->len; i++)
+            if (!collect_one(t->items()[i], into, depth + 1))
+                return false;
+    } else if (is_list(v)) {
+        ListObj *l = list_of(v);
+        for (usize i = 0; i < l->items.size(); i++)
+            if (!collect_one(l->items[i], into, depth + 1))
+                return false;
+    } else if (is_dict(v) || is_set(v)) {
+        const Table &t =
+            is_dict(v) ? static_cast<DictObj *>(v.obj())->t : static_cast<SetObj *>(v.obj())->t;
+        usize at = 0;
+        Value k, x;
+        while (table_next(t, at, k, x)) {
+            if (!collect_one(k, into, depth + 1))
+                return false;
+            if (is_dict(v) && !collect_one(x, into, depth + 1))
+                return false;
+        }
+    }
+    return true;
+}
+
+Value rewrite(Value v, ListObj *text, usize &at, u32 depth);
+
+// The same walk, taking the rendered text in the same order. A container that
+// holds one is copied; one that does not is left alone.
+Value rewrite_one(Value v, ListObj *text, usize &at, u32 depth)
+{
+    if (!text_of(v, false).is_nil()) {
+        if (at >= text->items.size())
+            return v;
+        return raw_new(text->items[at++]);
+    }
+    return rewrite(v, text, at, depth);
+}
+
+Value rewrite(Value v, ListObj *text, usize &at, u32 depth)
+{
+    if (depth >= SHOW_DEEP)
+        return v;
+    Root rv{ v };
+    if (is_tuple(rv.v)) {
+        usize n     = static_cast<TupleObj *>(rv.v.obj())->len;
+        TupleObj *t = tuple_new(n);
+        if (!t)
+            return oom(), Value();
+        Root rt{ obj_value(t) };
+        for (usize i = 0; i < n; i++) {
+            Value x =
+                rewrite_one(static_cast<TupleObj *>(rv.v.obj())->items()[i], text, at, depth + 1);
+            if (x.is_nil())
+                return Value();
+            static_cast<TupleObj *>(rt.v.obj())->items()[i] = x;
+        }
+        return rt.v;
+    }
+    if (is_list(rv.v)) {
+        ListObj *l = list_new();
+        if (!l)
+            return oom(), Value();
+        Root rl{ obj_value(l) };
+        for (usize i = 0; i < list_of(rv.v)->items.size(); i++) {
+            Value x = rewrite_one(list_of(rv.v)->items[i], text, at, depth + 1);
+            if (x.is_nil() || !list_push(list_of(rl.v), x))
+                return x.is_nil() ? Value() : (oom(), Value());
+        }
+        return rl.v;
+    }
+    if (is_dict(rv.v) || is_set(rv.v)) {
+        bool dict = is_dict(rv.v);
+        Root out{ dict ? obj_value(dict_new()) : obj_value(set_new()) };
+        if (out.v.is_nil())
+            return oom(), Value();
+        usize step = 0;
+        Value k, x;
+        for (;;) {
+            const Table &t =
+                dict ? static_cast<DictObj *>(rv.v.obj())->t : static_cast<SetObj *>(rv.v.obj())->t;
+            if (!table_next(t, step, k, x))
+                break;
+            Root nk{ rewrite_one(k, text, at, depth + 1) };
+            if (nk.v.is_nil())
+                return Value();
+            if (!dict) {
+                if (set_add(static_cast<SetObj *>(out.v.obj()), nk.v) != R::Ok)
+                    return Value();
+                continue;
+            }
+            Value nx = rewrite_one(x, text, at, depth + 1);
+            if (nx.is_nil() || dict_set(static_cast<DictObj *>(out.v.obj()), nk.v, nx) != R::Ok)
+                return Value();
+        }
+        return out.v;
+    }
+    return rv.v;
+}
+
+// s[0] the values, s[1] the method waiting on an answer, s[2] sep, s[3] end.
+// Every instance becomes the string its __str__ answers, in place; then the
+// ordinary printing runs over a list that needs no more Python.
+R print_step(ContObj *k, Value in)
+{
+    ListObj *xs = list_of(k->s[0]);
+    if (!k->s[1].is_nil()) {
+        if (!is_str(in))
+            return err_set2("TypeError", "__str__ returned a non-string", type_name(in));
+        xs->items[k->i - 1] = in;
+        k->s[1]             = Value();
+    } else if (!k->s[5].is_nil() && k->j > list_of(k->s[5])->items.size()) {
+        if (!is_str(in))
+            return err_set2("TypeError", "__repr__ returned a non-string", type_name(in));
+        if (!list_push(list_of(k->s[5]), in))
+            return oom();
+    }
+    while (k->i < xs->items.size()) {
+        Value m = text_of(xs->items[k->i], true);
+        k->i++;
+        if (!m.is_nil()) {
+            k->s[1] = m;
+            return cont_call(k, m, Value(), 0);
+        }
+    }
+
+    // The arguments are showable; anything nested inside one is not. Gather
+    // those, render them one call at a time, and put the text back in a copy.
+    if (k->s[4].is_nil()) {
+        ListObj *need = list_new();
+        ListObj *done = list_new();
+        if (!need || !done)
+            return oom();
+        k->s[4] = obj_value(need);
+        k->s[5] = obj_value(done);
+        for (usize i = 0; i < xs->items.size(); i++)
+            if (!collect_nested(xs->items[i], list_of(k->s[4]), 0))
+                return oom();
+    }
+    ListObj *need = list_of(k->s[4]);
+    if (k->j < need->items.size())
+        return cont_call(k, need->items[k->j++], Value(), 0);
+    if (need->items.size()) {
+        usize at = 0;
+        for (usize i = 0; i < xs->items.size(); i++) {
+            Value x = rewrite(xs->items[i], list_of(k->s[5]), at, 0);
+            if (x.is_nil())
+                return R::Err;
+            xs->items[i] = x;
+        }
+    }
+
+    Str sep = is_str(k->s[2]) ? str_of(k->s[2])->str() : Str(" ");
+    Str end = is_str(k->s[3]) ? str_of(k->s[3])->str() : Str("\n");
+    if (print_line(xs->items.data(), u32(xs->items.size()), sep, end) != R::Ok)
+        return R::Err;
+    return cont_done(k, value_none());
+}
+
 R b_print(const CallArgs &a, Value &out)
 {
     Str sep = " ", end = "\n";
@@ -65,28 +293,115 @@ R b_print(const CallArgs &a, Value &out)
             return err_set2("TypeError", "print() got an unexpected keyword argument", name);
     }
 
-    String line;
-    for (u32 i = 0; i < a.nargs; i++) {
-        if (i && !line.append(sep))
+    bool any = false;
+    for (u32 i = 0; i < a.nargs && !any; i++) {
+        if (!text_of(a.args[i], true).is_nil()) {
+            any = true;
+            break;
+        }
+        ListObj *probe = list_new();
+        if (!probe)
             return oom();
-        if (py_str(a.args[i], line) != R::Ok)
-            return R::Err;
+        Root rp{ obj_value(probe) };
+        if (!collect_nested(a.args[i], list_of(rp.v), 0))
+            return oom();
+        any = list_of(rp.v)->items.size() != 0;
     }
-    if (!line.append(end))
-        return oom();
-
-    String *sink = here() ? here()->sink : nullptr;
-    if (sink && !sink->append(line.str()))
-        return oom();
+    if (any) {
+        ListObj *l = list_new();
+        if (!l)
+            return oom();
+        Root rl{ obj_value(l) };
+        for (u32 i = 0; i < a.nargs; i++)
+            if (!list_push(list_of(rl.v), a.args[i]))
+                return oom();
+        Root sv{ str_new(sep) }, ev{ str_new(end) };
+        if (sv.v.is_nil() || ev.v.is_nil())
+            return R::Err;
+        Root kv{ cont_new(print_step) };
+        if (kv.v.is_nil())
+            return R::Err;
+        cont_of(kv.v)->s[0] = rl.v;
+        cont_of(kv.v)->s[2] = sv.v;
+        cont_of(kv.v)->s[3] = ev.v;
+        out                 = kv.v;
+        return R::Ok;
+    }
+    if (print_line(a.args, a.nargs, sep, end) != R::Ok)
+        return R::Err;
     out = value_none();
     return R::Ok;
 }
 
+R print_line(const Value *args, u32 n, Str sep, Str end)
+{
+    String line;
+    for (u32 i = 0; i < n; i++) {
+        if (i && !line.append(sep))
+            return oom();
+        if (py_str(args[i], line) != R::Ok)
+            return R::Err;
+    }
+    if (!line.append(end))
+        return oom();
+    String *sink = here() ? here()->sink : nullptr;
+    return sink && !sink->append(line.str()) ? oom() : R::Ok;
+}
+
 // ------------------------------------------------------------- conversions
+
+// A builtin whose work on a class instance is one special method. `j` says
+// what the answer has to be.
+enum : u32 { WANT_ANY, WANT_INT, WANT_STR, WANT_BOOL };
+
+R one_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], k->a[0], k->nargs);
+    // An AttributeError this caught means getattr's default, or hasattr False.
+    if (in.is_nil())
+        return cont_done(k, k->j == WANT_BOOL ? value_bool(false) : k->s[1]);
+    i64 n = 0;
+    switch (k->j) {
+    case WANT_INT:
+        if (!as_index(in, n))
+            return err_set2("TypeError", "a special method returned a non-integer", type_name(in));
+        break;
+    case WANT_STR:
+        if (!is_str(in))
+            return err_set2("TypeError", "a special method returned a non-string", type_name(in));
+        break;
+    case WANT_BOOL:
+        in = value_bool(py_truth(in));
+        break;
+    default:
+        break;
+    }
+    return cont_done(k, in);
+}
+
+// Nil and no error when the class has no such method.
+Value one_special(Value v, Str name, u32 want)
+{
+    Root m{ type_special(v, name) };
+    if (m.v.is_nil())
+        return Value();
+    Value kv = cont_new(one_step);
+    if (kv.is_nil())
+        return Value();
+    cont_of(kv)->s[0] = m.v;
+    cont_of(kv)->j    = want;
+    return kv;
+}
 
 R b_len(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "len", 1, 1))
+        return R::Err;
+    out = one_special(a.args[0], "__len__", WANT_INT);
+    if (!out.is_nil())
+        return R::Ok;
+    if (err_pending())
         return R::Err;
     usize n = 0;
     if (py_len(a.args[0], n) != R::Ok)
@@ -98,6 +413,11 @@ R b_len(const CallArgs &a, Value &out)
 R b_abs(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "abs", 1, 1))
+        return R::Err;
+    out = one_special(a.args[0], "__abs__", WANT_ANY);
+    if (!out.is_nil())
+        return R::Ok;
+    if (err_pending())
         return R::Err;
     i64 n = 0;
     if (as_index(a.args[0], n)) {
@@ -112,15 +432,71 @@ R b_abs(const CallArgs &a, Value &out)
     return err_set2("TypeError", "bad operand type for abs()", type_name(a.args[0]));
 }
 
+// s[0] is the value, s[1] its own __str__ or __repr__ if it has one, s[2] the
+// instances nested inside it and s[3] the text they answered; j says str.
+R show_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0) {
+        if (!k->s[1].is_nil())
+            return cont_call(k, k->s[1], Value(), 0);
+    } else if (!k->s[1].is_nil() && k->i == 2) {
+        if (!is_str(in))
+            return err_set2("TypeError", "__repr__ returned a non-string", type_name(in));
+        return cont_done(k, in);
+    } else if (k->j > 0) {
+        if (!is_str(in))
+            return err_set2("TypeError", "__repr__ returned a non-string", type_name(in));
+        if (!list_push(list_of(k->s[3]), in))
+            return oom();
+    }
+
+    ListObj *need = list_of(k->s[2]);
+    if (k->j < need->items.size())
+        return cont_call(k, need->items[k->j++], Value(), 0);
+
+    usize at = 0;
+    Root done{ rewrite(k->s[0], list_of(k->s[3]), at, 0) };
+    if (done.v.is_nil())
+        return R::Err;
+    String text;
+    if ((k->nargs ? py_str(done.v, text) : py_repr(done.v, text)) != R::Ok)
+        return R::Err;
+    Value made = str_new(text.str());
+    return made.is_nil() ? R::Err : cont_done(k, made);
+}
+
+R show(Value v, bool want_str, Value &out)
+{
+    Root rv{ v }, m{ text_of(v, want_str) };
+    Root need{ obj_value(list_new()) }, done{ obj_value(list_new()) };
+    if (need.v.is_nil() || done.v.is_nil())
+        return oom();
+    if (m.v.is_nil() && !collect_nested(rv.v, list_of(need.v), 0))
+        return oom();
+    if (!m.v.is_nil() || list_of(need.v)->items.size()) {
+        Value kv = cont_new(show_step);
+        if (kv.is_nil())
+            return R::Err;
+        cont_of(kv)->s[0]  = rv.v;
+        cont_of(kv)->s[1]  = m.v;
+        cont_of(kv)->s[2]  = need.v;
+        cont_of(kv)->s[3]  = done.v;
+        cont_of(kv)->nargs = want_str ? 1 : 0;
+        out                = kv;
+        return R::Ok;
+    }
+    String text;
+    if ((want_str ? py_str(rv.v, text) : py_repr(rv.v, text)) != R::Ok)
+        return R::Err;
+    out = str_new(text.str());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 R b_repr(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "repr", 1, 1))
         return R::Err;
-    String s;
-    if (py_repr(a.args[0], s) != R::Ok)
-        return R::Err;
-    out = str_new(s.str());
-    return out.is_nil() ? R::Err : R::Ok;
+    return show(a.args[0], false, out);
 }
 
 R b_str(const CallArgs &a, Value &out)
@@ -135,17 +511,25 @@ R b_str(const CallArgs &a, Value &out)
         out = a.args[0];
         return R::Ok;
     }
-    String s;
-    if (py_str(a.args[0], s) != R::Ok)
-        return R::Err;
-    out = str_new(s.str());
-    return out.is_nil() ? R::Err : R::Ok;
+    return show(a.args[0], true, out);
 }
 
 R b_bool(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "bool", 0, 1))
         return R::Err;
+    if (a.nargs) {
+        out = one_special(a.args[0], "__bool__", WANT_BOOL);
+        if (!out.is_nil())
+            return R::Ok;
+        if (err_pending())
+            return R::Err;
+        out = one_special(a.args[0], "__len__", WANT_BOOL);
+        if (!out.is_nil())
+            return R::Ok;
+        if (err_pending())
+            return R::Err;
+    }
     out = value_bool(a.nargs && py_truth(a.args[0]));
     return R::Ok;
 }
@@ -158,6 +542,11 @@ R b_int(const CallArgs &a, Value &out)
         out = Value::of_int(0);
         return R::Ok;
     }
+    out = one_special(a.args[0], "__int__", WANT_INT);
+    if (!out.is_nil())
+        return R::Ok;
+    if (err_pending())
+        return R::Err;
     i64 n = 0;
     if (as_index(a.args[0], n)) {
         out = int_from_i64(n);
@@ -240,6 +629,47 @@ R b_chr(const CallArgs &a, Value &out)
     return out.is_nil() ? oom() : R::Ok;
 }
 
+R b_bytes(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "bytes", 0, 1))
+        return R::Err;
+    if (!a.nargs || is_bytes(a.args[0])) {
+        out = a.nargs ? a.args[0] : bytes_new(Str());
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    i64 n = 0;
+    if (as_index(a.args[0], n)) {
+        if (n < 0)
+            return err_set("ValueError", "negative count");
+        String zeros;
+        for (i64 i = 0; i < n; i++)
+            if (!zeros.push('\0'))
+                return oom();
+        out = bytes_new(zeros.str());
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    // Anything else is a sequence of byte values.
+    Root it{ py_iter(a.args[0]) };
+    if (it.v.is_nil())
+        return R::Err;
+    String bs;
+    for (;;) {
+        Root got;
+        R r = py_next(it.v, got.v);
+        if (r == R::Err)
+            return R::Err;
+        if (r == R::NotImpl)
+            break;
+        i64 b = 0;
+        if (!as_index(got.v, b) || b < 0 || b > 255)
+            return err_set("ValueError", "bytes must be in range(0, 256)");
+        if (!bs.push(char(b)))
+            return oom();
+    }
+    out = bytes_new(bs.str());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 R b_float(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "float", 0, 1))
@@ -294,12 +724,48 @@ R b_tuple(const CallArgs &a, Value &out)
 
 R b_dict(const CallArgs &a, Value &out)
 {
-    if (a.nargs)
-        return err_set("TypeError", "dict() takes no positional arguments yet");
+    if (a.nargs > 1)
+        return err_set("TypeError", "dict() takes at most one positional argument");
     DictObj *d = dict_new();
     if (!d)
         return oom();
     Root rd{ obj_value(d) };
+    if (a.nargs) {
+        Root src{ a.args[0] };
+        if (is_dict(src.v)) {
+            usize at = 0;
+            Value k, v;
+            while (table_next(static_cast<DictObj *>(src.v.obj())->t, at, k, v))
+                if (dict_set(static_cast<DictObj *>(rd.v.obj()), k, v) != R::Ok)
+                    return R::Err;
+        } else {
+            // Anything else is a sequence of key/value pairs.
+            Root it{ py_iter(src.v) };
+            if (it.v.is_nil())
+                return R::Err;
+            for (;;) {
+                Root got;
+                R r = py_next(it.v, got.v);
+                if (r == R::Err)
+                    return R::Err;
+                if (r == R::NotImpl)
+                    break;
+                usize n = 0;
+                Value key, val;
+                if (py_len(got.v, n) != R::Ok)
+                    return R::Err;
+                if (n != 2)
+                    return err_set("ValueError",
+                                   "dictionary update sequence element "
+                                   "has the wrong length");
+                if (py_getitem(got.v, Value::of_int(0), key) != R::Ok ||
+                    py_getitem(got.v, Value::of_int(1), val) != R::Ok)
+                    return R::Err;
+                if (dict_set(static_cast<DictObj *>(rd.v.obj()), key, val) != R::Ok)
+                    return R::Err;
+            }
+        }
+    }
     for (u32 k = 0; k < a.nkw; k++)
         if (dict_set(static_cast<DictObj *>(rd.v.obj()), a.kwnames[k], a.kwvals[k]) != R::Ok)
             return R::Err;
@@ -689,6 +1155,145 @@ R b_next(const CallArgs &a, Value &out)
     return e.is_nil() ? R::Err : err_set_value(e);
 }
 
+// ------------------------------------------------------------- attributes
+
+// getattr(o, name[, default]), and hasattr over the same lookup. A property
+// getter is Python, so both of them can suspend.
+R attr_of(const CallArgs &a, Str who, bool want_bool, Value &out)
+{
+    if (a.nkw || a.nargs < 2 || a.nargs > (want_bool ? 2u : 3u))
+        return err_set2("TypeError", "wrong number of arguments", who);
+    if (!is_str(a.args[1]))
+        return err_set2("TypeError", "attribute name must be a string", type_name(a.args[1]));
+
+    StrObj *n = str_intern(str_of(a.args[1])->str());
+    if (!n)
+        return oom();
+    Root got;
+    switch (py_attr(a.args[0], n, got.v)) {
+    case Got::Error:
+        return R::Err;
+    case Got::Ok:
+        out = want_bool ? value_bool(true) : got.v;
+        return R::Ok;
+    case Got::Call: {
+        Value kv = cont_new(one_step);
+        if (kv.is_nil())
+            return R::Err;
+        cont_of(kv)->s[0]     = got.v;
+        cont_of(kv)->s[1]     = a.nargs > 2 ? a.args[2] : Value();
+        cont_of(kv)->j        = want_bool ? WANT_BOOL : WANT_ANY;
+        cont_of(kv)->catching = a.nargs > 2 || want_bool ? CATCH_ATTR : CATCH_NONE;
+        out                   = kv;
+        return R::Ok;
+    }
+    case Got::Missing:
+        break;
+    }
+    // A __getattr__ is the last word, and it too is Python.
+    if (!got.v.is_nil()) {
+        Value kv = cont_new(one_step);
+        if (kv.is_nil())
+            return R::Err;
+        cont_of(kv)->s[0]     = got.v;
+        cont_of(kv)->s[1]     = a.nargs > 2 ? a.args[2] : Value();
+        cont_of(kv)->a[0]     = a.args[1];
+        cont_of(kv)->nargs    = 1;
+        cont_of(kv)->j        = want_bool ? WANT_BOOL : WANT_ANY;
+        cont_of(kv)->catching = a.nargs > 2 || want_bool ? CATCH_ATTR : CATCH_NONE;
+        out                   = kv;
+        return R::Ok;
+    }
+    if (want_bool) {
+        out = value_bool(false);
+        return R::Ok;
+    }
+    if (a.nargs > 2) {
+        out = a.args[2];
+        return R::Ok;
+    }
+    Buf<96> m;
+    m.put("'").put(type_name(a.args[0])).put("' object has no attribute '");
+    m.put(str_of(a.args[1])->str()).put("'");
+    return err_set("AttributeError", m.str());
+}
+
+R b_getattr(const CallArgs &a, Value &out)
+{
+    return attr_of(a, "getattr", false, out);
+}
+
+R b_hasattr(const CallArgs &a, Value &out)
+{
+    return attr_of(a, "hasattr", true, out);
+}
+
+R b_setattr(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "setattr", 3, 3))
+        return R::Err;
+    if (!is_str(a.args[1]))
+        return err_set2("TypeError", "attribute name must be a string", type_name(a.args[1]));
+    StrObj *n = str_intern(str_of(a.args[1])->str());
+    if (!n)
+        return oom();
+    if (inst_setattr(a.args[0], n, a.args[2]) != R::Ok)
+        return R::Err;
+    out = value_none();
+    return R::Ok;
+}
+
+R b_delattr(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "delattr", 2, 2))
+        return R::Err;
+    if (!is_str(a.args[1]))
+        return err_set2("TypeError", "attribute name must be a string", type_name(a.args[1]));
+    StrObj *n = str_intern(str_of(a.args[1])->str());
+    if (!n)
+        return oom();
+    if (inst_delattr(a.args[0], n) != R::Ok)
+        return R::Err;
+    out = value_none();
+    return R::Ok;
+}
+
+R b_callable(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "callable", 1, 1))
+        return R::Err;
+    Value v  = a.args[0];
+    bool yes = is_func(v) || is_native(v) || is_method(v) || is_type(v) || is_exc_type(v);
+    if (!yes && is_inst(v))
+        yes = !type_special(v, "__call__").is_nil();
+    out = value_bool(yes);
+    return R::Ok;
+}
+
+R b_hash(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "hash", 1, 1))
+        return R::Err;
+    out = one_special(a.args[0], "__hash__", WANT_INT);
+    if (!out.is_nil())
+        return R::Ok;
+    if (err_pending())
+        return R::Err;
+    u32 h = 0;
+    if (py_hash(a.args[0], h) != R::Ok)
+        return R::Err;
+    out = Value::of_int(i32(h) & 0x3fffffff);
+    return R::Ok;
+}
+
+R b_id(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "id", 1, 1))
+        return R::Err;
+    out = int_from_i64(a.args[0].is_obj() ? i64(usize(a.args[0].obj())) : i64(a.args[0].w));
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 // --------------------------------------------------------------------- sys
 
 R b_exit(const CallArgs &a, Value &out)
@@ -715,14 +1320,28 @@ struct Builtin {
 };
 
 constexpr Builtin TABLE[] = {
-    { "print", b_print }, { "len", b_len },       { "abs", b_abs },
-    { "repr", b_repr },   { "str", b_str },       { "bool", b_bool },
-    { "int", b_int },     { "float", b_float },   { "list", b_list },
-    { "tuple", b_tuple }, { "dict", b_dict },     { "set", b_set },
-    { "range", b_range }, { "min", b_min },       { "max", b_max },
-    { "sum", b_sum },     { "all", b_all },       { "any", b_any },
-    { "ord", b_ord },     { "chr", b_chr },       { "iter", b_iter },
-    { "next", b_next },   { "sorted", b_sorted }, { "enumerate", b_enumerate },
+    { "print", b_print },     { "len", b_len },           { "abs", b_abs },
+    { "repr", b_repr },       { "min", b_min },           { "max", b_max },
+    { "sum", b_sum },         { "all", b_all },           { "any", b_any },
+    { "ord", b_ord },         { "chr", b_chr },           { "iter", b_iter },
+    { "next", b_next },       { "sorted", b_sorted },     { "enumerate", b_enumerate },
+    { "getattr", b_getattr }, { "hasattr", b_hasattr },   { "setattr", b_setattr },
+    { "delattr", b_delattr }, { "callable", b_callable }, { "hash", b_hash },
+    { "id", b_id },
+};
+
+// Calling one of these is calling its type: `list(x)` is `list.__new__(x)`,
+// and the name in the builtins namespace is the type object.
+struct Ctor {
+    const Type *type;
+    R (*fn)(const CallArgs &, Value &out);
+};
+
+constexpr Ctor CTORS[] = {
+    { &str_type, b_str },     { &bool_type, b_bool }, { &int_type, b_int },
+    { &float_type, b_float }, { &list_type, b_list }, { &tuple_type, b_tuple },
+    { &dict_type, b_dict },   { &set_type, b_set },   { &range_type, b_range },
+    { &bytes_type, b_bytes },
 };
 
 } // namespace
@@ -742,19 +1361,36 @@ DictObj *builtins_dict()
     h->builtins = obj_value(d);
 
     for (const Builtin &e : TABLE) {
-        Value fn = native_new(e.name, e.fn);
-        if (fn.is_nil())
+        Root fn{ native_new(e.name, e.fn) };
+        if (fn.v.is_nil())
             return nullptr;
         StrObj *name = str_intern(e.name);
         if (!name)
             return oom(), nullptr;
-        if (dict_set(static_cast<DictObj *>(h->builtins.obj()), obj_value(name), fn) != R::Ok)
+        if (dict_set(static_cast<DictObj *>(h->builtins.obj()), obj_value(name), fn.v) != R::Ok)
             return nullptr;
     }
-    StrObj *none = str_intern("None");
-    if (!none ||
-        dict_set(static_cast<DictObj *>(h->builtins.obj()), obj_value(none), value_none()) != R::Ok)
+    struct Singleton {
+        Str name;
+        Value (*of)();
+    };
+    constexpr Singleton SINGLETONS[] = { { "None", value_none },
+                                         { "Ellipsis", value_ellipsis },
+                                         { "NotImplemented", value_notimpl } };
+    for (const Singleton &g : SINGLETONS) {
+        StrObj *n = str_intern(g.name);
+        if (!n ||
+            dict_set(static_cast<DictObj *>(h->builtins.obj()), obj_value(n), g.of()) != R::Ok)
+            return nullptr;
+    }
+
+    if (!type_install(static_cast<DictObj *>(h->builtins.obj())))
         return nullptr;
+    for (const Ctor &c : CTORS) {
+        Root fn{ native_new(c.type->name, c.fn) };
+        if (fn.v.is_nil() || !type_set_ctor(c.type, fn.v))
+            return nullptr;
+    }
     return static_cast<DictObj *>(h->builtins.obj());
 }
 
@@ -781,6 +1417,22 @@ Value builtin_module(Str name)
     if (dict_set(module_dict(h->sys), obj_value(argv), h->argv.is_nil() ? value_none() : h->argv) !=
             R::Ok ||
         dict_set(module_dict(h->sys), obj_value(exit), rf.v) != R::Ok)
+        return Value();
+
+    // sys.implementation, which a portable test reads to know where it is.
+    Root impl{ module_new("implementation") };
+    if (impl.v.is_nil())
+        return Value();
+    StrObj *nm = str_intern("name");
+    Value who  = str_new("braam");
+    if (!nm || who.is_nil() || dict_set(module_dict(impl.v), obj_value(nm), who) != R::Ok)
+        return Value();
+    StrObj *key = str_intern("implementation");
+    StrObj *pl  = str_intern("platform");
+    Value plat  = str_new("braam");
+    if (!key || !pl || plat.is_nil() ||
+        dict_set(module_dict(h->sys), obj_value(key), impl.v) != R::Ok ||
+        dict_set(module_dict(h->sys), obj_value(pl), plat) != R::Ok)
         return Value();
     return h->sys;
 }

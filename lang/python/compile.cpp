@@ -296,8 +296,19 @@ bool Compiler::unwind(usize down_to, bool preserve_tos)
         StrObj *name = u->blocks[b - 1].name;
         bool busy    = u->blocks[b - 1].busy;
 
+        u32 pops = u->blocks[b - 1].pops;
+
         switch (kind) {
         case FK::Loop:
+            // A `return` leaves the loop's iterator behind, and anything that
+            // runs on the way out -- a with, a finally -- reads the stack at a
+            // fixed depth, so it has to go.
+            for (u32 k = 0; k < pops; k++) {
+                if (preserve_tos && !emit(Bc::RotTwo, node))
+                    return false;
+                if (!emit(Bc::PopTop, node))
+                    return false;
+            }
             break;
 
         case FK::Try:

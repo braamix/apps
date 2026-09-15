@@ -31,3 +31,7 @@ void vm_write_done(bool ok);
 
 // A ^C arrived. The next instruction boundary raises KeyboardInterrupt.
 void vm_interrupt();
+
+// The frame a builtin was called from: a native pushes none, so this is the
+// caller's. Nil before the first. Zero-argument super() is why it exists.
+Value vm_frame();

@@ -466,23 +466,88 @@ Three decisions worth recording:
   `py_next`, which returns a value rather than a request, and no continuation
   can reach it. That is the next thing this mechanism has to grow.
 
-### Phase 9 — classes and the type system
+### Phase 9 — classes and the type system — **done**
 
-- [ ] `class.cpp` — class bodies as code objects, the metatype, instance
-      dicts.
-- [ ] `type.cpp` — attribute lookup and the descriptor protocol, `property`,
-      `staticmethod` and `classmethod`, `super`.
-- [ ] Single inheritance, then C3 for multiple.
-- [ ] Special-method dispatch for the operators and for `__str__`, `__repr__`,
-      `__len__`, `__iter__`, `__call__`, `__getitem__`.
-- [ ] Subclassing the built-in types; `isinstance` and `issubclass`.
+- [x] [type.h](type.h), [type.cpp](type.cpp) — **one shape for every type.** A
+      built-in type is a `TypeObj` wrapping the static `Type` its instances
+      already point at; a `class` is a `TypeObj` carrying a `Type` of its own,
+      which its instances point at instead. So `type(1)` and `type(C())` answer
+      the same kind of thing, `int` and `C` are both callable and both
+      subclassable, and `Type` needed one new field — `owner`, the TypeObj a
+      descriptor belongs to, which is also what says a value is a class
+      instance.
+- [x] `__build_class__` over the shape the compiler already emitted: the body
+      is a Python call, so it is a continuation, with the namespace it runs in
+      carried on it (`ContObj::locals`).
+- [x] Attribute lookup down the MRO, and the descriptor protocol: a function
+      becomes a bound method, `staticmethod` and `classmethod` unwrap,
+      `property` is a getter the VM runs — and a setter, through
+      `@x.setter`. `__getattr__` is the last word, and `getattr`, `setattr`,
+      `delattr`, `hasattr`, `callable`, `hash` and `id` are builtins now.
+- [x] C3 linearisation, iterative and over the bases' own MROs. `super()`
+      with two arguments and with none — the zero-argument form finds its
+      class by looking for the running function in the MRO's namespaces, which
+      costs the compiler nothing where CPython spends a `__class__` cell.
+- [x] Special-method dispatch at the opcodes, which is the only place a frame
+      can be pushed: every binary and unary operator with its reflected
+      partner and `NotImplemented`, the comparisons, `in`, subscription and
+      its assignment and deletion, `__call__`, `__iter__`/`__next__`,
+      `__len__`, `__bool__`, `__int__`, `__abs__`, `__hash__`, and
+      `__str__`/`__repr__` through `print`, `str` and `repr`.
+- [x] Subclassing the built-in types, with the built-in kept inside the
+      instance and the slots redirected at it; `isinstance` and `issubclass`
+      over tuples as well as types, and `bool` a subclass of `int`.
+- [x] **A class of one's own deriving from an exception.** Phase 7's static
+      `ExcType` table became a hierarchy of ordinary type objects, so
+      `class AppError(Exception)` is caught by `except AppError`, by
+      `except Exception`, and prints its own name in a traceback.
+      `ExcObj` starts with `InstObj`'s fields in `InstObj`'s order, so such an
+      instance has a class, an attribute dict and the whole descriptor
+      protocol for nothing.
+- [x] [test/pyclass.mjs](test/pyclass.mjs) — the diamond, a thousand operator
+      calls in one native stack, the reflected call, iterating a class,
+      an exception through `__getitem__`, exceptions of one's own, a property
+      both ways, recursion through `__getattr__`, and all of it under
+      `PY_GC_STRESS=1`, where a class holding its methods and each method
+      holding its class back is a cycle the collector now has to break.
 
-Tests: the 37 `class*` files, `subclass_native*`, `special_methods.py`,
-`builtin_super.py`, `builtin_property.py`, `object1.py`, `types1.py`.
+**141 upstream tests pass**, of the 180 in the manifest — up from 80. Over the
+whole of `tests/basics/`, setting aside the bigint, generator, async and
+t-string families, **198 of 477** pass. Of the 279 that do not, 89 stop at a
+**method on a built-in type** (`"".format`, `[].append`, `{}.keys`), 33 at a
+builtin that is not there yet (`map`, `filter`, `exec`, `bytearray`), 23 at
+syntax this compiler still refuses (f-strings, `@`), and 6 at a generator.
+None stop at the class machinery.
 
-At the end of this phase the README can state a number: the share of
-`tests/basics/` that passes, setting aside the bigint, generator and async
-families.
+Four decisions worth recording:
+
+- **A slot cannot call Python, so a Python special method is not in the slot
+  table.** `type_lookup` finds it and the VM makes the call at the opcode,
+  which is the one place a frame can be pushed. The slots hold only what a
+  native base already answers, which is what makes `class L(list)` work
+  without making `__len__` impossible.
+- **A continuation can catch.** `ContObj::catching` names an exception the
+  suspended builtin will take rather than unwind past, and `dispatch` honours
+  it. `StopIteration` out of a Python `__next__` is why it exists — a `for`
+  loop's jump is control flow no return value can express.
+- **An exception instance is an instance.** Making `ExcObj` start with
+  `InstObj`'s fields was the whole trick: `is_exc` moved to a flag in the
+  object header, and everything written for classes — the dict, the MRO, the
+  descriptors, `super()` — applied to exceptions unchanged.
+- **A container's repr cannot call Python, so the objects come out first.**
+  `print([obj])` gathers the instances nested inside, renders them one call at
+  a time, and rebuilds a *copy* with the text already in it. The program's own
+  list is untouched, and what is printed is what CPython prints.
+- **`__new__` and the built-in base disagree about arguments.** An immutable
+  built-in builds itself from the call's arguments even when the subclass
+  writes `__init__`; a mutable one is made empty and filled there. CPython
+  splits it the same way, in `tp_new` against `tp_init`.
+
+One thing the phase found in the *compiler*: a `return` out of a `for` inside
+a `with` left the loop's iterator on the value stack, and the inlined cleanup
+reads `__exit__` at a fixed depth. Phase 5's `unwind` walked past `FK::Loop`
+without dropping anything; it drops the loop's own values now. Nothing before
+classes could see it, because nothing before classes was a context manager.
 
 ## Later, once the core stands
 

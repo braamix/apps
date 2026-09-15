@@ -4,6 +4,7 @@
 #include "gc.h"
 #include "kernel/fmt.h"
 #include "math/math.h"
+#include "type.h"
 
 namespace {
 
@@ -207,9 +208,14 @@ R py_hash(Value v, u32 &out)
         return R::Ok;
     }
     const Type *t = type_of(v);
-    if (!t || !t->hash)
+    if (t && t->hash)
+        return t->hash(v, out);
+    // A container is unhashable; anything else hashes by identity, which is
+    // what CPython's default __hash__ does.
+    if (!t || t->len)
         return err_set2("TypeError", "unhashable type", type_name(v));
-    return t->hash(v, out);
+    out = u32(usize(v.obj())) >> 4;
+    return R::Ok;
 }
 
 R py_eq(Value a, Value b, bool &out)
@@ -276,6 +282,18 @@ R py_cmp(Value a, Value b, Cmp op, bool &out)
     const Type *t = type_of(a);
     if (t && t->order) {
         R r = t->order(a, b, op, out);
+        if (r != R::NotImpl)
+            return r;
+    }
+    // The other side's turn, with the operator reflected: a subclass of a
+    // built-in answers for a plain one on the left.
+    const Type *u = type_of(b);
+    if (u && u != t && u->order) {
+        Cmp back = op == Cmp::Lt   ? Cmp::Gt
+                   : op == Cmp::Le ? Cmp::Ge
+                   : op == Cmp::Gt ? Cmp::Lt
+                                   : Cmp::Le;
+        R r      = u->order(b, a, back, out);
         if (r != R::NotImpl)
             return r;
     }
@@ -370,11 +388,16 @@ R py_contains(Value v, Value item, bool &out)
 
 R py_getattr(Value v, StrObj *name, Value &out)
 {
-    const Type *t = type_of(v);
-    if (t && t->getattr) {
-        R r = t->getattr(v, name, out);
-        if (r != R::NotImpl)
-            return r;
+    switch (py_attr(v, name, out)) {
+    case Got::Ok:
+        return R::Ok;
+    case Got::Error:
+        return R::Err;
+    case Got::Call:
+        // A property getter is Python; only the VM can run one.
+        return err_set2("TypeError", "this attribute needs the interpreter", name->str());
+    case Got::Missing:
+        break;
     }
     Buf<96> m;
     m.put("'").put(type_name(v)).put("' object has no attribute '").put(name->str()).put("'");

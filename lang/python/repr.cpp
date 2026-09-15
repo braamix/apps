@@ -88,6 +88,11 @@ R bool_repr(Value v, String &out)
     return out.append(is_true(v) ? "True" : "False") ? R::Ok : oom();
 }
 
+R notimpl_repr(Value, String &out)
+{
+    return out.append("NotImplemented") ? R::Ok : err_set("MemoryError", "out of memory");
+}
+
 R ellipsis_repr(Value, String &out)
 {
     return out.append("Ellipsis") ? R::Ok : oom();

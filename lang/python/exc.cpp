@@ -7,6 +7,7 @@
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "ops.h"
+#include "type.h"
 
 namespace {
 
@@ -32,37 +33,25 @@ R oom()
 }
 
 // A type is called to make an instance: ValueError('x').
-R exc_type_call(const CallArgs &a, Value &out, const ExcType *t)
+R exc_type_call(const CallArgs &a, Value &out, Value cls)
 {
+    Root rc{ cls };
     if (a.nkw)
-        return err_set2("TypeError", "exception takes no keyword arguments", t->name);
+        return err_set2("TypeError", "exception takes no keyword arguments", type_name(cls));
     TupleObj *args = tuple_new(a.nargs);
     if (!args)
         return oom();
     for (u32 i = 0; i < a.nargs; i++)
         args->items()[i] = a.args[i];
-    out = exc_new(t, obj_value(args));
+    out = exc_inst(rc.v, obj_value(args));
     return out.is_nil() ? R::Err : R::Ok;
-}
-
-R exc_type_repr(Value v, String &out)
-{
-    Buf<64> b;
-    b.put("<class '").put(static_cast<ExcTypeObj *>(v.obj())->t->name).put("'>");
-    return out.append(b.str()) ? R::Ok : oom();
-}
-
-R exc_type_getattr(Value v, StrObj *name, Value &out)
-{
-    if (name->str() != "__name__")
-        return R::NotImpl;
-    out = obj_value(str_raw(static_cast<ExcTypeObj *>(v.obj())->t->name));
-    return out.is_nil() ? oom() : R::Ok;
 }
 
 void exc_trace(Obj *o)
 {
     ExcObj *e = static_cast<ExcObj *>(o);
+    gc_mark(e->cls);
+    gc_mark(e->dict);
     gc_mark(e->args);
     gc_mark(e->cause);
     gc_mark(e->context);
@@ -77,9 +66,8 @@ TupleObj *args_of(Value v)
 // argument is that argument and for none is empty.
 R exc_repr(Value v, String &out)
 {
-    ExcObj *e   = static_cast<ExcObj *>(v.obj());
     TupleObj *a = args_of(v);
-    if (!out.append(e->t->name) || !out.push('('))
+    if (!out.append(type_name(v)) || !out.push('('))
         return oom();
     for (usize i = 0; i < a->len; i++) {
         if (i && !out.append(", "))
@@ -100,6 +88,7 @@ R exc_str(Value v, String &out)
     return py_repr(static_cast<ExcObj *>(v.obj())->args, out);
 }
 
+// The class's own names come first -- py_attr asks this only after those.
 R exc_getattr(Value v, StrObj *name, Value &out)
 {
     ExcObj *e = static_cast<ExcObj *>(v.obj());
@@ -128,6 +117,21 @@ R exc_getattr(Value v, StrObj *name, Value &out)
         return R::Ok;
     }
     return R::NotImpl;
+}
+
+// BaseException.__init__(self, *args): what a subclass reaches through super().
+R b_exc_init(const CallArgs &a, Value &out)
+{
+    if (a.nkw || !a.nargs || !is_exc(a.args[0]))
+        return err_set("TypeError", "BaseException.__init__() needs an exception");
+    TupleObj *args = tuple_new(a.nargs - 1);
+    if (!args)
+        return oom();
+    for (u32 i = 1; i < a.nargs; i++)
+        args->items()[i - 1] = a.args[i];
+    static_cast<ExcObj *>(a.args[0].obj())->args = obj_value(args);
+    out                                          = value_none();
+    return R::Ok;
 }
 
 } // namespace
@@ -172,8 +176,6 @@ const ExcType EXC_TABLE[] = {
 
 const usize EXC_COUNT = sizeof(EXC_TABLE) / sizeof(EXC_TABLE[0]);
 
-constexpr Type exc_type_type{ .name = "type", .repr = exc_type_repr, .getattr = exc_type_getattr };
-
 constexpr Type exc_obj_type{ .name    = "Exception",
                              .trace   = exc_trace,
                              .repr    = exc_repr,
@@ -214,31 +216,50 @@ Value exc_type_value(const ExcType *t)
     if (!types->made[i].is_nil())
         return types->made[i];
 
-    ExcTypeObj *o = static_cast<ExcTypeObj *>(obj_alloc(&exc_type_type, sizeof(ExcTypeObj)));
-    if (!o)
-        return oom(), Value();
-    o->t           = t;
-    types->made[i] = obj_value(o);
-    return types->made[i];
+    // The base first, so the MRO is built over types that already have one.
+    Root base{ t->base ? exc_type_value(t->base) : Value() };
+    if (t->base && base.v.is_nil())
+        return Value();
+    Value o = type_make_native(t->name, base.v, &exc_obj_type, t);
+    if (o.is_nil())
+        return Value();
+    types->made[i] = o;
+    return o;
 }
 
-Value exc_new(const ExcType *t, Value args)
+Value exc_inst(Value cls, Value args)
 {
-    Root ra{ args };
+    Root rc{ cls }, ra{ args };
     if (ra.v.is_nil()) {
         TupleObj *e = tuple_new(0);
         if (!e)
             return oom(), Value();
         ra = obj_value(e);
     }
-    ExcObj *o = static_cast<ExcObj *>(obj_alloc(&exc_obj_type, sizeof(ExcObj)));
+    ExcObj *o = static_cast<ExcObj *>(type_alloc_inst(rc.v, sizeof(ExcObj)));
     if (!o)
-        return oom(), Value();
-    o->t       = t;
+        return Value();
+    o->flags |= OBJ_EXC;
+    o->t       = type_obj(rc.v)->exc;
     o->args    = ra.v;
     o->cause   = Value();
     o->context = Value();
     return obj_value(o);
+}
+
+Value exc_new(const ExcType *t, Value args)
+{
+    Root ra{ args };
+    Value cls = exc_type_value(t);
+    return cls.is_nil() ? Value() : exc_inst(cls, ra.v);
+}
+
+void exc_slots(Type &s)
+{
+    s.trace   = exc_trace;
+    s.repr    = exc_repr;
+    s.str     = exc_str;
+    s.getattr = exc_getattr;
 }
 
 Value exc_make(Str name, Str message)
@@ -262,6 +283,14 @@ Value exc_make(Str name, Str message)
 bool exc_install(DictObj *into)
 {
     Root rd{ obj_value(into) };
+    Root base{ exc_type_value(&EXC_TABLE[0]) };
+    Root fn{ native_new("__init__", b_exc_init) };
+    StrObj *init = str_intern("__init__");
+    if (base.v.is_nil() || !init || fn.v.is_nil())
+        return false;
+    if (dict_set(static_cast<DictObj *>(type_obj(base.v)->dict.obj()), obj_value(init), fn.v) !=
+        R::Ok)
+        return false;
     for (usize i = 0; i < EXC_COUNT; i++) {
         Value t = exc_type_value(&EXC_TABLE[i]);
         if (t.is_nil())
@@ -280,7 +309,7 @@ bool exc_line(Value e, String &out)
 {
     if (!is_exc(e))
         return py_repr(e, out) == R::Ok;
-    if (!out.append(static_cast<ExcObj *>(e.obj())->t->name))
+    if (!out.append(type_name(e)))
         return false;
     String tail;
     if (exc_str(e, tail) != R::Ok)
@@ -290,8 +319,9 @@ bool exc_line(Value e, String &out)
     return out.append(": ") && out.append(tail.str());
 }
 
-// The call a type answers, reached from the VM: ValueError('x').
+// The call a type answers, reached from the VM: ValueError('x'), and the same
+// for a class deriving from one, whose __init__ the VM runs afterwards.
 R exc_type_invoke(Value type, const CallArgs &a, Value &out)
 {
-    return exc_type_call(a, out, static_cast<ExcTypeObj *>(type.obj())->t);
+    return exc_type_call(a, out, type);
 }

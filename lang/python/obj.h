@@ -27,6 +27,10 @@ Str cmp_symbol(Cmp op);
 // slot may be null, and the generic operation in ops.h says what that means.
 struct Type {
     Str name;
+    // The TypeObj this descriptor belongs to, once something has asked for it.
+    // Null until then; a `class` fills it in at birth, which is also what says
+    // an instance of it is a class instance rather than a built-in.
+    Obj *owner           = nullptr;
     void (*trace)(Obj *) = nullptr; // call gc_mark on every value held
     void (*fini)(Obj *)  = nullptr; // release any heap block held, before free
 
@@ -62,6 +66,7 @@ enum : u32 {
     OBJ_GREY     = 1u << 1, // on the marker's worklist
     OBJ_IMMORTAL = 1u << 2, // static storage: never swept, never freed
     OBJ_ASCII    = 1u << 3, // a str whose bytes are all under 0x80
+    OBJ_EXC      = 1u << 4, // an ExcObj, whatever class it belongs to
 };
 
 // Allocate `bytes` (header included) and thread it onto the heap list. Null on
@@ -87,10 +92,12 @@ extern Obj none_obj;
 extern Obj true_obj;
 extern Obj false_obj;
 extern Obj ellipsis_obj;
+extern Obj notimpl_obj;
 
 extern const Type none_type;
 extern const Type bool_type;
 extern const Type ellipsis_type;
+extern const Type notimpl_type;
 extern const Type int_type;
 extern const Type float_type;
 extern const Type str_type;
@@ -113,6 +120,17 @@ inline Value value_bool(bool b)
 inline Value value_ellipsis()
 {
     return Value::of_obj(&ellipsis_obj);
+}
+
+inline Value value_notimpl()
+{
+    return Value::of_obj(&notimpl_obj);
+}
+
+// A binary special method saying it is the other operand's turn.
+inline bool is_notimpl(Value v)
+{
+    return v.w == Value::of_obj(&notimpl_obj).w;
 }
 
 inline bool is_none(Value v)

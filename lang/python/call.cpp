@@ -51,8 +51,10 @@ void cont_trace(Obj *o)
     gc_mark(k->fn);
     for (Value &v : k->a)
         gc_mark(v);
+    gc_mark(k->argv);
     gc_mark(k->out);
     gc_mark(k->next);
+    gc_mark(k->locals);
 }
 
 R cont_repr(Value v, String &out)
@@ -76,10 +78,14 @@ Value cont_new(ContStep step)
     k->fn = Value();
     for (Value &v : k->a)
         v = Value();
-    k->out   = Value();
-    k->next  = Value();
-    k->nargs = 0;
+    k->argv   = Value();
+    k->out    = Value();
+    k->next   = Value();
+    k->locals = Value();
+    k->nargs  = 0;
     k->i = k->j = 0;
+    k->catching = CATCH_NONE;
+    k->drop     = false;
     return obj_value(k);
 }
 

@@ -20,24 +20,32 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 8 of ten.**
+**Phase 9 of ten.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
 285
-$ python -c 'try: 1/0
-except ZeroDivisionError as e: print("caught", e)'
-caught division by zero
+$ python -c 'class P:
+    def __init__(self, x): self.x = x
+    def __repr__(self): return "P(" + str(self.x) + ")"
+print(sorted([P(3), P(1)], key=lambda p: p.x))'
+[P(1), P(3)]
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
 whole argument grammar, decorators, closures, `global`, `nonlocal` and `del`,
-slicing, unpacking, twenty-five builtins, the exception hierarchy with
-`try`/`except`/`else`/`finally` and `raise … from`, `sys.argv`, `sys.exit`, a
-`^C` that becomes a catchable `KeyboardInterrupt`, and a traceback on the way
-out. Eighty of MicroPython's own tests pass unchanged. What is not here:
-**classes** (phase 9), generators, and the methods on the built-in types — so
-`class`, `yield` and `"".format` each stop with a message that says so.
+slicing, unpacking, thirty-odd builtins, `class` with multiple inheritance, the
+descriptor protocol and the special methods, the exception hierarchy with
+`try`/`except`/`else`/`finally`, `with`, `raise … from` and exceptions of one's
+own, `sys.argv`, `sys.exit`, a `^C` that becomes a catchable
+`KeyboardInterrupt`, and a traceback on the way out.
+
+**141 of MicroPython's own tests pass unchanged**, and over the whole of
+`tests/basics/` — setting aside the bigint, generator, async and t-string
+families — **198 of 477**. What stops the rest is almost entirely one thing:
+**the built-in types have no methods**. `"".format`, `[].append` and `{}.keys`
+are an `AttributeError`, and they arrive with the standard library. Generators
+and f-strings are the other two.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -73,6 +81,7 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [frame.h](frame.h), [frame.cpp](frame.cpp) | One activation: locals and the value stack in one block |
 | [vm.h](vm.h), [vm.cpp](vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
 | [func.h](func.h), [func.cpp](func.cpp) | Cells, functions, builtins written in C++, and modules |
+| [type.h](type.h), [type.cpp](type.cpp) | Type objects, instances, the MRO and the descriptors |
 | [call.h](call.h), [call.cpp](call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
 | [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices, ranges and the three iterators |
@@ -86,6 +95,7 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [test/pydis.mjs](test/pydis.mjs) | Every source under `test/dis/`, instruction for instruction |
 | [test/pyvm.mjs](test/pyvm.mjs) | The driver: the three ways in, `sys.argv`, tracebacks, the collector under load |
 | [test/pyfun.mjs](test/pyfun.mjs) | Calls: the callback rule at four thousand turns, decorators, a deleted cell |
+| [test/pyclass.mjs](test/pyclass.mjs) | Classes: the diamond, the special methods, exceptions of one's own, all under gc stress |
 | [test/pyint.mjs](test/pyint.mjs) | That a `^C` reaches a running program, and that it may catch it |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
@@ -183,19 +193,21 @@ All recorded rather than hidden, and all in reach later:
   grammar; `async def`, `async for`, `async with` and `await` stop at the
   compiler with a `SyntaxError` that says so.
 - **The built-in types have no methods yet.** `[].append`, `{}.keys` and
-  `"".format` are an `AttributeError`; the twenty-five builtins and the
-  operators are the whole surface. They arrive with the rest of the standard
-  library.
+  `"".format` are an `AttributeError`; the builtins, the operators and the
+  special methods are the whole surface. They arrive with the standard
+  library, and they are what most of the remaining upstream tests are waiting
+  for.
+- **A class repr has no module in it.** CPython prints
+  `<class '__main__.C'>`; this prints `<class 'C'>`, there being one module.
+- **`__set_name__` and `@` are not there.** The first is a descriptor hook the
+  class body would have to call; the second is an operator the parser does not
+  know.
 - **`map` and `filter` are not there**, though `sorted(key=)` and `min(key=)`
   are. The difference is where the callback sits: a key function is called from
   a loop a continuation can own, and `map`'s is called from inside `py_next`,
   which has no way to suspend. See below.
 - **`import` finds only built-in modules**, which is `sys` and nothing else.
   There is no search path until there is a module object worth loading into.
-- **An exception type is a static descriptor, not a class.** `except
-  ValueError` matches by walking a base pointer, and `ValueError('x')` makes an
-  instance, but the types are not subclassable and `type(e)` has nothing to
-  return yet. Both wait for phase 9.
 - **A traceback is a string, not an object.** It is collected as the frames go
   and printed at the end; there is no `__traceback__` to read.
 
@@ -250,6 +262,25 @@ request each, and only then is the list sorted — decorate, sort, undecorate,
 which is CPython's own answer. The sort itself calls nothing back, so it is an
 ordinary iterative merge over an index array, stable and with no recursion on a
 128 KiB stack.
+
+It is also how a class works. A special method written in Python is a call, so
+it cannot be in the slot table at all: the VM looks it up on the class and makes
+the call **at the opcode**, which is the one place a frame can be pushed. So
+`a + b` on a class, `obj[k]`, `for x in obj` and `print(obj)` are all
+continuations, and a thousand of them cost the native stack what one does.
+
+Two of them need more than a return value. `for x in obj` ends when `__next__`
+raises `StopIteration`, which is control flow, not an answer — so a
+continuation can name an exception it will **catch** (`ContObj::catching`), and
+`dispatch` hands it back instead of unwinding past it. And `del obj[k]` wants
+no answer at all, so a continuation can say its result is to be dropped.
+
+The one place a special method is *not* reached at an opcode is inside a
+container: `print([obj])` asks a list for its repr, and that repr is C++ all the
+way down. So the objects that need Python are gathered out of the structure
+first, rendered one call at a time, and put back — into a **copy**, with each
+one replaced by the text it answered. The list the program holds is untouched,
+and what gets printed is what CPython prints.
 
 What the mechanism does *not* reach is a callback from inside the iterator
 protocol. `py_next` returns a value, not a request, so `map` and `filter` — lazy

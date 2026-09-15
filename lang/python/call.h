@@ -21,14 +21,22 @@ using ContStep = R (*)(ContObj *k, Value in);
 
 struct ContObj : Obj {
     ContStep step;
-    Value s[4]; // the builtin's own state
-    Value fn;   // what to call next, Nil when there is nothing left to call
-    Value a[2]; // its arguments
-    Value out;  // the answer, once fn is Nil
-    Value next; // the ContObj waiting on this one, or Nil
+    Value s[6];   // the builtin's own state
+    Value fn;     // what to call next, Nil when there is nothing left to call
+    Value a[2];   // its arguments
+    Value argv;   // or a tuple of them, when there are more than two
+    Value out;    // the answer, once fn is Nil
+    Value next;   // the ContObj waiting on this one, or Nil
+    Value locals; // the namespace the next call's frame runs in, or Nil
     u32 nargs;
-    u32 i, j; // counters a step keeps across its requests
+    u32 i, j;     // counters a step keeps across its requests
+    u32 catching; // a CATCH_*: the step is resumed with Nil rather than unwound
+    bool drop;    // the answer is not wanted: push nothing
 };
+
+// What a continuation is willing to catch out of the call it asked for. The
+// step is re-entered with Nil instead of the exception unwinding past it.
+enum : u32 { CATCH_NONE, CATCH_STOP, CATCH_ATTR };
 
 extern const Type cont_type;
 
@@ -46,11 +54,21 @@ inline ContObj *cont_of(Value v)
 }
 
 // Inside a step: call `fn(args...)` and come back with what it returned.
-inline R cont_call(ContObj *k, Value fn, Value a0)
+inline R cont_call(ContObj *k, Value fn, Value a0, u32 n = 1, Value a1 = Value())
 {
     k->fn    = fn;
     k->a[0]  = a0;
-    k->nargs = 1;
+    k->a[1]  = a1;
+    k->nargs = n;
+    k->argv  = Value();
+    return R::Ok;
+}
+
+// Inside a step: call `fn(*args)`, for an arity this code does not fix.
+inline R cont_call_v(ContObj *k, Value fn, Value args)
+{
+    k->fn   = fn;
+    k->argv = args;
     return R::Ok;
 }
 

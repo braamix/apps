@@ -26,28 +26,26 @@ const ExcType *exc_find(Str name);
 // Is `t` a `base`, or something under it?
 bool exc_is(const ExcType *t, const ExcType *base);
 
-extern const Type exc_type_type; // the type of a type, e.g. ValueError
-extern const Type exc_obj_type;  // the type of an instance
+extern const Type exc_obj_type; // the handlers an exception instance uses
 
-struct ExcTypeObj : Obj {
-    const ExcType *t;
-};
-
+// An instance. The first three fields are InstObj's, in InstObj's order, so a
+// user class deriving from an exception is an instance in every other respect:
+// it has a class, an attribute dict and the whole descriptor protocol.
 struct ExcObj : Obj {
+    Value cls;    // TypeObj
+    Value dict;   // instance attributes
+    Value unused; // InstObj's native slot; an exception delegates to nothing
     const ExcType *t;
     Value args;    // TupleObj, always
     Value cause;   // `raise X from Y`, or Nil
     Value context; // what was being handled when this was raised, or Nil
 };
 
-inline bool is_exc_type(Value v)
-{
-    return v.is_obj() && v.obj()->type == &exc_type_type;
-}
-
+// A user class deriving from one of these carries its own type, so the flag
+// rather than the descriptor is what says an object is an exception.
 inline bool is_exc(Value v)
 {
-    return v.is_obj() && v.obj()->type == &exc_obj_type;
+    return v.is_obj() && (v.obj()->flags & OBJ_EXC) != 0;
 }
 
 inline const ExcType *exc_type_of(Value v)
@@ -55,9 +53,12 @@ inline const ExcType *exc_type_of(Value v)
     return is_exc(v) ? static_cast<ExcObj *>(v.obj())->t : nullptr;
 }
 
-// One object per entry in the table, made on first use and kept: `ValueError`
-// names the same object every time it is looked up.
+// The type object for a row of the table, made on first use and kept:
+// `ValueError` names the same object every time it is looked up.
 Value exc_type_value(const ExcType *t);
+
+// A fresh instance of `cls`, which is a class deriving from an exception.
+Value exc_inst(Value cls, Value args);
 
 // An instance. `args` may be Nil for none.
 Value exc_new(const ExcType *t, Value args);
@@ -75,3 +76,6 @@ struct CallArgs;
 
 // Calling a type makes an instance: ValueError('x'). The VM dispatches here.
 R exc_type_invoke(Value type, const CallArgs &a, Value &out);
+
+// The handlers a class deriving from an exception takes for its own slots.
+void exc_slots(Type &s);

@@ -1,0 +1,23 @@
+0
+1
+{(): 1}
+{(1,): 1}
+True
+<class 'int'>
+<class 'int'>
+<class 'int'>
+<class 'int'>
+<class 'int'>
+<class 'int'>
+<class 'int'>
+<class 'int'>
+<class 'int'>
+<class 'int'>
+<class 'int'>
+<class 'int'>
+TypeError
+123
+{a instance: 1}
+TypeError
+TypeError
+1
