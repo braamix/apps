@@ -1,0 +1,132 @@
+code <module>  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 1  flags -
+  names: f, r, w, gen
+  consts:
+      0  <code f at line 1>
+      1  <code r at line 10>
+      2  <code w at line 16>
+      3  <code gen at line 20>
+      4  None
+    1       0  LoadConst             0 (<code f at line 1>)
+            1  MakeFunction          0
+            2  StoreName             0 (f)
+   10       3  LoadConst             1 (<code r at line 10>)
+            4  MakeFunction          0
+            5  StoreName             1 (r)
+   16       6  LoadConst             2 (<code w at line 16>)
+            7  MakeFunction          0
+            8  StoreName             2 (w)
+   20       9  LoadConst             3 (<code gen at line 20>)
+           10  MakeFunction          0
+           11  StoreName             3 (gen)
+           12  LoadConst             4 (None)
+           13  Return
+
+code f  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 3  flags newlocals
+  varnames: C
+  cellvars: x
+  consts:
+      0  1
+      1  <code C at line 4>
+      2  'C'
+      3  None
+    2       0  LoadConst             0 (1)
+            1  StoreDeref            0 (x)
+    3       2  DeleteDeref           0 (x)
+    4       3  LoadBuildClass
+            4  LoadClosure           0 (x)
+            5  BuildTuple            1
+            6  LoadConst             1 (<code C at line 4>)
+            7  MakeFunction          4 (closure)
+            8  LoadConst             2 ('C')
+            9  Call                  2
+           10  StoreFast             0 (C)
+    8      11  LoadFast              0 (C)
+           12  Return
+           13  LoadConst             3 (None)
+           14  Return
+
+code C  file /tmp/c.py  line 4
+  args 0 (posonly 0, kwonly 0)  stack 1  flags nested
+  freevars: x
+  names: y, g
+  consts:
+      0  1
+      1  None
+    5       0  LoadDeref             0 (x)
+            1  StoreName             0 (y)
+    7       2  LoadConst             0 (1)
+            3  StoreGlobal           1 (g)
+            4  LoadConst             1 (None)
+            5  Return
+
+code r  file /tmp/c.py  line 10
+  args 0 (posonly 0, kwonly 0)  stack 1  flags newlocals
+  consts:
+      0  1
+      1  None
+   11       0  SetupFinally          6
+   12       1  LoadConst             0 (1)
+   11       2  PopBlock
+   12       3  Return
+   11       4  PopBlock
+            5  Jump                  7
+      >>    6  Reraise               0
+      >>    7  LoadConst             1 (None)
+            8  Return
+
+code w  file /tmp/c.py  line 16
+  args 0 (posonly 0, kwonly 0)  stack 5  flags newlocals
+  names: open
+  consts:
+      0  'a'
+      1  2
+      2  None
+   17       0  LoadGlobal            0 (open)
+            1  LoadConst             0 ('a')
+            2  Call                  1
+            3  BeforeWith
+            4  SetupWith            22
+            5  PopTop
+   18       6  LoadConst             1 (2)
+   17       7  RotTwo
+            8  PopBlock
+            9  LoadConst             2 (None)
+           10  DupTop
+           11  DupTop
+           12  Call                  3
+           13  PopTop
+   18      14  Return
+   17      15  PopBlock
+           16  LoadConst             2 (None)
+           17  DupTop
+           18  DupTop
+           19  Call                  3
+           20  PopTop
+           21  Jump                 27
+      >>   22  WithExceptStart
+           23  PopJumpIfTrue        25
+           24  Reraise               0
+      >>   25  PopTop
+           26  PopTop
+      >>   27  LoadConst             2 (None)
+           28  Return
+
+code gen  file /tmp/c.py  line 20
+  args 0 (posonly 0, kwonly 0)  stack 1  flags generator newlocals
+  varnames: x
+  consts:
+      0  1
+      1  None
+      2  3
+   21       0  LoadConst             0 (1)
+            1  YieldValue
+            2  PopTop
+   22       3  LoadConst             1 (None)
+            4  YieldValue
+            5  StoreFast             0 (x)
+   23       6  LoadConst             2 (3)
+            7  Return
+            8  LoadConst             1 (None)
+            9  Return

@@ -1,0 +1,46 @@
+code <module>  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 2  flags -
+  names: sys, os.path, os, path, p, math, sin, cos, c, , thing, pkg, other
+  consts:
+      0  0
+      1  None
+      2  ('sin', 'cos')
+      3  1
+      4  ('thing',)
+      5  2
+      6  ('other',)
+    1       0  LoadConst             0 (0)
+            1  LoadConst             1 (None)
+            2  ImportName            0 (sys)
+            3  StoreName             0 (sys)
+    2       4  LoadConst             0 (0)
+            5  LoadConst             1 (None)
+            6  ImportName            1 (os.path)
+            7  StoreName             2 (os)
+    3       8  LoadConst             0 (0)
+            9  LoadConst             1 (None)
+           10  ImportName            1 (os.path)
+           11  LoadAttr              3 (path)
+           12  StoreName             4 (p)
+    4      13  LoadConst             0 (0)
+           14  LoadConst             2 (('sin', 'cos'))
+           15  ImportName            5 (math)
+           16  ImportFrom            6 (sin)
+           17  StoreName             6 (sin)
+           18  ImportFrom            7 (cos)
+           19  StoreName             8 (c)
+           20  PopTop
+    5      21  LoadConst             3 (1)
+           22  LoadConst             4 (('thing',))
+           23  ImportName            9 ()
+           24  ImportFrom           10 (thing)
+           25  StoreName            10 (thing)
+           26  PopTop
+    6      27  LoadConst             5 (2)
+           28  LoadConst             6 (('other',))
+           29  ImportName           11 (pkg)
+           30  ImportFrom           12 (other)
+           31  StoreName            12 (other)
+           32  PopTop
+           33  LoadConst             1 (None)
+           34  Return

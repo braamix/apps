@@ -28,7 +28,8 @@ if (lines.length !== Number(m[2]))
 // Named so that a check silently disappearing is a failure too.
 const WANT = ["value", "strings", "intern", "collect", "root", "tuple", "list",
               "cycle", "deep", "stress", "threshold", "numbers", "floats",
-              "compare", "strtext", "reprs", "dict", "set", "errors", "truth"];
+              "compare", "strtext", "reprs", "dict", "set", "errors", "truth",
+              "compile", "scopes"];
 const got = lines.map((l) => l.slice(3));
 for (const w of WANT) if (!got.includes(w)) die(`the ${w} check did not run`);
 

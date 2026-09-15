@@ -1,0 +1,129 @@
+code <module>  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 4  flags -
+  names: plain, defaults, positional, deco, wrapped, f, d, kw
+  consts:
+      0  <code plain at line 1>
+      1  1
+      2  'd'
+      3  2
+      4  <code defaults at line 4>
+      5  <code positional at line 7>
+      6  <code deco at line 10>
+      7  <code wrapped at line 15>
+      8  <code <lambda> at line 18>
+      9  ('b',)
+     10  None
+    1       0  LoadConst             0 (<code plain at line 1>)
+            1  MakeFunction          0
+            2  StoreName             0 (plain)
+    4       3  LoadConst             1 (1)
+            4  BuildTuple            1
+            5  LoadConst             2 ('d')
+            6  LoadConst             3 (2)
+            7  BuildMap              1
+            8  LoadConst             4 (<code defaults at line 4>)
+            9  MakeFunction          3 (defaults kwdefaults)
+           10  StoreName             1 (defaults)
+    7      11  LoadConst             5 (<code positional at line 7>)
+           12  MakeFunction          0
+           13  StoreName             2 (positional)
+   10      14  LoadConst             6 (<code deco at line 10>)
+           15  MakeFunction          0
+           16  StoreName             3 (deco)
+   13      17  LoadName              3 (deco)
+   14      18  LoadName              3 (deco)
+   15      19  LoadConst             7 (<code wrapped at line 15>)
+           20  MakeFunction          0
+           21  Call                  1
+           22  Call                  1
+           23  StoreName             4 (wrapped)
+   18      24  LoadConst             3 (2)
+           25  BuildTuple            1
+           26  LoadConst             8 (<code <lambda> at line 18>)
+           27  MakeFunction          1 (defaults)
+           28  StoreName             5 (f)
+   19      29  LoadName              0 (plain)
+           30  LoadConst             1 (1)
+           31  LoadConst             3 (2)
+           32  LoadConst             9 (('b',))
+           33  CallKw                2
+           34  PopTop
+   20      35  LoadName              0 (plain)
+           36  BuildList             0
+           37  LoadName              6 (d)
+           38  ListExtend            1
+           39  ListToTuple
+           40  BuildMap              0
+           41  LoadName              7 (kw)
+           42  DictUpdate            1
+           43  CallEx                1 (kwargs)
+           44  PopTop
+           45  LoadConst            10 (None)
+           46  Return
+
+code plain  file /tmp/c.py  line 1
+  args 2 (posonly 0, kwonly 0)  stack 2  flags newlocals
+  varnames: a, b
+  consts:
+      0  None
+    2       0  LoadFast              0 (a)
+            1  LoadFast              1 (b)
+            2  BinaryOp              0 (+)
+            3  Return
+            4  LoadConst             0 (None)
+            5  Return
+
+code defaults  file /tmp/c.py  line 4
+  args 2 (posonly 0, kwonly 2)  stack 6  flags varargs varkw newlocals
+  varnames: a, b, c, d, rest, kw
+  consts:
+      0  None
+    5       0  LoadFast              0 (a)
+            1  LoadFast              1 (b)
+            2  LoadFast              4 (rest)
+            3  LoadFast              2 (c)
+            4  LoadFast              3 (d)
+            5  LoadFast              5 (kw)
+            6  BuildTuple            6
+            7  Return
+            8  LoadConst             0 (None)
+            9  Return
+
+code positional  file /tmp/c.py  line 7
+  args 3 (posonly 2, kwonly 0)  stack 2  flags newlocals
+  varnames: a, b, c
+  consts:
+      0  None
+    8       0  LoadFast              0 (a)
+            1  LoadFast              1 (b)
+            2  BinaryOp              0 (+)
+            3  LoadFast              2 (c)
+            4  BinaryOp              0 (+)
+            5  Return
+            6  LoadConst             0 (None)
+            7  Return
+
+code deco  file /tmp/c.py  line 10
+  args 1 (posonly 0, kwonly 0)  stack 1  flags newlocals
+  varnames: f
+  consts:
+      0  None
+   11       0  LoadFast              0 (f)
+            1  Return
+            2  LoadConst             0 (None)
+            3  Return
+
+code wrapped  file /tmp/c.py  line 15
+  args 0 (posonly 0, kwonly 0)  stack 1  flags newlocals
+  consts:
+      0  None
+   15       0  LoadConst             0 (None)
+            1  Return
+
+code <lambda>  file /tmp/c.py  line 18
+  args 2 (posonly 0, kwonly 0)  stack 2  flags newlocals
+  varnames: x, y
+   18       0  LoadFast              0 (x)
+            1  LoadFast              1 (y)
+            2  BinaryOp              2 (*)
+            3  Return

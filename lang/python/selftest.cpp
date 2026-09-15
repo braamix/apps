@@ -3,10 +3,13 @@
 // assertions instead, and test/pygc.mjs reads what they print.
 #include "selftest.h"
 
+#include "code.h"
+#include "compile.h"
 #include "gc.h"
 #include "intern.h"
 #include "kernel/fmt.h"
 #include "ops.h"
+#include "parse.h"
 
 namespace {
 
@@ -661,6 +664,84 @@ Str t_truth()
     return Str();
 }
 
+// ------------------------------------------------------------------ phase 5
+
+const CodeObj *find_code(const CodeObj *c, Str name)
+{
+    for (usize i = 0; i < c->consts.size(); i++) {
+        if (!is_code(c->consts[i]))
+            continue;
+        const CodeObj *k = code_of(c->consts[i]);
+        if (str_of(k->name)->str() == name)
+            return k;
+        if (const CodeObj *deeper = find_code(k, name))
+            return deeper;
+    }
+    return nullptr;
+}
+
+// The reason, or empty with the module's code object pinned in `out`.
+Str compile_to(Str source, Root &out)
+{
+    Ast ast;
+    if (!ast.parse(source))
+        return why_s("parse", err_message(), source);
+    out = py_compile(ast, "<test>");
+    return out.v.is_nil() ? why_s("compile", err_message(), source) : Str();
+}
+
+Str t_compile()
+{
+    Root code;
+    Str bad = compile_to("x = 1 + 2\nprint(x)\n", code);
+    if (!bad.empty())
+        return bad;
+    const CodeObj *c = code_of(code.v);
+
+    constexpr Bc WANT[] = { Bc::LoadConst, Bc::LoadConst, Bc::BinaryOp, Bc::StoreName, Bc::LoadName,
+                            Bc::LoadName,  Bc::Call,      Bc::PopTop,   Bc::LoadConst, Bc::Return };
+    constexpr usize N   = sizeof(WANT) / sizeof(WANT[0]);
+    if (c->code.size() != N)
+        return why("instructions", i64(c->code.size()), i64(N));
+    for (usize i = 0; i < N; i++)
+        if (c->code[i].op != WANT[i])
+            return why_s("opcode", bc_name(c->code[i].op), bc_name(WANT[i]));
+    if (c->stacksize != 2)
+        return why("stack", i64(c->stacksize), 2);
+    if (c->names.size() != 2 || c->consts.size() != 3)
+        return why("pools", i64(c->names.size() * 100 + c->consts.size()), 203);
+    if (code_line(c, 0) != 1 || code_line(c, 4) != 2)
+        return "the line table does not follow the source";
+    return Str();
+}
+
+Str t_scopes()
+{
+    Root code;
+    Str bad = compile_to(
+        "def outer(a):\n"
+        "    def inner():\n"
+        "        return a\n"
+        "    return inner\n",
+        code);
+    if (!bad.empty())
+        return bad;
+    const CodeObj *o = find_code(code_of(code.v), "outer");
+    const CodeObj *n = find_code(code_of(code.v), "inner");
+    if (!o || !n)
+        return "the nested code objects are not in the constants";
+    if (o->cellvars.size() != 1 || str_of(o->cellvars[0])->str() != "a")
+        return "the captured parameter is not a cell";
+    if (n->freevars.size() != 1 || str_of(n->freevars[0])->str() != "a")
+        return "the inner scope does not hold a free variable";
+    if (!(n->flags & CO_NESTED) || !(o->flags & CO_NEWLOCALS))
+        return "the code object flags are wrong";
+    // The cell parameter is copied out of its argument slot on entry.
+    if (o->code.size() < 2 || o->code[0].op != Bc::LoadFast || o->code[1].op != Bc::StoreDeref)
+        return "a cell parameter is not copied into its cell";
+    return Str();
+}
+
 struct Case {
     Str name;
     Str (*run)();
@@ -673,7 +754,8 @@ constexpr Case CASES[] = {
     { "stress", t_stress },   { "threshold", t_threshold }, { "numbers", t_numbers },
     { "floats", t_floats },   { "compare", t_compare },     { "strtext", t_strtext },
     { "reprs", t_reprs },     { "dict", t_dict },           { "set", t_set },
-    { "errors", t_errors },   { "truth", t_truth },
+    { "errors", t_errors },   { "truth", t_truth },         { "compile", t_compile },
+    { "scopes", t_scopes },
 };
 
 } // namespace

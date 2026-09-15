@@ -1,0 +1,142 @@
+code <module>  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 5  flags -
+  names: a, object, o, x, first, rest, most, last, y, z, w, q, t, u, v, s, print, b, d
+  consts:
+      0  0
+      1  1
+      2  2
+      3  None
+      4  3
+      5  4
+      6  'k'
+    1       0  LoadConst             0 (0)
+            1  LoadConst             1 (1)
+            2  LoadConst             2 (2)
+            3  BuildList             3
+            4  StoreName             0 (a)
+    2       5  LoadConst             1 (1)
+            6  LoadName              0 (a)
+            7  LoadConst             0 (0)
+            8  StoreSubscr
+    3       9  LoadName              0 (a)
+           10  LoadName              0 (a)
+           11  LoadConst             0 (0)
+           12  LoadConst             2 (2)
+           13  BuildSlice            2
+           14  StoreSubscr
+    4      15  LoadName              0 (a)
+           16  LoadName              0 (a)
+           17  LoadConst             3 (None)
+           18  LoadConst             3 (None)
+           19  LoadConst             2 (2)
+           20  BuildSlice            3
+           21  StoreSubscr
+    5      22  LoadName              0 (a)
+           23  LoadConst             0 (0)
+           24  DupTop2
+           25  LoadSubscr
+           26  LoadConst             1 (1)
+           27  InplaceOp             0 (+)
+           28  RotThree
+           29  StoreSubscr
+    6      30  LoadName              1 (object)
+           31  Call                  0
+           32  StoreName             2 (o)
+    7      33  LoadConst             1 (1)
+           34  LoadName              2 (o)
+           35  StoreAttr             3 (x)
+    8      36  LoadName              2 (o)
+           37  DupTop
+           38  LoadAttr              3 (x)
+           39  LoadConst             1 (1)
+           40  InplaceOp             0 (+)
+           41  RotTwo
+           42  StoreAttr             3 (x)
+    9      43  LoadName              0 (a)
+           44  UnpackEx              1
+           45  StoreName             4 (first)
+           46  StoreName             5 (rest)
+   10      47  LoadName              0 (a)
+           48  UnpackEx          65536
+           49  StoreName             6 (most)
+           50  StoreName             7 (last)
+   11      51  LoadConst             0 (0)
+           52  DupTop
+           53  StoreName             3 (x)
+           54  DupTop
+           55  StoreName             8 (y)
+           56  StoreName             9 (z)
+   12      57  LoadName              0 (a)
+           58  LoadConst             0 (0)
+           59  DeleteSubscr
+           60  LoadName              2 (o)
+           61  DeleteAttr            3 (x)
+           62  DeleteName            3 (x)
+   13      63  LoadConst             1 (1)
+           64  LoadConst             1 (1)
+           65  BinaryOp              0 (+)
+           66  DupTop
+           67  StoreName            10 (w)
+           68  StoreName            11 (q)
+   14      69  LoadConst             1 (1)
+           70  LoadName             10 (w)
+           71  DupTop
+           72  RotThree
+           73  CompareOp             2 (<)
+           74  JumpIfFalseOrPop     83
+           75  LoadConst             4 (3)
+           76  DupTop
+           77  RotThree
+           78  CompareOp             3 (<=)
+           79  JumpIfFalseOrPop     83
+           80  LoadConst             5 (4)
+           81  CompareOp             1 (!=)
+           82  Jump                 85
+      >>   83  RotTwo
+           84  PopTop
+      >>   85  StoreName            12 (t)
+   15      86  LoadConst             1 (1)
+           87  LoadName             10 (w)
+           88  CompareOp             2 (<)
+           89  StoreName            13 (u)
+   16      90  LoadName             12 (t)
+           91  JumpIfFalseOrPop     93
+           92  LoadName             13 (u)
+      >>   93  JumpIfTrueOrPop      96
+           94  LoadName             12 (t)
+           95  UnaryOp               1 (not)
+      >>   96  StoreName            14 (v)
+   17      97  LoadName              0 (a)
+           98  LoadConst             1 (1)
+           99  LoadConst             2 (2)
+          100  LoadConst             1 (1)
+          101  BuildSlice            3
+          102  LoadSubscr
+          103  StoreName            15 (s)
+   18     104  LoadName             16 (print)
+          105  BuildList             0
+          106  LoadName              0 (a)
+          107  ListExtend            1
+          108  ListToTuple
+          109  BuildMap              0
+          110  BuildMap              0
+          111  DictUpdate            1
+          112  CallEx                1 (kwargs)
+          113  PopTop
+   19     114  BuildList             0
+          115  LoadName              0 (a)
+          116  ListExtend            1
+          117  LoadConst             1 (1)
+          118  ListAppend            1
+          119  LoadName              0 (a)
+          120  ListExtend            1
+          121  StoreName            17 (b)
+   20     122  BuildMap              0
+          123  BuildMap              0
+          124  DictUpdate            1
+          125  LoadConst             6 ('k')
+          126  LoadConst             1 (1)
+          127  MapAdd                1
+          128  StoreName            18 (d)
+          129  LoadConst             3 (None)
+          130  Return

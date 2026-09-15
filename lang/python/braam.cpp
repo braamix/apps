@@ -4,6 +4,7 @@
 // and not a tail call.
 //
 // Phase 0 is the command line and the banner. TODO.md says what follows.
+#include "compile.h"
 #include "err.h"
 #include "kernel/args.h"
 #include "kernel/fmt.h"
@@ -30,6 +31,7 @@ constexpr Str USAGE =
     "    python -V                print the version\n"
     "    python --dump-tokens <f> print the token stream of <f>\n"
     "    python --dump-ast <f>    print the parse tree of <f>\n"
+    "    python --dis <f>         print the bytecode of <f>\n"
     "\n"
     "Python 3, written for Braam: its own compiler, its own bytecode and its\n"
     "own virtual machine. Nothing runs yet -- see TODO.md.\n";
@@ -99,6 +101,19 @@ Task<i32> proc_main(Args args)
                 co_return 1;
             String out;
             bool ok = ast_dump(src.value().str(), out);
+            co_await write_all(SYS_STDOUT, out.str());
+            if (!ok)
+                co_await write_all(SYS_STDERR, where().str());
+            co_return ok ? 0 : 1;
+        }
+        if (args[i] == "--dis") {
+            Args tail{ args.v.subspan(i + 1) };
+            Input in(tail, SYS_STDIN, WHO);
+            Result<String> src = co_await in.read();
+            if (src.is_err())
+                co_return 1;
+            String out;
+            bool ok = py_dis(src.value().str(), tail.size() ? tail[0] : Str("<stdin>"), out);
             co_await write_all(SYS_STDOUT, out.str());
             if (!ok)
                 co_await write_all(SYS_STDERR, where().str());

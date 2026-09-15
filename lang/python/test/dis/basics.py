@@ -1,0 +1,10 @@
+a = 1
+b = a + 2 * 3
+c = "hi"
+d = (1, 2, a)
+e = [a, b, c]
+f = {1: 'x', a: b}
+g = {1, 2, a}
+h = -a
+print(b, c, sep='-')
+a, b = b, a

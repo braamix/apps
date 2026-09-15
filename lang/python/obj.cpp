@@ -27,8 +27,11 @@ bool started;
 
 R none_repr(Value, String &out);
 R bool_repr(Value, String &out);
+R ellipsis_repr(Value, String &out);
 
 constexpr Type none_type{ .name = "NoneType", .truth = none_truth, .repr = none_repr };
+
+constexpr Type ellipsis_type{ .name = "ellipsis", .repr = ellipsis_repr };
 
 constexpr Type bool_type{ .name  = "bool",
                           .truth = bool_truth,
@@ -38,6 +41,7 @@ constexpr Type bool_type{ .name  = "bool",
 Obj none_obj{ &none_type, nullptr, nullptr, OBJ_IMMORTAL };
 Obj true_obj{ &bool_type, nullptr, nullptr, OBJ_IMMORTAL };
 Obj false_obj{ &bool_type, nullptr, nullptr, OBJ_IMMORTAL };
+Obj ellipsis_obj{ &ellipsis_type, nullptr, nullptr, OBJ_IMMORTAL };
 
 void py_init()
 {
@@ -47,6 +51,7 @@ void py_init()
     gc_immortal(&none_obj);
     gc_immortal(&true_obj);
     gc_immortal(&false_obj);
+    gc_immortal(&ellipsis_obj);
 }
 
 const Type *type_of(Value v)

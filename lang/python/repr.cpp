@@ -88,6 +88,11 @@ R bool_repr(Value v, String &out)
     return out.append(is_true(v) ? "True" : "False") ? R::Ok : oom();
 }
 
+R ellipsis_repr(Value, String &out)
+{
+    return out.append("Ellipsis") ? R::Ok : oom();
+}
+
 R str_repr(Value v, String &out)
 {
     StrObj *s = str_of(v);

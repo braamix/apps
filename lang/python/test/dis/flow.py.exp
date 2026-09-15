@@ -1,0 +1,78 @@
+code <module>  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 4  flags -
+  names: n, range, i, j, x
+  consts:
+      0  0
+      1  10
+      2  1
+      3  3
+      4  7
+      5  4
+      6  2
+      7  None
+    1       0  LoadConst             0 (0)
+            1  StoreName             0 (n)
+    2 >>    2  LoadName              0 (n)
+            3  LoadConst             1 (10)
+            4  CompareOp             2 (<)
+            5  PopJumpIfFalse       21
+    3       6  LoadName              0 (n)
+            7  LoadConst             2 (1)
+            8  BinaryOp              0 (+)
+            9  StoreName             0 (n)
+    4      10  LoadName              0 (n)
+           11  LoadConst             3 (3)
+           12  CompareOp             0 (==)
+           13  PopJumpIfFalse       15
+    5      14  Jump                  2
+    6 >>   15  LoadName              0 (n)
+           16  LoadConst             4 (7)
+           17  CompareOp             0 (==)
+           18  PopJumpIfFalse       20
+    7      19  Jump                 24
+    2 >>   20  Jump                  2
+    9 >>   21  LoadConst             2 (1)
+           22  UnaryOp               3 (-)
+           23  StoreName             0 (n)
+   11 >>   24  LoadName              1 (range)
+           25  LoadConst             5 (4)
+           26  Call                  1
+           27  GetIter
+      >>   28  ForIter              48
+           29  StoreName             2 (i)
+   12      30  LoadName              1 (range)
+           31  LoadConst             5 (4)
+           32  Call                  1
+           33  GetIter
+      >>   34  ForIter              43
+           35  StoreName             3 (j)
+   13      36  LoadName              2 (i)
+           37  LoadName              3 (j)
+           38  CompareOp             0 (==)
+           39  PopJumpIfFalse       42
+   14      40  PopTop
+           41  Jump                 47
+   12 >>   42  Jump                 34
+   16 >>   43  LoadName              0 (n)
+           44  LoadName              2 (i)
+           45  BinaryOp              0 (+)
+           46  StoreName             0 (n)
+   11 >>   47  Jump                 28
+   18 >>   48  LoadName              0 (n)
+           49  LoadConst             0 (0)
+           50  CompareOp             4 (>)
+           51  PopJumpIfFalse       55
+   19      52  LoadConst             2 (1)
+           53  StoreName             4 (x)
+   18      54  Jump                 64
+   20 >>   55  LoadName              0 (n)
+           56  LoadConst             0 (0)
+           57  CompareOp             2 (<)
+           58  PopJumpIfFalse       62
+   21      59  LoadConst             6 (2)
+           60  StoreName             4 (x)
+   20      61  Jump                 64
+   23 >>   62  LoadConst             3 (3)
+           63  StoreName             4 (x)
+      >>   64  LoadConst             7 (None)
+           65  Return

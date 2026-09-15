@@ -1,0 +1,105 @@
+code <module>  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 6  flags -
+  names: Empty, object, Point, type, Meta
+  consts:
+      0  <code Empty at line 1>
+      1  'Empty'
+      2  <code Point at line 4>
+      3  'Point'
+      4  <code Meta at line 14>
+      5  'Meta'
+      6  ('metaclass',)
+      7  None
+    1       0  LoadBuildClass
+            1  LoadConst             0 (<code Empty at line 1>)
+            2  MakeFunction          0
+            3  LoadConst             1 ('Empty')
+            4  Call                  2
+            5  StoreName             0 (Empty)
+    4       6  LoadBuildClass
+            7  LoadConst             2 (<code Point at line 4>)
+            8  MakeFunction          0
+            9  LoadConst             3 ('Point')
+           10  LoadName              1 (object)
+           11  Call                  3
+           12  StoreName             2 (Point)
+   14      13  LoadBuildClass
+           14  LoadConst             4 (<code Meta at line 14>)
+           15  MakeFunction          0
+           16  LoadConst             5 ('Meta')
+           17  LoadName              2 (Point)
+           18  LoadName              3 (type)
+           19  LoadConst             6 (('metaclass',))
+           20  CallKw                4
+           21  StoreName             4 (Meta)
+           22  LoadConst             7 (None)
+           23  Return
+
+code Empty  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 1  flags -
+  consts:
+      0  None
+    1       0  LoadConst             0 (None)
+            1  Return
+
+code Point  file /tmp/c.py  line 4
+  args 0 (posonly 0, kwonly 0)  stack 1  flags -
+  names: kind, __init__, norm
+  consts:
+      0  'point'
+      1  <code __init__ at line 7>
+      2  <code norm at line 11>
+      3  None
+    5       0  LoadConst             0 ('point')
+            1  StoreName             0 (kind)
+    7       2  LoadConst             1 (<code __init__ at line 7>)
+            3  MakeFunction          0
+            4  StoreName             1 (__init__)
+   11       5  LoadConst             2 (<code norm at line 11>)
+            6  MakeFunction          0
+            7  StoreName             2 (norm)
+            8  LoadConst             3 (None)
+            9  Return
+
+code __init__  file /tmp/c.py  line 7
+  args 3 (posonly 0, kwonly 0)  stack 2  flags newlocals
+  varnames: self, x, y
+  names: x, y
+  consts:
+      0  None
+    8       0  LoadFast              1 (x)
+            1  LoadFast              0 (self)
+            2  StoreAttr             0 (x)
+    9       3  LoadFast              2 (y)
+            4  LoadFast              0 (self)
+            5  StoreAttr             1 (y)
+            6  LoadConst             0 (None)
+            7  Return
+
+code norm  file /tmp/c.py  line 11
+  args 1 (posonly 0, kwonly 0)  stack 3  flags newlocals
+  varnames: self
+  names: x, y
+  consts:
+      0  None
+   12       0  LoadFast              0 (self)
+            1  LoadAttr              0 (x)
+            2  LoadFast              0 (self)
+            3  LoadAttr              0 (x)
+            4  BinaryOp              2 (*)
+            5  LoadFast              0 (self)
+            6  LoadAttr              1 (y)
+            7  LoadFast              0 (self)
+            8  LoadAttr              1 (y)
+            9  BinaryOp              2 (*)
+           10  BinaryOp              0 (+)
+           11  Return
+           12  LoadConst             0 (None)
+           13  Return
+
+code Meta  file /tmp/c.py  line 14
+  args 0 (posonly 0, kwonly 0)  stack 1  flags -
+  consts:
+      0  None
+   14       0  LoadConst             0 (None)
+            1  Return

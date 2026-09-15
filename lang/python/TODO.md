@@ -264,13 +264,45 @@ Two things had to be got right twice:
 
 An f-string is still one `FString` node holding its body as written.
 
-### Phase 5 — the compiler and the bytecode
+### Phase 5 — the compiler and the bytecode — **done**
 
-- [ ] `code.h` — the opcode enum and the code object: constants, names,
-      cell and free variables, the line table.
-- [ ] `symtab.cpp` — the scope pass that decides local, global, cell or free.
-- [ ] `compile.cpp` — the emitter, jump patching, the loop block structure.
-- [ ] `--dis`, which doubles as a test surface.
+- [x] [code.h](code.h), [code.cpp](code.cpp) — 74 opcodes in one X-macro table
+      that generates the enum, the names and the operand kinds together, so
+      they cannot drift; the code object with its constants, names, varnames,
+      cellvars, freevars and run-length line table. An operand is a whole
+      `u32`, so there is no `EXTENDED_ARG` and a jump is an absolute
+      instruction index that patches in one store.
+- [x] [symtab.h](symtab.h), [symtab.cpp](symtab.cpp) — the scope pass. One
+      walk collects what each scope binds and uses, a second decides Name,
+      Local, Cell, Free or Global and hands out the slot numbers, threading a
+      free name up through every scope between the use and the binding.
+- [x] [compile.cpp](compile.cpp) — the whole grammar the parser accepts, less
+      `async` and f-strings, which are refused with a `SyntaxError` that says
+      so. Comprehensions and class bodies are nested code objects; `with` and
+      `try` emit the 3.10 handler shapes; the stack size is a depth-first walk
+      over the finished instruction graph.
+- [x] `--dis` ([dis.cpp](dis.cpp)), and [test/pydis.mjs](test/pydis.mjs) over
+      eighteen sources under [test/dis/](test/) — ten listings and eight
+      refusals. Every upstream test in the manifest must compile as well.
+- [x] Two more `--selftest` checks, `compile` and `scopes`. Twenty-two in all.
+- [x] `Ellipsis`, which phase 2 had no reason to want and a `...` constant
+      does.
+
+Three decisions worth recording:
+
+- **Loops are not on the block stack.** A `break`, a `continue` or a `return`
+  leaving a `try`/`finally` or a `with` emits that cleanup *inline* before it
+  jumps, which is CPython's answer since 3.9. So the only thing the VM unwinds
+  at run time is an exception, and `SetupFinally`/`PopBlock` are the whole
+  mechanism. An exit from inside an inlined `finally` would recurse, and is
+  refused rather than mis-compiled.
+- **`SetupWith` is a separate opcode** from `SetupFinally` because the handler
+  needs the manager's `__exit__` to survive the cut: it records one below the
+  current depth, and the `with` handler therefore starts at `[exit, exc]`.
+- **A cell that is also a parameter keeps both slots.** It is in `varnames` at
+  its argument position and in `cellvars` as well, and the body starts with a
+  `LoadFast`/`StoreDeref` pair per such parameter, so a frame needs no
+  `cell2arg` table and the copy is visible in the listing.
 
 Nothing runs yet.
 

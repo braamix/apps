@@ -1,0 +1,102 @@
+code <module>  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 1  flags -
+  names: counter, outer, uses_global
+  consts:
+      0  0
+      1  <code outer at line 3>
+      2  <code uses_global at line 17>
+      3  None
+    1       0  LoadConst             0 (0)
+            1  StoreName             0 (counter)
+    3       2  LoadConst             1 (<code outer at line 3>)
+            3  MakeFunction          0
+            4  StoreName             1 (outer)
+   17       5  LoadConst             2 (<code uses_global at line 17>)
+            6  MakeFunction          0
+            7  StoreName             2 (uses_global)
+            8  LoadConst             3 (None)
+            9  Return
+
+code outer  file /tmp/c.py  line 3
+  args 1 (posonly 0, kwonly 0)  stack 2  flags newlocals
+  varnames: start, inner, deeper
+  cellvars: total
+  consts:
+      0  <code inner at line 6>
+      1  <code deeper at line 11>
+      2  None
+    4       0  LoadFast              0 (start)
+            1  StoreDeref            0 (total)
+    6       2  LoadClosure           0 (total)
+            3  BuildTuple            1
+            4  LoadConst             0 (<code inner at line 6>)
+            5  MakeFunction          4 (closure)
+            6  StoreFast             1 (inner)
+   11       7  LoadClosure           0 (total)
+            8  BuildTuple            1
+            9  LoadConst             1 (<code deeper at line 11>)
+           10  MakeFunction          4 (closure)
+           11  StoreFast             2 (deeper)
+   15      12  LoadFast              1 (inner)
+           13  LoadFast              2 (deeper)
+           14  BuildTuple            2
+           15  Return
+           16  LoadConst             2 (None)
+           17  Return
+
+code inner  file /tmp/c.py  line 6
+  args 1 (posonly 0, kwonly 0)  stack 2  flags newlocals nested
+  varnames: step
+  freevars: total
+  consts:
+      0  None
+    8       0  LoadDeref             0 (total)
+            1  LoadFast              0 (step)
+            2  BinaryOp              0 (+)
+            3  StoreDeref            0 (total)
+    9       4  LoadDeref             0 (total)
+            5  Return
+            6  LoadConst             0 (None)
+            7  Return
+
+code deeper  file /tmp/c.py  line 11
+  args 0 (posonly 0, kwonly 0)  stack 2  flags newlocals nested
+  varnames: deepest
+  freevars: total
+  consts:
+      0  <code deepest at line 12>
+      1  None
+   12       0  LoadClosure           0 (total)
+            1  BuildTuple            1
+            2  LoadConst             0 (<code deepest at line 12>)
+            3  MakeFunction          4 (closure)
+            4  StoreFast             0 (deepest)
+   14       5  LoadFast              0 (deepest)
+            6  Return
+            7  LoadConst             1 (None)
+            8  Return
+
+code deepest  file /tmp/c.py  line 12
+  args 0 (posonly 0, kwonly 0)  stack 1  flags newlocals nested
+  freevars: total
+  consts:
+      0  None
+   13       0  LoadDeref             0 (total)
+            1  Return
+            2  LoadConst             0 (None)
+            3  Return
+
+code uses_global  file /tmp/c.py  line 17
+  args 0 (posonly 0, kwonly 0)  stack 2  flags newlocals
+  names: counter
+  consts:
+      0  1
+      1  None
+   19       0  LoadGlobal            0 (counter)
+            1  LoadConst             0 (1)
+            2  BinaryOp              0 (+)
+            3  StoreGlobal           0 (counter)
+   20       4  LoadGlobal            0 (counter)
+            5  Return
+            6  LoadConst             1 (None)
+            7  Return

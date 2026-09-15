@@ -20,10 +20,12 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 4 of ten.** The object heap, its collector, the core types, a
-tokenizer and a parser. `python --dump-tokens f.py` and `python --dump-ast
-f.py` print what each produced, and both are checked against CPython's own
-`tokenize` and `ast` modules. Nothing runs yet: the compiler is phase 5.
+**Phase 5 of ten.** The object heap, its collector, the core types, a
+tokenizer, a parser, a scope pass and a compiler. `python --dump-tokens f.py`,
+`python --dump-ast f.py` and `python --dis f.py` print what each produced; the
+first two are checked against CPython's own `tokenize` and `ast` modules, and
+the third against goldens of its own, the bytecode being ours. Nothing runs
+yet: the VM is phase 6.
 
 [TODO.md](TODO.md) is the plan: the ground rules the design is pinned to, the
 ten phases, and the upstream tests each one is expected to turn green.
@@ -47,12 +49,17 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [lex.h](lex.h), [lex.cpp](lex.cpp) | The tokenizer, and the `--dump-tokens` listing |
 | [parse.h](parse.h), [parse.cpp](parse.cpp) | The grammar, by recursive descent into an index arena |
 | [astdump.cpp](astdump.cpp) | The `--dump-ast` listing, which is the format mkast.py writes to |
+| [code.h](code.h), [code.cpp](code.cpp) | The opcode table, the instruction, the code object, the line table |
+| [symtab.h](symtab.h), [symtab.cpp](symtab.cpp) | The scope pass: local, cell, free or global |
+| [compile.h](compile.h), [compile.cpp](compile.cpp) | The emitter, jump patching, and the blocks an exit unwinds |
+| [dis.cpp](dis.cpp) | The `--dis` listing |
 | [selftest.cpp](selftest.cpp) | What `--selftest` checks |
 | [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary, run a command, read back what it wrote |
 | [test/pysmoke.mjs](test/pysmoke.mjs) | That the program starts, answers its flags, and reports the right status |
 | [test/pygc.mjs](test/pygc.mjs) | Drives `--selftest` and reads what it printed |
 | [test/pylex.mjs](test/pylex.mjs) | Every source under `test/lex/`, token for token |
 | [test/pyast.mjs](test/pyast.mjs) | Every source under `test/ast/`, node for node |
+| [test/pydis.mjs](test/pydis.mjs) | Every source under `test/dis/`, instruction for instruction |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
 | [tools/mklex.py](tools/mklex.py) | Writes a token golden out of CPython's own tokenizer |
@@ -75,9 +82,22 @@ Forget the `Root` and the string is freed under you. `--selftest`'s `stress`
 check is there to catch exactly that: it collects at *every* allocation, so a
 missing pin becomes a wrong object count rather than a rare crash.
 
+## Why the bytecode has no exception table
+
+CPython 3.11 moved exception handling to a side table and made the happy path
+free. This does not: `SetupFinally` pushes a handler, `PopBlock` pops it, and
+the VM cuts the value stack back to the depth the block recorded. The 3.10
+shape is what a first VM can be written against and read, and it is what the
+opcode comments in [code.h](code.h) state exactly.
+
+What is *not* in the block stack is loops. A `break`, a `continue` or a
+`return` that leaves a `try`/`finally` or a `with` emits that cleanup inline
+before it jumps, which is what CPython has done since 3.9 — so the only thing
+the VM has to unwind at run time is an exception.
+
 ## Known differences from CPython
 
-Three, all recorded rather than hidden, and all in reach later:
+All recorded rather than hidden, and all in reach later:
 
 - **A set iterates in insertion order.** CPython's order falls out of its hash
   table's size and probing, and matching it exactly would mean copying that
@@ -90,7 +110,14 @@ Three, all recorded rather than hidden, and all in reach later:
   Unicode's XID_Start and XID_Continue, which is another table. So this accepts
   some names CPython rejects, and rejects none it accepts.
 - **An f-string is one node holding its body as written.** What is inside the
-  braces is parsed in a later phase; CPython builds a `JoinedStr` here.
+  braces is parsed in a later phase; CPython builds a `JoinedStr` here, and the
+  compiler refuses one rather than pretending.
+- **An annotation is neither evaluated nor recorded.** `x: int = 1` compiles as
+  `x = 1`, and a parameter annotation costs nothing at `def` time. CPython
+  evaluates both and keeps `__annotations__`.
+- **`async` is refused by the compiler.** The parser accepts the whole 3.9
+  grammar; `async def`, `async for`, `async with` and `await` stop at the
+  compiler with a `SyntaxError` that says so.
 
 ## Why the VM is a driver
 
@@ -133,6 +160,12 @@ are measured against CPython rather than against themselves. A case whose name
 ends in `_err` is one that must be refused, and its golden holds the complaint;
 `node test/pylex.mjs --bless` and `node test/pyast.mjs --bless` rewrite those,
 after reading the diff.
+
+A compiler case is a `.py` under `test/dis/` and nothing else: the bytecode is
+this implementation's, so there is nothing to generate the golden from and
+`node test/pydis.mjs --bless` writes what the compiler printed. **Read the diff
+before blessing** — that golden is the only thing standing between a change and
+a silent regression.
 
 ## Licence
 

@@ -76,9 +76,11 @@ void py_init();
 extern Obj none_obj;
 extern Obj true_obj;
 extern Obj false_obj;
+extern Obj ellipsis_obj;
 
 extern const Type none_type;
 extern const Type bool_type;
+extern const Type ellipsis_type;
 extern const Type int_type;
 extern const Type float_type;
 extern const Type str_type;
@@ -96,6 +98,11 @@ inline Value value_none()
 inline Value value_bool(bool b)
 {
     return Value::of_obj(b ? &true_obj : &false_obj);
+}
+
+inline Value value_ellipsis()
+{
+    return Value::of_obj(&ellipsis_obj);
 }
 
 inline bool is_none(Value v)

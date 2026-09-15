@@ -1,0 +1,140 @@
+code <module>  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 3  flags -
+  names: range, xs, ys, zs, gs, nested
+  consts:
+      0  <code <listcomp> at line 1>
+      1  5
+      2  <code <setcomp> at line 2>
+      3  <code <dictcomp> at line 3>
+      4  <code <genexpr> at line 4>
+      5  <code <listcomp> at line 5>
+      6  None
+    1       0  LoadConst             0 (<code <listcomp> at line 1>)
+            1  MakeFunction          0
+            2  LoadName              0 (range)
+            3  LoadConst             1 (5)
+            4  Call                  1
+            5  GetIter
+            6  Call                  1
+            7  StoreName             1 (xs)
+    2       8  LoadConst             2 (<code <setcomp> at line 2>)
+            9  MakeFunction          0
+           10  LoadName              1 (xs)
+           11  GetIter
+           12  Call                  1
+           13  StoreName             2 (ys)
+    3      14  LoadConst             3 (<code <dictcomp> at line 3>)
+           15  MakeFunction          0
+           16  LoadName              1 (xs)
+           17  GetIter
+           18  Call                  1
+           19  StoreName             3 (zs)
+    4      20  LoadConst             4 (<code <genexpr> at line 4>)
+           21  MakeFunction          0
+           22  LoadName              1 (xs)
+           23  GetIter
+           24  Call                  1
+           25  StoreName             4 (gs)
+    5      26  LoadConst             5 (<code <listcomp> at line 5>)
+           27  MakeFunction          0
+           28  LoadName              1 (xs)
+           29  GetIter
+           30  Call                  1
+           31  StoreName             5 (nested)
+           32  LoadConst             6 (None)
+           33  Return
+
+code <listcomp>  file /tmp/c.py  line 1
+  args 1 (posonly 0, kwonly 0)  stack 4  flags newlocals
+  varnames: .0, i
+  consts:
+      0  2
+    1       0  BuildList             0
+            1  LoadFast              0 (.0)
+      >>    2  ForIter              11
+            3  StoreFast             1 (i)
+            4  LoadFast              1 (i)
+            5  PopJumpIfFalse        2
+            6  LoadFast              1 (i)
+            7  LoadConst             0 (2)
+            8  BinaryOp              2 (*)
+            9  ListAppend            2
+           10  Jump                  2
+      >>   11  Return
+
+code <setcomp>  file /tmp/c.py  line 2
+  args 1 (posonly 0, kwonly 0)  stack 3  flags newlocals
+  varnames: .0, i
+    2       0  BuildSet              0
+            1  LoadFast              0 (.0)
+      >>    2  ForIter               7
+            3  StoreFast             1 (i)
+            4  LoadFast              1 (i)
+            5  SetAdd                2
+            6  Jump                  2
+      >>    7  Return
+
+code <dictcomp>  file /tmp/c.py  line 3
+  args 1 (posonly 0, kwonly 0)  stack 5  flags newlocals
+  varnames: .0, i
+  consts:
+      0  2
+      1  9
+    3       0  BuildMap              0
+            1  LoadFast              0 (.0)
+      >>    2  ForIter              18
+            3  StoreFast             1 (i)
+            4  LoadFast              1 (i)
+            5  LoadConst             0 (2)
+            6  CompareOp             4 (>)
+            7  PopJumpIfFalse        2
+            8  LoadFast              1 (i)
+            9  LoadConst             1 (9)
+           10  CompareOp             2 (<)
+           11  PopJumpIfFalse        2
+           12  LoadFast              1 (i)
+           13  LoadFast              1 (i)
+           14  LoadFast              1 (i)
+           15  BinaryOp              2 (*)
+           16  MapAdd                2
+           17  Jump                  2
+      >>   18  Return
+
+code <genexpr>  file /tmp/c.py  line 4
+  args 1 (posonly 0, kwonly 0)  stack 2  flags generator newlocals
+  varnames: .0, i
+  consts:
+      0  None
+    4       0  LoadFast              0 (.0)
+      >>    1  ForIter               7
+            2  StoreFast             1 (i)
+            3  LoadFast              1 (i)
+            4  YieldValue
+            5  PopTop
+            6  Jump                  1
+      >>    7  LoadConst             0 (None)
+            8  Return
+
+code <listcomp>  file /tmp/c.py  line 5
+  args 1 (posonly 0, kwonly 0)  stack 5  flags newlocals
+  varnames: .0, i, j
+  names: ys
+    5       0  BuildList             0
+            1  LoadFast              0 (.0)
+      >>    2  ForIter              18
+            3  StoreFast             1 (i)
+            4  LoadGlobal            0 (ys)
+            5  GetIter
+      >>    6  ForIter              17
+            7  StoreFast             2 (j)
+            8  LoadFast              1 (i)
+            9  LoadFast              2 (j)
+           10  CompareOp             1 (!=)
+           11  PopJumpIfFalse        6
+           12  LoadFast              1 (i)
+           13  LoadFast              2 (j)
+           14  BuildTuple            2
+           15  ListAppend            3
+           16  Jump                  6
+      >>   17  Jump                  2
+      >>   18  Return
