@@ -1,7 +1,7 @@
 // That the program starts, answers its command line, and reports the status
-// the shell sees. Phase 0's whole surface.
+// the shell sees.
 
-import { boot, run, ok, die, same } from "./pylib.mjs";
+import { boot, put, rm, run, ok, die, same } from "./pylib.mjs";
 
 const VERSION = "Python 0.1 on Braam\n";
 
@@ -26,7 +26,7 @@ for (const tail of ["", "-V", "--version"]) {
     if (!r.out.startsWith("Usage:\n    python <file>"))
         die(`-h did not print the usage block: ${JSON.stringify(r.out.slice(0, 60))}`);
     if (!r.out.includes("TODO.md"))
-        die("the usage block does not say that nothing runs yet");
+        die("the usage block does not say what is not there yet");
     check("`py -h` stderr", r.err, "");
     check("`py -h` status", String(r.status), "0");
 }
@@ -51,18 +51,28 @@ for (const tail of ["", "-V", "--version"]) {
     check("`py -c` status", String(r.status), "2");
 }
 
-// Nothing runs yet, and the program says which of the two ways in it refused.
+// The two ways in, each running the same program.
 {
     const r = run("-c 'print(1)'");
-    check("`py -c print(1)` stdout", r.out, "");
-    check("`py -c print(1)` stderr", r.err, "python: no interpreter yet, so -c does nothing\n");
-    check("`py -c print(1)` status", String(r.status), "1");
+    check("`py -c print(1)` stdout", r.out, "1\n");
+    check("`py -c print(1)` stderr", r.err, "");
+    check("`py -c print(1)` status", String(r.status), "0");
 }
 {
+    put("/tmp/c.py", "print(2)\n");
     const r = run("/tmp/c.py");
-    check("`py /tmp/c.py` stdout", r.out, "");
-    check("`py /tmp/c.py` stderr", r.err, "python: no interpreter yet, cannot run: /tmp/c.py\n");
-    check("`py /tmp/c.py` status", String(r.status), "1");
+    check("`py /tmp/c.py` stdout", r.out, "2\n");
+    check("`py /tmp/c.py` stderr", r.err, "");
+    check("`py /tmp/c.py` status", String(r.status), "0");
+}
+
+// A file that is not there is the shell's `Input` complaining, not ours.
+{
+    rm("/tmp/c.py");
+    const r = run("/tmp/c.py");
+    check("`py <missing>` stdout", r.out, "");
+    check("`py <missing>` stderr", r.err, "python: /tmp/c.py: not found\n");
+    check("`py <missing>` status", String(r.status), "1");
 }
 
 if (bad) {

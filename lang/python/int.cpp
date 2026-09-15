@@ -7,14 +7,10 @@ namespace {
 
 R int_repr(Value v, String &out)
 {
-    Buf<16> b;
-    i64 n = v.as_int();
-    if (n < 0) {
-        b.put('-');
-        n = -n;
-    }
-    b.put(u64(n));
-    return out.append(b.str()) ? R::Ok : err_set("MemoryError", "out of memory");
+    char tmp[24];
+    return out.append(int_text(tmp, sizeof tmp, v.as_int()))
+               ? R::Ok
+               : err_set("MemoryError", "out of memory");
 }
 
 bool int_truth(Value v)
@@ -25,6 +21,25 @@ bool int_truth(Value v)
 } // namespace
 
 constexpr Type int_type{ .name = "int", .truth = int_truth, .repr = int_repr };
+
+Str int_text(char *out, usize cap, i64 v)
+{
+    char digits[24];
+    usize n    = 0;
+    bool minus = v < 0;
+    u64 m      = minus ? u64(-(v + 1)) + 1 : u64(v);
+    do {
+        digits[n++] = char('0' + m % 10);
+        m /= 10;
+    } while (m);
+
+    usize k = 0;
+    if (minus && k < cap)
+        out[k++] = '-';
+    while (n && k < cap)
+        out[k++] = digits[--n];
+    return Str(out, k);
+}
 
 Value int_from_i64(i64 n)
 {

@@ -9,10 +9,15 @@ namespace {
 
 // All PODs: a namespace-scope global here must be trivially destructible,
 // __cxa_atexit not existing.
-Obj *all       = nullptr; // every heap object, newest first
-Obj *grey      = nullptr; // the marker's worklist
-Roots *roots   = nullptr; // the innermost pin
-void (*hook)() = nullptr;
+Obj *all     = nullptr; // every heap object, newest first
+Obj *grey    = nullptr; // the marker's worklist
+Roots *roots = nullptr; // the innermost pin
+
+// A handful of root providers, because more than one subsystem outlives an
+// operation: the VM's frames and the builtins namespace.
+constexpr usize MAX_HOOKS = 4;
+void (*hooks[MAX_HOOKS])();
+usize nhooks = 0;
 
 usize live_objects = 0;
 usize live_bytes   = 0;
@@ -81,8 +86,8 @@ void gc_collect()
         for (usize i = 0; i < r->n; i++)
             gc_mark(r->p[i]);
     intern_mark();
-    if (hook)
-        hook();
+    for (usize i = 0; i < nhooks; i++)
+        hooks[i]();
 
     // The worklist is a chain through the objects themselves, so a structure
     // ten thousand deep costs no native stack and no allocation.
@@ -103,7 +108,11 @@ void gc_collect()
 
 void gc_root_hook(void (*f)())
 {
-    hook = f;
+    for (usize i = 0; i < nhooks; i++)
+        if (hooks[i] == f)
+            return;
+    if (nhooks < MAX_HOOKS)
+        hooks[nhooks++] = f;
 }
 
 void gc_stress(bool on)

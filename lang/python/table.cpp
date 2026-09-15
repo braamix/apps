@@ -1,6 +1,7 @@
 // The table behind dict and set: entries in insertion order, with an open
 // addressing index over them.
 #include "gc.h"
+#include "iter.h"
 #include "ops.h"
 
 namespace {
@@ -171,6 +172,16 @@ R dict_setitem(Value v, Value key, Value item)
     return dict_set(static_cast<DictObj *>(v.obj()), key, item);
 }
 
+R dict_delitem(Value v, Value key)
+{
+    R r = dict_del(static_cast<DictObj *>(v.obj()), key);
+    if (r != R::NotImpl)
+        return r;
+    String k;
+    py_repr(key, k);
+    return err_set("KeyError", k.str());
+}
+
 R dict_contains(Value v, Value item, bool &out)
 {
     Value ignored;
@@ -269,7 +280,9 @@ constexpr Type dict_type{ .name     = "dict",
                           .len      = dict_len_slot,
                           .getitem  = dict_getitem,
                           .setitem  = dict_setitem,
-                          .contains = dict_contains };
+                          .delitem  = dict_delitem,
+                          .contains = dict_contains,
+                          .iter     = table_iter };
 
 constexpr Type set_type{ .name     = "set",
                          .trace    = set_trace,
@@ -277,7 +290,8 @@ constexpr Type set_type{ .name     = "set",
                          .eq       = set_eq,
                          .repr     = set_repr,
                          .len      = set_len_slot,
-                         .contains = set_contains };
+                         .contains = set_contains,
+                         .iter     = table_iter };
 
 DictObj *dict_new()
 {

@@ -81,9 +81,6 @@ enum class Nd : u8 {
     WithItem,
 };
 
-// UnaryOp flags.
-enum class Un : u8 { Invert, Not, UAdd, USub };
-
 // BoolOp flags.
 enum class Bool : u8 { And, Or };
 

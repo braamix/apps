@@ -1,4 +1,5 @@
 // bytes: immutable octets. Indexing one yields an int, as in Python 3.
+#include "iter.h"
 #include "kernel/hash.h"
 #include "ops.h"
 
@@ -43,7 +44,19 @@ R bytes_order(Value a, Value b, Cmp op, bool &out)
 R bytes_getitem(Value v, Value key, Value &out)
 {
     BytesObj *b = static_cast<BytesObj *>(v.obj());
-    usize i     = 0;
+    if (is_slice(key)) {
+        i64 start = 0, step = 1;
+        usize count = 0;
+        if (!slice_resolve(key, b->len, start, step, count))
+            return R::Err;
+        String buf;
+        for (usize k = 0; k < count; k++)
+            if (!buf.push(char(b->data()[usize(start + i64(k) * step)])))
+                return err_set("MemoryError", "out of memory");
+        out = bytes_new(buf.str());
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    usize i = 0;
     if (index_of(key, b->len, i) != R::Ok)
         return R::Err;
     out = Value::of_int(b->data()[i]);
@@ -107,7 +120,8 @@ constexpr Type bytes_type{ .name     = "bytes",
                            .len      = bytes_len,
                            .getitem  = bytes_getitem,
                            .contains = bytes_contains,
-                           .binop    = bytes_binop };
+                           .binop    = bytes_binop,
+                           .iter     = seq_iter };
 
 Value bytes_new(Str s)
 {

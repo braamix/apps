@@ -14,10 +14,11 @@ endif()
 #
 # Sources arrive a phase at a time; TODO.md names them.
 braam_add_program(NAME python
-                  SOURCES astdump.cpp braam.cpp bytes.cpp code.cpp compile.cpp dis.cpp
-                          err.cpp float.cpp gc.cpp int.cpp
-                          intern.cpp lex.cpp list.cpp obj.cpp ops.cpp parse.cpp
+                  SOURCES astdump.cpp braam.cpp builtin.cpp bytes.cpp code.cpp compile.cpp
+                          dis.cpp err.cpp float.cpp frame.cpp func.cpp gc.cpp int.cpp
+                          intern.cpp iter.cpp lex.cpp list.cpp obj.cpp ops.cpp parse.cpp
                           repr.cpp selftest.cpp str.cpp symtab.cpp table.cpp tuple.cpp
+                          vm.cpp
                   LIBS braam::math)
 
 braam_add_package(NAME python VERSION 0.1-r0

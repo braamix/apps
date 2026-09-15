@@ -1,5 +1,6 @@
 // str: immutable UTF-8, indexed and counted in codepoints.
 #include "gc.h"
+#include "iter.h"
 #include "kernel/fmt.h"
 #include "kernel/hash.h"
 #include "kernel/text.h"
@@ -91,7 +92,23 @@ R str_order(Value a, Value b, Cmp op, bool &out)
 R str_getitem(Value v, Value key, Value &out)
 {
     StrObj *s = str_of(v);
-    usize i   = 0;
+    if (is_slice(key)) {
+        i64 start = 0, step = 1;
+        usize count = 0;
+        if (!slice_resolve(key, s->chars, start, step, count))
+            return R::Err;
+        String buf;
+        for (usize k = 0; k < count; k++) {
+            usize c  = usize(start + i64(k) * step);
+            usize at = str_offset_of(s, c);
+            usize to = str_offset_of(s, c + 1);
+            if (!buf.append(Str(s->bytes() + at, to - at)))
+                return err_set("MemoryError", "out of memory");
+        }
+        out = obj_value(str_raw(buf.str()));
+        return out.is_nil() ? err_set("MemoryError", "out of memory") : R::Ok;
+    }
+    usize i = 0;
     if (index_of(key, s->chars, i) != R::Ok)
         return R::Err;
     usize at = str_offset_of(s, i);
@@ -157,7 +174,8 @@ constexpr Type str_type{ .name     = "str",
                          .len      = str_len,
                          .getitem  = str_getitem,
                          .contains = str_contains,
-                         .binop    = str_binop };
+                         .binop    = str_binop,
+                         .iter     = seq_iter };
 
 StrObj *str_raw(Str s)
 {

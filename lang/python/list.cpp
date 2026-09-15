@@ -1,5 +1,6 @@
 // list: a growable run of values.
 #include "gc.h"
+#include "iter.h"
 #include "ops.h"
 
 namespace {
@@ -41,7 +42,23 @@ R list_order(Value a, Value b, Cmp op, bool &out)
 R list_getitem(Value v, Value key, Value &out)
 {
     ListObj *l = list_of(v);
-    usize i    = 0;
+    if (is_slice(key)) {
+        i64 start = 0, step = 1;
+        usize count = 0;
+        if (!slice_resolve(key, l->items.size(), start, step, count))
+            return R::Err;
+        Root rv{ v };
+        ListObj *r = list_new();
+        if (!r)
+            return err_set("MemoryError", "out of memory");
+        Root rr{ obj_value(r) };
+        for (usize k = 0; k < count; k++)
+            if (!list_push(list_of(rr.v), list_of(rv.v)->items[usize(start + i64(k) * step)]))
+                return err_set("MemoryError", "out of memory");
+        out = rr.v;
+        return R::Ok;
+    }
+    usize i = 0;
     if (index_of(key, l->items.size(), i) != R::Ok)
         return R::Err;
     out = l->items[i];
@@ -51,10 +68,58 @@ R list_getitem(Value v, Value key, Value &out)
 R list_setitem(Value v, Value key, Value item)
 {
     ListObj *l = list_of(v);
-    usize i    = 0;
+    if (is_slice(key)) {
+        i64 start = 0, step = 1;
+        usize count = 0;
+        if (!slice_resolve(key, l->items.size(), start, step, count))
+            return R::Err;
+        Root rv{ v };
+        ListObj *src = py_list_of(item);
+        if (!src)
+            return R::Err;
+        Root rs{ obj_value(src) };
+        ListObj *dst     = list_of(rv.v);
+        Vec<Value> &from = list_of(rs.v)->items;
+
+        if (step != 1) {
+            if (from.size() != count)
+                return err_set("ValueError",
+                               "attempt to assign to an extended slice of a "
+                               "different size");
+            for (usize k = 0; k < count; k++)
+                dst->items[usize(start + i64(k) * step)] = from[k];
+            return R::Ok;
+        }
+        dst->items.erase(usize(start), count);
+        for (usize k = 0; k < from.size(); k++)
+            if (!dst->items.insert(usize(start) + k, from[k]))
+                return err_set("MemoryError", "out of memory");
+        return R::Ok;
+    }
+    usize i = 0;
     if (index_of(key, l->items.size(), i) != R::Ok)
         return R::Err;
     l->items[i] = item;
+    return R::Ok;
+}
+
+R list_delitem(Value v, Value key)
+{
+    ListObj *l = list_of(v);
+    if (is_slice(key)) {
+        i64 start = 0, step = 1;
+        usize count = 0;
+        if (!slice_resolve(key, l->items.size(), start, step, count))
+            return R::Err;
+        // Largest index first, so the ones still to go do not shift.
+        for (usize k = 0; k < count; k++)
+            l->items.erase(usize(start + i64(step > 0 ? count - 1 - k : k) * step), 1);
+        return R::Ok;
+    }
+    usize i = 0;
+    if (index_of(key, l->items.size(), i) != R::Ok)
+        return R::Err;
+    l->items.erase(i, 1);
     return R::Ok;
 }
 
@@ -118,8 +183,10 @@ constexpr Type list_type{ .name     = "list",
                           .len      = list_len,
                           .getitem  = list_getitem,
                           .setitem  = list_setitem,
+                          .delitem  = list_delitem,
                           .contains = list_contains,
-                          .binop    = list_binop };
+                          .binop    = list_binop,
+                          .iter     = seq_iter };
 
 ListObj *list_new()
 {

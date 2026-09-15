@@ -10,10 +10,37 @@
 # Whitespace separates; no field contains a space.
 #
 # state  case  exp  commit  upstream
-fail  basics/andor.py                  cpython3.9  52b5fbc  tests/basics/andor.py
+pass  basics/andor.py                  cpython3.9  52b5fbc  tests/basics/andor.py
+fail  basics/bool1.py                  cpython3.9  52b5fbc  tests/basics/bool1.py
+pass  basics/builtin_abs.py            cpython3.9  52b5fbc  tests/basics/builtin_abs.py
+pass  basics/builtin_allany.py         cpython3.9  52b5fbc  tests/basics/builtin_allany.py
+fail  basics/builtin_chr.py            cpython3.9  52b5fbc  tests/basics/builtin_chr.py
+pass  basics/builtin_len1.py           cpython3.9  52b5fbc  tests/basics/builtin_len1.py
+fail  basics/builtin_minmax.py         cpython3.9  52b5fbc  tests/basics/builtin_minmax.py
+fail  basics/builtin_ord.py            cpython3.9  52b5fbc  tests/basics/builtin_ord.py
+pass  basics/builtin_print.py          cpython3.9  52b5fbc  tests/basics/builtin_print.py
+fail  basics/builtin_range.py          cpython3.9  52b5fbc  tests/basics/builtin_range.py
+pass  basics/builtin_sum.py            cpython3.9  52b5fbc  tests/basics/builtin_sum.py
+pass  basics/compare_multi.py          cpython3.9  52b5fbc  tests/basics/compare_multi.py
+pass  basics/comprehension1.py         cpython3.9  52b5fbc  tests/basics/comprehension1.py
+fail  basics/containment.py            cpython3.9  52b5fbc  tests/basics/containment.py
+fail  basics/dict1.py                  cpython3.9  52b5fbc  tests/basics/dict1.py
+pass  basics/equal.py                  cpython3.9  52b5fbc  tests/basics/equal.py
+pass  basics/for1.py                   cpython3.9  52b5fbc  tests/basics/for1.py
+pass  basics/ifcond.py                 cpython3.9  52b5fbc  tests/basics/ifcond.py
+fail  basics/int_small.py              cpython3.9  52b5fbc  tests/basics/int_small.py
 fail  basics/lexer.py                  cpython3.9  52b5fbc  tests/basics/lexer.py
-fail  basics/op_precedence.py          cpython3.9  52b5fbc  tests/basics/op_precedence.py
+fail  basics/list1.py                  cpython3.9  52b5fbc  tests/basics/list1.py
+pass  basics/logic_constfolding.py     cpython3.9  52b5fbc  tests/basics/logic_constfolding.py
+fail  basics/op_error.py               cpython3.9  52b5fbc  tests/basics/op_error.py
+pass  basics/op_precedence.py          cpython3.9  52b5fbc  tests/basics/op_precedence.py
 fail  basics/parser.py                 upstream    52b5fbc  tests/basics/parser.py
-fail  basics/string_escape.py          cpython3.9  52b5fbc  tests/basics/string_escape.py
-fail  basics/string_escape_invalid.py  upstream    52b5fbc  tests/basics/string_escape_invalid.py
+fail  basics/seq_unpack.py             cpython3.9  52b5fbc  tests/basics/seq_unpack.py
+fail  basics/string1.py                cpython3.9  52b5fbc  tests/basics/string1.py
+pass  basics/string_escape.py          cpython3.9  52b5fbc  tests/basics/string_escape.py
+pass  basics/string_escape_invalid.py  upstream    52b5fbc  tests/basics/string_escape_invalid.py
 fail  basics/syntaxerror.py            cpython3.9  52b5fbc  tests/basics/syntaxerror.py
+pass  basics/true_value.py             cpython3.9  52b5fbc  tests/basics/true_value.py
+fail  basics/tuple1.py                 cpython3.9  52b5fbc  tests/basics/tuple1.py
+fail  basics/unary_op.py               cpython3.9  52b5fbc  tests/basics/unary_op.py
+pass  basics/while1.py                 cpython3.9  52b5fbc  tests/basics/while1.py

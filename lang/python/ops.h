@@ -17,11 +17,29 @@ R py_str(Value v, String &out);
 R py_len(Value v, usize &out);
 R py_getitem(Value v, Value key, Value &out);
 R py_setitem(Value v, Value key, Value item);
+R py_delitem(Value v, Value key);
 R py_contains(Value v, Value item, bool &out);
+
+R py_getattr(Value v, StrObj *name, Value &out);
+
+// Nil with TypeError pending when the type does not iterate.
+Value py_iter(Value v);
+
+// NotImpl at the end of the iteration, Err on a failure.
+R py_next(Value it, Value &out);
+
+// Everything an iterable yields, as a fresh list. Null with the error pending.
+ListObj *py_list_of(Value v);
 
 // R::Err with TypeError pending when neither side answers.
 R py_binop(Value a, Value b, Op op, Value &out);
+
+// `a op= b`. Only a list mutates; everything else is py_binop.
+R py_inplace(Value a, Value b, Op op, Value &out);
+
 R py_neg(Value a, Value &out);
+R py_pos(Value a, Value &out);
+R py_invert(Value a, Value &out);
 
 // A sequence index: negative counts from the end, out of range is IndexError.
 R index_of(Value key, usize len, usize &out);

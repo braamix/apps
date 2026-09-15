@@ -1,5 +1,6 @@
 // tuple: a fixed run of values stored inline after the header.
 #include "gc.h"
+#include "iter.h"
 #include "ops.h"
 
 namespace {
@@ -53,7 +54,22 @@ R tuple_order(Value a, Value b, Cmp op, bool &out)
 R tuple_getitem(Value v, Value key, Value &out)
 {
     TupleObj *t = static_cast<TupleObj *>(v.obj());
-    usize i     = 0;
+    if (is_slice(key)) {
+        i64 start = 0, step = 1;
+        usize count = 0;
+        if (!slice_resolve(key, t->len, start, step, count))
+            return R::Err;
+        Root rv{ v };
+        TupleObj *r = tuple_new(count);
+        if (!r)
+            return err_set("MemoryError", "out of memory");
+        t = static_cast<TupleObj *>(rv.v.obj());
+        for (usize k = 0; k < count; k++)
+            r->items()[k] = t->items()[usize(start + i64(k) * step)];
+        out = obj_value(r);
+        return R::Ok;
+    }
+    usize i = 0;
     if (index_of(key, t->len, i) != R::Ok)
         return R::Err;
     out = t->items()[i];
@@ -120,7 +136,8 @@ constexpr Type tuple_type{ .name     = "tuple",
                            .len      = tuple_len,
                            .getitem  = tuple_getitem,
                            .contains = tuple_contains,
-                           .binop    = tuple_binop };
+                           .binop    = tuple_binop,
+                           .iter     = seq_iter };
 
 TupleObj *tuple_new(usize n)
 {

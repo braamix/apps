@@ -9,11 +9,16 @@
 #include "value.h"
 
 struct Obj;
+struct StrObj;
 
 enum class Cmp : u8 { Eq, Ne, Lt, Le, Gt, Ge, In, NotIn, Is, IsNot };
 
 // The binary operators the number and sequence protocols answer.
 enum class Op : u8 { Add, Sub, Mul, Div, FloorDiv, Mod, Pow, And, Or, Xor, Lsh, Rsh };
+
+// The unary ones. Here rather than in the parser, because the bytecode and the
+// VM name them too.
+enum class Un : u8 { Invert, Not, UAdd, USub };
 
 Str op_symbol(Op op);
 Str cmp_symbol(Cmp op);
@@ -34,8 +39,13 @@ struct Type {
     R (*len)(Value, usize &out)                 = nullptr;
     R (*getitem)(Value, Value key, Value &out)  = nullptr;
     R (*setitem)(Value, Value key, Value v)     = nullptr;
+    R (*delitem)(Value, Value key)              = nullptr;
     R (*contains)(Value, Value item, bool &out) = nullptr;
     R (*binop)(Value, Value, Op, Value &out)    = nullptr; // this type either side
+
+    Value (*iter)(Value)                          = nullptr; // Nil on error
+    R (*next)(Value, Value &out)                  = nullptr; // NotImpl at the end
+    R (*getattr)(Value, StrObj *name, Value &out) = nullptr; // NotImpl: no such
 };
 
 // Sixteen bytes, the smallest size class. `next` is the heap list, which
@@ -124,6 +134,10 @@ inline bool is_true(Value v)
 
 // Nil on overflow, with OverflowError pending: there is no bignum yet.
 Value int_from_i64(i64 n);
+
+// The decimal of a signed integer, into `out`; the Str may point into it.
+// kernel/fmt.h's Buf has no signed 64-bit put, and every caller wants one.
+Str int_text(char *out, usize cap, i64 v);
 
 struct FloatObj : Obj {
     f64 v;
@@ -268,6 +282,16 @@ DictObj *dict_new();
 R dict_get(DictObj *d, Value key, Value &out); // NotImpl when absent
 R dict_set(DictObj *d, Value key, Value val);
 R dict_del(DictObj *d, Value key); // NotImpl when absent
+
+inline bool is_dict(Value v)
+{
+    return v.is_obj() && v.obj()->type == &dict_type;
+}
+
+inline bool is_set(Value v)
+{
+    return v.is_obj() && v.obj()->type == &set_type;
+}
 
 inline usize dict_len(const DictObj *d)
 {

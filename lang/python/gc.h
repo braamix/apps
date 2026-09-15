@@ -54,7 +54,9 @@ void gc_mark(Value v);
 // Mark from every root, then free what was not marked.
 void gc_collect();
 
-// Where the VM's stacks and globals join the root set, from phase 6 on.
+// Where the VM's stacks, the builtins and anything else that outlives one
+// operation join the root set. Idempotent: registering the same function twice
+// adds it once.
 void gc_root_hook(void (*f)());
 
 // Collect at every allocation. Slow, and it turns a missing Root into a

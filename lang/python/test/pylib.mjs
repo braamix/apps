@@ -79,12 +79,13 @@ export function rm(path) {
 let clock = 1;
 
 // One run. `tail` is the rest of the command line; stdout and stderr go to
-// files, stdin to /tmp/i when given. The clock is driven, not read, so run
-// until the kernel is idle rather than once.
-export function run(tail, stdin = null) {
+// files, stdin to /tmp/i when given, and `env` is the shell's `VAR=x` prefix,
+// which reaches this child alone. The clock is driven, not read, so run until
+// the kernel is idle rather than once.
+export function run(tail, stdin = null, env = "") {
     rm("/tmp/o");
     rm("/tmp/e");
-    let cmd = `py ${tail}`;
+    let cmd = `${env ? env + " " : ""}py ${tail}`;
     if (stdin !== null) {
         put("/tmp/i", stdin);
         cmd += " </tmp/i";

@@ -306,22 +306,55 @@ Three decisions worth recording:
 
 Nothing runs yet.
 
-### Phase 6 — the VM and the driver
+### Phase 6 — the VM and the driver — **done**
 
-- [ ] `frame.h`, `vm.cpp` — the dispatch loop and the explicit frame stack in
-      a heap block.
-- [ ] Binary and unary operators through the slot table, subscription and
-      slicing, comparison chains.
-- [ ] `if`, `while`, `for`, `break`, `continue`.
-- [ ] `print`, buffered into one write.
-- [ ] `Req` and the driver half in `braam.cpp`: `python file.py`, `python -c`,
-      a script on stdin, `sys.argv`, the exit status.
+- [x] [frame.h](frame.h), [frame.cpp](frame.cpp) — one activation, with the
+      fast locals and the value stack as a single run of slots after the
+      header, so a call costs one allocation.
+- [x] [vm.h](vm.h), [vm.cpp](vm.cpp) — the dispatch loop over every opcode the
+      compiler emits bar the exception ones; the frame stack chained through
+      `back`; argument binding for the whole `def` grammar; cells and
+      closures; `Req` and the flush-and-exit half.
+- [x] Binary and unary operators through the slot table, subscription,
+      slicing, comparison chains, `is` and `in`.
+- [x] `if`, `while`, `for`, `break`, `continue`, and comprehensions with them.
+- [x] [iter.h](iter.h), [iter.cpp](iter.cpp) — `slice`, `range`, and the three
+      iterators every container is walked with. `Type` grew `iter`, `next`,
+      `getattr` and `delitem`.
+- [x] [func.h](func.h), [func.cpp](func.cpp) — cells, functions, C++ builtins
+      and module objects.
+- [x] [builtin.cpp](builtin.cpp) — eighteen builtins, none of which calls back
+      into Python: `print` (with `sep` and `end`), `len`, `abs`, `repr`, `str`,
+      `bool`, `int`, `float`, `list`, `tuple`, `dict`, `set`, `range`, `min`,
+      `max`, `sum`, `all`, `any`, `ord`, `chr`. `print` buffers, and the VM
+      asks for one write per four kilobytes.
+- [x] The driver in [braam.cpp](braam.cpp): `python file.py`, `python -c`,
+      `python -` , `sys.argv`, a traceback on stderr, and the exit status.
+- [x] [test/pyvm.mjs](test/pyvm.mjs) — the three ways in, argv, four kinds of
+      error, a run too long for one write, closures, and the collector under
+      load and under `PY_GC_STRESS=1`.
 
-**The first real tests pass**: `andor.py`, `builtin_print.py`, `for1.py`,
-`while1.py`, `ifcond.py`, `list1.py`, `dict1.py`, `string1.py`, `int_small.py`,
-`unary_op.py`, `true_value.py`, `seq_unpack.py`, `comprehension1.py`,
-`containment.py`, `equal.py`, `compare_multi.py`, and the `list_*`, `dict_*`,
-`set_*`, `tuple_*` and `string_*` families that need no classes.
+**Seventeen upstream tests pass**, of the thirty-four now in the manifest:
+`andor`, `builtin_abs`, `builtin_allany`, `builtin_len1`, `builtin_print`,
+`builtin_sum`, `compare_multi`, `comprehension1`, `equal`, `for1`, `ifcond`,
+`logic_constfolding`, `op_precedence`, `string_escape`,
+`string_escape_invalid`, `true_value`, `while1`. Every one of the seventeen
+that does not is waiting on `try`/`except`, on classes, or on the built-in
+types having methods — none on the VM.
+
+Three decisions worth recording:
+
+- **An operand is read where it lies.** The value stack is a root, so popping
+  into a C++ local and *then* computing would leave the operands unreachable
+  across the allocation the operation itself makes. Every case peeks, computes
+  and only then moves `sp`. `PY_GC_STRESS=1` is what proves it.
+- **A cell parameter needs no `cell2arg` table.** The compiler already emits
+  `LoadFast`/`StoreDeref` at the top of the body, so the frame just makes empty
+  cells and the copy is ordinary bytecode.
+- **`Type` gained `getattr` but nothing gained methods.** A module answers an
+  attribute out of its dict; everything else raises. Bound methods are one
+  mechanism, and it belongs with the descriptor protocol in phase 9 rather
+  than bolted on here.
 
 ### Phase 7 — exceptions and control flow
 

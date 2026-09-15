@@ -20,12 +20,24 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 5 of ten.** The object heap, its collector, the core types, a
-tokenizer, a parser, a scope pass and a compiler. `python --dump-tokens f.py`,
-`python --dump-ast f.py` and `python --dis f.py` print what each produced; the
-first two are checked against CPython's own `tokenize` and `ast` modules, and
-the third against goldens of its own, the bytecode being ours. Nothing runs
-yet: the VM is phase 6.
+**Phase 6 of ten. It runs.**
+
+```
+$ python -c 'print(sum([i * i for i in range(10)]))'
+285
+```
+
+Expressions, `if`, `while`, `for`, comprehensions, `def` with the whole
+argument grammar, closures, slicing, unpacking, eighteen builtins, `sys.argv`
+and a traceback on the way out. Seventeen of MicroPython's own tests pass
+unchanged. What is not here: **exceptions** (phase 7), **classes** (phase 9),
+generators and the methods on the built-in types — so `try`, `class`, `yield`
+and `"".format` each stop with a message that says so.
+
+`python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
+print what the lexer, the parser and the compiler produced; the first two are
+checked against CPython's own `tokenize` and `ast` modules, and the third
+against goldens of its own, the bytecode being ours.
 
 [TODO.md](TODO.md) is the plan: the ground rules the design is pinned to, the
 ten phases, and the upstream tests each one is expected to turn green.
@@ -53,6 +65,11 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [symtab.h](symtab.h), [symtab.cpp](symtab.cpp) | The scope pass: local, cell, free or global |
 | [compile.h](compile.h), [compile.cpp](compile.cpp) | The emitter, jump patching, and the blocks an exit unwinds |
 | [dis.cpp](dis.cpp) | The `--dis` listing |
+| [frame.h](frame.h), [frame.cpp](frame.cpp) | One activation: locals and the value stack in one block |
+| [vm.h](vm.h), [vm.cpp](vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
+| [func.h](func.h), [func.cpp](func.cpp) | Cells, functions, builtins written in C++, and modules |
+| [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices, ranges and the three iterators |
+| [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, and `sys` |
 | [selftest.cpp](selftest.cpp) | What `--selftest` checks |
 | [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary, run a command, read back what it wrote |
 | [test/pysmoke.mjs](test/pysmoke.mjs) | That the program starts, answers its flags, and reports the right status |
@@ -60,6 +77,7 @@ ten phases, and the upstream tests each one is expected to turn green.
 | [test/pylex.mjs](test/pylex.mjs) | Every source under `test/lex/`, token for token |
 | [test/pyast.mjs](test/pyast.mjs) | Every source under `test/ast/`, node for node |
 | [test/pydis.mjs](test/pydis.mjs) | Every source under `test/dis/`, instruction for instruction |
+| [test/pyvm.mjs](test/pyvm.mjs) | The driver: the three ways in, `sys.argv`, tracebacks, the collector under load |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
 | [tools/mklex.py](tools/mklex.py) | Writes a token golden out of CPython's own tokenizer |
@@ -80,7 +98,18 @@ pin it:
 
 Forget the `Root` and the string is freed under you. `--selftest`'s `stress`
 check is there to catch exactly that: it collects at *every* allocation, so a
-missing pin becomes a wrong object count rather than a rare crash.
+missing pin becomes a wrong object count rather than a rare crash. A whole
+Python program can be run the same way:
+
+    PY_GC_STRESS=1 python prog.py
+
+which is slow and is the point — [test/pyvm.mjs](test/pyvm.mjs) drives one
+program through it every run.
+
+Inside the VM the discipline takes a second form, because the value stack is
+already a root: an operand is read *where it lies*, the result computed, and
+only then is `sp` moved. Popping first and computing after would leave the
+operands unreachable across the allocation that the operation itself makes.
 
 ## Why the bytecode has no exception table
 
@@ -118,6 +147,11 @@ All recorded rather than hidden, and all in reach later:
 - **`async` is refused by the compiler.** The parser accepts the whole 3.9
   grammar; `async def`, `async for`, `async with` and `await` stop at the
   compiler with a `SyntaxError` that says so.
+- **The built-in types have no methods yet.** `[].append`, `{}.keys` and
+  `"".format` are an `AttributeError`; the eighteen builtins and the operators
+  are the whole surface. They arrive with the rest of the standard library.
+- **`import` finds only built-in modules**, which is `sys` and nothing else.
+  There is no search path until there is a module object worth loading into.
 
 ## Why the VM is a driver
 
@@ -133,6 +167,23 @@ a read, a write, an open, an exit — and returns saying what. Only
 and it decides much else: a Python call pushes a frame rather than recursing,
 and an error is a sticky flag unwound a frame at a time, because there is no
 `setjmp` here either.
+
+The whole of the driver is eleven lines:
+
+    for (;;) {
+        Req r = vm_burst();
+        if (r.kind == ReqKind::Exit)
+            co_return r.status;
+        vm_write_done(!(co_await write_all(r.fd, r.data)).is_err());
+    }
+
+`print` therefore does not write. It appends to a buffer the VM owns, and the
+VM asks for one write when that buffer passes four kilobytes or the program
+ends — which is also why a syscall per `print` never happens.
+
+Because frames are heap objects rather than C++ ones, the recursion limit is
+ours to choose and ours to *report*: two hundred deep is a `RecursionError`
+with a traceback, not a trap.
 
 ## Testing
 

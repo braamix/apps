@@ -1,0 +1,81 @@
+// What a call can land on: a Python function, a builtin written in C++, or a
+// module (which is not callable, but lives here because nothing else wants it).
+#pragma once
+
+#include "code.h"
+
+// A closed-over local. Nil means the name is not bound yet.
+struct CellObj : Obj {
+    Value v;
+};
+
+extern const Type cell_type;
+CellObj *cell_new();
+
+struct FuncObj : Obj {
+    Value code;       // CodeObj
+    Value globals;    // DictObj
+    Value defaults;   // TupleObj, or Nil
+    Value kwdefaults; // DictObj, or Nil
+    Value closure;    // TupleObj of CellObj, or Nil
+};
+
+extern const Type func_type;
+Value func_new(Value code, Value globals);
+
+inline bool is_func(Value v)
+{
+    return v.is_obj() && v.obj()->type == &func_type;
+}
+
+inline FuncObj *func_of(Value v)
+{
+    return static_cast<FuncObj *>(v.obj());
+}
+
+// The positional and keyword arguments of one call, as they sit on the value
+// stack: `kwvals` follows `args`, and `kwnames` is the tuple the call named.
+struct CallArgs {
+    const Value *args    = nullptr;
+    u32 nargs            = 0;
+    const Value *kwvals  = nullptr;
+    const Value *kwnames = nullptr; // StrObj values
+    u32 nkw              = 0;
+};
+
+struct NativeObj : Obj {
+    Str name; // a literal: the bytes outlive the object
+    R (*fn)(const CallArgs &, Value &out);
+};
+
+extern const Type native_type;
+
+// `name` must outlive the object, so pass a literal.
+Value native_new(Str name, R (*fn)(const CallArgs &, Value &out));
+
+inline bool is_native(Value v)
+{
+    return v.is_obj() && v.obj()->type == &native_type;
+}
+
+struct ModuleObj : Obj {
+    Value name; // StrObj
+    Value dict; // DictObj
+};
+
+extern const Type module_type;
+Value module_new(Str name);
+
+inline bool is_module(Value v)
+{
+    return v.is_obj() && v.obj()->type == &module_type;
+}
+
+inline DictObj *module_dict(Value v)
+{
+    return static_cast<DictObj *>(static_cast<ModuleObj *>(v.obj())->dict.obj());
+}
+
+// A helper every builtin needs: refuse keywords it does not take, and check
+// the count. False leaves a TypeError pending.
+bool args_only(const CallArgs &a, Str who, u32 least, u32 most);

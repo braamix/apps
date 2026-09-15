@@ -1,6 +1,7 @@
 // The generic operations, and the number tower under them.
 #include "ops.h"
 
+#include "gc.h"
 #include "kernel/fmt.h"
 #include "math/math.h"
 
@@ -327,12 +328,96 @@ R py_setitem(Value v, Value key, Value item)
     return t->setitem(v, key, item);
 }
 
+R py_delitem(Value v, Value key)
+{
+    const Type *t = type_of(v);
+    if (!t || !t->delitem)
+        return err_set2("TypeError", "object does not support item deletion", type_name(v));
+    return t->delitem(v, key);
+}
+
+// Anything that iterates answers `in` by walking itself.
 R py_contains(Value v, Value item, bool &out)
 {
     const Type *t = type_of(v);
-    if (!t || !t->contains)
+    if (t && t->contains)
+        return t->contains(v, item, out);
+    if (!t || !t->iter)
         return err_set2("TypeError", "argument of type is not iterable", type_name(v));
-    return t->contains(v, item, out);
+
+    Root ri{ item };
+    Root it{ py_iter(v) };
+    if (it.v.is_nil())
+        return R::Err;
+    for (;;) {
+        Root got;
+        R r = py_next(it.v, got.v);
+        if (r == R::Err)
+            return R::Err;
+        if (r == R::NotImpl) {
+            out = false;
+            return R::Ok;
+        }
+        bool same = false;
+        if (py_eq(got.v, ri.v, same) != R::Ok)
+            return R::Err;
+        if (same) {
+            out = true;
+            return R::Ok;
+        }
+    }
+}
+
+R py_getattr(Value v, StrObj *name, Value &out)
+{
+    const Type *t = type_of(v);
+    if (t && t->getattr) {
+        R r = t->getattr(v, name, out);
+        if (r != R::NotImpl)
+            return r;
+    }
+    Buf<96> m;
+    m.put("'").put(type_name(v)).put("' object has no attribute '").put(name->str()).put("'");
+    return err_set("AttributeError", m.str());
+}
+
+Value py_iter(Value v)
+{
+    const Type *t = type_of(v);
+    if (!t || !t->iter)
+        return err_set2("TypeError", "object is not iterable", type_name(v)), Value();
+    return t->iter(v);
+}
+
+R py_next(Value it, Value &out)
+{
+    const Type *t = type_of(it);
+    if (!t || !t->next)
+        return err_set2("TypeError", "object is not an iterator", type_name(it));
+    return t->next(it, out);
+}
+
+ListObj *py_list_of(Value v)
+{
+    Root rv{ v };
+    ListObj *l = list_new();
+    if (!l)
+        return err_set("MemoryError", "out of memory"), nullptr;
+    Root rl{ obj_value(l) };
+    Root it{ py_iter(rv.v) };
+    if (it.v.is_nil())
+        return nullptr;
+    for (;;) {
+        Root got;
+        R r = py_next(it.v, got.v);
+        if (r == R::Err)
+            return nullptr;
+        if (r == R::NotImpl)
+            break;
+        if (!list_push(list_of(rl.v), got.v))
+            return err_set("MemoryError", "out of memory"), nullptr;
+    }
+    return list_of(rl.v);
 }
 
 R py_binop(Value a, Value b, Op op, Value &out)
@@ -367,6 +452,54 @@ R py_binop(Value a, Value b, Op op, Value &out)
     m.put("unsupported operand type(s) for ").put(op_symbol(op));
     m.put(": '").put(type_name(a)).put("' and '").put(type_name(b)).put("'");
     return err_set("TypeError", m.str());
+}
+
+R py_inplace(Value a, Value b, Op op, Value &out)
+{
+    // The one mutating case: `a += b` on a list extends it.
+    if (op == Op::Add && is_list(a)) {
+        Root ra{ a }, rb{ b };
+        Root it{ py_iter(rb.v) };
+        if (it.v.is_nil())
+            return R::Err;
+        for (;;) {
+            Root got;
+            R r = py_next(it.v, got.v);
+            if (r == R::Err)
+                return R::Err;
+            if (r == R::NotImpl)
+                break;
+            if (!list_push(list_of(ra.v), got.v))
+                return err_set("MemoryError", "out of memory");
+        }
+        out = ra.v;
+        return R::Ok;
+    }
+    return py_binop(a, b, op, out);
+}
+
+R py_pos(Value a, Value &out)
+{
+    i64 n = 0;
+    if (as_index(a, n)) {
+        out = int_from_i64(n);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    if (is_float(a)) {
+        out = a;
+        return R::Ok;
+    }
+    return err_set2("TypeError", "bad operand type for unary +", type_name(a));
+}
+
+R py_invert(Value a, Value &out)
+{
+    i64 n = 0;
+    if (as_index(a, n)) {
+        out = int_from_i64(~n);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    return err_set2("TypeError", "bad operand type for unary ~", type_name(a));
 }
 
 R py_neg(Value a, Value &out)
