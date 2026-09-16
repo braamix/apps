@@ -1,0 +1,44 @@
+generator
+<generator object counte
+entering
+leaving
+[1, 2, 3]
+made
+entering
+1
+2
+leaving
+stopped (2,) 2
+stopped again ()
+entering
+leaving
+empty
+True True
+None
+1
+two
+echo bye
+TypeError can't send non-None value to a just-started generator
+ValueError generator already executing
+waiting
+caught KeyError ()
+waiting
+caught KeyError ('why',)
+waiting
+caught KeyError ('who',)
+waiting
+early ('early',)
+entering
+leaving
+late ('late',)
+1
+cleaning up
+None
+None
+None
+RuntimeError generator ignored GeneratorExit
+1
+PEP 479 generator raised StopIteration
+1
+boom ('boom',)
+finished

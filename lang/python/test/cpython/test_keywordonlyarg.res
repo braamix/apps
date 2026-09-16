@@ -4,7 +4,7 @@ error KeywordOnlyArgTestCase.testKwDefaults: AttributeError: 'function' object h
 ok KeywordOnlyArgTestCase.testRaiseErrorFuncallWithUnexpectedKeywordArgument
 error KeywordOnlyArgTestCase.testSyntaxErrorForFunctionCall: NameError: name 'compile' is not defined
 error KeywordOnlyArgTestCase.testSyntaxErrorForFunctionDefinition: NameError: name 'compile' is not defined
-error KeywordOnlyArgTestCase.testSyntaxForManyArguments: SystemError: opcode not implemented yet: YieldValue
+error KeywordOnlyArgTestCase.testSyntaxForManyArguments: NameError: name 'compile' is not defined
 error KeywordOnlyArgTestCase.testTooManyPositionalErrorMessage: AttributeError: 'function' object has no attribute '__qualname__'
 ok KeywordOnlyArgTestCase.test_default_evaluation_order
 ok KeywordOnlyArgTestCase.test_issue13343

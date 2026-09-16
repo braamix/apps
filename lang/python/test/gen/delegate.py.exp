@@ -1,0 +1,48 @@
+0
+leaf got a
+1
+leaf got b
+middle saw leaf done
+after
+end middle done
+None
+[1, 2, 'x', 'y', 0, 1, 'k']
+None
+leaf done
+[]
+[1, 2]
+1
+2
+three deep done
+1
+inner caught
+2
+3
+1
+delegator caught
+7
+1
+leaf exiting
+middle exiting
+None
+5
+Closable.close
+None
+next
+Duck.send hello
+sent
+Duck.throw <class 'TypeError'>
+thrown
+[0, 2, 4, 6]
+4
+[0, 1, 4, 9]
+[3, 2, 1]
+0, 1, 2
+{'a': 0, 'b': 1, 'c': 2}
+2
+[0, 1, 2] {0, 1, 2}
+0 [1, 2, 3]
+True
+(3, 2)
+(3, 1)
+(3, 0)

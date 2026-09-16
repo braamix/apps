@@ -10,6 +10,7 @@
 #include "exc.h"
 #include "format.h"
 #include "gc.h"
+#include "gen.h"
 #include "import.h"
 #include "intern.h"
 #include "iter.h"
@@ -57,6 +58,13 @@ void home_mark()
 R oom()
 {
     return err_set("MemoryError", "out of memory");
+}
+
+// A builtin cannot step a generator; only the dispatch loop can. So a builtin
+// that is handed one parks instead. See iter_park in call.h.
+inline bool parks(const CallArgs &a, u32 at)
+{
+    return a.nargs > at && iter_needs_vm(a.args[at]);
 }
 
 // ------------------------------------------------------------------- print
@@ -798,6 +806,8 @@ R b_bytes(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "bytes", 0, 3))
         return R::Err;
+    if (a.nargs == 1 && parks(a, 0))
+        return iter_park(a, 0, b_bytes, out);
     if (a.nargs > 1) {
         if (!is_str(a.args[0]))
             return err_set2("TypeError", "encoding without a string argument",
@@ -918,6 +928,8 @@ R b_list(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "list", 0, 1))
         return R::Err;
+    if (parks(a, 0))
+        return iter_park(a, 0, b_list, out);
     ListObj *l = a.nargs ? py_list_of(a.args[0]) : list_new();
     if (!l)
         return err_pending() ? R::Err : oom();
@@ -929,6 +941,8 @@ R b_tuple(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "tuple", 0, 1))
         return R::Err;
+    if (parks(a, 0))
+        return iter_park(a, 0, b_tuple, out);
     if (!a.nargs) {
         TupleObj *e = tuple_new(0);
         if (!e)
@@ -957,6 +971,8 @@ R b_dict(const CallArgs &a, Value &out)
 {
     if (a.nargs > 1)
         return err_set("TypeError", "dict() takes at most one positional argument");
+    if (parks(a, 0))
+        return iter_park(a, 0, b_dict, out);
     DictObj *d = dict_new();
     if (!d)
         return oom();
@@ -1009,6 +1025,8 @@ R b_set(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "set", 0, 1))
         return R::Err;
+    if (parks(a, 0))
+        return iter_park(a, 0, b_set, out);
     SetObj *s = set_new();
     if (!s)
         return oom();
@@ -1149,6 +1167,8 @@ R b_sorted(const CallArgs &a, Value &out)
 {
     if (a.nargs != 1)
         return err_set("TypeError", "sorted() takes exactly one positional argument");
+    if (parks(a, 0))
+        return iter_park(a, 0, b_sorted, out);
     Root key, dflt;
     bool rev = false, has = false;
     if (take_kw(a, "sorted", KW_KEY | KW_REVERSE, key.v, rev, dflt.v, has) != R::Ok)
@@ -1274,11 +1294,15 @@ R fold(const CallArgs &a, bool least, Str who, Value &out)
 
 R b_min(const CallArgs &a, Value &out)
 {
+    if (a.nargs == 1 && parks(a, 0))
+        return iter_park(a, 0, b_min, out);
     return fold(a, true, "min", out);
 }
 
 R b_max(const CallArgs &a, Value &out)
 {
+    if (a.nargs == 1 && parks(a, 0))
+        return iter_park(a, 0, b_max, out);
     return fold(a, false, "max", out);
 }
 
@@ -1286,6 +1310,8 @@ R b_sum(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "sum", 1, 2))
         return R::Err;
+    if (parks(a, 0))
+        return iter_park(a, 0, b_sum, out);
     Root acc{ a.nargs > 1 ? a.args[1] : Value::of_int(0) };
     Root it{ py_iter(a.args[0]) };
     if (it.v.is_nil())
@@ -1331,6 +1357,8 @@ R b_all(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "all", 1, 1))
         return R::Err;
+    if (parks(a, 0))
+        return iter_park(a, 0, b_all, out);
     return every(a, false, out);
 }
 
@@ -1338,6 +1366,8 @@ R b_any(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "any", 1, 1))
         return R::Err;
+    if (parks(a, 0))
+        return iter_park(a, 0, b_any, out);
     return every(a, true, out);
 }
 
@@ -1346,6 +1376,8 @@ R b_enumerate(const CallArgs &a, Value &out)
     Root seq, start{ Value::of_int(0) };
     if (a.nargs > 2)
         return err_set("TypeError", "enumerate() takes from 1 to 2 arguments");
+    if (parks(a, 0))
+        return iter_park(a, 0, b_enumerate, out);
     if (a.nargs > 0)
         seq = a.args[0];
     if (a.nargs > 1)
@@ -1376,10 +1408,36 @@ R b_iter(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// next() over a generator. s[0] is the bound __next__, s[1] the default.
+R next1_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], Value(), 0);
+    return cont_done(k, in.is_nil() ? k->s[1] : in);
+}
+
 R b_next(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "next", 1, 2))
         return R::Err;
+    if (is_gen(a.args[0]) || type_has_special(a.args[0], "__next__")) {
+        Root m{ is_gen(a.args[0]) ? genrun_new(a.args[0], GR_NEXT)
+                                  : type_special(a.args[0], "__next__") };
+        if (m.v.is_nil())
+            return R::Err;
+        Root d{ a.nargs > 1 ? a.args[1] : Value() };
+        Root kv{ cont_new(next1_step) };
+        if (kv.v.is_nil())
+            return R::Err;
+        ContObj *k = cont_of(kv.v);
+        k->s[0]    = m.v;
+        k->s[1]    = d.v;
+        // Without a default the StopIteration is the answer. With one, it
+        // is caught and the default stands.
+        k->catching = a.nargs > 1 ? CATCH_STOP : CATCH_NONE;
+        out         = kv.v;
+        return R::Ok;
+    }
     R r = py_next(a.args[0], out);
     if (r != R::NotImpl)
         return r;
@@ -1660,6 +1718,9 @@ R b_zip(const CallArgs &a, Value &out)
 {
     if (a.nkw)
         return err_set("TypeError", "zip() takes no keyword arguments");
+    for (u32 i = 0; i < a.nargs; i++)
+        if (parks(a, i))
+            return iter_park(a, i, b_zip, out);
     TupleObj *t = tuple_new(a.nargs);
     if (!t)
         return oom();
@@ -1705,6 +1766,9 @@ R b_map(const CallArgs &a, Value &out)
 {
     if (a.nkw || a.nargs < 2)
         return err_set("TypeError", "map() must have at least two arguments");
+    for (u32 i = 1; i < a.nargs; i++)
+        if (parks(a, i))
+            return iter_park(a, i, b_map, out);
     if (a.nargs > 2)
         return map_many(a, out);
 
@@ -1797,6 +1861,8 @@ R b_filter(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "filter", 2, 2))
         return R::Err;
+    if (parks(a, 1))
+        return iter_park(a, 1, b_filter, out);
     ListObj *xs = py_list_of(a.args[1]);
     if (!xs)
         return R::Err;
@@ -1833,6 +1899,8 @@ R b_bytearray(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "bytearray", 0, 3))
         return R::Err;
+    if (a.nargs == 1 && parks(a, 0))
+        return iter_park(a, 0, b_bytearray, out);
     Str s;
     if (a.nargs == 1 && bytes_like(a.args[0], s)) {
         out = bytearray_new(s);
@@ -1852,6 +1920,8 @@ R b_frozenset(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "frozenset", 0, 1))
         return R::Err;
+    if (parks(a, 0))
+        return iter_park(a, 0, b_frozenset, out);
     SetObj *s = frozenset_new();
     if (!s)
         return oom();

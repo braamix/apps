@@ -1,0 +1,11 @@
+send, got: value
+ValueError('a', 0)
+throw, got: value
+ValueError('b', 0)
+throw, got: value
+gen received: None
+send, got: value
+ValueError('a', 1)
+throw, got: value
+ValueError('b', 1)
+throw, got: value

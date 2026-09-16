@@ -15,6 +15,7 @@
 #include "frame.h"
 #include "func.h"
 #include "gc.h"
+#include "gen.h"
 #include "import.h"
 #include "intern.h"
 #include "iter.h"
@@ -48,6 +49,7 @@ struct VM {
     String *sent = nullptr; // which of the two the driver is writing
     Value reading;          // the ContObj waiting on a file, or Nil
     Value resume;           // the same, once the answer is in
+    Value thrown;           // what gen.throw passed, to raise at the resume point
     String want;            // the file it asked for
     String text;            // what came back
     bool found     = false; // whether there was such a name
@@ -75,6 +77,7 @@ void vm_mark()
     gc_mark(vm->handling);
     gc_mark(vm->reading);
     gc_mark(vm->resume);
+    gc_mark(vm->thrown);
     for (usize i = 0; i < vm->flat.size(); i++)
         gc_mark(vm->flat[i]);
     for (usize i = 0; i < vm->kwnames.size(); i++)
@@ -208,6 +211,9 @@ Str call_name(Value v)
 }
 
 R do_call(Value callable, const CallArgs &a, Value &out, bool &entered);
+R gen_resume(Value gv, u8 how, const CallArgs &a, Value &out, bool &entered);
+Value pending_exception();
+bool cont_catches(Value kv, Value e);
 
 // `__init__` has returned; the answer is the instance it was given.
 R init_step(ContObj *k, Value in)
@@ -380,6 +386,10 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
         return static_cast<NativeObj *>(callable.obj())->fn(a, out);
     if (is_type(callable))
         return type_call(callable, a, out, entered);
+    // Resuming a generator pushes a frame, and only the loop may do that. So
+    // gen.send is an object of its own rather than a native; see gen.h.
+    if (is_genrun(callable))
+        return gen_resume(genrun_of(callable)->gen, genrun_of(callable)->how, a, out, entered);
 
     if (is_method(callable)) {
         MethodObj *m = static_cast<MethodObj *>(callable.obj());
@@ -432,6 +442,20 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
         vm->depth--;
         return R::Err;
     }
+    // A generator function binds its arguments and stops. The frame is parked
+    // in the object rather than entered, and none of the body has run.
+    if (co->flags & CO_GENERATOR) {
+        vm->handling = nf->handling;
+        vm->frame    = nf->back;
+        vm->depth--;
+        Root rf{ obj_value(nf) };
+        frame_of(rf.v)->back = Value();
+        out                  = gen_new(rf.v);
+        if (out.is_nil())
+            return R::Err;
+        frame_of(rf.v)->gen = out;
+        return R::Ok;
+    }
     entered = true;
     return R::Ok;
 }
@@ -459,6 +483,20 @@ bool run_cont(Value kv, Value in)
         }
 
         if (k->fn.is_nil()) {
+            // The step's answer is another suspension. Chain it in front
+            // here rather than calling back into this loop, so that a long
+            // delegation costs no native stack.
+            if (is_cont(k->out)) {
+                Value nx = k->out;
+                if (cont_of(nx)->next.is_nil()) {
+                    cont_of(nx)->next = k->next;
+                    if (k->next.is_nil() && k->drop)
+                        cont_of(nx)->drop = true;
+                }
+                rk = nx;
+                ri = Value();
+                continue;
+            }
             if (k->next.is_nil())
                 return k->drop ? true : push(frame_of(vm->frame), k->out);
             ri = k->out;
@@ -475,8 +513,18 @@ bool run_cont(Value kv, Value in)
         }
         Value out;
         bool entered = false;
-        if (do_call(k->fn, a, out, entered) != R::Ok)
-            return false;
+        if (do_call(k->fn, a, out, entered) != R::Ok) {
+            // The call failed without entering a frame, so dispatch never
+            // passes this continuation. A generator that has already stopped
+            // answers __next__ this way.
+            Root e{ pending_exception() };
+            if (!cont_catches(rk.v, e.v))
+                return false;
+            err_clear();
+            cont_of(rk.v)->caught = e.v;
+            ri                    = Value();
+            continue;
+        }
         if (entered) {
             FrameObj *nf = frame_of(vm->frame);
             nf->cont     = rk.v;
@@ -810,6 +858,9 @@ bool cont_catches(Value kv, Value e)
     u32 c = cont_of(kv)->catching;
     if (c == CATCH_NONE)
         return false;
+    if (c == CATCH_EXIT)
+        return exc_is(exc_type_of(e), exc_find("StopIteration")) ||
+               exc_is(exc_type_of(e), exc_find("GeneratorExit"));
     return exc_is(exc_type_of(e), exc_find(c == CATCH_STOP ? "StopIteration" : "AttributeError"));
 }
 
@@ -827,6 +878,22 @@ bool dispatch(Value e)
         }
         if (!note_frame(f))
             return uncaught(re.v), false;
+        // A generator is over once something unwinds out of it. PEP 479 turns
+        // an escaping StopIteration into a RuntimeError, so that the two ways
+        // a generator can end are not the same exception.
+        if (!f->gen.is_nil()) {
+            GenObj *g = gen_of(f->gen);
+            g->state  = GEN_DONE;
+            g->frame  = Value();
+            f->gen    = Value();
+            if (is_exc(re.v) && exc_is(exc_type_of(re.v), exc_find("StopIteration"))) {
+                Value sub = exc_make("RuntimeError", "generator raised StopIteration");
+                if (!sub.is_nil()) {
+                    static_cast<ExcObj *>(sub.obj())->context = re.v;
+                    re                                        = sub;
+                }
+            }
+        }
         if (f->back.is_nil()) {
             uncaught(re.v);
             return false;
@@ -836,6 +903,7 @@ bool dispatch(Value e)
         vm->frame    = f->back;
         vm->depth--;
         if (cont_catches(kv, re.v)) {
+            cont_of(kv)->caught = re.v;
             vm->tb.clear();
             return run_cont(kv, Value());
         }
@@ -867,6 +935,430 @@ bool raise_value(Value e)
     return dispatch(re.v);
 }
 
+// -------------------------------------------------------------- generators
+
+// What `gen.throw` names. One argument is passed on as it stands. A
+// delegating generator hands it to the sub-iterator's own throw, and only a
+// raise decides whether it is an exception at all. Two arguments are the older
+// form, and an instance is the only thing that can carry both.
+Value throw_value(const CallArgs &a)
+{
+    if (!a.nargs)
+        return err_set("TypeError", "throw() takes at least one argument"), Value();
+    Root t{ a.args[0] };
+    if (a.nargs < 2 || is_none(a.args[1]))
+        return t.v;
+    if (is_exc(t.v))
+        return err_set("TypeError", "instance exception may not have a separate value"), Value();
+    if (!is_exc_type(t.v))
+        return err_set2("TypeError", "exceptions must derive from BaseException", type_name(t.v)),
+               Value();
+    // A value that is already an instance of the type is the exception.
+    if (is_exc(a.args[1]) && type_isinstance(a.args[1], t.v))
+        return a.args[1];
+    Root args;
+    if (is_tuple(a.args[1])) {
+        args = a.args[1];
+    } else {
+        TupleObj *one = tuple_new(1);
+        if (!one)
+            return oom(), Value();
+        one->items()[0] = a.args[1];
+        args            = obj_value(one);
+    }
+    return exc_inst(t.v, args.v);
+}
+
+// Whether a throw was handed a GeneratorExit, as an instance or as the type.
+// A delegation treats that one differently.
+bool is_generator_exit(Value v)
+{
+    const ExcType *t = is_exc(v) ? exc_type_of(v) : is_exc_type(v) ? type_obj(v)->exc : nullptr;
+    return t && exc_is(t, exc_find("GeneratorExit"));
+}
+
+// Leave a generator at a yield. The frame is parked rather than popped, so it
+// keeps its value stack, its block stack and its locals. `at` is where it
+// resumes. That is past the yield, or the `yield from` itself, which re-enters
+// the delegation.
+void gen_park(FrameObj *f, u32 at)
+{
+    GenObj *g    = gen_of(f->gen);
+    g->state     = GEN_SUSPENDED;
+    g->handling  = vm->handling;
+    vm->handling = f->handling;
+    f->pc        = at;
+    vm->frame    = f->back;
+    f->back      = Value();
+    vm->depth--;
+}
+
+// The generator ran to its end. The frame retires and StopIteration carries
+// what it returned, which is what the language says and what every CATCH_STOP
+// continuation waits for. The frame is retired here rather than by dispatch,
+// so that a normal end leaves no traceback line.
+bool gen_finish(FrameObj *f, Value v)
+{
+    Root rv{ v };
+    GenObj *g = gen_of(f->gen);
+    g->state  = GEN_DONE;
+    g->frame  = Value();
+    Root k{ f->cont };
+    f->cont      = Value();
+    f->gen       = Value();
+    vm->handling = f->handling;
+    vm->frame    = f->back;
+    f->back      = Value();
+    vm->depth--;
+
+    Root args;
+    if (!is_none(rv.v)) {
+        TupleObj *t = tuple_new(1);
+        if (!t)
+            return oom(), dispatch(pending_exception());
+        t->items()[0] = rv.v;
+        args          = obj_value(t);
+    }
+    Root e{ exc_new(exc_find("StopIteration"), args.v) };
+    if (e.v.is_nil())
+        return dispatch(pending_exception());
+    vm->tb.clear();
+    if (cont_catches(k.v, e.v)) {
+        cont_of(k.v)->caught = e.v;
+        return run_cont(k.v, Value());
+    }
+    if (!k.v.is_nil() && cont_of(k.v)->fail)
+        cont_of(k.v)->fail(cont_of(k.v));
+    return dispatch(e.v);
+}
+
+// One turn of a `yield from`. What is sent or thrown into this generator goes
+// to the sub-iterator. What comes back is yielded onward, or, once the
+// sub-iterator stops, is the value of the yield-from expression.
+//
+// s[0] is the sub-iterator, s[1] the callable that reaches it, s[2] its
+// argument. j is the YieldFrom instruction to come back to.
+R yf_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0) {
+        if (!k->s[1].is_nil())
+            return cont_call(k, k->s[1], k->s[2], k->s[2].is_nil() ? 0 : 1);
+        // A built-in iterator, which the native protocol answers at once.
+        Value got;
+        R r = py_next(k->s[0], got);
+        if (r == R::Err)
+            return R::Err;
+        in = r == R::NotImpl ? Value() : got;
+    }
+
+    FrameObj *f = frame_of(vm->frame);
+    if (!in.is_nil()) {
+        // It yielded, so the delegating generator yields too. It comes back
+        // to the same instruction with whatever is sent next.
+        gen_park(f, k->j);
+        k->next = f->cont;
+        f->cont = Value();
+        k->drop = false;
+        return cont_done(k, in);
+    }
+    // It stopped. Its return value is what the yield-from expression is
+    // worth, and it replaces the sub-iterator GetIter left on the stack.
+    Value v = value_none();
+    if (is_exc(k->caught)) {
+        TupleObj *args =
+            static_cast<TupleObj *>(static_cast<ExcObj *>(k->caught.obj())->args.obj());
+        if (args && args->len)
+            v = args->items()[0];
+    }
+    f->stack()[f->sp - 1] = v;
+    k->drop               = true;
+    return cont_done(k, value_none());
+}
+
+// Start a delegation. `at` is the YieldFrom instruction, `how` what to do to
+// the sub-iterator, `arg` what to hand it. False leaves an error pending.
+bool yf_start(FrameObj *f, u32 at, u8 how, Value arg)
+{
+    Root ra{ arg };
+    Root rs{ f->stack()[f->sp - 1] };
+    Root call;
+    if (is_gen(rs.v)) {
+        call = genrun_new(rs.v, how);
+        if (call.v.is_nil())
+            return false;
+    } else {
+        // A duck type, with a send and a throw of its own.
+        bool bare = how == GR_NEXT || (how == GR_SEND && is_none(ra.v));
+        if (how == GR_THROW)
+            call = type_special(rs.v, "throw");
+        else if (bare)
+            call = type_special(rs.v, "__next__");
+        else
+            call = type_special(rs.v, "send");
+        if (err_pending())
+            return false;
+        if (call.v.is_nil()) {
+            // Nothing to delegate to, so the exception belongs at this yield.
+            if (how == GR_THROW)
+                return f->pc = at + 1, err_set_value(ra.v), false;
+            if (!bare)
+                return err_set2("AttributeError", "object has no attribute 'send'",
+                                type_name(rs.v)),
+                       false;
+        }
+        if (bare)
+            ra = Value();
+    }
+
+    f->pc = at + 1;
+    Root kv{ cont_new(yf_step) };
+    if (kv.v.is_nil())
+        return false;
+    ContObj *k  = cont_of(kv.v);
+    k->s[0]     = rs.v;
+    k->s[1]     = call.v;
+    k->s[2]     = how == GR_NEXT ? Value() : ra.v;
+    k->j        = at;
+    k->catching = CATCH_STOP;
+    k->drop     = true;
+    return run_cont(kv.v, Value());
+}
+
+// The sub-iterator has been closed. The exception now belongs at the
+// yield-from itself, which the loop raises at its next turn. s[1] is the
+// exception, j the instruction.
+R yf_exit_step(ContObj *k, Value in)
+{
+    (void)in;
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], Value(), 0);
+    frame_of(vm->frame)->pc = k->j + 1;
+    vm->thrown              = k->s[1];
+    return cont_done(k, value_none());
+}
+
+// A GeneratorExit thrown into a delegating generator is not thrown through
+// it. The sub-iterator is closed, and only then does the exception reach the
+// yield-from. That is what lets the delegating generator's own `except
+// GeneratorExit` run, and what keeps close() off a sub-iterator's throw().
+bool yf_exit(FrameObj *f, u32 at, Value exc)
+{
+    Root re{ exc };
+    Root rs{ f->stack()[f->sp - 1] };
+    Root shut{ is_gen(rs.v) ? genrun_new(rs.v, GR_CLOSE) : type_special(rs.v, "close") };
+    if (err_pending())
+        return false;
+    if (shut.v.is_nil()) {
+        f->pc      = at + 1;
+        vm->thrown = re.v;
+        return true;
+    }
+    Root kv{ cont_new(yf_exit_step) };
+    if (kv.v.is_nil())
+        return false;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = shut.v;
+    k->s[1]    = re.v;
+    k->j       = at;
+    k->drop    = true;
+    return run_cont(kv.v, Value());
+}
+
+// One turn of close(). GeneratorExit goes in at the yield, and the generator
+// must not answer with a value. s[0] is the bound throw, s[1] what it throws.
+R close_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], k->s[1]);
+    if (in.is_nil()) // it stopped, which is all close asks for
+        return cont_done(k, value_none());
+    return err_set("RuntimeError", "generator ignored GeneratorExit");
+}
+
+R gen_close(Value gv, Value &out)
+{
+    Root rg{ gv };
+    Root e{ exc_new(exc_find("GeneratorExit"), Value()) };
+    if (e.v.is_nil())
+        return R::Err;
+    Root m{ genrun_new(rg.v, GR_THROW) };
+    if (m.v.is_nil())
+        return R::Err;
+    Root kv{ cont_new(close_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k  = cont_of(kv.v);
+    k->s[0]     = m.v;
+    k->s[1]     = e.v;
+    k->catching = CATCH_EXIT;
+    out         = kv.v;
+    return R::Ok;
+}
+
+// The generator is over and none of its body ran. This is close or throw on
+// one that has not started.
+void gen_retire(GenObj *g)
+{
+    g->state = GEN_DONE;
+    if (!g->frame.is_nil())
+        frame_of(g->frame)->gen = Value();
+    g->frame = Value();
+}
+
+// One turn of the drain drain_operand sets up. s[0] is the bound __next__,
+// s[1] the list being filled, s[2] the operand. j is how far down the stack
+// the operand sits.
+R drain_operand_step(ContObj *k, Value in)
+{
+    // s[0] is Nil for a class instance, whose __iter__ has to run first.
+    if (k->i++ == 0) {
+        if (!k->s[0].is_nil())
+            return cont_call(k, k->s[0], Value(), 0);
+        Value it = type_special(k->s[2], "__iter__");
+        if (it.is_nil())
+            return err_set2("TypeError", "object is not iterable", type_name(k->s[2]));
+        return cont_call(k, it, Value(), 0);
+    }
+    if (k->s[0].is_nil()) {
+        Root rit{ in };
+        k->s[0] = is_gen(rit.v) ? genrun_new(rit.v, GR_NEXT) : type_special(rit.v, "__next__");
+        if (k->s[0].is_nil()) {
+            // __iter__ answered with a built-in iterator, which walks itself.
+            ListObj *xs = py_list_of(rit.v);
+            if (!xs)
+                return R::Err;
+            k->s[1] = obj_value(xs);
+            in      = Value();
+        } else {
+            return cont_call(k, k->s[0], Value(), 0);
+        }
+    }
+    if (!in.is_nil()) {
+        if (!list_push(list_of(k->s[1]), in))
+            return oom();
+        return cont_call(k, k->s[0], Value(), 0);
+    }
+    FrameObj *f                  = frame_of(vm->frame);
+    f->stack()[f->sp - 1 - k->j] = k->s[1];
+    return cont_done(k, value_none());
+}
+
+// An instruction whose operand is a generator cannot step it, so it parks the
+// way a builtin does. The generator is drained into a list, the list is put
+// where the generator was, and the instruction runs again. `below` is how far
+// under the top of the stack the operand sits.
+bool drain_operand(FrameObj *f, u32 below)
+{
+    Root src{ f->stack()[f->sp - 1 - below] };
+    Root m{ is_gen(src.v) ? genrun_new(src.v, GR_NEXT) : Value() };
+    if (is_gen(src.v) && m.v.is_nil())
+        return false;
+    ListObj *xs = list_new();
+    if (!xs)
+        return oom(), false;
+    Root rl{ obj_value(xs) };
+    Root kv{ cont_new(drain_operand_step) };
+    if (kv.v.is_nil())
+        return false;
+    ContObj *k  = cont_of(kv.v);
+    k->s[0]     = m.v;
+    k->s[1]     = rl.v;
+    k->s[2]     = src.v;
+    k->j        = below;
+    k->catching = CATCH_STOP;
+    k->drop     = true;
+    f->pc--; // the instruction is entered again, over the list
+    return run_cont(kv.v, Value());
+}
+
+// Push a parked frame back on the chain. What the generator yields or returns
+// arrives the way a call's answer does. It goes through the frame's cont, or
+// onto the stack of the frame below. So nothing here need know who resumed it.
+R gen_resume(Value gv, u8 how, const CallArgs &a, Value &out, bool &entered)
+{
+    entered = false;
+    Root rg{ gv };
+    GenObj *g = gen_of(rg.v);
+
+    if (how == GR_ITER) {
+        if (!args_only(a, "__iter__", 0, 0))
+            return R::Err;
+        out = rg.v;
+        return R::Ok;
+    }
+    if (a.nkw)
+        return err_set("TypeError", "a generator method takes no keyword arguments");
+    if (how == GR_NEXT && !args_only(a, "__next__", 0, 0))
+        return R::Err;
+    if (how == GR_SEND && !args_only(a, "send", 1, 1))
+        return R::Err;
+    if (how == GR_CLOSE && !args_only(a, "close", 0, 0))
+        return R::Err;
+    if (g->state == GEN_RUNNING)
+        return err_set("ValueError", "generator already executing");
+
+    Root arg{ how == GR_SEND ? a.args[0] : how == GR_NEXT ? value_none() : Value() };
+    if (how == GR_THROW) {
+        arg = throw_value(a);
+        if (arg.v.is_nil())
+            return R::Err;
+    }
+
+    if (g->state == GEN_DONE || g->frame.is_nil()) {
+        if (how == GR_CLOSE) {
+            out = value_none();
+            return R::Ok;
+        }
+        if (how == GR_THROW)
+            return err_set_value(arg.v);
+        return err_set("StopIteration", "");
+    }
+
+    // Nothing has run yet, so there is no handler in the frame to reach. Both
+    // of these end the generator where they stand, as CPython does.
+    if (g->state == GEN_CREATED && how == GR_CLOSE) {
+        gen_retire(g);
+        out = value_none();
+        return R::Ok;
+    }
+    if (g->state == GEN_CREATED && how == GR_THROW) {
+        gen_retire(g);
+        return err_set_value(arg.v);
+    }
+    if (how == GR_CLOSE)
+        return gen_close(rg.v, out);
+    if (how == GR_SEND && g->state == GEN_CREATED && !is_none(arg.v))
+        return err_set("TypeError", "can't send non-None value to a just-started generator");
+
+    if (vm->depth >= MAX_FRAMES)
+        return err_set("RecursionError", "maximum recursion depth exceeded");
+
+    FrameObj *f  = frame_of(g->frame);
+    bool started = g->state == GEN_SUSPENDED;
+    f->back      = vm->frame;
+    f->handling  = vm->handling;
+    vm->handling = g->handling;
+    g->handling  = Value();
+    vm->frame    = g->frame;
+    vm->depth++;
+    g->state = GEN_RUNNING;
+    entered  = true;
+
+    if (!started) // the body begins at the top, with nothing to hand it
+        return R::Ok;
+
+    // The loop raises it at the resume point, or delegates it. Either way it
+    // has to wait until the frame's continuation is recorded, which the caller
+    // has not done yet.
+    if (how == GR_THROW) {
+        vm->thrown = arg.v;
+        return R::Ok;
+    }
+    // The value sent is what the `yield` expression is worth. Parked in a
+    // `yield from`, that instruction runs again and passes it on.
+    return push(f, arg.v) ? R::Ok : R::Err;
+}
+
 // -------------------------------------------------------------- the loop
 
 void interpret()
@@ -889,6 +1381,28 @@ void interpret()
                 if (!raise_value(pending_exception()))
                     return;
             }
+            continue;
+        }
+
+        // A generator was resumed with gen.throw. The frame is back on the
+        // chain and its continuation is recorded, so this is where the
+        // exception reaches it.
+        if (!vm->thrown.is_nil()) {
+            Root e{ vm->thrown };
+            vm->thrown  = Value();
+            FrameObj *g = frame_of(vm->frame);
+            CodeObj *gc = code_of(g->code);
+            // Parked in a `yield from`, so the sub-iterator is thrown into
+            // first. That is what delegation means. A GeneratorExit is the one
+            // that is not thrown through. It closes the sub-iterator instead.
+            if (!g->gen.is_nil() && g->pc < gc->code.size() &&
+                gc->code[g->pc].op == Bc::YieldFrom &&
+                (is_generator_exit(e.v) ? yf_exit(g, g->pc, e.v)
+                                        : yf_start(g, g->pc, GR_THROW, e.v)))
+                continue;
+            vm->tb.clear();
+            if (!raise_value(err_pending() ? pending_exception() : e.v))
+                return;
             continue;
         }
 
@@ -1211,6 +1725,13 @@ void interpret()
             case Bc::BinaryOp:
             case Bc::InplaceOp: {
                 Value a = st[f->sp - 2], b = st[f->sp - 1];
+                // `xs += gen` is the one operator that iterates.
+                if (in.op == Bc::InplaceOp && Op(arg) == Op::Add && is_list(a) &&
+                    iter_needs_vm(b)) {
+                    if (!drain_operand(f, 0))
+                        goto oops;
+                    break;
+                }
                 if (is_inst(a) || is_inst(b)) {
                     // `a += b` asks for __iadd__ first and falls back to __add__.
                     if (in.op == Bc::InplaceOp) {
@@ -1267,6 +1788,11 @@ void interpret()
                 if (op == Cmp::Is || op == Cmp::IsNot) {
                     ok = (st[f->sp - 2] == st[f->sp - 1]) == (op == Cmp::Is);
                 } else if (op == Cmp::In || op == Cmp::NotIn) {
+                    if (iter_needs_vm(st[f->sp - 1])) {
+                        if (!drain_operand(f, 0))
+                            goto oops;
+                        break;
+                    }
                     // `not in` on a class needs the answer negated, which the
                     // ordinary path does and a call cannot.
                     Value m = type_special(st[f->sp - 1], "__contains__");
@@ -1335,12 +1861,19 @@ void interpret()
                 break;
             }
             case Bc::ForIter: {
-                Value m = type_special(st[f->sp - 1], "__next__");
-                if (!m.is_nil()) {
+                // A generator and a class with __next__ are the same problem.
+                // Stepping either pushes a frame, so the item comes back
+                // through a continuation rather than from py_next.
+                // cont_new allocates, and nothing else points at the method.
+                Root m{ is_gen(st[f->sp - 1]) ? genrun_new(st[f->sp - 1], GR_NEXT)
+                                              : type_special(st[f->sp - 1], "__next__") };
+                if (m.v.is_nil() && err_pending())
+                    goto oops;
+                if (!m.v.is_nil()) {
                     Root kv{ cont_new(next_step) };
                     if (kv.v.is_nil())
                         goto oops;
-                    cont_of(kv.v)->s[0]     = m;
+                    cont_of(kv.v)->s[0]     = m.v;
                     cont_of(kv.v)->j        = arg;
                     cont_of(kv.v)->catching = CATCH_STOP;
                     cont_of(kv.v)->drop     = true;
@@ -1507,6 +2040,11 @@ void interpret()
 
             case Bc::ListExtend:
             case Bc::SetUpdate: {
+                if (iter_needs_vm(st[f->sp - 1])) {
+                    if (!drain_operand(f, 0))
+                        goto oops;
+                    break;
+                }
                 Root it{ py_iter(st[f->sp - 1]) };
                 if (it.v.is_nil())
                     goto oops;
@@ -1561,6 +2099,11 @@ void interpret()
 
             case Bc::UnpackSequence:
             case Bc::UnpackEx: {
+                if (iter_needs_vm(st[f->sp - 1])) {
+                    if (!drain_operand(f, 0))
+                        goto oops;
+                    break;
+                }
                 u32 before = in.op == Bc::UnpackEx ? (arg & 0xffff) : arg;
                 u32 after  = in.op == Bc::UnpackEx ? (arg >> 16) : 0;
                 vm->flat.clear();
@@ -1708,8 +2251,39 @@ void interpret()
                 break;
             }
 
+            case Bc::YieldValue: {
+                if (f->gen.is_nil()) {
+                    err_set("SystemError", "yield outside a generator");
+                    goto oops;
+                }
+                Value v = st[--f->sp];
+                Value k = f->cont;
+                f->cont = Value();
+                gen_park(f, f->pc);
+                // Nothing allocates before run_cont pins `v`.
+                if (!k.is_nil() ? !run_cont(k, v) : !push(frame_of(vm->frame), v))
+                    goto oops;
+                break;
+            }
+
+            case Bc::YieldFrom: {
+                if (f->gen.is_nil()) {
+                    err_set("SystemError", "yield outside a generator");
+                    goto oops;
+                }
+                Value sent = st[--f->sp];
+                if (!yf_start(f, f->pc - 1, GR_SEND, sent))
+                    goto oops;
+                break;
+            }
+
             case Bc::Return: {
                 Value v = st[f->sp - 1];
+                if (!f->gen.is_nil()) {
+                    if (!gen_finish(f, v))
+                        return;
+                    continue;
+                }
                 if (f->back.is_nil()) {
                     vm->finished = true;
                     return;

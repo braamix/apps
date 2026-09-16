@@ -4,6 +4,7 @@
 // continuation, as `sorted` is. Both use the same merge underneath.
 #include "call.h"
 #include "gc.h"
+#include "gen.h"
 #include "iter.h"
 #include "kernel/fmt.h"
 #include "method.h"
@@ -64,6 +65,8 @@ R m_extend(const CallArgs &a, Value &out)
     ListObj *l = self_list(a, "extend");
     if (!l || !meth_args(a, "extend", 1, 1))
         return R::Err;
+    if (iter_needs_vm(a.args[1]))
+        return iter_park(a, 1, m_extend, out);
     Root rl{ method_self(a.args[0]) };
     // Gather first: the argument may be self.
     ListObj *more = py_list_of(a.args[1]);

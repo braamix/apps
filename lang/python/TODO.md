@@ -5,23 +5,23 @@ object model. The interpreter is not a port and stays that way. What is
 borrowed is measured, and named here.
 
 **The language stands, the built-in types have their methods, a file can be
-imported, text can be formatted, numbers have no width, and CPython's own
-tests are a ruler beside MicroPython's.** Phases 0 to 14 built the lexer, the
-parser, the compiler, the VM, the object heap and its collector, exceptions,
-functions and closures, classes with the whole type system, the method tables,
-the module loader, the `unittest` and `test.support` shims every CPython test
-stands on, the one format engine that `format()`, `__format__`, `str.format`,
-`%` and f-strings all reach, and the bignum and `complex` that finish the
-number tower. They are done, and their record is the git history — `python:
-phase 0` through `python: phase 14` — not this file, which from here describes
-only what is left.
+imported, text can be formatted, numbers have no width, a function can yield,
+and CPython's own tests are a ruler beside MicroPython's.** Phases 0 to 15
+built the lexer, the parser, the compiler, the VM, the object heap and its
+collector, exceptions, functions and closures, classes with the whole type
+system, the method tables, the module loader, the `unittest` and `test.support`
+shims every CPython test stands on, the one format engine that `format()`,
+`__format__`, `str.format`, `%` and f-strings all reach, the bignum and
+`complex` that finish the number tower, and generators with `yield from`. They
+are done, and their record is the git history — `python: phase 0` through
+`python: phase 15` — not this file, which from here describes only what is
+left.
 
-Where that leaves us, measured against MicroPython's suite: **336 of the 375
-tests in [test/manifest.txt](test/manifest.txt)**, and **372 of the 526** in
-`tests/basics/` once the generator, async and t-string families are set aside
-— the bigint family is now counted rather than excluded. The largest single
-cause of the rest is generators, which is the next phase; the modules are
-phase 18. None stop at the object model.
+Where that leaves us, measured against MicroPython's suite: **366 of the 404
+tests in [test/manifest.txt](test/manifest.txt)**, and **407 of the 557** in
+`tests/basics/` once the async and t-string families are set aside — the
+generator family is now counted rather than excluded. The largest single cause
+of the rest is the modules, which are phase 18. None stop at the object model.
 
 Measured against CPython's, which is the harder ruler: **seven of the twelve
 in [test/cpython.txt](test/cpython.txt) run, and twenty-three test methods of
@@ -30,11 +30,13 @@ forty-six pass.** `node test/pycases.mjs --survey` runs the whole of
 module, 43 other syntax, 33 a lone surrogate in a literal, 15 `async`, 14
 `\N{...}`, and 7 that run.
 
-Three walls have come down in two phases — f-strings, complex and the bignum
+Three walls came down in phases 13 and 14 — f-strings, complex and the bignum
 were 204 files between them — and **the compiler is no longer what stops
-CPython's tests: a module nobody has written is.** That is phase 18, and it is
-further off than the two before it. The survey is how each wave is chosen, and
-it only means something read beside what it said last time.
+CPython's tests. A module nobody has written is.** That is phase 18, and it is
+further off than the two before it. Phase 15 moved none of these numbers:
+`test_generators.py`, `test_genexps.py` and `test_yield_from.py` each stop at
+an import of `doctest` or `inspect`, not at a generator. The survey is how each
+wave is chosen, and it only means something read beside what it said last time.
 
 ## The two upstreams
 
@@ -157,25 +159,6 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-### Phase 15 — generators
-
-The frames are already heap objects chained through `back`, which is most of
-what a generator is. It is also the largest single thing still missing from
-MicroPython's suite, and the whole `gen*` family waits on it.
-
-- [ ] `yield` and the generator object: a frame that is parked rather than
-      popped, with its own value stack and block stack intact.
-- [ ] `send`, `throw`, `close`, `GeneratorExit`, and `StopIteration.value`.
-- [ ] `yield from`, delegating send and throw through.
-- [ ] Generator expressions, which the compiler already builds as nested code
-      objects for comprehensions.
-- [ ] The interaction with the driver: a generator resumed from C++ is the
-      same callback problem as a special method, so `map`, `filter`, `zip` and
-      `sum` over a generator all go through the continuation.
-
-Tests: `test_generators.py`, `test_genexps.py`, `test_yield_from.py`, and
-MicroPython's `generator*` and `gen_yield_from*` families.
-
 ### Phase 16 — `eval`, `exec`, `compile`, and the namespaces
 
 `collections.namedtuple`, `dataclasses` and `enum` all build classes by
@@ -209,7 +192,9 @@ uses.
 - [ ] `__init_subclass__`, `__set_name__`, `__class_getitem__`,
       `__mro_entries__`.
 - [ ] `__del__`, and `weakref` with callbacks — both of which make the
-      collector's sweep observable and need a resurrection rule.
+      collector's sweep observable and need a resurrection rule. `__del__` is
+      also what closes a generator that is dropped at a yield, so until it
+      exists such a generator never runs its `finally`.
 - [ ] `__hash__ = None`, and the `__eq__`/`__hash__` interaction.
 - [ ] **A comparison made from C++.** `py_cmp` and `py_eq` cannot push a
       frame, so a class with `__lt__` cannot be sorted and one with `__eq__`

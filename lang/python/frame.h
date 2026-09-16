@@ -24,6 +24,7 @@ struct FrameObj : Obj {
     Value back;     // the caller's frame, or Nil
     Value handling; // what the VM was handling when this frame was entered
     Value cont;     // a ContObj this frame's return value belongs to, or Nil
+    Value gen;      // the GenObj this frame belongs to, or Nil
     u32 pc;
     u32 sp;      // values on the stack
     u32 nb;      // handlers on the block stack

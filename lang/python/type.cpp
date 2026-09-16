@@ -1141,6 +1141,15 @@ Value type_special(Value v, Str name)
     return type_bind(found.v, v, inst_of(v)->cls, out) == R::Ok ? out : Value();
 }
 
+bool type_has_special(Value v, Str name)
+{
+    if (!is_inst(v))
+        return false;
+    StrObj *n = str_intern(name);
+    Value found;
+    return n && type_lookup(inst_of(v)->cls, n, found) == R::Ok;
+}
+
 // The `__new__` a class wrote itself, rather than the one object lends it.
 Value type_own_new(Value cls)
 {

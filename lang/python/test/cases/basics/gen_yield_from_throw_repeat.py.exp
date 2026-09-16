@@ -1,0 +1,10 @@
+send, got: 4
+ValueError('a', 0)
+throw, got: 4
+ValueError('b', 0)
+throw, got: 4
+send, got: 5
+ValueError('a', 1)
+throw, got: 4
+ValueError('b', 1)
+throw, got: 4

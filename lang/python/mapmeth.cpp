@@ -2,7 +2,9 @@
 //
 // A view is its own iterable type, not a list. That makes `d.keys() & other` a
 // set operation, and `for k in d.keys()` copies nothing.
+#include "call.h"
 #include "gc.h"
+#include "gen.h"
 #include "iter.h"
 #include "kernel/fmt.h"
 #include "method.h"
@@ -468,6 +470,8 @@ R m_update(const CallArgs &a, Value &out)
     DictObj *d = self_dict(a, "update");
     if (!d || a.nargs > 2)
         return d ? err_set("TypeError", "update() takes at most one positional argument") : R::Err;
+    if (a.nargs == 2 && iter_needs_vm(a.args[1]))
+        return iter_park(a, 1, m_update, out);
     Root rd{ method_self(a.args[0]) };
     if (a.nargs == 2) {
         Root src{ a.args[1] };
@@ -547,6 +551,8 @@ R m_fromkeys(const CallArgs &a, Value &out)
 {
     if (a.nkw || a.nargs < 1 || a.nargs > 2)
         return err_set("TypeError", "fromkeys() takes from 1 to 2 arguments");
+    if (iter_needs_vm(a.args[0]))
+        return iter_park(a, 0, m_fromkeys, out);
     Root fill{ a.nargs > 1 ? a.args[1] : value_none() };
     Root it{ py_iter(a.args[0]) };
     if (it.v.is_nil())

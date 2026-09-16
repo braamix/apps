@@ -61,4 +61,23 @@ async function interrupted(source) {
         die(`a caught interrupt still printed a traceback: ${JSON.stringify(out)}`);
 }
 
+// An endless generator drained by a builtin is the case where the burst bound
+// could have been lost: sum() parks once and everything after it happens
+// inside the continuation. Each item still costs a turn of the loop, so the
+// burst ends and the signal arrives.
+{
+    const out = await interrupted(
+        "def forever():\n" +
+        "    n = 0\n" +
+        "    while True:\n" +
+        "        yield n\n" +
+        "        n = n + 1\n" +
+        "try:\n" +
+        "    sum(forever())\n" +
+        "except KeyboardInterrupt:\n" +
+        "    print('caught in a generator')\n");
+    if (!out.includes("caught in a generator"))
+        die(`^C did not reach a drained generator: ${JSON.stringify(out)}`);
+}
+
 ok("^C becomes KeyboardInterrupt, and a program may catch it");

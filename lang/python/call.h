@@ -26,13 +26,16 @@ using ContFail = void (*)(ContObj *k);
 struct ContObj : Obj {
     ContStep step;
     ContFail fail; // null when there is nothing to undo
-    Value s[6];    // the builtin's own state
-    Value fn;      // what to call next, Nil when there is nothing left to call
-    Value a[2];    // its arguments
-    Value argv;    // or a tuple of them, when there are more than two
-    Value out;     // the answer, once fn is Nil
-    Value next;    // the ContObj waiting on this one, or Nil
-    Value locals;  // the namespace the next call's frame runs in, or Nil
+    // The builtin to enter again once the drain is done; see iter_park.
+    R (*redo)(const CallArgs &, Value &out);
+    Value s[6];   // the builtin's own state
+    Value fn;     // what to call next, Nil when there is nothing left to call
+    Value a[2];   // its arguments
+    Value argv;   // or a tuple of them, when there are more than two
+    Value out;    // the answer, once fn is Nil
+    Value next;   // the ContObj waiting on this one, or Nil
+    Value locals; // the namespace the next call's frame runs in, or Nil
+    Value caught; // the exception `catching` swallowed
     u32 nargs;
     u32 i, j;     // counters a step keeps across its requests
     u32 catching; // a CATCH_*: the step is resumed with Nil rather than unwound
@@ -41,8 +44,8 @@ struct ContObj : Obj {
 };
 
 // What a continuation is willing to catch out of the call it asked for. The
-// step is re-entered with Nil instead of the exception unwinding past it.
-enum : u32 { CATCH_NONE, CATCH_STOP, CATCH_ATTR };
+// step is re-entered with Nil instead, and `caught` holds the exception.
+enum : u32 { CATCH_NONE, CATCH_STOP, CATCH_ATTR, CATCH_EXIT };
 
 extern const Type cont_type;
 
@@ -85,6 +88,16 @@ inline R cont_done(ContObj *k, Value v)
     k->out = v;
     return R::Ok;
 }
+
+// True for a generator. Stepping one pushes a frame, so only the dispatch
+// loop can do it and a builtin cannot walk it at all.
+bool iter_needs_vm(Value v);
+
+// So the builtin parks here. The VM drains the generator into a list, then
+// enters `again` with that list in place of argument `at`. This is eager where
+// CPython is lazy, the same trade the eager map() and filter() make; see
+// README.md.
+R iter_park(const CallArgs &a, u32 at, R (*again)(const CallArgs &, Value &out), Value &out);
 
 // Inside a step: read `path`, and come back with its text as a str. None means
 // there is no such file. The driver performs it, so the VM parks here; only

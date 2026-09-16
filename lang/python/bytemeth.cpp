@@ -3,7 +3,9 @@
 // One table serves both. Every read-only method reads its octets through
 // self_bytes and returns self's own type, as CPython does. bytearray adds the
 // mutating half on top.
+#include "call.h"
 #include "gc.h"
+#include "gen.h"
 #include "iter.h"
 #include "kernel/fmt.h"
 #include "method.h"
@@ -711,6 +713,8 @@ R m_join(const CallArgs &a, Value &out)
     Str s;
     if (!self_bytes(a, "join", self, s) || !meth_args(a, "join", 1, 1))
         return R::Err;
+    if (iter_needs_vm(a.args[1]))
+        return iter_park(a, 1, m_join, out);
     Root rs{ self };
     ListObj *items = py_list_of(a.args[1]);
     if (!items)
@@ -1047,6 +1051,8 @@ R m_extend(const CallArgs &a, Value &out)
     ArrayObj *b = self_array(a, "extend");
     if (!b || !meth_args(a, "extend", 1, 1))
         return R::Err;
+    if (iter_needs_vm(a.args[1]))
+        return iter_park(a, 1, m_extend, out);
     Root rb{ method_self(a.args[0]) };
     Str more;
     if (bytes_like(a.args[1], more)) {

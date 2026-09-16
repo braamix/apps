@@ -136,6 +136,7 @@ TESTS := \
     lang/python/test/pyimport.mjs \
     lang/python/test/pyformat.mjs \
     lang/python/test/pynumber.mjs \
+    lang/python/test/pygen.mjs \
     lang/python/test/pyunit.mjs \
     lang/python/test/runcases.mjs \
     lang/python/test/pycases.mjs \

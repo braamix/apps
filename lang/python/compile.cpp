@@ -808,7 +808,10 @@ bool Compiler::expr(u32 i)
             return false;
         return emit(Bc::YieldValue, i);
     case Nd::YieldFrom:
-        return expr(n.a) && emit(Bc::GetIter, i) && emit(Bc::YieldFrom, i);
+        // YieldFrom takes the iterator and the value sent to it. It comes
+        // back to itself with the next value sent in.
+        return expr(n.a) && emit(Bc::GetIter, i) && emit(Bc::LoadConst, const_none(), i) &&
+               emit(Bc::YieldFrom, i);
 
     case Nd::Starred:
         return fail("can't use starred expression here", i);

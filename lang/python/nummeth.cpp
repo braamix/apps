@@ -1,7 +1,9 @@
 // int's and float's methods. There is no bignum until phase 14, so these work
 // in 64 bits and raise OverflowError past that, as the number tower does.
 #include "bigint.h"
+#include "call.h"
 #include "gc.h"
+#include "gen.h"
 #include "kernel/fmt.h"
 #include "math/ftoa.h"
 #include "math/math.h"
@@ -115,6 +117,8 @@ R m_from_bytes(const CallArgs &a, Value &out)
 {
     if (a.nargs < 1 || a.nargs > 2)
         return err_set("TypeError", "from_bytes() takes from 1 to 2 arguments");
+    if (iter_needs_vm(a.args[0]))
+        return iter_park(a, 0, m_from_bytes, out);
     Str s;
     String owned;
     if (!bytes_like(a.args[0], s)) {

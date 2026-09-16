@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 14.**
+**Phase 15.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -46,6 +46,14 @@ $ python -c 'class P:
     def __repr__(self): return "P(" + str(self.x) + ")"
 print(sorted([P(3), P(1)], key=lambda p: p.x))'
 [P(1), P(3)]
+$ python -c 'def fib():
+    a, b = 0, 1
+    while True:
+        yield a
+        a, b = b, a + b
+g = fib()
+print([next(g) for _ in range(10)])'
+[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
@@ -80,11 +88,19 @@ invisible from Python. `2**1000`, `//` and `%` that floor, the bitwise
 operators over infinite two's complement, `int(s, base)` at any width, a
 division rounded once rather than three times, and `2j`.
 
-**336 of MicroPython's own tests pass unchanged**, and over the whole of
-`tests/basics/` — setting aside the generator, async and t-string families —
-**372 of 526**. The bigint family is no longer among the exclusions: at phase
-13 it was set aside and the count read 331 of 480. What stops most of the rest
-is generators, which are the next phase, and the modules, which are phase 18.
+**A function that yields is a generator**: `yield`, `send`, `throw`, `close`,
+`GeneratorExit`, `StopIteration.value`, PEP 479, `yield from` with send, throw
+and close delegated through it, and generator expressions. A generator's frame
+is the frame the VM already had. It is parked rather than popped, keeping its
+value stack, its block stack and its locals, and resuming pushes it back on the
+chain. Everything that takes an iterable — `list`, `sum`, `sorted`, `join`,
+`[*g]`, `a, b = g`, `f(*g)` — meets one and parks; see below.
+
+**366 of MicroPython's own tests pass unchanged**, and over the whole of
+`tests/basics/` — setting aside the async and t-string families — **407 of
+557**. The generator family is no longer among the exclusions: at phase 14 it
+was set aside and the count read 372 of 526. What stops most of the rest is
+the modules, which are phase 18.
 
 **CPython's tests are the second ruler.** Twelve are in
 [test/cpython.txt](test/cpython.txt), seven of them run, and twenty-three test
@@ -92,22 +108,23 @@ methods of forty-six pass. Running the whole of `Lib/test/` under this
 interpreter — `node test/pycases.mjs --survey`, which needs the clone in
 `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- |
-| 276 | a module that is not written yet | 213 | 130 | phase 18 |
-| 43 | other syntax — `@`, `except*`, `:=` in a subscript | 34 | 28 | phase 24 |
-| 33 | a lone surrogate in a literal | 31 | 31 | phase 22 |
-| 15 | `async` | 13 | 3 | phase 23 |
-| 14 | `\N{...}` | 12 | 12 | phase 22 |
-| 7 | these run | 5 | 3 | |
-| — | complex numbers | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | 39 | 17 | **done** |
-| — | f-strings | — | 124 | **done** |
+| now | what stops it | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- |
+| 276 | a module that is not written yet | 276 | 213 | 130 | phase 18 |
+| 43 | other syntax — `@`, `except*`, `:=` in a subscript | 43 | 34 | 28 | phase 24 |
+| 33 | a lone surrogate in a literal | 33 | 31 | 31 | phase 22 |
+| 15 | `async` | 15 | 13 | 3 | phase 23 |
+| 14 | `\N{...}` | 14 | 12 | 12 | phase 22 |
+| 7 | these run | 7 | 5 | 3 | |
+| — | complex numbers | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | 39 | 17 | **done** |
+| — | f-strings | — | — | 124 | **done** |
 
-Three walls have come down in two phases and the compiler is no longer the
-one that matters: what stops 276 of the 391 files now is a module nobody has
-written. That is why the older columns are kept — the survey is what chooses
-each next wave, and it only means something read beside what it said before.
+The survey has not moved, and that is the point of keeping the older columns.
+Three walls came down in phases 13 and 14, and what stops 276 of the 391 files
+now is a module nobody has written. Generators were never what stopped a file
+here: `test_generators.py`, `test_genexps.py` and `test_yield_from.py` each
+stop at an import, of `doctest` or `inspect`.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -152,6 +169,7 @@ green.
 | [compile.h](compile.h), [compile.cpp](compile.cpp) | The emitter, jump patching, and the blocks an exit unwinds |
 | [dis.cpp](dis.cpp) | The `--dis` listing |
 | [frame.h](frame.h), [frame.cpp](frame.cpp) | One activation: locals and the value stack in one block |
+| [gen.h](gen.h), [gen.cpp](gen.cpp) | The generator, which is a frame parked rather than popped |
 | [vm.h](vm.h), [vm.cpp](vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
 | [func.h](func.h), [func.cpp](func.cpp) | Cells, functions, builtins written in C++, and modules |
 | [type.h](type.h), [type.cpp](type.cpp) | Type objects, instances, the MRO and the descriptors |
@@ -175,6 +193,7 @@ green.
 | [test/pyimport.mjs](test/pyimport.mjs) | Fifty nested imports, the cache, the search path, the store |
 | [test/pyformat.mjs](test/pyformat.mjs) | Every case under `test/format/`, against CPython and again under gc stress |
 | [test/pynumber.mjs](test/pynumber.mjs) | The same for `test/number/`: the arithmetic that has one right answer |
+| [test/pygen.mjs](test/pygen.mjs) | The same for `test/gen/`: the generator protocol, delegation, and every consumer |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
@@ -269,18 +288,12 @@ All recorded rather than hidden, and all in reach later:
 - **An identifier may hold any codepoint from U+0080 up.** CPython follows
   Unicode's XID_Start and XID_Continue, which is another table. So this accepts
   some names CPython rejects, and rejects none it accepts.
-- **An f-string is one node holding its body as written.** What is inside the
-  braces is parsed in a later phase; CPython builds a `JoinedStr` here, and the
-  compiler refuses one rather than pretending.
 - **An annotation is neither evaluated nor recorded.** `x: int = 1` compiles as
   `x = 1`, and a parameter annotation costs nothing at `def` time. CPython
   evaluates both and keeps `__annotations__`.
 - **`async` is refused by the compiler.** The parser accepts the whole 3.9
   grammar; `async def`, `async for`, `async with` and `await` stop at the
   compiler with a `SyntaxError` that says so.
-- **`str.format`, `format()` and `%` are not there.** They are one engine —
-  the format-spec mini-language — and it is the next phase, together with
-  f-strings.
 - **A class repr has no module in it.** CPython prints
   `<class '__main__.C'>`; this prints `<class 'C'>`, there being one module.
 - **`__set_name__` and `@` are not there.** The first is a descriptor hook the
@@ -290,14 +303,20 @@ All recorded rather than hidden, and all in reach later:
   these call it over the whole input first and hand back an iterator on the
   result. The two differ only where the input is endless or the function has an
   effect the program watches for. See below for why.
+- **A builtin handed a generator drains it first.** `zip(g, [1, 2])` reads the
+  whole of `g` before it pairs anything, where CPython reads two items. Same
+  reason as `map`: the builtin cannot step a generator, so it parks and the VM
+  drains it into a list. Nothing differs unless the generator is endless or its
+  effects are watched for. `for x in g` and `yield from g` are lazy, because
+  those are opcodes and an opcode can suspend.
+- **A generator that is never closed never runs its `finally`.** CPython closes
+  one as it collects it, through `__del__`; there is no `__del__` here yet, so
+  a generator dropped mid-yield is simply freed. Phase 17.
 - **A sort, a `min` or an `index` cannot call a Python `__lt__` or `__eq__`.**
   The comparison happens inside C++, which cannot push a frame. So
   `[A(1), A(2)].sort()` on a class with `__lt__` raises `TypeError` where `a <
   b` on the same two works. `sorted`, `min` and `max` have had this since
   phase 8; `list.sort` and `list.index` join them.
-- **A method that would need a bignum raises `OverflowError`.**
-  `int.to_bytes` past eight octets, `int.from_bytes` of more than eight
-  significant ones, and `float.as_integer_ratio` of most values. Phase 14.
 - **`memoryview` is one octet wide and has no stride.** A slice of a step
   other than 1 raises `NotImplementedError`, and `itemsize` and `format` are
   not there; `array` is what would give them meaning, and it is phase 18.
@@ -408,7 +427,9 @@ protocol. `py_next` returns a value, not a request, so `map` and `filter` —
 whose function is called at each `next` — have nowhere to suspend. They are
 eager instead: one continuation runs the function over the whole input, and
 what comes back is an iterator over the list it built. The type is still `map`
-or `filter`, so it is once-only and not a list; only the timing differs.
+or `filter`, so it is once-only and not a list; only the timing differs. The
+same limit is why a builtin handed a generator drains it whole, which the
+generator section below returns to.
 
 Nor does it reach a comparison. `list.sort()` merges inside C++, so a class
 with `__lt__` cannot be sorted — the same limit `sorted`, `min` and `max` have
@@ -419,6 +440,47 @@ the continuation owns.
 a file, and then asks the VM to run the module body — and a module that imports
 a module that imports a module nests neither the native stack nor the driver.
 [test/pyimport.mjs](test/pyimport.mjs) runs a chain of fifty.
+
+## How a generator suspends
+
+A generator wants a frame that outlives the call that made it, and this VM
+already has one: frames are heap objects chained through `back`, not C++ stack
+frames. So a call to a function whose body yields binds the arguments into a
+frame and stops there. The frame goes into a [GenObj](gen.h) instead of onto
+the chain, and nothing of the body has run.
+
+Resuming pushes that frame back on the chain and the loop carries on in it.
+`yield` is `Return` with the frame kept: the value goes where a call's answer
+would go, and the pc, the value stack, the block stack and the locals stay
+exactly as they were. Running off the end raises `StopIteration` carrying the
+return value, which is what the language says and what the `for` loop's
+continuation was already waiting for.
+
+One thing follows from all this and shapes the rest. **Resuming a generator
+pushes a frame, and only the dispatch loop may push a frame.** So `gen.send`
+cannot be a builtin: a builtin returns a value, and this has to return into the
+loop. It is a small object of its own instead ([gen.h](gen.h)), which `do_call`
+recognises — and because it is *callable*, a continuation can ask for the next
+item the same way it asks for a `key=` function. That is what makes `list(g)`,
+`sum(g)`, `sorted(g)`, `", ".join(g)` and the rest work at all: each parks, the
+VM drains the generator, and the builtin is entered again over a list. The same
+path answers a class that writes its own `__iter__` and `__next__`, which until
+now no builtin could iterate either.
+
+The opcodes that iterate — `[*g]`, `a, b = g`, `f(*g)`, `xs += g`, `x in g` —
+do the same thing one level down: the operand is drained, the list is put where
+the generator was, and the instruction runs a second time.
+
+`yield from` is the one place that needs both directions. The delegating
+generator parks *on the instruction* rather than past it, so whatever is sent
+next comes back to the same opcode and goes straight through to the
+sub-iterator. What comes back is either yielded onward — which parks the
+delegator again — or, once the sub-iterator stops, is the value of the
+expression. `throw` follows the same path, so an exception reaches the
+innermost generator that can catch it. `close` is the exception to that: a
+`GeneratorExit` is not thrown through the delegation but closes the
+sub-iterator first, and only then reaches the `yield from` itself. That is what
+lets a delegating generator run its own `except GeneratorExit`.
 
 ## Testing
 

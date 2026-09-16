@@ -1,8 +1,10 @@
 // str's methods. Everything is counted and indexed in codepoints, as the
 // language promises. The bytes are UTF-8, and they are converted only at the
 // boundary: an argument coming in, an index going out.
+#include "call.h"
 #include "format.h"
 #include "gc.h"
+#include "gen.h"
 #include "kernel/fmt.h"
 #include "kernel/text.h"
 #include "method.h"
@@ -858,6 +860,8 @@ R m_join(const CallArgs &a, Value &out)
     StrObj *s = self_str(a, "join");
     if (!s || !meth_args(a, "join", 1, 1))
         return R::Err;
+    if (iter_needs_vm(a.args[1]))
+        return iter_park(a, 1, m_join, out);
     Root sep{ obj_value(s) };
     ListObj *items = py_list_of(a.args[1]);
     if (!items)

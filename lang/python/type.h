@@ -150,6 +150,10 @@ R super_getattr(Value v, StrObj *name, Value &out);
 // its class does not have one; the caller keeps `v` rooted.
 Value type_special(Value v, Str name);
 
+// Whether the class has one, without binding it. A predicate that allocates
+// would be wrong in a hot path.
+bool type_has_special(Value v, Str name);
+
 // The __new__ a class wrote itself, rather than the one object lends it.
 Value type_own_new(Value cls);
 

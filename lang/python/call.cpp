@@ -2,14 +2,74 @@
 #include "call.h"
 
 #include "gc.h"
+#include "gen.h"
 #include "kernel/fmt.h"
 #include "ops.h"
+#include "type.h"
 
 namespace {
 
 R oom()
 {
     return err_set("MemoryError", "out of memory");
+}
+
+// Something do_call can call with no arguments to get the next item. Nil when
+// the native protocol answers instead.
+Value stepper(Value it)
+{
+    return is_gen(it) ? genrun_new(it, GR_NEXT) : type_special(it, "__next__");
+}
+
+// One turn of the drain iter_park sets up. s[0] is the bound __next__, s[1]
+// the list being filled, s[2] the positional arguments, s[3] the keyword
+// values, s[4] their names, s[5] the iterable. j is the argument the list
+// replaces.
+R drain_step(ContObj *k, Value in)
+{
+    // s[0] is Nil for a class instance, whose __iter__ has to run first.
+    if (k->i++ == 0) {
+        if (!k->s[0].is_nil())
+            return cont_call(k, k->s[0], Value(), 0);
+        Value it = type_special(k->s[5], "__iter__");
+        if (it.is_nil())
+            return err_set2("TypeError", "object is not iterable", type_name(k->s[5]));
+        return cont_call(k, it, Value(), 0);
+    }
+    if (k->s[0].is_nil()) {
+        Root rit{ in };
+        k->s[0] = stepper(rit.v);
+        if (k->s[0].is_nil()) {
+            // __iter__ answered with a built-in iterator, which walks itself.
+            ListObj *xs = py_list_of(rit.v);
+            if (!xs)
+                return R::Err;
+            k->s[1] = obj_value(xs);
+            in      = Value();
+        } else {
+            return cont_call(k, k->s[0], Value(), 0);
+        }
+    }
+    if (!in.is_nil()) {
+        if (!list_push(list_of(k->s[1]), in))
+            return oom();
+        return cont_call(k, k->s[0], Value(), 0);
+    }
+    // Nil is the StopIteration CATCH_STOP swallowed. The drain is over, so
+    // the builtin runs again over the list.
+    TupleObj *pos      = static_cast<TupleObj *>(k->s[2].obj());
+    TupleObj *kwv      = static_cast<TupleObj *>(k->s[3].obj());
+    TupleObj *kwn      = static_cast<TupleObj *>(k->s[4].obj());
+    pos->items()[k->j] = k->s[1];
+    CallArgs a;
+    a.args    = pos->items();
+    a.nargs   = u32(pos->len);
+    a.kwvals  = kwv->items();
+    a.kwnames = kwn->items();
+    a.nkw     = u32(kwn->len);
+    Value got;
+    R r = k->redo(a, got);
+    return r == R::Ok ? cont_done(k, got) : r;
 }
 
 Str fn_name(CodeObj *co)
@@ -55,6 +115,7 @@ void cont_trace(Obj *o)
     gc_mark(k->out);
     gc_mark(k->next);
     gc_mark(k->locals);
+    gc_mark(k->caught);
 }
 
 R cont_repr(Value v, String &out)
@@ -74,6 +135,7 @@ Value cont_new(ContStep step)
         return oom(), Value();
     k->step = step;
     k->fail = nullptr;
+    k->redo = nullptr;
     for (Value &v : k->s)
         v = Value();
     k->fn = Value();
@@ -83,12 +145,69 @@ Value cont_new(ContStep step)
     k->out    = Value();
     k->next   = Value();
     k->locals = Value();
+    k->caught = Value();
     k->nargs  = 0;
     k->i = k->j = 0;
     k->catching = CATCH_NONE;
     k->drop     = false;
     k->reading  = false;
     return obj_value(k);
+}
+
+bool iter_needs_vm(Value v)
+{
+    if (is_gen(v))
+        return true;
+    return type_has_special(v, "__iter__") || type_has_special(v, "__next__");
+}
+
+R iter_park(const CallArgs &a, u32 at, R (*again)(const CallArgs &, Value &out), Value &out)
+{
+    Root src{ a.args[at] };
+    // Nil for a class instance: the drain calls its __iter__ first.
+    Root m{ is_gen(src.v) ? genrun_new(src.v, GR_NEXT) : Value() };
+    if (is_gen(src.v) && m.v.is_nil())
+        return R::Err;
+    ListObj *xs = list_new();
+    if (!xs)
+        return oom();
+    Root rl{ obj_value(xs) };
+
+    // The call is copied whole. It is made again once the list is full.
+    TupleObj *pos = tuple_new(a.nargs);
+    if (!pos)
+        return oom();
+    for (u32 i = 0; i < a.nargs; i++)
+        pos->items()[i] = a.args[i];
+    Root rp{ obj_value(pos) };
+    TupleObj *kwv = tuple_new(a.nkw);
+    if (!kwv)
+        return oom();
+    for (u32 i = 0; i < a.nkw; i++)
+        kwv->items()[i] = a.kwvals[i];
+    Root rv{ obj_value(kwv) };
+    TupleObj *kwn = tuple_new(a.nkw);
+    if (!kwn)
+        return oom();
+    for (u32 i = 0; i < a.nkw; i++)
+        kwn->items()[i] = a.kwnames[i];
+    Root rn{ obj_value(kwn) };
+
+    Root kv{ cont_new(drain_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k  = cont_of(kv.v);
+    k->s[0]     = m.v;
+    k->s[1]     = rl.v;
+    k->s[2]     = rp.v;
+    k->s[3]     = rv.v;
+    k->s[4]     = rn.v;
+    k->s[5]     = src.v;
+    k->j        = at;
+    k->redo     = again;
+    k->catching = CATCH_STOP;
+    out         = kv.v;
+    return R::Ok;
 }
 
 R bind_args(FuncObj *fn, CodeObj *co, FrameObj *nf, const CallArgs &a)
