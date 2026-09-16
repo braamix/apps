@@ -40,8 +40,15 @@ R err_set(Str kind, Str message)
     return R::Err;
 }
 
-R err_set_value(Value v)
+R err_set_value(Value v, Str kind)
 {
+    if (!kind.empty()) {
+        Pending *p = slot();
+        if (p) {
+            p->kind.assign(kind);
+            p->message.clear();
+        }
+    }
     live    = true;
     at_line = 0;
     at_col  = 0;

@@ -66,6 +66,9 @@ Value exc_new(const ExcType *t, Value args);
 // The shorthand every raise from C++ wants: one string argument, or none.
 Value exc_make(Str name, Str message);
 
+// KeyError(key), pending: the key itself is the argument, as CPython's is.
+R key_error(Value key);
+
 // Put every name in the table into a namespace.
 bool exc_install(DictObj *into);
 

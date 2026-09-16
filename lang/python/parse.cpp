@@ -909,7 +909,8 @@ u32 Parser::await_expr()
         u32 n = add(Nd::Await, t);
         if (!n)
             return 0;
-        node(n).a = unary();
+        // The operand is a primary: `await x ** 2` is `(await x) ** 2`.
+        node(n).a = postfix(atom());
         return node(n).a ? n : 0;
     }
     return postfix(atom());

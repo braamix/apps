@@ -3,6 +3,7 @@
 // A view is its own iterable type, not a list. That makes `d.keys() & other` a
 // set operation, and `for k in d.keys()` copies nothing.
 #include "call.h"
+#include "exc.h"
 #include "gc.h"
 #include "gen.h"
 #include "iter.h"
@@ -435,9 +436,7 @@ R m_dict_pop(const CallArgs &a, Value &out)
             out = a.args[2];
             return R::Ok;
         }
-        String k;
-        py_repr(a.args[1], k);
-        return err_set("KeyError", k.str());
+        return key_error(a.args[1]);
     }
     return dict_del(d, a.args[1]) == R::Err ? R::Err : R::Ok;
 }
@@ -620,9 +619,7 @@ R m_set_remove(const CallArgs &a, Value &out)
     if (set_discard(s, a.args[1], had) != R::Ok)
         return R::Err;
     if (!had) {
-        String k;
-        py_repr(a.args[1], k);
-        return err_set("KeyError", k.str());
+        return key_error(a.args[1]);
     }
     out = value_none();
     return R::Ok;

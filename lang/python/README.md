@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 18.**
+**Phase 19.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -54,6 +54,11 @@ $ python -c 'def fib():
 g = fib()
 print([next(g) for _ in range(10)])'
 [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
+$ python -c 'async def double(n): return 2 * n
+async def main(): return [await double(n) for n in range(3)]
+try: main().send(None)
+except StopIteration as e: print(e.value)'
+[0, 2, 4]
 $ python -c 'import math, itertools as it
 print(math.isqrt(10**20), math.comb(52, 5))
 print(list(it.islice(it.count(10, 5), 4)))'
@@ -111,6 +116,15 @@ value stack, its block stack and its locals, and resuming pushes it back on the
 chain. Everything that takes an iterable — `list`, `sum`, `sorted`, `join`,
 `[*g]`, `a, b = g`, `f(*g)` — meets one and parks; see below.
 
+**A function can be a coroutine.** `async def`, `await`, `async for`,
+`async with`, the async comprehensions and async generators, with the objects
+they make: the coroutine and its `__await__` wrapper, and the awaitables an
+async generator's `asend`, `athrow` and `aclose` answer. `aiter()` and
+`anext()` came with them. There is no event loop yet — `asyncio` is phase 28
+— so a program drives one with `send`, as the loop will; a generator
+`types.coroutine` has marked may be awaited, and `code.replace()` is what
+lets it mark one.
+
 **The type system is whole.** A metaclass decides what a `class` statement
 makes, and `__prepare__`, `__new__`, `__init__` and the class keywords all
 reach it; a class is an instance of its metaclass and answers as one.
@@ -144,7 +158,7 @@ so a list of instances and a list of integers come out in the same order.
 `array`, `math`, `cmath`, `time`, `errno`, `gc`, `_types`, and the `_weakref`
 and `_abc` phase 17 wrote. They are the floor CPython's own library stands on
 rather than that library: `collections/__init__.py` will import this `deque`,
-`random.py` this Mersenne Twister, `re/` the `_sre` phase 19 writes. Each is
+`random.py` this Mersenne Twister, `re/` the `_sre` phase 24 writes. Each is
 measured against CPython by running the same program under both —
 [test/module/](test/module/), nine cases, 330 lines byte for byte.
 
@@ -170,13 +184,15 @@ under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
 `type.__subclasses__` and the rule that an abstract class cannot be
 instantiated.
 
-**397 of MicroPython's own tests pass unchanged**, out of 432 in
-[test/manifest.txt](test/manifest.txt), against 385 of 413 at phase 17. The
-twenty-two new rows are this phase's: `array`, `deque`, `OrderedDict`,
-`struct`, `errno`, `gc`, `memoryview`'s item size and the special methods in a
-type's namespace. Eleven of them pass outright; the rest import `collections`
-or `struct` — the pure-Python wrappers, which are phase 20 — and say `SKIP`
-until then.
+**405 of MicroPython's own tests pass unchanged**, out of 442 in
+[test/manifest.txt](test/manifest.txt), against 397 of 432 at phase 18. The
+ten new rows are this phase's, the whole `async_*` family, and seven of them
+pass; the other three import `types` for `types.coroutine`, and CPython's
+`types.py` is phase 23. `dict1.py` passes too, now that a `KeyError` carries
+the key rather than its repr. Of the thirty-seven that do not pass, most import
+`collections` or `struct` — the pure-Python wrappers over phase 18's floor,
+which are phase 23 too — and say `SKIP` until then. Their expected output now
+comes from CPython 3.14, which is the host's since this phase.
 
 **CPython's tests are the second ruler.** Fourteen are in
 [test/cpython.txt](test/cpython.txt), eleven of them run, and fifty-five test
@@ -186,27 +202,25 @@ methods of ninety-three pass, against forty-nine of eighty-three at phase 17:
 `Lib/test/` under this interpreter — `node test/pycases.mjs --survey`, which
 needs the clone in `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 17 | 16 | 14 | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 272 | a module that is not written yet | 276 | 276 | 276 | 213 | 130 | phase 20 |
-| 43 | other syntax — `@`, `except*`, `:=` in a subscript | 43 | 43 | 43 | 34 | 28 | phase 24 |
-| 33 | a lone surrogate in a literal | 33 | 33 | 33 | 31 | 31 | phase 22 |
-| 15 | `async` | 15 | 15 | 15 | 13 | 3 | phase 23 |
-| 14 | `\N{...}` | 14 | 14 | 14 | 12 | 12 | phase 22 |
-| 11 | these run | 9 | 7 | 7 | 5 | 3 | |
-| 3 | a runtime error, or nothing this can read | 1 | 3 | 3 | 3 | 2 | |
-| — | complex numbers | — | — | — | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | — | — | — | 39 | 17 | **done** |
-| — | f-strings | — | — | — | — | 124 | **done** |
+| now | what stops it | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 286 | a module that is not written yet | 272 | 276 | 276 | 276 | 213 | 130 | phases 22–27 |
+| 44 | other syntax — `@`, `except*`, `:=` in a subscript | 43 | 43 | 43 | 43 | 34 | 28 | phase 20 |
+| 33 | a lone surrogate in a literal | 33 | 33 | 33 | 33 | 31 | 31 | phase 21 |
+| 14 | `\N{...}` | 14 | 14 | 14 | 14 | 12 | 12 | phase 21 |
+| 11 | these run | 11 | 9 | 7 | 7 | 5 | 3 | |
+| 3 | a runtime error, or nothing this can read | 3 | 1 | 3 | 3 | 3 | 2 | |
+| — | `async` | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
+| — | complex numbers | — | — | — | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | — | — | — | 39 | 17 | **done** |
+| — | f-strings | — | — | — | — | — | 124 | **done** |
 
-Three walls came down in phases 13 and 14, and what stops 272 of the 391 files
-now is still an import. This phase moved that column for the first time — it
-had not moved since phase 14 — but only by four, and that is the honest
-measure of what a native floor buys on its own: `test_itertools.py` imports
-`doctest`, `test_array.py` imports `collections`, `test_math.py` wants a
-`test.support` this shim has not got. What those files stop on is the *library*,
-not the modules under it, and the library is phase 20. What phase 18 bought is
-what phase 20 will stand on.
+A fourth wall came down in this phase, and every file it held went straight to
+the next one: fourteen of the fifteen that stopped at `async` now stop at an
+import, and the other at syntax phase 20 writes. That is the measure of where
+the work is. What stops 286 of the 391 files is the *library*, and the library
+is written in the language phases 19 to 21 finish, which is why
+[TODO.md](TODO.md) now puts those first.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -251,7 +265,7 @@ green.
 | [compile.h](compile.h), [compile.cpp](compile.cpp) | The emitter, jump patching, and the blocks an exit unwinds |
 | [dis.cpp](dis.cpp) | The `--dis` listing |
 | [frame.h](frame.h), [frame.cpp](frame.cpp) | One activation: locals and the value stack in one block |
-| [gen.h](gen.h), [gen.cpp](gen.cpp) | The generator, which is a frame parked rather than popped |
+| [gen.h](gen.h), [gen.cpp](gen.cpp) | The generator, the coroutine and the async generator — a frame parked rather than popped — and the awaitables that step one |
 | [vm.h](vm.h), [vm.cpp](vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
 | [func.h](func.h), [func.cpp](func.cpp) | Cells, functions, builtins written in C++, and modules |
 | [type.h](type.h), [type.cpp](type.cpp) | Type objects, instances, the MRO, the metaclasses and the class hooks |
@@ -298,6 +312,7 @@ green.
 | [test/pyformat.mjs](test/pyformat.mjs) | Every case under `test/format/`, against CPython and again under gc stress |
 | [test/pynumber.mjs](test/pynumber.mjs) | The same for `test/number/`: the arithmetic that has one right answer |
 | [test/pygen.mjs](test/pygen.mjs) | The same for `test/gen/`: the generator protocol, delegation, and every consumer |
+| [test/pycoro.mjs](test/pycoro.mjs) | The same for `test/coro/`: coroutines, async generators, the async statements and a scheduler written in Python |
 | [test/pyexec.mjs](test/pyexec.mjs) | The same for `test/exec/`: compile, eval, exec, the namespaces and the attributes |
 | [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the sixteen modules written in C++ |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
@@ -405,14 +420,22 @@ All recorded rather than hidden, and all in reach later:
   nowhere else.
 - **A `single`-mode code object prints through no hook.** `PrintExpr` writes
   the repr itself; CPython calls `sys.displayhook` and sets `builtins._`, and
-  both wait for the REPL in phase 26.
-- **`async` is refused by the compiler.** The parser accepts the whole 3.9
-  grammar; `async def`, `async for`, `async with` and `await` stop at the
-  compiler with a `SyntaxError` that says so.
+  both wait for the REPL in phase 29.
+- **A coroutine that is never awaited says nothing.** CPython warns, with a
+  `RuntimeWarning` naming the line that made it, when one is collected
+  without having started; there is no `warnings` module yet to say it
+  through, which is phase 23.
+- **An async generator has no hooks.** `sys.set_asyncgen_hooks` is not there,
+  so nothing is told when one starts or is dropped; one dropped while
+  suspended is closed by the collector, as a generator is. The hooks are for
+  an event loop, which is phase 28.
+- **`aclose()` throws GeneratorExit the way `close()` does.** When an async
+  generator is parked in an await, CPython throws it through into whatever is
+  awaited; this closes that first, as for a generator's `yield from`.
 - **A class repr has no module in it.** CPython prints
   `<class '__main__.C'>`; this prints `<class 'C'>`, there being one module.
 - **`@` is not there.** The matrix-multiply operator is one the parser does
-  not know; it is phase 24.
+  not know; it is phase 20.
 - **`map` and `filter` are eager.** CPython calls the function at each `next`;
   these call it over the whole input first and hand back an iterator on the
   result. The two differ only where the input is endless or the function has an
@@ -480,7 +503,7 @@ All recorded rather than hidden, and all in reach later:
   `strides` is one number, and the only things that give a buffer a width are
   `array` and `cast`.
 - **`'ß'.isalpha()` is False.** The case table is by range and has no
-  one-codepoint upper for it, so it is not counted as a letter. Phase 22
+  one-codepoint upper for it, so it is not counted as a letter. Phase 21
   replaces the ranges with the Unicode categories, and `isdecimal`,
   `isnumeric` and `casefold` stop being aliases of `isdigit` and `lower` at
   the same time.
@@ -661,6 +684,37 @@ innermost generator that can catch it. `close` is the exception to that: a
 `GeneratorExit` is not thrown through the delegation but closes the
 sub-iterator first, and only then reaches the `yield from` itself. That is what
 lets a delegating generator run its own `except GeneratorExit`.
+
+## How a coroutine awaits
+
+A coroutine is a generator under another type, and `await x` is `yield from`
+over whatever `x` gives to be walked: the coroutine itself, a generator
+`types.coroutine` marked, or what a class's `__await__` returns, checked for
+being an iterator and not another coroutine. So the delegation phase 15 wrote
+is the whole of the mechanism. A value yielded at the bottom of a chain of
+awaits passes up through every frame to whoever called `send`, which for now
+is the program and in phase 28 will be the event loop, and what is sent back
+goes down the same way.
+
+An async generator is the one that needed more. Its body both yields values
+to whoever iterates it and awaits things that yield to whoever drives it, and
+the two travel the same road. So a `yield` in one is compiled with a mark on
+the value — `AsyncGenWrap` — and the awaitable `asend()` answers looks at what
+comes back: a marked value ends the step with `StopIteration` carrying it,
+which is what makes `await agen.asend(v)` worth that value, and anything else
+passes on up. `athrow()` and `aclose()` are the same awaitable in two more
+modes, and all three keep the state CPython's do — not started, running,
+spent — which is what refuses a second `anext()` while the first is still
+awaiting.
+
+That awaitable is a continuation, and its answer is often an exception: the
+`StopIteration` above is how a step *succeeds*. So an exception now travels a
+chain of continuations the way a return value always did. When a step fails,
+or a frame unwinds into one, the exception is offered to each continuation
+waiting behind it in turn — the `yield from` that asked for the step is
+usually the one that catches it — and each one it passes is told, through its
+`fail` hook, that it was abandoned. That is how an async generator learns it
+is no longer running when its body raises.
 
 ## How an attribute is found
 
@@ -858,7 +912,8 @@ after reading the diff.
 
 A formatting case is a `.py` under `test/format/`, a number case one under
 `test/number/`, a namespace case one under `test/exec/`, a type-system case one
-under `test/type/` and a module case one under `test/module/`; each is a
+under `test/type/`, a module case one under `test/module/` and a coroutine case
+one under `test/coro/`; each is a
 program that prints, and the golden is what CPython prints for it:
 
     tools/mkfmt.py test/format/spec.py

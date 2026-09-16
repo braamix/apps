@@ -19,7 +19,7 @@ ok Inherited.test_sequences
 ok Inherited.test_truth
 ok Inherited.test_types
 fail Outcomes.test_subtest_failure_is_reported: 1 subtests: i=2: AssertionError: 2 != 1
-error Outcomes.test_this_one_errors: KeyError: not an assertion
+error Outcomes.test_this_one_errors: KeyError: 'not an assertion'
 fail Outcomes.test_this_one_fails: AssertionError: 1 != 2
 ok Outcomes.test_this_one_is_expected_to_fail (expected failure)
 ok Outcomes.test_this_one_is_not_skipped

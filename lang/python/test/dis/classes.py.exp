@@ -69,7 +69,7 @@ code Point  file /tmp/c.py  line 4
            11  Return
 
 code __init__  file /tmp/c.py  line 7
-  args 3 (posonly 0, kwonly 0)  stack 2  flags newlocals
+  args 3 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals
   varnames: self, x, y
   names: x, y
   consts:
@@ -84,7 +84,7 @@ code __init__  file /tmp/c.py  line 7
             7  Return
 
 code norm  file /tmp/c.py  line 11
-  args 1 (posonly 0, kwonly 0)  stack 3  flags newlocals
+  args 1 (posonly 0, kwonly 0)  stack 3  flags optimized newlocals
   varnames: self
   names: x, y
   consts:

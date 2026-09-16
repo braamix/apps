@@ -1,5 +1,6 @@
 // The table behind dict and set: entries in insertion order, with an open
 // addressing index over them.
+#include "exc.h"
 #include "gc.h"
 #include "iter.h"
 #include "method.h"
@@ -163,9 +164,7 @@ R dict_getitem(Value v, Value key, Value &out)
     R r = dict_get(static_cast<DictObj *>(v.obj()), key, out);
     if (r != R::NotImpl)
         return r;
-    String k;
-    py_repr(key, k);
-    return err_set("KeyError", k.str());
+    return key_error(key);
 }
 
 R dict_setitem(Value v, Value key, Value item)
@@ -178,9 +177,7 @@ R dict_delitem(Value v, Value key)
     R r = dict_del(static_cast<DictObj *>(v.obj()), key);
     if (r != R::NotImpl)
         return r;
-    String k;
-    py_repr(key, k);
-    return err_set("KeyError", k.str());
+    return key_error(key);
 }
 
 R dict_contains(Value v, Value item, bool &out)

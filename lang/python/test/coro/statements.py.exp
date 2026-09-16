@@ -1,0 +1,52 @@
+-- async for, with its else
+  pauses [] -> [2, 1, 0, 'else']
+  pauses [] -> [1, 0, 'else']
+  pauses ['next', 'next', 'next'] -> [1, 0, 'else']
+-- break, continue and return leave the right way
+  pauses [] -> ([4, 2], 0)
+  pauses ['next', 'next', 'next', 'next'] -> [(1, 2), (0, 2)]
+-- an exception out of the body is not the end of the loop
+  pauses [] -> caught KeyError(2)
+  pauses [] raised ValueError broken
+-- async with
+  enter a
+  body A
+  exit a None None
+  pauses ['body'] -> after
+  enter b
+  body B
+  exit b None None
+  pauses ['enter b', 'body', 'exit b'] -> after
+  enter c
+  body C
+  exit c LookupError in body
+  pauses [] raised LookupError in body
+  enter d
+  body D
+  exit d LookupError in body
+  pauses [] -> after
+  enter x
+  enter y
+  exit y None None
+  exit x None None
+  pauses ['enter y', 'exit y'] -> XY
+  enter loop0
+  exit loop0 None None
+  enter loop1
+  exit loop1 None None
+  enter ret
+  finally
+  exit ret None None
+  pauses ['enter ret', 'exit ret'] -> returned
+-- the protocol refused
+  pauses [] raised TypeError 'int' object does not support the asynchronous context manager protocol (missed __aexit__ method)
+  pauses [] raised TypeError 'OnlyEnter' object does not support the asynchronous context manager protocol (missed __aexit__ method)
+  pauses [] raised TypeError 'async with' received an object from __aenter__ that does not implement __await__: int
+  pauses [] raised TypeError 'async with' received an object from __aexit__ that does not implement __await__: int
+  pauses [] raised TypeError 'async for' requires an object with __aiter__ method, got int
+  pauses [] raised TypeError 'async for' received an object from __aiter__ that does not implement __anext__: int
+  pauses [] raised TypeError 'async for' received an invalid object from __anext__: int
+-- comprehensions
+  pauses ['next', 'next', 'next', 'next', 'next', 1, 0, 0, 1, 2, 3] -> ([3, 2, 1, 0], [0, 1], {1: 6, 0: 7}, [1, 3], [[], [0], [1, 0]], [5, 3, 1])
+   async_generator async_generator
+  pauses ['a', 'b'] -> ([20, 10, 0], [1, 2])

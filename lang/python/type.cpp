@@ -89,8 +89,8 @@ R inst_repr(Value v, String &out)
 {
     char tmp[24];
     Buf<96> b;
-    b.put("<").put(type_name(v)).put(" object at 0x");
-    b.put(int_text(tmp, sizeof tmp, i64(usize(v.obj()))));
+    b.put("<").put(type_name(v)).put(" object at ");
+    b.put(addr_text(tmp, sizeof tmp, v.obj()));
     b.put('>');
     return out.append(b.str()) ? R::Ok : oom();
 }

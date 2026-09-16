@@ -25,8 +25,9 @@ R err_set_at(Str kind, Str message, u32 line, u32 col);
 // With one detail appended after ": " -- a type name, a key, an operator.
 R err_set2(Str kind, Str message, Str detail);
 
-// The pending error is this exception object. Always returns R::Err.
-R err_set_value(Value v);
+// The pending error is this exception object. Always returns R::Err. `kind`,
+// when given, is what err_kind() answers for it.
+R err_set_value(Value v, Str kind = Str());
 
 // The object a raise named, or Nil when the error came from a kind and a
 // message and nobody has needed an object for it.

@@ -1,2 +1,2 @@
-async def f():
-    pass
+def f():
+    await g()

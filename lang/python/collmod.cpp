@@ -10,6 +10,7 @@
 // order.
 #include "call.h"
 #include "compare.h"
+#include "exc.h"
 #include "gc.h"
 #include "intern.h"
 #include "iter.h"
@@ -694,10 +695,7 @@ R dd_missing(const CallArgs &a, Value &out)
     Root self{ a.args[0] }, key{ a.args[1] };
     Root fn{ factory_of(self.v) };
     if (is_none(fn.v)) {
-        String text;
-        if (py_repr(key.v, text) != R::Ok)
-            return R::Err;
-        return err_set("KeyError", text.str());
+        return key_error(key.v);
     }
     Root kv{ cont_new(dd_missing_step) };
     if (kv.v.is_nil())

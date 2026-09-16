@@ -170,6 +170,10 @@ struct FloatObj : Obj {
 
 Value float_new(f64 v);
 
+// An object's address as CPython prints one in a repr: "0x" and lower-case
+// hex, into `out`; the Str may point into it.
+Str addr_text(char *out, usize cap, const Obj *o);
+
 // CPython's float repr, into `out`; the Str may point into it.
 Str float_text(char *out, usize cap, f64 v);
 

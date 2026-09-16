@@ -58,6 +58,25 @@ constexpr Type int_type{ .name  = "int",
                          .repr  = int_repr,
                          .binop = int_binop_slot };
 
+Str addr_text(char *out, usize cap, const Obj *o)
+{
+    usize v = usize(o);
+    char tmp[16];
+    usize n = 0;
+    do {
+        tmp[n++] = "0123456789abcdef"[v & 0xf];
+        v >>= 4;
+    } while (v && n < sizeof tmp);
+    usize at = 0;
+    if (cap < n + 3)
+        return Str();
+    out[at++] = '0';
+    out[at++] = 'x';
+    while (n)
+        out[at++] = tmp[--n];
+    return Str(out, at);
+}
+
 Str int_text(char *out, usize cap, i64 v)
 {
     char digits[24];

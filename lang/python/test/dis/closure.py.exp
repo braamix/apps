@@ -20,7 +20,7 @@ code <module>  file /tmp/c.py  line 1
            11  Return
 
 code outer  file /tmp/c.py  line 3
-  args 1 (posonly 0, kwonly 0)  stack 2  flags newlocals
+  args 1 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals
   varnames: start, inner, deeper
   cellvars: total
   consts:
@@ -47,7 +47,7 @@ code outer  file /tmp/c.py  line 3
            17  Return
 
 code inner  file /tmp/c.py  line 6
-  args 1 (posonly 0, kwonly 0)  stack 2  flags newlocals nested
+  args 1 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals nested
   varnames: step
   freevars: total
   consts:
@@ -62,7 +62,7 @@ code inner  file /tmp/c.py  line 6
             7  Return
 
 code deeper  file /tmp/c.py  line 11
-  args 0 (posonly 0, kwonly 0)  stack 2  flags newlocals nested
+  args 0 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals nested
   varnames: deepest
   freevars: total
   consts:
@@ -79,7 +79,7 @@ code deeper  file /tmp/c.py  line 11
             8  Return
 
 code deepest  file /tmp/c.py  line 12
-  args 0 (posonly 0, kwonly 0)  stack 1  flags newlocals nested
+  args 0 (posonly 0, kwonly 0)  stack 1  flags optimized newlocals nested
   freevars: total
   consts:
       0  None
@@ -89,7 +89,7 @@ code deepest  file /tmp/c.py  line 12
             3  Return
 
 code uses_global  file /tmp/c.py  line 17
-  args 0 (posonly 0, kwonly 0)  stack 2  flags newlocals
+  args 0 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals
   names: counter
   consts:
       0  1

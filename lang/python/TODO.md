@@ -6,46 +6,48 @@ borrowed is measured, and named here.
 
 **The language stands, the built-in types have their methods, a file can be
 imported, text can be formatted, numbers have no width, a function can yield,
-a program can compile and run more of itself, the type system is whole, and
-sixteen modules are written natively.** Phases 0 to 18 built the lexer, the
-parser, the compiler, the VM, the object heap and its collector, exceptions,
-functions and closures, classes, the method tables, the module loader, the
-`unittest` and `test.support` shims every CPython test stands on, the one
-format engine that `format()`, `__format__`, `str.format`, `%` and f-strings
-all reach, the bignum and `complex` that finish the number tower, generators
-with `yield from`, `compile`/`eval`/`exec` with the namespaces and the
-attributes they make visible, the half of the type system the library uses —
-the metaclasses, the descriptor protocol, `__slots__`, the attribute hooks, the
-finalizers and weak references, the comparisons a sort has to make from C++,
-and the native `_abc` that CPython's own `abc.py` runs over — and then the
-primitive modules: `sys` in full, `_collections`, `_functools`, `itertools`,
-`operator`, `_random`, `_struct`, `array`, `math`, `cmath`, `time`, `errno`,
-`gc` and `_types`, with the protocol methods in each built-in type's namespace
-and the generic alias that makes `list[int]` a value. They are done, and their
-record is the git history — `python: phase 0` through `python: phase 18` — not
-this file, which from here describes only what is left.
+a program can compile and run more of itself, the type system is whole,
+sixteen modules are written natively, and a function can be a coroutine.**
+Phases 0 to 19 built the lexer, the parser, the compiler, the VM, the object
+heap and its collector, exceptions, functions and closures, classes, the
+method tables, the module loader, the `unittest` and `test.support` shims
+every CPython test stands on, the one format engine that `format()`,
+`__format__`, `str.format`, `%` and f-strings all reach, the bignum and
+`complex` that finish the number tower, generators with `yield from`,
+`compile`/`eval`/`exec` with the namespaces and the attributes they make
+visible, the half of the type system the library uses — the metaclasses, the
+descriptor protocol, `__slots__`, the attribute hooks, the finalizers and weak
+references, the comparisons a sort has to make from C++, and the native `_abc`
+that CPython's own `abc.py` runs over — then the primitive modules: `sys` in
+full, `_collections`, `_functools`, `itertools`, `operator`, `_random`,
+`_struct`, `array`, `math`, `cmath`, `time`, `errno`, `gc` and `_types`, with
+the protocol methods in each built-in type's namespace and the generic alias
+that makes `list[int]` a value — and then `async def`, `await`, `async for`,
+`async with`, the async comprehensions and async generators, with the
+awaitables they make. They are done, and their record is the git history —
+`python: phase 0` through `python: phase 19` — not this file, which from here
+describes only what is left.
 
-Where that leaves us, measured against MicroPython's suite: **397 of the 432
-tests in [test/manifest.txt](test/manifest.txt)**. Of the thirty-five that do
+Where that leaves us, measured against MicroPython's suite: **405 of the 442
+tests in [test/manifest.txt](test/manifest.txt)**. Of the thirty-seven that do
 not, most print `SKIP` because they import `collections` or `struct` — the
-pure-Python wrappers over what phase 18 wrote — and those arrive with the
-library in phase 23. None stop at the object model.
+pure-Python wrappers over what phase 18 wrote — and three import `types` for
+`types.coroutine`; all of those arrive with the library in phase 23. None stop
+at the object model.
 
 Measured against CPython's, which is the harder ruler: **eleven of the fourteen
 in [test/cpython.txt](test/cpython.txt) run, and fifty-five test methods of
 ninety-three pass.** `node test/pycases.mjs --survey` runs the whole of
-`Lib/test/` and counts what stops each of the 391 files: 272 an unwritten
-module, 43 other syntax, 33 a lone surrogate in a literal, 15 `async`, 14
-`\N{...}`, 11 that run and 3 that fail at runtime or say nothing this can read.
+`Lib/test/` and counts what stops each of the 391 files: 286 an unwritten
+module, 44 other syntax, 33 a lone surrogate in a literal, 14 `\N{...}`, 11
+that run and 3 that fail at runtime or say nothing this can read.
 
 Three walls came down in phases 13 and 14 — f-strings, complex and the bignum
-were 204 files between them — and **what stops CPython's tests is an import.**
-Phase 18 moved that column for the first time since 14, and only by four:
-`test_itertools.py` imports `doctest`, `test_array.py` imports `collections`,
-`test_math.py` wants a `test.support` this shim has not got. What those files
-stop on is the *library*, not the modules under it. The survey is how each
-wave is chosen, and it only means something read beside what it said last
-time.
+were 204 files between them — and a fourth in phase 19, whose fifteen `async`
+files went fourteen to an import and one to other syntax. **What stops
+CPython's tests is an import**, and what those files stop on is the *library*,
+not the modules under it. The survey is how each wave is chosen, and it only
+means something read beside what it said last time.
 
 **The first library module is borrowed.** `lib/abc.py` is CPython's own, byte
 for byte, with its provenance in [lib/manifest.txt](lib/manifest.txt) and the
@@ -83,6 +85,11 @@ first, then the floor, then the library in the layers its own imports make.**
 The same measurement says `types.py` cannot "simply be copied" once `_types`
 exists, as this file used to claim — the fallback it never runs still has to
 compile.
+
+Phase 19 has taken the first two rows away. Measured again after it:
+`types.py` imports; `enum.py`, `functools.py` and `copyreg.py` compile; and
+`_collections_abc.py` compiles and stops at runtime on `range(1 << 1000)`,
+which phase 22 now carries. The rest of the table stands.
 
 It also says what a phase's CPython tests can prove. A test file imports far
 more than the module it tests — `test_functools.py` imports `annotationlib`,
@@ -231,7 +238,7 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-The order is language (19–21), floor (22), library by layer (23–26), then the
+The order is language (20–21), floor (22), library by layer (23–26), then the
 layers that need all of it (27–30). Each phase lists only what the phases
 before it have made possible.
 
@@ -239,33 +246,16 @@ Phase 18 left two things for the phases that use them. `memoryview` is flat:
 it has an item size, a format and a stride, and `cast()` recasts a contiguous
 one, but it is one-dimensional and nothing here makes a buffer with more than
 one. And `_types` is missing the names this interpreter has no type for —
-`CoroutineType` and `AsyncGeneratorType` wait for phase 19, `UnionType` for
-phase 20, and `TracebackType` for whenever a traceback stops being a string.
+`UnionType` waits for phase 20, and `TracebackType` for whenever a traceback
+stops being a string.
 
-### Phase 19 — `async` and `await`, the language
-
-Coroutines are generators with a different protocol, so this lands on phase
-15's frame that is parked rather than popped. This is the language half only;
-the event loop is phase 28, because `asyncio` stands on nearly everything
-else. It comes first because `types.py` and `_collections_abc.py` — the two
-modules the whole library imports — do not compile without it.
-
-- [ ] `async def`, `await`, `async for` and `async with` — all four of which
-      the parser already accepts and the compiler refuses with a `SyntaxError`
-      that says so.
-- [ ] The coroutine object: `send`, `throw`, `close`, `cr_frame`,
-      `cr_running`, `cr_await`, and the warning-free close of one never
-      awaited, which is what `types.py` and `_collections_abc.py` do at import.
-- [ ] `__await__`, `__aiter__`/`__anext__`, `__aenter__`/`__aexit__`, and
-      async generators with `asend`, `athrow` and `aclose`.
-- [ ] `CoroutineType` and `AsyncGeneratorType` in `_types`, and the
-      coroutine's and async generator's own types in `_collections_abc`'s
-      sense: `type(_coro)` and `type(_ag)` are real, distinct types.
-
-Tests: MicroPython's `basics/async_*.py`, which drive coroutines by hand and
-need no event loop; goldens from the host's 3.14. CPython's
-`test_coroutines.py` and `test_asyncgen.py` import `inspect`, `contextlib` and
-`traceback`, and wait for phase 27.
+Phase 19 left three. MicroPython's `async_await2.py`, `async_for2.py` and
+`async_with2.py` import `types` for `types.coroutine`, and pass once phase 23
+copies it in; `code.replace()` is what that decorator stands on, and it is
+there. A coroutine collected without ever starting does not warn, because
+there is no `warnings` to warn through. And nothing is told when an async
+generator starts or is dropped, because `sys.set_asyncgen_hooks` is for an
+event loop.
 
 ### Phase 20 — the syntax since 3.9
 
@@ -367,6 +357,9 @@ measurement above found missing, each named by the module that imports it.
       `collections` imports.
 - [ ] `sys._getframe().f_locals` answering a mapping of its own type, which
       is how `_collections_abc.py` names `framelocalsproxy`.
+- [ ] `range` past a small integer: `_collections_abc.py` names
+      `longrange_iterator` by `type(iter(range(1 << 1000)))`, and this is
+      where its import stops since phase 19.
 - [ ] `_functools.Placeholder` and `cmp_to_key`, so `functools.py` takes the
       native path throughout rather than half of it.
 
@@ -391,6 +384,10 @@ order.
       which `test_re.py` imports at the top.
 - [ ] The test shim loses what the real modules now answer, and
       `test.support` grows what the next wave's tests import.
+- [ ] The `RuntimeWarning` for a coroutine collected without being awaited,
+      once `warnings` is here to say it through.
+- [ ] MicroPython's `async_await2.py`, `async_for2.py` and `async_with2.py`
+      move to `pass`: they wait only for `types.coroutine`.
 
 Tests: `test_keyword.py`, `test_bisect.py`, `test_heapq.py`, `test_copyreg.py`,
 `test_reprlib.py`, `test_weakset.py` and `test_abstract_numbers.py`, as far as
@@ -507,13 +504,15 @@ deferred — `test_coroutines.py`, `test_asyncgen.py`, `test_patma.py`,
 
 ### Phase 28 — `asyncio`
 
-The language half is phase 19. What makes this interesting here is that
+The language half was phase 19. What makes this interesting here is that
 Braam already *is* an event loop.
 
 - [ ] `asyncio`: the event loop is `braam.cpp`'s park. A `Req` is what the loop
       waits on and `proc_spawn` is what a task is — the mapping is closer than
       it is on a POSIX host, and the selector layer CPython's `asyncio` assumes
       is the part to replace rather than borrow.
+- [ ] `sys.set_asyncgen_hooks` and `get_asyncgen_hooks`, so the loop hears
+      when an async generator starts and when one is dropped unfinished.
 - [ ] `threading` as the shim `asyncio` needs over phase 22's `_thread`.
 - [ ] `contextvars.py` over phase 22's `_contextvars`, and the context each
       task runs in.

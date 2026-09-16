@@ -83,8 +83,10 @@ R exc_str(Value v, String &out)
     TupleObj *a = args_of(v);
     if (a->len == 0)
         return R::Ok;
+    // A KeyError names a key, and a key is shown as its repr: KeyError: 'x'.
     if (a->len == 1)
-        return py_str(a->items()[0], out);
+        return exc_is(exc_type_of(v), exc_find("KeyError")) ? py_repr(a->items()[0], out)
+                                                            : py_str(a->items()[0], out);
     return py_repr(static_cast<ExcObj *>(v.obj())->args, out);
 }
 
@@ -285,6 +287,18 @@ Value exc_make(Str name, Str message)
         return oom(), Value();
     args->items()[0] = s.v;
     return exc_new(t, obj_value(args));
+}
+
+R key_error(Value key)
+{
+    Root rk{ key };
+    TupleObj *t = tuple_new(1);
+    if (!t)
+        return err_set("MemoryError", "out of memory");
+    t->items()[0] = rk.v;
+    Root args{ obj_value(t) };
+    Value e = exc_new(exc_find("KeyError"), args.v);
+    return e.is_nil() ? R::Err : err_set_value(e, "KeyError");
 }
 
 bool exc_install(DictObj *into)

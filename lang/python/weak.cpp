@@ -48,9 +48,9 @@ R weak_repr(Value v, String &out)
 {
     WeakObj *w = weak_of(v);
     Buf<96> b;
-    b.put("<weakref at 0x");
+    b.put("<weakref at ");
     char tmp[24];
-    b.put(int_text(tmp, sizeof tmp, i64(usize(v.obj()))));
+    b.put(addr_text(tmp, sizeof tmp, v.obj()));
     b.put("; ").put(w->target ? Str("to an object") : Str("dead")).put('>');
     return out.append(b.str()) ? R::Ok : oom();
 }

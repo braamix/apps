@@ -47,7 +47,7 @@ code <module>  file /tmp/c.py  line 1
            35  Return
 
 code <listcomp>  file /tmp/c.py  line 1
-  args 1 (posonly 0, kwonly 0)  stack 4  flags newlocals
+  args 1 (posonly 0, kwonly 0)  stack 4  flags optimized newlocals
   varnames: .0, i
   consts:
       0  2
@@ -65,7 +65,7 @@ code <listcomp>  file /tmp/c.py  line 1
       >>   11  Return
 
 code <setcomp>  file /tmp/c.py  line 2
-  args 1 (posonly 0, kwonly 0)  stack 3  flags newlocals
+  args 1 (posonly 0, kwonly 0)  stack 3  flags optimized newlocals
   varnames: .0, i
     2       0  BuildSet              0
             1  LoadFast              0 (.0)
@@ -77,7 +77,7 @@ code <setcomp>  file /tmp/c.py  line 2
       >>    7  Return
 
 code <dictcomp>  file /tmp/c.py  line 3
-  args 1 (posonly 0, kwonly 0)  stack 5  flags newlocals
+  args 1 (posonly 0, kwonly 0)  stack 5  flags optimized newlocals
   varnames: .0, i
   consts:
       0  2
@@ -103,7 +103,7 @@ code <dictcomp>  file /tmp/c.py  line 3
       >>   18  Return
 
 code <genexpr>  file /tmp/c.py  line 4
-  args 1 (posonly 0, kwonly 0)  stack 2  flags generator newlocals
+  args 1 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals generator
   varnames: .0, i
   consts:
       0  None
@@ -118,7 +118,7 @@ code <genexpr>  file /tmp/c.py  line 4
             8  Return
 
 code <listcomp>  file /tmp/c.py  line 5
-  args 1 (posonly 0, kwonly 0)  stack 5  flags newlocals
+  args 1 (posonly 0, kwonly 0)  stack 5  flags optimized newlocals
   varnames: .0, i, j
   names: ys
     5       0  BuildList             0

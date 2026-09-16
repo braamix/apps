@@ -21,6 +21,7 @@ using ContStep = R (*)(ContObj *k, Value in);
 
 // Called when an exception unwinds past a parked continuation. The step may
 // undo what it half-did; the exception carries on either way.
+// `caught` holds the exception when it is called.
 using ContFail = void (*)(ContObj *k);
 
 struct ContObj : Obj {
@@ -47,7 +48,7 @@ struct ContObj : Obj {
 
 // What a continuation is willing to catch out of the call it asked for. The
 // step is re-entered with Nil instead, and `caught` holds the exception.
-enum : u32 { CATCH_NONE, CATCH_STOP, CATCH_ATTR, CATCH_EXIT, CATCH_ANY };
+enum : u32 { CATCH_NONE, CATCH_STOP, CATCH_ATTR, CATCH_EXIT, CATCH_ANY, CATCH_ASTOP };
 
 extern const Type cont_type;
 

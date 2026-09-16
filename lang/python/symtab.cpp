@@ -110,6 +110,7 @@ struct Builder {
     void args_inner(u32 i);
     void function(u32 i);
     void classdef(u32 i);
+    bool in_async();
 };
 
 // The seven runs of an Arguments node, by the counts it carries.
@@ -185,12 +186,20 @@ void Builder::function(u32 i)
     u32 saved = cur;
     if (!open(n.kind == Nd::Lambda ? ScopeKind::Lambda : ScopeKind::Function, i))
         return;
+    scope().coroutine = n.kind == Nd::AsyncFunctionDef;
     args_inner(n.a);
     if (n.kind == Nd::Lambda)
         expr(n.b);
     else
         kids(i, 0, n.b, &Builder::stmt);
+    if (!failed && scope().coroutine && scope().generator && scope().retval)
+        fail("'return' with value in async generator", scope().retval);
     cur = saved;
+}
+
+bool Builder::in_async()
+{
+    return scope().kind == ScopeKind::Function && scope().coroutine;
 }
 
 void Builder::classdef(u32 i)
@@ -227,10 +236,8 @@ void Builder::comprehension(u32 i)
     for (u32 k = 0; k < n.nkid && !failed; k++) {
         u32 c         = ast->kids[n.kid0 + k];
         const Node &g = ast->at(c);
-        if (g.flags & 1) {
-            fail("async comprehensions are not compiled yet", c);
-            break;
-        }
+        if (g.flags & 1)
+            scope().coroutine = true;
         if (k)
             expr(g.b);
         target(g.a);
@@ -240,7 +247,17 @@ void Builder::comprehension(u32 i)
     expr(n.a);
     if (n.kind == Nd::DictComp)
         expr(n.b);
-    cur = saved;
+    // A generator expression that awaits is an async generator, and nobody
+    // awaits it. Any other comprehension that does is awaited where it is
+    // written, which has to be somewhere an await may be.
+    bool awaited = scope().coroutine && n.kind != Nd::GeneratorExp;
+    cur          = saved;
+    if (!awaited || failed)
+        return;
+    if (scope().kind == ScopeKind::Comprehension)
+        scope().coroutine = true;
+    else if (!in_async())
+        fail("asynchronous comprehension outside of an asynchronous function", i);
 }
 
 void Builder::target(u32 i)
@@ -284,7 +301,17 @@ void Builder::expr(u32 i)
     case Nd::Constant:
         return;
     case Nd::Await:
-        fail("async is not compiled yet", i);
+        if (scope().kind == ScopeKind::Module || scope().kind == ScopeKind::Class) {
+            fail("'await' outside function", i);
+            return;
+        }
+        if (scope().kind == ScopeKind::Comprehension)
+            scope().coroutine = true;
+        else if (!in_async()) {
+            fail("'await' outside async function", i);
+            return;
+        }
+        expr(n.a);
         return;
 
     case Nd::Lambda:
@@ -301,6 +328,10 @@ void Builder::expr(u32 i)
     case Nd::YieldFrom:
         if (scope().kind == ScopeKind::Module || scope().kind == ScopeKind::Class) {
             fail("'yield' outside function", i);
+            return;
+        }
+        if (n.kind == Nd::YieldFrom && in_async()) {
+            fail("'yield from' inside async function", i);
             return;
         }
         scope().generator = true;
@@ -374,15 +405,11 @@ void Builder::stmt(u32 i)
         kids(i, 0, n.nkid, &Builder::stmt);
         return;
     case Nd::FunctionDef:
+    case Nd::AsyncFunctionDef:
         function(i);
         return;
     case Nd::ClassDef:
         classdef(i);
-        return;
-    case Nd::AsyncFunctionDef:
-    case Nd::AsyncFor:
-    case Nd::AsyncWith:
-        fail("async is not compiled yet", i);
         return;
 
     case Nd::Return:
@@ -390,6 +417,8 @@ void Builder::stmt(u32 i)
             fail("'return' outside function", i);
             return;
         }
+        if (n.a && !scope().retval)
+            scope().retval = i;
         expr(n.a);
         return;
     case Nd::Expr:
@@ -421,6 +450,12 @@ void Builder::stmt(u32 i)
             target(n.a);
         }
         return;
+    case Nd::AsyncFor:
+        if (!in_async()) {
+            fail("'async for' outside async function", i);
+            return;
+        }
+        [[fallthrough]];
     case Nd::For:
         expr(n.b);
         target(n.a);
@@ -433,6 +468,12 @@ void Builder::stmt(u32 i)
         kids(i, 0, n.b, &Builder::stmt);
         kids(i, n.b, n.c, &Builder::stmt);
         return;
+    case Nd::AsyncWith:
+        if (!in_async()) {
+            fail("'async with' outside async function", i);
+            return;
+        }
+        [[fallthrough]];
     case Nd::With:
         kids(i, 0, n.a, &Builder::stmt); // WithItem, handled below
         kids(i, n.a, n.b, &Builder::stmt);

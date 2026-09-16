@@ -79,7 +79,7 @@ code <module>  file /tmp/c.py  line 1
            62  Return
 
 code plain  file /tmp/c.py  line 1
-  args 2 (posonly 0, kwonly 0)  stack 2  flags newlocals
+  args 2 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals
   varnames: a, b
   consts:
       0  None
@@ -91,7 +91,7 @@ code plain  file /tmp/c.py  line 1
             5  Return
 
 code defaults  file /tmp/c.py  line 4
-  args 2 (posonly 0, kwonly 2)  stack 6  flags varargs varkw newlocals
+  args 2 (posonly 0, kwonly 2)  stack 6  flags optimized newlocals varargs varkw
   varnames: a, b, c, d, rest, kw
   consts:
       0  None
@@ -107,7 +107,7 @@ code defaults  file /tmp/c.py  line 4
             9  Return
 
 code positional  file /tmp/c.py  line 7
-  args 3 (posonly 2, kwonly 0)  stack 2  flags newlocals
+  args 3 (posonly 2, kwonly 0)  stack 2  flags optimized newlocals
   varnames: a, b, c
   consts:
       0  None
@@ -121,7 +121,7 @@ code positional  file /tmp/c.py  line 7
             7  Return
 
 code deco  file /tmp/c.py  line 10
-  args 1 (posonly 0, kwonly 0)  stack 1  flags newlocals
+  args 1 (posonly 0, kwonly 0)  stack 1  flags optimized newlocals
   varnames: f
   consts:
       0  None
@@ -131,14 +131,14 @@ code deco  file /tmp/c.py  line 10
             3  Return
 
 code wrapped  file /tmp/c.py  line 15
-  args 0 (posonly 0, kwonly 0)  stack 1  flags newlocals
+  args 0 (posonly 0, kwonly 0)  stack 1  flags optimized newlocals
   consts:
       0  None
    15       0  LoadConst             0 (None)
             1  Return
 
 code <lambda>  file /tmp/c.py  line 18
-  args 2 (posonly 0, kwonly 0)  stack 2  flags newlocals
+  args 2 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals
   varnames: x, y
    18       0  LoadFast              0 (x)
             1  LoadFast              1 (y)

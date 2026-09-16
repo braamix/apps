@@ -25,6 +25,9 @@ R py_getattr(Value v, StrObj *name, Value &out);
 // Nil with TypeError pending when the type does not iterate.
 Value py_iter(Value v);
 
+// "'int' object is not iterable", pending. Always R::Err.
+R not_iterable(Value v);
+
 // NotImpl at the end of the iteration, Err on a failure.
 R py_next(Value it, Value &out);
 

@@ -106,6 +106,12 @@ enum class Arg : u8 {
     X(PrintExpr, None)        \
     X(YieldValue, None)       \
     X(YieldFrom, None)        \
+    X(GetYieldFromIter, None) \
+    X(GetAwaitable, Num)      \
+    X(GetAIter, None)         \
+    X(GetANext, None)         \
+    X(EndAsyncFor, None)      \
+    X(AsyncGenWrap, None)     \
     X(Raise, Num)             \
                               \
     X(SetupFinally, Jump)     \
@@ -116,6 +122,7 @@ enum class Arg : u8 {
     X(CheckExcMatch, None)    \
     X(Reraise, Num)           \
     X(BeforeWith, None)       \
+    X(BeforeAsyncWith, None)  \
     X(WithExceptStart, None)  \
     X(LoadAssertionError, None)
 
@@ -156,6 +163,18 @@ Arg bc_arg(Bc op);
 //   Reraise n           re-raise the exception on top; n is 1 when a saved
 //                       exc-info sits under it and has to be restored first
 //   BeforeWith          pop the manager, push its __exit__ and then __enter__()
+//   BeforeAsyncWith     the same with __aexit__ and __aenter__(), whose answer
+//                       is an awaitable still to be awaited
+//   GetYieldFromIter    GetIter for `yield from`, which takes a coroutine only
+//                       inside a coroutine
+//   GetAwaitable w      replace the value on top with the iterator awaiting it
+//                       walks; w says which statement asked, for the message
+//   GetAIter            replace the value on top with its __aiter__()
+//   GetANext            push the awaitable __anext__() of the iterator on top
+//   EndAsyncFor         with [aiter, exc], end the loop when exc is
+//                       StopAsyncIteration and re-raise it otherwise
+//   AsyncGenWrap        mark the value an async generator is about to yield,
+//                       so that asend() can tell it from one an await passes up
 //   WithExceptStart     with [exit, exc], call exit(type, exc, tb) and push it
 //   PrintExpr           pop a value and, unless it is None, print its repr.
 //                       This is what a statement is worth in Single mode
@@ -193,14 +212,25 @@ struct LineEntry {
     u32 line;
 };
 
-// Code object flags.
+// GetAwaitable's operand: what the awaitable came from.
+enum : u32 { AW_AWAIT, AW_AENTER, AW_AEXIT, AW_ANEXT };
+
+// Code object flags, with CPython's values: co_flags is read by library code
+// that tests them by number, as types.coroutine does.
 enum : u32 {
-    CO_VARARGS   = 1 << 0, // the last positional parameter is *args
-    CO_VARKW     = 1 << 1, // the last parameter is **kwargs
-    CO_GENERATOR = 1 << 2, // the body yields
-    CO_NEWLOCALS = 1 << 3, // a function body: a bare name is a fast local
-    CO_NESTED    = 1 << 4, // has free variables
+    CO_OPTIMIZED          = 0x001, // a function body: a bare name is a fast local
+    CO_NEWLOCALS          = 0x002, // a fresh namespace per call
+    CO_VARARGS            = 0x004, // the last positional parameter is *args
+    CO_VARKW              = 0x008, // the last parameter is **kwargs
+    CO_NESTED             = 0x010, // has free variables
+    CO_GENERATOR          = 0x020, // the body yields
+    CO_COROUTINE          = 0x080, // `async def`, and the body does not yield
+    CO_ITERABLE_COROUTINE = 0x100, // a generator that may be awaited
+    CO_ASYNC_GENERATOR    = 0x200, // `async def`, and the body yields
 };
+
+// A call to one of these makes an object rather than running the body.
+constexpr u32 CO_SUSPENDS = CO_GENERATOR | CO_COROUTINE | CO_ASYNC_GENERATOR;
 
 // What a source is compiled as, which is compile()'s third argument. Exec is
 // a module body. Eval is one expression the code returns. Single is a module

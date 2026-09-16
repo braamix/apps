@@ -50,6 +50,8 @@ struct Scope {
     bool varargs   = false;
     bool varkw     = false;
     bool generator = false;
+    bool coroutine = false; // `async def`, or a comprehension that awaits
+    u32 retval     = 0;     // the first `return` with a value, for async generators
 };
 
 struct Symtab {

@@ -238,8 +238,11 @@ Str call_name(Value v)
 
 R do_call(Value callable, const CallArgs &a, Value &out, bool &entered);
 R gen_resume(Value gv, u8 how, const CallArgs &a, Value &out, bool &entered);
+R run_resume(Value run, const CallArgs &a, Value &out, bool &entered);
 Value pending_exception();
 bool cont_catches(Value kv, Value e);
+Value cont_catcher(Value kv, Value e);
+bool raise_value(Value e);
 
 // `__init__` has returned; the answer is the instance it was given.
 R init_step(ContObj *k, Value in)
@@ -461,7 +464,7 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
     // Resuming a generator pushes a frame, and only the loop may do that. So
     // gen.send is an object of its own rather than a native; see gen.h.
     if (is_genrun(callable))
-        return gen_resume(genrun_of(callable)->gen, genrun_of(callable)->how, a, out, entered);
+        return run_resume(callable, a, out, entered);
 
     if (is_method(callable)) {
         MethodObj *m = static_cast<MethodObj *>(callable.obj());
@@ -525,7 +528,7 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
     }
     // A generator function binds its arguments and stops. The frame is parked
     // in the object rather than entered, and none of the body has run.
-    if (co->flags & CO_GENERATOR) {
+    if (co->flags & CO_SUSPENDS) {
         vm->handling = nf->handling;
         vm->frame    = nf->back;
         vm->depth--;
@@ -554,8 +557,19 @@ bool run_cont(Value kv, Value in)
         k->fn      = Value();
         k->kwnames = Value();
         k->kwvals  = Value();
-        if (k->step(k, ri.v) != R::Ok)
-            return false;
+        if (k->step(k, ri.v) != R::Ok) {
+            // The builtin this one was answering for may be waiting to catch
+            // exactly this: an await that ends in StopIteration.
+            Root e{ pending_exception() };
+            Value c = cont_catcher(k->next, e.v);
+            if (c.is_nil())
+                return err_set_value(e.v), false;
+            err_clear();
+            cont_of(c)->caught = e.v;
+            rk                 = c;
+            ri                 = Value();
+            continue;
+        }
 
         // The step wants a file. Park it: vm_burst asks the driver, and
         // vm_read_done puts it back on vm->resume with the answer.
@@ -606,11 +620,13 @@ bool run_cont(Value kv, Value in)
             // passes this continuation. A generator that has already stopped
             // answers __next__ this way.
             Root e{ pending_exception() };
-            if (!cont_catches(rk.v, e.v))
-                return false;
+            Value c = cont_catcher(rk.v, e.v);
+            if (c.is_nil())
+                return err_set_value(e.v), false;
             err_clear();
-            cont_of(rk.v)->caught = e.v;
-            ri                    = Value();
+            cont_of(c)->caught = e.v;
+            rk                 = c;
+            ri                 = Value();
             continue;
         }
         if (entered) {
@@ -971,7 +987,37 @@ bool cont_catches(Value kv, Value e)
     if (c == CATCH_EXIT)
         return exc_is(exc_type_of(e), exc_find("StopIteration")) ||
                exc_is(exc_type_of(e), exc_find("GeneratorExit"));
-    return exc_is(exc_type_of(e), exc_find(c == CATCH_STOP ? "StopIteration" : "AttributeError"));
+    Str want = c == CATCH_STOP    ? Str("StopIteration")
+               : c == CATCH_ASTOP ? Str("StopAsyncIteration")
+                                  : Str("AttributeError");
+    return exc_is(exc_type_of(e), exc_find(want));
+}
+
+// The continuation in the chain from `kv` that catches `e`, or Nil. Each one
+// it passes is abandoned, and told so: its call failed, so the builtin waiting
+// on it failed too.
+Value cont_catcher(Value kv, Value e)
+{
+    Root re{ e };
+    for (Value k = kv; !k.is_nil(); k = cont_of(k)->next) {
+        if (cont_catches(k, re.v))
+            return k;
+        ContObj *c = cont_of(k);
+        if (c->fail) {
+            c->caught = re.v;
+            c->fail(c);
+            c->fail = nullptr;
+        }
+    }
+    return Value();
+}
+
+// A continuation that caught an exception has run and failed in its turn. The
+// new exception belongs to the frame now on top.
+bool rethrow_pending()
+{
+    vm->tb.clear();
+    return raise_value(pending_exception());
 }
 
 bool dispatch(Value e)
@@ -991,13 +1037,22 @@ bool dispatch(Value e)
         // A generator is over once something unwinds out of it. PEP 479 turns
         // an escaping StopIteration into a RuntimeError, so that the two ways
         // a generator can end are not the same exception.
+        // An async generator's end is StopAsyncIteration, so that one is
+        // turned into a RuntimeError there too.
         if (!f->gen.is_nil()) {
-            GenObj *g = gen_of(f->gen);
-            g->state  = GEN_DONE;
-            g->frame  = Value();
-            f->gen    = Value();
-            if (is_exc(re.v) && exc_is(exc_type_of(re.v), exc_find("StopIteration"))) {
-                Value sub = exc_make("RuntimeError", "generator raised StopIteration");
+            Root gv{ f->gen };
+            GenObj *g        = gen_of(gv.v);
+            g->state         = GEN_DONE;
+            g->frame         = Value();
+            f->gen           = Value();
+            const ExcType *t = exc_type_of(re.v);
+            bool stop        = t && exc_is(t, exc_find("StopIteration"));
+            bool astop       = t && is_agen(gv.v) && exc_is(t, exc_find("StopAsyncIteration"));
+            if (stop || astop) {
+                Buf<64> m;
+                m.put(gen_kind(gv.v)).put(" raised ");
+                m.put(stop ? Str("StopIteration") : Str("StopAsyncIteration"));
+                Value sub = exc_make("RuntimeError", m.str());
                 if (!sub.is_nil()) {
                     static_cast<ExcObj *>(sub.obj())->context = re.v;
                     re                                        = sub;
@@ -1012,14 +1067,13 @@ bool dispatch(Value e)
         vm->handling = f->handling;
         vm->frame    = f->back;
         vm->depth--;
-        if (cont_catches(kv, re.v)) {
-            cont_of(kv)->caught = re.v;
+        // Abandoned rather than caught, each continuation gets to tidy up.
+        Root c{ cont_catcher(kv, re.v) };
+        if (!c.v.is_nil()) {
+            cont_of(c.v)->caught = re.v;
             vm->tb.clear();
-            return run_cont(kv, Value());
+            return run_cont(c.v, Value()) || rethrow_pending();
         }
-        // Abandoned rather than caught: the continuation gets to tidy up.
-        if (!kv.is_nil() && cont_of(kv)->fail)
-            cont_of(kv)->fail(cont_of(kv));
     }
 }
 
@@ -1133,12 +1187,11 @@ bool gen_finish(FrameObj *f, Value v)
     if (e.v.is_nil())
         return dispatch(pending_exception());
     vm->tb.clear();
-    if (cont_catches(k.v, e.v)) {
-        cont_of(k.v)->caught = e.v;
-        return run_cont(k.v, Value());
+    Root c{ cont_catcher(k.v, e.v) };
+    if (!c.v.is_nil()) {
+        cont_of(c.v)->caught = e.v;
+        return run_cont(c.v, Value()) || rethrow_pending();
     }
-    if (!k.v.is_nil() && cont_of(k.v)->fail)
-        cont_of(k.v)->fail(cont_of(k.v));
     return dispatch(e.v);
 }
 
@@ -1191,12 +1244,10 @@ bool yf_start(FrameObj *f, u32 at, u8 how, Value arg)
 {
     Root ra{ arg };
     Root rs{ f->stack()[f->sp - 1] };
-    Root call;
-    if (is_gen(rs.v)) {
-        call = genrun_new(rs.v, how);
-        if (call.v.is_nil())
-            return false;
-    } else {
+    Root call{ resumer(rs.v, how) };
+    if (err_pending())
+        return false;
+    if (call.v.is_nil()) {
         // A duck type, with a send and a throw of its own.
         bool bare = how == GR_NEXT || (how == GR_SEND && is_none(ra.v));
         if (how == GR_THROW)
@@ -1255,7 +1306,9 @@ bool yf_exit(FrameObj *f, u32 at, Value exc)
 {
     Root re{ exc };
     Root rs{ f->stack()[f->sp - 1] };
-    Root shut{ is_gen(rs.v) ? genrun_new(rs.v, GR_CLOSE) : type_special(rs.v, "close") };
+    Root shut{ resumer(rs.v, GR_CLOSE) };
+    if (shut.v.is_nil() && !err_pending())
+        shut = type_special(rs.v, "close");
     if (err_pending())
         return false;
     if (shut.v.is_nil()) {
@@ -1282,7 +1335,9 @@ R close_step(ContObj *k, Value in)
         return cont_call(k, k->s[0], k->s[1]);
     if (in.is_nil()) // it stopped, which is all close asks for
         return cont_done(k, value_none());
-    return err_set("RuntimeError", "generator ignored GeneratorExit");
+    Buf<64> m;
+    m.put(gen_kind(genrun_of(k->s[0])->gen)).put(" ignored GeneratorExit");
+    return err_set("RuntimeError", m.str());
 }
 
 R gen_close(Value gv, Value &out)
@@ -1326,12 +1381,13 @@ R drain_operand_step(ContObj *k, Value in)
             return cont_call(k, k->s[0], Value(), 0);
         Value it = type_special(k->s[2], "__iter__");
         if (it.is_nil())
-            return err_set2("TypeError", "object is not iterable", type_name(k->s[2]));
+            return not_iterable(k->s[2]);
         return cont_call(k, it, Value(), 0);
     }
     if (k->s[0].is_nil()) {
         Root rit{ in };
-        k->s[0] = is_gen(rit.v) ? genrun_new(rit.v, GR_NEXT) : type_special(rit.v, "__next__");
+        k->s[0] =
+            is_resumable(rit.v) ? genrun_new(rit.v, GR_NEXT) : type_special(rit.v, "__next__");
         if (k->s[0].is_nil()) {
             // __iter__ answered with a built-in iterator, which walks itself.
             ListObj *xs = py_list_of(rit.v);
@@ -1360,8 +1416,8 @@ R drain_operand_step(ContObj *k, Value in)
 bool drain_operand(FrameObj *f, u32 below)
 {
     Root src{ f->stack()[f->sp - 1 - below] };
-    Root m{ is_gen(src.v) ? genrun_new(src.v, GR_NEXT) : Value() };
-    if (is_gen(src.v) && m.v.is_nil())
+    Root m{ is_resumable(src.v) ? genrun_new(src.v, GR_NEXT) : Value() };
+    if (is_resumable(src.v) && m.v.is_nil())
         return false;
     ListObj *xs = list_new();
     if (!xs)
@@ -1404,8 +1460,11 @@ R gen_resume(Value gv, u8 how, const CallArgs &a, Value &out, bool &entered)
         return R::Err;
     if (how == GR_CLOSE && !args_only(a, "close", 0, 0))
         return R::Err;
-    if (g->state == GEN_RUNNING)
-        return err_set("ValueError", "generator already executing");
+    if (g->state == GEN_RUNNING) {
+        Buf<64> m;
+        m.put(gen_kind(rg.v)).put(" already executing");
+        return err_set("ValueError", m.str());
+    }
 
     Root arg{ how == GR_SEND ? a.args[0] : how == GR_NEXT ? value_none() : Value() };
     if (how == GR_THROW) {
@@ -1414,14 +1473,17 @@ R gen_resume(Value gv, u8 how, const CallArgs &a, Value &out, bool &entered)
             return R::Err;
     }
 
+    // A coroutine is awaited once. An async generator's end is its own.
     if (g->state == GEN_DONE || g->frame.is_nil()) {
         if (how == GR_CLOSE) {
             out = value_none();
             return R::Ok;
         }
+        if (is_coro(rg.v))
+            return err_set("RuntimeError", "cannot reuse already awaited coroutine");
         if (how == GR_THROW)
             return err_set_value(arg.v);
-        return err_set("StopIteration", "");
+        return err_set(is_agen(rg.v) ? Str("StopAsyncIteration") : Str("StopIteration"), "");
     }
 
     // Nothing has run yet, so there is no handler in the frame to reach. Both
@@ -1437,8 +1499,11 @@ R gen_resume(Value gv, u8 how, const CallArgs &a, Value &out, bool &entered)
     }
     if (how == GR_CLOSE)
         return gen_close(rg.v, out);
-    if (how == GR_SEND && g->state == GEN_CREATED && !is_none(arg.v))
-        return err_set("TypeError", "can't send non-None value to a just-started generator");
+    if (how == GR_SEND && g->state == GEN_CREATED && !is_none(arg.v)) {
+        Buf<96> m;
+        m.put("can't send non-None value to a just-started ").put(gen_kind(rg.v));
+        return err_set("TypeError", m.str());
+    }
 
     if (vm->depth >= max_frames)
         return err_set("RecursionError", "maximum recursion depth exceeded");
@@ -1467,6 +1532,374 @@ R gen_resume(Value gv, u8 how, const CallArgs &a, Value &out, bool &entered)
     // The value sent is what the `yield` expression is worth. Parked in a
     // `yield from`, that instruction runs again and passes it on.
     return push(f, arg.v) ? R::Ok : R::Err;
+}
+
+// ------------------------------------------------- awaitables and async generators
+
+// Something whose stepping is __next__, whoever answers it.
+bool is_iterator(Value v)
+{
+    return is_resumable(v) || type_of(v)->next || type_has_special(v, "__next__");
+}
+
+// The TypeError for a value that cannot be awaited, by what asked.
+R cant_await(Value v, u32 from)
+{
+    Buf<160> m;
+    switch (from) {
+    case AW_AENTER:
+    case AW_AEXIT:
+        m.put("'async with' received an object from ");
+        m.put(from == AW_AENTER ? Str("__aenter__") : Str("__aexit__"));
+        m.put(" that does not implement __await__: ").put(type_name(v));
+        break;
+    case AW_ANEXT:
+        m.put("'async for' received an invalid object from __anext__: ").put(type_name(v));
+        break;
+    default:
+        m.put("'").put(type_name(v)).put("' object can't be awaited");
+        break;
+    }
+    return err_set("TypeError", m.str());
+}
+
+// What __await__ answered has to be an iterator, and not another coroutine.
+bool await_iter_ok(Value v)
+{
+    if (is_coro(v) || gen_awaitable(v))
+        return err_set("TypeError", "__await__() returned a coroutine"), false;
+    if (!is_iterator(v)) {
+        Buf<96> m;
+        m.put("__await__() returned non-iterator of type '").put(type_name(v)).put("'");
+        return err_set("TypeError", m.str()), false;
+    }
+    return true;
+}
+
+R raise_stop(Value v)
+{
+    Root rv{ v }, args;
+    if (!rv.v.is_nil() && !is_none(rv.v)) {
+        TupleObj *t = tuple_new(1);
+        if (!t)
+            return oom();
+        t->items()[0] = rv.v;
+        args          = obj_value(t);
+    }
+    Value e = exc_new(exc_find("StopIteration"), args.v);
+    return e.is_nil() ? R::Err : err_set_value(e);
+}
+
+// The arguments of a throw(), as a tuple a continuation can keep.
+Value args_tuple(const CallArgs &a)
+{
+    TupleObj *t = tuple_new(a.nargs);
+    if (!t)
+        return oom(), Value();
+    for (u32 i = 0; i < a.nargs; i++)
+        t->items()[i] = a.args[i];
+    return obj_value(t);
+}
+
+bool is_exc_named(Value e, Str name)
+{
+    const ExcType *t = exc_type_of(e);
+    return t && exc_is(t, exc_find(name));
+}
+
+// An exception came out of the generator while an awaitable was stepping it.
+// s[0] is the AwaitObj.
+void agen_abandoned(ContObj *k)
+{
+    AwaitObj *a = await_of(k->s[0]);
+    GenObj *g   = gen_of(a->target);
+    g->running  = false;
+    a->state    = AS_CLOSED;
+    if (is_exc_named(k->caught, "StopAsyncIteration") || is_exc_named(k->caught, "GeneratorExit"))
+        g->closed = true;
+}
+
+// One step of asend(), athrow() or aclose(). s[0] is the AwaitObj, s[1] what
+// the step was handed -- a value, or a tuple of throw() arguments -- and j how
+// it was asked. The first turn checks the state and resumes the generator;
+// the second looks at what came back.
+R agen_step(ContObj *k, Value in)
+{
+    AwaitObj *a = await_of(k->s[0]);
+    GenObj *g   = gen_of(a->target);
+    bool acl    = a->kind == AK_ACLOSE;
+    u8 how      = u8(k->j);
+
+    if (k->i++ == 0) {
+        Str who = a->kind == AK_ASEND ? Str("__anext__()/asend()") : Str("aclose()/athrow()");
+        if (a->state == AS_CLOSED) {
+            if (how == GR_CLOSE)
+                return cont_done(k, value_none());
+            Buf<96> m;
+            m.put("cannot reuse already awaited ").put(who);
+            return err_set("RuntimeError", m.str());
+        }
+        bool done = g->state == GEN_DONE || g->frame.is_nil();
+        if (a->kind != AK_ASEND && done) {
+            a->state = AS_CLOSED;
+            return how == GR_CLOSE ? cont_done(k, value_none()) : raise_stop(Value());
+        }
+        if (how == GR_CLOSE && done) {
+            a->state = AS_CLOSED;
+            return cont_done(k, value_none());
+        }
+        Root arg{ k->s[1] };
+        if (a->state == AS_INIT) {
+            if (g->running) {
+                a->state = AS_CLOSED;
+                Buf<96> m;
+                m.put(a->kind == AK_ASEND ? Str("anext") : acl ? Str("aclose") : Str("athrow"));
+                m.put("(): asynchronous generator is already running");
+                return err_set("RuntimeError", m.str());
+            }
+            if (a->kind != AK_ASEND) {
+                if (g->closed) {
+                    a->state = AS_CLOSED;
+                    return err_set("StopAsyncIteration", "");
+                }
+                if (how == GR_SEND && !is_none(arg.v))
+                    return err_set("RuntimeError",
+                                   "can't send non-None value to a just-started coroutine");
+            } else if (how == GR_SEND && is_none(arg.v)) {
+                arg = a->arg;
+            }
+            a->state = AS_ITER;
+            // The first turn of athrow() and aclose() is the throw itself.
+            if (a->kind != AK_ASEND && how == GR_SEND) {
+                how = GR_THROW;
+                if (acl) {
+                    g->closed = true;
+                    arg       = exc_new(exc_find("GeneratorExit"), Value());
+                    if (arg.v.is_nil())
+                        return R::Err;
+                } else {
+                    arg = a->arg;
+                }
+            }
+        }
+        g->running = true;
+        k->fail    = agen_abandoned;
+        k->j       = how;
+        // aclose() is done when the generator stops or lets GeneratorExit out;
+        // everything else is done when it returns, which is StopIteration.
+        k->catching = acl || how == GR_CLOSE ? CATCH_EXIT : CATCH_STOP;
+        if (how == GR_CLOSE) {
+            Value e = exc_new(exc_find("GeneratorExit"), Value());
+            if (e.is_nil())
+                return R::Err;
+            arg = e;
+            how = GR_THROW;
+        }
+        Root call{ genrun_new(a->target, how == GR_THROW ? GR_THROW : GR_SEND) };
+        if (call.v.is_nil())
+            return R::Err;
+        if (how == GR_THROW) {
+            if (is_tuple(arg.v))
+                return cont_call_v(k, call.v, arg.v);
+            return cont_call(k, call.v, arg.v);
+        }
+        return cont_call(k, call.v, arg.v);
+    }
+
+    k->fail  = nullptr;
+    bool val = !in.is_nil() && !is_wrapval(in);
+    // A plain value is one an await in the body passed up: it goes on up, and
+    // the generator is still running. Only close() refuses one.
+    if (val && how != GR_CLOSE)
+        return cont_done(k, in);
+    g->running = false;
+    a->state   = AS_CLOSED;
+    if (how == GR_CLOSE) {
+        if (val)
+            return err_set("RuntimeError", "coroutine ignored GeneratorExit");
+        if (is_wrapval(in) && acl)
+            return err_set("RuntimeError", "async generator ignored GeneratorExit");
+        return cont_done(k, value_none());
+    }
+    if (acl)
+        return is_wrapval(in) ? err_set("RuntimeError", "async generator ignored GeneratorExit")
+                              : raise_stop(Value());
+    if (is_wrapval(in))
+        return raise_stop(static_cast<WrapValObj *>(in.obj())->v);
+    // It returned: an async generator's end.
+    g->closed = true;
+    return err_set("StopAsyncIteration", "");
+}
+
+// anext(it, default): the awaitable it wraps, stepped through its iterator,
+// with StopAsyncIteration turned into the default. s[0] is the AwaitObj, s[1]
+// what this step was handed, j how.
+R anext_step(ContObj *k, Value in)
+{
+    AwaitObj *a = await_of(k->s[0]);
+    u8 how      = u8(k->j);
+    if (k->i == 2) {
+        // Only StopAsyncIteration is caught, and the default is its answer.
+        if (in.is_nil())
+            return raise_stop(a->dflt);
+        return cont_done(k, in);
+    }
+    if (k->i == 1) {
+        if (!await_iter_ok(in))
+            return R::Err;
+        a->iter = in;
+    } else if (a->iter.is_nil()) {
+        Value t = a->target;
+        if (is_coro(t) || gen_awaitable(t) || is_corowrap(t) || is_awaitobj(t)) {
+            a->iter = t;
+        } else {
+            Value m = type_special(t, "__await__");
+            if (m.is_nil())
+                return err_pending() ? R::Err : cant_await(t, AW_AWAIT);
+            k->i = 1;
+            return cont_call(k, m, Value(), 0);
+        }
+    }
+
+    Root it{ a->iter };
+    Root call{ resumer(it.v, how) };
+    if (call.v.is_nil()) {
+        if (err_pending())
+            return R::Err;
+        // A duck type, which may have no send of its own.
+        if (how == GR_SEND && is_none(k->s[1]))
+            how = GR_NEXT;
+        Str name = how == GR_THROW   ? Str("throw")
+                   : how == GR_CLOSE ? Str("close")
+                   : how == GR_SEND  ? Str("send")
+                                     : Str("__next__");
+        call     = type_special(it.v, name);
+        if (call.v.is_nil()) {
+            if (how == GR_CLOSE)
+                return cont_done(k, value_none());
+            if (!err_pending())
+                err_set2("AttributeError", "object has no attribute", name);
+            return R::Err;
+        }
+    }
+    k->i        = 2;
+    k->catching = CATCH_ASTOP;
+    if (how == GR_THROW)
+        return cont_call_v(k, call.v, k->s[1]);
+    if (how == GR_CLOSE || how == GR_NEXT)
+        return cont_call(k, call.v, Value(), 0);
+    return cont_call(k, call.v, k->s[1]);
+}
+
+// A resume of a coroutine's wrapper or of an awaitable: what `send`,
+// `__next__`, `throw` and `close` on one of those do.
+R await_resume(Value aw, u8 how, const CallArgs &a, Value &out)
+{
+    Root ra{ aw };
+    if (a.nkw)
+        return err_set("TypeError", "an awaitable's method takes no keyword arguments");
+    Root arg;
+    switch (how) {
+    case GR_NEXT:
+        if (!args_only(a, "__next__", 0, 0))
+            return R::Err;
+        arg = value_none();
+        how = GR_SEND;
+        break;
+    case GR_SEND:
+        if (!args_only(a, "send", 1, 1))
+            return R::Err;
+        arg = a.args[0];
+        break;
+    case GR_THROW:
+        if (!args_only(a, "throw", 1, 3))
+            return R::Err;
+        arg = args_tuple(a);
+        if (arg.v.is_nil())
+            return R::Err;
+        break;
+    default:
+        if (!args_only(a, "close", 0, 0))
+            return R::Err;
+        break;
+    }
+    Root kv{ cont_new(await_of(ra.v)->kind == AK_DEFAULT ? anext_step : agen_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = ra.v;
+    k->s[1]    = arg.v;
+    k->j       = how;
+    out        = kv.v;
+    return R::Ok;
+}
+
+// What calling a GenRunObj does, by what it is bound to.
+R run_resume(Value run, const CallArgs &a, Value &out, bool &entered)
+{
+    entered = false;
+    Root t{ genrun_of(run)->gen };
+    u8 how = genrun_of(run)->how;
+    if (how == GR_ITER || how == GR_AWAIT) {
+        if (!args_only(a, how == GR_ITER ? Str("__iter__") : Str("__await__"), 0, 0))
+            return R::Err;
+        out = how == GR_AWAIT && is_coro(t.v) ? corowrap_new(t.v) : t.v;
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    if (is_corowrap(t.v))
+        return gen_resume(static_cast<CoroWrapObj *>(t.v.obj())->coro, how, a, out, entered);
+    if (is_awaitobj(t.v))
+        return await_resume(t.v, how, a, out);
+    return gen_resume(t.v, how, a, out, entered);
+}
+
+// GetIter: a class's __iter__ is a call, anything else answers at once.
+bool get_iter(FrameObj *f)
+{
+    Value *st = f->stack();
+    Value m   = type_special(st[f->sp - 1], "__iter__");
+    if (!m.is_nil())
+        return run_special(f, m, nullptr, 0, 1);
+    if (err_pending())
+        return false;
+    Value it = py_iter(st[f->sp - 1]);
+    if (it.is_nil())
+        return false;
+    st[f->sp - 1] = it;
+    return true;
+}
+
+// What a special method's answer is checked for before it is used.
+enum : u32 { CK_AWAIT, CK_AITER };
+
+// s[0] the bound method, j the check.
+R checked_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], Value(), 0);
+    if (k->j == CK_AWAIT) {
+        if (!await_iter_ok(in))
+            return R::Err;
+    } else if (!is_agen(in) && !type_has_special(in, "__anext__")) {
+        Buf<128> b;
+        b.put("'async for' received an object from __aiter__ that does not implement __anext__: ");
+        return err_set("TypeError", b.put(type_name(in)).str());
+    }
+    return cont_done(k, in);
+}
+
+// Call `m` with no arguments and put its checked answer in place of the value
+// on top.
+bool run_checked(FrameObj *f, Value m, u32 check)
+{
+    Root rm{ m };
+    Root kv{ cont_new(checked_step) };
+    if (kv.v.is_nil())
+        return false;
+    cont_of(kv.v)->s[0] = rm.v;
+    cont_of(kv.v)->j    = check;
+    f->sp--;
+    return run_cont(kv.v, Value());
 }
 
 // -------------------------------------------------------------- the loop
@@ -1533,9 +1966,10 @@ void interpret()
             // A generator parked at a yield is closed rather than deleted,
             // which is what runs the `finally` it is sitting inside.
             Root m{ !fn.v.is_nil() ? fn.v
-                    : is_gen(o.v) ? (gen_of(o.v)->state == GEN_SUSPENDED ? genrun_new(o.v, GR_CLOSE)
-                                                                         : Value())
-                                  : type_special(o.v, "__del__") };
+                    : is_genlike(o.v)
+                        ? (gen_of(o.v)->state == GEN_SUSPENDED ? genrun_new(o.v, GR_CLOSE)
+                                                               : Value())
+                        : type_special(o.v, "__del__") };
             if (m.v.is_nil()) {
                 err_clear();
                 continue;
@@ -2010,17 +2444,108 @@ void interpret()
                     f->sp--;
                 break;
 
-            case Bc::GetIter: {
-                Value m = type_special(st[f->sp - 1], "__iter__");
-                if (!m.is_nil()) {
-                    if (!run_special(f, m, nullptr, 0, 1))
+            case Bc::GetIter:
+                if (!get_iter(f))
+                    goto oops;
+                break;
+
+            case Bc::GetYieldFromIter: {
+                // A coroutine may be delegated to only by another, or by a
+                // generator types.coroutine has marked.
+                Value v = st[f->sp - 1];
+                if (is_coro(v)) {
+                    if (!(co->flags & (CO_COROUTINE | CO_ITERABLE_COROUTINE))) {
+                        err_set("TypeError",
+                                "cannot 'yield from' a coroutine object in a "
+                                "non-coroutine generator");
+                        goto oops;
+                    }
+                    break;
+                }
+                if (!is_gen(v) && !get_iter(f))
+                    goto oops;
+                break;
+            }
+
+            case Bc::GetAwaitable: {
+                Value v = st[f->sp - 1];
+                if (is_coro(v)) {
+                    if (!is_none(gen_awaiting(v))) {
+                        err_set("RuntimeError", "coroutine is being awaited already");
+                        goto oops;
+                    }
+                    break;
+                }
+                if (gen_awaitable(v) || is_corowrap(v) || is_awaitobj(v))
+                    break;
+                Value m = type_special(v, "__await__");
+                if (m.is_nil()) {
+                    if (!err_pending())
+                        cant_await(v, arg);
+                    goto oops;
+                }
+                if (!run_checked(f, m, CK_AWAIT))
+                    goto oops;
+                break;
+            }
+
+            case Bc::GetAIter: {
+                Value v = st[f->sp - 1];
+                if (is_agen(v))
+                    break;
+                Value m = type_special(v, "__aiter__");
+                if (m.is_nil()) {
+                    if (!err_pending()) {
+                        Buf<96> b;
+                        b.put("'async for' requires an object with __aiter__ method, got ");
+                        err_set("TypeError", b.put(type_name(v)).str());
+                    }
+                    goto oops;
+                }
+                if (!run_checked(f, m, CK_AITER))
+                    goto oops;
+                break;
+            }
+
+            case Bc::GetANext: {
+                Value v = st[f->sp - 1];
+                if (is_agen(v)) {
+                    Value aw = await_new(v, AK_ASEND, value_none());
+                    if (aw.is_nil() || !push(f, aw))
                         goto oops;
                     break;
                 }
-                Value it = py_iter(st[f->sp - 1]);
-                if (it.is_nil())
+                Value m = type_special(v, "__anext__");
+                if (m.is_nil()) {
+                    if (!err_pending()) {
+                        Buf<96> b;
+                        b.put("'async for' requires an iterator with __anext__ method, got ");
+                        err_set("TypeError", b.put(type_name(v)).str());
+                    }
                     goto oops;
-                st[f->sp - 1] = it;
+                }
+                if (!run_special(f, m, nullptr, 0, 0))
+                    goto oops;
+                break;
+            }
+
+            case Bc::EndAsyncFor: {
+                // [aiter, exc]: the loop is over, or something went wrong.
+                Value exc = st[--f->sp];
+                if (is_exc_named(exc, "StopAsyncIteration")) {
+                    f->sp--;
+                    break;
+                }
+                if (!dispatch(exc))
+                    return;
+                continue;
+            }
+
+            case Bc::AsyncGenWrap: {
+                Value w = wrapval_new(st[f->sp - 1]);
+                if (w.is_nil())
+                    goto oops;
+                st[f->sp - 1] = w;
                 break;
             }
             case Bc::ForIter: {
@@ -2028,8 +2553,8 @@ void interpret()
                 // Stepping either pushes a frame, so the item comes back
                 // through a continuation rather than from py_next.
                 // cont_new allocates, and nothing else points at the method.
-                Root m{ is_gen(st[f->sp - 1]) ? genrun_new(st[f->sp - 1], GR_NEXT)
-                                              : type_special(st[f->sp - 1], "__next__") };
+                Root m{ is_resumable(st[f->sp - 1]) ? genrun_new(st[f->sp - 1], GR_NEXT)
+                                                    : type_special(st[f->sp - 1], "__next__") };
                 if (m.v.is_nil() && err_pending())
                     goto oops;
                 if (!m.v.is_nil()) {
@@ -2650,6 +3175,52 @@ void interpret()
                     goto oops;
                 f->sp--;
                 // A Python __enter__ pushes its own answer when it returns.
+                if (!land(got, entered))
+                    goto oops;
+                break;
+            }
+
+            case Bc::BeforeAsyncWith: {
+                // __aexit__ first, as CPython looks them up, and pinned
+                // before __aenter__ is.
+                Root exit, enter;
+                bool ok = true;
+                for (u32 k = 0; k < 2 && ok; k++) {
+                    Str name    = k == 0 ? Str("__aexit__") : Str("__aenter__");
+                    Value &into = k == 0 ? exit.v : enter.v;
+                    switch (py_attr(st[f->sp - 1], str_intern(name), into)) {
+                    case Got::Ok:
+                        break;
+                    case Got::Missing: {
+                        Buf<160> b;
+                        b.put("'").put(type_name(st[f->sp - 1]));
+                        b.put(
+                            "' object does not support the asynchronous context manager protocol");
+                        if (k == 0)
+                            b.put(" (missed __aexit__ method)");
+                        err_set("TypeError", b.str());
+                        ok = false;
+                        break;
+                    }
+                    case Got::Call:
+                        err_set2("TypeError", "this attribute needs the interpreter", name);
+                        [[fallthrough]];
+                    case Got::Error:
+                        ok = false;
+                        break;
+                    }
+                }
+                if (!ok)
+                    goto oops;
+                st[f->sp - 1] = exit.v;
+                if (!push(f, enter.v))
+                    goto oops;
+                CallArgs a;
+                Value got;
+                bool entered = false;
+                if (do_call(st[f->sp - 1], a, got, entered) != R::Ok)
+                    goto oops;
+                f->sp--;
                 if (!land(got, entered))
                     goto oops;
                 break;

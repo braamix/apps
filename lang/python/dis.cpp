@@ -69,9 +69,12 @@ struct Lister {
 
     void flags(u32 f)
     {
-        constexpr Str NAME[] = { "varargs", "varkw", "generator", "newlocals", "nested" };
+        constexpr Str NAME[] = { "optimized",      "newlocals", "varargs",
+                                 "varkw",          "nested",    "generator",
+                                 "nofree",         "coroutine", "iterable_coroutine",
+                                 "async_generator" };
         bool first           = true;
-        for (u32 b = 0; b < 5; b++) {
+        for (u32 b = 0; b < sizeof NAME / sizeof NAME[0]; b++) {
             if (!(f & (1u << b)))
                 continue;
             put(' ');

@@ -1,0 +1,49 @@
+-- send, return and reuse
+coroutine leaf leaf
+False None False leaf None
+  returned 42
+  raised RuntimeError cannot reuse already awaited coroutine
+None None
+-- a chain of awaits suspends at the bottom
+bottom
+True coroutine
+returned ('bottom', 'answer')
+-- throw and close
+waiting
+  caught KeyError('k')
+  finally
+returned recovered
+waiting
+  finally
+None
+  raised RuntimeError cannot reuse already awaited coroutine
+unstarted throw: early
+  raised RuntimeError cannot reuse already awaited coroutine
+can't send non-None value to a just-started coroutine
+coroutine ignored GeneratorExit
+  returned None
+-- __await__ is how a plain iterator reaches one
+coroutine_wrapper True False
+next -> 8
+bottom ('bottom', 'sent')
+-- awaitables of one's own
+  ready None
+one two
+returned ('A', 'B')
+-- refusals
+  raised TypeError 'int' object can't be awaited
+  raised TypeError __await__() returned non-iterator of type 'int'
+  raised TypeError __await__() returned a coroutine
+  raised TypeError 'async_generator' object can't be awaited
+  raised RuntimeError coroutine is being awaited already
+  raised ValueError coroutine already executing
+'coroutine' object is not iterable
+cannot 'yield from' a coroutine object in a non-coroutine generator
+bottom ('bottom', 'through')
+-- PEP 479
+  raised RuntimeError coroutine raised StopIteration
+-- what the flags and the types say
+0x83 0x203 0x23
+0x123
+True True
+True True

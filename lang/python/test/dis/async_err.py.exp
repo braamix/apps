@@ -1,1 +1,1 @@
-python: 1:11: SyntaxError: async is not compiled yet
+python: 2:5: SyntaxError: 'await' outside async function

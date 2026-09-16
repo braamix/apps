@@ -24,6 +24,7 @@
 #include "bigint.h"
 #include "builtin.h"
 #include "call.h"
+#include "exc.h"
 #include "format.h"
 #include "gc.h"
 #include "intern.h"
@@ -119,11 +120,11 @@ R field_arg(ListObj *plan, Str name, Value args, Value kwargs, u32 &autonum, i32
         return R::Ok;
     }
 
-    if (kwargs.is_nil())
-        return err_set2("KeyError", "no keyword arguments", name);
     Root key{ str_new(name) };
     if (key.v.is_nil())
         return R::Err;
+    if (kwargs.is_nil())
+        return key_error(key.v);
     // A mapping of one's own answers __getitem__ in Python, which no plan can
     // do while it is being built: the lookup becomes a step.
     if (is_inst(kwargs)) {

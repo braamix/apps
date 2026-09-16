@@ -1214,7 +1214,7 @@ R mem_repr(Value v, String &out)
 {
     char tmp[24];
     Buf<64> b;
-    b.put("<memory at 0x").put(int_text(tmp, sizeof tmp, i64(usize(v.obj())))).put('>');
+    b.put("<memory at ").put(addr_text(tmp, sizeof tmp, v.obj())).put('>');
     return out.append(b.str()) ? R::Ok : oom_err();
 }
 

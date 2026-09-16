@@ -1,0 +1,35 @@
+refused  'await x' -- 'await' outside function
+refused  'class C: await x' -- 'await' outside function
+refused  'def f(): await x' -- 'await' outside async function
+refused  'lambda: await x' -- 'await' outside async function
+compiled 'f = lambda: (await x for x in y)' -- function
+compiled 'async def f(): await x' -- coroutine
+refused  'async def f():\n def g(): await x' -- 'await' outside async function
+refused  'async def f(): return lambda: await x' -- 'await' outside async function
+compiled 'async def f(): return [await z for z in y]' -- coroutine
+compiled 'async def f(): return [[z async for z in x] for x in y]' -- coroutine
+compiled 'async def f(): return {k: v async for k, v in y}' -- coroutine
+compiled 'async def f(): return (z async for z in y)' -- coroutine
+refused  'async for x in y: pass' -- 'async for' outside async function
+refused  'async with x: pass' -- 'async with' outside async function
+refused  'def f():\n async for x in y: pass' -- 'async for' outside async function
+refused  'def f():\n async with x: pass' -- 'async with' outside async function
+compiled 'async def f():\n async with a as b, c:\n  async for d in b: pass' -- coroutine
+refused  'def f(): return [x async for x in y]' -- asynchronous comprehension outside of an asynchronous function
+refused  'def f(): return [await x for x in y]' -- asynchronous comprehension outside of an asynchronous function
+compiled 'def f(): return (x async for x in y)' -- function
+compiled 'def f(): return (await x for x in y)' -- function
+refused  'def f(): return [[z async for z in x] for x in y]' -- asynchronous comprehension outside of an asynchronous function
+refused  '[x async for x in y]' -- asynchronous comprehension outside of an asynchronous function
+compiled '(x async for x in y)' -- -
+refused  'async def f(): yield from x' -- 'yield from' inside async function
+refused  'async def f():\n yield 1\n return 2' -- 'return' with value in async generator
+refused  'async def f():\n return 2\n yield 1' -- 'return' with value in async generator
+compiled 'async def f():\n yield 1\n return' -- async generator
+compiled 'async def f(): await (yield)' -- async generator
+compiled 'async def f(): x = yield' -- async generator
+compiled 'async def f(): pass' -- coroutine
+compiled 'def f(): yield' -- generator
+compiled 'async def f(): return await x ** 2' -- coroutine
+compiled 'async def f(): return -await x' -- coroutine
+refused  'async def f(): return await await x' -- invalid syntax

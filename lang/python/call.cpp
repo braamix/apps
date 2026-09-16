@@ -18,7 +18,7 @@ R oom()
 // the native protocol answers instead.
 Value stepper(Value it)
 {
-    return is_gen(it) ? genrun_new(it, GR_NEXT) : type_special(it, "__next__");
+    return is_resumable(it) ? genrun_new(it, GR_NEXT) : type_special(it, "__next__");
 }
 
 // One turn of the drain iter_park sets up. s[0] is the bound __next__, s[1]
@@ -33,7 +33,7 @@ R drain_step(ContObj *k, Value in)
             return cont_call(k, k->s[0], Value(), 0);
         Value it = type_special(k->s[5], "__iter__");
         if (it.is_nil())
-            return err_set2("TypeError", "object is not iterable", type_name(k->s[5]));
+            return not_iterable(k->s[5]);
         return cont_call(k, it, Value(), 0);
     }
     if (k->s[0].is_nil()) {
@@ -160,7 +160,7 @@ Value cont_new(ContStep step)
 
 bool iter_needs_vm(Value v)
 {
-    if (is_gen(v))
+    if (is_resumable(v))
         return true;
     return type_has_py_special(v, "__iter__") || type_has_py_special(v, "__next__");
 }
@@ -169,8 +169,8 @@ R iter_park(const CallArgs &a, u32 at, R (*again)(const CallArgs &, Value &out),
 {
     Root src{ a.args[at] };
     // Nil for a class instance: the drain calls its __iter__ first.
-    Root m{ is_gen(src.v) ? genrun_new(src.v, GR_NEXT) : Value() };
-    if (is_gen(src.v) && m.v.is_nil())
+    Root m{ is_resumable(src.v) ? genrun_new(src.v, GR_NEXT) : Value() };
+    if (is_resumable(src.v) && m.v.is_nil())
         return R::Err;
     ListObj *xs = list_new();
     if (!xs)

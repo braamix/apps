@@ -34,6 +34,7 @@ struct FBlock {
     u32 node     = 0;       // Finally: the Try node, for the inline copy
     StrObj *name = nullptr; // Handler: the name `as` bound, or null
     bool busy    = false;   // Finally: its copy is being emitted right now
+    bool async   = false;   // With: `async with`, whose __aexit__ is awaited
     Vec<u32> breaks;
 };
 
@@ -230,13 +231,42 @@ struct Compiler {
     {
         if (!u->blocks.push(static_cast<FBlock &&>(f)))
             return oom();
-        u32 n = 0;
+        note_blocks(0);
+        return true;
+    }
+
+    // A handler the block list does not carry -- the one round an `async for`
+    // waiting for its next item -- still needs room at run time.
+    void note_blocks(u32 extra)
+    {
+        u32 n = extra;
         for (usize i = 0; i < u->blocks.size(); i++)
             n += u->blocks[i].kind != FK::Loop ? 1 : 0;
         if (n > u->blocks_max)
             u->blocks_max = n;
-        return true;
     }
+
+    // The value on top is awaited: its iterator is driven to the end, and
+    // what it returned is left in its place.
+    bool await_top(u32 node, u32 from)
+    {
+        return emit(Bc::GetAwaitable, from, node) && emit(Bc::LoadConst, const_none(), node) &&
+               emit(Bc::YieldFrom, node);
+    }
+
+    // The next item of the async iterator on top, under a handler that ends
+    // the loop. The handler's index is returned for the caller to patch.
+    u32 async_next(u32 node)
+    {
+        u32 h = emit_jump(Bc::SetupFinally, node);
+        note_blocks(1);
+        if (!emit(Bc::GetANext, node) || !await_top(node, AW_ANEXT) || !emit(Bc::PopBlock, node))
+            return 0;
+        return h;
+    }
+
+    // The scope being compiled yields into an async generator.
+    bool async_gen() const { return scope().coroutine && scope().generator; }
 
     bool stmts(u32 n, u32 from, u32 count)
     {
@@ -347,8 +377,11 @@ bool Compiler::unwind(usize down_to, bool preserve_tos)
             if (preserve_tos && !emit(Bc::RotTwo, node))
                 return false;
             if (!emit(Bc::PopBlock, node) || !emit(Bc::LoadConst, const_none(), node) ||
-                !emit(Bc::DupTop, node) || !emit(Bc::DupTop, node) || !emit(Bc::Call, 3, node) ||
-                !emit(Bc::PopTop, node))
+                !emit(Bc::DupTop, node) || !emit(Bc::DupTop, node) || !emit(Bc::Call, 3, node))
+                return false;
+            if (u->blocks[b - 1].async && !await_top(node, AW_AEXIT))
+                return false;
+            if (!emit(Bc::PopTop, node))
                 return false;
             break;
 
@@ -688,8 +721,18 @@ bool Compiler::comprehension(u32 i)
     if (failed)
         return false;
     // The outermost iterable is evaluated here and passed in as the argument.
-    return emit(Bc::LoadConst, k, i) && emit(Bc::MakeFunction, flags, i) &&
-           expr(ast->at(kid(i, 0)).b) && emit(Bc::GetIter, i) && emit(Bc::Call, 1, i);
+    const Node &n  = ast->at(i);
+    bool aiter     = (ast->at(kid(i, 0)).flags & 1) != 0;
+    const Scope &s = st.scopes[st.at_node[i]];
+    if (!emit(Bc::LoadConst, k, i) || !emit(Bc::MakeFunction, flags, i) ||
+        !expr(ast->at(kid(i, 0)).b) || !emit(aiter ? Bc::GetAIter : Bc::GetIter, i) ||
+        !emit(Bc::Call, 1, i))
+        return false;
+    // A comprehension that awaits is a coroutine, and is awaited here. An
+    // async generator expression is not: it is what the expression is worth.
+    if (s.coroutine && n.kind != Nd::GeneratorExp)
+        return await_top(i, AW_AWAIT);
+    return true;
 }
 
 bool Compiler::expr(u32 i)
@@ -810,11 +853,13 @@ bool Compiler::expr(u32 i)
     case Nd::Yield:
         if (!(n.a ? expr(n.a) : emit(Bc::LoadConst, const_none(), i)))
             return false;
+        if (async_gen() && !emit(Bc::AsyncGenWrap, i))
+            return false;
         return emit(Bc::YieldValue, i);
     case Nd::YieldFrom:
         // YieldFrom takes the iterator and the value sent to it. It comes
         // back to itself with the next value sent in.
-        return expr(n.a) && emit(Bc::GetIter, i) && emit(Bc::LoadConst, const_none(), i) &&
+        return expr(n.a) && emit(Bc::GetYieldFromIter, i) && emit(Bc::LoadConst, const_none(), i) &&
                emit(Bc::YieldFrom, i);
 
     case Nd::Starred:
@@ -847,7 +892,7 @@ bool Compiler::expr(u32 i)
         return emit(Bc::FormatValue, flags, i);
     }
     case Nd::Await:
-        return fail("async is not compiled yet", i);
+        return expr(n.a) && await_top(i, AW_AWAIT);
 
     default:
         return fail("this expression is not compiled yet", i);
@@ -1151,13 +1196,17 @@ bool Compiler::with_at(u32 i, u32 k)
 
     u32 item      = kid(i, k);
     const Node &x = ast->at(item);
-    if (!expr(x.a) || !emit(Bc::BeforeWith, item))
+    bool async    = n.kind == Nd::AsyncWith;
+    if (!expr(x.a) || !emit(async ? Bc::BeforeAsyncWith : Bc::BeforeWith, item))
+        return false;
+    if (async && !await_top(item, AW_AENTER))
         return false;
     u32 fin = emit_jump(Bc::SetupWith, item);
 
     FBlock f;
-    f.kind = FK::With;
-    f.node = item;
+    f.kind  = FK::With;
+    f.node  = item;
+    f.async = async;
     if (!block_push(f))
         return false;
     bool ok = (x.b ? store(x.b) : emit(Bc::PopTop, item)) && with_at(i, k + 1);
@@ -1166,13 +1215,18 @@ bool Compiler::with_at(u32 i, u32 k)
         return false;
 
     if (!emit(Bc::PopBlock, item) || !emit(Bc::LoadConst, const_none(), item) ||
-        !emit(Bc::DupTop, item) || !emit(Bc::DupTop, item) || !emit(Bc::Call, 3, item) ||
-        !emit(Bc::PopTop, item))
+        !emit(Bc::DupTop, item) || !emit(Bc::DupTop, item) || !emit(Bc::Call, 3, item))
+        return false;
+    if (async && !await_top(item, AW_AEXIT))
+        return false;
+    if (!emit(Bc::PopTop, item))
         return false;
     u32 end = emit_jump(Bc::Jump, item);
 
     patch(fin);
     if (!emit(Bc::WithExceptStart, item))
+        return false;
+    if (async && !await_top(item, AW_AEXIT))
         return false;
     u32 swallow = emit_jump(Bc::PopJumpIfTrue, item);
     if (!emit(Bc::Reraise, 0, item))
@@ -1294,11 +1348,15 @@ bool Compiler::stmt(u32 i)
         return !failed;
     }
 
-    case Nd::For: {
-        if (!expr(n.b) || !emit(Bc::GetIter, i))
+    case Nd::For:
+    case Nd::AsyncFor: {
+        bool async = n.kind == Nd::AsyncFor;
+        if (!expr(n.b) || !emit(async ? Bc::GetAIter : Bc::GetIter, i))
             return false;
         u32 top = here();
-        u32 out = emit_jump(Bc::ForIter, i);
+        u32 out = async ? async_next(i) : emit_jump(Bc::ForIter, i);
+        if (failed)
+            return false;
 
         FBlock f;
         f.kind = FK::Loop;
@@ -1312,7 +1370,10 @@ bool Compiler::stmt(u32 i)
         if (!ok)
             return false;
 
+        // An async for ends when its handler sees StopAsyncIteration.
         patch(out);
+        if (async && !emit(Bc::EndAsyncFor, i))
+            return false;
         if (!stmts(i, n.c, n.d))
             return false;
         patch_all(breaks);
@@ -1355,9 +1416,11 @@ bool Compiler::stmt(u32 i)
     case Nd::Try:
         return try_stmt(i);
     case Nd::With:
+    case Nd::AsyncWith:
         return with_at(i, 0);
 
     case Nd::FunctionDef:
+    case Nd::AsyncFunctionDef:
         return function(i, true);
     case Nd::ClassDef:
         return classdef(i);
@@ -1366,11 +1429,6 @@ bool Compiler::stmt(u32 i)
         return import(i);
     case Nd::ImportFrom:
         return import_from(i);
-
-    case Nd::AsyncFunctionDef:
-    case Nd::AsyncFor:
-    case Nd::AsyncWith:
-        return fail("async is not compiled yet", i);
 
     default:
         return fail("this statement is not compiled yet", i);
@@ -1396,6 +1454,7 @@ bool Compiler::body_of(u32 node)
 
     switch (n.kind) {
     case Nd::FunctionDef:
+    case Nd::AsyncFunctionDef:
         if (!stmts(node, 0, n.b))
             return false;
         break;
@@ -1427,11 +1486,15 @@ bool Compiler::body_of(u32 node)
         for (u32 k = 0; k < n.nkid; k++) {
             u32 c         = kid(node, k);
             const Node &g = ast->at(c);
-            if (k && (!expr(g.b) || !emit(Bc::GetIter, c)))
+            bool async    = (g.flags & 1) != 0;
+            if (k && (!expr(g.b) || !emit(async ? Bc::GetAIter : Bc::GetIter, c)))
                 return false;
             if (!tops.push(here()))
                 return oom();
-            if (!outs.push(emit_jump(Bc::ForIter, c)))
+            u32 out = async ? async_next(c) : emit_jump(Bc::ForIter, c);
+            if (failed)
+                return false;
+            if (!outs.push(out))
                 return oom();
             if (!store(g.a))
                 return false;
@@ -1445,7 +1508,8 @@ bool Compiler::body_of(u32 node)
 
         u32 depth = n.nkid + 1;
         if (gen) {
-            if (!expr(n.a) || !emit(Bc::YieldValue, node) || !emit(Bc::PopTop, node))
+            if (!expr(n.a) || (async_gen() && !emit(Bc::AsyncGenWrap, node)) ||
+                !emit(Bc::YieldValue, node) || !emit(Bc::PopTop, node))
                 return false;
         } else if (n.kind == Nd::DictComp) {
             if (!expr(n.a) || !expr(n.b) || !emit(Bc::MapAdd, depth, node))
@@ -1459,6 +1523,8 @@ bool Compiler::body_of(u32 node)
             if (!emit(Bc::Jump, tops[k - 1], node))
                 return false;
             patch(outs[k - 1]);
+            if ((ast->at(kid(node, k - 1)).flags & 1) && !emit(Bc::EndAsyncFor, node))
+                return false;
         }
         if (gen && !emit(Bc::LoadConst, const_none(), 0))
             return false;
@@ -1524,6 +1590,8 @@ i32 effect(Bc op, u32 arg)
     case Bc::PrintExpr:
     case Bc::Return:
         return -1;
+    case Bc::EndAsyncFor:
+        return -2;
 
     case Bc::LoadConst:
     case Bc::LoadName:
@@ -1538,7 +1606,9 @@ i32 effect(Bc op, u32 arg)
     case Bc::ImportFrom:
     case Bc::PushExcInfo:
     case Bc::BeforeWith:
+    case Bc::BeforeAsyncWith:
     case Bc::WithExceptStart:
+    case Bc::GetANext:
         return 1;
 
     case Bc::DupTop2:
@@ -1669,7 +1739,7 @@ Value Compiler::docstring(u32 node)
     u32 first     = 0;
     if (n.kind == Nd::Module && n.nkid)
         first = ast->kids[n.kid0];
-    else if (n.kind == Nd::FunctionDef && n.b)
+    else if ((n.kind == Nd::FunctionDef || n.kind == Nd::AsyncFunctionDef) && n.b)
         first = ast->kids[n.kid0];
     else if (n.kind == Nd::ClassDef && n.c)
         first = ast->kids[n.kid0 + n.a + n.b];
@@ -1732,9 +1802,12 @@ u32 Compiler::nested(u32 node)
     c->argcount = s.argcount;
     c->posonly  = s.posonly;
     c->kwonly   = s.kwonly;
-    c->flags    = (s.varargs ? CO_VARARGS : 0) | (s.varkw ? CO_VARKW : 0) |
-                  (s.generator ? CO_GENERATOR : 0) | (s.freevars.size() ? CO_NESTED : 0) |
-                  (s.kind == ScopeKind::Class ? 0 : CO_NEWLOCALS);
+    u32 body    = !s.coroutine  ? (s.generator ? CO_GENERATOR : 0)
+                  : s.generator ? CO_ASYNC_GENERATOR
+                                : CO_COROUTINE;
+    c->flags    = (s.varargs ? CO_VARARGS : 0) | (s.varkw ? CO_VARKW : 0) | body |
+                  (s.freevars.size() ? CO_NESTED : 0) |
+                  (s.kind == ScopeKind::Class ? 0 : CO_OPTIMIZED | CO_NEWLOCALS);
 
     u       = &nu;
     nu.line = c->firstline;

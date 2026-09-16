@@ -1,9 +1,10 @@
-// The generator object and the bound resume. What a resume does is in vm.cpp,
+// The generator objects and the bound resume. What a resume does is in vm.cpp,
 // beside the dispatch loop whose frame chain it pushes onto.
 #include "gen.h"
 
 #include "gc.h"
 #include "kernel/fmt.h"
+#include "method.h"
 #include "ops.h"
 
 namespace {
@@ -18,55 +19,164 @@ void gen_trace(Obj *o)
     GenObj *g = static_cast<GenObj *>(o);
     gc_mark(g->frame);
     gc_mark(g->name);
+    gc_mark(g->qualname);
+    gc_mark(g->code);
     gc_mark(g->handling);
+}
+
+// "<coroutine object f at 0x...>", or without a name for the helper objects.
+R addr_repr(Value v, Str kind, Value name, String &out)
+{
+    char tmp[24];
+    Buf<128> b;
+    b.put('<').put(kind).put(" object ");
+    if (is_str(name))
+        b.put(str_of(name)->str()).put(' ');
+    b.put("at ").put(addr_text(tmp, sizeof tmp, v.obj())).put('>');
+    return out.append(b.str()) ? R::Ok : oom();
 }
 
 R gen_repr(Value v, String &out)
 {
-    GenObj *g = gen_of(v);
-    char tmp[24];
-    Buf<96> b;
-    b.put("<generator object ");
-    b.put(is_str(g->name) ? str_of(g->name)->str() : Str("?"));
-    b.put(" at 0x").put(int_text(tmp, sizeof tmp, i64(usize(v.obj())))).put('>');
-    return out.append(b.str()) ? R::Ok : oom();
+    return addr_repr(v, type_of(v)->name, gen_of(v)->qualname, out);
 }
 
 // A generator is its own iterator. There is no `next` slot, because stepping
 // one pushes a frame; ForIter and the drain in call.cpp use a GenRunObj.
-Value gen_iter(Value v)
+Value self_iter(Value v)
 {
     return v;
+}
+
+} // namespace
+
+Value gen_awaiting(Value v)
+{
+    GenObj *g = gen_of(v);
+    if (g->state != GEN_SUSPENDED || g->frame.is_nil())
+        return value_none();
+    FrameObj *f       = frame_of(g->frame);
+    const CodeObj *co = code_of(f->code);
+    if (f->pc >= co->code.size() || co->code[f->pc].op != Bc::YieldFrom || !f->sp)
+        return value_none();
+    return f->stack()[f->sp - 1];
+}
+
+namespace {
+
+// The attributes all three share, under their own prefix: gi_, cr_ or ag_.
+R gen_common(Value v, Str n, Str pre, Value &out)
+{
+    GenObj *g = gen_of(v);
+    if (n == "__name__")
+        out = g->name;
+    else if (n == "__qualname__")
+        out = g->qualname;
+    else if (!n.starts_with(pre))
+        return R::NotImpl;
+    else if (n.substr(pre.size()) == "frame")
+        out = g->frame.is_nil() ? value_none() : g->frame;
+    else if (n.substr(pre.size()) == "code")
+        out = g->code;
+    else if (n.substr(pre.size()) == "suspended")
+        out = value_bool(g->state == GEN_SUSPENDED);
+    else if (n.substr(pre.size()) == "running")
+        out = value_bool(is_agen(v) ? g->running : g->state == GEN_RUNNING);
+    else if (n.substr(pre.size()) == (is_gen(v) ? Str("yieldfrom") : Str("await")))
+        out = gen_awaiting(v);
+    else if (n == "cr_origin" && is_coro(v))
+        out = value_none();
+    else
+        return R::NotImpl;
+    return R::Ok;
+}
+
+R bound(Value v, u8 how, Value &out)
+{
+    out = genrun_new(v, how);
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R gen_getattr(Value v, StrObj *name, Value &out)
 {
     Str n = name->str();
-    u8 how;
     if (n == "__next__")
-        how = GR_NEXT;
-    else if (n == "send")
-        how = GR_SEND;
-    else if (n == "throw")
-        how = GR_THROW;
-    else if (n == "close")
-        how = GR_CLOSE;
-    else if (n == "__iter__")
-        how = GR_ITER;
-    else if (n == "__name__") {
-        out = gen_of(v)->name;
-        return R::Ok;
-    } else if (n == "gi_frame") {
-        out = gen_of(v)->frame.is_nil() ? value_none() : gen_of(v)->frame;
-        return R::Ok;
-    } else if (n == "gi_running") {
-        out = value_bool(gen_of(v)->state == GEN_RUNNING);
-        return R::Ok;
-    } else {
-        return R::NotImpl;
-    }
-    out = genrun_new(v, how);
-    return out.is_nil() ? R::Err : R::Ok;
+        return bound(v, GR_NEXT, out);
+    if (n == "send")
+        return bound(v, GR_SEND, out);
+    if (n == "throw")
+        return bound(v, GR_THROW, out);
+    if (n == "close")
+        return bound(v, GR_CLOSE, out);
+    if (n == "__iter__")
+        return bound(v, GR_ITER, out);
+    return gen_common(v, n, "gi_", out);
+}
+
+// A coroutine is not an iterator: `__await__` is how a plain caller gets one.
+R coro_getattr(Value v, StrObj *name, Value &out)
+{
+    Str n = name->str();
+    if (n == "send")
+        return bound(v, GR_SEND, out);
+    if (n == "throw")
+        return bound(v, GR_THROW, out);
+    if (n == "close")
+        return bound(v, GR_CLOSE, out);
+    if (n == "__await__")
+        return bound(v, GR_AWAIT, out);
+    return gen_common(v, n, "cr_", out);
+}
+
+// The methods an async generator has are natives in its table; these are its
+// data.
+R agen_getattr(Value v, StrObj *name, Value &out)
+{
+    return gen_common(v, name->str(), "ag_", out);
+}
+
+void corowrap_trace(Obj *o)
+{
+    gc_mark(static_cast<CoroWrapObj *>(o)->coro);
+}
+
+R corowrap_repr(Value v, String &out)
+{
+    return addr_repr(v, "coroutine_wrapper", Value(), out);
+}
+
+// The iterator protocol, and send, throw and close, all by resuming. An
+// awaitable is also its own __await__; a coroutine's wrapper is not.
+R iter_getattr(Value v, StrObj *name, Value &out)
+{
+    Str n = name->str();
+    if (n == "__next__")
+        return bound(v, GR_NEXT, out);
+    if (n == "send")
+        return bound(v, GR_SEND, out);
+    if (n == "throw")
+        return bound(v, GR_THROW, out);
+    if (n == "close")
+        return bound(v, GR_CLOSE, out);
+    if (n == "__iter__")
+        return bound(v, GR_ITER, out);
+    if (n == "__await__" && is_awaitobj(v))
+        return bound(v, GR_AWAIT, out);
+    return R::NotImpl;
+}
+
+void await_trace(Obj *o)
+{
+    AwaitObj *a = static_cast<AwaitObj *>(o);
+    gc_mark(a->target);
+    gc_mark(a->arg);
+    gc_mark(a->dflt);
+    gc_mark(a->iter);
+}
+
+R await_repr(Value v, String &out)
+{
+    return addr_repr(v, type_of(v)->name, Value(), out);
 }
 
 void genrun_trace(Obj *o)
@@ -85,6 +195,8 @@ Str genrun_name(u8 how)
         return "throw";
     case GR_CLOSE:
         return "close";
+    case GR_AWAIT:
+        return "__await__";
     default:
         return "__iter__";
     }
@@ -93,34 +205,158 @@ Str genrun_name(u8 how)
 R genrun_repr(Value v, String &out)
 {
     Buf<96> b;
-    b.put("<method '").put(genrun_name(genrun_of(v)->how)).put("' of 'generator' objects>");
+    b.put("<method '").put(genrun_name(genrun_of(v)->how)).put("' of '");
+    b.put(type_name(genrun_of(v)->gen)).put("' objects>");
     return out.append(b.str()) ? R::Ok : oom();
 }
+
+void wrapval_trace(Obj *o)
+{
+    gc_mark(static_cast<WrapValObj *>(o)->v);
+}
+
+// ------------------------------------------------- an async generator's methods
+
+GenObj *self_agen(const CallArgs &a, Str who)
+{
+    if (a.nargs && is_agen(a.args[0]))
+        return gen_of(a.args[0]);
+    err_set2("TypeError", "descriptor requires an 'async_generator' object", who);
+    return nullptr;
+}
+
+R m_aiter(const CallArgs &a, Value &out)
+{
+    if (!self_agen(a, "__aiter__") || !meth_args(a, "__aiter__", 0, 0))
+        return R::Err;
+    out = a.args[0];
+    return R::Ok;
+}
+
+R m_anext(const CallArgs &a, Value &out)
+{
+    if (!self_agen(a, "__anext__") || !meth_args(a, "__anext__", 0, 0))
+        return R::Err;
+    out = await_new(a.args[0], AK_ASEND, value_none());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R m_asend(const CallArgs &a, Value &out)
+{
+    if (!self_agen(a, "asend") || !meth_args(a, "asend", 1, 1))
+        return R::Err;
+    out = await_new(a.args[0], AK_ASEND, a.args[1]);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// The arguments are kept as a tuple and made an exception when thrown, which
+// is when CPython checks them too.
+R m_athrow(const CallArgs &a, Value &out)
+{
+    if (!self_agen(a, "athrow") || !meth_args(a, "athrow", 1, 3))
+        return R::Err;
+    TupleObj *t = tuple_new(a.nargs - 1);
+    if (!t)
+        return oom();
+    for (u32 i = 1; i < a.nargs; i++)
+        t->items()[i - 1] = a.args[i];
+    Root rt{ obj_value(t) };
+    out = await_new(a.args[0], AK_ATHROW, rt.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R m_aclose(const CallArgs &a, Value &out)
+{
+    if (!self_agen(a, "aclose") || !meth_args(a, "aclose", 0, 0))
+        return R::Err;
+    out = await_new(a.args[0], AK_ACLOSE, Value());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+constexpr Method AGEN_METHODS[] = {
+    { "__aiter__", m_aiter }, { "__anext__", m_anext }, { "asend", m_asend },
+    { "athrow", m_athrow },   { "aclose", m_aclose },
+};
 
 } // namespace
 
 constexpr Type gen_type{ .name    = "generator",
                          .trace   = gen_trace,
                          .repr    = gen_repr,
-                         .iter    = gen_iter,
+                         .iter    = self_iter,
                          .getattr = gen_getattr };
 
+constexpr Type coro_type{ .name    = "coroutine",
+                          .trace   = gen_trace,
+                          .repr    = gen_repr,
+                          .getattr = coro_getattr };
+
+constexpr Type agen_type{ .name    = "async_generator",
+                          .trace   = gen_trace,
+                          .repr    = gen_repr,
+                          .getattr = agen_getattr };
+
+constexpr Type corowrap_type{ .name    = "coroutine_wrapper",
+                              .trace   = corowrap_trace,
+                              .repr    = corowrap_repr,
+                              .iter    = self_iter,
+                              .getattr = iter_getattr };
+
+constexpr Type asend_type{ .name    = "async_generator_asend",
+                           .trace   = await_trace,
+                           .repr    = await_repr,
+                           .iter    = self_iter,
+                           .getattr = iter_getattr };
+
+constexpr Type athrow_type{ .name    = "async_generator_athrow",
+                            .trace   = await_trace,
+                            .repr    = await_repr,
+                            .iter    = self_iter,
+                            .getattr = iter_getattr };
+
+constexpr Type anext_type{ .name    = "anext_awaitable",
+                           .trace   = await_trace,
+                           .repr    = await_repr,
+                           .iter    = self_iter,
+                           .getattr = iter_getattr };
+
 constexpr Type genrun_type{ .name = "method", .trace = genrun_trace, .repr = genrun_repr };
+
+constexpr Type wrapval_type{ .name = "async_generator_wrapped_value", .trace = wrapval_trace };
 
 Value gen_new(Value frame)
 {
     Root rf{ frame };
-    GenObj *g = static_cast<GenObj *>(obj_alloc(&gen_type, sizeof(GenObj)));
+    const CodeObj *co = code_of(frame_of(rf.v)->code);
+    const Type *t     = (co->flags & CO_COROUTINE)         ? &coro_type
+                        : (co->flags & CO_ASYNC_GENERATOR) ? &agen_type
+                                                           : &gen_type;
+    GenObj *g         = static_cast<GenObj *>(obj_alloc(t, sizeof(GenObj)));
     if (!g)
         return oom(), Value();
+    co          = code_of(frame_of(rf.v)->code);
     g->frame    = rf.v;
-    g->name     = code_of(frame_of(rf.v)->code)->name;
+    g->name     = co->name;
+    g->qualname = co->qualname;
+    g->code     = frame_of(rf.v)->code;
     g->handling = Value();
     g->state    = GEN_CREATED;
+    g->running  = false;
+    g->closed   = false;
     // A generator dropped at a yield owes its `finally` a run, and that is
     // what a finalizer is: the collector owes it one close.
     g->flags |= OBJ_FINAL;
     return obj_value(g);
+}
+
+Str gen_kind(Value v)
+{
+    return is_coro(v) ? Str("coroutine") : is_agen(v) ? Str("async generator") : Str("generator");
+}
+
+bool gen_awaitable(Value v)
+{
+    return is_gen(v) && (code_of(gen_of(v)->code)->flags & CO_ITERABLE_COROUTINE);
 }
 
 Value genrun_new(Value gen, u8 how)
@@ -132,4 +368,63 @@ Value genrun_new(Value gen, u8 how)
     m->gen = rg.v;
     m->how = how;
     return obj_value(m);
+}
+
+Value resumer(Value v, u8 how)
+{
+    if (!is_resumable(v) && !is_coro(v) && !is_agen(v))
+        return Value();
+    return genrun_new(v, how);
+}
+
+Value await_new(Value target, u8 kind, Value arg)
+{
+    Root rt{ target }, ra{ arg };
+    const Type *t = kind == AK_ASEND     ? &asend_type
+                    : kind == AK_DEFAULT ? &anext_type
+                                         : &athrow_type;
+    AwaitObj *a   = static_cast<AwaitObj *>(obj_alloc(t, sizeof(AwaitObj)));
+    if (!a)
+        return oom(), Value();
+    a->target = rt.v;
+    a->arg    = ra.v;
+    a->dflt   = Value();
+    a->iter   = Value();
+    a->kind   = kind;
+    a->state  = AS_INIT;
+    return obj_value(a);
+}
+
+Value anext_default(Value awaitable, Value dflt)
+{
+    Root rd{ dflt };
+    Value v = await_new(awaitable, AK_DEFAULT, Value());
+    if (!v.is_nil())
+        await_of(v)->dflt = rd.v;
+    return v;
+}
+
+Value corowrap_new(Value coro)
+{
+    Root rc{ coro };
+    CoroWrapObj *w = static_cast<CoroWrapObj *>(obj_alloc(&corowrap_type, sizeof(CoroWrapObj)));
+    if (!w)
+        return oom(), Value();
+    w->coro = rc.v;
+    return obj_value(w);
+}
+
+Value wrapval_new(Value v)
+{
+    Root rv{ v };
+    WrapValObj *w = static_cast<WrapValObj *>(obj_alloc(&wrapval_type, sizeof(WrapValObj)));
+    if (!w)
+        return oom(), Value();
+    w->v = rv.v;
+    return obj_value(w);
+}
+
+bool gen_methods()
+{
+    return method_install(&agen_type, AGEN_METHODS);
 }

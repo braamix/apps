@@ -4,6 +4,7 @@
 
 #include "gc.h"
 #include "kernel/fmt.h"
+#include "method.h"
 
 namespace {
 
@@ -116,7 +117,95 @@ R code_getattr(Value v, StrObj *name, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+template <typename T>
+bool copy_vec(Vec<T> &to, const Vec<T> &from)
+{
+    if (!to.resize(from.size()))
+        return false;
+    for (usize i = 0; i < from.size(); i++)
+        to[i] = from[i];
+    return true;
+}
+
+// The fields replace() may be given, by keyword.
+enum : u32 { RP_FLAGS, RP_NAME, RP_QUALNAME, RP_FILENAME, RP_FIRSTLINE, RP_COUNT };
+
+constexpr Str RP_NAMES[RP_COUNT] = { "co_flags", "co_name", "co_qualname", "co_filename",
+                                     "co_firstlineno" };
+
+// code.replace(**changes): a copy with some fields different. types.coroutine
+// is the reason it exists, which sets one flag.
+R m_replace(const CallArgs &a, Value &out)
+{
+    if (a.nargs != 1 || !is_code(a.args[0]))
+        return err_set("TypeError", "replace() takes no positional arguments");
+    Value got[RP_COUNT];
+    Roots pin{ got, RP_COUNT };
+    i64 num[RP_COUNT] = {};
+    for (u32 k = 0; k < a.nkw; k++) {
+        Str n = str_of(a.kwnames[k])->str();
+        u32 f = 0;
+        while (f < RP_COUNT && RP_NAMES[f] != n)
+            f++;
+        if (f == RP_COUNT) {
+            Buf<96> b;
+            b.put("replace() got an unexpected keyword argument '").put(n).put("'");
+            return err_set("TypeError", b.str());
+        }
+        bool number = f == RP_FLAGS || f == RP_FIRSTLINE;
+        i64 x;
+        if (number ? !as_index(a.kwvals[k], x) || x < 0 || x > 0x7fffffff : !is_str(a.kwvals[k]))
+            return err_set2(
+                "TypeError",
+                number ? "replace() argument must be int" : "replace() argument must be str",
+                RP_NAMES[f]);
+        got[f] = a.kwvals[k];
+        num[f] = number ? x : 0;
+    }
+
+    Root self{ a.args[0] };
+    CodeObj *o = code_of(self.v);
+    CodeObj *c = code_new(o->name, o->filename, o->firstline);
+    if (!c)
+        return err_set("MemoryError", "out of memory");
+    Root made{ obj_value(c) };
+    o = code_of(self.v);
+    if (!copy_vec(c->code, o->code) || !copy_vec(c->consts, o->consts) ||
+        !copy_vec(c->names, o->names) || !copy_vec(c->varnames, o->varnames) ||
+        !copy_vec(c->cellvars, o->cellvars) || !copy_vec(c->freevars, o->freevars) ||
+        !copy_vec(c->lines, o->lines))
+        return err_set("MemoryError", "out of memory");
+    c->qualname  = o->qualname;
+    c->doc       = o->doc;
+    c->flags     = o->flags;
+    c->argcount  = o->argcount;
+    c->posonly   = o->posonly;
+    c->kwonly    = o->kwonly;
+    c->stacksize = o->stacksize;
+    c->nblocks   = o->nblocks;
+
+    if (!got[RP_FLAGS].is_nil())
+        c->flags = u32(num[RP_FLAGS]);
+    if (!got[RP_FIRSTLINE].is_nil())
+        c->firstline = u32(num[RP_FIRSTLINE]);
+    if (!got[RP_NAME].is_nil())
+        c->name = got[RP_NAME];
+    if (!got[RP_QUALNAME].is_nil())
+        c->qualname = got[RP_QUALNAME];
+    if (!got[RP_FILENAME].is_nil())
+        c->filename = got[RP_FILENAME];
+    out = made.v;
+    return R::Ok;
+}
+
+constexpr Method CODE_METHODS[] = { { "replace", m_replace } };
+
 } // namespace
+
+bool code_methods()
+{
+    return method_install(&code_type, CODE_METHODS);
+}
 
 constexpr Type code_type{ .name    = "code",
                           .trace   = code_trace,

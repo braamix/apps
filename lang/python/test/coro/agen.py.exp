@@ -1,0 +1,80 @@
+-- stepping the awaitables by hand
+async_generator counter counter False None
+True async_generator_asend async_generator_athrow
+None None
+   [] stop 0
+  got hello
+   ['after 0'] stop 1
+False True counter
+  still running ['after 1']
+   [] stop 2
+  counter closed
+   [] stop None
+None False
+   [] raised StopAsyncIteration 
+   [] stop None
+   [] stop None
+-- athrow
+   [] stop ready
+  caught KeyError('one')
+   [] stop handled
+   [] raised KeyError 'two'
+   [] stop None
+   [] raised StopAsyncIteration 
+   [] raised ValueError unstarted
+   [] raised StopAsyncIteration 
+-- aclose
+   [] stop 1
+   [] raised RuntimeError async generator ignored GeneratorExit
+   [] stop 1
+  cleaning up
+cleanup True generator
+  cleaned
+  closed False
+   [] stop None
+   [] raised StopAsyncIteration 
+-- the ends of an async generator
+   [] stop 1
+   [] raised StopAsyncIteration 
+   [] raised StopAsyncIteration 
+   [] stop 1
+   [] raised RuntimeError async generator raised StopAsyncIteration
+   [] raised StopAsyncIteration 
+   [] stop 1
+   [] raised RuntimeError async generator raised StopIteration
+   [] raised StopAsyncIteration 
+-- reusing and overlapping
+slow
+   [] raised RuntimeError anext(): asynchronous generator is already running
+   [] raised RuntimeError aclose(): asynchronous generator is already running
+   [] raised RuntimeError athrow(): asynchronous generator is already running
+   [] stop value
+   [] raised RuntimeError cannot reuse already awaited __anext__()/asend()
+cannot reuse already awaited __anext__()/asend()
+None
+   [] stop None
+can't send non-None value to a just-started coroutine
+   [] stop None
+-- close() and throw() on the awaitables
+   [] stop 0
+after 0
+  counter closed
+None
+   [] raised StopAsyncIteration 
+   [] stop 0
+  counter closed
+  thrown back 'thrown'
+   [] raised RuntimeError cannot reuse already awaited __anext__()/asend()
+   [] raised StopAsyncIteration 
+-- async for over one, and the builtins
+  counter closed
+  counter closed
+  pauses ['after 0', 'after 1', 'after 2', 'after 0', 'after 1'] -> [0, 1, 2, 0, 1, 'd2', 'done']
+  pauses [1, 0] -> [1, 2, 'default']
+anext_awaitable None
+'int' object is not an async iterable
+'int' object is not an async iterator
+aiter() returned not an async iterator of type 'int'
+-- an async generator expression
+  counter closed
+  pauses ['after 0', 'after 1', 'after 2'] -> [1, 4]

@@ -144,6 +144,8 @@ const Named NAMES[] = {
     { "MethodType", &method_type },
     { "ModuleType", &module_type },
     { "GeneratorType", &gen_type },
+    { "CoroutineType", &coro_type },
+    { "AsyncGeneratorType", &agen_type },
     { "FrameType", &frame_type },
     { "BuiltinFunctionType", &native_type },
     { "BuiltinMethodType", &native_type },

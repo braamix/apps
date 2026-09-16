@@ -1515,9 +1515,9 @@ R b_next(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "next", 1, 2))
         return R::Err;
-    if (is_gen(a.args[0]) || type_has_py_special(a.args[0], "__next__")) {
-        Root m{ is_gen(a.args[0]) ? genrun_new(a.args[0], GR_NEXT)
-                                  : type_special(a.args[0], "__next__") };
+    if (is_resumable(a.args[0]) || type_has_py_special(a.args[0], "__next__")) {
+        Root m{ is_resumable(a.args[0]) ? genrun_new(a.args[0], GR_NEXT)
+                                        : type_special(a.args[0], "__next__") };
         if (m.v.is_nil())
             return R::Err;
         Root d{ a.nargs > 1 ? a.args[1] : Value() };
@@ -2392,6 +2392,85 @@ R b_function(const CallArgs &a, Value &out)
 
 // ------------------------------------------------------------------ the map
 
+// aiter(x): x.__aiter__(), whose answer has to be an async iterator. s[0] is
+// the bound method.
+R aiter_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], Value(), 0);
+    if (!is_agen(in) && !type_has_special(in, "__anext__")) {
+        Buf<96> m;
+        m.put("aiter() returned not an async iterator of type '").put(type_name(in)).put("'");
+        return err_set("TypeError", m.str());
+    }
+    return cont_done(k, in);
+}
+
+R b_aiter(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "aiter", 1, 1))
+        return R::Err;
+    if (is_agen(a.args[0])) {
+        out = a.args[0];
+        return R::Ok;
+    }
+    Root m{ type_special(a.args[0], "__aiter__") };
+    if (m.v.is_nil()) {
+        if (err_pending())
+            return R::Err;
+        Buf<96> b;
+        b.put("'").put(type_name(a.args[0])).put("' object is not an async iterable");
+        return err_set("TypeError", b.str());
+    }
+    Root kv{ cont_new(aiter_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[0] = m.v;
+    out                 = kv.v;
+    return R::Ok;
+}
+
+// anext(it[, default]): it.__anext__(), wrapped so that the end of the
+// iteration is the default. s[0] is the bound method, s[1] the default or Nil.
+R anext1_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], Value(), 0);
+    if (k->s[1].is_nil())
+        return cont_done(k, in);
+    Value w = anext_default(in, k->s[1]);
+    return w.is_nil() ? R::Err : cont_done(k, w);
+}
+
+R b_anext(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "anext", 1, 2))
+        return R::Err;
+    Root it{ a.args[0] }, dflt{ a.nargs > 1 ? a.args[1] : Value() };
+    if (is_agen(it.v)) {
+        Root aw{ await_new(it.v, AK_ASEND, value_none()) };
+        if (aw.v.is_nil())
+            return R::Err;
+        out = dflt.v.is_nil() ? aw.v : anext_default(aw.v, dflt.v);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    Root m{ type_special(it.v, "__anext__") };
+    if (m.v.is_nil()) {
+        if (err_pending())
+            return R::Err;
+        Buf<96> b;
+        b.put("'").put(type_name(it.v)).put("' object is not an async iterator");
+        return err_set("TypeError", b.str());
+    }
+    Root kv{ cont_new(anext1_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[0] = m.v;
+    cont_of(kv.v)->s[1] = dflt.v;
+    out                 = kv.v;
+    return R::Ok;
+}
+
 struct Builtin {
     Str name;
     R (*fn)(const CallArgs &, Value &out);
@@ -2412,6 +2491,7 @@ constexpr Builtin TABLE[] = {
     { "oct", b_oct },         { "bin", b_bin },           { "compile", b_compile },
     { "eval", b_eval },       { "exec", b_exec },         { "globals", b_globals },
     { "locals", b_locals },   { "vars", b_vars },         { "dir", b_dir },
+    { "aiter", b_aiter },     { "anext", b_anext },
 };
 
 // Calling one of these is calling its type: `list(x)` is `list.__new__(x)`,

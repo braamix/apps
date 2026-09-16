@@ -297,8 +297,11 @@ R py_contains(Value v, Value item, bool &out)
     const Type *t = type_of(v);
     if (t && t->contains)
         return t->contains(v, item, out);
-    if (!t || !t->iter)
-        return err_set2("TypeError", "argument of type is not iterable", type_name(v));
+    if (!t || !t->iter) {
+        Buf<96> m;
+        m.put("argument of type '").put(type_name(v)).put("' is not a container or iterable");
+        return err_set("TypeError", m.str());
+    }
 
     Root ri{ item };
     Root it{ py_iter(v) };
@@ -341,19 +344,29 @@ R py_getattr(Value v, StrObj *name, Value &out)
     return err_set("AttributeError", m.str());
 }
 
+R not_iterable(Value v)
+{
+    Buf<96> m;
+    m.put("'").put(type_name(v)).put("' object is not iterable");
+    return err_set("TypeError", m.str());
+}
+
 Value py_iter(Value v)
 {
     const Type *t = type_of(v);
     if (!t || !t->iter)
-        return err_set2("TypeError", "object is not iterable", type_name(v)), Value();
+        return not_iterable(v), Value();
     return t->iter(v);
 }
 
 R py_next(Value it, Value &out)
 {
     const Type *t = type_of(it);
-    if (!t || !t->next)
-        return err_set2("TypeError", "object is not an iterator", type_name(it));
+    if (!t || !t->next) {
+        Buf<96> m;
+        m.put("'").put(type_name(it)).put("' object is not an iterator");
+        return err_set("TypeError", m.str());
+    }
     return t->next(it, out);
 }
 

@@ -91,6 +91,7 @@ bool bytes_methods();
 bool seq_methods();
 bool map_methods();
 bool num_methods();
+bool code_methods();
 
 // The protocol methods -- __len__, __getitem__, __eq__ -- in each built-in
 // type's own namespace, over the slots that type fills. Last, so a method a

@@ -7,6 +7,7 @@
 #include "exc.h"
 #include "format.h"
 #include "gc.h"
+#include "gen.h"
 #include "intern.h"
 #include "kernel/fmt.h"
 #include "ops.h"
@@ -118,7 +119,8 @@ constexpr Method OBJECT[] = {
 bool methods_install()
 {
     return method_install(&object_type, OBJECT) && str_methods() && bytes_methods() &&
-           seq_methods() && map_methods() && num_methods() && complex_methods() && slot_methods();
+           seq_methods() && map_methods() && num_methods() && complex_methods() && gen_methods() &&
+           code_methods() && slot_methods();
 }
 
 Value method_self(Value v)

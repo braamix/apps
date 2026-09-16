@@ -25,7 +25,7 @@ code <module>  file /tmp/c.py  line 1
            15  Return
 
 code f  file /tmp/c.py  line 1
-  args 0 (posonly 0, kwonly 0)  stack 3  flags newlocals
+  args 0 (posonly 0, kwonly 0)  stack 3  flags optimized newlocals
   varnames: C
   cellvars: x
   consts:
@@ -66,7 +66,7 @@ code C  file /tmp/c.py  line 4
             7  Return
 
 code r  file /tmp/c.py  line 10
-  args 0 (posonly 0, kwonly 0)  stack 1  blocks 1  flags newlocals
+  args 0 (posonly 0, kwonly 0)  stack 1  blocks 1  flags optimized newlocals
   consts:
       0  1
       1  None
@@ -81,7 +81,7 @@ code r  file /tmp/c.py  line 10
             8  Return
 
 code w  file /tmp/c.py  line 16
-  args 0 (posonly 0, kwonly 0)  stack 5  blocks 1  flags newlocals
+  args 0 (posonly 0, kwonly 0)  stack 5  blocks 1  flags optimized newlocals
   names: open
   consts:
       0  'a'
@@ -118,7 +118,7 @@ code w  file /tmp/c.py  line 16
            28  Return
 
 code gen  file /tmp/c.py  line 20
-  args 0 (posonly 0, kwonly 0)  stack 1  flags generator newlocals
+  args 0 (posonly 0, kwonly 0)  stack 1  flags optimized newlocals generator
   varnames: x
   consts:
       0  1

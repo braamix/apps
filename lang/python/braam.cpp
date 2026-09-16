@@ -40,8 +40,8 @@ constexpr Str USAGE =
     "    python --dis <f>         print the bytecode of <f>\n"
     "\n"
     "Python 3, written for Braam: its own compiler, its own bytecode and its\n"
-    "own virtual machine. There is no library and no REPL yet, and `async` is\n"
-    "refused -- see TODO.md.\n";
+    "own virtual machine. There is no library, no event loop and no REPL yet\n"
+    "-- see TODO.md.\n";
 
 constexpr Opts SPEC = { "V", "c" };
 
