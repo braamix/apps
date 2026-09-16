@@ -28,8 +28,8 @@ this file, which from here describes only what is left.
 Where that leaves us, measured against MicroPython's suite: **397 of the 432
 tests in [test/manifest.txt](test/manifest.txt)**. Of the thirty-five that do
 not, most print `SKIP` because they import `collections` or `struct` — the
-pure-Python wrappers over what phase 18 wrote — and those are phase 20. None
-stop at the object model.
+pure-Python wrappers over what phase 18 wrote — and those arrive with the
+library in phase 23. None stop at the object model.
 
 Measured against CPython's, which is the harder ruler: **eleven of the fourteen
 in [test/cpython.txt](test/cpython.txt) run, and fifty-five test methods of
@@ -43,20 +43,51 @@ were 204 files between them — and **what stops CPython's tests is an import.**
 Phase 18 moved that column for the first time since 14, and only by four:
 `test_itertools.py` imports `doctest`, `test_array.py` imports `collections`,
 `test_math.py` wants a `test.support` this shim has not got. What those files
-stop on is the *library*, not the modules under it. So **phase 20 is now the
-one that matters**, and phase 18 is what it will stand on. The survey is how
-each wave is chosen, and it only means something read beside what it said last
+stop on is the *library*, not the modules under it. The survey is how each
+wave is chosen, and it only means something read beside what it said last
 time.
 
 **The first library module is borrowed.** `lib/abc.py` is CPython's own, byte
 for byte, with its provenance in [lib/manifest.txt](lib/manifest.txt) and the
-PSF terms in [LICENSE](LICENSE). Phase 20 is where that directory grows and
-phase 27 where it ships; the pattern it establishes is that we write the floor
-natively and take the rest as it is. Phase 18 wrote most of the rest of that
-floor, and `types.py` is the one that shows why: its fallback for a missing
-`_types` derives each name from an expression — `type(_g())`, `type(int | str)`
-— and needs `async def` and the union operator, neither of which is here yet.
-With `_types` written, the module can simply be copied.
+PSF terms in [LICENSE](LICENSE). Phase 23 is where that directory grows and
+phase 30 where it ships; the pattern it establishes is that we write the floor
+natively and take the rest as it is.
+
+## Why the phases are in this order
+
+The plan used to put `re` next and the library after it, with the syntax the
+library is written in further down. Measuring `import re` showed that order
+could not be built: every phase waited on a later one.
+
+`re/__init__.py` imports `enum`, `functools` and `copyreg` at the top, and
+compiling those — not running them, compiling, since a module is compiled
+whole — reaches the following, measured by running each file through
+`python --dis` and then importing it:
+
+| module | stops on | which is |
+| --- | --- | --- |
+| `types.py` | `async def`, in the fallback for a missing `_types` | the language |
+| `_collections_abc.py` | `async def` and `await`, at module level | the language |
+| `collections/__init__.py` | `lazy from copy import copy` (PEP 810) | the language |
+| `operator.py` | `a @ b` | the language |
+| `copyreg.py` | `int \| str`, evaluated at import | the language |
+| `reprlib.py` | `import _thread` | the native floor |
+| `_py_warnings.py` | `import _contextvars`, `import _thread` | the native floor |
+| `string/__init__.py` | `import _string` | the native floor |
+| `contextlib.py` | `import os` | the file system |
+
+`functools` reaches `collections`, `_collections_abc`, `types`, `reprlib` and
+`_thread`; `enum` reaches `types`. So `re` stands on the library, the library
+stands on the language, and the order below is that order: **the language
+first, then the floor, then the library in the layers its own imports make.**
+The same measurement says `types.py` cannot "simply be copied" once `_types`
+exists, as this file used to claim — the fallback it never runs still has to
+compile.
+
+It also says what a phase's CPython tests can prove. A test file imports far
+more than the module it tests — `test_functools.py` imports `annotationlib`,
+`random`, `threading`, `typing` and `unittest.mock` — so each phase names the
+tests whose imports it has satisfied, and says which ones wait.
 
 ## The two upstreams
 
@@ -80,7 +111,7 @@ It is the ruler for everything after the core, and it is two distinct things:
   measure this plan ends on.
 - **[tmp/cpython/Lib/](tmp/cpython/Lib/)** — the standard library, most of it
   pure Python written against a small C floor. `re/` is 3,258 lines of Python
-  over an `_sre` whose whole Python-visible surface is eight names;
+  over an `_sre` whose whole Python-visible surface is a dozen names;
   `collections`, `functools`, `heapq`, `json`, `datetime` and `decimal` each
   carry an `except ImportError` fallback for the day their C accelerator is
   missing, which is our day. **A Python that runs CPython's own library is a
@@ -92,14 +123,23 @@ licence, not MIT, and [LICENSE](LICENSE) now carries both and says which files
 each covers — phase 12 owed it the moment the first test file was copied in,
 and the library will owe it again.
 
-The second is partly paid, and **the library decides the syntax**: it is
+The second is not paid yet, and **the library decides the syntax**: it is
 written in the Python of its own day, not 3.9's. `dataclasses.py` has 92
-f-strings in it and a `match` statement; `functools.py` has 29 f-strings. Phase
-13 settled the f-strings, which were the prerequisite for borrowing anything at
-all; what the library still wants is `match`, `except*` and the rest of phase
-24. The syntax phases below are ordered by what the modules we want actually
-use, which is measurable: `pycases.mjs --survey` says what stops each of
-CPython's own test files, and the answer moves as each phase lands.
+f-strings in it and a `match` statement; `typing.py` has fifteen PEP 695
+generics; `argparse.py` has nine `lazy` imports. Phase 13 settled the
+f-strings; phases 19 and 20 settle the rest, and they come before the library
+because the library cannot be compiled without them. `pycases.mjs --survey`
+says what stops each of CPython's own test files, and the answer moves as each
+phase lands.
+
+**The host's CPython is now 3.14** — `/opt/homebrew/bin/python3`, first on
+`PATH`, so `tools/mkfmt.py`, `mklex.py`, `mkast.py` and `mkexp.py` reach it
+through their `#!/usr/bin/env python3`. Every golden written so far came from
+the system's 3.9 at `/usr/bin/python3`, and the manifest's `exp` column says
+`cpython3.9`. 3.14 parses everything the library uses but one thing: `match`
+(3.10), `except*` (3.11), PEP 695 (3.12) and PEP 649's annotations (3.14) are
+all there, and PEP 810's `lazy` (3.15) is not. So the `lazy` cases of phase 20
+need the clone in `tmp/cpython/` built, and nothing else does.
 
 ## Ground rules
 
@@ -130,6 +170,10 @@ platform, and getting one wrong is a rewrite.
    `heap_delete`. Namespace-scope globals stay trivially destructible.
 6. **Nothing lives in a coroutine frame.** Only `braam.cpp` has frames at all,
    and they hold a pointer to the interpreter state and nothing else.
+7. **No phase depends on a later one.** A library module that needs something
+   not written yet waits for the phase that writes it, and the module is never
+   edited to get round it. A phase that finds a new forward dependency moves
+   the dependency earlier or itself later, and says so here.
 
 The limits to build against, with their sources: `PROC_MAX_PAGES = 1600`, so
 100 MB of linear memory (`../braam-core/src/kernel/sysabi.h`); a 128 KiB shadow
@@ -187,160 +231,296 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
+The order is language (19–21), floor (22), library by layer (23–26), then the
+layers that need all of it (27–30). Each phase lists only what the phases
+before it have made possible.
+
 Phase 18 left two things for the phases that use them. `memoryview` is flat:
 it has an item size, a format and a stride, and `cast()` recasts a contiguous
 one, but it is one-dimensional and nothing here makes a buffer with more than
 one. And `_types` is missing the names this interpreter has no type for —
-`CoroutineType` and `AsyncGeneratorType` wait for phase 23, `UnionType` for
-phase 24, and `TracebackType` for whenever a traceback stops being a string.
+`CoroutineType` and `AsyncGeneratorType` wait for phase 19, `UnionType` for
+phase 20, and `TracebackType` for whenever a traceback stops being a string.
 
-### Phase 19 — `_sre`, and the whole of `re`
+### Phase 19 — `async` and `await`, the language
+
+Coroutines are generators with a different protocol, so this lands on phase
+15's frame that is parked rather than popped. This is the language half only;
+the event loop is phase 28, because `asyncio` stands on nearly everything
+else. It comes first because `types.py` and `_collections_abc.py` — the two
+modules the whole library imports — do not compile without it.
+
+- [ ] `async def`, `await`, `async for` and `async with` — all four of which
+      the parser already accepts and the compiler refuses with a `SyntaxError`
+      that says so.
+- [ ] The coroutine object: `send`, `throw`, `close`, `cr_frame`,
+      `cr_running`, `cr_await`, and the warning-free close of one never
+      awaited, which is what `types.py` and `_collections_abc.py` do at import.
+- [ ] `__await__`, `__aiter__`/`__anext__`, `__aenter__`/`__aexit__`, and
+      async generators with `asend`, `athrow` and `aclose`.
+- [ ] `CoroutineType` and `AsyncGeneratorType` in `_types`, and the
+      coroutine's and async generator's own types in `_collections_abc`'s
+      sense: `type(_coro)` and `type(_ag)` are real, distinct types.
+
+Tests: MicroPython's `basics/async_*.py`, which drive coroutines by hand and
+need no event loop; goldens from the host's 3.14. CPython's
+`test_coroutines.py` and `test_asyncgen.py` import `inspect`, `contextlib` and
+`traceback`, and wait for phase 27.
+
+### Phase 20 — the syntax since 3.9
+
+The parser was written to 3.9. The library is written to 3.16.
+
+- [ ] The reference interpreters, before any golden is written. The host's
+      3.14 answers everything below except `lazy`; for that, build
+      `tmp/cpython/` and let `tools/mk*.py` take an interpreter from
+      `$PYTHON`, defaulting to the one on `PATH`. Record which one wrote each
+      golden, as the manifest's `exp` column already does (`cpython3.14`,
+      `cpython3.16`).
+- [ ] Regenerate the existing goldens under 3.14 and read the diff: a message
+      or a repr that changed since 3.9 is either a case to update or a
+      difference this interpreter should follow. Until that is done, a 3.9
+      golden is not rewritten by accident — `mkexp.py` and `mkfmt.py` run
+      whatever `python3` is.
+- [ ] `@` as an operator, with `__matmul__`, `__rmatmul__` and `__imatmul__`.
+      `operator.py` uses it.
+- [ ] `X | Y` as a type union: `types.UnionType`, `__or__` and `__ror__` on
+      `type`, `None` and the generic alias, `__args__`, `isinstance` against
+      one. `types.py` and `copyreg.py` evaluate one at import.
+- [ ] PEP 810's `lazy import` and `lazy from ... import`, with the soft
+      keyword, the deferred binding and the reification on first use.
+      `collections`, `contextlib`, `argparse` and `dataclasses` use it.
+- [ ] `match`, with all seven pattern kinds — literal, capture, wildcard,
+      value, sequence, mapping, class — plus guards, `__match_args__`, and the
+      `Py_TPFLAGS_SEQUENCE`/`MAPPING` question for built-in types.
+      `dataclasses.py`, `traceback.py`, `typing.py` and `annotationlib.py` use
+      it.
+- [ ] `except*` and the exception groups: `BaseExceptionGroup`,
+      `ExceptionGroup`, `split`, `subgroup`, `derive`, and the unwinding rule.
+- [ ] PEP 695: the `type` statement and generic syntax on `def` and `class`,
+      over a native `_typing` — `TypeVar`, `ParamSpec`, `TypeVarTuple`,
+      `ParamSpecArgs`, `ParamSpecKwargs`, `TypeAliasType`, `Generic`, `Union`,
+      `NoDefault` and `_idfunc` — which is the whole of what `typing.py`
+      imports from it. `typing.py` has fifteen of these.
+- [ ] `:=` in a subscript, which the survey still counts among its refusals.
+- [ ] Decide and record the version this tracks, because "3.16" and "the
+      subset the shipped library needs" are not the same promise.
+
+Tests: the new MicroPython rows this phase's syntax unblocks, and cases of our
+own under `test/ast/` and `test/exec/` against the host's 3.14 — and against
+the built clone for `lazy`.
+CPython's `test_patma.py` imports `dataclasses` and `inspect`, and
+`test_exception_group.py` imports `collections`; `test_grammar.py`,
+`test_syntax.py` and `test_lazy_import/` are the ones to try here, and the
+survey says how far each gets.
+
+### Phase 21 — Unicode in full
+
+Until here, `str` is codepoints with an ASCII fast path and a range table for
+case. The library and `test_str.py` want more, and so does `_sre`: its
+character categories are Unicode's — decimal, space, alphanumeric, printable,
+XID_Start, titlecase, cased, case-ignorable — so it waits for these tables.
+
+- [ ] `unicodedata`: the category, the case mappings, the numeric values and
+      the names, as a generated table whose size is measured before it ships.
+      `lookup` is what `re`'s `\N{...}` calls.
+- [ ] `str.upper`/`lower`/`title`/`casefold` and the `is*` predicates by
+      category rather than by range. Phase 10 left `casefold` as `lower`,
+      `isdecimal` and `isnumeric` as `isdigit`, and `'ß'.isalpha()` False,
+      because the range table has no one-codepoint upper for it.
+- [ ] `_codecs`, with `_normalize_encoding`, and `codecs.py` and the
+      `encodings` package verbatim over it: `utf-8`, `utf-16`, `utf-32`,
+      `latin-1`, `ascii`, the error handlers (`strict`, `ignore`, `replace`,
+      `surrogateescape`, `backslashreplace`), and `str.encode`/`bytes.decode`
+      over them. `codecs.py` needs only `builtins` and `sys`, so it is the
+      first library module that can arrive without phase 23.
+- [ ] `\N{...}` escapes in the lexer, and identifiers by XID_Start and
+      XID_Continue rather than "anything above U+0080", which is a known
+      difference today. NFKC normalisation of an identifier goes with it, and
+      it is what `test_unicode_identifiers.py` stops on.
+- [ ] **A lone surrogate in a string literal.** `"\ud800"` is refused by the
+      lexer and CPython allows it; 33 of `Lib/test/`'s files stop there, which
+      is second only to an import. It needs the whole
+      `surrogatepass`/`surrogateescape` question answered, not just the range
+      check relaxed.
+- [ ] Normalisation, if the table cost is bearable.
+
+Tests: `test_unicode_identifiers.py` and `test_utf8source.py`, already in
+[test/cpython.txt](test/cpython.txt). `test_str.py`, `test_unicodedata.py` and
+`test_codecs.py` import the library, and wait for phase 23 or later.
+
+### Phase 22 — the rest of the native floor
+
+Phase 18 wrote most of what the first wave stands on. These are the pieces the
+measurement above found missing, each named by the module that imports it.
+
+- [ ] `_thread`: `allocate_lock` and `LockType`, `RLock`, `get_ident`,
+      `get_native_id`, `_local`, `TIMEOUT_MAX`, and a `start_new_thread` that
+      raises. `reprlib`, `functools`, `_py_warnings`, `threading` and `_pyio`
+      import it; a lock that is never contended is all one Web Worker needs.
+- [ ] `_contextvars`: `ContextVar`, `Context`, `Token` and `copy_context`.
+      `_py_warnings` makes a `ContextVar` at import; `_pydecimal` and
+      `asyncio` want the rest.
+- [ ] `_string`: `formatter_parser` and `formatter_field_name_split`, over
+      phase 13's format grammar. `string/__init__.py` imports it.
+- [ ] `_weakref.proxy`, `ProxyType` and `CallableProxyType`, which
+      `collections` imports.
+- [ ] `sys._getframe().f_locals` answering a mapping of its own type, which
+      is how `_collections_abc.py` names `framelocalsproxy`.
+- [ ] `_functools.Placeholder` and `cmp_to_key`, so `functools.py` takes the
+      native path throughout rather than half of it.
+
+Tests: cases of our own under `test/module/`, against the host's CPython.
+
+### Phase 23 — the library, first wave
+
+With the language and the floor in hand, the modules that need nothing else
+can simply be copied. Their order is their imports, and the list is that
+order.
+
+- [ ] `types`, `_weakrefset`, `_py_abc`, `operator`, `keyword`, `reprlib`,
+      `heapq`, `bisect`, `numbers`, `copyreg`, `_collections_abc`,
+      `collections.abc`, `weakref`, `copy`, `collections`, `functools`,
+      `enum`, `warnings` (`_py_warnings.py`), `string`, `__future__`,
+      `linecache`. `abc` is already in `lib/`, borrowed by phase 17.
+- [ ] `contextlib` is not here: it imports `os`, which is phase 25.
+- [ ] Each module is a row in [lib/manifest.txt](lib/manifest.txt) with the
+      CPython commit it came from. A module that turns out to need something
+      later waits, and this list moves it; `abc.py` is the worked example.
+- [ ] `locale` over the pure-Python emulation of `_locale` that it carries,
+      which `test_re.py` imports at the top.
+- [ ] The test shim loses what the real modules now answer, and
+      `test.support` grows what the next wave's tests import.
+
+Tests: `test_keyword.py`, `test_bisect.py`, `test_heapq.py`, `test_copyreg.py`,
+`test_reprlib.py`, `test_weakset.py` and `test_abstract_numbers.py`, as far as
+their imports reach. `test_collections.py`, `test_functools.py` and
+`test_enum.py` import `typing`, `inspect` or `doctest`, and wait for phase 27.
+
+### Phase 24 — `_sre`, and the whole of `re`
 
 The best return of any phase here. `re/` is 3,258 lines of Python we do not
 write; what it stands on is one module whose Python-visible surface is
-`compile`, `template`, `MAGIC`, `CODESIZE`, `MAXREPEAT`, `MAXGROUPS` and four
-case-folding helpers.
+`compile`, `template`, `getcodesize`, `MAGIC`, `CODESIZE`, `MAXREPEAT`,
+`MAXGROUPS`, `copyright` and four case-folding helpers. Its imports are
+`enum`, `functools` and `copyreg` (phase 23), and `unicodedata` and `warnings`
+when a pattern asks for them (phases 21 and 23).
 
 - [ ] The `_sre` opcode VM: the pattern is a `u32` array `re/_compiler.py`
       emits, and the matcher walks it with an explicit backtracking stack —
-      explicit because ground rule 4 leaves it no other choice.
-- [ ] The `Pattern` and `Match` objects: `match`, `search`, `fullmatch`,
-      `findall`, `finditer`, `split`, `sub`, `subn`, `group`, `groups`,
-      `groupdict`, `span`, `expand`.
+      explicit because ground rule 4 leaves it no other choice. CPython's own
+      `sre_lib.h` already keeps its contexts on a data stack rather than the C
+      stack, so its structure is the one to follow; its 68 category codes read
+      phase 21's tables.
+- [ ] The validator `_sre.compile` runs over the code before it is trusted.
+- [ ] The `Pattern`, `Match`, `Scanner` and `Template` objects: `match`,
+      `prefixmatch`, `search`, `fullmatch`, `findall`, `finditer`, `split`,
+      `sub`, `subn`, `scanner`, `group`, `groups`, `groupdict`, `start`,
+      `end`, `span`, `expand`, `lastindex`, `lastgroup`, `regs`, the repr,
+      hash and equality.
+- [ ] `sub` with a callable and `expand` with a template are calls into
+      Python — the function, and `re._compile_template` — so both are
+      continuations. `finditer` is a native iterator over the scanner rather
+      than `iter(callable, None)`.
+- [ ] A long match is a compute loop, and a `^C` cannot reach one that never
+      parks; say how the matcher yields, or say that it does not.
 - [ ] `re/*.py` taken verbatim, with its provenance recorded.
 - [ ] Not `braam::regex`: it is POSIX leftmost-longest, and Python's is
       leftmost-first with back-references, lazy quantifiers and lookaround.
       The two engines answer different questions.
+- [ ] What stands on `re` and nothing later comes with it: `textwrap`,
+      `string.Template`, `json` (whose `codecs` is phase 21), `fractions`,
+      `difflib`.
 
-Tests: `test_re.py`.
+Tests: `test_re.py`, whose top-level imports — `locale`, `string`,
+`warnings`, `weakref`, `test.support` — are all in by now; the cases that
+import `pickle` or `array` inside a method run as far as those reach.
+`test_textwrap.py`, `test_json/` and `test_fractions.py` as their imports
+allow.
 
-### Phase 20 — the library, verbatim
-
-With `import`, f-strings, generators, `exec`, `re` and the native floor in
-hand, the pure-Python half of CPython's library can simply be copied. It is
-what the survey now says is in the way: 272 of the 391 files under `Lib/test/`
-stop at an import, and phase 18 moved that number by four.
-
-- [ ] First wave, which needs nothing but the language: `types`, `operator`,
-      `functools`, `collections`, `collections.abc`, `contextlib`, `heapq`,
-      `bisect`, `copy`, `reprlib`, `enum`, `string`, `textwrap`, `keyword`,
-      `warnings` (`_py_warnings.py`). `abc` is already in `lib/`, borrowed by
-      phase 17 over the `_abc` it wrote; `_weakrefset` and `_py_abc` need
-      `types`, and `types` needs the `_types` phase 18 wrote, so those three
-      are the first to go in.
-- [ ] Second wave: `json`, `csv`, `base64`, `binascii`, `hashlib`, `random`,
-      `statistics`, `fractions`, `decimal` (`_pydecimal.py`), `datetime`
-      (`_pydatetime.py`), `pprint`, `difflib`, `shlex`, `dataclasses`,
-      `traceback`, `argparse`.
-- [ ] Each module is a row in [lib/manifest.txt](lib/manifest.txt) with the
-      CPython commit it came from, and arrives with its own `test_*.py`. A
-      module that needs syntax we do not have yet waits rather than being
-      edited. `abc.py` is the worked example.
-- [ ] `importlib`, `__spec__`, `__loader__` and reloading. Phase 11's loader is
-      C++ and the only thing that finds a module: there is no `sys.meta_path`,
-      no `sys.path_hooks`, and nothing for a library module to hook.
-- [ ] The packaging question: `share/lib/` against a 4 MiB compressed package
-      limit, and whether the whole library or a chosen set ships.
-
-### Phase 21 — `io`, `os`, and the file system
+### Phase 25 — `io`, `os`, and the file system
 
 Where ground rule 1 meets the library: every read and write is a `Req`, so the
 whole of `io` is continuations.
 
 - [ ] `open()` and the three layers — `RawIOBase` over Braam's descriptors,
       `BufferedReader`/`BufferedWriter`, and `TextIOWrapper` with its codec
-      and its newline translation.
+      (phase 21) and its newline translation. Native `_io`, or `_pyio.py`
+      verbatim over a native floor: decide, and record why.
 - [ ] `sys.stdin`, `sys.stdout` and `sys.stderr` as real file objects, which
       replaces the buffer the VM prints into today.
-- [ ] `os`: `listdir`, `stat`, `mkdir`, `remove`, `rename`, `getcwd`, `chdir`,
-      `environ`, `urandom`; `os.path` and `posixpath` verbatim; `stat`,
-      `fnmatch`, `glob`, `tempfile`, `pathlib`, `shutil`.
+- [ ] `os` over a native `posix`: `listdir`, `stat`, `mkdir`, `remove`,
+      `rename`, `getcwd`, `chdir`, `environ`, `urandom`; `os.path`,
+      `posixpath`, `genericpath` and `stat` verbatim.
+- [ ] What waited for `os`: `contextlib`, `fnmatch`, `glob`, `tempfile`,
+      `shutil`, `pathlib`, `random` (`from os import urandom`), `pprint` and
+      `shlex` (`io`), `csv` over a native `_csv`, and `gettext`.
 - [ ] `signal` over `sig_catch`, and what `KeyboardInterrupt` means once a
       program can install a handler of its own.
 
 Tests: `test_io.py`, `test_fileio.py`, `test_os.py`, `test_posixpath.py`,
-`test_pathlib/`, `test_tempfile.py`.
+`test_pathlib/`, `test_tempfile.py`, `test_contextlib.py`, `test_random.py`.
 
-### Phase 22 — Unicode in full
+### Phase 26 — the library, second wave
 
-Until here, `str` is codepoints with an ASCII fast path and a range table for
-case. The library and `test_str.py` want more.
+What needs the file system, and the native accelerators the rest has no
+fallback for.
 
-- [ ] `unicodedata`: the category, the case mappings, the numeric values and
-      the names, as a generated table whose size is measured before it ships.
-- [ ] `str.upper`/`lower`/`title`/`casefold` and the `is*` predicates by
-      category rather than by range. Phase 10 left `casefold` as `lower`,
-      `isdecimal` and `isnumeric` as `isdigit`, and `'ß'.isalpha()` False,
-      because the range table has no one-codepoint upper for it.
-- [ ] `codecs`: `utf-8`, `utf-16`, `utf-32`, `latin-1`, `ascii`, the error
-      handlers (`strict`, `ignore`, `replace`, `surrogateescape`,
-      `backslashreplace`), and `str.encode`/`bytes.decode` over them.
-- [ ] `\N{...}` escapes in the lexer, and identifiers by XID_Start and
-      XID_Continue rather than "anything above U+0080", which is a known
-      difference today. NFKC normalisation of an identifier goes with it, and
-      it is what `test_unicode_identifiers.py` stops on.
-- [ ] **A lone surrogate in a string literal.** `"\ud800"` is refused by the
-      lexer and CPython allows it; 31 of `Lib/test/`'s files stop there, which
-      is second only to f-strings among the lexer's refusals. It needs the
-      whole `surrogatepass`/`surrogateescape` question answered, not just the
-      range check relaxed.
-- [ ] Normalisation, if the table cost is bearable.
+- [ ] `binascii` natively, and `base64` over it; `hashlib` over native
+      `_md5`, `_sha1`, `_sha2` and `_sha3`.
+- [ ] `statistics`, `decimal` (`_pydecimal.py`, over `_contextvars`),
+      `datetime` (`_pydatetime.py`).
+- [ ] `argparse`, `traceback` (`match`, `linecache`, `contextlib`, `pathlib`,
+      `textwrap`, `codeop`, `tokenize`), `tokenize` and `token` over a native
+      `_tokenize`.
+- [ ] `importlib`, `__spec__`, `__loader__` and reloading. Phase 11's loader is
+      C++ and the only thing that finds a module: there is no `sys.meta_path`,
+      no `sys.path_hooks`, and nothing for a library module to hook.
+- [ ] The packaging question: `share/lib/` against a 4 MiB compressed package
+      limit, and whether the whole library or a chosen set ships.
 
-Tests: `test_str.py`, `test_unicodedata.py`, `test_codecs.py`.
+Tests: `test_base64.py`, `test_binascii.py`, `test_hashlib.py`,
+`test_statistics.py`, `test_decimal.py`, `test_datetime.py`,
+`test_argparse.py`, `test_traceback.py`, `test_importlib/`.
 
-### Phase 23 — `async` and `await`
+### Phase 27 — annotations and typing
 
-Coroutines are generators with a different protocol, so this lands on phase 15;
-what makes it interesting here is that Braam already *is* an event loop.
+Annotations are discarded today: `x: int = 1` compiles as `x = 1`, and a
+parameter annotation costs nothing at `def` time. The compiler half has no
+dependency; the library half imports `ast`, which is why the phase is here.
 
-- [ ] `async def`, `await`, `async for` and `async with` — all four of which
-      the parser already accepts and the compiler refuses with a `SyntaxError`
-      that says so.
-- [ ] The coroutine object, `__await__`, `__aiter__`/`__anext__`,
-      `__aenter__`/`__aexit__`, and async generators.
+- [ ] `__annotations__` and `__annotate__` on modules, classes and functions,
+      under PEP 649's lazy evaluation — what 3.14 onwards does.
+- [ ] `_ast`, so `ast.py` can be copied: the node classes, and `compile()`
+      with `PyCF_ONLY_AST` answering them from the parser's arena.
+      `annotationlib.py` imports `ast` at the top; `inspect.py` does too.
+- [ ] `annotationlib`, `typing` (3,955 lines over the `_typing` phase 20
+      wrote), `dis` and `opcode` over a native `_opcode`, `inspect`, and
+      `dataclasses`, which is the first thing most code wants annotations for.
+- [ ] `doctest` and the real `unittest`, which is where the shims end.
+
+Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
+`test_dataclasses/`, `test_inspect/`; and now the ones earlier phases
+deferred — `test_coroutines.py`, `test_asyncgen.py`, `test_patma.py`,
+`test_exception_group.py`, `test_collections.py`, `test_functools.py`,
+`test_enum.py`, `test_itertools.py`.
+
+### Phase 28 — `asyncio`
+
+The language half is phase 19. What makes this interesting here is that
+Braam already *is* an event loop.
+
 - [ ] `asyncio`: the event loop is `braam.cpp`'s park. A `Req` is what the loop
       waits on and `proc_spawn` is what a task is — the mapping is closer than
       it is on a POSIX host, and the selector layer CPython's `asyncio` assumes
       is the part to replace rather than borrow.
-- [ ] `contextvars`, which `asyncio` and `unittest` both want.
+- [ ] `threading` as the shim `asyncio` needs over phase 22's `_thread`.
+- [ ] `contextvars.py` over phase 22's `_contextvars`, and the context each
+      task runs in.
 
-Tests: `test_coroutines.py`, `test_asyncgen.py`, `test_await.py`, and the
-`asyncio` suite as far as it reaches.
+Tests: the `asyncio` suite as far as it reaches.
 
-### Phase 24 — the syntax since 3.9
-
-The parser was written to 3.9. The library is written to 3.16.
-
-- [ ] `match`, with all seven pattern kinds — literal, capture, wildcard,
-      value, sequence, mapping, class — plus guards. `dataclasses.py` and
-      `traceback.py` both use it, so it gates the second library wave.
-- [ ] `except*` and the exception groups: `BaseExceptionGroup`,
-      `ExceptionGroup`, `split`, `subgroup`, and the unwinding rule.
-- [ ] `@` as an operator, with `__matmul__` and `__imatmul__`.
-- [ ] `X | Y` as a type union, PEP 695's `type` statement and generic syntax,
-      and whatever else the modules we actually ship turn out to use.
-- [ ] Decide and record the version this tracks, because "3.16" and "the
-      subset the shipped library needs" are not the same promise.
-
-Tests: `test_patma.py`, `test_exception_group.py`, `test_syntax.py`,
-`test_grammar.py`.
-
-### Phase 25 — annotations and typing
-
-Annotations are discarded today: `x: int = 1` compiles as `x = 1`, and a
-parameter annotation costs nothing at `def` time.
-
-- [ ] `__annotations__` on modules, classes and functions, under PEP 649's
-      lazy evaluation — what 3.14 onwards does and what `annotationlib.py`
-      implements.
-- [ ] `typing` verbatim: 3,955 lines that need `__class_getitem__`,
-      `__mro_entries__` and a working `functools`, all of which land earlier.
-- [ ] `dataclasses`, which is the first thing most code wants annotations for.
-
-Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
-`test_dataclasses.py`.
-
-### Phase 26 — the REPL
+### Phase 29 — the REPL
 
 - [ ] `python` with no arguments, `-i`, `sys.ps1`/`sys.ps2`, and the
       incomplete-input rule `codeop` states.
@@ -349,9 +529,10 @@ Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
       solve: a key ring has one receiver and there is no non-blocking key
       read, so the editor holds it at the prompt and gives it back the moment
       a program runs.
-- [ ] History, and a traceback that reads well at a prompt.
+- [ ] History, `sys.displayhook` and `builtins._`, and a traceback that reads
+      well at a prompt.
 
-### Phase 27 — shipping
+### Phase 30 — shipping
 
 - [ ] `share/lib/` with the library that fits, and `share/` examples written
       in it. Phase 11 already puts that directory on `sys.path`, found through
@@ -366,9 +547,9 @@ Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
 
 ## What is deliberately not here
 
-- **Threads.** A Braam process is one Web Worker. `_thread` can be a stub that
-  raises and `threading` the shim `asyncio` needs, but real concurrency here is
-  `proc_spawn` and message passing, not shared memory.
+- **Threads.** A Braam process is one Web Worker. `_thread` is a stub whose
+  locks are never contended and `threading` the shim `asyncio` needs, but real
+  concurrency here is `proc_spawn` and message passing, not shared memory.
 - **C extension modules.** There is no `dlopen` and no stable ABI to offer.
   Anything CPython writes in C is either implemented natively here or taken
   from the pure-Python fallback beside it.
