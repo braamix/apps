@@ -103,6 +103,7 @@ enum class Arg : u8 {
     X(ImportStar, None)       \
                               \
     X(Return, None)           \
+    X(PrintExpr, None)        \
     X(YieldValue, None)       \
     X(YieldFrom, None)        \
     X(Raise, Num)             \
@@ -156,6 +157,8 @@ Arg bc_arg(Bc op);
 //                       exc-info sits under it and has to be restored first
 //   BeforeWith          pop the manager, push its __exit__ and then __enter__()
 //   WithExceptStart     with [exit, exc], call exit(type, exc, tb) and push it
+//   PrintExpr           pop a value and, unless it is None, print its repr.
+//                       This is what a statement is worth in Single mode
 //   BuildString n       join the n strings on top into one
 //   FormatValue f       format the value on top, the spec above it when
 //                       FV_SPEC; FV_CONV is the !s !r !a to apply first
@@ -199,6 +202,11 @@ enum : u32 {
     CO_NESTED    = 1 << 4, // has free variables
 };
 
+// What a source is compiled as, which is compile()'s third argument. Exec is
+// a module body. Eval is one expression the code returns. Single is a module
+// body that prints what each statement was worth, which is the REPL's.
+enum class CompileMode : u8 { Exec, Eval, Single };
+
 // Every name array holds StrObj values, so one trace covers them all.
 struct CodeObj : Obj {
     Vec<Instr> code;
@@ -209,6 +217,8 @@ struct CodeObj : Obj {
     Vec<Value> freevars; // captured from an enclosing scope
     Vec<LineEntry> lines;
     Value name;
+    Value qualname; // the dotted path through the enclosing scopes
+    Value doc;      // the body's first string literal, or Nil
     Value filename;
     u32 flags     = 0;
     u32 argcount  = 0; // positional, posonly included
@@ -222,6 +232,9 @@ struct CodeObj : Obj {
 extern const Type code_type;
 
 CodeObj *code_new(Value name, Value filename, u32 firstline);
+
+// The locals a frame over this code has: the fast slots, then the cells.
+usize code_nlocals(const CodeObj *c);
 
 inline bool is_code(Value v)
 {

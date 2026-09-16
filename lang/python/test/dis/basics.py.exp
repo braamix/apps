@@ -1,61 +1,63 @@
 code <module>  file /tmp/c.py  line 1
   args 0 (posonly 0, kwonly 0)  stack 5  flags -
-  names: a, b, c, d, e, f, g, h, print
+  names: __doc__, a, b, c, d, e, f, g, h, print
   consts:
-      0  1
-      1  2
-      2  3
-      3  'hi'
-      4  'x'
-      5  '-'
-      6  ('sep',)
-      7  None
-    1       0  LoadConst             0 (1)
-            1  StoreName             0 (a)
-    2       2  LoadName              0 (a)
-            3  LoadConst             1 (2)
-            4  LoadConst             2 (3)
-            5  BinaryOp              2 (*)
-            6  BinaryOp              0 (+)
-            7  StoreName             1 (b)
-    3       8  LoadConst             3 ('hi')
-            9  StoreName             2 (c)
-    4      10  LoadConst             0 (1)
-           11  LoadConst             1 (2)
-           12  LoadName              0 (a)
-           13  BuildTuple            3
-           14  StoreName             3 (d)
-    5      15  LoadName              0 (a)
-           16  LoadName              1 (b)
-           17  LoadName              2 (c)
-           18  BuildList             3
-           19  StoreName             4 (e)
-    6      20  LoadConst             0 (1)
-           21  LoadConst             4 ('x')
-           22  LoadName              0 (a)
-           23  LoadName              1 (b)
-           24  BuildMap              2
-           25  StoreName             5 (f)
-    7      26  LoadConst             0 (1)
-           27  LoadConst             1 (2)
-           28  LoadName              0 (a)
-           29  BuildSet              3
-           30  StoreName             6 (g)
-    8      31  LoadName              0 (a)
-           32  UnaryOp               3 (-)
-           33  StoreName             7 (h)
-    9      34  LoadName              8 (print)
-           35  LoadName              1 (b)
-           36  LoadName              2 (c)
-           37  LoadConst             5 ('-')
-           38  LoadConst             6 (('sep',))
-           39  CallKw                3
-           40  PopTop
-   10      41  LoadName              1 (b)
-           42  LoadName              0 (a)
-           43  BuildTuple            2
-           44  UnpackSequence        2
-           45  StoreName             0 (a)
-           46  StoreName             1 (b)
-           47  LoadConst             7 (None)
-           48  Return
+      0  None
+      1  1
+      2  2
+      3  3
+      4  'hi'
+      5  'x'
+      6  '-'
+      7  ('sep',)
+    1       0  LoadConst             0 (None)
+            1  StoreName             0 (__doc__)
+            2  LoadConst             1 (1)
+            3  StoreName             1 (a)
+    2       4  LoadName              1 (a)
+            5  LoadConst             2 (2)
+            6  LoadConst             3 (3)
+            7  BinaryOp              2 (*)
+            8  BinaryOp              0 (+)
+            9  StoreName             2 (b)
+    3      10  LoadConst             4 ('hi')
+           11  StoreName             3 (c)
+    4      12  LoadConst             1 (1)
+           13  LoadConst             2 (2)
+           14  LoadName              1 (a)
+           15  BuildTuple            3
+           16  StoreName             4 (d)
+    5      17  LoadName              1 (a)
+           18  LoadName              2 (b)
+           19  LoadName              3 (c)
+           20  BuildList             3
+           21  StoreName             5 (e)
+    6      22  LoadConst             1 (1)
+           23  LoadConst             5 ('x')
+           24  LoadName              1 (a)
+           25  LoadName              2 (b)
+           26  BuildMap              2
+           27  StoreName             6 (f)
+    7      28  LoadConst             1 (1)
+           29  LoadConst             2 (2)
+           30  LoadName              1 (a)
+           31  BuildSet              3
+           32  StoreName             7 (g)
+    8      33  LoadName              1 (a)
+           34  UnaryOp               3 (-)
+           35  StoreName             8 (h)
+    9      36  LoadName              9 (print)
+           37  LoadName              2 (b)
+           38  LoadName              3 (c)
+           39  LoadConst             6 ('-')
+           40  LoadConst             7 (('sep',))
+           41  CallKw                3
+           42  PopTop
+   10      43  LoadName              2 (b)
+           44  LoadName              1 (a)
+           45  BuildTuple            2
+           46  UnpackSequence        2
+           47  StoreName             1 (a)
+           48  StoreName             2 (b)
+           49  LoadConst             0 (None)
+           50  Return

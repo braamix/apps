@@ -2251,6 +2251,15 @@ void interpret()
                 break;
             }
 
+            case Bc::PrintExpr: {
+                Value got;
+                if (py_display(st[--f->sp], got) != R::Ok)
+                    goto oops;
+                if (is_cont(got) && !run_cont(got, Value()))
+                    goto oops;
+                break;
+            }
+
             case Bc::YieldValue: {
                 if (f->gen.is_nil()) {
                     err_set("SystemError", "yield outside a generator");
@@ -2568,6 +2577,8 @@ bool vm_start(Value code, Args argv)
     if (!name || main.is_nil())
         return false;
     if (dict_set(dict_at(vm->globals), obj_value(name), main) != R::Ok)
+        return false;
+    if (!put_builtins(dict_at(vm->globals)))
         return false;
 
     // The program is a module too, so `import __main__` and sys.modules both

@@ -72,11 +72,14 @@ struct Parser {
         return true;
     }
 
-    u32 fail(Str message)
+    u32 fail(Str message) { return fail_kind("SyntaxError", message); }
+
+    // The same, for the one kind that is not a plain SyntaxError.
+    u32 fail_kind(Str kind, Str message)
     {
         if (!failed) {
             failed = true;
-            err_set_at("SyntaxError", message, tok().line, tok().col);
+            err_set_at(kind, message, tok().line, tok().col);
         }
         return 0;
     }
@@ -1306,7 +1309,7 @@ bool Parser::block(List &into)
     if (!take(Tok::Newline))
         return statements_line(into);
     if (!take(Tok::Indent))
-        return fail("expected an indented block"), false;
+        return fail_kind("IndentationError", "expected an indented block"), false;
     if (!enter())
         return false;
     while (!at(Tok::Dedent) && !at(Tok::End)) {
@@ -1929,7 +1932,7 @@ bool Parser::run()
         if (take(Tok::Newline))
             continue;
         if (at(Tok::Indent))
-            return fail("unexpected indent"), false;
+            return fail_kind("IndentationError", "unexpected indent"), false;
         if (!statements_line(body))
             return false;
     }

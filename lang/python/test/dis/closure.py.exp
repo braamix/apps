@@ -1,21 +1,23 @@
 code <module>  file /tmp/c.py  line 1
   args 0 (posonly 0, kwonly 0)  stack 1  flags -
-  names: counter, outer, uses_global
+  names: __doc__, counter, outer, uses_global
   consts:
-      0  0
-      1  <code outer at line 3>
-      2  <code uses_global at line 17>
-      3  None
-    1       0  LoadConst             0 (0)
-            1  StoreName             0 (counter)
-    3       2  LoadConst             1 (<code outer at line 3>)
-            3  MakeFunction          0
-            4  StoreName             1 (outer)
-   17       5  LoadConst             2 (<code uses_global at line 17>)
-            6  MakeFunction          0
-            7  StoreName             2 (uses_global)
-            8  LoadConst             3 (None)
-            9  Return
+      0  None
+      1  0
+      2  <code outer at line 3>
+      3  <code uses_global at line 17>
+    1       0  LoadConst             0 (None)
+            1  StoreName             0 (__doc__)
+            2  LoadConst             1 (0)
+            3  StoreName             1 (counter)
+    3       4  LoadConst             2 (<code outer at line 3>)
+            5  MakeFunction          0
+            6  StoreName             2 (outer)
+   17       7  LoadConst             3 (<code uses_global at line 17>)
+            8  MakeFunction          0
+            9  StoreName             3 (uses_global)
+           10  LoadConst             0 (None)
+           11  Return
 
 code outer  file /tmp/c.py  line 3
   args 1 (posonly 0, kwonly 0)  stack 2  flags newlocals

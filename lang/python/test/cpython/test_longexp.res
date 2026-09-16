@@ -1,3 +1,3 @@
 --- unittest ---
-error LongExpText.test_longexp: NameError: name 'eval' is not defined
---- ran 1 ok 0 fail 0 error 1 skip 0 ---
+ok LongExpText.test_longexp
+--- ran 1 ok 1 fail 0 error 0 skip 0 ---

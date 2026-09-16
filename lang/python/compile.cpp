@@ -59,8 +59,9 @@ struct Compiler {
     const Ast *ast = nullptr;
     Symtab st;
     Root filename;
-    Unit *u     = nullptr;
-    bool failed = false;
+    Unit *u        = nullptr;
+    bool failed    = false;
+    bool print_top = false; // Single mode: a top-level statement is printed
 
     CodeObj *co() { return code_of(u->code.v); }
 
@@ -284,6 +285,9 @@ struct Compiler {
     bool unwind(usize down_to, bool preserve_tos);
     bool loop_exit(bool is_break, u32 node);
 
+    Value qualname_of(StrObj *name);
+    Value docstring(u32 node);
+    bool store_doc();
     u32 nested(u32 node);
     bool body_of(u32 node);
 };
@@ -1197,6 +1201,10 @@ bool Compiler::stmt(u32 i)
         return true;
 
     case Nd::Expr:
+        // Single mode is the REPL's. The value of a statement is printed
+        // rather than dropped, at the top level only, as CPython does.
+        if (print_top && !u->prev)
+            return expr(n.a) && emit(Bc::PrintExpr, i);
         return expr(n.a) && emit(Bc::PopTop, i);
 
     case Nd::Assign:
@@ -1396,7 +1404,7 @@ bool Compiler::body_of(u32 node)
         return expr(n.b) && emit(Bc::Return, node);
 
     case Nd::ClassDef:
-        if (!stmts(node, n.a + n.b, n.c))
+        if (!store_doc() || !stmts(node, n.a + n.b, n.c))
             return false;
         break;
 
@@ -1513,6 +1521,7 @@ i32 effect(Bc op, u32 arg)
     case Bc::PopExcept:
     case Bc::CheckExcMatch:
     case Bc::YieldFrom:
+    case Bc::PrintExpr:
     case Bc::Return:
         return -1;
 
@@ -1632,6 +1641,62 @@ u32 stack_size(const CodeObj *c)
     return u32(most < 0 ? 0 : most);
 }
 
+// A scope's dotted path. A name defined in a function body has `<locals>`
+// between the two, which is what CPython's __qualname__ says.
+Value Compiler::qualname_of(StrObj *name)
+{
+    if (!u || !u->prev)
+        return obj_value(name);
+    Root rn{ obj_value(name) };
+    String b;
+    Value outer = code_of(u->code.v)->qualname;
+    if (!is_str(outer) || !b.append(str_of(outer)->str()))
+        return oom(), Value();
+    ScopeKind k = st.scopes[u->scope].kind;
+    if (k != ScopeKind::Class && !b.append(".<locals>"))
+        return oom(), Value();
+    if (!b.push('.') || !b.append(str_of(rn.v)->str()))
+        return oom(), Value();
+    Value v = str_new(b.str());
+    return v.is_nil() ? (oom(), Value()) : v;
+}
+
+// The docstring of a body. It is the first statement, when that statement is
+// a plain string literal.
+Value Compiler::docstring(u32 node)
+{
+    const Node &n = ast->at(node);
+    u32 first     = 0;
+    if (n.kind == Nd::Module && n.nkid)
+        first = ast->kids[n.kid0];
+    else if (n.kind == Nd::FunctionDef && n.b)
+        first = ast->kids[n.kid0];
+    else if (n.kind == Nd::ClassDef && n.c)
+        first = ast->kids[n.kid0 + n.a + n.b];
+    if (!first)
+        return Value();
+    const Node &s = ast->at(first);
+    if (s.kind != Nd::Expr || !s.a)
+        return Value();
+    const Node &e = ast->at(s.a);
+    if (e.kind != Nd::Constant || Const(e.flags) != Const::Str)
+        return Value();
+    return obj_value(str_raw(ast->lex.text_of(ast->lex.tokens[e.tok])));
+}
+
+// A module and a class body keep their docstring in the namespace, which is
+// where __doc__ is read from. A function keeps it on the code object instead.
+bool Compiler::store_doc()
+{
+    Root doc{ code_of(u->code.v)->doc };
+    StrObj *key = str_intern("__doc__");
+    if (!key)
+        return oom();
+    if (doc.v.is_nil())
+        doc = value_none();
+    return emit(Bc::LoadConst, add_const(doc.v), 0) && emit(Bc::StoreName, name_index(key), 0);
+}
+
 // One nested scope, compiled into its own code object and left in this unit's
 // constants. The Root lives in `nu`, which is why this is a function.
 u32 Compiler::nested(u32 node)
@@ -1651,6 +1716,10 @@ u32 Compiler::nested(u32 node)
 
     const Scope &s = st.scopes[nu.scope];
     CodeObj *c     = code_of(nu.code.v);
+    c->qualname    = qualname_of(name);
+    c->doc         = docstring(node);
+    if (c->qualname.is_nil())
+        return oom(), 0;
     for (usize k = 0; k < s.varnames.size(); k++)
         if (!c->varnames.push(obj_value(s.syms[s.varnames[k]].name)))
             return oom(), 0;
@@ -1680,12 +1749,24 @@ u32 Compiler::nested(u32 node)
 
 } // namespace
 
-Value py_compile(const Ast &ast, Str filename)
+// Eval mode wants a tree of exactly one expression statement.
+u32 lone_expression(const Ast &ast)
+{
+    const Node &root = ast.at(ast.root);
+    if (root.nkid != 1)
+        return 0;
+    u32 first     = ast.kids[root.kid0];
+    const Node &s = ast.at(first);
+    return s.kind == Nd::Expr ? s.a : 0;
+}
+
+Value py_compile(const Ast &ast, Str filename, CompileMode mode)
 {
     py_init();
 
     Compiler c;
-    c.ast = &ast;
+    c.ast       = &ast;
+    c.print_top = mode == CompileMode::Single;
     if (!c.st.build(ast))
         return Value();
 
@@ -1703,8 +1784,21 @@ Value py_compile(const Ast &ast, Str filename)
     c.u     = &mu;
     mu.line = 1;
 
-    const Node &root = ast.at(ast.root);
-    if (!c.stmts(ast.root, 0, root.nkid))
+    if (mode == CompileMode::Eval) {
+        u32 e = lone_expression(ast);
+        if (!e)
+            return err_set_at("SyntaxError", "invalid syntax", 1, 0), Value();
+        if (!c.expr(e) || !c.emit(Bc::Return, e))
+            return Value();
+        CodeObj *only   = code_of(mu.code.v);
+        only->stacksize = stack_size(only);
+        only->nblocks   = mu.blocks_max;
+        return mu.code.v;
+    }
+
+    const Node &root        = ast.at(ast.root);
+    code_of(mu.code.v)->doc = c.docstring(ast.root);
+    if (!c.store_doc() || !c.stmts(ast.root, 0, root.nkid))
         return Value();
     if (!c.emit(Bc::LoadConst, c.const_none(), 0) || !c.emit(Bc::Return, 0))
         return Value();

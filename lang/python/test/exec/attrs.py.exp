@@ -1,0 +1,36 @@
+plain plain
+what plain does
+__main__
+(2,) {'kw': 3} None
+True
+dict {}
+plain
+2 0 1
+('a', 'b', 'kw', 'rest', 'more', 'local')
+6
+True
+True True
+() ()
+True True True
+Outer.method
+Outer.method.<locals>.inner
+method method
+<lambda> <lambda>
+('seen',) 1
+('seen',)
+renamed a.b.renamed new doc (7,)
+11 {'own': 11}
+TypeError __name__
+TypeError __code__
+TypeError __defaults__
+AttributeError __globals__
+AttributeError __closure__
+decorated decorated kept 42
+1 2 True
+reads_global False
+chosen 3
+TypeError code
+TypeError globals
+The code object and the function object, made visible. a class doc None
+len append
+builtin_function_or_method

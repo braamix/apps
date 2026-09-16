@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 15.**
+**Phase 16.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -88,6 +88,15 @@ invisible from Python. `2**1000`, `//` and `%` that floor, the bitwise
 operators over infinite two's complement, `int(s, base)` at any width, a
 division rounded once rather than three times, and `2j`.
 
+**A program can compile and run more of itself**: `compile()` to a code
+object in all three modes, `eval()` and `exec()` over source or over one, with
+the globals and locals either may be handed; `globals()`, `locals()`, `vars()`,
+`dir()` and `__builtins__`. A function says what it is — `__name__`,
+`__qualname__`, `__doc__`, `__defaults__`, `__kwdefaults__`, `__globals__`,
+`__closure__`, `__module__`, `__dict__` — and the last four of those may be
+assigned to. Under it the code object is visible too, `co_varnames` through
+`co_firstlineno`, and `type(f)(code, globals)` makes a new function out of one.
+
 **A function that yields is a generator**: `yield`, `send`, `throw`, `close`,
 `GeneratorExit`, `StopIteration.value`, PEP 479, `yield from` with send, throw
 and close delegated through it, and generator expressions. A generator's frame
@@ -96,17 +105,17 @@ value stack, its block stack and its locals, and resuming pushes it back on the
 chain. Everything that takes an iterable — `list`, `sum`, `sorted`, `join`,
 `[*g]`, `a, b = g`, `f(*g)` — meets one and parks; see below.
 
-**366 of MicroPython's own tests pass unchanged**, and over the whole of
-`tests/basics/` — setting aside the async and t-string families — **407 of
-557**. The generator family is no longer among the exclusions: at phase 14 it
-was set aside and the count read 372 of 526. What stops most of the rest is
-the modules, which are phase 18.
+**381 of MicroPython's own tests pass unchanged**, and over the whole of
+`tests/basics/` — setting aside the async and t-string families — **424 of
+557**, against 407 at phase 15. What stops most of the rest is the modules,
+which are phase 18.
 
 **CPython's tests are the second ruler.** Twelve are in
-[test/cpython.txt](test/cpython.txt), seven of them run, and twenty-three test
-methods of forty-six pass. Running the whole of `Lib/test/` under this
-interpreter — `node test/pycases.mjs --survey`, which needs the clone in
-`tmp/` — says why each of the 391 files stops:
+[test/cpython.txt](test/cpython.txt), seven of them run, and thirty-four test
+methods of forty-six pass, against twenty-three at phase 15: `globals()` and
+`dir()` were what eleven of them were waiting for. Running the whole of
+`Lib/test/` under this interpreter — `node test/pycases.mjs --survey`, which
+needs the clone in `tmp/` — says why each of the 391 files stops:
 
 | now | what stops it | 14 | 13 | 12 | lands in |
 | --- | --- | --- | --- | --- | --- |
@@ -120,11 +129,13 @@ interpreter — `node test/pycases.mjs --survey`, which needs the clone in
 | — | an integer past 2³⁰ | — | 39 | 17 | **done** |
 | — | f-strings | — | — | 124 | **done** |
 
-The survey has not moved, and that is the point of keeping the older columns.
-Three walls came down in phases 13 and 14, and what stops 276 of the 391 files
-now is a module nobody has written. Generators were never what stopped a file
-here: `test_generators.py`, `test_genexps.py` and `test_yield_from.py` each
-stop at an import, of `doctest` or `inspect`.
+The survey has not moved in two phases, and that is the point of keeping the
+older columns. Three walls came down in phases 13 and 14, and what stops 276
+of the 391 files now is a module nobody has written. Neither generators nor
+`exec` were ever what stopped a file here: `test_generators.py`,
+`test_funcattrs.py` and `test_compile.py` stop at an import of `doctest`,
+`typing` or `dis`. What those two phases moved is inside the seven that
+already run.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -194,6 +205,7 @@ green.
 | [test/pyformat.mjs](test/pyformat.mjs) | Every case under `test/format/`, against CPython and again under gc stress |
 | [test/pynumber.mjs](test/pynumber.mjs) | The same for `test/number/`: the arithmetic that has one right answer |
 | [test/pygen.mjs](test/pygen.mjs) | The same for `test/gen/`: the generator protocol, delegation, and every consumer |
+| [test/pyexec.mjs](test/pyexec.mjs) | The same for `test/exec/`: compile, eval, exec, the namespaces and the attributes |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
@@ -291,6 +303,15 @@ All recorded rather than hidden, and all in reach later:
 - **An annotation is neither evaluated nor recorded.** `x: int = 1` compiles as
   `x = 1`, and a parameter annotation costs nothing at `def` time. CPython
   evaluates both and keeps `__annotations__`.
+- **`locals()` in a function is a fresh snapshot every time.** A function's
+  locals are frame slots, so the mapping is built from them on the spot: two
+  calls are two dicts, and what `exec("x = 1")` writes into one is dropped.
+  This is what PEP 667 made CPython do in 3.13; 3.12 and before cached one dict
+  on the frame, so `exec` there left the name findable through `locals()` and
+  nowhere else.
+- **A `single`-mode code object prints through no hook.** `PrintExpr` writes
+  the repr itself; CPython calls `sys.displayhook` and sets `builtins._`, and
+  both wait for the REPL in phase 26.
 - **`async` is refused by the compiler.** The parser accepts the whole 3.9
   grammar; `async def`, `async for`, `async with` and `await` stop at the
   compiler with a `SyntaxError` that says so.
@@ -440,6 +461,27 @@ the continuation owns.
 a file, and then asks the VM to run the module body — and a module that imports
 a module that imports a module nests neither the native stack nor the driver.
 [test/pyimport.mjs](test/pyimport.mjs) runs a chain of fifty.
+
+## How exec runs
+
+`exec` and `eval` have to run Python, and a builtin may not push a frame. So
+they use the mechanism `import` already had: a code object becomes a function
+over the globals it was given, the continuation asks for that one call, and the
+namespace the frame runs its `LoadName` against is recorded on the
+continuation. `import` runs a module body exactly this way, and it is why a
+module that execs a module that execs a module nests nothing.
+
+What the two add is that the namespace is the caller's argument rather than a
+fresh module dict. CPython's rule falls out of one line: neither given means
+the caller's own, globals alone serves as both, and locals alone leaves the
+globals the caller's. A dict handed in gets `__builtins__` put in it, because
+that is where a program looks to see what it has.
+
+`locals()` is the same question from the other side. A module or a class body
+keeps a real namespace and that *is* its locals; a function's locals are frame
+slots, so what comes back there is a snapshot built from `co_varnames` and the
+cells. That is CPython's answer too, and it is why `exec("x = 1")` inside a
+function binds nothing.
 
 ## How a generator suspends
 

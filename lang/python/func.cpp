@@ -27,14 +27,125 @@ void func_trace(Obj *o)
     gc_mark(f->defaults);
     gc_mark(f->kwdefaults);
     gc_mark(f->closure);
+    gc_mark(f->name);
+    gc_mark(f->qualname);
+    gc_mark(f->doc);
+    gc_mark(f->dict);
 }
 
 R func_repr(Value v, String &out)
 {
-    CodeObj *c = code_of(func_of(v)->code);
+    FuncObj *f = func_of(v);
     Buf<96> b;
-    b.put("<function ").put(is_str(c->name) ? str_of(c->name)->str() : Str("?")).put('>');
+    b.put("<function ").put(is_str(f->qualname) ? str_of(f->qualname)->str() : Str("?")).put('>');
     return out.append(b.str()) ? R::Ok : err_set("MemoryError", "out of memory");
+}
+
+// The dict a function keeps its own attributes in, made on first use.
+DictObj *func_dict(Value v)
+{
+    Root rv{ v };
+    if (func_of(rv.v)->dict.is_nil()) {
+        DictObj *d = dict_new();
+        if (!d)
+            return err_set("MemoryError", "out of memory"), nullptr;
+        func_of(rv.v)->dict = obj_value(d);
+    }
+    return static_cast<DictObj *>(func_of(rv.v)->dict.obj());
+}
+
+// The fixed attributes, then whatever was stored on the function itself.
+R func_getattr(Value v, StrObj *name, Value &out)
+{
+    FuncObj *f = func_of(v);
+    Str n      = name->str();
+    if (n == "__name__")
+        out = f->name;
+    else if (n == "__qualname__")
+        out = f->qualname;
+    else if (n == "__doc__")
+        out = f->doc.is_nil() ? value_none() : f->doc;
+    else if (n == "__code__")
+        out = f->code;
+    else if (n == "__globals__")
+        out = f->globals;
+    else if (n == "__defaults__")
+        out = f->defaults.is_nil() ? value_none() : f->defaults;
+    else if (n == "__kwdefaults__")
+        out = f->kwdefaults.is_nil() ? value_none() : f->kwdefaults;
+    else if (n == "__closure__")
+        out = f->closure.is_nil() ? value_none() : f->closure;
+    else if (n == "__dict__")
+        out = obj_value(func_dict(v));
+    else if (n == "__module__") {
+        StrObj *k = str_intern("__name__");
+        if (!k)
+            return err_set("MemoryError", "out of memory");
+        R r = dict_get(static_cast<DictObj *>(f->globals.obj()), obj_value(k), out);
+        if (r == R::NotImpl)
+            out = value_none();
+        return r == R::Err ? r : R::Ok;
+    } else {
+        if (f->dict.is_nil())
+            return R::NotImpl;
+        return dict_get(static_cast<DictObj *>(f->dict.obj()), obj_value(name), out);
+    }
+    return out.is_nil() ? R::NotImpl : R::Ok;
+}
+
+R wrong(Str name, Str want)
+{
+    Buf<96> b;
+    b.put(name).put(" must be set to ").put(want);
+    return err_set("TypeError", b.str());
+}
+
+R func_setattr(Value v, StrObj *name, Value val)
+{
+    Root rv{ v }, rx{ val };
+    FuncObj *f = func_of(rv.v);
+    Str n      = name->str();
+    if (n == "__name__" || n == "__qualname__") {
+        if (!is_str(rx.v))
+            return wrong(n, "a string object");
+        (n == "__name__" ? f->name : f->qualname) = rx.v;
+        return R::Ok;
+    }
+    if (n == "__doc__") {
+        f->doc = rx.v;
+        return R::Ok;
+    }
+    if (n == "__code__") {
+        if (!is_code(rx.v))
+            return wrong(n, "a code object");
+        f->code = rx.v;
+        return R::Ok;
+    }
+    if (n == "__defaults__") {
+        if (!is_none(rx.v) && !is_tuple(rx.v))
+            return wrong(n, "a tuple object");
+        f->defaults = is_none(rx.v) ? Value() : rx.v;
+        return R::Ok;
+    }
+    if (n == "__kwdefaults__") {
+        if (!is_none(rx.v) && !is_dict(rx.v))
+            return wrong(n, "a dict object");
+        f->kwdefaults = is_none(rx.v) ? Value() : rx.v;
+        return R::Ok;
+    }
+    if (n == "__globals__" || n == "__closure__")
+        return err_set2("AttributeError", "readonly attribute", n);
+    DictObj *d = func_dict(rv.v);
+    return d ? dict_set(d, obj_value(name), rx.v) : R::Err;
+}
+
+R native_getattr(Value v, StrObj *name, Value &out)
+{
+    Str n = name->str();
+    if (n != "__name__" && n != "__qualname__")
+        return R::NotImpl;
+    out = str_new(static_cast<NativeObj *>(v.obj())->name);
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R native_repr(Value v, String &out)
@@ -76,9 +187,15 @@ R module_getattr(Value v, StrObj *name, Value &out)
 
 constexpr Type cell_type{ .name = "cell", .trace = cell_trace, .repr = cell_repr };
 
-constexpr Type func_type{ .name = "function", .trace = func_trace, .repr = func_repr };
+constexpr Type func_type{ .name    = "function",
+                          .trace   = func_trace,
+                          .repr    = func_repr,
+                          .getattr = func_getattr,
+                          .setattr = func_setattr };
 
-constexpr Type native_type{ .name = "builtin_function_or_method", .repr = native_repr };
+constexpr Type native_type{ .name    = "builtin_function_or_method",
+                            .repr    = native_repr,
+                            .getattr = native_getattr };
 
 constexpr Type module_type{ .name    = "module",
                             .trace   = module_trace,
@@ -105,6 +222,10 @@ Value func_new(Value code, Value globals)
     f->defaults   = Value();
     f->kwdefaults = Value();
     f->closure    = Value();
+    f->name       = code_of(rc.v)->name;
+    f->qualname   = code_of(rc.v)->qualname;
+    f->doc        = code_of(rc.v)->doc;
+    f->dict       = Value();
     return obj_value(f);
 }
 

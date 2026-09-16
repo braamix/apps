@@ -6,25 +6,26 @@ borrowed is measured, and named here.
 
 **The language stands, the built-in types have their methods, a file can be
 imported, text can be formatted, numbers have no width, a function can yield,
-and CPython's own tests are a ruler beside MicroPython's.** Phases 0 to 15
-built the lexer, the parser, the compiler, the VM, the object heap and its
-collector, exceptions, functions and closures, classes with the whole type
-system, the method tables, the module loader, the `unittest` and `test.support`
-shims every CPython test stands on, the one format engine that `format()`,
-`__format__`, `str.format`, `%` and f-strings all reach, the bignum and
-`complex` that finish the number tower, and generators with `yield from`. They
-are done, and their record is the git history — `python: phase 0` through
-`python: phase 15` — not this file, which from here describes only what is
-left.
+a program can compile and run more of itself, and CPython's own tests are a
+ruler beside MicroPython's.** Phases 0 to 16 built the lexer, the parser, the
+compiler, the VM, the object heap and its collector, exceptions, functions and
+closures, classes with the whole type system, the method tables, the module
+loader, the `unittest` and `test.support` shims every CPython test stands on,
+the one format engine that `format()`, `__format__`, `str.format`, `%` and
+f-strings all reach, the bignum and `complex` that finish the number tower,
+generators with `yield from`, and `compile`/`eval`/`exec` with the namespaces
+and the attributes they make visible. They are done, and their record is the
+git history — `python: phase 0` through `python: phase 16` — not this file,
+which from here describes only what is left.
 
-Where that leaves us, measured against MicroPython's suite: **366 of the 404
-tests in [test/manifest.txt](test/manifest.txt)**, and **407 of the 557** in
-`tests/basics/` once the async and t-string families are set aside — the
-generator family is now counted rather than excluded. The largest single cause
-of the rest is the modules, which are phase 18. None stop at the object model.
+Where that leaves us, measured against MicroPython's suite: **381 of the 413
+tests in [test/manifest.txt](test/manifest.txt)**, and **424 of the 557** in
+`tests/basics/` once the async and t-string families are set aside. The largest
+single cause of the rest is the modules, which are phase 18. None stop at the
+object model.
 
 Measured against CPython's, which is the harder ruler: **seven of the twelve
-in [test/cpython.txt](test/cpython.txt) run, and twenty-three test methods of
+in [test/cpython.txt](test/cpython.txt) run, and thirty-four test methods of
 forty-six pass.** `node test/pycases.mjs --survey` runs the whole of
 `Lib/test/` and counts what stops each of the 391 files: 276 an unwritten
 module, 43 other syntax, 33 a lone surrogate in a literal, 15 `async`, 14
@@ -33,10 +34,12 @@ module, 43 other syntax, 33 a lone surrogate in a literal, 15 `async`, 14
 Three walls came down in phases 13 and 14 — f-strings, complex and the bignum
 were 204 files between them — and **the compiler is no longer what stops
 CPython's tests. A module nobody has written is.** That is phase 18, and it is
-further off than the two before it. Phase 15 moved none of these numbers:
-`test_generators.py`, `test_genexps.py` and `test_yield_from.py` each stop at
-an import of `doctest` or `inspect`, not at a generator. The survey is how each
-wave is chosen, and it only means something read beside what it said last time.
+further off than the two before it. Phases 15 and 16 moved none of these
+numbers, since `test_generators.py`, `test_funcattrs.py` and `test_compile.py`
+each stop at an import of `doctest`, `typing` or `dis`. What they moved is
+inside the seven files that already run, from twenty-three passing test methods
+to thirty-four. The survey is how each wave is chosen, and it only means
+something read beside what it said last time.
 
 ## The two upstreams
 
@@ -159,24 +162,6 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-### Phase 16 — `eval`, `exec`, `compile`, and the namespaces
-
-`collections.namedtuple`, `dataclasses` and `enum` all build classes by
-compiling source at run time, so the library needs this.
-
-- [ ] `compile()` to a code object, `eval()` and `exec()` over one or over
-      source, with explicit `globals` and `locals` mappings.
-- [ ] `globals()`, `locals()`, `vars()`, `dir()`, `__builtins__`. Four of
-      upstream's import tests wait on `globals()` alone.
-- [ ] The code object made Python-visible: `__code__`, `co_varnames`,
-      `co_consts`, `co_argcount`, `co_flags`, `co_filename`, `co_firstlineno`.
-- [ ] Function attributes: `__name__`, `__qualname__`, `__doc__`,
-      `__defaults__`, `__globals__`, `__closure__`, `__module__`, and
-      assignment to them.
-
-Tests: `test_compile.py`, `test_eval.py`, `test_exec.py`, `test_builtin.py`,
-`test_funcattrs.py`, and MicroPython's `fun_code*`.
-
 ### Phase 17 — the rest of the type system
 
 Phase 9 built the half the language uses daily; this is the half the library
@@ -212,9 +197,10 @@ Tests: `test_descr.py` above all, then `test_class.py`, `test_super.py`,
 The floor CPython's library stands on. Each is small; together they are the
 difference between borrowing the library and not.
 
-- [ ] `sys` in full: `argv`, `path`, `modules`, `stdin`/`stdout`/`stderr`,
-      `exc_info`, `maxsize`, `version_info`, `implementation`, `getsizeof`,
-      `setrecursionlimit`, `exit`.
+- [ ] `sys` in full: `stdin`/`stdout`/`stderr`, `exc_info`, `maxsize`,
+      `getsizeof`, `setrecursionlimit`, `float_info`, `byteorder`. `argv`,
+      `path`, `modules`, `implementation`, `exit`, `version` and
+      `version_info` are there already.
 - [ ] `builtins` as a real module.
 - [ ] `_collections` (deque, defaultdict, OrderedDict), `_functools`
       (`reduce`, `partial`, `lru_cache`), `itertools`, `operator`, `_random`

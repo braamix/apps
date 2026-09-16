@@ -1,0 +1,47 @@
+3
+3
+3
+1
+5
+100
+2
+7
+8
+30
+5
+42 True True
+101
+1
+2
+3
+256
+11
+'text'
+12
+code True
+ValueError
+SyntaxError
+TypeError globals
+TypeError locals
+NameError
+1
+True True 1
+dict
+(['a', 'b'], 1, 'two')
+(['inner_free'], 9)
+True True 1
+True
+{'n': 3}
+TypeError vars
+True True True
+True
+True
+True True True
+True True
+1 1 1 1
+True True
+3 7
+IndentationError
+IndentationError block
+None
+bottom

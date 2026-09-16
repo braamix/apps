@@ -1,26 +1,28 @@
 code <module>  file /tmp/c.py  line 1
   args 0 (posonly 0, kwonly 0)  stack 1  flags -
-  names: f, r, w, gen
+  names: __doc__, f, r, w, gen
   consts:
-      0  <code f at line 1>
-      1  <code r at line 10>
-      2  <code w at line 16>
-      3  <code gen at line 20>
-      4  None
-    1       0  LoadConst             0 (<code f at line 1>)
-            1  MakeFunction          0
-            2  StoreName             0 (f)
-   10       3  LoadConst             1 (<code r at line 10>)
-            4  MakeFunction          0
-            5  StoreName             1 (r)
-   16       6  LoadConst             2 (<code w at line 16>)
-            7  MakeFunction          0
-            8  StoreName             2 (w)
-   20       9  LoadConst             3 (<code gen at line 20>)
-           10  MakeFunction          0
-           11  StoreName             3 (gen)
-           12  LoadConst             4 (None)
-           13  Return
+      0  None
+      1  <code f at line 1>
+      2  <code r at line 10>
+      3  <code w at line 16>
+      4  <code gen at line 20>
+    1       0  LoadConst             0 (None)
+            1  StoreName             0 (__doc__)
+            2  LoadConst             1 (<code f at line 1>)
+            3  MakeFunction          0
+            4  StoreName             1 (f)
+   10       5  LoadConst             2 (<code r at line 10>)
+            6  MakeFunction          0
+            7  StoreName             2 (r)
+   16       8  LoadConst             3 (<code w at line 16>)
+            9  MakeFunction          0
+           10  StoreName             3 (w)
+   20      11  LoadConst             4 (<code gen at line 20>)
+           12  MakeFunction          0
+           13  StoreName             4 (gen)
+           14  LoadConst             0 (None)
+           15  Return
 
 code f  file /tmp/c.py  line 1
   args 0 (posonly 0, kwonly 0)  stack 3  flags newlocals
@@ -50,16 +52,18 @@ code f  file /tmp/c.py  line 1
 code C  file /tmp/c.py  line 4
   args 0 (posonly 0, kwonly 0)  stack 1  flags nested
   freevars: x
-  names: y, g
+  names: __doc__, y, g
   consts:
-      0  1
-      1  None
-    5       0  LoadDeref             0 (x)
-            1  StoreName             0 (y)
-    7       2  LoadConst             0 (1)
-            3  StoreGlobal           1 (g)
-            4  LoadConst             1 (None)
-            5  Return
+      0  None
+      1  1
+    4       0  LoadConst             0 (None)
+            1  StoreName             0 (__doc__)
+    5       2  LoadDeref             0 (x)
+            3  StoreName             1 (y)
+    7       4  LoadConst             1 (1)
+            5  StoreGlobal           2 (g)
+            6  LoadConst             0 (None)
+            7  Return
 
 code r  file /tmp/c.py  line 10
   args 0 (posonly 0, kwonly 0)  stack 1  blocks 1  flags newlocals

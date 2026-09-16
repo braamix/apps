@@ -119,6 +119,21 @@ void method_trace(Obj *o)
     gc_mark(m->self);
 }
 
+// A bound method answers for what it is bound to: `A().f.__name__` is `f`.
+R method_getattr(Value v, StrObj *name, Value &out)
+{
+    Str n = name->str();
+    if (n != "__name__" && n != "__qualname__" && n != "__doc__" && n != "__module__" &&
+        n != "__func__" && n != "__self__")
+        return R::NotImpl;
+    MethodObj *m = static_cast<MethodObj *>(v.obj());
+    if (n == "__func__")
+        return out = m->fn, R::Ok;
+    if (n == "__self__")
+        return out = m->self, R::Ok;
+    return py_getattr(m->fn, name, out) == R::Ok ? R::Ok : (err_clear(), R::NotImpl);
+}
+
 R method_repr(Value v, String &out)
 {
     MethodObj *m = static_cast<MethodObj *>(v.obj());
@@ -400,7 +415,10 @@ constexpr Type type_type{ .name    = "type",
                           .repr    = type_repr,
                           .getattr = type_getattr };
 
-constexpr Type method_type{ .name = "method", .trace = method_trace, .repr = method_repr };
+constexpr Type method_type{ .name    = "method",
+                            .trace   = method_trace,
+                            .repr    = method_repr,
+                            .getattr = method_getattr };
 
 constexpr Type property_type{ .name    = "property",
                               .trace   = prop_trace,
@@ -732,8 +750,12 @@ R inst_setattr(Value v, StrObj *name, Value val)
                             type_obj(v)->slots.name);
         return dict_set(dict_at(type_obj(v)->dict), obj_value(name), val);
     }
-    if (!is_inst(v))
+    if (!is_inst(v)) {
+        const Type *t = type_of(v);
+        if (t && t->setattr)
+            return t->setattr(v, name, val);
         return err_set2("AttributeError", "object has no attribute", name->str());
+    }
 
     InstObj *o = inst_of(v);
     Root rv{ v }, rn{ obj_value(name) }, rx{ val };

@@ -1,80 +1,82 @@
 code <module>  file /tmp/c.py  line 1
   args 0 (posonly 0, kwonly 0)  stack 5  flags -
-  names: plain, defaults, positional, deco, wrapped, f, d, kw
+  names: __doc__, plain, defaults, positional, deco, wrapped, f, d, kw
   consts:
-      0  <code plain at line 1>
-      1  1
-      2  'd'
-      3  2
-      4  <code defaults at line 4>
-      5  <code positional at line 7>
-      6  <code deco at line 10>
-      7  <code wrapped at line 15>
-      8  <code <lambda> at line 18>
-      9  ('b',)
-     10  'b'
-     11  None
-    1       0  LoadConst             0 (<code plain at line 1>)
-            1  MakeFunction          0
-            2  StoreName             0 (plain)
-    4       3  LoadConst             1 (1)
-            4  BuildTuple            1
-            5  LoadConst             2 ('d')
-            6  LoadConst             3 (2)
-            7  BuildMap              1
-            8  LoadConst             4 (<code defaults at line 4>)
-            9  MakeFunction          3 (defaults kwdefaults)
-           10  StoreName             1 (defaults)
-    7      11  LoadConst             5 (<code positional at line 7>)
-           12  MakeFunction          0
-           13  StoreName             2 (positional)
-   10      14  LoadConst             6 (<code deco at line 10>)
-           15  MakeFunction          0
-           16  StoreName             3 (deco)
-   13      17  LoadName              3 (deco)
-   14      18  LoadName              3 (deco)
-   15      19  LoadConst             7 (<code wrapped at line 15>)
-           20  MakeFunction          0
-           21  Call                  1
-           22  Call                  1
-           23  StoreName             4 (wrapped)
-   18      24  LoadConst             3 (2)
-           25  BuildTuple            1
-           26  LoadConst             8 (<code <lambda> at line 18>)
-           27  MakeFunction          1 (defaults)
-           28  StoreName             5 (f)
-   19      29  LoadName              0 (plain)
-           30  LoadConst             1 (1)
-           31  LoadConst             3 (2)
-           32  LoadConst             9 (('b',))
-           33  CallKw                2
-           34  PopTop
-   20      35  LoadName              0 (plain)
-           36  BuildList             0
-           37  LoadName              6 (d)
-           38  ListExtend            1
-           39  ListToTuple
-           40  BuildMap              0
-           41  LoadName              7 (kw)
-           42  DictMerge             1
-           43  CallEx                1 (kwargs)
-           44  PopTop
-   21      45  LoadName              0 (plain)
-           46  BuildList             0
-           47  LoadName              6 (d)
-           48  ListExtend            1
-           49  ListToTuple
-           50  BuildMap              0
-           51  LoadConst            10 ('b')
-           52  LoadConst             1 (1)
-           53  BuildMap              1
-           54  DictMerge             1
-           55  LoadName              7 (kw)
+      0  None
+      1  <code plain at line 1>
+      2  1
+      3  'd'
+      4  2
+      5  <code defaults at line 4>
+      6  <code positional at line 7>
+      7  <code deco at line 10>
+      8  <code wrapped at line 15>
+      9  <code <lambda> at line 18>
+     10  ('b',)
+     11  'b'
+    1       0  LoadConst             0 (None)
+            1  StoreName             0 (__doc__)
+            2  LoadConst             1 (<code plain at line 1>)
+            3  MakeFunction          0
+            4  StoreName             1 (plain)
+    4       5  LoadConst             2 (1)
+            6  BuildTuple            1
+            7  LoadConst             3 ('d')
+            8  LoadConst             4 (2)
+            9  BuildMap              1
+           10  LoadConst             5 (<code defaults at line 4>)
+           11  MakeFunction          3 (defaults kwdefaults)
+           12  StoreName             2 (defaults)
+    7      13  LoadConst             6 (<code positional at line 7>)
+           14  MakeFunction          0
+           15  StoreName             3 (positional)
+   10      16  LoadConst             7 (<code deco at line 10>)
+           17  MakeFunction          0
+           18  StoreName             4 (deco)
+   13      19  LoadName              4 (deco)
+   14      20  LoadName              4 (deco)
+   15      21  LoadConst             8 (<code wrapped at line 15>)
+           22  MakeFunction          0
+           23  Call                  1
+           24  Call                  1
+           25  StoreName             5 (wrapped)
+   18      26  LoadConst             4 (2)
+           27  BuildTuple            1
+           28  LoadConst             9 (<code <lambda> at line 18>)
+           29  MakeFunction          1 (defaults)
+           30  StoreName             6 (f)
+   19      31  LoadName              1 (plain)
+           32  LoadConst             2 (1)
+           33  LoadConst             4 (2)
+           34  LoadConst            10 (('b',))
+           35  CallKw                2
+           36  PopTop
+   20      37  LoadName              1 (plain)
+           38  BuildList             0
+           39  LoadName              7 (d)
+           40  ListExtend            1
+           41  ListToTuple
+           42  BuildMap              0
+           43  LoadName              8 (kw)
+           44  DictMerge             1
+           45  CallEx                1 (kwargs)
+           46  PopTop
+   21      47  LoadName              1 (plain)
+           48  BuildList             0
+           49  LoadName              7 (d)
+           50  ListExtend            1
+           51  ListToTuple
+           52  BuildMap              0
+           53  LoadConst            11 ('b')
+           54  LoadConst             2 (1)
+           55  BuildMap              1
            56  DictMerge             1
-           57  CallEx                1 (kwargs)
-           58  PopTop
-           59  LoadConst            11 (None)
-           60  Return
+           57  LoadName              8 (kw)
+           58  DictMerge             1
+           59  CallEx                1 (kwargs)
+           60  PopTop
+           61  LoadConst             0 (None)
+           62  Return
 
 code plain  file /tmp/c.py  line 1
   args 2 (posonly 0, kwonly 0)  stack 2  flags newlocals

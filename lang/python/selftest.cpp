@@ -716,8 +716,10 @@ Str t_compile()
         return bad;
     const CodeObj *c = code_of(code.v);
 
-    constexpr Bc WANT[] = { Bc::LoadConst, Bc::LoadConst, Bc::BinaryOp, Bc::StoreName, Bc::LoadName,
-                            Bc::LoadName,  Bc::Call,      Bc::PopTop,   Bc::LoadConst, Bc::Return };
+    // A module stores its docstring first, which is None when it has none.
+    constexpr Bc WANT[] = { Bc::LoadConst, Bc::StoreName, Bc::LoadConst, Bc::LoadConst,
+                            Bc::BinaryOp,  Bc::StoreName, Bc::LoadName,  Bc::LoadName,
+                            Bc::Call,      Bc::PopTop,    Bc::LoadConst, Bc::Return };
     constexpr usize N   = sizeof(WANT) / sizeof(WANT[0]);
     if (c->code.size() != N)
         return why("instructions", i64(c->code.size()), i64(N));
@@ -726,9 +728,10 @@ Str t_compile()
             return why_s("opcode", bc_name(c->code[i].op), bc_name(WANT[i]));
     if (c->stacksize != 2)
         return why("stack", i64(c->stacksize), 2);
-    if (c->names.size() != 2 || c->consts.size() != 3)
-        return why("pools", i64(c->names.size() * 100 + c->consts.size()), 203);
-    if (code_line(c, 0) != 1 || code_line(c, 4) != 2)
+    // __doc__, x and print; None, 1 and 2.
+    if (c->names.size() != 3 || c->consts.size() != 3)
+        return why("pools", i64(c->names.size() * 100 + c->consts.size()), 303);
+    if (code_line(c, 0) != 1 || code_line(c, 6) != 2)
         return "the line table does not follow the source";
     return Str();
 }

@@ -6,9 +6,11 @@
 
 #include "bigint.h"
 #include "call.h"
+#include "compile.h"
 #include "complex.h"
 #include "exc.h"
 #include "format.h"
+#include "frame.h"
 #include "gc.h"
 #include "gen.h"
 #include "import.h"
@@ -21,7 +23,9 @@
 #include "math/math.h"
 #include "method.h"
 #include "ops.h"
+#include "parse.h"
 #include "type.h"
+#include "vm.h"
 
 namespace {
 
@@ -58,6 +62,11 @@ void home_mark()
 R oom()
 {
     return err_set("MemoryError", "out of memory");
+}
+
+DictObj *dict_at(Value v)
+{
+    return static_cast<DictObj *>(v.obj());
 }
 
 // A builtin cannot step a generator; only the dispatch loop can. So a builtin
@@ -1986,6 +1995,346 @@ R b_exit(const CallArgs &a, Value &out)
     return err_set_value(e);
 }
 
+// ------------------------------------------------- compile, eval and exec
+
+// What a source may arrive as. CPython takes bytes here too.
+bool source_text(Value v, Str &out)
+{
+    if (is_str(v)) {
+        out = str_of(v)->str();
+        return true;
+    }
+    return bytes_like(v, out);
+}
+
+// compile()'s third argument.
+bool compile_mode(Value v, CompileMode &out)
+{
+    Str m = is_str(v) ? str_of(v)->str() : Str();
+    if (!is_str(v))
+        return err_set2("TypeError", "compile() mode must be a string", type_name(v)), false;
+    if (m == "exec")
+        out = CompileMode::Exec;
+    else if (m == "eval")
+        out = CompileMode::Eval;
+    else if (m == "single")
+        out = CompileMode::Single;
+    else
+        return err_set("ValueError", "compile() mode must be 'exec', 'eval' or 'single'"), false;
+    return true;
+}
+
+// Parse and compile. The Ast is a stack object, so the code object it leaves
+// behind is what outlives this.
+Value compile_source(Value src, Str filename, CompileMode mode)
+{
+    Str text;
+    if (!source_text(src, text))
+        return err_set2("TypeError", "compile() source must be a string or bytes", type_name(src)),
+               Value();
+    Ast ast;
+    if (!ast.parse(text))
+        return Value();
+    return py_compile(ast, filename, mode);
+}
+
+R b_compile(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "compile", 3, 6))
+        return R::Err;
+    if (!is_str(a.args[1]))
+        return err_set2("TypeError", "compile() filename must be a string", type_name(a.args[1]));
+    CompileMode mode = CompileMode::Exec;
+    if (!compile_mode(a.args[2], mode))
+        return R::Err;
+    Root rf{ a.args[1] };
+    out = compile_source(a.args[0], str_of(rf.v)->str(), mode);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+FrameObj *caller_frame()
+{
+    Value f = vm_frame();
+    return f.is_nil() ? nullptr : frame_of(f);
+}
+
+// A module or a class body keeps a real namespace, and that is its locals. A
+// function's locals are frame slots, so what comes back there is a snapshot.
+Value frame_locals(FrameObj *f)
+{
+    if (!f->locals.is_nil())
+        return f->locals;
+    CodeObj *c = code_of(f->code);
+    DictObj *d = dict_new();
+    if (!d)
+        return oom(), Value();
+    Root rd{ obj_value(d) };
+    for (usize i = 0; i < c->varnames.size(); i++)
+        if (!f->slots()[i].is_nil() &&
+            dict_set(dict_at(rd.v), c->varnames[i], f->slots()[i]) != R::Ok)
+            return Value();
+    if (f->cells.is_nil())
+        return rd.v;
+    TupleObj *t = static_cast<TupleObj *>(f->cells.obj());
+    usize own   = c->cellvars.size();
+    for (usize i = 0; i < t->len; i++) {
+        Value cell = t->items()[i];
+        Value name = i < own ? c->cellvars[i] : c->freevars[i - own];
+        if (cell.is_nil() || static_cast<CellObj *>(cell.obj())->v.is_nil())
+            continue;
+        if (dict_set(dict_at(rd.v), name, static_cast<CellObj *>(cell.obj())->v) != R::Ok)
+            return Value();
+    }
+    return rd.v;
+}
+
+R b_globals(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "globals", 0, 0))
+        return R::Err;
+    FrameObj *f = caller_frame();
+    if (!f)
+        return err_set("SystemError", "globals() outside a frame");
+    out = f->globals;
+    return R::Ok;
+}
+
+R b_locals(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "locals", 0, 0))
+        return R::Err;
+    FrameObj *f = caller_frame();
+    if (!f)
+        return err_set("SystemError", "locals() outside a frame");
+    out = frame_locals(f);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_vars(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "vars", 0, 1))
+        return R::Err;
+    if (!a.nargs)
+        return b_locals(a, out);
+    StrObj *d = str_intern("__dict__");
+    if (!d)
+        return oom();
+    if (py_getattr(a.args[0], d, out) != R::Ok) {
+        err_clear();
+        return err_set2("TypeError", "vars() argument must have __dict__", type_name(a.args[0]));
+    }
+    return R::Ok;
+}
+
+// exec and eval both run a code object, so both park. Only the loop may push
+// the frame that runs it. s[0] is the function made over the code, and j says
+// whether the answer is wanted.
+R run_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], Value(), 0);
+    return cont_done(k, k->j ? in : value_none());
+}
+
+// The globals and locals an exec runs in. CPython's rule is one line. Neither
+// given means the caller's own, globals alone serves as both, and locals alone
+// leaves the globals the caller's.
+R take_namespaces(const CallArgs &a, Root &globals, Root &locals)
+{
+    Value g = a.nargs > 1 ? a.args[1] : value_none();
+    Value l = a.nargs > 2 ? a.args[2] : value_none();
+    if (!is_none(g) && !is_dict(g))
+        return err_set2("TypeError", "globals must be a real dict", type_name(g));
+    if (!is_none(l) && !is_dict(l))
+        return err_set2("TypeError", "locals must be a mapping", type_name(l));
+
+    FrameObj *f = caller_frame();
+    if (!f)
+        return err_set("SystemError", "exec() outside a frame");
+    globals = is_none(g) ? f->globals : g;
+    if (!is_none(l))
+        locals = l;
+    else if (!is_none(g))
+        locals = g;
+    else
+        locals = frame_locals(f);
+    if (locals.v.is_nil())
+        return R::Err;
+    // A namespace of one's own still reaches the builtins by name.
+    return put_builtins(dict_at(globals.v)) ? R::Ok : R::Err;
+}
+
+R run_code(const CallArgs &a, CompileMode mode, bool want, Value &out)
+{
+    Root globals, locals;
+    if (take_namespaces(a, globals, locals) != R::Ok)
+        return R::Err;
+
+    Root code{ a.args[0] };
+    if (!is_code(code.v)) {
+        Str text;
+        if (!source_text(code.v, text))
+            return err_set2("TypeError", "source must be a string, bytes or a code object",
+                            type_name(code.v));
+        // An expression may be written with space in front of it; a statement
+        // may not, because there the indentation means something.
+        if (mode == CompileMode::Eval)
+            while (text.size() && (text[0] == ' ' || text[0] == '\t'))
+                text = text.substr(1);
+        Ast ast;
+        if (!ast.parse(text))
+            return R::Err;
+        code = py_compile(ast, "<string>", mode);
+        if (code.v.is_nil())
+            return R::Err;
+    }
+
+    Root fn{ func_new(code.v, globals.v) };
+    if (fn.v.is_nil())
+        return R::Err;
+    Root kv{ cont_new(run_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = fn.v;
+    k->j       = want;
+    k->locals  = locals.v;
+    out        = kv.v;
+    return R::Ok;
+}
+
+R b_exec(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "exec", 1, 3))
+        return R::Err;
+    return run_code(a, CompileMode::Exec, false, out);
+}
+
+R b_eval(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "eval", 1, 3))
+        return R::Err;
+    return run_code(a, CompileMode::Eval, true, out);
+}
+
+// ------------------------------------------------------------------- dir()
+
+bool dir_dict(SetObj *into, Value d)
+{
+    if (!is_dict(d))
+        return true;
+    usize at = 0;
+    Value k, v;
+    while (table_next(static_cast<DictObj *>(d.obj())->t, at, k, v))
+        if (set_add(into, k) != R::Ok)
+            return false;
+    return true;
+}
+
+// A type's own names and every base's, which is what the MRO already lists.
+bool dir_type(SetObj *into, Value cls)
+{
+    Value mro = type_obj(cls)->mro;
+    if (!is_tuple(mro))
+        return dir_dict(into, type_obj(cls)->dict);
+    TupleObj *t = static_cast<TupleObj *>(mro.obj());
+    for (usize i = 0; i < t->len; i++)
+        if (!dir_dict(into, type_obj(t->items()[i])->dict))
+            return false;
+    return true;
+}
+
+R b_dir(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "dir", 0, 1))
+        return R::Err;
+    SetObj *s = set_new();
+    if (!s)
+        return oom();
+    Root rs{ obj_value(s) };
+
+    if (!a.nargs) {
+        FrameObj *f = caller_frame();
+        Root where{ f ? frame_locals(f) : Value() };
+        if (where.v.is_nil())
+            return R::Err;
+        if (!dir_dict(set_at(rs.v), where.v))
+            return R::Err;
+    } else {
+        Root rv{ a.args[0] };
+        if (is_module(rv.v)) {
+            if (!dir_dict(set_at(rs.v), obj_value(module_dict(rv.v))))
+                return R::Err;
+        } else if (is_type(rv.v)) {
+            if (!dir_type(set_at(rs.v), rv.v))
+                return R::Err;
+        } else {
+            if (is_inst(rv.v) && !dir_dict(set_at(rs.v), inst_of(rv.v)->dict))
+                return R::Err;
+            Root cls{ type_of_value(rv.v) };
+            if (cls.v.is_nil() || !dir_type(set_at(rs.v), cls.v))
+                return R::Err;
+        }
+    }
+
+    Vec<Value> keys;
+    usize at = 0;
+    Value k, v;
+    while (table_next(set_at(rs.v)->t, at, k, v))
+        if (!keys.push(k))
+            return oom();
+    Vec<u32> idx;
+    for (usize i = 0; i < keys.size(); i++)
+        if (!idx.push(u32(i)))
+            return oom();
+    if (sort_idx(keys, idx, false) != R::Ok)
+        return R::Err;
+    ListObj *l = list_new();
+    if (!l)
+        return oom();
+    Root rl{ obj_value(l) };
+    for (usize i = 0; i < idx.size(); i++)
+        if (!list_push(list_of(rl.v), keys[idx[i]]))
+            return oom();
+    out = rl.v;
+    return R::Ok;
+}
+
+// FunctionType(code, globals, name=None, argdefs=None, closure=None), which
+// is how a code object becomes callable over a namespace of one's own.
+R b_function(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "function", 2, 5))
+        return R::Err;
+    if (!is_code(a.args[0]))
+        return err_set2("TypeError", "function() first argument must be a code object",
+                        type_name(a.args[0]));
+    if (!is_dict(a.args[1]))
+        return err_set2("TypeError", "function() second argument must be a dict",
+                        type_name(a.args[1]));
+    Root fn{ func_new(a.args[0], a.args[1]) };
+    if (fn.v.is_nil())
+        return R::Err;
+    FuncObj *f = func_of(fn.v);
+    if (a.nargs > 2 && !is_none(a.args[2])) {
+        if (!is_str(a.args[2]))
+            return err_set("TypeError", "function() name must be a string");
+        f->name = f->qualname = a.args[2];
+    }
+    if (a.nargs > 3 && !is_none(a.args[3])) {
+        if (!is_tuple(a.args[3]))
+            return err_set("TypeError", "function() defaults must be a tuple");
+        f->defaults = a.args[3];
+    }
+    if (a.nargs > 4 && !is_none(a.args[4])) {
+        if (!is_tuple(a.args[4]))
+            return err_set("TypeError", "function() closure must be a tuple");
+        f->closure = a.args[4];
+    }
+    out = fn.v;
+    return R::Ok;
+}
+
 // ------------------------------------------------------------------ the map
 
 struct Builtin {
@@ -2005,7 +2354,9 @@ constexpr Builtin TABLE[] = {
     { "pow", b_pow },         { "reversed", b_reversed }, { "zip", b_zip },
     { "map", b_map },         { "filter", b_filter },     { "__import__", b_import },
     { "format", b_format },   { "ascii", b_ascii },       { "hex", b_hex },
-    { "oct", b_oct },         { "bin", b_bin },
+    { "oct", b_oct },         { "bin", b_bin },           { "compile", b_compile },
+    { "eval", b_eval },       { "exec", b_exec },         { "globals", b_globals },
+    { "locals", b_locals },   { "vars", b_vars },         { "dir", b_dir },
 };
 
 // Calling one of these is calling its type: `list(x)` is `list.__new__(x)`,
@@ -2031,6 +2382,7 @@ constexpr Ctor CTORS[] = {
     { &complex_type, b_complex },
     { &memview_type, b_memoryview },
     { &slice_type, b_slice },
+    { &func_type, b_function },
 };
 
 } // namespace
@@ -2140,6 +2492,26 @@ Value builtin_module(Str name)
         dict_set(module_dict(h->sys), obj_value(pl), plat) != R::Ok)
         return Value();
 
+    // The language this aims at, and the implementation's own number. The rest
+    // of sys is phase 18.
+    Root ver{ str_new("3.9.0 (braam)") };
+    TupleObj *vi = tuple_new(5);
+    if (ver.v.is_nil() || !vi)
+        return Value();
+    Root rvi{ obj_value(vi) };
+    Value parts[5] = { Value::of_int(3), Value::of_int(9), Value::of_int(0), Value(),
+                       Value::of_int(0) };
+    parts[3]       = str_new("final");
+    if (parts[3].is_nil())
+        return Value();
+    for (u32 i = 0; i < 5; i++)
+        static_cast<TupleObj *>(rvi.v.obj())->items()[i] = parts[i];
+    StrObj *vn = str_intern("version");
+    StrObj *vt = str_intern("version_info");
+    if (!vn || !vt || dict_set(module_dict(h->sys), obj_value(vn), ver.v) != R::Ok ||
+        dict_set(module_dict(h->sys), obj_value(vt), rvi.v) != R::Ok)
+        return Value();
+
     // The cache and the search path are the loader's, and a program reads and
     // writes both through here.
     StrObj *mods = str_intern("modules");
@@ -2247,4 +2619,58 @@ void print_sink(String *out)
     Home *h = here();
     if (h)
         h->sink = out;
+}
+
+bool put_builtins(DictObj *into)
+{
+    Root rd{ obj_value(into) };
+    StrObj *key = str_intern("__builtins__");
+    if (!key)
+        return oom() == R::Ok;
+    Value had;
+    R r = dict_get(dict_at(rd.v), obj_value(key), had);
+    if (r != R::NotImpl)
+        return r == R::Ok;
+    Root m{ builtin_module("builtins") };
+    if (m.v.is_nil())
+        return false;
+    return dict_set(dict_at(rd.v), obj_value(key), m.v) == R::Ok;
+}
+
+// The repr has come back. It goes where print's output goes.
+R display_step(ContObj *k, Value in)
+{
+    Home *h = here();
+    if (!h || !h->sink)
+        return err_set("SystemError", "nothing to print to");
+    String text;
+    if (py_str(in, text) != R::Ok)
+        return R::Err;
+    if (!h->sink->append(text.str()) || !h->sink->push('\n'))
+        return oom();
+    return cont_done(k, value_none());
+}
+
+R py_display(Value v, Value &out)
+{
+    out     = Value();
+    Home *h = here();
+    if (is_none(v) || !h || !h->sink)
+        return R::Ok;
+    Root rv{ v }, text;
+    if (show(rv.v, SHOW_REPR, text.v) != R::Ok)
+        return R::Err;
+    // The repr is Python's own, so the writing waits on it.
+    if (is_cont(text.v)) {
+        Value kv = cont_new(display_step);
+        if (kv.is_nil())
+            return R::Err;
+        cont_of(text.v)->next = kv;
+        cont_of(kv)->drop     = true;
+        out                   = text.v;
+        return R::Ok;
+    }
+    if (!h->sink->append(str_of(text.v)->str()) || !h->sink->push('\n'))
+        return oom();
+    return R::Ok;
 }

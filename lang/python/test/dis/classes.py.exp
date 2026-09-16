@@ -1,65 +1,72 @@
 code <module>  file /tmp/c.py  line 1
   args 0 (posonly 0, kwonly 0)  stack 6  flags -
-  names: Empty, object, Point, type, Meta
+  names: __doc__, Empty, object, Point, type, Meta
   consts:
-      0  <code Empty at line 1>
-      1  'Empty'
-      2  <code Point at line 4>
-      3  'Point'
-      4  <code Meta at line 14>
-      5  'Meta'
-      6  ('metaclass',)
-      7  None
-    1       0  LoadBuildClass
-            1  LoadConst             0 (<code Empty at line 1>)
-            2  MakeFunction          0
-            3  LoadConst             1 ('Empty')
-            4  Call                  2
-            5  StoreName             0 (Empty)
-    4       6  LoadBuildClass
-            7  LoadConst             2 (<code Point at line 4>)
-            8  MakeFunction          0
-            9  LoadConst             3 ('Point')
-           10  LoadName              1 (object)
-           11  Call                  3
-           12  StoreName             2 (Point)
-   14      13  LoadBuildClass
-           14  LoadConst             4 (<code Meta at line 14>)
-           15  MakeFunction          0
-           16  LoadConst             5 ('Meta')
-           17  LoadName              2 (Point)
-           18  LoadName              3 (type)
-           19  LoadConst             6 (('metaclass',))
-           20  CallKw                4
-           21  StoreName             4 (Meta)
-           22  LoadConst             7 (None)
-           23  Return
+      0  None
+      1  <code Empty at line 1>
+      2  'Empty'
+      3  <code Point at line 4>
+      4  'Point'
+      5  <code Meta at line 14>
+      6  'Meta'
+      7  ('metaclass',)
+    1       0  LoadConst             0 (None)
+            1  StoreName             0 (__doc__)
+            2  LoadBuildClass
+            3  LoadConst             1 (<code Empty at line 1>)
+            4  MakeFunction          0
+            5  LoadConst             2 ('Empty')
+            6  Call                  2
+            7  StoreName             1 (Empty)
+    4       8  LoadBuildClass
+            9  LoadConst             3 (<code Point at line 4>)
+           10  MakeFunction          0
+           11  LoadConst             4 ('Point')
+           12  LoadName              2 (object)
+           13  Call                  3
+           14  StoreName             3 (Point)
+   14      15  LoadBuildClass
+           16  LoadConst             5 (<code Meta at line 14>)
+           17  MakeFunction          0
+           18  LoadConst             6 ('Meta')
+           19  LoadName              3 (Point)
+           20  LoadName              4 (type)
+           21  LoadConst             7 (('metaclass',))
+           22  CallKw                4
+           23  StoreName             5 (Meta)
+           24  LoadConst             0 (None)
+           25  Return
 
 code Empty  file /tmp/c.py  line 1
   args 0 (posonly 0, kwonly 0)  stack 1  flags -
+  names: __doc__
   consts:
       0  None
     1       0  LoadConst             0 (None)
-            1  Return
+            1  StoreName             0 (__doc__)
+            2  LoadConst             0 (None)
+            3  Return
 
 code Point  file /tmp/c.py  line 4
   args 0 (posonly 0, kwonly 0)  stack 1  flags -
-  names: kind, __init__, norm
+  names: __doc__, kind, __init__, norm
   consts:
-      0  'point'
-      1  <code __init__ at line 7>
-      2  <code norm at line 11>
-      3  None
-    5       0  LoadConst             0 ('point')
-            1  StoreName             0 (kind)
-    7       2  LoadConst             1 (<code __init__ at line 7>)
-            3  MakeFunction          0
-            4  StoreName             1 (__init__)
-   11       5  LoadConst             2 (<code norm at line 11>)
-            6  MakeFunction          0
-            7  StoreName             2 (norm)
-            8  LoadConst             3 (None)
-            9  Return
+      0  None
+      1  'point'
+      2  <code __init__ at line 7>
+      3  <code norm at line 11>
+    4       0  LoadConst             0 (None)
+            1  StoreName             0 (__doc__)
+    5       2  LoadConst             1 ('point')
+            3  StoreName             1 (kind)
+    7       4  LoadConst             2 (<code __init__ at line 7>)
+            5  MakeFunction          0
+            6  StoreName             2 (__init__)
+   11       7  LoadConst             3 (<code norm at line 11>)
+            8  MakeFunction          0
+            9  StoreName             3 (norm)
+           10  LoadConst             0 (None)
+           11  Return
 
 code __init__  file /tmp/c.py  line 7
   args 3 (posonly 0, kwonly 0)  stack 2  flags newlocals
@@ -99,7 +106,10 @@ code norm  file /tmp/c.py  line 11
 
 code Meta  file /tmp/c.py  line 14
   args 0 (posonly 0, kwonly 0)  stack 1  flags -
+  names: __doc__
   consts:
       0  None
    14       0  LoadConst             0 (None)
-            1  Return
+            1  StoreName             0 (__doc__)
+            2  LoadConst             0 (None)
+            3  Return

@@ -17,6 +17,15 @@ void sys_set_argv(Value argv);
 // Where print writes. The VM owns the buffer and decides when to flush it.
 void print_sink(String *out);
 
+// `__builtins__` in a namespace, which is where a program looks to see what it
+// has. Every module's globals gets one, and so does a dict exec() is handed.
+bool put_builtins(DictObj *into);
+
+// What PrintExpr runs. A value's repr is printed, unless it is None. `out`
+// takes a ContObj when the repr is written in Python, and Nil when there was
+// nothing to do; the VM lands it.
+R py_display(Value v, Value &out);
+
 // A class instance's own __format__, __str__ or __repr__ as a ContObj the VM
 // runs; Nil and no error when the type answers none of them in Python. The
 // format opcode and format() both go through these.

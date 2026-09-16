@@ -338,7 +338,7 @@ R run_body(ContObj *k, Value source, Str path)
         return R::Err;
     DictObj *d = module_dict(m.v);
     Root file{ str_new(path) };
-    if (file.v.is_nil() || !put(d, "__file__", file.v))
+    if (file.v.is_nil() || !put(d, "__file__", file.v) || !put_builtins(d))
         return R::Err;
     // A package is a directory with an __init__.py, and its __path__ is what
     // its own submodules are searched along.

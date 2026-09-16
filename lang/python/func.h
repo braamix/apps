@@ -12,12 +12,19 @@ struct CellObj : Obj {
 extern const Type cell_type;
 CellObj *cell_new();
 
+// The three names come from the code object and are then the function's own:
+// __name__ and __qualname__ may be assigned, and a decorator that wraps one
+// function in another copies them across.
 struct FuncObj : Obj {
     Value code;       // CodeObj
     Value globals;    // DictObj
     Value defaults;   // TupleObj, or Nil
     Value kwdefaults; // DictObj, or Nil
     Value closure;    // TupleObj of CellObj, or Nil
+    Value name;       // StrObj
+    Value qualname;   // StrObj
+    Value doc;        // the body's first string, or Nil
+    Value dict;       // __dict__, made when something is stored in it
 };
 
 extern const Type func_type;
