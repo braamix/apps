@@ -806,8 +806,33 @@ bool Compiler::expr(u32 i)
 
     case Nd::Starred:
         return fail("can't use starred expression here", i);
-    case Nd::FString:
-        return fail("f-strings are not compiled yet", i);
+    case Nd::JoinedStr: {
+        // Each piece becomes a string on the stack and BuildString joins them.
+        // An empty f-string is the empty constant, and one piece that is
+        // already a constant needs no join at all.
+        if (!n.nkid)
+            return emit(Bc::LoadConst, add_const(str_new(Str(""))), i);
+        // One piece is already a str -- a constant, or what FormatValue
+        // leaves -- so there is nothing to join.
+        if (n.nkid == 1)
+            return expr(ast->kids[n.kid0]);
+        for (u32 k = 0; k < n.nkid; k++)
+            if (!expr(ast->kids[n.kid0 + k]))
+                return false;
+        return emit(Bc::BuildString, n.nkid, i);
+    }
+
+    case Nd::FormattedValue: {
+        if (!expr(n.a))
+            return false;
+        u32 flags = n.flags;
+        if (n.b) {
+            if (!expr(n.b))
+                return false;
+            flags |= FV_SPEC;
+        }
+        return emit(Bc::FormatValue, flags, i);
+    }
     case Nd::Await:
         return fail("async is not compiled yet", i);
 

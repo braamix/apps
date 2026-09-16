@@ -1,0 +1,211 @@
+Module
+  body:
+    Expr
+      value:
+        JoinedStr
+          values: []
+    Expr
+      value:
+        JoinedStr
+          values:
+            Constant 'plain'
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue -
+              value:
+                Name x
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            Constant 'a'
+            FormattedValue -
+              value:
+                Name x
+              format_spec: -
+            Constant 'b'
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue r
+              value:
+                Name x
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue s
+              value:
+                Name x
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue a
+              value:
+                Name x
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue -
+              value:
+                Name x
+              format_spec:
+                JoinedStr
+                  values:
+                    Constant '>10'
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue -
+              value:
+                Name x
+              format_spec:
+                JoinedStr
+                  values:
+                    Constant '>'
+                    FormattedValue -
+                      value:
+                        Name w
+                      format_spec: -
+                    Constant '.'
+                    FormattedValue -
+                      value:
+                        Name p
+                      format_spec: -
+                    Constant 'f'
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue -
+              value:
+                Name x
+              format_spec:
+                JoinedStr
+                  values: []
+    Expr
+      value:
+        JoinedStr
+          values:
+            Constant 'x='
+            FormattedValue r
+              value:
+                Name x
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            Constant 'x = '
+            FormattedValue r
+              value:
+                Name x
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            Constant 'x+1='
+            FormattedValue r
+              value:
+                BinOp +
+                  left:
+                    Name x
+                  right:
+                    Constant 1
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            Constant '{literal}'
+    Expr
+      value:
+        JoinedStr
+          values:
+            Constant 'before'
+            FormattedValue -
+              value:
+                Name x
+              format_spec: -
+            Constant 'after'
+    Expr
+      value:
+        JoinedStr
+          values:
+            Constant 'ab'
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue -
+              value:
+                Subscript
+                  value:
+                    Name d
+                  slice:
+                    Constant 'k'
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue -
+              value:
+                BinOp +
+                  left:
+                    Name x
+                  right:
+                    Constant 1
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue -
+              value:
+                Tuple
+                  elts:
+                    Constant 1
+                    Constant 2
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue -
+              value:
+                ListComp
+                  elt:
+                    Name i
+                  generators:
+                    Comprehen
+                      target:
+                        Name i
+                      iter:
+                        Name y
+                      ifs: []
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue -
+              value:
+                JoinedStr
+                  values:
+                    FormattedValue -
+                      value:
+                        Name x
+                      format_spec: -
+              format_spec: -

@@ -1221,6 +1221,27 @@ void interpret()
                             break;
                         }
                     }
+                    // The left operand's own operator goes first, and the
+                    // reflected one only answers what it left undone. A
+                    // built-in on the left has its slot tried here rather
+                    // than below, or `"%s" % obj` would reach __rmod__
+                    // before str's own `%`.
+                    bool settled = false;
+                    if (!is_inst(a) && in.op == Bc::BinaryOp) {
+                        Value got;
+                        R r = py_binop_try(a, b, Op(arg), got);
+                        if (r == R::Err)
+                            goto oops;
+                        if (r == R::Ok) {
+                            f->sp -= 2;
+                            if (!land(got, false))
+                                goto oops;
+                            settled = true;
+                        }
+                    }
+                    if (settled)
+                        break;
+
                     bool done = false;
                     if (!dunder_binop(f, a, b, arg, op_dunder(Op(arg)), done))
                         goto oops;
@@ -1233,7 +1254,10 @@ void interpret()
                 if (r != R::Ok)
                     goto oops;
                 f->sp -= 2;
-                st[f->sp++] = out;
+                // `%` on a str may hand back a ContObj: a value in it answers
+                // __str__ or __format__ in Python.
+                if (!land(out, false))
+                    goto oops;
                 break;
             }
 
@@ -1405,6 +1429,49 @@ void interpret()
                 st[f->sp++] = s;
                 break;
             }
+            case Bc::BuildString: {
+                String text;
+                for (u32 k = 0; k < arg; k++) {
+                    Value piece = st[f->sp - arg + k];
+                    if (!is_str(piece)) {
+                        err_set2("SystemError", "a string piece is not a str", type_name(piece));
+                        goto oops;
+                    }
+                    if (!text.append(str_of(piece)->str())) {
+                        oom();
+                        goto oops;
+                    }
+                }
+                Value made = str_new(text.str());
+                if (made.is_nil())
+                    goto oops;
+                f->sp -= arg;
+                st[f->sp++] = made;
+                break;
+            }
+
+            case Bc::FormatValue: {
+                u32 pop = (arg & FV_SPEC) ? 2 : 1;
+                Str spec;
+                if (arg & FV_SPEC) {
+                    Value s = st[f->sp - 1];
+                    if (!is_str(s)) {
+                        err_set2("TypeError", "format specifier must be a str", type_name(s));
+                        goto oops;
+                    }
+                    spec = str_of(s)->str();
+                }
+                Value out;
+                if (format_field(st[f->sp - pop], spec, arg & FV_CONV, -1, out) != R::Ok)
+                    goto oops;
+                f->sp -= pop;
+                // A ContObj here is a __format__ or a __repr__ written in
+                // Python, which lands the answer when it returns.
+                if (!land(out, false))
+                    goto oops;
+                break;
+            }
+
             case Bc::ListToTuple: {
                 ListObj *l  = list_of(st[f->sp - 1]);
                 TupleObj *t = tuple_new(l->items.size());

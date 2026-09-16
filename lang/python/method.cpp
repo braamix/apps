@@ -2,7 +2,9 @@
 // namespace, and py_attr finds them there.
 #include "method.h"
 
+#include "builtin.h"
 #include "exc.h"
+#include "format.h"
 #include "gc.h"
 #include "intern.h"
 #include "kernel/fmt.h"
@@ -53,9 +55,41 @@ bool method_install(const Type *t, const Method *tab, usize n)
     return true;
 }
 
+// object.__format__(self, spec): the built-in conversion, and str(self) for
+// anything else. Installed on `object`, so every built-in type and every
+// class reaches it through the MRO and `super().__format__(spec)` works.
+R b_dunder_format(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__format__", 1, 1))
+        return R::Err;
+    if (!is_str(a.args[1]))
+        return err_set2("TypeError", "__format__() argument must be str", type_name(a.args[1]));
+    Value self = a.args[0];
+    Str spec   = str_of(a.args[1])->str();
+
+    // A class with a __str__ of its own is Python, so this parks on it.
+    if (is_inst(self) && !spec.size()) {
+        out = show_special(self, true);
+        if (!out.is_nil())
+            return R::Ok;
+        if (err_pending())
+            return R::Err;
+    }
+    String text;
+    if (format_builtin(self, spec, text) != R::Ok)
+        return R::Err;
+    out = str_new(text.str());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+constexpr Method OBJECT[] = {
+    { "__format__", b_dunder_format },
+};
+
 bool methods_install()
 {
-    return str_methods() && bytes_methods() && seq_methods() && map_methods() && num_methods();
+    return method_install(&object_type, OBJECT) && str_methods() && bytes_methods() &&
+           seq_methods() && map_methods() && num_methods();
 }
 
 Value method_self(Value v)

@@ -16,3 +16,14 @@ void sys_set_argv(Value argv);
 
 // Where print writes. The VM owns the buffer and decides when to flush it.
 void print_sink(String *out);
+
+// A class instance's own __format__, __str__ or __repr__ as a ContObj the VM
+// runs; Nil and no error when the type answers none of them in Python. The
+// format opcode and format() both go through these.
+Value format_special(Value v, Str spec);
+Value show_special(Value v, bool want_str);
+
+// One `{value!conv:spec}` of an f-string, which is what the FormatValue
+// opcode runs. `out` takes a str, or a ContObj when the conversion or the
+// __format__ is written in Python; the VM lands either.
+R format_field(Value v, Str spec, u32 conv, i32 min_digits, Value &out);

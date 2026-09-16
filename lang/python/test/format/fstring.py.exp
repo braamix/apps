@@ -1,0 +1,64 @@
+
+plain
+hello world
+5
+5 5
+a5b5c
+6
+6
+5
+[20, 40]
+v one
+1020
+(1, 2)
+7
+{}
+{5}
+{{}}
+}{
+a{b}c
+<NL>5
+5<TAB>
+\n5
+{x}
+\5
+triple 5
+5 single
+'world'
+world
+'h\xe9llo'
+   'world'|
+***world***|
+    5|
+5    |
+00005
+3.14
+1,234,567
+       5|
+       5|
+   3.142|
+       5|
+5
+5
+x=5
+x = 5
+ x = 5
+x+1=6
+x=    5|
+x=5
+d['k']='v'
+lit5tail
+55
+abc
+onlyplain
+OWN()
+OWN(abc)
+own-repr
+own-str
+    own-repr|
+[own-repr]
+[own-repr]
+OWN(xy)
+5
+58
+       5

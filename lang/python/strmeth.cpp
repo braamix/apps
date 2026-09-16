@@ -1,6 +1,7 @@
 // str's methods. Everything is counted and indexed in codepoints, as the
 // language promises. The bytes are UTF-8, and they are converted only at the
 // boundary: an argument coming in, an index going out.
+#include "format.h"
 #include "gc.h"
 #include "kernel/fmt.h"
 #include "kernel/text.h"
@@ -379,6 +380,47 @@ R search(const CallArgs &a, Str who, bool last, bool raising, Value &out)
 R m_find(const CallArgs &a, Value &out)
 {
     return search(a, "find", false, false, out);
+}
+
+// str.format(*args, **kwargs). The positional arguments become a tuple and
+// the keywords a dict, which is what a replacement field looks names up in.
+R m_format(const CallArgs &a, Value &out)
+{
+    StrObj *self = self_str(a, "format");
+    if (!self)
+        return R::Err;
+    Root args{ obj_value(tuple_new(a.nargs - 1)) };
+    if (args.v.is_nil())
+        return oom_err();
+    TupleObj *t = static_cast<TupleObj *>(args.v.obj());
+    for (u32 i = 1; i < a.nargs; i++)
+        t->items()[i - 1] = a.args[i];
+
+    Root kw;
+    if (a.nkw) {
+        kw = obj_value(dict_new());
+        if (kw.v.is_nil())
+            return oom_err();
+        for (u32 i = 0; i < a.nkw; i++)
+            if (dict_set(static_cast<DictObj *>(kw.v.obj()), a.kwnames[i], a.kwvals[i]) != R::Ok)
+                return R::Err;
+    }
+    out = str_format_call(obj_value(self), args.v, kw.v, Value());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// str.format_map(mapping): the same, but a name is looked up in the mapping
+// rather than copied into a dict first, so a class with __getitem__ works.
+R m_format_map(const CallArgs &a, Value &out)
+{
+    StrObj *self = self_str(a, "format_map");
+    if (!self || !meth_args(a, "format_map", 1, 1))
+        return R::Err;
+    Root args{ obj_value(tuple_new(0)) };
+    if (args.v.is_nil())
+        return oom_err();
+    out = str_format_call(obj_value(self), args.v, Value(), a.args[1]);
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R m_rfind(const CallArgs &a, Value &out)
@@ -1167,6 +1209,8 @@ constexpr Method STR[] = {
     { "endswith", m_endswith },
     { "expandtabs", m_expandtabs },
     { "find", m_find },
+    { "format", m_format },
+    { "format_map", m_format_map },
     { "index", m_index },
     { "isalnum", m_isalnum },
     { "isalpha", m_isalpha },

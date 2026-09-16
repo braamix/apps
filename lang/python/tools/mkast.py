@@ -322,7 +322,15 @@ class Out:
         self.field(d + 1, "step", n.step)
 
     def n_JoinedStr(self, d, n, _k):
-        raise SystemExit("mkast: f-strings are kept raw; keep them out of these cases")
+        self.line(d, "JoinedStr")
+        self.listing(d + 1, "values", n.values)
+
+    def n_FormattedValue(self, d, n, _k):
+        # -1 is "no conversion"; otherwise it is the character itself.
+        conv = chr(n.conversion) if n.conversion and n.conversion > 0 else "-"
+        self.line(d, f"FormattedValue {conv}")
+        self.field(d + 1, "value", n.value)
+        self.field(d + 1, "format_spec", n.format_spec)
 
     # --------------------------------------------------------------- helpers
 

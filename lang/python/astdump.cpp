@@ -146,13 +146,11 @@ void Dumper::node(u32 d, u32 i)
         put(' ');
         constant(n);
         break;
-    case Nd::FString: {
+    case Nd::FormattedValue:
+        // The conversion as CPython spells it, or `-` for none.
         put(' ');
-        Root v{ obj_value(str_raw(text(i))) };
-        if (v.v.is_nil() || py_repr(v.v, *out) != R::Ok)
-            ok = false;
+        put(n.flags ? char(n.flags) : '-');
         break;
-    }
     case Nd::BinOp:
         put(' ');
         put(op_symbol(Op(n.flags)));
@@ -371,6 +369,13 @@ void Dumper::node(u32 d, u32 i)
         slice(d + 1, "args", n, 0, n.b);
         slice(d + 1, "keywords", n, n.b, n.nkid - n.b);
         break;
+    case Nd::JoinedStr:
+        slice(d + 1, "values", n, 0, n.nkid);
+        break;
+    case Nd::FormattedValue:
+        field(d + 1, "value", n.a);
+        field(d + 1, "format_spec", n.b);
+        break;
     case Nd::Attribute:
         field(d + 1, "value", n.a);
         break;
@@ -485,7 +490,8 @@ Str nd_name(Nd k)
         NAME(YieldFrom);
         NAME(Compare);
         NAME(Call);
-        NAME(FString);
+        NAME(JoinedStr);
+        NAME(FormattedValue);
         NAME(Constant);
         NAME(Attribute);
         NAME(Subscript);

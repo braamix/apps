@@ -6,6 +6,7 @@
 
 #include "call.h"
 #include "exc.h"
+#include "format.h"
 #include "gc.h"
 #include "import.h"
 #include "intern.h"
@@ -444,6 +445,22 @@ R b_abs(const CallArgs &a, Value &out)
     return err_set2("TypeError", "bad operand type for abs()", type_name(a.args[0]));
 }
 
+// Which text is wanted, and what an instance nested in a container answers
+// with. `nargs` on the continuation carries it.
+enum : u32 { SHOW_REPR, SHOW_STR, SHOW_ASCII };
+
+// The text is in hand; s[4] is a format spec still to apply to it, or Nil.
+R show_done(ContObj *k, Value text)
+{
+    if (k->s[4].is_nil())
+        return cont_done(k, text);
+    String out;
+    if (format_builtin(text, str_of(k->s[4])->str(), out) != R::Ok)
+        return R::Err;
+    Value made = str_new(out.str());
+    return made.is_nil() ? R::Err : cont_done(k, made);
+}
+
 // s[0] is the value, s[1] its own __str__ or __repr__ if it has one, s[2] the
 // instances nested inside it and s[3] the text they answered; j says str.
 R show_step(ContObj *k, Value in)
@@ -454,7 +471,13 @@ R show_step(ContObj *k, Value in)
     } else if (!k->s[1].is_nil() && k->i == 2) {
         if (!is_str(in))
             return err_set2("TypeError", "__repr__ returned a non-string", type_name(in));
-        return cont_done(k, in);
+        if (k->nargs != SHOW_ASCII)
+            return show_done(k, in);
+        String esc;
+        if (py_ascii(in, esc) != R::Ok)
+            return R::Err;
+        Value made = str_new(esc.str());
+        return made.is_nil() ? R::Err : show_done(k, made);
     } else if (k->j > 0) {
         if (!is_str(in))
             return err_set2("TypeError", "__repr__ returned a non-string", type_name(in));
@@ -471,15 +494,18 @@ R show_step(ContObj *k, Value in)
     if (done.v.is_nil())
         return R::Err;
     String text;
-    if ((k->nargs ? py_str(done.v, text) : py_repr(done.v, text)) != R::Ok)
+    R r = k->nargs == SHOW_STR     ? py_str(done.v, text)
+          : k->nargs == SHOW_ASCII ? py_ascii(done.v, text)
+                                   : py_repr(done.v, text);
+    if (r != R::Ok)
         return R::Err;
     Value made = str_new(text.str());
-    return made.is_nil() ? R::Err : cont_done(k, made);
+    return made.is_nil() ? R::Err : show_done(k, made);
 }
 
-R show(Value v, bool want_str, Value &out)
+R show(Value v, u32 want, Value &out)
 {
-    Root rv{ v }, m{ text_of(v, want_str) };
+    Root rv{ v }, m{ text_of(v, want == SHOW_STR) };
     Root need{ obj_value(list_new()) }, done{ obj_value(list_new()) };
     if (need.v.is_nil() || done.v.is_nil())
         return oom();
@@ -493,12 +519,15 @@ R show(Value v, bool want_str, Value &out)
         cont_of(kv)->s[1]  = m.v;
         cont_of(kv)->s[2]  = need.v;
         cont_of(kv)->s[3]  = done.v;
-        cont_of(kv)->nargs = want_str ? 1 : 0;
+        cont_of(kv)->nargs = want;
         out                = kv;
         return R::Ok;
     }
     String text;
-    if ((want_str ? py_str(rv.v, text) : py_repr(rv.v, text)) != R::Ok)
+    R r = want == SHOW_STR     ? py_str(rv.v, text)
+          : want == SHOW_ASCII ? py_ascii(rv.v, text)
+                               : py_repr(rv.v, text);
+    if (r != R::Ok)
         return R::Err;
     out = str_new(text.str());
     return out.is_nil() ? R::Err : R::Ok;
@@ -508,7 +537,54 @@ R b_repr(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "repr", 1, 1))
         return R::Err;
-    return show(a.args[0], false, out);
+    return show(a.args[0], SHOW_REPR, out);
+}
+
+R b_ascii(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "ascii", 1, 1))
+        return R::Err;
+    return show(a.args[0], SHOW_ASCII, out);
+}
+
+// __format__ answered in Python, as one call. A class that writes none still
+// reaches object.__format__, which is format_builtin's last arm.
+R format_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], k->a[0], 1);
+    if (!is_str(in))
+        return err_set2("TypeError", "__format__ must return a str", type_name(in));
+    return cont_done(k, in);
+}
+
+R b_format(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "format", 1, 2))
+        return R::Err;
+    if (a.nargs > 1 && !is_str(a.args[1]))
+        return err_set2("TypeError", "format() argument 2 must be str", type_name(a.args[1]));
+    Str spec = a.nargs > 1 ? str_of(a.args[1])->str() : Str("");
+
+    out = format_special(a.args[0], spec);
+    if (!out.is_nil())
+        return R::Ok;
+    if (err_pending())
+        return R::Err;
+    // No __format__ of its own: object.__format__ is str(self), and that may
+    // be Python too.
+    if (is_inst(a.args[0]) && !spec.size()) {
+        out = show_special(a.args[0], true);
+        if (!out.is_nil())
+            return R::Ok;
+        if (err_pending())
+            return R::Err;
+    }
+    String text;
+    if (format_builtin(a.args[0], spec, text) != R::Ok)
+        return R::Err;
+    out = str_new(text.str());
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 // The encoding argument str(), bytes() and bytearray() take. UTF-8 and ASCII
@@ -550,7 +626,7 @@ R b_str(const CallArgs &a, Value &out)
         out = a.args[0];
         return R::Ok;
     }
-    return show(a.args[0], true, out);
+    return show(a.args[0], SHOW_STR, out);
 }
 
 R b_bool(const CallArgs &a, Value &out)
@@ -1814,6 +1890,7 @@ constexpr Builtin TABLE[] = {
     { "id", b_id },           { "divmod", b_divmod },     { "round", b_round },
     { "pow", b_pow },         { "reversed", b_reversed }, { "zip", b_zip },
     { "map", b_map },         { "filter", b_filter },     { "__import__", b_import },
+    { "format", b_format },   { "ascii", b_ascii },
 };
 
 // Calling one of these is calling its type: `list(x)` is `list.__new__(x)`,
@@ -1965,6 +2042,88 @@ void sys_set_argv(Value argv)
     Home *h = here();
     if (h)
         h->argv = argv;
+}
+
+Value format_special(Value v, Str spec)
+{
+    if (!is_inst(v))
+        return Value();
+    Root m{ type_special(v, "__format__") };
+    if (m.v.is_nil())
+        return Value();
+    Root sv{ str_new(spec) };
+    if (sv.v.is_nil())
+        return Value();
+    Value kv = cont_new(format_step);
+    if (kv.is_nil())
+        return Value();
+    cont_of(kv)->s[0] = m.v;
+    cont_of(kv)->a[0] = sv.v;
+    return kv;
+}
+
+R format_field(Value v, Str spec, u32 conv, i32 min_digits, Value &out)
+{
+    Root rv{ v };
+    u32 want = SHOW_STR;
+    if (conv == CONV_REPR)
+        want = SHOW_REPR;
+    else if (conv == CONV_ASCII)
+        want = SHOW_ASCII;
+    else if (conv != CONV_STR) {
+        // No conversion at all: a __format__ of its own decides everything.
+        out = format_special(rv.v, spec);
+        if (!out.is_nil())
+            return R::Ok;
+        if (err_pending())
+            return R::Err;
+        // What is left is object.__format__: the built-in conversion, or
+        // str(self) when the spec is empty -- and that may be Python, or a
+        // container holding something whose __repr__ is.
+        if (spec.size() || min_digits >= 0) {
+            String text;
+            if (format_builtin(rv.v, spec, text, min_digits) != R::Ok)
+                return R::Err;
+            out = str_new(text.str());
+            return out.is_nil() ? R::Err : R::Ok;
+        }
+    }
+
+    if (show(rv.v, want, out) != R::Ok)
+        return R::Err;
+    if (!spec.size())
+        return R::Ok;
+    // What show() gave back is held across an allocation from here on, so it
+    // is pinned: a collection in str_new would otherwise sweep it.
+    Root got{ out };
+    // The conversion made text; the spec applies to that, which is str's own
+    // and needs no further call.
+    if (is_cont(got.v)) {
+        Value sv = str_new(spec);
+        if (sv.is_nil())
+            return R::Err;
+        cont_of(got.v)->s[4] = sv;
+        out                  = got.v;
+        return R::Ok;
+    }
+    String text;
+    if (format_builtin(got.v, spec, text) != R::Ok)
+        return R::Err;
+    out = str_new(text.str());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+Value show_special(Value v, bool want_str)
+{
+    Root m{ text_of(v, want_str) };
+    if (m.v.is_nil())
+        return Value();
+    Value kv = cont_new(one_step);
+    if (kv.is_nil())
+        return Value();
+    cont_of(kv)->s[0] = m.v;
+    cont_of(kv)->j    = WANT_STR;
+    return kv;
 }
 
 void print_sink(String *out)

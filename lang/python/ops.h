@@ -34,6 +34,11 @@ ListObj *py_list_of(Value v);
 // R::Err with TypeError pending when neither side answers.
 R py_binop(Value a, Value b, Op op, Value &out);
 
+// The same, but NotImpl rather than a TypeError when no type answered. The VM
+// asks this first where the left operand is a built-in and the right a class:
+// the left's own operator goes before the right's reflected one.
+R py_binop_try(Value a, Value b, Op op, Value &out);
+
 // `a op= b`. Only a list mutates; everything else is py_binop.
 R py_inplace(Value a, Value b, Op op, Value &out);
 

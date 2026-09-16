@@ -159,6 +159,15 @@ void Lister::hint(const CodeObj *c, const Instr &in)
                 put("closure");
             }
             put(')');
+        } else if (in.op == Bc::FormatValue) {
+            if (!in.arg)
+                return;
+            put(" (");
+            if (in.arg & FV_CONV)
+                put(char(in.arg & FV_CONV));
+            if (in.arg & FV_SPEC)
+                put((in.arg & FV_CONV) ? " spec" : "spec");
+            put(')');
         } else if (in.arg & CX_KWARGS) {
             put(" (kwargs)");
         }

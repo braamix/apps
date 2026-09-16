@@ -113,6 +113,13 @@ Str tok_label(Tok t);
 
 bool tok_is_keyword(Tok t);
 
+// A string literal's prefix, as its token carries it in `flags`.
+enum : u8 {
+    TOK_STR_RAW   = 1 << 0,
+    TOK_STR_BYTES = 1 << 1,
+    TOK_STR_F     = 1 << 2,
+};
+
 struct Token {
     Tok kind = Tok::End;
     u8 flags = 0; // string literals: raw, and which quote was used
@@ -132,8 +139,22 @@ struct Lexer {
 
     bool run(Str source);
 
+    // One expression's tokens appended after everything already scanned, for
+    // what is inside an f-string's braces: the body arrives as written and is
+    // taken apart at parse time, so its expressions are lexed then. Every
+    // token is stamped with the f-string's own line and column, which is where
+    // an error in one should point. Returns the index of the first, or 0 with
+    // the error pending; the run ends with an End the sub-parse stops at.
+    usize sublex(Str fragment, u32 line, u32 col);
+
     Str text_of(const Token &t) const { return Str(text.data() + t.at, t.len); }
 };
+
+// One literal run's escapes decoded, appended to `out`. An f-string's body is
+// kept as written, so its literal halves are decoded at parse time -- and by
+// this, so that there is one escape table and not two. False leaves a
+// SyntaxError pending, pointing at the literal.
+bool lex_unescape(Str raw, u32 line, u32 col, String &out);
 
 // One token per line, for --dump-tokens. False leaves the error pending, with
 // what was tokenized so far already in `out`.

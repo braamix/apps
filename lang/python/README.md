@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 12.**
+**Phase 13.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -67,34 +67,40 @@ packages, `sys.modules`, `sys.path` and `__import__`. The shipped library will
 live in the package's own `share/lib/`, which the binary finds through the
 `/pkg/bin` link.
 
-**284 of MicroPython's own tests pass unchanged**, and over the whole of
+**Text can be formatted**: the format-spec mini-language — fill, align, sign,
+`#`, `0`, width, grouping, precision and type — as one engine, reached by
+`format()`, by `__format__`, by `str.format` and `str.format_map`, by `%` on
+str and on bytes, and by **f-strings**, with conversions, `=`, and specs
+nested inside specs. `ascii()` came with them.
+
+**302 of MicroPython's own tests pass unchanged**, and over the whole of
 `tests/basics/` — setting aside the bigint, generator, async and t-string
-families — **313 of 480**, up from 198 at phase 9. What stops most of the rest
-is `str.format` and the `%` operator, which are the next phase; generators,
-f-strings and bignums are the others.
+families — **331 of 480**, up from 313 at phase 12 and 198 at phase 9. What
+stops most of the rest is bignums and generators, which are the next two
+phases; the modules are phase 18.
 
-**CPython's tests are the second ruler, and it has barely any markings yet**:
-twelve are in [test/cpython.txt](test/cpython.txt), three of them run, and one
-test method out of seven passes. The wall is not the imports the plan expected
-but the compiler. Running the whole of `Lib/test/` under this interpreter —
-`node test/pycases.mjs --survey`, which needs the clone in `tmp/` — says why
-each of the 391 files stops:
+**CPython's tests are the second ruler.** Twelve are in
+[test/cpython.txt](test/cpython.txt), five of them run, and thirteen test
+methods of thirty-four pass. Running the whole of `Lib/test/` under this
+interpreter — `node test/pycases.mjs --survey`, which needs the clone in
+`tmp/` — says why each of the 391 files stops:
 
-| | |
-| --- | --- |
-| 130 | a module that is not written yet |
-| 124 | f-strings |
-| 41 | complex numbers |
-| 31 | a unicode escape the lexer refuses |
-| 28 | other syntax — `@`, `except*`, `:=` in a subscript |
-| 17 | an integer past 2³⁰ |
-| 12 | `\N{...}` |
-| 3 | `async` |
-| 3 | these run |
+| now | what stops it | at phase 12 | lands in |
+| --- | --- | --- | --- |
+| 213 | a module that is not written yet | 130 | |
+| 41 | complex numbers | 41 | phase 14 |
+| 39 | an integer past 2³⁰ | 17 | phase 14 |
+| 34 | other syntax — `@`, `except*`, `:=` in a subscript | 28 | phase 24 |
+| 31 | a lone surrogate in a literal | 31 | phase 22 |
+| 13 | `async` | 3 | phase 23 |
+| 12 | `\N{...}` | 12 | phase 22 |
+| 5 | these run | 3 | |
+| — | f-strings | 124 | **done** |
 
-So f-strings alone are a quarter of the suite, which is phase 13, and the wave
-after it is chosen by running the survey again rather than by reading the
-imports.
+F-strings were a quarter of the suite and are gone from the wall: 124 files
+now reach their imports instead. That is why the column on the right is kept —
+the survey is what chooses each next wave, and it only means something beside
+what it said last time.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -127,6 +133,8 @@ green.
 | [mapmeth.cpp](mapmeth.cpp) | dict's and set's, frozenset, and the three views |
 | [nummeth.cpp](nummeth.cpp) | int's and float's |
 | [repr.cpp](repr.cpp) | repr for every type, quoting and all |
+| [format.h](format.h), [format.cpp](format.cpp) | The format-spec mini-language, and what str, int and float make of one |
+| [formatgr.cpp](formatgr.cpp) | The other two grammars — `%` and str.format's fields — as a plan a continuation walks |
 | [lex.h](lex.h), [lex.cpp](lex.cpp) | The tokenizer, and the `--dump-tokens` listing |
 | [parse.h](parse.h), [parse.cpp](parse.cpp) | The grammar, by recursive descent into an index arena |
 | [astdump.cpp](astdump.cpp) | The `--dump-ast` listing, which is the format mkast.py writes to |
@@ -156,6 +164,7 @@ green.
 | [test/pyint.mjs](test/pyint.mjs) | That a `^C` reaches a running program, and that it may catch it |
 | [test/pymeth.mjs](test/pymeth.mjs) | Methods through a subclass, `sort(key=)`, the views, and the new types |
 | [test/pyimport.mjs](test/pyimport.mjs) | Fifty nested imports, the cache, the search path, the store |
+| [test/pyformat.mjs](test/pyformat.mjs) | Every case under `test/format/`, against CPython and again under gc stress |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
@@ -165,6 +174,7 @@ green.
 | [test/shim/selfcheck.py](test/shim/selfcheck.py) | What `pyunit.mjs` runs: the shims measured against themselves |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
 | [tools/mkcpy.py](tools/mkcpy.py) | Copies one of CPython's tests in; `pycases.mjs --bless` writes its golden |
+| [tools/mkfmt.py](tools/mkfmt.py) | Runs a formatting case under the host's CPython and saves what it printed |
 | [tools/mklex.py](tools/mklex.py) | Writes a token golden out of CPython's own tokenizer |
 | [tools/mkast.py](tools/mkast.py) | Writes a tree golden out of CPython's own ast module |
 
@@ -445,6 +455,15 @@ are measured against CPython rather than against themselves. A case whose name
 ends in `_err` is one that must be refused, and its golden holds the complaint;
 `node test/pylex.mjs --bless` and `node test/pyast.mjs --bless` rewrite those,
 after reading the diff.
+
+A formatting case is a `.py` under `test/format/` that prints, and its golden
+is what CPython prints for it:
+
+    tools/mkfmt.py test/format/spec.py
+
+which makes the comparison as strong as it can be — the same program, the two
+interpreters, byte for byte. So a case there may use nothing this interpreter
+has not got: no integer past 2**30, no generator, no `eval`.
 
 A compiler case is a `.py` under `test/dis/` and nothing else: the bytecode is
 this implementation's, so there is nothing to generate the golden from and

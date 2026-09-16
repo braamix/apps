@@ -283,9 +283,6 @@ void Builder::expr(u32 i)
         return;
     case Nd::Constant:
         return;
-    case Nd::FString:
-        fail("f-strings are not compiled yet", i);
-        return;
     case Nd::Await:
         fail("async is not compiled yet", i);
         return;
@@ -338,6 +335,13 @@ void Builder::expr(u32 i)
     case Nd::Call:
         expr(n.a);
         kids(i, 0, n.nkid, &Builder::expr);
+        return;
+    case Nd::JoinedStr:
+        kids(i, 0, n.nkid, &Builder::expr);
+        return;
+    case Nd::FormattedValue:
+        expr(n.a);
+        expr(n.b);
         return;
     case Nd::Attribute:
         expr(n.a);

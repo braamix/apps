@@ -1,4 +1,5 @@
 // str: immutable UTF-8, indexed and counted in codepoints.
+#include "format.h"
 #include "gc.h"
 #include "iter.h"
 #include "kernel/fmt.h"
@@ -135,6 +136,12 @@ R str_binop(Value a, Value b, Op op, Value &out)
             return err_set("MemoryError", "out of memory");
         out = obj_value(str_raw(joined.str()));
         return out.is_nil() ? err_set("MemoryError", "out of memory") : R::Ok;
+    }
+    // `%` may need Python -- a value's own __str__ or __format__ -- so what
+    // comes back can be a ContObj, which the VM lands like any other.
+    if (op == Op::Mod && is_str(a)) {
+        out = str_mod(a, b);
+        return out.is_nil() ? R::Err : R::Ok;
     }
     if (op == Op::Mul) {
         Value s = is_str(a) ? a : b;

@@ -5,29 +5,35 @@ object model. The interpreter is not a port and stays that way. What is
 borrowed is measured, and named here.
 
 **The language stands, the built-in types have their methods, a file can be
-imported, and CPython's own tests are now a ruler beside MicroPython's.**
-Phases 0 to 12 built the lexer, the parser, the compiler, the VM, the object
-heap and its collector, exceptions, functions and closures, classes with the
-whole type system, the method tables, the module loader, and the `unittest` and
-`test.support` shims every CPython test stands on. They are done, and their
-record is the git history — `python: phase 0` through `python: phase 12` — not
-this file, which from here describes only what is left.
+imported, text can be formatted, and CPython's own tests are a ruler beside
+MicroPython's.** Phases 0 to 13 built the lexer, the parser, the compiler, the
+VM, the object heap and its collector, exceptions, functions and closures,
+classes with the whole type system, the method tables, the module loader, the
+`unittest` and `test.support` shims every CPython test stands on, and the one
+format engine that `format()`, `__format__`, `str.format`, `%` and f-strings
+all reach. They are done, and their record is the git history — `python: phase
+0` through `python: phase 13` — not this file, which from here describes only
+what is left.
 
-Where that leaves us, measured against MicroPython's suite: **284 of the 327
-tests in [test/manifest.txt](test/manifest.txt)**, and **313 of the 480** in
+Where that leaves us, measured against MicroPython's suite: **302 of the 339
+tests in [test/manifest.txt](test/manifest.txt)**, and **331 of the 480** in
 `tests/basics/` once the bigint, generator, async and t-string families are set
-aside. The largest single cause of the rest is `str.format` and the `%`
-operator, which is phase 13. None stop at the object model.
+aside. The largest single causes of the rest are bignums and generators, which
+are the next two phases, and the modules, which are phase 18. None stop at the
+object model.
 
-Measured against CPython's, which is the harder ruler: **three of the twelve
-in [test/cpython.txt](test/cpython.txt) run at all, and one test method of
-seven passes.** Phase 12 expected the wall to be the imports and it is not — it
-is the compiler. `node test/pycases.mjs --survey` runs the whole of
-`Lib/test/` and counts what stops each of the 391 files: 130 an unwritten
-module, **124 f-strings**, 41 complex numbers, 31 a unicode escape, 28 other
-syntax, 17 an integer past 2³⁰, 12 `\N{...}`, 3 `async`. So f-strings alone are
-a quarter of the suite, and the wave after phase 13 is chosen by running the
-survey again rather than by reading the imports.
+Measured against CPython's, which is the harder ruler: **five of the twelve in
+[test/cpython.txt](test/cpython.txt) run, and thirteen test methods of
+thirty-four pass.** `node test/pycases.mjs --survey` runs the whole of
+`Lib/test/` and counts what stops each of the 391 files: 213 an unwritten
+module, 41 complex numbers, 39 an integer past 2³⁰, 34 other syntax, 31 a lone
+surrogate in a literal, 13 `async`, 12 `\N{...}`, and 5 that run.
+
+Phase 13 is what that count is for. F-strings were 124 of those files and are
+now none of them, and the wall moved from the compiler to the modules — which
+is phase 18, and a good deal further off than the next two. The survey is how
+each wave is chosen, and it only means something read beside what it said
+last time.
 
 ## The two upstreams
 
@@ -63,13 +69,14 @@ licence, not MIT, and [LICENSE](LICENSE) now carries both and says which files
 each covers — phase 12 owed it the moment the first test file was copied in,
 and the library will owe it again.
 
-The second is still owed, and **the library decides the syntax**: it is written
-in the Python of its own day, not 3.9's. `dataclasses.py` has 92 f-strings in
-it and a `match` statement; `functools.py` has 29 f-strings. So f-strings are a
-prerequisite for borrowing anything at all, and the syntax phases below are
-ordered by what the modules we want actually use — which is now measurable,
-since `pycases.mjs --survey` says what stops each of CPython's own test files
-and the answer moves as each phase lands.
+The second is partly paid, and **the library decides the syntax**: it is
+written in the Python of its own day, not 3.9's. `dataclasses.py` has 92
+f-strings in it and a `match` statement; `functools.py` has 29 f-strings. Phase
+13 settled the f-strings, which were the prerequisite for borrowing anything at
+all; what the library still wants is `match`, `except*` and the rest of phase
+24. The syntax phases below are ordered by what the modules we want actually
+use, which is measurable: `pycases.mjs --survey` says what stops each of
+CPython's own test files, and the answer moves as each phase lands.
 
 ## Ground rules
 
@@ -143,31 +150,12 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-### Phase 13 — formatting, and f-strings
-
-`f"{x!r:>{w}}"` is in every module we want to borrow, and it is what keeps a
-quarter of `Lib/test/` from compiling at all, so it comes before both.
-
-- [ ] The format-spec mini-language — fill, align, sign, `#`, `0`, width,
-      grouping, precision, type — as one engine, because `format()`,
-      `str.format`, `__format__` and an f-string's suffix all reach it.
-- [ ] `%` on `str` and `bytes`, which is a different and older grammar.
-- [ ] `str.format` and `str.format_map` with the full field syntax:
-      `{0.attr[key]!r:spec}`, auto-numbering, `{{` and `}}`.
-- [ ] `__format__` on the built-in types and as a special method.
-- [ ] **f-strings**: the lexer already returns one `FStr` token holding the
-      body as written, and the parser builds one `FString` node. Both now have
-      to take it apart into a `JoinedStr` of literals and `FormattedValue`s,
-      each with its conversion and its own nested format spec, and the
-      compiler has to emit the concatenation. `=` for debugging, and nesting.
-
-Tests: `test_format.py`, `test_fstring.py`, `test_str.py`'s formatting half,
-and the four rows in [test/cpython.txt](test/cpython.txt) that say `fstring`.
-
-### Phase 14 — arbitrary-precision integers
+### Phase 14 — arbitrary-precision integers, and complex
 
 Everything above assumes them, and `test_int.py` and `test_long.py` are
-unrunnable without them.
+unrunnable without them. Together with `complex`, which the plan did not have
+and the survey found, they are what 80 of `Lib/test/`'s files stop on — the
+largest cause left that is not a module.
 
 - [ ] Our own bignum: 32×32→64 limbs and long division, because `__int128`
       division needs a compiler-rt builtin this target does not have.
@@ -187,6 +175,9 @@ unrunnable without them.
       a `SyntaxError` today and 41 of `Lib/test/`'s files stop on it, more than
       any other single type. The literal, the arithmetic, `real`/`imag`/
       `conjugate`, `abs`, and the repr — but not `cmath`, which is phase 18.
+- [ ] The format engine takes them both: `format_int_by` in
+      [format.cpp](format.cpp) is written against `i64` and `radix()` over it,
+      and `%d` of a bignum goes the same way.
 
 Tests: `test_int.py`, `test_long.py`, `test_complex.py`, and MicroPython's 25
 `int_big_*`.

@@ -60,7 +60,8 @@ enum class Nd : u8 {
     YieldFrom,
     Compare,
     Call,
-    FString,
+    JoinedStr,
+    FormattedValue,
     Constant,
     Attribute,
     Subscript,
@@ -83,6 +84,9 @@ enum class Nd : u8 {
 
 // BoolOp flags.
 enum class Bool : u8 { And, Or };
+
+// FormattedValue flags: the conversion, spelled as CPython spells it.
+enum : u8 { FCONV_NONE = 0, FCONV_STR = 's', FCONV_REPR = 'r', FCONV_ASCII = 'a' };
 
 // Constant flags.
 enum class Const : u8 { None, True, False, Ellipsis, Int, Float, Str, Bytes };
@@ -128,7 +132,9 @@ Str nd_name(Nd k);
 //   Compare         a: left  kids: CmpOp...
 //   CmpOp           flags: Cmp  a: operand
 //   Call            a: func  b: #args  kids: args ++ keywords
-//   FString         tok: the raw body, as written
+//   JoinedStr       kids: values -- Constant str and FormattedValue, in order
+//   FormattedValue  a: value  b: format_spec, a JoinedStr, or 0 for none
+//                   flags: CONV_*, the !s !r !a a field asked for
 //   Constant        flags: Const  tok: the literal
 //   Attribute       a: value  tok: the name
 //   Subscript       a: value  b: slice

@@ -73,12 +73,6 @@ constexpr Spelling OPERATORS[] = {
     { Tok::Less, "<" },       { Tok::Greater, ">" },
 };
 
-enum : u8 {
-    STR_RAW   = 1 << 0,
-    STR_BYTES = 1 << 1,
-    STR_F     = 1 << 2,
-};
-
 constexpr usize MAX_INDENT = 100;
 
 bool is_name_start(u8 c)
@@ -116,6 +110,10 @@ struct Scanner {
     u32 col    = 1;    // codepoints, 1-based
     u32 depth  = 0;    // open brackets
     bool fresh = true; // at the start of a logical line
+
+    // One expression out of an f-string's braces: no indentation, no trailing
+    // Newline, Dedent or End, and no complaint that the brackets never closed.
+    bool fragment = false;
 
     usize indents[MAX_INDENT] = { 0 };
     usize alts[MAX_INDENT]    = { 0 }; // the same columns with tabs worth 1
@@ -265,15 +263,15 @@ bool Scanner::scan_name()
         for (usize k = 0; k < word.size() && ok; k++) {
             char c = word[k] >= 'A' && word[k] <= 'Z' ? char(word[k] + 32) : word[k];
             if (c == 'r')
-                flags |= STR_RAW;
+                flags |= TOK_STR_RAW;
             else if (c == 'b')
-                flags |= STR_BYTES;
+                flags |= TOK_STR_BYTES;
             else if (c == 'f')
-                flags |= STR_F;
+                flags |= TOK_STR_F;
             else if (c != 'u')
                 ok = false;
         }
-        if (ok && !((flags & STR_BYTES) && (flags & STR_F)))
+        if (ok && !((flags & TOK_STR_BYTES) && (flags & TOK_STR_F)))
             return scan_string(flags, at_line, at_col);
     }
 
@@ -476,8 +474,8 @@ bool Scanner::scan_string(u8 flags, u32 at_line, u32 at_col)
         bump();
     }
 
-    bool raw      = (flags & STR_RAW) != 0;
-    bool bytes    = (flags & STR_BYTES) != 0;
+    bool raw      = (flags & TOK_STR_RAW) != 0;
+    bool bytes    = (flags & TOK_STR_BYTES) != 0;
     usize body_at = i;
     String body;
     for (;;) {
@@ -526,7 +524,7 @@ bool Scanner::scan_string(u8 flags, u32 at_line, u32 at_col)
         bump();
     }
 
-    if (flags & STR_F) {
+    if (flags & TOK_STR_F) {
         // The body is kept as written; phase 4 parses what is inside it.
         usize end = i - (triple ? 3 : 1);
         return emit_text(Tok::FStr, at_line, at_col, src.substr(body_at, end - body_at), flags);
@@ -619,6 +617,8 @@ bool Scanner::run()
             return false;
     }
 
+    if (fragment)
+        return true;
     if (depth > 0)
         return fail("unexpected EOF while parsing");
 
@@ -691,6 +691,51 @@ bool Lexer::run(Str source)
 {
     Scanner s{ source, this };
     return s.run();
+}
+
+bool lex_unescape(Str raw, u32 line, u32 col, String &out)
+{
+    Lexer sink;
+    Scanner s{ raw, &sink };
+    s.line     = line;
+    s.col      = col;
+    s.fragment = true;
+    while (!s.at_end()) {
+        if (s.peek() == '\\') {
+            s.bump();
+            if (!s.string_escape(out, false, line, col))
+                return false;
+            continue;
+        }
+        if (!out.push(char(s.peek())))
+            return err_set("MemoryError", "out of memory"), false;
+        s.bump();
+    }
+    return true;
+}
+
+usize Lexer::sublex(Str fragment, u32 at_line, u32 at_col)
+{
+    usize first = tokens.size();
+    Scanner s{ fragment, this };
+    // As if inside brackets: no indentation, and a newline joins rather than
+    // ending a statement. An expression is balanced, so the count stays up.
+    s.depth    = 1;
+    s.fresh    = false;
+    s.fragment = true;
+    if (!s.run())
+        return 0;
+    for (usize k = first; k < tokens.size(); k++) {
+        tokens[k].line = at_line;
+        tokens[k].col  = at_col;
+    }
+    Token end;
+    end.kind = Tok::End;
+    end.line = at_line;
+    end.col  = at_col;
+    if (!tokens.push(end))
+        return err_set("MemoryError", "out of memory"), 0;
+    return first;
 }
 
 // One token per line: `line:col label value`, the value written as repr.

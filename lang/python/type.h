@@ -135,6 +135,10 @@ struct SuperObj : Obj {
 
 extern const Type super_type;
 
+// `object` itself: what every type reaches last through its MRO, and where
+// the methods every object answers -- __format__ -- are installed.
+extern const Type object_type;
+
 inline bool is_super(Value v)
 {
     return v.is_obj() && v.obj()->type == &super_type;

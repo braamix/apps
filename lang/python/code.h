@@ -78,6 +78,8 @@ enum class Arg : u8 {
     X(BuildSet, Num)          \
     X(BuildMap, Num)          \
     X(BuildSlice, Num)        \
+    X(BuildString, Num)       \
+    X(FormatValue, Flags)     \
     X(ListAppend, Num)        \
     X(SetAdd, Num)            \
     X(MapAdd, Num)            \
@@ -154,12 +156,22 @@ Arg bc_arg(Bc op);
 //                       exc-info sits under it and has to be restored first
 //   BeforeWith          pop the manager, push its __exit__ and then __enter__()
 //   WithExceptStart     with [exit, exc], call exit(type, exc, tb) and push it
+//   BuildString n       join the n strings on top into one
+//   FormatValue f       format the value on top, the spec above it when
+//                       FV_SPEC; FV_CONV is the !s !r !a to apply first
 
 // MakeFunction's operand.
 enum : u32 {
     MF_DEFAULTS   = 1 << 0, // a tuple of positional defaults
     MF_KWDEFAULTS = 1 << 1, // a dict of keyword-only defaults
     MF_CLOSURE    = 1 << 2, // a tuple of cells, in freevars order
+};
+
+// FormatValue's operand: a conversion in the low octet, and whether a format
+// spec is on the stack above the value.
+enum : u32 {
+    FV_CONV = 0xff, // 0, or 's', 'r' or 'a'
+    FV_SPEC = 1 << 8,
 };
 
 // CallEx's operand.

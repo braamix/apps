@@ -1,5 +1,6 @@
 // bytes and bytearray: octets, immutable and not. Indexing either yields an
 // int, as in Python 3. Every read-only slot is shared.
+#include "format.h"
 #include "gc.h"
 #include "iter.h"
 #include "kernel/hash.h"
@@ -109,6 +110,10 @@ R any_binop(Value a, Value b, Op op, Value &out)
         if (!joined.append(x) || !joined.append(y))
             return oom();
         out = is_bytearray(a) ? bytearray_new(joined.str()) : bytes_new(joined.str());
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    if (op == Op::Mod && bytes_like(a, x)) {
+        out = bytes_mod(a, b);
         return out.is_nil() ? R::Err : R::Ok;
     }
     if (op == Op::Mul) {

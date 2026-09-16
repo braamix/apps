@@ -1,0 +1,35 @@
+no interpolation
+no interpolation
+no interpolation
+1
+00000001
+a 1 b 2 c
+a 00000001 b 2 c
+a hello b
+a 15 b
+1278
+a[0, 1]
+a000f
+a{0, 1, 2}
+{
+}
+{}
+{40} {40}
+SyntaxError
+a (1,) b
+a (1, 2) b
+a (1, 1) b
+'123'
+123
+ValueError
+'123'   
+123     
+'1'     
+1       
+
+ab
+12
+a1b---------------------------------cd---------------------------------e2f---------------------------------
+\r\a\w f \s\t\r\i\n\g
+\r1
+13a

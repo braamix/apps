@@ -179,6 +179,11 @@ struct Parser {
     u32 await_expr();
     u32 postfix(u32 value);
     u32 atom();
+    u32 fstring(u32 at_tok);
+    bool fstring_parts(Str body, bool raw, u32 at_tok, String &pending, List &into);
+    bool fstring_field(Str field, u32 at_tok, String &pending, List &into);
+    u32 str_const(Str text, u32 at_tok);
+    u32 sub_expression(Str source, u32 at_tok);
     u32 bracketed();
     u32 subscript_item();
     u32 target_list();
@@ -238,38 +243,9 @@ u32 Parser::atom()
     }
 
     case Tok::Str:
-    case Tok::Bytes: {
-        // Adjacent literals are one constant, as in Python.
-        bool bytes = at(Tok::Bytes);
-        String joined;
-        while (at(Tok::Str) || at(Tok::Bytes)) {
-            if ((kind() == Tok::Bytes) != bytes)
-                return fail("cannot mix bytes and nonbytes literals");
-            if (!joined.append(ast->lex.text_of(tok())))
-                return fail("out of memory");
-            bump();
-        }
-        if (at(Tok::FStr))
-            return fail("f-strings cannot be joined with other literals yet");
-        u32 n = add(Nd::Constant, t);
-        if (!n)
-            return 0;
-        node(n).flags = u8(bytes ? Const::Bytes : Const::Str);
-        // The joined text goes to the end of the arena; the first token now
-        // names it.
-        Token &head = ast->lex.tokens[t];
-        head.at     = u32(ast->lex.text.size());
-        head.len    = u32(joined.size());
-        if (!ast->lex.text.append(joined.str()))
-            return fail("out of memory");
-        return n;
-    }
-
+    case Tok::Bytes:
     case Tok::FStr:
-        bump();
-        if (at(Tok::Str) || at(Tok::Bytes) || at(Tok::FStr))
-            return fail("f-strings cannot be joined with other literals yet");
-        return add(Nd::FString, t);
+        return fstring(t);
 
     case Tok::KwNone:
     case Tok::KwTrue:
@@ -290,6 +266,335 @@ u32 Parser::atom()
         break;
     }
     return fail("invalid syntax");
+}
+
+// ------------------------------------------------------------- the literals
+//
+// A run of adjacent literals is one node, as in Python: all plain is one
+// Constant, and anything with an f in it is a JoinedStr over the whole run.
+// The f-string's body arrives as written -- the lexer keeps it raw, because
+// what is inside the braces is source and not text -- so this is where it is
+// taken apart, and where the literal halves have their escapes decoded.
+
+// A literal run turned into a Constant, at the f-string's own position.
+u32 Parser::str_const(Str text, u32 at_tok)
+{
+    Token t = ast->lex.tokens[at_tok];
+    t.kind  = Tok::Str;
+    t.flags = 0;
+    t.at    = u32(ast->lex.text.size());
+    t.len   = u32(text.size());
+    if (!ast->lex.text.append(text))
+        return fail("out of memory");
+    if (!ast->lex.tokens.push(t))
+        return fail("out of memory");
+    u32 n = add(Nd::Constant, u32(ast->lex.tokens.size() - 1));
+    if (n)
+        node(n).flags = u8(Const::Str);
+    return n;
+}
+
+// One expression, lexed out of the f-string's body and parsed where it stands.
+// The tokens go after everything already scanned, so the cursor is put there
+// and brought back; ground rule 4 still holds, this being ordinary recursion.
+u32 Parser::sub_expression(Str source, u32 at_tok)
+{
+    bool blank = true;
+    for (usize k = 0; k < source.size(); k++)
+        if (source[k] != ' ' && source[k] != '\t' && source[k] != '\n')
+            blank = false;
+    if (blank)
+        return fail("f-string: valid expression required before '}'");
+
+    const Token &ft = ast->lex.tokens[at_tok];
+    u32 line = ft.line, col = ft.col;
+    usize start = ast->lex.sublex(source, line, col);
+    if (!start) {
+        failed = true;
+        return 0;
+    }
+
+    usize save = i;
+    i          = start;
+    u32 n      = exprlist(false);
+    if (n && !at(Tok::End))
+        n = fail("f-string: invalid syntax");
+    i = save;
+    return n;
+}
+
+// Where the field starting after `{` ends, counting brackets and skipping
+// quoted text. npos when it never closes.
+usize field_end(Str body, usize at)
+{
+    u32 depth  = 0;
+    char quote = 0;
+    for (usize k = at; k < body.size(); k++) {
+        char c = body[k];
+        if (quote) {
+            if (c == quote)
+                quote = 0;
+            continue;
+        }
+        if (c == '\'' || c == '"') {
+            quote = c;
+        } else if (c == '(' || c == '[' || c == '{') {
+            depth++;
+        } else if (c == ')' || c == ']') {
+            if (depth)
+                depth--;
+        } else if (c == '}') {
+            if (!depth)
+                return k;
+            depth--;
+        }
+    }
+    return Str::npos;
+}
+
+// The top-level `!` of a conversion or `:` of a spec, or npos. Brackets and
+// quotes hide both, and `!=` is an operator rather than a conversion.
+usize field_suffix(Str field, char want)
+{
+    u32 depth  = 0;
+    char quote = 0;
+    for (usize k = 0; k < field.size(); k++) {
+        char c = field[k];
+        if (quote) {
+            if (c == quote)
+                quote = 0;
+            continue;
+        }
+        if (c == '\'' || c == '"') {
+            quote = c;
+            continue;
+        }
+        if (c == '(' || c == '[' || c == '{') {
+            depth++;
+            continue;
+        }
+        if (c == ')' || c == ']' || c == '}') {
+            if (depth)
+                depth--;
+            continue;
+        }
+        if (depth || c != want)
+            continue;
+        if (want == '!' && k + 1 < field.size() && field[k + 1] == '=')
+            continue;
+        if (want == ':' && k + 1 < field.size() && field[k + 1] == '=')
+            continue; // a walrus, not a spec
+        return k;
+    }
+    return Str::npos;
+}
+
+// The `=` of f"{x=}": top level, and the last thing before the conversion or
+// the spec. Comparison operators are spelled with one too, so they are skipped.
+usize field_debug_eq(Str field)
+{
+    u32 depth   = 0;
+    char quote  = 0;
+    usize found = Str::npos;
+    for (usize k = 0; k < field.size(); k++) {
+        char c = field[k];
+        if (quote) {
+            if (c == quote)
+                quote = 0;
+            continue;
+        }
+        if (c == '\'' || c == '"') {
+            quote = c;
+            continue;
+        }
+        if (c == '(' || c == '[' || c == '{') {
+            depth++;
+            continue;
+        }
+        if (c == ')' || c == ']' || c == '}') {
+            if (depth)
+                depth--;
+            continue;
+        }
+        if (depth || c != '=')
+            continue;
+        if (k + 1 < field.size() && field[k + 1] == '=')
+            continue; // ==
+        if (k && (field[k - 1] == '=' || field[k - 1] == '!' || field[k - 1] == '<' ||
+                  field[k - 1] == '>'))
+            continue; // ==, !=, <=, >=
+        found = k;
+    }
+    return found;
+}
+
+// One `{...}` field. `pending` holds the literal text built so far, which the
+// `=` form adds the expression's own source to before it is flushed.
+bool Parser::fstring_field(Str field, u32 at_tok, String &pending, List &into)
+{
+    Str expr = field;
+    Str spec;
+    bool has_spec = false;
+    u8 conv       = FCONV_NONE;
+
+    usize colon = field_suffix(field, ':');
+    if (colon != Str::npos) {
+        expr     = field.substr(0, colon);
+        spec     = field.substr(colon + 1);
+        has_spec = true;
+    }
+    usize bang = field_suffix(expr, '!');
+    if (bang != Str::npos) {
+        Str c = expr.substr(bang + 1);
+        if (c.size() != 1 || (c[0] != 's' && c[0] != 'r' && c[0] != 'a'))
+            return fail("f-string: invalid conversion character"), false;
+        conv = u8(c[0]);
+        expr = expr.substr(0, bang);
+    }
+
+    // f"{x=}" prints the expression as written and then its value, and takes
+    // repr unless a conversion or a spec says otherwise.
+    usize eq = field_debug_eq(expr);
+    if (eq != Str::npos) {
+        usize end = eq + 1;
+        while (end < expr.size() && (expr[end] == ' ' || expr[end] == '\t'))
+            end++;
+        if (!pending.append(expr.substr(0, end)))
+            return fail("out of memory"), false;
+        expr = expr.substr(0, eq);
+        if (conv == FCONV_NONE && !has_spec)
+            conv = FCONV_REPR;
+    }
+
+    if (pending.size()) {
+        if (!hold(into, str_const(pending.str(), at_tok)))
+            return false;
+        pending.clear();
+    }
+
+    u32 value = sub_expression(expr, at_tok);
+    if (!value)
+        return false;
+
+    u32 n = add(Nd::FormattedValue, at_tok);
+    if (!n)
+        return false;
+    node(n).a     = value;
+    node(n).flags = conv;
+    if (has_spec) {
+        // The spec is an f-string of its own: it may hold fields, and it may
+        // hold nothing at all, which is still a spec.
+        String inner;
+        List kids;
+        if (!fstring_parts(spec, false, at_tok, inner, kids))
+            return false;
+        if (inner.size() && !hold(kids, str_const(inner.str(), at_tok)))
+            return false;
+        u32 j = add(Nd::JoinedStr, at_tok);
+        if (!j || !run_of(j, kids))
+            return false;
+        node(n).b = j;
+    }
+    return hold(into, n);
+}
+
+// The body of one f-string, split into literals and fields. Doubled braces are
+// one brace and start nothing; the literal runs between them have their
+// escapes decoded here, which is why the braces are found in the raw text
+// first -- an escape that yields a brace must not open a field.
+bool Parser::fstring_parts(Str body, bool raw, u32 at_tok, String &pending, List &into)
+{
+    usize at = 0, run = 0;
+    for (;;) {
+        bool end = at == body.size();
+        char c   = end ? 0 : body[at];
+        if (!end && c != '{' && c != '}') {
+            at++;
+            continue;
+        }
+        if (at > run) {
+            Str piece = body.substr(run, at - run);
+            if (raw) {
+                if (!pending.append(piece))
+                    return fail("out of memory"), false;
+            } else {
+                const Token &t = ast->lex.tokens[at_tok];
+                if (!lex_unescape(piece, t.line, t.col, pending))
+                    return failed = true, false;
+            }
+        }
+        if (end)
+            return true;
+
+        if (at + 1 < body.size() && body[at + 1] == c) {
+            if (!pending.push(c))
+                return fail("out of memory"), false;
+            at += 2;
+            run = at;
+            continue;
+        }
+        if (c == '}')
+            return fail("f-string: single '}' is not allowed"), false;
+
+        usize stop = field_end(body, at + 1);
+        if (stop == Str::npos)
+            return fail("f-string: expecting '}'"), false;
+        if (!fstring_field(body.substr(at + 1, stop - at - 1), at_tok, pending, into))
+            return false;
+        at  = stop + 1;
+        run = at;
+    }
+}
+
+u32 Parser::fstring(u32 at_tok)
+{
+    bool bytes = at(Tok::Bytes);
+    bool any_f = false;
+    String pending;
+    List parts;
+
+    while (at(Tok::Str) || at(Tok::Bytes) || at(Tok::FStr)) {
+        if ((kind() == Tok::Bytes) != bytes)
+            return fail("cannot mix bytes and nonbytes literals");
+        if (at(Tok::FStr)) {
+            any_f = true;
+            u32 t = u32(i);
+            u8 fl = tok().flags;
+            // text_of points into lex.text, which sublex appends to: copy.
+            String body;
+            if (!body.append(ast->lex.text_of(tok())))
+                return fail("out of memory");
+            bump();
+            if (!fstring_parts(body.str(), (fl & TOK_STR_RAW) != 0, t, pending, parts))
+                return 0;
+            continue;
+        }
+        if (!pending.append(ast->lex.text_of(tok())))
+            return fail("out of memory");
+        bump();
+    }
+
+    if (!any_f) {
+        u32 n = add(Nd::Constant, at_tok);
+        if (!n)
+            return 0;
+        node(n).flags = u8(bytes ? Const::Bytes : Const::Str);
+        // The joined text goes to the end of the arena; the first token now
+        // names it.
+        Token &head = ast->lex.tokens[at_tok];
+        head.at     = u32(ast->lex.text.size());
+        head.len    = u32(pending.size());
+        if (!ast->lex.text.append(pending.str()))
+            return fail("out of memory");
+        return n;
+    }
+
+    if (pending.size() && !hold(parts, str_const(pending.str(), at_tok)))
+        return 0;
+    u32 n = add(Nd::JoinedStr, at_tok);
+    if (!n || !run_of(n, parts))
+        return 0;
+    return n;
 }
 
 // The three bracketed forms, which are where the parser's depth is counted.

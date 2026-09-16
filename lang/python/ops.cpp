@@ -443,7 +443,7 @@ ListObj *py_list_of(Value v)
     return list_of(rl.v);
 }
 
-R py_binop(Value a, Value b, Op op, Value &out)
+R py_binop_try(Value a, Value b, Op op, Value &out)
 {
     if (both_int(a, b)) {
         i64 x, y;
@@ -471,6 +471,14 @@ R py_binop(Value a, Value b, Op op, Value &out)
             return r;
     }
 
+    return R::NotImpl;
+}
+
+R py_binop(Value a, Value b, Op op, Value &out)
+{
+    R r = py_binop_try(a, b, op, out);
+    if (r != R::NotImpl)
+        return r;
     Buf<96> m;
     m.put("unsupported operand type(s) for ").put(op_symbol(op));
     m.put(": '").put(type_name(a)).put("' and '").put(type_name(b)).put("'");
