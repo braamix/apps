@@ -299,6 +299,8 @@ bool Scanner::scan_number()
         bump();
         i64 value  = 0;
         bool empty = true;
+        bool wide  = false;
+        String digits;
         while (!at_end() && (peek() == '_' || hex_value(peek()) >= 0)) {
             if (peek() == '_') {
                 bump();
@@ -308,13 +310,22 @@ bool Scanner::scan_number()
             if (d < 0 || u32(d) >= base)
                 break;
             if (value > (i64(1) << 62) / i64(base))
-                return fail_at("int too large (no bignum yet)", at_line, at_col);
-            value = value * base + d;
+                wide = true;
+            else
+                value = value * base + d;
+            if (!digits.push(char(peek())))
+                return fail("out of memory");
             empty = false;
             bump();
         }
         if (empty || (!at_end() && is_name_char(peek())))
             return fail_at("invalid digit in number", at_line, at_col);
+        if (wide) {
+            u8 fl = TOK_INT_WIDE | (base == 16  ? TOK_INT_HEX
+                                    : base == 8 ? TOK_INT_OCT
+                                                : TOK_INT_BIN);
+            return emit_text(Tok::Int, at_line, at_col, digits.str(), fl);
+        }
         Token t;
         t.kind = Tok::Int;
         t.line = at_line;
@@ -343,20 +354,35 @@ bool Scanner::scan_number()
         while (!at_end() && is_digit(peek()))
             bump();
     }
-    if (!at_end() && (peek() | 32) == 'j')
-        return fail_at("complex numbers are not supported", at_line, at_col);
+    bool imag       = !at_end() && (peek() | 32) == 'j';
+    usize digits_to = i;
+    if (imag)
+        bump();
     if (!at_end() && is_name_char(peek()))
         return fail_at("invalid digit in number", at_line, at_col);
 
-    // Underscores are separators only; the value does not see them.
-    Buf<64> digits;
-    for (usize k = from; k < i; k++)
-        if (src[k] != '_')
-            digits.put(src[k]);
+    // Underscores are separators only; the value does not see them. A String
+    // and not a Buf: an integer literal has no length limit, and a Buf that
+    // filled up would truncate it without saying so.
+    String digits;
+    for (usize k = from; k < digits_to; k++)
+        if (src[k] != '_' && !digits.push(src[k]))
+            return fail("out of memory");
 
     Token t;
     t.line = at_line;
     t.col  = at_col;
+    // `2j` is an imaginary literal whatever the digits look like, so the
+    // integer path is not taken for one.
+    if (imag) {
+        t.kind         = Tok::Imag;
+        usize used     = 0;
+        Option<f64> dv = scan_f64(digits.str(), used);
+        if (!dv.has_value() || used != digits.str().size())
+            return fail_at("invalid number", at_line, at_col);
+        t.fval = dv.value();
+        return out->tokens.push(t) ? true : fail("out of memory");
+    }
     if (real) {
         t.kind         = Tok::Float;
         usize used     = 0;
@@ -365,11 +391,20 @@ bool Scanner::scan_number()
             return fail_at("invalid number", at_line, at_col);
         t.fval = dv.value();
     } else {
-        t.kind         = Tok::Int;
+        t.kind = Tok::Int;
+        // Past i64 the digits travel instead of the value, and the compiler
+        // makes the big out of them. scan_i64 wraps rather than refusing, so
+        // the width is counted here: 10**18 is the last that certainly fits.
+        Str text   = digits.str();
+        usize lead = 0;
+        while (lead + 1 < text.size() && text[lead] == '0')
+            lead++;
+        if (text.size() - lead > 18)
+            return emit_text(Tok::Int, at_line, at_col, text, TOK_INT_WIDE);
         usize used     = 0;
-        Option<i64> iv = scan_i64(digits.str(), used, 10);
-        if (!iv.has_value() || used != digits.str().size())
-            return fail_at("int too large (no bignum yet)", at_line, at_col);
+        Option<i64> iv = scan_i64(text, used, 10);
+        if (!iv.has_value() || used != text.size())
+            return fail_at("invalid number", at_line, at_col);
         t.ival = iv.value();
     }
     return out->tokens.push(t) ? true : fail("out of memory");
@@ -675,6 +710,8 @@ Str tok_label(Tok t)
         return "int";
     case Tok::Float:
         return "float";
+    case Tok::Imag:
+        return "imag";
     case Tok::Str:
         return "str";
     case Tok::Bytes:
@@ -758,6 +795,14 @@ bool lex_dump(Str source, String &out)
         } else if (t.kind == Tok::Name) {
             if (!out.push(' ') || !out.append(lx.text_of(t)))
                 return false;
+        } else if (t.kind == Tok::Int && (t.flags & TOK_INT_WIDE)) {
+            u32 base   = tok_int_base(t.flags);
+            Str prefix = base == 16  ? Str("0x")
+                         : base == 8 ? Str("0o")
+                         : base == 2 ? Str("0b")
+                                     : Str("");
+            if (!out.push(' ') || !out.append(prefix) || !out.append(lx.text_of(t)))
+                return false;
         } else if (t.kind == Tok::Int) {
             Buf<24> n;
             i64 v = t.ival;
@@ -767,6 +812,11 @@ bool lex_dump(Str source, String &out)
             }
             n.put(u64(v));
             if (!out.push(' ') || !out.append(n.str()))
+                return false;
+        } else if (t.kind == Tok::Imag) {
+            char tmp[48];
+            if (!out.push(' ') || !out.append(float_text(tmp, sizeof tmp, t.fval)) ||
+                !out.push('j'))
                 return false;
         } else if (t.kind == Tok::Float) {
             char tmp[48];

@@ -3,6 +3,7 @@
 // assertions instead, and test/pygc.mjs reads what they print.
 #include "selftest.h"
 
+#include "bigint.h"
 #include "code.h"
 #include "compile.h"
 #include "exc.h"
@@ -327,11 +328,27 @@ Str t_numbers()
         return "1%0 did not raise";
     err_clear();
 
-    // No bignum yet, so what does not fit says so rather than wrapping.
-    if (py_binop(Value::of_int(Value::SMALL_MAX), Value::of_int(2), Op::Mul, out) != R::Err ||
-        err_kind() != "OverflowError")
-        return "overflow did not raise OverflowError";
-    err_clear();
+    // What does not fit the value word promotes rather than wrapping, and
+    // the two shapes still compare and hash as one number.
+    if (py_binop(Value::of_int(Value::SMALL_MAX), Value::of_int(2), Op::Mul, out) != R::Ok ||
+        !is_big(out))
+        return "a product past the value word did not become a big";
+    {
+        Root wide{ out };
+        Value half;
+        if (py_binop(wide.v, Value::of_int(2), Op::FloorDiv, half) != R::Ok ||
+            half != Value::of_int(Value::SMALL_MAX))
+            return "a big divided back down did not become small again";
+        u32 h1 = 0, h2 = 0;
+        Value same;
+        if (py_binop(wide.v, Value::of_int(0), Op::Add, same) != R::Ok || !is_big(same))
+            return "adding zero to a big did not keep it";
+        if (py_hash(wide.v, h1) != R::Ok || py_hash(same, h2) != R::Ok || h1 != h2)
+            return "two equal bigs hashed differently";
+        bool eq = false;
+        if (py_eq(wide.v, same, eq) != R::Ok || !eq)
+            return "two equal bigs did not compare equal";
+    }
 
     if (py_binop(Value::of_int(2), Value::of_int(-1), Op::Pow, out) != R::Ok || !is_float(out) ||
         float_of(out) != 0.5)

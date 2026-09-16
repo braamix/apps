@@ -1,5 +1,6 @@
-// int: a 31-bit small integer in the value word. No bignum yet, so what does
-// not fit raises.
+// int: a 31-bit small integer in the value word, and a BigObj past that.
+// bigint.cpp has the magnitude arithmetic; this is the type they share.
+#include "bigint.h"
 #include "kernel/fmt.h"
 #include "ops.h"
 
@@ -7,20 +8,55 @@ namespace {
 
 R int_repr(Value v, String &out)
 {
-    char tmp[24];
-    return out.append(int_text(tmp, sizeof tmp, v.as_int()))
-               ? R::Ok
-               : err_set("MemoryError", "out of memory");
+    if (v.is_int()) {
+        char tmp[24];
+        return out.append(int_text(tmp, sizeof tmp, v.as_int()))
+                   ? R::Ok
+                   : err_set("MemoryError", "out of memory");
+    }
+    if (int_is_neg(v) && !out.push('-'))
+        return err_set("MemoryError", "out of memory");
+    return int_digits(v, 10, false, out);
 }
 
-bool int_truth(Value v)
+R int_hash(Value v, u32 &out)
 {
-    return v.as_int() != 0;
+    out = int_hash_of(v);
+    return R::Ok;
+}
+
+R int_eq(Value a, Value b, bool &out)
+{
+    if (!is_intval(b))
+        return R::NotImpl;
+    return int_compare(a, b, Cmp::Eq, out);
+}
+
+R int_order(Value a, Value b, Cmp op, bool &out)
+{
+    if (!is_intval(b))
+        return R::NotImpl;
+    return int_compare(a, b, op, out);
+}
+
+R int_binop_slot(Value a, Value b, Op op, Value &out)
+{
+    if (!is_intval(a) || !is_intval(b))
+        return R::NotImpl;
+    return int_arith(a, b, op, out);
 }
 
 } // namespace
 
-constexpr Type int_type{ .name = "int", .truth = int_truth, .repr = int_repr };
+// A big int's type is this one, so `type(2**99)` is `int` and nothing outside
+// bigint.cpp has to know which shape a value has.
+constexpr Type int_type{ .name  = "int",
+                         .truth = int_truth_of,
+                         .hash  = int_hash,
+                         .eq    = int_eq,
+                         .order = int_order,
+                         .repr  = int_repr,
+                         .binop = int_binop_slot };
 
 Str int_text(char *out, usize cap, i64 v)
 {
@@ -43,24 +79,14 @@ Str int_text(char *out, usize cap, i64 v)
 
 Value int_from_i64(i64 n)
 {
-    if (!Value::fits_small(n)) {
-        err_set("OverflowError", "int too large (no bignum yet)");
-        return Value();
-    }
-    return Value::of_int(i32(n));
+    return big_from_i64(n);
 }
 
+// True only where the value fits an i64: a wider integer is an int all the
+// same, and int_to_i64 is what asks the question without losing it.
 bool as_index(Value v, i64 &out)
 {
-    if (v.is_int()) {
-        out = v.as_int();
-        return true;
-    }
-    if (is_bool(v)) {
-        out = is_true(v) ? 1 : 0;
-        return true;
-    }
-    return false;
+    return int_to_i64(v, out);
 }
 
 bool as_number(Value v, f64 &out)
@@ -68,6 +94,10 @@ bool as_number(Value v, f64 &out)
     i64 n = 0;
     if (as_index(v, n)) {
         out = f64(n);
+        return true;
+    }
+    if (is_big(v)) {
+        out = int_to_f64(v);
         return true;
     }
     if (is_float(v)) {

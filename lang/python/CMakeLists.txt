@@ -14,8 +14,8 @@ endif()
 #
 # Sources arrive a phase at a time; TODO.md names them.
 braam_add_program(NAME python
-                  SOURCES astdump.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp
-                          code.cpp compile.cpp
+                  SOURCES astdump.cpp bigint.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp
+                          code.cpp compile.cpp complex.cpp
                           dis.cpp err.cpp exc.cpp float.cpp format.cpp formatgr.cpp frame.cpp func.cpp gc.cpp
                           import.cpp int.cpp
                           intern.cpp iter.cpp lex.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
@@ -24,6 +24,11 @@ braam_add_program(NAME python
                           table.cpp tuple.cpp type.cpp
                           vm.cpp
                   LIBS braam::math)
+
+# Floating-point arithmetic is this language's, not the compiler's: contracting
+# `a*b - c*d` into an fma is more accurate and therefore wrong, since CPython
+# does not and a complex multiply would answer differently.
+target_compile_options(bin_python PRIVATE -ffp-contract=off)
 
 braam_add_package(NAME python VERSION 0.1-r0
                   FIELD "T=Python 3, written for Braam"

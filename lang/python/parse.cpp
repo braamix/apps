@@ -233,8 +233,9 @@ u32 Parser::atom()
         return add(Nd::Name, t);
 
     case Tok::Int:
-    case Tok::Float: {
-        Const c = at(Tok::Int) ? Const::Int : Const::Float;
+    case Tok::Float:
+    case Tok::Imag: {
+        Const c = at(Tok::Int) ? Const::Int : at(Tok::Imag) ? Const::Imag : Const::Float;
         bump();
         u32 n = add(Nd::Constant, t);
         if (n)

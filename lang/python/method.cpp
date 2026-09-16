@@ -3,6 +3,7 @@
 #include "method.h"
 
 #include "builtin.h"
+#include "complex.h"
 #include "exc.h"
 #include "format.h"
 #include "gc.h"
@@ -89,7 +90,7 @@ constexpr Method OBJECT[] = {
 bool methods_install()
 {
     return method_install(&object_type, OBJECT) && str_methods() && bytes_methods() &&
-           seq_methods() && map_methods() && num_methods();
+           seq_methods() && map_methods() && num_methods() && complex_methods();
 }
 
 Value method_self(Value v)

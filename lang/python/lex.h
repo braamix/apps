@@ -19,6 +19,7 @@ enum class Tok : u8 {
     Str,
     Bytes,
     FStr,
+    Imag,
 
     KwFalse,
     KwNone,
@@ -112,6 +113,21 @@ Str tok_text(Tok t);
 Str tok_label(Tok t);
 
 bool tok_is_keyword(Tok t);
+
+// An Int token past i64 keeps its digits in `text` instead of `ival`, and
+// says so here; the base travels with them, the 0x/0o/0b having been eaten.
+enum : u8 {
+    TOK_INT_WIDE = 1 << 3,
+    TOK_INT_HEX  = 1 << 4,
+    TOK_INT_OCT  = 1 << 5,
+    TOK_INT_BIN  = 1 << 6,
+};
+
+// The base an Int token's digits are written in.
+inline u32 tok_int_base(u8 flags)
+{
+    return (flags & TOK_INT_HEX) ? 16 : (flags & TOK_INT_OCT) ? 8 : (flags & TOK_INT_BIN) ? 2 : 10;
+}
 
 // A string literal's prefix, as its token carries it in `flags`.
 enum : u8 {

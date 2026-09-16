@@ -5,7 +5,7 @@
 // exactly what the program printed -- which is what makes it comparable byte
 // for byte with CPython's.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -143,4 +143,31 @@ export function same(what, got, want) {
 
 export function ok(msg = "") {
     console.log(`${name} ok${msg ? ": " + msg : ""}`);
+}
+
+// Every .py in a directory run against the golden the host's CPython wrote
+// for it -- plainly, and then again collecting at every allocation. This is
+// the strongest comparison there is: the same program, the two interpreters,
+// byte for byte. A case in one of these directories may therefore use nothing
+// this interpreter has not got. tools/mkfmt.py writes the goldens.
+export function against_cpython(dir, only) {
+    let bad = 0, ran = 0, lines = 0;
+    for (const name of readdirSync(dir).filter((f) => f.endsWith(".py")).sort()) {
+        if (only.length && !only.includes(name)) continue;
+        const exp = join(dir, name + ".exp");
+        if (!existsSync(exp)) die(`${name}: no golden — run tools/mkfmt.py on it`);
+
+        put("/tmp/c.py", readFileSync(join(dir, name)));
+        const want = readFileSync(exp, "utf8");
+        const r = run("/tmp/c.py");
+        ran++;
+        lines += want.split("\n").length - 1;
+        if (!same(name, r.out + r.err, want)) {
+            bad++;
+            continue;
+        }
+        const under = run("/tmp/c.py", null, "PY_GC_STRESS=1");
+        if (!same(`${name} under gc stress`, under.out + under.err, want)) bad++;
+    }
+    return { bad, ran, lines };
 }

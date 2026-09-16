@@ -2,6 +2,7 @@
 #include "type.h"
 
 #include "call.h"
+#include "complex.h"
 #include "exc.h"
 #include "frame.h"
 #include "gc.h"
@@ -1080,10 +1081,10 @@ constexpr Named CLASS_BUILTINS[] = {
 };
 
 // The built-in types a program can name, subclass or test against.
-const Type *const NAMED[] = { &int_type,       &float_type,     &bool_type,   &str_type,
-                              &bytes_type,     &bytearray_type, &tuple_type,  &list_type,
-                              &dict_type,      &set_type,       &range_type,  &type_type,
-                              &frozenset_type, &slice_type,     &memview_type };
+const Type *const NAMED[] = { &int_type,       &float_type,     &bool_type,    &str_type,
+                              &bytes_type,     &bytearray_type, &tuple_type,   &list_type,
+                              &dict_type,      &set_type,       &range_type,   &type_type,
+                              &frozenset_type, &slice_type,     &memview_type, &complex_type };
 
 // `v` is pinned first: interning the name allocates, and a fresh native with
 // nothing pointing at it is exactly what a collection there would take.

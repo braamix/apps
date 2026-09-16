@@ -1,6 +1,8 @@
 // The generic operations, and the number tower under them.
 #include "ops.h"
 
+#include "bigint.h"
+#include "complex.h"
 #include "gc.h"
 #include "kernel/fmt.h"
 #include "math/math.h"
@@ -8,108 +10,37 @@
 
 namespace {
 
-// int and bool on one side, float on neither: the exact arm.
+// int and bool on one side, float on neither: the exact arm, whatever the
+// width -- bigint.cpp answers it and promotes rather than overflowing.
 bool both_int(Value a, Value b)
 {
-    i64 x, y;
-    return as_index(a, x) && as_index(b, y);
+    return is_intval(a) && is_intval(b);
+}
+
+// One integer and one float. Comparing those exactly is bigint.cpp's job:
+// rounding the integer to a double first would make 2**53 and 2**53 + 1 the
+// same number.
+bool int_and_float(Value a, Value b, Value &i, f64 &x, bool &flip)
+{
+    if (is_intval(a) && is_float(b)) {
+        i    = a;
+        x    = float_of(b);
+        flip = false;
+        return true;
+    }
+    if (is_float(a) && is_intval(b)) {
+        i    = b;
+        x    = float_of(a);
+        flip = true;
+        return true;
+    }
+    return false;
 }
 
 bool both_number(Value a, Value b)
 {
     f64 x, y;
     return as_number(a, x) && as_number(b, y);
-}
-
-i64 floor_div(i64 a, i64 b)
-{
-    i64 q = a / b;
-    if ((a % b != 0) && ((a < 0) != (b < 0)))
-        q--;
-    return q;
-}
-
-i64 floor_mod(i64 a, i64 b)
-{
-    i64 r = a % b;
-    if (r != 0 && ((r < 0) != (b < 0)))
-        r += b;
-    return r;
-}
-
-R int_pow(i64 base, i64 exp, Value &out)
-{
-    i64 acc = 1;
-    for (i64 i = 0; i < exp; i++) {
-        i64 next = acc * base;
-        if (base != 0 && next / base != acc)
-            return err_set("OverflowError", "int too large (no bignum yet)");
-        acc = next;
-    }
-    out = int_from_i64(acc);
-    return out.is_nil() ? R::Err : R::Ok;
-}
-
-R int_binop(i64 a, i64 b, Op op, Value &out)
-{
-    i64 r = 0;
-    switch (op) {
-    case Op::Add:
-        r = a + b;
-        break;
-    case Op::Sub:
-        r = a - b;
-        break;
-    case Op::Mul:
-        r = a * b;
-        break;
-    case Op::Div:
-        if (b == 0)
-            return err_set("ZeroDivisionError", "division by zero");
-        out = float_new(f64(a) / f64(b));
-        return out.is_nil() ? R::Err : R::Ok;
-    case Op::FloorDiv:
-        if (b == 0)
-            return err_set("ZeroDivisionError", "integer division or modulo by zero");
-        r = floor_div(a, b);
-        break;
-    case Op::Mod:
-        if (b == 0)
-            return err_set("ZeroDivisionError", "integer division or modulo by zero");
-        r = floor_mod(a, b);
-        break;
-    case Op::Pow:
-        if (b < 0) {
-            out = float_new(pow(f64(a), f64(b)));
-            return out.is_nil() ? R::Err : R::Ok;
-        }
-        return int_pow(a, b, out);
-    case Op::And:
-        r = a & b;
-        break;
-    case Op::Or:
-        r = a | b;
-        break;
-    case Op::Xor:
-        r = a ^ b;
-        break;
-    case Op::Lsh:
-        if (b < 0)
-            return err_set("ValueError", "negative shift count");
-        if (b > 62)
-            return err_set("OverflowError", "int too large (no bignum yet)");
-        r = a << b;
-        if (b > 0 && (r >> b) != a)
-            return err_set("OverflowError", "int too large (no bignum yet)");
-        break;
-    case Op::Rsh:
-        if (b < 0)
-            return err_set("ValueError", "negative shift count");
-        r = b > 62 ? (a < 0 ? -1 : 0) : (a >> b);
-        break;
-    }
-    out = int_from_i64(r);
-    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R float_binop(f64 a, f64 b, Op op, Value &out)
@@ -220,12 +151,14 @@ R py_hash(Value v, u32 &out)
 
 R py_eq(Value a, Value b, bool &out)
 {
-    if (both_int(a, b)) {
-        i64 x, y;
-        as_index(a, x);
-        as_index(b, y);
-        out = x == y;
-        return R::Ok;
+    if (both_int(a, b))
+        return int_compare(a, b, Cmp::Eq, out);
+    {
+        Value i;
+        f64 x   = 0;
+        bool fl = false;
+        if (int_and_float(a, b, i, x, fl))
+            return intfloat_compare(i, x, fl, Cmp::Eq, out);
     }
     if (both_number(a, b)) {
         f64 x, y;
@@ -264,12 +197,14 @@ R py_cmp(Value a, Value b, Cmp op, bool &out)
         return r;
     }
 
-    if (both_int(a, b)) {
-        i64 x, y;
-        as_index(a, x);
-        as_index(b, y);
-        out = op == Cmp::Lt ? x < y : op == Cmp::Le ? x <= y : op == Cmp::Gt ? x > y : x >= y;
-        return R::Ok;
+    if (both_int(a, b))
+        return int_compare(a, b, op, out);
+    {
+        Value i;
+        f64 x   = 0;
+        bool fl = false;
+        if (int_and_float(a, b, i, x, fl))
+            return intfloat_compare(i, x, fl, op, out);
     }
     if (both_number(a, b)) {
         f64 x, y;
@@ -445,12 +380,8 @@ ListObj *py_list_of(Value v)
 
 R py_binop_try(Value a, Value b, Op op, Value &out)
 {
-    if (both_int(a, b)) {
-        i64 x, y;
-        as_index(a, x);
-        as_index(b, y);
-        return int_binop(x, y, op, out);
-    }
+    if (both_int(a, b))
+        return int_arith(a, b, op, out);
     if (both_number(a, b)) {
         f64 x, y;
         as_number(a, x);
@@ -529,10 +460,14 @@ R py_inplace(Value a, Value b, Op op, Value &out)
 
 R py_pos(Value a, Value &out)
 {
-    i64 n = 0;
-    if (as_index(a, n)) {
-        out = int_from_i64(n);
-        return out.is_nil() ? R::Err : R::Ok;
+    if (is_intval(a)) {
+        // `+True` is 1, so bool does not simply pass through.
+        out = is_bool(a) ? Value::of_int(is_true(a) ? 1 : 0) : a;
+        return R::Ok;
+    }
+    if (is_complex(a)) {
+        out = a;
+        return R::Ok;
     }
     if (is_float(a)) {
         out = a;
@@ -543,21 +478,17 @@ R py_pos(Value a, Value &out)
 
 R py_invert(Value a, Value &out)
 {
-    i64 n = 0;
-    if (as_index(a, n)) {
-        out = int_from_i64(~n);
-        return out.is_nil() ? R::Err : R::Ok;
-    }
+    if (is_intval(a))
+        return int_invert_op(a, out);
     return err_set2("TypeError", "bad operand type for unary ~", type_name(a));
 }
 
 R py_neg(Value a, Value &out)
 {
-    i64 n = 0;
-    if (as_index(a, n)) {
-        out = int_from_i64(-n);
-        return out.is_nil() ? R::Err : R::Ok;
-    }
+    if (is_intval(a))
+        return int_negate(a, out);
+    if (is_complex(a))
+        return complex_negate(a, out);
     if (is_float(a)) {
         out = float_new(-float_of(a));
         return out.is_nil() ? R::Err : R::Ok;

@@ -89,7 +89,7 @@ enum class Bool : u8 { And, Or };
 enum : u8 { FCONV_NONE = 0, FCONV_STR = 's', FCONV_REPR = 'r', FCONV_ASCII = 'a' };
 
 // Constant flags.
-enum class Const : u8 { None, True, False, Ellipsis, Int, Float, Str, Bytes };
+enum class Const : u8 { None, True, False, Ellipsis, Int, Float, Imag, Str, Bytes };
 
 // Arguments flags.
 enum : u8 {

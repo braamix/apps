@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 13.**
+**Phase 14.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -73,34 +73,41 @@ live in the package's own `share/lib/`, which the binary finds through the
 str and on bytes, and by **f-strings**, with conversions, `=`, and specs
 nested inside specs. `ascii()` came with them.
 
-**302 of MicroPython's own tests pass unchanged**, and over the whole of
-`tests/basics/` — setting aside the bigint, generator, async and t-string
-families — **331 of 480**, up from 313 at phase 12 and 198 at phase 9. What
-stops most of the rest is bignums and generators, which are the next two
-phases; the modules are phase 18.
+**Integers have no width and `complex` exists**: a `Value` with bit 0 set is
+still a 31-bit int and always will be, but what does not fit becomes a
+[BigObj](bigint.h) whose type is the same `int`, so the difference is
+invisible from Python. `2**1000`, `//` and `%` that floor, the bitwise
+operators over infinite two's complement, `int(s, base)` at any width, a
+division rounded once rather than three times, and `2j`.
+
+**336 of MicroPython's own tests pass unchanged**, and over the whole of
+`tests/basics/` — setting aside the generator, async and t-string families —
+**372 of 526**. The bigint family is no longer among the exclusions: at phase
+13 it was set aside and the count read 331 of 480. What stops most of the rest
+is generators, which are the next phase, and the modules, which are phase 18.
 
 **CPython's tests are the second ruler.** Twelve are in
-[test/cpython.txt](test/cpython.txt), five of them run, and thirteen test
-methods of thirty-four pass. Running the whole of `Lib/test/` under this
+[test/cpython.txt](test/cpython.txt), seven of them run, and twenty-three test
+methods of forty-six pass. Running the whole of `Lib/test/` under this
 interpreter — `node test/pycases.mjs --survey`, which needs the clone in
 `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | at phase 12 | lands in |
-| --- | --- | --- | --- |
-| 213 | a module that is not written yet | 130 | |
-| 41 | complex numbers | 41 | phase 14 |
-| 39 | an integer past 2³⁰ | 17 | phase 14 |
-| 34 | other syntax — `@`, `except*`, `:=` in a subscript | 28 | phase 24 |
-| 31 | a lone surrogate in a literal | 31 | phase 22 |
-| 13 | `async` | 3 | phase 23 |
-| 12 | `\N{...}` | 12 | phase 22 |
-| 5 | these run | 3 | |
-| — | f-strings | 124 | **done** |
+| now | what stops it | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- |
+| 276 | a module that is not written yet | 213 | 130 | phase 18 |
+| 43 | other syntax — `@`, `except*`, `:=` in a subscript | 34 | 28 | phase 24 |
+| 33 | a lone surrogate in a literal | 31 | 31 | phase 22 |
+| 15 | `async` | 13 | 3 | phase 23 |
+| 14 | `\N{...}` | 12 | 12 | phase 22 |
+| 7 | these run | 5 | 3 | |
+| — | complex numbers | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | 39 | 17 | **done** |
+| — | f-strings | — | 124 | **done** |
 
-F-strings were a quarter of the suite and are gone from the wall: 124 files
-now reach their imports instead. That is why the column on the right is kept —
-the survey is what chooses each next wave, and it only means something beside
-what it said last time.
+Three walls have come down in two phases and the compiler is no longer the
+one that matters: what stops 276 of the 391 files now is a module nobody has
+written. That is why the older columns are kept — the survey is what chooses
+each next wave, and it only means something read beside what it said before.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -123,6 +130,8 @@ green.
 | [err.h](err.h), [err.cpp](err.cpp) | The error channel: sticky, checked, not thrown |
 | [ops.h](ops.h), [ops.cpp](ops.cpp) | The generic operations and the number tower |
 | [int.cpp](int.cpp), [float.cpp](float.cpp) | The two number types, and CPython's float repr |
+| [bigint.h](bigint.h), [bigint.cpp](bigint.cpp) | Integers past the value word: limbs, long division, and the whole integer arm |
+| [complex.h](complex.h), [complex.cpp](complex.cpp) | complex, and the one type in the tower with no order |
 | [str.cpp](str.cpp), [bytes.cpp](bytes.cpp) | Text in codepoints, and octets both immutable and not |
 | [tuple.cpp](tuple.cpp), [list.cpp](list.cpp) | The two sequences |
 | [table.cpp](table.cpp) | The insertion-ordered table behind dict and set |
@@ -165,6 +174,7 @@ green.
 | [test/pymeth.mjs](test/pymeth.mjs) | Methods through a subclass, `sort(key=)`, the views, and the new types |
 | [test/pyimport.mjs](test/pyimport.mjs) | Fifty nested imports, the cache, the search path, the store |
 | [test/pyformat.mjs](test/pyformat.mjs) | Every case under `test/format/`, against CPython and again under gc stress |
+| [test/pynumber.mjs](test/pynumber.mjs) | The same for `test/number/`: the arithmetic that has one right answer |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
@@ -456,14 +466,18 @@ ends in `_err` is one that must be refused, and its golden holds the complaint;
 `node test/pylex.mjs --bless` and `node test/pyast.mjs --bless` rewrite those,
 after reading the diff.
 
-A formatting case is a `.py` under `test/format/` that prints, and its golden
-is what CPython prints for it:
+A formatting case is a `.py` under `test/format/` that prints, and a number
+case one under `test/number/`; the golden for either is what CPython prints
+for it:
 
     tools/mkfmt.py test/format/spec.py
 
 which makes the comparison as strong as it can be — the same program, the two
 interpreters, byte for byte. So a case there may use nothing this interpreter
-has not got: no integer past 2**30, no generator, no `eval`.
+has not got: no generator, no `eval`. And it may not use anything whose answer
+depends on how the *host CPython* was built, which a complex multiply of two
+extreme magnitudes does — [test/number/complex.py](test/number/complex.py)
+says why it leaves that out.
 
 A compiler case is a `.py` under `test/dis/` and nothing else: the bytecode is
 this implementation's, so there is nothing to generate the golden from and

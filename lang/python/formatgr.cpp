@@ -21,12 +21,14 @@
 //                        This is what `%d` of a class asking __int__, and
 //                        format_map over a mapping written in Python, both
 //                        need: a value the plan cannot have until it runs.
+#include "bigint.h"
 #include "builtin.h"
 #include "call.h"
 #include "format.h"
 #include "gc.h"
 #include "intern.h"
 #include "kernel/fmt.h"
+#include "math/math.h"
 #include "method.h"
 #include "ops.h"
 #include "type.h"
@@ -620,7 +622,9 @@ R plan_percent(ListObj *plan, Str t, Value values, Value mapping, bool bytes, bo
             // printf truncates a float toward zero here, and Python kept it.
             if (is_float(rv.v)) {
                 f64 x = float_of(rv.v);
-                rv    = int_from_i64(i64(x));
+                if (isnan(x) || isinf(x))
+                    return err_set("OverflowError", "cannot convert float to integer");
+                rv = int_from_f64(x);
                 if (rv.v.is_nil())
                     return R::Err;
             }
@@ -651,8 +655,8 @@ R plan_percent(ListObj *plan, Str t, Value values, Value mapping, bool bytes, bo
             bool ok = p.type == 'c' ? (as_index(rv.v, n) || is_str(rv.v))
                       : (p.type == 'e' || p.type == 'E' || p.type == 'f' || p.type == 'F' ||
                          p.type == 'g' || p.type == 'G')
-                          ? as_number(rv.v, x)
-                          : as_index(rv.v, n);
+                          ? (is_intval(rv.v) || as_number(rv.v, x))
+                          : is_intval(rv.v);
             if (!ok && is_inst(rv.v))
                 ok = !type_special(rv.v, "__index__").is_nil() ||
                      !type_special(rv.v, "__int__").is_nil() ||

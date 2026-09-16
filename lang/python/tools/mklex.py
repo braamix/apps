@@ -43,7 +43,8 @@ def line_of(tok):
     if kind == token.NUMBER:
         v = ast.literal_eval(text)
         if isinstance(v, complex):
-            raise SystemExit(f"mklex: {text}: complex is not supported")
+            # The lexer keeps the magnitude; the `j` is the token kind.
+            return f"{at} imag {repr_of(v.imag)}j"
         return f"{at} float {repr_of(v)}" if isinstance(v, float) else f"{at} int {v}"
     if kind == token.STRING:
         prefix = text[: len(text) - len(text.lstrip("rbufRBUF"))]

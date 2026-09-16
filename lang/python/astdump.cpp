@@ -4,6 +4,8 @@
 // be compared with what CPython's own ast module built for the same source.
 // A node line is `Kind` and its inline scalars; a field is `name:` with its
 // children indented under it, `name: -` when absent and `name: []` when empty.
+#include "bigint.h"
+#include "complex.h"
 #include "err.h"
 #include "gc.h"
 #include "kernel/fmt.h"
@@ -98,6 +100,12 @@ void Dumper::constant(const Node &n)
         put("Ellipsis");
         return;
     case Const::Int: {
+        if (t.flags & TOK_INT_WIDE) {
+            Root wide{ int_parse(ast->lex.text_of(t), tok_int_base(t.flags)) };
+            if (wide.v.is_nil() || py_repr(wide.v, *out) != R::Ok)
+                ok = false;
+            return;
+        }
         Buf<24> b;
         i64 v = t.ival;
         if (v < 0) {
@@ -106,6 +114,12 @@ void Dumper::constant(const Node &n)
         }
         b.put(u64(v));
         put(b.str());
+        return;
+    }
+    case Const::Imag: {
+        Root v{ complex_new(0, t.fval) };
+        if (v.v.is_nil() || py_repr(v.v, *out) != R::Ok)
+            ok = false;
         return;
     }
     case Const::Float: {

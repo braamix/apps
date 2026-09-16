@@ -5,35 +5,36 @@ object model. The interpreter is not a port and stays that way. What is
 borrowed is measured, and named here.
 
 **The language stands, the built-in types have their methods, a file can be
-imported, text can be formatted, and CPython's own tests are a ruler beside
-MicroPython's.** Phases 0 to 13 built the lexer, the parser, the compiler, the
-VM, the object heap and its collector, exceptions, functions and closures,
-classes with the whole type system, the method tables, the module loader, the
-`unittest` and `test.support` shims every CPython test stands on, and the one
-format engine that `format()`, `__format__`, `str.format`, `%` and f-strings
-all reach. They are done, and their record is the git history — `python: phase
-0` through `python: phase 13` — not this file, which from here describes only
-what is left.
+imported, text can be formatted, numbers have no width, and CPython's own
+tests are a ruler beside MicroPython's.** Phases 0 to 14 built the lexer, the
+parser, the compiler, the VM, the object heap and its collector, exceptions,
+functions and closures, classes with the whole type system, the method tables,
+the module loader, the `unittest` and `test.support` shims every CPython test
+stands on, the one format engine that `format()`, `__format__`, `str.format`,
+`%` and f-strings all reach, and the bignum and `complex` that finish the
+number tower. They are done, and their record is the git history — `python:
+phase 0` through `python: phase 14` — not this file, which from here describes
+only what is left.
 
-Where that leaves us, measured against MicroPython's suite: **302 of the 339
-tests in [test/manifest.txt](test/manifest.txt)**, and **331 of the 480** in
-`tests/basics/` once the bigint, generator, async and t-string families are set
-aside. The largest single causes of the rest are bignums and generators, which
-are the next two phases, and the modules, which are phase 18. None stop at the
-object model.
+Where that leaves us, measured against MicroPython's suite: **336 of the 375
+tests in [test/manifest.txt](test/manifest.txt)**, and **372 of the 526** in
+`tests/basics/` once the generator, async and t-string families are set aside
+— the bigint family is now counted rather than excluded. The largest single
+cause of the rest is generators, which is the next phase; the modules are
+phase 18. None stop at the object model.
 
-Measured against CPython's, which is the harder ruler: **five of the twelve in
-[test/cpython.txt](test/cpython.txt) run, and thirteen test methods of
-thirty-four pass.** `node test/pycases.mjs --survey` runs the whole of
-`Lib/test/` and counts what stops each of the 391 files: 213 an unwritten
-module, 41 complex numbers, 39 an integer past 2³⁰, 34 other syntax, 31 a lone
-surrogate in a literal, 13 `async`, 12 `\N{...}`, and 5 that run.
+Measured against CPython's, which is the harder ruler: **seven of the twelve
+in [test/cpython.txt](test/cpython.txt) run, and twenty-three test methods of
+forty-six pass.** `node test/pycases.mjs --survey` runs the whole of
+`Lib/test/` and counts what stops each of the 391 files: 276 an unwritten
+module, 43 other syntax, 33 a lone surrogate in a literal, 15 `async`, 14
+`\N{...}`, and 7 that run.
 
-Phase 13 is what that count is for. F-strings were 124 of those files and are
-now none of them, and the wall moved from the compiler to the modules — which
-is phase 18, and a good deal further off than the next two. The survey is how
-each wave is chosen, and it only means something read beside what it said
-last time.
+Three walls have come down in two phases — f-strings, complex and the bignum
+were 204 files between them — and **the compiler is no longer what stops
+CPython's tests: a module nobody has written is.** That is phase 18, and it is
+further off than the two before it. The survey is how each wave is chosen, and
+it only means something read beside what it said last time.
 
 ## The two upstreams
 
@@ -120,6 +121,12 @@ otherwise it is a pointer to an `Obj`, which is at least 4-byte aligned
 (`heap_alloc`'s smallest size class is 16). `None`, `True` and `False` are the
 addresses of static PODs.
 
+An integer past that word is a `BigObj` whose type is `int_type`, so the two
+shapes are one type from Python. The rule that keeps them from disagreeing is
+that **a BigObj never holds a value a small int could hold**: every operation
+ends at `big_make`, which hands back a small Value when it can, so two equal
+integers are always the same shape and hash the same way.
+
 **`Obj` is `{ const Type *type; Obj *next; Obj *grey; u32 flags; }`** —
 sixteen bytes, the smallest size class. `next` threads every live object onto
 one list, because `kernel/alloc.h` has no heap iterator and the sweep needs
@@ -150,42 +157,11 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-### Phase 14 — arbitrary-precision integers, and complex
-
-Everything above assumes them, and `test_int.py` and `test_long.py` are
-unrunnable without them. Together with `complex`, which the plan did not have
-and the survey found, they are what 80 of `Lib/test/`'s files stop on — the
-largest cause left that is not a module.
-
-- [ ] Our own bignum: 32×32→64 limbs and long division, because `__int128`
-      division needs a compiler-rt builtin this target does not have.
-- [ ] The small-int fast path stays: a `Value` with bit 0 set is still a
-      31-bit int, and promotion happens at the overflow the current code
-      already detects and raises on.
-- [ ] Add, subtract, multiply, floor-divide, modulo, power, the bitwise
-      operators and the shifts; comparison; `hash` that agrees with the small
-      case; decimal, hex, octal and binary conversion both ways; `int(str)`
-      with any base.
-- [ ] `float` interworking: exact comparison, `int(float)`, `float(int)` with
-      overflow to `inf`, and `int.__truediv__` correctly rounded.
-- [ ] The three methods phase 10 left raising `OverflowError`:
-      `int.to_bytes` past eight octets, `int.from_bytes` of more than eight
-      significant ones, and `float.as_integer_ratio` of most values.
-- [ ] **`complex`**, which the plan did not have and the survey found: `2j` is
-      a `SyntaxError` today and 41 of `Lib/test/`'s files stop on it, more than
-      any other single type. The literal, the arithmetic, `real`/`imag`/
-      `conjugate`, `abs`, and the repr — but not `cmath`, which is phase 18.
-- [ ] The format engine takes them both: `format_int_by` in
-      [format.cpp](format.cpp) is written against `i64` and `radix()` over it,
-      and `%d` of a bignum goes the same way.
-
-Tests: `test_int.py`, `test_long.py`, `test_complex.py`, and MicroPython's 25
-`int_big_*`.
-
 ### Phase 15 — generators
 
 The frames are already heap objects chained through `back`, which is most of
-what a generator is.
+what a generator is. It is also the largest single thing still missing from
+MicroPython's suite, and the whole `gen*` family waits on it.
 
 - [ ] `yield` and the generator object: a frame that is parked rather than
       popped, with its own value stack and block stack intact.

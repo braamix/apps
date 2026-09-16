@@ -1,0 +1,44 @@
+Module
+  body:
+    Expr
+      value:
+        Constant 1
+    Expr
+      value:
+        Constant 1.5
+    Expr
+      value:
+        Constant 3j
+    Expr
+      value:
+        Constant 16
+    Expr
+      value:
+        Constant 15
+    Expr
+      value:
+        Constant 10
+    Expr
+      value:
+        Constant 123456789012345678901234567890
+    Expr
+      value:
+        UnaryOp -
+          operand:
+            BinOp **
+              left:
+                Constant 2
+              right:
+                Constant 64
+    Expr
+      value:
+        Constant 1000
+    Expr
+      value:
+        Constant 1000.0
+    Expr
+      value:
+        Constant 0.5j
+    Expr
+      value:
+        Constant 0.0025

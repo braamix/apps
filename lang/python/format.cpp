@@ -5,6 +5,7 @@
 // formatgr.cpp; both end here.
 #include "format.h"
 
+#include "bigint.h"
 #include "kernel/fmt.h"
 #include "kernel/text.h"
 #include "math/ftoa.h"
@@ -231,24 +232,7 @@ R group_digits(Str digits, char sep, i32 group, i32 least, String &out)
     return R::Ok;
 }
 
-const char *DIGITS_LO = "0123456789abcdefghijklmnopqrstuvwxyz";
-const char *DIGITS_UP = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-// The magnitude of `v` in `base`, most significant first. i64 min is why the
-// accumulation is unsigned.
-Str radix(char *buf, usize cap, i64 v, u32 base, bool upper)
-{
-    const char *d = upper ? DIGITS_UP : DIGITS_LO;
-    u64 m         = v < 0 ? u64(-(v + 1)) + 1 : u64(v);
-    usize i       = cap;
-    do {
-        buf[--i] = d[m % base];
-        m /= base;
-    } while (m && i);
-    return Str(buf + i, cap - i);
-}
-
-R format_int_by(i64 v, const Spec &s, String &out)
+R format_int_by(Value v, const Spec &s, String &out)
 {
     u32 base   = 10;
     Str prefix = "";
@@ -275,10 +259,14 @@ R format_int_by(i64 v, const Spec &s, String &out)
     if (s.precision >= 0)
         return err_set("ValueError", "Precision not allowed in integer format specifier");
 
-    char tmp[72];
-    Str digits = radix(tmp, sizeof tmp, v, base, upper);
+    // Any width: bigint.cpp writes the magnitude, whatever it takes.
+    String text;
+    if (int_digits(v, base, upper, text) != R::Ok)
+        return R::Err;
+    Str digits = text.str();
 
-    Str sign = v < 0 ? Str("-") : s.sign == '+' ? Str("+") : s.sign == ' ' ? Str(" ") : Str("");
+    bool neg = int_is_neg(v);
+    Str sign = neg ? Str("-") : s.sign == '+' ? Str("+") : s.sign == ' ' ? Str(" ") : Str("");
 
     char sep = s.grouping;
     if (sep == ',' && s.type == 'n')
@@ -477,8 +465,7 @@ R format_builtin(Value v, Str spec, String &out, i32 min_digits)
     }
 
     // bool with a numeric type is an int; with none it is its own name.
-    i64 n = 0;
-    if (as_index(v, n)) {
+    if (is_intval(v)) {
         if (is_bool(v) && !s.type && s.width < 0 && !s.align)
             return py_str(v, out);
         switch (s.type) {
@@ -489,9 +476,13 @@ R format_builtin(Value v, Str spec, String &out, i32 min_digits)
         case 'o':
         case 'x':
         case 'X':
-            return format_int_by(n, s, out);
-        case 'c':
+            return format_int_by(v, s, out);
+        case 'c': {
+            i64 n = 0;
+            if (!int_to_i64(v, n))
+                return err_set("OverflowError", "%c arg not in range(0x110000)");
             return format_char(n, s, out);
+        }
         case 'e':
         case 'E':
         case 'f':
@@ -502,7 +493,7 @@ R format_builtin(Value v, Str spec, String &out, i32 min_digits)
             Spec f = s;
             if (f.type == 0)
                 f.type = 'g';
-            return format_float_by(f64(n), f, out);
+            return format_float_by(int_to_f64(v), f, out);
         }
         default:
             return bad_spec(spec, who), R::Err;

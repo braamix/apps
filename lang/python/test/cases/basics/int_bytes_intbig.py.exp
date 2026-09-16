@@ -1,0 +1,264 @@
+b'\x00\x00\x00\x00\x00\x00\x00\x00\x01'
+b'\x00\x00\x00\x00\x00\x00\x00\x00\xff'
+b'\x01\x00\x00\x00\x00\x00\x00\x00\x00'
+b'\xff\x00\x00\x00\x00\x00\x00\x00\x00'
+108873724432616589554458274966207996112469623040
+22475995960490625424124334220934763854762515
+b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13'
+b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13'
+b'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\x0c\r\x0e\x0f\x10\x11\x12\x13'
+True
+OverflowError
+OverflowError
+OverflowError
+OverflowError
+b'\xff\xfe\xfd\xfc\xfb\xfa\xf9\xf8\xf7\xf6\xf5\xf4\xf3\xf2\xf1\xf0\xef\xee\xed\xed'
+b'\xff\xff\xff\xfe\xfb\xf5\xeb\xdc\xc7\xab\x87Z"\xe0\x926\xcdT\xcc2\x86\xc8\x1d\x88\x08\xa0P\x18\xfb\xfa\x14K\xa1\x15\xaa`83R\x97'
+ib -0x7f nbytes 1 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+b'\x81' signed True endian little nbytes_offs 0
+b'\x81\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+b'\x81' signed True endian big nbytes_offs 0
+b'\xff\x81' signed True endian big nbytes_offs 1
+ib 0xff nbytes 1 :
+OverflowError signed False endian little nbytes_offs -1
+b'\xff' signed False endian little nbytes_offs 0
+b'\xff\x00' signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+b'\xff' signed False endian big nbytes_offs 0
+b'\x00\xff' signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\xff\x00' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\x00\xff' signed True endian big nbytes_offs 1
+ib -0xff nbytes 1 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x01\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x01' signed True endian big nbytes_offs 1
+ib 0xffff nbytes 2 :
+OverflowError signed False endian little nbytes_offs -1
+b'\xff\xff' signed False endian little nbytes_offs 0
+b'\xff\xff\x00' signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+b'\xff\xff' signed False endian big nbytes_offs 0
+b'\x00\xff\xff' signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\xff\xff\x00' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\x00\xff\xff' signed True endian big nbytes_offs 1
+ib -0xffff nbytes 2 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x01\x00\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x00\x01' signed True endian big nbytes_offs 1
+ib -0xfffe nbytes 2 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x02\x00\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x00\x02' signed True endian big nbytes_offs 1
+ib 0xffffff nbytes 3 :
+OverflowError signed False endian little nbytes_offs -1
+b'\xff\xff\xff' signed False endian little nbytes_offs 0
+b'\xff\xff\xff\x00' signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+b'\xff\xff\xff' signed False endian big nbytes_offs 0
+b'\x00\xff\xff\xff' signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\xff\xff\xff\x00' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\x00\xff\xff\xff' signed True endian big nbytes_offs 1
+ib -0xffffff nbytes 3 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x01\x00\x00\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x00\x00\x01' signed True endian big nbytes_offs 1
+ib -0xfffffe nbytes 3 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x02\x00\x00\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x00\x00\x02' signed True endian big nbytes_offs 1
+ib 0xffffffff nbytes 4 :
+OverflowError signed False endian little nbytes_offs -1
+b'\xff\xff\xff\xff' signed False endian little nbytes_offs 0
+b'\xff\xff\xff\xff\x00' signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+b'\xff\xff\xff\xff' signed False endian big nbytes_offs 0
+b'\x00\xff\xff\xff\xff' signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\xff\xff\xff\xff\x00' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\x00\xff\xff\xff\xff' signed True endian big nbytes_offs 1
+ib -0xffffffff nbytes 4 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x01\x00\x00\x00\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x00\x00\x00\x01' signed True endian big nbytes_offs 1
+ib -0xfffffffe nbytes 4 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x02\x00\x00\x00\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x00\x00\x00\x02' signed True endian big nbytes_offs 1
+ib -0xfffffffd nbytes 4 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x03\x00\x00\x00\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x00\x00\x00\x03' signed True endian big nbytes_offs 1
+ib 0xffffffffffffffff nbytes 8 :
+OverflowError signed False endian little nbytes_offs -1
+b'\xff\xff\xff\xff\xff\xff\xff\xff' signed False endian little nbytes_offs 0
+b'\xff\xff\xff\xff\xff\xff\xff\xff\x00' signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+b'\xff\xff\xff\xff\xff\xff\xff\xff' signed False endian big nbytes_offs 0
+b'\x00\xff\xff\xff\xff\xff\xff\xff\xff' signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\xff\xff\xff\xff\xff\xff\xff\xff\x00' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\x00\xff\xff\xff\xff\xff\xff\xff\xff' signed True endian big nbytes_offs 1
+ib -0xffffffffffffffff nbytes 8 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x01\x00\x00\x00\x00\x00\x00\x00\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x00\x00\x00\x00\x00\x00\x00\x01' signed True endian big nbytes_offs 1
+ib -0xfffffffffffffffe nbytes 8 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x02\x00\x00\x00\x00\x00\x00\x00\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x00\x00\x00\x00\x00\x00\x00\x02' signed True endian big nbytes_offs 1
+ib -0xfffffffffffffffd nbytes 8 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x03\x00\x00\x00\x00\x00\x00\x00\xff' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xff\x00\x00\x00\x00\x00\x00\x00\x03' signed True endian big nbytes_offs 1
+ib 0x1fffffffffffffffe nbytes 8 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+b'\xfe\xff\xff\xff\xff\xff\xff\xff\x01' signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+b'\x01\xff\xff\xff\xff\xff\xff\xff\xfe' signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\xfe\xff\xff\xff\xff\xff\xff\xff\x01' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\x01\xff\xff\xff\xff\xff\xff\xff\xfe' signed True endian big nbytes_offs 1
+ib -0x1fffffffffffffffe nbytes 8 :
+OverflowError signed False endian little nbytes_offs -1
+OverflowError signed False endian little nbytes_offs 0
+OverflowError signed False endian little nbytes_offs 1
+OverflowError signed False endian big nbytes_offs -1
+OverflowError signed False endian big nbytes_offs 0
+OverflowError signed False endian big nbytes_offs 1
+OverflowError signed True endian little nbytes_offs -1
+OverflowError signed True endian little nbytes_offs 0
+b'\x02\x00\x00\x00\x00\x00\x00\x00\xfe' signed True endian little nbytes_offs 1
+OverflowError signed True endian big nbytes_offs -1
+OverflowError signed True endian big nbytes_offs 0
+b'\xfe\x00\x00\x00\x00\x00\x00\x00\x02' signed True endian big nbytes_offs 1

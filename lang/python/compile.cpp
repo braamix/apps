@@ -7,6 +7,8 @@
 // alone.
 #include "compile.h"
 
+#include "bigint.h"
+#include "complex.h"
 #include "err.h"
 #include "gc.h"
 #include "intern.h"
@@ -712,10 +714,14 @@ bool Compiler::expr(u32 i)
             v = value_ellipsis();
             break;
         case Const::Int:
-            v = int_from_i64(t.ival);
+            v = (t.flags & TOK_INT_WIDE) ? int_parse(ast->lex.text_of(t), tok_int_base(t.flags))
+                                         : int_from_i64(t.ival);
             break;
         case Const::Float:
             v = float_new(t.fval);
+            break;
+        case Const::Imag:
+            v = complex_new(0, t.fval);
             break;
         case Const::Str:
             v = obj_value(str_raw(ast->lex.text_of(t)));

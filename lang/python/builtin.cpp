@@ -4,7 +4,9 @@
 // from inside the iterator protocol and py_next has no way to suspend.
 #include "builtin.h"
 
+#include "bigint.h"
 #include "call.h"
+#include "complex.h"
 #include "exc.h"
 #include "format.h"
 #include "gc.h"
@@ -362,7 +364,7 @@ R print_line(const Value *args, u32 n, Str sep, Str end)
 // what the answer has to be.
 // WANT_FOUND is hasattr's: True because the call returned at all, whatever
 // it returned. WANT_BOOL is __bool__'s, which is the value's own truth.
-enum : u32 { WANT_ANY, WANT_INT, WANT_STR, WANT_BOOL, WANT_FOUND };
+enum : u32 { WANT_ANY, WANT_INT, WANT_STR, WANT_BOOL, WANT_FOUND, WANT_HASH };
 
 R one_step(ContObj *k, Value in)
 {
@@ -376,6 +378,12 @@ R one_step(ContObj *k, Value in)
     case WANT_INT:
         if (!as_index(in, n))
             return err_set2("TypeError", "a special method returned a non-integer", type_name(in));
+        break;
+    case WANT_HASH:
+        // A __hash__ of any width is truncated to one, as CPython does.
+        if (!is_intval(in))
+            return err_set2("TypeError", "__hash__ returned a non-integer", type_name(in));
+        in = Value::of_int(i32(int_hash_of(in)) & 0x3fffffff);
         break;
     case WANT_STR:
         if (!is_str(in))
@@ -432,11 +440,10 @@ R b_abs(const CallArgs &a, Value &out)
         return R::Ok;
     if (err_pending())
         return R::Err;
-    i64 n = 0;
-    if (as_index(a.args[0], n)) {
-        out = int_from_i64(n < 0 ? -n : n);
-        return out.is_nil() ? R::Err : R::Ok;
-    }
+    if (is_intval(a.args[0]))
+        return int_absolute(a.args[0], out);
+    if (is_complex(a.args[0]))
+        return complex_abs(a.args[0], out);
     if (is_float(a.args[0])) {
         f64 v = float_of(a.args[0]);
         out   = float_new(v < 0 ? -v : v);
@@ -538,6 +545,40 @@ R b_repr(const CallArgs &a, Value &out)
     if (!args_only(a, "repr", 1, 1))
         return R::Err;
     return show(a.args[0], SHOW_REPR, out);
+}
+
+// hex(), oct() and bin(): the prefix and the magnitude, sign in front.
+R radix_show(const CallArgs &a, Str who, u32 base, Str prefix, Value &out)
+{
+    if (!args_only(a, who, 1, 1))
+        return R::Err;
+    Value v = a.args[0];
+    if (!is_intval(v))
+        return err_set2("TypeError", "an integer is required", type_name(v));
+    String text;
+    if (int_is_neg(v) && !text.push('-'))
+        return oom();
+    if (!text.append(prefix))
+        return oom();
+    if (int_digits(v, base, false, text) != R::Ok)
+        return R::Err;
+    out = str_new(text.str());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_hex(const CallArgs &a, Value &out)
+{
+    return radix_show(a, "hex", 16, "0x", out);
+}
+
+R b_oct(const CallArgs &a, Value &out)
+{
+    return radix_show(a, "oct", 8, "0o", out);
+}
+
+R b_bin(const CallArgs &a, Value &out)
+{
+    return radix_show(a, "bin", 2, "0b", out);
 }
 
 R b_ascii(const CallArgs &a, Value &out)
@@ -649,71 +690,13 @@ R b_bool(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-// The value of digit `c` in `base`, or -1.
-i32 digit_in(char c, i64 base)
-{
-    i32 d = c >= '0' && c <= '9'   ? c - '0'
-            : c >= 'a' && c <= 'z' ? c - 'a' + 10
-            : c >= 'A' && c <= 'Z' ? c - 'A' + 10
-                                   : -1;
-    return d >= 0 && d < base ? d : -1;
-}
-
 // int(s, base): space, a sign, an optional 0x/0o/0b prefix, then digits with
-// `_` allowed between them.
+// `_` allowed between them, over any width. bigint.cpp owns the grammar.
 R int_of_text(Str s, i64 base, Value &out)
 {
-    usize i = 0;
-    while (i < s.size() && is_space(s[i]))
-        i++;
-    bool neg = false;
-    if (i < s.size() && (s[i] == '-' || s[i] == '+'))
-        neg = s[i++] == '-';
-
-    bool guessing = base == 0;
-    bool prefixed = false;
-    if (i + 1 < s.size() && s[i] == '0') {
-        char p   = s[i + 1] | 0x20;
-        i64 want = p == 'x' ? 16 : p == 'o' ? 8 : p == 'b' ? 2 : 0;
-        if (want && (base == want || base == 0)) {
-            base     = want;
-            prefixed = true;
-            i += 2;
-        }
-    }
-    if (base == 0)
-        base = 10;
-    if (base < 2 || base > 36)
+    if (base != 0 && (base < 2 || base > 36))
         return err_set("ValueError", "int() base must be >= 2 and <= 36, or 0");
-
-    i64 v    = 0;
-    bool any = false;
-    // With no base, a leading zero admits only more zeros: int('01', 0) is a
-    // ValueError.
-    bool lead_zero = guessing && !prefixed && i < s.size() && s[i] == '0';
-    for (; i < s.size(); i++) {
-        if (s[i] == '_' && any)
-            continue;
-        i32 d = digit_in(s[i], base);
-        if (d < 0)
-            break;
-        if (lead_zero && d != 0)
-            break;
-        i64 next = v * base + d;
-        if (next < v)
-            return err_set("OverflowError", "int too large (no bignum yet)");
-        v   = next;
-        any = true;
-    }
-    while (i < s.size() && is_space(s[i]))
-        i++;
-    if (!any || i != s.size()) {
-        Buf<64> b;
-        char tmp[24];
-        b.put("invalid literal for int() with base ").put(int_text(tmp, sizeof tmp, base));
-        return err_set2("ValueError", b.str(), s);
-    }
-    out = int_from_i64(neg ? -v : v);
+    out = int_parse(s, u32(base));
     return out.is_nil() ? R::Err : R::Ok;
 }
 
@@ -741,14 +724,19 @@ R b_int(const CallArgs &a, Value &out)
         return R::Ok;
     if (err_pending())
         return R::Err;
-    i64 n = 0;
-    if (as_index(a.args[0], n)) {
-        out = int_from_i64(n);
-        return out.is_nil() ? R::Err : R::Ok;
+    if (is_intval(a.args[0])) {
+        // int(True) is 1, so bool does not simply pass through.
+        out = is_bool(a.args[0]) ? Value::of_int(is_true(a.args[0]) ? 1 : 0) : a.args[0];
+        return R::Ok;
     }
     if (is_float(a.args[0])) {
-        // Toward zero, which is what C++ does and what Python asks for.
-        out = int_from_i64(i64(float_of(a.args[0])));
+        f64 x = float_of(a.args[0]);
+        if (isnan(x))
+            return err_set("ValueError", "cannot convert float NaN to integer");
+        if (isinf(x))
+            return err_set("OverflowError", "cannot convert float infinity to integer");
+        // Toward zero, which is what Python asks for.
+        out = int_from_f64(x);
         return out.is_nil() ? R::Err : R::Ok;
     }
     if (textual)
@@ -860,6 +848,56 @@ R b_bytes(const CallArgs &a, Value &out)
             return oom();
     }
     out = bytes_new(bs.str());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// complex(), complex(z), complex(re, im) and complex("1+2j").
+R b_complex(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "complex", 0, 2))
+        return R::Err;
+    if (!a.nargs) {
+        out = complex_new(0, 0);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    if (is_str(a.args[0])) {
+        if (a.nargs > 1)
+            return err_set("TypeError", "complex() can't take second arg if first is a string");
+        f64 re = 0, im = 0;
+        if (!complex_parse(str_of(a.args[0])->str(), re, im))
+            return err_set("ValueError", "complex() arg is a malformed string");
+        out = complex_new(re, im);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    f64 re = 0, im = 0;
+    if (is_complex(a.args[0])) {
+        re = complex_of(a.args[0])->re;
+        im = complex_of(a.args[0])->im;
+    } else if (!as_number(a.args[0], re)) {
+        return err_set2("TypeError", "complex() argument must be a number", type_name(a.args[0]));
+    }
+    if (a.nargs > 1) {
+        if (is_complex(a.args[1]) || is_complex(a.args[0])) {
+            f64 r2 = 0, i2 = 0;
+            if (is_complex(a.args[1])) {
+                r2 = complex_of(a.args[1])->re;
+                i2 = complex_of(a.args[1])->im;
+            } else if (!as_number(a.args[1], r2)) {
+                return err_set2("TypeError", "complex() argument must be a number",
+                                type_name(a.args[1]));
+            }
+            // complex(a, b) is a + b*1j, so an imaginary second argument
+            // folds back into the real part.
+            re -= i2;
+            im += r2;
+        } else if (!as_number(a.args[1], im)) {
+            // Two plain reals go straight in: adding would turn the -0.0 of
+            // `complex(1, -0.0)` into a positive zero.
+            return err_set2("TypeError", "complex() argument must be a number",
+                            type_name(a.args[1]));
+        }
+    }
+    out = complex_new(re, im);
     return out.is_nil() ? R::Err : R::Ok;
 }
 
@@ -1472,7 +1510,7 @@ R b_hash(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "hash", 1, 1))
         return R::Err;
-    out = one_special(a.args[0], "__hash__", WANT_INT);
+    out = one_special(a.args[0], "__hash__", WANT_HASH);
     if (!out.is_nil())
         return R::Ok;
     if (err_pending())
@@ -1532,16 +1570,39 @@ R b_round(const CallArgs &a, Value &out)
         return err_set2("TypeError", "round() ndigits must be an integer", type_name(a.args[1]));
     bool to_int = a.nargs < 2 || is_none(a.args[1]);
 
-    i64 n = 0;
-    if (as_index(a.args[0], n)) {
-        // An int rounds to itself at any precision above zero.
+    if (is_intval(a.args[0])) {
+        // An int rounds to itself at any precision above zero, and stays an
+        // int below it -- exactly, whatever its width.
         if (to_int || digits >= 0) {
-            out = int_from_i64(n);
-            return out.is_nil() ? R::Err : R::Ok;
+            out = is_bool(a.args[0]) ? Value::of_int(is_true(a.args[0]) ? 1 : 0) : a.args[0];
+            return R::Ok;
         }
-        f64 scale = pow(10.0, f64(-digits));
-        out       = int_from_i64(i64(round_half_even(f64(n) / scale) * scale));
-        return out.is_nil() ? R::Err : R::Ok;
+        Root scale{ Value::of_int(10) }, exp{ int_from_i64(-digits) };
+        if (scale.v.is_nil() || exp.v.is_nil())
+            return R::Err;
+        if (int_power(scale.v, exp.v, Value(), scale.v) != R::Ok)
+            return R::Err;
+        Root q, r;
+        if (py_binop(a.args[0], scale.v, Op::FloorDiv, q.v) != R::Ok ||
+            py_binop(a.args[0], scale.v, Op::Mod, r.v) != R::Ok)
+            return R::Err;
+        // Half goes to even, which is the rule for a float too.
+        Root twice;
+        if (py_binop(r.v, Value::of_int(2), Op::Mul, twice.v) != R::Ok)
+            return R::Err;
+        bool up = false, tie = false, odd = false;
+        if (py_cmp(twice.v, scale.v, Cmp::Gt, up) != R::Ok || py_eq(twice.v, scale.v, tie) != R::Ok)
+            return R::Err;
+        if (tie) {
+            Root bit;
+            if (py_binop(q.v, Value::of_int(1), Op::And, bit.v) != R::Ok)
+                return R::Err;
+            odd = bit.v == Value::of_int(1);
+        }
+        if (up || (tie && odd))
+            if (py_binop(q.v, Value::of_int(1), Op::Add, q.v) != R::Ok)
+                return R::Err;
+        return py_binop(q.v, scale.v, Op::Mul, out);
     }
     f64 v = 0;
     if (!as_number(a.args[0], v))
@@ -1578,28 +1639,11 @@ R b_pow(const CallArgs &a, Value &out)
     if (a.nargs < 3 || is_none(a.args[2]))
         return py_binop(a.args[0], a.args[1], Op::Pow, out);
 
-    i64 base = 0, exp = 0, mod = 0;
-    if (!as_index(a.args[0], base) || !as_index(a.args[1], exp) || !as_index(a.args[2], mod))
+    if (!is_intval(a.args[0]) || !is_intval(a.args[1]) || !is_intval(a.args[2]))
         return err_set("TypeError", "pow() 3rd argument not allowed unless all arguments are ints");
-    if (mod == 0)
-        return err_set("ValueError", "pow() 3rd argument cannot be 0");
-    if (exp < 0)
+    if (int_is_neg(a.args[1]))
         return err_set("ValueError", "base is not invertible for the given modulus");
-    // Square and multiply in 64 bits, so the modulus stays under 2^31.
-    if (mod > 0x7fffffff || mod < -0x7fffffff)
-        return err_set("OverflowError", "int too large (no bignum yet)");
-    i64 acc = 1, b = base % mod;
-    for (i64 e = exp; e > 0; e >>= 1) {
-        if (e & 1)
-            acc = acc * b % mod;
-        b = b * b % mod;
-    }
-    // A zero exponent skipped the loop, leaving the 1 unreduced.
-    acc %= mod;
-    if (acc != 0 && (acc < 0) != (mod < 0))
-        acc += mod;
-    out = int_from_i64(acc);
-    return out.is_nil() ? R::Err : R::Ok;
+    return int_power(a.args[0], a.args[1], a.args[2], out);
 }
 
 // ----------------------------------------------------------- the iterators
@@ -1890,7 +1934,8 @@ constexpr Builtin TABLE[] = {
     { "id", b_id },           { "divmod", b_divmod },     { "round", b_round },
     { "pow", b_pow },         { "reversed", b_reversed }, { "zip", b_zip },
     { "map", b_map },         { "filter", b_filter },     { "__import__", b_import },
-    { "format", b_format },   { "ascii", b_ascii },
+    { "format", b_format },   { "ascii", b_ascii },       { "hex", b_hex },
+    { "oct", b_oct },         { "bin", b_bin },
 };
 
 // Calling one of these is calling its type: `list(x)` is `list.__new__(x)`,
@@ -1913,6 +1958,7 @@ constexpr Ctor CTORS[] = {
     { &bytes_type, b_bytes },
     { &bytearray_type, b_bytearray },
     { &frozenset_type, b_frozenset },
+    { &complex_type, b_complex },
     { &memview_type, b_memoryview },
     { &slice_type, b_slice },
 };
