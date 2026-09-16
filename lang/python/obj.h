@@ -63,11 +63,14 @@ struct Obj {
 };
 
 enum : u32 {
-    OBJ_MARK     = 1u << 0, // reachable, this collection
-    OBJ_GREY     = 1u << 1, // on the marker's worklist
-    OBJ_IMMORTAL = 1u << 2, // static storage: never swept, never freed
-    OBJ_ASCII    = 1u << 3, // a str whose bytes are all under 0x80
-    OBJ_EXC      = 1u << 4, // an ExcObj, whatever class it belongs to
+    OBJ_MARK      = 1u << 0, // reachable, this collection
+    OBJ_GREY      = 1u << 1, // on the marker's worklist
+    OBJ_IMMORTAL  = 1u << 2, // static storage: never swept, never freed
+    OBJ_ASCII     = 1u << 3, // a str whose bytes are all under 0x80
+    OBJ_EXC       = 1u << 4, // an ExcObj, whatever class it belongs to
+    OBJ_TYPE      = 1u << 5, // a TypeObj, whatever metaclass it belongs to
+    OBJ_FINAL     = 1u << 6, // its class has a __del__ the sweep owes a call
+    OBJ_FINALIZED = 1u << 7, // that call has been owed once, and never is again
 };
 
 // Allocate `bytes` (header included) and thread it onto the heap list. Null on

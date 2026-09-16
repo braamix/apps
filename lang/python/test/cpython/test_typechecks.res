@@ -1,3 +1,8 @@
-Traceback (most recent call last):
-  File "/tmp/test_typechecks.py", line 19, in <module>
-TypeError: class keywords are not supported
+--- unittest ---
+ok TypeChecksTest.testIsInstanceActual
+ok TypeChecksTest.testIsInstanceBuiltin
+ok TypeChecksTest.testIsSubclassActual
+ok TypeChecksTest.testIsSubclassBuiltin
+ok TypeChecksTest.testIsSubclassInternal
+ok TypeChecksTest.testSubclassBehavior
+--- ran 6 ok 6 fail 0 error 0 skip 0 ---

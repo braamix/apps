@@ -74,3 +74,24 @@ GcStats gc_stats();
 
 // Put a static object under the collector's eye without ever freeing it.
 void gc_immortal(Obj *o);
+
+// ------------------------------------------------------- finalizers
+
+// Run after marking and before sweeping, where what is about to be freed is
+// still whole: this is where a weak reference is cleared and its callback
+// owed. Idempotent, like gc_root_hook.
+void gc_sweep_hook(void (*f)());
+
+// Inside a sweep hook: `o` is unreachable and this collection will free it.
+bool gc_is_dying(Obj *o);
+
+// A call the collector owes. `fn` Nil means the object's own __del__; anything
+// else is called with the object as its one argument. Both are roots until the
+// VM makes the call, which is also what keeps the object alive for it -- so a
+// __del__ that stores `self` somewhere resurrects it, and is never owed again.
+bool gc_defer(Value obj, Value fn);
+
+bool gc_owes();
+
+// The oldest owed call. False when there is none.
+bool gc_take(Value &obj, Value &fn);

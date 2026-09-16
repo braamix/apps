@@ -117,6 +117,9 @@ Value gen_new(Value frame)
     g->name     = code_of(frame_of(rf.v)->code)->name;
     g->handling = Value();
     g->state    = GEN_CREATED;
+    // A generator dropped at a yield owes its `finally` a run, and that is
+    // what a finalizer is: the collector owes it one close.
+    g->flags |= OBJ_FINAL;
     return obj_value(g);
 }
 

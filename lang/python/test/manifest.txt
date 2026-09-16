@@ -38,7 +38,7 @@ pass  basics/builtin_exec_buffer.py             cpython3.9  52b5fbc  tests/basic
 pass  basics/builtin_filter.py                  cpython3.9  52b5fbc  tests/basics/builtin_filter.py
 pass  basics/builtin_getattr.py                 cpython3.9  52b5fbc  tests/basics/builtin_getattr.py
 pass  basics/builtin_hasattr.py                 cpython3.9  52b5fbc  tests/basics/builtin_hasattr.py
-fail  basics/builtin_hash.py                    cpython3.9  52b5fbc  tests/basics/builtin_hash.py
+pass  basics/builtin_hash.py                    cpython3.9  52b5fbc  tests/basics/builtin_hash.py
 pass  basics/builtin_hash_intbig.py             cpython3.9  52b5fbc  tests/basics/builtin_hash_intbig.py
 pass  basics/builtin_hex_intbig.py              cpython3.9  52b5fbc  tests/basics/builtin_hex_intbig.py
 pass  basics/builtin_id.py                      cpython3.9  52b5fbc  tests/basics/builtin_id.py
@@ -103,7 +103,7 @@ pass  basics/class_bases.py                     cpython3.9  52b5fbc  tests/basic
 pass  basics/class_binop.py                     cpython3.9  52b5fbc  tests/basics/class_binop.py
 pass  basics/class_call.py                      cpython3.9  52b5fbc  tests/basics/class_call.py
 pass  basics/class_contains.py                  cpython3.9  52b5fbc  tests/basics/class_contains.py
-fail  basics/class_descriptor.py                cpython3.9  52b5fbc  tests/basics/class_descriptor.py
+pass  basics/class_descriptor.py                cpython3.9  52b5fbc  tests/basics/class_descriptor.py
 pass  basics/class_dict.py                      cpython3.9  52b5fbc  tests/basics/class_dict.py
 pass  basics/class_emptybases.py                cpython3.9  52b5fbc  tests/basics/class_emptybases.py
 pass  basics/class_getattr.py                   cpython3.9  52b5fbc  tests/basics/class_getattr.py
@@ -275,7 +275,7 @@ pass  basics/list_slice.py                      cpython3.9  52b5fbc  tests/basic
 pass  basics/list_slice_3arg.py                 cpython3.9  52b5fbc  tests/basics/list_slice_3arg.py
 pass  basics/list_slice_assign.py               cpython3.9  52b5fbc  tests/basics/list_slice_assign.py
 pass  basics/list_slice_assign_grow.py          cpython3.9  52b5fbc  tests/basics/list_slice_assign_grow.py
-fail  basics/list_sort.py                       cpython3.9  52b5fbc  tests/basics/list_sort.py
+pass  basics/list_sort.py                       cpython3.9  52b5fbc  tests/basics/list_sort.py
 pass  basics/list_sum.py                        cpython3.9  52b5fbc  tests/basics/list_sum.py
 pass  basics/logic_constfolding.py              cpython3.9  52b5fbc  tests/basics/logic_constfolding.py
 fail  basics/memoryview1.py                     cpython3.9  52b5fbc  tests/basics/memoryview1.py
@@ -409,7 +409,7 @@ pass  import/import1a.py                        cpython3.9  52b5fbc  tests/impor
 pass  import/import1b.py                        cpython3.9  52b5fbc  tests/import/import1b.py
 pass  import/import2a.py                        cpython3.9  52b5fbc  tests/import/import2a.py
 pass  import/import3a.py                        cpython3.9  52b5fbc  tests/import/import3a.py
-fail  import/import_broken.py                   cpython3.9  52b5fbc  tests/import/import_broken.py
+pass  import/import_broken.py                   cpython3.9  52b5fbc  tests/import/import_broken.py
 pass  import/import_circular.py                 cpython3.9  52b5fbc  tests/import/import_circular.py
 fail  import/import_file.py                     cpython3.9  52b5fbc  tests/import/import_file.py
 pass  import/import_pkg1.py                     cpython3.9  52b5fbc  tests/import/import_pkg1.py

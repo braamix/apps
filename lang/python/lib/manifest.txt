@@ -1,0 +1,14 @@
+# The modules taken from CPython's standard library, byte for byte, one row
+# each. The port implements the floor each stands on and takes the rest as it
+# is; editing one is not allowed, and a module that needs something this
+# interpreter has not got waits rather than being trimmed.
+#
+#   module    the name it is imported by
+#   floor     the native module it needs, or `-`
+#   commit    the cpython commit the copy was taken from
+#   upstream  the path it was taken from
+#
+# Whitespace separates; no field contains a space.
+#
+# module  floor  commit  upstream
+abc.py  _abc  82952e3  Lib/abc.py

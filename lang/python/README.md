@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 16.**
+**Phase 17.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -58,8 +58,9 @@ print([next(g) for _ in range(10)])'
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
 whole argument grammar, decorators, closures, `global`, `nonlocal` and `del`,
-slicing, unpacking, forty-odd builtins, `class` with multiple inheritance, the
-descriptor protocol and the special methods, the exception hierarchy with
+slicing, unpacking, forty-odd builtins, `class` with multiple inheritance,
+metaclasses, the descriptor protocol and the special methods, the exception
+hierarchy with
 `try`/`except`/`else`/`finally`, `with`, `raise … from` and exceptions of one's
 own, `sys.argv`, `sys.exit`, a `^C` that becomes a catchable
 `KeyboardInterrupt`, and a traceback on the way out.
@@ -105,37 +106,76 @@ value stack, its block stack and its locals, and resuming pushes it back on the
 chain. Everything that takes an iterable — `list`, `sum`, `sorted`, `join`,
 `[*g]`, `a, b = g`, `f(*g)` — meets one and parks; see below.
 
-**381 of MicroPython's own tests pass unchanged**, and over the whole of
-`tests/basics/` — setting aside the async and t-string families — **424 of
-557**, against 407 at phase 15. What stops most of the rest is the modules,
+**The type system is whole.** A metaclass decides what a `class` statement
+makes, and `__prepare__`, `__new__`, `__init__` and the class keywords all
+reach it; a class is an instance of its metaclass and answers as one.
+**Anything with `__get__` is a descriptor**, anything that also has `__set__`
+or `__delete__` comes *before* the instance namespace, and `property`,
+`staticmethod`, `classmethod`, a function and a `__slots__` member are all
+instances of that one rule. `__slots__` lays an instance out without a dict;
+`__getattribute__`, `__setattr__` and `__delattr__` are hooks with `object`'s
+own reachable through `super()`; and `__init_subclass__`, `__set_name__`,
+`__class_getitem__`, `__mro_entries__`, `__instancecheck__` and
+`__subclasscheck__` all run where CPython runs them.
+
+**An object can be finalized.** `__del__` and `_weakref.ref` with callbacks
+make the collector's sweep observable, so the sweep states a rule: a weak
+reference to something about to go is cleared before any finalizer sees it,
+every finalizer is owed exactly once, and owing one keeps the object — and
+everything it reaches — alive for that cycle, which is what makes resurrection
+mean something. It is also what closes a generator dropped at a `yield`, so
+its `finally` runs.
+
+**A comparison can be made from C++.** `py_cmp` cannot push a frame, so a sort,
+a fold or a search over things that compare in Python is a *continuation that
+owns the loop*: the merge, the scan and the item-by-item sequence compare are
+state machines that ask for one call at a time. `sorted`, `list.sort`, `min`,
+`max`, `index`, `count`, `remove`, `in` and `==` between two sequences all go
+through it, and the merge is the same bottom-up stable one as the plain path,
+so a list of instances and a list of integers come out in the same order.
+
+**CPython's own `abc.py` runs here, byte for byte**, over an `_abc` written
+natively — the first module borrowed from the library rather than written.
+[lib/manifest.txt](lib/manifest.txt) records where it came from; the floor
+under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
+`_abc_subclasscheck` and the cache token, plus `type.mro`,
+`type.__subclasses__` and the rule that an abstract class cannot be
+instantiated.
+
+**385 of MicroPython's own tests pass unchanged**, and over the whole of
+`tests/basics/` — setting aside the async and t-string families — **428 of
+557**, against 424 at phase 16. What stops most of the rest is the modules,
 which are phase 18.
 
 **CPython's tests are the second ruler.** Twelve are in
-[test/cpython.txt](test/cpython.txt), seven of them run, and thirty-four test
-methods of forty-six pass, against twenty-three at phase 15: `globals()` and
-`dir()` were what eleven of them were waiting for. Running the whole of
+[test/cpython.txt](test/cpython.txt), nine of them run, and forty-nine test
+methods of eighty-three pass, against thirty-four of forty-six at phase 16:
+`test_typechecks.py` passes outright and `test_property.py` runs at all for the
+first time. Running the whole of
 `Lib/test/` under this interpreter — `node test/pycases.mjs --survey`, which
 needs the clone in `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 14 | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- | --- |
-| 276 | a module that is not written yet | 276 | 213 | 130 | phase 18 |
-| 43 | other syntax — `@`, `except*`, `:=` in a subscript | 43 | 34 | 28 | phase 24 |
-| 33 | a lone surrogate in a literal | 33 | 31 | 31 | phase 22 |
-| 15 | `async` | 15 | 13 | 3 | phase 23 |
-| 14 | `\N{...}` | 14 | 12 | 12 | phase 22 |
-| 7 | these run | 7 | 5 | 3 | |
-| — | complex numbers | — | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | — | 39 | 17 | **done** |
-| — | f-strings | — | — | 124 | **done** |
+| now | what stops it | 16 | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- | --- |
+| 276 | a module that is not written yet | 276 | 276 | 213 | 130 | phase 18 |
+| 43 | other syntax — `@`, `except*`, `:=` in a subscript | 43 | 43 | 34 | 28 | phase 24 |
+| 33 | a lone surrogate in a literal | 33 | 33 | 31 | 31 | phase 22 |
+| 15 | `async` | 15 | 15 | 13 | 3 | phase 23 |
+| 14 | `\N{...}` | 14 | 14 | 12 | 12 | phase 22 |
+| 9 | these run | 7 | 7 | 5 | 3 | |
+| 1 | a runtime error, or nothing this can read | 3 | 3 | 3 | 2 | |
+| — | complex numbers | — | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | — | 39 | 17 | **done** |
+| — | f-strings | — | — | — | 124 | **done** |
 
-The survey has not moved in two phases, and that is the point of keeping the
-older columns. Three walls came down in phases 13 and 14, and what stops 276
-of the 391 files now is a module nobody has written. Neither generators nor
-`exec` were ever what stopped a file here: `test_generators.py`,
-`test_funcattrs.py` and `test_compile.py` stop at an import of `doctest`,
-`typing` or `dis`. What those two phases moved is inside the seven that
-already run.
+Three walls came down in phases 13 and 14, and what stops 276 of the 391 files
+now is a module nobody has written. This phase moved the only column it could
+reach: two of the three files that started and then failed now run to the end.
+Neither generators nor `exec` were ever what stopped a file here —
+`test_generators.py`, `test_funcattrs.py` and `test_compile.py` stop at an
+import of `doctest`, `typing` or `dis` — so what those phases moved is inside
+the files that already run, and that count is the number to read beside this
+table.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -183,7 +223,12 @@ green.
 | [gen.h](gen.h), [gen.cpp](gen.cpp) | The generator, which is a frame parked rather than popped |
 | [vm.h](vm.h), [vm.cpp](vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
 | [func.h](func.h), [func.cpp](func.cpp) | Cells, functions, builtins written in C++, and modules |
-| [type.h](type.h), [type.cpp](type.cpp) | Type objects, instances, the MRO and the descriptors |
+| [type.h](type.h), [type.cpp](type.cpp) | Type objects, instances, the MRO, the metaclasses and the class hooks |
+| [attr.cpp](attr.cpp) | The descriptor protocol, the attribute algorithm and `__slots__` |
+| [compare.h](compare.h), [compare.cpp](compare.cpp) | The sorts and searches that have to call Python, as continuations |
+| [weak.h](weak.h), [weak.cpp](weak.cpp) | Weak references, and the callbacks the sweep owes for them |
+| [abc.h](abc.h), [abc.cpp](abc.cpp) | `_abc`: the floor CPython's own abc.py stands on |
+| [lib/](lib/) | Modules taken from CPython's library, byte for byte |
 | [call.h](call.h), [call.cpp](call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
 | [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices, ranges and the three iterators |
@@ -193,6 +238,7 @@ green.
 | [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary, run a command, read back what it wrote |
 | [test/pysmoke.mjs](test/pysmoke.mjs) | That the program starts, answers its flags, and reports the right status |
 | [test/pygc.mjs](test/pygc.mjs) | Drives `--selftest` and reads what it printed |
+| [test/pytype.mjs](test/pytype.mjs) | The descriptors, `__slots__`, the metaclasses, the finalizers and abc |
 | [test/pylex.mjs](test/pylex.mjs) | Every source under `test/lex/`, token for token |
 | [test/pyast.mjs](test/pyast.mjs) | Every source under `test/ast/`, node for node |
 | [test/pydis.mjs](test/pydis.mjs) | Every source under `test/dis/`, instruction for instruction |
@@ -317,9 +363,8 @@ All recorded rather than hidden, and all in reach later:
   compiler with a `SyntaxError` that says so.
 - **A class repr has no module in it.** CPython prints
   `<class '__main__.C'>`; this prints `<class 'C'>`, there being one module.
-- **`__set_name__` and `@` are not there.** The first is a descriptor hook the
-  class body would have to call; the second is an operator the parser does not
-  know.
+- **`@` is not there.** The matrix-multiply operator is one the parser does
+  not know; it is phase 24.
 - **`map` and `filter` are eager.** CPython calls the function at each `next`;
   these call it over the whole input first and hand back an iterator on the
   result. The two differ only where the input is endless or the function has an
@@ -330,14 +375,25 @@ All recorded rather than hidden, and all in reach later:
   drains it into a list. Nothing differs unless the generator is endless or its
   effects are watched for. `for x in g` and `yield from g` are lazy, because
   those are opcodes and an opcode can suspend.
-- **A generator that is never closed never runs its `finally`.** CPython closes
-  one as it collects it, through `__del__`; there is no `__del__` here yet, so
-  a generator dropped mid-yield is simply freed. Phase 17.
-- **A sort, a `min` or an `index` cannot call a Python `__lt__` or `__eq__`.**
-  The comparison happens inside C++, which cannot push a frame. So
-  `[A(1), A(2)].sort()` on a class with `__lt__` raises `TypeError` where `a <
-  b` on the same two works. `sorted`, `min` and `max` have had this since
-  phase 8; `list.sort` and `list.index` join them.
+- **A finalizer runs when the collector gets to it, not when the last name
+  goes.** CPython counts references, so `c = None` on the last one runs
+  `__del__` there and then; this collects on allocation pressure, so a `__del__`
+  and a weak reference's callback happen at the next collection and then at the
+  next opcode. What runs is Python's; *when* is this port's, and a program that
+  needs a finalizer at a point should use `with` instead. The rules hold either
+  way: one call per object ever, a resurrected object never finalized again,
+  weak references cleared before any finalizer can see them, and an exception
+  out of one reported and ignored.
+- **An instance used as a dict key hashes by identity unless it is
+  unhashable.** `py_hash` is C++ and cannot call a `__hash__` written in
+  Python. A class that writes `__eq__` and no `__hash__` is unhashable, which
+  is CPython's rule and takes the common case out of harm's way; a class that
+  writes both gets a dict that agrees with `is` rather than with `==`.
+  `hash(x)` itself is an opcode away from a frame and does call it.
+- **A built-in type's namespace holds no protocol methods.** `'__len__' in
+  list.__dict__` is False and `dir(list)` does not list it: `len(x)` reaches a
+  slot, not an entry. Phase 18 gives them entries, which is what
+  `collections.abc`'s `__subclasshook__` reads.
 - **`memoryview` is one octet wide and has no stride.** A slice of a step
   other than 1 raises `NotImplementedError`, and `itemsize` and `format` are
   not there; `array` is what would give them meaning, and it is phase 18.
@@ -524,6 +580,107 @@ innermost generator that can catch it. `close` is the exception to that: a
 sub-iterator first, and only then reaches the `yield from` itself. That is what
 lets a delegating generator run its own `except GeneratorExit`.
 
+## How an attribute is found
+
+`obj.name` is not a dict lookup. It is the descriptor protocol, and phase 9
+knew one instance of it -- `property` -- and looked for that by hand. The rule
+[attr.cpp](attr.cpp) states instead is CPython's: a class-dict entry with a
+`__get__` is a descriptor, one that also has a `__set__` or a `__delete__` is a
+*data* descriptor, and only a data descriptor comes before the instance's own
+namespace. Functions, `staticmethod`, `classmethod`, `property` and a
+`__slots__` member are all instances of that one rule; the first three are
+answered in C++ because their `__get__` cannot fail and cannot call Python.
+
+What makes this the shape it is, rather than a function returning a value, is
+that nearly every step of it *may be Python*: a property's getter, a
+descriptor's `__get__`, a class's `__getattribute__`, its `__getattr__`. Ground
+rule 2 says the lookup cannot make that call. So `py_attr` answers one of four
+things -- the value, nothing, an error, or **a continuation the caller runs** --
+and the VM, `getattr` and `hasattr` all drive it the same way. The fallback
+chain lives inside that continuation: `__getattribute__` first, an
+`AttributeError` out of it caught, `__getattr__` next, and only then either the
+default `hasattr` was given or the exception carrying on.
+
+`object.__getattribute__`, `object.__setattr__` and `object.__delattr__` are
+real natives in `object`'s namespace, which is what lets a class override one
+and still reach the default through `super()` -- the ordinary way to write a
+`__setattr__` that stores after all. Finding one of them *is* finding the
+default, so `type_hook` treats it as no hook at all, and the same test says
+whether a class wrote an `__init__` of its own.
+
+`__slots__` is the layout question rather than the lookup one. Each name
+becomes a member descriptor over an index, and the instance's slot array sits
+straight after its header, where the base's ended. A class that declares
+`__slots__` and whose bases all did has no instance dict at all: `o.__dict__`
+is an `AttributeError` and a name that is not a slot cannot be stored.
+
+## How a class is made
+
+`class C(B, metaclass=M, x=1)` is five steps, and four of them can call Python,
+so [type.cpp](type.cpp)'s `build_step` is a state machine rather than a
+function. A base that is not a class is asked for its `__mro_entries__` and
+replaced by what it names, which may change the bases again, so that step
+loops; the metaclass is then the most derived of the one asked for and the
+bases' own, and a disagreement is the `TypeError` CPython raises rather than a
+silent choice. `M.__prepare__` says what namespace the body runs in, the body
+runs in it, and then the metaclass is *called* -- which is what makes
+`M.__new__` and `M.__init__` run, and what carries the class keywords to them.
+
+A class is an instance of its metaclass in the layout too: `is_type` is a flag
+on the object rather than a compare against one descriptor, and a class made by
+a metaclass points at that metaclass's slots. So `type(C) is M`, `M`'s own
+methods are found on `C`, and a data descriptor on `M` comes before `C`'s
+namespace the way one on `C` comes before an instance's.
+
+The hooks a fresh class owes run inside `type.__new__`, which is where CPython
+runs them: `__set_name__` over every entry in the namespace, then
+`__init_subclass__` on the base with whatever keywords are left. Both are
+Python, so that too is a continuation -- and because it lives in `type.__new__`
+rather than in the `class` statement, `type('C', (B,), ns)` gets them as well.
+
+## How a finalizer runs
+
+`__del__` and a weak reference's callback make the collector's sweep
+observable, and a sweep cannot call Python. So [gc.cpp](gc.cpp) does not run
+them: it *owes* them. Between marking and sweeping, where everything is still
+whole, [weak.cpp](weak.cpp) clears every reference whose target is about to go
+and owes its callback; then every unmarked object whose class writes `__del__`
+is owed one, and owing it marks the object, so this collection leaves it -- and
+everything it reaches -- alone. The VM makes the calls between two opcodes,
+which is the same place a `^C` is delivered and for the same reason.
+
+Three rules fall out of that order, and they are the ones a program can see. A
+finalizer is owed **once per object, ever**, so a `__del__` that stores `self`
+somewhere resurrects it and is never called again. A weak reference is cleared
+**before** any finalizer runs, so a `__del__` can never be handed a dangling
+one. And an exception out of a finalizer is reported and goes no further: there
+is no statement it came from for a handler to belong to, which the continuation
+says by catching everything.
+
+A generator carries the same flag. One dropped at a `yield` is owed a `close`
+rather than a `__del__`, and that is what runs the `finally` it was sitting
+inside.
+
+## How a comparison calls Python
+
+`py_cmp` and `py_eq` are C++ and cannot push a frame, so for eight phases a
+class with a `__lt__` could not be sorted and one with an `__eq__` could not be
+found. The fix is the one the plan named: a continuation that owns the loop.
+[compare.cpp](compare.cpp) writes the merge, the fold, the search and the
+item-by-item sequence compare as state machines over one object -- the merge's
+`w`, `lo`, `i`, `j` and `o` are fields rather than locals -- and each comparison
+that needs Python is one request the VM answers. A nested one, a list of lists
+of instances, chains a second driver in front of the first, so the depth costs
+continuations rather than native stack.
+
+The algorithms are the same as the plain ones beside them: bottom-up,
+iterative, stable, the left run winning a tie. A reverse sort swaps the
+operands rather than the operator, so only `__lt__` is ever asked for, which is
+what CPython's sort promises. And the reflected method is tried even between
+two of the same class, because `do_richcompare` does -- that is what lets a
+class with only a `__lt__` answer `>` as well, and it is the one place a
+comparison differs from an arithmetic operator.
+
 ## Testing
 
 `make test` from the top of the tree runs everything; one file at a time:
@@ -570,9 +727,10 @@ ends in `_err` is one that must be refused, and its golden holds the complaint;
 `node test/pylex.mjs --bless` and `node test/pyast.mjs --bless` rewrite those,
 after reading the diff.
 
-A formatting case is a `.py` under `test/format/` that prints, and a number
-case one under `test/number/`; the golden for either is what CPython prints
-for it:
+A formatting case is a `.py` under `test/format/`, a number case one under
+`test/number/`, a namespace case one under `test/exec/` and a type-system case
+one under `test/type/`; each is a program that prints, and the golden is what
+CPython prints for it:
 
     tools/mkfmt.py test/format/spec.py
 

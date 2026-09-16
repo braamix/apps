@@ -1,0 +1,30 @@
+prepare Thing [('colour', 'blue')]
+new Thing ['planted', 'value'] ['colour']
+init Thing ['colour']
+True by __prepare__ 1 True
+THING
+True True
+prepare Sub []
+new Sub ['planted'] []
+init Sub []
+True SUB
+new Made ['extra'] []
+init Made []
+True 2 MADE
+[('One', 'first'), ('Two', None), ('Three', 'third')]
+NameError
+TypeError for an unconsumed keyword
+set_name Holder first
+set_name Holder second
+('Holder', 'first') ('Holder', 'second')
+('Generic', <class 'int'>)
+('Generic', ('a', 'b'))
+metaclass 1
+hello ['Real']
+True
+True False
+True False
+True
+Inner then Outer
+True True
+['Meta', 'type', 'object']

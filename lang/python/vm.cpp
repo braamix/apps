@@ -9,8 +9,10 @@
 // collector roots what a frame holds, so that discipline is the whole of it.
 #include "vm.h"
 
+#include "abc.h"
 #include "builtin.h"
 #include "call.h"
+#include "compare.h"
 #include "exc.h"
 #include "frame.h"
 #include "func.h"
@@ -21,6 +23,7 @@
 #include "iter.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
+#include "method.h"
 #include "ops.h"
 #include "proc/io.h"
 #include "type.h"
@@ -198,6 +201,26 @@ Value make_cells(CodeObj *co, Value closure)
 
 // ------------------------------------------------------------------- calling
 
+// A list to search: the list itself, or a fresh one holding a tuple's items.
+// Nil for anything else, and for an empty one -- which needs no search at all.
+Value list_or_tuple_of(Value v)
+{
+    if (is_list(v))
+        return list_of(v)->items.empty() ? Value() : v;
+    if (!is_tuple(v) || !static_cast<TupleObj *>(v.obj())->len)
+        return Value();
+    Root rv{ v };
+    ListObj *l = list_new();
+    if (!l)
+        return oom(), Value();
+    Root rl{ obj_value(l) };
+    TupleObj *t = static_cast<TupleObj *>(rv.v.obj());
+    for (usize i = 0; i < t->len; i++)
+        if (!list_push(list_of(rl.v), static_cast<TupleObj *>(rv.v.obj())->items()[i]))
+            return oom(), Value();
+    return rl.v;
+}
+
 // What to call a callable in a diagnostic.
 Str call_name(Value v)
 {
@@ -227,12 +250,13 @@ R init_step(ContObj *k, Value in)
 
 // A class that wrote its own __new__: call it, then __init__ on what it made
 // if that is an instance of the class. s[0] is the class, s[1] the arguments
-// __new__ takes and s[2] the ones __init__ does.
+// __new__ takes, s[2] the ones __init__ does and s[5]/s[6] the keywords both
+// of them take.
 R new_step(ContObj *k, Value in)
 {
     switch (k->i++) {
     case 0:
-        return cont_call_v(k, k->s[3], k->s[1]);
+        return cont_call_kw(k, k->s[3], k->s[1], k->s[5], k->s[6]);
     case 1: {
         if (!type_isinstance(in, k->s[0]))
             return cont_done(k, in);
@@ -243,13 +267,31 @@ R new_step(ContObj *k, Value in)
         k->s[4]       = in;
         TupleObj *t   = static_cast<TupleObj *>(k->s[2].obj());
         t->items()[0] = in;
-        return cont_call_v(k, init, k->s[2]);
+        return cont_call_kw(k, init, k->s[2], k->s[5], k->s[6]);
     }
     default:
         if (!is_none(in))
             return err_set2("TypeError", "__init__() should return None", type_name(in));
         return cont_done(k, k->s[4]);
     }
+}
+
+// The call's keywords as two tuples, for a continuation to hand on.
+bool kw_tuples(const CallArgs &a, Root &names, Root &vals)
+{
+    TupleObj *n = tuple_new(a.nkw);
+    if (!n)
+        return oom() == R::Ok;
+    names       = obj_value(n);
+    TupleObj *v = tuple_new(a.nkw);
+    if (!v)
+        return oom() == R::Ok;
+    vals = obj_value(v);
+    for (u32 i = 0; i < a.nkw; i++) {
+        static_cast<TupleObj *>(names.v.obj())->items()[i] = a.kwnames[i];
+        static_cast<TupleObj *>(vals.v.obj())->items()[i]  = a.kwvals[i];
+    }
+    return true;
 }
 
 // The instance a class deriving from an exception starts life as.
@@ -287,9 +329,16 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
     R r = type_lookup(rc.v, in, init.v);
     if (r == R::Err)
         return R::Err;
+    // object lends every class an __init__ that does nothing, so finding one
+    // is not the same as the class having written one.
+    bool own_init = r == R::Ok && !is_object_default(init.v);
 
     // A class that wrote __new__ decides what it gets, and gets `cls` first.
+    // A metaclass with none takes type's, which makes the class it is called
+    // to make; every other class without one is made here.
     Root own{ type_own_new(rc.v) };
+    if (own.v.is_nil() && type_obj(rc.v)->meta)
+        own = ctor.v;
     if (!own.v.is_nil()) {
         TupleObj *na = tuple_new(a.nargs + 1);
         if (!na)
@@ -304,6 +353,9 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
         for (u32 i = 0; i < a.nargs; i++)
             ia->items()[i + 1] = a.args[i];
         Root ria{ obj_value(ia) };
+        Root kwn, kwv;
+        if (!kw_tuples(a, kwn, kwv))
+            return R::Err;
         Root kv{ cont_new(new_step) };
         if (kv.v.is_nil())
             return R::Err;
@@ -312,8 +364,19 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
         k->s[1]    = rna.v;
         k->s[2]    = ria.v;
         k->s[3]    = own.v;
+        k->s[5]    = kwn.v;
+        k->s[6]    = kwv.v;
         out        = kv.v;
         return R::Ok;
+    }
+
+    // An abstract class is one whose methods are not all there yet.
+    Str missing;
+    if (abc_abstract(rc.v, missing)) {
+        Buf<96> m;
+        m.put("Can't instantiate abstract class ").put(type_obj(rc.v)->slots.name);
+        m.put(" with abstract method ").put(missing);
+        return err_set("TypeError", m.str());
     }
 
     // A class deriving from an exception is one: BaseException.__new__ keeps
@@ -332,12 +395,18 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
         CallArgs none;
         Value made;
         bool e         = false;
-        bool give_args = r != R::Ok || type_native_takes_args(rc.v);
+        bool give_args = !own_init || type_native_takes_args(rc.v);
         if (do_call(base.v, give_args ? a : none, made, e) != R::Ok)
             return R::Err;
         inst_of(self.v)->native = made;
     }
-    if (r == R::NotImpl) {
+    if (!own_init) {
+        // object.__init__ refuses arguments a __new__ did not take, which is
+        // how `object(1)` and `C(1)` for a C with neither become errors.
+        if ((a.nargs || a.nkw) && type_own_new(rc.v).is_nil() && type_obj(rc.v)->native.is_nil() &&
+            !type_obj(rc.v)->exc)
+            return err_set2("TypeError", "this class takes no arguments",
+                            type_obj(rc.v)->slots.name);
         out = self.v;
         return R::Ok;
     }
@@ -423,8 +492,17 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
         }
     }
 
-    if (!is_func(callable))
+    if (!is_func(callable)) {
+        // A built-in object may answer __call__ out of its own method table:
+        // a weak reference is called to get its target back.
+        StrObj *cl = str_intern("__call__");
+        Root fn;
+        if (!cl)
+            return oom();
+        if (callable.is_obj() && method_find(callable, cl, fn.v) == R::Ok)
+            return do_call(fn.v, a, out, entered);
         return err_set2("TypeError", "object is not callable", type_name(callable));
+    }
 
     FuncObj *fn = func_of(callable);
     CodeObj *co = code_of(fn->code);
@@ -471,6 +549,8 @@ bool run_cont(Value kv, Value in)
     for (;;) {
         ContObj *k = cont_of(rk.v);
         k->fn      = Value();
+        k->kwnames = Value();
+        k->kwvals  = Value();
         if (k->step(k, ri.v) != R::Ok)
             return false;
 
@@ -510,6 +590,11 @@ bool run_cont(Value kv, Value in)
         if (!k->argv.is_nil()) {
             a.args  = static_cast<TupleObj *>(k->argv.obj())->items();
             a.nargs = u32(static_cast<TupleObj *>(k->argv.obj())->len);
+        }
+        if (!k->kwnames.is_nil()) {
+            a.kwnames = static_cast<TupleObj *>(k->kwnames.obj())->items();
+            a.kwvals  = static_cast<TupleObj *>(k->kwvals.obj())->items();
+            a.nkw     = u32(static_cast<TupleObj *>(k->kwnames.obj())->len);
         }
         Value out;
         bool entered = false;
@@ -672,6 +757,24 @@ R next_step(ContObj *k, Value in)
     return push(f, in) ? cont_done(k, value_none()) : R::Err;
 }
 
+// A finalizer: s[0] the callable, s[1] its one argument or Nil. Whatever it
+// raises is caught here and reported rather than raised on, because there is
+// no statement for it to have come from.
+R final_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0) {
+        k->catching = CATCH_ANY;
+        return cont_call(k, k->s[0], k->s[1], k->s[1].is_nil() ? 0 : 1);
+    }
+    if (in.is_nil() && !k->caught.is_nil()) {
+        vm->tb.clear();
+        vm->err.append("Exception ignored in a finalizer:\n");
+        exc_line(k->caught, vm->err);
+        vm->err.push('\n');
+    }
+    return cont_done(k, value_none());
+}
+
 // Run a bound special method: pop `pop` values off the frame, then the answer
 // lands where a call's would, unless `what` says otherwise.
 bool run_special(FrameObj *f, Value m, const Value *args, u32 n, u32 pop, u32 what = SP_KEEP)
@@ -729,8 +832,10 @@ bool dunder_binop(FrameObj *f, Value a, Value b, u32 tag, Dunder d, bool &done)
 {
     Root left{ type_special(a, d.name) };
     Root right;
-    // The reflected call only where the other side is a different class.
-    if (!(is_inst(a) && is_inst(b) && inst_of(a)->cls == inst_of(b)->cls))
+    // An operator tries the reflected call only where the other side is a
+    // different class; a comparison tries it either way, which is what lets a
+    // class with only a __lt__ answer `>` between two of its own.
+    if ((tag & 0x100) || !(is_inst(a) && is_inst(b) && inst_of(a)->cls == inst_of(b)->cls))
         right = type_special(b, d.refl);
     done = !left.v.is_nil() || !right.v.is_nil();
     if (!done)
@@ -858,6 +963,8 @@ bool cont_catches(Value kv, Value e)
     u32 c = cont_of(kv)->catching;
     if (c == CATCH_NONE)
         return false;
+    if (c == CATCH_ANY)
+        return true; // a finalizer: whatever it raises stops here
     if (c == CATCH_EXIT)
         return exc_is(exc_type_of(e), exc_find("StopIteration")) ||
                exc_is(exc_type_of(e), exc_find("GeneratorExit"));
@@ -1368,6 +1475,11 @@ void interpret()
         if (vm->finished || !vm->reading.is_nil() || vm->out.size() >= FLUSH_AT || !vm->budget--)
             return;
 
+        // The `self` of the last bound call is a root while the call is being
+        // made and not after it: leaving it there would keep an object alive
+        // until the next method call, which a finalizer would then be late by.
+        vm->bound.clear();
+
         // The file an import asked for has arrived. Hand it to the step that
         // parked, as a str, or None when there was no such file.
         if (!vm->resume.is_nil()) {
@@ -1403,6 +1515,40 @@ void interpret()
             vm->tb.clear();
             if (!raise_value(err_pending() ? pending_exception() : e.v))
                 return;
+            continue;
+        }
+
+        // A finalizer the collector owes: a __del__, or a weak reference's
+        // callback. Both are Python and the sweep is not, so they are made
+        // here, between two opcodes, where a frame can be pushed. An exception
+        // out of one is reported and goes no further, which is what CPython
+        // means by ignoring it.
+        if (gc_owes()) {
+            Root o, fn;
+            gc_take(o.v, fn.v);
+            // A generator parked at a yield is closed rather than deleted,
+            // which is what runs the `finally` it is sitting inside.
+            Root m{ !fn.v.is_nil() ? fn.v
+                    : is_gen(o.v) ? (gen_of(o.v)->state == GEN_SUSPENDED ? genrun_new(o.v, GR_CLOSE)
+                                                                         : Value())
+                                  : type_special(o.v, "__del__") };
+            if (m.v.is_nil()) {
+                err_clear();
+                continue;
+            }
+            Root kv{ cont_new(final_step) };
+            if (kv.v.is_nil()) {
+                err_clear();
+                continue;
+            }
+            cont_of(kv.v)->s[0] = m.v;
+            cont_of(kv.v)->s[1] = fn.v.is_nil() ? Value() : o.v;
+            cont_of(kv.v)->drop = true;
+            if (!run_cont(kv.v, Value())) {
+                report(pending_exception());
+                err_clear();
+                vm->tb.clear();
+            }
             continue;
         }
 
@@ -1592,20 +1738,8 @@ void interpret()
                 if (g == Got::Error)
                     goto oops;
                 if (g == Got::Missing) {
-                    // A __getattr__ is the last word; without one it is an error.
-                    if (got.is_nil()) {
-                        no_attr(st[f->sp - 1], name);
-                        goto oops;
-                    }
-                    Value key = obj_value(name);
-                    CallArgs a;
-                    a.args       = &key;
-                    a.nargs      = 1;
-                    bool entered = false;
-                    f->sp--;
-                    if (do_call(got, a, got, entered) != R::Ok || !land(got, entered))
-                        goto oops;
-                    break;
+                    no_attr(st[f->sp - 1], name);
+                    goto oops;
                 }
                 f->sp--;
                 if (g == Got::Ok) {
@@ -1613,42 +1747,44 @@ void interpret()
                         goto oops;
                     break;
                 }
-                // A property: its getter is Python, so the VM runs it.
-                CallArgs a;
-                bool entered = false;
-                if (do_call(got, a, got, entered) != R::Ok || !land(got, entered))
+                // A getter, a __get__, a __getattribute__: all Python, and
+                // parked in a continuation the VM drives.
+                if (!land(got, false))
                     goto oops;
                 break;
             }
             case Bc::StoreAttr: {
                 StrObj *name = str_of(co->names[arg]);
-                Value m      = type_property(st[f->sp - 1], name, 1);
-                if (!m.is_nil()) {
-                    if (!run_special(f, m, &st[f->sp - 2], 1, 2, SP_DROP))
-                        goto oops;
-                    break;
-                }
-                if (inst_setattr(st[f->sp - 1], name, st[f->sp - 2]) != R::Ok)
+                Value fn;
+                if (attr_store(st[f->sp - 1], name, st[f->sp - 2], fn) != R::Ok)
                     goto oops;
                 f->sp -= 2;
+                if (fn.is_nil())
+                    break;
+                cont_of(fn)->drop = true;
+                if (!land(fn, false))
+                    goto oops;
                 break;
             }
             case Bc::DeleteAttr: {
                 StrObj *name = str_of(co->names[arg]);
-                Value m      = type_property(st[f->sp - 1], name, 2);
-                if (!m.is_nil()) {
-                    if (!run_special(f, m, nullptr, 0, 1, SP_DROP))
-                        goto oops;
-                    break;
-                }
-                if (inst_delattr(st[f->sp - 1], name) != R::Ok)
+                Value fn;
+                if (attr_delete(st[f->sp - 1], name, fn) != R::Ok)
                     goto oops;
                 f->sp--;
+                if (fn.is_nil())
+                    break;
+                cont_of(fn)->drop = true;
+                if (!land(fn, false))
+                    goto oops;
                 break;
             }
 
             case Bc::LoadSubscr: {
-                Value m = type_special(st[f->sp - 2], "__getitem__");
+                // A class is subscripted through its metaclass or its own
+                // __class_getitem__; anything else through __getitem__.
+                Value m = is_type(st[f->sp - 2]) ? type_getitem_of(st[f->sp - 2])
+                                                 : type_special(st[f->sp - 2], "__getitem__");
                 if (!m.is_nil()) {
                     if (!run_special(f, m, &st[f->sp - 1], 1, 2))
                         goto oops;
@@ -1802,10 +1938,33 @@ void interpret()
                             goto oops;
                         break;
                     }
+                    // An __eq__ written in Python makes the scan a call each
+                    // time, so the search owns the loop and suspends.
+                    Value seq = list_or_tuple_of(st[f->sp - 1]);
+                    if (!seq.is_nil() && (cmp_is_python(st[f->sp - 2], false) ||
+                                          cmp_any_python(list_of(seq)->items, false))) {
+                        Value c = cmp_find(seq, st[f->sp - 2], op == Cmp::In ? CMP_IN : CMP_NOTIN,
+                                           0, list_of(seq)->items.size());
+                        f->sp -= 2;
+                        if (c.is_nil() || !land(c, false))
+                            goto oops;
+                        break;
+                    }
                     if (py_contains(st[f->sp - 1], st[f->sp - 2], ok) != R::Ok)
                         goto oops;
                     if (op == Cmp::NotIn)
                         ok = !ok;
+                } else if ((op == Cmp::Eq || op == Cmp::Ne) &&
+                           cmp_same_kind(st[f->sp - 2], st[f->sp - 1]) &&
+                           (cmp_is_python(st[f->sp - 2], false) ||
+                            cmp_is_python(st[f->sp - 1], false))) {
+                    // Two sequences of things that compare in Python: item by
+                    // item, and each item is a call.
+                    Value c = cmp_seq(st[f->sp - 2], st[f->sp - 1], op == Cmp::Ne);
+                    f->sp -= 2;
+                    if (c.is_nil() || !land(c, false))
+                        goto oops;
+                    break;
                 } else if (is_inst(st[f->sp - 2]) || is_inst(st[f->sp - 1])) {
                     bool done = false;
                     if (!dunder_binop(f, st[f->sp - 2], st[f->sp - 1], arg | 0x100, cmp_dunder(op),

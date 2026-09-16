@@ -1,0 +1,42 @@
+class d plain
+unset
+set d 7
+7 {'_d': 7}
+del d
+unset
+plain
+shadowed
+unset
+42
+-1
+property the doc
+True True True
+('n', 'Sub') ('n', 'Base')
+1
+AttributeError
+1 2
+AttributeError
+no such slot
+no dict
+member_descriptor
+10 20 30
+1 2
+put x 1
+get x
+1
+drop x
+get x
+missing
+1 fallback:elsewhere
+fallback:anything fallback:x True
+direct after:other
+after:q True
+set d 5
+5
+True none of it
+Eq unhashable
+NoHash unhashable
+42 True
+True True True
+C (<class 'object'>,) 2
+['C', 'object']

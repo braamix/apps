@@ -28,14 +28,16 @@ struct ContObj : Obj {
     ContFail fail; // null when there is nothing to undo
     // The builtin to enter again once the drain is done; see iter_park.
     R (*redo)(const CallArgs &, Value &out);
-    Value s[6];   // the builtin's own state
-    Value fn;     // what to call next, Nil when there is nothing left to call
-    Value a[2];   // its arguments
-    Value argv;   // or a tuple of them, when there are more than two
-    Value out;    // the answer, once fn is Nil
-    Value next;   // the ContObj waiting on this one, or Nil
-    Value locals; // the namespace the next call's frame runs in, or Nil
-    Value caught; // the exception `catching` swallowed
+    Value s[8];    // the builtin's own state
+    Value fn;      // what to call next, Nil when there is nothing left to call
+    Value a[2];    // its arguments
+    Value argv;    // or a tuple of them, when there are more than two
+    Value kwnames; // TupleObj of StrObj, or Nil: keywords for the next call
+    Value kwvals;  // TupleObj beside it
+    Value out;     // the answer, once fn is Nil
+    Value next;    // the ContObj waiting on this one, or Nil
+    Value locals;  // the namespace the next call's frame runs in, or Nil
+    Value caught;  // the exception `catching` swallowed
     u32 nargs;
     u32 i, j;     // counters a step keeps across its requests
     u32 catching; // a CATCH_*: the step is resumed with Nil rather than unwound
@@ -45,7 +47,7 @@ struct ContObj : Obj {
 
 // What a continuation is willing to catch out of the call it asked for. The
 // step is re-entered with Nil instead, and `caught` holds the exception.
-enum : u32 { CATCH_NONE, CATCH_STOP, CATCH_ATTR, CATCH_EXIT };
+enum : u32 { CATCH_NONE, CATCH_STOP, CATCH_ATTR, CATCH_EXIT, CATCH_ANY };
 
 extern const Type cont_type;
 
@@ -78,6 +80,16 @@ inline R cont_call_v(ContObj *k, Value fn, Value args)
 {
     k->fn   = fn;
     k->argv = args;
+    return R::Ok;
+}
+
+// The same with keywords: `names` and `vals` are two tuples of equal length.
+inline R cont_call_kw(ContObj *k, Value fn, Value args, Value names, Value vals)
+{
+    k->fn      = fn;
+    k->argv    = args;
+    k->kwnames = names;
+    k->kwvals  = vals;
     return R::Ok;
 }
 

@@ -138,6 +138,8 @@ R py_hash(Value v, u32 &out)
         out = u32(n);
         return R::Ok;
     }
+    if (type_unhashable(v))
+        return err_set2("TypeError", "unhashable type", type_name(v));
     const Type *t = type_of(v);
     if (t && t->hash)
         return t->hash(v, out);

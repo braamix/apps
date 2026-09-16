@@ -1,0 +1,30 @@
+[Box(1b), Box(1d), Box(2c), Box(3a), Box(3e)]
+[Box(3a), Box(3e), Box(2c), Box(1b), Box(1d)]
+Box(1b) Box(3a)
+[Box(1b), Box(1d), Box(2c), Box(3a), Box(3e)]
+Box(1b) Box(3a)
+['b', 'd', 'c', 'a', 'e']
+['a', 'e', 'c', 'b', 'd']
+[Box(1b), Box(1d), Box(2c), Box(3a), Box(3e)]
+[Box(3a), Box(3e), Box(2c), Box(1b), Box(1d)]
+[Box(3a), Box(3e), Box(2c), Box(1b), Box(1d)]
+2 2 0
+True False True
+2 2
+[Box(1b), Box(2c), Box(1d), Box(3e)]
+ValueError
+ValueError
+[Only(1), Only(2), Only(3)] Only(3) Only(1)
+True True
+TypeError
+True 0
+True
+True True
+[] [Box(1)]
+True True
+True
+False
+True
+False True
+False
+False

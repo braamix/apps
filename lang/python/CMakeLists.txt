@@ -14,14 +14,14 @@ endif()
 #
 # Sources arrive a phase at a time; TODO.md names them.
 braam_add_program(NAME python
-                  SOURCES astdump.cpp bigint.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp
-                          code.cpp compile.cpp complex.cpp
+                  SOURCES abc.cpp astdump.cpp attr.cpp bigint.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp
+                          code.cpp compare.cpp compile.cpp complex.cpp
                           dis.cpp err.cpp exc.cpp float.cpp format.cpp formatgr.cpp frame.cpp func.cpp gc.cpp
                           gen.cpp import.cpp int.cpp
                           intern.cpp iter.cpp lex.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
                           obj.cpp ops.cpp parse.cpp
                           repr.cpp selftest.cpp seqmeth.cpp str.cpp strmeth.cpp symtab.cpp
-                          table.cpp tuple.cpp type.cpp
+                          table.cpp tuple.cpp type.cpp weak.cpp
                           vm.cpp
                   LIBS braam::math)
 

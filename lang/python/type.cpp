@@ -62,6 +62,8 @@ void type_trace(Obj *o)
     gc_mark(t->bases);
     gc_mark(t->mro);
     gc_mark(t->native);
+    gc_mark(t->origbases);
+    gc_mark(t->subs);
 }
 
 R type_repr(Value v, String &out)
@@ -71,35 +73,16 @@ R type_repr(Value v, String &out)
     return out.append(b.str()) ? R::Ok : oom();
 }
 
-R type_getattr(Value v, StrObj *name, Value &out)
-{
-    Str n = name->str();
-    if (n == "__name__") {
-        out = type_obj(v)->name;
-        return R::Ok;
-    }
-    if (n == "__bases__") {
-        out = type_obj(v)->bases;
-        return out.is_nil() ? R::NotImpl : R::Ok;
-    }
-    if (n == "__dict__") {
-        out = type_obj(v)->dict;
-        return out.is_nil() ? R::NotImpl : R::Ok;
-    }
-    Root found, owner;
-    R r = type_lookup(v, name, found.v, &owner.v);
-    if (r != R::Ok)
-        return r;
-    // Reached through the class: nothing to bind a function to.
-    return type_bind(found.v, Value(), v, out);
-}
-
 void inst_trace(Obj *o)
 {
     InstObj *i = static_cast<InstObj *>(o);
     gc_mark(i->cls);
     gc_mark(i->dict);
     gc_mark(i->native);
+    u32 n    = 0;
+    Value *s = inst_slots(o, n);
+    for (u32 k = 0; k < n; k++)
+        gc_mark(s[k]);
 }
 
 R inst_repr(Value v, String &out)
@@ -150,6 +133,8 @@ void prop_trace(Obj *o)
     gc_mark(p->get);
     gc_mark(p->set);
     gc_mark(p->del);
+    gc_mark(p->doc);
+    gc_mark(p->pname);
 }
 
 void wrap_trace(Obj *o)
@@ -165,6 +150,7 @@ void super_trace(Obj *o)
 }
 
 R prop_getattr(Value v, StrObj *name, Value &out);
+R prop_setattr(Value v, StrObj *name, Value val);
 
 R plain_repr(Value v, String &out)
 {
@@ -391,29 +377,41 @@ void copy_slots(Type &s, const Type *n)
         s.getattr = dg_getattr;
 }
 
-TypeObj *type_alloc()
+// `d` is the descriptor the object points at: `type` itself, or a metaclass's
+// slots where one made this class.
+TypeObj *type_alloc_at(const Type *d)
 {
-    TypeObj *t = static_cast<TypeObj *>(obj_alloc(&type_type, sizeof(TypeObj)));
+    TypeObj *t = static_cast<TypeObj *>(obj_alloc(d, sizeof(TypeObj)));
     if (!t)
         return oom(), nullptr;
-    t->slots  = Type{};
-    t->name   = Value();
-    t->dict   = Value();
-    t->bases  = Value();
-    t->mro    = Value();
-    t->native = Value();
-    t->desc   = nullptr;
-    t->exc    = nullptr;
-    t->heap   = false;
+    t->flags |= OBJ_TYPE;
+    t->slots     = Type{};
+    t->name      = Value();
+    t->dict      = Value();
+    t->bases     = Value();
+    t->mro       = Value();
+    t->native    = Value();
+    t->origbases = Value();
+    t->subs      = Value();
+    t->desc      = nullptr;
+    t->exc       = nullptr;
+    t->nslots    = 0;
+    t->slotoff   = sizeof(InstObj);
+    t->heap      = false;
+    t->meta      = false;
+    t->nodict    = false;
+    t->hasdel    = false;
     return t;
+}
+
+TypeObj *type_alloc()
+{
+    return type_alloc_at(&type_type);
 }
 
 } // namespace
 
-constexpr Type type_type{ .name    = "type",
-                          .trace   = type_trace,
-                          .repr    = type_repr,
-                          .getattr = type_getattr };
+constexpr Type type_type{ .name = "type", .trace = type_trace, .repr = type_repr };
 
 constexpr Type method_type{ .name    = "method",
                             .trace   = method_trace,
@@ -423,16 +421,16 @@ constexpr Type method_type{ .name    = "method",
 constexpr Type property_type{ .name    = "property",
                               .trace   = prop_trace,
                               .repr    = plain_repr,
-                              .getattr = prop_getattr };
+                              .getattr = prop_getattr,
+                              .setattr = prop_setattr };
 
 constexpr Type staticmethod_type{ .name = "staticmethod", .trace = wrap_trace, .repr = plain_repr };
 
 constexpr Type classmethod_type{ .name = "classmethod", .trace = wrap_trace, .repr = plain_repr };
 
-constexpr Type super_type{ .name    = "super",
-                           .trace   = super_trace,
-                           .repr    = super_repr,
-                           .getattr = super_getattr };
+// No getattr slot: attr.cpp answers a super() lookup, because it goes through
+// the descriptor protocol and may therefore have to call Python.
+constexpr Type super_type{ .name = "super", .trace = super_trace, .repr = super_repr };
 
 // The descriptor `object`'s TypeObj wraps; instances of a plain class point at
 // a copy of it inside their own type.
@@ -563,9 +561,74 @@ Value inst_new(Value cls)
     return obj_value(type_alloc_inst(cls, sizeof(InstObj)));
 }
 
+namespace {
+
+// __slots__ is a name or an iterable of them. Each becomes a member descriptor
+// in the class namespace over an index into the instance's slot array, which
+// starts where the base's ended.
+bool slots_declare(Value cls, u32 base)
+{
+    Root rc{ cls };
+    StrObj *key = str_intern("__slots__");
+    if (!key)
+        return oom(), false;
+    Root spec;
+    DictObj *d = dict_at(type_obj(rc.v)->dict);
+    R r        = dict_get(d, obj_value(key), spec.v);
+    if (r == R::Err)
+        return false;
+    type_obj(rc.v)->nslots = base;
+    if (r != R::Ok)
+        return true;
+
+    Root names;
+    if (is_str(spec.v)) {
+        TupleObj *one = tuple_new(1);
+        if (!one)
+            return oom(), false;
+        one->items()[0] = spec.v;
+        names           = obj_value(one);
+    } else {
+        ListObj *l = py_list_of(spec.v);
+        if (!l)
+            return false;
+        names = obj_value(l);
+    }
+
+    ListObj *l = is_list(names.v) ? list_of(names.v) : nullptr;
+    usize n    = l ? l->items.size() : tuple_len(names.v);
+    for (usize i = 0; i < n; i++) {
+        Root one{ l ? l->items[i] : tuple_at(names.v, i) };
+        if (!is_str(one.v)) {
+            err_set2("TypeError", "__slots__ items must be strings", type_name(one.v));
+            return false;
+        }
+        StrObj *nm = str_intern(str_of(one.v)->str());
+        if (!nm)
+            return oom(), false;
+        Root rn{ obj_value(nm) };
+        MemberObj *m = static_cast<MemberObj *>(obj_alloc(&member_type, sizeof(MemberObj)));
+        if (!m)
+            return oom(), false;
+        m->name  = rn.v;
+        m->cls   = rc.v;
+        m->index = type_obj(rc.v)->nslots++;
+        if (dict_set(dict_at(type_obj(rc.v)->dict), rn.v, obj_value(m)) != R::Ok)
+            return false;
+    }
+    return true;
+}
+
+} // namespace
+
 Value type_new(Value name, Value bases, Value dict)
 {
-    Root rn{ name }, rb{ bases }, rd{ dict };
+    return type_new_meta(Value(), name, bases, dict);
+}
+
+Value type_new_meta(Value meta, Value name, Value bases, Value dict)
+{
+    Root rm{ meta }, rn{ name }, rb{ bases }, rd{ dict };
     if (rb.v.is_nil() || !tuple_len(rb.v)) {
         Value ob = type_object();
         if (ob.is_nil())
@@ -581,7 +644,9 @@ Value type_new(Value name, Value bases, Value dict)
             return err_set2("TypeError", "a base is not a class", type_name(tuple_at(rb.v, i))),
                    Value();
 
-    TypeObj *t = type_alloc();
+    // An instance of the metaclass, so that type(C) is M and M's own methods
+    // are found on C. Without one it is an instance of `type`.
+    TypeObj *t = type_alloc_at(rm.v.is_nil() ? &type_type : &type_obj(rm.v)->slots);
     if (!t)
         return Value();
     Root rt{ obj_value(t) };
@@ -594,6 +659,7 @@ Value type_new(Value name, Value bases, Value dict)
     t->slots.trace = inst_trace;
     t->slots.repr  = inst_repr;
     t->slots.owner = t;
+    t->slotoff     = sizeof(InstObj);
 
     Value m = mro_of(rt.v, rb.v);
     if (m.is_nil())
@@ -608,16 +674,77 @@ Value type_new(Value name, Value bases, Value dict)
             continue;
         if (type_obj(c)->exc) {
             // An exception is not delegated to: the instance is one.
-            type_obj(rt.v)->exc = type_obj(c)->exc;
+            type_obj(rt.v)->exc     = type_obj(c)->exc;
+            type_obj(rt.v)->slotoff = sizeof(ExcObj);
             exc_slots(type_obj(rt.v)->slots);
             break;
         }
         const Type *n = type_obj(c)->desc;
-        if (!n || n == &object_type)
+        if (!n)
+            continue;
+        if (n == &type_type) {
+            // A metaclass: its instances are classes, so it keeps type's own
+            // handlers rather than delegating to a `type` laid out inside.
+            type_obj(rt.v)->meta        = true;
+            type_obj(rt.v)->slots.trace = type_trace;
+            type_obj(rt.v)->slots.repr  = type_repr;
+            break;
+        }
+        if (n == &object_type)
             continue;
         type_obj(rt.v)->native = c;
         copy_slots(type_obj(rt.v)->slots, n);
         break;
+    }
+
+    // __slots__ over the whole line: the base's array comes first, and the
+    // instance has no dict only when nothing above it has one either.
+    u32 base    = 0;
+    bool nodict = true;
+    for (usize i = 0; i < tuple_len(rb.v); i++) {
+        TypeObj *b = type_obj(tuple_at(rb.v, i));
+        if (b->nslots > base)
+            base = b->nslots;
+        if (b->heap && !b->nodict)
+            nodict = false;
+        if (b->slotoff > type_obj(rt.v)->slotoff)
+            type_obj(rt.v)->slotoff = b->slotoff;
+    }
+    Root has;
+    StrObj *sk = str_intern("__slots__");
+    if (!sk)
+        return oom(), Value();
+    R sr = dict_get(dict_at(rd.v), obj_value(sk), has.v);
+    if (sr == R::Err || !slots_declare(rt.v, base))
+        return Value();
+
+    // A class that writes __eq__ and not __hash__ is unhashable: two objects
+    // that compare equal would otherwise hash apart, which is the one thing a
+    // dict cannot survive.
+    StrObj *ek = str_intern("__eq__");
+    StrObj *hk = str_intern("__hash__");
+    if (!ek || !hk)
+        return oom(), Value();
+    Value seen;
+    if (dict_get(dict_at(rd.v), obj_value(ek), seen) == R::Ok &&
+        dict_get(dict_at(rd.v), obj_value(hk), seen) == R::NotImpl &&
+        dict_set(dict_at(rd.v), obj_value(hk), value_none()) != R::Ok)
+        return Value();
+    type_obj(rt.v)->nodict = nodict && sr == R::Ok && type_obj(rt.v)->native.is_nil() &&
+                             !type_obj(rt.v)->exc && !type_obj(rt.v)->meta;
+    type_note_del(rt.v);
+    // Each base remembers what was made under it, which is what
+    // __subclasses__ answers and what an ABC's subclass check walks.
+    for (usize i = 0; i < tuple_len(rb.v); i++) {
+        TypeObj *b = type_obj(tuple_at(rb.v, i));
+        if (b->subs.is_nil()) {
+            ListObj *l = list_new();
+            if (!l)
+                return oom(), Value();
+            type_obj(tuple_at(rb.v, i))->subs = obj_value(l);
+        }
+        if (!list_push(list_of(type_obj(tuple_at(rb.v, i))->subs), rt.v))
+            return oom(), Value();
     }
     return rt.v;
 }
@@ -632,205 +759,200 @@ R type_bind(Value found, Value self, Value cls, Value &out)
         out = method_new(found, self);
         return out.is_nil() ? R::Err : R::Ok;
     }
-    const Type *t = found.is_obj() ? found.obj()->type : nullptr;
+    Value inner   = found.is_obj() ? descr_inner(found) : found;
+    const Type *t = inner.is_obj() ? inner.obj()->type : nullptr;
     if (t == &staticmethod_type) {
-        out = static_cast<WrapObj *>(found.obj())->fn;
+        out = static_cast<WrapObj *>(inner.obj())->fn;
         return R::Ok;
     }
     if (t == &classmethod_type) {
-        out = method_new(static_cast<WrapObj *>(found.obj())->fn, cls);
+        out = method_new(static_cast<WrapObj *>(inner.obj())->fn, cls);
         return out.is_nil() ? R::Err : R::Ok;
     }
     out = found;
     return R::Ok;
 }
 
-Got py_attr(Value v, StrObj *name, Value &out)
-{
-    if (is_super(v)) {
-        R r = super_getattr(v, name, out);
-        return r == R::Ok ? Got::Ok : r == R::Err ? Got::Error : Got::Missing;
-    }
-    if (!is_inst(v)) {
-        const Type *t = type_of(v);
-        if (t && t->getattr) {
-            R r = t->getattr(v, name, out);
-            if (r == R::Ok)
-                return Got::Ok;
-            if (r == R::Err)
-                return Got::Error;
-        }
-        // A method in the built-in type's own namespace: `"".split`.
-        R m = method_find(v, name, out);
-        if (m == R::Ok)
-            return Got::Ok;
-        if (m == R::Err)
-            return Got::Error;
-        out = Value();
-        // A module may answer for itself (PEP 562). Its __getattr__ takes the
-        // name and nothing else, so it is not bound.
-        if (is_module(v)) {
-            StrObj *ga = str_intern("__getattr__");
-            Value fn;
-            if (!ga)
-                return oom(), Got::Error;
-            if (dict_get(module_dict(v), obj_value(ga), fn) == R::Ok)
-                out = fn;
-        }
-        return Got::Missing;
-    }
-
-    InstObj *o = inst_of(v);
-    if (!o->dict.is_nil()) {
-        R r = dict_get(dict_at(o->dict), obj_value(name), out);
-        if (r == R::Err)
-            return Got::Error;
-        if (r == R::Ok)
-            return Got::Ok;
-    }
-    Root found, owner;
-    R r = type_lookup(o->cls, name, found.v, &owner.v);
-    if (r == R::Err)
-        return Got::Error;
-    if (r == R::Ok) {
-        // __new__ is implicitly a staticmethod.
-        if (Str("__new__") == name->str()) {
-            out = found.v;
-            return Got::Ok;
-        }
-        if (is_property(found.v)) {
-            PropObj *p = static_cast<PropObj *>(found.v.obj());
-            if (p->get.is_nil()) {
-                err_set2("AttributeError", "unreadable attribute", name->str());
-                return Got::Error;
-            }
-            out = method_new(p->get, v);
-            return out.is_nil() ? Got::Error : Got::Call;
-        }
-        if (type_bind(found.v, v, o->cls, out) != R::Ok)
-            return Got::Error;
-        return Got::Ok;
-    }
-    // What the class's own slots answer -- an exception's `args`, a native
-    // base's attributes -- comes after the namespace and before __getattr__.
-    const Type *t = type_of(v);
-    if (t->getattr) {
-        R g = t->getattr(v, name, out);
-        if (g == R::Ok)
-            return Got::Ok;
-        if (g == R::Err)
-            return Got::Error;
-    }
-    if (Str("__dict__") == name->str()) {
-        if (o->dict.is_nil()) {
-            DictObj *d = dict_new();
-            if (!d)
-                return oom(), Got::Error;
-            o->dict = obj_value(d);
-        }
-        out = o->dict;
-        return Got::Ok;
-    }
-
-    out        = Value();
-    StrObj *ga = str_intern("__getattr__");
-    if (ga && type_lookup(o->cls, ga, found.v) == R::Ok) {
-        out = method_new(found.v, v);
-        if (out.is_nil())
-            return Got::Error;
-    }
-    return Got::Missing;
-}
-
-R inst_setattr(Value v, StrObj *name, Value val)
-{
-    if (is_type(v)) {
-        if (!type_obj(v)->heap)
-            return err_set2("TypeError", "cannot set an attribute on a built-in type",
-                            type_obj(v)->slots.name);
-        return dict_set(dict_at(type_obj(v)->dict), obj_value(name), val);
-    }
-    if (!is_inst(v)) {
-        const Type *t = type_of(v);
-        if (t && t->setattr)
-            return t->setattr(v, name, val);
-        return err_set2("AttributeError", "object has no attribute", name->str());
-    }
-
-    InstObj *o = inst_of(v);
-    Root rv{ v }, rn{ obj_value(name) }, rx{ val };
-    Value found;
-    if (type_lookup(o->cls, name, found) == R::Ok && is_property(found))
-        return err_set2("AttributeError", "this attribute needs the interpreter", name->str());
-    if (o->dict.is_nil()) {
-        DictObj *d = dict_new();
-        if (!d)
-            return oom();
-        inst_of(rv.v)->dict = obj_value(d);
-    }
-    return dict_set(dict_at(inst_of(rv.v)->dict), rn.v, rx.v);
-}
-
-R inst_delattr(Value v, StrObj *name)
-{
-    if (is_type(v) && type_obj(v)->heap) {
-        R r = dict_del(dict_at(type_obj(v)->dict), obj_value(name));
-        return r == R::NotImpl ? err_set2("AttributeError", "no attribute", name->str()) : r;
-    }
-    if (!is_inst(v) || inst_of(v)->dict.is_nil())
-        return err_set2("AttributeError", "object has no attribute", name->str());
-    R r = dict_del(dict_at(inst_of(v)->dict), obj_value(name));
-    return r == R::NotImpl ? err_set2("AttributeError", "no attribute", name->str()) : r;
-}
-
-R super_getattr(Value v, StrObj *name, Value &out)
-{
-    SuperObj *s = static_cast<SuperObj *>(v.obj());
-    Value mro;
-    if (is_type(s->self))
-        mro = type_obj(s->self)->mro;
-    else if (!s->self.is_nil())
-        mro = type_obj(type_of_value(s->self))->mro;
-    else
-        mro = type_obj(s->cls)->mro;
-
-    // Everything after the class super() was written in.
-    usize at = 0;
-    while (at < tuple_len(mro) && tuple_at(mro, at) != s->cls)
-        at++;
-    for (usize i = at + 1; i < tuple_len(mro); i++) {
-        Value c = tuple_at(mro, i);
-        Value found;
-        R r = dict_get(dict_at(type_obj(c)->dict), obj_value(name), found);
-        if (r == R::Err)
-            return R::Err;
-        if (r == R::Ok)
-            return type_bind(found, is_type(s->self) ? Value() : s->self, c, out);
-    }
-    return R::NotImpl;
-}
-
 // ------------------------------------------------------------------ builtins
 
 namespace {
 
-// The class body has run; its namespace is the class.
-R build_step(ContObj *k, Value in)
+// The keywords of a class statement, less `metaclass`, kept as two tuples so
+// they can be handed on to the metaclass call and then to __init_subclass__.
+struct Kwds {
+    Root names, vals, meta;
+};
+
+bool kwds_split(const CallArgs &a, Kwds &kw)
 {
-    if (k->i++ == 0)
-        return cont_call(k, k->s[0], Value(), 0);
-    (void)in;
-    Value t = type_new(k->s[1], k->s[2], k->s[3]);
-    return t.is_nil() ? R::Err : cont_done(k, t);
+    u32 n = 0;
+    for (u32 i = 0; i < a.nkw; i++)
+        if (!(is_str(a.kwnames[i]) && str_of(a.kwnames[i])->str() == Str("metaclass")))
+            n++;
+    TupleObj *names = tuple_new(n);
+    if (!names)
+        return oom(), false;
+    kw.names       = obj_value(names);
+    TupleObj *vals = tuple_new(n);
+    if (!vals)
+        return oom(), false;
+    kw.vals = obj_value(vals);
+    u32 at  = 0;
+    for (u32 i = 0; i < a.nkw; i++) {
+        if (is_str(a.kwnames[i]) && str_of(a.kwnames[i])->str() == Str("metaclass")) {
+            kw.meta = a.kwvals[i];
+            continue;
+        }
+        static_cast<TupleObj *>(kw.names.v.obj())->items()[at] = a.kwnames[i];
+        static_cast<TupleObj *>(kw.vals.v.obj())->items()[at]  = a.kwvals[i];
+        at++;
+    }
+    return true;
 }
 
-// __build_class__(body, name, *bases): the shape the compiler emits.
+// The most derived of the metaclass asked for and the bases' own: CPython's
+// rule, and what makes `class C(A, B)` under two metaclasses an error rather
+// than a silent choice.
+Value meta_of(Value asked, Value bases)
+{
+    Root best{ asked };
+    for (usize i = 0; i < tuple_len(bases); i++) {
+        Value b = tuple_at(bases, i);
+        if (!is_type(b))
+            continue;
+        Value m = type_of_value(b);
+        if (m.is_nil())
+            return Value();
+        if (best.v.is_nil() || type_issub(m, best.v))
+            best = m;
+        else if (!type_issub(best.v, m))
+            return err_set("TypeError",
+                           "metaclass conflict: the metaclass of a derived class must be a "
+                           "(non-strict) subclass of the metaclasses of all its bases"),
+                   Value();
+    }
+    return best.v;
+}
+
+// A base that is not a class may say what to put in its place (PEP 560).
+Value mro_entries_of(Value base)
+{
+    if (is_type(base))
+        return Value();
+    return type_special(base, "__mro_entries__");
+}
+
+// s[0] the body, s[1] the name, s[2] the bases, s[3] the namespace, s[4] the
+// metaclass, s[5] the keywords; i counts the steps and j the base being
+// resolved through __mro_entries__.
+R build_step(ContObj *k, Value in)
+{
+    switch (k->i) {
+    case 0: {
+        // __mro_entries__ first: a base that is not a class stands for some
+        // that are, and the metaclass is chosen from what it stands for.
+        for (; k->j < tuple_len(k->s[2]); k->j++) {
+            Value e = mro_entries_of(tuple_at(k->s[2], k->j));
+            if (e.is_nil())
+                continue;
+            // The answer arrives at the next step, not at this one again.
+            k->i = 1;
+            return cont_call(k, e, k->s[2]);
+        }
+        k->i = 1;
+        return build_step(k, Value());
+    }
+    case 1: {
+        if (!in.is_nil()) {
+            // The answer replaces that base, so the tuple grows or shrinks.
+            if (!is_tuple(in))
+                return err_set2("TypeError", "__mro_entries__ must return a tuple", type_name(in));
+            usize n     = tuple_len(k->s[2]) - 1 + tuple_len(in);
+            TupleObj *t = tuple_new(n);
+            if (!t)
+                return oom();
+            Root rt{ obj_value(t) };
+            usize at = 0;
+            for (usize i = 0; i < tuple_len(k->s[2]); i++) {
+                if (i == k->j) {
+                    for (usize e = 0; e < tuple_len(in); e++)
+                        static_cast<TupleObj *>(rt.v.obj())->items()[at++] = tuple_at(in, e);
+                    continue;
+                }
+                static_cast<TupleObj *>(rt.v.obj())->items()[at++] = tuple_at(k->s[2], i);
+            }
+            k->j += u32(tuple_len(in));
+            if (k->s[6].is_nil())
+                k->s[6] = k->s[2]; // __orig_bases__: what was written
+            k->s[2] = rt.v;
+            k->i    = 0;
+            return build_step(k, Value());
+        }
+        // The metaclass decides the namespace the body runs in.
+        Value m = meta_of(k->s[4], k->s[2]);
+        if (m.is_nil() && err_pending())
+            return R::Err;
+        k->s[4] = m.is_nil() ? type_wrap(&type_type) : m;
+        if (k->s[4].is_nil())
+            return R::Err;
+        k->i      = 2;
+        Value pre = is_type(k->s[4]) ? type_hook(k->s[4], "__prepare__") : Value();
+        if (pre.is_nil())
+            return build_step(k, Value());
+        Root bound;
+        if (type_bind(pre, Value(), k->s[4], bound.v) != R::Ok)
+            return R::Err;
+        TupleObj *two = tuple_new(2);
+        if (!two)
+            return oom();
+        Root args{ obj_value(two) };
+        two->items()[0] = k->s[1];
+        two->items()[1] = k->s[2];
+        TupleObj *pair  = static_cast<TupleObj *>(k->s[5].obj());
+        return cont_call_kw(k, bound.v, args.v, pair->items()[0], pair->items()[1]);
+    }
+    case 2:
+        if (!in.is_nil()) {
+            if (!is_dict(in))
+                return err_set2("TypeError", "__prepare__() must return a dict", type_name(in));
+            k->s[3]   = in;
+            k->locals = in;
+        }
+        k->i = 3;
+        return cont_call(k, k->s[0], Value(), 0);
+
+    case 3: {
+        // The body has run and its namespace is the class. Calling the
+        // metaclass is what makes one, so that a metaclass with a __new__ or
+        // an __init__ of its own is obeyed, and the class keywords reach it.
+        k->i        = 4;
+        TupleObj *t = tuple_new(3);
+        if (!t)
+            return oom();
+        Root args{ obj_value(t) };
+        t->items()[0]  = k->s[1];
+        t->items()[1]  = k->s[2];
+        t->items()[2]  = k->s[3];
+        TupleObj *pair = static_cast<TupleObj *>(k->s[5].obj());
+        k->s[0]        = Value();
+        k->s[1]        = pair->items()[0];
+        k->s[2]        = pair->items()[1];
+        return cont_call_kw(k, k->s[4], args.v, k->s[1], k->s[2]);
+    }
+    default:
+        // The hooks ran inside type.__new__, which is where CPython runs them;
+        // all that is left is to say what the bases were written as.
+        if (is_type(in) && !k->s[6].is_nil())
+            type_obj(in)->origbases = k->s[6];
+        return cont_done(k, in);
+    }
+}
+
+// __build_class__(body, name, *bases, **kwds): the shape the compiler emits.
 R b_build_class(const CallArgs &a, Value &out)
 {
     if (a.nargs < 2 || !is_func(a.args[0]))
         return err_set("TypeError", "__build_class__() takes a function and a name");
-    if (a.nkw)
-        return err_set("TypeError", "class keywords are not supported");
 
     TupleObj *bases = tuple_new(a.nargs - 2);
     if (!bases)
@@ -838,6 +960,15 @@ R b_build_class(const CallArgs &a, Value &out)
     for (u32 i = 2; i < a.nargs; i++)
         bases->items()[i - 2] = a.args[i];
     Root rb{ obj_value(bases) };
+    Kwds kw;
+    if (!kwds_split(a, kw))
+        return R::Err;
+    TupleObj *pair = tuple_new(2);
+    if (!pair)
+        return oom();
+    pair->items()[0] = kw.names.v;
+    pair->items()[1] = kw.vals.v;
+    Root rp{ obj_value(pair) };
     DictObj *ns = dict_new();
     if (!ns)
         return oom();
@@ -850,21 +981,241 @@ R b_build_class(const CallArgs &a, Value &out)
     k->s[1]    = a.args[1];
     k->s[2]    = rb.v;
     k->s[3]    = rn.v;
+    k->s[4]    = kw.meta.v;
+    k->s[5]    = rp.v;
     k->locals  = rn.v;
     out        = kv.v;
     return R::Ok;
 }
 
+// type(x), type(name, bases, dict) and type.__new__(mcls, name, bases, dict),
+// which is what a metaclass reaches through super(). The hooks a fresh class
+// owes run here, as they do in CPython's type.__new__, so that a class made by
+// calling `type` gets them too.
+// type(name, bases, dict) whose bases carry a metaclass of their own: that
+// metaclass is what makes the class, and it may have written a __new__.
+R meta_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call_kw(k, k->s[0], k->s[1], k->s[2], k->s[3]);
+    return cont_done(k, in);
+}
+
 R b_type(const CallArgs &a, Value &out)
 {
-    if (a.nargs == 3 && !a.nkw) {
-        out = type_new(a.args[0], a.args[1], a.args[2]);
+    Root cls;
+    if (a.nargs == 4 && is_type(a.args[0]))
+        cls = type_new_meta(a.args[0], a.args[1], a.args[2], a.args[3]);
+    else if (a.nargs == 3) {
+        Root won{ meta_of(Value(), a.args[1]) };
+        if (won.v.is_nil() && err_pending())
+            return R::Err;
+        Root plain{ type_wrap(&type_type) };
+        if (plain.v.is_nil())
+            return R::Err;
+        if (!won.v.is_nil() && won.v != plain.v) {
+            TupleObj *t = tuple_new(3);
+            if (!t)
+                return oom();
+            Root args{ obj_value(t) };
+            for (u32 i = 0; i < 3; i++)
+                t->items()[i] = a.args[i];
+            TupleObj *kn = tuple_new(a.nkw);
+            if (!kn)
+                return oom();
+            Root rn{ obj_value(kn) };
+            TupleObj *kv = tuple_new(a.nkw);
+            if (!kv)
+                return oom();
+            Root rv{ obj_value(kv) };
+            for (u32 i = 0; i < a.nkw; i++) {
+                static_cast<TupleObj *>(rn.v.obj())->items()[i] = a.kwnames[i];
+                static_cast<TupleObj *>(rv.v.obj())->items()[i] = a.kwvals[i];
+            }
+            Root k{ cont_new(meta_step) };
+            if (k.v.is_nil())
+                return R::Err;
+            cont_of(k.v)->s[0] = won.v;
+            cont_of(k.v)->s[1] = args.v;
+            cont_of(k.v)->s[2] = rn.v;
+            cont_of(k.v)->s[3] = rv.v;
+            out                = k.v;
+            return R::Ok;
+        }
+        cls = type_new(a.args[0], a.args[1], a.args[2]);
+    } else {
+        if (!args_only(a, "type", 1, 1))
+            return R::Err;
+        out = type_of_value(a.args[0]);
         return out.is_nil() ? R::Err : R::Ok;
     }
-    if (!args_only(a, "type", 1, 1))
+    if (cls.v.is_nil())
         return R::Err;
-    out = type_of_value(a.args[0]);
+    TupleObj *names = tuple_new(a.nkw);
+    if (!names)
+        return oom();
+    Root rn{ obj_value(names) };
+    TupleObj *vals = tuple_new(a.nkw);
+    if (!vals)
+        return oom();
+    Root rv{ obj_value(vals) };
+    for (u32 i = 0; i < a.nkw; i++) {
+        static_cast<TupleObj *>(rn.v.obj())->items()[i] = a.kwnames[i];
+        static_cast<TupleObj *>(rv.v.obj())->items()[i] = a.kwvals[i];
+    }
+    out = type_hooks(cls.v, rn.v, rv.v);
     return out.is_nil() ? R::Err : R::Ok;
+}
+
+// The methods `object` lends every class. Finding one of these on a class is
+// finding the default, which is not a hook and not an __init__ of its own.
+R b_object_init(const CallArgs &a, Value &out)
+{
+    (void)a;
+    out = value_none();
+    return R::Ok;
+}
+
+R b_object_getattribute(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "__getattribute__", 2, 2) || !is_str(a.args[1]))
+        return is_str(a.args[1])
+                   ? R::Err
+                   : err_set2("TypeError", "attribute name must be a string", type_name(a.args[1]));
+    StrObj *n = str_intern(str_of(a.args[1])->str());
+    if (!n)
+        return oom();
+    // The default algorithm, which is what this is: py_attr would put the
+    // class's own __getattribute__ back in front of it.
+    Root args;
+    switch (attr_plain(a.args[0], n, out, args.v)) {
+    case Got::Ok:
+        return R::Ok;
+    case Got::Error:
+        return R::Err;
+    case Got::Call:
+        out = attr_invoke(out, args.v);
+        return out.is_nil() ? R::Err : R::Ok;
+    default:
+        break;
+    }
+    Buf<96> m;
+    m.put("'").put(type_name(a.args[0])).put("' object has no attribute '");
+    m.put(n->str()).put("'");
+    return err_set("AttributeError", m.str());
+}
+
+R b_object_setattr(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "__setattr__", 3, 3) || !is_str(a.args[1]))
+        return err_set("TypeError", "__setattr__() takes an object, a name and a value");
+    StrObj *n = str_intern(str_of(a.args[1])->str());
+    if (!n)
+        return oom();
+    Value fn;
+    if (attr_plain_store(a.args[0], n, a.args[2], fn) != R::Ok)
+        return R::Err;
+    out = fn.is_nil() ? value_none() : fn;
+    return R::Ok;
+}
+
+R b_object_delattr(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "__delattr__", 2, 2) || !is_str(a.args[1]))
+        return err_set("TypeError", "__delattr__() takes an object and a name");
+    StrObj *n = str_intern(str_of(a.args[1])->str());
+    if (!n)
+        return oom();
+    Value fn;
+    if (attr_plain_delete(a.args[0], n, fn) != R::Ok)
+        return R::Err;
+    out = fn.is_nil() ? value_none() : fn;
+    return R::Ok;
+}
+
+// object.__init_subclass__ takes nothing, which is what makes an unconsumed
+// class keyword an error rather than a silence.
+R b_object_init_subclass(const CallArgs &a, Value &out)
+{
+    if (a.nkw)
+        return err_set2("TypeError", "__init_subclass__() takes no keyword arguments",
+                        is_str(a.kwnames[0]) ? str_of(a.kwnames[0])->str() : Str("?"));
+    out = value_none();
+    return R::Ok;
+}
+
+// object.__new__(cls), which is where every class's instance comes from.
+R b_object(const CallArgs &a, Value &out);
+
+} // namespace
+
+bool is_object_default(Value v)
+{
+    if (!is_native(v))
+        return false;
+    R (*f)(const CallArgs &, Value &) = static_cast<NativeObj *>(v.obj())->fn;
+    return f == b_object_init || f == b_object_getattribute || f == b_object_setattr ||
+           f == b_object_delattr || f == b_object_init_subclass || f == b_object;
+}
+
+namespace {
+
+// ----------------------------------------------------------- the class hooks
+
+// s[0] the class, s[1] the keyword names, s[2] their values, s[3] the
+// namespace entries still to visit; j is where in them we are.
+R hooks_step(ContObj *k, Value in)
+{
+    (void)in;
+    Value ns = type_obj(k->s[0])->dict;
+    for (; k->j < tuple_len(k->s[3]);) {
+        Value name = tuple_at(k->s[3], k->j++);
+        Value val;
+        if (dict_get(dict_at(ns), name, val) != R::Ok)
+            continue;
+        // A class instance answers through its class, a built-in through its
+        // own method table: a property is one of the latter.
+        Value sn  = type_special(val, "__set_name__");
+        StrObj *n = str_intern("__set_name__");
+        if (sn.is_nil() && n && val.is_obj() && method_find(val, n, sn) != R::Ok)
+            sn = Value();
+        if (sn.is_nil())
+            continue;
+        return cont_call(k, sn, k->s[0], 2, name);
+    }
+    if (k->i++)
+        return cont_done(k, k->s[0]);
+
+    // super(cls, cls).__init_subclass__(**kwds), which is an implicit
+    // classmethod: the base is told a subclass of it has been made.
+    StrObj *isc = str_intern("__init_subclass__");
+    if (!isc)
+        return oom();
+    Value mro = type_obj(k->s[0])->mro;
+    for (usize i = 1; i < tuple_len(mro); i++) {
+        Value c = tuple_at(mro, i);
+        Value found;
+        if (dict_get(dict_at(type_obj(c)->dict), obj_value(isc), found) != R::Ok)
+            continue;
+        if (is_object_default(found))
+            break;
+        Root bound;
+        // Written plain or as a classmethod, it is bound to the new class.
+        if (found.is_obj() && found.obj()->type == &classmethod_type)
+            found = static_cast<WrapObj *>(found.obj())->fn;
+        bound = method_new(found, k->s[0]);
+        if (bound.v.is_nil())
+            return R::Err;
+        TupleObj *none = tuple_new(0);
+        if (!none)
+            return oom();
+        return cont_call_kw(k, bound.v, obj_value(none), k->s[1], k->s[2]);
+    }
+    if (tuple_len(k->s[1]))
+        return err_set2(
+            "TypeError", "__init_subclass__() takes no keyword arguments",
+            is_str(tuple_at(k->s[1], 0)) ? str_of(tuple_at(k->s[1], 0))->str() : Str("?"));
+    return cont_done(k, k->s[0]);
 }
 
 // isinstance and issubclass take a type or a tuple of them.
@@ -885,36 +1236,138 @@ R any_of(Value t, Value v, bool cls, bool &out)
     return R::Ok;
 }
 
+// A metaclass may answer __instancecheck__ or __subclasscheck__ for its
+// classes, which is what abc's registration stands on. Only for a single
+// class: a tuple is each of them in turn, and the ordinary answer is enough
+// where the metaclass says nothing.
+Value check_hook(Value t, Str name)
+{
+    if (!is_type(t))
+        return Value();
+    Value meta = type_of_value(t);
+    if (meta.is_nil())
+        return err_clear(), Value();
+    Value fn = type_hook(meta, name);
+    if (fn.is_nil())
+        return Value();
+    Value bound;
+    return type_bind(fn, t, meta, bound) == R::Ok ? bound : Value();
+}
+
+// s[0] the bound check, s[1] the object, s[2] what is left of a tuple of
+// types, s[3] the object again for the plain answer; j says which check.
+R check_step(ContObj *k, Value in)
+{
+    if (k->i++ && py_truth(in))
+        return cont_done(k, value_bool(true));
+    for (; k->j < tuple_len(k->s[2]);) {
+        Value t = tuple_at(k->s[2], k->j++);
+        Value h = check_hook(t, k->s[3].is_nil() ? "__instancecheck__" : "__subclasscheck__");
+        if (!h.is_nil())
+            return cont_call(k, h, k->s[1]);
+        bool yes = false;
+        if (any_of(t, k->s[1], !k->s[3].is_nil(), yes) != R::Ok)
+            return R::Err;
+        if (yes)
+            return cont_done(k, value_bool(true));
+    }
+    return cont_done(k, value_bool(false));
+}
+
+R check_any(const CallArgs &a, Str who, bool sub, Value &out)
+{
+    if (!args_only(a, who, 2, 2))
+        return R::Err;
+    if (sub && !is_type(a.args[0]) && check_hook(a.args[1], "__subclasscheck__").is_nil())
+        return err_set2("TypeError", "issubclass() argument 1 must be a class",
+                        type_name(a.args[0]));
+    // One type or a tuple of them, over one path.
+    Root ts{ a.args[1] };
+    if (!is_tuple(ts.v)) {
+        TupleObj *one = tuple_new(1);
+        if (!one)
+            return oom();
+        one->items()[0] = a.args[1];
+        ts              = obj_value(one);
+    }
+    bool hooked = false;
+    for (usize i = 0; i < tuple_len(ts.v) && !hooked; i++)
+        hooked = !check_hook(tuple_at(ts.v, i), sub ? "__subclasscheck__" : "__instancecheck__")
+                      .is_nil();
+    if (!hooked) {
+        bool yes = false;
+        if (any_of(ts.v, a.args[0], sub, yes) != R::Ok)
+            return R::Err;
+        out = value_bool(yes);
+        return R::Ok;
+    }
+    Root kv{ cont_new(check_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[1] = a.args[0];
+    cont_of(kv.v)->s[2] = ts.v;
+    cont_of(kv.v)->s[3] = sub ? a.args[0] : Value();
+    out                 = kv.v;
+    return R::Ok;
+}
+
 R b_isinstance(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "isinstance", 2, 2))
-        return R::Err;
-    bool yes = false;
-    if (any_of(a.args[1], a.args[0], false, yes) != R::Ok)
-        return R::Err;
-    out = value_bool(yes);
-    return R::Ok;
+    return check_any(a, "isinstance", false, out);
 }
 
 R b_issubclass(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "issubclass", 2, 2))
-        return R::Err;
-    if (!is_type(a.args[0]))
-        return err_set2("TypeError", "issubclass() argument 1 must be a class",
-                        type_name(a.args[0]));
-    bool yes = false;
-    if (any_of(a.args[1], a.args[0], true, yes) != R::Ok)
-        return R::Err;
-    out = value_bool(yes);
+    return check_any(a, "issubclass", true, out);
+}
+
+// type.mro(): the linearization as a fresh list, which is what a metaclass
+// overriding __subclasscheck__ walks.
+R m_type_mro(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "mro", 1, 1) || !is_type(a.args[0]))
+        return err_set2("TypeError", "descriptor 'mro' requires a type", type_name(a.args[0]));
+    Root rc{ a.args[0] };
+    ListObj *l = list_new();
+    if (!l)
+        return oom();
+    Root rl{ obj_value(l) };
+    Value m = type_obj(rc.v)->mro;
+    for (usize i = 0; i < tuple_len(m); i++)
+        if (!list_push(list_of(rl.v), tuple_at(m, i)))
+            return oom();
+    out = rl.v;
     return R::Ok;
 }
 
-// object.__new__(cls), which is where every class's instance comes from.
+// type.__subclasses__(): the classes made directly under this one, in the
+// order they were made.
+R m_type_subclasses(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "__subclasses__", 1, 1) || !is_type(a.args[0]))
+        return err_set2("TypeError", "descriptor '__subclasses__' requires a type",
+                        type_name(a.args[0]));
+    Root rc{ a.args[0] };
+    ListObj *l = list_new();
+    if (!l)
+        return oom();
+    Root rl{ obj_value(l) };
+    Value subs = type_obj(rc.v)->subs;
+    for (usize i = 0; !subs.is_nil() && i < list_of(subs)->items.size(); i++)
+        if (!list_push(list_of(rl.v), list_of(subs)->items[i]))
+            return oom();
+    out = rl.v;
+    return R::Ok;
+}
+
+constexpr Method TYPE_METHODS[] = { { "mro", m_type_mro },
+                                    { "__subclasses__", m_type_subclasses } };
+
+// object.__new__(cls, ...), which is where every class's instance comes from.
+// Anything after the class is what a subclass's __init__ will take, and is
+// ignored here the way CPython ignores it.
 R b_object(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "object", 0, 1))
-        return R::Err;
     Value cls = a.nargs ? a.args[0] : type_object();
     if (!is_type(cls))
         return err_set2("TypeError", "object.__new__() argument must be a type", type_name(cls));
@@ -926,15 +1379,17 @@ R b_object(const CallArgs &a, Value &out)
 
 namespace {
 
-Value prop_new(Value get, Value set, Value del)
+Value prop_new(Value get, Value set, Value del, Value doc)
 {
-    Root a{ get }, b{ set }, c{ del };
+    Root a{ get }, b{ set }, c{ del }, d{ doc };
     PropObj *p = static_cast<PropObj *>(obj_alloc(&property_type, sizeof(PropObj)));
     if (!p)
         return oom(), Value();
-    p->get = a.v;
-    p->set = b.v;
-    p->del = c.v;
+    p->get   = a.v;
+    p->set   = b.v;
+    p->del   = c.v;
+    p->doc   = d.v;
+    p->pname = Value();
     return obj_value(p);
 }
 
@@ -946,7 +1401,7 @@ R prop_with(const CallArgs &a, u32 which, Value &out)
     PropObj *p = static_cast<PropObj *>(a.args[0].obj());
     Value g = p->get, s = p->set, d = p->del;
     (which == 0 ? g : which == 1 ? s : d) = a.args[1];
-    out                                   = prop_new(g, s, d);
+    out                                   = prop_new(g, s, d, p->doc);
     return out.is_nil() ? R::Err : R::Ok;
 }
 
@@ -967,7 +1422,38 @@ R b_prop_deleter(const CallArgs &a, Value &out)
 
 R prop_getattr(Value v, StrObj *name, Value &out)
 {
-    Str n                              = name->str();
+    PropObj *p = static_cast<PropObj *>(v.obj());
+    Str n      = name->str();
+    if (n == "fget")
+        return out = p->get.is_nil() ? value_none() : p->get, R::Ok;
+    if (n == "fset")
+        return out = p->set.is_nil() ? value_none() : p->set, R::Ok;
+    if (n == "fdel")
+        return out = p->del.is_nil() ? value_none() : p->del, R::Ok;
+    if (n == "__doc__")
+        return out = p->doc.is_nil() ? value_none() : p->doc, R::Ok;
+    if (n == "__name__") {
+        if (p->pname.is_nil())
+            return err_set("AttributeError", "__name__ is not set"), R::Err;
+        return out = p->pname, R::Ok;
+    }
+    if (n == "__isabstractmethod__") {
+        // Abstract where any of the three it wraps is, which is what makes an
+        // abstract property keep its class abstract.
+        StrObj *am     = str_intern("__isabstractmethod__");
+        bool yes       = false;
+        Value three[3] = { p->get, p->set, p->del };
+        for (Value one : three) {
+            Value got;
+            if (one.is_nil() || !am)
+                continue;
+            if (py_getattr(one, am, got) == R::Ok)
+                yes = yes || py_truth(got);
+            else
+                err_clear();
+        }
+        return out = value_bool(yes), R::Ok;
+    }
     R (*fn)(const CallArgs &, Value &) = n == "getter"    ? b_prop_getter
                                          : n == "setter"  ? b_prop_setter
                                          : n == "deleter" ? b_prop_deleter
@@ -981,15 +1467,40 @@ R prop_getattr(Value v, StrObj *name, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// property.__doc__ may be assigned, which is how a decorator that wraps one
+// carries the docstring across.
+R prop_setattr(Value v, StrObj *name, Value val)
+{
+    PropObj *p = static_cast<PropObj *>(v.obj());
+    if (name->str() == Str("__doc__"))
+        return p->doc = val, R::Ok;
+    return err_set2("AttributeError", "property has no attribute", name->str());
+}
+
+// property.__set_name__(owner, name): what the class it was written in is
+// called, kept for the diagnostics and for __name__.
+R b_prop_set_name(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__set_name__", 2, 2))
+        return R::Err;
+    static_cast<PropObj *>(method_self(a.args[0]).obj())->pname = a.args[2];
+    out                                                         = value_none();
+    return R::Ok;
+}
+
+constexpr Method PROPERTY_METHODS[] = { { "__set_name__", b_prop_set_name } };
+
 R b_property(const CallArgs &a, Value &out)
 {
-    Root get, set, del;
+    Root get, set, del, doc;
     if (a.nargs > 0)
         get = a.args[0];
     if (a.nargs > 1)
         set = a.args[1];
     if (a.nargs > 2)
         del = a.args[2];
+    if (a.nargs > 3)
+        doc = a.args[3];
     for (u32 i = 0; i < a.nkw; i++) {
         Str n = is_str(a.kwnames[i]) ? str_of(a.kwnames[i])->str() : Str();
         if (n == "fget")
@@ -998,10 +1509,15 @@ R b_property(const CallArgs &a, Value &out)
             set = a.kwvals[i];
         else if (n == "fdel")
             del = a.kwvals[i];
-        else if (n != "doc")
+        else if (n == "doc")
+            doc = a.kwvals[i];
+        else
             return err_set2("TypeError", "property() got an unexpected keyword argument", n);
     }
-    out = prop_new(get.v, set.v, del.v);
+    // The getter's docstring, where property() was given none of its own.
+    if (doc.v.is_nil() && is_func(get.v))
+        doc = func_of(get.v)->doc;
+    out = prop_new(get.v, set.v, del.v, doc.v);
     return out.is_nil() ? R::Err : R::Ok;
 }
 
@@ -1041,16 +1557,26 @@ R super_here(Value &self, Value &cls)
     Value t    = type_of_value(self);
     if (t.is_nil())
         return R::Err;
-    Value m = type_obj(t)->mro;
-    for (usize i = 0; i < tuple_len(m); i++) {
-        Value c  = tuple_at(m, i);
-        usize at = 0;
-        Value k, v;
-        while (table_next(dict_at(type_obj(c)->dict)->t, at, k, v))
-            if (is_func(v) && func_of(v)->code == code) {
-                cls = c;
-                return R::Ok;
+    // The class the running function was written in. A classmethod and a
+    // metaclass's __new__ take a class rather than an instance, so its own
+    // linearization is searched as well as its type's.
+    Value where[2] = { type_obj(t)->mro, is_type(self) ? type_obj(self)->mro : Value() };
+    for (Value m : where) {
+        for (usize i = 0; i < tuple_len(m); i++) {
+            Value c  = tuple_at(m, i);
+            usize at = 0;
+            Value k, v;
+            while (table_next(dict_at(type_obj(c)->dict)->t, at, k, v)) {
+                if (v.is_obj() && v.obj()->type == &classmethod_type)
+                    v = static_cast<WrapObj *>(v.obj())->fn;
+                if (v.is_obj() && v.obj()->type == &staticmethod_type)
+                    v = static_cast<WrapObj *>(v.obj())->fn;
+                if (is_func(v) && func_of(v)->code == code) {
+                    cls = c;
+                    return R::Ok;
+                }
             }
+        }
     }
     return err_set("RuntimeError", "super(): no class found");
 }
@@ -1073,8 +1599,10 @@ R b_super(const CallArgs &a, Value &out)
         return R::Err;
     if (!is_type(a.args[0]))
         return err_set2("TypeError", "super() argument 1 must be a type", type_name(a.args[0]));
-    bool ok = is_type(a.args[1]) ? type_issub(a.args[1], a.args[0])
-                                 : type_isinstance(a.args[1], a.args[0]);
+    // A class is the second argument twice over: as a subclass of the first,
+    // and as an instance of it where the first is a metaclass.
+    bool ok = (is_type(a.args[1]) && type_issub(a.args[1], a.args[0])) ||
+              type_isinstance(a.args[1], a.args[0]);
     if (!ok)
         return err_set("TypeError", "super(type, obj): obj must be an instance or subtype");
     Root rc{ a.args[0] }, rs{ a.args[1] };
@@ -1096,10 +1624,31 @@ constexpr Named CLASS_BUILTINS[] = {
     { "__build_class__", b_build_class },
     { "isinstance", b_isinstance },
     { "issubclass", b_issubclass },
-    { "property", b_property },
-    { "staticmethod", b_staticmethod },
-    { "classmethod", b_classmethod },
-    { "super", b_super },
+};
+
+// The four that are types rather than functions, so that `type(property(f))`
+// is `property` and abc.py's `class abstractproperty(property)` is a class.
+struct Ctor {
+    const Type *t;
+    R (*fn)(const CallArgs &, Value &out);
+};
+
+constexpr Ctor CLASS_TYPES[] = {
+    { &property_type, b_property },
+    { &staticmethod_type, b_staticmethod },
+    { &classmethod_type, b_classmethod },
+    { &super_type, b_super },
+};
+
+// What `object` lends every class. Each is named "object" so that finding one
+// on a class says the class did not write that method itself.
+constexpr Named OBJECT_METHODS[] = {
+    { "__new__", b_object },
+    { "__init__", b_object_init },
+    { "__getattribute__", b_object_getattribute },
+    { "__setattr__", b_object_setattr },
+    { "__delattr__", b_object_delattr },
+    { "__init_subclass__", b_object_init_subclass },
 };
 
 // The built-in types a program can name, subclass or test against.
@@ -1130,12 +1679,27 @@ bool type_install(DictObj *into)
     Root ob{ type_object() };
     if (ob.v.is_nil() || !put(rd.v, "object", ob.v))
         return false;
-    // `object` answers a call itself; the rest are constructors already.
-    if (!put(type_obj(ob.v)->dict, "__new__", native_new("object", b_object)))
-        return false;
+    // `object` answers a call itself; the rest are constructors already. The
+    // others are the defaults every class inherits and may override, and they
+    // have to be reachable -- super().__setattr__(n, v) is the ordinary way to
+    // write a __setattr__ that stores after all.
+    for (const Named &e : OBJECT_METHODS)
+        if (!put(type_obj(ob.v)->dict, e.name, native_new("object", e.fn)))
+            return false;
     for (const Type *t : NAMED) {
         Value w = type_wrap(t);
         if (w.is_nil() || !put(rd.v, t->name, w))
+            return false;
+    }
+    // type's own methods, which a class reaches through its metatype.
+    if (!method_install(&type_type, TYPE_METHODS))
+        return false;
+    if (!method_install(&property_type, PROPERTY_METHODS))
+        return false;
+    for (const Ctor &e : CLASS_TYPES) {
+        Value w = type_wrap(e.t);
+        Root fn{ native_new(e.t->name, e.fn) };
+        if (w.is_nil() || !put(rd.v, e.t->name, w) || !type_set_ctor(e.t, fn.v))
             return false;
     }
     // type(x) and type(name, bases, dict) are both calls of the type `type`.
@@ -1161,6 +1725,37 @@ Value type_special(Value v, Str name)
     // A staticmethod or a classmethod here too: the wrapper is not callable.
     Value out;
     return type_bind(found.v, v, inst_of(v)->cls, out) == R::Ok ? out : Value();
+}
+
+Value type_getitem_of(Value v)
+{
+    if (!is_type(v))
+        return Value();
+    Root rv{ v };
+    Root meta{ type_of_value(rv.v) };
+    if (meta.v.is_nil())
+        return err_clear(), Value();
+    Value g = type_hook(meta.v, "__getitem__");
+    if (!g.is_nil()) {
+        Value bound;
+        return type_bind(g, rv.v, meta.v, bound) == R::Ok ? bound : Value();
+    }
+    StrObj *n = str_intern("__class_getitem__");
+    Root found;
+    if (!n || type_lookup(rv.v, n, found.v) != R::Ok)
+        return Value();
+    if (found.v.is_obj() && found.v.obj()->type == &classmethod_type)
+        found = static_cast<WrapObj *>(found.v.obj())->fn;
+    return method_new(found.v, rv.v);
+}
+
+bool type_unhashable(Value v)
+{
+    if (!is_inst(v))
+        return false;
+    StrObj *n = str_intern("__hash__");
+    Value found;
+    return n && type_lookup(inst_of(v)->cls, n, found) == R::Ok && is_none(found);
 }
 
 bool type_has_special(Value v, Str name)
@@ -1232,27 +1827,74 @@ Value type_make_native(Str name, Value base, const Type *desc, const ExcType *ex
     return ro.v;
 }
 
+void type_note_del(Value cls)
+{
+    if (!is_type(cls))
+        return;
+    StrObj *n = str_intern("__del__");
+    Value found;
+    type_obj(cls)->hasdel = n && type_lookup(cls, n, found) == R::Ok;
+}
+
 Obj *type_alloc_inst(Value cls, usize bytes)
 {
     Root rc{ cls };
-    Obj *o = obj_alloc(&type_obj(rc.v)->slots, bytes);
+    TypeObj *c = type_obj(rc.v);
+    usize need = c->nslots ? c->slotoff + c->nslots * sizeof(Value) : bytes;
+    Obj *o     = obj_alloc(&c->slots, need);
     if (!o)
         return oom(), nullptr;
+    if (c->hasdel)
+        o->flags |= OBJ_FINAL;
     InstObj *i = static_cast<InstObj *>(o);
     i->cls     = rc.v;
     i->dict    = Value();
     i->native  = Value();
+    // The slots are Nil, which is what "never assigned" means to a member.
+    Value *s = reinterpret_cast<Value *>(reinterpret_cast<char *>(o) + c->slotoff);
+    for (u32 k = 0; k < c->nslots; k++)
+        s[k] = Value();
     return o;
 }
 
-Value type_property(Value v, StrObj *name, u32 which)
+Value type_hook(Value cls, Str name)
 {
-    if (!is_inst(v))
-        return Value();
+    StrObj *n = str_intern(name);
     Value found;
-    if (type_lookup(inst_of(v)->cls, name, found) != R::Ok || !is_property(found))
+    if (!n || type_lookup(cls, n, found) != R::Ok)
         return Value();
-    PropObj *p = static_cast<PropObj *>(found.obj());
-    Value fn   = which == 0 ? p->get : which == 1 ? p->set : p->del;
-    return fn.is_nil() ? Value() : method_new(fn, v);
+    // The default is not a hook: finding it means the class wrote none.
+    return is_object_default(found) ? Value() : found;
+}
+
+Value type_hooks(Value cls, Value kwnames, Value kwvals)
+{
+    Root rc{ cls }, rn{ kwnames }, rv{ kwvals };
+    // A snapshot of the namespace: __set_name__ may add to it, and walking a
+    // table that is being written to is not safe.
+    DictObj *ns = dict_at(type_obj(rc.v)->dict);
+    TupleObj *t = tuple_new(dict_len(ns));
+    if (!t)
+        return oom(), Value();
+    Root rt{ obj_value(t) };
+    usize at = 0, i = 0;
+    Value k, v;
+    while (table_next(ns->t, at, k, v) && i < t->len)
+        static_cast<TupleObj *>(rt.v.obj())->items()[i++] = k;
+
+    if (rn.v.is_nil()) {
+        TupleObj *none = tuple_new(0);
+        if (!none)
+            return oom(), Value();
+        rn = obj_value(none);
+        rv = rn.v;
+    }
+    Root kv{ cont_new(hooks_step) };
+    if (kv.v.is_nil())
+        return Value();
+    cont_of(kv.v)->s[0] = rc.v;
+    cont_of(kv.v)->s[1] = rn.v;
+    cont_of(kv.v)->s[2] = rv.v;
+    cont_of(kv.v)->s[3] = rt.v;
+    return kv.v;
 }

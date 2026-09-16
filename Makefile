@@ -131,6 +131,7 @@ TESTS := \
     lang/python/test/pyvm.mjs \
     lang/python/test/pyfun.mjs \
     lang/python/test/pyclass.mjs \
+    lang/python/test/pytype.mjs \
     lang/python/test/pyint.mjs \
     lang/python/test/pymeth.mjs \
     lang/python/test/pyimport.mjs \

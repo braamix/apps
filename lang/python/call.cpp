@@ -112,6 +112,8 @@ void cont_trace(Obj *o)
     for (Value &v : k->a)
         gc_mark(v);
     gc_mark(k->argv);
+    gc_mark(k->kwnames);
+    gc_mark(k->kwvals);
     gc_mark(k->out);
     gc_mark(k->next);
     gc_mark(k->locals);
@@ -141,7 +143,9 @@ Value cont_new(ContStep step)
     k->fn = Value();
     for (Value &v : k->a)
         v = Value();
-    k->argv   = Value();
+    k->argv    = Value();
+    k->kwnames = Value();
+    k->kwvals  = Value();
     k->out    = Value();
     k->next   = Value();
     k->locals = Value();

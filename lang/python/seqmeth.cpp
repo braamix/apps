@@ -3,6 +3,7 @@
 // `list.sort(key=)` is the one that calls back into Python, so it is a
 // continuation, as `sorted` is. Both use the same merge underneath.
 #include "call.h"
+#include "compare.h"
 #include "gc.h"
 #include "gen.h"
 #include "iter.h"
@@ -118,12 +119,37 @@ R m_pop(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// The index the search found, turned into the erase remove() promised. It is
+// the search's `next`, so it is entered with that index rather than calling.
+R remove_step(ContObj *k, Value in)
+{
+    i64 at = 0;
+    if (!as_index(in, at))
+        return err_set("SystemError", "a search answered with no index");
+    list_of(k->s[0])->items.erase(usize(at), 1);
+    return cont_done(k, value_none());
+}
+
 R m_remove(const CallArgs &a, Value &out)
 {
     ListObj *l = self_list(a, "remove");
     if (!l || !meth_args(a, "remove", 1, 1))
         return R::Err;
     Root rl{ method_self(a.args[0]) };
+    // An __eq__ written in Python is a call, so the search suspends and the
+    // erase is what the answer is for; remove_step finishes it.
+    if (cmp_is_python(a.args[1], false) || cmp_any_python(l->items, false)) {
+        Root rf{ cmp_find(rl.v, a.args[1], CMP_INDEX, 0, l->items.size()) };
+        if (rf.v.is_nil())
+            return R::Err;
+        Root kv{ cont_new(remove_step) };
+        if (kv.v.is_nil())
+            return R::Err;
+        cont_of(kv.v)->s[0] = rl.v;
+        cont_of(rf.v)->next = kv.v;
+        out                 = rf.v;
+        return R::Ok;
+    }
     usize at = 0;
     if (find_at(l->items, a.args[1], 0, l->items.size(), at) != R::Ok)
         return R::Err;
@@ -178,7 +204,7 @@ R m_reverse(const CallArgs &a, Value &out)
 }
 
 // index and count, shared with tuple.
-R seq_index(const Vec<Value> &xs, const CallArgs &a, Str who, Value &out)
+R seq_index(const Vec<Value> &xs, Value seq, const CallArgs &a, Str who, Value &out)
 {
     static const Str NAMES[] = { "value", "start", "stop" };
     Value got[3];
@@ -187,6 +213,10 @@ R seq_index(const Vec<Value> &xs, const CallArgs &a, Str who, Value &out)
     usize from = 0, to = 0;
     if (!span_of(got[1], got[2], xs.size(), from, to))
         return R::Err;
+    if (cmp_is_python(got[0], false) || cmp_any_python(xs, false)) {
+        out = cmp_find(seq, got[0], CMP_INDEX, from, to);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     usize at = 0;
     if (find_at(xs, got[0], from, to, at) != R::Ok)
         return R::Err;
@@ -196,10 +226,14 @@ R seq_index(const Vec<Value> &xs, const CallArgs &a, Str who, Value &out)
     return R::Ok;
 }
 
-R seq_count(const Vec<Value> &xs, const CallArgs &a, Str who, Value &out)
+R seq_count(const Vec<Value> &xs, Value seq, const CallArgs &a, Str who, Value &out)
 {
     if (!meth_args(a, who, 1, 1))
         return R::Err;
+    if (cmp_is_python(a.args[1], false) || cmp_any_python(xs, false)) {
+        out = cmp_find(seq, a.args[1], CMP_COUNT, 0, xs.size());
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     i64 n = 0;
     for (usize i = 0; i < xs.size(); i++) {
         bool same = false;
@@ -214,13 +248,13 @@ R seq_count(const Vec<Value> &xs, const CallArgs &a, Str who, Value &out)
 R m_list_index(const CallArgs &a, Value &out)
 {
     ListObj *l = self_list(a, "index");
-    return l ? seq_index(l->items, a, "index", out) : R::Err;
+    return l ? seq_index(l->items, method_self(a.args[0]), a, "index", out) : R::Err;
 }
 
 R m_list_count(const CallArgs &a, Value &out)
 {
     ListObj *l = self_list(a, "count");
-    return l ? seq_count(l->items, a, "count", out) : R::Err;
+    return l ? seq_count(l->items, method_self(a.args[0]), a, "count", out) : R::Err;
 }
 
 // ------------------------------------------------------------------- sort
@@ -230,6 +264,12 @@ R sort_finish(ContObj *k)
 {
     ListObj *l    = list_of(k->s[0]);
     ListObj *keys = list_of(k->s[2]);
+    // A key that compares in Python: the merge itself has to suspend, so it
+    // becomes a continuation of its own and this one is done.
+    if (cmp_any_python(keys->items, true)) {
+        Value c = cmp_sort(k->s[0], k->s[2], is_true(k->s[3]), true);
+        return c.is_nil() ? R::Err : cont_done(k, c);
+    }
     Vec<u32> idx;
     for (usize i = 0; i < l->items.size(); i++)
         if (!idx.push(u32(i)))
@@ -279,6 +319,10 @@ R m_sort(const CallArgs &a, Value &out)
     }
 
     Root rl{ method_self(a.args[0]) };
+    if (key.v.is_nil() && cmp_any_python(l->items, true)) {
+        out = cmp_sort(rl.v, Value(), rev, true);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     if (key.v.is_nil()) {
         Vec<u32> idx;
         for (usize i = 0; i < l->items.size(); i++)
@@ -313,16 +357,30 @@ R m_sort(const CallArgs &a, Value &out)
 
 // ------------------------------------------------------------------ tuple
 
+// A list of the items, because a search that suspends needs an object to hold
+// them across the call.
+Value tuple_items(TupleObj *t)
+{
+    Root rt{ obj_value(t) };
+    ListObj *l = list_new();
+    if (!l)
+        return oom_err(), Value();
+    Root rl{ obj_value(l) };
+    for (usize i = 0; i < static_cast<TupleObj *>(rt.v.obj())->len; i++)
+        if (!list_push(list_of(rl.v), static_cast<TupleObj *>(rt.v.obj())->items()[i]))
+            return oom_err(), Value();
+    return rl.v;
+}
+
 R m_tuple_index(const CallArgs &a, Value &out)
 {
     TupleObj *t = self_tuple(a, "index");
     if (!t)
         return R::Err;
-    Vec<Value> xs;
-    for (usize i = 0; i < t->len; i++)
-        if (!xs.push(t->items()[i]))
-            return oom_err();
-    return seq_index(xs, a, "index", out);
+    Root xs{ tuple_items(t) };
+    if (xs.v.is_nil())
+        return R::Err;
+    return seq_index(list_of(xs.v)->items, xs.v, a, "index", out);
 }
 
 R m_tuple_count(const CallArgs &a, Value &out)
@@ -330,11 +388,10 @@ R m_tuple_count(const CallArgs &a, Value &out)
     TupleObj *t = self_tuple(a, "count");
     if (!t)
         return R::Err;
-    Vec<Value> xs;
-    for (usize i = 0; i < t->len; i++)
-        if (!xs.push(t->items()[i]))
-            return oom_err();
-    return seq_count(xs, a, "count", out);
+    Root xs{ tuple_items(t) };
+    if (xs.v.is_nil())
+        return R::Err;
+    return seq_count(list_of(xs.v)->items, xs.v, a, "count", out);
 }
 
 // ------------------------------------------------------------------ slice

@@ -4,8 +4,10 @@
 // from inside the iterator protocol and py_next has no way to suspend.
 #include "builtin.h"
 
+#include "abc.h"
 #include "bigint.h"
 #include "call.h"
+#include "compare.h"
 #include "compile.h"
 #include "complex.h"
 #include "exc.h"
@@ -26,6 +28,7 @@
 #include "parse.h"
 #include "type.h"
 #include "vm.h"
+#include "weak.h"
 
 namespace {
 
@@ -36,6 +39,8 @@ struct Home {
     Value builtins;
     Value builtins_mod;
     Value sys;
+    Value weakref;
+    Value abc;
     Value argv;
     String *sink;
 };
@@ -55,6 +60,8 @@ void home_mark()
         return;
     gc_mark(home->builtins);
     gc_mark(home->builtins_mod);
+    gc_mark(home->weakref);
+    gc_mark(home->abc);
     gc_mark(home->sys);
     gc_mark(home->argv);
 }
@@ -275,11 +282,16 @@ R print_step(ContObj *k, Value in)
     // The arguments are showable; anything nested inside one is not. Gather
     // those, render them one call at a time, and put the text back in a copy.
     if (k->s[4].is_nil()) {
+        // The first is parked in the continuation before the second is made:
+        // making one allocates, and a fresh list with nothing pointing at it
+        // is exactly what a collection there would take.
         ListObj *need = list_new();
-        ListObj *done = list_new();
-        if (!need || !done)
+        if (!need)
             return oom();
-        k->s[4] = obj_value(need);
+        k->s[4]       = obj_value(need);
+        ListObj *done = list_new();
+        if (!done)
+            return oom();
         k->s[5] = obj_value(done);
         for (usize i = 0; i < xs->items.size(); i++)
             if (!collect_nested(xs->items[i], list_of(k->s[4]), 0))
@@ -1143,6 +1155,10 @@ R sort_finish(ContObj *k)
 {
     ListObj *vals = list_of(k->s[0]);
     ListObj *keys = list_of(k->s[2]);
+    if (cmp_any_python(keys->items, true)) {
+        Value c = cmp_sort(k->s[0], k->s[2], is_true(k->s[3]), false);
+        return c.is_nil() ? R::Err : cont_done(k, c);
+    }
     Vec<u32> idx;
     for (usize i = 0; i < vals->items.size(); i++)
         if (!idx.push(u32(i)))
@@ -1188,6 +1204,10 @@ R b_sorted(const CallArgs &a, Value &out)
         return R::Err;
     Root rl{ obj_value(l) };
 
+    if (key.v.is_nil() && cmp_any_python(list_of(rl.v)->items, true)) {
+        out = cmp_sort(rl.v, Value(), rev, false);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     if (key.v.is_nil()) {
         Vec<u32> idx;
         for (usize i = 0; i < list_of(rl.v)->items.size(); i++)
@@ -1228,19 +1248,27 @@ R b_sorted(const CallArgs &a, Value &out)
 R fold_step(ContObj *k, Value in)
 {
     ListObj *xs = list_of(k->s[0]);
-    if (k->i > 0) {
-        Value item  = xs->items[k->i - 1];
-        bool better = k->s[2].is_nil();
-        if (!better && py_cmp(in, k->s[3], k->j ? Cmp::Lt : Cmp::Gt, better) != R::Ok)
-            return R::Err;
-        if (better) {
-            k->s[2] = item;
-            k->s[3] = in;
-        }
-    }
+    if (k->i > 0 && !list_push(list_of(k->s[2]), in))
+        return oom();
     if (k->i < xs->items.size())
         return cont_call(k, k->s[1], xs->items[k->i++]);
-    return cont_done(k, k->s[2]);
+
+    // Every key is in hand. A key that compares in Python makes the fold
+    // itself a continuation; anything else is a scan with no call in it.
+    Vec<Value> &keys = list_of(k->s[2])->items;
+    if (cmp_any_python(keys, true)) {
+        Value c = cmp_fold(k->s[0], k->s[2], k->j != 0);
+        return c.is_nil() ? R::Err : cont_done(k, c);
+    }
+    usize best = 0;
+    for (usize i = 1; i < keys.size(); i++) {
+        bool better = false;
+        if (py_cmp(keys[i], keys[best], k->j ? Cmp::Lt : Cmp::Gt, better) != R::Ok)
+            return R::Err;
+        if (better)
+            best = i;
+    }
+    return cont_done(k, best < xs->items.size() ? xs->items[best] : value_none());
 }
 
 // min and max: one iterable, or two or more candidates spelled out.
@@ -1277,6 +1305,10 @@ R fold(const CallArgs &a, bool least, Str who, Value &out)
         return R::Ok;
     }
 
+    if (key.v.is_nil() && cmp_any_python(xs, true)) {
+        out = cmp_fold(rl.v, Value(), least);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     if (key.v.is_nil()) {
         Root best{ xs[0] };
         for (usize i = 1; i < xs.size(); i++) {
@@ -1293,9 +1325,13 @@ R fold(const CallArgs &a, bool least, Str who, Value &out)
     Root kv{ cont_new(fold_step) };
     if (kv.v.is_nil())
         return R::Err;
+    ListObj *keys = list_new();
+    if (!keys)
+        return oom();
     ContObj *k = cont_of(kv.v);
     k->s[0]    = rl.v;
     k->s[1]    = key.v;
+    k->s[2]    = obj_value(keys);
     k->j       = least ? 1 : 0;
     out        = kv.v;
     return R::Ok;
@@ -1472,40 +1508,20 @@ R attr_of(const CallArgs &a, Str who, bool want_bool, Value &out)
     StrObj *n = str_intern(str_of(a.args[1])->str());
     if (!n)
         return oom();
+    // An AttributeError is caught only where there is something to answer with.
+    bool guard = want_bool || a.nargs > 2;
     Root got;
-    switch (py_attr(a.args[0], n, got.v)) {
+    Got g = guard ? py_attr_opt(a.args[0], n, got.v, a.nargs > 2 ? a.args[2] : Value(), want_bool)
+                  : py_attr(a.args[0], n, got.v);
+    switch (g) {
     case Got::Error:
         return R::Err;
     case Got::Ok:
-        out = want_bool ? value_bool(true) : got.v;
+    case Got::Call:
+        out = got.v;
         return R::Ok;
-    case Got::Call: {
-        Value kv = cont_new(one_step);
-        if (kv.is_nil())
-            return R::Err;
-        cont_of(kv)->s[0]     = got.v;
-        cont_of(kv)->s[1]     = a.nargs > 2 ? a.args[2] : Value();
-        cont_of(kv)->j        = want_bool ? WANT_FOUND : WANT_ANY;
-        cont_of(kv)->catching = a.nargs > 2 || want_bool ? CATCH_ATTR : CATCH_NONE;
-        out                   = kv;
-        return R::Ok;
-    }
     case Got::Missing:
         break;
-    }
-    // A __getattr__ is the last word, and it too is Python.
-    if (!got.v.is_nil()) {
-        Value kv = cont_new(one_step);
-        if (kv.is_nil())
-            return R::Err;
-        cont_of(kv)->s[0]     = got.v;
-        cont_of(kv)->s[1]     = a.nargs > 2 ? a.args[2] : Value();
-        cont_of(kv)->a[0]     = a.args[1];
-        cont_of(kv)->nargs    = 1;
-        cont_of(kv)->j        = want_bool ? WANT_FOUND : WANT_ANY;
-        cont_of(kv)->catching = a.nargs > 2 || want_bool ? CATCH_ATTR : CATCH_NONE;
-        out                   = kv;
-        return R::Ok;
     }
     if (want_bool) {
         out = value_bool(false);
@@ -1540,9 +1556,11 @@ R b_setattr(const CallArgs &a, Value &out)
     StrObj *n = str_intern(str_of(a.args[1])->str());
     if (!n)
         return oom();
-    if (inst_setattr(a.args[0], n, a.args[2]) != R::Ok)
+    Value fn;
+    if (attr_store(a.args[0], n, a.args[2], fn) != R::Ok)
         return R::Err;
-    out = value_none();
+    // A __set__ or a __setattr__ is Python, so setattr() suspends too.
+    out = fn.is_nil() ? value_none() : fn;
     return R::Ok;
 }
 
@@ -1555,9 +1573,10 @@ R b_delattr(const CallArgs &a, Value &out)
     StrObj *n = str_intern(str_of(a.args[1])->str());
     if (!n)
         return oom();
-    if (inst_delattr(a.args[0], n) != R::Ok)
+    Value fn;
+    if (attr_delete(a.args[0], n, fn) != R::Ok)
         return R::Err;
-    out = value_none();
+    out = fn.is_nil() ? value_none() : fn;
     return R::Ok;
 }
 
@@ -1577,6 +1596,8 @@ R b_hash(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "hash", 1, 1))
         return R::Err;
+    if (type_unhashable(a.args[0]))
+        return err_set2("TypeError", "unhashable type", type_name(a.args[0]));
     out = one_special(a.args[0], "__hash__", WANT_HASH);
     if (!out.is_nil())
         return R::Ok;
@@ -2455,6 +2476,32 @@ Value builtin_module(Str name)
         }
         return h->builtins_mod;
     }
+    // The weak references, and the two counters that go with them. This is
+    // the floor CPython's weakref.py stands on, not that module itself.
+    if (name == "_weakref") {
+        if (h->weakref.is_nil()) {
+            Root m{ module_new("_weakref") };
+            if (m.v.is_nil() || !weak_install(module_dict(m.v)))
+                return Value();
+            h->weakref = m.v;
+        }
+        return h->weakref;
+    }
+    // The abstract base classes, which abc.py prefers over its own fallback.
+    if (name == "_abc") {
+        if (h->abc.is_nil()) {
+            Root m{ module_new("_abc") };
+            StrObj *n = str_intern("issubclass");
+            Value fn;
+            if (m.v.is_nil() || !n)
+                return Value();
+            if (dict_get(builtins_dict(), obj_value(n), fn) != R::Ok ||
+                !abc_install(module_dict(m.v), fn))
+                return Value();
+            h->abc = m.v;
+        }
+        return h->abc;
+    }
     // Nil and no error: the loader goes looking for a file instead.
     if (name != "sys")
         return Value();
@@ -2484,6 +2531,21 @@ Value builtin_module(Str name)
     Value who  = str_new("braam");
     if (!nm || who.is_nil() || dict_set(module_dict(impl.v), obj_value(nm), who) != R::Ok)
         return Value();
+    // sys.flags, which a test reads to know whether docstrings are there.
+    // The rest of sys is phase 18; these three are what this suite asks for.
+    Root flags{ module_new("flags") };
+    if (flags.v.is_nil())
+        return Value();
+    static constexpr Str FLAG_NAMES[] = { "optimize", "debug", "verbose" };
+    for (Str one : FLAG_NAMES) {
+        StrObj *f = str_intern(one);
+        if (!f || dict_set(module_dict(flags.v), obj_value(f), Value::of_int(0)) != R::Ok)
+            return Value();
+    }
+    StrObj *fl = str_intern("flags");
+    if (!fl || dict_set(module_dict(h->sys), obj_value(fl), flags.v) != R::Ok)
+        return Value();
+
     StrObj *key = str_intern("implementation");
     StrObj *pl  = str_intern("platform");
     Value plat  = str_new("braam");
