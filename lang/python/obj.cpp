@@ -39,7 +39,8 @@ constexpr Type notimpl_type{ .name = "NotImplementedType", .repr = notimpl_repr 
 constexpr Type bool_type{ .name  = "bool",
                           .truth = bool_truth,
                           .hash  = bool_hash,
-                          .repr  = bool_repr };
+                          .repr  = bool_repr,
+                          .patma = PATMA_SELF };
 
 Obj none_obj{ &none_type, nullptr, nullptr, OBJ_IMMORTAL };
 Obj true_obj{ &bool_type, nullptr, nullptr, OBJ_IMMORTAL };

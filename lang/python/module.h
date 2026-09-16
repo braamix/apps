@@ -71,3 +71,4 @@ bool time_install(DictObj *into);
 bool errno_install(DictObj *into);
 bool gcmod_install(DictObj *into);
 bool types_install(DictObj *into);
+bool typing_install(DictObj *into);

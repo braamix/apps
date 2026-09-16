@@ -13,6 +13,7 @@
 #include "builtin.h"
 #include "call.h"
 #include "compare.h"
+#include "egroup.h"
 #include "exc.h"
 #include "frame.h"
 #include "func.h"
@@ -23,11 +24,15 @@
 #include "iter.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
+#include "lazy.h"
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "patma.h"
 #include "proc/io.h"
+#include "templatelib.h"
 #include "type.h"
+#include "typevar.h"
 
 namespace {
 
@@ -309,7 +314,8 @@ Value exc_type_invoke_new(Value cls, const CallArgs &a)
         return oom(), Value();
     for (u32 i = 0; i < a.nargs; i++)
         args->items()[i] = a.args[i];
-    return exc_inst(rc.v, obj_value(args));
+    Root ra{ obj_value(args) };
+    return exc_construct(rc.v, ra.v);
 }
 
 // Making an instance: __new__ where a built-in is involved, then __init__.
@@ -507,7 +513,9 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
             return oom();
         if (callable.is_obj() && method_find(callable, cl, fn.v) == R::Ok)
             return do_call(fn.v, a, out, entered);
-        return err_set2("TypeError", "object is not callable", type_name(callable));
+        Buf<96> m;
+        m.put("'").put(type_name(callable)).put("' object is not callable");
+        return err_set("TypeError", m.str());
     }
 
     FuncObj *fn = func_of(callable);
@@ -691,6 +699,8 @@ Dunder op_dunder(Op op)
         return { "__lshift__", "__rlshift__" };
     case Op::Rsh:
         return { "__rshift__", "__rrshift__" };
+    case Op::MatMul:
+        return { "__matmul__", "__rmatmul__" };
     }
     return { "?", "?" };
 }
@@ -722,6 +732,8 @@ Str inplace_dunder(Op op)
         return "__ilshift__";
     case Op::Rsh:
         return "__irshift__";
+    case Op::MatMul:
+        return "__imatmul__";
     }
     return "?";
 }
@@ -839,23 +851,20 @@ R dunder_step(ContObj *k, Value in)
         m.put(type_name(a)).put("' and '").put(type_name(b)).put("'");
         return err_set("TypeError", m.str());
     }
-    Buf<96> m;
-    m.put("unsupported operand type(s) for ").put(op_symbol(Op(k->j & 0xff)));
-    m.put(": '").put(type_name(a)).put("' and '").put(type_name(b)).put("'");
-    return err_set("TypeError", m.str());
+    return binop_failed(a, b, Op(k->j & 0xff));
 }
 
 // A binary operator where one side is a class instance. False on failure;
 // `done` is false when neither side had anything and the ordinary path stands.
 bool dunder_binop(FrameObj *f, Value a, Value b, u32 tag, Dunder d, bool &done)
 {
-    Root left{ type_special(a, d.name) };
+    Root left{ operand_special(a, d.name) };
     Root right;
     // An operator tries the reflected call only where the other side is a
     // different class; a comparison tries it either way, which is what lets a
     // class with only a __lt__ answer `>` between two of its own.
     if ((tag & 0x100) || !(is_inst(a) && is_inst(b) && inst_of(a)->cls == inst_of(b)->cls))
-        right = type_special(b, d.refl);
+        right = operand_special(b, d.refl);
     done = !left.v.is_nil() || !right.v.is_nil();
     if (!done)
         return true;
@@ -902,6 +911,11 @@ Value pending_exception()
     Value v = err_value();
     if (!v.is_nil())
         return v;
+    if (err_line()) {
+        v = exc_syntax(err_kind(), err_message(), err_file(), err_line(), err_col(), err_text());
+        if (!v.is_nil())
+            return v;
+    }
     v = exc_make(err_kind(), err_message());
     if (v.is_nil())
         v = exc_type_value(exc_find("MemoryError"));
@@ -937,6 +951,32 @@ void report(Value e, u32 depth = 0)
             report(under, depth + 1);
             vm->err.append(joiner);
         }
+    }
+    if (is_egroup(e)) {
+        // A group is drawn as CPython draws it: its traceback and its line
+        // behind a margin, and each member in a box below.
+        vm->err.append("  + Exception Group Traceback (most recent call last):\n");
+        for (usize k = vm->tb.size(); k > 0; k--) {
+            vm->err.append("  | ");
+            vm->err.append(vm->tb[k - 1].str());
+        }
+        vm->tb.clear();
+        String line;
+        exc_line(e, line);
+        Str text = line.str();
+        for (usize at = 0;;) {
+            usize end = at;
+            while (end < text.size() && text[end] != '\n')
+                end++;
+            vm->err.append("  | ");
+            vm->err.append(text.substr(at, end - at));
+            vm->err.push('\n');
+            if (end >= text.size())
+                break;
+            at = end + 1;
+        }
+        egroup_report(e, vm->err);
+        return;
     }
     if (vm->tb.size())
         vm->err.append("Traceback (most recent call last):\n");
@@ -984,9 +1024,9 @@ bool cont_catches(Value kv, Value e)
         return false;
     if (c == CATCH_ANY)
         return true; // a finalizer: whatever it raises stops here
-    if (c == CATCH_EXIT)
+    if (c == CATCH_EXIT || c == CATCH_SEQEND)
         return exc_is(exc_type_of(e), exc_find("StopIteration")) ||
-               exc_is(exc_type_of(e), exc_find("GeneratorExit"));
+               exc_is(exc_type_of(e), exc_find(c == CATCH_EXIT ? "GeneratorExit" : "IndexError"));
     Str want = c == CATCH_STOP    ? Str("StopIteration")
                : c == CATCH_ASTOP ? Str("StopAsyncIteration")
                                   : Str("AttributeError");
@@ -998,15 +1038,16 @@ bool cont_catches(Value kv, Value e)
 // on it failed too.
 Value cont_catcher(Value kv, Value e)
 {
-    Root re{ e };
-    for (Value k = kv; !k.is_nil(); k = cont_of(k)->next) {
-        if (cont_catches(k, re.v))
-            return k;
-        ContObj *c = cont_of(k);
+    // A fail hook may allocate, and the chain may be held by nothing else.
+    Root re{ e }, rk{ kv };
+    for (; !rk.v.is_nil(); rk = cont_of(rk.v)->next) {
+        if (cont_catches(rk.v, re.v))
+            return rk.v;
+        ContObj *c = cont_of(rk.v);
         if (c->fail) {
             c->caught = re.v;
             c->fail(c);
-            c->fail = nullptr;
+            cont_of(rk.v)->fail = nullptr;
         }
     }
     return Value();
@@ -1379,15 +1420,14 @@ R drain_operand_step(ContObj *k, Value in)
     if (k->i++ == 0) {
         if (!k->s[0].is_nil())
             return cont_call(k, k->s[0], Value(), 0);
-        Value it = type_special(k->s[2], "__iter__");
+        Value it = iter_special(k->s[2]);
         if (it.is_nil())
             return not_iterable(k->s[2]);
         return cont_call(k, it, Value(), 0);
     }
     if (k->s[0].is_nil()) {
         Root rit{ in };
-        k->s[0] =
-            is_resumable(rit.v) ? genrun_new(rit.v, GR_NEXT) : type_special(rit.v, "__next__");
+        k->s[0] = next_special(rit.v);
         if (k->s[0].is_nil()) {
             // __iter__ answered with a built-in iterator, which walks itself.
             ListObj *xs = py_list_of(rit.v);
@@ -1857,7 +1897,7 @@ R run_resume(Value run, const CallArgs &a, Value &out, bool &entered)
 bool get_iter(FrameObj *f)
 {
     Value *st = f->stack();
-    Value m   = type_special(st[f->sp - 1], "__iter__");
+    Value m   = iter_special(st[f->sp - 1]);
     if (!m.is_nil())
         return run_special(f, m, nullptr, 0, 1);
     if (err_pending())
@@ -1900,6 +1940,44 @@ bool run_checked(FrameObj *f, Value m, u32 check)
     cont_of(kv.v)->j    = check;
     f->sp--;
     return run_cont(kv.v, Value());
+}
+
+// ------------------------------------------------------------------ except*
+
+// [rest, match] from the pair (match, rest), and match is what is handled.
+bool eg_place(FrameObj *f, Value pair)
+{
+    TupleObj *t = static_cast<TupleObj *>(pair.obj());
+    Value match = t->items()[0];
+    if (!push(f, t->items()[1]) || !push(f, match))
+        return false;
+    if (!is_none(match))
+        vm->handling = match;
+    return true;
+}
+
+// A continuation made callable: calling this hands it back, and run_cont
+// drives it with the caller waiting on the answer.
+R eg_thunk(const CallArgs &a, Value &out)
+{
+    out = a.args[0];
+    return R::Ok;
+}
+
+// s[0] the split's answer arrives here.
+R eg_match_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], Value(), 0);
+    return eg_place(frame_of(vm->frame), in) ? cont_done(k, value_none()) : R::Err;
+}
+
+// A lazy import read as a name: the import runs, and its answer is pushed
+// and stored where the proxy was.
+bool reify_into(Value lazy, Value space, Value name)
+{
+    Value k = lazy_reify(lazy, space, name);
+    return !k.is_nil() && run_cont(k, Value());
 }
 
 // -------------------------------------------------------------- the loop
@@ -2065,6 +2143,11 @@ void interpret()
                     name_error("NameError", n);
                     goto oops;
                 }
+                if (is_lazy(out)) {
+                    if (!reify_into(out, f->globals, co->names[arg]))
+                        goto oops;
+                    break;
+                }
                 if (!push(f, out))
                     goto oops;
                 break;
@@ -2115,6 +2198,11 @@ void interpret()
                 if (r == R::NotImpl) {
                     name_error("NameError", str_of(co->names[arg]));
                     goto oops;
+                }
+                if (is_lazy(out)) {
+                    if (!reify_into(out, f->globals, co->names[arg]))
+                        goto oops;
+                    break;
                 }
                 if (!push(f, out))
                     goto oops;
@@ -2306,10 +2394,10 @@ void interpret()
                         goto oops;
                     break;
                 }
-                if (is_inst(a) || is_inst(b)) {
+                if (is_inst(a) || is_inst(b) || is_meta_inst(a) || is_meta_inst(b)) {
                     // `a += b` asks for __iadd__ first and falls back to __add__.
                     if (in.op == Bc::InplaceOp) {
-                        Value m = type_special(a, inplace_dunder(Op(arg)));
+                        Value m = operand_special(a, inplace_dunder(Op(arg)));
                         if (!m.is_nil()) {
                             if (!run_special(f, m, &b, 1, 2))
                                 goto oops;
@@ -2322,7 +2410,7 @@ void interpret()
                     // than below, or `"%s" % obj` would reach __rmod__
                     // before str's own `%`.
                     bool settled = false;
-                    if (!is_inst(a) && in.op == Bc::BinaryOp) {
+                    if (!is_inst(a) && !is_meta_inst(a) && in.op == Bc::BinaryOp) {
                         Value got;
                         R r = py_binop_try(a, b, Op(arg), got);
                         if (r == R::Err)
@@ -2553,8 +2641,7 @@ void interpret()
                 // Stepping either pushes a frame, so the item comes back
                 // through a continuation rather than from py_next.
                 // cont_new allocates, and nothing else points at the method.
-                Root m{ is_resumable(st[f->sp - 1]) ? genrun_new(st[f->sp - 1], GR_NEXT)
-                                                    : type_special(st[f->sp - 1], "__next__") };
+                Root m{ next_special(st[f->sp - 1]) };
                 if (m.v.is_nil() && err_pending())
                     goto oops;
                 if (!m.v.is_nil()) {
@@ -2690,6 +2777,25 @@ void interpret()
                 // Python, which lands the answer when it returns.
                 if (!land(out, false))
                     goto oops;
+                break;
+            }
+
+            case Bc::BuildInterpolation: {
+                u32 pop   = (arg & FV_SPEC) ? 3 : 2;
+                Value got = interp_build(st[f->sp - pop], st[f->sp - pop + 1], arg & FV_CONV,
+                                         (arg & FV_SPEC) ? st[f->sp - 1] : Value());
+                if (got.is_nil())
+                    goto oops;
+                f->sp -= pop;
+                st[f->sp++] = got;
+                break;
+            }
+            case Bc::BuildTemplate: {
+                Value got = template_build(st[f->sp - 2], st[f->sp - 1]);
+                if (got.is_nil())
+                    goto oops;
+                f->sp -= 2;
+                st[f->sp++] = got;
                 break;
             }
 
@@ -3006,11 +3112,27 @@ void interpret()
                 break;
             }
 
-            case Bc::ImportName: {
+            case Bc::ImportName:
+            case Bc::ImportNameEager:
+            case Bc::LazyImportName: {
                 // The compiler left [level, fromlist] here, and the loader
                 // suspends, so what comes back is a continuation.
                 Root nm{ co->names[arg] }, lv{ st[f->sp - 2] }, fl{ st[f->sp - 1] };
                 f->sp -= 2;
+                bool top  = f->locals == f->globals;
+                bool lazy = in.op == Bc::LazyImportName ||
+                            (in.op == Bc::ImportName && top && lazy_wanted(nm.v, lv.v, f->globals));
+                if (lazy) {
+                    if (!top) {
+                        err_set("SyntaxError", "'lazy import' is only allowed at module level");
+                        goto oops;
+                    }
+                    Value out;
+                    if (lazy_import(nm.v, lv.v, fl.v, f->globals, out) != R::Ok ||
+                        !land(out, false))
+                        goto oops;
+                    break;
+                }
                 Value a4[4] = { nm.v, lv.v, fl.v, f->globals };
                 CallArgs a;
                 a.args  = a4;
@@ -3023,6 +3145,11 @@ void interpret()
             case Bc::ImportFrom: {
                 Value out;
                 StrObj *what = str_of(co->names[arg]);
+                if (is_lazy(st[f->sp - 1])) {
+                    if (lazy_from(st[f->sp - 1], what, out) != R::Ok || !push(f, out))
+                        goto oops;
+                    break;
+                }
                 if (py_getattr(st[f->sp - 1], what, out) != R::Ok) {
                     // The name is missing, not the object: say so as an import.
                     err_clear();
@@ -3250,6 +3377,163 @@ void interpret()
                     goto oops;
                 f->sp -= 3;
                 if (!land(got, entered))
+                    goto oops;
+                break;
+            }
+
+                // ---------------------------------------------------- match
+
+            case Bc::Copy:
+                if (!push(f, st[f->sp - arg]))
+                    goto oops;
+                break;
+            case Bc::Swap: {
+                Value t         = st[f->sp - 1];
+                st[f->sp - 1]   = st[f->sp - arg];
+                st[f->sp - arg] = t;
+                break;
+            }
+            case Bc::GetLen: {
+                Value m = type_special(st[f->sp - 1], "__len__");
+                if (!m.is_nil()) {
+                    if (!run_special(f, m, nullptr, 0, 0))
+                        goto oops;
+                    break;
+                }
+                if (err_pending())
+                    goto oops;
+                usize n = 0;
+                if (py_len(st[f->sp - 1], n) != R::Ok)
+                    goto oops;
+                if (!push(f, int_from_i64(i64(n))))
+                    goto oops;
+                break;
+            }
+            case Bc::MatchSequence:
+            case Bc::MatchMapping: {
+                u8 want = in.op == Bc::MatchSequence ? PATMA_SEQ : PATMA_MAP;
+                if (!push(f, value_bool((patma_kind(st[f->sp - 1]) & want) != 0)))
+                    goto oops;
+                break;
+            }
+            case Bc::MatchKeys: {
+                Value out;
+                if (patma_keys(st[f->sp - 2], st[f->sp - 1], out) != R::Ok || !land(out, false))
+                    goto oops;
+                break;
+            }
+            case Bc::MatchClass: {
+                Value out;
+                if (patma_class(st[f->sp - 3], st[f->sp - 2], arg, st[f->sp - 1], out) != R::Ok)
+                    goto oops;
+                f->sp -= 3;
+                if (!land(out, false))
+                    goto oops;
+                break;
+            }
+            case Bc::CopyDict: {
+                Value out;
+                if (patma_copy(st[f->sp - 1], out) != R::Ok)
+                    goto oops;
+                f->sp--;
+                if (!land(out, false))
+                    goto oops;
+                break;
+            }
+
+            case Bc::CheckEgMatch: {
+                Value out;
+                if (egroup_match(st[f->sp - 2], st[f->sp - 1], out) != R::Ok)
+                    goto oops;
+                f->sp -= 2;
+                if (!is_cont(out)) {
+                    if (!eg_place(f, out))
+                        goto oops;
+                    break;
+                }
+                // The group splits itself, which is Python.
+                Root split{ out };
+                Root kv{ cont_new(eg_match_step) };
+                if (kv.v.is_nil())
+                    goto oops;
+                Root thunk{ native_new("_split", eg_thunk) };
+                if (thunk.v.is_nil())
+                    goto oops;
+                cont_of(kv.v)->s[0] = method_new(thunk.v, split.v);
+                cont_of(kv.v)->drop = true;
+                if (cont_of(kv.v)->s[0].is_nil() || !run_cont(kv.v, Value()))
+                    goto oops;
+                break;
+            }
+            case Bc::Intrinsic: {
+                u32 n = intrinsic_arity(arg);
+                Value module;
+                StrObj *mk = str_intern("__name__");
+                if (!mk || dict_get(dict_at(f->globals), obj_value(mk), module) != R::Ok)
+                    module = value_none();
+                err_clear();
+                Value out;
+                if (typing_intrinsic(arg, &st[f->sp - n], module, out) != R::Ok)
+                    goto oops;
+                f->sp -= n;
+                st[f->sp++] = out;
+                break;
+            }
+            case Bc::LoadLocals:
+                if (f->locals.is_nil()) {
+                    err_set("SystemError", "no locals found");
+                    goto oops;
+                }
+                if (!push(f, f->locals))
+                    goto oops;
+                break;
+            case Bc::LoadFromDictOrGlobals:
+            case Bc::LoadFromDictOrDeref: {
+                // The class namespace first, then where the name really is.
+                Value space = st[f->sp - 1];
+                StrObj *n   = in.op == Bc::LoadFromDictOrGlobals
+                                  ? str_of(co->names[arg])
+                                  : str_of(arg < co->cellvars.size()
+                                               ? co->cellvars[arg]
+                                               : co->freevars[arg - co->cellvars.size()]);
+                Value out;
+                R r = is_dict(space) ? dict_get(dict_at(space), obj_value(n), out) : R::NotImpl;
+                if (r == R::Err)
+                    goto oops;
+                if (r == R::NotImpl && in.op == Bc::LoadFromDictOrGlobals) {
+                    r = dict_get(dict_at(f->globals), obj_value(n), out);
+                    if (r == R::NotImpl)
+                        r = dict_get(dict_at(f->builtins), obj_value(n), out);
+                    if (r == R::Err)
+                        goto oops;
+                    if (r == R::NotImpl) {
+                        name_error("NameError", n);
+                        goto oops;
+                    }
+                } else if (r == R::NotImpl) {
+                    CellObj *c = static_cast<CellObj *>(
+                        static_cast<TupleObj *>(f->cells.obj())->items()[arg].obj());
+                    if (c->v.is_nil()) {
+                        unbound_cell(co, arg);
+                        goto oops;
+                    }
+                    out = c->v;
+                }
+                if (is_lazy(out)) {
+                    f->sp--;
+                    if (!reify_into(out, f->globals, obj_value(n)))
+                        goto oops;
+                    break;
+                }
+                st[f->sp - 1] = out;
+                break;
+            }
+            case Bc::PrepReraiseStar: {
+                Value out = egroup_reraise(st[f->sp - 2], st[f->sp - 1]);
+                if (out.is_nil())
+                    goto oops;
+                f->sp -= 2;
+                if (!land(out, false))
                     goto oops;
                 break;
             }

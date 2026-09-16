@@ -1,0 +1,43 @@
+-- t1
+V ExceptionGroup('eg', [ValueError(1)])
+TK ExceptionGroup('eg', [TypeError(2), KeyError(3)])
+-- t2
+only V
+escaped: ExceptionGroup ExceptionGroup('eg', [OSError(2)])
+-- t3
+naked caught ExceptionGroup('', (ValueError('naked'),)) ValueError('naked')
+-- t4
+escaped: TypeError TypeError('naked, unmatched')
+-- t5
+V ExceptionGroup('eg', [ValueError(1)])
+T handled
+escaped: KeyError KeyError(5)
+-- t6
+escaped: ExceptionGroup ExceptionGroup('eg', [ValueError(1), TypeError(2)])
+-- t7
+escaped: ExceptionGroup ExceptionGroup('', [KeyError('a'), OSError('b')])
+-- t8
+TypeError: catching ExceptionGroup with except* is not allowed. Use except instead.
+-- t9
+else ran
+finally ran
+-- t10
+in handler
+finally after
+-- t11
+loop ExceptionGroup('eg', [ValueError(0)])
+loop ExceptionGroup('eg', [ValueError(1)])
+e unbound
+-- t12
+handling ExceptionGroup('eg', [ValueError(1)])
+escaped: ExceptionGroup ExceptionGroup('eg', [TypeError(2)])
+-- t13
+escaped: TypeError TypeError('Cannot nest BaseExceptions in an ExceptionGroup')
+-- t14
+escaped: TypeError TypeError('catching classes that do not inherit from BaseException is not allowed')
+cannot have both 'except' and 'except*' on the same 'try'
+expected one or more exception types
+multiple exception types must be parenthesized when using 'as'
+'break', 'continue' and 'return' cannot appear in an except* block
+'break', 'continue' and 'return' cannot appear in an except* block
+unparenthesized

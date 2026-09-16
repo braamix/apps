@@ -22,12 +22,12 @@ defaultdict(<class 'list'>, {'a': [1, 2], 'b': [3]}) [1, 2] True <class 'list'> 
 True {'a': [1, 2], 'b': [3]} ['a', 'b'] False
 KeyError 'x'
 defaultdict(<class 'list'>, {'a': [1, 2], 'b': [3]}) True
-OrderedDict([('a', 1), ('b', 2), ('c', 3)]) ['a', 'b', 'c'] 2 3
+OrderedDict({'a': 1, 'b': 2, 'c': 3}) ['a', 'b', 'c'] 2 3
 ['b', 'c', 'a']
 ['c', 'b', 'a']
 ('a', 1) ('c', 3) [('b', 2)]
 False True True
 {'a': 1, 'b': 2} 1 3 ['a', 'b', 'c']
-OrderedDict([('c', 3)]) 2 OrderedDict([('c', 3)])
+OrderedDict({'c': 3}) 2 OrderedDict({'c': 3})
 {'a': 2, 'b': 3, 'c': 1}
 {'a': 3, 'b': 4, 'c': 1}

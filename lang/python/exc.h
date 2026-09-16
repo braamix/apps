@@ -12,7 +12,8 @@
 
 struct ExcType {
     Str name;
-    const ExcType *base; // null only for BaseException
+    const ExcType *base;           // null only for BaseException
+    const ExcType *also = nullptr; // a second base: ExceptionGroup is an Exception
 };
 
 // The whole hierarchy, in one table so a name lookup is a linear scan over it
@@ -39,6 +40,8 @@ struct ExcObj : Obj {
     Value args;    // TupleObj, always
     Value cause;   // `raise X from Y`, or Nil
     Value context; // what was being handled when this was raised, or Nil
+    Value msg;     // a group's message, or Nil
+    Value excs;    // a group's members, a tuple, or Nil
 };
 
 // A user class deriving from one of these carries its own type, so the flag
@@ -60,11 +63,18 @@ Value exc_type_value(const ExcType *t);
 // A fresh instance of `cls`, which is a class deriving from an exception.
 Value exc_inst(Value cls, Value args);
 
+// What calling `cls` with `args` makes: exc_inst, or a checked group.
+Value exc_construct(Value cls, Value args);
+
 // An instance. `args` may be Nil for none.
 Value exc_new(const ExcType *t, Value args);
 
 // The shorthand every raise from C++ wants: one string argument, or none.
 Value exc_make(Str name, Str message);
+
+// A SyntaxError, or a kind under it, with its details:
+// (msg, (filename, lineno, offset, text)). An empty file or text is None.
+Value exc_syntax(Str kind, Str message, Str file, u32 line, u32 col, Str text);
 
 // KeyError(key), pending: the key itself is the argument, as CPython's is.
 R key_error(Value key);

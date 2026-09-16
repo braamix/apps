@@ -59,3 +59,23 @@ usize intern_count()
 {
     return table ? table->all.size() : 0;
 }
+
+StrObj *py_mangle(StrObj *priv, Str name)
+{
+    if (!priv || name.size() < 3 || name[0] != '_' || name[1] != '_')
+        return str_intern(name);
+    if ((name[name.size() - 1] == '_' && name[name.size() - 2] == '_'))
+        return str_intern(name);
+    for (usize k = 0; k < name.size(); k++)
+        if (name[k] == '.')
+            return str_intern(name);
+    Str cls = priv->str();
+    while (cls.size() && cls[0] == '_')
+        cls = cls.substr(1);
+    if (cls.empty())
+        return str_intern(name);
+    String b;
+    if (!b.push('_') || !b.append(cls) || !b.append(name))
+        return nullptr;
+    return str_intern(b.str());
+}

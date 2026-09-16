@@ -1542,7 +1542,8 @@ constexpr Type memview_type{ .name     = "memoryview",
                              .setitem  = mem_setitem,
                              .contains = mem_contains,
                              .iter     = seq_iter,
-                             .getattr  = mem_getattr };
+                             .getattr  = mem_getattr,
+                             .patma    = PATMA_SEQ };
 
 Value memview_new(Value owner)
 {

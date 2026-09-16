@@ -1,0 +1,25 @@
+~T T None () False False False typing.NoDefault False __main__
++TV (<class 'int'>, <class 'str'>)
+-TV2 <class 'int'> <class 'str'> True
+I
+ValueError Bivariant types are not supported.
+ValueError Variance cannot be specified with infer_variance.
+TypeError A single constraint is not allowed
+TypeError Constraints cannot be combined with bound=...
+TypeError Cannot subclass an instance of TypeVar
+TypeError Cannot inherit from plain Generic
+TypeError Parameters to Generic[...] must all be type variables or parameter specification variables.
+TypeError Parameters to Generic[...] must all be unique
+~P P.args P.kwargs True True True True
+Ts [typing.Unpack[Ts]] typing.NoDefault True
+typing.NoDefault typing.NoDefault NoDefaultType
+5 int | str True
+(~T,) (<class 'typing.Generic'>, <class 'object'>) (typing.Generic[~T],) __main__.G[int]
+TypeError Too many arguments for <class '__main__.G'>; actual 2, expected 1
+A list[~T] A[int] (~T,) (~T,) __main__
+TypeError Only generic type aliases are subscriptable
+AE attribute '__value__' of 'typing.TypeAliasType' objects is not writable
+~T | None int | ~T <class 'int'> list[str] int | None
+Generic
+(~T,) (__main__.G[~T],)
+__main__.H[str, int] (~T, ~U)

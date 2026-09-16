@@ -266,8 +266,10 @@ bool Scanner::scan_name()
                 flags |= TOK_STR_RAW;
             else if (c == 'b')
                 flags |= TOK_STR_BYTES;
-            else if (c == 'f')
+            else if (c == 'f' && !(flags & TOK_STR_F))
                 flags |= TOK_STR_F;
+            else if (c == 't' && !(flags & TOK_STR_F))
+                flags |= TOK_STR_F | TOK_STR_T;
             else if (c != 'u')
                 ok = false;
         }
@@ -513,6 +515,19 @@ bool Scanner::scan_string(u8 flags, u32 at_line, u32 at_col)
     bool bytes    = (flags & TOK_STR_BYTES) != 0;
     usize body_at = i;
     String body;
+    if (flags & TOK_STR_F) {
+        // The body is kept as written; the parser takes it apart.
+        usize end = lex_fstr_end(src, i, char(quote), triple, raw);
+        if (end == Str::npos)
+            return fail_at(
+                triple ? "EOF in multi-line string" : "EOL while scanning string literal", at_line,
+                at_col);
+        while (i < end)
+            bump();
+        for (u32 n = triple ? 3 : 1; n; n--)
+            bump();
+        return emit_text(Tok::FStr, at_line, at_col, src.substr(body_at, end - body_at), flags);
+    }
     for (;;) {
         if (at_end())
             return fail_at(
@@ -559,11 +574,6 @@ bool Scanner::scan_string(u8 flags, u32 at_line, u32 at_col)
         bump();
     }
 
-    if (flags & TOK_STR_F) {
-        // The body is kept as written; phase 4 parses what is inside it.
-        usize end = i - (triple ? 3 : 1);
-        return emit_text(Tok::FStr, at_line, at_col, src.substr(body_at, end - body_at), flags);
-    }
     return emit_text(bytes ? Tok::Bytes : Tok::Str, at_line, at_col, body.str(), flags);
 }
 
@@ -717,7 +727,7 @@ Str tok_label(Tok t)
     case Tok::Bytes:
         return "bytes";
     case Tok::FStr:
-        return "fstring";
+        return "fstring"; // lex_dump says tstring where it is one
     default:
         break;
     }
@@ -728,6 +738,127 @@ bool Lexer::run(Str source)
 {
     Scanner s{ source, this };
     return s.run();
+}
+
+namespace {
+
+bool closes(Str s, usize k, char quote, bool triple)
+{
+    return s[k] == quote &&
+           (!triple || (k + 2 < s.size() && s[k + 1] == quote && s[k + 2] == quote));
+}
+
+usize plain_end(Str s, usize k, char quote, bool triple)
+{
+    for (; k < s.size(); k++) {
+        if (s[k] == '\\')
+            k++;
+        else if (s[k] == '\n' && !triple)
+            return Str::npos;
+        else if (closes(s, k, quote, triple))
+            return k;
+    }
+    return Str::npos;
+}
+
+} // namespace
+
+usize lex_skip_string(Str s, usize at)
+{
+    // A prefix is at most two of r, b, u, f, t, with no name character before.
+    bool f = false, raw = false;
+    usize p = at;
+    while (p > 0 && at - p < 3 && is_name_char(u8(s[p - 1])))
+        p--;
+    if (at - p <= 2 && (p == 0 || !is_name_char(u8(s[p - 1])))) {
+        bool ok = true;
+        bool f1 = false, r1 = false;
+        for (usize k = p; k < at; k++) {
+            char c = char(s[k] | 0x20);
+            f1 |= c == 'f' || c == 't';
+            r1 |= c == 'r';
+            ok &= c == 'f' || c == 't' || c == 'r' || c == 'b' || c == 'u';
+        }
+        if (ok)
+            f = f1, raw = r1;
+    }
+    char q      = s[at];
+    bool triple = at + 2 < s.size() && s[at + 1] == q && s[at + 2] == q;
+    usize from  = at + (triple ? 3 : 1);
+    usize end   = f ? lex_fstr_end(s, from, q, triple, raw) : plain_end(s, from, q, triple);
+    return end == Str::npos ? end : end + (triple ? 3 : 1);
+}
+
+usize lex_fstr_end(Str s, usize k, char quote, bool triple, bool raw)
+{
+    for (; k < s.size(); k++) {
+        char c = s[k];
+        if (c == '\\') {
+            // \N{...} names a character and opens no field.
+            if (!raw && k + 2 < s.size() && s[k + 1] == 'N' && s[k + 2] == '{') {
+                while (k < s.size() && s[k] != '}')
+                    k++;
+            } else if (k + 1 < s.size() && s[k + 1] != '{' && s[k + 1] != '}') {
+                k++;
+            }
+            continue;
+        }
+        if (c == '\n' && !triple)
+            return Str::npos;
+        if (closes(s, k, quote, triple))
+            return k;
+        if (c == '{') {
+            if (k + 1 < s.size() && s[k + 1] == '{') {
+                k++;
+                continue;
+            }
+            k = lex_field_end(s, k + 1);
+            if (k == Str::npos)
+                return k;
+        }
+    }
+    return Str::npos;
+}
+
+usize lex_field_end(Str s, usize k)
+{
+    u32 depth = 0;
+    for (; k < s.size(); k++) {
+        char c = s[k];
+        if (c == '\'' || c == '"') {
+            k = lex_skip_string(s, k);
+            if (k == Str::npos)
+                return k;
+            k--;
+        } else if (c == '#') {
+            while (k < s.size() && s[k] != '\n')
+                k++;
+        } else if (c == '(' || c == '[' || c == '{') {
+            depth++;
+        } else if (c == ')' || c == ']') {
+            if (depth)
+                depth--;
+        } else if (c == '}') {
+            if (!depth)
+                return k;
+            depth--;
+        } else if (c == '!' && k + 1 < s.size() && s[k + 1] == '=') {
+            k++;
+        } else if (c == ':' && !depth) {
+            // The spec: literal text, and fields of its own.
+            for (k++; k < s.size(); k++) {
+                if (s[k] == '}')
+                    return k;
+                if (s[k] == '{') {
+                    k = lex_field_end(s, k + 1);
+                    if (k == Str::npos)
+                        return k;
+                }
+            }
+            return Str::npos;
+        }
+    }
+    return Str::npos;
 }
 
 bool lex_unescape(Str raw, u32 line, u32 col, String &out)
@@ -784,7 +915,8 @@ bool lex_dump(Str source, String &out)
     for (usize k = 0; k < lx.tokens.size(); k++) {
         const Token &t = lx.tokens[k];
         Buf<64> head;
-        head.put(u64(t.line)).put(':').put(u64(t.col)).put(' ').put(tok_label(t.kind));
+        head.put(u64(t.line)).put(':').put(u64(t.col)).put(' ');
+        head.put(t.kind == Tok::FStr && (t.flags & TOK_STR_T) ? Str("tstring") : tok_label(t.kind));
         if (!out.append(head.str()))
             return false;
 

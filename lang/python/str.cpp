@@ -182,7 +182,8 @@ constexpr Type str_type{ .name     = "str",
                          .getitem  = str_getitem,
                          .contains = str_contains,
                          .binop    = str_binop,
-                         .iter     = seq_iter };
+                         .iter     = seq_iter,
+                         .patma    = PATMA_SELF };
 
 StrObj *str_raw(Str s)
 {

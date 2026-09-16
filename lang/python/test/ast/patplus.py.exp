@@ -1,0 +1,32 @@
+Module
+  body:
+    Match
+      subject:
+        Name x
+      cases:
+        MatchCase
+          pattern:
+            MatchOr
+              patterns:
+                MatchValue
+                  value:
+                    Constant 0
+                MatchValue
+                  value:
+                    Constant 1.5
+                MatchValue
+                  value:
+                    BinOp +
+                      left:
+                        Constant 1
+                      right:
+                        Constant 2j
+                MatchMapping
+                  keys:
+                    Constant 3
+                  patterns:
+                    MatchAs
+                      pattern: -
+          guard: -
+          body:
+            Pass

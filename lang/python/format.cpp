@@ -70,10 +70,12 @@ bool spec_parse(Str s, Spec &out, Str who)
 
     // A fill character is recognised only by the alignment behind it, so the
     // two-character case has to be tried before the one-character one.
+    bool filled = false;
     if (s.size() >= 2) {
         usize used = 0;
         u32 cp     = rune_at(s, 0, used);
         if (used < s.size() && is_align(s[used])) {
+            filled   = true;
             sp.fill  = cp;
             sp.align = s[used];
             i        = used + 1;
@@ -91,9 +93,12 @@ bool spec_parse(Str s, Spec &out, Str who)
     if (i < s.size() && s[i] == '0') {
         sp.zero = true;
         i++;
+        if (!filled)
+            sp.fill = '0';
         if (!sp.align) {
-            sp.fill  = '0';
-            sp.align = '=';
+            sp.fill    = '0';
+            sp.align   = '=';
+            sp.implied = true;
         }
     }
 
@@ -431,7 +436,11 @@ R format_string(Str text, const Spec &s, Str who, String &out)
 {
     if (s.sign || s.alt || s.grouping || (s.type && s.type != 's'))
         return bad_spec("", who), R::Err;
-    if (s.align == '=')
+    // A '0' before the width is a fill here and aligns nothing, since 3.10.
+    Spec t = s;
+    if (t.implied)
+        t.align = 0;
+    if (t.align == '=')
         return err_set("ValueError", "'=' alignment not allowed in string format specifier");
     if (s.precision >= 0) {
         // Cut at a character, never inside one.
@@ -445,7 +454,7 @@ R format_string(Str text, const Spec &s, Str who, String &out)
         }
         text = text.substr(0, i);
     }
-    return format_pad(text, s, '<', out);
+    return format_pad(text, t, '<', out);
 }
 
 } // namespace

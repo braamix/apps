@@ -317,7 +317,8 @@ constexpr Type range_type{ .name    = "range",
                            .len     = range_len,
                            .getitem = range_getitem,
                            .iter    = range_iter,
-                           .getattr = range_getattr };
+                           .getattr = range_getattr,
+                           .patma   = PATMA_SEQ };
 
 Value slice_new(Value start, Value stop, Value step)
 {

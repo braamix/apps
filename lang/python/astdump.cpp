@@ -161,6 +161,7 @@ void Dumper::node(u32 d, u32 i)
         constant(n);
         break;
     case Nd::FormattedValue:
+    case Nd::Interpolation:
         // The conversion as CPython spells it, or `-` for none.
         put(' ');
         put(n.flags ? char(n.flags) : '-');
@@ -214,6 +215,8 @@ void Dumper::node(u32 d, u32 i)
         Buf<16> b;
         b.put(" level=").put(u64(n.a));
         put(b.str());
+        if (n.pad & 1)
+            put(" lazy");
         break;
     }
     case Nd::AnnAssign:
@@ -225,14 +228,34 @@ void Dumper::node(u32 d, u32 i)
             put(" async");
         break;
     case Nd::ExceptHandler:
+    case Nd::MatchStar:
+    case Nd::MatchAs:
         if (n.flags & 1) {
             put(' ');
             put(text(i));
         }
         break;
+    case Nd::MatchMapping:
+        if (n.flags & 1) {
+            put(" **");
+            put(text(i));
+        }
+        break;
+    case Nd::MatchSingleton:
+        put(' ');
+        constant(n);
+        break;
+    case Nd::TypeVar:
+    case Nd::ParamSpec:
+    case Nd::TypeVarTuple:
+        put(' ');
+        put(text(i));
+        break;
     default:
         break;
     }
+    if (n.kind == Nd::Import && (n.pad & 1))
+        put(" lazy");
     put('\n');
 
     switch (n.kind) {
@@ -245,12 +268,16 @@ void Dumper::node(u32 d, u32 i)
         slice(d + 1, "body", n, 0, n.b);
         slice(d + 1, "decorators", n, n.b, n.c);
         field(d + 1, "returns", n.d);
+        if (n.pad)
+            slice(d + 1, "type_params", n, n.b + n.c, n.pad);
         break;
     case Nd::ClassDef:
         slice(d + 1, "bases", n, 0, n.a);
         slice(d + 1, "keywords", n, n.a, n.b);
         slice(d + 1, "body", n, n.a + n.b, n.c);
         slice(d + 1, "decorators", n, n.a + n.b + n.c, n.d);
+        if (n.pad)
+            slice(d + 1, "type_params", n, n.a + n.b + n.c + n.d, n.pad);
         break;
     case Nd::Return:
     case Nd::Yield:
@@ -384,10 +411,16 @@ void Dumper::node(u32 d, u32 i)
         slice(d + 1, "keywords", n, n.b, n.nkid - n.b);
         break;
     case Nd::JoinedStr:
+    case Nd::TemplateStr:
         slice(d + 1, "values", n, 0, n.nkid);
         break;
     case Nd::FormattedValue:
         field(d + 1, "value", n.a);
+        field(d + 1, "format_spec", n.b);
+        break;
+    case Nd::Interpolation:
+        field(d + 1, "value", n.a);
+        field(d + 1, "str", n.c);
         field(d + 1, "format_spec", n.b);
         break;
     case Nd::Attribute:
@@ -446,6 +479,53 @@ void Dumper::node(u32 d, u32 i)
     case Nd::WithItem:
         field(d + 1, "context", n.a);
         field(d + 1, "vars", n.b);
+        break;
+    case Nd::Match:
+        field(d + 1, "subject", n.a);
+        slice(d + 1, "cases", n, 0, n.nkid);
+        break;
+    case Nd::MatchCase:
+        field(d + 1, "pattern", n.a);
+        field(d + 1, "guard", n.b);
+        slice(d + 1, "body", n, 0, n.nkid);
+        break;
+    case Nd::MatchValue:
+        field(d + 1, "value", n.a);
+        break;
+    case Nd::MatchSequence:
+    case Nd::MatchOr:
+        slice(d + 1, "patterns", n, 0, n.nkid);
+        break;
+    case Nd::MatchMapping:
+        slice(d + 1, "keys", n, 0, n.a);
+        slice(d + 1, "patterns", n, n.a, n.nkid - n.a);
+        break;
+    case Nd::MatchClass:
+        field(d + 1, "cls", n.a);
+        slice(d + 1, "patterns", n, 0, n.b);
+        slice(d + 1, "keywords", n, n.b, n.nkid - n.b);
+        break;
+    case Nd::MatchAs:
+        field(d + 1, "pattern", n.a);
+        break;
+    case Nd::TryStar:
+        slice(d + 1, "body", n, 0, n.a);
+        slice(d + 1, "handlers", n, n.a, n.b);
+        slice(d + 1, "orelse", n, n.a + n.b, n.c);
+        slice(d + 1, "finalbody", n, n.a + n.b + n.c, n.d);
+        break;
+    case Nd::TypeAlias:
+        field(d + 1, "name", n.a);
+        slice(d + 1, "type_params", n, 0, n.c);
+        field(d + 1, "value", n.b);
+        break;
+    case Nd::TypeVar:
+        field(d + 1, "bound", n.a);
+        field(d + 1, "default", n.b);
+        break;
+    case Nd::ParamSpec:
+    case Nd::TypeVarTuple:
+        field(d + 1, "default", n.b);
         break;
     default:
         break;
@@ -506,6 +586,8 @@ Str nd_name(Nd k)
         NAME(Call);
         NAME(JoinedStr);
         NAME(FormattedValue);
+        NAME(TemplateStr);
+        NAME(Interpolation);
         NAME(Constant);
         NAME(Attribute);
         NAME(Subscript);
@@ -522,6 +604,21 @@ Str nd_name(Nd k)
         NAME(Keyword);
         NAME(Alias);
         NAME(WithItem);
+        NAME(Match);
+        NAME(MatchCase);
+        NAME(MatchValue);
+        NAME(MatchSingleton);
+        NAME(MatchSequence);
+        NAME(MatchMapping);
+        NAME(MatchClass);
+        NAME(MatchStar);
+        NAME(MatchAs);
+        NAME(MatchOr);
+        NAME(TryStar);
+        NAME(TypeAlias);
+        NAME(TypeVar);
+        NAME(ParamSpec);
+        NAME(TypeVarTuple);
 #undef NAME
     }
     return "?";

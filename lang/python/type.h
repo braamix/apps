@@ -13,6 +13,7 @@
 struct TypeObj : Obj {
     Type slots;                // what an instance of this type points at
     Value name;                // StrObj
+    Value qualname;            // StrObj, or Nil for the same as name
     Value dict;                // DictObj
     Value bases;               // TupleObj of TypeObj
     Value mro;                 // TupleObj of TypeObj, this one first
@@ -202,6 +203,16 @@ inline bool is_super(Value v)
 // its class does not have one; the caller keeps `v` rooted.
 Value type_special(Value v, Str name);
 
+// A class whose metaclass a class statement made, and which may therefore
+// answer an operator in Python.
+inline bool is_meta_inst(Value v)
+{
+    return v.is_obj() && (v.obj()->flags & OBJ_TYPE) && v.obj()->type->owner != nullptr;
+}
+
+// type_special for an instance or for such a class, whose metaclass is asked.
+Value operand_special(Value v, Str name);
+
 // Whether the class has one, without binding it. A predicate that allocates
 // would be wrong in a hot path.
 bool type_has_special(Value v, Str name);
@@ -243,6 +254,9 @@ bool is_object_default(Value v);
 // pending; the continuation answers the class itself.
 Value type_hooks(Value cls, Value kwnames, Value kwvals);
 
+// isinstance() itself, for a continuation to call.
+R py_isinstance(const CallArgs &a, Value &out);
+
 // object, type, the built-in types and the class builtins.
 bool type_install(DictObj *into);
 
@@ -253,7 +267,7 @@ bool type_set_ctor(const Type *t, Value fn);
 Value type_object();
 
 // A built-in type object built by hand: exc.cpp makes its hierarchy this way.
-// `base` is the base's TypeObj, or Nil for object.
+// `base` is the base's TypeObj, a tuple of them, or Nil for object.
 Value type_make_native(Str name, Value base, const Type *desc, const struct ExcType *exc);
 
 // Allocate an object of `cls`, `bytes` long, with cls and dict already set.

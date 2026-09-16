@@ -18,7 +18,7 @@ Roots *roots = nullptr; // the innermost pin
 // A handful of root providers, because more than one subsystem outlives an
 // operation: the VM's frames, the builtins namespace, the type objects, the
 // exception types and the module cache.
-constexpr usize MAX_HOOKS = 8;
+constexpr usize MAX_HOOKS = 16;
 void (*hooks[MAX_HOOKS])();
 usize nhooks = 0;
 

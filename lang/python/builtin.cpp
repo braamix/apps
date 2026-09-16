@@ -20,6 +20,7 @@
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "kernel/text.h"
+#include "lazy.h"
 #include "math/ftoa.h"
 #include "math/math.h"
 #include "method.h"
@@ -1036,10 +1037,69 @@ R b_tuple(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// dict(m) for a class that writes keys(): every key, and m[key] for each.
+// s[0] the dict, s[1] the bound keys, s[2] the bound __getitem__, s[3] the
+// keys once they are in, s[4] and s[5] the call's keywords.
+R dict_keys_step(ContObj *k, Value in)
+{
+    DictObj *d = static_cast<DictObj *>(k->s[0].obj());
+    if (k->i == 0) {
+        k->i = 1;
+        return cont_call(k, k->s[1], Value(), 0);
+    }
+    if (k->i == 1) {
+        if (iter_needs_vm(in))
+            return err_set("TypeError", "keys() answered something only the interpreter can walk");
+        ListObj *ks = py_list_of(in);
+        if (!ks)
+            return R::Err;
+        k->s[3] = obj_value(ks);
+        k->i    = 2;
+    } else if (dict_set(d, list_of(k->s[3])->items[k->j - 1], in) != R::Ok) {
+        return R::Err;
+    }
+    ListObj *ks = list_of(k->s[3]);
+    if (k->j < ks->items.size())
+        return cont_call(k, k->s[2], ks->items[k->j++]);
+    TupleObj *names = static_cast<TupleObj *>(k->s[4].obj());
+    TupleObj *vals  = static_cast<TupleObj *>(k->s[5].obj());
+    for (usize i = 0; i < names->len; i++)
+        if (dict_set(d, names->items()[i], vals->items()[i]) != R::Ok)
+            return R::Err;
+    return cont_done(k, k->s[0]);
+}
+
 R b_dict(const CallArgs &a, Value &out)
 {
     if (a.nargs > 1)
         return err_set("TypeError", "dict() takes at most one positional argument");
+    if (a.nargs && !is_dict(method_self(a.args[0])) && type_has_py_special(a.args[0], "keys")) {
+        Root src{ a.args[0] };
+        Root keys{ type_special(src.v, "keys") };
+        Root get{ type_special(src.v, "__getitem__") };
+        if (keys.v.is_nil() || get.v.is_nil())
+            return err_pending() ? R::Err : not_iterable(src.v);
+        Root d{ obj_value(dict_new()) };
+        TupleObj *n = tuple_new(a.nkw), *v = n ? tuple_new(a.nkw) : nullptr;
+        if (d.v.is_nil() || !n || !v)
+            return oom();
+        for (u32 i = 0; i < a.nkw; i++) {
+            n->items()[i] = a.kwnames[i];
+            v->items()[i] = a.kwvals[i];
+        }
+        Root rn{ obj_value(n) }, rv{ obj_value(v) };
+        Root kv{ cont_new(dict_keys_step) };
+        if (kv.v.is_nil())
+            return R::Err;
+        ContObj *k = cont_of(kv.v);
+        k->s[0]    = d.v;
+        k->s[1]    = keys.v;
+        k->s[2]    = get.v;
+        k->s[4]    = rn.v;
+        k->s[5]    = rv.v;
+        out        = kv.v;
+        return R::Ok;
+    }
     if (parks(a, 0))
         return iter_park(a, 0, b_dict, out);
     DictObj *d = dict_new();
@@ -1401,6 +1461,21 @@ R b_max(const CallArgs &a, Value &out)
     return fold(a, false, "max", out);
 }
 
+// Neumaier's running sum, which is what sum() keeps for floats.
+struct Sum {
+    f64 hi, lo;
+
+    void add(f64 x)
+    {
+        f64 t = hi + x;
+        lo += fabs(hi) >= fabs(x) ? (hi - t) + x : (x - t) + hi;
+        hi = t;
+    }
+
+    // The compensation is left out when it would turn an overflow into a NaN.
+    f64 value() const { return lo != 0 && isfinite(lo) ? hi + lo : hi; }
+};
+
 R b_sum(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "sum", 1, 2))
@@ -1411,6 +1486,10 @@ R b_sum(const CallArgs &a, Value &out)
     Root it{ py_iter(a.args[0]) };
     if (it.v.is_nil())
         return R::Err;
+    // A float or complex total is summed with compensation, as 3.12 does, and
+    // only becomes an object again when an item is something else.
+    bool comp = false;
+    Sum re, im;
     for (;;) {
         Root got;
         R r = py_next(it.v, got.v);
@@ -1418,13 +1497,43 @@ R b_sum(const CallArgs &a, Value &out)
             return R::Err;
         if (r == R::NotImpl)
             break;
+        if (!comp && (is_float(acc.v) || is_complex(acc.v))) {
+            re   = { is_float(acc.v) ? float_of(acc.v) : complex_of(acc.v)->re, 0 };
+            im   = { is_complex(acc.v) ? complex_of(acc.v)->im : 0, 0 };
+            comp = true;
+        }
+        if (comp) {
+            bool cx = is_complex(acc.v);
+            if (is_float(got.v)) {
+                re.add(float_of(got.v));
+                continue;
+            }
+            if (cx && is_complex(got.v)) {
+                re.add(complex_of(got.v)->re);
+                im.add(complex_of(got.v)->im);
+                continue;
+            }
+            if (is_intval(got.v)) {
+                f64 x = int_to_f64(got.v);
+                if (isinf(x))
+                    return err_set("OverflowError", "int too large to convert to float");
+                re.add(x);
+                continue;
+            }
+            acc  = cx ? complex_new(re.value(), im.value()) : float_new(re.value());
+            comp = false;
+            if (acc.v.is_nil())
+                return R::Err;
+        }
         Value next;
         if (py_binop(acc.v, got.v, Op::Add, next) != R::Ok)
             return R::Err;
         acc = next;
     }
+    if (comp)
+        acc = is_complex(acc.v) ? complex_new(re.value(), im.value()) : float_new(re.value());
     out = acc.v;
-    return R::Ok;
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R every(const CallArgs &a, bool want, Value &out)
@@ -1448,22 +1557,81 @@ R every(const CallArgs &a, bool want, Value &out)
     return R::Ok;
 }
 
+// all() and any() over a generator, one item at a time: they stop at the
+// first answer, and the rest is never run. s[0] the iterable, s[1] its
+// __next__; j is the item that decides.
+R every_step(ContObj *k, Value in)
+{
+    switch (k->i) {
+    case 0: {
+        k->i = 1;
+        Root sp{ iter_special(k->s[0]) };
+        if (!sp.v.is_nil())
+            return cont_call(k, sp.v, Value(), 0);
+        if (err_pending())
+            return R::Err;
+        in = py_iter(k->s[0]);
+        if (in.is_nil())
+            return R::Err;
+    }
+        [[fallthrough]];
+    case 1: {
+        Root it{ in };
+        if (!iter_needs_vm(it.v)) {
+            Value v[1] = { it.v };
+            CallArgs a;
+            a.args  = v;
+            a.nargs = 1;
+            Value got;
+            if (every(a, k->j, got) != R::Ok)
+                return R::Err;
+            return cont_done(k, got);
+        }
+        k->s[1] = next_special(it.v);
+        if (k->s[1].is_nil()) {
+            if (err_pending())
+                return R::Err;
+            Buf<96> b;
+            b.put("iter() returned non-iterator of type '").put(type_name(it.v)).put("'");
+            return err_set("TypeError", b.str());
+        }
+        k->i        = 2;
+        k->catching = CATCH_STOP;
+        return cont_call(k, k->s[1], Value(), 0);
+    }
+    default:
+        if (in.is_nil())
+            return cont_done(k, value_bool(!k->j));
+        if (py_truth(in) == bool(k->j))
+            return cont_done(k, value_bool(k->j));
+        return cont_call(k, k->s[1], Value(), 0);
+    }
+}
+
+R every_of(const CallArgs &a, Str who, bool want, Value &out)
+{
+    if (!args_only(a, who, 1, 1))
+        return R::Err;
+    if (!parks(a, 0))
+        return every(a, want, out);
+    Root it{ a.args[0] };
+    Root kv{ cont_new(every_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[0] = it.v;
+    cont_of(kv.v)->j    = want;
+    out                 = kv.v;
+    return R::Ok;
+}
+
 R b_all(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "all", 1, 1))
-        return R::Err;
-    if (parks(a, 0))
-        return iter_park(a, 0, b_all, out);
-    return every(a, false, out);
+    return every_of(a, "all", false, out);
 }
 
 R b_any(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "any", 1, 1))
-        return R::Err;
-    if (parks(a, 0))
-        return iter_park(a, 0, b_any, out);
-    return every(a, true, out);
+    return every_of(a, "any", true, out);
 }
 
 R b_enumerate(const CallArgs &a, Value &out)
@@ -1499,6 +1667,17 @@ R b_iter(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "iter", 1, 1))
         return R::Err;
+    // A class's own __iter__, or the walk over its __getitem__.
+    Root m{ iter_special(a.args[0]) };
+    if (!m.v.is_nil()) {
+        TupleObj *none = tuple_new(0);
+        if (!none)
+            return oom();
+        out = attr_invoke(m.v, obj_value(none));
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    if (err_pending())
+        return R::Err;
     out = py_iter(a.args[0]);
     return out.is_nil() ? R::Err : R::Ok;
 }
@@ -1515,9 +1694,8 @@ R b_next(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "next", 1, 2))
         return R::Err;
-    if (is_resumable(a.args[0]) || type_has_py_special(a.args[0], "__next__")) {
-        Root m{ is_resumable(a.args[0]) ? genrun_new(a.args[0], GR_NEXT)
-                                        : type_special(a.args[0], "__next__") };
+    if (iter_needs_vm(a.args[0])) {
+        Root m{ next_special(a.args[0]) };
         if (m.v.is_nil())
             return R::Err;
         Root d{ a.nargs > 1 ? a.args[1] : Value() };
@@ -2089,8 +2267,11 @@ Value compile_source(Value src, Str filename, CompileMode mode)
                Value();
     Ast ast;
     if (!ast.parse(text))
-        return Value();
-    return py_compile(ast, filename, mode);
+        return err_set_file(filename, text), Value();
+    Value code = py_compile(ast, filename, mode);
+    if (code.is_nil())
+        err_set_file(filename, text);
+    return code;
 }
 
 R b_compile(const CallArgs &a, Value &out)
@@ -2238,10 +2419,10 @@ R run_code(const CallArgs &a, CompileMode mode, bool want, Value &out)
                 text = text.substr(1);
         Ast ast;
         if (!ast.parse(text))
-            return R::Err;
+            return err_set_file("<string>", text), R::Err;
         code = py_compile(ast, "<string>", mode);
         if (code.v.is_nil())
-            return R::Err;
+            return err_set_file("<string>", text), R::Err;
     }
 
     Root fn{ func_new(code.v, globals.v) };
@@ -2299,10 +2480,39 @@ bool dir_type(SetObj *into, Value cls)
     return true;
 }
 
+// dir() of an instance whose class writes __dir__: its answer, sorted.
+R dir_step(ContObj *k, Value in)
+{
+    switch (k->i++) {
+    case 0:
+        return cont_call(k, k->s[0], Value(), 0);
+    case 1: {
+        Root got{ in };
+        Root fn{ native_new("sorted", b_sorted) };
+        if (fn.v.is_nil())
+            return R::Err;
+        return cont_call(k, fn.v, got.v);
+    }
+    default:
+        return cont_done(k, in);
+    }
+}
+
 R b_dir(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "dir", 0, 1))
         return R::Err;
+    if (a.nargs && !is_type(a.args[0]) && type_has_py_special(a.args[0], "__dir__")) {
+        Root m{ type_special(a.args[0], "__dir__") };
+        if (m.v.is_nil())
+            return R::Err;
+        Root kv{ cont_new(dir_step) };
+        if (kv.v.is_nil())
+            return R::Err;
+        cont_of(kv.v)->s[0] = m.v;
+        out                 = kv.v;
+        return R::Ok;
+    }
     SetObj *s = set_new();
     if (!s)
         return oom();
@@ -2477,21 +2687,51 @@ struct Builtin {
 };
 
 constexpr Builtin TABLE[] = {
-    { "print", b_print },     { "len", b_len },           { "abs", b_abs },
-    { "repr", b_repr },       { "min", b_min },           { "max", b_max },
-    { "sum", b_sum },         { "all", b_all },           { "any", b_any },
-    { "ord", b_ord },         { "chr", b_chr },           { "iter", b_iter },
-    { "next", b_next },       { "sorted", b_sorted },     { "enumerate", b_enumerate },
-    { "getattr", b_getattr }, { "hasattr", b_hasattr },   { "setattr", b_setattr },
-    { "delattr", b_delattr }, { "callable", b_callable }, { "hash", b_hash },
-    { "id", b_id },           { "divmod", b_divmod },     { "round", b_round },
-    { "pow", b_pow },         { "reversed", b_reversed }, { "zip", b_zip },
-    { "map", b_map },         { "filter", b_filter },     { "__import__", b_import },
-    { "format", b_format },   { "ascii", b_ascii },       { "hex", b_hex },
-    { "oct", b_oct },         { "bin", b_bin },           { "compile", b_compile },
-    { "eval", b_eval },       { "exec", b_exec },         { "globals", b_globals },
-    { "locals", b_locals },   { "vars", b_vars },         { "dir", b_dir },
-    { "aiter", b_aiter },     { "anext", b_anext },
+    { "print", b_print },
+    { "len", b_len },
+    { "abs", b_abs },
+    { "repr", b_repr },
+    { "min", b_min },
+    { "max", b_max },
+    { "sum", b_sum },
+    { "all", b_all },
+    { "any", b_any },
+    { "ord", b_ord },
+    { "chr", b_chr },
+    { "iter", b_iter },
+    { "next", b_next },
+    { "sorted", b_sorted },
+    { "enumerate", b_enumerate },
+    { "getattr", b_getattr },
+    { "hasattr", b_hasattr },
+    { "setattr", b_setattr },
+    { "delattr", b_delattr },
+    { "callable", b_callable },
+    { "hash", b_hash },
+    { "id", b_id },
+    { "divmod", b_divmod },
+    { "round", b_round },
+    { "pow", b_pow },
+    { "reversed", b_reversed },
+    { "zip", b_zip },
+    { "map", b_map },
+    { "filter", b_filter },
+    { "__import__", b_import },
+    { "__lazy_import__", b_lazy_import },
+    { "format", b_format },
+    { "ascii", b_ascii },
+    { "hex", b_hex },
+    { "oct", b_oct },
+    { "bin", b_bin },
+    { "compile", b_compile },
+    { "eval", b_eval },
+    { "exec", b_exec },
+    { "globals", b_globals },
+    { "locals", b_locals },
+    { "vars", b_vars },
+    { "dir", b_dir },
+    { "aiter", b_aiter },
+    { "anext", b_anext },
 };
 
 // Calling one of these is calling its type: `list(x)` is `list.__new__(x)`,
@@ -2559,6 +2799,13 @@ DictObj *builtins_dict()
             dict_set(static_cast<DictObj *>(h->builtins.obj()), obj_value(n), g.of()) != R::Ok)
             return nullptr;
     }
+
+    // The namespace is the builtins module's, and says so.
+    StrObj *nk = str_intern("__name__");
+    Root nv{ str_new("builtins") };
+    if (!nk || nv.v.is_nil() ||
+        dict_set(static_cast<DictObj *>(h->builtins.obj()), obj_value(nk), nv.v) != R::Ok)
+        return nullptr;
 
     if (!type_install(static_cast<DictObj *>(h->builtins.obj())))
         return nullptr;

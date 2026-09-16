@@ -16,12 +16,12 @@ endif()
 braam_add_program(NAME python
                   SOURCES abc.cpp arraymod.cpp astdump.cpp attr.cpp bigint.cpp binfmt.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp
                           code.cpp collmod.cpp compare.cpp compile.cpp complex.cpp
-                          dis.cpp err.cpp exc.cpp float.cpp format.cpp formatgr.cpp frame.cpp func.cpp functoolsmod.cpp gc.cpp
+                          dis.cpp egroup.cpp err.cpp exc.cpp float.cpp format.cpp formatgr.cpp frame.cpp func.cpp functoolsmod.cpp gc.cpp
                           gen.cpp genalias.cpp import.cpp info.cpp int.cpp
-                          intern.cpp iter.cpp itermod.cpp lex.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
-                          mathmod.cpp miscmod.cpp module.cpp obj.cpp opmod.cpp ops.cpp parse.cpp
+                          intern.cpp iter.cpp itermod.cpp lazy.cpp lex.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
+                          mathmod.cpp miscmod.cpp module.cpp obj.cpp opmod.cpp ops.cpp parse.cpp patma.cpp
                           randmod.cpp repr.cpp selftest.cpp seqmeth.cpp slotmeth.cpp str.cpp strmeth.cpp structmod.cpp symtab.cpp
-                          sysmod.cpp table.cpp tuple.cpp type.cpp typesmod.cpp weak.cpp
+                          sysmod.cpp table.cpp templatelib.cpp tuple.cpp type.cpp typesmod.cpp typevar.cpp union.cpp weak.cpp
                           vm.cpp
                   LIBS braam::math)
 

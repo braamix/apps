@@ -19,6 +19,8 @@
 #include "method.h"
 #include "ops.h"
 #include "type.h"
+#include "typevar.h"
+#include "union.h"
 
 namespace {
 
@@ -32,6 +34,27 @@ struct AliasObj : Obj {
     Value args;   // TupleObj, always -- `list[int]` keeps a one-item tuple
 };
 
+usize tuple_len(Value v)
+{
+    return static_cast<TupleObj *>(v.obj())->len;
+}
+
+Value tuple_at(Value v, usize i)
+{
+    return static_cast<TupleObj *>(v.obj())->items()[i];
+}
+
+Value list_to_tuple(Value l)
+{
+    Root rl{ l };
+    TupleObj *t = tuple_new(list_of(rl.v)->items.size());
+    if (!t)
+        return oom(), Value();
+    for (usize i = 0; i < t->len; i++)
+        t->items()[i] = list_of(rl.v)->items[i];
+    return obj_value(t);
+}
+
 AliasObj *alias_of(Value v)
 {
     return static_cast<AliasObj *>(v.obj());
@@ -43,34 +66,10 @@ void alias_trace(Obj *o)
     gc_mark(static_cast<AliasObj *>(o)->args);
 }
 
-// `list[int]`, `dict[str, int]`, `tuple[()]`. A class prints as its name and
-// anything else as its repr, which is what CPython's does.
-R alias_one(Value v, String &out)
-{
-    if (is_type(v)) {
-        Value mod;
-        StrObj *n = str_intern("__module__");
-        if (n && is_type(v) && !type_obj(v)->dict.is_nil() &&
-            dict_get(static_cast<DictObj *>(type_obj(v)->dict.obj()), obj_value(n), mod) == R::Ok &&
-            is_str(mod) && str_of(mod)->str() != "builtins") {
-            if (!out.append(str_of(mod)->str()) || !out.push('.'))
-                return oom();
-        }
-        err_clear();
-        return out.append(str_of(type_obj(v)->name)->str()) ? R::Ok : oom();
-    }
-    if (is_none(v))
-        return out.append("None") ? R::Ok : oom();
-    // `tuple[int, ...]` is written with the ellipsis spelled as it was typed.
-    if (v.w == value_ellipsis().w)
-        return out.append("...") ? R::Ok : oom();
-    return py_repr(v, out);
-}
-
 R alias_repr(Value v, String &out)
 {
     Root rv{ v };
-    if (alias_one(alias_of(rv.v)->origin, out) != R::Ok)
+    if (typing_repr(alias_of(rv.v)->origin, out) != R::Ok)
         return R::Err;
     if (!out.push('['))
         return oom();
@@ -80,7 +79,7 @@ R alias_repr(Value v, String &out)
     for (u32 i = 0; i < t->len; i++) {
         if (i && !out.append(", "))
             return oom();
-        if (alias_one(static_cast<TupleObj *>(alias_of(rv.v)->args.obj())->items()[i], out) !=
+        if (typing_repr(static_cast<TupleObj *>(alias_of(rv.v)->args.obj())->items()[i], out) !=
             R::Ok)
             return R::Err;
     }
@@ -124,9 +123,7 @@ R alias_getattr(Value v, StrObj *name, Value &out)
         return R::Ok;
     }
     if (n == "__parameters__") {
-        // No typing module and so no TypeVar: nothing in an alias is ever a
-        // parameter, and this is the empty tuple rather than a guess.
-        out = obj_value(tuple_new(0));
+        out = typing_params(alias_of(v)->args);
         return out.is_nil() ? R::Err : R::Ok;
     }
     if (n == "__class_getitem__" || n == "__mro_entries__" || n == "__reduce__")
@@ -184,18 +181,31 @@ R a_call(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-// A second subscript would need a TypeVar to substitute, and there are none.
-R a_class_getitem(const CallArgs &a, Value &out)
+// `list[T][int]`: the same origin over the arguments with T replaced.
+R alias_getitem(Value v, Value item, Value &out)
 {
-    (void)a;
-    (void)out;
-    return err_set("TypeError", "there are no type variables left in this alias");
+    Root self{ v }, ri{ item };
+    Root params{ typing_params(alias_of(self.v)->args) };
+    if (params.v.is_nil())
+        return R::Err;
+    Root args{ typing_subst(self.v, alias_of(self.v)->args, params.v, ri.v) };
+    if (args.v.is_nil())
+        return R::Err;
+    out = genalias_new(alias_of(self.v)->origin, args.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R a_getitem(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__getitem__", 1, 1))
+        return R::Err;
+    return alias_getitem(method_self(a.args[0]), a.args[1], out);
 }
 
 constexpr Method ALIAS_METHODS[] = {
     { "__mro_entries__", a_mro_entries },
     { "__call__", a_call },
-    { "__class_getitem__", a_class_getitem },
+    { "__getitem__", a_getitem },
 };
 
 // `cls[item]`, as a built-in type's __class_getitem__ answers it.
@@ -209,6 +219,143 @@ R b_class_getitem(const CallArgs &a, Value &out)
 
 } // namespace
 
+// `list[int]`, `dict[str, int]`, `tuple[()]`. A class prints as its name and
+// anything else as its repr, which is what CPython's does.
+R typing_repr(Value v, String &out)
+{
+    if (v.w == value_ellipsis().w)
+        return out.append("...") ? R::Ok : oom();
+    if (is_none(v) || (is_type(v) && type_obj(v)->desc == &none_type))
+        return out.append("None") ? R::Ok : oom();
+    if (is_type(v)) {
+        Value mod;
+        StrObj *n = str_intern("__module__");
+        if (n && !type_obj(v)->dict.is_nil() &&
+            dict_get(static_cast<DictObj *>(type_obj(v)->dict.obj()), obj_value(n), mod) == R::Ok &&
+            is_str(mod) && str_of(mod)->str() != "builtins") {
+            if (!out.append(str_of(mod)->str()) || !out.push('.'))
+                return oom();
+        }
+        err_clear();
+        Value q = type_obj(v)->qualname.is_nil() ? type_obj(v)->name : type_obj(v)->qualname;
+        return out.append(str_of(q)->str()) ? R::Ok : oom();
+    }
+    return py_repr(v, out);
+}
+
+Value typing_params(Value args)
+{
+    Root ra{ args };
+    ListObj *l = list_new();
+    if (!l)
+        return oom(), Value();
+    Root rl{ obj_value(l) };
+    for (usize i = 0; i < tuple_len(ra.v); i++) {
+        Value t = tuple_at(ra.v, i);
+        Root sub;
+        if (is_typevar_like(t)) {
+            TupleObj *one = tuple_new(1);
+            if (!one)
+                return oom(), Value();
+            one->items()[0] = t;
+            sub             = obj_value(one);
+        } else if (is_genalias(t)) {
+            sub = typing_params(alias_of(t)->args);
+        } else if (is_union(t)) {
+            sub = typing_params(union_args(t));
+        } else if (is_tuple(t) || is_list(t)) {
+            Root seq{ is_list(t) ? list_to_tuple(t) : t };
+            if (seq.v.is_nil())
+                return Value();
+            sub = typing_params(seq.v);
+        } else {
+            continue;
+        }
+        if (sub.v.is_nil())
+            return Value();
+        for (usize k = 0; k < tuple_len(sub.v); k++) {
+            Value p   = tuple_at(sub.v, k);
+            bool seen = false;
+            for (usize j = 0; j < list_of(rl.v)->items.size() && !seen; j++)
+                seen = list_of(rl.v)->items[j] == p;
+            if (!seen && !list_push(list_of(rl.v), p))
+                return oom(), Value();
+        }
+    }
+    return list_to_tuple(rl.v);
+}
+
+// One argument with the variables replaced: the variable itself, or an alias
+// or a union with some inside it, rebuilt.
+Value subst_one(Value arg, Value params, Value items)
+{
+    Root ra{ arg }, rp{ params }, rs{ items };
+    if (is_typevar_like(ra.v)) {
+        for (usize i = 0; i < tuple_len(rp.v); i++)
+            if (tuple_at(rp.v, i) == ra.v)
+                return tuple_at(rs.v, i);
+        return ra.v;
+    }
+    bool alias = is_genalias(ra.v);
+    if (!alias && !is_union(ra.v))
+        return ra.v;
+    Root inner{ alias ? alias_of(ra.v)->args : union_args(ra.v) };
+    TupleObj *t = tuple_new(tuple_len(inner.v));
+    if (!t)
+        return oom(), Value();
+    Root rt{ obj_value(t) };
+    for (usize i = 0; i < tuple_len(inner.v); i++) {
+        Value one = subst_one(tuple_at(inner.v, i), rp.v, rs.v);
+        if (one.is_nil())
+            return Value();
+        static_cast<TupleObj *>(rt.v.obj())->items()[i] = one;
+    }
+    return alias ? genalias_new(alias_of(ra.v)->origin, rt.v) : union_from(rt.v);
+}
+
+Value typing_subst(Value self, Value args, Value params, Value item)
+{
+    Root rself{ self }, ra{ args }, rp{ params }, items{ item };
+    if (!tuple_len(rp.v)) {
+        String text;
+        if (py_repr(rself.v, text) != R::Ok)
+            return Value();
+        Buf<160> b;
+        b.put(text.str()).put(" is not a generic class");
+        return err_set("TypeError", b.str()), Value();
+    }
+    if (!is_tuple(items.v)) {
+        TupleObj *one = tuple_new(1);
+        if (!one)
+            return oom(), Value();
+        one->items()[0] = items.v;
+        items           = obj_value(one);
+    }
+    usize want = tuple_len(rp.v), have = tuple_len(items.v);
+    if (want != have) {
+        String text;
+        if (py_repr(rself.v, text) != R::Ok)
+            return Value();
+        char tmp[24];
+        Buf<192> b;
+        b.put("Too ").put(have > want ? "many" : "few").put(" arguments for ").put(text.str());
+        b.put("; actual ").put(int_text(tmp, sizeof tmp, i64(have)));
+        b.put(", expected ").put(int_text(tmp, sizeof tmp, i64(want)));
+        return err_set("TypeError", b.str()), Value();
+    }
+    TupleObj *t = tuple_new(tuple_len(ra.v));
+    if (!t)
+        return oom(), Value();
+    Root rt{ obj_value(t) };
+    for (usize i = 0; i < tuple_len(ra.v); i++) {
+        Value one = subst_one(tuple_at(ra.v, i), rp.v, items.v);
+        if (one.is_nil())
+            return Value();
+        static_cast<TupleObj *>(rt.v.obj())->items()[i] = one;
+    }
+    return rt.v;
+}
+
 R alias_call_step(ContObj *k, Value in)
 {
     if (k->i++ == 0)
@@ -221,6 +368,8 @@ constexpr Type genalias_type{ .name    = "GenericAlias",
                               .hash    = alias_hash,
                               .eq      = alias_eq,
                               .repr    = alias_repr,
+                              .getitem = alias_getitem,
+                              .binop   = union_binop,
                               .getattr = alias_getattr };
 
 Value genalias_new(Value origin, Value item)

@@ -552,7 +552,8 @@ constexpr Type deque_type{ .name     = "deque",
                            .delitem  = deque_delitem,
                            .contains = deque_contains,
                            .iter     = deque_iter,
-                           .getattr  = d_getattr };
+                           .getattr  = d_getattr,
+                           .patma    = PATMA_SEQ };
 
 R b_deque(const CallArgs &a, Value &out)
 {
@@ -909,11 +910,10 @@ R od_repr(const CallArgs &a, Value &out)
         return R::Err;
     if (!text.append(str_of(type_obj(cls)->name)->str()) || !text.push('('))
         return oom();
-    // The 3.9 form, `OrderedDict([(k, v), ...])`: that is the CPython every
-    // golden in this suite is measured against.
+    // The 3.12 form, `OrderedDict({k: v, ...})`.
     DictObj *d = static_cast<DictObj *>(method_self(self.v).obj());
     if (dict_len(d)) {
-        if (!text.push('['))
+        if (!text.push('{'))
             return oom();
         usize at = 0;
         Value k, x;
@@ -922,18 +922,14 @@ R od_repr(const CallArgs &a, Value &out)
             if (!first && !text.append(", "))
                 return oom();
             first = false;
-            if (!text.push('('))
-                return oom();
             if (py_repr(k, text) != R::Ok)
                 return R::Err;
-            if (!text.append(", "))
+            if (!text.append(": "))
                 return oom();
             if (py_repr(x, text) != R::Ok)
                 return R::Err;
-            if (!text.push(')'))
-                return oom();
         }
-        if (!text.push(']'))
+        if (!text.push('}'))
             return oom();
     }
     if (!text.push(')'))

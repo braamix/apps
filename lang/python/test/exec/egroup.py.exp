@@ -1,0 +1,25 @@
+msg (2 sub-exceptions) ExceptionGroup('msg', [ValueError(1), TypeError('x')]) ('msg', [ValueError(1), TypeError('x')]) msg (ValueError(1), TypeError('x'))
+ExceptionGroup('m', (ValueError(1),)) <class 'ExceptionGroup'> <class 'BaseExceptionGroup'>
+(<class 'ExceptionGroup'>, <class 'BaseExceptionGroup'>, <class 'Exception'>, <class 'BaseException'>, <class 'object'>) (<class 'BaseExceptionGroup'>, <class 'BaseException'>, <class 'object'>)
+True True True
+['a note']
+ExceptionGroup('msg', [ValueError(1)]) ExceptionGroup('msg', [TypeError('x')])
+ExceptionGroup('msg', [TypeError('x')])
+True None
+(ExceptionGroup('outer', [ValueError(1), ExceptionGroup('inner', [ValueError(3)])]), ExceptionGroup('outer', [ExceptionGroup('inner', [TypeError(2)])]))
+(ExceptionGroup('outer', [ValueError(1), ExceptionGroup('inner', [ValueError(3)])]), ExceptionGroup('outer', [ExceptionGroup('inner', [TypeError(2)])]))
+ExceptionGroup('outer', [ExceptionGroup('inner', [TypeError(2)])])
+TypeError BaseExceptionGroup.__new__() takes exactly 2 arguments (1 given)
+TypeError second argument (exceptions) must be a sequence
+ValueError second argument (exceptions) must be a non-empty sequence
+ValueError Item 0 of second argument (exceptions) is not an exception
+TypeError BaseExceptionGroup.__new__() argument 1 must be str, not int
+TypeError Cannot nest BaseExceptions in an ExceptionGroup
+TypeError expected an exception type, a tuple of exception types, or a callable (other than a class)
+ExceptionGroup[int]
+KeyError('c') ['top note'] False (ValueError(1), ExceptionGroup('inner', [ValueError(3)]))
+MyEG ('mine', [ValueError(1), TypeError(2)], 42) 42 mine (2 sub-exceptions)
+MyEG 42 (ValueError(1),) MyEG 42
+Plain('p', [ValueError(1)]) ExceptionGroup
+caught True
+caught as Exception

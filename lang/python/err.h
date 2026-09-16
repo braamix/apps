@@ -22,6 +22,15 @@ R err_set(Str kind, Str message);
 // With a place in the source, for the lexer and the parser.
 R err_set_at(Str kind, Str message, u32 line, u32 col);
 
+// The file and the source a positioned error came from, which the one who
+// parsed it knows and the parser does not. Nothing when the error has no
+// position.
+void err_set_file(Str filename, Str source);
+
+// What err_set_file gave: the file, and the text of the error's line.
+Str err_file();
+Str err_text();
+
 // With one detail appended after ": " -- a type name, a key, an operator.
 R err_set2(Str kind, Str message, Str detail);
 

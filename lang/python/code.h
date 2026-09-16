@@ -23,108 +23,128 @@ enum class Arg : u8 {
     Bin,   // Op
     Cmp,   // Cmp
     Flags, // MF_*, or CX_*
+    Intr,  // TI_*: a typing intrinsic
 };
 
 // The whole instruction set in one table: the enum, the names and the operand
 // kinds all come from here, so they cannot drift apart. No // comments inside,
 // line splicing happening before comments are removed.
-#define BC_LIST(X)            \
-    X(Nop, None)              \
-                              \
-    X(PopTop, None)           \
-    X(DupTop, None)           \
-    X(DupTop2, None)          \
-    X(RotTwo, None)           \
-    X(RotThree, None)         \
-    X(RotFour, None)          \
-                              \
-    X(LoadConst, Const)       \
-    X(LoadName, Name)         \
-    X(StoreName, Name)        \
-    X(DeleteName, Name)       \
-    X(LoadFast, Local)        \
-    X(StoreFast, Local)       \
-    X(DeleteFast, Local)      \
-    X(LoadGlobal, Name)       \
-    X(StoreGlobal, Name)      \
-    X(DeleteGlobal, Name)     \
-    X(LoadDeref, Deref)       \
-    X(StoreDeref, Deref)      \
-    X(DeleteDeref, Deref)     \
-    X(LoadClosure, Deref)     \
-                              \
-    X(LoadAttr, Name)         \
-    X(StoreAttr, Name)        \
-    X(DeleteAttr, Name)       \
-    X(LoadSubscr, None)       \
-    X(StoreSubscr, None)      \
-    X(DeleteSubscr, None)     \
-                              \
-    X(UnaryOp, Un)            \
-    X(BinaryOp, Bin)          \
-    X(InplaceOp, Bin)         \
-    X(CompareOp, Cmp)         \
-                              \
-    X(Jump, Jump)             \
-    X(PopJumpIfFalse, Jump)   \
-    X(PopJumpIfTrue, Jump)    \
-    X(JumpIfFalseOrPop, Jump) \
-    X(JumpIfTrueOrPop, Jump)  \
-    X(GetIter, None)          \
-    X(ForIter, Jump)          \
-                              \
-    X(BuildTuple, Num)        \
-    X(BuildList, Num)         \
-    X(BuildSet, Num)          \
-    X(BuildMap, Num)          \
-    X(BuildSlice, Num)        \
-    X(BuildString, Num)       \
-    X(FormatValue, Flags)     \
-    X(ListAppend, Num)        \
-    X(SetAdd, Num)            \
-    X(MapAdd, Num)            \
-    X(ListExtend, Num)        \
-    X(SetUpdate, Num)         \
-    X(DictUpdate, Num)        \
-    X(DictMerge, Num)         \
-    X(ListToTuple, None)      \
-                              \
-    X(UnpackSequence, Num)    \
-    X(UnpackEx, Num)          \
-                              \
-    X(Call, Num)              \
-    X(CallKw, Num)            \
-    X(CallEx, Flags)          \
-    X(MakeFunction, Flags)    \
-    X(LoadBuildClass, None)   \
-                              \
-    X(ImportName, Name)       \
-    X(ImportFrom, Name)       \
-    X(ImportStar, None)       \
-                              \
-    X(Return, None)           \
-    X(PrintExpr, None)        \
-    X(YieldValue, None)       \
-    X(YieldFrom, None)        \
-    X(GetYieldFromIter, None) \
-    X(GetAwaitable, Num)      \
-    X(GetAIter, None)         \
-    X(GetANext, None)         \
-    X(EndAsyncFor, None)      \
-    X(AsyncGenWrap, None)     \
-    X(Raise, Num)             \
-                              \
-    X(SetupFinally, Jump)     \
-    X(SetupWith, Jump)        \
-    X(PopBlock, None)         \
-    X(PushExcInfo, None)      \
-    X(PopExcept, None)        \
-    X(CheckExcMatch, None)    \
-    X(Reraise, Num)           \
-    X(BeforeWith, None)       \
-    X(BeforeAsyncWith, None)  \
-    X(WithExceptStart, None)  \
-    X(LoadAssertionError, None)
+#define BC_LIST(X)                 \
+    X(Nop, None)                   \
+                                   \
+    X(PopTop, None)                \
+    X(DupTop, None)                \
+    X(DupTop2, None)               \
+    X(RotTwo, None)                \
+    X(RotThree, None)              \
+    X(RotFour, None)               \
+                                   \
+    X(LoadConst, Const)            \
+    X(LoadName, Name)              \
+    X(StoreName, Name)             \
+    X(DeleteName, Name)            \
+    X(LoadFast, Local)             \
+    X(StoreFast, Local)            \
+    X(DeleteFast, Local)           \
+    X(LoadGlobal, Name)            \
+    X(StoreGlobal, Name)           \
+    X(DeleteGlobal, Name)          \
+    X(LoadDeref, Deref)            \
+    X(StoreDeref, Deref)           \
+    X(DeleteDeref, Deref)          \
+    X(LoadClosure, Deref)          \
+                                   \
+    X(LoadAttr, Name)              \
+    X(StoreAttr, Name)             \
+    X(DeleteAttr, Name)            \
+    X(LoadSubscr, None)            \
+    X(StoreSubscr, None)           \
+    X(DeleteSubscr, None)          \
+                                   \
+    X(UnaryOp, Un)                 \
+    X(BinaryOp, Bin)               \
+    X(InplaceOp, Bin)              \
+    X(CompareOp, Cmp)              \
+                                   \
+    X(Jump, Jump)                  \
+    X(PopJumpIfFalse, Jump)        \
+    X(PopJumpIfTrue, Jump)         \
+    X(JumpIfFalseOrPop, Jump)      \
+    X(JumpIfTrueOrPop, Jump)       \
+    X(GetIter, None)               \
+    X(ForIter, Jump)               \
+                                   \
+    X(BuildTuple, Num)             \
+    X(BuildList, Num)              \
+    X(BuildSet, Num)               \
+    X(BuildMap, Num)               \
+    X(BuildSlice, Num)             \
+    X(BuildString, Num)            \
+    X(FormatValue, Flags)          \
+    X(ListAppend, Num)             \
+    X(SetAdd, Num)                 \
+    X(MapAdd, Num)                 \
+    X(ListExtend, Num)             \
+    X(SetUpdate, Num)              \
+    X(DictUpdate, Num)             \
+    X(DictMerge, Num)              \
+    X(ListToTuple, None)           \
+                                   \
+    X(UnpackSequence, Num)         \
+    X(UnpackEx, Num)               \
+                                   \
+    X(Call, Num)                   \
+    X(CallKw, Num)                 \
+    X(CallEx, Flags)               \
+    X(MakeFunction, Flags)         \
+    X(LoadBuildClass, None)        \
+                                   \
+    X(ImportName, Name)            \
+    X(ImportNameEager, Name)       \
+    X(LazyImportName, Name)        \
+    X(ImportFrom, Name)            \
+    X(ImportStar, None)            \
+                                   \
+    X(Return, None)                \
+    X(PrintExpr, None)             \
+    X(YieldValue, None)            \
+    X(YieldFrom, None)             \
+    X(GetYieldFromIter, None)      \
+    X(GetAwaitable, Num)           \
+    X(GetAIter, None)              \
+    X(GetANext, None)              \
+    X(EndAsyncFor, None)           \
+    X(AsyncGenWrap, None)          \
+    X(Raise, Num)                  \
+                                   \
+    X(SetupFinally, Jump)          \
+    X(SetupWith, Jump)             \
+    X(PopBlock, None)              \
+    X(PushExcInfo, None)           \
+    X(PopExcept, None)             \
+    X(CheckExcMatch, None)         \
+    X(Reraise, Num)                \
+    X(BeforeWith, None)            \
+    X(BeforeAsyncWith, None)       \
+    X(WithExceptStart, None)       \
+    X(LoadAssertionError, None)    \
+                                   \
+    X(Copy, Num)                   \
+    X(Swap, Num)                   \
+    X(GetLen, None)                \
+    X(MatchSequence, None)         \
+    X(MatchMapping, None)          \
+    X(MatchKeys, None)             \
+    X(MatchClass, Num)             \
+    X(CopyDict, None)              \
+    X(CheckEgMatch, None)          \
+    X(PrepReraiseStar, None)       \
+    X(Intrinsic, Intr)             \
+    X(LoadLocals, None)            \
+    X(LoadFromDictOrGlobals, Name) \
+    X(LoadFromDictOrDeref, Deref)  \
+    X(BuildInterpolation, Flags)   \
+    X(BuildTemplate, None)
 
 enum class Bc : u8 {
 #define BC_ENUM(n, a) n,
@@ -147,6 +167,10 @@ Arg bc_arg(Bc op);
 //                       is a TypeError, since two ** cannot name one parameter
 //   UnpackEx n          n is (before) | (after << 16); the middle becomes a
 //                       list, so before + 1 + after values are pushed
+//   ImportName n        [level, fromlist] to the module n names; at a module's
+//                       top level, lazily where the lazy-imports mode or
+//                       __lazy_modules__ says so. ImportNameEager never is,
+//                       and LazyImportName always is (PEP 810)
 //   CallKw n            n values below a tuple of the trailing names
 //   CallEx f            a tuple of positional arguments, and a mapping over it
 //                       when CX_KWARGS; the callable is under both
@@ -176,11 +200,35 @@ Arg bc_arg(Bc op);
 //   AsyncGenWrap        mark the value an async generator is about to yield,
 //                       so that asend() can tell it from one an await passes up
 //   WithExceptStart     with [exit, exc], call exit(type, exc, tb) and push it
+//   Copy n              push the value n down, 1 being the top
+//   Swap n              exchange the top with the value n down
+//   GetLen              push len() of the value on top, which stays
+//   MatchSequence       push whether the value on top is a sequence to match,
+//                       MatchMapping whether it is a mapping; it stays
+//   MatchKeys           with [subject, keys], push a tuple of the subject's
+//                       values under those keys, or None when one is missing
+//   MatchClass n        replace [subject, cls, names] with a tuple of n
+//                       positional attributes and the named ones, or None
+//   CopyDict            replace the value on top with dict() of it
+//   CheckEgMatch        replace [exc, type] with [rest, match], what of exc
+//                       except* type takes and leaves; match becomes the
+//                       exception being handled
+//   PrepReraiseStar     replace [orig, raised] with what the except* raises,
+//                       or None
+//   Intrinsic k         replace the values typevar.h says k takes with its
+//                       answer: a type parameter, a generic base, an alias
+//   LoadLocals          push the namespace a class body runs in
+//   LoadFromDictOrGlobals n   replace the mapping on top with n from it, or
+//                       from the globals and builtins
+//   LoadFromDictOrDeref c     the same, falling back to cell c
 //   PrintExpr           pop a value and, unless it is None, print its repr.
 //                       This is what a statement is worth in Single mode
 //   BuildString n       join the n strings on top into one
 //   FormatValue f       format the value on top, the spec above it when
 //                       FV_SPEC; FV_CONV is the !s !r !a to apply first
+//   BuildInterpolation f  replace [value, text], and the spec above them when
+//                       FV_SPEC, with an Interpolation; FV_CONV as above
+//   BuildTemplate       replace [strings, interpolations] with a Template
 
 // MakeFunction's operand.
 enum : u32 {

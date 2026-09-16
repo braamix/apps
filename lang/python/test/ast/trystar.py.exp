@@ -1,0 +1,37 @@
+Module
+  body:
+    TryStar
+      body:
+        Pass
+      handlers:
+        ExceptHandler e
+          type:
+            Name ValueError
+          body:
+            Pass
+        ExceptHandler
+          type:
+            Tuple
+              elts:
+                Name TypeError
+                Name KeyError
+          body:
+            Pass
+      orelse:
+        Pass
+      finalbody:
+        Pass
+    Try
+      body:
+        Pass
+      handlers:
+        ExceptHandler
+          type:
+            Tuple
+              elts:
+                Name ValueError
+                Name TypeError
+          body:
+            Pass
+      orelse: []
+      finalbody: []

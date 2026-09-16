@@ -11,6 +11,7 @@
 #include "kernel/fmt.h"
 #include "method.h"
 #include "ops.h"
+#include "union.h"
 #include "vm.h"
 
 namespace {
@@ -58,6 +59,7 @@ void type_trace(Obj *o)
 {
     TypeObj *t = static_cast<TypeObj *>(o);
     gc_mark(t->name);
+    gc_mark(t->qualname);
     gc_mark(t->dict);
     gc_mark(t->bases);
     gc_mark(t->mro);
@@ -387,6 +389,7 @@ TypeObj *type_alloc_at(const Type *d)
     t->flags |= OBJ_TYPE;
     t->slots     = Type{};
     t->name      = Value();
+    t->qualname  = Value();
     t->dict      = Value();
     t->bases     = Value();
     t->mro       = Value();
@@ -411,7 +414,10 @@ TypeObj *type_alloc()
 
 } // namespace
 
-constexpr Type type_type{ .name = "type", .trace = type_trace, .repr = type_repr };
+constexpr Type type_type{ .name  = "type",
+                          .trace = type_trace,
+                          .repr  = type_repr,
+                          .binop = union_binop };
 
 constexpr Type method_type{ .name    = "method",
                             .trace   = method_trace,
@@ -456,13 +462,24 @@ Value type_wrap(const Type *t)
         if (type_obj(h->wraps[i])->desc == t)
             return h->wraps[i];
 
-    Root name{ str_new(t->name) };
+    // A dotted descriptor name is `module.name`, as a tp_name is.
+    Str full  = t->name;
+    usize dot = full.size();
+    while (dot && full[dot - 1] != '.')
+        dot--;
+    Root name{ str_new(full.substr(dot)) };
     if (name.v.is_nil())
         return Value();
     DictObj *d = dict_new();
     if (!d)
         return oom(), Value();
     Root rd{ obj_value(d) };
+    if (dot) {
+        Root mod{ str_new(full.substr(0, dot - 1)) };
+        StrObj *key = str_intern("__module__");
+        if (mod.v.is_nil() || !key || dict_set(dict_at(rd.v), obj_value(key), mod.v) != R::Ok)
+            return Value();
+    }
     TypeObj *o = type_alloc();
     if (!o)
         return Value();
@@ -603,7 +620,7 @@ bool slots_declare(Value cls, u32 base)
             err_set2("TypeError", "__slots__ items must be strings", type_name(one.v));
             return false;
         }
-        StrObj *nm = str_intern(str_of(one.v)->str());
+        StrObj *nm = py_mangle(str_of(type_obj(rc.v)->name), str_of(one.v)->str());
         if (!nm)
             return oom(), false;
         Root rn{ obj_value(nm) };
@@ -688,9 +705,10 @@ Value type_new_meta(Value meta, Value name, Value bases, Value dict)
             type_obj(rt.v)->meta        = true;
             type_obj(rt.v)->slots.trace = type_trace;
             type_obj(rt.v)->slots.repr  = type_repr;
+            type_obj(rt.v)->slots.binop = union_binop;
             break;
         }
-        if (n == &object_type)
+        if (n == &object_type || n->plain)
             continue;
         type_obj(rt.v)->native = c;
         copy_slots(type_obj(rt.v)->slots, n);
@@ -710,6 +728,41 @@ Value type_new_meta(Value meta, Value name, Value bases, Value dict)
         if (b->slotoff > type_obj(rt.v)->slotoff)
             type_obj(rt.v)->slotoff = b->slotoff;
     }
+    // What `class` was written with, where __mro_entries__ changed it.
+    StrObj *obk = str_intern("__orig_bases__");
+    if (!obk)
+        return oom(), Value();
+    Value orig;
+    if (dict_get(dict_at(rd.v), obj_value(obk), orig) == R::Ok && is_tuple(orig))
+        type_obj(rt.v)->origbases = orig;
+
+    // A class without a docstring still says so in its namespace.
+    StrObj *dk = str_intern("__doc__");
+    if (!dk)
+        return oom(), Value();
+    Value had;
+    R dr = dict_get(dict_at(rd.v), obj_value(dk), had);
+    if (dr == R::Err ||
+        (dr == R::NotImpl && dict_set(dict_at(rd.v), obj_value(dk), value_none()) != R::Ok))
+        return Value();
+
+    // __qualname__ is the type's own, not a name in its namespace.
+    Root qn;
+    StrObj *qk = str_intern("__qualname__");
+    if (!qk)
+        return oom(), Value();
+    R qr = dict_get(dict_at(rd.v), obj_value(qk), qn.v);
+    if (qr == R::Err)
+        return Value();
+    if (qr == R::Ok) {
+        if (!is_str(qn.v))
+            return err_set2("TypeError", "type __qualname__ must be a str", type_name(qn.v)),
+                   Value();
+        type_obj(rt.v)->qualname = qn.v;
+        if (dict_del(dict_at(rd.v), obj_value(qk)) == R::Err)
+            return Value();
+    }
+
     Root has;
     StrObj *sk = str_intern("__slots__");
     if (!sk)
@@ -865,9 +918,10 @@ R build_step(ContObj *k, Value in)
             Value e = mro_entries_of(tuple_at(k->s[2], k->j));
             if (e.is_nil())
                 continue;
-            // The answer arrives at the next step, not at this one again.
+            // The answer arrives at the next step, not at this one again. It
+            // is asked with the bases as written.
             k->i = 1;
-            return cont_call(k, e, k->s[2]);
+            return cont_call(k, e, k->s[6].is_nil() ? k->s[2] : k->s[6]);
         }
         k->i = 1;
         return build_step(k, Value());
@@ -935,7 +989,12 @@ R build_step(ContObj *k, Value in)
         // The body has run and its namespace is the class. Calling the
         // metaclass is what makes one, so that a metaclass with a __new__ or
         // an __init__ of its own is obeyed, and the class keywords reach it.
-        k->i        = 4;
+        k->i = 4;
+        if (!k->s[6].is_nil()) {
+            StrObj *ob = str_intern("__orig_bases__");
+            if (!ob || dict_set(dict_at(k->s[3]), obj_value(ob), k->s[6]) != R::Ok)
+                return R::Err;
+        }
         TupleObj *t = tuple_new(3);
         if (!t)
             return oom();
@@ -1231,6 +1290,11 @@ R hooks_step(ContObj *k, Value in)
 // isinstance and issubclass take a type or a tuple of them.
 R any_of(Value t, Value v, bool cls, bool &out)
 {
+    if (is_union(t)) {
+        t = union_as_tuple(t, cls ? "issubclass" : "isinstance");
+        if (t.is_nil())
+            return R::Err;
+    }
     if (is_tuple(t)) {
         for (usize i = 0; i < tuple_len(t); i++) {
             R r = any_of(tuple_at(t, i), v, cls, out);
@@ -1737,6 +1801,24 @@ Value type_special(Value v, Str name)
     return type_bind(found.v, v, inst_of(v)->cls, out) == R::Ok ? out : Value();
 }
 
+R py_isinstance(const CallArgs &a, Value &out)
+{
+    return b_isinstance(a, out);
+}
+
+Value operand_special(Value v, Str name)
+{
+    if (!is_meta_inst(v))
+        return type_special(v, name);
+    Root rv{ v };
+    Root meta{ obj_value(rv.v.obj()->type->owner) };
+    Value fn = type_hook(meta.v, name);
+    if (fn.is_nil())
+        return Value();
+    Value bound;
+    return type_bind(fn, rv.v, meta.v, bound) == R::Ok ? bound : Value();
+}
+
 Value type_getitem_of(Value v)
 {
     if (!is_type(v))
@@ -1839,11 +1921,14 @@ Value type_make_native(Str name, Value base, const Type *desc, const ExcType *ex
         if (rb.v.is_nil())
             return Value();
     }
-    TupleObj *bases = tuple_new(1);
-    if (!bases)
-        return oom(), Value();
-    bases->items()[0] = rb.v;
-    Root rbt{ obj_value(bases) };
+    Root rbt{ rb.v };
+    if (!is_tuple(rb.v)) {
+        TupleObj *bases = tuple_new(1);
+        if (!bases)
+            return oom(), Value();
+        bases->items()[0] = rb.v;
+        rbt               = obj_value(bases);
+    }
     type_obj(ro.v)->bases = rbt.v;
     Value m               = mro_of(ro.v, rbt.v);
     if (m.is_nil())

@@ -56,7 +56,8 @@ constexpr Type int_type{ .name  = "int",
                          .eq    = int_eq,
                          .order = int_order,
                          .repr  = int_repr,
-                         .binop = int_binop_slot };
+                         .binop = int_binop_slot,
+                         .patma = PATMA_SELF };
 
 Str addr_text(char *out, usize cap, const Obj *o)
 {

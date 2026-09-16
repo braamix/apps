@@ -1,0 +1,63 @@
+Module
+  body:
+    Import lazy
+      names:
+        Alias json
+    Import lazy
+      names:
+        Alias os.path as osp
+        Alias sys
+    ImportFrom - level=1 lazy
+      names:
+        Alias sibling
+    ImportFrom pkg.mod level=2 lazy
+      names:
+        Alias a as b
+        Alias c
+    Assign
+      targets:
+        Name lazy
+      value:
+        Constant 1
+    Assign
+      targets:
+        Attribute attr
+          value:
+            Name lazy
+      value:
+        Subscript
+          value:
+            Name lazy
+          slice:
+            Constant 0
+    Expr
+      value:
+        Call
+          func:
+            Name print
+          args:
+            Name lazy
+          keywords: []
+    Assign
+      targets:
+        Name x
+      value:
+        ListComp
+          elt:
+            BinOp @
+              left:
+                Name a
+              right:
+                Name b
+          generators:
+            Comprehen
+              target:
+                Name lazy
+              iter:
+                Name y
+              ifs: []
+    AugAssign @=
+      target:
+        Name x
+      value:
+        Name m

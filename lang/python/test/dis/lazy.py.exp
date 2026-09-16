@@ -1,0 +1,56 @@
+code <module>  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 6  blocks 1  flags -
+  names: __doc__, json, os, path, p, sep, sys, csv, ImportError, print, a, b
+  consts:
+      0  None
+      1  0
+      2  ('path', 'sep')
+    1       0  LoadConst             0 (None)
+            1  StoreName             0 (__doc__)
+            2  LoadConst             1 (0)
+            3  LoadConst             0 (None)
+            4  LazyImportName        1 (json)
+            5  StoreName             1 (json)
+    2       6  LoadConst             1 (0)
+            7  LoadConst             2 (('path', 'sep'))
+            8  LazyImportName        2 (os)
+            9  ImportFrom            3 (path)
+           10  StoreName             4 (p)
+           11  ImportFrom            5 (sep)
+           12  StoreName             5 (sep)
+           13  PopTop
+    3      14  LoadConst             1 (0)
+           15  LoadConst             0 (None)
+           16  ImportName            6 (sys)
+           17  StoreName             6 (sys)
+    4      18  SetupFinally         25
+    5      19  LoadConst             1 (0)
+           20  LoadConst             0 (None)
+           21  ImportNameEager       7 (csv)
+           22  StoreName             7 (csv)
+    4      23  PopBlock
+           24  Jump                 34
+      >>   25  PushExcInfo
+    6      26  DupTop
+           27  LoadName              8 (ImportError)
+           28  CheckExcMatch
+           29  PopJumpIfFalse       33
+           30  PopTop
+           31  PopExcept
+           32  Jump                 34
+    4 >>   33  Reraise               1
+    8 >>   34  LoadName              9 (print)
+           35  LoadName              1 (json)
+           36  LoadName              4 (p)
+           37  LoadName              5 (sep)
+           38  LoadName             10 (a)
+           39  LoadName             11 (b)
+           40  BinaryOp             12 (@)
+           41  Call                  4
+           42  PopTop
+    9      43  LoadName             10 (a)
+           44  LoadName             11 (b)
+           45  InplaceOp            12 (@)
+           46  StoreName            10 (a)
+           47  LoadConst             0 (None)
+           48  Return

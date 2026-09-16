@@ -5,46 +5,50 @@ object model. The interpreter is not a port and stays that way. What is
 borrowed is measured, and named here.
 
 **The language stands, the built-in types have their methods, a file can be
-imported, text can be formatted, numbers have no width, a function can yield,
-a program can compile and run more of itself, the type system is whole,
-sixteen modules are written natively, and a function can be a coroutine.**
-Phases 0 to 19 built the lexer, the parser, the compiler, the VM, the object
-heap and its collector, exceptions, functions and closures, classes, the
-method tables, the module loader, the `unittest` and `test.support` shims
-every CPython test stands on, the one format engine that `format()`,
-`__format__`, `str.format`, `%` and f-strings all reach, the bignum and
-`complex` that finish the number tower, generators with `yield from`,
-`compile`/`eval`/`exec` with the namespaces and the attributes they make
-visible, the half of the type system the library uses — the metaclasses, the
-descriptor protocol, `__slots__`, the attribute hooks, the finalizers and weak
-references, the comparisons a sort has to make from C++, and the native `_abc`
-that CPython's own `abc.py` runs over — then the primitive modules: `sys` in
-full, `_collections`, `_functools`, `itertools`, `operator`, `_random`,
-`_struct`, `array`, `math`, `cmath`, `time`, `errno`, `gc` and `_types`, with
-the protocol methods in each built-in type's namespace and the generic alias
-that makes `list[int]` a value — and then `async def`, `await`, `async for`,
-`async with`, the async comprehensions and async generators, with the
-awaitables they make. They are done, and their record is the git history —
-`python: phase 0` through `python: phase 19` — not this file, which from here
+imported, text can be formatted, numbers have no width, a function can yield, a
+program can compile and run more of itself, the type system is whole, seventeen
+modules are written natively, a function can be a coroutine, and the syntax is
+3.14's.** Phases 0 to 20 built the lexer, the parser, the compiler, the VM, the
+object heap and its collector, exceptions, functions and closures, classes, the
+method tables, the module loader, the `unittest` and `test.support` shims every
+CPython test stands on, the one format engine that `format()`, `__format__`,
+`str.format`, `%` and f-strings all reach, the bignum and `complex` that finish
+the number tower, generators with `yield from`, `compile`/`eval`/`exec` with the
+namespaces and the attributes they make visible, the half of the type system the
+library uses — the metaclasses, the descriptor protocol, `__slots__`, the
+attribute hooks, the finalizers and weak references, the comparisons a sort has
+to make from C++, and the native `_abc` that CPython's own `abc.py` runs over —
+then the primitive modules: `sys` in full, `_collections`, `_functools`,
+`itertools`, `operator`, `_random`, `_struct`, `array`, `math`, `cmath`, `time`,
+`errno`, `gc` and `_types`, with the protocol methods in each built-in type's
+namespace and the generic alias that makes `list[int]` a value — and then `async
+def`, `await`, `async for`, `async with`, the async comprehensions and async
+generators, with the awaitables they make — and then everything the library's
+syntax asks since 3.9: `@`, unions, `match`, `except*` and the exception groups,
+PEP 695 over a native `_typing`, PEP 701's f-strings, PEP 750's t-strings and
+PEP 810's lazy imports. They are done, and their record is the git history —
+`python: phase 0` through `python: phase 20` — not this file, which from here
 describes only what is left.
 
-Where that leaves us, measured against MicroPython's suite: **405 of the 442
+Where that leaves us, measured against MicroPython's suite: **412 of the 449
 tests in [test/manifest.txt](test/manifest.txt)**. Of the thirty-seven that do
 not, most print `SKIP` because they import `collections` or `struct` — the
 pure-Python wrappers over what phase 18 wrote — and three import `types` for
-`types.coroutine`; all of those arrive with the library in phase 23. None stop
-at the object model.
+`types.coroutine`; all of those arrive with the library in phase 23. One,
+`assign_expr_syntaxerror.py`, expects MicroPython to accept what CPython
+refuses, and stays as it is. None stop at the object model.
 
-Measured against CPython's, which is the harder ruler: **eleven of the fourteen
-in [test/cpython.txt](test/cpython.txt) run, and fifty-five test methods of
-ninety-three pass.** `node test/pycases.mjs --survey` runs the whole of
-`Lib/test/` and counts what stops each of the 391 files: 286 an unwritten
-module, 44 other syntax, 33 a lone surrogate in a literal, 14 `\N{...}`, 11
-that run and 3 that fail at runtime or say nothing this can read.
+Measured against CPython's, which is the harder ruler: **fourteen of the
+twenty-two in [test/cpython.txt](test/cpython.txt) run, and 166 test methods of
+204 pass.** `node test/pycases.mjs --survey` runs the whole of `Lib/test/` and
+counts what stops each of the 391 files: 325 an unwritten module, 33 a lone
+surrogate in a literal, 14 `\N{...}`, 14 that run, 3 that fail at runtime or
+say nothing this can read, and 2 other syntax.
 
 Three walls came down in phases 13 and 14 — f-strings, complex and the bignum
-were 204 files between them — and a fourth in phase 19, whose fifteen `async`
-files went fourteen to an import and one to other syntax. **What stops
+were 204 files between them — a fourth in phase 19, whose fifteen `async` files
+went fourteen to an import and one to other syntax, and a fifth in phase 20,
+whose forty-two went thirty-nine to an import and three to running. **What stops
 CPython's tests is an import**, and what those files stop on is the *library*,
 not the modules under it. The survey is how each wave is chosen, and it only
 means something read beside what it said last time.
@@ -89,7 +93,8 @@ compile.
 Phase 19 has taken the first two rows away. Measured again after it:
 `types.py` imports; `enum.py`, `functools.py` and `copyreg.py` compile; and
 `_collections_abc.py` compiles and stops at runtime on `range(1 << 1000)`,
-which phase 22 now carries. The rest of the table stands.
+which phase 22 now carries. Phase 20 took the other three language rows, so
+what is left of the table is the floor and the file system.
 
 It also says what a phase's CPython tests can prove. A test file imports far
 more than the module it tests — `test_functools.py` imports `annotationlib`,
@@ -134,19 +139,26 @@ The second is not paid yet, and **the library decides the syntax**: it is
 written in the Python of its own day, not 3.9's. `dataclasses.py` has 92
 f-strings in it and a `match` statement; `typing.py` has fifteen PEP 695
 generics; `argparse.py` has nine `lazy` imports. Phase 13 settled the
-f-strings; phases 19 and 20 settle the rest, and they come before the library
+f-strings; phases 19 and 20 settled the rest, and they came before the library
 because the library cannot be compiled without them. `pycases.mjs --survey`
 says what stops each of CPython's own test files, and the answer moves as each
 phase lands.
 
-**The host's CPython is now 3.14** — `/opt/homebrew/bin/python3`, first on
-`PATH`, so `tools/mkfmt.py`, `mklex.py`, `mkast.py` and `mkexp.py` reach it
-through their `#!/usr/bin/env python3`. Every golden written so far came from
-the system's 3.9 at `/usr/bin/python3`, and the manifest's `exp` column says
-`cpython3.9`. 3.14 parses everything the library uses but one thing: `match`
-(3.10), `except*` (3.11), PEP 695 (3.12) and PEP 649's annotations (3.14) are
-all there, and PEP 810's `lazy` (3.15) is not. So the `lazy` cases of phase 20
-need the clone in `tmp/cpython/` built, and nothing else does.
+**The host's CPython is 3.14** — `/opt/homebrew/bin/python3`, first on
+`PATH` — and every golden a CPython wrote was regenerated under it in phase 20.
+`tools/pyref.py` is where the `mk*` tools get their interpreter: `$PYTHON`, or
+`python3` on `PATH`; the manifest's `exp` column and
+[test/goldens.txt](test/goldens.txt) record which one wrote each golden, and a
+golden is not rewritten by another one without `--regen`. The `lazy` cases are
+the exception: 3.14 has no PEP 810, so they come from the clone built out of
+tree at `tmp/cpython-build/`.
+
+**The version this tracks is 3.14's language**, which is what
+`sys.version_info` says, plus two things from CPython's main branch that the
+library written there already uses: PEP 810's `lazy` imports, and a `+`
+before a number in a pattern. Nothing else from 3.15 is taken until a library
+module or a test needs it; PEP 798's unpacking in comprehensions is the first
+such thing the survey names, in `test_listcomps.py`.
 
 ## Ground rules
 
@@ -238,7 +250,7 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-The order is language (20–21), floor (22), library by layer (23–26), then the
+The order is language (21), floor (22), library by layer (23–26), then the
 layers that need all of it (27–30). Each phase lists only what the phases
 before it have made possible.
 
@@ -246,7 +258,7 @@ Phase 18 left two things for the phases that use them. `memoryview` is flat:
 it has an item size, a format and a stride, and `cast()` recasts a contiguous
 one, but it is one-dimensional and nothing here makes a buffer with more than
 one. And `_types` is missing the names this interpreter has no type for —
-`UnionType` waits for phase 20, and `TracebackType` for whenever a traceback
+`UnionType` arrived with phase 20, and `TracebackType` for whenever a traceback
 stops being a string.
 
 Phase 19 left three. MicroPython's `async_await2.py`, `async_for2.py` and
@@ -257,52 +269,22 @@ there is no `warnings` to warn through. And nothing is told when an async
 generator starts or is dropped, because `sys.set_asyncgen_hooks` is for an
 event loop.
 
-### Phase 20 — the syntax since 3.9
-
-The parser was written to 3.9. The library is written to 3.16.
-
-- [ ] The reference interpreters, before any golden is written. The host's
-      3.14 answers everything below except `lazy`; for that, build
-      `tmp/cpython/` and let `tools/mk*.py` take an interpreter from
-      `$PYTHON`, defaulting to the one on `PATH`. Record which one wrote each
-      golden, as the manifest's `exp` column already does (`cpython3.14`,
-      `cpython3.16`).
-- [ ] Regenerate the existing goldens under 3.14 and read the diff: a message
-      or a repr that changed since 3.9 is either a case to update or a
-      difference this interpreter should follow. Until that is done, a 3.9
-      golden is not rewritten by accident — `mkexp.py` and `mkfmt.py` run
-      whatever `python3` is.
-- [ ] `@` as an operator, with `__matmul__`, `__rmatmul__` and `__imatmul__`.
-      `operator.py` uses it.
-- [ ] `X | Y` as a type union: `types.UnionType`, `__or__` and `__ror__` on
-      `type`, `None` and the generic alias, `__args__`, `isinstance` against
-      one. `types.py` and `copyreg.py` evaluate one at import.
-- [ ] PEP 810's `lazy import` and `lazy from ... import`, with the soft
-      keyword, the deferred binding and the reification on first use.
-      `collections`, `contextlib`, `argparse` and `dataclasses` use it.
-- [ ] `match`, with all seven pattern kinds — literal, capture, wildcard,
-      value, sequence, mapping, class — plus guards, `__match_args__`, and the
-      `Py_TPFLAGS_SEQUENCE`/`MAPPING` question for built-in types.
-      `dataclasses.py`, `traceback.py`, `typing.py` and `annotationlib.py` use
-      it.
-- [ ] `except*` and the exception groups: `BaseExceptionGroup`,
-      `ExceptionGroup`, `split`, `subgroup`, `derive`, and the unwinding rule.
-- [ ] PEP 695: the `type` statement and generic syntax on `def` and `class`,
-      over a native `_typing` — `TypeVar`, `ParamSpec`, `TypeVarTuple`,
-      `ParamSpecArgs`, `ParamSpecKwargs`, `TypeAliasType`, `Generic`, `Union`,
-      `NoDefault` and `_idfunc` — which is the whole of what `typing.py`
-      imports from it. `typing.py` has fifteen of these.
-- [ ] `:=` in a subscript, which the survey still counts among its refusals.
-- [ ] Decide and record the version this tracks, because "3.16" and "the
-      subset the shipped library needs" are not the same promise.
-
-Tests: the new MicroPython rows this phase's syntax unblocks, and cases of our
-own under `test/ast/` and `test/exec/` against the host's 3.14 — and against
-the built clone for `lazy`.
-CPython's `test_patma.py` imports `dataclasses` and `inspect`, and
-`test_exception_group.py` imports `collections`; `test_grammar.py`,
-`test_syntax.py` and `test_lazy_import/` are the ones to try here, and the
-survey says how far each gets.
+Phase 20 left five. **There is no implicit `__class__` cell**: zero-argument
+`super()` searches the MRO for the running code, so `__class__` as a name and
+`nonlocal __class__` are refused, and `test_super.py` stops on that; phase 22
+makes the cell. **The union and `Generic` refuse a string**, where CPython hands
+one to `typing._type_check`; phase 27 hands them over. **`string.templatelib`
+cannot be imported**, because `string/__init__.py` imports the `_string` phase
+22 writes; the types themselves are there. **A comprehension is still a
+function**, where PEP 709 inlined it. And the eight CPython tests this phase
+added all compile and stop at an import — `test_exception_group.py` at
+`collections` and `test_except_star.py` at `textwrap` (phases 23 and 24),
+`test_syntax.py` at `re` (phase 24), `test_type_aliases.py` at `pickle`,
+`test_grammar.py` and `test_type_params.py` at `annotationlib`, and
+`test_patma.py` at `collections` then `dataclasses` (phase 27);
+`test_tstring.py` wants `test.test_string`, which is a package of tests.
+`test_lazy_import/` imports `subprocess`, `threading` and `tempfile`, and was
+not copied.
 
 ### Phase 21 — Unicode in full
 
@@ -362,6 +344,10 @@ measurement above found missing, each named by the module that imports it.
       where its import stops since phase 19.
 - [ ] `_functools.Placeholder` and `cmp_to_key`, so `functools.py` takes the
       native path throughout rather than half of it.
+- [ ] The implicit `__class__` cell: a class whose methods name `__class__`
+      or call `super()` keeps one, `__classcell__` carries it to `type.__new__`,
+      and zero-argument `super()` reads it rather than searching the MRO.
+      `test_super.py` stops on `nonlocal __class__` until then.
 
 Tests: cases of our own under `test/module/`, against the host's CPython.
 
@@ -494,13 +480,17 @@ dependency; the library half imports `ast`, which is why the phase is here.
 - [ ] `annotationlib`, `typing` (3,955 lines over the `_typing` phase 20
       wrote), `dis` and `opcode` over a native `_opcode`, `inspect`, and
       `dataclasses`, which is the first thing most code wants annotations for.
+- [ ] Hand `typing.py` what `_typing` and the union answer natively today, as
+      CPython does: a string in a union or a `Generic` becomes a
+      `ForwardRef` through `typing._type_check`, and substitution, unpacking
+      a `TypeVarTuple` and `Generic.__class_getitem__` are typing's.
 - [ ] `doctest` and the real `unittest`, which is where the shims end.
 
 Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
 `test_dataclasses/`, `test_inspect/`; and now the ones earlier phases
 deferred — `test_coroutines.py`, `test_asyncgen.py`, `test_patma.py`,
-`test_exception_group.py`, `test_collections.py`, `test_functools.py`,
-`test_enum.py`, `test_itertools.py`.
+`test_grammar.py`, `test_type_params.py`, `test_collections.py`,
+`test_functools.py`, `test_enum.py`, `test_itertools.py`.
 
 ### Phase 28 — `asyncio`
 

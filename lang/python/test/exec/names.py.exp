@@ -1,0 +1,23 @@
+1 (1, 5) g __Inner 2
+['_A__Inner', '_A__g', '_A__x']
+([3], 3)
+['_C__v']
+9
+__main__
+['__firstlineno__', '__module__', '__qualname__']
+__main__ C True
+f.<locals>.D builtins None builtins
+doc ['__doc__', '__firstlineno__', '__module__', '__static_attributes__']
+('x', 'y') ()
+10
+2
+([[0, 1], [1, 2]], 2)
+assignment expression cannot rebind comprehension iteration variable 'i'
+assignment expression cannot be used in a comprehension iterable expression
+assignment expression within a comprehension cannot be used in a class body
+comprehension inner loop cannot rebind assignment expression target 'j'
+invalid syntax
+positional argument follows keyword argument
+iterable argument unpacking follows keyword argument unpacking
+cannot use assignment expressions with tuple
+cannot use assignment expressions with lambda

@@ -1,11 +1,15 @@
 // Argument binding, and the continuation a suspending builtin parks in.
 #include "call.h"
 
+#include "exc.h"
 #include "gc.h"
 #include "gen.h"
 #include "kernel/fmt.h"
+#include "method.h"
 #include "ops.h"
 #include "type.h"
+
+extern const Type seqiter_type;
 
 namespace {
 
@@ -14,11 +18,94 @@ R oom()
     return err_set("MemoryError", "out of memory");
 }
 
+// CPython's `iterator`: a class with __getitem__ and no __iter__ is walked
+// by index, and IndexError or StopIteration is the end.
+struct SeqIterObj : Obj {
+    Value seq; // Nil once it is over
+    u32 index;
+};
+
+void seqiter_trace(Obj *o)
+{
+    gc_mark(static_cast<SeqIterObj *>(o)->seq);
+}
+
+bool is_seqiter(Value v)
+{
+    return v.is_obj() && v.obj()->type == &seqiter_type;
+}
+
+R stop()
+{
+    Value e = exc_new(exc_find("StopIteration"), Value());
+    return e.is_nil() ? R::Err : err_set_value(e);
+}
+
+// s[0] the iterator, s[1] the bound __getitem__.
+R seqiter_step(ContObj *k, Value in)
+{
+    SeqIterObj *it = static_cast<SeqIterObj *>(k->s[0].obj());
+    if (k->i++ == 0)
+        return cont_call(k, k->s[1], Value::of_int(i32(it->index)));
+    if (in.is_nil()) {
+        it->seq = Value();
+        return stop();
+    }
+    it->index++;
+    return cont_done(k, in);
+}
+
+R si_next(const CallArgs &a, Value &out)
+{
+    if (a.nargs != 1 || a.nkw || !is_seqiter(a.args[0]))
+        return err_set("TypeError", "__next__() takes no arguments");
+    Root self{ a.args[0] };
+    SeqIterObj *it = static_cast<SeqIterObj *>(self.v.obj());
+    if (it->seq.is_nil())
+        return stop();
+    Root get{ type_special(it->seq, "__getitem__") };
+    if (get.v.is_nil())
+        return err_pending() ? R::Err : not_iterable(it->seq);
+    Root kv{ cont_new(seqiter_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k  = cont_of(kv.v);
+    k->s[0]     = self.v;
+    k->s[1]     = get.v;
+    k->catching = CATCH_SEQEND;
+    out         = kv.v;
+    return R::Ok;
+}
+
+R si_iter(const CallArgs &a, Value &out)
+{
+    out = a.args[0];
+    return R::Ok;
+}
+
+constexpr Method SEQITER_METHODS[] = {
+    { "__next__", si_next },
+    { "__iter__", si_iter },
+};
+
+// iter(seq) for a class with only __getitem__.
+R si_make(const CallArgs &a, Value &out)
+{
+    Root seq{ method_self(a.args[0]) };
+    SeqIterObj *it = static_cast<SeqIterObj *>(obj_alloc(&seqiter_type, sizeof(SeqIterObj)));
+    if (!it)
+        return oom();
+    it->seq   = a.args[0];
+    it->index = 0;
+    out       = obj_value(it);
+    return R::Ok;
+}
+
 // Something do_call can call with no arguments to get the next item. Nil when
 // the native protocol answers instead.
 Value stepper(Value it)
 {
-    return is_resumable(it) ? genrun_new(it, GR_NEXT) : type_special(it, "__next__");
+    return next_special(it);
 }
 
 // One turn of the drain iter_park sets up. s[0] is the bound __next__, s[1]
@@ -31,7 +118,7 @@ R drain_step(ContObj *k, Value in)
     if (k->i++ == 0) {
         if (!k->s[0].is_nil())
             return cont_call(k, k->s[0], Value(), 0);
-        Value it = type_special(k->s[5], "__iter__");
+        Value it = iter_special(k->s[5]);
         if (it.is_nil())
             return not_iterable(k->s[5]);
         return cont_call(k, it, Value(), 0);
@@ -128,6 +215,42 @@ R cont_repr(Value v, String &out)
 
 } // namespace
 
+constexpr Type seqiter_type{ .name = "iterator", .trace = seqiter_trace };
+
+Value iter_special(Value v)
+{
+    if (is_seqiter(v)) {
+        Root rv{ v };
+        Root fn{ native_new("__iter__", si_iter) };
+        return fn.v.is_nil() ? Value() : method_new(fn.v, rv.v);
+    }
+    Value m = type_special(v, "__iter__");
+    if (!m.is_nil() || err_pending())
+        return m;
+    if (!type_has_py_special(v, "__getitem__") || type_has_special(v, "__iter__"))
+        return Value();
+    Root rv{ v };
+    Root fn{ native_new("__iter__", si_make) };
+    return fn.v.is_nil() ? Value() : method_new(fn.v, rv.v);
+}
+
+Value next_special(Value v)
+{
+    if (is_resumable(v))
+        return genrun_new(v, GR_NEXT);
+    if (is_seqiter(v)) {
+        Root rv{ v };
+        Root fn{ native_new("__next__", si_next) };
+        return fn.v.is_nil() ? Value() : method_new(fn.v, rv.v);
+    }
+    return type_special(v, "__next__");
+}
+
+bool seqiter_methods()
+{
+    return method_install(&seqiter_type, SEQITER_METHODS);
+}
+
 constexpr Type cont_type{ .name = "continuation", .trace = cont_trace, .repr = cont_repr };
 
 Value cont_new(ContStep step)
@@ -160,9 +283,11 @@ Value cont_new(ContStep step)
 
 bool iter_needs_vm(Value v)
 {
-    if (is_resumable(v))
+    if (is_resumable(v) || is_seqiter(v))
         return true;
-    return type_has_py_special(v, "__iter__") || type_has_py_special(v, "__next__");
+    if (type_has_py_special(v, "__iter__") || type_has_py_special(v, "__next__"))
+        return true;
+    return type_has_py_special(v, "__getitem__") && !type_has_special(v, "__iter__");
 }
 
 R iter_park(const CallArgs &a, u32 at, R (*again)(const CallArgs &, Value &out), Value &out)

@@ -137,7 +137,8 @@ constexpr Type tuple_type{ .name     = "tuple",
                            .getitem  = tuple_getitem,
                            .contains = tuple_contains,
                            .binop    = tuple_binop,
-                           .iter     = seq_iter };
+                           .iter     = seq_iter,
+                           .patma    = PATMA_SEQ | PATMA_SELF };
 
 TupleObj *tuple_new(usize n)
 {

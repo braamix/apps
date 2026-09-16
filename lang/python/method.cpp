@@ -3,6 +3,7 @@
 #include "method.h"
 
 #include "builtin.h"
+#include "call.h"
 #include "complex.h"
 #include "exc.h"
 #include "format.h"
@@ -10,7 +11,11 @@
 #include "gen.h"
 #include "intern.h"
 #include "kernel/fmt.h"
+#include "lazy.h"
 #include "ops.h"
+#include "templatelib.h"
+#include "typevar.h"
+#include "union.h"
 
 R oom_err()
 {
@@ -120,7 +125,8 @@ bool methods_install()
 {
     return method_install(&object_type, OBJECT) && str_methods() && bytes_methods() &&
            seq_methods() && map_methods() && num_methods() && complex_methods() && gen_methods() &&
-           code_methods() && slot_methods();
+           code_methods() && slot_methods() && union_install() && seqiter_methods() &&
+           typing_methods() && lazy_methods() && templatelib_methods();
 }
 
 Value method_self(Value v)

@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 19.**
+**Phase 20.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -64,6 +64,13 @@ print(math.isqrt(10**20), math.comb(52, 5))
 print(list(it.islice(it.count(10, 5), 4)))'
 100000000000 2598960
 [10, 15, 20, 25]
+$ python -c 'def area(shape):
+    match shape:
+        case {"w": w, "h": h}: return w * h
+        case [r] | (r,): return 3 * r * r
+area2 = lambda s: t"{s!r} is {area(s)}"
+print(area2({"w": 2, "h": 5}).values, int | None)'
+({'w': 2, 'h': 5}, 10) int | None
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
@@ -125,6 +132,16 @@ async generator's `asend`, `athrow` and `aclose` answer. `aiter()` and
 `types.coroutine` has marked may be awaited, and `code.replace()` is what
 lets it mark one.
 
+**The syntax is 3.14's.** `a @ b`, `match` with all seven pattern kinds and
+guards, `except*` over `ExceptionGroup` with `split`, `subgroup` and `derive`,
+PEP 695's `type X = ...` and `def f[T](...)` over a native `_typing`, `X | Y`
+as a union, parenthesized `with` items, `:=` in a subscript, PEP 701's
+f-strings that nest the same quote, and PEP 750's t-strings, which make a
+`Template` of `Interpolation`s rather than a str. Two things are taken from
+CPython's main branch as well, because the library is written against it:
+**PEP 810's `lazy import`**, with `sys.lazy_modules`, the filter and the mode,
+and a `+` before a number in a pattern. `sys.version_info` says 3.14.
+
 **The type system is whole.** A metaclass decides what a `class` statement
 makes, and `__prepare__`, `__new__`, `__init__` and the class keywords all
 reach it; a class is an instance of its metaclass and answers as one.
@@ -153,14 +170,15 @@ state machines that ask for one call at a time. `sorted`, `list.sort`, `min`,
 through it, and the merge is the same bottom-up stable one as the plain path,
 so a list of instances and a list of integers come out in the same order.
 
-**Sixteen modules are written in C++.** `sys` in full, `builtins`,
+**Seventeen modules are written in C++.** `sys` in full, `builtins`,
 `_collections`, `_functools`, `itertools`, `operator`, `_random`, `_struct`,
-`array`, `math`, `cmath`, `time`, `errno`, `gc`, `_types`, and the `_weakref`
-and `_abc` phase 17 wrote. They are the floor CPython's own library stands on
-rather than that library: `collections/__init__.py` will import this `deque`,
-`random.py` this Mersenne Twister, `re/` the `_sre` phase 24 writes. Each is
-measured against CPython by running the same program under both —
-[test/module/](test/module/), nine cases, 330 lines byte for byte.
+`array`, `math`, `cmath`, `time`, `errno`, `gc`, `_types`, the `_weakref` and
+`_abc` phase 17 wrote, and the `_typing` phase 20 did. They are the floor
+CPython's own library stands on rather than that library:
+`collections/__init__.py` will import this `deque`, `random.py` this Mersenne
+Twister, `re/` the `_sre` phase 24 writes. Each is measured against CPython by
+running the same program under both — [test/module/](test/module/), ten cases,
+355 lines byte for byte.
 
 **The protocol methods are in each built-in type's namespace.** `len(x)`
 reaches a slot and a slot is not an entry, so `'__len__' in list.__dict__` used
@@ -184,43 +202,51 @@ under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
 `type.__subclasses__` and the rule that an abstract class cannot be
 instantiated.
 
-**405 of MicroPython's own tests pass unchanged**, out of 442 in
-[test/manifest.txt](test/manifest.txt), against 397 of 432 at phase 18. The
-ten new rows are this phase's, the whole `async_*` family, and seven of them
-pass; the other three import `types` for `types.coroutine`, and CPython's
-`types.py` is phase 23. `dict1.py` passes too, now that a `KeyError` carries
-the key rather than its repr. Of the thirty-seven that do not pass, most import
-`collections` or `struct` — the pure-Python wrappers over phase 18's floor,
-which are phase 23 too — and say `SKIP` until then. Their expected output now
-comes from CPython 3.14, which is the host's since this phase.
+**412 of MicroPython's own tests pass unchanged**, out of 449 in
+[test/manifest.txt](test/manifest.txt), against 405 of 442 at phase 19. The
+seven new rows are the ones this phase's syntax reached — `:=`, `@`, the
+3.11 defaults of `int.to_bytes` and 3.12's nested f-strings — and six pass;
+`assign_expr_syntaxerror.py` expects what MicroPython accepts and CPython
+refuses, and this refuses it. `fun_callstardblstar.py` passes as well. Of the
+thirty-seven that do not, most import `collections` or `struct` — the
+pure-Python wrappers over phase 18's floor, which are phase 23 — and say
+`SKIP` until then. Every expected output a CPython wrote now comes from 3.14,
+and [test/goldens.txt](test/goldens.txt) says which interpreter wrote each of
+our own.
 
-**CPython's tests are the second ruler.** Fourteen are in
-[test/cpython.txt](test/cpython.txt), eleven of them run, and fifty-five test
-methods of ninety-three pass, against forty-nine of eighty-three at phase 17:
-`test_errno.py` and `test_pow.py` run for the first time, on `errno` and on
-`math`. Running the whole of
-`Lib/test/` under this interpreter — `node test/pycases.mjs --survey`, which
-needs the clone in `tmp/` — says why each of the 391 files stops:
+**CPython's tests are the second ruler.** Twenty-two are in
+[test/cpython.txt](test/cpython.txt), fourteen of them run, and 166 test
+methods of 204 pass, against fifty-five of ninety-three at phase 19:
+`test_augassign.py`, `test_exception_variations.py` and
+`test_named_expressions.py` stopped at syntax and now run. The eight new rows
+are this phase's own tests — `test_grammar.py`, `test_syntax.py`,
+`test_patma.py`, `test_tstring.py`, `test_exception_group.py`,
+`test_except_star.py`, `test_type_params.py` and `test_type_aliases.py` — and
+all eight compile and stop at an import: `annotationlib`, `re`,
+`collections`, `textwrap`, `pickle`. Running the whole of `Lib/test/` under
+this interpreter — `node test/pycases.mjs --survey`, which needs the clone in
+`tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 286 | a module that is not written yet | 272 | 276 | 276 | 276 | 213 | 130 | phases 22–27 |
-| 44 | other syntax — `@`, `except*`, `:=` in a subscript | 43 | 43 | 43 | 43 | 34 | 28 | phase 20 |
-| 33 | a lone surrogate in a literal | 33 | 33 | 33 | 33 | 31 | 31 | phase 21 |
-| 14 | `\N{...}` | 14 | 14 | 14 | 14 | 12 | 12 | phase 21 |
-| 11 | these run | 11 | 9 | 7 | 7 | 5 | 3 | |
-| 3 | a runtime error, or nothing this can read | 3 | 1 | 3 | 3 | 3 | 2 | |
-| — | `async` | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
-| — | complex numbers | — | — | — | — | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | — | — | — | — | 39 | 17 | **done** |
-| — | f-strings | — | — | — | — | — | 124 | **done** |
+| now | what stops it | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 325 | a module that is not written yet | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 22–27 |
+| 33 | a lone surrogate in a literal | 33 | 33 | 33 | 33 | 33 | 31 | 31 | phase 21 |
+| 14 | `\N{...}` | 14 | 14 | 14 | 14 | 14 | 12 | 12 | phase 21 |
+| 14 | these run | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
+| 3 | a runtime error, or nothing this can read | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
+| 2 | other syntax — PEP 798, and `nonlocal __class__` | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
+| — | `async` | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
+| — | complex numbers | — | — | — | — | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | — | — | — | — | 39 | 17 | **done** |
+| — | f-strings | — | — | — | — | — | — | 124 | **done** |
 
-A fourth wall came down in this phase, and every file it held went straight to
-the next one: fourteen of the fifteen that stopped at `async` now stop at an
-import, and the other at syntax phase 20 writes. That is the measure of where
-the work is. What stops 286 of the 391 files is the *library*, and the library
-is written in the language phases 19 to 21 finish, which is why
-[TODO.md](TODO.md) now puts those first.
+The fifth wall went the way the fourth did: of the forty-two files the syntax
+let go, three run and thirty-nine stop at an import. The two left are
+`test_listcomps.py`, which is written to PEP 798's `[*x for x in y]` from 3.15,
+and `test_super.py`, which assigns the implicit `__class__` cell this
+interpreter does not make. **Nothing the library is written in is refused
+now**, so what stops 325 of the 391 files is the library itself, and the
+phases after this one are about writing its floor and taking it.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -274,6 +300,12 @@ green.
 | [weak.h](weak.h), [weak.cpp](weak.cpp) | Weak references, and the callbacks the sweep owes for them |
 | [abc.h](abc.h), [abc.cpp](abc.cpp) | `_abc`: the floor CPython's own abc.py stands on |
 | [genalias.h](genalias.h), [genalias.cpp](genalias.cpp) | `list[int]`: the generic alias, and PEP 560's other half |
+| [union.h](union.h), [union.cpp](union.cpp) | `int \| str`: the union, which is `typing.Union` and `types.UnionType` both |
+| [patma.h](patma.h), [patma.cpp](patma.cpp) | What `match` asks of a subject: sequence or mapping, keys, and a class pattern's attributes |
+| [egroup.h](egroup.h), [egroup.cpp](egroup.cpp) | The exception groups: `split`, `subgroup` and `derive`, and what `except*` does with them |
+| [typevar.h](typevar.h), [typevar.cpp](typevar.cpp) | `_typing`: PEP 695's type parameters, the alias, `Generic`, and the intrinsics the compiler emits |
+| [lazy.h](lazy.h), [lazy.cpp](lazy.cpp) | PEP 810: the proxy a lazy import binds, and what resolves it |
+| [templatelib.h](templatelib.h), [templatelib.cpp](templatelib.cpp) | PEP 750: `Template` and `Interpolation`, what a t-string makes |
 | [slotmeth.cpp](slotmeth.cpp) | The protocol methods in each built-in type's namespace |
 | [info.h](info.h), [info.cpp](info.cpp) | The struct sequence: a tuple whose fields also have names |
 | [binfmt.h](binfmt.h), [binfmt.cpp](binfmt.cpp) | One typecode's machine representation, which array and memoryview share |
@@ -313,8 +345,9 @@ green.
 | [test/pynumber.mjs](test/pynumber.mjs) | The same for `test/number/`: the arithmetic that has one right answer |
 | [test/pygen.mjs](test/pygen.mjs) | The same for `test/gen/`: the generator protocol, delegation, and every consumer |
 | [test/pycoro.mjs](test/pycoro.mjs) | The same for `test/coro/`: coroutines, async generators, the async statements and a scheduler written in Python |
-| [test/pyexec.mjs](test/pyexec.mjs) | The same for `test/exec/`: compile, eval, exec, the namespaces and the attributes |
-| [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the sixteen modules written in C++ |
+| [test/pyexec.mjs](test/pyexec.mjs) | The same for `test/exec/`: compile, eval, exec, the namespaces, the attributes and the syntax since 3.9 |
+| [test/pylazy.mjs](test/pylazy.mjs) | The same for `test/lazy/`, against CPython 3.16, with the modules the cases import planted beside them |
+| [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the seventeen modules written in C++ |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
@@ -322,6 +355,7 @@ green.
 | [test/shim/unittest.py](test/shim/unittest.py) | `TestCase`, the assertions, `subTest`, the skips and the loader |
 | [test/shim/test/support.py](test/shim/test/support.py) | The names CPython's tests take from `test.support` |
 | [test/shim/selfcheck.py](test/shim/selfcheck.py) | What `pyunit.mjs` runs: the shims measured against themselves |
+| [tools/pyref.py](tools/pyref.py) | Which CPython writes a golden, and the record in `test/goldens.txt` of which one did |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
 | [tools/mkcpy.py](tools/mkcpy.py) | Copies one of CPython's tests in; `pycases.mjs --bless` writes its golden |
 | [tools/mkfmt.py](tools/mkfmt.py) | Runs a formatting case under the host's CPython and saves what it printed |
@@ -434,8 +468,22 @@ All recorded rather than hidden, and all in reach later:
   awaited; this closes that first, as for a generator's `yield from`.
 - **A class repr has no module in it.** CPython prints
   `<class '__main__.C'>`; this prints `<class 'C'>`, there being one module.
-- **`@` is not there.** The matrix-multiply operator is one the parser does
-  not know; it is phase 20.
+- **There is no implicit `__class__` cell.** Zero-argument `super()` finds its
+  class by looking for the running code in the MRO, so it works; but
+  `__class__` as a name in a method, and `nonlocal __class__`, are refused.
+- **A comprehension is a function of its own.** PEP 709 inlined them in 3.12;
+  here `[x for x in y]` still pushes a frame, which shows in a traceback and in
+  `locals()` inside one, and nowhere else.
+- **A union or a `Generic` does not take a string.** CPython hands a forward
+  reference to `typing.py`, which makes a `ForwardRef` of it; there is no
+  `typing.py` until phase 27, so `int | "C"` is refused.
+- **`string.templatelib` cannot be imported.** A t-string works and its two
+  types are `type(t"")` and `type(t"{0}".interpolations[0])`, which is where
+  CPython's own `templatelib.py` gets them from. The module is library, and
+  its package's `__init__.py` imports the `_string` phase 22 writes.
+- **A `+` before a number in a pattern is accepted.** 3.14 refuses
+  `case +0:`; CPython's main branch takes it, and `test_patma.py` is written
+  against that.
 - **`map` and `filter` are eager.** CPython calls the function at each `next`;
   these call it over the whole input first and hand back an iterator on the
   result. The two differ only where the input is endless or the function has an
@@ -445,7 +493,8 @@ All recorded rather than hidden, and all in reach later:
   reason as `map`: the builtin cannot step a generator, so it parks and the VM
   drains it into a list. Nothing differs unless the generator is endless or its
   effects are watched for. `for x in g` and `yield from g` are lazy, because
-  those are opcodes and an opcode can suspend.
+  those are opcodes and an opcode can suspend; so are `any` and `all`, which
+  step the generator one item at a time and stop at the first that decides.
 - **A finalizer runs when the collector gets to it, not when the last name
   goes.** CPython counts references, so `c = None` on the last one runs
   `__del__` there and then; this collects on allocation pressure, so a `__del__`
@@ -879,6 +928,19 @@ which copies it into `test/cases/`, writes the expected output beside it —
 upstream's own `.exp` when there is one, host CPython otherwise — and adds a
 row to the manifest marked `fail`. Move the row to `pass` when it passes.
 
+Every tool that asks CPython for a golden takes the interpreter from `$PYTHON`,
+or `python3` on `PATH` when that is unset, and writes down which one answered:
+the manifest's `exp` column for an upstream test, and
+[test/goldens.txt](test/goldens.txt) for one of ours. A golden is not rewritten
+by a different CPython unless the tool is given `--regen`, so a host upgrade
+cannot move one by accident; `tools/mkexp.py --regen` rewrites every row a
+CPython wrote. The `lazy` cases need 3.15 or later, which the host does not
+have:
+
+    PYTHON=tmp/cpython-build/python.exe tools/mkfmt.py test/lazy/basic.py
+
+where `tmp/cpython-build/` is the clone configured and built out of tree.
+
 One of CPython's goes in the same way, in two steps, because its golden is
 what this interpreter printed and only the harness can produce that:
 
@@ -911,9 +973,10 @@ ends in `_err` is one that must be refused, and its golden holds the complaint;
 after reading the diff.
 
 A formatting case is a `.py` under `test/format/`, a number case one under
-`test/number/`, a namespace case one under `test/exec/`, a type-system case one
-under `test/type/`, a module case one under `test/module/` and a coroutine case
-one under `test/coro/`; each is a
+`test/number/`, a namespace or syntax case one under `test/exec/`, a
+type-system case one under `test/type/`, a module case one under
+`test/module/`, a coroutine case one under `test/coro/` and a lazy-import case
+one under `test/lazy/`, whose modules live in `test/lazy/mods/`; each is a
 program that prints, and the golden is what CPython prints for it:
 
     tools/mkfmt.py test/format/spec.py

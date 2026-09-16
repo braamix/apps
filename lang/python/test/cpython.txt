@@ -18,16 +18,24 @@
 # A case that cannot run stays byte for byte and its row says why.
 #
 # state  case  result  commit  upstream
-fail  test_augassign.py             syntax  82952e3  Lib/test/test_augassign.py
-pass  test_decorators.py            12/16   82952e3  Lib/test/test_decorators.py
+pass  test_augassign.py             7/7     82952e3  Lib/test/test_augassign.py
+pass  test_decorators.py            13/16   82952e3  Lib/test/test_decorators.py
 pass  test_errno.py                 3/3     82952e3  Lib/test/test_errno.py
-fail  test_exception_variations.py  syntax  82952e3  Lib/test/test_exception_variations.py
+fail  test_except_star.py           import  82952e3  Lib/test/test_except_star.py
+fail  test_exception_group.py       import  82952e3  Lib/test/test_exception_group.py
+pass  test_exception_variations.py  30/30   82952e3  Lib/test/test_exception_variations.py
+fail  test_grammar.py               import  82952e3  Lib/test/test_grammar.py
 pass  test_int_literal.py           6/6     82952e3  Lib/test/test_int_literal.py
 pass  test_keywordonlyarg.py        8/11    82952e3  Lib/test/test_keywordonlyarg.py
 pass  test_longexp.py               1/1     82952e3  Lib/test/test_longexp.py
-fail  test_named_expressions.py     syntax  82952e3  Lib/test/test_named_expressions.py
+pass  test_named_expressions.py     73/74   82952e3  Lib/test/test_named_expressions.py
+fail  test_patma.py                 import  82952e3  Lib/test/test_patma.py
 pass  test_pow.py                   3/7     82952e3  Lib/test/test_pow.py
 pass  test_property.py              9/31    82952e3  Lib/test/test_property.py
+fail  test_syntax.py                import  82952e3  Lib/test/test_syntax.py
+fail  test_tstring.py               import  82952e3  Lib/test/test_tstring.py
+fail  test_type_aliases.py          import  82952e3  Lib/test/test_type_aliases.py
+fail  test_type_params.py           import  82952e3  Lib/test/test_type_params.py
 pass  test_typechecks.py            6/6     82952e3  Lib/test/test_typechecks.py
 pass  test_unary.py                 6/6     82952e3  Lib/test/test_unary.py
 pass  test_unicode_identifiers.py   0/3     82952e3  Lib/test/test_unicode_identifiers.py

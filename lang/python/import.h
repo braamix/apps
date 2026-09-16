@@ -32,5 +32,9 @@ R b_import(const CallArgs &a, Value &out);
 // `from m import *`: every public name of `m` into `into`.
 R import_star(Value m, DictObj *into);
 
+// The absolute name `level` dots back from the module whose globals are
+// `where`, with `name` on the end.
+R import_absolute(Str name, i64 level, Value where, Value &out);
+
 // `from m import name` where `m` has no such name. Always returns R::Err.
 R import_missing(Value m, StrObj *name);

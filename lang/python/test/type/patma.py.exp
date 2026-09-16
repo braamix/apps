@@ -1,0 +1,5 @@
+False
+seq 0 10 20
+map 1 {'b': 2}
+neither
+first 0

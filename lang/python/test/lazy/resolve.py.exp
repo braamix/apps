@@ -1,0 +1,24 @@
+<lazy_import 'mods.pkg.deep'>
+AttributeError: cannot access attribute 'pkg' on unresolved lazy import 'mods.pkg.deep'
+loading mods.pkg
+loading mods.pkg.deep
+module mods True
+lazy_import
+lazy_import module module
+loading mods.lz_a
+deep 42
+compat: lz_a loaded? True lazy_import
+normal None
+ValueError: mode must be 'normal' or 'all'
+loading mods.lz_cycle
+ImportError cannot import name 'me' from partially initialized module 'mods.lz_cycle' (most likely due to a circular import)
+loading mods.lz_b
+module [('__main__', 'mods.lz_b', None)]
+lazy import not allowed inside functions
+lazy import not allowed inside classes
+lazy import not allowed inside try/except blocks
+lazy from ... import * is not allowed
+lazy from __future__ import is not allowed
+lazy from ... import not allowed inside try/except blocks
+exec: 'lazy import' is only allowed at module level
+6

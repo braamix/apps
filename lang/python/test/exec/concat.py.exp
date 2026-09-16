@@ -1,0 +1,6 @@
+can only concatenate str (not "int") to str
+can only concatenate list (not "tuple") to list
+can't concat int to bytes
+can only concatenate tuple (not "list") to tuple
+can only concatenate str (not "int") to str
+can only concatenate str (not "int") to str

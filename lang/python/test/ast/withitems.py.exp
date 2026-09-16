@@ -1,0 +1,118 @@
+Module
+  body:
+    With
+      items:
+        WithItem
+          context:
+            Name a
+          vars:
+            Name b
+        WithItem
+          context:
+            Name c
+          vars: -
+      body:
+        Pass
+    With
+      items:
+        WithItem
+          context:
+            Name a
+          vars: -
+        WithItem
+          context:
+            Name b
+          vars: -
+      body:
+        Pass
+    With
+      items:
+        WithItem
+          context:
+            Name a
+          vars:
+            Name b
+        WithItem
+          context:
+            Name c
+          vars: -
+      body:
+        Pass
+    With
+      items:
+        WithItem
+          context:
+            Tuple
+              elts:
+                Name a
+                Name b
+          vars:
+            Name c
+      body:
+        Pass
+    With
+      items:
+        WithItem
+          context:
+            Yield
+              value: -
+          vars: -
+      body:
+        Pass
+    For
+      target:
+        Tuple
+          elts:
+            Name x
+            Starred
+              value:
+                Name y
+      iter:
+        Name z
+      body:
+        Pass
+      orelse: []
+    Delete
+      targets:
+        Name a
+        List
+          elts:
+            Name b
+    Expr
+      value:
+        Call
+          func:
+            Name f
+          args:
+            Starred
+              value:
+                BoolOp or
+                  values:
+                    Name a
+                    Name b
+            Starred
+              value:
+                IfExp
+                  test:
+                    Name d
+                  body:
+                    Name c
+                  orelse:
+                    Name e
+          keywords: []
+    Assign
+      targets:
+        Name x
+      value:
+        Tuple
+          elts:
+            Starred
+              value:
+                Name a
+            Starred
+              value:
+                BinOp |
+                  left:
+                    Name b
+                  right:
+                    Name c

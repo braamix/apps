@@ -47,6 +47,7 @@ constexpr Dunder DUNDERS[] = {
     { Op::Xor, "__xor__", "__rxor__", "__ixor__" },
     { Op::Lsh, "__lshift__", "__rlshift__", "__ilshift__" },
     { Op::Rsh, "__rshift__", "__rrshift__", "__irshift__" },
+    { Op::MatMul, "__matmul__", "__rmatmul__", "__imatmul__" },
 };
 
 const Dunder &dunder_of(Op op)
@@ -661,6 +662,7 @@ constexpr ModDef BINARY_DEFS[] = {
     OP_DEF(9, "xor", "__xor__"),
     OP_DEF(10, "lshift", "__lshift__"),
     OP_DEF(11, "rshift", "__rshift__"),
+    OP_DEF(12, "matmul", "__matmul__"),
 };
 
 #undef OP_DEF
@@ -684,6 +686,7 @@ constexpr ModDef INPLACE_DEFS[] = {
     IOP_DEF(9, "ixor", "__ixor__"),
     IOP_DEF(10, "ilshift", "__ilshift__"),
     IOP_DEF(11, "irshift", "__irshift__"),
+    IOP_DEF(12, "imatmul", "__imatmul__"),
 };
 
 #undef IOP_DEF

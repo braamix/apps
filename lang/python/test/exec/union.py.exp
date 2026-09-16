@@ -1,0 +1,22 @@
+<class 'typing.Union'> int | str (<class 'int'>, <class 'str'>) () <class 'typing.Union'>
+True True <class 'int'> <class 'type'>
+int | None (<class 'int'>, <class 'NoneType'>) None | int
+True False True
+list[int] | None True
+int | str | float int | str | float int | str
+unsupported operand type(s) for |: 'int' and 'type'
+isinstance() argument 2 cannot be a parameterized generic
+M-or int | __main__.C
+int | str NotImplemented
+int | str | None None | int | str
+list[int] | int (list[int], <class 'int'>)
+Cannot subclass int | str
+'typing.Union' object is not callable
+Union Union typing
+1 True
+int | str is not a generic class
+int | str <class 'int'>
+Cannot take a Union of no types.
+__main__.K | None
+unsupported operand type(s) for |: 'type' and 'ellipsis'
+dict[str, int] | list[int]

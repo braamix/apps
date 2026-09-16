@@ -637,7 +637,8 @@ constexpr Type array_type{ .name     = "array",
                            .contains = arr_contains,
                            .binop    = arr_binop,
                            .iter     = arr_iter,
-                           .getattr  = a_getattr };
+                           .getattr  = a_getattr,
+                           .patma    = PATMA_SEQ };
 
 R b_array(const CallArgs &a, Value &out)
 {

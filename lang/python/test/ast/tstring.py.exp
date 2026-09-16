@@ -1,0 +1,124 @@
+Module
+  body:
+    Expr
+      value:
+        TemplateStr
+          values:
+            Constant 'a'
+            Interpolation -
+              value:
+                Name x
+              str:
+                Constant 'x'
+              format_spec: -
+            Constant 'b'
+    Expr
+      value:
+        TemplateStr
+          values:
+            Constant 'x='
+            Interpolation r
+              value:
+                Name x
+              str:
+                Constant 'x'
+              format_spec: -
+            Constant ' y = '
+            Interpolation s
+              value:
+                Name y
+              str:
+                Constant ' y'
+              format_spec:
+                JoinedStr
+                  values:
+                    Constant '>'
+                    FormattedValue -
+                      value:
+                        Name w
+                      format_spec: -
+    Expr
+      value:
+        TemplateStr
+          values:
+            Interpolation -
+              value:
+                Name x
+              str:
+                Constant 'x'
+              format_spec:
+                JoinedStr
+                  values:
+                    FormattedValue -
+                      value:
+                        Name y
+                      format_spec: -
+                    Constant '.'
+                    FormattedValue -
+                      value:
+                        Name z
+                      format_spec: -
+            Constant '\\n'
+            Interpolation -
+              value:
+                Name x
+              str:
+                Constant 'x'
+              format_spec: -
+    Expr
+      value:
+        TemplateStr
+          values:
+            Interpolation -
+              value:
+                BinOp +
+                  left:
+                    Name x
+                  right:
+                    Constant 1
+              str:
+                Constant ' x + 1'
+              format_spec: -
+    Expr
+      value:
+        TemplateStr
+          values:
+            Constant 'x\n='
+            Interpolation r
+              value:
+                Name x
+              str:
+                Constant 'x'
+              format_spec: -
+    Expr
+      value:
+        TemplateStr
+          values:
+            Interpolation -
+              value:
+                TemplateStr
+                  values:
+                    Interpolation a
+                      value:
+                        Name x
+                      str:
+                        Constant 'x'
+                      format_spec: -
+              str:
+                Constant 't"{x!a}"'
+              format_spec: -
+    Expr
+      value:
+        JoinedStr
+          values:
+            FormattedValue -
+              value:
+                TemplateStr
+                  values:
+                    Interpolation -
+                      value:
+                        Name x
+                      str:
+                        Constant 'x'
+                      format_spec: -
+              format_spec: -

@@ -80,6 +80,25 @@ enum class Nd : u8 {
     Keyword,
     Alias,
     WithItem,
+
+    // since 3.9
+    Match,
+    MatchCase,
+    MatchValue,
+    MatchSingleton,
+    MatchSequence,
+    MatchMapping,
+    MatchClass,
+    MatchStar,
+    MatchAs,
+    MatchOr,
+    TryStar,
+    TypeAlias,
+    TypeVar,
+    ParamSpec,
+    TypeVarTuple,
+    TemplateStr,
+    Interpolation,
 };
 
 // BoolOp flags.
@@ -135,6 +154,9 @@ Str nd_name(Nd k);
 //   JoinedStr       kids: values -- Constant str and FormattedValue, in order
 //   FormattedValue  a: value  b: format_spec, a JoinedStr, or 0 for none
 //                   flags: CONV_*, the !s !r !a a field asked for
+//   TemplateStr     kids: values -- Constant str and Interpolation, in order
+//   Interpolation   as FormattedValue, and c: the expression's text, a
+//                   Constant str
 //   Constant        flags: Const  tok: the literal
 //   Attribute       a: value  tok: the name
 //   Subscript       a: value  b: slice
@@ -151,6 +173,25 @@ Str nd_name(Nd k);
 //   Keyword         tok: name (flags bit 0 when there is one)  a: value
 //   Alias           tok: name  a: asname token + 1, or 0
 //   WithItem        a: context  b: vars
+//   Match           a: subject  kids: MatchCase...
+//   MatchCase       a: pattern  b: guard  kids: body
+//   MatchValue      a: value
+//   MatchSingleton  flags: Const
+//   MatchSequence/MatchOr   kids: patterns
+//   MatchMapping    a: #keys  tok: rest (flags bit 0 when there is one)
+//                   kids: keys ++ patterns
+//   MatchClass      a: cls  b: #patterns  kids: patterns ++ Keyword...,
+//                   each Keyword's value a pattern
+//   MatchStar       tok: name (flags bit 0 when there is one)
+//   MatchAs         a: pattern  tok: name (flags bit 0 when there is one)
+//   TryStar         as Try
+//   TypeAlias       a: name  b: value  c: #type_params  kids: type_params
+//   TypeVar         tok: name  a: bound  b: default
+//   ParamSpec/TypeVarTuple  tok: name  b: default
+//   FunctionDef and ClassDef carry their type parameters after the rest of
+//   their run, and count them in pad. A TypeVarTuple's default may be a
+//   Starred.
+//   Import/ImportFrom   pad bit 0: `lazy`
 struct Node {
     Nd kind  = Nd::Nop;
     u8 flags = 0;

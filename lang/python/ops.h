@@ -37,6 +37,10 @@ ListObj *py_list_of(Value v);
 // R::Err with TypeError pending when neither side answers.
 R py_binop(Value a, Value b, Op op, Value &out);
 
+// The TypeError for an operator neither side answers. A sequence on the left
+// of `+` says it concatenates only its own kind, as CPython's sq_concat does.
+R binop_failed(Value a, Value b, Op op);
+
 // The same, but NotImpl rather than a TypeError when no type answered. The VM
 // asks this first where the left operand is a built-in and the right a class:
 // the left's own operator goes before the right's reflected one.

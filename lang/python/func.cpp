@@ -4,6 +4,7 @@
 #include "gc.h"
 #include "intern.h"
 #include "kernel/fmt.h"
+#include "lazy.h"
 #include "ops.h"
 
 namespace {
@@ -86,9 +87,17 @@ R func_getattr(Value v, StrObj *name, Value &out)
             out = value_none();
         return r == R::Err ? r : R::Ok;
     } else {
-        if (f->dict.is_nil())
-            return R::NotImpl;
-        return dict_get(static_cast<DictObj *>(f->dict.obj()), obj_value(name), out);
+        R r = f->dict.is_nil()
+                  ? R::NotImpl
+                  : dict_get(static_cast<DictObj *>(f->dict.obj()), obj_value(name), out);
+        if (r == R::NotImpl && n == "__type_params__") {
+            TupleObj *none = tuple_new(0);
+            if (!none)
+                return err_set("MemoryError", "out of memory");
+            out = obj_value(none);
+            return R::Ok;
+        }
+        return r;
     }
     return out.is_nil() ? R::NotImpl : R::Ok;
 }
@@ -210,11 +219,12 @@ constexpr Type native_type{ .name    = "builtin_function_or_method",
                             .repr    = native_repr,
                             .getattr = native_getattr };
 
-constexpr Type module_type{ .name    = "module",
-                            .trace   = module_trace,
-                            .repr    = module_repr,
-                            .getattr = module_getattr,
-                            .setattr = module_setattr };
+constexpr Type module_type{ .name     = "module",
+                            .trace    = module_trace,
+                            .repr     = module_repr,
+                            .getattr  = module_getattr,
+                            .setattr  = module_setattr,
+                            .lazyattr = lazy_module_attr };
 
 CellObj *cell_new()
 {

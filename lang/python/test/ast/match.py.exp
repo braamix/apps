@@ -1,0 +1,222 @@
+Module
+  body:
+    Match
+      subject:
+        Name x
+      cases:
+        MatchCase
+          pattern:
+            MatchAs y
+              pattern:
+                MatchOr
+                  patterns:
+                    MatchValue
+                      value:
+                        Constant 1
+                    MatchValue
+                      value:
+                        Constant 2
+          guard:
+            Name y
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchSequence
+              patterns:
+                MatchAs a
+                  pattern: -
+                MatchStar rest
+          guard: -
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchMapping **kw
+              keys:
+                Constant 'k'
+              patterns:
+                MatchAs v
+                  pattern: -
+          guard: -
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchClass
+              cls:
+                Name Point
+              patterns:
+                MatchValue
+                  value:
+                    Constant 1
+              keywords:
+                Keyword y
+                  value:
+                    MatchValue
+                      value:
+                        Constant 2
+          guard: -
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchSingleton None
+          guard: -
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchValue
+              value:
+                BinOp +
+                  left:
+                    UnaryOp -
+                      operand:
+                        Constant 1
+                  right:
+                    Constant 2j
+          guard: -
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchValue
+              value:
+                Attribute b
+                  value:
+                    Name a
+          guard: -
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchOr
+              patterns:
+                MatchSequence
+                  patterns:
+                    MatchValue
+                      value:
+                        Constant 1
+                    MatchValue
+                      value:
+                        Constant 2
+                MatchSequence
+                  patterns: []
+          guard: -
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchValue
+              value:
+                Constant b'xy'
+          guard: -
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchMapping
+              keys:
+                Constant 1
+                UnaryOp -
+                  operand:
+                    Constant 2
+                Attribute b
+                  value:
+                    Name a
+              patterns:
+                MatchAs
+                  pattern: -
+                MatchSequence
+                  patterns:
+                    MatchStar
+                MatchAs c
+                  pattern: -
+          guard: -
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchSequence
+              patterns:
+                MatchAs x
+                  pattern: -
+                MatchStar y
+                MatchAs z
+                  pattern: -
+          guard: -
+          body:
+            Pass
+        MatchCase
+          pattern:
+            MatchAs
+              pattern: -
+          guard: -
+          body:
+            Pass
+    Match
+      subject:
+        Tuple
+          elts:
+            Name a
+            Name b
+      cases:
+        MatchCase
+          pattern:
+            MatchAs q
+              pattern: -
+          guard: -
+          body:
+            Pass
+    Match
+      subject:
+        Tuple
+          elts:
+            Name a
+            Starred
+              value:
+                Name b
+      cases:
+        MatchCase
+          pattern:
+            MatchAs q
+              pattern: -
+          guard:
+            Name q
+          body:
+            Pass
+    Assign
+      targets:
+        Name match
+      value:
+        Constant 1
+    AnnAssign
+      target:
+        Subscript
+          value:
+            Name match
+          slice:
+            Name x
+      annotation:
+        Name int
+      value:
+        Constant 2
+    Expr
+      value:
+        Attribute y
+          value:
+            Call
+              func:
+                Name match
+              args:
+                Name x
+              keywords: []
+    Assign
+      targets:
+        Name case
+      value:
+        List
+          elts:
+            Name match
+            Name case

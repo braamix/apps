@@ -1,0 +1,55 @@
+None -> none
+True -> true
+False -> small False
+0 -> small 0
+1 -> small 1
+-1 -> minus one
+1.5 -> half
+-2.5 -> half
+(1+2j) -> complex
+'hi' -> greeting 'hi'
+b'hi' -> greeting b'hi'
+[] -> empty list
+[5] -> one 5
+[2, 2] -> pair of 2
+[2, 3] -> pair 2 3
+[1, 2, 3, 4, 5] -> long 1 [2, 3, 4, 5]
+[1, 2, 3] -> ends 1 3
+(1, 2, 3) -> ends 1 3
+{'kind': 'circle', 'r': 2} -> circle 2
+{'kind': 'sq', 'a': 1, 'b': 2} -> kind sq [('a', 1), ('b', 2)]
+{'x': 1} -> some dict
+Point -> origin
+Point -> on x 3
+Point -> on y 4
+Point -> a point
+200 -> big 200
+50 -> other
+'text' -> str text
+range(0, 3) -> ends 0 2
+2.0 -> other
+{1, 2} -> other
+plain
+bool True
+number 3
+number 2.5
+list starting 7
+dict v
+tuple [2, 3]
+none
+none
+TypeError: NoArgs() accepts 0 positional sub-patterns (1 given)
+TypeError: BadArgs.__match_args__ must be a tuple (got list)
+TypeError: called match pattern must be a class
+TypeError: Dup() got multiple sub-patterns for attribute 'x'
+TypeError: int() accepts 1 positional sub-pattern (2 given)
+tuple subject 1 2
+or captures 3
+nested 2 3
+zz unbound
+zz still unbound
+fallback 5
+one
+loop done
+stopped ran out
+str matched as str

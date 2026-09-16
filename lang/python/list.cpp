@@ -186,7 +186,8 @@ constexpr Type list_type{ .name     = "list",
                           .delitem  = list_delitem,
                           .contains = list_contains,
                           .binop    = list_binop,
-                          .iter     = seq_iter };
+                          .iter     = seq_iter,
+                          .patma    = PATMA_SEQ | PATMA_SELF };
 
 ListObj *list_new()
 {

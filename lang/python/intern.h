@@ -16,3 +16,7 @@ StrObj *str_intern(Str s);
 void intern_mark();
 
 usize intern_count();
+
+// `__name` inside class `priv` is `_priv__name`, which is how a class keeps a
+// name private; anything else is itself. Interned; null on OOM.
+StrObj *py_mangle(StrObj *priv, Str name);

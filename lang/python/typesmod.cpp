@@ -2,23 +2,24 @@
 //
 // CPython's types.py opens with `try: from _types import *` and falls back to
 // deriving each name from an expression -- `type(lambda: None)`, `type(_g())`,
-// `type(int | str)` -- when there is no such module. That fallback needs
-// `async def` and the union operator, neither of which this interpreter has
-// yet, so the module is the floor that makes types.py borrowable at all.
+// `type(int | str)` -- when there is no such module. The module is what
+// types.py takes first, so each name is this implementation's own.
 //
-// The names that are missing are missing honestly: there is no coroutine, no
-// union type and no capsule here, so nothing stands in for them. What is here
-// is exact for this implementation -- `type(str.join)` really is the same
-// native type as `type(len)`, because both are NativeObj.
+// The names that are missing are missing honestly: there is no capsule here,
+// so nothing stands in for it. What is here is exact for this implementation
+// -- `type(str.join)` really is the same native type as `type(len)`, because
+// both are NativeObj.
 #include "code.h"
 #include "gc.h"
 #include "gen.h"
 #include "genalias.h"
 #include "intern.h"
 #include "kernel/fmt.h"
+#include "lazy.h"
 #include "module.h"
 #include "ops.h"
 #include "type.h"
+#include "union.h"
 
 namespace {
 
@@ -156,6 +157,8 @@ const Named NAMES[] = {
     { "MemberDescriptorType", &member_type },
     { "GetSetDescriptorType", &property_type },
     { "GenericAlias", &genalias_type },
+    { "UnionType", &union_type },
+    { "LazyImportType", &lazy_type },
     { "EllipsisType", &ellipsis_type },
     { "NoneType", &none_type },
     { "NotImplementedType", &notimpl_type },

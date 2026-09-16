@@ -15,16 +15,18 @@
 #include "kernel/fmt.h"
 #include "ops.h"
 #include "symtab.h"
+#include "typevar.h"
 
 namespace {
 
 // What an exit has to walk back out of.
 enum class FK : u8 {
-    Loop,    // break and continue land here
-    Try,     // a `try` body with handlers: the block has to be popped
-    Finally, // a `finally` clause to run on the way out
-    With,    // a context manager to call __exit__ on
-    Handler, // an `except` clause in progress
+    Loop,     // break and continue land here
+    Try,      // a `try` body with handlers: the block has to be popped
+    Finally,  // a `finally` clause to run on the way out
+    With,     // a context manager to call __exit__ on
+    Handler,  // an `except` clause in progress
+    StarBody, // the except* clauses, which nothing may leave early
 };
 
 struct FBlock {
@@ -38,6 +40,8 @@ struct FBlock {
     Vec<u32> breaks;
 };
 
+enum : u8 { NO_ROLE = 0xff };
+
 // One code object under construction. The Root is why every nested scope is
 // compiled from its own C++ frame.
 struct Unit {
@@ -46,8 +50,31 @@ struct Unit {
     Root code;
     Vec<FBlock> blocks;
     u32 line       = 0;
-    u32 blocks_max = 0; // the deepest the run-time block stack goes
-    u32 pending    = 0; // return values sitting under an inlined finally body
+    u32 blocks_max = 0;    // the deepest the run-time block stack goes
+    u32 pending    = 0;    // return values sitting under an inlined finally body
+    Vec<StrObj *> statics; // a class: the X of every `self.X = ...` under it
+    u8 role = NO_ROLE;     // an annotation scope's AN_*
+};
+
+// Byte order, which is codepoint order for UTF-8.
+bool str_before(Str a, Str b)
+{
+    for (usize i = 0; i < a.size() && i < b.size(); i++)
+        if (a[i] != b[i])
+            return u8(a[i]) < u8(b[i]);
+    return a.size() < b.size();
+}
+
+// What a pattern being compiled has on the stack, and where its failures go:
+// CPython's pattern_context. Every pattern consumes the subject on top. The
+// names it captures wait on the stack, under `on_top` working values, until
+// the whole pattern has matched, and a failure jumps to the entry of
+// `fail_pop` that pops what is there.
+struct PatCtx {
+    Vec<StrObj *> stores;
+    Vec<Vec<u32>> fail_pop;
+    u32 on_top             = 0;
+    bool allow_irrefutable = false;
 };
 
 // The three opcodes a name binding answers.
@@ -170,7 +197,14 @@ struct Compiler {
 
     u32 name_index(StrObj *s) { return pool(co()->names, s); }
 
-    StrObj *ident(u32 node) { return str_intern(ast->text(node)); }
+    // A name as the scope sees it: `__x` in a class is `_C__x`.
+    StrObj *ident(u32 node) { return mangled(ast->text(node)); }
+
+    StrObj *mangled(Str name) { return py_mangle(scope().priv, name); }
+
+    // A name that is never mangled: a keyword argument, an attribute noted
+    // for __static_attributes__, a class's own __name__.
+    StrObj *raw_ident(u32 node) { return str_intern(ast->text(node)); }
 
     // --------------------------------------------------------------- names
 
@@ -187,15 +221,33 @@ struct Compiler {
             return { Bc::LoadDeref, Bc::StoreDeref, Bc::DeleteDeref,
                      u32(co()->cellvars.size()) + y->slot };
         case Bind::Global:
+        case Bind::GlobalOrClass:
             return { Bc::LoadGlobal, Bc::StoreGlobal, Bc::DeleteGlobal, name_index(s) };
+        case Bind::FreeOrClass:
+            return { Bc::LoadDeref, Bc::StoreDeref, Bc::DeleteDeref,
+                     u32(co()->cellvars.size()) + y->slot };
         case Bind::Name:
             break;
         }
         return { Bc::LoadName, Bc::StoreName, Bc::DeleteName, name_index(s) };
     }
 
+    // The cell holding the class namespace an annotation scope looks in.
+    u32 classdict_slot()
+    {
+        const Sym *y = st.find(u->scope, str_intern("__classdict__"));
+        return y ? u32(co()->cellvars.size()) + y->slot : 0;
+    }
+
     bool load_name(StrObj *s, u32 node)
     {
+        const Sym *y = st.find(u->scope, s);
+        if (y && y->bind == Bind::GlobalOrClass)
+            return emit(Bc::LoadDeref, classdict_slot(), node) &&
+                   emit(Bc::LoadFromDictOrGlobals, name_index(s), node);
+        if (y && y->bind == Bind::FreeOrClass)
+            return emit(Bc::LoadDeref, classdict_slot(), node) &&
+                   emit(Bc::LoadFromDictOrDeref, u32(co()->cellvars.size()) + y->slot, node);
         NameOps o = name_ops(s);
         return emit(o.load, o.arg, node);
     }
@@ -216,7 +268,7 @@ struct Compiler {
     bool load_cell(StrObj *s, u32 node)
     {
         const Sym *y = st.find(u->scope, s);
-        if (!y || (y->bind != Bind::Cell && y->bind != Bind::Free))
+        if (!y || (y->bind != Bind::Cell && y->bind != Bind::Free && y->bind != Bind::FreeOrClass))
             return fail("a closure wants a name this scope does not bind", node);
         u32 arg = y->bind == Bind::Cell ? y->slot : u32(co()->cellvars.size()) + y->slot;
         return emit(Bc::LoadClosure, arg, node);
@@ -293,6 +345,13 @@ struct Compiler {
     }
 
     bool expr(u32 i);
+    bool empty_str(u32 &count, u32 node)
+    {
+        count++;
+        return emit(Bc::LoadConst, add_const(str_new(Str(""))), node);
+    }
+    Value const_of(u32 i);
+    Value literal_of(u32 i);
     bool stmt(u32 i);
     bool store(u32 i);
     bool del(u32 i);
@@ -302,22 +361,57 @@ struct Compiler {
     bool boolop(u32 i);
     bool compare(u32 i);
     bool call(u32 i);
-    bool call_args(u32 i, u32 at, u32 nargs, u32 nkw, u32 pre, u32 node);
+    bool call_args(u32 i, u32 at, u32 nargs, u32 nkw, u32 pre, u32 node, StrObj *extra = nullptr);
     bool closure_of(u32 node, u32 &flags);
+    bool closure_of_scope(u32 scope, u32 node, u32 &flags);
+    u32 nested_scope(u32 scope, u32 node, StrObj *name, u8 role);
+    bool emit_type_params(u32 n, u32 from, u32 count);
+    bool anno_function(u32 node, u8 role, StrObj *name);
+    bool anno_body(u32 node, u8 role);
+    bool generic_function(u32 i, u32 flags);
+    bool generic_class(u32 i);
+    bool type_alias(u32 i);
     bool function(u32 i, bool as_statement);
     bool classdef(u32 i);
     bool comprehension(u32 i);
     bool import(u32 i);
+    Bc import_op(u32 n, bool star);
     bool import_from(u32 i);
     bool try_stmt(u32 i);
     bool try_except(u32 i);
+    bool try_star(u32 i);
     bool with_at(u32 i, u32 k);
     bool unwind(usize down_to, bool preserve_tos);
     bool loop_exit(bool is_break, u32 node);
 
+    bool match_stmt(u32 i);
+    bool pattern(u32 p, PatCtx &pc);
+    bool subpattern(u32 p, PatCtx &pc);
+    bool jump_fail(PatCtx &pc, Bc op, u32 node);
+    bool emit_fail_pop(PatCtx &pc);
+    bool rotate(u32 count, u32 node);
+    bool store_capture(StrObj *name, PatCtx &pc, u32 node);
+    bool not_none_or_fail(PatCtx &pc, u32 node);
+    bool pattern_sequence(u32 p, PatCtx &pc);
+    bool pattern_mapping(u32 p, PatCtx &pc);
+    bool pattern_class(u32 p, PatCtx &pc);
+    bool pattern_or(u32 p, PatCtx &pc);
+    bool pattern_as(u32 p, PatCtx &pc);
+    bool is_wildcard(u32 p) const
+    {
+        return ast->at(p).kind == Nd::MatchAs && !ast->at(p).a && !(ast->at(p).flags & 1);
+    }
+    bool is_star_wildcard(u32 p) const
+    {
+        return ast->at(p).kind == Nd::MatchStar && !(ast->at(p).flags & 1);
+    }
+
     Value qualname_of(StrObj *name);
     Value docstring(u32 node);
     bool store_doc();
+    bool class_preamble(u32 node);
+    bool note_static(u32 attr);
+    bool store_statics();
     u32 nested(u32 node);
     bool body_of(u32 node);
 };
@@ -384,6 +478,10 @@ bool Compiler::unwind(usize down_to, bool preserve_tos)
             if (!emit(Bc::PopTop, node))
                 return false;
             break;
+
+        case FK::StarBody:
+            return fail("'break', 'continue' and 'return' cannot appear in an except* block",
+                        u->blocks[b - 1].node);
 
         case FK::Handler:
             if (preserve_tos && !emit(Bc::RotTwo, node))
@@ -533,16 +631,20 @@ bool Compiler::compare(u32 i)
 
 // The arguments and the call opcode. `pre` counts values already pushed above
 // the callable, which a class definition uses for the body and the name.
-bool Compiler::call_args(u32 i, u32 at, u32 nargs, u32 nkw, u32 pre, u32 node)
+// `extra`, when given, is one more positional argument after the rest: a
+// generic class's base.
+bool Compiler::call_args(u32 i, u32 at, u32 nargs, u32 nkw, u32 pre, u32 node, StrObj *extra)
 {
     bool star  = has_star(i, at, nargs);
     bool dstar = false;
     for (u32 k = 0; k < nkw; k++)
         dstar = dstar || ast->at(kid(i, at + nargs + k)).flags == 0;
 
+    u32 more = extra ? 1 : 0;
     if (!star && !dstar) {
-        if (!exprs(i, at, nargs))
+        if (!exprs(i, at, nargs) || (extra && !load_name(extra, node)))
             return false;
+        nargs += more;
         if (!nkw)
             return emit(Bc::Call, pre + nargs, node);
 
@@ -550,10 +652,10 @@ bool Compiler::call_args(u32 i, u32 at, u32 nargs, u32 nkw, u32 pre, u32 node)
         if (names.v.is_nil())
             return oom();
         for (u32 k = 0; k < nkw; k++) {
-            u32 w = kid(i, at + nargs + k);
+            u32 w = kid(i, at + nargs - more + k);
             if (!expr(ast->at(w).a))
                 return false;
-            StrObj *s = ident(w);
+            StrObj *s = raw_ident(w);
             if (!s)
                 return oom();
             static_cast<TupleObj *>(names.v.obj())->items()[k] = obj_value(s);
@@ -576,6 +678,8 @@ bool Compiler::call_args(u32 i, u32 at, u32 nargs, u32 nkw, u32 pre, u32 node)
             return false;
         }
     }
+    if (extra && (!load_name(extra, node) || !emit(Bc::ListAppend, 1, node)))
+        return false;
     if (!emit(Bc::ListToTuple, node))
         return false;
     if (!nkw)
@@ -589,7 +693,7 @@ bool Compiler::call_args(u32 i, u32 at, u32 nargs, u32 nkw, u32 pre, u32 node)
         u32 w         = kid(i, at + nargs + k);
         const Node &x = ast->at(w);
         if (x.flags) {
-            StrObj *s = ident(w);
+            StrObj *s = raw_ident(w);
             if (!s)
                 return oom();
             if (!emit(Bc::LoadConst, add_const(obj_value(s)), w) || !expr(x.a) ||
@@ -613,7 +717,12 @@ bool Compiler::call(u32 i)
 // The closure tuple a nested scope needs, and the MakeFunction bit for it.
 bool Compiler::closure_of(u32 node, u32 &flags)
 {
-    const Scope &s = st.scopes[st.at_node[node]];
+    return closure_of_scope(st.at_node[node], node, flags);
+}
+
+bool Compiler::closure_of_scope(u32 scope, u32 node, u32 &flags)
+{
+    const Scope &s = st.scopes[scope];
     if (!s.freevars.size())
         return true;
     for (usize k = 0; k < s.freevars.size(); k++)
@@ -667,13 +776,18 @@ bool Compiler::function(u32 i, bool as_statement)
         }
     }
 
-    if (!closure_of(i, flags))
-        return false;
-    u32 k = nested(i);
-    if (failed)
-        return false;
-    if (!emit(Bc::LoadConst, k, i) || !emit(Bc::MakeFunction, flags, i))
-        return false;
+    if (!lambda && n.pad) {
+        if (!generic_function(i, flags))
+            return false;
+    } else {
+        if (!closure_of(i, flags))
+            return false;
+        u32 k = nested(i);
+        if (failed)
+            return false;
+        if (!emit(Bc::LoadConst, k, i) || !emit(Bc::MakeFunction, flags, i))
+            return false;
+    }
     for (u32 d = 0; d < ndecor; d++)
         if (!emit(Bc::Call, 1, i))
             return false;
@@ -690,6 +804,16 @@ bool Compiler::classdef(u32 i)
         if (!expr(kid(i, n.a + n.b + n.c + k)))
             return false;
 
+    if (n.pad) {
+        if (!generic_class(i))
+            return false;
+        for (u32 d = 0; d < n.d; d++)
+            if (!emit(Bc::Call, 1, i))
+                return false;
+        StrObj *nm = ident(i);
+        return nm ? store_name(nm, i) : oom();
+    }
+
     if (!emit(Bc::LoadBuildClass, i))
         return false;
     u32 flags = 0;
@@ -698,7 +822,7 @@ bool Compiler::classdef(u32 i)
     u32 k = nested(i);
     if (failed)
         return false;
-    StrObj *nm = ident(i);
+    StrObj *nm = raw_ident(i);
     if (!nm)
         return oom();
     if (!emit(Bc::LoadConst, k, i) || !emit(Bc::MakeFunction, flags, i) ||
@@ -709,7 +833,8 @@ bool Compiler::classdef(u32 i)
     for (u32 d = 0; d < n.d; d++)
         if (!emit(Bc::Call, 1, i))
             return false;
-    return store_name(nm, i);
+    nm = ident(i);
+    return nm ? store_name(nm, i) : oom();
 }
 
 bool Compiler::comprehension(u32 i)
@@ -735,6 +860,70 @@ bool Compiler::comprehension(u32 i)
     return true;
 }
 
+// A Constant node's value. Nil with the error pending.
+Value Compiler::const_of(u32 i)
+{
+    const Node &n  = ast->at(i);
+    const Token &t = ast->lex.tokens[n.tok];
+    Value v;
+    switch (Const(n.flags)) {
+    case Const::None:
+        v = value_none();
+        break;
+    case Const::True:
+        v = value_bool(true);
+        break;
+    case Const::False:
+        v = value_bool(false);
+        break;
+    case Const::Ellipsis:
+        v = value_ellipsis();
+        break;
+    case Const::Int:
+        v = (t.flags & TOK_INT_WIDE) ? int_parse(ast->lex.text_of(t), tok_int_base(t.flags))
+                                     : int_from_i64(t.ival);
+        break;
+    case Const::Float:
+        v = float_new(t.fval);
+        break;
+    case Const::Imag:
+        v = complex_new(0, t.fval);
+        break;
+    case Const::Str:
+        v = obj_value(str_raw(ast->lex.text_of(t)));
+        break;
+    case Const::Bytes:
+        v = bytes_new(ast->lex.text_of(t));
+        break;
+    }
+    return v;
+}
+
+// A literal pattern's value, folded the way CPython's optimizer folds `-1`
+// and `1+2j` before code is made. Nil for anything else, with no error.
+Value Compiler::literal_of(u32 i)
+{
+    const Node &n = ast->at(i);
+    if (n.kind == Nd::Constant)
+        return const_of(i);
+    if (n.kind == Nd::UnaryOp && Un(n.flags) == Un::USub) {
+        Root v{ literal_of(n.a) };
+        Value out;
+        if (v.v.is_nil() || py_neg(v.v, out) != R::Ok)
+            return Value();
+        return out;
+    }
+    if (n.kind == Nd::BinOp) {
+        Root l{ literal_of(n.a) };
+        Root r{ literal_of(n.b) };
+        Value out;
+        if (l.v.is_nil() || r.v.is_nil() || py_binop(l.v, r.v, Op(n.flags), out) != R::Ok)
+            return Value();
+        return out;
+    }
+    return Value();
+}
+
 bool Compiler::expr(u32 i)
 {
     if (failed)
@@ -745,38 +934,7 @@ bool Compiler::expr(u32 i)
 
     switch (n.kind) {
     case Nd::Constant: {
-        const Token &t = ast->lex.tokens[n.tok];
-        Value v;
-        switch (Const(n.flags)) {
-        case Const::None:
-            v = value_none();
-            break;
-        case Const::True:
-            v = value_bool(true);
-            break;
-        case Const::False:
-            v = value_bool(false);
-            break;
-        case Const::Ellipsis:
-            v = value_ellipsis();
-            break;
-        case Const::Int:
-            v = (t.flags & TOK_INT_WIDE) ? int_parse(ast->lex.text_of(t), tok_int_base(t.flags))
-                                         : int_from_i64(t.ival);
-            break;
-        case Const::Float:
-            v = float_new(t.fval);
-            break;
-        case Const::Imag:
-            v = complex_new(0, t.fval);
-            break;
-        case Const::Str:
-            v = obj_value(str_raw(ast->lex.text_of(t)));
-            break;
-        case Const::Bytes:
-            v = bytes_new(ast->lex.text_of(t));
-            break;
-        }
+        Value v = const_of(i);
         if (v.is_nil())
             return failed = true, false;
         return emit(Bc::LoadConst, add_const(v), i);
@@ -891,6 +1049,49 @@ bool Compiler::expr(u32 i)
         }
         return emit(Bc::FormatValue, flags, i);
     }
+    case Nd::TemplateStr: {
+        // A tuple of the strings, an empty one wherever two interpolations
+        // meet or one is at either end, then a tuple of the interpolations.
+        bool gap = true;
+        u32 ns = 0, ni = 0;
+        for (u32 k = 0; k < n.nkid; k++) {
+            u32 part = ast->kids[n.kid0 + k];
+            if (ast->at(part).kind == Nd::Interpolation) {
+                if (gap && !empty_str(ns, i))
+                    return false;
+                gap = true;
+                ni++;
+            } else {
+                if (!expr(part))
+                    return false;
+                ns++;
+                gap = false;
+            }
+        }
+        if (gap && !empty_str(ns, i))
+            return false;
+        if (!emit(Bc::BuildTuple, ns, i))
+            return false;
+        for (u32 k = 0; k < n.nkid; k++) {
+            u32 part = ast->kids[n.kid0 + k];
+            if (ast->at(part).kind == Nd::Interpolation && !expr(part))
+                return false;
+        }
+        return emit(Bc::BuildTuple, ni, i) && emit(Bc::BuildTemplate, i);
+    }
+
+    case Nd::Interpolation: {
+        if (!expr(n.a) || !expr(n.c))
+            return false;
+        u32 flags = n.flags;
+        if (n.b) {
+            if (!expr(n.b))
+                return false;
+            flags |= FV_SPEC;
+        }
+        return emit(Bc::BuildInterpolation, flags, i);
+    }
+
     case Nd::Await:
         return expr(n.a) && await_top(i, AW_AWAIT);
 
@@ -913,7 +1114,7 @@ bool Compiler::store(u32 i)
     }
     case Nd::Attribute: {
         StrObj *s = ident(i);
-        return s && expr(n.a) && emit(Bc::StoreAttr, name_index(s), i);
+        return s && note_static(i) && expr(n.a) && emit(Bc::StoreAttr, name_index(s), i);
     }
     case Nd::Subscript:
         return expr(n.a) && expr(n.b) && emit(Bc::StoreSubscr, i);
@@ -988,34 +1189,60 @@ bool dotted_name(const Ast &ast, u32 from, u32 to, String &out)
     return true;
 }
 
+// The import opcode for statement `n`: lazy as written, or as the run time
+// decides, or never -- inside a try, and for `import *`.
+Bc Compiler::import_op(u32 n, bool star)
+{
+    if (ast->at(n).pad & 1)
+        return Bc::LazyImportName;
+    if (star)
+        return Bc::ImportNameEager;
+    for (usize b = 0; b < u->blocks.size(); b++) {
+        FK k = u->blocks[b].kind;
+        if (k == FK::Try || k == FK::Finally || k == FK::Handler || k == FK::StarBody)
+            return Bc::ImportNameEager;
+    }
+    return Bc::ImportName;
+}
+
 bool Compiler::import(u32 i)
 {
     const Node &n = ast->at(i);
+    bool lazy     = (n.pad & 1) != 0;
     for (u32 k = 0; k < n.nkid; k++) {
         u32 a         = kid(i, k);
         const Node &x = ast->at(a);
         String dotted;
         if (!dotted_name(*ast, x.tok, x.b ? x.b : x.tok + 1, dotted))
             return oom();
-        StrObj *full = str_intern(dotted.str());
+        StrObj *full = mangled(dotted.str());
         if (!full)
             return oom();
         if (!emit(Bc::LoadConst, add_const(Value::of_int(0)), a) ||
-            !emit(Bc::LoadConst, const_none(), a) || !emit(Bc::ImportName, name_index(full), a))
+            !emit(Bc::LoadConst, const_none(), a) ||
+            !emit(import_op(i, false), name_index(full), a))
             return false;
 
         // Without an `as` the top package is bound; with one, the submodule is
-        // walked to and that is what the name gets.
+        // walked to and that is what the name gets. A lazy one walks by
+        // ImportFrom, which a lazy import answers lazily.
         StrObj *bound = nullptr;
         if (x.a) {
             for (u32 t = x.tok + 1; t + 1 < (x.b ? x.b : x.tok + 1); t += 2) {
-                StrObj *part = str_intern(ast->lex.text_of(ast->lex.tokens[t + 1]));
-                if (!part || !emit(Bc::LoadAttr, name_index(part), a))
+                StrObj *part = mangled(ast->lex.text_of(ast->lex.tokens[t + 1]));
+                if (!part)
+                    return oom();
+                if (lazy) {
+                    if (!emit(Bc::ImportFrom, name_index(part), a) || !emit(Bc::RotTwo, a) ||
+                        !emit(Bc::PopTop, a))
+                        return false;
+                } else if (!emit(Bc::LoadAttr, name_index(part), a)) {
                     return false;
+                }
             }
-            bound = str_intern(ast->lex.text_of(ast->lex.tokens[x.a - 1]));
+            bound = mangled(ast->lex.text_of(ast->lex.tokens[x.a - 1]));
         } else {
-            bound = str_intern(ast->lex.text_of(ast->lex.tokens[x.tok]));
+            bound = mangled(ast->lex.text_of(ast->lex.tokens[x.tok]));
         }
         if (!bound || !store_name(bound, a))
             return false;
@@ -1029,7 +1256,7 @@ bool Compiler::import_from(u32 i)
     String dotted;
     if (n.flags && !dotted_name(*ast, n.tok, n.b, dotted))
         return oom();
-    StrObj *module = str_intern(dotted.str());
+    StrObj *module = mangled(dotted.str());
     if (!module)
         return oom();
 
@@ -1046,7 +1273,8 @@ bool Compiler::import_from(u32 i)
     }
 
     if (!emit(Bc::LoadConst, add_const(Value::of_int(i32(n.a))), i) ||
-        !emit(Bc::LoadConst, add_const(names.v), i) || !emit(Bc::ImportName, name_index(module), i))
+        !emit(Bc::LoadConst, add_const(names.v), i) ||
+        !emit(import_op(i, star), name_index(module), i))
         return false;
     if (star)
         return emit(Bc::ImportStar, i);
@@ -1054,14 +1282,227 @@ bool Compiler::import_from(u32 i)
     for (u32 k = 0; k < n.nkid; k++) {
         u32 a         = kid(i, k);
         const Node &x = ast->at(a);
-        StrObj *from  = str_intern(ast->lex.text_of(ast->lex.tokens[x.tok]));
-        StrObj *bound = x.a ? str_intern(ast->lex.text_of(ast->lex.tokens[x.a - 1])) : from;
+        StrObj *from  = mangled(ast->lex.text_of(ast->lex.tokens[x.tok]));
+        StrObj *bound = x.a ? mangled(ast->lex.text_of(ast->lex.tokens[x.a - 1])) : from;
         if (!from || !bound)
             return oom();
         if (!emit(Bc::ImportFrom, name_index(from), a) || !store_name(bound, a))
             return false;
     }
     return emit(Bc::PopTop, i);
+}
+
+// ---------------------------------------------------------------- PEP 695
+//
+// CPython's shape: a generic definition is made inside a function of its own,
+// the scope of its type parameters, which is called at once. A bound, a
+// default and an alias's value are each a function too, called when first
+// asked for.
+
+// The type parameters of `n`, from its run at `from`, each made and bound to
+// its name; a tuple of them is left on the stack.
+bool Compiler::emit_type_params(u32 n, u32 from, u32 count)
+{
+    bool seen_default = false;
+    for (u32 k = 0; k < count; k++) {
+        u32 tp        = kid(n, from + k);
+        const Node &p = ast->at(tp);
+        StrObj *raw   = raw_ident(tp);
+        StrObj *name  = ident(tp);
+        if (!raw || !name)
+            return oom();
+        if (!emit(Bc::LoadConst, add_const(obj_value(raw)), tp))
+            return false;
+        u32 kind = p.kind == Nd::ParamSpec      ? TI_PARAMSPEC
+                   : p.kind == Nd::TypeVarTuple ? TI_TYPEVARTUPLE
+                                                : TI_TYPEVAR;
+        if (p.kind == Nd::TypeVar && p.a) {
+            if (!anno_function(tp, AN_BOUND, raw))
+                return false;
+            kind = ast->at(p.a).kind == Nd::Tuple ? TI_TYPEVAR_CONSTRAINTS : TI_TYPEVAR_BOUND;
+        }
+        if (!emit(Bc::Intrinsic, kind, tp))
+            return false;
+        if (p.b) {
+            seen_default = true;
+            if (!anno_function(tp, AN_DEFAULT, raw) || !emit(Bc::Intrinsic, TI_SET_DEFAULT, tp))
+                return false;
+        } else if (seen_default) {
+            Buf<128> b;
+            b.put("non-default type parameter '").put(raw->str());
+            b.put("' follows default type parameter");
+            return fail(b.str(), tp);
+        }
+        if (!emit(Bc::Copy, 1, tp) || !store_name(name, tp))
+            return false;
+    }
+    return emit(Bc::BuildTuple, count, n);
+}
+
+// A bound, a default or a value, as the function that evaluates it.
+bool Compiler::anno_function(u32 node, u8 role, StrObj *name)
+{
+    u32 scope = st.anno(node, role);
+    if (!scope)
+        return fail("an annotation scope is missing", node);
+    u32 flags = 0;
+    if (!closure_of_scope(scope, node, flags))
+        return false;
+    u32 k = nested_scope(scope, node, name, role);
+    if (failed)
+        return false;
+    return emit(Bc::LoadConst, k, node) && emit(Bc::MakeFunction, flags, node);
+}
+
+// What an annotation scope's code does.
+bool Compiler::anno_body(u32 node, u8 role)
+{
+    const Node &n = ast->at(node);
+    switch (role) {
+    case AN_BOUND:
+        return expr(n.a) && emit(Bc::Return, node);
+    case AN_DEFAULT:
+        if (n.kind == Nd::TypeVarTuple && ast->at(n.b).kind == Nd::Starred)
+            return expr(ast->at(n.b).a) && emit(Bc::UnpackSequence, 1, node) &&
+                   emit(Bc::Return, node);
+        return expr(n.b) && emit(Bc::Return, node);
+    case AN_VALUE:
+        return expr(n.b) && emit(Bc::Return, node);
+    default:
+        break;
+    }
+
+    // AN_PARAMS: the type parameters, then what they parameterize.
+    if (n.kind == Nd::FunctionDef || n.kind == Nd::AsyncFunctionDef) {
+        if (!emit_type_params(node, n.b + n.c, n.pad))
+            return false;
+        u32 nargs = co()->argcount;
+        for (u32 k = 0; k < nargs; k++)
+            if (!emit(Bc::LoadFast, k, node))
+                return false;
+        u32 flags     = 0;
+        const Node &a = ast->at(n.a);
+        u32 vararg    = (a.flags & ARG_VARARG) ? 1 : 0;
+        u32 kwarg     = (a.flags & ARG_KWARG) ? 1 : 0;
+        u32 at_kwdef  = a.a + a.b + vararg + a.c;
+        bool kwdef    = false;
+        for (u32 k = 0; k < a.c; k++)
+            kwdef = kwdef || kid(n.a, at_kwdef + k) != 0;
+        (void)kwarg;
+        flags |= a.d ? MF_DEFAULTS : 0;
+        flags |= kwdef ? MF_KWDEFAULTS : 0;
+        if (!closure_of(node, flags))
+            return false;
+        u32 k = nested(node);
+        if (failed)
+            return false;
+        return emit(Bc::LoadConst, k, node) && emit(Bc::MakeFunction, flags, node) &&
+               emit(Bc::RotTwo, node) && emit(Bc::Intrinsic, TI_FUNCTION_TYPE_PARAMS, node) &&
+               emit(Bc::Return, node);
+    }
+    if (n.kind == Nd::ClassDef) {
+        StrObj *tps  = str_intern(".type_params");
+        StrObj *base = str_intern(".generic_base");
+        StrObj *nm   = raw_ident(node);
+        if (!tps || !base || !nm)
+            return oom();
+        if (!emit_type_params(node, n.a + n.b + n.c + n.d, n.pad) || !store_name(tps, node) ||
+            !emit(Bc::LoadBuildClass, node))
+            return false;
+        u32 flags = 0;
+        if (!closure_of(node, flags))
+            return false;
+        u32 k = nested(node);
+        if (failed)
+            return false;
+        if (!emit(Bc::LoadConst, k, node) || !emit(Bc::MakeFunction, flags, node) ||
+            !emit(Bc::LoadConst, add_const(obj_value(nm)), node) || !load_name(tps, node) ||
+            !emit(Bc::Intrinsic, TI_SUBSCRIPT_GENERIC, node) || !store_name(base, node))
+            return false;
+        return call_args(node, 0, n.a, n.b, 2, node, base) && emit(Bc::Return, node);
+    }
+    // A type alias: its name, its parameters and its value.
+    StrObj *nm = raw_ident(n.a);
+    if (!nm)
+        return oom();
+    return emit(Bc::LoadConst, add_const(obj_value(nm)), node) && emit_type_params(node, 0, n.c) &&
+           anno_function(node, AN_VALUE, nm) && emit(Bc::BuildTuple, 3, node) &&
+           emit(Bc::Intrinsic, TI_TYPEALIAS, node) && emit(Bc::Return, node);
+}
+
+// A call to the scope of `i`'s type parameters, with `flags`' defaults on the
+// stack as its arguments; what it answers is the function.
+bool Compiler::generic_function(u32 i, u32 flags)
+{
+    u32 scope = st.anno(i, AN_PARAMS);
+    if (!scope)
+        return fail("an annotation scope is missing", i);
+    u32 nargs = u32(__builtin_popcount(flags & (MF_DEFAULTS | MF_KWDEFAULTS)));
+    Buf<128> b;
+    b.put("<generic parameters of ").put(ast->text(i)).put(">");
+    StrObj *name = str_intern(b.str());
+    if (!name)
+        return oom();
+    u32 cl = 0;
+    if (!closure_of_scope(scope, i, cl))
+        return false;
+    u32 k = nested_scope(scope, i, name, AN_PARAMS);
+    if (failed || !emit(Bc::LoadConst, k, i) || !emit(Bc::MakeFunction, cl, i))
+        return false;
+    if (nargs == 1 && !emit(Bc::RotTwo, i))
+        return false;
+    if (nargs == 2 && !emit(Bc::RotThree, i))
+        return false;
+    return emit(Bc::Call, nargs, i);
+}
+
+bool Compiler::generic_class(u32 i)
+{
+    u32 scope = st.anno(i, AN_PARAMS);
+    if (!scope)
+        return fail("an annotation scope is missing", i);
+    Buf<128> b;
+    b.put("<generic parameters of ").put(ast->text(i)).put(">");
+    StrObj *name = str_intern(b.str());
+    if (!name)
+        return oom();
+    u32 cl = 0;
+    if (!closure_of_scope(scope, i, cl))
+        return false;
+    u32 k = nested_scope(scope, i, name, AN_PARAMS);
+    return !failed && emit(Bc::LoadConst, k, i) && emit(Bc::MakeFunction, cl, i) &&
+           emit(Bc::Call, 0, i);
+}
+
+bool Compiler::type_alias(u32 i)
+{
+    const Node &n = ast->at(i);
+    StrObj *raw   = raw_ident(n.a);
+    StrObj *bound = ident(n.a);
+    if (!raw || !bound)
+        return oom();
+    if (n.c) {
+        u32 scope = st.anno(i, AN_PARAMS);
+        if (!scope)
+            return fail("an annotation scope is missing", i);
+        Buf<128> b;
+        b.put("<generic parameters of ").put(raw->str()).put(">");
+        StrObj *name = str_intern(b.str());
+        if (!name)
+            return oom();
+        u32 cl = 0;
+        if (!closure_of_scope(scope, i, cl))
+            return false;
+        u32 k = nested_scope(scope, i, name, AN_PARAMS);
+        if (failed || !emit(Bc::LoadConst, k, i) || !emit(Bc::MakeFunction, cl, i) ||
+            !emit(Bc::Call, 0, i))
+            return false;
+    } else if (!emit(Bc::LoadConst, add_const(obj_value(raw)), i) ||
+               !emit(Bc::LoadConst, const_none(), i) || !anno_function(i, AN_VALUE, raw) ||
+               !emit(Bc::BuildTuple, 3, i) || !emit(Bc::Intrinsic, TI_TYPEALIAS, i)) {
+        return false;
+    }
+    return store_name(bound, n.a);
 }
 
 // -------------------------------------------------------- try, except, with
@@ -1156,11 +1597,123 @@ bool Compiler::try_except(u32 i)
     return !failed;
 }
 
+// except*, laid out as CPython's codegen does it, over this VM's blocks. The
+// handler region starts with [prev, exc]: a list collects what each clause
+// raises, `rest` is what no clause has taken yet, and at the end the two make
+// what is raised again.
+bool Compiler::try_star(u32 i)
+{
+    const Node &n = ast->at(i);
+    u32 handlers  = emit_jump(Bc::SetupFinally, i);
+    FBlock tb;
+    tb.kind = FK::Try;
+    tb.node = i;
+    if (!block_push(tb))
+        return false;
+    bool body_ok = stmts(i, 0, n.a);
+    u->blocks.pop();
+    if (!body_ok || !emit(Bc::PopBlock, i))
+        return false;
+    u32 to_else = emit_jump(Bc::Jump, i);
+
+    patch(handlers);
+    if (!emit(Bc::PushExcInfo, i))
+        return false;
+    u32 cleanup = emit_jump(Bc::SetupFinally, i);
+    FBlock star;
+    star.kind = FK::StarBody;
+    star.node = i;
+    if (!block_push(star))
+        return false;
+    if (!emit(Bc::BuildList, 0, i) || !emit(Bc::Copy, 2, i))
+        return false;
+
+    u32 reraise_star = 0;
+    for (u32 k = 0; k < n.b; k++) {
+        u32 h         = kid(i, n.a + k);
+        const Node &x = ast->at(h);
+        // [prev, exc, list, rest]
+        if (!expr(x.a) || !emit(Bc::CheckEgMatch, h) || !emit(Bc::Copy, 1, h) ||
+            !emit(Bc::LoadConst, const_none(), h) || !emit(Bc::CompareOp, u32(Cmp::Is), h))
+            return false;
+        u32 no_match = emit_jump(Bc::PopJumpIfTrue, h);
+
+        StrObj *name = (x.flags & 1) ? ident(h) : nullptr;
+        if ((x.flags & 1) && !name)
+            return oom();
+        if (!(name ? store_name(name, h) : emit(Bc::PopTop, h)))
+            return false;
+
+        u32 cleanup_end = emit_jump(Bc::SetupFinally, h);
+        FBlock inner;
+        inner.kind = FK::Try;
+        inner.node = h;
+        if (!block_push(inner))
+            return false;
+        bool ok = stmts(h, 0, x.b);
+        u->blocks.pop();
+        if (!ok || !emit(Bc::PopBlock, h))
+            return false;
+        if (name &&
+            (!emit(Bc::LoadConst, const_none(), h) || !store_name(name, h) || !del_name(name, h)))
+            return false;
+        u32 next = emit_jump(Bc::Jump, h);
+
+        // The clause raised: [prev, exc, list, rest, raised] goes on the list.
+        patch(cleanup_end);
+        if (name &&
+            (!emit(Bc::LoadConst, const_none(), h) || !store_name(name, h) || !del_name(name, h)))
+            return false;
+        if (!emit(Bc::ListAppend, 2, h))
+            return false;
+        u32 with_error = emit_jump(Bc::Jump, h);
+
+        patch(no_match);
+        if (!emit(Bc::PopTop, h))
+            return false;
+        patch(next);
+        patch(with_error);
+        if (k == n.b - 1) {
+            // What no clause took is raised again with the rest.
+            if (!emit(Bc::ListAppend, 1, h))
+                return false;
+            reraise_star = here();
+        }
+    }
+    u->blocks.pop();
+
+    // [prev, exc, list] to [prev, result]
+    (void)reraise_star;
+    if (!emit(Bc::PrepReraiseStar, i) || !emit(Bc::Copy, 1, i) ||
+        !emit(Bc::LoadConst, const_none(), i) || !emit(Bc::CompareOp, u32(Cmp::IsNot), i))
+        return false;
+    u32 reraise = emit_jump(Bc::PopJumpIfTrue, i);
+    if (!emit(Bc::PopTop, i) || !emit(Bc::PopBlock, i) || !emit(Bc::PopExcept, i))
+        return false;
+    u32 end = emit_jump(Bc::Jump, i);
+
+    patch(reraise);
+    if (!emit(Bc::PopBlock, i) || !emit(Bc::Reraise, 1, i))
+        return false;
+
+    // Anything that fails on the way: the handled exception is put back.
+    patch(cleanup);
+    if (!emit(Bc::RotTwo, i) || !emit(Bc::PopTop, i) || !emit(Bc::Reraise, 1, i))
+        return false;
+
+    patch(to_else);
+    if (!stmts(i, n.a + n.b, n.c))
+        return false;
+    patch(end);
+    return !failed;
+}
+
 bool Compiler::try_stmt(u32 i)
 {
     const Node &n = ast->at(i);
+    bool star     = n.kind == Nd::TryStar;
     if (!n.d)
-        return try_except(i);
+        return star ? try_star(i) : try_except(i);
 
     u32 fin = emit_jump(Bc::SetupFinally, i);
     FBlock f;
@@ -1168,7 +1721,7 @@ bool Compiler::try_stmt(u32 i)
     f.node = i;
     if (!block_push(f))
         return false;
-    bool ok = n.b ? try_except(i) : stmts(i, 0, n.a);
+    bool ok = n.b ? (star ? try_star(i) : try_except(i)) : stmts(i, 0, n.a);
     u->blocks.pop();
     if (!ok)
         return false;
@@ -1238,6 +1791,482 @@ bool Compiler::with_at(u32 i, u32 k)
     return !failed;
 }
 
+// ------------------------------------------------------------------ match
+//
+// CPython's codegen.c, pattern for pattern: see PatCtx. A jump into
+// fail_pop[n] pops n values on its way to the next case.
+
+bool Compiler::jump_fail(PatCtx &pc, Bc op, u32 node)
+{
+    u32 pops = pc.on_top + u32(pc.stores.size());
+    while (pc.fail_pop.size() <= pops)
+        if (!pc.fail_pop.push(Vec<u32>()))
+            return oom();
+    u32 j = emit_jump(op, node);
+    if (failed)
+        return false;
+    return pc.fail_pop[pops].push(j) ? true : oom();
+}
+
+bool Compiler::emit_fail_pop(PatCtx &pc)
+{
+    for (usize k = pc.fail_pop.size(); k > 1; k--) {
+        patch_all(pc.fail_pop[k - 1]);
+        if (!emit(Bc::PopTop, 0))
+            return false;
+    }
+    if (pc.fail_pop.size())
+        patch_all(pc.fail_pop[0]);
+    pc.fail_pop.clear();
+    return !failed;
+}
+
+bool Compiler::rotate(u32 count, u32 node)
+{
+    for (; count > 1; count--)
+        if (!emit(Bc::Swap, count, node))
+            return false;
+    return true;
+}
+
+// A capture waits under what is on top, until the whole pattern matches.
+bool Compiler::store_capture(StrObj *name, PatCtx &pc, u32 node)
+{
+    if (!name)
+        return emit(Bc::PopTop, node);
+    for (usize k = 0; k < pc.stores.size(); k++)
+        if (pc.stores[k] == name) {
+            Buf<128> b;
+            b.put("multiple assignments to name '").put(name->str()).put("' in pattern");
+            return fail(b.str(), node);
+        }
+    if (!rotate(pc.on_top + u32(pc.stores.size()) + 1, node))
+        return false;
+    return pc.stores.push(name) ? true : oom();
+}
+
+// The value on top is a tuple, or None for no match.
+bool Compiler::not_none_or_fail(PatCtx &pc, u32 node)
+{
+    return emit(Bc::Copy, 1, node) && emit(Bc::LoadConst, const_none(), node) &&
+           emit(Bc::CompareOp, u32(Cmp::IsNot), node) && jump_fail(pc, Bc::PopJumpIfFalse, node);
+}
+
+bool Compiler::subpattern(u32 p, PatCtx &pc)
+{
+    bool allow           = pc.allow_irrefutable;
+    pc.allow_irrefutable = true;
+    bool ok              = pattern(p, pc);
+    pc.allow_irrefutable = allow;
+    return ok;
+}
+
+bool Compiler::pattern_as(u32 p, PatCtx &pc)
+{
+    const Node &n = ast->at(p);
+    StrObj *name  = (n.flags & 1) ? ident(p) : nullptr;
+    if ((n.flags & 1) && !name)
+        return oom();
+    if (!n.a) {
+        if (!pc.allow_irrefutable) {
+            if (!name)
+                return fail("wildcard makes remaining patterns unreachable", p);
+            Buf<128> b;
+            b.put("name capture '").put(ast->text(p)).put("' makes remaining patterns unreachable");
+            return fail(b.str(), p);
+        }
+        return store_capture(name, pc, p);
+    }
+    pc.on_top++;
+    if (!emit(Bc::Copy, 1, p) || !pattern(n.a, pc))
+        return false;
+    pc.on_top--;
+    return store_capture(name, pc, p);
+}
+
+bool Compiler::pattern_sequence(u32 p, PatCtx &pc)
+{
+    const Node &n  = ast->at(p);
+    u32 size       = n.nkid;
+    i32 star       = -1;
+    bool only_wild = true, star_wild = false;
+    for (u32 k = 0; k < size; k++) {
+        u32 e = kid(p, k);
+        if (ast->at(e).kind == Nd::MatchStar) {
+            if (star >= 0)
+                return fail("multiple starred names in sequence pattern", p);
+            star_wild = is_star_wildcard(e);
+            only_wild = only_wild && star_wild;
+            star      = i32(k);
+            continue;
+        }
+        only_wild = only_wild && is_wildcard(e);
+    }
+    pc.on_top++;
+    if (!emit(Bc::MatchSequence, p) || !jump_fail(pc, Bc::PopJumpIfFalse, p))
+        return false;
+    if (star < 0 || size > 1) {
+        u32 want = star < 0 ? size : size - 1;
+        Cmp op   = star < 0 ? Cmp::Eq : Cmp::Ge;
+        if (!emit(Bc::GetLen, p) || !emit(Bc::LoadConst, add_const(Value::of_int(i32(want))), p) ||
+            !emit(Bc::CompareOp, u32(op), p) || !jump_fail(pc, Bc::PopJumpIfFalse, p))
+            return false;
+    }
+    pc.on_top--;
+    if (only_wild)
+        return emit(Bc::PopTop, p);
+
+    if (star_wild) {
+        // Only what is asked for is fetched, by index from either end.
+        pc.on_top++;
+        for (u32 k = 0; k < size; k++) {
+            u32 e = kid(p, k);
+            if (is_wildcard(e) || i32(k) == star)
+                continue;
+            if (!emit(Bc::Copy, 1, e))
+                return false;
+            if (i32(k) < star) {
+                if (!emit(Bc::LoadConst, add_const(Value::of_int(i32(k))), e))
+                    return false;
+            } else if (!emit(Bc::GetLen, e) ||
+                       !emit(Bc::LoadConst, add_const(Value::of_int(i32(size - k))), e) ||
+                       !emit(Bc::BinaryOp, u32(Op::Sub), e)) {
+                return false;
+            }
+            if (!emit(Bc::LoadSubscr, e) || !subpattern(e, pc))
+                return false;
+        }
+        pc.on_top--;
+        return emit(Bc::PopTop, p);
+    }
+
+    if (star >= 0) {
+        if (u32(star) >= 0x10000 || size - u32(star) - 1 >= 0x10000)
+            return fail("too many expressions in star-unpacking sequence pattern", p);
+        if (!emit(Bc::UnpackEx, u32(star) | ((size - u32(star) - 1) << 16), p))
+            return false;
+    } else if (!emit(Bc::UnpackSequence, size, p)) {
+        return false;
+    }
+    pc.on_top += size;
+    for (u32 k = 0; k < size; k++) {
+        pc.on_top--;
+        if (!subpattern(kid(p, k), pc))
+            return false;
+    }
+    return true;
+}
+
+bool Compiler::pattern_mapping(u32 p, PatCtx &pc)
+{
+    const Node &n = ast->at(p);
+    u32 size      = n.a;
+    bool rest     = (n.flags & 1) != 0;
+    pc.on_top++;
+    if (!emit(Bc::MatchMapping, p) || !jump_fail(pc, Bc::PopJumpIfFalse, p))
+        return false;
+    if (!size && !rest) {
+        pc.on_top--;
+        return emit(Bc::PopTop, p);
+    }
+    if (size &&
+        (!emit(Bc::GetLen, p) || !emit(Bc::LoadConst, add_const(Value::of_int(i32(size))), p) ||
+         !emit(Bc::CompareOp, u32(Cmp::Ge), p) || !jump_fail(pc, Bc::PopJumpIfFalse, p)))
+        return false;
+
+    // The keys: literals, which may not repeat, or attribute lookups.
+    Vec<u32> seen;
+    for (u32 k = 0; k < size; k++) {
+        u32 key = kid(p, k);
+        if (ast->at(key).kind == Nd::Attribute) {
+            if (!expr(key))
+                return false;
+            continue;
+        }
+        Root v{ literal_of(key) };
+        if (v.v.is_nil())
+            return failed = true, false;
+        for (usize j = 0; j < seen.size(); j++) {
+            bool same = false;
+            if (py_eq(co()->consts[seen[j]], v.v, same) != R::Ok)
+                return failed = true, false;
+            if (same) {
+                String text;
+                if (py_repr(v.v, text) != R::Ok)
+                    return oom();
+                Buf<128> b;
+                b.put("mapping pattern checks duplicate key (").put(text.str()).put(")");
+                return fail(b.str(), p);
+            }
+        }
+        u32 at = add_const(v.v);
+        if (!emit(Bc::LoadConst, at, key) || !seen.push(at))
+            return failed ? false : oom();
+    }
+    if (!emit(Bc::BuildTuple, size, p) || !emit(Bc::MatchKeys, p))
+        return false;
+    pc.on_top += 2;
+    if (!not_none_or_fail(pc, p) || !emit(Bc::UnpackSequence, size, p))
+        return false;
+    pc.on_top += size - 1;
+    for (u32 k = 0; k < size; k++) {
+        pc.on_top--;
+        if (!subpattern(kid(p, size + k), pc))
+            return false;
+    }
+    pc.on_top -= 2;
+    if (!rest)
+        return emit(Bc::PopTop, p) && emit(Bc::PopTop, p);
+
+    // rest = dict(subject), less every key: [subject, keys] to [rest].
+    if (!emit(Bc::Swap, 2, p) || !emit(Bc::CopyDict, p) || !emit(Bc::Swap, 2, p) ||
+        !emit(Bc::UnpackSequence, size, p))
+        return false;
+    for (u32 left = size; left; left--)
+        if (!emit(Bc::Copy, 1 + left, p) || !emit(Bc::Swap, 2, p) || !emit(Bc::DeleteSubscr, p))
+            return false;
+    StrObj *name = ident(p);
+    return name ? store_capture(name, pc, p) : oom();
+}
+
+bool Compiler::pattern_class(u32 p, PatCtx &pc)
+{
+    const Node &n = ast->at(p);
+    u32 nargs     = n.b;
+    u32 nattrs    = n.nkid - n.b;
+    Root names{ obj_value(tuple_new(nattrs)) };
+    if (names.v.is_nil())
+        return oom();
+    for (u32 k = 0; k < nattrs; k++) {
+        u32 w = kid(p, nargs + k);
+        for (u32 j = k + 1; j < nattrs; j++)
+            if (ast->text(kid(p, nargs + j)) == ast->text(w)) {
+                Buf<128> b;
+                b.put("attribute name repeated in class pattern: ").put(ast->text(w));
+                return fail(b.str(), ast->at(kid(p, nargs + j)).a);
+            }
+        StrObj *s = raw_ident(w);
+        if (!s)
+            return oom();
+        static_cast<TupleObj *>(names.v.obj())->items()[k] = obj_value(s);
+    }
+    if (!expr(n.a) || !emit(Bc::LoadConst, add_const(names.v), p) ||
+        !emit(Bc::MatchClass, nargs, p))
+        return false;
+    pc.on_top++;
+    if (!not_none_or_fail(pc, p) || !emit(Bc::UnpackSequence, nargs + nattrs, p))
+        return false;
+    pc.on_top += nargs + nattrs;
+    pc.on_top--;
+    for (u32 k = 0; k < nargs + nattrs; k++) {
+        pc.on_top--;
+        u32 sub = k < nargs ? kid(p, k) : ast->at(kid(p, k)).a;
+        if (is_wildcard(sub)) {
+            if (!emit(Bc::PopTop, p))
+                return false;
+            continue;
+        }
+        if (!subpattern(sub, pc))
+            return false;
+    }
+    return true;
+}
+
+bool Compiler::pattern_or(u32 p, PatCtx &pc)
+{
+    const Node &n = ast->at(p);
+    Vec<u32> ends;
+    Vec<StrObj *> control;
+    PatCtx outer;
+    outer.on_top            = pc.on_top;
+    outer.allow_irrefutable = pc.allow_irrefutable;
+    outer.stores            = static_cast<Vec<StrObj *> &&>(pc.stores);
+    outer.fail_pop          = static_cast<Vec<Vec<u32>> &&>(pc.fail_pop);
+
+    for (u32 k = 0; k < n.nkid; k++) {
+        u32 alt = kid(p, k);
+        PatCtx one;
+        one.allow_irrefutable = k == n.nkid - 1 && outer.allow_irrefutable;
+        if (!emit(Bc::Copy, 1, alt) || !pattern(alt, one))
+            return false;
+        usize nstores = one.stores.size();
+        if (!k) {
+            for (usize j = 0; j < nstores; j++)
+                if (!control.push(one.stores[j]))
+                    return oom();
+        } else if (nstores != control.size()) {
+            return fail("alternative patterns bind different names", p);
+        } else if (nstores) {
+            for (usize ic = nstores; ic-- > 0;) {
+                StrObj *name = control[ic];
+                usize is     = nstores;
+                for (usize j = 0; j < nstores; j++)
+                    if (one.stores[j] == name)
+                        is = j;
+                if (is == nstores)
+                    return fail("alternative patterns bind different names", p);
+                if (is == ic)
+                    continue;
+                // Move stores[0 .. is] up to sit just below ic, on the stack
+                // as in the list.
+                usize rotations = is + 1;
+                Vec<StrObj *> moved;
+                for (usize j = 0; j < nstores; j++)
+                    if (!moved.push(nullptr))
+                        return oom();
+                usize at = 0;
+                for (usize j = rotations; j < rotations + (ic - is); j++)
+                    moved[at++] = one.stores[j];
+                for (usize j = 0; j < rotations; j++)
+                    moved[at++] = one.stores[j];
+                for (usize j = rotations + (ic - is); j < nstores; j++)
+                    moved[at++] = one.stores[j];
+                one.stores = static_cast<Vec<StrObj *> &&>(moved);
+                for (usize r = 0; r < rotations; r++)
+                    if (!rotate(u32(ic + 1), alt))
+                        return false;
+            }
+        }
+        u32 j = emit_jump(Bc::Jump, alt);
+        if (failed || !ends.push(j))
+            return failed ? false : oom();
+        if (!emit_fail_pop(one))
+            return false;
+    }
+
+    pc.on_top            = outer.on_top;
+    pc.allow_irrefutable = outer.allow_irrefutable;
+    pc.stores            = static_cast<Vec<StrObj *> &&>(outer.stores);
+    pc.fail_pop          = static_cast<Vec<Vec<u32>> &&>(outer.fail_pop);
+    // No alternative matched: drop the copy of the subject and fail.
+    if (!emit(Bc::PopTop, p) || !jump_fail(pc, Bc::Jump, p))
+        return false;
+
+    patch_all(ends);
+    u32 nstores = u32(control.size());
+    u32 nrots   = nstores + 1 + pc.on_top + u32(pc.stores.size());
+    for (u32 k = 0; k < nstores; k++) {
+        if (!rotate(nrots, p))
+            return false;
+        for (usize j = 0; j < pc.stores.size(); j++)
+            if (pc.stores[j] == control[k]) {
+                Buf<128> b;
+                b.put("multiple assignments to name '").put(control[k]->str());
+                b.put("' in pattern");
+                return fail(b.str(), p);
+            }
+        if (!pc.stores.push(control[k]))
+            return oom();
+    }
+    return emit(Bc::PopTop, p);
+}
+
+bool Compiler::pattern(u32 p, PatCtx &pc)
+{
+    if (failed)
+        return false;
+    const Node &n = ast->at(p);
+    switch (n.kind) {
+    case Nd::MatchValue: {
+        if (ast->at(n.a).kind != Nd::Attribute) {
+            Root v{ literal_of(n.a) };
+            if (v.v.is_nil())
+                return failed = true, false;
+            if (!emit(Bc::LoadConst, add_const(v.v), p))
+                return false;
+        } else if (!expr(n.a)) {
+            return false;
+        }
+        return emit(Bc::CompareOp, u32(Cmp::Eq), p) && jump_fail(pc, Bc::PopJumpIfFalse, p);
+    }
+    case Nd::MatchSingleton: {
+        Value v = Const(n.flags) == Const::None   ? value_none()
+                  : Const(n.flags) == Const::True ? value_bool(true)
+                                                  : value_bool(false);
+        return emit(Bc::LoadConst, add_const(v), p) && emit(Bc::CompareOp, u32(Cmp::Is), p) &&
+               jump_fail(pc, Bc::PopJumpIfFalse, p);
+    }
+    case Nd::MatchSequence:
+        return pattern_sequence(p, pc);
+    case Nd::MatchMapping:
+        return pattern_mapping(p, pc);
+    case Nd::MatchClass:
+        return pattern_class(p, pc);
+    case Nd::MatchStar: {
+        StrObj *name = (n.flags & 1) ? ident(p) : nullptr;
+        if ((n.flags & 1) && !name)
+            return oom();
+        return store_capture(name, pc, p);
+    }
+    case Nd::MatchAs:
+        return pattern_as(p, pc);
+    case Nd::MatchOr:
+        return pattern_or(p, pc);
+    default:
+        return fail("invalid match pattern", p);
+    }
+}
+
+bool Compiler::match_stmt(u32 i)
+{
+    const Node &n = ast->at(i);
+    if (!expr(n.a))
+        return false;
+    Vec<u32> ends;
+    u32 cases        = n.nkid;
+    u32 last         = kid(i, cases - 1);
+    bool has_default = is_wildcard(ast->at(last).a) && cases > 1;
+    for (u32 k = 0; k < cases - (has_default ? 1 : 0); k++) {
+        u32 m         = kid(i, k);
+        const Node &c = ast->at(m);
+        bool copy     = k != cases - (has_default ? 1 : 0) - 1;
+        if (copy && !emit(Bc::Copy, 1, c.a))
+            return false;
+        PatCtx pc;
+        pc.allow_irrefutable = c.b || k == cases - 1;
+        if (!pattern(c.a, pc))
+            return false;
+        // It matched: the captures are on the stack, in the order stored.
+        for (usize j = 0; j < pc.stores.size(); j++)
+            if (!store_name(pc.stores[j], c.a))
+                return false;
+        if (c.b) {
+            if (!pc.fail_pop.size() && !pc.fail_pop.push(Vec<u32>()))
+                return oom();
+            if (!expr(c.b))
+                return false;
+            u32 j = emit_jump(Bc::PopJumpIfFalse, c.b);
+            if (failed || !pc.fail_pop[0].push(j))
+                return failed ? false : oom();
+        }
+        if (copy && !emit(Bc::PopTop, c.a))
+            return false;
+        if (!stmts(m, 0, c.nkid))
+            return false;
+        u32 j = emit_jump(Bc::Jump, m);
+        if (failed || !ends.push(j))
+            return failed ? false : oom();
+        if (!emit_fail_pop(pc))
+            return false;
+    }
+    if (has_default) {
+        const Node &c = ast->at(last);
+        if (!emit(Bc::Nop, c.a))
+            return false;
+        if (c.b) {
+            if (!expr(c.b))
+                return false;
+            u32 j = emit_jump(Bc::PopJumpIfFalse, c.b);
+            if (failed || !ends.push(j))
+                return failed ? false : oom();
+        }
+        if (!stmts(last, 0, c.nkid))
+            return false;
+    }
+    patch_all(ends);
+    return !failed;
+}
+
 // -------------------------------------------------------------- statements
 
 bool Compiler::stmt(u32 i)
@@ -1282,7 +2311,7 @@ bool Compiler::stmt(u32 i)
         }
         case Nd::Attribute: {
             StrObj *s = ident(n.a);
-            return s && expr(t.a) && emit(Bc::DupTop, i) &&
+            return s && note_static(n.a) && expr(t.a) && emit(Bc::DupTop, i) &&
                    emit(Bc::LoadAttr, name_index(s), n.a) && expr(n.b) &&
                    emit(Bc::InplaceOp, n.flags, i) && emit(Bc::RotTwo, i) &&
                    emit(Bc::StoreAttr, name_index(s), n.a);
@@ -1414,6 +2443,7 @@ bool Compiler::stmt(u32 i)
     }
 
     case Nd::Try:
+    case Nd::TryStar:
         return try_stmt(i);
     case Nd::With:
     case Nd::AsyncWith:
@@ -1429,6 +2459,11 @@ bool Compiler::stmt(u32 i)
         return import(i);
     case Nd::ImportFrom:
         return import_from(i);
+
+    case Nd::Match:
+        return match_stmt(i);
+    case Nd::TypeAlias:
+        return type_alias(i);
 
     default:
         return fail("this statement is not compiled yet", i);
@@ -1463,7 +2498,7 @@ bool Compiler::body_of(u32 node)
         return expr(n.b) && emit(Bc::Return, node);
 
     case Nd::ClassDef:
-        if (!store_doc() || !stmts(node, n.a + n.b, n.c))
+        if (!class_preamble(node) || !stmts(node, n.a + n.b, n.c) || !store_statics())
             return false;
         break;
 
@@ -1583,6 +2618,8 @@ i32 effect(Bc op, u32 arg)
     case Bc::DictUpdate:
     case Bc::DictMerge:
     case Bc::ImportName:
+    case Bc::ImportNameEager:
+    case Bc::LazyImportName:
     case Bc::ImportStar:
     case Bc::PopExcept:
     case Bc::CheckExcMatch:
@@ -1609,6 +2646,22 @@ i32 effect(Bc op, u32 arg)
     case Bc::BeforeAsyncWith:
     case Bc::WithExceptStart:
     case Bc::GetANext:
+    case Bc::Copy:
+    case Bc::GetLen:
+    case Bc::MatchSequence:
+    case Bc::MatchMapping:
+    case Bc::MatchKeys:
+        return 1;
+    case Bc::MatchClass:
+        return -2;
+    case Bc::PrepReraiseStar:
+    case Bc::BuildTemplate:
+        return -1;
+    case Bc::BuildInterpolation:
+        return (arg & FV_SPEC) ? -2 : -1;
+    case Bc::Intrinsic:
+        return 1 - i32(intrinsic_arity(arg));
+    case Bc::LoadLocals:
         return 1;
 
     case Bc::DupTop2:
@@ -1715,14 +2768,18 @@ u32 stack_size(const CodeObj *c)
 // between the two, which is what CPython's __qualname__ says.
 Value Compiler::qualname_of(StrObj *name)
 {
-    if (!u || !u->prev)
+    // The scope of a generic's type parameters is not part of the path.
+    Unit *p = u;
+    while (p && p->role != NO_ROLE)
+        p = p->prev;
+    if (!p || !p->prev)
         return obj_value(name);
     Root rn{ obj_value(name) };
     String b;
-    Value outer = code_of(u->code.v)->qualname;
+    Value outer = code_of(p->code.v)->qualname;
     if (!is_str(outer) || !b.append(str_of(outer)->str()))
         return oom(), Value();
-    ScopeKind k = st.scopes[u->scope].kind;
+    ScopeKind k = st.scopes[p->scope].kind;
     if (k != ScopeKind::Class && !b.append(".<locals>"))
         return oom(), Value();
     if (!b.push('.') || !b.append(str_of(rn.v)->str()))
@@ -1767,6 +2824,90 @@ bool Compiler::store_doc()
     return emit(Bc::LoadConst, add_const(doc.v), 0) && emit(Bc::StoreName, name_index(key), 0);
 }
 
+// What CPython puts in a class namespace before the body runs: the module, the
+// qualified name, the first line with the decorators, and a docstring only
+// where there is one.
+bool Compiler::class_preamble(u32 node)
+{
+    const Node &n  = ast->at(node);
+    StrObj *name   = str_intern("__name__");
+    StrObj *module = str_intern("__module__");
+    StrObj *qual   = str_intern("__qualname__");
+    StrObj *first  = str_intern("__firstlineno__");
+    StrObj *doc    = str_intern("__doc__");
+    if (!name || !module || !qual || !first || !doc)
+        return oom();
+    u32 line = line_of(node);
+    for (u32 k = 0; k < n.d; k++) {
+        u32 at = line_of(kid(node, n.a + n.b + n.c + k)) - 1; // the `@` is on the line
+        if (at && at < line)
+            line = at;
+    }
+    CodeObj *c = co();
+    Root q{ c->qualname };
+    Root d{ c->doc };
+    if (!emit(Bc::LoadName, name_index(name), 0) || !emit(Bc::StoreName, name_index(module), 0) ||
+        !emit(Bc::LoadConst, add_const(q.v), 0) || !emit(Bc::StoreName, name_index(qual), 0) ||
+        !emit(Bc::LoadConst, add_const(Value::of_int(i32(line))), 0) ||
+        !emit(Bc::StoreName, name_index(first), 0))
+        return false;
+    // A generic class says what its parameters are.
+    if (n.pad) {
+        StrObj *tps = str_intern(".type_params");
+        StrObj *tpn = str_intern("__type_params__");
+        if (!tps || !tpn)
+            return oom();
+        if (!load_name(tps, 0) || !emit(Bc::StoreName, name_index(tpn), 0))
+            return false;
+    }
+    // An annotation scope inside looks in this namespace, through a cell.
+    if (scope().classdict) {
+        const Sym *y = st.find(u->scope, str_intern("__classdict__"));
+        if (!y || !emit(Bc::LoadLocals, 0) || !emit(Bc::StoreDeref, y->slot, 0))
+            return y ? false : fail("the class namespace cell is missing", node);
+    }
+    if (d.v.is_nil())
+        return true;
+    return emit(Bc::LoadConst, add_const(d.v), 0) && emit(Bc::StoreName, name_index(doc), 0);
+}
+
+// `self.X = ...`: X is one of the nearest enclosing class's static attributes.
+bool Compiler::note_static(u32 attr)
+{
+    u32 obj = ast->at(attr).a;
+    if (ast->at(obj).kind != Nd::Name || ast->text(obj) != "self")
+        return true;
+    Unit *c = u->prev;
+    while (c && st.scopes[c->scope].kind != ScopeKind::Class)
+        c = c->prev;
+    StrObj *s = raw_ident(attr);
+    if (!c || !s)
+        return s ? true : oom();
+    for (usize k = 0; k < c->statics.size(); k++)
+        if (c->statics[k] == s)
+            return true;
+    return c->statics.push(s) ? true : oom();
+}
+
+// The class body's last act: those names, sorted, as __static_attributes__.
+bool Compiler::store_statics()
+{
+    Vec<StrObj *> &v = u->statics;
+    for (usize i = 1; i < v.size(); i++)
+        for (usize j = i; j > 0 && str_before(v[j]->str(), v[j - 1]->str()); j--) {
+            StrObj *t = v[j];
+            v[j]      = v[j - 1];
+            v[j - 1]  = t;
+        }
+    Root names{ obj_value(tuple_new(v.size())) };
+    StrObj *key = str_intern("__static_attributes__");
+    if (names.v.is_nil() || !key)
+        return oom();
+    for (usize i = 0; i < v.size(); i++)
+        static_cast<TupleObj *>(names.v.obj())->items()[i] = obj_value(v[i]);
+    return emit(Bc::LoadConst, add_const(names.v), 0) && emit(Bc::StoreName, name_index(key), 0);
+}
+
 // One nested scope, compiled into its own code object and left in this unit's
 // constants. The Root lives in `nu`, which is why this is a function.
 u32 Compiler::nested(u32 node)
@@ -1776,10 +2917,17 @@ u32 Compiler::nested(u32 node)
     StrObj *name  = str_intern(given.empty() ? ast->text(node) : given);
     if (!name)
         return oom(), 0;
+    return nested_scope(st.at_node[node], node, name, NO_ROLE);
+}
 
+// A scope compiled into a code object left in this unit's constants: the
+// node's own, or one of the annotation scopes `role` names.
+u32 Compiler::nested_scope(u32 scope, u32 node, StrObj *name, u8 role)
+{
     Unit nu;
     nu.prev  = u;
-    nu.scope = st.at_node[node];
+    nu.scope = scope;
+    nu.role  = role;
     nu.code  = obj_value(code_new(obj_value(name), filename.v, line_of(node)));
     if (nu.code.v.is_nil())
         return oom(), 0;
@@ -1787,7 +2935,7 @@ u32 Compiler::nested(u32 node)
     const Scope &s = st.scopes[nu.scope];
     CodeObj *c     = code_of(nu.code.v);
     c->qualname    = qualname_of(name);
-    c->doc         = docstring(node);
+    c->doc         = role == NO_ROLE ? docstring(node) : Value();
     if (c->qualname.is_nil())
         return oom(), 0;
     for (usize k = 0; k < s.varnames.size(); k++)
@@ -1811,7 +2959,7 @@ u32 Compiler::nested(u32 node)
 
     u       = &nu;
     nu.line = c->firstline;
-    bool ok = body_of(node);
+    bool ok = role == NO_ROLE ? body_of(node) : anno_body(node, role);
     u       = nu.prev;
     if (!ok)
         return 0;

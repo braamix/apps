@@ -2,12 +2,17 @@
 """Bring one MicroPython test into this port's suite.
 
     tools/mkexp.py basics/andor.py [more...]
+    tools/mkexp.py --regen [basics/andor.py ...]
 
 Copies tests/<name> into test/cases/<name> byte for byte, writes <name>.exp
 beside it, and adds a `fail` row to test/manifest.txt. The expected output is
 upstream's own .exp when there is one and the host CPython's otherwise, which
 is what upstream's run-tests.py compares against. The clone in tmp/ is not
 committed, so the commit a copy came from is recorded.
+
+--regen rewrites the expected output of rows a CPython wrote, keeping their
+state, under $PYTHON or the host's python3 (tools/pyref.py); with no names it
+takes every such row. Read the diff afterwards.
 """
 
 import argparse
@@ -16,6 +21,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+
+import pyref
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -70,7 +77,7 @@ def cpython_output(path):
     """What the host's CPython prints. Run from a scratch directory: a test
     may write files."""
     with tempfile.TemporaryDirectory() as cwd:
-        r = subprocess.run([sys.executable, os.path.abspath(path)],
+        r = subprocess.run([pyref.interpreter(), os.path.abspath(path)],
                            capture_output=True, cwd=cwd)
     if r.returncode != 0:
         die(f"{path}: CPython exited {r.returncode}\n{r.stderr.decode(errors='replace')}")
@@ -88,7 +95,7 @@ def add(name, force):
         die(f"{name}: no such test under {TESTS}")
     if not force and any(v in name for v in VERSIONED):
         die(f"{name}: written for a specific CPython version; "
-            f"host is {sys.version_info.major}.{sys.version_info.minor} — pass --force to copy anyway")
+            f"host is {pyref.tag_of(pyref.interpreter())} — pass --force to copy anyway")
 
     dst = os.path.join(CASES, name)
     os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -104,7 +111,7 @@ def add(name, force):
     else:
         with open(dst + ".exp", "w", encoding="utf-8") as f:
             f.write(cpython_output(src))
-        origin = f"cpython{sys.version_info.major}.{sys.version_info.minor}"
+        origin = pyref.tag_of(pyref.interpreter())
 
     head, rows = read_manifest()
     rows = [r for r in rows if r[1] != name]
@@ -113,12 +120,43 @@ def add(name, force):
     print(f"mkexp: {name} ({origin})")
 
 
+def regen(names):
+    """A CPython's expected output written again, the state kept."""
+    tag = pyref.tag_of(pyref.interpreter())
+    head, rows = read_manifest()
+    for r in rows:
+        if names and r[1] not in names:
+            continue
+        if not r[2].startswith("cpython"):
+            if names:
+                die(f"{r[1]}: its expected output is {r[2]}'s, not a CPython's")
+            continue
+        src = os.path.join(CASES, r[1])
+        try:
+            text = cpython_output(src)
+        except SystemExit as e:
+            print(f"{e} -- kept as {r[2]}", file=sys.stderr)
+            continue
+        with open(src + ".exp", "w", encoding="utf-8") as f:
+            f.write(text)
+        r[2] = tag
+    write_manifest(head, rows)
+    print(f"mkexp: regenerated under {tag}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("tests", nargs="+", help="paths under tests/, e.g. basics/andor.py")
+    ap.add_argument("tests", nargs="*", help="paths under tests/, e.g. basics/andor.py")
     ap.add_argument("--force", action="store_true",
                     help="copy a version-specific test anyway")
+    ap.add_argument("--regen", action="store_true",
+                    help="rewrite the expected output of rows a CPython wrote")
     args = ap.parse_args()
+    names = [n.removeprefix("tests/") for n in args.tests]
+    if args.regen:
+        return regen(names)
+    if not names:
+        ap.error("name at least one test")
 
     if not os.path.isdir(TESTS):
         die(f"no upstream clone at {UPSTREAM}")

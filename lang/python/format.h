@@ -17,6 +17,7 @@ struct Spec {
     char sign     = 0; // + - space, or 0
     bool alt      = false;
     bool zero     = false;
+    bool implied  = false; // the '=' came from the '0', not from the spec
     i32 width     = -1;
     char grouping = 0; // , _ or 0
     i32 precision = -1;

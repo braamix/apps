@@ -89,6 +89,7 @@ constexpr Native NATIVES[] = {
     { "errno", errno_install },
     { "gc", gcmod_install },
     { "_types", types_install },
+    { "_typing", typing_install },
 };
 
 } // namespace
@@ -142,7 +143,12 @@ bool mod_type(DictObj *into, const Type *t, R (*ctor)(const CallArgs &, Value &o
         if (fn.v.is_nil() || !type_set_ctor(t, fn.v))
             return false;
     }
-    return mod_put(static_cast<DictObj *>(rd.v.obj()), t->name, w.v);
+    // `typing.TypeVar` is TypeVar in its module.
+    Str name  = t->name;
+    usize dot = name.size();
+    while (dot && name[dot - 1] != '.')
+        dot--;
+    return mod_put(static_cast<DictObj *>(rd.v.obj()), name.substr(dot), w.v);
 }
 
 Value native_module_names()

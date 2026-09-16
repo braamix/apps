@@ -134,6 +134,7 @@ enum : u8 {
     TOK_STR_RAW   = 1 << 0,
     TOK_STR_BYTES = 1 << 1,
     TOK_STR_F     = 1 << 2,
+    TOK_STR_T     = 1 << 3, // 3.14's t-string, which is an FStr too
 };
 
 struct Token {
@@ -171,6 +172,17 @@ struct Lexer {
 // this, so that there is one escape table and not two. False leaves a
 // SyntaxError pending, pointing at the literal.
 bool lex_unescape(Str raw, u32 line, u32 col, String &out);
+
+// PEP 701: an f-string's fields may hold any string, the same quote
+// included. Offsets into `s`, npos where the text never closes.
+//
+// lex_fstr_end: the closing quote of an f-string whose text starts at `at`.
+// lex_field_end: the `}` closing a field whose text starts at `at`.
+// lex_skip_string: just past the literal whose quote is at `at`, its prefix
+// read from the letters before it.
+usize lex_fstr_end(Str s, usize at, char quote, bool triple, bool raw);
+usize lex_field_end(Str s, usize at);
+usize lex_skip_string(Str s, usize at);
 
 // One token per line, for --dump-tokens. False leaves the error pending, with
 // what was tokenized so far already in `out`.

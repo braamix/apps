@@ -1,0 +1,50 @@
+code <module>  file /tmp/c.py  line 1
+  args 0 (posonly 0, kwonly 0)  stack 6  flags -
+  names: __doc__, x, y, w, z
+  consts:
+      0  None
+      1  'a'
+      2  'b'
+      3  ''
+      4  'x'
+      5  'y'
+      6  '>'
+    1       0  LoadConst             0 (None)
+            1  StoreName             0 (__doc__)
+            2  LoadConst             1 ('a')
+            3  LoadConst             2 ('b')
+            4  LoadConst             3 ('')
+            5  BuildTuple            3
+            6  LoadName              1 (x)
+            7  LoadConst             4 ('x')
+            8  BuildInterpolation    0
+            9  LoadName              2 (y)
+           10  LoadConst             5 ('y')
+           11  LoadConst             6 ('>')
+           12  LoadName              3 (w)
+           13  FormatValue           0
+           14  BuildString           2
+           15  BuildInterpolation  370 (r spec)
+           16  BuildTuple            2
+           17  BuildTemplate
+           18  StoreName             1 (x)
+    2      19  LoadConst             3 ('')
+           20  LoadConst             3 ('')
+           21  LoadConst             3 ('')
+           22  BuildTuple            3
+           23  LoadName              1 (x)
+           24  LoadConst             4 ('x')
+           25  BuildInterpolation    0
+           26  LoadName              2 (y)
+           27  LoadConst             5 ('y')
+           28  BuildInterpolation    0
+           29  BuildTuple            2
+           30  BuildTemplate
+           31  StoreName             2 (y)
+    3      32  LoadConst             3 ('')
+           33  BuildTuple            1
+           34  BuildTuple            0
+           35  BuildTemplate
+           36  StoreName             4 (z)
+           37  LoadConst             0 (None)
+           38  Return

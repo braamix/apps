@@ -72,13 +72,23 @@ R order_of(Value v, Str who, bool &little)
     return R::Ok;
 }
 
-bool signed_kw(const CallArgs &a, Str who, bool &out)
+// signed=, and length= and byteorder= where they were not given by position.
+bool int_kws(const CallArgs &a, Str who, Value &length, Value &order, bool &out)
 {
     for (u32 i = 0; i < a.nkw; i++) {
         Str n = is_str(a.kwnames[i]) ? str_of(a.kwnames[i])->str() : Str();
         if (n == "signed") {
             out = py_truth(a.kwvals[i]);
-        } else if (n != "length" && n != "byteorder" && n != "bytes") {
+        } else if (n == "length" || n == "byteorder") {
+            Value &slot = n == "length" ? length : order;
+            if (!slot.is_nil()) {
+                Buf<96> b;
+                b.put("argument for ").put(who).put("() given by name ('").put(n);
+                b.put("') and position");
+                return err_set("TypeError", b.str()), false;
+            }
+            slot = a.kwvals[i];
+        } else if (n != "bytes") {
             Buf<96> b;
             b.put(who).put("() got an unexpected keyword argument '").put(n).put("'");
             return err_set("TypeError", b.str()), false;
@@ -92,18 +102,20 @@ R m_to_bytes(const CallArgs &a, Value &out)
     Value self = self_intval(a, "to_bytes");
     if (self.is_nil())
         return R::Err;
-    if (a.nargs < 2 || a.nargs > 3)
-        return err_set("TypeError", "to_bytes() takes from 1 to 2 arguments");
-    i64 len = 0;
-    if (!as_index(a.args[1], len))
-        return err_set2("TypeError", "length must be an integer", type_name(a.args[1]));
+    if (a.nargs > 3)
+        return err_set("TypeError", "to_bytes() takes at most 2 arguments");
+    Value length = a.nargs > 1 ? a.args[1] : Value();
+    Value order  = a.nargs > 2 ? a.args[2] : Value();
+    bool sgn     = false;
+    if (!int_kws(a, "to_bytes", length, order, sgn))
+        return R::Err;
+    i64 len = 1;
+    if (!length.is_nil() && !as_index(length, len))
+        return err_set2("TypeError", "length must be an integer", type_name(length));
     if (len < 0)
         return err_set("ValueError", "length argument must be non-negative");
     bool little = false;
-    if (a.nargs > 2 && order_of(a.args[2], "to_bytes", little) != R::Ok)
-        return R::Err;
-    bool sgn = false;
-    if (!signed_kw(a, "to_bytes", sgn))
+    if (!order.is_nil() && order_of(order, "to_bytes", little) != R::Ok)
         return R::Err;
 
     String b;
@@ -141,11 +153,13 @@ R m_from_bytes(const CallArgs &a, Value &out)
         }
         s = owned.str();
     }
-    bool little = false;
-    if (a.nargs > 1 && order_of(a.args[1], "from_bytes", little) != R::Ok)
+    Value length;
+    Value order = a.nargs > 1 ? a.args[1] : Value();
+    bool sgn    = false;
+    if (!int_kws(a, "from_bytes", length, order, sgn))
         return R::Err;
-    bool sgn = false;
-    if (!signed_kw(a, "from_bytes", sgn))
+    bool little = false;
+    if (!order.is_nil() && order_of(order, "from_bytes", little) != R::Ok)
         return R::Err;
     out = int_from_octets(s, little, sgn);
     return out.is_nil() ? R::Err : R::Ok;

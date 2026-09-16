@@ -1,0 +1,78 @@
+# Which CPython wrote each golden of our own cases. tools/pyref.py keeps it;
+# the manifest's exp column says the same for MicroPython's.
+#
+#   golden       the case, relative to test/
+#   interpreter  cpython<major>.<minor>
+#
+# A case missing here was written by hand or blessed from this interpreter.
+ast/calls.py         cpython3.14
+ast/expr.py          cpython3.14
+ast/fstring.py       cpython3.14
+ast/gen.py           cpython3.14
+ast/generics.py      cpython3.14
+ast/lazy.py          cpython3.16
+ast/match.py         cpython3.14
+ast/nest.py          cpython3.14
+ast/numbers.py       cpython3.14
+ast/patplus.py       cpython3.16
+ast/prec.py          cpython3.14
+ast/slices.py        cpython3.14
+ast/stmt.py          cpython3.14
+ast/trystar.py       cpython3.14
+ast/tstring.py       cpython3.14
+ast/withitems.py     cpython3.14
+coro/agen.py         cpython3.14
+coro/loop.py         cpython3.14
+coro/protocol.py     cpython3.14
+coro/rules.py        cpython3.14
+coro/statements.py   cpython3.14
+exec/attrs.py        cpython3.14
+exec/concat.py       cpython3.14
+exec/egroup.py       cpython3.14
+exec/exceptstar.py   cpython3.14
+exec/fstring701.py   cpython3.14
+exec/generics.py     cpython3.14
+exec/match.py        cpython3.14
+exec/matmul.py       cpython3.14
+exec/names.py        cpython3.14
+exec/namespaces.py   cpython3.14
+exec/seqiter.py      cpython3.14
+exec/targets.py      cpython3.14
+exec/tstring.py      cpython3.14
+exec/union.py        cpython3.14
+format/fstring.py    cpython3.14
+format/percent.py    cpython3.14
+format/spec.py       cpython3.14
+format/strformat.py  cpython3.14
+gen/consume.py       cpython3.14
+gen/delegate.py      cpython3.14
+gen/protocol.py      cpython3.14
+lazy/basic.py        cpython3.16
+lazy/resolve.py      cpython3.16
+lex/fstrings.py      cpython3.14
+lex/imaginary.py     cpython3.14
+lex/indent.py        cpython3.14
+lex/joins.py         cpython3.14
+lex/kwords.py        cpython3.14
+lex/misc.py          cpython3.14
+lex/notrail.py       cpython3.14
+lex/numbers.py       cpython3.14
+lex/ops.py           cpython3.14
+lex/strings.py       cpython3.14
+lex/tstring.py       cpython3.14
+module/binmod.py     cpython3.14
+module/collmod.py    cpython3.14
+module/genalias.py   cpython3.14
+module/itermod.py    cpython3.14
+module/mathmod.py    cpython3.14
+module/opmod.py      cpython3.14
+module/slotmeth.py   cpython3.14
+module/sysmod.py     cpython3.14
+module/toolsmod.py   cpython3.14
+module/typingmod.py  cpython3.14
+number/bigint.py     cpython3.14
+number/complex.py    cpython3.14
+type/compare.py      cpython3.14
+type/descr.py        cpython3.14
+type/meta.py         cpython3.14
+type/patma.py        cpython3.14

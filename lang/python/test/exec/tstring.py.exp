@@ -1,0 +1,24 @@
+Template(strings=('a', 'b', 'c'), interpolations=(Interpolation(1, 'x', None, ''), Interpolation('two', 'y', 'r', '>4')))
+('a', 'b', 'c') (Interpolation(1, 'x', None, ''), Interpolation('two', 'y', 'r', '>4')) (1, 'two')
+['a', Interpolation(1, 'x', None, ''), 'b', Interpolation('two', 'y', 'r', '>4'), 'c'] [Interpolation(1, 'x', None, ''), Interpolation('two', 'y', None, '')] []
+Template(strings=('x=', ''), interpolations=(Interpolation(1, 'x', 'r', ''),)) Template(strings=(' x = ', ''), interpolations=(Interpolation(1, ' x', 'r', ''),)) Template(strings=('x =', ''), interpolations=(Interpolation(1, 'x', None, '3'),))
+Template(strings=('lit ', '', ''), interpolations=(Interpolation(1, 'x', None, ''), Interpolation('two', 'y', None, ''))) Template(strings=('\\n', ''), interpolations=(Interpolation(1, 'x', None, ''),))
+Template string.templatelib Interpolation
+('value', 'expression', 'conversion', 'format_spec')
+Template(strings=('a', 'bc', ''), interpolations=(Interpolation(1, 'x', None, ''), Interpolation(2, '', None, '')))
+Template(strings=('', ''), interpolations=(Interpolation(1, 'x', 'r', '0>3'),))
+5 '' None '>2'
+Template(strings=('ab', ''), interpolations=(Interpolation(1, 'x', None, ''),)) ('', '', '')
+TypeError can only concatenate string.templatelib.Template (not "str") to string.templatelib.Template
+TypeError can only concatenate str (not "string.templatelib.Template") to str
+TypeError Template.__new__ *args need to be of type 'str' or 'Interpolation', got int
+TypeError Interpolation() argument 'expression' must be str, not int
+ValueError Interpolation() argument 'conversion' must be one of 's', 'a' or 'r'
+TypeError Interpolation() missing required argument 'value' (pos 1)
+TypeError Template.__new__ only accepts *args arguments
+matched 1 x None ''
+string.templatelib.Template[int] string.templatelib.Interpolation[str]
+True TemplateIter
+<001|'two'|[1, 'two']>
+Template(strings=('', ''), interpolations=(Interpolation(Template(strings=('', ''), interpolations=(Interpolation(1, 'x', None, ''),)), 't"{x}"', None, ''),)) Template(strings=('', ''), interpolations=(Interpolation('1', 'f"{x}"', None, ''),))
+4.4

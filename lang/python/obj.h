@@ -10,11 +10,14 @@
 
 struct Obj;
 struct StrObj;
+enum class Got : u8;
 
 enum class Cmp : u8 { Eq, Ne, Lt, Le, Gt, Ge, In, NotIn, Is, IsNot };
 
 // The binary operators the number and sequence protocols answer.
-enum class Op : u8 { Add, Sub, Mul, Div, FloorDiv, Mod, Pow, And, Or, Xor, Lsh, Rsh };
+// MatMul is last: no built-in type answers it, and tables indexed by Op stop
+// before it.
+enum class Op : u8 { Add, Sub, Mul, Div, FloorDiv, Mod, Pow, And, Or, Xor, Lsh, Rsh, MatMul };
 
 // The unary ones. Here rather than in the parser, because the bytecode and the
 // VM name them too.
@@ -52,7 +55,19 @@ struct Type {
     R (*getattr)(Value, StrObj *name, Value &out) = nullptr; // NotImpl: no such
     // A Nil `v` is `del o.name`; null: immutable, and both are refused.
     R (*setattr)(Value, StrObj *name, Value v) = nullptr;
+
+    u8 patma = 0; // PATMA_*: what a match statement takes an instance for
+
+    // An attribute that is a call to make: `out` the callable and `args` a
+    // tuple, as Got::Call. Missing when this type has nothing lazy to say.
+    Got (*lazyattr)(Value, StrObj *name, Value &out, Value &args) = nullptr;
+
+    bool plain = false; // a base that lends no layout: a subclass is object's
 };
+
+// Py_TPFLAGS_SEQUENCE and Py_TPFLAGS_MAPPING, and _Py_TPFLAGS_MATCH_SELF: a
+// class pattern with one positional sub-pattern matches the subject itself.
+enum : u8 { PATMA_SEQ = 1 << 0, PATMA_MAP = 1 << 1, PATMA_SELF = 1 << 2 };
 
 // Sixteen bytes, the smallest size class. `next` is the heap list, which
 // kernel/alloc.h cannot walk for us; `grey` is the marker's worklist.

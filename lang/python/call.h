@@ -48,7 +48,8 @@ struct ContObj : Obj {
 
 // What a continuation is willing to catch out of the call it asked for. The
 // step is re-entered with Nil instead, and `caught` holds the exception.
-enum : u32 { CATCH_NONE, CATCH_STOP, CATCH_ATTR, CATCH_EXIT, CATCH_ANY, CATCH_ASTOP };
+// CATCH_SEQEND is IndexError or StopIteration: a sequence iterator's end.
+enum : u32 { CATCH_NONE, CATCH_STOP, CATCH_ATTR, CATCH_EXIT, CATCH_ANY, CATCH_ASTOP, CATCH_SEQEND };
 
 extern const Type cont_type;
 
@@ -105,6 +106,18 @@ inline R cont_done(ContObj *k, Value v)
 // True for a generator. Stepping one pushes a frame, so only the dispatch
 // loop can do it and a builtin cannot walk it at all.
 bool iter_needs_vm(Value v);
+
+// What iter(v) calls when that is Python: a bound __iter__, or, for a class
+// with only __getitem__, a native making the iterator that walks it from 0
+// until IndexError. Nil when the native protocol answers.
+Value iter_special(Value v);
+
+// What steps an iterator when that needs the VM: a generator's resumer, a
+// bound __next__, or the step of that sequence iterator. Nil otherwise.
+Value next_special(Value v);
+
+// The sequence iterator's methods, from methods_install().
+bool seqiter_methods();
 
 // So the builtin parks here. The VM drains the generator into a list, then
 // enters `again` with that list in place of argument `at`. This is eager where

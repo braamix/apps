@@ -10,9 +10,9 @@ ok TestDecorators.test_dotted
 ok TestDecorators.test_double
 ok TestDecorators.test_errors
 error TestDecorators.test_eval_order: AttributeError: 'NoneType' object has no attribute 'make_decorator'
-error TestDecorators.test_expressions: SyntaxError: expected a newline after a decorator
+ok TestDecorators.test_expressions
 ok TestDecorators.test_memoize
 ok TestDecorators.test_order
 ok TestDecorators.test_single
 error TestDecorators.test_staticmethod: AttributeError: 'staticmethod' object has no attribute '__func__'
---- ran 16 ok 12 fail 0 error 4 skip 0 ---
+--- ran 16 ok 13 fail 0 error 3 skip 0 ---

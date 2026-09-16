@@ -18,6 +18,7 @@
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "kernel/sysabi.h"
+#include "lazy.h"
 #include "method.h"
 #include "module.h"
 #include "ops.h"
@@ -346,6 +347,16 @@ R b_exit(const CallArgs &a, Value &out)
 }
 
 // The exception an `except` clause is working on, as CPython's triple.
+// sys.exception(): what is being handled, or None.
+R b_exception(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "exception", 0, 0))
+        return R::Err;
+    Value e = vm_handling();
+    out     = e.is_nil() ? value_none() : e;
+    return R::Ok;
+}
+
 R b_exc_info(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "exc_info", 0, 0))
@@ -474,6 +485,7 @@ R b_is_finalizing(const CallArgs &a, Value &out)
 constexpr ModDef SYS_DEFS[] = {
     { "exit", b_exit },
     { "exc_info", b_exc_info },
+    { "exception", b_exception },
     { "getsizeof", b_getsizeof },
     { "getrecursionlimit", b_getrecursionlimit },
     { "setrecursionlimit", b_setrecursionlimit },
@@ -515,7 +527,7 @@ constexpr Field HASH_INFO[] = {
 };
 
 constexpr Field VERSION_INFO[] = {
-    num("major", 3),  num("minor", 9), num("micro", 0), text("releaselevel", "final"),
+    num("major", 3),  num("minor", 14), num("micro", 0), text("releaselevel", "final"),
     num("serial", 0),
 };
 
@@ -544,7 +556,7 @@ constexpr Field FLAGS[] = {
 
 constexpr Field IMPLEMENTATION[] = {
     text("name", "braam"),
-    num("hexversion", 0x030900F0),
+    num("hexversion", 0x030E00F0),
     text("cache_tag", "braam-0.1"),
     text("_multiarch", "wasm32-braam"),
 };
@@ -680,12 +692,12 @@ bool sys_install(DictObj *into)
         !put_info(d, "implementation", &impl_type, IMPLEMENTATION))
         return false;
 
-    if (!mod_str(d, "version", "3.9.0 (braam)") || !mod_str(d, "platform", "braam") ||
+    if (!mod_str(d, "version", "3.14.0 (braam)") || !mod_str(d, "platform", "braam") ||
         !mod_str(d, "byteorder", "little") || !mod_str(d, "executable", "") ||
         !mod_str(d, "prefix", "/pkg") || !mod_str(d, "exec_prefix", "/pkg"))
         return false;
     if (!mod_int(d, "maxsize", 2147483647) || !mod_int(d, "maxunicode", 1114111) ||
-        !mod_int(d, "hexversion", 0x030900F0))
+        !mod_int(d, "hexversion", 0x030E00F0))
         return false;
     if (!mod_put(d, "dont_write_bytecode", value_bool(true)))
         return false;
@@ -702,6 +714,8 @@ bool sys_install(DictObj *into)
     DictObj *sm = sys_modules();
     Root sp{ sys_path() };
     if (!sm || sp.v.is_nil() || !mod_put(d, "modules", obj_value(sm)) || !mod_put(d, "path", sp.v))
+        return false;
+    if (!lazy_sys_install(d))
         return false;
     return mod_put(d, "argv", here()->argv.is_nil() ? value_none() : here()->argv);
 }

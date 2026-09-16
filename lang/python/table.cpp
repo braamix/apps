@@ -256,7 +256,8 @@ constexpr Type dict_type{ .name     = "dict",
                           .setitem  = dict_setitem,
                           .delitem  = dict_delitem,
                           .contains = dict_contains,
-                          .iter     = table_iter };
+                          .iter     = table_iter,
+                          .patma    = PATMA_MAP | PATMA_SELF };
 
 // The set protocol is in mapmeth.cpp: a dict view answers it too.
 constexpr Type set_type{ .name     = "set",
@@ -268,7 +269,8 @@ constexpr Type set_type{ .name     = "set",
                          .len      = set_len_slot,
                          .contains = set_contains,
                          .binop    = anyset_binop,
-                         .iter     = table_iter };
+                         .iter     = table_iter,
+                         .patma    = PATMA_SELF };
 
 constexpr Type frozenset_type{ .name     = "frozenset",
                                .trace    = set_trace,
@@ -280,7 +282,8 @@ constexpr Type frozenset_type{ .name     = "frozenset",
                                .len      = set_len_slot,
                                .contains = set_contains,
                                .binop    = anyset_binop,
-                               .iter     = table_iter };
+                               .iter     = table_iter,
+                               .patma    = PATMA_SELF };
 
 DictObj *dict_new()
 {

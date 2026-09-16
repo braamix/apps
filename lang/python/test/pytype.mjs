@@ -29,6 +29,10 @@ function check(what, got, want) {
 
 // ---------------------------------------------------------- against CPython
 
+// CPython's own abc.py, byte for byte, over the native _abc; lib/manifest.txt
+// records where it came from. A case may import it.
+put("/tmp/abc.py", readFileSync(join(LIB, "abc.py")));
+
 const { bad: differ, ran, lines } = against_cpython(join(HERE, "type"), only);
 bad += differ;
 if (!ran) die(only.length ? "no case matched" : "no cases under test/type/");
@@ -178,10 +182,7 @@ const CHURN = "def churn():\n" +
 
 // ------------------------------------------------------------------------ abc
 
-// CPython's own abc.py, byte for byte, over the native _abc this phase wrote.
-// lib/manifest.txt records where it came from.
-put("/tmp/abc.py", readFileSync(join(LIB, "abc.py")));
-
+// CPython's own abc.py, planted above, over the native _abc.
 {
     const r = script(
         "from abc import ABC, ABCMeta, abstractmethod\n" +

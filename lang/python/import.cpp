@@ -25,6 +25,7 @@ R oom()
 struct Home {
     Value modules;
     Value path;
+    Value busy; // the modules whose bodies are running
 };
 
 Home *home;
@@ -35,6 +36,7 @@ void home_mark()
         return;
     gc_mark(home->modules);
     gc_mark(home->path);
+    gc_mark(home->busy);
 }
 
 Home *here()
@@ -45,6 +47,31 @@ Home *here()
             gc_root_hook(home_mark);
     }
     return home;
+}
+
+// Whether `m`'s body is running, or say it is (1) or is not (0).
+bool busy(Value m, int set = -1)
+{
+    Home *h = here();
+    if (!h)
+        return false;
+    Root rm{ m };
+    if (h->busy.is_nil()) {
+        if (set <= 0)
+            return false;
+        SetObj *s = set_new();
+        if (!s)
+            return false;
+        h->busy = obj_value(s);
+    }
+    bool has = false;
+    if (set > 0)
+        return set_add(set_at(h->busy), rm.v) == R::Ok;
+    if (set == 0)
+        set_discard(set_at(h->busy), rm.v, has);
+    else if (set_has(set_at(h->busy), rm.v, has) != R::Ok)
+        err_clear();
+    return has;
 }
 
 DictObj *dict_at(Value v)
@@ -226,6 +253,8 @@ bool bind_to_parent(Job *j)
 R loaded(ContObj *k)
 {
     Job *j = job_of(k->s[0]);
+    if (j->state == ST_BODY)
+        busy(j->mod, 0);
     if (!bind_to_parent(j))
         return R::Err;
     j = job_of(k->s[0]);
@@ -328,10 +357,10 @@ R run_body(ContObj *k, Value source, Str path)
 
     Ast ast;
     if (!ast.parse(str_of(rs.v)->str()))
-        return R::Err;
+        return err_set_file(path, str_of(rs.v)->str()), R::Err;
     Root code{ py_compile(ast, path) };
     if (code.v.is_nil())
-        return R::Err;
+        return err_set_file(path, str_of(rs.v)->str()), R::Err;
 
     Root m{ module_new(str_of(name.v)->str()) };
     if (m.v.is_nil())
@@ -354,7 +383,7 @@ R run_body(ContObj *k, Value source, Str path)
             return R::Err;
     }
     // In the cache before the body runs: that is what makes a cycle stop.
-    if (!module_register(str_of(name.v)->str(), m.v))
+    if (!module_register(str_of(name.v)->str(), m.v) || !busy(m.v, 1))
         return R::Err;
 
     Root fn{ func_new(code.v, mdict(m.v)) };
@@ -453,6 +482,7 @@ void import_failed(ContObj *k)
     Job *j = job_of(k->s[0]);
     if (j->state != ST_BODY || j->mod.is_nil())
         return;
+    busy(j->mod, 0);
     DictObj *d = sys_modules();
     if (d)
         dict_del(d, static_cast<ModuleObj *>(j->mod.obj())->name);
@@ -677,13 +707,24 @@ R b_import(const CallArgs &a, Value &out)
     return py_import(b, out);
 }
 
+R import_absolute(Str name, i64 level, Value where, Value &out)
+{
+    return absolute(name, level, where, out);
+}
+
 R import_missing(Value m, StrObj *name)
 {
     Buf<192> b;
     b.put("cannot import name '").put(name->str()).put("'");
     if (is_module(m)) {
         Root rm{ m };
-        b.put(" from '").put(str_of(static_cast<ModuleObj *>(rm.v.obj())->name)->str()).put("'");
+        bool part = busy(rm.v);
+        b.put(" from ");
+        if (part)
+            b.put("partially initialized module ");
+        b.put("'").put(str_of(static_cast<ModuleObj *>(rm.v.obj())->name)->str()).put("'");
+        if (part)
+            b.put(" (most likely due to a circular import)");
         Value file;
         if (get(module_dict(rm.v), "__file__", file) == R::Ok && is_str(file))
             b.put(" (").put(str_of(file)->str()).put(")");

@@ -1,0 +1,19 @@
+after the statement: False True
+lazy_import <lazy_import 'mods.lz_a'>
+loading mods.lz_a
+42
+after use: True module
+<lazy_import 'mods.lz_b.thing'> <lazy_import 'mods.lz_b.other'>
+lz_b loaded? False
+loading mods.lz_b
+the other
+lazy_import the thing str
+<lazy_import 'mods.pkg.sub'>
+loading mods.pkg
+loading mods.pkg.sub
+sub mods.pkg.sub
+made by __getattr__
+loading mods.lz_broken
+raised at use: broken on purpose | lazy import of 'mods.lz_broken' raised an exception during resolution
+ModuleNotFoundError lazy import of 'mods.nothing_here' raised an exception during resolution
+<class 'lazy_import'> True

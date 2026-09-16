@@ -18,6 +18,7 @@
 #include "kernel/fmt.h"
 #include "method.h"
 #include "ops.h"
+#include "patma.h"
 #include "type.h"
 
 namespace {
@@ -166,6 +167,29 @@ R b_abc_init(const CallArgs &a, Value &out)
     Root names;
     if (compute_abstract(rc.v, names.v) != R::Ok)
         return R::Err;
+
+    // collections.abc.Sequence and Mapping say what a match statement takes
+    // their instances for, and the name goes once it has been read.
+    StrObj *tf = str_intern("__abc_tpflags__");
+    Root flags;
+    if (!tf)
+        return oom();
+    R fr = dict_get(static_cast<DictObj *>(type_obj(rc.v)->dict.obj()), obj_value(tf), flags.v);
+    if (fr == R::Err)
+        return R::Err;
+    if (fr == R::Ok) {
+        if (dict_del(static_cast<DictObj *>(type_obj(rc.v)->dict.obj()), obj_value(tf)) == R::Err)
+            return R::Err;
+        i64 bits = 0;
+        if (flags.v.is_int() && as_index(flags.v, bits)) {
+            bool seq = (bits & (1 << 5)) != 0, map = (bits & (1 << 6)) != 0;
+            if (seq && map)
+                return err_set("TypeError",
+                               "__abc_tpflags__ cannot be both "
+                               "Py_TPFLAGS_SEQUENCE and Py_TPFLAGS_MAPPING");
+            patma_set(rc.v, u8((seq ? PATMA_SEQ : 0) | (map ? PATMA_MAP : 0)));
+        }
+    }
     StrObj *am = str_intern("__abstractmethods__");
     if (!am || dict_set(static_cast<DictObj *>(type_obj(rc.v)->dict.obj()), obj_value(am),
                         names.v) != R::Ok)
@@ -208,6 +232,10 @@ R b_abc_register(const CallArgs &a, Value &out)
     if (!holds(abc_of(ri.v)->registry, rs.v) && !list_push(list_of(abc_of(ri.v)->registry), rs.v))
         return oom();
     counter++;
+    // A registered class is matched as the ABC's instances are.
+    u8 kind = type_obj(a.args[0])->slots.patma & (PATMA_SEQ | PATMA_MAP);
+    if (kind)
+        patma_set(rs.v, kind);
     out = rs.v;
     return R::Ok;
 }

@@ -9,6 +9,8 @@ namespace {
 struct Pending {
     String kind;
     String message;
+    String file;
+    String text;
 };
 
 Pending *pending;
@@ -32,6 +34,8 @@ R err_set(Str kind, Str message)
     if (p) {
         p->kind.assign(kind);
         p->message.assign(message);
+        p->file.clear();
+        p->text.clear();
     }
     live    = true;
     at_line = 0;
@@ -88,6 +92,34 @@ R err_set2(Str kind, Str message, Str detail)
 bool err_pending()
 {
     return live;
+}
+
+void err_set_file(Str filename, Str source)
+{
+    if (!live || !at_line || !pending)
+        return;
+    pending->file.assign(filename);
+    u32 line = 1;
+    usize at = 0;
+    while (at < source.size() && line < at_line)
+        if (source[at++] == '\n')
+            line++;
+    usize end = at;
+    while (end < source.size() && source[end] != '\n')
+        end++;
+    pending->text.assign(source.substr(at, end - at));
+    if (end < source.size())
+        pending->text.push('\n');
+}
+
+Str err_file()
+{
+    return live && pending ? pending->file.str() : Str();
+}
+
+Str err_text()
+{
+    return live && pending ? pending->text.str() : Str();
 }
 
 u32 err_line()

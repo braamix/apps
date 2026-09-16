@@ -36,7 +36,8 @@ R float_repr(Value v, String &out)
 constexpr Type float_type{ .name  = "float",
                            .truth = float_truth,
                            .hash  = float_hash,
-                           .repr  = float_repr };
+                           .repr  = float_repr,
+                           .patma = PATMA_SELF };
 
 Value float_new(f64 x)
 {

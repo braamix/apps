@@ -254,7 +254,8 @@ constexpr Type bytes_type{ .name     = "bytes",
                            .getitem  = any_getitem,
                            .contains = any_contains,
                            .binop    = any_binop,
-                           .iter     = seq_iter };
+                           .iter     = seq_iter,
+                           .patma    = PATMA_SELF };
 
 constexpr Type bytearray_type{ .name     = "bytearray",
                                .trace    = array_trace,
@@ -268,7 +269,8 @@ constexpr Type bytearray_type{ .name     = "bytearray",
                                .delitem  = array_delitem,
                                .contains = any_contains,
                                .binop    = any_binop,
-                               .iter     = seq_iter };
+                               .iter     = seq_iter,
+                               .patma    = PATMA_SELF };
 
 Value bytes_new(Str s)
 {

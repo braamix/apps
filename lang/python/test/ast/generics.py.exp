@@ -1,0 +1,171 @@
+Module
+  body:
+    FunctionDef f
+      args:
+        Arguments
+          posonly: []
+          args:
+            Arg x
+              annotation: -
+          vararg: -
+          kwonly: []
+          kw_defaults: []
+          kwarg: -
+          defaults: []
+      body:
+        Pass
+      decorators: []
+      returns: -
+      type_params:
+        TypeVar T
+          bound: -
+          default: -
+    AsyncFunctionDef g
+      args:
+        Arguments
+          posonly: []
+          args: []
+          vararg:
+            Arg a
+              annotation:
+                Starred
+                  value:
+                    Name Ts
+          kwonly: []
+          kw_defaults: []
+          kwarg:
+            Arg k
+              annotation: -
+          defaults: []
+      body:
+        Pass
+      decorators: []
+      returns: -
+      type_params:
+        TypeVar T
+          bound:
+            Name int
+          default: -
+        TypeVarTuple Ts
+          default: -
+        ParamSpec P
+          default: -
+    ClassDef C
+      bases:
+        Name Base
+      keywords:
+        Keyword metaclass
+          value:
+            Name M
+      body:
+        FunctionDef m
+          args:
+            Arguments
+              posonly: []
+              args:
+                Arg self
+                  annotation: -
+              vararg: -
+              kwonly: []
+              kw_defaults: []
+              kwarg: -
+              defaults: []
+          body:
+            Pass
+          decorators: []
+          returns: -
+          type_params:
+            TypeVar U
+              bound:
+                Tuple
+                  elts:
+                    Name int
+                    Name str
+              default: -
+      decorators: []
+      type_params:
+        TypeVar T
+          bound: -
+          default:
+            Name int
+        TypeVarTuple Ts
+          default:
+            Starred
+              value:
+                Subscript
+                  value:
+                    Name tuple
+                  slice:
+                    Name int
+        ParamSpec P
+          default:
+            List
+              elts:
+                Name int
+                Name str
+    ClassDef D
+      bases: []
+      keywords: []
+      body:
+        Pass
+      decorators:
+        Name deco
+      type_params:
+        TypeVar T
+          bound: -
+          default: -
+    TypeAlias
+      name:
+        Name A
+      type_params: []
+      value:
+        Name int
+    TypeAlias
+      name:
+        Name B
+      type_params:
+        TypeVar K
+          bound: -
+          default: -
+        TypeVar V
+          bound:
+            Name str
+          default: -
+      value:
+        Subscript
+          value:
+            Name dict
+          slice:
+            Tuple
+              elts:
+                Name K
+                Name V
+    Assign
+      targets:
+        Name type
+      value:
+        Constant 1
+    Assign
+      targets:
+        Subscript
+          value:
+            Name type
+          slice:
+            Name x
+      value:
+        Constant 2
+    Assign
+      targets:
+        Attribute x
+          value:
+            Name type
+      value:
+        Constant 3
+    Expr
+      value:
+        Call
+          func:
+            Name print
+          args:
+            Name type
+          keywords: []

@@ -1,0 +1,18 @@
+1:1 tstring 'a{x}b'
+1:9 newline
+2:1 tstring '{x=}'
+2:9 tstring '{ y = !s:>{w}}'
+2:26 newline
+3:1 tstring '{x:{y}.{z}}'
+3:16 tstring '\\n{x}'
+3:26 tstring ''
+3:29 newline
+4:1 tstring '{ x + 1 # comment\n}'
+5:3 newline
+6:1 tstring '{x\n=}'
+7:6 newline
+8:1 tstring '{t"{x!a}"}'
+8:14 newline
+9:1 fstring '{t"{x}"}'
+9:12 newline
+10:1 endmarker

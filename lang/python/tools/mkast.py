@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """Write the expected parse tree of a source file, using CPython's ast module.
 
-    tools/mkast.py test/ast/expr.py [more...]
+    tools/mkast.py [--regen] test/ast/expr.py [more...]
 
 The golden is what `python --dump-ast` must print. The node kinds and their
 fields are the ones parse.h defines, chosen to mirror CPython's own, so this is
 a rename of `ast.parse`'s output and not a second parser.
+
+It runs under $PYTHON when that is set; see tools/pyref.py.
 """
 
 import ast
 import os
 import sys
 
+import pyref
+
 OPS = {
     ast.Add: "+", ast.Sub: "-", ast.Mult: "*", ast.Div: "/",
     ast.FloorDiv: "//", ast.Mod: "%", ast.Pow: "**",
     ast.BitAnd: "&", ast.BitOr: "|", ast.BitXor: "^",
-    ast.LShift: "<<", ast.RShift: ">>",
+    ast.LShift: "<<", ast.RShift: ">>", ast.MatMult: "@",
 }
 CMPS = {
     ast.Eq: "==", ast.NotEq: "!=", ast.Lt: "<", ast.LtE: "<=",
@@ -64,12 +68,18 @@ class Out:
         self.line(d, "Module")
         self.listing(d + 1, "body", n.body)
 
+    def type_params(self, d, n):
+        # Printed only where there are some, so a golden from before 3.12 stands.
+        if getattr(n, "type_params", None):
+            self.listing(d, "type_params", n.type_params)
+
     def _funcdef(self, d, n, kind):
         self.line(d, f"{kind} {n.name}")
         self.field(d + 1, "args", n.args)
         self.listing(d + 1, "body", n.body)
         self.listing(d + 1, "decorators", n.decorator_list)
         self.field(d + 1, "returns", n.returns)
+        self.type_params(d + 1, n)
 
     def n_FunctionDef(self, d, n, _k):
         self._funcdef(d, n, "FunctionDef")
@@ -83,6 +93,7 @@ class Out:
         self.listing(d + 1, "keywords", n.keywords)
         self.listing(d + 1, "body", n.body)
         self.listing(d + 1, "decorators", n.decorator_list)
+        self.type_params(d + 1, n)
 
     def n_Return(self, d, n, _k):
         self.line(d, "Return")
@@ -149,12 +160,78 @@ class Out:
         self.field(d + 1, "exc", n.exc)
         self.field(d + 1, "cause", n.cause)
 
-    def n_Try(self, d, n, _k):
-        self.line(d, "Try")
+    def n_Try(self, d, n, k):
+        self.line(d, k)
         self.listing(d + 1, "body", n.body)
         self.listing(d + 1, "handlers", n.handlers)
         self.listing(d + 1, "orelse", n.orelse)
         self.listing(d + 1, "finalbody", n.finalbody)
+
+    n_TryStar = n_Try
+
+    def n_TypeAlias(self, d, n, _k):
+        self.line(d, "TypeAlias")
+        self.field(d + 1, "name", n.name)
+        self.listing(d + 1, "type_params", n.type_params)
+        self.field(d + 1, "value", n.value)
+
+    def n_TypeVar(self, d, n, _k):
+        self.line(d, f"TypeVar {n.name}")
+        self.field(d + 1, "bound", n.bound)
+        self.field(d + 1, "default", n.default_value)
+
+    def n_ParamSpec(self, d, n, k):
+        self.line(d, f"{k} {n.name}")
+        self.field(d + 1, "default", n.default_value)
+
+    n_TypeVarTuple = n_ParamSpec
+
+    # ----------------------------------------------------------------- match
+
+    def n_Match(self, d, n, _k):
+        self.line(d, "Match")
+        self.field(d + 1, "subject", n.subject)
+        self.listing(d + 1, "cases", n.cases)
+
+    def n_match_case(self, d, n, _k):
+        self.line(d, "MatchCase")
+        self.field(d + 1, "pattern", n.pattern)
+        self.field(d + 1, "guard", n.guard)
+        self.listing(d + 1, "body", n.body)
+
+    def n_MatchValue(self, d, n, _k):
+        self.line(d, "MatchValue")
+        self.field(d + 1, "value", n.value)
+
+    def n_MatchSingleton(self, d, n, _k):
+        self.line(d, f"MatchSingleton {n.value!r}")
+
+    def n_MatchSequence(self, d, n, k):
+        self.line(d, k)
+        self.listing(d + 1, "patterns", n.patterns)
+
+    n_MatchOr = n_MatchSequence
+
+    def n_MatchMapping(self, d, n, _k):
+        self.line(d, f"MatchMapping **{n.rest}" if n.rest else "MatchMapping")
+        self.listing(d + 1, "keys", n.keys)
+        self.listing(d + 1, "patterns", n.patterns)
+
+    def n_MatchClass(self, d, n, _k):
+        self.line(d, "MatchClass")
+        self.field(d + 1, "cls", n.cls)
+        self.listing(d + 1, "patterns", n.patterns)
+        self.line(d + 1, "keywords:" if n.kwd_attrs else "keywords: []")
+        for name, p in zip(n.kwd_attrs, n.kwd_patterns):
+            self.line(d + 2, f"Keyword {name}")
+            self.field(d + 3, "value", p)
+
+    def n_MatchStar(self, d, n, _k):
+        self.line(d, f"MatchStar {n.name}" if n.name else "MatchStar")
+
+    def n_MatchAs(self, d, n, _k):
+        self.line(d, f"MatchAs {n.name}" if n.name else "MatchAs")
+        self.field(d + 1, "pattern", n.pattern)
 
     def n_Assert(self, d, n, _k):
         self.line(d, "Assert")
@@ -162,11 +239,12 @@ class Out:
         self.field(d + 1, "msg", n.msg)
 
     def n_Import(self, d, n, _k):
-        self.line(d, "Import")
+        self.line(d, "Import lazy" if getattr(n, "is_lazy", 0) else "Import")
         self.listing(d + 1, "names", n.names)
 
     def n_ImportFrom(self, d, n, _k):
-        self.line(d, f"ImportFrom {n.module or '-'} level={n.level}")
+        lazy = " lazy" if getattr(n, "is_lazy", 0) else ""
+        self.line(d, f"ImportFrom {n.module or '-'} level={n.level}{lazy}")
         self.listing(d + 1, "names", n.names)
 
     def n_Global(self, d, n, _k):
@@ -332,6 +410,17 @@ class Out:
         self.field(d + 1, "value", n.value)
         self.field(d + 1, "format_spec", n.format_spec)
 
+    def n_TemplateStr(self, d, n, _k):
+        self.line(d, "TemplateStr")
+        self.listing(d + 1, "values", n.values)
+
+    def n_Interpolation(self, d, n, _k):
+        conv = chr(n.conversion) if n.conversion and n.conversion > 0 else "-"
+        self.line(d, f"Interpolation {conv}")
+        self.field(d + 1, "value", n.value)
+        self.field(d + 1, "str", ast.Constant(n.str))
+        self.field(d + 1, "format_spec", n.format_spec)
+
     # --------------------------------------------------------------- helpers
 
     def n_comprehension(self, d, n, _k):
@@ -379,9 +468,12 @@ def constant_text(v):
 
 
 def main():
-    if len(sys.argv) < 2:
+    pyref.reexec()
+    paths, regen = pyref.args()
+    if not paths:
         raise SystemExit(__doc__)
-    for path in sys.argv[1:]:
+    for path in paths:
+        pyref.check(path, pyref.tag(), regen)
         with open(path, "rb") as f:
             source = f.read()
         out = Out()
@@ -389,6 +481,7 @@ def main():
         text = "".join(s + "\n" for s in out.lines)
         with open(path + ".exp", "w", encoding="utf-8") as f:
             f.write(text)
+        pyref.record(path, pyref.tag())
         print(f"mkast: {os.path.basename(path)}: {len(out.lines)} lines")
 
 

@@ -1,1 +1,32 @@
-python: 305:15: SyntaxError: invalid syntax
+--- unittest ---
+ok ExceptStarTestCases.test_nested
+ok ExceptStarTestCases.test_nested_else
+ok ExceptStarTestCases.test_nested_else_mixed1
+ok ExceptStarTestCases.test_nested_else_mixed2
+ok ExceptStarTestCases.test_nested_mixed1
+ok ExceptStarTestCases.test_nested_mixed2
+ok ExceptStarTestCases.test_try_except
+ok ExceptStarTestCases.test_try_except_else
+ok ExceptStarTestCases.test_try_except_else_finally
+ok ExceptStarTestCases.test_try_except_else_finally_no_exception
+ok ExceptStarTestCases.test_try_except_else_no_exception
+ok ExceptStarTestCases.test_try_except_finally
+ok ExceptStarTestCases.test_try_except_finally_no_exception
+ok ExceptStarTestCases.test_try_except_no_exception
+ok ExceptStarTestCases.test_try_finally_no_exception
+ok ExceptTestCases.test_nested
+ok ExceptTestCases.test_nested_else
+ok ExceptTestCases.test_nested_exception_in_else
+ok ExceptTestCases.test_nested_exception_in_except
+ok ExceptTestCases.test_nested_exception_in_finally_no_exception
+ok ExceptTestCases.test_nested_exception_in_finally_with_exception
+ok ExceptTestCases.test_try_except
+ok ExceptTestCases.test_try_except_else
+ok ExceptTestCases.test_try_except_else_finally
+ok ExceptTestCases.test_try_except_else_finally_no_exception
+ok ExceptTestCases.test_try_except_else_no_exception
+ok ExceptTestCases.test_try_except_finally
+ok ExceptTestCases.test_try_except_finally_no_exception
+ok ExceptTestCases.test_try_except_no_exception
+ok ExceptTestCases.test_try_finally_no_exception
+--- ran 30 ok 30 fail 0 error 0 skip 0 ---

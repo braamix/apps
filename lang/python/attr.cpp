@@ -283,6 +283,11 @@ Got attr_default(Value v, StrObj *name, Value &out, Value &args)
     }
 
     const Type *t = type_of(v);
+    if (t && t->lazyattr) {
+        Got lazy = t->lazyattr(v, name, out, args);
+        if (lazy != Got::Missing)
+            return lazy;
+    }
     if (t && t->getattr) {
         R r = t->getattr(v, name, out);
         if (r == R::Ok)
@@ -374,8 +379,18 @@ Got inst_attr(Value v, StrObj *name, Value &out, Value &args)
 bool type_own_attr(Value v, Str n, Value &out)
 {
     TypeObj *t = type_obj(v);
-    if (n == "__name__" || n == "__qualname__")
+    if (n == "__name__")
         return out = t->name, !out.is_nil();
+    if (n == "__qualname__")
+        return out = t->qualname.is_nil() ? t->name : t->qualname, !out.is_nil();
+    if (n == "__module__" && !t->heap) {
+        // A dotted descriptor name put its module in the namespace.
+        StrObj *k = str_intern("__module__");
+        if (k && dict_get(static_cast<DictObj *>(t->dict.obj()), obj_value(k), out) == R::Ok)
+            return true;
+        out = str_new("builtins");
+        return !out.is_nil();
+    }
     if (n == "__bases__")
         return out = t->bases, !out.is_nil();
     if (n == "__mro__")
@@ -386,6 +401,14 @@ bool type_own_attr(Value v, Str n, Value &out)
         return out = tuple_len(t->bases) ? tuple_at(t->bases, 0) : Value(), !out.is_nil();
     if (n == "__orig_bases__")
         return out = t->origbases, !out.is_nil();
+    if (n == "__type_params__") {
+        StrObj *k = str_intern("__type_params__");
+        if (k && dict_get(static_cast<DictObj *>(t->dict.obj()), obj_value(k), out) == R::Ok)
+            return true;
+        TupleObj *none = tuple_new(0);
+        out            = none ? obj_value(none) : Value();
+        return !out.is_nil();
+    }
     return false;
 }
 
@@ -595,6 +618,19 @@ R inst_store(Value v, StrObj *name, Value val, Value &fn)
         return fn.is_nil() ? R::Err : R::Ok;
     }
 
+    // An exception's cause and context are its own fields.
+    Str n      = name->str();
+    bool cause = n == Str("__cause__");
+    if (is_exc(rv.v) && (cause || n == Str("__context__"))) {
+        if (!is_none(rx.v) && !is_exc(rx.v))
+            return err_set("TypeError", cause ? Str("exception cause must be None or derive "
+                                                    "from BaseException")
+                                              : Str("exception context must be None or derive "
+                                                    "from BaseException"));
+        ExcObj *e                       = static_cast<ExcObj *>(rv.v.obj());
+        (cause ? e->cause : e->context) = is_none(rx.v) ? Value() : rx.v;
+        return R::Ok;
+    }
     if (type_obj(cls.v)->nodict)
         return no_attr(rv.v, name);
     if (inst_of(rv.v)->dict.is_nil()) {

@@ -17,7 +17,7 @@ struct BinLevel {
 
 // Lowest precedence first; each level is one loop in binary(). A short row is
 // padded with Tok::End, which is the sentinel.
-constexpr BinLevel LEVELS[][4] = {
+constexpr BinLevel LEVELS[][5] = {
     { { Tok::Vbar, Op::Or } },
     { { Tok::Caret, Op::Xor } },
     { { Tok::Amp, Op::And } },
@@ -26,7 +26,8 @@ constexpr BinLevel LEVELS[][4] = {
     { { Tok::Star, Op::Mul },
       { Tok::Slash, Op::Div },
       { Tok::DSlash, Op::FloorDiv },
-      { Tok::Percent, Op::Mod } },
+      { Tok::Percent, Op::Mod },
+      { Tok::At, Op::MatMul } },
 };
 
 constexpr usize NLEVELS = sizeof(LEVELS) / sizeof(LEVELS[0]);
@@ -41,6 +42,7 @@ constexpr AugOp AUGMENTED[] = {
     { Tok::SlashEq, Op::Div }, { Tok::DSlashEq, Op::FloorDiv }, { Tok::PercentEq, Op::Mod },
     { Tok::DStarEq, Op::Pow }, { Tok::AmpEq, Op::And },         { Tok::VbarEq, Op::Or },
     { Tok::CaretEq, Op::Xor }, { Tok::LShiftEq, Op::Lsh },      { Tok::RShiftEq, Op::Rsh },
+    { Tok::AtEq, Op::MatMul },
 };
 
 using List = Vec<u32>;
@@ -99,7 +101,8 @@ struct Parser {
     {
         if (take(k))
             return true;
-        return fail(what), false;
+        // A `:=` where the grammar has none is CPython's plain complaint.
+        return fail(at(Tok::Walrus) ? Str("invalid syntax") : what), false;
     }
 
     u32 add(Nd kind, u32 at_tok)
@@ -168,8 +171,12 @@ struct Parser {
     u32 arguments(bool lambda);
 
     u32 exprlist(bool allow_star);
-    u32 starred_or(bool allow_star, u32 (Parser::*inner)());
+    // `*x` where x is a bitwise-or operand, or an expression in arguments.
+    u32 starred_or(bool allow_star, u32 (Parser::*inner)(), bool arg = false);
     u32 expression();
+    u32 named();
+    u32 walrus(u32 target);
+    Str expr_name(u32 n);
     u32 ternary();
     u32 lambda_expr();
     u32 or_expr();
@@ -183,8 +190,9 @@ struct Parser {
     u32 postfix(u32 value);
     u32 atom();
     u32 fstring(u32 at_tok);
-    bool fstring_parts(Str body, bool raw, u32 at_tok, String &pending, List &into);
-    bool fstring_field(Str field, u32 at_tok, String &pending, List &into);
+    bool fstring_parts(Str body, bool raw, u32 at_tok, String &pending, List &into,
+                       bool tmpl = false);
+    bool fstring_field(Str field, u32 at_tok, String &pending, List &into, bool tmpl);
     u32 str_const(Str text, u32 at_tok);
     u32 sub_expression(Str source, u32 at_tok);
     u32 bracketed();
@@ -193,6 +201,35 @@ struct Parser {
     u32 comprehension_tail(Nd kind, u32 elt, u32 value, u32 at_tok);
     bool call_args(u32 call);
     u32 target();
+
+    // match
+    bool soft(Str word, usize ahead = 0) const
+    {
+        const Token &t = tok(ahead);
+        return t.kind == Tok::Name && ast->lex.text_of(t) == word;
+    }
+    bool starts_expression(usize ahead) const;
+    bool match_ahead() const;
+    u32 match_statement();
+    u32 match_case();
+    u32 patterns();
+    u32 pattern();
+    u32 or_pattern();
+    u32 closed_pattern();
+    u32 star_pattern();
+    u32 number_pattern();
+    u32 signed_number();
+    u32 name_or_attr();
+    u32 sequence_pattern(Tok close, u32 at_tok);
+    u32 mapping_pattern();
+    u32 class_pattern(u32 cls);
+    u32 capture_target();
+
+    // PEP 695
+    bool type_params(List &into);
+    u32 type_param();
+    bool type_alias_ahead() const;
+    u32 type_alias();
 
     bool run();
 };
@@ -207,7 +244,7 @@ bool is_target(const Ast *ast, u32 n)
 // ------------------------------------------------------------- expressions
 
 // `*x` where a star is allowed, or whatever `inner` parses.
-u32 Parser::starred_or(bool allow_star, u32 (Parser::*inner)())
+u32 Parser::starred_or(bool allow_star, u32 (Parser::*inner)(), bool arg)
 {
     if (!allow_star || !at(Tok::Star))
         return (this->*inner)();
@@ -216,7 +253,7 @@ u32 Parser::starred_or(bool allow_star, u32 (Parser::*inner)())
     u32 n = add(Nd::Starred, t);
     if (!n)
         return 0;
-    node(n).a = or_expr();
+    node(n).a = arg ? ternary() : binary(0);
     return node(n).a ? n : 0;
 }
 
@@ -320,57 +357,25 @@ u32 Parser::sub_expression(Str source, u32 at_tok)
 
     usize save = i;
     i          = start;
-    u32 n      = exprlist(false);
+    u32 n      = exprlist(true);
     if (n && !at(Tok::End))
         n = fail("f-string: invalid syntax");
     i = save;
     return n;
 }
 
-// Where the field starting after `{` ends, counting brackets and skipping
-// quoted text. npos when it never closes.
-usize field_end(Str body, usize at)
-{
-    u32 depth  = 0;
-    char quote = 0;
-    for (usize k = at; k < body.size(); k++) {
-        char c = body[k];
-        if (quote) {
-            if (c == quote)
-                quote = 0;
-            continue;
-        }
-        if (c == '\'' || c == '"') {
-            quote = c;
-        } else if (c == '(' || c == '[' || c == '{') {
-            depth++;
-        } else if (c == ')' || c == ']') {
-            if (depth)
-                depth--;
-        } else if (c == '}') {
-            if (!depth)
-                return k;
-            depth--;
-        }
-    }
-    return Str::npos;
-}
-
 // The top-level `!` of a conversion or `:` of a spec, or npos. Brackets and
 // quotes hide both, and `!=` is an operator rather than a conversion.
 usize field_suffix(Str field, char want)
 {
-    u32 depth  = 0;
-    char quote = 0;
+    u32 depth = 0;
     for (usize k = 0; k < field.size(); k++) {
         char c = field[k];
-        if (quote) {
-            if (c == quote)
-                quote = 0;
-            continue;
-        }
         if (c == '\'' || c == '"') {
-            quote = c;
+            k = lex_skip_string(field, k);
+            if (k == Str::npos)
+                return Str::npos;
+            k--;
             continue;
         }
         if (c == '(' || c == '[' || c == '{') {
@@ -386,8 +391,6 @@ usize field_suffix(Str field, char want)
             continue;
         if (want == '!' && k + 1 < field.size() && field[k + 1] == '=')
             continue;
-        if (want == ':' && k + 1 < field.size() && field[k + 1] == '=')
-            continue; // a walrus, not a spec
         return k;
     }
     return Str::npos;
@@ -398,17 +401,14 @@ usize field_suffix(Str field, char want)
 usize field_debug_eq(Str field)
 {
     u32 depth   = 0;
-    char quote  = 0;
     usize found = Str::npos;
     for (usize k = 0; k < field.size(); k++) {
         char c = field[k];
-        if (quote) {
-            if (c == quote)
-                quote = 0;
-            continue;
-        }
         if (c == '\'' || c == '"') {
-            quote = c;
+            k = lex_skip_string(field, k);
+            if (k == Str::npos)
+                return found;
+            k--;
             continue;
         }
         if (c == '(' || c == '[' || c == '{') {
@@ -432,9 +432,33 @@ usize field_debug_eq(Str field)
     return found;
 }
 
+// What an Interpolation says its expression was: the source, less a comment
+// and the blank space after it.
+Str interp_text(Str expr)
+{
+    for (usize k = 0; k < expr.size(); k++) {
+        if (expr[k] == '\'' || expr[k] == '"') {
+            k = lex_skip_string(expr, k);
+            if (k == Str::npos)
+                break;
+            k--;
+        } else if (expr[k] == '#') {
+            expr = expr.substr(0, k);
+            break;
+        }
+    }
+    usize n = expr.size();
+    while (n && (expr[n - 1] == ' ' || expr[n - 1] == '\t' || expr[n - 1] == '\n' ||
+                 expr[n - 1] == '\r' || expr[n - 1] == '\f' ||
+                 (expr[n - 1] == '\\' && n < expr.size() && expr[n] == '\n')))
+        n--;
+    return expr.substr(0, n);
+}
+
 // One `{...}` field. `pending` holds the literal text built so far, which the
-// `=` form adds the expression's own source to before it is flushed.
-bool Parser::fstring_field(Str field, u32 at_tok, String &pending, List &into)
+// `=` form adds the expression's own source to before it is flushed. In a
+// t-string it is an Interpolation, which keeps the source too.
+bool Parser::fstring_field(Str field, u32 at_tok, String &pending, List &into, bool tmpl)
 {
     Str expr = field;
     Str spec;
@@ -479,11 +503,15 @@ bool Parser::fstring_field(Str field, u32 at_tok, String &pending, List &into)
     u32 value = sub_expression(expr, at_tok);
     if (!value)
         return false;
+    u32 text = tmpl ? str_const(interp_text(expr), at_tok) : 0;
+    if (tmpl && !text)
+        return false;
 
-    u32 n = add(Nd::FormattedValue, at_tok);
+    u32 n = add(tmpl ? Nd::Interpolation : Nd::FormattedValue, at_tok);
     if (!n)
         return false;
     node(n).a     = value;
+    node(n).c     = text;
     node(n).flags = conv;
     if (has_spec) {
         // The spec is an f-string of its own: it may hold fields, and it may
@@ -506,7 +534,7 @@ bool Parser::fstring_field(Str field, u32 at_tok, String &pending, List &into)
 // one brace and start nothing; the literal runs between them have their
 // escapes decoded here, which is why the braces are found in the raw text
 // first -- an escape that yields a brace must not open a field.
-bool Parser::fstring_parts(Str body, bool raw, u32 at_tok, String &pending, List &into)
+bool Parser::fstring_parts(Str body, bool raw, u32 at_tok, String &pending, List &into, bool tmpl)
 {
     usize at = 0, run = 0;
     for (;;) {
@@ -540,10 +568,10 @@ bool Parser::fstring_parts(Str body, bool raw, u32 at_tok, String &pending, List
         if (c == '}')
             return fail("f-string: single '}' is not allowed"), false;
 
-        usize stop = field_end(body, at + 1);
+        usize stop = lex_field_end(body, at + 1);
         if (stop == Str::npos)
             return fail("f-string: expecting '}'"), false;
-        if (!fstring_field(body.substr(at + 1, stop - at - 1), at_tok, pending, into))
+        if (!fstring_field(body.substr(at + 1, stop - at - 1), at_tok, pending, into, tmpl))
             return false;
         at  = stop + 1;
         run = at;
@@ -554,10 +582,14 @@ u32 Parser::fstring(u32 at_tok)
 {
     bool bytes = at(Tok::Bytes);
     bool any_f = false;
+    // A t-string joins only with t-strings.
+    bool tmpl = at(Tok::FStr) && (tok().flags & TOK_STR_T);
     String pending;
     List parts;
 
     while (at(Tok::Str) || at(Tok::Bytes) || at(Tok::FStr)) {
+        if (tmpl != (at(Tok::FStr) && (tok().flags & TOK_STR_T)))
+            return fail("cannot mix t-string literals with string or bytes literals");
         if ((kind() == Tok::Bytes) != bytes)
             return fail("cannot mix bytes and nonbytes literals");
         if (at(Tok::FStr)) {
@@ -569,7 +601,7 @@ u32 Parser::fstring(u32 at_tok)
             if (!body.append(ast->lex.text_of(tok())))
                 return fail("out of memory");
             bump();
-            if (!fstring_parts(body.str(), (fl & TOK_STR_RAW) != 0, t, pending, parts))
+            if (!fstring_parts(body.str(), (fl & TOK_STR_RAW) != 0, t, pending, parts, tmpl))
                 return 0;
             continue;
         }
@@ -595,7 +627,7 @@ u32 Parser::fstring(u32 at_tok)
 
     if (pending.size() && !hold(parts, str_const(pending.str(), at_tok)))
         return 0;
-    u32 n = add(Nd::JoinedStr, at_tok);
+    u32 n = add(tmpl ? Nd::TemplateStr : Nd::JoinedStr, at_tok);
     if (!n || !run_of(n, parts))
         return 0;
     return n;
@@ -614,7 +646,7 @@ u32 Parser::bracketed()
             u32 y = expression();
             return expect(Tok::RPar, "expected ')'") ? y : 0;
         }
-        u32 first = starred_or(true, &Parser::expression);
+        u32 first = starred_or(true, &Parser::named);
         if (!first)
             return 0;
         if (at(Tok::KwFor) || (at(Tok::KwAsync) && kind(1) == Tok::KwFor)) {
@@ -630,7 +662,7 @@ u32 Parser::bracketed()
         while (take(Tok::Comma)) {
             if (at(Tok::RPar))
                 break;
-            if (!hold(elts, starred_or(true, &Parser::expression)))
+            if (!hold(elts, starred_or(true, &Parser::named)))
                 return 0;
         }
         if (!expect(Tok::RPar, "expected ')'"))
@@ -643,7 +675,7 @@ u32 Parser::bracketed()
         bump();
         if (take(Tok::RSqb))
             return add(Nd::List, t);
-        u32 first = starred_or(true, &Parser::expression);
+        u32 first = starred_or(true, &Parser::named);
         if (!first)
             return 0;
         if (at(Tok::KwFor) || (at(Tok::KwAsync) && kind(1) == Tok::KwFor)) {
@@ -656,7 +688,7 @@ u32 Parser::bracketed()
         while (take(Tok::Comma)) {
             if (at(Tok::RSqb))
                 break;
-            if (!hold(elts, starred_or(true, &Parser::expression)))
+            if (!hold(elts, starred_or(true, &Parser::named)))
                 return 0;
         }
         if (!expect(Tok::RSqb, "expected ']'"))
@@ -680,7 +712,7 @@ u32 Parser::bracketed()
             if (!val)
                 return 0;
         } else {
-            key = starred_or(true, &Parser::expression);
+            key = starred_or(true, &Parser::named);
             if (!key)
                 return 0;
             if (take(Tok::Colon)) {
@@ -720,7 +752,7 @@ u32 Parser::bracketed()
                 u32 v2 = ternary();
                 if (!v2 || !items.push(k2) || !items.push(v2))
                     return fail("out of memory");
-            } else if (!hold(items, starred_or(true, &Parser::expression))) {
+            } else if (!hold(items, starred_or(true, &Parser::named))) {
                 return 0;
             }
         }
@@ -776,7 +808,10 @@ u32 Parser::comprehension_tail(Nd kind_of, u32 elt, u32 value, u32 at_tok)
 bool Parser::call_args(u32 call)
 {
     List args, keywords;
+    bool dstar = false;
     while (!at(Tok::RPar)) {
+        if (at(Tok::DStar))
+            dstar = true;
         if (take(Tok::DStar)) {
             u32 k = add(Nd::Keyword, u32(i - 1));
             if (!k)
@@ -796,7 +831,15 @@ bool Parser::call_args(u32 call)
             if (!node(k).a || !hold(keywords, k))
                 return false;
         } else {
-            u32 e = starred_or(true, &Parser::expression);
+            bool star = at(Tok::Star);
+            if (star && dstar)
+                return fail("iterable argument unpacking follows keyword argument unpacking"),
+                       false;
+            if (!star && keywords.size())
+                return fail(dstar ? Str("positional argument follows keyword argument unpacking")
+                                  : Str("positional argument follows keyword argument")),
+                       false;
+            u32 e = starred_or(true, &Parser::named, true);
             if (!e)
                 return false;
             if (at(Tok::KwFor) || (at(Tok::KwAsync) && kind(1) == Tok::KwFor)) {
@@ -817,12 +860,18 @@ bool Parser::call_args(u32 call)
     return run_of(call, two, 2);
 }
 
+// One item of a subscript: a slice, a named expression, or since 3.11 a
+// starred one.
 u32 Parser::subscript_item()
 {
-    u32 t     = u32(i);
+    u32 t = u32(i);
+    if (at(Tok::Star))
+        return starred_or(true, &Parser::ternary);
     u32 lower = at(Tok::Colon) ? 0 : ternary();
     if (failed)
         return 0;
+    if (at(Tok::Walrus))
+        return walrus(lower);
     if (!at(Tok::Colon))
         return lower;
 
@@ -872,7 +921,8 @@ u32 Parser::postfix(u32 value)
             u32 index = subscript_item();
             if (failed)
                 return 0;
-            if (at(Tok::Comma)) {
+            // `x[*a]` is a tuple of one, as `x[a,]` is.
+            if (at(Tok::Comma) || ast->at(index).kind == Nd::Starred) {
                 List elts;
                 if (!hold(elts, index))
                     return 0;
@@ -1148,24 +1198,114 @@ u32 Parser::expression()
             return 0;
         if (!at(Tok::Newline) && !at(Tok::RPar) && !at(Tok::RSqb) && !at(Tok::RBrace) &&
             !at(Tok::Comma) && !at(Tok::Semi) && !at(Tok::End)) {
-            node(n).a = exprlist(false);
+            node(n).a = exprlist(true);
             if (!node(n).a)
                 return 0;
         }
         return n;
     }
 
+    return ternary();
+}
+
+// An expression where `:=` may stand unparenthesized: a condition, an
+// element of a display, a positional argument, a subscript, a decorator.
+u32 Parser::named()
+{
     u32 e = ternary();
     if (!e || !at(Tok::Walrus))
         return e;
+    return walrus(e);
+}
+
+// `target := value`, with the target already parsed.
+u32 Parser::walrus(u32 target)
+{
     u32 t = u32(i);
     bump();
+    if (ast->at(target).kind != Nd::Name) {
+        Buf<96> b;
+        b.put("cannot use assignment expressions with ").put(expr_name(target));
+        return fail_node(b.str(), target);
+    }
     u32 n = add(Nd::NamedExpr, t);
     if (!n)
         return 0;
-    node(n).a = e;
+    node(n).a = target;
     node(n).b = ternary();
     return node(n).b ? n : 0;
+}
+
+// What CPython calls an expression in a complaint about assigning to it.
+Str Parser::expr_name(u32 n)
+{
+    const Node &x = ast->at(n);
+    switch (x.kind) {
+    case Nd::Attribute:
+        return "attribute";
+    case Nd::Subscript:
+        return "subscript";
+    case Nd::Starred:
+        return "starred";
+    case Nd::Name:
+        return "name";
+    case Nd::List:
+        return "list";
+    case Nd::Tuple:
+        return "tuple";
+    case Nd::Lambda:
+        return "lambda";
+    case Nd::Call:
+        return "function call";
+    case Nd::BoolOp:
+    case Nd::BinOp:
+    case Nd::UnaryOp:
+        return "expression";
+    case Nd::GeneratorExp:
+        return "generator expression";
+    case Nd::Yield:
+    case Nd::YieldFrom:
+        return "yield expression";
+    case Nd::Await:
+        return "await expression";
+    case Nd::ListComp:
+        return "list comprehension";
+    case Nd::SetComp:
+        return "set comprehension";
+    case Nd::DictComp:
+        return "dict comprehension";
+    case Nd::Dict:
+        return "dict literal";
+    case Nd::Set:
+        return "set display";
+    case Nd::JoinedStr:
+    case Nd::FormattedValue:
+        return "f-string expression";
+    case Nd::TemplateStr:
+    case Nd::Interpolation:
+        return "t-string expression";
+    case Nd::Compare:
+        return "comparison";
+    case Nd::IfExp:
+        return "conditional expression";
+    case Nd::NamedExpr:
+        return "named expression";
+    case Nd::Constant:
+        switch (Const(x.flags)) {
+        case Const::None:
+            return "None";
+        case Const::True:
+            return "True";
+        case Const::False:
+            return "False";
+        case Const::Ellipsis:
+            return "ellipsis";
+        default:
+            return "literal";
+        }
+    default:
+        return "expression";
+    }
 }
 
 // One expression, or the tuple a comma makes of several.
@@ -1221,7 +1361,9 @@ u32 Parser::arguments(bool lambda)
                 bump();
                 if (!a)
                     return 0;
-                if (!lambda && take(Tok::Colon) && !(node(a).a = ternary()))
+                // PEP 646: `*args: *Ts`.
+                if (!lambda && take(Tok::Colon) &&
+                    !(node(a).a = starred_or(true, &Parser::ternary)))
                     return 0;
                 if (!hold(vararg, a))
                     return 0;
@@ -1330,7 +1472,7 @@ u32 Parser::if_statement()
 {
     u32 t = u32(i);
     bump(); // if, or the elif of an enclosing if
-    u32 test = expression();
+    u32 test = named();
     if (!test)
         return 0;
     List body, orelse;
@@ -1357,7 +1499,7 @@ u32 Parser::while_statement()
 {
     u32 t = u32(i);
     bump();
-    u32 test = expression();
+    u32 test = named();
     if (!test)
         return 0;
     List body, orelse;
@@ -1409,15 +1551,37 @@ u32 Parser::try_statement()
     if (!block(body))
         return 0;
 
+    i32 star = -1; // whether the handlers are except*, once one has said
     while (at(Tok::KwExcept)) {
         u32 ht = u32(i);
         bump();
+        bool is_star = take(Tok::Star);
+        if (star >= 0 && is_star != (star == 1))
+            return fail("cannot have both 'except' and 'except*' on the same 'try'");
+        star     = is_star ? 1 : 0;
         u32 type = 0, name_tok = 0;
         bool named = false;
+        if (is_star && at(Tok::Colon))
+            return fail("expected one or more exception types");
         if (!at(Tok::Colon)) {
-            type = expression();
+            u32 tt = u32(i);
+            type   = expression();
             if (!type)
                 return 0;
+            // PEP 758: `except A, B:` is a tuple, where no `as` follows.
+            if (at(Tok::Comma)) {
+                List types;
+                if (!hold(types, type))
+                    return 0;
+                while (take(Tok::Comma))
+                    if (!hold(types, expression()))
+                        return 0;
+                if (at(Tok::KwAs))
+                    return fail("multiple exception types must be parenthesized when using 'as'");
+                type = add(Nd::Tuple, tt);
+                if (!type || !run_of(type, types))
+                    return 0;
+            }
             if (take(Tok::KwAs)) {
                 if (!at(Tok::Name))
                     return fail("expected a name after 'as'");
@@ -1445,7 +1609,7 @@ u32 Parser::try_statement()
     if (!handlers.size() && !finalbody.size())
         return fail("expected 'except' or 'finally' block");
 
-    u32 n = add(Nd::Try, t);
+    u32 n = add(star == 1 ? Nd::TryStar : Nd::Try, t);
     if (!n)
         return 0;
     node(n).a           = u32(body.size());
@@ -1461,6 +1625,28 @@ u32 Parser::with_statement(bool is_async)
     u32 t = u32(i);
     bump();
     List items, body;
+    // 3.9's `with (a as b, c):`: a bracket whose close a colon follows.
+    bool paren = false;
+    if (at(Tok::LPar)) {
+        u32 nest = 0;
+        usize k  = i;
+        for (; k < ast->lex.tokens.size(); k++) {
+            Tok x = ast->lex.tokens[k].kind;
+            if (x == Tok::LPar || x == Tok::LSqb || x == Tok::LBrace)
+                nest++;
+            else if ((x == Tok::RPar || x == Tok::RSqb || x == Tok::RBrace) && !--nest)
+                break;
+            else if (x == Tok::End || x == Tok::Newline)
+                break;
+        }
+        paren = k + 1 < ast->lex.tokens.size() && ast->lex.tokens[k].kind == Tok::RPar &&
+                ast->lex.tokens[k + 1].kind == Tok::Colon;
+        if (paren) {
+            bump();
+            if (!enter())
+                return 0;
+        }
+    }
     for (;;) {
         u32 it = u32(i);
         u32 cm = expression();
@@ -1476,8 +1662,13 @@ u32 Parser::with_statement(bool is_async)
         node(w).b = vars;
         if (!hold(items, w))
             return 0;
-        if (!take(Tok::Comma))
+        if (!take(Tok::Comma) || (paren && at(Tok::RPar)))
             break;
+    }
+    if (paren) {
+        leave();
+        if (!expect(Tok::RPar, "expected ')'"))
+            return 0;
     }
     if (!block(body))
         return 0;
@@ -1528,7 +1719,8 @@ u32 Parser::funcdef(bool is_async, List &decorators)
         return fail("expected a function name");
     u32 name = u32(i);
     bump();
-    if (!expect(Tok::LPar, "expected '('"))
+    List params;
+    if (!type_params(params) || !expect(Tok::LPar, "expected '('"))
         return 0;
     u32 args = arguments(false);
     if (!args || !expect(Tok::RPar, "expected ')'"))
@@ -1543,12 +1735,13 @@ u32 Parser::funcdef(bool is_async, List &decorators)
     u32 n = add(is_async ? Nd::AsyncFunctionDef : Nd::FunctionDef, name);
     if (!n)
         return 0;
-    node(n).a          = args;
-    node(n).b          = u32(body.size());
-    node(n).c          = u32(decorators.size());
-    node(n).d          = returns;
-    const List *two[2] = { &body, &decorators };
-    return run_of(n, two, 2) ? n : 0;
+    node(n).a            = args;
+    node(n).b            = u32(body.size());
+    node(n).c            = u32(decorators.size());
+    node(n).d            = returns;
+    node(n).pad          = u16(params.size());
+    const List *three[3] = { &body, &decorators, &params };
+    return run_of(n, three, 3) ? n : 0;
 }
 
 u32 Parser::classdef(List &decorators)
@@ -1559,7 +1752,9 @@ u32 Parser::classdef(List &decorators)
     u32 name = u32(i);
     bump();
 
-    List bases, keywords, body;
+    List bases, keywords, body, params;
+    if (!type_params(params))
+        return 0;
     if (take(Tok::LPar)) {
         while (!at(Tok::RPar)) {
             if (take(Tok::DStar)) {
@@ -1580,7 +1775,7 @@ u32 Parser::classdef(List &decorators)
                 node(k).a     = ternary();
                 if (!node(k).a || !hold(keywords, k))
                     return 0;
-            } else if (!hold(bases, starred_or(true, &Parser::ternary))) {
+            } else if (!hold(bases, starred_or(true, &Parser::ternary, true))) {
                 return 0;
             }
             if (!take(Tok::Comma))
@@ -1599,15 +1794,16 @@ u32 Parser::classdef(List &decorators)
     node(n).b           = u32(keywords.size());
     node(n).c           = u32(body.size());
     node(n).d           = u32(decorators.size());
-    const List *four[4] = { &bases, &keywords, &body, &decorators };
-    return run_of(n, four, 4) ? n : 0;
+    node(n).pad         = u16(params.size());
+    const List *five[5] = { &bases, &keywords, &body, &decorators, &params };
+    return run_of(n, five, 5) ? n : 0;
 }
 
 u32 Parser::decorated()
 {
     List decorators;
     while (take(Tok::At)) {
-        if (!hold(decorators, ternary()))
+        if (!hold(decorators, named()))
             return 0;
         if (!take(Tok::Newline))
             return fail("expected a newline after a decorator");
@@ -1767,7 +1963,7 @@ u32 Parser::small_statement()
         for (;;) {
             if (!hold(targets, target()))
                 return 0;
-            if (!take(Tok::Comma))
+            if (!take(Tok::Comma) || at(Tok::Newline) || at(Tok::Semi) || at(Tok::End))
                 break;
         }
         u32 n = add(Nd::Delete, t);
@@ -1804,6 +2000,30 @@ u32 Parser::small_statement()
         return import_statement();
     case Tok::KwFrom:
         return from_statement();
+    case Tok::Name:
+        if (type_alias_ahead())
+            return type_alias();
+        // PEP 810: `lazy` is soft, and only before an import.
+        if (soft("lazy") && (kind(1) == Tok::KwImport || kind(1) == Tok::KwFrom)) {
+            u32 lt = u32(i);
+            bump();
+            bool from = at(Tok::KwFrom);
+            u32 n     = from ? from_statement() : import_statement();
+            if (!n)
+                return 0;
+            if (from && node(n).flags && ast->text(n) == "__future__") {
+                const Token &tk = ast->lex.tokens[lt];
+                if (!failed) {
+                    failed = true;
+                    err_set_at("SyntaxError", "lazy from __future__ import is not allowed", tk.line,
+                               tk.col);
+                }
+                return 0;
+            }
+            node(n).pad |= 1;
+            return n;
+        }
+        break;
     default:
         break;
     }
@@ -1824,7 +2044,7 @@ u32 Parser::small_statement()
                 return 0;
             node(n).flags = u8(a.op);
             node(n).a     = first;
-            node(n).b     = at(Tok::KwYield) ? expression() : exprlist(false);
+            node(n).b     = at(Tok::KwYield) ? expression() : exprlist(true);
             return node(n).b ? n : 0;
         }
 
@@ -1906,6 +2126,10 @@ u32 Parser::compound_statement()
         return classdef(none);
     case Tok::At:
         return decorated();
+    case Tok::Name:
+        if (match_ahead())
+            return match_statement();
+        break;
     case Tok::KwAsync:
         if (kind(1) == Tok::KwDef) {
             bump();
@@ -1924,6 +2148,607 @@ u32 Parser::compound_statement()
         break;
     }
     return 0;
+}
+
+// ------------------------------------------------------------------ match
+//
+// `match` and `case` are soft keywords: a line is a match statement only when
+// `match` is followed by an expression, a colon at bracket depth zero, and a
+// block that opens with `case`. Anything else is the name `match`.
+
+bool Parser::starts_expression(usize ahead) const
+{
+    switch (kind(ahead)) {
+    case Tok::Name:
+    case Tok::Int:
+    case Tok::Float:
+    case Tok::Imag:
+    case Tok::Str:
+    case Tok::Bytes:
+    case Tok::FStr:
+    case Tok::KwNone:
+    case Tok::KwTrue:
+    case Tok::KwFalse:
+    case Tok::Ellipsis:
+    case Tok::LPar:
+    case Tok::LSqb:
+    case Tok::LBrace:
+    case Tok::Minus:
+    case Tok::Plus:
+    case Tok::Tilde:
+    case Tok::KwNot:
+    case Tok::KwAwait:
+    case Tok::KwLambda:
+    case Tok::Star:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool Parser::match_ahead() const
+{
+    if (!soft("match") || !starts_expression(1))
+        return false;
+    u32 nest = 0;
+    for (usize k = 1;; k++) {
+        switch (kind(k)) {
+        case Tok::LPar:
+        case Tok::LSqb:
+        case Tok::LBrace:
+            nest++;
+            break;
+        case Tok::RPar:
+        case Tok::RSqb:
+        case Tok::RBrace:
+            if (!nest)
+                return false;
+            nest--;
+            break;
+        case Tok::Newline:
+        case Tok::End:
+            return false;
+        case Tok::Colon:
+            if (!nest)
+                return kind(k + 1) == Tok::Newline && kind(k + 2) == Tok::Indent &&
+                       soft("case", k + 3);
+            break;
+        default:
+            break;
+        }
+    }
+}
+
+u32 Parser::match_statement()
+{
+    u32 t = u32(i);
+    bump(); // match
+    u32 first = starred_or(true, &Parser::named);
+    if (!first)
+        return 0;
+    u32 subject = first;
+    if (at(Tok::Comma)) {
+        List elts;
+        if (!hold(elts, first))
+            return 0;
+        while (take(Tok::Comma)) {
+            if (at(Tok::Colon))
+                break;
+            if (!hold(elts, starred_or(true, &Parser::named)))
+                return 0;
+        }
+        subject = add(Nd::Tuple, node(first).tok);
+        if (!subject || !run_of(subject, elts))
+            return 0;
+    }
+    if (!expect(Tok::Colon, "expected ':'") || !expect(Tok::Newline, "expected a newline"))
+        return 0;
+    if (!take(Tok::Indent))
+        return fail_kind("IndentationError", "expected an indented block");
+    if (!enter())
+        return 0;
+    List cases;
+    while (!at(Tok::Dedent) && !at(Tok::End)) {
+        if (take(Tok::Newline))
+            continue;
+        if (!soft("case")) {
+            leave();
+            return fail("expected 'case'");
+        }
+        if (!hold(cases, match_case())) {
+            leave();
+            return 0;
+        }
+    }
+    leave();
+    take(Tok::Dedent);
+    u32 n = add(Nd::Match, t);
+    if (!n || !run_of(n, cases))
+        return 0;
+    node(n).a = subject;
+    return n;
+}
+
+u32 Parser::match_case()
+{
+    u32 t = u32(i);
+    bump(); // case
+    u32 p = patterns();
+    if (!p)
+        return 0;
+    u32 guard = 0;
+    if (take(Tok::KwIf) && !(guard = named()))
+        return 0;
+    List body;
+    if (!block(body))
+        return 0;
+    u32 n = add(Nd::MatchCase, t);
+    if (!n || !run_of(n, body))
+        return 0;
+    node(n).a = p;
+    node(n).b = guard;
+    return n;
+}
+
+// The pattern after `case`: an open sequence, without brackets, is a
+// sequence pattern.
+u32 Parser::patterns()
+{
+    u32 t     = u32(i);
+    u32 first = at(Tok::Star) ? star_pattern() : pattern();
+    if (!first)
+        return 0;
+    if (!at(Tok::Comma)) {
+        if (ast->at(first).kind == Nd::MatchStar)
+            return fail_node("can't use starred expression here", first);
+        return first;
+    }
+    List elts;
+    if (!hold(elts, first))
+        return 0;
+    while (take(Tok::Comma)) {
+        if (at(Tok::Colon) || at(Tok::KwIf))
+            break;
+        if (!hold(elts, at(Tok::Star) ? star_pattern() : pattern()))
+            return 0;
+    }
+    u32 n = add(Nd::MatchSequence, t);
+    return n && run_of(n, elts) ? n : 0;
+}
+
+// A name a pattern binds: not `_`, and not the start of something longer.
+u32 Parser::capture_target()
+{
+    if (!at(Tok::Name))
+        return fail("invalid pattern target");
+    if (soft("_"))
+        return fail("cannot use '_' as a target");
+    u32 t = u32(i);
+    bump();
+    return t;
+}
+
+u32 Parser::pattern()
+{
+    u32 p = or_pattern();
+    if (!p || !at(Tok::KwAs))
+        return p;
+    bump();
+    u32 name = capture_target();
+    if (!name)
+        return 0;
+    u32 n = add(Nd::MatchAs, name);
+    if (!n)
+        return 0;
+    node(n).a     = p;
+    node(n).flags = 1;
+    return n;
+}
+
+u32 Parser::or_pattern()
+{
+    u32 t     = u32(i);
+    u32 first = closed_pattern();
+    if (!first || !at(Tok::Vbar))
+        return first;
+    List alts;
+    if (!hold(alts, first))
+        return 0;
+    while (take(Tok::Vbar))
+        if (!hold(alts, closed_pattern()))
+            return 0;
+    u32 n = add(Nd::MatchOr, t);
+    return n && run_of(n, alts) ? n : 0;
+}
+
+u32 Parser::star_pattern()
+{
+    u32 t = u32(i);
+    bump(); // *
+    if (!at(Tok::Name))
+        return fail("invalid syntax");
+    bool wild = soft("_");
+    u32 name  = u32(i);
+    bump();
+    u32 n = add(Nd::MatchStar, wild ? t : name);
+    if (n)
+        node(n).flags = wild ? 0 : 1;
+    return n;
+}
+
+// A number, or `-` and a number, as a Constant or a UnaryOp over one. A `+`
+// is taken and dropped, as CPython's main branch does since 3.15.
+u32 Parser::signed_number()
+{
+    u32 t    = u32(i);
+    bool neg = take(Tok::Minus);
+    if (!neg)
+        take(Tok::Plus);
+    if (!at(Tok::Int) && !at(Tok::Float) && !at(Tok::Imag))
+        return fail("invalid syntax");
+    u32 c = atom();
+    if (!c || !neg)
+        return c;
+    u32 n = add(Nd::UnaryOp, t);
+    if (!n)
+        return 0;
+    node(n).flags = u8(Un::USub);
+    node(n).a     = c;
+    return n;
+}
+
+// A literal number, or `real ± imaginary`.
+u32 Parser::number_pattern()
+{
+    u32 left = signed_number();
+    if (!left || (!at(Tok::Plus) && !at(Tok::Minus)))
+        return left;
+    const Node &l  = ast->at(left);
+    const Node &lc = l.kind == Nd::UnaryOp ? ast->at(l.a) : l;
+    if (Const(lc.flags) == Const::Imag)
+        return fail_node("real number required in complex literal", left);
+    u32 t = u32(i);
+    Op op = at(Tok::Plus) ? Op::Add : Op::Sub;
+    bump();
+    if (!at(Tok::Imag))
+        return fail("imaginary number required in complex literal");
+    u32 right = atom();
+    if (!right)
+        return 0;
+    u32 n = add(Nd::BinOp, t);
+    if (!n)
+        return 0;
+    node(n).flags = u8(op);
+    node(n).a     = left;
+    node(n).b     = right;
+    return n;
+}
+
+u32 Parser::name_or_attr()
+{
+    u32 v = add(Nd::Name, u32(i));
+    bump();
+    while (v && at(Tok::Dot)) {
+        bump();
+        if (!at(Tok::Name))
+            return fail("expected a name after '.'");
+        u32 n = add(Nd::Attribute, u32(i));
+        bump();
+        if (!n)
+            return 0;
+        node(n).a = v;
+        v         = n;
+    }
+    return v;
+}
+
+u32 Parser::closed_pattern()
+{
+    if (!enter())
+        return 0;
+    u32 t = u32(i);
+    u32 r = 0;
+    switch (kind()) {
+    case Tok::Int:
+    case Tok::Float:
+    case Tok::Imag:
+    case Tok::Minus:
+    case Tok::Plus: {
+        u32 v = number_pattern();
+        r     = v ? add(Nd::MatchValue, t) : 0;
+        if (r)
+            node(r).a = v;
+        break;
+    }
+    case Tok::Str:
+    case Tok::Bytes:
+    case Tok::FStr: {
+        for (usize k = 0; kind(k) == Tok::Str || kind(k) == Tok::Bytes || kind(k) == Tok::FStr; k++)
+            if (kind(k) == Tok::FStr) {
+                leave();
+                return fail("patterns may not match formatted string literals");
+            }
+        u32 v = atom();
+        r     = v ? add(Nd::MatchValue, t) : 0;
+        if (r)
+            node(r).a = v;
+        break;
+    }
+    case Tok::KwNone:
+    case Tok::KwTrue:
+    case Tok::KwFalse: {
+        Const c = at(Tok::KwNone) ? Const::None : at(Tok::KwTrue) ? Const::True : Const::False;
+        bump();
+        r = add(Nd::MatchSingleton, t);
+        if (r)
+            node(r).flags = u8(c);
+        break;
+    }
+    case Tok::Name: {
+        bool wild   = soft("_");
+        u32 v       = name_or_attr();
+        bool dotted = v && ast->at(v).kind == Nd::Attribute;
+        if (!v)
+            break;
+        if (at(Tok::LPar)) {
+            r = class_pattern(v);
+        } else if (dotted) {
+            r = add(Nd::MatchValue, t);
+            if (r)
+                node(r).a = v;
+        } else {
+            r = add(Nd::MatchAs, t);
+            if (r)
+                node(r).flags = wild ? 0 : 1;
+        }
+        break;
+    }
+    case Tok::LPar: {
+        bump();
+        if (take(Tok::RPar)) {
+            r = add(Nd::MatchSequence, t);
+            break;
+        }
+        u32 first = at(Tok::Star) ? star_pattern() : pattern();
+        if (!first)
+            break;
+        if (at(Tok::Comma)) {
+            List elts;
+            if (!hold(elts, first))
+                break;
+            while (take(Tok::Comma)) {
+                if (at(Tok::RPar))
+                    break;
+                if (!hold(elts, at(Tok::Star) ? star_pattern() : pattern())) {
+                    leave();
+                    return 0;
+                }
+            }
+            if (!expect(Tok::RPar, "expected ')'"))
+                break;
+            r = add(Nd::MatchSequence, t);
+            if (r && !run_of(r, elts))
+                r = 0;
+            break;
+        }
+        if (!expect(Tok::RPar, "expected ')'"))
+            break;
+        if (ast->at(first).kind == Nd::MatchStar) {
+            leave();
+            return fail_node("can't use starred expression here", first);
+        }
+        r = first;
+        break;
+    }
+    case Tok::LSqb:
+        bump();
+        r = sequence_pattern(Tok::RSqb, t);
+        break;
+    case Tok::LBrace:
+        r = mapping_pattern();
+        break;
+    default:
+        r = fail("invalid syntax");
+        break;
+    }
+    leave();
+    return r;
+}
+
+// `[p, *rest, q]`, the opening bracket already taken.
+u32 Parser::sequence_pattern(Tok close, u32 at_tok)
+{
+    List elts;
+    while (!at(close)) {
+        if (!hold(elts, at(Tok::Star) ? star_pattern() : pattern()))
+            return 0;
+        if (!take(Tok::Comma))
+            break;
+    }
+    if (!expect(close, "expected ']'"))
+        return 0;
+    u32 n = add(Nd::MatchSequence, at_tok);
+    return n && run_of(n, elts) ? n : 0;
+}
+
+u32 Parser::mapping_pattern()
+{
+    u32 t = u32(i);
+    bump(); // {
+    List keys, pats;
+    u32 rest = 0;
+    while (!at(Tok::RBrace)) {
+        if (take(Tok::DStar)) {
+            rest = capture_target();
+            if (!rest)
+                return 0;
+            take(Tok::Comma);
+            break;
+        }
+        u32 key = 0;
+        switch (kind()) {
+        case Tok::Int:
+        case Tok::Float:
+        case Tok::Imag:
+        case Tok::Minus:
+        case Tok::Plus:
+            key = number_pattern();
+            break;
+        case Tok::Str:
+        case Tok::Bytes:
+            key = atom();
+            break;
+        case Tok::FStr:
+            return fail("patterns may not match formatted string literals");
+        case Tok::KwNone:
+        case Tok::KwTrue:
+        case Tok::KwFalse:
+            key = atom();
+            break;
+        case Tok::Name:
+            key = name_or_attr();
+            if (key && ast->at(key).kind != Nd::Attribute)
+                return fail_node("invalid syntax", key);
+            break;
+        default:
+            return fail("invalid syntax");
+        }
+        if (!key || !expect(Tok::Colon, "expected ':'"))
+            return 0;
+        u32 p = pattern();
+        if (!p || !keys.push(key) || !pats.push(p))
+            return p ? fail("out of memory") : 0;
+        if (!take(Tok::Comma))
+            break;
+    }
+    if (!expect(Tok::RBrace, "expected '}'"))
+        return 0;
+    u32 n = add(Nd::MatchMapping, rest ? rest : t);
+    if (!n)
+        return 0;
+    const List *two[2] = { &keys, &pats };
+    if (!run_of(n, two, 2))
+        return 0;
+    node(n).a     = u32(keys.size());
+    node(n).flags = rest ? 1 : 0;
+    return n;
+}
+
+// `Point(x, y=0)`, the class already parsed.
+u32 Parser::class_pattern(u32 cls)
+{
+    u32 t = u32(i);
+    bump(); // (
+    List args, kws;
+    while (!at(Tok::RPar)) {
+        if (at(Tok::Name) && kind(1) == Tok::Equal) {
+            u32 kt = u32(i);
+            bump();
+            bump();
+            u32 p = pattern();
+            u32 k = p ? add(Nd::Keyword, kt) : 0;
+            if (!k)
+                return 0;
+            node(k).flags = 1;
+            node(k).a     = p;
+            if (!hold(kws, k))
+                return 0;
+        } else {
+            if (kws.size())
+                return fail("positional patterns follow keyword patterns");
+            if (!hold(args, pattern()))
+                return 0;
+        }
+        if (!take(Tok::Comma))
+            break;
+    }
+    if (!expect(Tok::RPar, "expected ')'"))
+        return 0;
+    u32 n = add(Nd::MatchClass, t);
+    if (!n)
+        return 0;
+    const List *two[2] = { &args, &kws };
+    if (!run_of(n, two, 2))
+        return 0;
+    node(n).a = cls;
+    node(n).b = u32(args.size());
+    return n;
+}
+
+// ---------------------------------------------------------------- PEP 695
+
+// `[T, *Ts, **P]` after a name, when there is one; `into` is left empty
+// otherwise.
+bool Parser::type_params(List &into)
+{
+    if (!take(Tok::LSqb))
+        return true;
+    if (at(Tok::RSqb))
+        return fail("Type parameter list cannot be empty"), false;
+    while (!at(Tok::RSqb)) {
+        if (!hold(into, type_param()))
+            return false;
+        if (!take(Tok::Comma))
+            break;
+    }
+    return expect(Tok::RSqb, "expected ']'");
+}
+
+u32 Parser::type_param()
+{
+    Nd kind = take(Tok::DStar) ? Nd::ParamSpec : take(Tok::Star) ? Nd::TypeVarTuple : Nd::TypeVar;
+    if (!at(Tok::Name))
+        return fail("expected a type parameter name");
+    u32 n = add(kind, u32(i));
+    bump();
+    if (!n)
+        return 0;
+    if (at(Tok::Colon)) {
+        if (kind == Nd::TypeVarTuple)
+            return fail("cannot use bound with TypeVarTuple");
+        if (kind == Nd::ParamSpec)
+            return fail("cannot use bound with ParamSpec");
+        bump();
+        if (!(node(n).a = ternary()))
+            return 0;
+    }
+    if (take(Tok::Equal)) {
+        // A TypeVarTuple's default may be starred: `*Ts = *tuple[int]`.
+        u32 d = kind == Nd::TypeVarTuple ? starred_or(true, &Parser::ternary) : ternary();
+        if (!d)
+            return 0;
+        node(n).b = d;
+    }
+    return n;
+}
+
+// `type X = ...` and `type X[T] = ...`: `type` is soft.
+bool Parser::type_alias_ahead() const
+{
+    return soft("type") && kind(1) == Tok::Name && (kind(2) == Tok::Equal || kind(2) == Tok::LSqb);
+}
+
+u32 Parser::type_alias()
+{
+    u32 t = u32(i);
+    bump(); // type
+    u32 name = add(Nd::Name, u32(i));
+    bump();
+    if (!name)
+        return 0;
+    List params;
+    if (!type_params(params) || !expect(Tok::Equal, "expected '='"))
+        return 0;
+    u32 value = expression();
+    if (!value)
+        return 0;
+    u32 n = add(Nd::TypeAlias, t);
+    if (!n || !run_of(n, params))
+        return 0;
+    node(n).a = name;
+    node(n).b = value;
+    node(n).c = u32(params.size());
+    return n;
 }
 
 bool Parser::run()

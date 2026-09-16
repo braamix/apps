@@ -8,6 +8,7 @@
 #include "err.h"
 #include "kernel/fmt.h"
 #include "ops.h"
+#include "typevar.h"
 
 namespace {
 
@@ -142,6 +143,11 @@ void Lister::hint(const CodeObj *c, const Instr &in)
         put(cmp_symbol(Cmp(in.arg)));
         put(')');
         return;
+    case Arg::Intr:
+        put(" (");
+        put(intrinsic_name(in.arg));
+        put(')');
+        return;
     case Arg::Flags:
         if (in.op == Bc::MakeFunction) {
             if (!in.arg)
@@ -162,7 +168,7 @@ void Lister::hint(const CodeObj *c, const Instr &in)
                 put("closure");
             }
             put(')');
-        } else if (in.op == Bc::FormatValue) {
+        } else if (in.op == Bc::FormatValue || in.op == Bc::BuildInterpolation) {
             if (!in.arg)
                 return;
             put(" (");

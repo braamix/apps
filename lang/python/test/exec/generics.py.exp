@@ -1,0 +1,26 @@
+3 (T,) ident ident
+T None True typing TypeVar
+(1, 2, 3) (2,) {'c': 3} <class 'int'> (<class 'int'>, <class 'str'>) Ts P
+P.args P.kwargs [typing.Unpack[Ts]]
+2 2 (T,) (T,) (<class 'typing.Generic'>, <class 'object'>)
+(typing.Generic[T],) __main__.Box[int] (U,) Box.map
+True Box Box
+(<class 'dict'>, <class 'typing.Generic'>, <class 'object'>) __main__.Pair[int] <class 'str'> {'a': 1}
+Alias list[int] () Gen dict[K, V] (K, V) Gen[str, int]
+TypeAliasType Alias __main__
+lazy: name 'Undefined' is not defined
+<class 'float'>
+lazy bound: name 'Missing' is not defined
+<class 'bytes'>
+list[Rec] | None
+<class 'int'> <class 'int'>
+(<class 'str'>, <class 'str'>)
+5 True
+duplicate type parameter 'T'
+Type parameter list cannot be empty
+cannot use bound with TypeVarTuple
+cannot use bound with ParamSpec
+non-default type parameter 'U' follows default type parameter
+yield expression cannot be used within a TypeVar bound
+reserved name '__classdict__' cannot be used for type parameter
+() True ()
