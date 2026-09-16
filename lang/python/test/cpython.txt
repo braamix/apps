@@ -20,11 +20,13 @@
 # state  case  result  commit  upstream
 fail  test_augassign.py             syntax  82952e3  Lib/test/test_augassign.py
 pass  test_decorators.py            12/16   82952e3  Lib/test/test_decorators.py
+pass  test_errno.py                 3/3     82952e3  Lib/test/test_errno.py
 fail  test_exception_variations.py  syntax  82952e3  Lib/test/test_exception_variations.py
 pass  test_int_literal.py           6/6     82952e3  Lib/test/test_int_literal.py
 pass  test_keywordonlyarg.py        8/11    82952e3  Lib/test/test_keywordonlyarg.py
 pass  test_longexp.py               1/1     82952e3  Lib/test/test_longexp.py
 fail  test_named_expressions.py     syntax  82952e3  Lib/test/test_named_expressions.py
+pass  test_pow.py                   3/7     82952e3  Lib/test/test_pow.py
 pass  test_property.py              9/31    82952e3  Lib/test/test_property.py
 pass  test_typechecks.py            6/6     82952e3  Lib/test/test_typechecks.py
 pass  test_unary.py                 6/6     82952e3  Lib/test/test_unary.py

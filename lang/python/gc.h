@@ -15,6 +15,7 @@
 #include "value.h"
 
 struct Obj;
+struct ListObj;
 
 // A run of values the collector must treat as reachable. Intrusive, so a pin
 // costs three stores and no allocation. Stack discipline: destroyed in reverse.
@@ -62,6 +63,21 @@ void gc_root_hook(void (*f)());
 // Collect at every allocation. Slow, and it turns a missing Root into a
 // failure the selftest can see.
 void gc_stress(bool on);
+
+// The automatic collection at an allocation, which `gc.disable()` turns off.
+// An explicit gc_collect() still runs.
+void gc_enable(bool on);
+bool gc_enabled();
+
+// The bytes allocated since the last collection, and the pressure at which the
+// next one happens. `gc.get_threshold` and `gc.set_threshold` are these, in
+// bytes rather than CPython's generation counts.
+usize gc_pressure();
+usize gc_threshold();
+void gc_set_threshold(usize bytes);
+
+// Every live object, as a fresh list. Null with the error pending.
+ListObj *gc_objects();
 
 struct GcStats {
     usize objects;     // live, immortals included

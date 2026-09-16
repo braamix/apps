@@ -839,7 +839,17 @@ Value mro_entries_of(Value base)
 {
     if (is_type(base))
         return Value();
-    return type_special(base, "__mro_entries__");
+    Value m = type_special(base, "__mro_entries__");
+    if (!m.is_nil())
+        return m;
+    // A built-in object answers out of its own method table rather than a
+    // class namespace: a generic alias stands for the class it was made from.
+    StrObj *n = str_intern("__mro_entries__");
+    Value found;
+    if (n && base.is_obj() && method_find(base, n, found) == R::Ok)
+        return found;
+    err_clear();
+    return Value();
 }
 
 // s[0] the body, s[1] the name, s[2] the bases, s[3] the namespace, s[4] the
@@ -1765,6 +1775,21 @@ bool type_has_special(Value v, Str name)
     StrObj *n = str_intern(name);
     Value found;
     return n && type_lookup(inst_of(v)->cls, n, found) == R::Ok;
+}
+
+bool type_has_py_special(Value v, Str name)
+{
+    if (!is_inst(v))
+        return false;
+    StrObj *n = str_intern(name);
+    Value found;
+    if (!n || type_lookup(inst_of(v)->cls, n, found) != R::Ok)
+        return false;
+    // A subclass of a built-in inherits the protocol methods from the
+    // built-in's own namespace, and each of those is a native over the slot
+    // the instance already carries. Only a method written in Python needs a
+    // frame, and that is the whole question here.
+    return !is_native(found);
 }
 
 // The `__new__` a class wrote itself, rather than the one object lends it.

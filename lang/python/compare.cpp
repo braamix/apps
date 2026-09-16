@@ -434,9 +434,9 @@ bool cmp_is_python(Value v, bool order)
     if (!is_inst(v))
         return seq_is_python(v, order, 0);
     if (!order)
-        return type_has_special(v, "__eq__") || type_has_special(v, "__ne__");
-    return type_has_special(v, "__lt__") || type_has_special(v, "__gt__") ||
-           type_has_special(v, "__le__") || type_has_special(v, "__ge__");
+        return type_has_py_special(v, "__eq__") || type_has_py_special(v, "__ne__");
+    return type_has_py_special(v, "__lt__") || type_has_py_special(v, "__gt__") ||
+           type_has_py_special(v, "__le__") || type_has_py_special(v, "__ge__");
 }
 
 bool cmp_any_python(const Vec<Value> &xs, bool order)

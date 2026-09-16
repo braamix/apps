@@ -354,7 +354,9 @@ Rules that are a compile error, link error or trap rather than a warning:
   not exist). Make it POD or hide it behind a pointer built on first use.
 - Keep coroutine frames under 512 bytes; a frame past that costs a whole 64 KiB
   span. Long-lived state goes in a heap block the frame points at.
-- The memory cap is 16 MB and it belongs to the kernel, not the binary.
+- The memory cap is 100 MB (`PROC_MAX_PAGES` in
+  `../braam-core/src/kernel/sysabi.h`) and it belongs to the kernel, not the
+  binary.
 - A construct needing a compiler-rt builtin — 128-bit division, an outlined
   `memcpy` — will not link. **`long double` is the same**: it is 113-bit quad
   here, so the `l`-suffixed half of `<math.h>` does not exist. Ordinary

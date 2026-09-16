@@ -4,7 +4,6 @@
 // from inside the iterator protocol and py_next has no way to suspend.
 #include "builtin.h"
 
-#include "abc.h"
 #include "bigint.h"
 #include "call.h"
 #include "compare.h"
@@ -24,11 +23,11 @@
 #include "math/ftoa.h"
 #include "math/math.h"
 #include "method.h"
+#include "module.h"
 #include "ops.h"
 #include "parse.h"
 #include "type.h"
 #include "vm.h"
-#include "weak.h"
 
 namespace {
 
@@ -38,10 +37,6 @@ namespace {
 struct Home {
     Value builtins;
     Value builtins_mod;
-    Value sys;
-    Value weakref;
-    Value abc;
-    Value argv;
     String *sink;
 };
 
@@ -60,10 +55,6 @@ void home_mark()
         return;
     gc_mark(home->builtins);
     gc_mark(home->builtins_mod);
-    gc_mark(home->weakref);
-    gc_mark(home->abc);
-    gc_mark(home->sys);
-    gc_mark(home->argv);
 }
 
 R oom()
@@ -103,7 +94,7 @@ Value text_of(Value v, bool want_str)
     return Value();
 }
 
-R print_line(const Value *args, u32 n, Str sep, Str end);
+R print_line(const Value *args, u32 n, Str sep, Str end, Value file, Value &out);
 
 // Text already rendered, standing in for the instance that answered it. A
 // container's repr is C++ and cannot call Python, so an instance inside one is
@@ -312,16 +303,24 @@ R print_step(ContObj *k, Value in)
 
     Str sep = is_str(k->s[2]) ? str_of(k->s[2])->str() : Str(" ");
     Str end = is_str(k->s[3]) ? str_of(k->s[3])->str() : Str("\n");
-    if (print_line(xs->items.data(), u32(xs->items.size()), sep, end) != R::Ok)
+    Value wrote;
+    if (print_line(xs->items.data(), u32(xs->items.size()), sep, end, k->s[6], wrote) != R::Ok)
         return R::Err;
-    return cont_done(k, value_none());
+    return cont_done(k, wrote.is_nil() ? value_none() : wrote);
 }
 
 R b_print(const CallArgs &a, Value &out)
 {
     Str sep = " ", end = "\n";
+    Root file;
     for (u32 k = 0; k < a.nkw; k++) {
         Str name = is_str(a.kwnames[k]) ? str_of(a.kwnames[k])->str() : Str();
+        if (name == "file") {
+            file = a.kwvals[k];
+            continue;
+        }
+        if (name == "flush")
+            continue; // nothing is held back here: the VM decides when to write
         if (!is_str(a.kwvals[k]))
             return err_set2("TypeError", "print() argument must be str", name);
         if (name == "sep")
@@ -363,17 +362,24 @@ R b_print(const CallArgs &a, Value &out)
         cont_of(kv.v)->s[0] = rl.v;
         cont_of(kv.v)->s[2] = sv.v;
         cont_of(kv.v)->s[3] = ev.v;
+        cont_of(kv.v)->s[6] = file.v;
         out                 = kv.v;
         return R::Ok;
     }
-    if (print_line(a.args, a.nargs, sep, end) != R::Ok)
+    Value wrote;
+    if (print_line(a.args, a.nargs, sep, end, file.v, wrote) != R::Ok)
         return R::Err;
-    out = value_none();
+    out = wrote.is_nil() ? value_none() : wrote;
     return R::Ok;
 }
 
-R print_line(const Value *args, u32 n, Str sep, Str end)
+// The whole line, then wherever sys.stdout says it goes. `out` comes back a
+// ContObj when the program has put an object of its own there, and Nil when
+// the text has already been buffered.
+R print_line(const Value *args, u32 n, Str sep, Str end, Value file, Value &out)
 {
+    Roots pin{ const_cast<Value *>(args), n };
+    Root rf{ file };
     String line;
     for (u32 i = 0; i < n; i++) {
         if (i && !line.append(sep))
@@ -383,8 +389,7 @@ R print_line(const Value *args, u32 n, Str sep, Str end)
     }
     if (!line.append(end))
         return oom();
-    String *sink = here() ? here()->sink : nullptr;
-    return sink && !sink->append(line.str()) ? oom() : R::Ok;
+    return sys_write(rf.v, line.str(), out);
 }
 
 // ------------------------------------------------------------- conversions
@@ -932,13 +937,56 @@ R b_complex(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// float("1.5"), float(" nan "), float("1_000.5"): strtod's grammar with the
+// space trimmed and the underscores taken out, which is what CPython's
+// float() takes and parse_f64 does not.
+bool float_of_text(Str s, f64 &out)
+{
+    String clean;
+    usize at = 0, end = s.size();
+    while (at < end && is_space(s[at]))
+        at++;
+    while (end > at && is_space(s[end - 1]))
+        end--;
+    for (usize i = at; i < end; i++) {
+        // An underscore is only legal between digits, which is what makes
+        // "1__0" and "_1" errors rather than one.
+        if (s[i] == '_') {
+            if (i == at || i + 1 >= end || !is_digit(s[i - 1]) || !is_digit(s[i + 1]))
+                return false;
+            continue;
+        }
+        if (!clean.push(s[i]))
+            return false;
+    }
+    // strtod takes hexadecimal and Python's float() does not.
+    Str body   = clean.str();
+    usize sign = body.size() && (body[0] == '+' || body[0] == '-') ? 1 : 0;
+    if (body.size() > sign + 1 && body[sign] == '0' &&
+        (body[sign + 1] == 'x' || body[sign + 1] == 'X'))
+        return false;
+    Option<f64> got = parse_f64(body);
+    if (!got.has_value())
+        return false;
+    out = got.value();
+    return true;
+}
+
 R b_float(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "float", 0, 1))
         return R::Err;
     f64 v = 0;
-    if (a.nargs && !as_number(a.args[0], v))
-        return err_set2("TypeError", "float() argument must be a number", type_name(a.args[0]));
+    if (a.nargs && !as_number(a.args[0], v)) {
+        Str text;
+        if (is_str(a.args[0]))
+            text = str_of(a.args[0])->str();
+        else if (!bytes_like(a.args[0], text))
+            return err_set2("TypeError", "float() argument must be a number or a string",
+                            type_name(a.args[0]));
+        if (!float_of_text(text, v))
+            return err_set2("ValueError", "could not convert string to float", text);
+    }
     out = float_new(v);
     return out.is_nil() ? R::Err : R::Ok;
 }
@@ -999,7 +1047,9 @@ R b_dict(const CallArgs &a, Value &out)
         return oom();
     Root rd{ obj_value(d) };
     if (a.nargs) {
-        Root src{ a.args[0] };
+        // A dict subclass stands for the dict inside it, so dict(d) copies
+        // the mapping rather than trying to walk it as pairs.
+        Root src{ method_self(a.args[0]) };
         if (is_dict(src.v)) {
             usize at = 0;
             Value k, v;
@@ -1465,7 +1515,7 @@ R b_next(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "next", 1, 2))
         return R::Err;
-    if (is_gen(a.args[0]) || type_has_special(a.args[0], "__next__")) {
+    if (is_gen(a.args[0]) || type_has_py_special(a.args[0], "__next__")) {
         Root m{ is_gen(a.args[0]) ? genrun_new(a.args[0], GR_NEXT)
                                   : type_special(a.args[0], "__next__") };
         if (m.v.is_nil())
@@ -2000,22 +2050,6 @@ R b_slice(const CallArgs &a, Value &out)
 
 // --------------------------------------------------------------------- sys
 
-R b_exit(const CallArgs &a, Value &out)
-{
-    if (!args_only(a, "exit", 0, 1))
-        return R::Err;
-    TupleObj *args = tuple_new(a.nargs);
-    if (!args)
-        return oom();
-    for (u32 i = 0; i < a.nargs; i++)
-        args->items()[i] = a.args[i];
-    Value e = exc_new(exc_find("SystemExit"), obj_value(args));
-    if (e.is_nil())
-        return R::Err;
-    out = Value();
-    return err_set_value(e);
-}
-
 // ------------------------------------------------- compile, eval and exec
 
 // What a source may arrive as. CPython takes bytes here too.
@@ -2458,140 +2492,20 @@ DictObj *builtins_dict()
     return static_cast<DictObj *>(h->builtins.obj());
 }
 
-Value builtin_module(Str name)
+Value builtins_module()
 {
     Home *h = here();
     if (!h)
         return oom(), Value();
-    // `builtins` is the namespace every frame already falls back to, wrapped
-    // in a module so it can be imported like anything else.
-    if (name == "builtins") {
-        if (h->builtins_mod.is_nil()) {
-            DictObj *b = builtins_dict();
-            Root m{ module_new("builtins") };
-            if (!b || m.v.is_nil())
-                return Value();
-            static_cast<ModuleObj *>(m.v.obj())->dict = obj_value(b);
-            h->builtins_mod                           = m.v;
-        }
-        return h->builtins_mod;
-    }
-    // The weak references, and the two counters that go with them. This is
-    // the floor CPython's weakref.py stands on, not that module itself.
-    if (name == "_weakref") {
-        if (h->weakref.is_nil()) {
-            Root m{ module_new("_weakref") };
-            if (m.v.is_nil() || !weak_install(module_dict(m.v)))
-                return Value();
-            h->weakref = m.v;
-        }
-        return h->weakref;
-    }
-    // The abstract base classes, which abc.py prefers over its own fallback.
-    if (name == "_abc") {
-        if (h->abc.is_nil()) {
-            Root m{ module_new("_abc") };
-            StrObj *n = str_intern("issubclass");
-            Value fn;
-            if (m.v.is_nil() || !n)
-                return Value();
-            if (dict_get(builtins_dict(), obj_value(n), fn) != R::Ok ||
-                !abc_install(module_dict(m.v), fn))
-                return Value();
-            h->abc = m.v;
-        }
-        return h->abc;
-    }
-    // Nil and no error: the loader goes looking for a file instead.
-    if (name != "sys")
-        return Value();
-    if (!h->sys.is_nil())
-        return h->sys;
-
-    Value m = module_new("sys");
-    if (m.is_nil())
-        return Value();
-    h->sys       = m;
-    StrObj *argv = str_intern("argv");
-    StrObj *exit = str_intern("exit");
-    Value fn     = native_new("exit", b_exit);
-    if (!argv || !exit || fn.is_nil())
-        return Value();
-    Root rf{ fn };
-    if (dict_set(module_dict(h->sys), obj_value(argv), h->argv.is_nil() ? value_none() : h->argv) !=
-            R::Ok ||
-        dict_set(module_dict(h->sys), obj_value(exit), rf.v) != R::Ok)
-        return Value();
-
-    // sys.implementation, which a portable test reads to know where it is.
-    Root impl{ module_new("implementation") };
-    if (impl.v.is_nil())
-        return Value();
-    StrObj *nm = str_intern("name");
-    Value who  = str_new("braam");
-    if (!nm || who.is_nil() || dict_set(module_dict(impl.v), obj_value(nm), who) != R::Ok)
-        return Value();
-    // sys.flags, which a test reads to know whether docstrings are there.
-    // The rest of sys is phase 18; these three are what this suite asks for.
-    Root flags{ module_new("flags") };
-    if (flags.v.is_nil())
-        return Value();
-    static constexpr Str FLAG_NAMES[] = { "optimize", "debug", "verbose" };
-    for (Str one : FLAG_NAMES) {
-        StrObj *f = str_intern(one);
-        if (!f || dict_set(module_dict(flags.v), obj_value(f), Value::of_int(0)) != R::Ok)
+    if (h->builtins_mod.is_nil()) {
+        DictObj *b = builtins_dict();
+        Root m{ module_new("builtins") };
+        if (!b || m.v.is_nil())
             return Value();
+        static_cast<ModuleObj *>(m.v.obj())->dict = obj_value(b);
+        h->builtins_mod                           = m.v;
     }
-    StrObj *fl = str_intern("flags");
-    if (!fl || dict_set(module_dict(h->sys), obj_value(fl), flags.v) != R::Ok)
-        return Value();
-
-    StrObj *key = str_intern("implementation");
-    StrObj *pl  = str_intern("platform");
-    Value plat  = str_new("braam");
-    if (!key || !pl || plat.is_nil() ||
-        dict_set(module_dict(h->sys), obj_value(key), impl.v) != R::Ok ||
-        dict_set(module_dict(h->sys), obj_value(pl), plat) != R::Ok)
-        return Value();
-
-    // The language this aims at, and the implementation's own number. The rest
-    // of sys is phase 18.
-    Root ver{ str_new("3.9.0 (braam)") };
-    TupleObj *vi = tuple_new(5);
-    if (ver.v.is_nil() || !vi)
-        return Value();
-    Root rvi{ obj_value(vi) };
-    Value parts[5] = { Value::of_int(3), Value::of_int(9), Value::of_int(0), Value(),
-                       Value::of_int(0) };
-    parts[3]       = str_new("final");
-    if (parts[3].is_nil())
-        return Value();
-    for (u32 i = 0; i < 5; i++)
-        static_cast<TupleObj *>(rvi.v.obj())->items()[i] = parts[i];
-    StrObj *vn = str_intern("version");
-    StrObj *vt = str_intern("version_info");
-    if (!vn || !vt || dict_set(module_dict(h->sys), obj_value(vn), ver.v) != R::Ok ||
-        dict_set(module_dict(h->sys), obj_value(vt), rvi.v) != R::Ok)
-        return Value();
-
-    // The cache and the search path are the loader's, and a program reads and
-    // writes both through here.
-    StrObj *mods = str_intern("modules");
-    StrObj *path = str_intern("path");
-    DictObj *sm  = sys_modules();
-    Root sp{ sys_path() };
-    if (!mods || !path || !sm || sp.v.is_nil() ||
-        dict_set(module_dict(h->sys), obj_value(mods), obj_value(sm)) != R::Ok ||
-        dict_set(module_dict(h->sys), obj_value(path), sp.v) != R::Ok)
-        return Value();
-    return h->sys;
-}
-
-void sys_set_argv(Value argv)
-{
-    Home *h = here();
-    if (h)
-        h->argv = argv;
+    return h->builtins_mod;
 }
 
 Value format_special(Value v, Str spec)

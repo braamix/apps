@@ -50,7 +50,8 @@ struct Type {
     Value (*iter)(Value)                          = nullptr; // Nil on error
     R (*next)(Value, Value &out)                  = nullptr; // NotImpl at the end
     R (*getattr)(Value, StrObj *name, Value &out) = nullptr; // NotImpl: no such
-    R (*setattr)(Value, StrObj *name, Value v)    = nullptr; // null: immutable
+    // A Nil `v` is `del o.name`; null: immutable, and both are refused.
+    R (*setattr)(Value, StrObj *name, Value v) = nullptr;
 };
 
 // Sixteen bytes, the smallest size class. `next` is the heap list, which

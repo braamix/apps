@@ -15,6 +15,10 @@
 #
 # state  case  exp  commit  upstream
 pass  basics/andor.py                           cpython3.9  52b5fbc  tests/basics/andor.py
+pass  basics/array1.py                          cpython3.9  52b5fbc  tests/basics/array1.py
+pass  basics/array_add.py                       cpython3.9  52b5fbc  tests/basics/array_add.py
+pass  basics/array_construct.py                 cpython3.9  52b5fbc  tests/basics/array_construct.py
+pass  basics/array_construct2.py                cpython3.9  52b5fbc  tests/basics/array_construct2.py
 fail  basics/array_intbig.py                    cpython3.9  52b5fbc  tests/basics/array_intbig.py
 pass  basics/bool1.py                           cpython3.9  52b5fbc  tests/basics/bool1.py
 fail  basics/boundmeth1.py                      cpython3.9  52b5fbc  tests/basics/boundmeth1.py
@@ -61,6 +65,7 @@ pass  basics/builtin_round.py                   cpython3.9  52b5fbc  tests/basic
 pass  basics/builtin_round_int.py               cpython3.9  52b5fbc  tests/basics/builtin_round_int.py
 pass  basics/builtin_round_intbig.py            cpython3.9  52b5fbc  tests/basics/builtin_round_intbig.py
 pass  basics/builtin_setattr.py                 cpython3.9  52b5fbc  tests/basics/builtin_setattr.py
+pass  basics/builtin_slice.py                   cpython3.9  52b5fbc  tests/basics/builtin_slice.py
 pass  basics/builtin_sorted.py                  cpython3.9  52b5fbc  tests/basics/builtin_sorted.py
 pass  basics/builtin_sum.py                     cpython3.9  52b5fbc  tests/basics/builtin_sum.py
 pass  basics/builtin_super.py                   cpython3.9  52b5fbc  tests/basics/builtin_super.py
@@ -142,6 +147,8 @@ pass  basics/del_global.py                      cpython3.9  52b5fbc  tests/basic
 pass  basics/del_local.py                       cpython3.9  52b5fbc  tests/basics/del_local.py
 pass  basics/del_name.py                        cpython3.9  52b5fbc  tests/basics/del_name.py
 pass  basics/del_subscr.py                      cpython3.9  52b5fbc  tests/basics/del_subscr.py
+fail  basics/deque1.py                          cpython3.9  52b5fbc  tests/basics/deque1.py
+fail  basics/deque2.py                          cpython3.9  52b5fbc  tests/basics/deque2.py
 fail  basics/dict1.py                           cpython3.9  52b5fbc  tests/basics/dict1.py
 pass  basics/dict2.py                           cpython3.9  52b5fbc  tests/basics/dict2.py
 pass  basics/dict_clear.py                      cpython3.9  52b5fbc  tests/basics/dict_clear.py
@@ -156,10 +163,12 @@ pass  basics/dict_iterator.py                   cpython3.9  52b5fbc  tests/basic
 pass  basics/dict_pop.py                        cpython3.9  52b5fbc  tests/basics/dict_pop.py
 pass  basics/dict_popitem.py                    cpython3.9  52b5fbc  tests/basics/dict_popitem.py
 pass  basics/dict_setdefault.py                 cpython3.9  52b5fbc  tests/basics/dict_setdefault.py
+pass  basics/dict_specialmeth.py                cpython3.9  52b5fbc  tests/basics/dict_specialmeth.py
 pass  basics/dict_update.py                     cpython3.9  52b5fbc  tests/basics/dict_update.py
 pass  basics/dict_views.py                      cpython3.9  52b5fbc  tests/basics/dict_views.py
 pass  basics/equal.py                           cpython3.9  52b5fbc  tests/basics/equal.py
 pass  basics/equal_class.py                     cpython3.9  52b5fbc  tests/basics/equal_class.py
+fail  basics/errno1.py                          upstream    52b5fbc  tests/basics/errno1.py
 pass  basics/except_match_tuple.py              cpython3.9  52b5fbc  tests/basics/except_match_tuple.py
 pass  basics/exception1.py                      cpython3.9  52b5fbc  tests/basics/exception1.py
 fail  basics/exception_chain.py                 upstream    52b5fbc  tests/basics/exception_chain.py
@@ -193,6 +202,7 @@ pass  basics/fun_largestate.py                  cpython3.9  52b5fbc  tests/basic
 pass  basics/fun_name.py                        cpython3.9  52b5fbc  tests/basics/fun_name.py
 pass  basics/fun_str.py                         cpython3.9  52b5fbc  tests/basics/fun_str.py
 pass  basics/fun_varargs.py                     cpython3.9  52b5fbc  tests/basics/fun_varargs.py
+pass  basics/gc1.py                             cpython3.9  52b5fbc  tests/basics/gc1.py
 fail  basics/gen_yield_from.py                  cpython3.9  52b5fbc  tests/basics/gen_yield_from.py
 pass  basics/gen_yield_from_close.py            cpython3.9  52b5fbc  tests/basics/gen_yield_from_close.py
 pass  basics/gen_yield_from_ducktype.py         cpython3.9  52b5fbc  tests/basics/gen_yield_from_ducktype.py
@@ -225,7 +235,7 @@ pass  basics/generator_throw_repeat.py          cpython3.9  52b5fbc  tests/basic
 pass  basics/getattr.py                         cpython3.9  52b5fbc  tests/basics/getattr.py
 pass  basics/ifcond.py                          cpython3.9  52b5fbc  tests/basics/ifcond.py
 pass  basics/int1.py                            cpython3.9  52b5fbc  tests/basics/int1.py
-fail  basics/int_big1.py                        cpython3.9  52b5fbc  tests/basics/int_big1.py
+pass  basics/int_big1.py                        cpython3.9  52b5fbc  tests/basics/int_big1.py
 pass  basics/int_big_add.py                     cpython3.9  52b5fbc  tests/basics/int_big_add.py
 pass  basics/int_big_and.py                     cpython3.9  52b5fbc  tests/basics/int_big_and.py
 pass  basics/int_big_and2.py                    cpython3.9  52b5fbc  tests/basics/int_big_and2.py
@@ -278,14 +288,19 @@ pass  basics/list_slice_assign_grow.py          cpython3.9  52b5fbc  tests/basic
 pass  basics/list_sort.py                       cpython3.9  52b5fbc  tests/basics/list_sort.py
 pass  basics/list_sum.py                        cpython3.9  52b5fbc  tests/basics/list_sum.py
 pass  basics/logic_constfolding.py              cpython3.9  52b5fbc  tests/basics/logic_constfolding.py
-fail  basics/memoryview1.py                     cpython3.9  52b5fbc  tests/basics/memoryview1.py
-fail  basics/memoryview2.py                     cpython3.9  52b5fbc  tests/basics/memoryview2.py
+pass  basics/memoryview1.py                     cpython3.9  52b5fbc  tests/basics/memoryview1.py
+pass  basics/memoryview2.py                     cpython3.9  52b5fbc  tests/basics/memoryview2.py
+pass  basics/memoryview_itemsize.py             cpython3.9  52b5fbc  tests/basics/memoryview_itemsize.py
 fail  basics/memoryview_slice_assign.py         cpython3.9  52b5fbc  tests/basics/memoryview_slice_assign.py
+fail  basics/memoryview_slice_size.py           upstream    52b5fbc  tests/basics/memoryview_slice_size.py
 pass  basics/object1.py                         cpython3.9  52b5fbc  tests/basics/object1.py
 pass  basics/object_dict.py                     cpython3.9  52b5fbc  tests/basics/object_dict.py
 fail  basics/object_new.py                      cpython3.9  52b5fbc  tests/basics/object_new.py
 pass  basics/op_error.py                        cpython3.9  52b5fbc  tests/basics/op_error.py
 pass  basics/op_precedence.py                   cpython3.9  52b5fbc  tests/basics/op_precedence.py
+fail  basics/ordereddict1.py                    cpython3.9  52b5fbc  tests/basics/ordereddict1.py
+fail  basics/ordereddict_eq.py                  upstream    52b5fbc  tests/basics/ordereddict_eq.py
+fail  basics/ordereddict_fromkeys.py            cpython3.9  52b5fbc  tests/basics/ordereddict_fromkeys.py
 fail  basics/parser.py                          upstream    52b5fbc  tests/basics/parser.py
 pass  basics/scope.py                           cpython3.9  52b5fbc  tests/basics/scope.py
 pass  basics/scope_class.py                     cpython3.9  52b5fbc  tests/basics/scope_class.py
@@ -306,6 +321,7 @@ pass  basics/set_isfooset.py                    cpython3.9  52b5fbc  tests/basic
 pass  basics/set_iter.py                        cpython3.9  52b5fbc  tests/basics/set_iter.py
 pass  basics/set_pop.py                         cpython3.9  52b5fbc  tests/basics/set_pop.py
 pass  basics/set_remove.py                      cpython3.9  52b5fbc  tests/basics/set_remove.py
+pass  basics/set_specialmeth.py                 cpython3.9  52b5fbc  tests/basics/set_specialmeth.py
 pass  basics/set_symmetric_difference.py        cpython3.9  52b5fbc  tests/basics/set_symmetric_difference.py
 pass  basics/set_type.py                        cpython3.9  52b5fbc  tests/basics/set_type.py
 pass  basics/set_union.py                       cpython3.9  52b5fbc  tests/basics/set_union.py
@@ -348,6 +364,9 @@ pass  basics/string_splitlines.py               cpython3.9  52b5fbc  tests/basic
 pass  basics/string_startswith.py               cpython3.9  52b5fbc  tests/basics/string_startswith.py
 pass  basics/string_strip.py                    cpython3.9  52b5fbc  tests/basics/string_strip.py
 pass  basics/string_upperlow.py                 cpython3.9  52b5fbc  tests/basics/string_upperlow.py
+fail  basics/struct1.py                         cpython3.9  52b5fbc  tests/basics/struct1.py
+fail  basics/struct2.py                         cpython3.9  52b5fbc  tests/basics/struct2.py
+fail  basics/struct_endian.py                   cpython3.9  52b5fbc  tests/basics/struct_endian.py
 fail  basics/subclass_native1.py                cpython3.9  52b5fbc  tests/basics/subclass_native1.py
 pass  basics/subclass_native2_list.py           cpython3.9  52b5fbc  tests/basics/subclass_native2_list.py
 pass  basics/subclass_native2_tuple.py          cpython3.9  52b5fbc  tests/basics/subclass_native2_tuple.py

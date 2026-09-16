@@ -7,12 +7,13 @@
 // Null with the error pending.
 DictObj *builtins_dict();
 
-// `sys`, and nothing else written in C++ yet. Nil with no error pending for
-// any other name: the loader then goes looking for a file.
-Value builtin_module(Str name);
+// The builtins namespace as a module, so `import builtins` finds it.
+Value builtins_module();
 
-// What sys.argv answers, set by the driver before the program starts.
-void sys_set_argv(Value argv);
+// A module written in C++, built on the first import and cached. Nil with no
+// error pending for a name that is not one: the loader then goes looking for a
+// file. module.cpp holds the registry.
+Value builtin_module(Str name);
 
 // Where print writes. The VM owns the buffer and decides when to flush it.
 void print_sink(String *out);

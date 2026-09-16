@@ -115,3 +115,7 @@ R iter_park(const CallArgs &a, u32 at, R (*again)(const CallArgs &, Value &out),
 // there is no such file. The driver performs it, so the VM parks here; only
 // `import` needs this, and vm.h says what the driver sees.
 R cont_read(ContObj *k, Str path);
+
+// Inside a step: park for `ms`, and come back with None. time.sleep is the
+// only caller, and the driver is what actually waits.
+R cont_sleep(ContObj *k, u32 ms);

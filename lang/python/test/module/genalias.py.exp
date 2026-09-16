@@ -1,0 +1,16 @@
+list[int] dict[str, int] tuple[()] set[int] frozenset[str]
+True GenericAlias
+True False
+<class 'list'> (<class 'int'>,) ()
+True False False True
+2
+dict[str, list[int]] tuple[int, ...]
+[1] <class 'list'> [2, 3]
+(<class 'list'>, <class 'object'>) [1, 2] True
+True True
+True True
+TypeError
+namespace(a=1, b='x') 1 x {'a': 1, 'b': 'x'}
+namespace(a=1, b='x', c=[1]) True False
+namespace(b='x', c=[1]) ['b', 'c']
+namespace() False

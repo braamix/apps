@@ -206,6 +206,12 @@ Value type_special(Value v, Str name);
 // would be wrong in a hot path.
 bool type_has_special(Value v, Str name);
 
+// The same, counting only a method written in Python. slotmeth.cpp puts a
+// native for every protocol method in each built-in type's namespace, so a
+// built-in subclass answers type_has_special for all of them; what the VM
+// wants to know before it suspends is whether a frame has to be pushed.
+bool type_has_py_special(Value v, Str name);
+
 // `C[x]`: the metaclass's __getitem__ where it has one, else the class's own
 // __class_getitem__, which is an implicit classmethod (PEP 560). Nil for
 // anything that is not a class or does not answer.

@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 17.**
+**Phase 18.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -54,6 +54,11 @@ $ python -c 'def fib():
 g = fib()
 print([next(g) for _ in range(10)])'
 [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
+$ python -c 'import math, itertools as it
+print(math.isqrt(10**20), math.comb(52, 5))
+print(list(it.islice(it.count(10, 5), 4)))'
+100000000000 2598960
+[10, 15, 20, 25]
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
@@ -134,6 +139,29 @@ state machines that ask for one call at a time. `sorted`, `list.sort`, `min`,
 through it, and the merge is the same bottom-up stable one as the plain path,
 so a list of instances and a list of integers come out in the same order.
 
+**Sixteen modules are written in C++.** `sys` in full, `builtins`,
+`_collections`, `_functools`, `itertools`, `operator`, `_random`, `_struct`,
+`array`, `math`, `cmath`, `time`, `errno`, `gc`, `_types`, and the `_weakref`
+and `_abc` phase 17 wrote. They are the floor CPython's own library stands on
+rather than that library: `collections/__init__.py` will import this `deque`,
+`random.py` this Mersenne Twister, `re/` the `_sre` phase 19 writes. Each is
+measured against CPython by running the same program under both —
+[test/module/](test/module/), nine cases, 330 lines byte for byte.
+
+**The protocol methods are in each built-in type's namespace.** `len(x)`
+reaches a slot and a slot is not an entry, so `'__len__' in list.__dict__` used
+to be False and `dir(list)` listed none of them; every abstract base class in
+`collections.abc` decides membership by looking exactly those names up. Each is
+now a small native over the generic operation, installed from the slots the
+type fills, and `dict.__getitem__` is where a subclass's `__missing__` is
+finally consulted.
+
+**`list[int]` is a value.** The generic alias is the rest of PEP 560 beside
+the `__class_getitem__` phase 17 wrote: `__origin__`, `__args__`,
+`__mro_entries__` so `class C(list[int])` derives from `list`, and a call that
+is the class's. `types.GenericAlias` is `type(list[int])`, and `_types` is the
+native floor CPython's `types.py` opens by importing.
+
 **CPython's own `abc.py` runs here, byte for byte**, over an `_abc` written
 natively — the first module borrowed from the library rather than written.
 [lib/manifest.txt](lib/manifest.txt) records where it came from; the floor
@@ -142,40 +170,43 @@ under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
 `type.__subclasses__` and the rule that an abstract class cannot be
 instantiated.
 
-**385 of MicroPython's own tests pass unchanged**, and over the whole of
-`tests/basics/` — setting aside the async and t-string families — **428 of
-557**, against 424 at phase 16. What stops most of the rest is the modules,
-which are phase 18.
+**397 of MicroPython's own tests pass unchanged**, out of 432 in
+[test/manifest.txt](test/manifest.txt), against 385 of 413 at phase 17. The
+twenty-two new rows are this phase's: `array`, `deque`, `OrderedDict`,
+`struct`, `errno`, `gc`, `memoryview`'s item size and the special methods in a
+type's namespace. Eleven of them pass outright; the rest import `collections`
+or `struct` — the pure-Python wrappers, which are phase 20 — and say `SKIP`
+until then.
 
-**CPython's tests are the second ruler.** Twelve are in
-[test/cpython.txt](test/cpython.txt), nine of them run, and forty-nine test
-methods of eighty-three pass, against thirty-four of forty-six at phase 16:
-`test_typechecks.py` passes outright and `test_property.py` runs at all for the
-first time. Running the whole of
+**CPython's tests are the second ruler.** Fourteen are in
+[test/cpython.txt](test/cpython.txt), eleven of them run, and fifty-five test
+methods of ninety-three pass, against forty-nine of eighty-three at phase 17:
+`test_errno.py` and `test_pow.py` run for the first time, on `errno` and on
+`math`. Running the whole of
 `Lib/test/` under this interpreter — `node test/pycases.mjs --survey`, which
 needs the clone in `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 16 | 14 | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- | --- | --- |
-| 276 | a module that is not written yet | 276 | 276 | 213 | 130 | phase 18 |
-| 43 | other syntax — `@`, `except*`, `:=` in a subscript | 43 | 43 | 34 | 28 | phase 24 |
-| 33 | a lone surrogate in a literal | 33 | 33 | 31 | 31 | phase 22 |
-| 15 | `async` | 15 | 15 | 13 | 3 | phase 23 |
-| 14 | `\N{...}` | 14 | 14 | 12 | 12 | phase 22 |
-| 9 | these run | 7 | 7 | 5 | 3 | |
-| 1 | a runtime error, or nothing this can read | 3 | 3 | 3 | 2 | |
-| — | complex numbers | — | — | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | — | — | 39 | 17 | **done** |
-| — | f-strings | — | — | — | 124 | **done** |
+| now | what stops it | 17 | 16 | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 272 | a module that is not written yet | 276 | 276 | 276 | 213 | 130 | phase 20 |
+| 43 | other syntax — `@`, `except*`, `:=` in a subscript | 43 | 43 | 43 | 34 | 28 | phase 24 |
+| 33 | a lone surrogate in a literal | 33 | 33 | 33 | 31 | 31 | phase 22 |
+| 15 | `async` | 15 | 15 | 15 | 13 | 3 | phase 23 |
+| 14 | `\N{...}` | 14 | 14 | 14 | 12 | 12 | phase 22 |
+| 11 | these run | 9 | 7 | 7 | 5 | 3 | |
+| 3 | a runtime error, or nothing this can read | 1 | 3 | 3 | 3 | 2 | |
+| — | complex numbers | — | — | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | — | — | 39 | 17 | **done** |
+| — | f-strings | — | — | — | — | 124 | **done** |
 
-Three walls came down in phases 13 and 14, and what stops 276 of the 391 files
-now is a module nobody has written. This phase moved the only column it could
-reach: two of the three files that started and then failed now run to the end.
-Neither generators nor `exec` were ever what stopped a file here —
-`test_generators.py`, `test_funcattrs.py` and `test_compile.py` stop at an
-import of `doctest`, `typing` or `dis` — so what those phases moved is inside
-the files that already run, and that count is the number to read beside this
-table.
+Three walls came down in phases 13 and 14, and what stops 272 of the 391 files
+now is still an import. This phase moved that column for the first time — it
+had not moved since phase 14 — but only by four, and that is the honest
+measure of what a native floor buys on its own: `test_itertools.py` imports
+`doctest`, `test_array.py` imports `collections`, `test_math.py` wants a
+`test.support` this shim has not got. What those files stop on is the *library*,
+not the modules under it, and the library is phase 20. What phase 18 bought is
+what phase 20 will stand on.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -228,11 +259,27 @@ green.
 | [compare.h](compare.h), [compare.cpp](compare.cpp) | The sorts and searches that have to call Python, as continuations |
 | [weak.h](weak.h), [weak.cpp](weak.cpp) | Weak references, and the callbacks the sweep owes for them |
 | [abc.h](abc.h), [abc.cpp](abc.cpp) | `_abc`: the floor CPython's own abc.py stands on |
+| [genalias.h](genalias.h), [genalias.cpp](genalias.cpp) | `list[int]`: the generic alias, and PEP 560's other half |
+| [slotmeth.cpp](slotmeth.cpp) | The protocol methods in each built-in type's namespace |
+| [info.h](info.h), [info.cpp](info.cpp) | The struct sequence: a tuple whose fields also have names |
+| [binfmt.h](binfmt.h), [binfmt.cpp](binfmt.cpp) | One typecode's machine representation, which array and memoryview share |
+| [module.h](module.h), [module.cpp](module.cpp) | The registry of modules written in C++, and the helpers each installer uses |
+| [sysmod.cpp](sysmod.cpp) | `sys`: the three streams, the named tuples, and the interpreter looking at itself |
+| [mathmod.cpp](mathmod.cpp) | `math` and `cmath` over braam::math, with the exact half over the bignum |
+| [itermod.cpp](itermod.cpp) | `itertools`: the lazy half, and the eager half that has to call |
+| [opmod.cpp](opmod.cpp) | `operator`, attrgetter, itemgetter and methodcaller |
+| [collmod.cpp](collmod.cpp) | `_collections`: the deque ring, defaultdict and OrderedDict |
+| [functoolsmod.cpp](functoolsmod.cpp) | `_functools`: reduce, partial and the lru_cache wrapper |
+| [structmod.cpp](structmod.cpp) | `_struct`: the format language, and values to octets |
+| [arraymod.cpp](arraymod.cpp) | `array`: the only thing here that gives a buffer a width |
+| [randmod.cpp](randmod.cpp) | `_random`: MT19937, seeded the way CPython seeds it |
+| [miscmod.cpp](miscmod.cpp) | `time` over one clock reading, `errno` and `gc` |
+| [typesmod.cpp](typesmod.cpp) | `_types`: the names for types that are not builtins, and SimpleNamespace |
 | [lib/](lib/) | Modules taken from CPython's library, byte for byte |
 | [call.h](call.h), [call.cpp](call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
 | [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices, ranges and the three iterators |
-| [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, `sys` and `builtins` |
+| [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, and `builtins` as a module |
 | [import.h](import.h), [import.cpp](import.cpp) | The module cache, the search path, and the loader |
 | [selftest.cpp](selftest.cpp) | What `--selftest` checks |
 | [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary, run a command, read back what it wrote |
@@ -252,6 +299,7 @@ green.
 | [test/pynumber.mjs](test/pynumber.mjs) | The same for `test/number/`: the arithmetic that has one right answer |
 | [test/pygen.mjs](test/pygen.mjs) | The same for `test/gen/`: the generator protocol, delegation, and every consumer |
 | [test/pyexec.mjs](test/pyexec.mjs) | The same for `test/exec/`: compile, eval, exec, the namespaces and the attributes |
+| [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the sixteen modules written in C++ |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
@@ -390,13 +438,47 @@ All recorded rather than hidden, and all in reach later:
   is CPython's rule and takes the common case out of harm's way; a class that
   writes both gets a dict that agrees with `is` rather than with `==`.
   `hash(x)` itself is an opcode away from a frame and does call it.
-- **A built-in type's namespace holds no protocol methods.** `'__len__' in
-  list.__dict__` is False and `dir(list)` does not list it: `len(x)` reaches a
-  slot, not an entry. Phase 18 gives them entries, which is what
-  `collections.abc`'s `__subclasshook__` reads.
-- **`memoryview` is one octet wide and has no stride.** A slice of a step
-  other than 1 raises `NotImplementedError`, and `itemsize` and `format` are
-  not there; `array` is what would give them meaning, and it is phase 18.
+- **An operator dunder in a built-in type's namespace is a wrapper, not a slot
+  wrapper.** `list.__add__` is a native over the generic operation and is
+  installed only where the type really answers that operator, because
+  `Type::binop` is one slot for all twelve and cannot say which. So
+  `hasattr(list, '__and__')` is False here and True in CPython, where every
+  type inherits a stub from `object` that returns NotImplemented; the same
+  goes for `dict.__lt__`. What is asked of these names —
+  `collections.abc`'s `__subclasshook__` — reads the ones that mean something,
+  and those are exact.
+- **`itertools` calls a function over the whole input first.** `takewhile`,
+  `dropwhile`, `filterfalse`, `starmap`, `accumulate` and `groupby` park in a
+  continuation, run every item through the function and hand back an iterator
+  over what they kept. Same reason as `map`: a builtin cannot call Python. The
+  lazy ones — `count`, `cycle`, `repeat`, `chain`, `compress`, `islice`,
+  `pairwise`, `zip_longest`, `product` and the combinatorics — are lazy, so
+  `islice(count(), 5)` is fine and `takewhile(p, count())` is not.
+  `groupby`'s group is a list already built rather than CPython's shared
+  iterator, which makes it *more* usable: it survives the next key.
+- **`print` writes its line in one call.** CPython calls `sys.stdout.write`
+  once per argument and separator; this builds the line and writes it once. A
+  program that has put an object of its own in `sys.stdout` sees one call with
+  the whole line in it.
+- **A module's `real` and `imag` are not on `int` and `float`.** `(3).real`
+  raises; `complex` has both. Nothing here needs them until the numbers tower
+  in `numbers.py`.
+- **`_random` seeds a str differently.** An integer seed is spread with
+  CPython's own `init_by_array`, so `seed(42)` gives CPython's stream word for
+  word; a str or bytes seed is hashed here and put through `sha512` there, and
+  `random.py` never reaches this path because it does that conversion itself.
+- **`errno`'s numbers are musl's.** They are Linux's, which is the dialect the
+  port kit's `<errno.h>` already uses and the one a modern port's `#ifdef`
+  ladder is written against. A host whose libc numbers differ — macOS, where
+  `EAGAIN` is 35 — disagrees on the ones past 40.
+- **`gc` counts bytes, not generations.** There is one generation here, so
+  `get_count()` and `get_threshold()` report the allocation pressure in
+  kilobytes in their first element and zero in the other two, and
+  `set_threshold(n)` sets that pressure.
+- **`memoryview` is flat.** It has `itemsize`, `format`, `shape`, `strides`
+  and a step, and `cast()` recasts a contiguous one; but it is one-dimensional,
+  `strides` is one number, and the only things that give a buffer a width are
+  `array` and `cast`.
 - **`'ß'.isalpha()` is False.** The case table is by range and has no
   one-codepoint upper for it, so it is not counted as a letter. Phase 22
   replaces the ranges with the Unicode categories, and `isdecimal`,
@@ -681,6 +763,53 @@ two of the same class, because `do_richcompare` does -- that is what lets a
 class with only a `__lt__` answer `>` as well, and it is the one place a
 comparison differs from an arithmetic operator.
 
+## How a module is written in C++
+
+[module.h](module.h) is a name and a function that fills a fresh module's
+namespace. The loader asks the registry first — [import.cpp](import.cpp)'s
+`begin_load` — and goes looking for a file only when the name is not one of
+these, which is why `import time` finds this `time` with an empty `sys.path`
+and a `time.py` beside the program the moment there is one.
+
+An installer is a table and a loop:
+
+    constexpr ModDef DEFS[] = { { "reduce", b_reduce }, ... };
+
+    bool functools_install(DictObj *into)
+    {
+        return mod_defs(into, DEFS) && mod_type(into, &partial_type, b_partial);
+    }
+
+`mod_type` is the other half: a native type becomes a name in the namespace
+*and* callable, because `type_set_ctor` puts the constructor in the TypeObj's
+`__new__`. So `itertools.count` is a class rather than a factory,
+`type(count(1))` is `itertools.count`, and `chain.from_iterable` is a static
+method on it.
+
+Three things shape what the modules can be.
+
+**A builtin cannot call Python.** `reduce`, `partial`, `lru_cache`,
+`takewhile`, `groupby`, `operator.add` on a class instance, `defaultdict`'s
+`__missing__` — every one of them calls a function the program wrote, so every
+one of them is a `ContObj` that asks for one call at a time and lets the VM
+drive it. That is ground rule 2, and it is the same machinery `sorted(key=)`
+already used.
+
+**A builtin cannot step a generator.** Anything taking an iterable checks
+`iter_needs_vm` and parks on `iter_park`, which drains it into a list and
+enters the builtin again. The lazy iterators — `count`, `islice`, `chain` —
+walk their source with `py_next` instead, which works for every *native*
+iterable and is what makes `islice(count(), 5)` finite.
+
+**Two things cannot be asked for at all.** `tty_of` and `clock_now` are
+asynchronous syscalls and nothing under `vm_burst` awaits, so
+[braam.cpp](braam.cpp) reads both once before the program starts and hands them
+over: `sys_set_tty` and `time_set_clock`. `time.time()` counts on from that one
+wall reading with `Sys::Now`, which is monotonic and cannot name a day.
+`time.sleep` is the third and went the other way — it became a `Req`, because a
+sleep is exactly what a driver is for, and a `^C` reaches a sleeping program
+because of it.
+
 ## Testing
 
 `make test` from the top of the tree runs everything; one file at a time:
@@ -728,9 +857,9 @@ ends in `_err` is one that must be refused, and its golden holds the complaint;
 after reading the diff.
 
 A formatting case is a `.py` under `test/format/`, a number case one under
-`test/number/`, a namespace case one under `test/exec/` and a type-system case
-one under `test/type/`; each is a program that prints, and the golden is what
-CPython prints for it:
+`test/number/`, a namespace case one under `test/exec/`, a type-system case one
+under `test/type/` and a module case one under `test/module/`; each is a
+program that prints, and the golden is what CPython prints for it:
 
     tools/mkfmt.py test/format/spec.py
 
@@ -739,7 +868,12 @@ interpreters, byte for byte. So a case there may use nothing this interpreter
 has not got: no generator, no `eval`. And it may not use anything whose answer
 depends on how the *host CPython* was built, which a complex multiply of two
 extreme magnitudes does — [test/number/complex.py](test/number/complex.py)
-says why it leaves that out.
+says why it leaves that out. A module case has three more of those to avoid: a
+transcendental function's last ulp, which musl and the host's libm round
+differently; anything an implementation is entitled to answer for itself, such
+as `sys.maxsize` or a collection count; and `errno`'s numbers past 40, which
+are the platform's. [test/module/mathmod.py](test/module/mathmod.py) prints to
+fourteen significant digits for the first of those.
 
 A compiler case is a `.py` under `test/dis/` and nothing else: the bytecode is
 this implementation's, so there is nothing to generate the golden from and

@@ -83,14 +83,42 @@ R b_dunder_format(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// object.__str__(self) is self.__repr__(). Installed on `object`, so every
+// type inherits one the way CPython's do -- and because it goes through the
+// class's own __repr__ rather than through the built-in inside the instance,
+// a subclass that writes __repr__ prints through it.
+R b_dunder_str(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__str__", 0, 0))
+        return R::Err;
+    Value self    = method_self(a.args[0]);
+    const Type *t = type_of(self);
+    // A type with a text of its own -- an exception's message, str itself --
+    // answers with that. Everything else is its __repr__, which may be
+    // written in Python and is then a call the VM makes.
+    if (!t || !t->str) {
+        out = show_special(a.args[0], false);
+        if (!out.is_nil())
+            return R::Ok;
+        if (err_pending())
+            return R::Err;
+    }
+    String text;
+    if (py_str(self, text) != R::Ok)
+        return R::Err;
+    out = str_new(text.str());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 constexpr Method OBJECT[] = {
     { "__format__", b_dunder_format },
+    { "__str__", b_dunder_str },
 };
 
 bool methods_install()
 {
     return method_install(&object_type, OBJECT) && str_methods() && bytes_methods() &&
-           seq_methods() && map_methods() && num_methods() && complex_methods();
+           seq_methods() && map_methods() && num_methods() && complex_methods() && slot_methods();
 }
 
 Value method_self(Value v)

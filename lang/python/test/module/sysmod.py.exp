@@ -1,0 +1,47 @@
+sys <class 'list'> <class 'list'> <class 'dict'>
+True 1114111 True
+(3, 9) True True
+3 9 final
+5 final True
+53 15 2
+1.7976931348623157e+308 2.2250738585072014e-308 2.220446049250313e-16
+1024 -1021 True
+0 0 <class 'str'>
+True True
+True utf-8
+(None, None, None) True
+ValueError ('x',)
+None
+200
+True False True
+<stdout> <stderr> <stdin> w
+utf-8 False 1
+True True
+written
+ab
+'captured 1 2\nmore!'
+'to a file-5\nand again'
+flushing
+<class 'float'> <class 'float'> True
+1970 1 1
+0 3 1
+(1970, 1, 1, 0, 0, 0, 3, 1, 0) 9
+2009 2
+13 23
+1970-01-01 00:00:00
+Fri Feb 044 PM 11 %
+Thu Jan  1 00:00:00 1970 True
+1969 12 31
+2000 60
+2 22 1 5
+ENOENT EIO
+True <class 'dict'>
+True True 3 3
+False
+True True
+[] True False
+[2746317213, 478163327, 107420369, 3184935163]
+['0.639426798457884', '0.025010755222667', '0.275029318369119']
+True 0 True
+True 625
+7106521602475165645 6

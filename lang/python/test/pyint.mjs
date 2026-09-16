@@ -42,7 +42,9 @@ async function interrupted(source) {
     const out = await interrupted("n = 0\nwhile True:\n    n = n + 1\n");
     if (!out.includes("KeyboardInterrupt"))
         die(`^C did not reach the loop: ${JSON.stringify(out)}`);
-    if (!out.includes("line 3"))
+    // Either line of the loop: which instruction the burst bound falls on is
+    // not fixed, and both `while True:` and the body are inside it.
+    if (!out.includes("line 2") && !out.includes("line 3"))
         die(`the traceback does not name the loop: ${JSON.stringify(out)}`);
 }
 
@@ -78,6 +80,21 @@ async function interrupted(source) {
         "    print('caught in a generator')\n");
     if (!out.includes("caught in a generator"))
         die(`^C did not reach a drained generator: ${JSON.stringify(out)}`);
+}
+
+// time.sleep is the one thing here that parks on the driver rather than on a
+// burst bound, which is the whole point of ReqKind::Sleep. A signal reaches a
+// sleeping program at once.
+{
+    const out = await interrupted(
+        "import time\n" +
+        "try:\n" +
+        "    time.sleep(30)\n" +
+        "    print('slept it out')\n" +
+        "except KeyboardInterrupt:\n" +
+        "    print('woken')\n");
+    if (!out.includes("woken"))
+        die(`^C did not reach a sleeping program: ${JSON.stringify(out)}`);
 }
 
 ok("^C becomes KeyboardInterrupt, and a program may catch it");

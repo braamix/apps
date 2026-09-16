@@ -92,6 +92,11 @@ bool seq_methods();
 bool map_methods();
 bool num_methods();
 
+// The protocol methods -- __len__, __getitem__, __eq__ -- in each built-in
+// type's own namespace, over the slots that type fills. Last, so a method a
+// table already named wins. slotmeth.cpp.
+bool slot_methods();
+
 // ------------------------------------------------------------ the iterators
 
 // reversed(seq): backwards over anything with a len and an integer getitem.

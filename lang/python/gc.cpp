@@ -42,6 +42,7 @@ usize collections  = 0;
 usize freed_total  = 0;
 bool stress        = false;
 bool collecting    = false;
+bool automatic     = true;
 
 constexpr usize THRESHOLD_MIN = 64 * 1024;
 
@@ -169,6 +170,50 @@ GcStats gc_stats()
     return GcStats{ live_objects, live_bytes, collections, freed_total };
 }
 
+void gc_enable(bool on)
+{
+    automatic = on;
+}
+
+bool gc_enabled()
+{
+    return automatic;
+}
+
+usize gc_pressure()
+{
+    return since_gc;
+}
+
+usize gc_threshold()
+{
+    return threshold;
+}
+
+void gc_set_threshold(usize bytes)
+{
+    threshold = bytes < THRESHOLD_MIN ? THRESHOLD_MIN : bytes;
+}
+
+// The list is built first and filled after, so the allocations the build makes
+// do not walk the chain they are being added to.
+ListObj *gc_objects()
+{
+    usize n = 0;
+    for (Obj *o = all; o; o = o->next)
+        n += !(o->flags & OBJ_IMMORTAL);
+    ListObj *l = list_new();
+    if (!l)
+        return nullptr;
+    Root rl{ obj_value(l) };
+    if (!list_of(rl.v)->items.reserve(n))
+        return err_set("MemoryError", "out of memory"), nullptr;
+    for (Obj *o = all; o; o = o->next)
+        if (!(o->flags & OBJ_IMMORTAL) && o != rl.v.obj())
+            list_of(rl.v)->items.push(Value::of_obj(o));
+    return list_of(rl.v);
+}
+
 void gc_sweep_hook(void (*f)())
 {
     for (usize i = 0; i < nsweepers; i++)
@@ -230,7 +275,7 @@ Obj *obj_alloc(const Type *t, usize bytes)
 {
     // Before the allocation, never during: what is being built is not yet
     // reachable from anything.
-    if (!collecting && (stress || since_gc >= threshold))
+    if (!collecting && automatic && (stress || since_gc >= threshold))
         gc_collect();
 
     Obj *o = static_cast<Obj *>(heap_alloc(bytes));

@@ -13,6 +13,7 @@
 #include "kernel/args.h"
 #include "kernel/fmt.h"
 #include "lex.h"
+#include "module.h"
 #include "parse.h"
 #include "proc/io.h"
 #include "proc/opt.h"
@@ -165,6 +166,24 @@ Task<i32> interpret(Str source, Str name, Args argv, Str script)
         co_await write_all(SYS_STDERR, where().str());
         co_return 1;
     }
+    // Two things the interpreter cannot ask for itself, because both are
+    // asynchronous syscalls and nothing under vm_burst awaits: whether the
+    // three descriptors are the terminal, and what day it is. Read once here
+    // and handed over; time.time() counts on from this reading with Sys::Now,
+    // which is monotonic and cannot name a day of its own.
+    bool tty[3] = { false, false, false };
+    for (u32 i = 0; i < 3; i++) {
+        Result<TtyInfo> t = Err(Error::NoMemory);
+        if (Task<Result<TtyInfo>> q = tty_of(i))
+            t = co_await q;
+        tty[i] = t.is_ok() && t.value().console;
+    }
+    sys_set_tty(tty[0], tty[1], tty[2]);
+    Result<Clock> clock = Err(Error::NoMemory);
+    if (Task<Result<Clock>> q = clock_now())
+        clock = co_await q;
+    if (clock.is_ok())
+        time_set_clock(clock.value().epoch_ms, clock.value().tz_min, proc_now());
     // sys.path: the directory the program came from, then the shipped library.
     // A `-c` or a pipe has no directory of its own, and gets the cwd.
     String lib;
@@ -182,6 +201,16 @@ Task<i32> interpret(Str source, Str name, Args argv, Str script)
                 co_await t;
             if (sig_take(SIG_INT))
                 vm_interrupt();
+            continue;
+        }
+        if (r.kind == ReqKind::Sleep) {
+            // time.sleep. A ^C abandons it, which is what makes a long sleep
+            // interruptible; the raise happens at the next instruction.
+            if (Task<Result<void>> t = sleep_for(r.ms))
+                co_await t;
+            if (sig_take(SIG_INT))
+                vm_interrupt();
+            vm_sleep_done();
             continue;
         }
         if (r.kind == ReqKind::Read) {

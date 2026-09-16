@@ -146,11 +146,11 @@ Value cont_new(ContStep step)
     k->argv    = Value();
     k->kwnames = Value();
     k->kwvals  = Value();
-    k->out    = Value();
-    k->next   = Value();
-    k->locals = Value();
-    k->caught = Value();
-    k->nargs  = 0;
+    k->out     = Value();
+    k->next    = Value();
+    k->locals  = Value();
+    k->caught  = Value();
+    k->nargs   = 0;
     k->i = k->j = 0;
     k->catching = CATCH_NONE;
     k->drop     = false;
@@ -162,7 +162,7 @@ bool iter_needs_vm(Value v)
 {
     if (is_gen(v))
         return true;
-    return type_has_special(v, "__iter__") || type_has_special(v, "__next__");
+    return type_has_py_special(v, "__iter__") || type_has_py_special(v, "__next__");
 }
 
 R iter_park(const CallArgs &a, u32 at, R (*again)(const CallArgs &, Value &out), Value &out)

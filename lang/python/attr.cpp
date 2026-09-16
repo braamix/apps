@@ -737,8 +737,14 @@ R attr_delete(Value v, StrObj *name, Value &fn)
         R r = dict_del(dict_at(type_obj(v)->dict), obj_value(name));
         return r == R::NotImpl ? err_set2("AttributeError", "no attribute", name->str()) : r;
     }
-    if (!is_inst(v))
+    if (!is_inst(v)) {
+        // A built-in object with a setattr slot deletes through it: a Nil
+        // value is what `del` means there.
+        const Type *t = type_of(v);
+        if (t && t->setattr)
+            return t->setattr(v, name, Value());
         return no_attr(v, name);
+    }
 
     Root rv{ v }, rn{ obj_value(name) };
     Value hook = type_hook(inst_of(rv.v)->cls, "__delattr__");

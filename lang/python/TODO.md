@@ -7,49 +7,56 @@ borrowed is measured, and named here.
 **The language stands, the built-in types have their methods, a file can be
 imported, text can be formatted, numbers have no width, a function can yield,
 a program can compile and run more of itself, the type system is whole, and
-CPython's own tests are a ruler beside MicroPython's.** Phases 0 to 17 built
-the lexer, the parser, the compiler, the VM, the object heap and its collector,
-exceptions, functions and closures, classes, the method tables, the module
-loader, the `unittest` and `test.support` shims every CPython test stands on,
-the one format engine that `format()`, `__format__`, `str.format`, `%` and
-f-strings all reach, the bignum and `complex` that finish the number tower,
-generators with `yield from`, `compile`/`eval`/`exec` with the namespaces and
-the attributes they make visible, and then the half of the type system the
-library uses: the metaclasses, the descriptor protocol, `__slots__`, the
-attribute hooks, the finalizers and weak references, the comparisons a sort has
-to make from C++, and the native `_abc` that CPython's own `abc.py` runs over.
-They are done, and their record is the git history — `python: phase 0` through
-`python: phase 17` — not this file, which from here describes only what is
-left.
+sixteen modules are written natively.** Phases 0 to 18 built the lexer, the
+parser, the compiler, the VM, the object heap and its collector, exceptions,
+functions and closures, classes, the method tables, the module loader, the
+`unittest` and `test.support` shims every CPython test stands on, the one
+format engine that `format()`, `__format__`, `str.format`, `%` and f-strings
+all reach, the bignum and `complex` that finish the number tower, generators
+with `yield from`, `compile`/`eval`/`exec` with the namespaces and the
+attributes they make visible, the half of the type system the library uses —
+the metaclasses, the descriptor protocol, `__slots__`, the attribute hooks, the
+finalizers and weak references, the comparisons a sort has to make from C++,
+and the native `_abc` that CPython's own `abc.py` runs over — and then the
+primitive modules: `sys` in full, `_collections`, `_functools`, `itertools`,
+`operator`, `_random`, `_struct`, `array`, `math`, `cmath`, `time`, `errno`,
+`gc` and `_types`, with the protocol methods in each built-in type's namespace
+and the generic alias that makes `list[int]` a value. They are done, and their
+record is the git history — `python: phase 0` through `python: phase 18` — not
+this file, which from here describes only what is left.
 
-Where that leaves us, measured against MicroPython's suite: **385 of the 413
-tests in [test/manifest.txt](test/manifest.txt)**, and **428 of the 557** in
-`tests/basics/` once the async and t-string families are set aside. The largest
-single cause of the rest is the modules, which are phase 18. None stop at the
-object model.
+Where that leaves us, measured against MicroPython's suite: **397 of the 432
+tests in [test/manifest.txt](test/manifest.txt)**. Of the thirty-five that do
+not, most print `SKIP` because they import `collections` or `struct` — the
+pure-Python wrappers over what phase 18 wrote — and those are phase 20. None
+stop at the object model.
 
-Measured against CPython's, which is the harder ruler: **nine of the twelve
-in [test/cpython.txt](test/cpython.txt) run, and forty-nine test methods of
-eighty-three pass.** `node test/pycases.mjs --survey` runs the whole of
-`Lib/test/` and counts what stops each of the 391 files: 276 an unwritten
+Measured against CPython's, which is the harder ruler: **eleven of the fourteen
+in [test/cpython.txt](test/cpython.txt) run, and fifty-five test methods of
+ninety-three pass.** `node test/pycases.mjs --survey` runs the whole of
+`Lib/test/` and counts what stops each of the 391 files: 272 an unwritten
 module, 43 other syntax, 33 a lone surrogate in a literal, 15 `async`, 14
-`\N{...}`, 9 that run and 1 that says nothing this can read.
+`\N{...}`, 11 that run and 3 that fail at runtime or say nothing this can read.
 
 Three walls came down in phases 13 and 14 — f-strings, complex and the bignum
-were 204 files between them — and **the compiler is no longer what stops
-CPython's tests. A module nobody has written is.** That is phase 18, and it is
-further off than the two before it. Phases 15 and 16 moved none of these
-numbers, since `test_generators.py`, `test_funcattrs.py` and `test_compile.py`
-each stop at an import of `doctest`, `typing` or `dis`; phase 17 moved two
-files into the column that runs and took the passing methods from
-thirty-four to forty-nine. The survey is how each wave is chosen, and it only
-means something read beside what it said last time.
+were 204 files between them — and **what stops CPython's tests is an import.**
+Phase 18 moved that column for the first time since 14, and only by four:
+`test_itertools.py` imports `doctest`, `test_array.py` imports `collections`,
+`test_math.py` wants a `test.support` this shim has not got. What those files
+stop on is the *library*, not the modules under it. So **phase 20 is now the
+one that matters**, and phase 18 is what it will stand on. The survey is how
+each wave is chosen, and it only means something read beside what it said last
+time.
 
 **The first library module is borrowed.** `lib/abc.py` is CPython's own, byte
 for byte, with its provenance in [lib/manifest.txt](lib/manifest.txt) and the
 PSF terms in [LICENSE](LICENSE). Phase 20 is where that directory grows and
 phase 27 where it ships; the pattern it establishes is that we write the floor
-natively and take the rest as it is.
+natively and take the rest as it is. Phase 18 wrote most of the rest of that
+floor, and `types.py` is the one that shows why: its fallback for a missing
+`_types` derives each name from an expression — `type(_g())`, `type(int | str)`
+— and needs `async def` and the union operator, neither of which is here yet.
+With `_types` written, the module can simply be copied.
 
 ## The two upstreams
 
@@ -126,8 +133,8 @@ platform, and getting one wrong is a rewrite.
 
 The limits to build against, with their sources: `PROC_MAX_PAGES = 1600`, so
 100 MB of linear memory (`../braam-core/src/kernel/sysabi.h`); a 128 KiB shadow
-stack; `PROC_TASKS = 8`. The repository's [CLAUDE.md](../../CLAUDE.md) still
-says 16 MB — check that and correct it when the first package is built.
+stack; `PROC_TASKS = 8`. The repository's [CLAUDE.md](../../CLAUDE.md) said
+16 MB until phase 18 corrected it.
 
 ## The design
 
@@ -180,38 +187,12 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-### Phase 18 — the primitive modules, written natively
-
-The floor CPython's library stands on. Each is small; together they are the
-difference between borrowing the library and not.
-
-- [ ] `sys` in full: `stdin`/`stdout`/`stderr`, `exc_info`, `maxsize`,
-      `getsizeof`, `setrecursionlimit`, `float_info`, `byteorder`. `argv`,
-      `path`, `modules`, `implementation`, `exit`, `flags`, `version` and
-      `version_info` are there already.
-- [ ] `builtins` as a real module.
-- [ ] `_collections` (deque, defaultdict, OrderedDict), `_functools`
-      (`reduce`, `partial`, `lru_cache`), `itertools`, `operator`, `_random`
-      (Mersenne Twister), `_struct`, `array`, `math` and `cmath` over
-      `braam::math`, `time` over `proc_now`, `errno`, `gc`. `_weakref` and
-      `_abc` landed in phase 17.
-- [ ] **The protocol methods in a built-in type's namespace.** `'__len__' in
-      list.__dict__` is False and `dir(list)` does not list one: `len(x)`
-      reaches a slot, and a slot is not an entry. Each is a small native over
-      the generic operation, and `collections.abc`'s own `__subclasshook__` is
-      what reads them -- so the abstract base classes are only half usable
-      until they are there.
-- [ ] `types.GenericAlias`, which `_weakrefset` and therefore `_py_abc` need,
-      and which is the rest of PEP 560 beside the `__class_getitem__` phase 17
-      wrote. `test_abc.py` imports `_py_abc` and stops there.
-- [ ] `memoryview`'s `itemsize`, `format` and strides, which only `array`
-      gives meaning to. Phase 10's is one octet wide and refuses a step.
-- [ ] Each is checked against the pure-Python fallback the library already
-      carries beside it, which is a free oracle.
-
-Tests: `test_itertools.py`, `test_operator.py`, `test_struct.py`,
-`test_array.py`, `test_math.py`, `test_random.py`, `test_time.py`,
-`test_sys.py`, `test_gc.py`.
+Phase 18 left two things for the phases that use them. `memoryview` is flat:
+it has an item size, a format and a stride, and `cast()` recasts a contiguous
+one, but it is one-dimensional and nothing here makes a buffer with more than
+one. And `_types` is missing the names this interpreter has no type for —
+`CoroutineType` and `AsyncGeneratorType` wait for phase 23, `UnionType` for
+phase 24, and `TracebackType` for whenever a traceback stops being a string.
 
 ### Phase 19 — `_sre`, and the whole of `re`
 
@@ -235,15 +216,18 @@ Tests: `test_re.py`.
 
 ### Phase 20 — the library, verbatim
 
-With `import`, f-strings, generators, `exec` and `re` in hand, the pure-Python
-half of CPython's library can simply be copied.
+With `import`, f-strings, generators, `exec`, `re` and the native floor in
+hand, the pure-Python half of CPython's library can simply be copied. It is
+what the survey now says is in the way: 272 of the 391 files under `Lib/test/`
+stop at an import, and phase 18 moved that number by four.
 
 - [ ] First wave, which needs nothing but the language: `types`, `operator`,
       `functools`, `collections`, `collections.abc`, `contextlib`, `heapq`,
       `bisect`, `copy`, `reprlib`, `enum`, `string`, `textwrap`, `keyword`,
       `warnings` (`_py_warnings.py`). `abc` is already in `lib/`, borrowed by
-      phase 17 over the `_abc` it wrote; `_weakrefset` joins it the moment
-      `types.GenericAlias` exists.
+      phase 17 over the `_abc` it wrote; `_weakrefset` and `_py_abc` need
+      `types`, and `types` needs the `_types` phase 18 wrote, so those three
+      are the first to go in.
 - [ ] Second wave: `json`, `csv`, `base64`, `binascii`, `hashlib`, `random`,
       `statistics`, `fractions`, `decimal` (`_pydecimal.py`), `datetime`
       (`_pydatetime.py`), `pprint`, `difflib`, `shlex`, `dataclasses`,

@@ -38,9 +38,33 @@ R frame_repr(Value v, String &out)
     return out.append(b.str()) ? R::Ok : err_set("MemoryError", "out of memory");
 }
 
+// What a traceback and sys._getframe read off a frame. Not writable: this is
+// the activation itself, not a copy of it.
+R frame_getattr(Value v, StrObj *name, Value &out)
+{
+    FrameObj *f = frame_of(v);
+    Str n       = name->str();
+    if (n == "f_back")
+        out = f->back.is_nil() ? value_none() : f->back;
+    else if (n == "f_globals")
+        out = f->globals.is_nil() ? value_none() : f->globals;
+    else if (n == "f_locals")
+        out = f->locals.is_nil() ? f->globals : f->locals;
+    else if (n == "f_code")
+        out = f->code;
+    else if (n == "f_lasti")
+        out = Value::of_int(i32(f->pc));
+    else
+        return R::NotImpl;
+    return R::Ok;
+}
+
 } // namespace
 
-constexpr Type frame_type{ .name = "frame", .trace = frame_trace, .repr = frame_repr };
+constexpr Type frame_type{ .name    = "frame",
+                           .trace   = frame_trace,
+                           .repr    = frame_repr,
+                           .getattr = frame_getattr };
 
 FrameObj *frame_new(CodeObj *c)
 {

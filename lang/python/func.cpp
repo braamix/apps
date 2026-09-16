@@ -183,6 +183,19 @@ R module_getattr(Value v, StrObj *name, Value &out)
     return R::NotImpl;
 }
 
+// `sys.stdout = x` and `del mod.name`: a module's namespace is its dict, and
+// an attribute of one is an entry in it.
+R module_setattr(Value v, StrObj *name, Value val)
+{
+    Root rv{ v }, rn{ obj_value(name) }, rx{ val };
+    if (rx.v.is_nil()) {
+        R r = dict_del(module_dict(rv.v), rn.v);
+        return r == R::NotImpl ? err_set2("AttributeError", "module has no attribute", name->str())
+                               : r;
+    }
+    return dict_set(module_dict(rv.v), rn.v, rx.v);
+}
+
 } // namespace
 
 constexpr Type cell_type{ .name = "cell", .trace = cell_trace, .repr = cell_repr };
@@ -200,7 +213,8 @@ constexpr Type native_type{ .name    = "builtin_function_or_method",
 constexpr Type module_type{ .name    = "module",
                             .trace   = module_trace,
                             .repr    = module_repr,
-                            .getattr = module_getattr };
+                            .getattr = module_getattr,
+                            .setattr = module_setattr };
 
 CellObj *cell_new()
 {

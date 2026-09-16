@@ -14,14 +14,14 @@ endif()
 #
 # Sources arrive a phase at a time; TODO.md names them.
 braam_add_program(NAME python
-                  SOURCES abc.cpp astdump.cpp attr.cpp bigint.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp
-                          code.cpp compare.cpp compile.cpp complex.cpp
-                          dis.cpp err.cpp exc.cpp float.cpp format.cpp formatgr.cpp frame.cpp func.cpp gc.cpp
-                          gen.cpp import.cpp int.cpp
-                          intern.cpp iter.cpp lex.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
-                          obj.cpp ops.cpp parse.cpp
-                          repr.cpp selftest.cpp seqmeth.cpp str.cpp strmeth.cpp symtab.cpp
-                          table.cpp tuple.cpp type.cpp weak.cpp
+                  SOURCES abc.cpp arraymod.cpp astdump.cpp attr.cpp bigint.cpp binfmt.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp
+                          code.cpp collmod.cpp compare.cpp compile.cpp complex.cpp
+                          dis.cpp err.cpp exc.cpp float.cpp format.cpp formatgr.cpp frame.cpp func.cpp functoolsmod.cpp gc.cpp
+                          gen.cpp genalias.cpp import.cpp info.cpp int.cpp
+                          intern.cpp iter.cpp itermod.cpp lex.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
+                          mathmod.cpp miscmod.cpp module.cpp obj.cpp opmod.cpp ops.cpp parse.cpp
+                          randmod.cpp repr.cpp selftest.cpp seqmeth.cpp slotmeth.cpp str.cpp strmeth.cpp structmod.cpp symtab.cpp
+                          sysmod.cpp table.cpp tuple.cpp type.cpp typesmod.cpp weak.cpp
                           vm.cpp
                   LIBS braam::math)
 

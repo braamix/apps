@@ -24,14 +24,16 @@
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "method.h"
+#include "module.h"
 #include "ops.h"
 #include "proc/io.h"
 #include "type.h"
 
 namespace {
 
-constexpr usize FLUSH_AT = 4000; // bytes buffered before a write is asked for
-constexpr u32 MAX_FRAMES = 200;  // the frames are heap, but a limit says so
+constexpr usize FLUSH_AT     = 4000; // bytes buffered before a write is asked for
+constexpr u32 FRAMES_DEFAULT = 200;  // the frames are heap, but a limit says so
+u32 max_frames               = FRAMES_DEFAULT;
 
 // How many instructions a burst runs before letting the driver back in. A
 // compute loop parks nowhere, so nothing else -- a ^C above all -- can reach
@@ -50,7 +52,9 @@ struct VM {
     String out;             // what print has buffered
     String err;             // what goes to stderr, once there is any
     String *sent = nullptr; // which of the two the driver is writing
-    Value reading;          // the ContObj waiting on a file, or Nil
+    Value reading;          // the ContObj waiting on a file or a sleep, or Nil
+    u32 nap_ms   = 0;       // how long, when it is a sleep
+    bool napping = false;
     Value resume;           // the same, once the answer is in
     Value thrown;           // what gen.throw passed, to raise at the resume point
     String want;            // the file it asked for
@@ -62,7 +66,6 @@ struct VM {
     i32 status     = 0;
     bool failed    = false;
     bool finished  = false;
-    bool reported  = false;
     bool interrupt = false; // a ^C the driver saw, to raise at the next step
 };
 
@@ -156,7 +159,7 @@ R unbound_cell(CodeObj *co, u32 slot)
 
 FrameObj *frame_push(CodeObj *co, Value globals, Value locals, Value cells)
 {
-    if (vm->depth >= MAX_FRAMES)
+    if (vm->depth >= max_frames)
         return err_set("RecursionError", "maximum recursion depth exceeded"), nullptr;
     Root rg{ globals }, rl{ locals }, rc{ cells };
     FrameObj *f = frame_new(co);
@@ -1437,7 +1440,7 @@ R gen_resume(Value gv, u8 how, const CallArgs &a, Value &out, bool &entered)
     if (how == GR_SEND && g->state == GEN_CREATED && !is_none(arg.v))
         return err_set("TypeError", "can't send non-None value to a just-started generator");
 
-    if (vm->depth >= MAX_FRAMES)
+    if (vm->depth >= max_frames)
         return err_set("RecursionError", "maximum recursion depth exceeded");
 
     FrameObj *f  = frame_of(g->frame);
@@ -1472,7 +1475,8 @@ void interpret()
 {
     vm->budget = BURST;
     for (;;) {
-        if (vm->finished || !vm->reading.is_nil() || vm->out.size() >= FLUSH_AT || !vm->budget--)
+        if (vm->finished || !vm->reading.is_nil() || vm->out.size() >= FLUSH_AT ||
+            vm->err.size() >= FLUSH_AT || !vm->budget--)
             return;
 
         // The `self` of the last bound call is a root while the call is being
@@ -2759,28 +2763,34 @@ Req vm_burst()
         bool spent = false;
         if (!vm->finished && vm->reading.is_nil()) {
             interpret();
-            spent = !vm->finished && vm->reading.is_nil() && vm->out.size() < FLUSH_AT;
+            spent = !vm->finished && vm->reading.is_nil() && vm->out.size() < FLUSH_AT &&
+                    vm->err.size() < FLUSH_AT;
         }
 
         if (!vm->out.empty()) {
             vm->sent = &vm->out;
             return Req{ ReqKind::Write, SYS_STDOUT, vm->out.str(), Str(), 0 };
         }
+        // stderr after stdout, so a diagnostic lands after what it is about.
+        // A program writing through sys.stderr flushes here too, not only the
+        // traceback on the way out.
+        if (!vm->err.empty()) {
+            vm->sent = &vm->err;
+            return Req{ ReqKind::Write, SYS_STDERR, vm->err.str(), Str(), 0 };
+        }
         // Output first, so anything already printed is out before the driver
         // goes to the file system.
-        if (!vm->reading.is_nil())
+        if (!vm->reading.is_nil()) {
+            if (vm->napping)
+                return Req{ ReqKind::Sleep, 0, Str(), Str(), 0, vm->nap_ms };
             return Req{ ReqKind::Read, 0, Str(), vm->want.str(), 0 };
+        }
         if (!vm->finished) {
             // The budget ran out rather than the work: give the driver its
             // turn, which is the only way a signal reaches this process.
             if (spent)
                 return Req{ ReqKind::Tick, 0, Str(), Str(), 0 };
             continue;
-        }
-        if (!vm->err.empty() && !vm->reported) {
-            vm->reported = true;
-            vm->sent     = &vm->err;
-            return Req{ ReqKind::Write, SYS_STDERR, vm->err.str(), Str(), 0 };
         }
         return Req{ ReqKind::Exit, 0, Str(), Str(), vm->status };
     }
@@ -2789,6 +2799,43 @@ Req vm_burst()
 Value vm_frame()
 {
     return vm ? vm->frame : Value();
+}
+
+String *vm_out()
+{
+    return vm ? &vm->out : nullptr;
+}
+
+String *vm_errout()
+{
+    return vm ? &vm->err : nullptr;
+}
+
+Value vm_handling()
+{
+    return vm ? vm->handling : Value();
+}
+
+u32 vm_recursion_limit()
+{
+    return max_frames;
+}
+
+void vm_set_recursion_limit(u32 n)
+{
+    max_frames = n;
+}
+
+ListObj *vm_frames()
+{
+    ListObj *l = list_new();
+    if (!l)
+        return err_set("MemoryError", "out of memory"), nullptr;
+    Root rl{ obj_value(l) };
+    for (Value f = vm ? vm->frame : Value(); !f.is_nil(); f = frame_of(f)->back)
+        if (!list_push(list_of(rl.v), f))
+            return err_set("MemoryError", "out of memory"), nullptr;
+    return list_of(rl.v);
 }
 
 void vm_interrupt()
@@ -2803,6 +2850,25 @@ R cont_read(ContObj *k, Str path)
     k->fn      = Value();
     k->reading = true;
     return R::Ok;
+}
+
+R cont_sleep(ContObj *k, u32 ms)
+{
+    vm->nap_ms  = ms;
+    vm->napping = true;
+    k->fn       = Value();
+    k->reading  = true;
+    return R::Ok;
+}
+
+void vm_sleep_done()
+{
+    vm->napping = false;
+    vm->found   = false;
+    vm->isdir   = false;
+    vm->text.clear();
+    vm->resume  = vm->reading;
+    vm->reading = Value();
 }
 
 void vm_read_done(bool found, bool dir, Str text)
@@ -2826,6 +2892,5 @@ void vm_write_done(bool ok)
     if (!ok) {
         vm->finished = true;
         vm->failed   = true;
-        vm->reported = true;
     }
 }
