@@ -1,0 +1,53 @@
+SyntaxError: Non-UTF-8 code starting with '\xe9' on line 1, but no encoding declared; see https://peps.python.org/pep-0263/ for details 1 6
+'\xe9'
+'\u20ac'
+'\xe9'
+SyntaxError: Non-UTF-8 code starting with '\xe9' on line 3, but no encoding declared; see https://peps.python.org/pep-0263/ for details 3 6
+'\u20ac\u2122'
+SyntaxError: 'ascii' codec can't decode byte 0xe9 in position 21: ordinal not in range(128) 0 -1
+SyntaxError: unknown encoding: nope 0 -1
+'\xe9'
+SyntaxError: encoding problem: iso-8859-1 with BOM 1 0
+'\xe9'
+SyntaxError: Non-UTF-8 code starting with '\xed' on line 2, but no encoding declared; see https://peps.python.org/pep-0263/ for details 2 6
+SyntaxError: Non-UTF-8 code starting with '\xc3' on line 2, but no encoding declared; see https://peps.python.org/pep-0263/ for details 2 6
+'\xe9'
+'\xe9'
+'\xe9\u2014'
+'\xe9' '\xe9'
+'\N{EM DASH}' '\u2014'
+'\N{em dash}' '\u2014'
+'\N{NULL}\N{LINE FEED}' '\x00\n'
+'\N{BYTE ORDER MARK}' '\ufeff'
+'\N{CJK UNIFIED IDEOGRAPH-4E00}\N{HANGUL SYLLABLE GAG}' '\u4e00\uac01'
+r'\N{EM DASH}' '\\N{EM DASH}'
+'\ud800' '\ud800'
+'\udc80\U0000d800' '\udc80\ud800'
+f'\N{EM DASH}{1}' '\u20141'
+'\N{LATIN SMALL LETTER A}\N{LATIN CAPITAL LETTER A WITH MACRON AND GRAVE}' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 24-71: unknown Unicode character name 1 1
+'ab\N{NOPE}' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 2-9: unknown Unicode character name 1 1
+'\N' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 0-1: malformed \N character escape 1 1
+'\N{' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 0-2: malformed \N character escape 1 1
+'\N{}' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 0-2: malformed \N character escape 1 1
+'\N{EM DASH' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 0-9: malformed \N character escape 1 1
+'\x4' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 0-2: truncated \xXX escape 1 1
+'\u12' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 0-3: truncated \uXXXX escape 1 1
+'\U0011ffff' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 0-9: illegal Unicode character 1 1
+'\xe9\x4' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 4-6: truncated \xXX escape 1 1
+'\xe9\N{BAD}' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 4-10: unknown Unicode character name 1 1
+b'\x4' SyntaxError: (value error) invalid \x escape at position 0 1 1
+b'ab\x' SyntaxError: (value error) invalid \x escape at position 2 1 1
+'''a\nb\x4''' SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 4-6: truncated \xXX escape 1 1
+u'\N{EM DASH}' '\u2014'
+['U', '_٠', 'fi', 'x·y', 'été', 'ṩ', '℘']
+SyntaxError: invalid character '€' (U+20AC) 1 1
+SyntaxError: invalid character '€' (U+20AC) 1 2
+SyntaxError: invalid non-printable character U+00A0 1 6
+SyntaxError: invalid non-printable character U+200B 1 3
+SyntaxError: invalid character '٠' (U+0660) 1 2
+SyntaxError: invalid non-printable character U+2003 1 7
+SyntaxError: invalid character '٠' (U+0660) 1 1
+SyntaxError: invalid character '😀' (U+1F600) 1 5
+SyntaxError: invalid non-printable character U+2028 2 3
+True True True False True True
+1 2 3

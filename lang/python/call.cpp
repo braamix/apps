@@ -339,6 +339,70 @@ R iter_park(const CallArgs &a, u32 at, R (*again)(const CallArgs &, Value &out),
     return R::Ok;
 }
 
+namespace {
+
+// s[0] the call to make first, s[1] and s[3] its arguments; s[2] the builtin's
+// own, copied; j where the answer goes.
+R redo_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], k->s[1], k->nargs, k->s[3]);
+    TupleObj *pos      = static_cast<TupleObj *>(k->s[2].obj());
+    TupleObj *kwv      = static_cast<TupleObj *>(k->s[4].obj());
+    TupleObj *kwn      = static_cast<TupleObj *>(k->s[5].obj());
+    pos->items()[k->j] = in;
+    CallArgs a;
+    a.args    = pos->items();
+    a.nargs   = u32(pos->len);
+    a.kwvals  = kwv->items();
+    a.kwnames = kwn->items();
+    a.nkw     = u32(kwn->len);
+    Value got;
+    R r = k->redo(a, got);
+    return r == R::Ok ? cont_done(k, got) : r;
+}
+
+} // namespace
+
+R redo_with(const CallArgs &a, u32 at, Value fn, Value a0, Value a1, u32 n,
+            R (*again)(const CallArgs &, Value &out), Value &out)
+{
+    Root rf{ fn }, r0{ a0 }, r1{ a1 };
+    TupleObj *pos = tuple_new(a.nargs);
+    if (!pos)
+        return oom();
+    for (u32 i = 0; i < a.nargs; i++)
+        pos->items()[i] = a.args[i];
+    Root rp{ obj_value(pos) };
+    TupleObj *kwv = tuple_new(a.nkw);
+    if (!kwv)
+        return oom();
+    for (u32 i = 0; i < a.nkw; i++)
+        kwv->items()[i] = a.kwvals[i];
+    Root rv{ obj_value(kwv) };
+    TupleObj *kwn = tuple_new(a.nkw);
+    if (!kwn)
+        return oom();
+    for (u32 i = 0; i < a.nkw; i++)
+        kwn->items()[i] = a.kwnames[i];
+    Root rn{ obj_value(kwn) };
+    Root kv{ cont_new(redo_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = rf.v;
+    k->s[1]    = r0.v;
+    k->s[2]    = rp.v;
+    k->s[3]    = r1.v;
+    k->s[4]    = rv.v;
+    k->s[5]    = rn.v;
+    k->nargs   = n;
+    k->j       = at;
+    k->redo    = again;
+    out        = kv.v;
+    return R::Ok;
+}
+
 R bind_args(FuncObj *fn, CodeObj *co, FrameObj *nf, const CallArgs &a)
 {
     Value *lo   = nf->slots();

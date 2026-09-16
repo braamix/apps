@@ -6,11 +6,12 @@
 #include "kernel/hash.h"
 #include "kernel/text.h"
 #include "ops.h"
+#include "ustr.h"
 
 namespace {
 
-// Bytes to chars, or false on a malformed sequence. utf8_decode yields U+FFFD
-// for bad input rather than saying so, so the check is here.
+// Bytes to chars, or false on a malformed sequence. A surrogate is allowed:
+// it is how "\\ud800" is held; ustr.h says so.
 bool utf8_count(Str s, u32 &chars, bool &ascii)
 {
     usize n = 0;
@@ -43,7 +44,7 @@ bool utf8_count(Str s, u32 &chars, bool &ascii)
                 return false;
             cp = (cp << 6) | (cc & 0x3f);
         }
-        if (cp < lo || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+        if (cp < lo || cp > 0x10ffff)
             return false;
         if (cp >= 0x80)
             ascii = false;
@@ -230,7 +231,7 @@ usize str_offset_of(const StrObj *s, usize i)
 
 u32 str_char_at(const StrObj *s, usize i)
 {
-    char32_t cp = 0;
-    utf8_decode(s->str(), str_offset_of(s, i), cp);
-    return u32(cp);
+    u32 cp = 0;
+    cp_decode(s->str(), str_offset_of(s, i), cp);
+    return cp;
 }

@@ -677,6 +677,19 @@ Value egroup_new(Value cls, Value args)
     return made;
 }
 
+bool exc_note(Value e, Str text)
+{
+    Root re{ e }, note{ str_new(text) };
+    if (note.v.is_nil())
+        return false;
+    Value args[2] = { re.v, note.v };
+    CallArgs a;
+    a.args  = args;
+    a.nargs = 2;
+    Value out;
+    return exc_add_note(a, out) == R::Ok;
+}
+
 bool egroup_install()
 {
     Root base{ exc_type_value(beg()) };

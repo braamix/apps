@@ -1,14 +1,17 @@
 // The exception hierarchy.
 #include "exc.h"
 
+#include "codec.h"
 #include "egroup.h"
 #include "func.h"
 #include "gc.h"
 #include "intern.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
+#include "method.h"
 #include "ops.h"
 #include "type.h"
+#include "ustr.h"
 
 namespace {
 
@@ -59,6 +62,8 @@ void exc_trace(Obj *o)
     gc_mark(e->context);
     gc_mark(e->msg);
     gc_mark(e->excs);
+    for (Value v : e->uni)
+        gc_mark(v);
 }
 
 usize args_len(Value t)
@@ -74,6 +79,16 @@ Value args_item(Value t, usize i)
 TupleObj *args_of(Value v)
 {
     return static_cast<TupleObj *>(static_cast<ExcObj *>(v.obj())->args.obj());
+}
+
+R unierr_str(Value v, UniKind kind, String &out);
+
+// "'str' object cannot be interpreted as an integer"
+R not_index(Value v)
+{
+    Buf<96> m;
+    m.put('\'').put(type_name(v)).put("' object cannot be interpreted as an integer");
+    return err_set("TypeError", m.str());
 }
 
 // repr is `ValueError('x')`; str is what the arguments say, which for one
@@ -143,6 +158,9 @@ R exc_str(Value v, String &out)
                   out.append(n > 1 ? " sub-exceptions)" : " sub-exception)");
         return ok ? R::Ok : oom();
     }
+    UniKind uk = unierr_kind(v);
+    if (uk != UniKind::None)
+        return unierr_str(v, uk, out);
     if (a->len == 0)
         return R::Ok;
     if (TupleObj *d = syntax_details(v)) {
@@ -221,6 +239,17 @@ R exc_getattr(Value v, StrObj *name, Value &out)
             return R::Ok;
         }
     }
+    if (UniKind uk = unierr_kind(v); uk != UniKind::None) {
+        constexpr Str FIELDS[] = { "encoding", "object", "start", "end", "reason" };
+        for (u32 k = 0; k < 5; k++)
+            if (n == FIELDS[k] && !(k == UNI_ENCODING && uk == UniKind::Translate)) {
+                Value f = e->uni[k];
+                out     = !f.is_nil()                        ? f
+                          : (k == UNI_START || k == UNI_END) ? Value::of_int(0)
+                                                             : value_none();
+                return R::Ok;
+            }
+    }
     if (!e->excs.is_nil() && (n == "message" || n == "exceptions")) {
         out = n == "message" ? e->msg : e->excs;
         return R::Ok;
@@ -244,11 +273,163 @@ R b_exc_init(const CallArgs &a, Value &out)
     for (u32 i = 1; i < a.nargs; i++)
         args->items()[i - 1] = a.args[i];
     static_cast<ExcObj *>(a.args[0].obj())->args = obj_value(args);
-    out                                          = value_none();
+    if (unierr_kind(a.args[0]) != UniKind::None && !unierr_init(a.args[0], obj_value(args)))
+        return R::Err;
+    out = value_none();
     return R::Ok;
 }
 
+// "'utf-8' codec can't encode character '\ud800' in position 0: surrogates
+// not allowed", and its three relatives.
+R unierr_str(Value v, UniKind kind, String &out)
+{
+    ExcObj *e = static_cast<ExcObj *>(v.obj());
+    if (e->uni[UNI_OBJECT].is_nil())
+        return R::Ok;
+    Root rv{ v };
+    String reason, encoding;
+    if (py_str(e->uni[UNI_REASON], reason) != R::Ok)
+        return R::Err;
+    e = static_cast<ExcObj *>(rv.v.obj());
+    if (kind != UniKind::Translate && py_str(e->uni[UNI_ENCODING], encoding) != R::Ok)
+        return R::Err;
+    e             = static_cast<ExcObj *>(rv.v.obj());
+    Value obj     = e->uni[UNI_OBJECT];
+    bool as_bytes = kind == UniKind::Decode;
+    if (as_bytes ? !is_bytes(obj) : !is_str(obj))
+        return err_set2("TypeError",
+                        as_bytes ? Str("object attribute must be bytes")
+                                 : Str("object attribute must be unicode"),
+                        type_name(obj));
+    i64 len   = as_bytes ? i64(static_cast<BytesObj *>(obj.obj())->len) : i64(str_of(obj)->chars);
+    i64 start = 0, end = 0;
+    as_index(e->uni[UNI_START], start);
+    as_index(e->uni[UNI_END], end);
+    Buf<160> b;
+    if (kind != UniKind::Translate)
+        b.put('\'').put(encoding.str()).put("' codec can't ");
+    else
+        b.put("can't ");
+    b.put(kind == UniKind::Encode   ? Str("encode ")
+          : kind == UniKind::Decode ? Str("decode ")
+                                    : Str("translate "));
+    if (start >= 0 && start < len && end >= 0 && end <= len && end == start + 1) {
+        if (as_bytes) {
+            u8 bad = static_cast<BytesObj *>(obj.obj())->data()[start];
+            put_hexw(b.put("byte 0x"), bad, 2);
+        } else {
+            u32 bad = str_char_at(str_of(obj), usize(start));
+            b.put("character '\\");
+            if (bad <= 0xff)
+                put_hexw(b.put('x'), bad, 2);
+            else if (bad <= 0xffff)
+                put_hexw(b.put('u'), bad, 4);
+            else
+                put_hexw(b.put('U'), bad, 8);
+            b.put('\'');
+        }
+        put_i64(b.put(" in position "), start);
+    } else {
+        put_i64(b.put(as_bytes ? Str("bytes") : Str("characters")).put(" in position "), start);
+        put_i64(b.put('-'), end - 1);
+    }
+    b.put(": ");
+    return out.append(b.str()) && out.append(reason.str()) ? R::Ok : oom();
+}
+
 } // namespace
+
+UniKind unierr_kind(Value v)
+{
+    const ExcType *t = exc_type_of(v);
+    if (!t)
+        return UniKind::None;
+    if (exc_is(t, exc_find("UnicodeEncodeError")))
+        return UniKind::Encode;
+    if (exc_is(t, exc_find("UnicodeDecodeError")))
+        return UniKind::Decode;
+    if (exc_is(t, exc_find("UnicodeTranslateError")))
+        return UniKind::Translate;
+    return UniKind::None;
+}
+
+bool unierr_init(Value e, Value args)
+{
+    UniKind kind = unierr_kind(e);
+    TupleObj *a  = static_cast<TupleObj *>(args.obj());
+    u32 want     = kind == UniKind::Translate ? 4 : 5;
+    if (a->len != want) {
+        char tmp[24];
+        Buf<96> b;
+        b.put("function takes exactly ").put(int_text(tmp, sizeof tmp, i64(want)));
+        b.put(" arguments (").put(int_text(tmp, sizeof tmp, i64(a->len))).put(" given)");
+        return err_set("TypeError", b.str()), false;
+    }
+    Root re{ e }, ra{ args };
+    Value got[5];
+    u32 at = 0;
+    if (kind != UniKind::Translate)
+        got[UNI_ENCODING] = a->items()[at++];
+    else
+        got[UNI_ENCODING] = Value();
+    got[UNI_OBJECT] = a->items()[at++];
+    got[UNI_START]  = a->items()[at++];
+    got[UNI_END]    = a->items()[at++];
+    got[UNI_REASON] = a->items()[at++];
+    auto must_str   = [&](Value v, int n) {
+        if (is_str(v))
+            return true;
+        char tmp[24];
+        Buf<96> b;
+        b.put("argument ").put(int_text(tmp, sizeof tmp, i64(n))).put(" must be str");
+        return err_not(b.str(), v) == R::Ok;
+    };
+    int first = kind == UniKind::Translate ? 0 : 1;
+    if (kind != UniKind::Translate && !must_str(got[UNI_ENCODING], 1))
+        return false;
+    if (kind == UniKind::Decode) {
+        Str data;
+        if (!bytes_like(got[UNI_OBJECT], data))
+            return err_not("a bytes-like object is required", got[UNI_OBJECT], true), false;
+        if (!is_bytes(got[UNI_OBJECT])) {
+            got[UNI_OBJECT] = bytes_new(data);
+            if (got[UNI_OBJECT].is_nil())
+                return false;
+        }
+    } else if (!must_str(got[UNI_OBJECT], first + 1)) {
+        return false;
+    }
+    i64 n = 0;
+    for (u32 k = UNI_START; k <= UNI_END; k++)
+        if (!as_index(got[k], n))
+            return not_index(got[k]), false;
+    if (!must_str(got[UNI_REASON], first + 4))
+        return false;
+    ExcObj *o = static_cast<ExcObj *>(re.v.obj());
+    for (u32 k = 0; k < 5; k++)
+        o->uni[k] = got[k];
+    return true;
+}
+
+R unierr_store(Value e, Str name, Value v)
+{
+    constexpr Str NAMES[] = { "encoding", "object", "start", "end", "reason" };
+    UniKind kind          = unierr_kind(e);
+    for (u32 k = 0; k < 5; k++) {
+        if (name != NAMES[k] || (k == UNI_ENCODING && kind == UniKind::Translate))
+            continue;
+        i64 n = 0;
+        if (k == UNI_START || k == UNI_END) {
+            if (v.is_nil())
+                return err_set("TypeError", "can't delete numeric/char attribute");
+            if (!as_index(v, n))
+                return not_index(v);
+        }
+        static_cast<ExcObj *>(e.obj())->uni[k] = v;
+        return R::Ok;
+    }
+    return R::NotImpl;
+}
 
 // The hierarchy, base before derived so a forward reference is never needed.
 // The order is the one CPython's own docs list it in.
@@ -296,6 +477,7 @@ const ExcType EXC_TABLE[] = {
     { "BaseExceptionGroup", &EXC_TABLE[0] },
     { "ExceptionGroup", &EXC_TABLE[36], &EXC_TABLE[4] },
     { "ImportCycleError", &EXC_TABLE[14] },
+    { "UnicodeTranslateError", &EXC_TABLE[31] },
 };
 
 const usize EXC_COUNT = sizeof(EXC_TABLE) / sizeof(EXC_TABLE[0]);
@@ -382,6 +564,8 @@ Value exc_inst(Value cls, Value args)
     o->context = Value();
     o->msg     = Value();
     o->excs    = Value();
+    for (Value &v : o->uni)
+        v = Value();
     return obj_value(o);
 }
 
@@ -389,7 +573,12 @@ Value exc_construct(Value cls, Value args)
 {
     if (is_egroup_type(cls))
         return egroup_new(cls, args);
-    return exc_inst(cls, args);
+    Root made{ exc_inst(cls, args) };
+    // A class of the program's own is checked by the __init__ it reaches.
+    if (!made.v.is_nil() && unierr_kind(made.v) != UniKind::None && !type_obj(cls)->heap &&
+        !unierr_init(made.v, static_cast<ExcObj *>(made.v.obj())->args))
+        return Value();
+    return made.v;
 }
 
 Value exc_new(const ExcType *t, Value args)
@@ -431,8 +620,8 @@ Value exc_syntax(Str kind, Str message, Str file, u32 line, u32 col, Str text)
     if (!t || !exc_is(t, exc_find("SyntaxError")))
         return Value();
     Root msg{ str_new(message) };
-    Root f{ file.empty() ? value_none() : str_new(file) };
-    Root x{ text.empty() ? value_none() : str_new(text) };
+    Root f{ file.empty() ? value_none() : str_lossy(file) };
+    Root x{ text.empty() ? value_none() : str_lossy(text) };
     TupleObj *d = tuple_new(4);
     if (msg.v.is_nil() || f.v.is_nil() || x.v.is_nil() || !d)
         return d ? Value() : (oom(), Value());

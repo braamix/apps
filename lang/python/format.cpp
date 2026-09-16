@@ -12,6 +12,7 @@
 #include "math/math.h"
 #include "ops.h"
 #include "type.h"
+#include "ustr.h"
 
 namespace {
 
@@ -28,11 +29,11 @@ bool is_dig(char c)
 // The one character at `at`, and how many octets it took.
 u32 rune_at(Str s, usize at, usize &used)
 {
-    char32_t cp = 0;
-    used        = utf8_decode(s, at, cp);
+    u32 cp = 0;
+    used   = cp_decode(s, at, cp);
     if (!used)
         used = 1;
-    return u32(cp);
+    return cp;
 }
 
 bool is_align(char c)
@@ -144,7 +145,7 @@ namespace {
 R put_fill(String &out, u32 cp, i32 n)
 {
     char tmp[4];
-    usize w = utf8_encode(char32_t(cp), tmp);
+    usize w = cp_encode(cp, tmp);
     for (i32 k = 0; k < n; k++)
         if (!out.append(Str(tmp, w)))
             return oom();
@@ -310,7 +311,7 @@ R format_char(i64 v, const Spec &s, String &out)
     if (v < 0 || v > 0x10ffff)
         return err_set("OverflowError", "%c arg not in range(0x110000)");
     char tmp[4];
-    usize w = utf8_encode(char32_t(v), tmp);
+    usize w = cp_encode(u32(v), tmp);
     return format_pad(Str(tmp, w), s, '>', out);
 }
 

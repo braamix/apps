@@ -140,6 +140,29 @@ inline bool is_method(Value v)
 
 Value method_new(Value fn, Value self);
 
+// `tuple.__new__` read as an attribute. A built-in's constructor takes no
+// class, so this is what a class of the program's own calls as
+// `tuple.__new__(cls, ...)`: the built-in made, and laid inside an instance of
+// `cls` when that is a subclass.
+struct NewObj : Obj {
+    Value ctor; // the built-in's constructor, a native
+    Value type; // the built-in's TypeObj
+};
+
+extern const Type newwrap_type;
+
+inline bool is_newwrap(Value v)
+{
+    return v.is_obj() && v.obj()->type == &newwrap_type;
+}
+
+// `found`, a `__new__` from `owner`'s namespace, as an attribute read reaches
+// it: the wrapper for a built-in's constructor, and `found` otherwise.
+Value type_new_attr(Value found, Value owner);
+
+// Calling the wrapper.
+R newwrap_call(Value w, const CallArgs &a, Value &out);
+
 // A name found in a class dict, resolved against what it was reached through.
 // `self` is Nil for a lookup on the class itself.
 R type_bind(Value found, Value self, Value cls, Value &out);

@@ -28,3 +28,6 @@ Value egroup_reraise(Value orig, Value raised);
 
 // The box CPython draws round an uncaught group, below its own line.
 bool egroup_report(Value e, String &out);
+
+// add_note(text) on `e`, from C++. False with the error pending.
+bool exc_note(Value e, Str text);

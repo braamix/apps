@@ -1,0 +1,133 @@
+16.0.0
+'a' Ll 'L' Na 0 0 None None None LATIN SMALL LETTER A ''
+'Z' Lu 'L' Na 0 0 None None None LATIN CAPITAL LETTER Z ''
+'5' Nd 'EN' Na 0 0 5 5 5.0 DIGIT FIVE ''
+' ' Zs 'WS' Na 0 0 None None None SPACE ''
+'_' Pc 'ON' Na 0 0 None None None LOW LINE ''
+'\x00' Cc 'BN' N 0 0 None None None None ''
+'\x7f' Cc 'BN' N 0 0 None None None None ''
+'\xa0' Zs 'CS' N 0 0 None None None NO-BREAK SPACE '<noBreak> 0020'
+'\xad' Cf 'BN' A 0 0 None None None SOFT HYPHEN ''
+'\xb2' No 'EN' A 0 0 None 2 2.0 SUPERSCRIPT TWO '<super> 0032'
+'\xbd' No 'ON' A 0 0 None None 0.5 VULGAR FRACTION ONE HALF '<fraction> 0031 2044 0032'
+'\xdf' Ll 'L' A 0 0 None None None LATIN SMALL LETTER SHARP S ''
+'\u0130' Lu 'L' N 0 0 None None None LATIN CAPITAL LETTER I WITH DOT ABOVE '0049 0307'
+'\u01c5' Lt 'L' N 0 0 None None None LATIN CAPITAL LETTER D WITH SMALL LETTER Z WITH CARON '<compat> 0044 017E'
+'\u0345' Mn 'NSM' A 240 0 None None None COMBINING GREEK YPOGEGRAMMENI ''
+'\u0360' Mn 'NSM' A 234 0 None None None COMBINING DOUBLE TILDE ''
+'\u03a3' Lu 'L' A 0 0 None None None GREEK CAPITAL LETTER SIGMA ''
+'\u0660' Nd 'AN' N 0 0 0 0 0.0 ARABIC-INDIC DIGIT ZERO ''
+'\u0f33' No 'L' N 0 0 None None -0.5 TIBETAN DIGIT HALF ZERO ''
+'\u1100' Lo 'L' W 0 0 None None None HANGUL CHOSEONG KIYEOK ''
+'\u2028' Zl 'WS' N 0 0 None None None LINE SEPARATOR ''
+'\u2160' Nl 'L' A 0 0 None None 1.0 ROMAN NUMERAL ONE '<compat> 0049'
+'\u2460' No 'ON' A 0 0 None 1 1.0 CIRCLED DIGIT ONE '<circle> 0031'
+'\u3000' Zs 'WS' F 0 0 None None None IDEOGRAPHIC SPACE '<wide> 0020'
+'\u3007' Nl 'L' W 0 0 None None 0.0 IDEOGRAPHIC NUMBER ZERO ''
+'\u4e00' Lo 'L' W 0 0 None None 1.0 CJK UNIFIED IDEOGRAPH-4E00 ''
+'\uac01' Lo 'L' W 0 0 None None None HANGUL SYLLABLE GAG '1100 1161 11A8'
+'\ud7a3' Lo 'L' W 0 0 None None None HANGUL SYLLABLE HIH '1112 1175 11C2'
+'\ue000' Co 'L' A 0 0 None None None None ''
+'\uf900' Lo 'L' W 0 0 None None None CJK COMPATIBILITY IDEOGRAPH-F900 '8C48'
+'\ufb01' Ll 'L' N 0 0 None None None LATIN SMALL LIGATURE FI '<compat> 0066 0069'
+'\ufdfa' Lo 'AL' N 0 0 None None None ARABIC LIGATURE SALLALLAHOU ALAYHE WASALLAM '<isolated> 0635 0644 0649 0020 0627 0644 0644 0647 0020 0639 0644 064A 0647 0020 0648 0633 0644 0645'
+'\ufeff' Cf 'BN' N 0 0 None None None ZERO WIDTH NO-BREAK SPACE ''
+'\uffff' Cn '' N 0 0 None None None None ''
+'\U00010400' Lu 'L' N 0 0 None None None DESERET CAPITAL LETTER LONG I ''
+'\U0001d7ce' Nd 'EN' N 0 0 0 0 0.0 MATHEMATICAL BOLD DIGIT ZERO '<font> 0030'
+'\U0001f600' So 'ON' W 0 0 None None None GRINNING FACE ''
+'\U00013460' Lo 'L' N 0 0 None None None EGYPTIAN HIEROGLYPH-13460 ''
+'\U00018b00' Lo 'L' W 0 0 None None None KHITAN SMALL SCRIPT CHARACTER-18B00 ''
+'\U0001b170' Lo 'L' W 0 0 None None None NUSHU CHARACTER-1B170 ''
+'\U0002f800' Lo 'L' W 0 0 None None None CJK COMPATIBILITY IDEOGRAPH-2F800 '4E3D'
+'\U000e0100' Mn 'NSM' A 0 0 None None None VARIATION SELECTOR-17 ''
+'\U0010ffff' Cn '' N 0 0 None None None None ''
+'LATIN SMALL LETTER A' 'a'
+'latin small letter a' 'a'
+'SPACE' ' '
+'HANGUL SYLLABLE GAG' '\uac01'
+'hangul syllable ga' '\uac00'
+'HANGUL SYLLABLE A' '\uc544'
+'CJK UNIFIED IDEOGRAPH-4E00' '\u4e00'
+'cjk unified ideograph-2a700' '\U0002a700'
+'CJK COMPATIBILITY IDEOGRAPH-F900' '\uf900'
+'EGYPTIAN HIEROGLYPH-13460' '\U00013460'
+'NULL' '\x00'
+'BYTE ORDER MARK' '\ufeff'
+'LINE FEED' '\n'
+'LATIN CAPITAL LETTER GHA' '\u01a2'
+'LATIN CAPITAL LETTER A WITH MACRON AND GRAVE' '\u0100\u0300'
+'KHMER CONSONANT SIGN COENG KA' '\u17d2\u1780'
+'TANGUT IDEOGRAPH-17000' '\U00017000'
+KeyError "undefined character name 'NOPE'"
+KeyError "undefined character name ''"
+KeyError "undefined character name 'LATIN SMALL LETTER A '"
+KeyError "undefined character name 'CJK UNIFIED IDEOGRAPH-04E00'"
+KeyError "undefined character name 'CJK UNIFIED IDEOGRAPH-'"
+KeyError "undefined character name 'HANGUL SYLLABLE '"
+KeyError "undefined character name 'HANGUL SYLLABLE GAX'"
+KeyError 'name too long'
+'\u2014'
+category(): argument must be a unicode character, not a string of length 0
+category(): argument must be a unicode character, not a string of length 2
+category() argument must be a unicode character, not int
+bidirectional(): argument must be a unicode character, not a string of length 0
+bidirectional(): argument must be a unicode character, not a string of length 2
+bidirectional() argument must be a unicode character, not int
+combining(): argument must be a unicode character, not a string of length 0
+combining(): argument must be a unicode character, not a string of length 2
+combining() argument must be a unicode character, not int
+mirrored(): argument must be a unicode character, not a string of length 0
+mirrored(): argument must be a unicode character, not a string of length 2
+mirrored() argument must be a unicode character, not int
+decomposition(): argument must be a unicode character, not a string of length 0
+decomposition(): argument must be a unicode character, not a string of length 2
+decomposition() argument must be a unicode character, not int
+east_asian_width(): argument must be a unicode character, not a string of length 0
+east_asian_width(): argument must be a unicode character, not a string of length 2
+east_asian_width() argument must be a unicode character, not int
+name(): argument 1 must be a unicode character, not a string of length 0
+name(): argument 1 must be a unicode character, not a string of length 2
+name() argument 1 must be a unicode character, not int
+decimal(): argument 1 must be a unicode character, not a string of length 0
+decimal(): argument 1 must be a unicode character, not a string of length 2
+decimal() argument 1 must be a unicode character, not int
+digit(): argument 1 must be a unicode character, not a string of length 0
+digit(): argument 1 must be a unicode character, not a string of length 2
+digit() argument 1 must be a unicode character, not int
+numeric(): argument 1 must be a unicode character, not a string of length 0
+numeric(): argument 1 must be a unicode character, not a string of length 2
+numeric() argument 1 must be a unicode character, not int
+not a decimal
+not a digit
+not a numeric character
+no such name
+'caf\xe9' ["'caf\\xe9'", "'cafe\\u0301'", "'caf\\xe9'", "'cafe\\u0301'"] [True, False, True, False]
+'cafe\u0301' ["'caf\\xe9'", "'cafe\\u0301'", "'caf\\xe9'", "'cafe\\u0301'"] [False, True, False, True]
+'\u1e9b\u0323' ["'\\u1e9b\\u0323'", "'\\u017f\\u0323\\u0307'", "'\\u1e69'", "'s\\u0323\\u0307'"] [True, False, False, False]
+'\ufb01ance' ["'\\ufb01ance'", "'\\ufb01ance'", "'fiance'", "'fiance'"] [True, True, False, False]
+'\u2460\u2461' ["'\\u2460\\u2461'", "'\\u2460\\u2461'", "'12'", "'12'"] [True, True, False, False]
+'\uac00\u11a8' ["'\\uac01'", "'\\u1100\\u1161\\u11a8'", "'\\uac01'", "'\\u1100\\u1161\\u11a8'"] [False, False, False, False]
+'\u1100\u1161\u11a8' ["'\\uac01'", "'\\u1100\\u1161\\u11a8'", "'\\uac01'", "'\\u1100\\u1161\\u11a8'"] [False, True, False, True]
+'a\u0328\u0301\u0306\u0323b' ["'\\u0105\\u0323\\u0301\\u0306b'", "'a\\u0328\\u0323\\u0301\\u0306b'", "'\\u0105\\u0323\\u0301\\u0306b'", "'a\\u0328\\u0323\\u0301\\u0306b'"] [False, False, False, False]
+'\u212b' ["'\\xc5'", "'A\\u030a'", "'\\xc5'", "'A\\u030a'"] [False, False, False, False]
+'\u0344' ["'\\u0308\\u0301'", "'\\u0308\\u0301'", "'\\u0308\\u0301'", "'\\u0308\\u0301'"] [False, False, False, False]
+'\xc5\u030a' ["'\\xc5\\u030a'", "'A\\u030a\\u030a'", "'\\xc5\\u030a'", "'A\\u030a\\u030a'"] [True, False, True, False]
+'\u0958' ["'\\u0915\\u093c'", "'\\u0915\\u093c'", "'\\u0915\\u093c'", "'\\u0915\\u093c'"] [False, False, False, False]
+'\U0001d15e' ["'\\U0001d157\\U0001d165'", "'\\U0001d157\\U0001d165'", "'\\U0001d157\\U0001d165'", "'\\U0001d157\\U0001d165'"] [False, False, False, False]
+'\u3300' ["'\\u3300'", "'\\u3300'", "'\\u30a2\\u30d1\\u30fc\\u30c8'", "'\\u30a2\\u30cf\\u309a\\u30fc\\u30c8'"] [True, True, False, False]
+'\u0f73\u0f75' ["'\\u0f71\\u0f71\\u0f72\\u0f74'", "'\\u0f71\\u0f71\\u0f72\\u0f74'", "'\\u0f71\\u0f71\\u0f72\\u0f74'", "'\\u0f71\\u0f71\\u0f72\\u0f74'"] [False, False, False, False]
+'x\u05ae\u0300\u0301y' ["'x\\u05ae\\u0300\\u0301y'", "'x\\u05ae\\u0300\\u0301y'", "'x\\u05ae\\u0300\\u0301y'", "'x\\u05ae\\u0300\\u0301y'"] [True, True, True, True]
+'\u1100\uac00\u11a8' ["'\\u1100\\uac01'", "'\\u1100\\u1100\\u1161\\u11a8'", "'\\u1100\\uac01'", "'\\u1100\\u1100\\u1161\\u11a8'"] [False, False, False, False]
+'\u0915\u093c' ["'\\u0915\\u093c'", "'\\u0915\\u093c'", "'\\u0915\\u093c'", "'\\u0915\\u093c'"] [True, True, True, True]
+'\u2126' ["'\\u03a9'", "'\\u03a9'", "'\\u03a9'", "'\\u03a9'"] [False, False, False, False]
+'\xbd' ["'\\xbd'", "'\\xbd'", "'1\\u20442'", "'1\\u20442'"] [True, True, False, False]
+True 
+ValueError invalid normalization form
+ValueError invalid normalization form
+TypeError normalize() argument 1 must be str, not int
+TypeError normalize() argument 2 must be str, not int
+0x0 0x800 167765939746790366
+0x1e00 0x2200 36644076013773580
+0xa600 0xa800 1372397050645624757
+0x1f100 0x1f300 1119784498500608403

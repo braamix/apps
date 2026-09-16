@@ -87,6 +87,8 @@ enum : u32 {
     OBJ_TYPE      = 1u << 5, // a TypeObj, whatever metaclass it belongs to
     OBJ_FINAL     = 1u << 6, // its class has a __del__ the sweep owes a call
     OBJ_FINALIZED = 1u << 7, // that call has been owed once, and never is again
+    OBJ_PLAINFN   = 1u << 8, // a native that is a function, not a method: it never binds
+    OBJ_CTOR      = 1u << 9, // a built-in's constructor, which takes no class
 };
 
 // Allocate `bytes` (header included) and thread it onto the heap list. Null on

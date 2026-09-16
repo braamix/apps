@@ -5,6 +5,7 @@
 // mutating half on top.
 #include "binfmt.h"
 #include "call.h"
+#include "codec.h"
 #include "gc.h"
 #include "gen.h"
 #include "iter.h"
@@ -1002,20 +1003,8 @@ R m_decode(const CallArgs &a, Value &out)
     Value got[2];
     if (!meth_take(a, "decode", NAMES, 0, got))
         return R::Err;
-    if (!got[0].is_nil()) {
-        if (!is_str(got[0]))
-            return err_set2("TypeError", "decode() encoding must be a str", type_name(got[0]));
-        Str enc = str_of(got[0])->str();
-        if (!(enc == "utf-8" || enc == "utf8" || enc == "UTF-8" || enc == "UTF8" ||
-              enc == "ascii" || enc == "ASCII"))
-            return err_set2("LookupError", "unknown encoding", enc);
-    }
-    out = str_new(s);
-    if (out.is_nil()) {
-        err_clear();
-        return err_set("UnicodeDecodeError", "invalid start byte");
-    }
-    return R::Ok;
+    (void)s;
+    return text_decode(self, got[0], got[1], out);
 }
 
 // ------------------------------------------------------------ the mutations
@@ -1150,6 +1139,37 @@ R m_clear(const CallArgs &a, Value &out)
         return R::Err;
     b->data.clear();
     out = value_none();
+    return R::Ok;
+}
+
+// take_bytes(n=None): the first n bytes out, as bytes; a negative n counts
+// from the end. 3.15's, which the library already uses.
+R m_take_bytes(const CallArgs &a, Value &out)
+{
+    ArrayObj *b = self_array(a, "take_bytes");
+    if (!b || !meth_args(a, "take_bytes", 0, 1))
+        return R::Err;
+    i64 size = i64(b->data.size()), n = size;
+    if (a.nargs > 1 && !is_none(a.args[1])) {
+        if (!as_index(a.args[1], n))
+            return err_set("TypeError", "n must be an integer or None");
+        if (n < 0)
+            n += size;
+    }
+    if (n < 0 || n > size) {
+        char t1[24], t2[24];
+        Buf<96> m;
+        m.put("can't take ").put(int_text(t1, sizeof t1, n)).put(" bytes outside size ");
+        m.put(int_text(t2, sizeof t2, size));
+        return err_set("IndexError", m.str());
+    }
+    Root self{ obj_value(b) };
+    out = bytes_new(Str(reinterpret_cast<const char *>(b->data.data()), usize(n)));
+    if (out.is_nil())
+        return R::Err;
+    b = array_of(self.v);
+    if (n)
+        b->data.erase(0, usize(n));
     return R::Ok;
 }
 
@@ -1529,6 +1549,7 @@ constexpr Method ARRAY_ONLY[] = {
     { "clear", m_clear },
     { "reverse", m_reverse },
     { "copy", m_copy },
+    { "take_bytes", m_take_bytes },
 };
 
 } // namespace

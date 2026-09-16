@@ -808,7 +808,8 @@ R type_bind(Value found, Value self, Value cls, Value &out)
 {
     // A built-in written in C++ binds like a function: BaseException.__init__
     // reached through super() is one.
-    if ((is_func(found) || is_native(found)) && !self.is_nil()) {
+    if ((is_func(found) || (is_native(found) && !(found.obj()->flags & OBJ_PLAINFN))) &&
+        !self.is_nil()) {
         out = method_new(found, self);
         return out.is_nil() ? R::Err : R::Ok;
     }
@@ -1781,9 +1782,90 @@ bool type_install(DictObj *into)
     return type_set_ctor(&type_type, mk.v);
 }
 
+namespace {
+
+void newwrap_trace(Obj *o)
+{
+    NewObj *w = static_cast<NewObj *>(o);
+    gc_mark(w->ctor);
+    gc_mark(w->type);
+}
+
+R newwrap_repr(Value v, String &out)
+{
+    Buf<96> b;
+    b.put("<built-in method __new__ of type object>");
+    (void)v;
+    return out.append(b.str()) ? R::Ok : err_set("MemoryError", "out of memory");
+}
+
+} // namespace
+
+constexpr Type newwrap_type{ .name  = "builtin_function_or_method",
+                             .trace = newwrap_trace,
+                             .repr  = newwrap_repr };
+
+Value type_new_attr(Value found, Value owner)
+{
+    if (!is_native(found) || !(found.obj()->flags & OBJ_CTOR) || owner.is_nil() ||
+        type_obj(owner)->heap)
+        return found;
+    Root rf{ found }, ro{ owner };
+    NewObj *w = static_cast<NewObj *>(obj_alloc(&newwrap_type, sizeof(NewObj)));
+    if (!w)
+        return err_set("MemoryError", "out of memory"), Value();
+    w->ctor = rf.v;
+    w->type = ro.v;
+    return obj_value(w);
+}
+
+R newwrap_call(Value wv, const CallArgs &a, Value &out)
+{
+    NewObj *w = static_cast<NewObj *>(wv.obj());
+    Root ctor{ w->ctor }, base{ w->type };
+    Str tn = type_obj(base.v)->slots.name;
+    if (!a.nargs) {
+        Buf<96> b;
+        b.put(tn).put(".__new__(): not enough arguments");
+        return err_set("TypeError", b.str());
+    }
+    Value cls = a.args[0];
+    if (!is_type(cls)) {
+        Buf<96> b;
+        b.put(tn).put(".__new__(X): X is not a type object");
+        return err_set2("TypeError", b.str(), type_name(cls));
+    }
+    CallArgs rest = a;
+    rest.args     = a.args + 1;
+    rest.nargs    = a.nargs - 1;
+    if (cls == base.v)
+        return static_cast<NativeObj *>(ctor.v.obj())->fn(rest, out);
+    if (!type_issub(cls, base.v) || !type_obj(cls)->heap) {
+        Buf<128> b;
+        b.put(tn).put(".__new__(").put(type_obj(cls)->slots.name).put("): ");
+        b.put(type_obj(cls)->slots.name).put(" is not a subtype of ").put(tn);
+        return err_set("TypeError", b.str());
+    }
+    Root rc{ cls };
+    Root made;
+    if (static_cast<NativeObj *>(ctor.v.obj())->fn(rest, made.v) != R::Ok)
+        return R::Err;
+    if (is_cont(made.v))
+        return err_set("TypeError", "__new__ of a built-in cannot wait on Python here");
+    Root self{ inst_new(rc.v) };
+    if (self.v.is_nil())
+        return R::Err;
+    inst_of(self.v)->native = made.v;
+    out                     = self.v;
+    return R::Ok;
+}
+
 bool type_set_ctor(const Type *t, Value fn)
 {
     Root rf{ fn };
+    // type(name, bases, ns) is the one that takes its class already.
+    if (t != &type_type && is_native(rf.v))
+        rf.v.obj()->flags |= OBJ_CTOR;
     Value w = type_wrap(t);
     return !w.is_nil() && put(type_obj(w)->dict, "__new__", rf.v);
 }

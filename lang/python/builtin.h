@@ -37,3 +37,6 @@ Value show_special(Value v, bool want_str);
 // opcode runs. `out` takes a str, or a ContObj when the conversion or the
 // __format__ is written in Python; the VM lands either.
 R format_field(Value v, Str spec, u32 conv, i32 min_digits, Value &out);
+
+// callable(v).
+bool py_callable(Value v);

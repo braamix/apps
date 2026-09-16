@@ -60,3 +60,7 @@ R index_of(Value key, usize len, usize &out);
 R seq_eq(const Value *x, usize nx, const Value *y, usize ny, bool &out);
 R seq_order(const Value *x, usize nx, const Value *y, usize ny, Cmp op, bool &out);
 R seq_contains(const Value *x, usize n, Value item, bool &out);
+
+// "<head>, not int" -- CPython's spelling of a wrong type -- pending, with the
+// type name in quotes where `quoted`. Always R::Err.
+R err_not(Str head, Value v, bool quoted = false);

@@ -3,6 +3,7 @@
 
 #include "builtin.h"
 #include "call.h"
+#include "codec.h"
 #include "compile.h"
 #include "fs/path.h"
 #include "gc.h"
@@ -119,7 +120,7 @@ struct Job : Obj {
     bool optional; // a fromlist name that need not be a module
 };
 
-enum : u32 { ST_START, ST_TRY, ST_BODY };
+enum : u32 { ST_START, ST_TRY, ST_BODY, ST_DECODE };
 
 void job_trace(Obj *o)
 {
@@ -348,6 +349,12 @@ R make_namespace(ContObj *k, Str path)
     return loaded(k);
 }
 
+// The text of a source, which is bytes until a codec has made it a str.
+Str source_bytes(Value v)
+{
+    return is_str(v) ? str_of(v)->str() : static_cast<BytesObj *>(v.obj())->str();
+}
+
 // The source of `path` became a module. Register it, then run its body.
 R run_body(ContObj *k, Value source, Str path)
 {
@@ -356,11 +363,22 @@ R run_body(ContObj *k, Value source, Str path)
     Root name{ j->target }, parent{ j->parent };
 
     Ast ast;
-    if (!ast.parse(str_of(rs.v)->str()))
-        return err_set_file(path, str_of(rs.v)->str()), R::Err;
+    if (!ast.parse(source_bytes(rs.v), is_str(rs.v))) {
+        // A cookie naming a codec written in Python: decode, then come back.
+        if (!ast.lex.codec.empty()) {
+            err_clear();
+            Root enc{ str_new(ast.lex.codec.str()) };
+            Root fn{ native_new("decode", lex_source_decode) };
+            if (enc.v.is_nil() || fn.v.is_nil())
+                return R::Err;
+            job_of(k->s[0])->state = ST_DECODE;
+            return cont_call(k, fn.v, rs.v, 2, enc.v);
+        }
+        return err_set_file(path, source_bytes(rs.v)), R::Err;
+    }
     Root code{ py_compile(ast, path) };
     if (code.v.is_nil())
-        return err_set_file(path, str_of(rs.v)->str()), R::Err;
+        return err_set_file(path, source_bytes(rs.v)), R::Err;
 
     Root m{ module_new(str_of(name.v)->str()) };
     if (m.v.is_nil())
@@ -506,6 +524,10 @@ R import_step(ContObj *k, Value in)
         Str path = str_of(list_of(j->cands)->items[j->cand - 1])->str();
         if (is_bool(in))
             return make_namespace(k, path);
+        return run_body(k, in, path);
+    }
+    case ST_DECODE: {
+        Str path = str_of(list_of(j->cands)->items[j->cand - 1])->str();
         return run_body(k, in, path);
     }
     default:
@@ -699,8 +721,28 @@ R py_import(const CallArgs &a, Value &out)
 
 R b_import(const CallArgs &a, Value &out)
 {
-    Value v[4] = { a.nargs > 0 ? a.args[0] : Value(), a.nargs > 4 ? a.args[4] : Value::of_int(0),
-                   a.nargs > 3 ? a.args[3] : Value(), a.nargs > 1 ? a.args[1] : Value() };
+    constexpr Str NAMES[] = { "name", "globals", "locals", "fromlist", "level" };
+    Value got[5];
+    if (a.nargs > 5)
+        return err_set("TypeError", "__import__() takes at most 5 arguments");
+    for (u32 i = 0; i < a.nargs; i++)
+        got[i] = a.args[i];
+    for (u32 k = 0; k < a.nkw; k++) {
+        Str nm = is_str(a.kwnames[k]) ? str_of(a.kwnames[k])->str() : Str();
+        u32 i  = 0;
+        while (i < 5 && NAMES[i] != nm)
+            i++;
+        if (i == 5 || !got[i].is_nil()) {
+            Buf<128> b;
+            b.put("__import__() got an unexpected keyword argument '").put(nm).put("'");
+            return err_set("TypeError", b.str());
+        }
+        got[i] = a.kwvals[k];
+    }
+    if (got[0].is_nil())
+        return err_set("TypeError", "__import__() missing required argument 'name' (pos 1)");
+    Value v[4] = { got[0], got[4].is_nil() ? Value::of_int(0) : got[4],
+                   is_none(got[3]) ? Value() : got[3], is_none(got[1]) ? Value() : got[1] };
     CallArgs b;
     b.args  = v;
     b.nargs = 4;

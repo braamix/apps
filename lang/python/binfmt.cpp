@@ -6,6 +6,7 @@
 #include "kernel/fmt.h"
 #include "kernel/text.h"
 #include "ops.h"
+#include "ustr.h"
 
 namespace {
 
@@ -90,10 +91,9 @@ Value item_get(Str octets, usize at, const ItemKind *k)
     }
     case IT_CHAR: {
         char buf[4];
-        usize n = utf8_encode(char32_t(raw), buf);
-        if (!n)
+        if (raw > 0x10ffff)
             return err_set("ValueError", "not a codepoint"), Value();
-        return str_new(Str(buf, n));
+        return str_new(Str(buf, cp_encode(u32(raw), buf)));
     }
     case IT_UINT:
         if (k->width >= 8 && (raw >> 63)) {

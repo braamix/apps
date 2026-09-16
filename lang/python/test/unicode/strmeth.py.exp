@@ -1,0 +1,88 @@
+'stra\xdfe' ["'stra\\xdfe'", "'STRASSE'", "'Stra\\xdfe'", "'strasse'", "'Stra\\xdfe'", "'STRASSE'"]
+'\ufb01ne' ["'\\ufb01ne'", "'FINE'", "'Fine'", "'fine'", "'Fine'", "'FINE'"]
+'\u0130stanbul' ["'i\\u0307stanbul'", "'\\u0130STANBUL'", "'\\u0130stanbul'", "'i\\u0307stanbul'", "'\\u0130stanbul'", "'i\\u0307STANBUL'"]
+'\u0149' ["'\\u0149'", "'\\u02bcN'", "'\\u02bcN'", "'\\u02bcn'", "'\\u02bcN'", "'\\u02bcN'"]
+'\u03b0' ["'\\u03b0'", "'\\u03a5\\u0308\\u0301'", "'\\u03a5\\u0308\\u0301'", "'\\u03c5\\u0308\\u0301'", "'\\u03a5\\u0308\\u0301'", "'\\u03a5\\u0308\\u0301'"]
+'\u1f80\u1fb3' ["'\\u1f80\\u1fb3'", "'\\u1f08\\u0399\\u0391\\u0399'", "'\\u1f88\\u1fb3'", "'\\u1f00\\u03b9\\u03b1\\u03b9'", "'\\u1f88\\u1fb3'", "'\\u1f08\\u0399\\u0391\\u0399'"]
+'O\u03a3O\u03a3' ["'o\\u03c3o\\u03c2'", "'O\\u03a3O\\u03a3'", "'O\\u03c3o\\u03c2'", "'o\\u03c3o\\u03c3'", "'O\\u03c3o\\u03c2'", "'o\\u03c3o\\u03c2'"]
+'\u03a3' ["'\\u03c3'", "'\\u03a3'", "'\\u03a3'", "'\\u03c3'", "'\\u03a3'", "'\\u03c3'"]
+'a\u03a3' ["'a\\u03c2'", "'A\\u03a3'", "'A\\u03c2'", "'a\\u03c3'", "'A\\u03c2'", "'A\\u03c2'"]
+'a\u03a3b' ["'a\\u03c3b'", "'A\\u03a3B'", "'A\\u03c3b'", "'a\\u03c3b'", "'A\\u03c3b'", "'A\\u03c3B'"]
+'a\u03a3.' ["'a\\u03c2.'", "'A\\u03a3.'", "'A\\u03c2.'", "'a\\u03c3.'", "'A\\u03c2.'", "'A\\u03c2.'"]
+'a.\u03a3' ["'a.\\u03c2'", "'A.\\u03a3'", "'A.\\u03a3'", "'a.\\u03c3'", "'A.\\u03c2'", "'A.\\u03c2'"]
+'a\u03a3\u0345' ["'a\\u03c2\\u0345'", "'A\\u03a3\\u0399'", "'A\\u03c2\\u0345'", "'a\\u03c3\\u03b9'", "'A\\u03c2\\u0345'", "'A\\u03c2\\u0399'"]
+'\u03a3a' ["'\\u03c3a'", "'\\u03a3A'", "'\\u03a3a'", "'\\u03c3a'", "'\\u03a3a'", "'\\u03c3A'"]
+'A\u0345\u03a3' ["'a\\u0345\\u03c2'", "'A\\u0399\\u03a3'", "'A\\u0345\\u03c2'", "'a\\u03b9\\u03c3'", "'A\\u0345\\u03c2'", "'a\\u0399\\u03c2'"]
+'\u01c4\u01c5\u01c6x' ["'\\u01c6\\u01c6\\u01c6x'", "'\\u01c4\\u01c4\\u01c4X'", "'\\u01c5\\u01c6\\u01c6x'", "'\\u01c6\\u01c6\\u01c6x'", "'\\u01c5\\u01c6\\u01c6x'", "'\\u01c6\\u01c5\\u01c4X'"]
+'\u10d0\u10e1' ["'\\u10d0\\u10e1'", "'\\u1c90\\u1ca1'", "'\\u10d0\\u10e1'", "'\\u10d0\\u10e1'", "'\\u10d0\\u10e1'", "'\\u1c90\\u1ca1'"]
+'\u13a0\uab70' ["'\\uab70\\uab70'", "'\\u13a0\\u13a0'", "'\\u13a0\\uab70'", "'\\u13a0\\u13a0'", "'\\u13a0\\uab70'", "'\\uab70\\u13a0'"]
+'\u0587' ["'\\u0587'", "'\\u0535\\u0552'", "'\\u0535\\u0582'", "'\\u0565\\u0582'", "'\\u0535\\u0582'", "'\\u0535\\u0552'"]
+'hello WORLD' ["'hello world'", "'HELLO WORLD'", "'Hello World'", "'hello world'", "'Hello world'", "'HELLO world'"]
+'\U00010400\U00010428' ["'\\U00010428\\U00010428'", "'\\U00010400\\U00010400'", "'\\U00010400\\U00010428'", "'\\U00010428\\U00010428'", "'\\U00010400\\U00010428'", "'\\U00010428\\U00010400'"]
+'\u1e9e' ["'\\xdf'", "'\\u1e9e'", "'\\u1e9e'", "'ss'", "'\\u1e9e'", "'\\xdf'"]
+'\u2126\u212a' ["'\\u03c9k'", "'\\u2126\\u212a'", "'\\u2126k'", "'\\u03c9k'", "'\\u2126k'", "'\\u03c9k'"]
+'d\u017ez' ["'d\\u017ez'", "'D\\u017dZ'", "'D\\u017ez'", "'d\\u017ez'", "'D\\u017ez'", "'D\\u017dZ'"]
+"o'neil van-der \xe9t\xe9" ['"o\'neil van-der \\xe9t\\xe9"', '"O\'NEIL VAN-DER \\xc9T\\xc9"', '"O\'Neil Van-Der \\xc9t\\xe9"', '"o\'neil van-der \\xe9t\\xe9"', '"O\'neil van-der \\xe9t\\xe9"', '"O\'NEIL VAN-DER \\xc9T\\xc9"']
+'\u0149x' ["'\\u0149x'", "'\\u02bcNX'", "'\\u02bcNx'", "'\\u02bcnx'", "'\\u02bcNx'", "'\\u02bcNX'"]
+'\xb5\u0131' ["'\\xb5\\u0131'", "'\\u039cI'", "'\\u039c\\u0131'", "'\\u03bc\\u0131'", "'\\u039c\\u0131'", "'\\u039cI'"]
+'' ......T....T
+'a' TT....TT..TT
+'\xdf' TT....TT..T.
+'\u01c5' TT....T..TT.
+'\u01c5a' TT....T..TT.
+'A\u01c5' TT....T...T.
+'\u0660' .TTTT.T.....
+'\xb2' .T.TT.T.....
+'\xbd' .T..T.T.....
+'\u2160' .T..T.T.TTT.
+'\u3007' .T..T.T...T.
+'\u2028' .....T......
+'\x85' .....T......
+'\xa0' .....T......
+'\u200b' ............
+'\xad' ............
+'\u1680' .....T......
+'ab c' ......TT...T
+'_x1' ......TT..TT
+'1x' .T....TT...T
+'\u2118' ......T...T.
+'\u212e' ......T...T.
+'x\xb7' ......TT..T.
+'\u0345' ......TT....
+'\u02b0' TT....TT..T.
+'\ua7f8' TT....TT..T.
+'Hello World' ......T..T.T
+'Hello world' ......T....T
+'\xc9t\xe9' TT....T..TT.
+'\U0001d7ce' .TTTT.T.....
+'\ud800' ............
+'\U000e0100' ......T.....
+'x\U000e0100' ......TT..T.
+' ' .....TT....T
+['a', 'b', 'c', 'd', 'e'] ['a', 'b', 'c\u2028d\t e\u3000 '] ['\u2003a\x1cb\x85c', 'd', 'e'] 'a\x1cb\x85c\u2028d\t e'
+["'\\u2003a'", "'b'", "'c'", "'d\\t e\\u3000 '"] ["'\\u2003a\\x1c'", "'b\\x85'", "'c\\u2028'", "'d\\t e\\u3000 '"]
+["'a'", "'b'", "'c'", "'d'", "'e'", "'f'", "'g'", "'h'"]
+'x' 'x\xa0' '\u200bx'
+('a\u2003b', '', '') ['a\u2003b']
+12 -12 12 16 45.0 -1.5 (1+2j) 1
+invalid literal for int() with base 10: '²'
+could not convert string to float: '²'
+invalid literal for int() with base 10: '1½'
+could not convert string to float: '1½'
+invalid literal for int() with base 10: '⅕'
+could not convert string to float: '⅕'
+invalid literal for int() with base 10: '١x'
+could not convert string to float: '١x'
+invalid literal for int() with base 10: ''
+could not convert string to float: ''
+invalid literal for int() with base 10: ' '
+could not convert string to float: ' '
+invalid literal for int() with base 10: '\u2003'
+could not convert string to float: '\u2003'
+12 1.5
+invalid literal for int() with base 10: b'\xb2'
+'a\xa0b\xadc\u200bd\u2028e\ud800f\U000e0001g😀h\u0378'
+'\xe9\u20ac\U0001f600' ['\x85', '\u3000', '\u1680']
+4 '\ud800' '\udc00' 2 'A\ud800\udc00B' '\udfff'
+'\ud800\udc00' True True True
+{55296: 'x'} 'aA'

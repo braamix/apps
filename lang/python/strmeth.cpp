@@ -2,13 +2,15 @@
 // language promises. The bytes are UTF-8, and they are converted only at the
 // boundary: an argument coming in, an index going out.
 #include "call.h"
+#include "codec.h"
 #include "format.h"
 #include "gc.h"
 #include "gen.h"
 #include "kernel/fmt.h"
-#include "kernel/text.h"
 #include "method.h"
 #include "ops.h"
+#include "ucd.h"
+#include "ustr.h"
 
 namespace {
 
@@ -72,130 +74,178 @@ Value made(const String &b)
 
 // ---------------------------------------------------------------- case work
 
-using CaseFn = char32_t (*)(char32_t);
+// Every character of `s`, decoded once. The case work looks both ways from a
+// sigma, so it wants them all to hand.
+bool chars_of(const StrObj *s, Vec<u32> &out)
+{
+    if (!out.reserve(s->chars))
+        return false;
+    for (usize i = 0; i < s->len;) {
+        u32 cp = 0;
+        i += cp_decode(s->str(), i, cp);
+        if (!out.push(cp))
+            return false;
+    }
+    return true;
+}
 
-R map_case(const CallArgs &a, Str who, CaseFn fn, Value &out)
+// Final_Sigma: a capital sigma after a cased letter, and with none after it,
+// ignoring what is case-ignorable either side.
+u32 lower_sigma(const Vec<u32> &cs, usize i)
+{
+    usize j = i;
+    while (j > 0 && ucd_is(cs[j - 1], UCD_CASE_IGNORABLE))
+        j--;
+    bool final = j > 0 && ucd_is(cs[j - 1], UCD_CASED);
+    if (final) {
+        usize k = i + 1;
+        while (k < cs.size() && ucd_is(cs[k], UCD_CASE_IGNORABLE))
+            k++;
+        final = k == cs.size() || !ucd_is(cs[k], UCD_CASED);
+    }
+    return final ? 0x3c2 : 0x3c3;
+}
+
+usize lower_at(const Vec<u32> &cs, usize i, u32 *out)
+{
+    if (cs[i] == 0x3a3) {
+        out[0] = lower_sigma(cs, i);
+        return 1;
+    }
+    return ucd_map(cs[i], UcdMap::Lower, out);
+}
+
+enum class Case : u8 { Lower, Upper, Fold, Swap, Title, Capitalize };
+
+R map_case(const CallArgs &a, Str who, Case how, Value &out)
 {
     StrObj *s = self_str(a, who);
     if (!s || !meth_args(a, who, 0, 0))
         return R::Err;
+    String b;
     if (s->flags & OBJ_ASCII) {
-        // The common case: a byte is a character, so no decode.
-        String b;
-        for (usize i = 0; i < s->len; i++)
-            if (!b.push(char(fn(char32_t(u8(s->bytes()[i]))))))
+        // The common case: a byte is a character, and ASCII maps to ASCII.
+        bool start = true;
+        for (usize i = 0; i < s->len; i++) {
+            char c  = s->bytes()[i];
+            bool up = c >= 'A' && c <= 'Z', lo = c >= 'a' && c <= 'z';
+            bool big = false;
+            switch (how) {
+            case Case::Lower:
+            case Case::Fold:
+                big = false;
+                break;
+            case Case::Upper:
+                big = true;
+                break;
+            case Case::Swap:
+                big = lo;
+                break;
+            case Case::Title:
+                big = start;
+                break;
+            case Case::Capitalize:
+                big = i == 0;
+                break;
+            }
+            if (up && !big)
+                c = char(c + 32);
+            else if (lo && big)
+                c = char(c - 32);
+            start = !(up || lo);
+            if (!b.push(c))
                 return oom_err();
+        }
         out = made(b);
         return out.is_nil() ? R::Err : R::Ok;
     }
-    String b;
-    for (usize i = 0; i < s->len;) {
-        char32_t cp = 0;
-        usize w     = utf8_decode(s->str(), i, cp);
-        if (w == 0)
+    Vec<u32> cs;
+    if (!chars_of(s, cs))
+        return oom_err();
+    bool cased = false;
+    for (usize i = 0; i < cs.size(); i++) {
+        u32 cp = cs[i];
+        u32 m[UCD_MAP_MAX];
+        usize n = 1;
+        m[0]    = cp;
+        switch (how) {
+        case Case::Lower:
+            n = lower_at(cs, i, m);
             break;
-        i += w;
-        char tmp[4];
-        usize n = utf8_encode(fn(cp), tmp);
-        if (!b.append(Str(tmp, n)))
-            return oom_err();
+        case Case::Upper:
+            n = ucd_map(cp, UcdMap::Upper, m);
+            break;
+        case Case::Fold:
+            n = ucd_map(cp, UcdMap::Fold, m);
+            break;
+        case Case::Swap:
+            if (ucd_is(cp, UCD_UPPER))
+                n = lower_at(cs, i, m);
+            else if (ucd_is(cp, UCD_LOWER))
+                n = ucd_map(cp, UcdMap::Upper, m);
+            break;
+        case Case::Title:
+            n     = cased ? lower_at(cs, i, m) : ucd_map(cp, UcdMap::Title, m);
+            cased = ucd_is(cp, UCD_CASED);
+            break;
+        case Case::Capitalize:
+            n = i ? lower_at(cs, i, m) : ucd_map(cp, UcdMap::Title, m);
+            break;
+        }
+        for (usize k = 0; k < n; k++)
+            if (!cp_append(b, m[k]))
+                return oom_err();
     }
     out = made(b);
     return out.is_nil() ? R::Err : R::Ok;
-}
-
-char32_t swap_one(char32_t c)
-{
-    return rune_is_upper(c) ? rune_lower(c) : rune_upper(c);
 }
 
 R m_lower(const CallArgs &a, Value &out)
 {
-    return map_case(a, "lower", rune_lower, out);
+    return map_case(a, "lower", Case::Lower, out);
 }
 
 R m_upper(const CallArgs &a, Value &out)
 {
-    return map_case(a, "upper", rune_upper, out);
+    return map_case(a, "upper", Case::Upper, out);
 }
 
 R m_swapcase(const CallArgs &a, Value &out)
 {
-    return map_case(a, "swapcase", swap_one, out);
+    return map_case(a, "swapcase", Case::Swap, out);
 }
 
-// casefold is lower() until phase 22 brings the full mappings.
 R m_casefold(const CallArgs &a, Value &out)
 {
-    return map_case(a, "casefold", rune_lower, out);
+    return map_case(a, "casefold", Case::Fold, out);
 }
 
-// The first character upper, the rest lower whatever they were.
+// The first character title case, the rest lower whatever they were.
 R m_capitalize(const CallArgs &a, Value &out)
 {
-    StrObj *s = self_str(a, "capitalize");
-    if (!s || !meth_args(a, "capitalize", 0, 0))
-        return R::Err;
-    String b;
-    bool first = true;
-    for (usize i = 0; i < s->len;) {
-        char32_t cp = 0;
-        usize w     = utf8_decode(s->str(), i, cp);
-        if (w == 0)
-            break;
-        i += w;
-        char tmp[4];
-        usize n = utf8_encode(first ? rune_upper(cp) : rune_lower(cp), tmp);
-        first   = false;
-        if (!b.append(Str(tmp, n)))
-            return oom_err();
-    }
-    out = made(b);
-    return out.is_nil() ? R::Err : R::Ok;
+    return map_case(a, "capitalize", Case::Capitalize, out);
 }
 
-// A word starts after anything that is not a letter.
+// A word starts after anything that is not cased.
 R m_title(const CallArgs &a, Value &out)
 {
-    StrObj *s = self_str(a, "title");
-    if (!s || !meth_args(a, "title", 0, 0))
-        return R::Err;
-    String b;
-    bool start = true;
-    for (usize i = 0; i < s->len;) {
-        char32_t cp = 0;
-        usize w     = utf8_decode(s->str(), i, cp);
-        if (w == 0)
-            break;
-        i += w;
-        char tmp[4];
-        usize n = utf8_encode(start ? rune_upper(cp) : rune_lower(cp), tmp);
-        start   = !rune_is_alpha(cp);
-        if (!b.append(Str(tmp, n)))
-            return oom_err();
-    }
-    out = made(b);
-    return out.is_nil() ? R::Err : R::Ok;
+    return map_case(a, "title", Case::Title, out);
 }
 
 // ------------------------------------------------------------- is-predicates
 
-using TestFn = bool (*)(char32_t);
-
-// True when every character passes and there is at least one.
-R every_char(const CallArgs &a, Str who, TestFn fn, Value &out)
+// True when every character has one of `flags` and there is at least one,
+// or none at all where `empty` says so.
+R every_char(const CallArgs &a, Str who, u16 flags, bool empty, Value &out)
 {
     StrObj *s = self_str(a, who);
     if (!s || !meth_args(a, who, 0, 0))
         return R::Err;
-    bool all = s->chars != 0;
+    bool all = s->chars ? true : empty;
     for (usize i = 0; i < s->len && all;) {
-        char32_t cp = 0;
-        usize w     = utf8_decode(s->str(), i, cp);
-        if (w == 0)
-            break;
-        i += w;
-        all = fn(cp);
+        u32 cp = 0;
+        i += cp_decode(s->str(), i, cp);
+        all = (ucd_rec(cp).flags & flags) != 0;
     }
     out = value_bool(all);
     return R::Ok;
@@ -203,46 +253,38 @@ R every_char(const CallArgs &a, Str who, TestFn fn, Value &out)
 
 R m_isalpha(const CallArgs &a, Value &out)
 {
-    return every_char(a, "isalpha", rune_is_alpha, out);
+    return every_char(a, "isalpha", UCD_ALPHA, false, out);
 }
 
 R m_isalnum(const CallArgs &a, Value &out)
 {
-    return every_char(a, "isalnum", rune_is_alnum, out);
+    return every_char(a, "isalnum", UCD_ALPHA | UCD_DECIMAL | UCD_DIGIT | UCD_NUMERIC, false, out);
 }
 
 R m_isdigit(const CallArgs &a, Value &out)
 {
-    return every_char(a, "isdigit", rune_is_digit, out);
+    return every_char(a, "isdigit", UCD_DIGIT, false, out);
 }
 
-// No Unicode numeric table yet, so these two answer as isdigit.
 R m_isdecimal(const CallArgs &a, Value &out)
 {
-    return every_char(a, "isdecimal", rune_is_digit, out);
+    return every_char(a, "isdecimal", UCD_DECIMAL, false, out);
 }
 
 R m_isnumeric(const CallArgs &a, Value &out)
 {
-    return every_char(a, "isnumeric", rune_is_digit, out);
+    return every_char(a, "isnumeric", UCD_NUMERIC, false, out);
 }
 
 R m_isspace(const CallArgs &a, Value &out)
 {
-    return every_char(a, "isspace", rune_is_space, out);
+    return every_char(a, "isspace", UCD_SPACE, false, out);
 }
 
+// The empty string is printable, where the others say no.
 R m_isprintable(const CallArgs &a, Value &out)
 {
-    // The empty string is printable, where the shared rule says no.
-    StrObj *s = self_str(a, "isprintable");
-    if (!s || !meth_args(a, "isprintable", 0, 0))
-        return R::Err;
-    if (!s->chars) {
-        out = value_bool(true);
-        return R::Ok;
-    }
-    return every_char(a, "isprintable", rune_is_print, out);
+    return every_char(a, "isprintable", UCD_PRINTABLE, true, out);
 }
 
 // isascii is true of the empty string too.
@@ -255,25 +297,26 @@ R m_isascii(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-// Only cased characters decide these two.
+// Only cased characters decide these two, and a title-case one refuses both.
 R cased(const CallArgs &a, Str who, bool want_upper, Value &out)
 {
     StrObj *s = self_str(a, who);
     if (!s || !meth_args(a, who, 0, 0))
         return R::Err;
-    bool any = false, all = true;
-    for (usize i = 0; i < s->len && all;) {
-        char32_t cp = 0;
-        usize w     = utf8_decode(s->str(), i, cp);
-        if (w == 0)
-            break;
-        i += w;
-        if (!rune_is_upper(cp) && !rune_is_lower(cp))
-            continue;
-        any = true;
-        all = want_upper ? rune_is_upper(cp) : rune_is_lower(cp);
+    bool any = false;
+    u16 bad  = u16(UCD_TITLE | (want_upper ? UCD_LOWER : UCD_UPPER));
+    u16 good = want_upper ? UCD_UPPER : UCD_LOWER;
+    for (usize i = 0; i < s->len;) {
+        u32 cp = 0;
+        i += cp_decode(s->str(), i, cp);
+        u16 f = ucd_rec(cp).flags;
+        if (f & bad) {
+            out = value_bool(false);
+            return R::Ok;
+        }
+        any = any || (f & good);
     }
-    out = value_bool(any && all);
+    out = value_bool(any);
     return R::Ok;
 }
 
@@ -292,21 +335,28 @@ R m_istitle(const CallArgs &a, Value &out)
     StrObj *s = self_str(a, "istitle");
     if (!s || !meth_args(a, "istitle", 0, 0))
         return R::Err;
-    bool any = false, ok = true, start = true;
-    for (usize i = 0; i < s->len && ok;) {
-        char32_t cp = 0;
-        usize w     = utf8_decode(s->str(), i, cp);
-        if (w == 0)
-            break;
-        i += w;
-        bool up = rune_is_upper(cp), lo = rune_is_lower(cp);
-        if (up || lo) {
-            any = true;
-            ok  = start ? up : lo;
+    bool any = false, previous = false;
+    for (usize i = 0; i < s->len;) {
+        u32 cp = 0;
+        i += cp_decode(s->str(), i, cp);
+        u16 f = ucd_rec(cp).flags;
+        if (f & (UCD_UPPER | UCD_TITLE)) {
+            if (previous) {
+                out = value_bool(false);
+                return R::Ok;
+            }
+            previous = any = true;
+        } else if (f & UCD_LOWER) {
+            if (!previous) {
+                out = value_bool(false);
+                return R::Ok;
+            }
+            previous = any = true;
+        } else {
+            previous = false;
         }
-        start = !rune_is_alpha(cp);
     }
-    out = value_bool(any && ok);
+    out = value_bool(any);
     return R::Ok;
 }
 
@@ -317,16 +367,10 @@ R m_isidentifier(const CallArgs &a, Value &out)
         return R::Err;
     bool ok = s->chars != 0, first = true;
     for (usize i = 0; i < s->len && ok;) {
-        char32_t cp = 0;
-        usize w     = utf8_decode(s->str(), i, cp);
-        if (w == 0)
-            break;
-        i += w;
-        // The lexer's rule: anything above U+007F is a letter. Phase 22
-        // replaces it with XID_Start and XID_Continue.
-        bool letter = rune_is_alpha(cp) || cp == '_' || cp >= 0x80;
-        ok          = letter || (!first && rune_is_digit(cp));
-        first       = false;
+        u32 cp = 0;
+        i += cp_decode(s->str(), i, cp);
+        ok    = first ? (ucd_is(cp, UCD_XID_START) || cp == '_') : ucd_is(cp, UCD_XID_CONTINUE);
+        first = false;
     }
     out = value_bool(ok);
     return R::Ok;
@@ -519,16 +563,13 @@ R m_endswith(const CallArgs &a, Value &out)
 
 // Is `cp` in `chars`? An empty `chars` means whitespace, which is what a
 // missing argument asks for.
-bool in_set(Str chars, bool space, char32_t cp)
+bool in_set(Str chars, bool space, u32 cp)
 {
     if (space)
-        return rune_is_space(cp);
+        return ucd_is(cp, UCD_SPACE);
     for (usize i = 0; i < chars.size();) {
-        char32_t c = 0;
-        usize w    = utf8_decode(chars, i, c);
-        if (w == 0)
-            break;
-        i += w;
+        u32 c = 0;
+        i += cp_decode(chars, i, c);
         if (c == cp)
             return true;
     }
@@ -618,6 +659,45 @@ bool push_str(ListObj *l, Str s)
     return !v.is_nil() && list_push(list_of(rl.v), v);
 }
 
+// The width of the whitespace character at `i`, or 0.
+usize space_at(Str s, usize i)
+{
+    u8 c = u8(s[i]);
+    if (c < 0x80)
+        return c == ' ' || (c >= 9 && c <= 13) || (c >= 0x1c && c <= 0x1f) ? 1 : 0;
+    u32 cp  = 0;
+    usize w = cp_decode(s, i, cp);
+    return ucd_is(cp, UCD_SPACE) ? w : 0;
+}
+
+// Where the character that ends at `i` starts.
+usize char_before(Str s, usize i)
+{
+    do
+        i--;
+    while (i > 0 && (u8(s[i]) & 0xc0) == 0x80);
+    return i;
+}
+
+bool space_before(Str s, usize i)
+{
+    return space_at(s, char_before(s, i)) != 0;
+}
+
+usize skip_space(Str s, usize i)
+{
+    for (usize w; i < s.size() && (w = space_at(s, i));)
+        i += w;
+    return i;
+}
+
+usize skip_word(Str s, usize i)
+{
+    while (i < s.size() && !space_at(s, i))
+        i += cp_width(u8(s[i]));
+    return i;
+}
+
 // sep=None: runs of whitespace, with the ends dropped. A different algorithm
 // from a named separator, not a special case of it.
 R split_space(Str all, i64 most, bool right, Value &out)
@@ -631,8 +711,7 @@ R split_space(Str all, i64 most, bool right, Value &out)
     if (!right) {
         usize i = 0;
         while (i < all.size()) {
-            while (i < all.size() && is_space(all[i]))
-                i++;
+            i = skip_space(all, i);
             if (i >= all.size())
                 break;
             if (most >= 0 && i64(parts.size()) == most) {
@@ -641,16 +720,15 @@ R split_space(Str all, i64 most, bool right, Value &out)
                 break;
             }
             usize b = i;
-            while (i < all.size() && !is_space(all[i]))
-                i++;
+            i       = skip_word(all, i);
             if (!parts.push(all.substr(b, i - b)))
                 return oom_err();
         }
     } else {
         usize i = all.size();
         while (i > 0) {
-            while (i > 0 && is_space(all[i - 1]))
-                i--;
+            while (i > 0 && space_before(all, i))
+                i = char_before(all, i);
             if (i == 0)
                 break;
             if (most >= 0 && i64(parts.size()) == most) {
@@ -659,8 +737,8 @@ R split_space(Str all, i64 most, bool right, Value &out)
                 break;
             }
             usize e = i;
-            while (i > 0 && !is_space(all[i - 1]))
-                i--;
+            while (i > 0 && !space_before(all, i))
+                i = char_before(all, i);
             if (!parts.push(all.substr(i, e - i)))
                 return oom_err();
         }
@@ -779,14 +857,24 @@ R m_splitlines(const CallArgs &a, Value &out)
     Root rl{ obj_value(l) };
     Str all = s->str();
     usize i = 0;
+    // The width of the line break at `k`, or 0: \n, \r, \v, \f, the three
+    // separators, and past ASCII what Unicode calls one.
+    auto brk = [&](usize k) -> usize {
+        u8 c = u8(all[k]);
+        if (c < 0x80)
+            return (c >= 0x0a && c <= 0x0d) || (c >= 0x1c && c <= 0x1e) ? 1 : 0;
+        u32 cp  = 0;
+        usize w = cp_decode(all, k, cp);
+        return ucd_is(cp, UCD_LINEBREAK) ? w : 0;
+    };
     while (i < all.size()) {
-        usize b = i;
-        while (i < all.size() && all[i] != '\n' && all[i] != '\r')
-            i++;
+        usize b = i, w = 0;
+        while (i < all.size() && !(w = brk(i)))
+            i += cp_width(u8(all[i]));
         usize e = i;
         if (i < all.size()) {
             bool cr = all[i] == '\r';
-            i++;
+            i += w;
             if (cr && i < all.size() && all[i] == '\n')
                 i++;
         }
@@ -915,10 +1003,7 @@ R m_replace(const CallArgs &a, Value &out)
             }
             if (i >= all.size())
                 break;
-            char32_t cp = 0;
-            usize w     = utf8_decode(all, i, cp);
-            if (w == 0)
-                break;
+            usize w = cp_width(u8(all[i]));
             if (!b.append(all.substr(i, w)))
                 return oom_err();
             i += w;
@@ -1054,10 +1139,8 @@ R m_expandtabs(const CallArgs &a, Value &out)
     String b;
     i64 col = 0;
     for (usize i = 0; i < s->len;) {
-        char32_t cp = 0;
-        usize w     = utf8_decode(s->str(), i, cp);
-        if (w == 0)
-            break;
+        u32 cp  = 0;
+        usize w = cp_decode(s->str(), i, cp);
         if (cp == '\t') {
             i64 n = tab > 0 ? tab - col % tab : 0;
             for (i64 k = 0; k < n; k++)
@@ -1086,19 +1169,7 @@ R m_encode(const CallArgs &a, Value &out)
     Value got[2];
     if (!meth_take(a, "encode", NAMES, 0, got))
         return R::Err;
-    Str enc = "utf-8";
-    if (!got[0].is_nil()) {
-        if (!is_str(got[0]))
-            return err_set2("TypeError", "encode() encoding must be a str", type_name(got[0]));
-        enc = str_of(got[0])->str();
-    }
-    bool ascii = enc == "ascii" || enc == "ASCII" || enc == "us-ascii";
-    if (!ascii && !(enc == "utf-8" || enc == "utf8" || enc == "UTF-8" || enc == "UTF8"))
-        return err_set2("LookupError", "unknown encoding", enc);
-    if (ascii && !(s->flags & OBJ_ASCII))
-        return err_set("UnicodeEncodeError", "ordinal not in range(128)");
-    out = bytes_new(s->str());
-    return out.is_nil() ? R::Err : R::Ok;
+    return text_encode(obj_value(s), got[0], got[1], out);
 }
 
 // str.maketrans(x[, y[, z]]): a dict from an ordinal to its replacement.
@@ -1166,10 +1237,8 @@ R m_translate(const CallArgs &a, Value &out)
     Root rs{ obj_value(s) }, tab{ a.args[1] };
     String b;
     for (usize i = 0; i < str_of(rs.v)->len;) {
-        char32_t cp = 0;
-        usize w     = utf8_decode(str_of(rs.v)->str(), i, cp);
-        if (w == 0)
-            break;
+        u32 cp   = 0;
+        usize w  = cp_decode(str_of(rs.v)->str(), i, cp);
         Str here = str_of(rs.v)->str().substr(i, w);
         i += w;
 
@@ -1188,9 +1257,9 @@ R m_translate(const CallArgs &a, Value &out)
             continue;
         i64 n = 0;
         if (as_index(to, n)) {
-            char tmp[4];
-            usize k = utf8_encode(char32_t(n), tmp);
-            if (!b.append(Str(tmp, k)))
+            if (n < 0 || n > 0x10ffff)
+                return err_set("ValueError", "character mapping must be in range(0x110000)");
+            if (!cp_append(b, u32(n)))
                 return oom_err();
         } else if (is_str(to)) {
             if (!b.append(str_of(to)->str()))

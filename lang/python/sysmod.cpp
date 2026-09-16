@@ -9,6 +9,7 @@
 #include "bigint.h"
 #include "builtin.h"
 #include "call.h"
+#include "codec.h"
 #include "exc.h"
 #include "gc.h"
 #include "import.h"
@@ -23,6 +24,7 @@
 #include "module.h"
 #include "ops.h"
 #include "type.h"
+#include "ustr.h"
 #include "vm.h"
 
 namespace {
@@ -120,7 +122,7 @@ Value fields_new(const Type *t, const Field *fs, usize n)
 // ---------------------------------------------------------- the three streams
 
 // One of sys.stdin, sys.stdout and sys.stderr. There is no io layer until
-// phase 21, so a write goes straight into the buffer the VM flushes and a read
+// phase 25, so a write goes straight into the buffer the VM flushes and a read
 // is refused: nothing here can park on a descriptor.
 struct StdObj : Obj {
     Value name; // "<stdout>"
@@ -166,6 +168,20 @@ String *buffer_for(const StdObj *s)
     return s->fd == SYS_STDERR ? vm_errout() : vm_out();
 }
 
+// Text into a stream's buffer. stdout is surrogateescape, so a surrogate it
+// cannot escape is a UnicodeEncodeError here, at the write, as in CPython;
+// stderr's backslashreplace is applied when the buffer goes out.
+bool std_put(const StdObj *s, Str text)
+{
+    String *sink = buffer_for(s);
+    if (!sink)
+        return true;
+    if (s->fd == SYS_STDERR || !has_surrogate(text))
+        return sink->append(text) || oom() == R::Ok;
+    String b;
+    return std_encode(text, true, b) && (sink->append(b.str()) || oom() == R::Ok);
+}
+
 R std_write(const CallArgs &a, Value &out)
 {
     if (!meth_args(a, "write", 1, 1))
@@ -175,10 +191,9 @@ R std_write(const CallArgs &a, Value &out)
         return err_set("OSError", "not writable");
     if (!is_str(a.args[1]))
         return err_set2("TypeError", "write() argument must be str", type_name(a.args[1]));
-    String *sink = buffer_for(s);
     StrObj *text = str_of(a.args[1]);
-    if (sink && !sink->append(text->str()))
-        return oom();
+    if (!std_put(s, text->str()))
+        return R::Err;
     out = Value::of_int(i32(text->chars));
     return R::Ok;
 }
@@ -202,9 +217,8 @@ R std_writelines(const CallArgs &a, Value &out)
             break;
         if (!is_str(got.v))
             return err_set2("TypeError", "writelines() wants str", type_name(got.v));
-        String *sink = buffer_for(std_of(method_self(a.args[0])));
-        if (sink && !sink->append(str_of(got.v)->str()))
-            return oom();
+        if (!std_put(std_of(method_self(a.args[0])), str_of(got.v)->str()))
+            return R::Err;
     }
     out = value_none();
     return R::Ok;
@@ -271,7 +285,7 @@ R std_close(const CallArgs &a, Value &out)
 
 // Reading a descriptor needs a Req the VM has not got -- ReqKind::Read names a
 // path, not an fd -- so stdin refuses rather than pretending to be empty.
-// Phase 21 is where it becomes a file.
+// Phase 25 is where it becomes a file.
 R std_read(const CallArgs &a, Value &out)
 {
     (void)a;
@@ -290,7 +304,7 @@ R std_getattr(Value v, StrObj *name, Value &out)
     else if (n == "encoding")
         out = str_new("utf-8");
     else if (n == "errors")
-        out = str_new("strict");
+        out = str_new(s->fd == SYS_STDERR ? Str("backslashreplace") : Str("surrogateescape"));
     else if (n == "newlines")
         out = value_none();
     else if (n == "closed")
@@ -629,10 +643,8 @@ R sys_write(Value file, Str text, Value &out)
             return R::Ok; // sys.stdout is None: print writes nowhere
         rf = got;
     }
-    if (is_std(rf.v)) {
-        String *sink = buffer_for(std_of(rf.v));
-        return sink && !sink->append(text) ? oom() : R::Ok;
-    }
+    if (is_std(rf.v))
+        return std_put(std_of(rf.v), text) ? R::Ok : R::Err;
     // Something of the program's own: its write() is Python, so the caller
     // gets a continuation and the VM makes the call. What write() answers is
     // thrown away -- print's own answer is None.

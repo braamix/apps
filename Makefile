@@ -140,6 +140,7 @@ TESTS := \
     lang/python/test/pygen.mjs \
     lang/python/test/pycoro.mjs \
     lang/python/test/pymodule.mjs \
+    lang/python/test/pyunicode.mjs \
     lang/python/test/pyexec.mjs \
     lang/python/test/pylazy.mjs \
     lang/python/test/pyunit.mjs \

@@ -12,6 +12,7 @@
 #include "abc.h"
 #include "builtin.h"
 #include "call.h"
+#include "codec.h"
 #include "compare.h"
 #include "egroup.h"
 #include "exc.h"
@@ -33,6 +34,7 @@
 #include "templatelib.h"
 #include "type.h"
 #include "typevar.h"
+#include "ustr.h"
 
 namespace {
 
@@ -467,6 +469,8 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
         return static_cast<NativeObj *>(callable.obj())->fn(a, out);
     if (is_type(callable))
         return type_call(callable, a, out, entered);
+    if (is_newwrap(callable))
+        return newwrap_call(callable, a, out);
     // Resuming a generator pushes a frame, and only the loop may do that. So
     // gen.send is an object of its own rather than a native; see gen.h.
     if (is_genrun(callable))
@@ -1996,13 +2000,14 @@ void interpret()
         vm->bound.clear();
 
         // The file an import asked for has arrived. Hand it to the step that
-        // parked, as a str, or None when there was no such file.
+        // parked, as bytes -- how they read is the source's to say -- or None
+        // when there was no such file.
         if (!vm->resume.is_nil()) {
             Root k{ vm->resume };
             vm->resume = Value();
             Root text{ !vm->found  ? value_none()
                        : vm->isdir ? value_bool(true)
-                                   : str_new(vm->text.str()) };
+                                   : bytes_new(vm->text.str()) };
             if (text.v.is_nil() || !run_cont(k.v, text.v)) {
                 vm->tb.clear();
                 if (!raise_value(pending_exception()))
@@ -3630,6 +3635,14 @@ Req vm_burst()
         // A program writing through sys.stderr flushes here too, not only the
         // traceback on the way out.
         if (!vm->err.empty()) {
+            // stderr is backslashreplace: a lone surrogate is written as its
+            // escape, and that cannot fail.
+            if (has_surrogate(vm->err.str())) {
+                String clean;
+                if (std_encode(vm->err.str(), false, clean))
+                    vm->err = static_cast<String &&>(clean);
+                err_clear();
+            }
             vm->sent = &vm->err;
             return Req{ ReqKind::Write, SYS_STDERR, vm->err.str(), Str(), 0 };
         }

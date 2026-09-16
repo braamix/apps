@@ -1,0 +1,12 @@
+# Data files CPython's tests read, byte for byte. pycases.mjs plants each one
+# under /tmp/test/, beside the shims' test package, so `test.tokenizedata`
+# imports as it does in CPython's own tree. Columns:
+#
+#   path      the file under test/cpython/test/
+#   commit    the cpython commit the copy was taken from
+#   upstream  the path it was taken from
+#
+# path                            commit   upstream
+tokenizedata/__init__.py          82952e3  Lib/test/tokenizedata/__init__.py
+tokenizedata/badsyntax_3131.py    82952e3  Lib/test/tokenizedata/badsyntax_3131.py
+tokenizedata/badsyntax_pep3120.py 82952e3  Lib/test/tokenizedata/badsyntax_pep3120.py

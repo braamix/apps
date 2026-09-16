@@ -211,7 +211,8 @@ struct Ast {
     u32 root = 0;
 
     // False leaves a SyntaxError pending, with the line and column.
-    bool parse(Str source);
+    // `decoded`: the text of a str, whose coding cookie is not read.
+    bool parse(Str source, bool decoded = false);
 
     const Node &at(u32 i) const { return nodes[i]; }
 

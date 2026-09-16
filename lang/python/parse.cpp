@@ -474,6 +474,9 @@ bool Parser::fstring_field(Str field, u32 at_tok, String &pending, List &into, b
     usize bang = field_suffix(expr, '!');
     if (bang != Str::npos) {
         Str c = expr.substr(bang + 1);
+        // PEP 701 lets whitespace follow the conversion character.
+        while (c.size() > 1 && (c[c.size() - 1] == ' ' || c[c.size() - 1] == '\t'))
+            c = c.substr(0, c.size() - 1);
         if (c.size() != 1 || (c[0] != 's' && c[0] != 'r' && c[0] != 'a'))
             return fail("f-string: invalid conversion character"), false;
         conv = u8(c[0]);
@@ -541,6 +544,18 @@ bool Parser::fstring_parts(Str body, bool raw, u32 at_tok, String &pending, List
         bool end = at == body.size();
         char c   = end ? 0 : body[at];
         if (!end && c != '{' && c != '}') {
+            // An escape is not a brace, and \N{...} is a name, not a field.
+            if (c == '\\' && !raw && at + 1 < body.size()) {
+                if (body[at + 1] == 'N' && at + 2 < body.size() && body[at + 2] == '{') {
+                    usize close = body.find('}', at + 3);
+                    at          = close == Str::npos ? body.size() : close + 1;
+                    continue;
+                }
+                if (body[at + 1] != '{' && body[at + 1] != '}') {
+                    at += 2;
+                    continue;
+                }
+            }
             at++;
             continue;
         }
@@ -2771,9 +2786,9 @@ bool Parser::run()
 
 } // namespace
 
-bool Ast::parse(Str source)
+bool Ast::parse(Str source, bool decoded)
 {
-    if (!lex.run(source))
+    if (!lex.run(source, decoded))
         return false;
     // Node 0 is Nop, so an index of 0 reads as "nothing".
     if (!nodes.push(Node{}))

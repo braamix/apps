@@ -1,12 +1,17 @@
 // The tokenizer.
 #include "lex.h"
 
+#include "call.h"
+#include "codec.h"
 #include "err.h"
+#include "exc.h"
 #include "gc.h"
 #include "kernel/fmt.h"
 #include "kernel/text.h"
 #include "math/ftoa.h"
 #include "ops.h"
+#include "ucd.h"
+#include "ustr.h"
 
 namespace {
 
@@ -115,6 +120,11 @@ struct Scanner {
     // Newline, Dedent or End, and no complaint that the brackets never closed.
     bool fragment = false;
 
+    // The raw body of the literal being scanned, for the position an escape
+    // error names, and the quote that ends it; 0 for an f-string's piece.
+    Str lit      = Str();
+    u8 lit_quote = 0;
+
     usize indents[MAX_INDENT] = { 0 };
     usize alts[MAX_INDENT]    = { 0 }; // the same columns with tabs worth 1
     usize levels              = 1;
@@ -174,6 +184,8 @@ struct Scanner {
         return out->tokens.push(t) ? true : fail("out of memory");
     }
 
+    bool fail_escape(Str message, usize from, usize to, u32 at_line, u32 at_col);
+    bool bad_char(u32 cp, u32 at_line, u32 at_col);
     bool run();
     bool line_start();
     bool one_token();
@@ -280,7 +292,33 @@ bool Scanner::scan_name()
     for (const Spelling &k : KEYWORDS)
         if (word == k.word)
             return emit(k.kind, at_line, at_col);
-    return emit_text(Tok::Name, at_line, at_col, word);
+
+    bool ascii = true;
+    for (usize k = 0; k < word.size() && ascii; k++)
+        ascii = u8(word[k]) < 0x80;
+    if (ascii)
+        return emit_text(Tok::Name, at_line, at_col, word);
+
+    // XID_Start then XID_Continue, and the name is its NFKC form: `ﬁ` and
+    // `fi` are one name.
+    Vec<u32> cps;
+    u32 n = 0;
+    for (usize k = 0; k < word.size(); n++) {
+        u32 cp = 0;
+        k += cp_decode(word, k, cp);
+        bool ok = n ? ucd_is(cp, UCD_XID_CONTINUE) : (ucd_is(cp, UCD_XID_START) || cp == '_');
+        if (!ok)
+            return bad_char(cp, at_line, at_col + n);
+        if (!cps.push(cp))
+            return fail("out of memory");
+    }
+    if (!ucd_normalize(UcdForm::NFKC, cps))
+        return fail("out of memory");
+    String norm;
+    for (usize k = 0; k < cps.size(); k++)
+        if (!cp_append(norm, cps[k]))
+            return fail("out of memory");
+    return emit_text(Tok::Name, at_line, at_col, norm.str());
 }
 
 bool Scanner::scan_number()
@@ -360,6 +398,13 @@ bool Scanner::scan_number()
     usize digits_to = i;
     if (imag)
         bump();
+    if (!at_end() && peek() >= 0x80) {
+        u32 cp = 0;
+        cp_decode(src, i, cp);
+        // CPython reads what follows as an identifier, which has to start.
+        if (!ucd_is(cp, UCD_XID_START))
+            return bad_char(cp, line, col);
+    }
     if (!at_end() && is_name_char(peek()))
         return fail_at("invalid digit in number", at_line, at_col);
 
@@ -412,13 +457,71 @@ bool Scanner::scan_number()
     return out->tokens.push(t) ? true : fail("out of memory");
 }
 
-// One backslash escape, already past the backslash.
+// Where CPython's decoder says an escape is: it rewrites every non-ASCII
+// character of the literal as a ten-byte \\U escape first, and a backslash
+// before one as six bytes, and counts in what that made.
+usize escape_offset(Str body, usize upto)
+{
+    usize n = 0;
+    for (usize k = 0; k < upto && k < body.size();) {
+        u8 c = u8(body[k]);
+        if (c == '\\') {
+            n++;
+            k++;
+            if (k >= body.size() || u8(body[k]) >= 0x80) {
+                n += 5;
+                continue;
+            }
+            c = u8(body[k]);
+        }
+        if (c >= 0x80) {
+            k += cp_width(c);
+            n += 10;
+        } else {
+            n++;
+            k++;
+        }
+    }
+    return n;
+}
+
+bool Scanner::fail_escape(Str message, usize from, usize to, u32 at_line, u32 at_col)
+{
+    usize a = escape_offset(lit, from), b = escape_offset(lit, to);
+    Buf<160> m;
+    m.put("(unicode error) 'unicodeescape' codec can't decode ");
+    if (b == a + 1)
+        m.put("byte 0x5c in position ").put(a);
+    else
+        m.put("bytes in position ").put(a).put('-').put(b - 1);
+    m.put(": ").put(message);
+    return fail_at(m.str(), at_line, at_col);
+}
+
+// "invalid character '€' (U+20AC)", or the non-printable spelling of it.
+bool Scanner::bad_char(u32 cp, u32 at_line, u32 at_col)
+{
+    Buf<64> m;
+    if (ucd_is(cp, UCD_PRINTABLE)) {
+        char tmp[4];
+        m.put("invalid character '").put(Str(tmp, cp_encode(cp, tmp))).put("' (U+");
+        put_hexw(m, cp, 4, true).put(')');
+    } else {
+        put_hexw(m.put("invalid non-printable character U+"), cp, 4, true);
+    }
+    return fail_at(m.str(), at_line, at_col);
+}
+
+// One backslash escape, already past the backslash. The error is reported at
+// the literal, `at_line` and `at_col`, as CPython reports it.
 bool Scanner::string_escape(String &body, bool bytes, u32 at_line, u32 at_col)
 {
+    usize from = i - 1 - usize(lit.data() - src.data());
     if (at_end())
         return fail_at("EOF in multi-line string", at_line, at_col);
     u8 c = peek();
     bump();
+    auto here = [&]() { return i - usize(lit.data() - src.data()); };
     switch (c) {
     case '\n':
         return true; // a line continuation inside the literal
@@ -453,23 +556,27 @@ bool Scanner::string_escape(String &body, bool bytes, u32 at_line, u32 at_col)
             v = v * 8 + u32(peek() - '0');
             bump();
         }
-        return body.push(char(v & 0xff)) || fail("out of memory");
+        if (bytes)
+            return body.push(char(v & 0xff)) || fail("out of memory");
+        return cp_append(body, v) || fail("out of memory");
     }
     case 'x': {
-        int h1 = at_end() ? -1 : hex_value(peek());
-        if (h1 < 0)
-            return fail_at("truncated \\xXX escape", at_line, at_col);
-        bump();
-        int h2 = at_end() ? -1 : hex_value(peek());
-        if (h2 < 0)
-            return fail_at("truncated \\xXX escape", at_line, at_col);
-        bump();
-        u32 v = u32(h1 * 16 + h2);
+        u32 v = 0;
+        for (int k = 0; k < 2; k++) {
+            int h = at_end() ? -1 : hex_value(peek());
+            if (h < 0) {
+                if (!bytes)
+                    return fail_escape("truncated \\xXX escape", from, here(), at_line, at_col);
+                Buf<64> m;
+                m.put("(value error) invalid \\x escape at position ").put(from);
+                return fail_at(m.str(), at_line, at_col);
+            }
+            v = v * 16 + u32(h);
+            bump();
+        }
         if (bytes)
             return body.push(char(v)) || fail("out of memory");
-        char tmp[4];
-        usize n = utf8_encode(char32_t(v), tmp);
-        return body.append(Str(tmp, n)) || fail("out of memory");
+        return cp_append(body, v) || fail("out of memory");
     }
     case 'u':
     case 'U': {
@@ -480,20 +587,35 @@ bool Scanner::string_escape(String &body, bool bytes, u32 at_line, u32 at_col)
         for (usize k = 0; k < want; k++) {
             int h = at_end() ? -1 : hex_value(peek());
             if (h < 0)
-                return fail(c == 'u' ? "truncated \\uXXXX escape" : "truncated \\UXXXXXXXX escape");
+                return fail_escape(c == 'u' ? Str("truncated \\uXXXX escape")
+                                            : Str("truncated \\UXXXXXXXX escape"),
+                                   from, here(), at_line, at_col);
             v = v * 16 + u32(h);
             bump();
         }
-        if (v > 0x10ffff || (v >= 0xd800 && v <= 0xdfff))
-            return fail_at("invalid unicode escape", at_line, at_col);
-        char tmp[4];
-        usize n = utf8_encode(char32_t(v), tmp);
-        return body.append(Str(tmp, n)) || fail("out of memory");
+        if (v > 0x10ffff)
+            return fail_escape("illegal Unicode character", from, here(), at_line, at_col);
+        // A surrogate is a character like any other until it is encoded.
+        return cp_append(body, v) || fail("out of memory");
     }
-    case 'N':
-        if (!bytes)
-            return fail_at("\\N{...} escapes are not supported", at_line, at_col);
-        break;
+    case 'N': {
+        if (bytes)
+            break;
+        if (at_end() || peek() != '{')
+            return fail_escape("malformed \\N character escape", from, here(), at_line, at_col);
+        bump();
+        usize name = i;
+        while (!at_end() && peek() != '}' && !(lit_quote && peek() == lit_quote))
+            bump();
+        if (at_end() || peek() != '}' || i == name)
+            return fail_escape("malformed \\N character escape", from, here(), at_line, at_col);
+        Str word = src.substr(name, i - name);
+        bump();
+        Vec<u32> got;
+        if (!ucd_lookup(word, false, got) || got.size() != 1)
+            return fail_escape("unknown Unicode character name", from, here(), at_line, at_col);
+        return cp_append(body, got[0]) || fail("out of memory");
+    }
     default:
         break;
     }
@@ -548,9 +670,10 @@ bool Scanner::scan_string(u8 flags, u32 at_line, u32 at_col)
         if (peek() == '\n' && !triple)
             return fail_at("EOL while scanning string literal", at_line, at_col);
         if (peek() == '\\' && !raw) {
-            u32 esc_line = line, esc_col = col;
+            lit       = src.substr(body_at);
+            lit_quote = u8(src[body_at - 1]);
             bump();
-            if (!string_escape(body, bytes, esc_line, esc_col))
+            if (!string_escape(body, bytes, at_line, at_col))
                 return false;
             continue;
         }
@@ -734,8 +857,235 @@ Str tok_label(Tok t)
     return tok_is_keyword(t) ? Str("kw") : Str("op");
 }
 
-bool Lexer::run(Str source)
+namespace {
+
+bool blank_or_comment(Str line)
 {
+    for (usize i = 0; i < line.size(); i++) {
+        char c = line[i];
+        if (c == '#' || c == '\r' || c == '\n')
+            return true;
+        if (c != ' ' && c != '\t' && c != '\f')
+            return false;
+    }
+    return true;
+}
+
+// check_coding_spec over one line.
+bool cookie_in(Str line, String &out)
+{
+    usize at = 0;
+    while (at < line.size() && (line[at] == ' ' || line[at] == '\t' || line[at] == '\f'))
+        at++;
+    if (at >= line.size() || line[at] != '#')
+        return false;
+    for (usize i = at; i + 6 < line.size(); i++) {
+        if (line.substr(i, 6) != "coding" || (line[i + 6] != ':' && line[i + 6] != '='))
+            continue;
+        usize t = i + 7;
+        while (t < line.size() && (line[t] == ' ' || line[t] == '\t'))
+            t++;
+        usize from = t;
+        while (t < line.size()) {
+            char c = line[t];
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                  c == '-' || c == '_' || c == '.'))
+                break;
+            t++;
+        }
+        if (t == from)
+            continue;
+        Str name = line.substr(from, t - from);
+        // get_normal_name, over the first twelve characters.
+        char buf[13];
+        usize n = 0;
+        for (; n < 12 && n < name.size(); n++) {
+            char c = name[n];
+            buf[n] = c == '_' ? '-' : c >= 'A' && c <= 'Z' ? char(c + 32) : c;
+        }
+        Str b(buf, n);
+        if (b == "utf-8" || b.starts_with("utf-8-"))
+            return out.append("utf-8");
+        if (b == "latin-1" || b == "iso-8859-1" || b == "iso-latin-1" ||
+            b.starts_with("latin-1-") || b.starts_with("iso-8859-1-") ||
+            b.starts_with("iso-latin-1-"))
+            return out.append("iso-8859-1");
+        return out.append(name);
+    }
+    return false;
+}
+
+Str line_of(Str s, usize &at)
+{
+    usize from = at;
+    while (at < s.size() && s[at] != '\n')
+        at++;
+    if (at < s.size())
+        at++;
+    return s.substr(from, at - from);
+}
+
+// "Non-UTF-8 code starting with '\xff' on line 2, ...", at the byte.
+bool not_utf8(Str s, usize bad)
+{
+    u32 line = 1, col = 1;
+    for (usize k = 0; k < bad;) {
+        if (s[k] == '\n') {
+            line++;
+            col = 1;
+            k++;
+            continue;
+        }
+        k += cp_width(u8(s[k]));
+        col++;
+    }
+    Buf<160> m;
+    m.put("Non-UTF-8 code starting with '\\x");
+    put_hexw(m, u8(s[bad]), 2).put("' on line ").put(line);
+    m.put(", but no encoding declared; see https://peps.python.org/pep-0263/ for details");
+    return err_set_at("SyntaxError", m.str(), line, col), false;
+}
+
+R raw_decode(const CallArgs &a, Value &out)
+{
+    return text_decode(a.args[0], a.args[1], Value(), out);
+}
+
+// s[0] the bytes, s[1] the encoding.
+R decode_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0) {
+        Value fn = native_new("decode", raw_decode);
+        if (fn.is_nil())
+            return R::Err;
+        k->catching = CATCH_ANY;
+        return cont_call(k, fn, k->s[0], 2, k->s[1]);
+    }
+    k->catching = CATCH_NONE;
+    if (k->caught.is_nil())
+        return cont_done(k, in);
+    Root e{ k->caught };
+    k->caught        = Value();
+    const ExcType *t = exc_type_of(e.v);
+    if (t && exc_is(t, exc_find("LookupError")) && !exc_is(t, exc_find("UnicodeError"))) {
+        Buf<128> m;
+        m.put("unknown encoding: ").put(str_of(k->s[1])->str());
+        return lex_undecodable(m.str()), R::Err;
+    }
+    if (t && exc_is(t, exc_find("UnicodeDecodeError"))) {
+        String m;
+        if (py_str(e.v, m) != R::Ok)
+            return R::Err;
+        return lex_undecodable(m.str()), R::Err;
+    }
+    return err_set_value(e.v);
+}
+
+} // namespace
+
+R lex_source_decode(const CallArgs &a, Value &out)
+{
+    Root kv{ cont_new(decode_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[0] = a.args[0];
+    cont_of(kv.v)->s[1] = a.args[1];
+    out                 = kv.v;
+    return R::Ok;
+}
+
+bool lex_undecodable(Str message)
+{
+    Root msg{ str_new(message) };
+    Root where{ obj_value(tuple_new(4)) };
+    Root args{ obj_value(tuple_new(2)) };
+    if (msg.v.is_nil() || where.v.is_nil() || args.v.is_nil())
+        return err_set("MemoryError", "out of memory"), false;
+    TupleObj *w   = static_cast<TupleObj *>(where.v.obj());
+    w->items()[0] = value_none();
+    w->items()[1] = Value::of_int(0);
+    w->items()[2] = Value::of_int(-1);
+    w->items()[3] = value_none();
+    TupleObj *a   = static_cast<TupleObj *>(args.v.obj());
+    a->items()[0] = msg.v;
+    a->items()[1] = where.v;
+    Value e       = exc_new(exc_find("SyntaxError"), args.v);
+    if (e.is_nil())
+        return false;
+    return err_set_value(e, "SyntaxError"), false;
+}
+
+bool lex_cookie(Str source, String &out)
+{
+    usize at = 0;
+    if (source.starts_with("\xef\xbb\xbf"))
+        at = 3;
+    Str first = line_of(source, at);
+    if (cookie_in(first, out))
+        return true;
+    if (!blank_or_comment(first))
+        return false;
+    return cookie_in(line_of(source, at), out);
+}
+
+bool Lexer::run(Str source, bool decoded)
+{
+    if (!decoded) {
+        bool bom = source.starts_with("\xef\xbb\xbf");
+        String enc;
+        bool has = lex_cookie(source, enc);
+        if (bom && has && enc.str() != "utf-8") {
+            Buf<96> m;
+            m.put("encoding problem: ").put(enc.str()).put(" with BOM");
+            return err_set_at("SyntaxError", m.str(), 1, 0), false;
+        }
+        Str body = bom ? source.substr(3) : source;
+        if (!has || enc.str() == "utf-8") {
+            Utf8Bad bad;
+            if (!utf8_strict(body, bad))
+                return not_utf8(source, bad.at + (bom ? 3 : 0));
+        } else if (enc.str() == "iso-8859-1") {
+            for (usize k = 0; k < body.size(); k++)
+                if (!cp_append(own, u8(body[k])))
+                    return err_set("MemoryError", "out of memory"), false;
+            source = own.str();
+        } else {
+            Codec c = codec_shortcut(enc.str());
+            if (c == Codec::None) {
+                if (!codec.assign(enc.str()))
+                    return err_set("MemoryError", "out of memory"), false;
+                Buf<96> m;
+                m.put("unknown encoding: ").put(enc.str());
+                return lex_undecodable(m.str());
+            }
+            Root raw{ bytes_new(body) };
+            if (raw.v.is_nil())
+                return false;
+            CodecCall cc;
+            cc.codec = c;
+            cc.input = raw.v;
+            Root got;
+            if (codec_run(cc, got.v) != R::Ok) {
+                // The decoder's own message, as a SyntaxError.
+                String m;
+                Value e = err_value();
+                Root re{ e };
+                if (e.is_nil() || !is_exc(e)) {
+                    if (!m.append(err_message()))
+                        return false;
+                } else {
+                    err_clear();
+                    if (py_str(re.v, m) != R::Ok)
+                        return false;
+                }
+                err_clear();
+                return lex_undecodable(m.str());
+            }
+            if (!own.append(str_of(got.v)->str()))
+                return err_set("MemoryError", "out of memory"), false;
+            source = own.str();
+        }
+    }
     Scanner s{ source, this };
     return s.run();
 }
@@ -868,6 +1218,7 @@ bool lex_unescape(Str raw, u32 line, u32 col, String &out)
     s.line     = line;
     s.col      = col;
     s.fragment = true;
+    s.lit      = raw;
     while (!s.at_end()) {
         if (s.peek() == '\\') {
             s.bump();

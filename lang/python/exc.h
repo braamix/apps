@@ -42,6 +42,7 @@ struct ExcObj : Obj {
     Value context; // what was being handled when this was raised, or Nil
     Value msg;     // a group's message, or Nil
     Value excs;    // a group's members, a tuple, or Nil
+    Value uni[5];  // a UnicodeError's encoding, object, start, end and reason
 };
 
 // A user class deriving from one of these carries its own type, so the flag
@@ -92,3 +93,19 @@ R exc_type_invoke(Value type, const CallArgs &a, Value &out);
 
 // The handlers a class deriving from an exception takes for its own slots.
 void exc_slots(Type &s);
+
+// ------------------------------------------------------------ UnicodeError
+
+enum class UniKind : u8 { None, Encode, Decode, Translate };
+enum : u8 { UNI_ENCODING, UNI_OBJECT, UNI_START, UNI_END, UNI_REASON };
+
+// Which of the three a value is an instance of, if any.
+UniKind unierr_kind(Value v);
+
+// The five fields from a constructor's arguments, checked as CPython's
+// __init__ checks them. False with a TypeError pending.
+bool unierr_init(Value e, Value args);
+
+// The field `name` of a UnicodeError, stored; Nil `v` deletes. NotImpl when
+// `name` is not one of the five.
+R unierr_store(Value e, Str name, Value v);

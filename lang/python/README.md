@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 20.**
+**Phase 21.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -71,6 +71,11 @@ $ python -c 'def area(shape):
 area2 = lambda s: t"{s!r} is {area(s)}"
 print(area2({"w": 2, "h": 5}).values, int | None)'
 ({'w': 2, 'h': 5}, 10) int | None
+$ python -c 'import unicodedata as u
+print("stra\N{LATIN SMALL LETTER SHARP S}e".upper(), u.name("\u20ac"), int("\u0661\u0662"))
+print("\u00e9t\u00e9".encode("utf-16-le"), u.normalize("NFD", "\u00e9") == "e\u0301")'
+STRASSE EURO SIGN 12
+b'\xe9\x00t\x00\xe9\x00' True
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
@@ -142,6 +147,25 @@ CPython's main branch as well, because the library is written against it:
 **PEP 810's `lazy import`**, with `sys.lazy_modules`, the filter and the mode,
 and a `+` before a number in a pattern. `sys.version_info` says 3.14.
 
+**Text is Unicode's.** A str is codepoints over the Unicode 16.0 database
+CPython 3.14 carries, generated into [ucddb.cpp](ucddb.cpp) and checked against
+that CPython for every one of the 1,114,112 codepoints. `unicodedata` is
+there in full but for `ucd_3_2_0`; `upper`, `lower`, `title`, `casefold`,
+`capitalize` and `swapcase` take the full mappings, Final_Sigma included; the
+`is*` predicates, `split()`, `strip()`, `splitlines()`, `repr` and `int()`
+read Unicode's categories rather than a range table. A lone surrogate is a
+character like any other until something encodes it, so `"\ud800"` is a
+literal, `chr(0xdc80)` a str and `surrogateescape` a round trip.
+
+**The codecs are CPython's.** `_codecs` is written natively -- UTF-8, UTF-7,
+UTF-16, UTF-32, Latin-1, ASCII, the charmap and both escape codecs, every
+built-in error handler and a registry -- and CPython's own `codecs.py` and 89
+modules of its `encodings` package run over it, byte for byte. So
+`"\u20ac".encode("cp1252")` goes through `encodings/cp1252.py`, a handler the
+program registers is called in the middle of a codec, and a source file may
+say `# -*- coding: latin-1 -*-`. Identifiers are XID_Start and XID_Continue,
+their NFKC form is the name, and `\N{EM DASH}` is an escape.
+
 **The type system is whole.** A metaclass decides what a `class` statement
 makes, and `__prepare__`, `__new__`, `__init__` and the class keywords all
 reach it; a class is an instance of its metaclass and answers as one.
@@ -170,10 +194,11 @@ state machines that ask for one call at a time. `sorted`, `list.sort`, `min`,
 through it, and the merge is the same bottom-up stable one as the plain path,
 so a list of instances and a list of integers come out in the same order.
 
-**Seventeen modules are written in C++.** `sys` in full, `builtins`,
+**Nineteen modules are written in C++.** `sys` in full, `builtins`,
 `_collections`, `_functools`, `itertools`, `operator`, `_random`, `_struct`,
 `array`, `math`, `cmath`, `time`, `errno`, `gc`, `_types`, the `_weakref` and
-`_abc` phase 17 wrote, and the `_typing` phase 20 did. They are the floor
+`_abc` phase 17 wrote, the `_typing` phase 20 did, and phase 21's `_codecs`
+and `unicodedata`. They are the floor
 CPython's own library stands on rather than that library:
 `collections/__init__.py` will import this `deque`, `random.py` this Mersenne
 Twister, `re/` the `_sre` phase 24 writes. Each is measured against CPython by
@@ -194,7 +219,8 @@ the `__class_getitem__` phase 17 wrote: `__origin__`, `__args__`,
 is the class's. `types.GenericAlias` is `type(list[int])`, and `_types` is the
 native floor CPython's `types.py` opens by importing.
 
-**CPython's own `abc.py` runs here, byte for byte**, over an `_abc` written
+**CPython's own `abc.py`, `codecs.py` and `encodings` run here, byte for
+byte**, over an `_abc` written
 natively — the first module borrowed from the library rather than written.
 [lib/manifest.txt](lib/manifest.txt) records where it came from; the floor
 under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
@@ -203,45 +229,41 @@ under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
 instantiated.
 
 **412 of MicroPython's own tests pass unchanged**, out of 449 in
-[test/manifest.txt](test/manifest.txt), against 405 of 442 at phase 19. The
-seven new rows are the ones this phase's syntax reached — `:=`, `@`, the
-3.11 defaults of `int.to_bytes` and 3.12's nested f-strings — and six pass;
+[test/manifest.txt](test/manifest.txt), as at phase 20. Of the thirty-seven
+that do not, most import `collections` or `struct` — the pure-Python wrappers
+over phase 18's floor, which are phase 23 — and say `SKIP` until then;
 `assign_expr_syntaxerror.py` expects what MicroPython accepts and CPython
-refuses, and this refuses it. `fun_callstardblstar.py` passes as well. Of the
-thirty-seven that do not, most import `collections` or `struct` — the
-pure-Python wrappers over phase 18's floor, which are phase 23 — and say
-`SKIP` until then. Every expected output a CPython wrote now comes from 3.14,
+refuses, and this refuses it. Every expected output a CPython wrote now comes from 3.14,
 and [test/goldens.txt](test/goldens.txt) says which interpreter wrote each of
 our own.
 
 **CPython's tests are the second ruler.** Twenty-two are in
-[test/cpython.txt](test/cpython.txt), fourteen of them run, and 166 test
-methods of 204 pass, against fifty-five of ninety-three at phase 19:
-`test_augassign.py`, `test_exception_variations.py` and
-`test_named_expressions.py` stopped at syntax and now run. The eight new rows
-are this phase's own tests — `test_grammar.py`, `test_syntax.py`,
-`test_patma.py`, `test_tstring.py`, `test_exception_group.py`,
-`test_except_star.py`, `test_type_params.py` and `test_type_aliases.py` — and
-all eight compile and stop at an import: `annotationlib`, `re`,
+[test/cpython.txt](test/cpython.txt), fourteen of them run, and 171 test
+methods of 204 pass, against 166 at phase 20: `test_unicode_identifiers.py`
+and `test_utf8source.py`, this phase's two, now pass whole, with the
+`test.tokenizedata` files they import copied in beside them. The eight rows
+that do not run all compile and stop at an import: `annotationlib`, `re`,
 `collections`, `textwrap`, `pickle`. Running the whole of `Lib/test/` under
 this interpreter — `node test/pycases.mjs --survey`, which needs the clone in
 `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 325 | a module that is not written yet | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 22–27 |
-| 33 | a lone surrogate in a literal | 33 | 33 | 33 | 33 | 33 | 31 | 31 | phase 21 |
-| 14 | `\N{...}` | 14 | 14 | 14 | 14 | 14 | 12 | 12 | phase 21 |
-| 14 | these run | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
-| 3 | a runtime error, or nothing this can read | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
-| 2 | other syntax — PEP 798, and `nonlocal __class__` | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
-| — | `async` | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
-| — | complex numbers | — | — | — | — | — | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | — | — | — | — | — | 39 | 17 | **done** |
-| — | f-strings | — | — | — | — | — | — | 124 | **done** |
+| now | what stops it | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 372 | a module that is not written yet | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 22–27 |
+| 14 | these run | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
+| 3 | a runtime error, or nothing this can read | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
+| 2 | other syntax — PEP 798, and `nonlocal __class__` | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
+| — | a lone surrogate in a literal | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
+| — | `\N{...}` | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
+| — | `async` | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
+| — | complex numbers | — | — | — | — | — | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | — | — | — | — | — | 39 | 17 | **done** |
+| — | f-strings | — | — | — | — | — | — | — | 124 | **done** |
 
-The fifth wall went the way the fourth did: of the forty-two files the syntax
-let go, three run and thirty-nine stop at an import. The two left are
+The sixth wall went the way the fifth did: all forty-seven files the Unicode
+literals held back now stop at an import, `test_fstring.py` among them once
+whitespace after `!s` was accepted. Before that, the fifth: of the forty-two
+files the syntax let go, three ran and thirty-nine stopped at an import. The two left are
 `test_listcomps.py`, which is written to PEP 798's `[*x for x in y]` from 3.15,
 and `test_super.py`, which assigns the implicit `__class__` cell this
 interpreter does not make. **Nothing the library is written in is refused
@@ -272,6 +294,12 @@ green.
 | [bigint.h](bigint.h), [bigint.cpp](bigint.cpp) | Integers past the value word: limbs, long division, and the whole integer arm |
 | [complex.h](complex.h), [complex.cpp](complex.cpp) | complex, and the one type in the tower with no order |
 | [str.cpp](str.cpp), [bytes.cpp](bytes.cpp) | Text in codepoints, and octets both immutable and not |
+| [ustr.h](ustr.h) | A str's bytes: UTF-8 with the surrogates in it |
+| [ucd.h](ucd.h), [ucd.cpp](ucd.cpp) | The Unicode database: properties, case, decomposition, normalization, names |
+| [ucddb.h](ucddb.h), [ucddb.cpp](ucddb.cpp) | Its tables, which tools/mkucd.py writes |
+| [codec.h](codec.h), [codec.cpp](codec.cpp) | The codecs and the error handlers, as a run a handler of the program's own can interrupt |
+| [codecsmod.cpp](codecsmod.cpp) | `_codecs`: the registry, and a function per codec |
+| [unimod.cpp](unimod.cpp) | `unicodedata` |
 | [tuple.cpp](tuple.cpp), [list.cpp](list.cpp) | The two sequences |
 | [table.cpp](table.cpp) | The insertion-ordered table behind dict and set |
 | [method.h](method.h), [method.cpp](method.cpp) | The method mechanism: a static table becomes a built-in type's namespace |
@@ -283,7 +311,7 @@ green.
 | [repr.cpp](repr.cpp) | repr for every type, quoting and all |
 | [format.h](format.h), [format.cpp](format.cpp) | The format-spec mini-language, and what str, int and float make of one |
 | [formatgr.cpp](formatgr.cpp) | The other two grammars — `%` and str.format's fields — as a plan a continuation walks |
-| [lex.h](lex.h), [lex.cpp](lex.cpp) | The tokenizer, and the `--dump-tokens` listing |
+| [lex.h](lex.h), [lex.cpp](lex.cpp) | The tokenizer, PEP 263's source encodings, and the `--dump-tokens` listing |
 | [parse.h](parse.h), [parse.cpp](parse.cpp) | The grammar, by recursive descent into an index arena |
 | [astdump.cpp](astdump.cpp) | The `--dump-ast` listing, which is the format mkast.py writes to |
 | [code.h](code.h), [code.cpp](code.cpp) | The opcode table, the instruction, the code object, the line table |
@@ -321,7 +349,7 @@ green.
 | [randmod.cpp](randmod.cpp) | `_random`: MT19937, seeded the way CPython seeds it |
 | [miscmod.cpp](miscmod.cpp) | `time` over one clock reading, `errno` and `gc` |
 | [typesmod.cpp](typesmod.cpp) | `_types`: the names for types that are not builtins, and SimpleNamespace |
-| [lib/](lib/) | Modules taken from CPython's library, byte for byte |
+| [lib/](lib/) | Modules taken from CPython's library, byte for byte: `abc`, `codecs` and `encodings` |
 | [call.h](call.h), [call.cpp](call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
 | [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices, ranges and the three iterators |
@@ -347,7 +375,8 @@ green.
 | [test/pycoro.mjs](test/pycoro.mjs) | The same for `test/coro/`: coroutines, async generators, the async statements and a scheduler written in Python |
 | [test/pyexec.mjs](test/pyexec.mjs) | The same for `test/exec/`: compile, eval, exec, the namespaces, the attributes and the syntax since 3.9 |
 | [test/pylazy.mjs](test/pylazy.mjs) | The same for `test/lazy/`, against CPython 3.16, with the modules the cases import planted beside them |
-| [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the seventeen modules written in C++ |
+| [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the modules written in C++ |
+| [test/pyunicode.mjs](test/pyunicode.mjs) | The same for `test/unicode/`, with the library planted; the streams; and `--full`, every codepoint and NormalizationTest.txt |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
@@ -361,6 +390,7 @@ green.
 | [tools/mkfmt.py](tools/mkfmt.py) | Runs a formatting case under the host's CPython and saves what it printed |
 | [tools/mklex.py](tools/mklex.py) | Writes a token golden out of CPython's own tokenizer |
 | [tools/mkast.py](tools/mkast.py) | Writes a tree golden out of CPython's own ast module |
+| [tools/mkucd.py](tools/mkucd.py) | Writes ucddb.cpp from the host CPython's unicodedata and the UCD files it cannot list |
 
 The table grows a row per phase.
 
@@ -437,12 +467,6 @@ All recorded rather than hidden, and all in reach later:
   table's size and probing, and matching it exactly would mean copying that
   table. Anything that prints a set directly will differ; anything that prints
   `sorted(s)` will not.
-- **`repr` of a string keeps every codepoint from U+00A0 up as itself.**
-  CPython escapes the ones Unicode calls unprintable, which needs a
-  printability table this does not carry yet.
-- **An identifier may hold any codepoint from U+0080 up.** CPython follows
-  Unicode's XID_Start and XID_Continue, which is another table. So this accepts
-  some names CPython rejects, and rejects none it accepts.
 - **An annotation is neither evaluated nor recorded.** `x: int = 1` compiles as
   `x = 1`, and a parameter annotation costs nothing at `def` time. CPython
   evaluates both and keeps `__annotations__`.
@@ -551,11 +575,30 @@ All recorded rather than hidden, and all in reach later:
   and a step, and `cast()` recasts a contiguous one; but it is one-dimensional,
   `strides` is one number, and the only things that give a buffer a width are
   `array` and `cast`.
-- **`'ß'.isalpha()` is False.** The case table is by range and has no
-  one-codepoint upper for it, so it is not counted as a letter. Phase 21
-  replaces the ranges with the Unicode categories, and `isdecimal`,
-  `isnumeric` and `casefold` stop being aliases of `isdigit` and `lower` at
-  the same time.
+- **`unicodedata.ucd_3_2_0` is not there.** `stringprep`, and through it the
+  `idna` codec, read Unicode 3.2 through it; neither can be imported before
+  `re` anyway. The delta it needs is 66 records, and phase 24 is where it
+  arrives.
+- **The streams are in UTF-8 mode.** `sys.flags.utf8_mode` is 1, so stdout
+  and stdin use `surrogateescape` and stderr `backslashreplace`, which is what
+  CPython does under `-X utf8` and not what it does by default.
+- **The native codecs answer when `encodings` cannot be imported.** CPython
+  imports the package at startup and cannot run without it; this imports it
+  at the first lookup, and where the library is not on `sys.path` a name like
+  `utf-7` or `unicode_escape` still reaches its codec rather than failing. A
+  name only the library knows, `cp1252`, is then an unknown encoding.
+- **A program run from a file whose cookie names a codec written in Python
+  cannot start.** `compile()`, `exec()` and `import` decode such a source
+  through the registry; the program's own file is read before there is a VM
+  to run the codec in, so only UTF-8, Latin-1, ASCII, UTF-16 and UTF-32 are
+  read there.
+- **An invalid escape says nothing.** CPython warns about `"\N"` or
+  `"\777"` with a SyntaxWarning; there is no `warnings` yet, and they are kept
+  as CPython keeps them, silently.
+- **`--dump-tokens` prints a name in its NFKC form.** The lexer normalizes
+  as it scans; `tokenize` prints `ﬁx` where this prints `fix`.
+- **Unicode is 16.0, 3.14's.** The CPython clone under tmp/ is 17.0; the
+  version follows the language this tracks, and `unidata_version` says so.
 - **A namespace package can shadow a module on a later path entry.** CPython
   scans the whole of sys.path for a real module before settling for a
   directory; this settles per entry, so `a/` on the first entry wins over
@@ -866,6 +909,42 @@ two of the same class, because `do_richcompare` does -- that is what lets a
 class with only a `__lt__` answer `>` as well, and it is the one place a
 comparison differs from an arithmetic operator.
 
+## How a str holds a surrogate
+
+A str's bytes are UTF-8, and UTF-8 has no spelling for U+D800. So the rule is
+widened by one step: a surrogate is written the way any other three-byte
+codepoint is ([ustr.h](ustr.h)). Everything that walks a str -- indexing,
+slicing, comparison, the methods -- already counts in lead bytes and is none
+the wiser, and codepoint order is still byte order. What changed is the
+boundary. Text from outside is never taken on trust: a codec decodes it, and
+strict UTF-8 refuses the sequences the widened form allows. Text going out is
+encoded the same way, which is why a lone surrogate on stdout becomes the byte
+`surrogateescape` says, or a `UnicodeEncodeError` at the `print`.
+
+## How a codec runs
+
+A codec is a loop, and the loop may have to call Python in the middle: a
+handler the program registered with `codecs.register_error` is asked what to
+put where the codec failed, and it answers before the codec goes on. Ground
+rule 2 says the loop cannot make that call. So a run is an object
+([codec.cpp](codec.cpp)'s CodecObj) holding everything the loop would keep in
+locals -- the position, the output so far, UTF-7's shift state -- and the loop
+stops at each fault. A built-in handler settles the fault on the spot; the
+program's own is a call the continuation asks for, and the run resumes from
+where the answer says. Most runs never meet a fault, and those never allocate
+a continuation at all.
+
+The registry is the same shape one level up. `str.encode("cp1252")` asks each
+search function in turn -- CPython's `encodings.search_function`, which
+imports `encodings/cp1252.py` -- and then calls the encoder it found, and
+every one of those is a request the VM makes. The package is imported at the
+first lookup rather than at startup.
+
+A source file is bytes until PEP 263 says how to read it. The lexer honours a
+BOM and a coding cookie itself for UTF-8, Latin-1 and the other codecs written
+here; a cookie naming one written in Python stops it with that name, and
+`compile()` and `import` decode the source through the registry and try again.
+
 ## How a module is written in C++
 
 [module.h](module.h) is a name and a function that fills a fresh module's
@@ -999,6 +1078,20 @@ this implementation's, so there is nothing to generate the golden from and
 before blessing** — that golden is the only thing standing between a change and
 a silent regression.
 
+A Unicode case is a `.py` under `test/unicode/`, written the same way; its
+driver plants [lib/](lib/) beside it, so `codecs` is CPython's in both runs.
+`node test/pyunicode.mjs --full` adds what is too slow for every run: a
+digest of every property of every codepoint, compared with the host
+CPython's, and Unicode's own `NormalizationTest.txt`, which it expects under
+`tmp/ucd/16.0.0/`. The tables themselves are written by
+
+    tools/mkucd.py --fetch
+
+which downloads the four UCD files it reads into `tmp/ucd/`, takes everything
+else from the host's `unicodedata`, and decodes each table again before
+writing it. Its output is committed, so a build needs no Python of a
+particular version.
+
 `PY_GC_STRESS=1` in a program's environment collects at every allocation, which
 turns a missing `Root` from a rare crash into a wrong answer.
 [test/pystress.mjs](test/pystress.mjs) runs the whole manifest that way and
@@ -1007,7 +1100,8 @@ compares; it costs a second and a half, and it found nine of them.
 ## Licence
 
 The interpreter is this repository's, and so are the shims under `test/shim/`,
-which are not copies of anyone's code. The tests under `test/cases/` are
+which are not copies of anyone's code. [ucddb.cpp](ucddb.cpp) is generated
+from the Unicode Character Database, under the Unicode licence. The tests under `test/cases/` are
 MicroPython's, MIT, Damien P. George; those under `test/cpython/` are
 CPython's, under the PSF licence, copyright the Python Software Foundation.
 [LICENSE](LICENSE) carries both and says which files each covers.

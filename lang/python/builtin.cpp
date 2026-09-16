@@ -28,6 +28,8 @@
 #include "ops.h"
 #include "parse.h"
 #include "type.h"
+#include "ucd.h"
+#include "ustr.h"
 #include "vm.h"
 
 namespace {
@@ -663,46 +665,64 @@ R b_format(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
-// The encoding argument str(), bytes() and bytearray() take. UTF-8 and ASCII
-// only; phase 22 brings the codecs.
-R encoding_ok(const CallArgs &a, u32 at)
+// str(), bytes() and bytearray() take (object, encoding, errors), by
+// position or by name. `n` counts what was given.
+bool text_args(const CallArgs &a, Str who, Value got[3], u32 &n)
 {
-    for (u32 i = at; i < a.nargs; i++) {
-        if (!is_str(a.args[i]))
-            return err_set2("TypeError", "the encoding must be a str", type_name(a.args[i]));
-        if (i > at) // the errors argument: always strict here
-            continue;
-        Str e = str_of(a.args[i])->str();
-        if (!(e == "utf-8" || e == "utf8" || e == "UTF-8" || e == "UTF8" || e == "ascii" ||
-              e == "ASCII"))
-            return err_set2("LookupError", "unknown encoding", e);
+    static const Str NAMES[] = { "", "encoding", "errors" };
+    got[0] = got[1] = got[2] = Value();
+    if (a.nargs > 3) {
+        Buf<96> b;
+        b.put(who).put("() takes at most 3 arguments");
+        return err_set("TypeError", b.str()), false;
     }
-    return R::Ok;
+    for (u32 i = 0; i < a.nargs; i++)
+        got[i] = a.args[i];
+    for (u32 k = 0; k < a.nkw; k++) {
+        Str nm = is_str(a.kwnames[k]) ? str_of(a.kwnames[k])->str() : Str();
+        u32 i  = nm == (who == "str" ? Str("object") : Str("source")) ? 0 : 1;
+        while (i < 3 && !(NAMES[i] == nm) && i)
+            i++;
+        if (i == 3 || !got[i].is_nil()) {
+            Buf<128> b;
+            b.put(who).put("() got an unexpected keyword argument '").put(nm).put("'");
+            return err_set("TypeError", b.str()), false;
+        }
+        got[i] = a.kwvals[k];
+    }
+    n = 0;
+    for (u32 i = 0; i < 3; i++)
+        if (!got[i].is_nil())
+            n = i + 1;
+    for (u32 i = 1; i < 3; i++)
+        if (!got[i].is_nil() && !is_str(got[i])) {
+            Buf<96> b;
+            b.put(who).put("() argument '").put(NAMES[i]).put("' must be str");
+            return err_not(b.str(), got[i]), false;
+        }
+    return true;
 }
 
 R b_str(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "str", 0, 3))
+    Value got[3];
+    u32 n = 0;
+    if (!text_args(a, "str", got, n))
         return R::Err;
-    if (!a.nargs) {
+    if (got[0].is_nil() && n == 0) {
         out = str_new("");
         return out.is_nil() ? R::Err : R::Ok;
     }
-    if (a.nargs > 1) {
-        Str octets;
-        if (!bytes_like(a.args[0], octets))
-            return err_set2("TypeError", "decoding to str: a bytes-like object is required",
-                            type_name(a.args[0]));
-        if (encoding_ok(a, 1) != R::Ok)
-            return R::Err;
-        out = str_new(octets);
-        return out.is_nil() ? R::Err : R::Ok;
+    if (!got[1].is_nil() || !got[2].is_nil()) {
+        if (got[0].is_nil())
+            got[0] = bytes_new(Str());
+        return text_decode(got[0], got[1], got[2], out);
     }
-    if (is_str(a.args[0])) {
-        out = a.args[0];
+    if (is_str(got[0])) {
+        out = got[0];
         return R::Ok;
     }
-    return show(a.args[0], SHOW_STR, out);
+    return show(got[0], SHOW_STR, out);
 }
 
 R b_bool(const CallArgs &a, Value &out)
@@ -725,14 +745,53 @@ R b_bool(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// A str's digits and spaces in ASCII, which is all the number grammars read.
+// `text` is left alone for bytes and for ASCII.
+bool number_text(Value obj, Str &text, String &buf)
+{
+    if (!is_str(obj) || (obj.obj()->flags & OBJ_ASCII))
+        return true;
+    if (!ucd_ascii_number(text, buf))
+        return oom() == R::Ok;
+    text = buf.str();
+    return true;
+}
+
+// "invalid literal for int() with base 10: 'x'": the repr, cut at 200.
+R bad_number(Str head, Value obj)
+{
+    Root ro{ obj };
+    String r;
+    if (py_repr(ro.v, r) != R::Ok)
+        return R::Err;
+    Str shown = r.str();
+    usize at = 0, n = 0;
+    while (at < shown.size() && n < 200) {
+        at += cp_width(u8(shown[at]));
+        n++;
+    }
+    return err_set2("ValueError", head, shown.substr(0, at));
+}
+
 // int(s, base): space, a sign, an optional 0x/0o/0b prefix, then digits with
 // `_` allowed between them, over any width. bigint.cpp owns the grammar.
-R int_of_text(Str s, i64 base, Value &out)
+R int_of_text(Value obj, Str s, i64 base, Value &out)
 {
     if (base != 0 && (base < 2 || base > 36))
         return err_set("ValueError", "int() base must be >= 2 and <= 36, or 0");
+    Root ro{ obj };
+    String buf;
+    if (!number_text(ro.v, s, buf))
+        return R::Err;
     out = int_parse(s, u32(base));
-    return out.is_nil() ? R::Err : R::Ok;
+    if (!out.is_nil())
+        return R::Ok;
+    if (err_kind() != "ValueError" || err_message() != "invalid literal for int()")
+        return R::Err;
+    err_clear();
+    Buf<64> m;
+    m.put("invalid literal for int() with base ").put(u32(base ? base : 10));
+    return bad_number(m.str(), ro.v);
 }
 
 R b_int(const CallArgs &a, Value &out)
@@ -752,7 +811,7 @@ R b_int(const CallArgs &a, Value &out)
             return err_set2("TypeError", "int() base must be an integer", type_name(a.args[1]));
         if (!textual)
             return err_set("TypeError", "int() can't convert non-string with an explicit base");
-        return int_of_text(text, base, out);
+        return int_of_text(a.args[0], text, base, out);
     }
     out = one_special(a.args[0], "__int__", WANT_INT);
     if (!out.is_nil())
@@ -775,7 +834,7 @@ R b_int(const CallArgs &a, Value &out)
         return out.is_nil() ? R::Err : R::Ok;
     }
     if (textual)
-        return int_of_text(text, 10, out);
+        return int_of_text(a.args[0], text, 10, out);
     return err_set2("TypeError", "int() argument must be a number or a string",
                     type_name(a.args[0]));
 }
@@ -804,46 +863,40 @@ R b_chr(const CallArgs &a, Value &out)
     i64 cp = 0;
     if (!as_index(a.args[0], cp))
         return err_set2("TypeError", "chr() argument must be an integer", type_name(a.args[0]));
-    if (cp < 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+    if (cp < 0 || cp > 0x10ffff)
         return err_set("ValueError", "chr() arg not in range(0x110000)");
 
+    // A surrogate is a character too, until something encodes it.
     char b[4];
-    usize n = 0;
-    u32 c   = u32(cp);
-    if (c < 0x80) {
-        b[n++] = char(c);
-    } else if (c < 0x800) {
-        b[n++] = char(0xc0 | (c >> 6));
-        b[n++] = char(0x80 | (c & 0x3f));
-    } else if (c < 0x10000) {
-        b[n++] = char(0xe0 | (c >> 12));
-        b[n++] = char(0x80 | ((c >> 6) & 0x3f));
-        b[n++] = char(0x80 | (c & 0x3f));
-    } else {
-        b[n++] = char(0xf0 | (c >> 18));
-        b[n++] = char(0x80 | ((c >> 12) & 0x3f));
-        b[n++] = char(0x80 | ((c >> 6) & 0x3f));
-        b[n++] = char(0x80 | (c & 0x3f));
-    }
-    out = obj_value(str_raw(Str(b, n)));
+    usize n = cp_encode(u32(cp), b);
+    out     = obj_value(str_raw(Str(b, n)));
     return out.is_nil() ? oom() : R::Ok;
+}
+
+// bytes(s, encoding[, errors]) and the same for bytearray: the octets, or a
+// ContObj when a codec written in Python has to make them.
+R encoded(const CallArgs &a, Str who, Value &out)
+{
+    Value got[3];
+    u32 n = 0;
+    if (!text_args(a, who, got, n))
+        return R::Err;
+    if (got[1].is_nil()) {
+        if (is_str(got[0]))
+            return err_set("TypeError", "string argument without an encoding");
+        return err_set("TypeError", "errors without a string argument");
+    }
+    if (!is_str(got[0]))
+        return err_set("TypeError", "encoding without a string argument");
+    return text_encode(got[0], got[1], got[2], out);
 }
 
 R b_bytes(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "bytes", 0, 3))
-        return R::Err;
+    if (a.nkw || a.nargs > 1)
+        return encoded(a, "bytes", out);
     if (a.nargs == 1 && parks(a, 0))
         return iter_park(a, 0, b_bytes, out);
-    if (a.nargs > 1) {
-        if (!is_str(a.args[0]))
-            return err_set2("TypeError", "encoding without a string argument",
-                            type_name(a.args[0]));
-        if (encoding_ok(a, 1) != R::Ok)
-            return R::Err;
-        out = bytes_new(str_of(a.args[0])->str());
-        return out.is_nil() ? R::Err : R::Ok;
-    }
     if (!a.nargs || is_bytes(a.args[0])) {
         out = a.nargs ? a.args[0] : bytes_new(Str());
         return out.is_nil() ? R::Err : R::Ok;
@@ -901,7 +954,11 @@ R b_complex(const CallArgs &a, Value &out)
         if (a.nargs > 1)
             return err_set("TypeError", "complex() can't take second arg if first is a string");
         f64 re = 0, im = 0;
-        if (!complex_parse(str_of(a.args[0])->str(), re, im))
+        Str text = str_of(a.args[0])->str();
+        String buf;
+        if (!number_text(a.args[0], text, buf))
+            return R::Err;
+        if (!complex_parse(text, re, im))
             return err_set("ValueError", "complex() arg is a malformed string");
         out = complex_new(re, im);
         return out.is_nil() ? R::Err : R::Ok;
@@ -985,8 +1042,11 @@ R b_float(const CallArgs &a, Value &out)
         else if (!bytes_like(a.args[0], text))
             return err_set2("TypeError", "float() argument must be a number or a string",
                             type_name(a.args[0]));
+        String buf;
+        if (!number_text(a.args[0], text, buf))
+            return R::Err;
         if (!float_of_text(text, v))
-            return err_set2("ValueError", "could not convert string to float", text);
+            return bad_number("could not convert string to float", a.args[0]);
     }
     out = float_new(v);
     return out.is_nil() ? R::Err : R::Ok;
@@ -1812,11 +1872,7 @@ R b_callable(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "callable", 1, 1))
         return R::Err;
-    Value v  = a.args[0];
-    bool yes = is_func(v) || is_native(v) || is_method(v) || is_type(v) || is_exc_type(v);
-    if (!yes && is_inst(v))
-        yes = !type_special(v, "__call__").is_nil();
-    out = value_bool(yes);
+    out = value_bool(py_callable(a.args[0]));
     return R::Ok;
 }
 
@@ -2153,10 +2209,34 @@ R b_filter(const CallArgs &a, Value &out)
 
 // ------------------------------------------------------- the newer types
 
+// What a codec written in Python made, as a bytearray.
+R growable_step(ContObj *k, Value in)
+{
+    Str s;
+    if (!bytes_like(in, s))
+        return err_set2("TypeError", "encoder did not return bytes", type_name(in));
+    Value v = bytearray_new(s);
+    return v.is_nil() ? R::Err : cont_done(k, v);
+}
+
 R b_bytearray(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "bytearray", 0, 3))
-        return R::Err;
+    if (a.nkw || a.nargs > 1) {
+        Root made;
+        if (encoded(a, "bytearray", made.v) != R::Ok)
+            return R::Err;
+        if (is_cont(made.v)) {
+            // The codec's continuation runs first, then this one.
+            Root kv{ cont_new(growable_step) };
+            if (kv.v.is_nil())
+                return R::Err;
+            cont_of(made.v)->next = kv.v;
+            out                   = made.v;
+            return R::Ok;
+        }
+        out = bytearray_new(static_cast<BytesObj *>(made.v.obj())->str());
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     if (a.nargs == 1 && parks(a, 0))
         return iter_park(a, 0, b_bytearray, out);
     Str s;
@@ -2257,17 +2337,33 @@ bool compile_mode(Value v, CompileMode &out)
     return true;
 }
 
+// bytes whose cookie names a codec written in Python: decode them first, then
+// come back with the str.
+R park_decode(const CallArgs &a, Str codec, R (*again)(const CallArgs &, Value &out), Value &out)
+{
+    err_clear();
+    Root fn{ native_new("decode", lex_source_decode) };
+    Root enc{ str_new(codec) };
+    if (fn.v.is_nil() || enc.v.is_nil())
+        return R::Err;
+    return redo_with(a, 0, fn.v, a.args[0], enc.v, 2, again, out);
+}
+
 // Parse and compile. The Ast is a stack object, so the code object it leaves
-// behind is what outlives this.
-Value compile_source(Value src, Str filename, CompileMode mode)
+// behind is what outlives this. `codec` takes the name of a codec the source
+// has to be decoded with first, when that is what stopped it.
+Value compile_source(Value src, Str filename, CompileMode mode, String *codec = nullptr)
 {
     Str text;
     if (!source_text(src, text))
         return err_set2("TypeError", "compile() source must be a string or bytes", type_name(src)),
                Value();
     Ast ast;
-    if (!ast.parse(text))
+    if (!ast.parse(text, is_str(src))) {
+        if (codec && !ast.lex.codec.empty() && !codec->assign(ast.lex.codec.str()))
+            return oom(), Value();
         return err_set_file(filename, text), Value();
+    }
     Value code = py_compile(ast, filename, mode);
     if (code.is_nil())
         err_set_file(filename, text);
@@ -2284,7 +2380,10 @@ R b_compile(const CallArgs &a, Value &out)
     if (!compile_mode(a.args[2], mode))
         return R::Err;
     Root rf{ a.args[1] };
-    out = compile_source(a.args[0], str_of(rf.v)->str(), mode);
+    String codec;
+    out = compile_source(a.args[0], str_of(rf.v)->str(), mode, &codec);
+    if (out.is_nil() && !codec.empty())
+        return park_decode(a, codec.str(), b_compile, out);
     return out.is_nil() ? R::Err : R::Ok;
 }
 
@@ -2400,6 +2499,9 @@ R take_namespaces(const CallArgs &a, Root &globals, Root &locals)
     return put_builtins(dict_at(globals.v)) ? R::Ok : R::Err;
 }
 
+R b_exec(const CallArgs &a, Value &out);
+R b_eval(const CallArgs &a, Value &out);
+
 R run_code(const CallArgs &a, CompileMode mode, bool want, Value &out)
 {
     Root globals, locals;
@@ -2418,8 +2520,12 @@ R run_code(const CallArgs &a, CompileMode mode, bool want, Value &out)
             while (text.size() && (text[0] == ' ' || text[0] == '\t'))
                 text = text.substr(1);
         Ast ast;
-        if (!ast.parse(text))
+        if (!ast.parse(text, is_str(code.v))) {
+            if (!ast.lex.codec.empty())
+                return park_decode(a, ast.lex.codec.str(),
+                                   mode == CompileMode::Eval ? b_eval : b_exec, out);
             return err_set_file("<string>", text), R::Err;
+        }
         code = py_compile(ast, "<string>", mode);
         if (code.v.is_nil())
             return err_set_file("<string>", text), R::Err;
@@ -2762,6 +2868,15 @@ constexpr Ctor CTORS[] = {
 
 } // namespace
 
+bool py_callable(Value v)
+{
+    bool yes =
+        is_func(v) || is_native(v) || is_method(v) || is_type(v) || is_exc_type(v) || is_newwrap(v);
+    if (!yes && is_inst(v))
+        yes = !type_special(v, "__call__").is_nil();
+    return yes;
+}
+
 DictObj *builtins_dict()
 {
     Home *h = here();
@@ -2780,6 +2895,7 @@ DictObj *builtins_dict()
         Root fn{ native_new(e.name, e.fn) };
         if (fn.v.is_nil())
             return nullptr;
+        fn.v.obj()->flags |= OBJ_PLAINFN;
         StrObj *name = str_intern(e.name);
         if (!name)
             return oom(), nullptr;
@@ -2940,6 +3056,15 @@ bool put_builtins(DictObj *into)
     return dict_set(dict_at(rd.v), obj_value(key), m.v) == R::Ok;
 }
 
+// stdout's rule, which sysmod's std_put states.
+bool display_put(String *sink, Str text)
+{
+    if (!has_surrogate(text))
+        return sink->append(text) || oom() == R::Ok;
+    String b;
+    return std_encode(text, true, b) && (sink->append(b.str()) || oom() == R::Ok);
+}
+
 // The repr has come back. It goes where print's output goes.
 R display_step(ContObj *k, Value in)
 {
@@ -2947,10 +3072,10 @@ R display_step(ContObj *k, Value in)
     if (!h || !h->sink)
         return err_set("SystemError", "nothing to print to");
     String text;
-    if (py_str(in, text) != R::Ok)
+    if (py_str(in, text) != R::Ok || !text.push('\n'))
+        return err_pending() ? R::Err : oom();
+    if (!display_put(h->sink, text.str()))
         return R::Err;
-    if (!h->sink->append(text.str()) || !h->sink->push('\n'))
-        return oom();
     return cont_done(k, value_none());
 }
 
@@ -2973,7 +3098,7 @@ R py_display(Value v, Value &out)
         out                   = text.v;
         return R::Ok;
     }
-    if (!h->sink->append(str_of(text.v)->str()) || !h->sink->push('\n'))
-        return oom();
+    if (!display_put(h->sink, str_of(text.v)->str()) || !display_put(h->sink, "\n"))
+        return R::Err;
     return R::Ok;
 }

@@ -1,0 +1,7 @@
+1:1 name x
+1:3 op =
+1:5 str 'ok'
+1:9 newline
+2:1 name y
+2:3 op =
+python: 2:5: SyntaxError: (unicode error) 'unicodeescape' codec can't decode bytes in position 1-16: unknown Unicode character name

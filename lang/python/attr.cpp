@@ -136,6 +136,10 @@ u8 descr_of(Value d, bool &data)
     if (!d.is_obj())
         return D_NONE;
     const Type *t = descr_inner(d).obj()->type;
+    // A function from a module is not a descriptor: `f = len` in a class body
+    // stays len when read through an instance.
+    if (t == &native_type && (d.obj()->flags & OBJ_PLAINFN))
+        return D_NONE;
     if (t == &func_type || t == &native_type || t == &staticmethod_type || t == &classmethod_type)
         return D_BIND;
     if (t == &property_type)
@@ -430,13 +434,15 @@ Got type_attr(Value v, StrObj *name, Value &out, Value &args)
     if (mdata)
         return descr_get(mfound.v, mkind, rv.v, meta.v, out, args);
 
-    Root found;
-    R r = type_lookup(rv.v, name, found.v);
+    Root found, owner;
+    R r = type_lookup(rv.v, name, found.v, &owner.v);
     if (r == R::Err)
         return Got::Error;
     if (r == R::Ok) {
-        if (Str("__new__") == name->str())
-            return out = found.v, Got::Ok;
+        if (Str("__new__") == name->str()) {
+            out = type_new_attr(found.v, owner.v);
+            return out.is_nil() ? Got::Error : Got::Ok;
+        }
         bool data = false;
         u8 kind   = descr_of(found.v, data);
         // Reached through the class, so there is no instance to bind to.
@@ -482,6 +488,10 @@ Got super_attr(Value v, StrObj *name, Value &out, Value &args)
             return Got::Error;
         if (r != R::Ok)
             continue;
+        if (Str("__new__") == name->str()) {
+            out = type_new_attr(found.v, c);
+            return out.is_nil() ? Got::Error : Got::Ok;
+        }
         bool data  = false;
         u8 kind    = descr_of(found.v, data);
         Value self = as_class ? Value() : rs.v;
@@ -618,8 +628,14 @@ R inst_store(Value v, StrObj *name, Value val, Value &fn)
         return fn.is_nil() ? R::Err : R::Ok;
     }
 
-    // An exception's cause and context are its own fields.
-    Str n      = name->str();
+    // An exception's cause and context are its own fields, and so are a
+    // UnicodeError's five.
+    Str n = name->str();
+    if (is_exc(rv.v)) {
+        R u = unierr_store(rv.v, n, rx.v);
+        if (u != R::NotImpl)
+            return u;
+    }
     bool cause = n == Str("__cause__");
     if (is_exc(rv.v) && (cause || n == Str("__context__"))) {
         if (!is_none(rx.v) && !is_exc(rx.v))
@@ -679,6 +695,11 @@ R inst_erase(Value v, StrObj *name, Value &fn)
         return fn.is_nil() ? R::Err : R::Ok;
     }
 
+    if (is_exc(rv.v)) {
+        R u = unierr_store(rv.v, name->str(), Value());
+        if (u != R::NotImpl)
+            return u;
+    }
     if (inst_of(rv.v)->dict.is_nil())
         return no_attr(rv.v, name);
     R g = dict_del(dict_at(inst_of(rv.v)->dict), rn.v);

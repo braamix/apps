@@ -3,6 +3,8 @@
 #include "kernel/fmt.h"
 #include "kernel/text.h"
 #include "ops.h"
+#include "ucd.h"
+#include "ustr.h"
 
 namespace {
 
@@ -105,8 +107,8 @@ R str_repr(Value v, String &out)
     if (!out.push(q))
         return oom();
     for (usize i = 0; i < s->len;) {
-        char32_t cp = 0;
-        usize w     = utf8_decode(s->str(), i, cp);
+        u32 cp  = 0;
+        usize w = cp_decode(s->str(), i, cp);
         if (w == 0)
             break;
         i += w;
@@ -123,15 +125,14 @@ R str_repr(Value v, String &out)
             ok = put_hex(out, "\\x", u32(cp), 2);
         else if (cp < 0x80)
             ok = out.push(char(cp));
-        else if (cp < 0xa0)
-            ok = put_hex(out, "\\x", u32(cp), 2);
-        else {
-            // No printability table: U+00A0 up is written as itself, where
-            // CPython escapes the unprintable ones.
-            char tmp[4];
-            usize n = utf8_encode(cp, tmp);
-            ok      = out.append(Str(tmp, n));
-        }
+        else if (ucd_is(cp, UCD_PRINTABLE))
+            ok = cp_append(out, cp);
+        else if (cp < 0x100)
+            ok = put_hex(out, "\\x", cp, 2);
+        else if (cp < 0x10000)
+            ok = put_hex(out, "\\u", cp, 4);
+        else
+            ok = put_hex(out, "\\U", cp, 8);
         if (!ok)
             return oom();
     }

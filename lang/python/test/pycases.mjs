@@ -58,6 +58,19 @@ function plant_shims() {
     walk(SHIM);
 }
 
+// The data files some cases read, under the shims' test package. data.txt
+// lists them and where they came from.
+function plant_data() {
+    const list = join(CASES, "data.txt");
+    if (!existsSync(list)) return;
+    for (const line of readFileSync(list, "utf8").split("\n")) {
+        const t = line.trim();
+        if (!t || t.startsWith("#")) continue;
+        const path = t.split(/\s+/)[0];
+        put("/tmp/test/" + path, readFileSync(join(CASES, "test", path)));
+    }
+}
+
 // An object's repr carries its address, which moves with the allocation order.
 // Nothing else in a listing is unstable.
 function stable(text) {
@@ -98,6 +111,7 @@ function counts(text) {
 
 await boot("pycases");
 plant_shims();
+plant_data();
 
 // --survey runs the whole of the clone under tmp/ and says what stopped each
 // file. Not a test -- tmp/ is not committed -- but it is how the next wave is

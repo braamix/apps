@@ -1,0 +1,297 @@
+utf-8 b'a\xc3\xa9\xe2\x82\xac\xf0\x9f\x98\x80z' 'a\xe9\u20ac\U0001f600z' utf-8
+utf-16 b'\xff\xfea\x00\xe9\x00\xac =\xd8\x00\xdez\x00' 'a\xe9\u20ac\U0001f600z' utf-16
+utf-16-le b'a\x00\xe9\x00\xac =\xd8\x00\xdez\x00' 'a\xe9\u20ac\U0001f600z' utf-16-le
+utf-16-be b'\x00a\x00\xe9 \xac\xd8=\xde\x00\x00z' 'a\xe9\u20ac\U0001f600z' utf-16-be
+utf-32 b'\xff\xfe\x00\x00a\x00\x00\x00\xe9\x00\x00\x00\xac \x00\x00\x00\xf6\x01\x00z\x00\x00\x00' 'a\xe9\u20ac\U0001f600z' utf-32
+utf-32-le b'a\x00\x00\x00\xe9\x00\x00\x00\xac \x00\x00\x00\xf6\x01\x00z\x00\x00\x00' 'a\xe9\u20ac\U0001f600z' utf-32-le
+utf-32-be b'\x00\x00\x00a\x00\x00\x00\xe9\x00\x00 \xac\x00\x01\xf6\x00\x00\x00\x00z' 'a\xe9\u20ac\U0001f600z' utf-32-be
+utf-7 b'a+AOkgrNg93gA-z' 'a\xe9\u20ac\U0001f600z' utf-7
+unicode_escape b'a\\xe9\\u20ac\\U0001f600z' 'a\xe9\u20ac\U0001f600z' unicode-escape
+raw_unicode_escape b'a\xe9\\u20ac\\U0001f600z' 'a\xe9\u20ac\U0001f600z' raw-unicode-escape
+utf-8-sig b'\xef\xbb\xbfa\xc3\xa9\xe2\x82\xac\xf0\x9f\x98\x80z' 'a\xe9\u20ac\U0001f600z' utf-8-sig
+latin-1 replace b'a\xe9??z'
+latin-1 ignore b'a\xe9z'
+latin-1 backslashreplace b'a\xe9\\u20ac\\u0444z'
+latin-1 xmlcharrefreplace b'a\xe9&#8364;&#1092;z'
+latin-1 namereplace b'a\xe9\\N{EURO SIGN}\\N{CYRILLIC SMALL LETTER EF}z'
+latin-1 '\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff'
+iso8859-15 replace b'a\xe9\xa4?z'
+iso8859-15 ignore b'a\xe9\xa4z'
+iso8859-15 backslashreplace b'a\xe9\xa4\\u0444z'
+iso8859-15 xmlcharrefreplace b'a\xe9\xa4&#1092;z'
+iso8859-15 namereplace b'a\xe9\xa4\\N{CYRILLIC SMALL LETTER EF}z'
+iso8859-15 '\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89\x8a\x8b\x8c\x8d\x8e\x8f\x90\x91\x92\x93\x94\x95\x96\x97\x98\x99\x9a\x9b\x9c\x9d\x9e\x9f\xa0\xa1\xa2\xa3\u20ac\xa5\u0160\xa7\u0161\xa9\xaa\xab\xac\xad\xae\xaf\xb0\xb1\xb2\xb3\u017d\xb5\xb6\xb7\u017e\xb9\xba\xbb\u0152\u0153\u0178\xbf\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff'
+cp1252 replace b'a\xe9\x80?z'
+cp1252 ignore b'a\xe9\x80z'
+cp1252 backslashreplace b'a\xe9\x80\\u0444z'
+cp1252 xmlcharrefreplace b'a\xe9\x80&#1092;z'
+cp1252 namereplace b'a\xe9\x80\\N{CYRILLIC SMALL LETTER EF}z'
+cp1252 '\u20ac\ufffd\u201a\u0192\u201e\u2026\u2020\u2021\u02c6\u2030\u0160\u2039\u0152\ufffd\u017d\ufffd\ufffd\u2018\u2019\u201c\u201d\u2022\u2013\u2014\u02dc\u2122\u0161\u203a\u0153\ufffd\u017e\u0178\xa0\xa1\xa2\xa3\xa4\xa5\xa6\xa7\xa8\xa9\xaa\xab\xac\xad\xae\xaf\xb0\xb1\xb2\xb3\xb4\xb5\xb6\xb7\xb8\xb9\xba\xbb\xbc\xbd\xbe\xbf\xc0\xc1\xc2\xc3\xc4\xc5\xc6\xc7\xc8\xc9\xca\xcb\xcc\xcd\xce\xcf\xd0\xd1\xd2\xd3\xd4\xd5\xd6\xd7\xd8\xd9\xda\xdb\xdc\xdd\xde\xdf\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9\xea\xeb\xec\xed\xee\xef\xf0\xf1\xf2\xf3\xf4\xf5\xf6\xf7\xf8\xf9\xfa\xfb\xfc\xfd\xfe\xff'
+cp437 replace b'a\x82??z'
+cp437 ignore b'a\x82z'
+cp437 backslashreplace b'a\x82\\u20ac\\u0444z'
+cp437 xmlcharrefreplace b'a\x82&#8364;&#1092;z'
+cp437 namereplace b'a\x82\\N{EURO SIGN}\\N{CYRILLIC SMALL LETTER EF}z'
+cp437 '\xc7\xfc\xe9\xe2\xe4\xe0\xe5\xe7\xea\xeb\xe8\xef\xee\xec\xc4\xc5\xc9\xe6\xc6\xf4\xf6\xf2\xfb\xf9\xff\xd6\xdc\xa2\xa3\xa5\u20a7\u0192\xe1\xed\xf3\xfa\xf1\xd1\xaa\xba\xbf\u2310\xac\xbd\xbc\xa1\xab\xbb\u2591\u2592\u2593\u2502\u2524\u2561\u2562\u2556\u2555\u2563\u2551\u2557\u255d\u255c\u255b\u2510\u2514\u2534\u252c\u251c\u2500\u253c\u255e\u255f\u255a\u2554\u2569\u2566\u2560\u2550\u256c\u2567\u2568\u2564\u2565\u2559\u2558\u2552\u2553\u256b\u256a\u2518\u250c\u2588\u2584\u258c\u2590\u2580\u03b1\xdf\u0393\u03c0\u03a3\u03c3\xb5\u03c4\u03a6\u0398\u03a9\u03b4\u221e\u03c6\u03b5\u2229\u2261\xb1\u2265\u2264\u2320\u2321\xf7\u2248\xb0\u2219\xb7\u221a\u207f\xb2\u25a0\xa0'
+koi8-r replace b'a??\xc6z'
+koi8-r ignore b'a\xc6z'
+koi8-r backslashreplace b'a\\xe9\\u20ac\xc6z'
+koi8-r xmlcharrefreplace b'a&#233;&#8364;\xc6z'
+koi8-r namereplace b'a\\N{LATIN SMALL LETTER E WITH ACUTE}\\N{EURO SIGN}\xc6z'
+koi8-r '\u2500\u2502\u250c\u2510\u2514\u2518\u251c\u2524\u252c\u2534\u253c\u2580\u2584\u2588\u258c\u2590\u2591\u2592\u2593\u2320\u25a0\u2219\u221a\u2248\u2264\u2265\xa0\u2321\xb0\xb2\xb7\xf7\u2550\u2551\u2552\u0451\u2553\u2554\u2555\u2556\u2557\u2558\u2559\u255a\u255b\u255c\u255d\u255e\u255f\u2560\u2561\u0401\u2562\u2563\u2564\u2565\u2566\u2567\u2568\u2569\u256a\u256b\u256c\xa9\u044e\u0430\u0431\u0446\u0434\u0435\u0444\u0433\u0445\u0438\u0439\u043a\u043b\u043c\u043d\u043e\u043f\u044f\u0440\u0441\u0442\u0443\u0436\u0432\u044c\u044b\u0437\u0448\u044d\u0449\u0447\u044a\u042e\u0410\u0411\u0426\u0414\u0415\u0424\u0413\u0425\u0418\u0419\u041a\u041b\u041c\u041d\u041e\u041f\u042f\u0420\u0421\u0422\u0423\u0416\u0412\u042c\u042b\u0417\u0428\u042d\u0429\u0427\u042a'
+mac-roman replace b'a\x8e\xdb?z'
+mac-roman ignore b'a\x8e\xdbz'
+mac-roman backslashreplace b'a\x8e\xdb\\u0444z'
+mac-roman xmlcharrefreplace b'a\x8e\xdb&#1092;z'
+mac-roman namereplace b'a\x8e\xdb\\N{CYRILLIC SMALL LETTER EF}z'
+mac-roman '\xc4\xc5\xc7\xc9\xd1\xd6\xdc\xe1\xe0\xe2\xe4\xe3\xe5\xe7\xe9\xe8\xea\xeb\xed\xec\xee\xef\xf1\xf3\xf2\xf4\xf6\xf5\xfa\xf9\xfb\xfc\u2020\xb0\xa2\xa3\xa7\u2022\xb6\xdf\xae\xa9\u2122\xb4\xa8\u2260\xc6\xd8\u221e\xb1\u2264\u2265\xa5\xb5\u2202\u2211\u220f\u03c0\u222b\xaa\xba\u03a9\xe6\xf8\xbf\xa1\xac\u221a\u0192\u2248\u2206\xab\xbb\u2026\xa0\xc0\xc3\xd5\u0152\u0153\u2013\u2014\u201c\u201d\u2018\u2019\xf7\u25ca\xff\u0178\u2044\u20ac\u2039\u203a\ufb01\ufb02\u2021\xb7\u201a\u201e\u2030\xc2\xca\xc1\xcb\xc8\xcd\xce\xcf\xcc\xd3\xd4\uf8ff\xd2\xda\xdb\xd9\u0131\u02c6\u02dc\xaf\u02d8\u02d9\u02da\xb8\u02dd\u02db\u02c7'
+ascii replace b'a???z'
+ascii ignore b'az'
+ascii backslashreplace b'a\\xe9\\u20ac\\u0444z'
+ascii xmlcharrefreplace b'a&#233;&#8364;&#1092;z'
+ascii namereplace b'a\\N{LATIN SMALL LETTER E WITH ACUTE}\\N{EURO SIGN}\\N{CYRILLIC SMALL LETTER EF}z'
+ascii '\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd'
+utf-8 strict 'utf-8' codec can't decode byte 0x80 in position 1: invalid start byte 1 2 True utf-8
+utf-8 replace 'a\ufffdb\ufffdc\ufffd\ufffd\ufffd\ufffdd\ufffd\ufffde\ufffd\ufffd\ufffd\ufffd'
+utf-8 ignore 'abcde'
+utf-8 backslashreplace 'a\\x80b\\xe2\\x82c\\xf0\\x9f\\x98\\xed\\xa0\\x80d\\xc0\\xafe\\xf4\\x90\\x80\\x80'
+utf-8 surrogateescape 'a\udc80b\udce2\udc82c\udcf0\udc9f\udc98\udced\udca0\udc80d\udcc0\udcafe\udcf4\udc90\udc80\udc80'
+utf-8 surrogatepass 'utf-8' codec can't decode byte 0x80 in position 1: invalid start byte 1 2 True utf-8
+utf-8 strict 'utf-8' codec can't decode bytes in position 0-1: unexpected end of data 0 2 True utf-8
+utf-8 replace '\ufffd'
+utf-8 ignore ''
+utf-8 backslashreplace '\\xe2\\x82'
+utf-8 surrogateescape '\udce2\udc82'
+utf-8 surrogatepass 'utf-8' codec can't decode bytes in position 0-1: unexpected end of data 0 2 True utf-8
+utf-8 strict 'utf-8' codec can't decode byte 0xed in position 0: invalid continuation byte 0 1 True utf-8
+utf-8 replace '\ufffd\ufffd'
+utf-8 ignore ''
+utf-8 backslashreplace '\\xed\\xa0'
+utf-8 surrogateescape '\udced\udca0'
+utf-8 surrogatepass 'utf-8' codec can't decode byte 0xed in position 0: invalid continuation byte 0 1 True utf-8
+ascii strict 'ascii' codec can't decode byte 0xff in position 1: ordinal not in range(128) 1 2 True ascii
+ascii replace 'a\ufffdb\ufffd'
+ascii ignore 'ab'
+ascii backslashreplace 'a\\xffb\\x80'
+ascii surrogateescape 'a\udcffb\udc80'
+ascii surrogatepass 'ascii' codec can't decode byte 0xff in position 1: ordinal not in range(128) 1 2 True ascii
+utf-16-le strict 'utf-16-le' codec can't decode bytes in position 2-3: illegal UTF-16 surrogate 2 4 True utf-16-le
+utf-16-le replace 'a\ufffdb\ufffd'
+utf-16-le ignore 'ab'
+utf-16-le backslashreplace 'a\\x00\\xd8b\\x00\\xdc'
+utf-16-le surrogateescape 'utf-16-le' codec can't decode bytes in position 2-3: illegal UTF-16 surrogate 2 4 True utf-16-le
+utf-16-le surrogatepass 'a\ud800b\udc00'
+utf-16-be strict 'utf-16-be' codec can't decode bytes in position 0-1: illegal UTF-16 surrogate 0 2 True utf-16-be
+utf-16-be replace '\ufffd\ufffd'
+utf-16-be ignore ''
+utf-16-be backslashreplace '\\xd8\\x00\\xd8\\x00'
+utf-16-be surrogateescape 'utf-16-be' codec can't decode byte 0x00 in position 3: truncated data 3 4 True utf-16-be
+utf-16-be surrogatepass '\ud800\ud800'
+utf-16 strict 'utf-16-le' codec can't decode byte 0x61 in position 2: truncated data 2 3 True utf-16-le
+utf-16 replace '\ufffd'
+utf-16 ignore ''
+utf-16 backslashreplace '\\x61'
+utf-16 surrogateescape 'utf-16-le' codec can't decode byte 0x61 in position 2: truncated data 2 3 True utf-16-le
+utf-16 surrogatepass 'utf-16-le' codec can't decode byte 0x61 in position 2: truncated data 2 3 True utf-16-le
+utf-32-le strict 'utf-32-le' codec can't decode bytes in position 0-3: code point in surrogate code point range(0xd800, 0xe000) 0 4 True utf-32-le
+utf-32-le replace '\ufffda\ufffd'
+utf-32-le ignore 'a'
+utf-32-le backslashreplace '\\x00\\xd8\\x00\\x00a\\x00\\x00\\x11\\x00'
+utf-32-le surrogateescape 'utf-32-le' codec can't decode bytes in position 0-3: code point in surrogate code point range(0xd800, 0xe000) 0 4 True utf-32-le
+utf-32-le surrogatepass 'utf-32-le' codec can't decode bytes in position 8-11: code point not in range(0x110000) 8 12 True utf-32-le
+utf-32-be strict 'utf-32-be' codec can't decode byte 0x00 in position 4: truncated data 4 5 True utf-32-be
+utf-32-be replace 'a\ufffd'
+utf-32-be ignore 'a'
+utf-32-be backslashreplace 'a\\x00'
+utf-32-be surrogateescape 'utf-32-be' codec can't decode byte 0x00 in position 4: truncated data 4 5 True utf-32-be
+utf-32-be surrogatepass 'utf-32-be' codec can't decode byte 0x00 in position 4: truncated data 4 5 True utf-32-be
+utf-7 strict 'utf7' codec can't decode bytes in position 1-5: non-zero padding bits in shift sequence 1 6 True utf7
+utf-7 replace 'a\ufffdb\ufffdc\ufffdd\ufffd'
+utf-7 ignore 'abcd'
+utf-7 backslashreplace 'a\\x2b\\x32\\x44\\x33\\x2db\\x2b\\x41\\x2dc\\x2b\\x41\\x42\\x2dd\\x80'
+utf-7 surrogateescape 'utf7' codec can't decode bytes in position 1-5: non-zero padding bits in shift sequence 1 6 True utf7
+utf-7 surrogatepass 'utf7' codec can't decode bytes in position 1-5: non-zero padding bits in shift sequence 1 6 True utf7
+utf-7 strict 'utf7' codec can't decode bytes in position 0-3: unterminated shift sequence 0 4 True utf7
+utf-7 replace '\ufffd'
+utf-7 ignore ''
+utf-7 backslashreplace '\\x2b\\x32\\x44\\x33'
+utf-7 surrogateescape 'utf7' codec can't decode bytes in position 0-3: unterminated shift sequence 0 4 True utf7
+utf-7 surrogatepass 'utf7' codec can't decode bytes in position 0-3: unterminated shift sequence 0 4 True utf7
+unicode_escape strict 'unicodeescape' codec can't decode bytes in position 1-3: truncated \xXX escape 1 4 True unicodeescape
+unicode_escape replace 'a\ufffdg\ufffd\ufffd\ufffd'
+unicode_escape ignore 'ag'
+unicode_escape backslashreplace 'a\\x5c\\x78\\x34g\\x5c\\x4e\\x7b\\x4e\\x4f\\x50\\x45\\x7d\\x5c\\x55\\x30\\x30\\x31\\x31\\x30\\x30\\x30\\x30\\x5c'
+unicode_escape surrogateescape 'unicodeescape' codec can't decode bytes in position 1-3: truncated \xXX escape 1 4 True unicodeescape
+unicode_escape surrogatepass 'unicodeescape' codec can't decode bytes in position 1-3: truncated \xXX escape 1 4 True unicodeescape
+raw_unicode_escape strict 'rawunicodeescape' codec can't decode bytes in position 0-3: truncated \uXXXX escape 0 4 True rawunicodeescape
+raw_unicode_escape replace '\ufffdx\ufffd'
+raw_unicode_escape ignore 'x'
+raw_unicode_escape backslashreplace '\\x5c\\x75\\x31\\x32x\\x5c\\x55\\x30\\x30\\x31\\x31\\x30\\x30\\x30\\x30'
+raw_unicode_escape surrogateescape 'rawunicodeescape' codec can't decode bytes in position 0-3: truncated \uXXXX escape 0 4 True rawunicodeescape
+raw_unicode_escape surrogatepass 'rawunicodeescape' codec can't decode bytes in position 0-3: truncated \uXXXX escape 0 4 True rawunicodeescape
+cp1252 strict 'charmap' codec can't decode byte 0x81 in position 1: character maps to <undefined> 1 2 True charmap
+cp1252 replace 'a\ufffd\ufffdb'
+cp1252 ignore 'ab'
+cp1252 backslashreplace 'a\\x81\\x8db'
+cp1252 surrogateescape 'a\udc81\udc8db'
+cp1252 surrogatepass 'charmap' codec can't decode byte 0x81 in position 1: character maps to <undefined> 1 2 True charmap
+utf-8 strict 'utf-8' codec can't encode characters in position 1-2: surrogates not allowed 1 3 'a\ud800\udfffb\udc80' surrogates not allowed
+utf-8 replace b'a??b?'
+utf-8 ignore b'ab'
+utf-8 backslashreplace b'a\\ud800\\udfffb\\udc80'
+utf-8 xmlcharrefreplace b'a&#55296;&#57343;b&#56448;'
+utf-8 namereplace b'a\\ud800\\udfffb\\udc80'
+utf-8 surrogateescape 'utf-8' codec can't encode characters in position 1-2: surrogates not allowed 1 3 'a\ud800\udfffb\udc80' surrogates not allowed
+utf-8 surrogatepass b'a\xed\xa0\x80\xed\xbf\xbfb\xed\xb2\x80'
+utf-16-le strict 'utf-16-le' codec can't encode character '\ud800' in position 1: surrogates not allowed 1 2 'a\ud800b' surrogates not allowed
+utf-16-le replace b'a\x00?\x00b\x00'
+utf-16-le ignore b'a\x00b\x00'
+utf-16-le backslashreplace b'a\x00\\\x00u\x00d\x008\x000\x000\x00b\x00'
+utf-16-le xmlcharrefreplace b'a\x00&\x00#\x005\x005\x002\x009\x006\x00;\x00b\x00'
+utf-16-le namereplace b'a\x00\\\x00u\x00d\x008\x000\x000\x00b\x00'
+utf-16-le surrogateescape 'utf-16-le' codec can't encode character '\ud800' in position 1: surrogates not allowed 1 2 'a\ud800b' surrogates not allowed
+utf-16-le surrogatepass b'a\x00\x00\xd8b\x00'
+utf-32 strict 'utf-32' codec can't encode character '\udc80' in position 0: surrogates not allowed 0 1 '\udc80' surrogates not allowed
+utf-32 replace b'\xff\xfe\x00\x00?\x00\x00\x00'
+utf-32 ignore b'\xff\xfe\x00\x00'
+utf-32 backslashreplace b'\xff\xfe\x00\x00\\\x00\x00\x00u\x00\x00\x00d\x00\x00\x00c\x00\x00\x008\x00\x00\x000\x00\x00\x00'
+utf-32 xmlcharrefreplace b'\xff\xfe\x00\x00&\x00\x00\x00#\x00\x00\x005\x00\x00\x006\x00\x00\x004\x00\x00\x004\x00\x00\x008\x00\x00\x00;\x00\x00\x00'
+utf-32 namereplace b'\xff\xfe\x00\x00\\\x00\x00\x00u\x00\x00\x00d\x00\x00\x00c\x00\x00\x008\x00\x00\x000\x00\x00\x00'
+utf-32 surrogateescape 'utf-32' codec can't encode character '\udc80' in position 0: surrogates not allowed 0 1 '\udc80' surrogates not allowed
+utf-32 surrogatepass b'\xff\xfe\x00\x00\x80\xdc\x00\x00'
+latin-1 strict 'latin-1' codec can't encode characters in position 1-2: ordinal not in range(256) 1 3 'a\u0100\u0101b\udcff' ordinal not in range(256)
+latin-1 replace b'a??b?'
+latin-1 ignore b'ab'
+latin-1 backslashreplace b'a\\u0100\\u0101b\\udcff'
+latin-1 xmlcharrefreplace b'a&#256;&#257;b&#56575;'
+latin-1 namereplace b'a\\N{LATIN CAPITAL LETTER A WITH MACRON}\\N{LATIN SMALL LETTER A WITH MACRON}b\\udcff'
+latin-1 surrogateescape 'latin-1' codec can't encode characters in position 1-2: ordinal not in range(256) 1 3 'a\u0100\u0101b\udcff' ordinal not in range(256)
+latin-1 surrogatepass 'latin-1' codec can't encode characters in position 1-2: ordinal not in range(256) 1 3 'a\u0100\u0101b\udcff' ordinal not in range(256)
+ascii strict 'ascii' codec can't encode characters in position 1-3: ordinal not in range(128) 1 4 'a\xe9\udc80\ud800' ordinal not in range(128)
+ascii replace b'a???'
+ascii ignore b'a'
+ascii backslashreplace b'a\\xe9\\udc80\\ud800'
+ascii xmlcharrefreplace b'a&#233;&#56448;&#55296;'
+ascii namereplace b'a\\N{LATIN SMALL LETTER E WITH ACUTE}\\udc80\\ud800'
+ascii surrogateescape 'ascii' codec can't encode characters in position 1-3: ordinal not in range(128) 1 4 'a\xe9\udc80\ud800' ordinal not in range(128)
+ascii surrogatepass 'ascii' codec can't encode characters in position 1-3: ordinal not in range(128) 1 4 'a\xe9\udc80\ud800' ordinal not in range(128)
+cp1252 strict 'charmap' codec can't encode characters in position 1-2: character maps to <undefined> 1 3 'a\u0101\udc80' character maps to <undefined>
+cp1252 replace b'a??'
+cp1252 ignore b'a'
+cp1252 backslashreplace b'a\\u0101\\udc80'
+cp1252 xmlcharrefreplace b'a&#257;&#56448;'
+cp1252 namereplace b'a\\N{LATIN SMALL LETTER A WITH MACRON}\\udc80'
+cp1252 surrogateescape 'charmap' codec can't encode characters in position 1-2: character maps to <undefined> 1 3 'a\u0101\udc80' character maps to <undefined>
+cp1252 surrogatepass 'charmap' codec can't encode characters in position 1-2: character maps to <undefined> 1 3 'a\u0101\udc80' character maps to <undefined>
+  handler UnicodeEncodeError ascii 1 2 ordinal not in range(128)
+  handler UnicodeEncodeError ascii 3 4 ordinal not in range(128)
+  handler UnicodeEncodeError ascii 5 6 ordinal not in range(128)
+b'x<1>y<3>z<5>'
+  handler UnicodeEncodeError utf-16-be 1 2 surrogates not allowed
+b'\x00x\x00<\x001\x00>\x00y'
+  handler UnicodeDecodeError utf-8 1 2 invalid start byte
+  handler UnicodeDecodeError utf-8 3 5 unexpected end of data
+'x<ff>y<e282>'
+  handler UnicodeDecodeError charmap 1 2 character maps to <undefined>
+'a<81>b'
+True
+b'ab<ab>'
+TypeError encoding error handler must return (str/bytes, int) tuple
+TypeError encoding error handler must return (str/bytes, int) tuple
+TypeError 'str' object cannot be interpreted as an integer
+TypeError encoding error handler must return (str/bytes, int) tuple
+IndexError position 100 from error handler out of bounds
+'ascii' codec can't encode character '\u20ac' in position 1: ordinal not in range(128)
+b'a\xe9'
+strict UnicodeEncodeError 'utf-8' codec can't encode characters in position 1-2: r
+strict UnicodeDecodeError 'utf-16-le' codec can't decode bytes in position 2-3: r
+strict UnicodeTranslateError can't translate character '\u20ac' in position 1: r
+strict UnicodeEncodeError 'ascii' codec can't encode characters in position 5-0: r
+ignore ('', 3)
+ignore ('', 4)
+ignore ('', 2)
+ignore ('', 1)
+replace ('??', 3)
+replace ('\ufffd', 4)
+replace ('\ufffd', 2)
+replace ('', 1)
+xmlcharrefreplace ('&#55296;&#56448;', 3)
+xmlcharrefreplace TypeError don't know how to handle UnicodeDecodeError in error callback
+xmlcharrefreplace TypeError don't know how to handle UnicodeTranslateError in error callback
+xmlcharrefreplace ('', 1)
+backslashreplace ('\\ud800\\udc80', 3)
+backslashreplace ('\\x00\\xd8', 4)
+backslashreplace ('\\u20ac', 2)
+backslashreplace ('', 1)
+namereplace ('\\ud800\\udc80', 3)
+namereplace TypeError don't know how to handle UnicodeDecodeError in error callback
+namereplace TypeError don't know how to handle UnicodeTranslateError in error callback
+namereplace ('', 2)
+surrogateescape UnicodeEncodeError 'utf-8' codec can't encode characters in position 1-2: r
+surrogateescape UnicodeDecodeError 'utf-16-le' codec can't decode bytes in position 2-3: r
+surrogateescape TypeError don't know how to handle UnicodeTranslateError in error callback
+surrogateescape (b'', 1)
+surrogatepass (b'\xed\xa0\x80\xed\xb2\x80', 3)
+surrogatepass ('\ud800', 4)
+surrogatepass TypeError don't know how to handle UnicodeTranslateError in error callback
+surrogatepass UnicodeEncodeError 'ascii' codec can't encode characters in position 5-0: r
+unknown error handler name 'test.nope'
+handler must be callable
+UnicodeEncodeError('utf-8', 'abc', 1, 2, 'r') 'utf-8' codec can't encode character '\x62' in position 1: r True
+UnicodeEncodeError('utf-8', 'abc', 0, 3, 'r') 'utf-8' codec can't encode characters in position 0-2: r True
+UnicodeEncodeError('utf-8', 'abc', 5, 7, 'r') 'utf-8' codec can't encode characters in position 5-6: r True
+UnicodeEncodeError('utf-8', '😀', 0, 1, 'r') 'utf-8' codec can't encode character '\U0001f600' in position 0: r True
+UnicodeDecodeError('x', bytearray(b'ab'), 1, 2, 'why') b'ab' 'x' codec can't decode byte 0x62 in position 1: why
+'x' codec can't decode bytes in position 0-1: because 0 2 because
+can't translate character '\u20ac' in position 0: no can't translate characters in position 0-1: x
+UnicodeEncodeError function takes exactly 5 arguments (0 given)
+UnicodeEncodeError argument 2 must be str, not bytes
+UnicodeDecodeError a bytes-like object is required, not 'str'
+UnicodeEncodeError 'str' object cannot be interpreted as an integer
+UnicodeTranslateError function takes exactly 4 arguments (3 given)
+'m' codec can't encode character '\x79' in position 1: own
+b'cba' abc test-rot
+'test-bytes' is not a text encoding; use codecs.encode() to handle arbitrary codecs
+'test-bytes' is not a text encoding; use codecs.decode() to handle arbitrary codecs
+unknown encoding: test-nope
+unknown encoding: test-nope
+b'x' b'y'
+unknown encoding: test-rot
+'charmap' codec can't encode character '\u0101' in position 0: character maps to <undefined> ["encoding with 'cp1252' codec failed"]
+'utf-8' codec can't decode byte 0xff in position 0: invalid start byte ["decoding with 'utf-8' codec failed"]
+nop abc
+utf-8 ['a', '', '', '\u20ac', '', '', '', '\U0001f600'] ''
+utf-8 [b'a', b'b'] b''
+utf-16 ['', '', '', 'a', '', '\u20ac'] ''
+utf-16 [b'\xff\xfea\x00', b'b\x00'] b''
+utf-32-be ['', '', '', 'a', '', '', '', '\U0001f600'] ''
+utf-32-be [b'\x00\x00\x00a', b'\x00\x00\x00b'] b''
+utf-7 ['a', '', '', '', '', '\u20ac', 'b', '', '', '', '', '\u20ac'] ''
+utf-7 [b'a', b'b'] b''
+unicode_escape ['a', '', '', '', '', '', '\u20ac', '', '', '', '', '', '', '', '', '', '', '\u2014', 'b'] ''
+unicode_escape [b'a', b'b'] b''
+utf-8-sig ['', '', '', 'x'] ''
+utf-8-sig [b'\xef\xbb\xbfa', b'b'] b''
+'utf-8' codec can't decode bytes in position 0-1: unexpected end of data
+('a', 1) None ('a', 4, 1)
+('a', 2, 0) ('', 0, 0)
+(b'\x00a', 1) (b'a\x00\x00\x00', 1)
+(b"aA\n'A", 13) (b"a\\'\\\\\\x00\\xff", 5)
+invalid \x escape at position 1
+(b'x?', 4)
+(b'x', 4)
+decoding error; unknown error handling code: other
+('ab�', 3) ('x☺', 2)
+EncodingMap (b'\x01\x04\x02', 3) (b'XY\x07', 2)
+character mapping must be in range(256)
+(b'ab', 2) (b'\xc3\xa9', 2)
+('é', 1) (b'ab', 2) (b'\xe9', 1)
+('a', 1) ('€', 6)
+café a�b b'x' b'\xe9' b'\x00\xe9' bytearray(b'\x80') bytearray(b'x')
+decoding str is not supported
+string argument without an encoding
+encoding without a string argument
+errors without a string argument
+str() argument 'encoding' must be str, not int
+encode() argument 'encoding' must be str, not int
+decode() argument 'errors' must be str, not int

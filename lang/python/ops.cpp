@@ -541,3 +541,11 @@ R index_of(Value key, usize len, usize &out)
     out = usize(n);
     return R::Ok;
 }
+
+R err_not(Str head, Value v, bool quoted)
+{
+    String m;
+    bool ok = m.append(head) && m.append(", not ") && (!quoted || m.push('\'')) &&
+              m.append(type_name(v)) && (!quoted || m.push('\''));
+    return ok ? err_set("TypeError", m.str()) : err_set("MemoryError", "out of memory");
+}

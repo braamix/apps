@@ -125,6 +125,12 @@ bool seqiter_methods();
 // README.md.
 R iter_park(const CallArgs &a, u32 at, R (*again)(const CallArgs &, Value &out), Value &out);
 
+// Call `fn(a0[, a1])` first, then enter `again` with what it answered in
+// place of argument `at`. How a builtin waits on a call it needs before it can
+// start: compile() on bytes whose cookie names a codec written in Python.
+R redo_with(const CallArgs &a, u32 at, Value fn, Value a0, Value a1, u32 n,
+            R (*again)(const CallArgs &, Value &out), Value &out);
+
 // Inside a step: read `path`, and come back with its text as a str. None means
 // there is no such file. The driver performs it, so the VM parks here; only
 // `import` needs this, and vm.h says what the driver sees.

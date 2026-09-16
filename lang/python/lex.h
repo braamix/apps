@@ -152,9 +152,16 @@ struct Token {
 // line and column in the error channel.
 struct Lexer {
     Vec<Token> tokens;
-    String text; // the decoded bytes of every Name, Str, Bytes and FStr
+    String text;  // the decoded bytes of every Name, Str, Bytes and FStr
+    String own;   // the source as UTF-8, where it was declared otherwise
+    String codec; // a declared encoding only the codec registry can decode
 
-    bool run(Str source);
+    // `decoded` is a str's text, whose coding cookie no longer means
+    // anything. Otherwise the source is bytes, and PEP 263 decides how they
+    // are read: a BOM, a cookie in the first two lines, and UTF-8 by default.
+    // Where the cookie names a codec written in Python, `codec` says which,
+    // and the SyntaxError pending says it is unknown.
+    bool run(Str source, bool decoded = false);
 
     // One expression's tokens appended after everything already scanned, for
     // what is inside an f-string's braces: the body arrives as written and is
@@ -166,6 +173,23 @@ struct Lexer {
 
     Str text_of(const Token &t) const { return Str(text.data() + t.at, t.len); }
 };
+
+// PEP 263: the encoding a source's first two lines declare, normalized as
+// CPython's tokenizer does it -- "utf-8", "iso-8859-1", or the name as
+// written -- appended to `out`. False when there is none.
+bool lex_cookie(Str source, String &out);
+
+// A source that cannot be decoded at all, pending: CPython's SyntaxError at
+// line 0, offset -1. Always false.
+bool lex_undecodable(Str message);
+
+// source_decode(bytes, encoding): the source as a str, through the codec
+// registry, or the SyntaxError CPython raises where that fails. A ContObj;
+// compile() and import call it where a cookie names a codec written in
+// Python.
+struct CallArgs;
+enum class R : u8;
+R lex_source_decode(const CallArgs &a, Value &out);
 
 // One literal run's escapes decoded, appended to `out`. An f-string's body is
 // kept as written, so its literal halves are decoded at parse time -- and by

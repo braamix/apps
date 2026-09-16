@@ -1,0 +1,5 @@
+1:1 name x
+1:3 op =
+1:5 int 1
+1:6 newline
+python: 2:1: SyntaxError: invalid character '€' (U+20AC)

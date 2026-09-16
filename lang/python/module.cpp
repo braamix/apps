@@ -75,6 +75,8 @@ constexpr Native NATIVES[] = {
     { "sys", sys_install },
     { "_weakref", weakref_install },
     { "_abc", abcmod_install },
+    { "_codecs", codecs_install },
+    { "unicodedata", unicodedata_install },
     { "_collections", coll_install },
     { "_functools", functools_install },
     { "itertools", itertools_install },
@@ -126,7 +128,10 @@ bool mod_defs(DictObj *into, const ModDef *tab, usize n)
     Root rd{ obj_value(into) };
     for (usize i = 0; i < n; i++) {
         Root fn{ native_new(tab[i].name, tab[i].fn) };
-        if (fn.v.is_nil() || !mod_put(static_cast<DictObj *>(rd.v.obj()), tab[i].name, fn.v))
+        if (fn.v.is_nil())
+            return false;
+        fn.v.obj()->flags |= OBJ_PLAINFN;
+        if (!mod_put(static_cast<DictObj *>(rd.v.obj()), tab[i].name, fn.v))
             return false;
     }
     return true;

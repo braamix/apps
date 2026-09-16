@@ -6,6 +6,7 @@
 // a file only when the name is not one of these.
 #pragma once
 
+#include "codec.h"
 #include "func.h"
 
 // One name in a module's namespace, and the native behind it.
@@ -72,3 +73,4 @@ bool errno_install(DictObj *into);
 bool gcmod_install(DictObj *into);
 bool types_install(DictObj *into);
 bool typing_install(DictObj *into);
+bool unicodedata_install(DictObj *into);

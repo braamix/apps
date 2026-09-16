@@ -7,8 +7,8 @@ borrowed is measured, and named here.
 **The language stands, the built-in types have their methods, a file can be
 imported, text can be formatted, numbers have no width, a function can yield, a
 program can compile and run more of itself, the type system is whole, seventeen
-modules are written natively, a function can be a coroutine, and the syntax is
-3.14's.** Phases 0 to 20 built the lexer, the parser, the compiler, the VM, the
+modules are written natively, a function can be a coroutine, the syntax is
+3.14's, and text is Unicode's.** Phases 0 to 21 built the lexer, the parser, the compiler, the VM, the
 object heap and its collector, exceptions, functions and closures, classes, the
 method tables, the module loader, the `unittest` and `test.support` shims every
 CPython test stands on, the one format engine that `format()`, `__format__`,
@@ -26,9 +26,13 @@ def`, `await`, `async for`, `async with`, the async comprehensions and async
 generators, with the awaitables they make — and then everything the library's
 syntax asks since 3.9: `@`, unions, `match`, `except*` and the exception groups,
 PEP 695 over a native `_typing`, PEP 701's f-strings, PEP 750's t-strings and
-PEP 810's lazy imports. They are done, and their record is the git history —
-`python: phase 0` through `python: phase 20` — not this file, which from here
-describes only what is left.
+PEP 810's lazy imports — and then the Unicode database and `unicodedata`, str
+by Unicode's categories and case mappings, `_codecs` with CPython's own
+`codecs.py` and `encodings` over it, PEP 263's source encodings, `\N{...}`,
+identifiers by XID and NFKC, and the lone surrogate as a character. They are
+done, and their record is the git history — `python: phase 0` through
+`python: phase 21` — not this file, which from here describes only what is
+left.
 
 Where that leaves us, measured against MicroPython's suite: **412 of the 449
 tests in [test/manifest.txt](test/manifest.txt)**. Of the thirty-seven that do
@@ -39,25 +43,27 @@ pure-Python wrappers over what phase 18 wrote — and three import `types` for
 refuses, and stays as it is. None stop at the object model.
 
 Measured against CPython's, which is the harder ruler: **fourteen of the
-twenty-two in [test/cpython.txt](test/cpython.txt) run, and 166 test methods of
+twenty-two in [test/cpython.txt](test/cpython.txt) run, and 171 test methods of
 204 pass.** `node test/pycases.mjs --survey` runs the whole of `Lib/test/` and
-counts what stops each of the 391 files: 325 an unwritten module, 33 a lone
-surrogate in a literal, 14 `\N{...}`, 14 that run, 3 that fail at runtime or
-say nothing this can read, and 2 other syntax.
+counts what stops each of the 391 files: 372 an unwritten module, 14 that run,
+3 that fail at runtime or say nothing this can read, and 2 other syntax.
 
 Three walls came down in phases 13 and 14 — f-strings, complex and the bignum
 were 204 files between them — a fourth in phase 19, whose fifteen `async` files
-went fourteen to an import and one to other syntax, and a fifth in phase 20,
-whose forty-two went thirty-nine to an import and three to running. **What stops
+went fourteen to an import and one to other syntax, a fifth in phase 20,
+whose forty-two went thirty-nine to an import and three to running, and a
+sixth in phase 21, whose forty-seven — a lone surrogate or `\N{...}` in a
+literal — all went to an import. **What stops
 CPython's tests is an import**, and what those files stop on is the *library*,
 not the modules under it. The survey is how each wave is chosen, and it only
 means something read beside what it said last time.
 
-**The first library module is borrowed.** `lib/abc.py` is CPython's own, byte
-for byte, with its provenance in [lib/manifest.txt](lib/manifest.txt) and the
-PSF terms in [LICENSE](LICENSE). Phase 23 is where that directory grows and
-phase 30 where it ships; the pattern it establishes is that we write the floor
-natively and take the rest as it is.
+**The library has begun to be borrowed.** `lib/abc.py`, `lib/codecs.py` and
+89 modules of `lib/encodings/` are CPython's own, byte for byte, with their
+provenance in [lib/manifest.txt](lib/manifest.txt) and the PSF terms in
+[LICENSE](LICENSE). Phase 23 is where that directory grows and phase 30 where
+it ships; the pattern is that we write the floor natively and take the rest as
+it is.
 
 ## Why the phases are in this order
 
@@ -250,8 +256,8 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-The order is language (21), floor (22), library by layer (23–26), then the
-layers that need all of it (27–30). Each phase lists only what the phases
+The order is floor (22), library by layer (23–26), then the layers that need
+all of it (27–30); the language phases are done. Each phase lists only what the phases
 before it have made possible.
 
 Phase 18 left two things for the phases that use them. `memoryview` is flat:
@@ -286,40 +292,20 @@ added all compile and stop at an import — `test_exception_group.py` at
 `test_lazy_import/` imports `subprocess`, `threading` and `tempfile`, and was
 not copied.
 
-### Phase 21 — Unicode in full
-
-Until here, `str` is codepoints with an ASCII fast path and a range table for
-case. The library and `test_str.py` want more, and so does `_sre`: its
-character categories are Unicode's — decimal, space, alphanumeric, printable,
-XID_Start, titlecase, cased, case-ignorable — so it waits for these tables.
-
-- [ ] `unicodedata`: the category, the case mappings, the numeric values and
-      the names, as a generated table whose size is measured before it ships.
-      `lookup` is what `re`'s `\N{...}` calls.
-- [ ] `str.upper`/`lower`/`title`/`casefold` and the `is*` predicates by
-      category rather than by range. Phase 10 left `casefold` as `lower`,
-      `isdecimal` and `isnumeric` as `isdigit`, and `'ß'.isalpha()` False,
-      because the range table has no one-codepoint upper for it.
-- [ ] `_codecs`, with `_normalize_encoding`, and `codecs.py` and the
-      `encodings` package verbatim over it: `utf-8`, `utf-16`, `utf-32`,
-      `latin-1`, `ascii`, the error handlers (`strict`, `ignore`, `replace`,
-      `surrogateescape`, `backslashreplace`), and `str.encode`/`bytes.decode`
-      over them. `codecs.py` needs only `builtins` and `sys`, so it is the
-      first library module that can arrive without phase 23.
-- [ ] `\N{...}` escapes in the lexer, and identifiers by XID_Start and
-      XID_Continue rather than "anything above U+0080", which is a known
-      difference today. NFKC normalisation of an identifier goes with it, and
-      it is what `test_unicode_identifiers.py` stops on.
-- [ ] **A lone surrogate in a string literal.** `"\ud800"` is refused by the
-      lexer and CPython allows it; 33 of `Lib/test/`'s files stop there, which
-      is second only to an import. It needs the whole
-      `surrogatepass`/`surrogateescape` question answered, not just the range
-      check relaxed.
-- [ ] Normalisation, if the table cost is bearable.
-
-Tests: `test_unicode_identifiers.py` and `test_utf8source.py`, already in
-[test/cpython.txt](test/cpython.txt). `test_str.py`, `test_unicodedata.py` and
-`test_codecs.py` import the library, and wait for phase 23 or later.
+Phase 21 left five. **`unicodedata.ucd_3_2_0` is missing**: `stringprep`
+reads Unicode 3.2 through it, so the `idna` codec waits for it and for `re`;
+the delta against 16.0 is 66 records and a normalization table, and phase 24
+writes it. **Seven codecs in `encodings` wait for a module**: `base64_codec`,
+`hex_codec`, `uu_codec` and `utf_7_imap` for `binascii`, `quopri_codec` for
+`quopri` and `io`, `bz2_codec` and `zlib_codec` for compression that is not
+planned; they were not copied, and neither were the CJK codecs over
+`_multibytecodec`, `mbcs`, `oem` and the two Windows and iconv helpers, which
+this platform will never have. **An invalid escape warns about nothing**:
+CPython's SyntaxWarning waits for `warnings`, phase 23. **A program's own file
+cannot name a codec written in Python in its cookie**, because it is read
+before there is a VM; `compile`, `exec` and `import` can. And **`--dump-tokens`
+prints a name in its NFKC form**, where `tokenize` prints it as written; a
+native `_tokenize` in phase 26 has to keep both.
 
 ### Phase 22 — the rest of the native floor
 
@@ -387,7 +373,7 @@ write; what it stands on is one module whose Python-visible surface is
 `compile`, `template`, `getcodesize`, `MAGIC`, `CODESIZE`, `MAXREPEAT`,
 `MAXGROUPS`, `copyright` and four case-folding helpers. Its imports are
 `enum`, `functools` and `copyreg` (phase 23), and `unicodedata` and `warnings`
-when a pattern asks for them (phases 21 and 23).
+when a pattern asks for them (phase 21 wrote the first, 23 brings the second).
 
 - [ ] The `_sre` opcode VM: the pattern is a `u32` array `re/_compiler.py`
       emits, and the matcher walks it with an explicit backtracking stack —
@@ -412,8 +398,9 @@ when a pattern asks for them (phases 21 and 23).
       leftmost-first with back-references, lazy quantifiers and lookaround.
       The two engines answer different questions.
 - [ ] What stands on `re` and nothing later comes with it: `textwrap`,
-      `string.Template`, `json` (whose `codecs` is phase 21), `fractions`,
-      `difflib`.
+      `string.Template`, `json`, `fractions`, `difflib`; and `stringprep` with
+      the `idna` codec, over a `unicodedata.ucd_3_2_0` generated beside the
+      16.0 tables.
 
 Tests: `test_re.py`, whose top-level imports — `locale`, `string`,
 `warnings`, `weakref`, `test.support` — are all in by now; the cases that
