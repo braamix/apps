@@ -54,9 +54,12 @@ own binary paints; `games/asciiquarium`, a seeded aquarium asserted frame by
 frame and driven by its own keys; the two benchmarks, each stopped partway
 by a signal; and `lang/mbasic`, whose sessions are compared line for line and
 whose `^C` is asserted on the grid. All of them need node and a sibling
-`../braam-core` built. Everything printed also lands in `test.log`, so a run
+`../braam-core` built. They run several at a time, each printed as it finishes,
+and everything printed also lands in `test.log` in the listed order, so a run
 can be read again without being repeated; `TESTS=<file>...` runs a few of them
-instead of all sixty-six.
+instead of all of them, and `make test STRESS=1` adds the pass that runs
+Python's cases again under a collector that never waits, which is minutes
+rather than seconds.
 
     make index
 

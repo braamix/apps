@@ -6,7 +6,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { boot, put, ok, die, against_cpython } from "./pylib.mjs";
+import { boot, put, ok, die, against_cpython, under_gc } from "./pylib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
@@ -30,5 +30,4 @@ if (bad) {
     console.error(`\npylazy: ${bad} of ${ran} differ from CPython`);
     process.exit(1);
 }
-ok(`${ran} cases, ${lines} lines identical to CPython 3.16's, and to themselves under ` +
-   `a collector that never waits`);
+ok(`${ran} cases, ${lines} lines identical to CPython 3.16's${under_gc}`);

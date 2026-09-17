@@ -17,7 +17,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from 
 import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { boot, put, run, ok, die, same, opt } from "./pylib.mjs";
+import { boot, put, run, ok, die, same, opt, shard } from "./pylib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CASES = join(HERE, "cpython");
@@ -71,10 +71,12 @@ function plant_data() {
     }
 }
 
-// An object's repr carries its address, which moves with the allocation order.
-// Nothing else in a listing is unstable.
+// An object's repr carries its address, which moves with the allocation order,
+// and os_helper names a temporary after the pid, which moves with how many
+// processes the boot has spawned before it. Nothing else in a listing is
+// unstable.
 function stable(text) {
-    return text.replace(/0x[0-9a-fA-F]+/g, "0xX");
+    return text.replace(/0x[0-9a-fA-F]+/g, "0xX").replace(/@test_\d+_tmp/g, "@test_N_tmp");
 }
 
 // What unittest.main() fenced off, or the whole of it when the case never got
@@ -140,7 +142,7 @@ if (process.argv.includes("--survey")) {
     process.exit(0);
 }
 
-const ROWS = manifest().filter((c) => !only.length || only.includes(c.name));
+const ROWS = shard(manifest().filter((c) => !only.length || only.includes(c.name)));
 if (!ROWS.length) die(only.length ? "no case matched" : "cpython.txt has no rows");
 
 const blessed = [];

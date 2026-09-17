@@ -5,22 +5,25 @@
 // invisible until a collection lands in the gap, so running the whole manifest
 // with every gap closed turns it into a wrong answer. Nine were found that
 // way: four in the `with` statement, the rest in the special-method path.
+//
+// `make test STRESS=1` only, and in four shards there: a collection walks the
+// whole live heap, so this is minutes where the plain pass is seconds.
 
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { boot, put, run, ok, die } from "./pylib.mjs";
+import { boot, put, run, ok, die, shard } from "./pylib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-const rows = readFileSync(join(HERE, "manifest.txt"), "utf8")
+const rows = shard(readFileSync(join(HERE, "manifest.txt"), "utf8")
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith("#"))
     .map((l) => l.split(/\s+/))
     .filter((f) => f[0] === "pass")
-    .map((f) => f[1]);
+    .map((f) => f[1]));
 
 await boot("pystress");
 

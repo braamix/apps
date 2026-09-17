@@ -54,7 +54,14 @@ package: all
 	@cmake --build $(BUILD) -j $(JOBS) --target packages
 
 # Headless tests, driving a built binary under ../braam-core's system harness.
-# Needs node and a built core tree.
+# Needs node and a built core tree. They run $(TEST_JOBS) at a time, each into
+# a log of its own, and $(TEST_LOG) is those logs in this order.
+#
+# One entry is one word, so a test that takes arguments writes them after a
+# comma: the longest lists are cut into shards, which is what keeps one of them
+# from setting the length of the whole run. Python's stdlib and module cases
+# are sharded for the stress pass below, where they are minutes rather than
+# seconds.
 TESTS := \
     archivers/zip/test/roundtrip.mjs \
     archivers/zip/test/tree.mjs \
@@ -139,28 +146,57 @@ TESTS := \
     lang/python/test/pynumber.mjs \
     lang/python/test/pygen.mjs \
     lang/python/test/pycoro.mjs \
-    lang/python/test/pymodule.mjs \
+    lang/python/test/pymodule.mjs,--shard=1/2 \
+    lang/python/test/pymodule.mjs,--shard=2/2 \
     lang/python/test/pyunicode.mjs \
     lang/python/test/pyexec.mjs \
     lang/python/test/pylazy.mjs \
-    lang/python/test/pystdlib.mjs \
+    lang/python/test/pystdlib.mjs,--shard=1/4 \
+    lang/python/test/pystdlib.mjs,--shard=2/4 \
+    lang/python/test/pystdlib.mjs,--shard=3/4 \
+    lang/python/test/pystdlib.mjs,--shard=4/4 \
     lang/python/test/pyio.mjs \
     lang/python/test/pyunit.mjs \
     lang/python/test/runcases.mjs \
-    lang/python/test/pycases.mjs \
-    lang/python/test/pystress.mjs
+    lang/python/test/pycases.mjs,--shard=1/4 \
+    lang/python/test/pycases.mjs,--shard=2/4 \
+    lang/python/test/pycases.mjs,--shard=3/4 \
+    lang/python/test/pycases.mjs,--shard=4/4
 
-# Every run is teed into $(TEST_LOG) as well as the terminal, so the output can
-# be read again -- or read a second way -- without running the suite twice. The
-# status travels through a file because a pipeline's is tee's, not node's, and
-# `set -o pipefail` is not in every /bin/sh.
+# `make test STRESS=1`. Python's cases are run a second time collecting at
+# every allocation, which is what says a C++ hand holding an object across an
+# allocation pinned it. A collection walks the whole live heap, so a case that
+# imports the library costs a hundred times its plain run -- 140 ms against
+# 38 s for one of them -- and the pass is therefore asked for rather than
+# always run. Ask for it after touching the interpreter's C++; the rest of the
+# time the plain run is the ruler.
+STRESS ?=
+STRESS_TESTS := \
+    lang/python/test/pystress.mjs,--shard=1/4 \
+    lang/python/test/pystress.mjs,--shard=2/4 \
+    lang/python/test/pystress.mjs,--shard=3/4 \
+    lang/python/test/pystress.mjs,--shard=4/4
+
+TEST_JOBS ?= $(JOBS)
+TEST_DIR  := $(BUILD)/test
+
+# Each test writes its own log and prints it when it finishes, so the terminal
+# stays readable with $(TEST_JOBS) of them running; $(TEST_LOG) is those logs
+# concatenated in the order of $(TESTS), whatever order they finished in. The
+# whole list runs and the failures are named at the end, rather than the run
+# stopping at the first.
 test: all
-	@: > $(TEST_LOG)
-	@for t in $(TESTS); do \
-	    { node $$t 2>&1; echo $$? > $(BUILD)/.teststatus; } | tee -a $(TEST_LOG); \
-	    read st < $(BUILD)/.teststatus; \
-	    [ "$$st" = 0 ] || exit "$$st"; \
-	done
+	@rm -rf $(TEST_DIR) && mkdir -p $(TEST_DIR)
+	@i=0; for t in $(TESTS) $(if $(STRESS),$(STRESS_TESTS)); do \
+	    i=`expr $$i + 1`; printf '%03d %s\n' $$i "`echo $$t | tr , ' '`"; \
+	done > $(TEST_DIR)/list
+	@PY_STRESS=$(STRESS) xargs -P $(TEST_JOBS) -L1 sh -c \
+	    'node "$$@" > $(TEST_DIR)/$$0.log 2>&1 || \
+	         echo "$$*" >> $(TEST_DIR)/failed; cat $(TEST_DIR)/$$0.log' \
+	    < $(TEST_DIR)/list
+	@cat $(TEST_DIR)/*.log > $(TEST_LOG)
+	@! test -s $(TEST_DIR)/failed || \
+	    { echo "failed: `tr '\n' ' ' < $(TEST_DIR)/failed`"; exit 1; }
 	@echo "$(TEST_LOG): `wc -l < $(TEST_LOG) | tr -d ' '` lines"
 
 # The repository to upload: the signed index and the zips it vouches for, in

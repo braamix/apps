@@ -9,15 +9,15 @@
 // seeded by hand. A clock reading, an object's size and a collection count are
 // this interpreter's own and are printed only as types.
 //
-// Everything is run twice, the second time collecting at every allocation:
-// every module here holds objects across a call back into Python -- a cache, a
-// deque being extended, an eager pass's output list -- and a missing Root
-// there would be invisible otherwise.
+// Under `make test STRESS=1` everything is run twice, the second time
+// collecting at every allocation: every module here holds objects across a
+// call back into Python -- a cache, a deque being extended, an eager pass's
+// output list -- and a missing Root there would be invisible otherwise.
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { boot, ok, die, against_cpython } from "./pylib.mjs";
+import { boot, ok, die, against_cpython, under_gc } from "./pylib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
@@ -30,5 +30,4 @@ if (bad) {
     console.error(`\npymodule: ${bad} of ${ran} differ from CPython`);
     process.exit(1);
 }
-ok(`${ran} cases, ${lines} lines identical to CPython's, and to themselves under ` +
-   `a collector that never waits`);
+ok(`${ran} cases, ${lines} lines identical to CPython's${under_gc}`);

@@ -554,10 +554,24 @@ time reads zero. Check that in a browser instead.
 ## Testing a program
 
 `make test` runs every program's headless tests — adventure's four and one for
-each benchmark — and tees the whole run into `test.log`, so reading the output a
+each benchmark — and writes the run into `test.log`, so reading the output a
 second way costs nothing. The list is the `TESTS` variable at the head of the
 [Makefile](Makefile); `make test TESTS=editors/eh/test/ehcases.mjs` runs one.
-The suite stops at the first failure, with that test's status. [games/adventure/test/](games/adventure/test/) is the worked
+`TEST_JOBS` of them run at a time, each into a log of its own which is printed
+when it finishes; `test.log` is those logs in the order of `TESTS`, whatever
+order they finished in. The whole list runs and the failures are named at the
+end, rather than the run stopping at the first. An entry is one word, so a test
+that takes arguments writes them after a comma — `pycases.mjs,--shard=1/4` —
+which is how the two longest lists are cut into four tests each, since one long
+test otherwise sets the length of the whole run.
+
+**`make test STRESS=1` adds the pass that is too slow to always run**: Python's
+cases a second time under a collector that collects at every allocation, which
+is what says a C++ hand holding an object across an allocation pinned it. A
+collection walks the whole live heap, so a case that imports the library costs
+a hundred times its plain run — 140 ms against 38 s for one of them, and 7
+minutes against 8 seconds over the suite. Ask for it after touching the
+interpreter's C++. [games/adventure/test/](games/adventure/test/) is the worked
 example, the way dhrystone is the worked example for the build: `play.mjs`
 imports `../braam-core/test/system/harness.mjs` directly — `test/run.mjs` is not
 reusable, its case list is a literal and it never injects an out-of-tree

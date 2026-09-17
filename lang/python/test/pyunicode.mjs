@@ -16,7 +16,8 @@ import { spawnSync } from "node:child_process";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { H, boot, put, run, script, ok, die, same, against_cpython } from "./pylib.mjs";
+import { H, boot, put, run, script, ok, die, same, against_cpython, under_gc }
+    from "./pylib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LIB = join(HERE, "..", "lib");
@@ -128,5 +129,5 @@ if (bad) {
     console.error(`\npyunicode: ${bad} checks failed`);
     process.exit(1);
 }
-ok(`${ran} cases, ${lines} lines identical to CPython's, and to themselves under a collector ` +
-   `that never waits; the streams${full ? "; every codepoint, and NormalizationTest.txt" : ""}`);
+ok(`${ran} cases, ${lines} lines identical to CPython's${under_gc}; the streams` +
+   `${full ? "; every codepoint, and NormalizationTest.txt" : ""}`);

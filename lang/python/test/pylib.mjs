@@ -18,6 +18,7 @@ export const opt = {
     rootfs: join(CORE, "build/web/rootfs.zip"),
     binary: join(APPS, "build/lang/python/python.wasm"),
     bless: "",
+    shard: "",
 };
 for (const a of process.argv.slice(2)) {
     const m = /^--(\w+)(?:=(.*))?$/.exec(a);
@@ -39,7 +40,7 @@ export let H;
 // Checked before the harness is imported: it exits the process itself and
 // would not say what to build.
 export async function boot(caseName) {
-    name = caseName;
+    name = opt.shard ? `${caseName} ${opt.shard}` : caseName;
     for (const [what, path, how] of [
         ["kernel", opt.kernel, "make -C ../braam-core"],
         ["rootfs", opt.rootfs, "make -C ../braam-core"],
@@ -163,14 +164,39 @@ export function ok(msg = "") {
     console.log(`${name} ok${msg ? ": " + msg : ""}`);
 }
 
+// `--shard=i/n` keeps every nth row from i, so one long list runs as n tests
+// side by side. Round robin and not blocks: what a row costs varies by two
+// orders of magnitude and a block of neighbours would not balance.
+export function shard(rows) {
+    if (!opt.shard) return rows;
+    const m = /^(\d+)\/(\d+)$/.exec(opt.shard);
+    if (!m) die(`--shard wants i/n, got ${opt.shard}`);
+    const i = Number(m[1]), n = Number(m[2]);
+    if (i < 1 || i > n) die(`--shard ${opt.shard}: i is 1 to n`);
+    return rows.filter((_, k) => k % n === i - 1);
+}
+
+// The second run of every case, collecting at every allocation, is opt-in:
+// `make test STRESS=1` sets PY_STRESS and the Makefile adds pystress.mjs to
+// the list with it. A collection walks the whole live heap, so under stress a
+// case that imports the library costs a hundred to a thousand times the plain
+// run -- 140 ms against 38 s for stdlib/argparses.py -- which is the whole of
+// what this suite used to spend.
+export const stress = !!process.env.PY_STRESS;
+
+// What an `ok` line says about that second run, so a log states which of the
+// two ran.
+export const under_gc = stress ? ", and to themselves under a collector that never waits" : "";
+
 // Every .py in a directory run against the golden the host's CPython wrote
-// for it -- plainly, and then again collecting at every allocation. This is
-// the strongest comparison there is: the same program, the two interpreters,
-// byte for byte. A case in one of these directories may therefore use nothing
-// this interpreter has not got. tools/mkfmt.py writes the goldens.
+// for it -- plainly, and under PY_STRESS again collecting at every allocation.
+// This is the strongest comparison there is: the same program, the two
+// interpreters, byte for byte. A case in one of these directories may
+// therefore use nothing this interpreter has not got. tools/mkfmt.py writes
+// the goldens.
 export function against_cpython(dir, only) {
     let bad = 0, ran = 0, lines = 0;
-    for (const name of readdirSync(dir).filter((f) => f.endsWith(".py")).sort()) {
+    for (const name of shard(readdirSync(dir).filter((f) => f.endsWith(".py")).sort())) {
         if (only.length && !only.includes(name)) continue;
         const exp = join(dir, name + ".exp");
         if (!existsSync(exp)) die(`${name}: no golden — run tools/mkfmt.py on it`);
@@ -184,6 +210,7 @@ export function against_cpython(dir, only) {
             bad++;
             continue;
         }
+        if (!stress) continue;
         const under = run("/tmp/c.py", null, "PY_GC_STRESS=1");
         if (!same(`${name} under gc stress`, under.out + under.err, want)) bad++;
     }

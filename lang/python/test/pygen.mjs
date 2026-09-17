@@ -6,15 +6,15 @@
 // on top of that: which builtin parks on a generator, what the frame keeps
 // across a suspension, and where a throw lands in a chain of delegations.
 //
-// Everything is run twice, the second time collecting at every allocation. A
-// parked frame is reachable only through the generator that holds it, and a
-// delegation holds a continuation across a call into Python, so a missing Root
-// in either would be invisible otherwise.
+// Under `make test STRESS=1` everything is run twice, the second time
+// collecting at every allocation. A parked frame is reachable only through the
+// generator that holds it, and a delegation holds a continuation across a call
+// into Python, so a missing Root in either would be invisible otherwise.
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { boot, ok, die, against_cpython } from "./pylib.mjs";
+import { boot, ok, die, against_cpython, under_gc } from "./pylib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
@@ -27,5 +27,4 @@ if (bad) {
     console.error(`\npygen: ${bad} of ${ran} differ from CPython`);
     process.exit(1);
 }
-ok(`${ran} cases, ${lines} lines identical to CPython's, and to themselves under ` +
-   `a collector that never waits`);
+ok(`${ran} cases, ${lines} lines identical to CPython's${under_gc}`);

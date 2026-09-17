@@ -7,15 +7,15 @@
 // hand, where each async statement may be written, and a scheduler written in
 // Python driving a few dozen tasks through it all.
 //
-// Everything is run twice, the second time collecting at every allocation. An
-// awaitable holds a continuation across a call into Python, and an async
-// generator's state lives in three objects at once, so a missing Root in any
-// of them would be invisible otherwise.
+// Under `make test STRESS=1` everything is run twice, the second time
+// collecting at every allocation. An awaitable holds a continuation across a
+// call into Python, and an async generator's state lives in three objects at
+// once, so a missing Root in any of them would be invisible otherwise.
 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { boot, ok, die, against_cpython } from "./pylib.mjs";
+import { boot, ok, die, against_cpython, under_gc } from "./pylib.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const only = process.argv.slice(2).filter((a) => !a.startsWith("--"));
@@ -28,5 +28,4 @@ if (bad) {
     console.error(`\npycoro: ${bad} of ${ran} differ from CPython`);
     process.exit(1);
 }
-ok(`${ran} cases, ${lines} lines identical to CPython's, and to themselves under ` +
-   `a collector that never waits`);
+ok(`${ran} cases, ${lines} lines identical to CPython's${under_gc}`);

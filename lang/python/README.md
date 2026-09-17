@@ -609,7 +609,7 @@ green.
 | [test/pyint.mjs](test/pyint.mjs) | That a `^C` reaches a running program — and a regular expression that backtracks for ever — and that it may catch it |
 | [test/pymeth.mjs](test/pymeth.mjs) | Methods through a subclass, `sort(key=)`, the views, and the new types |
 | [test/pyimport.mjs](test/pyimport.mjs) | Fifty nested imports, the cache, the search path, the store |
-| [test/pyformat.mjs](test/pyformat.mjs) | Every case under `test/format/`, against CPython and again under gc stress |
+| [test/pyformat.mjs](test/pyformat.mjs) | Every case under `test/format/`, against CPython, and under `STRESS=1` again under gc stress |
 | [test/pynumber.mjs](test/pynumber.mjs) | The same for `test/number/`: the arithmetic that has one right answer |
 | [test/pygen.mjs](test/pygen.mjs) | The same for `test/gen/`: the generator protocol, delegation, and every consumer |
 | [test/pycoro.mjs](test/pycoro.mjs) | The same for `test/coro/`: coroutines, async generators, the async statements and a scheduler written in Python |
@@ -622,7 +622,7 @@ green.
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
-| [test/pystress.mjs](test/pystress.mjs) | Every case again, collecting at every allocation |
+| [test/pystress.mjs](test/pystress.mjs) | Every case again, collecting at every allocation; `make test STRESS=1` only |
 | [test/shim/unittest.py](test/shim/unittest.py) | `TestCase`, the assertions, `subTest`, the skips and the loader |
 | [test/shim/test/support/](test/shim/test/support/) | The names CPython's tests take from `test.support`, and its `import_helper`, `os_helper`, `warnings_helper` and `strace_helper` |
 | [test/shim/selfcheck.py](test/shim/selfcheck.py) | What `pyunit.mjs` runs: the shims measured against themselves |
@@ -1404,9 +1404,17 @@ because of it.
 
 ## Testing
 
-`make test` from the top of the tree runs everything; one file at a time:
+`make test` from the top of the tree runs everything, several tests at a time;
+one file of them:
 
     make test TESTS=lang/python/test/pysmoke.mjs
+
+The longest lists are cut into shards there — `pycases.mjs,--shard=1/4` is one
+entry of four — so that none of them sets the length of the whole run. A shard
+is every nth row rather than a block of them, because what a row costs varies
+by two orders of magnitude. A shard is of rows and not of processes, and the
+goldens hold no pid for the same reason: `os_helper` names a temporary after
+one, and that number moves with how many processes the boot has spawned.
 
 All three need node and a built `../braam-core`. To bring one more upstream
 test into the suite:
@@ -1519,9 +1527,17 @@ and decodes each table again before writing it. Its output is committed, so a bu
 particular version.
 
 `PY_GC_STRESS=1` in a program's environment collects at every allocation, which
-turns a missing `Root` from a rare crash into a wrong answer.
-[test/pystress.mjs](test/pystress.mjs) runs the whole manifest that way and
-compares; it costs a second and a half, and it found nine of them.
+turns a missing `Root` from a rare crash into a wrong answer. A collection walks
+the whole live heap, so a case that imports the library costs a hundred to a
+thousand times its plain run — 140 ms against 38 s for `stdlib/argparses.py` —
+and the pass is therefore asked for rather than always run:
+
+    make test STRESS=1
+
+which runs every case here a second time that way and adds
+[test/pystress.mjs](test/pystress.mjs), the whole manifest under it. It found
+nine missing pins, so ask for it after touching any of this C++; the plain run
+is the ruler the rest of the time.
 
 ## Licence
 
