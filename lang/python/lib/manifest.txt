@@ -176,6 +176,7 @@ re/_optimizer.py                  _sre           82952e3  Lib/re/_optimizer.py
 re/_parser.py                     _sre           82952e3  Lib/re/_parser.py
 re/_properties.py                 _sre           82952e3  Lib/re/_properties.py
 reprlib.py                        _thread        82952e3  Lib/reprlib.py
+runpy.py                          -              82952e3  Lib/runpy.py
 shlex.py                          -              82952e3  Lib/shlex.py
 shutil.py                         -              82952e3  Lib/shutil.py
 signal.py                         _signal        82952e3  Lib/signal.py

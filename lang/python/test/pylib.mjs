@@ -5,7 +5,7 @@
 // exactly what the program printed -- which is what makes it comparable byte
 // for byte with CPython's.
 
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -158,6 +158,22 @@ export function same(what, got, want) {
         }
     console.error(`${name}: ${what} differs in length: want ${a.length}, got ${b.length}`);
     return false;
+}
+
+// A transcript against the file beside this one that recorded it. --bless
+// writes the file; without it a difference is the failure, line by line.
+export function golden(file, text) {
+    const path = join(HERE, file);
+    if (opt.bless) {
+        writeFileSync(path, text);
+        console.error(`${name}: blessed ${file}`);
+        return;
+    }
+    if (!existsSync(path)) die(`no golden at ${path} \u2014 run with --bless`);
+    const want = readFileSync(path, "utf8");
+    if (text === want) return;
+    same(file, text, want);
+    process.exit(1);
 }
 
 export function ok(msg = "") {

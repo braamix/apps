@@ -877,6 +877,43 @@ bool exc_install(DictObj *into)
     return true;
 }
 
+bool exc_where(Value e, String &out)
+{
+    TupleObj *d = is_exc(e) ? syntax_details(e) : nullptr;
+    if (!d || !is_str(d->items()[0]))
+        return true;
+    i64 line = 0;
+    if (!as_index(d->items()[1], line))
+        return err_clear(), true;
+    char tmp[24];
+    if (!out.append("  File \"") || !out.append(str_of(d->items()[0])->str()) ||
+        !out.append("\", line ") || !out.append(int_text(tmp, sizeof tmp, line)) || !out.push('\n'))
+        return false;
+    if (!is_str(d->items()[3]))
+        return true;
+    // The line itself, indented by four, with its own indentation dropped --
+    // and the caret moves with it.
+    Str t = str_of(d->items()[3])->str();
+    while (!t.empty() && (t[t.size() - 1] == '\n' || t[t.size() - 1] == '\r'))
+        t = t.substr(0, t.size() - 1);
+    usize lead = 0;
+    while (lead < t.size() && (t[lead] == ' ' || t[lead] == '\t'))
+        lead++;
+    if (!out.append("    ") || !out.append(t.substr(lead)) || !out.push('\n'))
+        return false;
+    i64 col = 0;
+    if (!as_index(d->items()[2], col))
+        return err_clear(), true;
+    if (col <= i64(lead))
+        return true;
+    if (!out.append("    "))
+        return false;
+    for (i64 k = 1; k < col - i64(lead); k++)
+        if (!out.push(' '))
+            return false;
+    return out.push('^') && out.push('\n');
+}
+
 bool exc_line(Value e, String &out)
 {
     if (!is_exc(e))

@@ -87,6 +87,8 @@ struct VM {
     bool finished  = false;
     bool interrupt = false; // a ^C the driver saw, to raise at the next step
     u32 signals    = 0;     // any other, a bit each, for its handler
+    bool prompt    = false; // a command at a prompt: its end is not the exit
+    bool quitting  = false; // and this one asked to leave
 };
 
 // A String has a destructor, so this lives in a heap block rather than at file
@@ -1374,6 +1376,7 @@ void report(Value e, u32 depth = 0)
             vm->err.append(vm->tb[k - 1].str());
     }
     vm->tb.clear();
+    exc_where(e, vm->err);
     exc_line(e, vm->err);
     vm->err.push('\n');
 }
@@ -1412,6 +1415,13 @@ R exit_seq_step(ContObj *k, Value)
 // finishes when the calls are done and nothing is left.
 void exit_hooks()
 {
+    // At a prompt a command ending only ends the command: atexit runs once,
+    // when the session does.
+    if (vm->prompt && !vm->quitting) {
+        vm->frame    = Value();
+        vm->finished = true;
+        return;
+    }
     if (vm->exiting || (!atexit_pending() && !io_exit_pending()))
         return;
     vm->exiting  = true;
@@ -1445,8 +1455,10 @@ void uncaught(Value e)
 {
     vm->finished = true;
     if (is_exc(e) && exc_is(exc_type_of(e), exc_find("SystemExit"))) {
-        TupleObj *a = static_cast<TupleObj *>(static_cast<ExcObj *>(e.obj())->args.obj());
-        i64 code    = 0;
+        // exit() at a prompt leaves the session, not just the command.
+        vm->quitting = true;
+        TupleObj *a  = static_cast<TupleObj *>(static_cast<ExcObj *>(e.obj())->args.obj());
+        i64 code     = 0;
         if (a->len && !is_none(a->items()[0])) {
             if (as_index(a->items()[0], code)) {
                 vm->status = i32(code);
@@ -4331,6 +4343,37 @@ bool vm_start(Value code, Args argv, Str file)
 
     FrameObj *f = frame_push(code_of(rc.v), vm->globals, vm->globals, Value());
     return f != nullptr;
+}
+
+bool vm_again(Value code)
+{
+    if (!vm || vm->quitting)
+        return false;
+    vm->finished = false;
+    vm->failed   = false;
+    vm->status   = 0;
+    vm->tb.clear();
+    err_clear();
+    return frame_push(code_of(code), vm->globals, vm->globals, Value()) != nullptr;
+}
+
+void vm_finish()
+{
+    if (!vm)
+        return;
+    vm->prompt = false;
+    exit_hooks();
+}
+
+void vm_set_prompt(bool on)
+{
+    if (vm)
+        vm->prompt = on;
+}
+
+bool vm_quitting()
+{
+    return vm && vm->quitting;
 }
 
 Req vm_burst()

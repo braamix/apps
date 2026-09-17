@@ -296,8 +296,7 @@ R code_eq(Value a, Value b, bool &out)
         for (usize i = 0; i < pair[0]->size(); i++) {
             Value u = (*pair[0])[i], v = (*pair[1])[i];
             // A const keeps its type: 1 and 1.0 are not the same constant.
-            if (u.is_obj() != v.is_obj() ||
-                (u.is_obj() && u.obj()->type != v.obj()->type))
+            if (u.is_obj() != v.is_obj() || (u.is_obj() && u.obj()->type != v.obj()->type))
                 return R::Ok;
             if (py_eq(u, v, same) != R::Ok)
                 return R::Err;

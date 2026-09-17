@@ -68,6 +68,15 @@ Value sys_stream(Str name);
 // work itself rather than calling back into Python for it.
 bool sys_is_default_displayhook(Value v);
 
+// sys.executable, which only the driver can know.
+bool sys_set_executable(Str path);
+
+// sys.ps1 and sys.ps2, which exist only once a prompt is being read.
+bool sys_set_prompts();
+
+// The prompt to write, ps2 for a command that is not finished.
+bool sys_prompt(bool second, String &out);
+
 // Where print and a diagnostic write. `file` is Nil for sys.stdout; `out`
 // takes a ContObj when the destination is an object of the program's own, and
 // Nil when the text has already been buffered. `cuts`, when given, are where

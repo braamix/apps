@@ -118,6 +118,10 @@ R key_error(Value key);
 bool exc_install(DictObj *into);
 
 // "ValueError: bad thing", the last line of a traceback.
+// The lines CPython puts above a SyntaxError: where it was found, the text of
+// that line and a caret under the column. Nothing for any other exception.
+bool exc_where(Value e, String &out);
+
 bool exc_line(Value e, String &out);
 
 struct CallArgs;

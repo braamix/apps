@@ -220,15 +220,47 @@ one, so saying so is better than hanging.
 
 ### Phase 29 — the REPL
 
-- [ ] `python` with no arguments, `-i`, `sys.ps1`/`sys.ps2`, and the
+- [x] `python` with no arguments, `-i`, `sys.ps1`/`sys.ps2`, and the
       incomplete-input rule `codeop` states.
-- [ ] `python -m <module>`, which needs `runpy` or its own small version of it.
-- [ ] The line editor, and the keyboard-ownership problem `mbasic` had to
+- [x] `python -m <module>`, which needs `runpy` or its own small version of it.
+- [x] The line editor, and the keyboard-ownership problem `mbasic` had to
       solve: a key ring has one receiver and there is no non-blocking key
       read, so the editor holds it at the prompt and gives it back the moment
       a program runs.
-- [ ] History, `sys.displayhook` and `builtins._`, and a traceback that reads
+- [x] History, `sys.displayhook` and `builtins._`, and a traceback that reads
       well at a prompt.
+
+After Phase 29: **a bare `python` is a prompt, and a pipe is still a
+program.** CPython's rule, and it decides what a session can be tested as:
+`python -i < file` writes a whole transcript down, prompts and all, because
+the banner and both prompts are stderr's and a redirected stdout holds only
+what the commands printed.
+
+**The incomplete-input rule is `codeop`'s, and it is two compiles.** The
+lexer answers `wants_more` for a bracket, a string or a line continuation
+that runs into the end of the input, and -- with `PyCF_DONT_IMPLY_DEDENT` --
+for a suite whose last line never ended; the parser answers it for a block or
+a decorator with nothing under it. That alone is not enough, because an
+indented first line also leaves a block open: what tells a command still
+being typed from a mistake is whether the same text *with a newline after it*
+compiles, which is exactly what `_maybe_compile` does. `python` runs that rule
+in C++ and `codeop` runs it over `compile()`; both agree.
+
+**The keyboard changes hands at each command.** `LineEditor` is `mbasic`'s,
+which is `adventure`'s, which is the shell's, so the keys at the prompt are
+the keys the user already knows. It holds the ring while a line is typed and
+gives it back before the command runs -- which is what lets the console's pump
+turn a `^C` during a long loop into `SIG_INT`.
+
+**A command ending is not the program ending.** `vm_set_prompt` says so, and
+`atexit` and the exit-time flush wait for the session instead; `SystemExit` is
+the one that means it.
+
+**What is still missing:** the compiler raises no `SyntaxWarning`, so
+`codeop`'s `test_warning` and `test_invalid_warning` fail, and a
+`from __future__ import` sets no flag in `co_flags`, so `test_future_imports`
+does too. `site` is not there, so neither are `help`, `exit` and `quit` --
+`^D` and `sys.exit()` are how a session ends.
 
 ### Phase 30 — shipping
 

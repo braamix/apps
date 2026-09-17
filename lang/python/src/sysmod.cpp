@@ -699,6 +699,40 @@ Value sys_stream(Str name)
     return got;
 }
 
+// sys.executable: the path this binary was reached by. The driver is the only
+// one that can know it, and runpy names it in what it prints.
+bool sys_set_executable(Str path)
+{
+    Value m = builtin_module("sys");
+    if (m.is_nil())
+        return false;
+    Root v{ str_new(path) };
+    return !v.v.is_nil() && mod_put(module_dict(m), "executable", v.v);
+}
+
+// sys.ps1 and sys.ps2, which CPython defines only for an interactive session.
+bool sys_set_prompts()
+{
+    Value m = builtin_module("sys");
+    if (m.is_nil())
+        return false;
+    Root one{ str_new(">>> ") }, two{ str_new("... ") };
+    if (one.v.is_nil() || two.v.is_nil())
+        return false;
+    DictObj *d = module_dict(m);
+    return mod_put(d, "ps1", one.v) && mod_put(d, "ps2", two.v);
+}
+
+// The prompt as the program has it now. A prompt that is not a str keeps the
+// default: str() of one could call Python, and nothing here can.
+bool sys_prompt(bool second, String &out)
+{
+    Value v = sys_stream(second ? Str("ps2") : Str("ps1"));
+    if (is_str(v))
+        return out.assign(str_of(v)->str());
+    return out.assign(second ? Str("... ") : Str(">>> "));
+}
+
 bool sys_is_default_displayhook(Value v)
 {
     return is_native(v) && static_cast<NativeObj *>(v.obj())->fn == b_displayhook;
@@ -812,8 +846,7 @@ bool sys_install(DictObj *into)
     // sys.__displayhook__` says what it does in CPython.
     StrObj *dh = str_intern("displayhook");
     Value shown;
-    if (!dh || dict_get(d, obj_value(dh), shown) != R::Ok ||
-        !mod_put(d, "__displayhook__", shown))
+    if (!dh || dict_get(d, obj_value(dh), shown) != R::Ok || !mod_put(d, "__displayhook__", shown))
         return false;
     return mod_put(d, "argv", here()->argv.is_nil() ? value_none() : here()->argv);
 }

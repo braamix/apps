@@ -92,6 +92,20 @@ struct Req {
 // the program came from one, is its __file__. False leaves the error pending.
 bool vm_start(Value code, Args argv, Str file = Str());
 
+// A second command over the same __main__, after the last one ended. False
+// leaves the error pending, or says the session is over.
+bool vm_again(Value code);
+
+// Whether a command is being read at a prompt: one ending is then not the
+// program ending, so atexit waits for the session to end instead.
+void vm_set_prompt(bool on);
+
+// The session is over: what atexit holds runs, and the next burst exits.
+void vm_finish();
+
+// Whether a SystemExit has asked for the session to end.
+bool vm_quitting();
+
 // Run until the driver is needed.
 Req vm_burst();
 

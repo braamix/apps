@@ -1,0 +1,24 @@
+home $ py -i </tmp/i >/tmp/o 2>/tmp/e
+home $ py -i </tmp/i >/tmp/o 2>/tmp/e
+[3] home $ py -i </tmp/i >/tmp/o 2>/tmp/e
+home $ py -m mod a b >/tmp/o 2>/tmp/e
+home $ py -m nosuch >/tmp/o 2>/tmp/e
+[1] home $ py
+Python 0.1 on Braam
+>>> 1+1
+2
+>>> 'é' + 'x'
+'éx'
+>>> if 1:
+...   print('in')
+...
+in
+>>>   print('in')
+  File "<stdin>", line 1
+    print('in')
+IndentationError: unexpected indent
+>>> 'edited'
+'edited'
+>>>
+
+home $

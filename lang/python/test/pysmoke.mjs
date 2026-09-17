@@ -12,8 +12,9 @@ function check(what, got, want) {
     if (!same(what, got, want)) bad++;
 }
 
-// The banner, three ways in.
-for (const tail of ["", "-V", "--version"]) {
+// The banner. A bare `py` is the prompt now, not the banner: pyrepl.mjs has
+// that.
+for (const tail of ["-V", "--version"]) {
     const r = run(tail);
     check(`\`py ${tail}\` stdout`, r.out, VERSION);
     check(`\`py ${tail}\` stderr`, r.err, "");
@@ -23,7 +24,7 @@ for (const tail of ["", "-V", "--version"]) {
 // Asked for: stdout and 0.
 {
     const r = run("-h");
-    if (!r.out.startsWith("Usage:\n    python <file>"))
+    if (!r.out.startsWith("Usage:\n    python  "))
         die(`-h did not print the usage block: ${JSON.stringify(r.out.slice(0, 60))}`);
     if (!r.out.includes("TODO.md"))
         die("the usage block does not say what is not there yet");

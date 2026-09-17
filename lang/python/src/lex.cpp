@@ -200,8 +200,8 @@ struct Scanner {
         t.col   = at_col;
         t.flags = flags;
         span(t);
-        t.at    = u32(out->text.size());
-        t.len   = u32(body.size());
+        t.at  = u32(out->text.size());
+        t.len = u32(body.size());
         if (!out->text.append(body))
             return fail("out of memory");
         return out->tokens.push(t) ? true : fail("out of memory");
@@ -544,8 +544,7 @@ bool Scanner::bad_char(u32 cp, u32 at_line, u32 at_col)
 bool Scanner::string_escape(String &body, bool bytes, u32 at_line, u32 at_col)
 {
     usize from = i - 1 - usize(lit.data() - src.data());
-    if (at_end())
-    {
+    if (at_end()) {
         out->wants_more = true;
         return fail_at("EOF in multi-line string", at_line, at_col);
     }
@@ -673,9 +672,9 @@ bool Scanner::scan_string(u8 flags, u32 at_line, u32 at_col)
         if (end == Str::npos) {
             if (triple)
                 out->wants_more = true;
-            return fail_at(triple ? Str("EOF in multi-line string")
-                                  : Str("EOL while scanning string literal"),
-                           at_line, at_col);
+            return fail_at(
+                triple ? Str("EOF in multi-line string") : Str("EOL while scanning string literal"),
+                at_line, at_col);
         }
         while (i < end)
             bump();
@@ -690,9 +689,9 @@ bool Scanner::scan_string(u8 flags, u32 at_line, u32 at_col)
             if (triple || (n && src[n - 1] == '\\') ||
                 (n >= 2 && src[n - 1] == '\n' && src[n - 2] == '\\'))
                 out->wants_more = true;
-            return fail_at(triple ? Str("EOF in multi-line string")
-                                  : Str("EOL while scanning string literal"),
-                           at_line, at_col);
+            return fail_at(
+                triple ? Str("EOF in multi-line string") : Str("EOL while scanning string literal"),
+                at_line, at_col);
         }
         if (peek() == quote) {
             if (!triple) {

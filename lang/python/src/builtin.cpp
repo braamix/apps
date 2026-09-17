@@ -2811,9 +2811,8 @@ R b_compile(const CallArgs &a, Value &out)
         return err_set("TypeError", "compile() flags must be an int");
     Root rf{ a.args[1] };
     String codec;
-    out =
-        compile_source(a.args[0], str_of(rf.v)->str(), mode, &codec,
-                       (flags & PYCF_ONLY_AST) != 0, flags);
+    out = compile_source(a.args[0], str_of(rf.v)->str(), mode, &codec, (flags & PYCF_ONLY_AST) != 0,
+                         flags);
     if (out.is_nil() && !codec.empty())
         return park_decode(a, codec.str(), b_compile, out);
     return out.is_nil() ? R::Err : R::Ok;

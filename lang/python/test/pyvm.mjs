@@ -57,11 +57,12 @@ function check(what, got, want) {
         die(`a local read too early: ${JSON.stringify(r.err)}`);
 }
 
-// A syntax error never reaches the VM, and says where it is.
+// A syntax error never reaches the VM, and says where it is -- in the shape a
+// traceback has, which is what CPython prints for one too.
 {
     const r = script("x = (1\n");
     check("syntax error stdout", r.out, "");
-    if (!r.err.startsWith("python: 2:1: SyntaxError:"))
+    if (!r.err.startsWith('  File "/tmp/c.py", line ') || !r.err.includes("\nSyntaxError: "))
         die(`a syntax error without a place: ${JSON.stringify(r.err)}`);
     check("syntax error status", String(r.status), "1");
 }

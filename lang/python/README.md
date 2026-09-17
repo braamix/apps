@@ -29,7 +29,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 28.**
+**Phase 29.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -115,6 +115,34 @@ print(importlib.import_module("json").__spec__.loader.__class__.__name__)'
 b'QnJhYW0=' 0.1428571428571428571428571429 2026-09-17
 SourceFileLoader
 ```
+
+**A bare `python` is a prompt**, and everything typed at it is edited with the
+keys the shell uses -- the same `LineEditor` `mbasic` and `adventure` read
+their lines through:
+
+```
+$ python
+Python 0.1 on Braam
+>>> sum(i * i for i in range(10))
+285
+>>> _ + 1
+286
+>>> def fact(n):
+...     return 1 if n < 2 else n * fact(n - 1)
+...
+>>> fact(20)
+2432902008176640000
+>>> ^D
+$ python -m mymodule arg
+$ python -i prog.py
+```
+
+Prompts and the banner go to stderr, so `python -i < session.txt` writes the
+whole transcript down with the two apart. `-i` keeps the prompt after the
+program, over the same `__main__`; `-m` runs a module through CPython's own
+`runpy`. A command is read a line at a time until it is complete, by the rule
+`codeop` states -- an open bracket, an unterminated string, a line
+continuation at the end, or a suite whose last line has not ended.
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
 whole argument grammar, decorators, closures, `global`, `nonlocal` and `del`,
@@ -391,8 +419,30 @@ had handled current, so the next one's `__context__` was wrong, and the
 collector's owed finalizers nested inside each other until one hit the
 recursion limit. [test/stdlib/](test/stdlib/) holds forty-one programs now,
 2,490 lines identical to CPython 3.16's. The package carries the library as
-`lib/`: the 195 files [lib/manifest.txt](lib/manifest.txt) lists, 2.0 MB
+`lib/`: the 196 files [lib/manifest.txt](lib/manifest.txt) lists, 2.0 MB
 compressed with the binary.
+
+**A bare `python` is a prompt, and it is a driver loop of its own.** A command
+is compiled in `single` mode and handed to `vm_again`, which pushes a frame
+over the `__main__` the session started with; the driver runs it to its end,
+which -- at a prompt -- is the end of the command and not of the program, so
+`atexit` and the exit-time flush wait for the session instead. The keyboard
+changes hands at each of those boundaries: a key ring has one receiver and
+there is no non-blocking key read, so [edit.cpp](src/edit.cpp) holds it while
+a line is typed and gives it back before the command runs, which is what lets
+the console's own pump turn a `^C` during a long loop into `SIG_INT`. The
+editor is `mbasic`'s, which is `adventure`'s, which is the shell's.
+
+**Whether a command is finished is `codeop`'s rule, and it is two compiles.**
+The lexer says `wants_more` for a bracket, a string or a line continuation
+running into the end of the input, and -- under `PyCF_DONT_IMPLY_DEDENT` --
+for a suite whose last line never ended; the parser says it for a block or a
+decorator with nothing under it. That alone would read an indented first line
+as an open block, so what decides is whether the same text *with a newline
+after it* compiles: `_maybe_compile` asks exactly that, and the prompt asks it
+in C++. `python -m` is CPython's own `runpy`, and `sys.executable` is what it
+names in its diagnostics, so the driver works that path out -- the `/pkg/bin`
+link when there is one, and `PATH` otherwise.
 
 **The protocol methods are in each built-in type's namespace.** `len(x)`
 reaches a slot and a slot is not an entry, so `'__len__' in list.__dict__` used
@@ -545,7 +595,8 @@ ships, the tests and the plan.
 
 | | |
 | --- | --- |
-| [braam.cpp](src/braam.cpp) | The platform. The command line, and every `co_await` in the program |
+| [braam.cpp](src/braam.cpp) | The platform. The command line, the prompt, and every `co_await` in the program |
+| [edit.h](src/edit.h), [edit.cpp](src/edit.cpp) | The line editor the prompt reads through, lifted from `mbasic` |
 | [value.h](src/value.h) | A value in one 32-bit word: a 31-bit int, or a pointer |
 | [obj.h](src/obj.h), [obj.cpp](src/obj.cpp) | The object header, the type descriptor and its slots, the singletons |
 | [gc.h](src/gc.h), [gc.cpp](src/gc.cpp) | The object heap: allocation, precise mark and sweep, the pins |
@@ -665,6 +716,7 @@ ships, the tests and the plan.
 | [test/pyexec.mjs](test/pyexec.mjs) | The same for `test/exec/`: compile, eval, exec, the namespaces, the attributes and the syntax since 3.9 |
 | [test/pylazy.mjs](test/pylazy.mjs) | The same for `test/lazy/`, against CPython 3.16, with the modules the cases import planted beside them |
 | [test/pystdlib.mjs](test/pystdlib.mjs) | The same for `test/stdlib/`: programs over the library, against CPython 3.16 |
+| [test/pyrepl.mjs](test/pyrepl.mjs) | The prompt: a session down a pipe with `-i`, `-m`, and one typed at the console with the editor holding the keys |
 | [test/pyio.mjs](test/pyio.mjs) | What needs a stream or a signal: `sys.stdin` and `input()`, the files a program leaves open, and a handler called while the program sleeps |
 | [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the modules written in C++ |
 | [test/pyunicode.mjs](test/pyunicode.mjs) | The same for `test/unicode/`, with the library planted; the streams; and `--full`, every codepoint as now, as 3.2.0 and through the regex engine, and NormalizationTest.txt |
@@ -790,9 +842,16 @@ All recorded rather than hidden, and all in reach later:
   This is what PEP 667 made CPython do in 3.13; 3.12 and before cached one dict
   on the frame, so `exec` there left the name findable through `locals()` and
   nowhere else.
-- **A `single`-mode code object prints through no hook.** `PrintExpr` writes
-  the repr itself; CPython calls `sys.displayhook` and sets `builtins._`, and
-  both wait for the REPL in phase 29.
+- **The compiler raises no `SyntaxWarning`.** A comparison against a literal
+  with `is`, or an invalid escape in a string, compiles quietly; CPython warns
+  through `warnings` from inside the compiler, and `codeop`'s `test_warning`
+  and `test_invalid_warning` are what notice.
+- **`from __future__ import` sets no flag in `co_flags`.** The statement is
+  accepted and `__future__` is the real module, but a code object does not
+  carry which futures were in force, so `codeop.Compile` cannot carry them
+  from one command to the next.
+- **There is no `site`, so no `help`, `exit`, `quit` or `copyright`.** A
+  session ends with `^D` or `sys.exit()`.
 - **A coroutine that is never awaited is reported late.** The
   `RuntimeWarning` goes through `warnings` as CPython's does, but when the
   collector finds the coroutine rather than when the last name goes, so the
