@@ -545,7 +545,10 @@ bool Scanner::string_escape(String &body, bool bytes, u32 at_line, u32 at_col)
 {
     usize from = i - 1 - usize(lit.data() - src.data());
     if (at_end())
+    {
+        out->wants_more = true;
         return fail_at("EOF in multi-line string", at_line, at_col);
+    }
     u8 c = peek();
     bump();
     auto here = [&]() { return i - usize(lit.data() - src.data()); };
@@ -667,10 +670,13 @@ bool Scanner::scan_string(u8 flags, u32 at_line, u32 at_col)
     if (flags & TOK_STR_F) {
         // The body is kept as written; the parser takes it apart.
         usize end = lex_fstr_end(src, i, char(quote), triple, raw);
-        if (end == Str::npos)
-            return fail_at(
-                triple ? "EOF in multi-line string" : "EOL while scanning string literal", at_line,
-                at_col);
+        if (end == Str::npos) {
+            if (triple)
+                out->wants_more = true;
+            return fail_at(triple ? Str("EOF in multi-line string")
+                                  : Str("EOL while scanning string literal"),
+                           at_line, at_col);
+        }
         while (i < end)
             bump();
         for (u32 n = triple ? 3 : 1; n; n--)
@@ -678,10 +684,16 @@ bool Scanner::scan_string(u8 flags, u32 at_line, u32 at_col)
         return emit_text(Tok::FStr, at_line, at_col, src.substr(body_at, end - body_at), flags);
     }
     for (;;) {
-        if (at_end())
-            return fail_at(
-                triple ? "EOF in multi-line string" : "EOL while scanning string literal", at_line,
-                at_col);
+        if (at_end()) {
+            // A join at the end wants the next line, whatever the quote.
+            usize n = src.size();
+            if (triple || (n && src[n - 1] == '\\') ||
+                (n >= 2 && src[n - 1] == '\n' && src[n - 2] == '\\'))
+                out->wants_more = true;
+            return fail_at(triple ? Str("EOF in multi-line string")
+                                  : Str("EOL while scanning string literal"),
+                           at_line, at_col);
+        }
         if (peek() == quote) {
             if (!triple) {
                 bump();
@@ -792,7 +804,19 @@ bool Scanner::run()
             if (peek() == '\r')
                 bump();
             bump();
+            // A join running into the end: more of the line has to follow.
+            if (at_end()) {
+                out->wants_more = true;
+                return fail("unexpected EOF while parsing");
+            }
             continue;
+        }
+        // A backslash at the very end joins a line that is not there yet.
+        if (peek() == '\\' && i + 1 >= src.size()) {
+            out->wants_more = true;
+            if (out->interactive)
+                return fail("unexpected character after line continuation character");
+            return fail("unexpected EOF while parsing");
         }
         if (peek() == '\n') {
             u32 at_line = line, at_col = col;
@@ -816,8 +840,10 @@ bool Scanner::run()
 
     if (fragment)
         return true;
-    if (depth > 0)
+    if (depth > 0) {
+        out->wants_more = true;
         return fail("unexpected EOF while parsing");
+    }
 
     usize n = out->tokens.size();
     if (n && out->tokens[n - 1].kind != Tok::Newline && out->tokens[n - 1].kind != Tok::Indent &&
@@ -828,6 +854,13 @@ bool Scanner::run()
         // which is where CPython puts the dedents and the endmarker.
         line++;
         col = 1;
+    }
+    // PyCF_DONT_IMPLY_DEDENT: a line that never ended leaves the blocks open,
+    // so the parser will want what is not there. A last line that did end
+    // closes them as usual.
+    if (out->keep_indent && levels > 1 && !(src.size() && src[src.size() - 1] == '\n')) {
+        out->wants_more = true;
+        return emit(Tok::End, line, col);
     }
     while (levels > 1) {
         levels--;

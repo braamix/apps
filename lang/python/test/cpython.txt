@@ -28,7 +28,7 @@ pass  test_bisect.py                  23/46    82952e3  Lib/test/test_bisect.py
 pass  test_bool.py                    25/31    82952e3  Lib/test/test_bool.py
 pass  test_calendar.py                86/86    82952e3  Lib/test/test_calendar.py
 pass  test_charmapcodec.py            4/4      82952e3  Lib/test/test_charmapcodec.py
-fail  test_codeop.py                  silent   82952e3  Lib/test/test_codeop.py
+pass  test_codeop.py                  5/13     82952e3  Lib/test/test_codeop.py
 pass  test_contains.py                3/4      82952e3  Lib/test/test_contains.py
 pass  test_context.py                 1/1      82952e3  Lib/test/test_asyncio/test_context.py
 pass  test_contextlib.py              84/100   82952e3  Lib/test/test_contextlib.py

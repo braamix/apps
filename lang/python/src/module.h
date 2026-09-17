@@ -64,6 +64,10 @@ void sys_set_tty(bool in, bool out, bool err);
 // sys.stdout and the others as they are now: Nil when sys has no such name.
 Value sys_stream(Str name);
 
+// Whether `v` is the displayhook sys started with, so PrintExpr can do the
+// work itself rather than calling back into Python for it.
+bool sys_is_default_displayhook(Value v);
+
 // Where print and a diagnostic write. `file` is Nil for sys.stdout; `out`
 // takes a ContObj when the destination is an object of the program's own, and
 // Nil when the text has already been buffered. `cuts`, when given, are where

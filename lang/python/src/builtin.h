@@ -27,6 +27,11 @@ bool put_builtins(DictObj *into);
 // nothing to do; the VM lands it.
 R py_display(Value v, Value &out);
 
+// sys.displayhook's default, which is also what PrintExpr does when nothing
+// has replaced it: the repr unless the value is None, and `builtins._` set.
+// `out` takes a ContObj where the repr is Python's own.
+R py_display_value(Value v, Value &out);
+
 // A class instance's own __format__, __str__ or __repr__ as a ContObj the VM
 // runs; Nil and no error when the type answers none of them in Python. The
 // format opcode and format() both go through these.

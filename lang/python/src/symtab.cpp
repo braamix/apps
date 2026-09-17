@@ -123,8 +123,11 @@ struct Builder {
         Sym *s = note(name, SF_PARAM | SF_ASSIGN);
         if (!s)
             return false;
-        if (s->param)
-            return fail("duplicate argument in function definition", scope().node);
+        if (s->param) {
+            Buf<96> m;
+            m.put("duplicate parameter '").put(name->str()).put("' in function definition");
+            return fail(m.str(), scope().node);
+        }
         s->param = ++scope().nparams;
         return true;
     }

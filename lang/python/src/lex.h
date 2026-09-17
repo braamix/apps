@@ -162,6 +162,18 @@ struct Lexer {
     String own;   // the source as UTF-8, where it was declared otherwise
     String codec; // a declared encoding only the codec registry can decode
 
+    // The source ended where more of it was needed: inside brackets, inside a
+    // string, or -- with `keep_indent` -- inside an indented block. What
+    // `codeop` reads as an incomplete command rather than a mistake.
+    bool wants_more = false;
+
+    // Compiled in single mode, where a line ends at the end of the input.
+    bool interactive = false;
+
+    // PyCF_DONT_IMPLY_DEDENT: do not close the open blocks at the end, so a
+    // suite that has begun is unfinished rather than complete.
+    bool keep_indent = false;
+
     // `decoded` is a str's text, whose coding cookie no longer means
     // anything. Otherwise the source is bytes, and PEP 263 decides how they
     // are read: a BOM, a cookie in the first two lines, and UTF-8 by default.

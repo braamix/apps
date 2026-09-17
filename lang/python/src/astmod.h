@@ -4,9 +4,11 @@
 #include "obj.h"
 #include "parse.h"
 
-// The compile() flags ast.py names. Only ONLY_AST changes what is answered.
+// The compile() flags ast.py and codeop name.
 enum : i32 {
-    PYCF_ONLY_AST              = 0x0400,
+    PYCF_DONT_IMPLY_DEDENT      = 0x0200,
+    PYCF_ONLY_AST               = 0x0400,
+    PYCF_ALLOW_INCOMPLETE_INPUT = 0x4000,
     PYCF_TYPE_COMMENTS         = 0x1000,
     PYCF_ALLOW_TOP_LEVEL_AWAIT = 0x2000,
     PYCF_OPTIMIZED_AST         = 0x8400,

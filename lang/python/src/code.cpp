@@ -263,6 +263,64 @@ R m_co_lines(const CallArgs &a, Value &out)
     return tuples_iter(runs, 3, make, a.args[0], out);
 }
 
+// Two code objects are equal when they would run the same: CPython compares
+// the names, the flags, the counts, the bytes and the constants.
+R code_eq(Value a, Value b, bool &out)
+{
+    out = false;
+    if (!is_code(b))
+        return R::NotImpl;
+    CodeObj *x = code_of(a), *y = code_of(b);
+    if (x == y)
+        return out = true, R::Ok;
+    if (x->flags != y->flags || x->argcount != y->argcount || x->posonly != y->posonly ||
+        x->kwonly != y->kwonly || x->code.size() != y->code.size() ||
+        x->consts.size() != y->consts.size() || x->names.size() != y->names.size() ||
+        x->varnames.size() != y->varnames.size() || x->cellvars.size() != y->cellvars.size() ||
+        x->freevars.size() != y->freevars.size())
+        return R::Ok;
+    bool same = false;
+    if (py_eq(x->name, y->name, same) != R::Ok)
+        return R::Err;
+    if (!same)
+        return R::Ok;
+    for (usize i = 0; i < x->code.size(); i++)
+        if (x->code[i].op != y->code[i].op || x->code[i].arg != y->code[i].arg)
+            return R::Ok;
+    const Vec<Value> *lists[5][2] = { { &x->consts, &y->consts },
+                                      { &x->names, &y->names },
+                                      { &x->varnames, &y->varnames },
+                                      { &x->cellvars, &y->cellvars },
+                                      { &x->freevars, &y->freevars } };
+    for (auto &pair : lists)
+        for (usize i = 0; i < pair[0]->size(); i++) {
+            Value u = (*pair[0])[i], v = (*pair[1])[i];
+            // A const keeps its type: 1 and 1.0 are not the same constant.
+            if (u.is_obj() != v.is_obj() ||
+                (u.is_obj() && u.obj()->type != v.obj()->type))
+                return R::Ok;
+            if (py_eq(u, v, same) != R::Ok)
+                return R::Err;
+            if (!same)
+                return R::Ok;
+        }
+    out = true;
+    return R::Ok;
+}
+
+R code_hash(Value v, u32 &out)
+{
+    CodeObj *c = code_of(v);
+    u32 h      = c->flags * 31 + c->argcount * 7 + u32(c->code.size());
+    for (const Instr &in : c->code)
+        h = h * 1000003 + u32(in.op) * 31 + in.arg;
+    u32 k = 0;
+    if (py_hash(c->name, k) != R::Ok)
+        return R::Err;
+    out = h ^ k;
+    return R::Ok;
+}
+
 constexpr Method CODE_METHODS[] = {
     { "replace", m_replace },
     { "co_positions", m_co_positions },
@@ -279,6 +337,8 @@ bool code_methods()
 constexpr Type code_type{ .name    = "code",
                           .trace   = code_trace,
                           .fini    = code_fini,
+                          .hash    = code_hash,
+                          .eq      = code_eq,
                           .repr    = code_repr,
                           .getattr = code_getattr };
 

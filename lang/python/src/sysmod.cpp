@@ -336,6 +336,21 @@ R b_get_asyncgen_hooks(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// sys.displayhook: what a `single`-mode statement does with its value. The
+// repr may be Python's own, so the writing waits on it; builtin.cpp drives
+// that, and this is only the default the name starts as.
+R b_displayhook(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "displayhook", 1, 1))
+        return R::Err;
+    out = value_none();
+    Value k;
+    R r = py_display_value(a.args[0], k);
+    if (r == R::Ok && !k.is_nil())
+        out = k;
+    return r;
+}
+
 R b_getrecursionlimit(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "getrecursionlimit", 0, 0))
@@ -460,6 +475,7 @@ constexpr ModDef SYS_DEFS[] = {
     { "exception", b_exception },
     { "getsizeof", b_getsizeof },
     { "getrecursionlimit", b_getrecursionlimit },
+    { "displayhook", b_displayhook },
     { "set_asyncgen_hooks", b_set_asyncgen_hooks },
     { "get_asyncgen_hooks", b_get_asyncgen_hooks },
     { "setrecursionlimit", b_setrecursionlimit },
@@ -683,6 +699,11 @@ Value sys_stream(Str name)
     return got;
 }
 
+bool sys_is_default_displayhook(Value v)
+{
+    return is_native(v) && static_cast<NativeObj *>(v.obj())->fn == b_displayhook;
+}
+
 Value sys_asyncgen_firstiter()
 {
     return home ? home->firstiter : Value();
@@ -786,6 +807,13 @@ bool sys_install(DictObj *into)
         !mod_put(d, "path_importer_cache", pic.v) || !mod_put(d, "_stdlib_dir", lib.v))
         return false;
     if (!lazy_sys_install(d))
+        return false;
+    // The same object under both names, so `sys.displayhook is
+    // sys.__displayhook__` says what it does in CPython.
+    StrObj *dh = str_intern("displayhook");
+    Value shown;
+    if (!dh || dict_get(d, obj_value(dh), shown) != R::Ok ||
+        !mod_put(d, "__displayhook__", shown))
         return false;
     return mod_put(d, "argv", here()->argv.is_nil() ? value_none() : here()->argv);
 }

@@ -76,6 +76,22 @@ struct Parser {
 
     u32 fail(Str message) { return fail_kind("SyntaxError", message); }
 
+    // The source stopped where more of it has to follow: a suite that never
+    // began, or a decorator with nothing under it. `codeop` reads that as an
+    // incomplete command rather than a mistake.
+    void want_more()
+    {
+        // Nothing but the ends of the open blocks is left to read.
+        for (usize k = 0;; k++) {
+            Tok t = kind(k);
+            if (t == Tok::End)
+                break;
+            if (t != Tok::Newline && t != Tok::Dedent)
+                return;
+        }
+        ast->lex.wants_more = true;
+    }
+
     // The same, for the one kind that is not a plain SyntaxError.
     u32 fail_kind(Str kind, Str message)
     {
@@ -1471,7 +1487,7 @@ bool Parser::block(List &into)
     if (!take(Tok::Newline))
         return statements_line(into);
     if (!take(Tok::Indent))
-        return fail_kind("IndentationError", "expected an indented block"), false;
+        return want_more(), fail_kind("IndentationError", "expected an indented block"), false;
     if (!enter())
         return false;
     while (!at(Tok::Dedent) && !at(Tok::End)) {
@@ -1626,7 +1642,7 @@ u32 Parser::try_statement()
     if (take(Tok::KwFinally) && !block(finalbody))
         return 0;
     if (!handlers.size() && !finalbody.size())
-        return fail("expected 'except' or 'finally' block");
+        return want_more(), fail("expected 'except' or 'finally' block");
 
     u32 n = add(star == 1 ? Nd::TryStar : Nd::Try, t);
     if (!n)
@@ -1835,7 +1851,7 @@ u32 Parser::decorated()
         bump();
         return funcdef(true, decorators);
     }
-    return fail("expected a definition after a decorator");
+    return want_more(), fail("expected a definition after a decorator");
 }
 
 u32 Parser::import_statement()
@@ -2263,7 +2279,7 @@ u32 Parser::match_statement()
     if (!expect(Tok::Colon, "expected ':'") || !expect(Tok::Newline, "expected a newline"))
         return 0;
     if (!take(Tok::Indent))
-        return fail_kind("IndentationError", "expected an indented block");
+        return want_more(), fail_kind("IndentationError", "expected an indented block");
     if (!enter())
         return 0;
     List cases;

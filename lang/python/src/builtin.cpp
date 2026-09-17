@@ -2719,17 +2719,43 @@ R park_decode(const CallArgs &a, Str codec, R (*again)(const CallArgs &, Value &
 // behind is what outlives this. `codec` takes the name of a codec the source
 // has to be decoded with first, when that is what stopped it.
 // `tree` asks for what PyCF_ONLY_AST answers rather than a code object.
+// `flags` carries the other two codeop reads: DONT_IMPLY_DEDENT leaves a
+// suite open at the end, and ALLOW_INCOMPLETE_INPUT reports a source that
+// simply stopped short as _IncompleteInputError rather than SyntaxError.
 Value compile_source(Value src, Str filename, CompileMode mode, String *codec = nullptr,
-                     bool tree = false)
+                     bool tree = false, i64 flags = 0)
 {
     Str text;
     if (!source_text(src, text))
         return err_set2("TypeError", "compile() source must be a string or bytes", type_name(src)),
                Value();
     Ast ast;
+    ast.lex.keep_indent = (flags & PYCF_DONT_IMPLY_DEDENT) != 0;
+    ast.lex.interactive = mode == CompileMode::Single;
     if (!ast.parse(text, is_str(src))) {
+        if (ast.lex.wants_more && (flags & PYCF_ALLOW_INCOMPLETE_INPUT)) {
+            Buf<160> m;
+            m.put(err_message());
+            err_set("_IncompleteInputError", m.str());
+            return err_set_file(filename, text), Value();
+        }
         if (codec && !ast.lex.codec.empty() && !codec->assign(ast.lex.codec.str()))
             return oom(), Value();
+        return err_set_file(filename, text), Value();
+    }
+    // Nothing to evaluate yet: at a prompt the expression has not been typed.
+    if (mode == CompileMode::Eval && (flags & PYCF_ALLOW_INCOMPLETE_INPUT)) {
+        bool any = false;
+        for (const Token &t : ast.lex.tokens)
+            if (t.kind != Tok::Newline && t.kind != Tok::Indent && t.kind != Tok::Dedent &&
+                t.kind != Tok::End)
+                any = true;
+        if (!any)
+            ast.lex.wants_more = true;
+    }
+    // The blocks are still open, so what parsed is not the whole command.
+    if (ast.lex.wants_more && (flags & PYCF_ALLOW_INCOMPLETE_INPUT)) {
+        err_set("_IncompleteInputError", "incomplete input");
         return err_set_file(filename, text), Value();
     }
     if (tree) {
@@ -2786,7 +2812,8 @@ R b_compile(const CallArgs &a, Value &out)
     Root rf{ a.args[1] };
     String codec;
     out =
-        compile_source(a.args[0], str_of(rf.v)->str(), mode, &codec, (flags & PYCF_ONLY_AST) != 0);
+        compile_source(a.args[0], str_of(rf.v)->str(), mode, &codec,
+                       (flags & PYCF_ONLY_AST) != 0, flags);
     if (out.is_nil() && !codec.empty())
         return park_decode(a, codec.str(), b_compile, out);
     return out.is_nil() ? R::Err : R::Ok;
@@ -3654,7 +3681,19 @@ bool display_put(String *sink, Str text)
     return std_encode(text, true, b) && (sink->append(b.str()) || oom() == R::Ok);
 }
 
-// The repr has come back. It goes where print's output goes.
+// `builtins._`, which the default displayhook leaves the value in.
+bool set_underscore(Value v)
+{
+    Root rv{ v };
+    Root m{ builtin_module("builtins") };
+    StrObj *k = str_intern("_");
+    if (m.v.is_nil() || !k)
+        return false;
+    return dict_set(module_dict(m.v), obj_value(k), rv.v) == R::Ok;
+}
+
+// The repr has come back. It goes where print's output goes. s[0] is the
+// value, so `_` is set once the line is out, as CPython's hook does.
 R display_step(ContObj *k, Value in)
 {
     Home *h = here();
@@ -3665,23 +3704,32 @@ R display_step(ContObj *k, Value in)
         return err_pending() ? R::Err : oom();
     if (!display_put(h->sink, text.str()))
         return R::Err;
+    if (!set_underscore(k->s[0]))
+        return R::Err;
     return cont_done(k, value_none());
 }
 
-R py_display(Value v, Value &out)
+// sys.displayhook's default, which is also what PrintExpr does when nothing
+// has replaced it: print the repr unless the value is None, and leave the
+// value in `builtins._`.
+R py_display_value(Value v, Value &out)
 {
     out     = Value();
     Home *h = here();
     if (is_none(v) || !h || !h->sink)
         return R::Ok;
     Root rv{ v }, text;
+    if (!set_underscore(value_none()))
+        return R::Err;
     if (show(rv.v, SHOW_REPR, text.v) != R::Ok)
         return R::Err;
-    // The repr is Python's own, so the writing waits on it.
+    // The repr is Python's own, so the writing waits on it; the chain
+    // answers None, which is what the hook returns.
     if (is_cont(text.v)) {
         Value kv = cont_new(display_step);
         if (kv.is_nil())
             return R::Err;
+        cont_of(kv)->s[0]     = rv.v;
         cont_of(text.v)->next = kv;
         cont_of(kv)->drop     = true;
         out                   = text.v;
@@ -3689,5 +3737,22 @@ R py_display(Value v, Value &out)
     }
     if (!display_put(h->sink, str_of(text.v)->str()) || !display_put(h->sink, "\n"))
         return R::Err;
-    return R::Ok;
+    return set_underscore(rv.v) ? R::Ok : R::Err;
+}
+
+R py_display(Value v, Value &out)
+{
+    out = Value();
+    Root rv{ v };
+    // A hook of the program's own is Python, so it is handed back as a call.
+    Root hook{ sys_stream("displayhook") };
+    if (!hook.v.is_nil() && !sys_is_default_displayhook(hook.v)) {
+        Root args{ obj_value(tuple_new(1)) };
+        if (args.v.is_nil())
+            return oom();
+        static_cast<TupleObj *>(args.v.obj())->items()[0] = rv.v;
+        out                                               = attr_invoke(hook.v, args.v);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    return py_display_value(rv.v, out);
 }
