@@ -157,7 +157,8 @@ R str_binop(Value a, Value b, Op op, Value &out)
     if (op == Op::Add && is_str(a) && is_str(b)) {
         StrObj *x = str_of(a), *y = str_of(b);
         String joined;
-        if (!joined.append(x->str()) || !joined.append(y->str()))
+        if (!gc_room(joined, usize(x->len) + y->len) || !joined.append(x->str()) ||
+            !joined.append(y->str()))
             return err_set("MemoryError", "out of memory");
         out = obj_value(str_raw(joined.str()));
         return out.is_nil() ? err_set("MemoryError", "out of memory") : R::Ok;
@@ -178,6 +179,10 @@ R str_binop(Value a, Value b, Op op, Value &out)
             count = 0;
         String joined;
         Str one = str_of(s)->str();
+        if (count && i64(one.size()) > (i64(1) << 31) / count)
+            return err_set("OverflowError", "repeated string is too long");
+        if (!gc_room(joined, usize(count) * one.size()))
+            return err_set("MemoryError", "out of memory");
         for (i64 i = 0; i < count; i++)
             if (!joined.append(one))
                 return err_set("MemoryError", "out of memory");

@@ -305,7 +305,7 @@ pass  basics/logic_constfolding.py              cpython3.14  52b5fbc  tests/basi
 pass  basics/memoryview1.py                     cpython3.14  52b5fbc  tests/basics/memoryview1.py
 pass  basics/memoryview2.py                     cpython3.14  52b5fbc  tests/basics/memoryview2.py
 pass  basics/memoryview_itemsize.py             cpython3.14  52b5fbc  tests/basics/memoryview_itemsize.py
-fail  basics/memoryview_slice_assign.py         cpython3.14  52b5fbc  tests/basics/memoryview_slice_assign.py
+pass  basics/memoryview_slice_assign.py         cpython3.14  52b5fbc  tests/basics/memoryview_slice_assign.py
 fail  basics/memoryview_slice_size.py           upstream     52b5fbc  tests/basics/memoryview_slice_size.py
 pass  basics/object1.py                         cpython3.14  52b5fbc  tests/basics/object1.py
 pass  basics/object_dict.py                     cpython3.14  52b5fbc  tests/basics/object_dict.py

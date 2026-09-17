@@ -578,6 +578,10 @@ Value type_wrap(const Type *t)
     if (!d)
         return oom(), Value();
     Root rd{ obj_value(d) };
+    // No docstrings are kept, and every type still answers __doc__.
+    StrObj *dk = str_intern("__doc__");
+    if (!dk || dict_set(dict_at(rd.v), obj_value(dk), value_none()) != R::Ok)
+        return err_pending() ? Value() : (oom(), Value());
     if (dot) {
         Root mod{ str_new(full.substr(0, dot - 1)) };
         StrObj *key = str_intern("__module__");
@@ -603,7 +607,9 @@ Value type_wrap(const Type *t)
     if (t != &object_type) {
         // bool is an int here the way it is in CPython; everything else sits
         // straight under object.
-        Value ob = t == &bool_type ? type_wrap(&int_type) : type_object();
+        Value ob = t == &bool_type ? type_wrap(&int_type)
+                   : t->base       ? type_wrap(t->base)
+                                   : type_object();
         if (ob.is_nil())
             return Value();
         static_cast<TupleObj *>(rb.v.obj())->items()[0] = ob;

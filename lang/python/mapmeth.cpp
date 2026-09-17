@@ -269,6 +269,11 @@ R anyset_binop(Value a, Value b, Op op, Value &out)
         return R::NotImpl;
     bool ok_a = is_anyset(a) || view_is(a);
     bool ok_b = is_anyset(b) || view_is(b);
+    // A view takes any iterable on the other side, as set(view) would.
+    if (view_is(a) && !ok_b && !iter_needs_vm(b) && type_of(b) && type_of(b)->iter)
+        ok_b = true;
+    if (view_is(b) && !ok_a && !iter_needs_vm(a) && type_of(a) && type_of(a)->iter)
+        ok_a = true;
     if (!ok_a || !ok_b)
         return R::NotImpl;
     // The left operand decides the result's type, as in CPython:

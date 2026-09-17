@@ -1,0 +1,33 @@
+αβγ
+ 7
+'δ' 9 'ε\n'
+'δε\nlast' 16
+['αβγ\n', 'δε\n', 'last'] 16
+UnsupportedOperation can't do nonzero cur-relative seeks
+ValueError negative seek position -1
+ValueError invalid whence (3, should be 0, 1 or 2)
+utf-16 30 'Straße €\n' True True
+utf-16-le 28 'Straße €\n' True True
+utf-32 60 'Straße €\n' True True
+cp1252 14 'Straße €\n' True True
+koi8-r 8 'при\n' True True
+utf-8-sig 20 'Straße €\n' True True
+cp437 9 'Ça ░\n' True True
+['a', 'é', '中', '😀', 'b', '\r', '\n', 'c', '']
+['one\n', 'two\n', 'three\n'] ('\r', '\n', '\r\n')
+['one\r', '\ntwo\r', 'three\n']
+'x\n'
+b'\\xe9\r\nline\r\n' backslashreplace ascii None False False
+b'\\xe9\r\nline\r\n?\r\n' replace True
+b'\\xe9\r\nline\r\n?\r\n\xc3\xbc\n'
+illegal newline value: x
+'\\xe9\r\nline\r\n?\r\nü\n'
+invalid start byte 0 1
+ordinal not in range(128)
+BytesIO noname <_io.TextIOWrapper encoding='latin-1'>
+b'data'
+underlying buffer has been detached
+unknown encoding: no-such-codec
+'rot13' is not a text encoding
+utf-8 x utf-8
+4999 3 'é' 10000

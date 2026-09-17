@@ -294,6 +294,26 @@ void gc_immortal(Obj *o)
     live_objects++;
 }
 
+bool gc_room(String &s, usize n)
+{
+    if (s.reserve(n))
+        return true;
+    if (collecting)
+        return false;
+    gc_collect();
+    return s.reserve(n);
+}
+
+void *gc_heap_alloc(usize n)
+{
+    void *p = heap_alloc(n);
+    if (!p && !collecting) {
+        gc_collect();
+        p = heap_alloc(n);
+    }
+    return p;
+}
+
 Obj *obj_alloc(const Type *t, usize bytes)
 {
     // Before the allocation, never during: what is being built is not yet

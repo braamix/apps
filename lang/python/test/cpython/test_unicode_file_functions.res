@@ -1,0 +1,32 @@
+--- unittest ---
+ok UnicodeFileTests.test_directory
+ok UnicodeFileTests.test_failures
+ok UnicodeFileTests.test_listdir
+ok UnicodeFileTests.test_normalize
+ok UnicodeFileTests.test_open
+ok UnicodeFileTests.test_rename
+ok UnicodeNFCFileTests.test_directory
+ok UnicodeNFCFileTests.test_failures
+ok UnicodeNFCFileTests.test_listdir
+ok UnicodeNFCFileTests.test_normalize
+ok UnicodeNFCFileTests.test_open
+ok UnicodeNFCFileTests.test_rename
+ok UnicodeNFDFileTests.test_directory
+ok UnicodeNFDFileTests.test_failures
+ok UnicodeNFDFileTests.test_listdir
+ok UnicodeNFDFileTests.test_normalize
+ok UnicodeNFDFileTests.test_open
+ok UnicodeNFDFileTests.test_rename
+ok UnicodeNFKCFileTests.test_directory
+ok UnicodeNFKCFileTests.test_failures
+ok UnicodeNFKCFileTests.test_listdir
+ok UnicodeNFKCFileTests.test_normalize
+ok UnicodeNFKCFileTests.test_open
+ok UnicodeNFKCFileTests.test_rename
+ok UnicodeNFKDFileTests.test_directory
+ok UnicodeNFKDFileTests.test_failures
+ok UnicodeNFKDFileTests.test_listdir
+ok UnicodeNFKDFileTests.test_normalize
+ok UnicodeNFKDFileTests.test_open
+ok UnicodeNFKDFileTests.test_rename
+--- ran 30 ok 30 fail 0 error 0 skip 0 ---

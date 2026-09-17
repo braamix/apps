@@ -97,6 +97,10 @@ constexpr Native NATIVES[] = {
     { "_string", string_install },
     { "_warnings", warnings_install },
     { "atexit", atexit_install },
+    { "posix", posix_install },
+    { "_signal", signal_install },
+    { "_io", io_install },
+    { "_csv", csv_install },
 };
 
 } // namespace

@@ -41,10 +41,14 @@ void sys_set_argv(Value argv);
 // and the interpreter under vm_burst never awaits one.
 void sys_set_tty(bool in, bool out, bool err);
 
+// sys.stdout and the others as they are now: Nil when sys has no such name.
+Value sys_stream(Str name);
+
 // Where print and a diagnostic write. `file` is Nil for sys.stdout; `out`
 // takes a ContObj when the destination is an object of the program's own, and
-// Nil when the text has already been buffered.
-R sys_write(Value file, Str text, Value &out);
+// Nil when the text has already been buffered. `cuts`, when given, are where
+// print's pieces start and end, each written by its own call to such a write().
+R sys_write(Value file, Str text, Value &out, Span<const usize> cuts = {});
 
 // The modules written in C++, as a tuple. sys.builtin_module_names.
 Value native_module_names();
@@ -78,5 +82,13 @@ bool thread_install(DictObj *into);
 bool contextvars_install(DictObj *into);
 bool string_install(DictObj *into);
 bool warnings_install(DictObj *into);
+
+// A ContObj that calls warnings.warn(message, category, stacklevel) and
+// answers None. Nil with the error pending.
+Value warn_cont(Str category, Str message, u32 stacklevel);
 bool atexit_install(DictObj *into);
 bool sre_install(DictObj *into);
+bool posix_install(DictObj *into);
+bool signal_install(DictObj *into);
+bool io_install(DictObj *into);
+bool csv_install(DictObj *into);

@@ -1,0 +1,46 @@
+a/b/c /b a/b x b'a/b'
+('/a/b', 'c.txt') ('', 'c') ('/', '')
+('x/y.tar', '.gz') ('.bashrc', '') ('a', '.')
+ /a/b 
+a/b/d /x .
+//a /a b'../b'
+True False ab
+/a ../b/c
+('', '//', 'x/y') ('', '/', 'x') ('', '', 'x')
+~nobodyhere/x $NOPE_NOT_SET/${NOPE2}
+val/valx val val
+False gone
+p b'\xc3\xa9' é '\udcff'
+Can't mix absolute and relative paths
+join() argument must be str, bytes, or os.PathLike object, not 'int'
+/ : . .. . None True
+posix /dev/null True
+True True
+exists: d1/d2
+['d1', 'e'] ['d2', 'f.txt']
+5 True True
+5 True True
+False False False
+float True
+10 5 int float
+True d1/f.txt True
+True True
+False True
+['h.txt']
+[('d2', True, False, 'd1/d2')]
+[('.', ['d1', 'e'], ['ln']), ('./d1', ['d2'], []), ('./d1/d2', ['d3'], []), ('./d1/d2/d3', [], []), ('./e', [], ['h.txt'])]
+['./d1/d2/d3', './d1/d2', './d1', './e', '.']
+FileNotFoundError nope
+OSError d1
+FileExistsError e
+NotADirectoryError e/h.txt
+[]
+11 11 6
+b'world' 11 False
+b'hello'
+True False
+close: True
+5 b'piped'
+int bytes 4
+True get_terminal_size times_result
+No such file or directory -rw-r--r-- drwxr-xr-x

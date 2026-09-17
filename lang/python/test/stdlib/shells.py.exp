@@ -1,0 +1,43 @@
+['a', 'b c', 'd $e', 'f g', '#', 'h'] ['x']
+'it'"'"'s' '' safe-1.0 'a b' c
+['a=b', ';', 'c', '&&', 'd']
+No closing quotation
+True False (?s:a[^b]..*)\z
+['a.c', 'c.c'] True
+True True
+['a.txt', 'b.txt'] ['a.txt', 'b.txt', 'sub/d.txt', 'sub/deep/e.txt']
+['a.txt', 'b.txt', 'c.py', 'sub'] ['.hidden'] []
+['sub/d.txt', 'sub/deep'] a[*][[]b][?] ['c.py']
+['d.txt'] True
+a.txt ['a.txt', 'd.txt', 'deep']
+['sub2', 'sub2/deep']
+False ['a.txt', 'd.txt', 'deep', 'moved.txt']
+False None
+SameFileError
+NotADirectoryError
+True
+b'temp'
+True True 0 named
+False
+True
+False
+mk True
+False
+True 6
+python3.tar.gz python3.tar .gz ['.tar', '.gz'] /usr/lib ('/', 'usr', 'lib', 'python3.tar.gz') /
+/usr/lib/python3.tar.zip /usr/lib/x /usr/lib/y.gz lib/python3.tar.gz
+a/b/../c a/b/c/d [PurePosixPath('/a/b'), PurePosixPath('/a'), PurePosixPath('/')]
+True False True False
+True PurePosixPath('q') . a/b
+'/a' is not in the subpath of '/b'
+PosixPath True True True
+a.txt b'b.txt'
+6 ['.hidden', 'a.txt', 'a2.txt', 'b.txt', 'c.py', 'new.txt', 'sub']
+['a.txt', 'a2.txt', 'b.txt', 'new.txt']
+['a.txt', 'a2.txt', 'b.txt', 'new.txt', 'sub/a.txt', 'sub/d.txt', 'sub/deep/e.txt']
+True False
+a.txt
+0 True
+['sub/deep']
+True True
+False

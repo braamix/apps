@@ -5,6 +5,7 @@
 #include "gc.h"
 #include "gen.h"
 #include "intern.h"
+#include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "method.h"
 #include "ops.h"
@@ -268,6 +269,8 @@ Value cont_new(ContStep step)
         return oom(), Value();
     k->step = step;
     k->fail = nullptr;
+    for (i64 &n : k->x)
+        n = 0;
     k->redo = nullptr;
     for (Value &v : k->s)
         v = Value();
@@ -546,4 +549,122 @@ R bind_args(FuncObj *fn, CodeObj *co, FrameObj *nf, const CallArgs &a)
     // A parameter some nested scope captures is copied into its cell by the
     // first instructions of the body; nothing to do here.
     return R::Ok;
+}
+
+namespace {
+
+R n_pass(const CallArgs &a, Value &out)
+{
+    out = a.args[0];
+    return R::Ok;
+}
+
+struct PassHome {
+    Value pass;
+};
+
+PassHome *pass_home;
+
+void pass_mark()
+{
+    if (pass_home)
+        gc_mark(pass_home->pass);
+}
+
+Value pass_native()
+{
+    if (!pass_home) {
+        pass_home = heap_new<PassHome>();
+        if (!pass_home)
+            return err_set("MemoryError", "out of memory"), Value();
+        gc_root_hook(pass_mark);
+    }
+    if (pass_home->pass.is_nil())
+        pass_home->pass = native_new("_await", n_pass);
+    return pass_home->pass;
+}
+
+// s[0] the object, s[1] the name, s[2] and s[3] the arguments; j how many.
+R method_step(ContObj *k, Value in)
+{
+    switch (k->i) {
+    case 0: {
+        Got g = py_attr(k->s[0], str_of(k->s[1]), in);
+        if (g == Got::Error)
+            return R::Err;
+        if (g == Got::Missing) {
+            Buf<128> m;
+            m.put("'").put(type_name(k->s[0])).put("' object has no attribute '");
+            m.put(str_of(k->s[1])->str()).put("'");
+            return err_set("AttributeError", m.str());
+        }
+        k->i = 2;
+        if (g == Got::Call) {
+            k->i = 1;
+            return cont_await(k, in);
+        }
+        break;
+    }
+    case 1:
+        k->i = 2;
+        break;
+    default:
+        return cont_done(k, in);
+    }
+    return k->j == 0 ? cont_call(k, in, Value(), 0) : cont_call(k, in, k->s[2], k->j, k->s[3]);
+}
+
+} // namespace
+
+R cont_await(ContObj *k, Value cont)
+{
+    Root rc{ cont };
+    Value p = pass_native();
+    if (p.is_nil())
+        return R::Err;
+    return cont_call(k, p, rc.v);
+}
+
+R cont_attr(ContObj *k, Value obj, Str name)
+{
+    Root ro{ obj };
+    StrObj *nm = str_intern(name);
+    if (!nm)
+        return err_set("MemoryError", "out of memory");
+    Value got;
+    Got g = py_attr(ro.v, nm, got);
+    if (g == Got::Error)
+        return R::Err;
+    if (g == Got::Missing) {
+        Buf<128> m;
+        m.put("'").put(type_name(ro.v)).put("' object has no attribute '").put(name).put("'");
+        return err_set("AttributeError", m.str());
+    }
+    return cont_await(k, got);
+}
+
+R cont_method(ContObj *k, Value obj, Str name, u32 n, Value a0, Value a1)
+{
+    Root ro{ obj }, r0{ a0 }, r1{ a1 };
+    StrObj *nm = str_intern(name);
+    if (!nm)
+        return err_set("MemoryError", "out of memory");
+    Root rn{ obj_value(nm) };
+    // The common case, a plain method, costs no second continuation.
+    Value got;
+    Got g = py_attr(ro.v, nm, got);
+    if (g == Got::Ok)
+        return n == 0 ? cont_call(k, got, Value(), 0) : cont_call(k, got, r0.v, n, r1.v);
+    if (g == Got::Error)
+        return R::Err;
+    Root kv{ cont_new(method_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *m = cont_of(kv.v);
+    m->s[0]    = ro.v;
+    m->s[1]    = rn.v;
+    m->s[2]    = r0.v;
+    m->s[3]    = r1.v;
+    m->j       = n;
+    return cont_await(k, kv.v);
 }

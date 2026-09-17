@@ -24,6 +24,7 @@
 #include "gen.h"
 #include "import.h"
 #include "intern.h"
+#include "io.h"
 #include "iter.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
@@ -32,6 +33,7 @@
 #include "module.h"
 #include "ops.h"
 #include "patma.h"
+#include "posix.h"
 #include "proc/io.h"
 #include "templatelib.h"
 #include "type.h"
@@ -67,6 +69,10 @@ struct VM {
     Value reading;               // the ContObj waiting on a file or a sleep, or Nil
     u32 nap_ms   = 0;            // how long, when it is a sleep
     bool napping = false;
+    bool calling = false;        // it is a system call, `sys`
+    SysReq sys;                  // whose strings view the three below
+    String sys_path, sys_path2, sys_data;
+    SysAns answer;               // what the last one said
     Value resume;           // the same, once the answer is in
     Value thrown;           // what gen.throw passed, to raise at the resume point
     String want;            // the file it asked for
@@ -79,6 +85,7 @@ struct VM {
     bool failed    = false;
     bool finished  = false;
     bool interrupt = false; // a ^C the driver saw, to raise at the next step
+    u32 signals    = 0;     // any other, a bit each, for its handler
 };
 
 // A String has a destructor, so this lives in a heap block rather than at file
@@ -276,8 +283,13 @@ bool raise_value(Value e);
 // `__init__` has returned; the answer is the instance it was given.
 R init_step(ContObj *k, Value in)
 {
-    if (k->i++ == 0)
+    if (k->i++ == 0) {
+        // A native __init__ that has calls to make first: s[1] its
+        // continuation, whose answer is what __init__ returned.
+        if (!k->s[1].is_nil())
+            return cont_await(k, k->s[1]);
         return err_set("SystemError", "an init continuation was not started");
+    }
     if (!is_none(in))
         return err_set2("TypeError", "__init__() should return None", type_name(in));
     return cont_done(k, k->s[0]);
@@ -473,6 +485,16 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
     bool e = false;
     if (do_call(init.v, b, got, e) != R::Ok)
         return R::Err;
+    if (!e && is_cont(got)) {
+        Root rg{ got };
+        Root kv{ cont_new(init_step) };
+        if (kv.v.is_nil())
+            return R::Err;
+        cont_of(kv.v)->s[0] = self.v;
+        cont_of(kv.v)->s[1] = rg.v;
+        out                 = kv.v;
+        return R::Ok;
+    }
     if (!e) {
         if (!is_none(got))
             return err_set2("TypeError", "__init__() should return None", type_name(got));
@@ -545,6 +567,10 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
             return do_call(bound.v, a, out, entered);
         }
     }
+
+    // A staticmethod is called as the function it wraps, as it is since 3.10.
+    if (callable.is_obj() && callable.obj()->type == &staticmethod_type)
+        return do_call(static_cast<WrapObj *>(callable.obj())->fn, a, out, entered);
 
     if (!is_func(callable)) {
         // A built-in object may answer __call__ out of its own method table:
@@ -680,8 +706,13 @@ bool run_cont(Value kv, Value in)
             continue;
         }
         if (entered) {
+            // A frame that already answers to a continuation of its own --
+            // a class's __init__, whose answer is the instance -- hands on.
             FrameObj *nf = frame_of(vm->frame);
-            nf->cont     = rk.v;
+            if (is_cont(nf->cont) && cont_of(nf->cont)->next.is_nil())
+                cont_of(nf->cont)->next = rk.v;
+            else
+                nf->cont = rk.v;
             if (!cont_of(rk.v)->locals.is_nil())
                 nf->locals = cont_of(rk.v)->locals;
             return true;
@@ -929,6 +960,16 @@ R b_warn_unawaited(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// A signal handler: s[0] the callable, j the signal. It is called with the
+// frame the program was in.
+R sig_step(ContObj *k, Value)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], Value::of_int(i32(k->j)), 2,
+                         vm->frame.is_nil() ? value_none() : vm->frame);
+    return cont_done(k, value_none());
+}
+
 R final_step(ContObj *k, Value in)
 {
     if (k->i++ == 0) {
@@ -940,6 +981,46 @@ R final_step(ContObj *k, Value in)
         vm->err.append("Exception ignored in a finalizer:\n");
         exc_line(k->caught, vm->err);
         vm->err.push('\n');
+    }
+    return cont_done(k, value_none());
+}
+
+// The next call the collector owes, as a continuation that makes it and
+// reports what it raises. Nil when that one has nothing to run.
+Value owed_next()
+{
+    Root o, fn;
+    gc_take(o.v, fn.v);
+    // A generator parked at a yield is closed rather than deleted, which is
+    // what runs the `finally` it is sitting inside. A coroutine never started
+    // says so through warnings.
+    bool unawaited = fn.v.is_nil() && is_coro(o.v) && gen_of(o.v)->state == GEN_CREATED;
+    if (unawaited)
+        fn = native_new("_warn_unawaited_coroutine", b_warn_unawaited);
+    Root m{ !fn.v.is_nil()        ? fn.v
+            : is_genlike(o.v)     ? (gen_of(o.v)->state == GEN_SUSPENDED ? genrun_new(o.v, GR_CLOSE)
+                                                                         : Value())
+            : o.v.obj()->type->del ? o.v.obj()->type->del(o.v)
+                                   : type_special(o.v, "__del__") };
+    if (m.v.is_nil())
+        return Value();
+    Root kv{ cont_new(final_step) };
+    if (kv.v.is_nil())
+        return Value();
+    cont_of(kv.v)->s[0] = m.v;
+    cont_of(kv.v)->s[1] = fn.v.is_nil() ? Value() : o.v;
+    return kv.v;
+}
+
+R drain_step(ContObj *k, Value)
+{
+    while (gc_owes()) {
+        Root kv{ owed_next() };
+        if (kv.v.is_nil()) {
+            err_clear();
+            continue;
+        }
+        return cont_await(k, kv.v);
     }
     return cont_done(k, value_none());
 }
@@ -1238,16 +1319,54 @@ void report(Value e, u32 depth = 0)
 
 bool run_cont(Value kv, Value in);
 
-// The program is over: what atexit holds runs first, once. The last frame is
-// gone, so the loop finishes when the calls are done and nothing is left.
+R exit_files_step(ContObj *k, Value)
+{
+    if (k->i++ == 0) {
+        Value files = io_exit_runner();
+        if (files.is_nil())
+            return err_pending() ? R::Err : cont_done(k, value_none());
+        return cont_await(k, files);
+    }
+    return cont_done(k, value_none());
+}
+
+R exit_seq_step(ContObj *k, Value)
+{
+    switch (k->i++) {
+    case 0:
+        return cont_await(k, k->s[0]);
+    case 1: {
+        Root files{ cont_new(exit_files_step) };
+        if (files.v.is_nil())
+            return R::Err;
+        return cont_await(k, files.v);
+    }
+    default:
+        return cont_done(k, value_none());
+    }
+}
+
+// The program is over: what atexit holds runs first, once, and then what is
+// still open is flushed and closed. The last frame is gone, so the loop
+// finishes when the calls are done and nothing is left.
 void exit_hooks()
 {
-    if (vm->exiting || !atexit_pending())
+    if (vm->exiting || (!atexit_pending() && !io_exit_pending()))
         return;
     vm->exiting  = true;
     vm->finished = false;
     vm->frame    = Value();
-    Root kv{ atexit_runner() };
+    Root kv{ cont_new(exit_seq_step) };
+    if (!kv.v.is_nil()) {
+        Root first{ atexit_pending() ? atexit_runner() : obj_value(nullptr) };
+        if (atexit_pending() && first.v.is_nil()) {
+            kv = Value();
+        } else if (first.v.is_nil()) {
+            cont_of(kv.v)->i = 1;
+        } else {
+            cont_of(kv.v)->s[0] = first.v;
+        }
+    }
     if (kv.v.is_nil()) {
         vm->finished = true;
         return;
@@ -1281,7 +1400,8 @@ void uncaught(Value e)
         return;
     }
     vm->failed = true;
-    vm->status = 1;
+    // CPython dies of the SIGINT itself, which a shell reports as 130.
+    vm->status = is_exc(e) && exc_is(exc_type_of(e), exc_find("KeyboardInterrupt")) ? 130 : 1;
     report(e);
     exit_hooks();
 }
@@ -2274,8 +2394,9 @@ void interpret()
         if (vm->finished || !vm->reading.is_nil() || vm->out.size() >= FLUSH_AT ||
             vm->err.size() >= FLUSH_AT || !vm->budget--)
             return;
-        // The last atexit call has returned and there is no frame left.
-        if (vm->frame.is_nil()) {
+        // The last atexit call has returned and there is no frame left --
+        // unless a step at exit is waiting on the driver's answer.
+        if (vm->frame.is_nil() && vm->resume.is_nil()) {
             vm->finished = true;
             return;
         }
@@ -2330,30 +2451,11 @@ void interpret()
         // out of one is reported and goes no further, which is what CPython
         // means by ignoring it.
         if (gc_owes()) {
-            Root o, fn;
-            gc_take(o.v, fn.v);
-            // A generator parked at a yield is closed rather than deleted,
-            // which is what runs the `finally` it is sitting inside.
-            // A coroutine never started says so through warnings.
-            bool unawaited = fn.v.is_nil() && is_coro(o.v) && gen_of(o.v)->state == GEN_CREATED;
-            if (unawaited)
-                fn = native_new("_warn_unawaited_coroutine", b_warn_unawaited);
-            Root m{ !fn.v.is_nil() ? fn.v
-                    : is_genlike(o.v)
-                        ? (gen_of(o.v)->state == GEN_SUSPENDED ? genrun_new(o.v, GR_CLOSE)
-                                                               : Value())
-                        : type_special(o.v, "__del__") };
-            if (m.v.is_nil()) {
-                err_clear();
-                continue;
-            }
-            Root kv{ cont_new(final_step) };
+            Root kv{ owed_next() };
             if (kv.v.is_nil()) {
                 err_clear();
                 continue;
             }
-            cont_of(kv.v)->s[0] = m.v;
-            cont_of(kv.v)->s[1] = fn.v.is_nil() ? Value() : o.v;
             cont_of(kv.v)->drop = true;
             if (!run_cont(kv.v, Value())) {
                 report(pending_exception());
@@ -2365,9 +2467,31 @@ void interpret()
 
         // A ^C the driver noticed between bursts, delivered here, which is the
         // only place the stack is in a state an exception can unwind from.
-        if (vm->interrupt) {
-            vm->interrupt = false;
-            err_set("KeyboardInterrupt", "");
+        if (vm->interrupt || vm->signals) {
+            u32 sig = 2;
+            if (vm->interrupt) {
+                vm->interrupt = false;
+            } else {
+                while (!(vm->signals & (1u << sig)))
+                    sig = (sig + 1) % 32;
+                vm->signals &= ~(1u << sig);
+            }
+            Root h;
+            if (sig_handler(sig, h.v) == R::Ok) {
+                if (h.v.is_nil())
+                    continue;
+                // The program's own handler, called where the program was;
+                // what it raises is raised there.
+                Root kv{ cont_new(sig_step) };
+                if (kv.v.is_nil())
+                    goto oops_between;
+                cont_of(kv.v)->s[0] = h.v;
+                cont_of(kv.v)->j    = sig;
+                cont_of(kv.v)->drop = true;
+                if (run_cont(kv.v, Value()))
+                    continue;
+            }
+        oops_between:
             vm->tb.clear();
             vm->between = frame_of(vm->frame);
             bool go     = raise_value(pending_exception());
@@ -4123,6 +4247,12 @@ Req vm_burst()
         if (!vm->reading.is_nil()) {
             if (vm->napping)
                 return Req{ ReqKind::Sleep, 0, Str(), Str(), 0, vm->nap_ms };
+            if (vm->calling) {
+                Req r;
+                r.kind = ReqKind::Sys;
+                r.sys  = &vm->sys;
+                return r;
+            }
             return Req{ ReqKind::Read, 0, Str(), vm->want.str(), 0 };
         }
         if (!vm->finished) {
@@ -4178,6 +4308,34 @@ ListObj *vm_frames()
     return list_of(rl.v);
 }
 
+Value exc_pending()
+{
+    return err_pending() ? pending_exception() : Value();
+}
+
+Value vm_collect_and_finalize()
+{
+    gc_collect();
+    if (!gc_owes())
+        return Value();
+    return cont_new(drain_step);
+}
+
+void vm_hard_exit(i32 status)
+{
+    vm->status   = status;
+    vm->finished = true;
+    vm->exiting  = true;
+}
+
+void vm_signal(u32 sig)
+{
+    if (sig == 2)
+        vm->interrupt = true;
+    else if (sig < 32)
+        vm->signals |= 1u << sig;
+}
+
 void vm_interrupt()
 {
     vm->interrupt = true;
@@ -4189,6 +4347,19 @@ bool vm_take_interrupt()
     if (was)
         vm->interrupt = false;
     return was;
+}
+
+u32 vm_take_signal()
+{
+    if (vm_take_interrupt())
+        return 2;
+    if (!vm || !vm->signals)
+        return 0;
+    u32 sig = 1;
+    while (!(vm->signals & (1u << sig)))
+        sig++;
+    vm->signals &= ~(1u << sig);
+    return sig;
 }
 
 R cont_read(ContObj *k, Str path)
@@ -4207,6 +4378,34 @@ R cont_sleep(ContObj *k, u32 ms)
     k->fn       = Value();
     k->reading  = true;
     return R::Ok;
+}
+
+R cont_sys(ContObj *k, const SysReq &r)
+{
+    vm->sys = r;
+    if (!vm->sys_path.assign(r.path) || !vm->sys_path2.assign(r.path2) ||
+        !vm->sys_data.assign(r.data))
+        return err_set("MemoryError", "out of memory");
+    vm->sys.path  = vm->sys_path.str();
+    vm->sys.path2 = vm->sys_path2.str();
+    vm->sys.data  = vm->sys_data.str();
+    vm->calling   = true;
+    k->fn         = Value();
+    k->reading    = true;
+    return R::Ok;
+}
+
+void vm_sys_done(SysAns &a)
+{
+    vm->calling = false;
+    vm->answer  = static_cast<SysAns &&>(a);
+    vm->sys_data.clear();
+    vm_sleep_done();
+}
+
+SysAns &vm_sys_answer()
+{
+    return vm->answer;
 }
 
 void vm_sleep_done()

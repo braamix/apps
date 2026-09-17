@@ -1,0 +1,24 @@
+b'hel' b'lo world\nsecond line\n' b'' b''
+[b'hello world\n', b'second line\n'] 36
+b'0123' b'45' b'45' b'678901234567890123456789' [('readinto', 8), ('readinto', 5), ('readinto', 131072), ('readinto', 131072)]
+b'line1\n' [b'line2\n', b'line3']
+3 8 [('write', 3), ('write', 4)]
+b'abcdefghijk' [('write', 3), ('write', 4), ('write', 4)]
+b'ab' 2 4 0 b'abXYefghij'
+b'abXYefghij'
+['naïve\n', 'çà\n']
+['PRINTED', ' ', 'HERE', '\n', 'A', 'B'] False False
+UnsupportedOperation read
+NotImplementedError 
+NotImplementedError 
+UnsupportedOperation fileno
+UnsupportedOperation seek
+UnsupportedOperation seek
+False False False False False
+True
+I/O operation on closed file.
+closing b'bytes'
+True True True
+_BufferedIOBase _TextIOBase
+b'in' 3 True True
+True

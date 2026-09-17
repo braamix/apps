@@ -144,6 +144,7 @@ TESTS := \
     lang/python/test/pyexec.mjs \
     lang/python/test/pylazy.mjs \
     lang/python/test/pystdlib.mjs \
+    lang/python/test/pyio.mjs \
     lang/python/test/pyunit.mjs \
     lang/python/test/runcases.mjs \
     lang/python/test/pycases.mjs \

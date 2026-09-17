@@ -62,6 +62,14 @@ struct Type {
     // tuple, as Got::Call. Missing when this type has nothing lazy to say.
     Got (*lazyattr)(Value, StrObj *name, Value &out, Value &args) = nullptr;
 
+    // What the collector's owed call is, for a native whose objects set
+    // OBJ_FINAL: a callable, or Nil for nothing to do. An open file's close.
+    Value (*del)(Value) = nullptr;
+
+    // The built-in this one derives from, null for object. _io's layers are
+    // the ones that say: FileIO is a _RawIOBase is an _IOBase.
+    const Type *base = nullptr;
+
     bool plain = false; // a base that lends no layout: a subclass is object's
     bool final = false; // not an acceptable base type
     // Its __next__, in the type's namespace, may answer a ContObj: the VM
@@ -212,6 +220,10 @@ inline f64 float_of(Value v)
 
 // True for int and bool, not for float; `out` takes the value.
 bool as_index(Value v, i64 &out);
+
+// The same, and an instance of a subclass of int as the int inside it: what a
+// function taking a descriptor or a signal number accepts.
+bool as_int_arg(Value v, i64 &out);
 
 // int, bool or float, widened.
 bool as_number(Value v, f64 &out);

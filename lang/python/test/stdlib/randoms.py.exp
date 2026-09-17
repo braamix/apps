@@ -1,0 +1,21 @@
+0.41661987254534116 974360244973878276677 822
+-1 c 1.9317846908693115
+[1, 5, 9, 8, 3, 0, 7, 2, 6, 4] [78, 70, 23, 45, 94] ['c', 'a', 'c', 'b', 'b', 'a']
+['c', 'c', 'c', 'a', 'c'] [2, 2, 2]
+[2.373211531678, 8.776455858297, 0.178448183938]
+[7.169373337966, 0.576918302521, 3.348049798652]
+[1.986387924195, 3.097397814816, 1.309908864967]
+[0.453413801156] 5 b'+a\x0b\xd5e\x02'
+0.41604161323913513 308727920427932860079231997690
+0.23796462709189137
+True 3 625
+0.13436424411240122
+['z', 'y', 'z', 'z']
+ValueError empty range for randrange()
+IndexError Cannot choose from an empty sequence
+ValueError Sample larger than population or is negative
+ValueError empty range in randint(1, 0)
+ValueError zero step for randrange()
+ValueError Cannot convert negative int
+0.5 2 True
+True True

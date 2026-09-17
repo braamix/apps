@@ -9,7 +9,8 @@ imported, text can be formatted, numbers have no width, a function can yield, a
 program can compile and run more of itself, the type system is whole,
 twenty-two modules are written natively, a function can be a coroutine, the
 syntax is 3.14's, text is Unicode's, the floor under the library is down, its
-first wave runs, and so does `re`.** Phases 0 to 24 built the lexer, the parser, the
+first wave runs, so does `re`, and a program has files.** Phases 0 to 25 built
+the lexer, the parser, the
 compiler, the VM, the object heap and its collector, exceptions, functions and
 closures, classes, the method tables, the module loader, the `unittest` and
 `test.support` shims every CPython test stands on, the one format engine that
@@ -38,23 +39,27 @@ and the lone surrogate as a character — and then the rest of the native floor:
 `frozendict`, `sentinel`, `mappingproxy`, `object`'s pickle helpers, a native
 `_warnings` and `atexit` — and then CPython's whole `re/` over a native `_sre`
 that can stop in the middle of a match, with `textwrap`, `json`, `fractions`
-and `difflib` over it, and `unicodedata.ucd_3_2_0`. They are done, and their
-record is the git history — `python: phase 0` through `python: phase 24` — not
-this file, which from here describes only what is left.
+and `difflib` over it, and `unicodedata.ucd_3_2_0` — and then a native `_io`
+under CPython's `io.py`, the three standard streams as its objects, `os` over a
+native `posix`, `signal` over a native `_signal`, `csv` over a native `_csv`,
+and the modules that waited for them. They are done, and their record is the
+git history — `python: phase 0` through `python: phase 25` — not this file,
+which from here describes only what is left.
 
-Where that leaves us, measured against MicroPython's suite: **424 of the 449
-tests in [test/manifest.txt](test/manifest.txt)**. Of the twenty-five that do
+Where that leaves us, measured against MicroPython's suite: **425 of the 449
+tests in [test/manifest.txt](test/manifest.txt)**. Of the twenty-four that do
 not, most exercise what MicroPython does and CPython does not — a native base
 class's `__init__` protocol, `pend_throw`, `machine` — and two want a
 memoryview of more than one dimension. One, `assign_expr_syntaxerror.py`,
 expects MicroPython to accept what CPython refuses, and stays as it is.
 
-Measured against CPython's, which is the harder ruler: **thirty-two of the
-forty in [test/cpython.txt](test/cpython.txt) run, and 620 test methods of 796
-pass.** `node test/pycases.mjs --survey` runs the whole of `Lib/test/` and
-counts what stops each of the 391 files: 351 an unwritten module, 34 that run,
-5 that fail at runtime or say nothing this can read, and 1 other syntax, PEP
-798's. Phase 24 moved four files to running and one past its imports.
+Measured against CPython's, which is the harder ruler: **fifty-two of the
+seventy-three in [test/cpython.txt](test/cpython.txt) run, and 975 test methods
+of 1,282 pass.** `node test/pycases.mjs --survey` runs the whole of `Lib/test/`
+and counts what stops each of the 391 files: 328 an unwritten module, 51 that
+run, 11 that fail at runtime or say nothing this can read, and 1 other syntax,
+PEP 798's. Phase 25 moved seventeen files to running and six past their
+imports.
 
 Three walls came down in phases 13 and 14 — f-strings, complex and the bignum
 were 204 files between them — a fourth in phase 19, whose fifteen `async` files
@@ -66,7 +71,7 @@ CPython's tests is an import**, and what those files stop on is the *library*,
 not the modules under it. The survey is how each wave is chosen, and it only
 means something read beside what it said last time.
 
-**The library is being borrowed.** Forty-one files and 89 of
+**The library is being borrowed.** Sixty-three files and 89 of
 `lib/encodings/` are CPython's own, byte for byte, with their provenance in
 [lib/manifest.txt](lib/manifest.txt) — `tools/mklib.py` writes a row — and the
 PSF terms in [LICENSE](LICENSE). The phases after this one grow that directory,
@@ -109,8 +114,8 @@ Phase 19 has taken the first two rows away. Measured again after it:
 `_collections_abc.py` compiles and stops at runtime on `range(1 << 1000)`,
 which phase 22 now carries. Phase 20 took the other three language rows, and
 phase 22 the floor rows: `reprlib` and `string` import, and `_py_warnings.py`
-gets as far as `sys.flags.context_aware_warnings`. What is left of the table
-is the file system.
+gets as far as `sys.flags.context_aware_warnings`. Phase 25 took the last,
+the file system, and `contextlib` imports.
 
 It also says what a phase's CPython tests can prove. A test file imports far
 more than the module it tests — `test_functools.py` imports `annotationlib`,
@@ -265,8 +270,9 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-The order is library by layer (25–26), then the layers that need all of it
-(27–30); the language phases, the floor, the first wave and `re` are done. Each phase
+The order is the library's second wave (26), then the layers that need all of
+it (27–30); the language phases, the floor, the first wave, `re` and the file
+system are done. Each phase
 lists only what the phases before it have made possible.
 
 Phase 18 left two things for the phases that use them. `memoryview` is flat:
@@ -314,13 +320,13 @@ native `_tokenize` in phase 26 has to keep both.
 Phase 23 left six. **Four modules of the wave waited on a later one in part**:
 `string.Template` and `locale.format_string` compiled a regular expression,
 which phase 24 gave them; `warnings.deprecated` imports `inspect` (phase 27),
-and `linecache` reads no file until `io` does (phase 25), so a warning prints
-without its source line. **There is no `_bisect` or `_heapq`**: the pure-Python
-fallbacks run, and `test_bisect.py`'s C half errors on the `None` its
+and `linecache` reads no file until `tokenize` is here (phase 26), so a warning
+prints without its source line. **There is no `_bisect` or `_heapq`**: the
+pure-Python fallbacks run, and `test_bisect.py`'s C half errors on the `None` its
 `import_fresh_module` answers. **Of the plan's seven tests, four wait**:
 `test_heapq.py` imports `random` and `doctest`, `test_copyreg.py`
-`test.pickletester`, `test_reprlib.py` `annotationlib`, `os` and `importlib`,
-and `test_weakset.py` `contextlib`, which imports `os`. **A traceback is still a
+`test.pickletester`, and `test_reprlib.py` `annotationlib` and `importlib`;
+`test_weakset.py` runs since phase 25. **A traceback is still a
 string**, so the exception-group tests that read `__traceback__` error, as does
 `staticmethod.__annotations__` (phase 27). **A `mappingproxy` over a mapping
 written in Python** reads it through slots, which cannot call it. And
@@ -337,7 +343,7 @@ edited. **A buffer is copied before it is matched**, where CPython pins it, so
 `test_re.py`'s `test_keep_buffer` fails: nothing here counts exports of a
 `bytearray`, and a memoryview does not pin one either. **`test_re.py`'s
 `test_pickling` waits for `pickle`.** **`difflib.unified_diff` waits for
-`_colorize`**, which imports `os` (phase 25) and `dataclasses` (phase 27).
+`_colorize`**, which imports `dataclasses` (phase 27).
 **`test_fractions.py` stops at `decimal`** (phase 26), and **`test_json/`**, a
 package of tests, wants `import_helper.import_fresh_module`, `doctest` and `os`
 (phase 27). **`json` has no `_json`**, which CPython allows for, so a
@@ -347,28 +353,37 @@ does: `hash()` now agrees with CPython's numeric hash, modulo 2³¹ − 1 as
 `sys.hash_info` says, but `py_hash` cannot call a `__hash__` written in
 Python, so `{0.5: 1}[Fraction(1, 2)]` misses where CPython hits.
 
-### Phase 25 — `io`, `os`, and the file system
-
-Where ground rule 1 meets the library: every read and write is a `Req`, so the
-whole of `io` is continuations.
-
-- [ ] `open()` and the three layers — `RawIOBase` over Braam's descriptors,
-      `BufferedReader`/`BufferedWriter`, and `TextIOWrapper` with its codec
-      (phase 21) and its newline translation. Native `_io`, or `_pyio.py`
-      verbatim over a native floor: decide, and record why.
-- [ ] `sys.stdin`, `sys.stdout` and `sys.stderr` as real file objects, which
-      replaces the buffer the VM prints into today.
-- [ ] `os` over a native `posix`: `listdir`, `stat`, `mkdir`, `remove`,
-      `rename`, `getcwd`, `chdir`, `environ`, `urandom`; `os.path`,
-      `posixpath`, `genericpath` and `stat` verbatim.
-- [ ] What waited for `os`: `contextlib`, `fnmatch`, `glob`, `tempfile`,
-      `shutil`, `pathlib`, `random` (`from os import urandom`), `pprint` and
-      `shlex` (`io`), `csv` over a native `_csv`, and `gettext`.
-- [ ] `signal` over `sig_catch`, and what `KeyboardInterrupt` means once a
-      program can install a handler of its own.
-
-Tests: `test_io.py`, `test_fileio.py`, `test_os.py`, `test_posixpath.py`,
-`test_pathlib/`, `test_tempfile.py`, `test_contextlib.py`, `test_random.py`.
+Phase 25 left ten. **`_io` is native**, and `_pyio.py` is here only as the
+module `test_memoryio.py` and its kind import beside it. `_pyio` could not be
+the floor: it opens by importing `io`, which is `from _io import ...`, so a
+native `_io` had to exist either way; and every `print` would have run
+`TextIOWrapper`'s Python. The native one
+is CPython's C in behaviour, with every layer a continuation. **The store gives
+a file one writer or any number of readers**, so an open can be refused where
+POSIX would allow it; the refusal collects, runs the finalizers it owes and
+tries once more, which covers a file the program dropped, and
+`test_fileio.py`'s two second opens still fail. **A removed file is gone at
+once**, even open, so `O_TMPFILE` is how `TemporaryFile` works and anything
+else that unlinks an open file loses it. **There is no inode, mode or owner**:
+`st_ino` is a hash of the path, `chmod` and `chown` only check that the path
+is there, and `utime` with no times touches the file and with times only
+checks it, the store having no setter. **`os.environ` is the process's
+own copy**, so a change reaches no child, there being no `subprocess`
+either. **`shutil.disk_usage` waits for a `statvfs`** the store does not offer.
+**`genericpath` imported before `os` is a circular import**, because CPython's
+startup imports `os` and this one does not; importing it would cost every run
+up to 35 ms under the harness, so `test_genericpath.py` stops there. **A str or
+bytes seed waits for `hashlib`** (phase 26), which `random.py` puts it
+through.
+**Seven of the plan's tests wait**: `test_io/` and `test_os/` are packages
+whose other files import relatively or want `asyncio`, `socket` and
+`subprocess`, and of their files `test_file.py`, `test_fileio.py` and
+`test_univnewlines.py` run while `test_memoryio.py` and
+`test_pathlib/test_pathlib.py` stop at `pickle`, `test_posix.py` at
+`script_helper`, `test_posixpath.py` at `inspect`, `test_random.py` at
+`unittest.mock`, `test_tempfile.py` at `subprocess` and `test_contextlib.py`
+at `threading`. And **`contextlib`'s decorator form imports `inspect`**
+(phase 27), as `pprint`'s tests import `dataclasses`.
 
 ### Phase 26 — the library, second wave
 
@@ -418,7 +433,9 @@ Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
 deferred — `test_coroutines.py`, `test_asyncgen.py`, `test_patma.py`,
 `test_grammar.py`, `test_type_params.py`, `test_collections.py`,
 `test_functools.py`, `test_enum.py`, `test_itertools.py`, `test_syntax.py`,
-and `test_json/` with the `load_tests` protocol and `import_fresh_module`.
+`test_posixpath.py`, `test_random.py`, `test_shlex.py`, `test_shutil.py`,
+`test_pprint.py`, and `test_json/` and `test_io/` with the `load_tests`
+protocol and `import_fresh_module`.
 
 ### Phase 28 — `asyncio`
 
@@ -435,7 +452,8 @@ Braam already *is* an event loop.
 - [ ] `contextvars.py` over phase 22's `_contextvars`, and the context each
       task runs in.
 
-Tests: the `asyncio` suite as far as it reaches.
+Tests: the `asyncio` suite as far as it reaches, and `test_contextlib.py`,
+which imports `threading`.
 
 ### Phase 29 — the REPL
 

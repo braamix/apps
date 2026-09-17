@@ -20,12 +20,12 @@ math(EXPR BRAAM_BIN_INITIAL_BYTES "${BRAAM_BIN_INITIAL_PAGES} * 65536")
 # Sources arrive a phase at a time; TODO.md names them.
 braam_add_program(NAME python
                   SOURCES abc.cpp arraymod.cpp astdump.cpp atexitmod.cpp attr.cpp bigint.cpp binfmt.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp codec.cpp codecsmod.cpp
-                          code.cpp collmod.cpp compare.cpp compile.cpp ctxvars.cpp complex.cpp
+                          code.cpp collmod.cpp compare.cpp compile.cpp csvmod.cpp ctxvars.cpp complex.cpp
                           dis.cpp egroup.cpp err.cpp exc.cpp float.cpp flocals.cpp format.cpp formatgr.cpp frame.cpp func.cpp functoolsmod.cpp gc.cpp
-                          gen.cpp genalias.cpp import.cpp info.cpp int.cpp
+                          gen.cpp genalias.cpp import.cpp info.cpp int.cpp iobase.cpp iobuf.cpp iofile.cpp iomem.cpp iotext.cpp
                           intern.cpp iter.cpp itermod.cpp lazy.cpp lex.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
-                          mathmod.cpp miscmod.cpp module.cpp obj.cpp objmeth.cpp opmod.cpp ops.cpp parse.cpp patma.cpp
-                          randmod.cpp range.cpp repr.cpp selftest.cpp sentinel.cpp seqmeth.cpp slotmeth.cpp sre.cpp sremod.cpp str.cpp stringmod.cpp strmeth.cpp structmod.cpp symtab.cpp
+                          mathmod.cpp miscmod.cpp module.cpp posixmod.cpp obj.cpp objmeth.cpp opmod.cpp ops.cpp parse.cpp patma.cpp
+                          randmod.cpp range.cpp repr.cpp selftest.cpp sentinel.cpp signalmod.cpp seqmeth.cpp slotmeth.cpp sre.cpp sremod.cpp str.cpp stringmod.cpp strmeth.cpp structmod.cpp symtab.cpp
                           sysmod.cpp table.cpp templatelib.cpp thread.cpp tuple.cpp type.cpp typesmod.cpp typevar.cpp ucd.cpp ucddb.cpp unimod.cpp union.cpp weak.cpp
                           vm.cpp warnmod.cpp
                   LIBS braam::math)

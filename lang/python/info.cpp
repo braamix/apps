@@ -64,14 +64,18 @@ R info_getitem(Value v, Value key, Value &out)
 
 R info_getattr(Value v, StrObj *name, Value &out)
 {
+    // The hidden fields first: os.stat_result shows st_atime as an int at
+    // index 7 and answers it by name as a float.
     TupleObj *n = names_of(v);
     u32 shown   = items_of(v)->len;
-    for (u32 i = 0; i < n->len; i++)
-        if (str_of(n->items()[i])->str() == name->str()) {
-            out = i < shown ? items_of(v)->items()[i]
-                            : static_cast<TupleObj *>(info_of(v)->hidden.obj())->items()[i - shown];
-            return R::Ok;
-        }
+    for (u32 pass = 0; pass < 2; pass++)
+        for (u32 i = pass ? 0 : shown; i < (pass ? shown : n->len); i++)
+            if (str_of(n->items()[i])->str() == name->str()) {
+                out = i < shown
+                          ? items_of(v)->items()[i]
+                          : static_cast<TupleObj *>(info_of(v)->hidden.obj())->items()[i - shown];
+                return R::Ok;
+            }
     return R::NotImpl;
 }
 

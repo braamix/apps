@@ -212,7 +212,25 @@ R m_hex(const CallArgs &a, Value &out)
     } else if (isnan(v) || isinf(v)) {
         text = fmt_f64(tmp, sizeof tmp, v, -1, 'f');
     } else {
-        text = fmt_f64(tmp, sizeof tmp, v, 13, 'a');
+        // From the bits, as CPython lays it out: a subnormal is 0x0.…p-1022.
+        u64 bits = 0;
+        for (usize i = 0; i < sizeof v; i++)
+            bits |= u64(reinterpret_cast<const u8 *>(&v)[i]) << (8 * i);
+        i32 field = i32((bits >> 52) & 0x7ff);
+        u64 frac  = bits & ((u64(1) << 52) - 1);
+        i32 e     = field ? field - 1023 : -1022;
+        Buf<32> b;
+        if (bits >> 63)
+            b.put('-');
+        b.put("0x").put(field ? '1' : '0').put('.');
+        constexpr char DIGITS[] = "0123456789abcdef";
+        for (i32 i = 12; i >= 0; i--)
+            b.put(DIGITS[(frac >> (4 * i)) & 0xf]);
+        b.put('p').put(e < 0 ? '-' : '+').put(u32(e < 0 ? -e : e));
+        usize n = b.str().size() < sizeof tmp ? b.str().size() : sizeof tmp;
+        for (usize i = 0; i < n; i++)
+            tmp[i] = b.str()[i];
+        text = Str(tmp, n);
     }
     out = str_new(text);
     return out.is_nil() ? R::Err : R::Ok;

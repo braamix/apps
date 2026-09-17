@@ -83,6 +83,33 @@ TupleObj *args_of(Value v)
 
 R unierr_str(Value v, UniKind kind, String &out);
 
+// "[Errno 2] No such file or directory: 'x'"; NotImpl where the arguments
+// were not an errno and a message.
+R oserror_str(Value v, String &out)
+{
+    Root rv{ v };
+    ExcObj *e = static_cast<ExcObj *>(v.obj());
+    Value no = e->uni[OS_ERRNO], text = e->uni[OS_STRERROR];
+    Value f1 = e->uni[OS_FILENAME], f2 = e->uni[OS_FILENAME2];
+    if (f1.is_nil() && (no.is_nil() || text.is_nil()))
+        return R::NotImpl;
+    if (!out.append("[Errno "))
+        return oom();
+    Root rn{ no }, rt{ text }, r1{ f1 }, r2{ f2 };
+    if (py_str(rn.v.is_nil() ? value_none() : rn.v, out) != R::Ok || !out.append("] ") ||
+        py_str(rt.v.is_nil() ? value_none() : rt.v, out) != R::Ok)
+        return R::Err;
+    if (r1.v.is_nil())
+        return R::Ok;
+    if (!out.append(": ") || py_repr(r1.v, out) != R::Ok)
+        return R::Err;
+    if (r2.v.is_nil())
+        return R::Ok;
+    if (!out.append(" -> ") || py_repr(r2.v, out) != R::Ok)
+        return R::Err;
+    return R::Ok;
+}
+
 // "'str' object cannot be interpreted as an integer"
 R not_index(Value v)
 {
@@ -161,6 +188,11 @@ R exc_str(Value v, String &out)
     UniKind uk = unierr_kind(v);
     if (uk != UniKind::None)
         return unierr_str(v, uk, out);
+    if (is_oserror(v)) {
+        R r = oserror_str(v, out);
+        if (r != R::NotImpl)
+            return r;
+    }
     if (a->len == 0)
         return R::Ok;
     if (TupleObj *d = syntax_details(v)) {
@@ -254,10 +286,17 @@ R exc_getattr(Value v, StrObj *name, Value &out)
         out = n == "message" ? e->msg : e->excs;
         return R::Ok;
     }
-    if (n == "errno" && exc_is(e->t, exc_find("OSError"))) {
-        TupleObj *a = args_of(v);
-        out         = a->len ? a->items()[0] : value_none();
-        return R::Ok;
+    if (is_oserror(v)) {
+        constexpr Str FIELDS[] = { "errno", "strerror", "filename", "filename2" };
+        for (u32 k = 0; k < 4; k++)
+            if (n == FIELDS[k]) {
+                out = e->uni[k].is_nil() ? value_none() : e->uni[k];
+                return R::Ok;
+            }
+        if (n == "characters_written" && !e->uni[OS_WRITTEN].is_nil()) {
+            out = e->uni[OS_WRITTEN];
+            return R::Ok;
+        }
     }
     return R::NotImpl;
 }
@@ -274,6 +313,8 @@ R b_exc_init(const CallArgs &a, Value &out)
         args->items()[i - 1] = a.args[i];
     static_cast<ExcObj *>(a.args[0].obj())->args = obj_value(args);
     if (unierr_kind(a.args[0]) != UniKind::None && !unierr_init(a.args[0], obj_value(args)))
+        return R::Err;
+    if (is_oserror(a.args[0]) && !oserror_init(a.args[0]))
         return R::Err;
     out = value_none();
     return R::Ok;
@@ -415,6 +456,8 @@ R unierr_store(Value e, Str name, Value v)
 {
     constexpr Str NAMES[] = { "encoding", "object", "start", "end", "reason" };
     UniKind kind          = unierr_kind(e);
+    if (kind == UniKind::None)
+        return R::NotImpl;
     for (u32 k = 0; k < 5; k++) {
         if (name != NAMES[k] || (k == UNI_ENCODING && kind == UniKind::Translate))
             continue;
@@ -603,10 +646,25 @@ Value exc_construct(Value cls, Value args)
 {
     if (is_egroup_type(cls))
         return egroup_new(cls, args);
-    Root made{ exc_inst(cls, args) };
+    Root rc{ cls }, ra{ args };
+    // OSError(2, ...) is a FileNotFoundError: the number picks the class, for
+    // OSError itself and nothing derived from it.
+    const ExcType *os = &EXC_TABLE[21];
+    if (!type_obj(rc.v)->heap && type_obj(rc.v)->exc == os) {
+        TupleObj *t = static_cast<TupleObj *>(ra.v.obj());
+        i64 code    = 0;
+        if (t->len >= 2 && t->len <= 5 && as_index(t->items()[0], code) && oserror_for(code) != os) {
+            rc = exc_type_value(oserror_for(code));
+            if (rc.v.is_nil())
+                return Value();
+        }
+    }
+    Root made{ exc_inst(rc.v, ra.v) };
     // A class of the program's own is checked by the __init__ it reaches.
-    if (!made.v.is_nil() && unierr_kind(made.v) != UniKind::None && !type_obj(cls)->heap &&
+    if (!made.v.is_nil() && unierr_kind(made.v) != UniKind::None && !type_obj(rc.v)->heap &&
         !unierr_init(made.v, static_cast<ExcObj *>(made.v.obj())->args))
+        return Value();
+    if (!made.v.is_nil() && is_oserror(made.v) && !oserror_init(made.v))
         return Value();
     return made.v;
 }
@@ -761,4 +819,171 @@ bool exc_line(Value e, String &out)
 R exc_type_invoke(Value type, const CallArgs &a, Value &out)
 {
     return exc_type_call(a, out, type);
+}
+
+// ------------------------------------------------------------------ OSError
+
+bool is_oserror(Value v)
+{
+    return is_exc(v) && exc_is(exc_type_of(v), &EXC_TABLE[21]);
+}
+
+const ExcType *oserror_for(i64 code)
+{
+    struct Pick {
+        i64 code;
+        Str name;
+    };
+    constexpr Pick PICKS[] = {
+        { 11, "BlockingIOError" },         { 114, "BlockingIOError" },
+        { 115, "BlockingIOError" },        { 10, "ChildProcessError" },
+        { 32, "BrokenPipeError" },         { 108, "BrokenPipeError" },
+        { 103, "ConnectionAbortedError" }, { 111, "ConnectionRefusedError" },
+        { 104, "ConnectionResetError" },   { 17, "FileExistsError" },
+        { 2, "FileNotFoundError" },        { 21, "IsADirectoryError" },
+        { 20, "NotADirectoryError" },      { 4, "InterruptedError" },
+        { 13, "PermissionError" },         { 1, "PermissionError" },
+        { 3, "ProcessLookupError" },       { 110, "TimeoutError" },
+    };
+    for (const Pick &p : PICKS)
+        if (p.code == code)
+            return exc_find(p.name);
+    return &EXC_TABLE[21];
+}
+
+bool oserror_init(Value e)
+{
+    ExcObj *o = static_cast<ExcObj *>(e.obj());
+    for (Value &f : o->uni)
+        f = Value();
+    TupleObj *a = args_of(e);
+    if (a->len < 2 || a->len > 5)
+        return true;
+    Value f1 = a->len > 2 ? a->items()[2] : Value();
+    Value f2 = a->len > 4 ? a->items()[4] : Value();
+    o->uni[OS_ERRNO]    = a->items()[0];
+    o->uni[OS_STRERROR] = a->items()[1];
+    if (f1.is_nil() || is_none(f1))
+        return true;
+    // BlockingIOError's third argument is what was written, when it is a number.
+    bool blocking = o->t == exc_find("BlockingIOError") && !type_obj(o->cls)->heap;
+    i64 n         = 0;
+    if (blocking && (as_index(f1, n) || is_float(f1))) {
+        if (!as_index(f1, n))
+            return err_set("TypeError", "an integer is required"), false;
+        o->uni[OS_WRITTEN] = f1;
+        return true;
+    }
+    o->uni[OS_FILENAME] = f1;
+    if (!f2.is_nil() && !is_none(f2))
+        o->uni[OS_FILENAME2] = f2;
+    Root re{ e };
+    TupleObj *two = tuple_new(2);
+    if (!two)
+        return oom(), false;
+    TupleObj *had  = args_of(re.v);
+    two->items()[0] = had->items()[0];
+    two->items()[1] = had->items()[1];
+    static_cast<ExcObj *>(re.v.obj())->args = obj_value(two);
+    return true;
+}
+
+R oserror_store(Value e, Str name, Value v)
+{
+    constexpr Str FIELDS[] = { "errno", "strerror", "filename", "filename2" };
+    ExcObj *o              = static_cast<ExcObj *>(e.obj());
+    for (u32 k = 0; k < 4; k++)
+        if (name == FIELDS[k]) {
+            o->uni[k] = v.is_nil() || is_none(v) ? Value() : v;
+            return R::Ok;
+        }
+    if (name != "characters_written" || o->t != exc_find("BlockingIOError"))
+        return R::NotImpl;
+    if (v.is_nil()) {
+        if (o->uni[OS_WRITTEN].is_nil())
+            return err_set("AttributeError", "characters_written");
+        o->uni[OS_WRITTEN] = Value();
+        return R::Ok;
+    }
+    i64 n = 0;
+    if (!as_index(v, n))
+        return not_index(v);
+    o->uni[OS_WRITTEN] = v;
+    return R::Ok;
+}
+
+i32 errno_of(Error e)
+{
+    switch (e) {
+    case Error::Invalid:
+        return 22;
+    case Error::NoMemory:
+        return 12;
+    case Error::NotFound:
+        return 2;
+    case Error::Exists:
+        return 17;
+    case Error::NotDir:
+        return 20;
+    case Error::IsDir:
+        return 21;
+    case Error::Perm:
+        return 13;
+    case Error::Io:
+        return 5;
+    case Error::Cancelled:
+        return 125;
+    case Error::Again:
+        return 11;
+    case Error::Unsupported:
+        return 95;
+    case Error::Closed:
+        return 32;
+    case Error::NotEmpty:
+        return 39;
+    case Error::Loop:
+        return 40;
+    case Error::Intr:
+        return 4;
+    }
+    return 5;
+}
+
+R err_errno(i32 code, Value f1, Value f2)
+{
+    Root r1{ f1 }, r2{ f2 };
+    Str text = errno_text(code);
+    Buf<32> unknown;
+    if (text.empty()) {
+        char tmp[24];
+        unknown.put("Unknown error ").put(int_text(tmp, sizeof tmp, code));
+        text = unknown.str();
+    }
+    Root msg{ str_new(text) };
+    if (msg.v.is_nil())
+        return R::Err;
+    u32 n       = r2.v.is_nil() ? (r1.v.is_nil() ? 2 : 3) : 5;
+    TupleObj *t = tuple_new(n);
+    if (!t)
+        return oom();
+    Value *it = t->items();
+    it[0]     = Value::of_int(code);
+    it[1]     = msg.v;
+    if (n > 2)
+        it[2] = r1.v;
+    if (n > 3) {
+        it[3] = value_none();
+        it[4] = r2.v;
+    }
+    Root rt{ obj_value(t) };
+    Root cls{ exc_type_value(oserror_for(code)) };
+    if (cls.v.is_nil())
+        return R::Err;
+    Value e = exc_construct(cls.v, rt.v);
+    return e.is_nil() ? R::Err : err_set_value(e);
+}
+
+R err_os(Error e, Value f1, Value f2)
+{
+    return err_errno(errno_of(e), f1, f2);
 }

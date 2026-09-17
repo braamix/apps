@@ -1,9 +1,9 @@
 // `sys`: the interpreter looking at itself.
 //
-// Two things here are not just tables. The three standard streams are real
-// objects a program may replace, so print asks sys_write where its text goes
-// and hands back a continuation when the answer is a write() of the program's
-// own; and the named tuples -- version_info, float_info, flags -- are one
+// Two things here are not just tables. The three standard streams are _io's
+// own objects, which a program may replace, so print asks sys_write where its
+// text goes and hands back a continuation when the answer is a write() of the
+// program's own; and the named tuples -- version_info, float_info, flags -- are one
 // struct-sequence type repeated under different names, so `sys.version_info >=
 // (3, 0)` compares against a plain tuple the way CPython's does.
 #include "bigint.h"
@@ -15,6 +15,7 @@
 #include "import.h"
 #include "info.h"
 #include "intern.h"
+#include "io.h"
 #include "iter.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
@@ -23,6 +24,7 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "posix.h"
 #include "type.h"
 #include "ustr.h"
 #include "vm.h"
@@ -38,7 +40,7 @@ R oom()
 // block the collector is told about.
 struct Home {
     Value argv;
-    Value in, out, err; // the StdObj each of the three descriptors started as
+    Value in, out, err; // the stream each of the three descriptors started as
     bool tty_in, tty_out, tty_err;
 };
 
@@ -121,225 +123,27 @@ Value fields_new(const Type *t, const Field *fs, usize n, usize shown)
 
 // ---------------------------------------------------------- the three streams
 
-// One of sys.stdin, sys.stdout and sys.stderr. There is no io layer until
-// phase 25, so a write goes straight into the buffer the VM flushes and a read
-// is refused: nothing here can park on a descriptor.
-struct StdObj : Obj {
-    Value name; // "<stdout>"
-    i32 fd;
-    bool writable;
-};
-
-StdObj *std_of(Value v)
+// _io's own layers over descriptors 0, 1 and 2: a FileIO, a buffer that
+// writes straight through, and a TextIOWrapper in UTF-8 mode.
+Value std_new(Str name, i32 fd)
 {
-    return static_cast<StdObj *>(v.obj());
-}
-
-void std_trace(Obj *o)
-{
-    gc_mark(static_cast<StdObj *>(o)->name);
-}
-
-R std_repr(Value v, String &out)
-{
-    Buf<96> b;
-    b.put("<_io.TextIOWrapper name='").put(str_of(std_of(v)->name)->str());
-    b.put("' mode='").put(std_of(v)->writable ? Str("w") : Str("r")).put("' encoding='utf-8'>");
-    return out.append(b.str()) ? R::Ok : oom();
-}
-
-extern const Type std_type;
-
-bool is_std(Value v)
-{
-    return v.is_obj() && v.obj()->type == &std_type;
-}
-
-bool std_tty(const StdObj *s)
-{
-    Home *h = here();
-    if (!h)
-        return false;
-    return s->fd == SYS_STDIN ? h->tty_in : s->fd == SYS_STDOUT ? h->tty_out : h->tty_err;
-}
-
-String *buffer_for(const StdObj *s)
-{
-    return s->fd == SYS_STDERR ? vm_errout() : vm_out();
-}
-
-// Text into a stream's buffer. stdout is surrogateescape, so a surrogate it
-// cannot escape is a UnicodeEncodeError here, at the write, as in CPython;
-// stderr's backslashreplace is applied when the buffer goes out.
-bool std_put(const StdObj *s, Str text)
-{
-    String *sink = buffer_for(s);
-    if (!sink)
-        return true;
-    if (s->fd == SYS_STDERR || !has_surrogate(text))
-        return sink->append(text) || oom() == R::Ok;
-    String b;
-    return std_encode(text, true, b) && (sink->append(b.str()) || oom() == R::Ok);
-}
-
-R std_write(const CallArgs &a, Value &out)
-{
-    if (!meth_args(a, "write", 1, 1))
-        return R::Err;
-    StdObj *s = std_of(method_self(a.args[0]));
-    if (!s->writable)
-        return err_set("OSError", "not writable");
-    if (!is_str(a.args[1]))
-        return err_set2("TypeError", "write() argument must be str", type_name(a.args[1]));
-    StrObj *text = str_of(a.args[1]);
-    if (!std_put(s, text->str()))
-        return R::Err;
-    out = Value::of_int(i32(text->chars));
-    return R::Ok;
-}
-
-R std_writelines(const CallArgs &a, Value &out)
-{
-    if (!meth_args(a, "writelines", 1, 1))
-        return R::Err;
-    StdObj *s = std_of(method_self(a.args[0]));
-    if (!s->writable)
-        return err_set("OSError", "not writable");
-    Root it{ py_iter(a.args[1]) };
-    if (it.v.is_nil())
-        return R::Err;
-    for (;;) {
-        Root got;
-        R r = py_next(it.v, got.v);
-        if (r == R::Err)
-            return R::Err;
-        if (r == R::NotImpl)
-            break;
-        if (!is_str(got.v))
-            return err_set2("TypeError", "writelines() wants str", type_name(got.v));
-        if (!std_put(std_of(method_self(a.args[0])), str_of(got.v)->str()))
-            return R::Err;
-    }
-    out = value_none();
-    return R::Ok;
-}
-
-R std_flush(const CallArgs &a, Value &out)
-{
-    // The VM decides when a buffer goes out; there is nothing to force here.
-    if (!meth_args(a, "flush", 0, 0))
-        return R::Err;
-    out = value_none();
-    return R::Ok;
-}
-
-R std_isatty(const CallArgs &a, Value &out)
-{
-    if (!meth_args(a, "isatty", 0, 0))
-        return R::Err;
-    out = value_bool(std_tty(std_of(method_self(a.args[0]))));
-    return R::Ok;
-}
-
-R std_fileno(const CallArgs &a, Value &out)
-{
-    if (!meth_args(a, "fileno", 0, 0))
-        return R::Err;
-    out = Value::of_int(std_of(method_self(a.args[0]))->fd);
-    return R::Ok;
-}
-
-R std_readable(const CallArgs &a, Value &out)
-{
-    if (!meth_args(a, "readable", 0, 0))
-        return R::Err;
-    out = value_bool(!std_of(method_self(a.args[0]))->writable);
-    return R::Ok;
-}
-
-R std_writable(const CallArgs &a, Value &out)
-{
-    if (!meth_args(a, "writable", 0, 0))
-        return R::Err;
-    out = value_bool(std_of(method_self(a.args[0]))->writable);
-    return R::Ok;
-}
-
-R std_seekable(const CallArgs &a, Value &out)
-{
-    if (!meth_args(a, "seekable", 0, 0))
-        return R::Err;
-    out = value_bool(false);
-    return R::Ok;
-}
-
-R std_close(const CallArgs &a, Value &out)
-{
-    // Closing a standard stream is a no-op here: the descriptor is the
-    // process's own and the driver owns it.
-    if (!meth_args(a, "close", 0, 0))
-        return R::Err;
-    out = value_none();
-    return R::Ok;
-}
-
-// Reading a descriptor needs a Req the VM has not got -- ReqKind::Read names a
-// path, not an fd -- so stdin refuses rather than pretending to be empty.
-// Phase 25 is where it becomes a file.
-R std_read(const CallArgs &a, Value &out)
-{
-    (void)a;
-    (void)out;
-    return err_set("OSError", "reading sys.stdin needs the io layer");
-}
-
-R std_getattr(Value v, StrObj *name, Value &out)
-{
-    StdObj *s = std_of(v);
-    Str n     = name->str();
-    if (n == "name")
-        out = s->name;
-    else if (n == "mode")
-        out = str_new(s->writable ? Str("w") : Str("r"));
-    else if (n == "encoding")
-        out = str_new("utf-8");
-    else if (n == "errors")
-        out = str_new(s->fd == SYS_STDERR ? Str("backslashreplace") : Str("surrogateescape"));
-    else if (n == "newlines")
-        out = value_none();
-    else if (n == "closed")
-        out = value_bool(false);
-    else if (n == "line_buffering")
-        out = value_bool(std_tty(s));
-    else
-        return R::NotImpl;
-    return out.is_nil() ? R::Err : R::Ok;
-}
-
-constexpr Method STD_METHODS[] = {
-    { "write", std_write },       { "writelines", std_writelines }, { "flush", std_flush },
-    { "isatty", std_isatty },     { "fileno", std_fileno },         { "readable", std_readable },
-    { "writable", std_writable }, { "seekable", std_seekable },     { "close", std_close },
-    { "read", std_read },         { "readline", std_read },         { "readlines", std_read },
-};
-
-constexpr Type std_type{ .name    = "TextIOWrapper",
-                         .trace   = std_trace,
-                         .repr    = std_repr,
-                         .getattr = std_getattr };
-
-Value std_new(Str name, i32 fd, bool writable)
-{
+    bool writable = fd != SYS_STDIN;
+    Root raw{ fileio_std(fd, writable) };
     Root rn{ str_new(name) };
-    if (rn.v.is_nil())
+    Root mode{ str_new(writable ? Str("w") : Str("r")) };
+    if (raw.v.is_nil() || rn.v.is_nil() || mode.v.is_nil())
         return Value();
-    StdObj *o = static_cast<StdObj *>(obj_alloc(&std_type, sizeof(StdObj)));
-    if (!o)
-        return oom(), Value();
-    o->name     = rn.v;
-    o->fd       = fd;
-    o->writable = writable;
-    return obj_value(o);
+    StrObj *nk = str_intern("name");
+    StrObj *mk = str_intern("mode");
+    if (!nk || !mk || io_dict_set(raw.v, nk, rn.v) != R::Ok)
+        return err_pending() ? Value() : (oom(), Value());
+    Root buf{ buffered_std(raw.v, writable) };
+    if (buf.v.is_nil())
+        return Value();
+    Root text{ textio_std(buf.v, fd) };
+    if (text.v.is_nil() || io_dict_set(text.v, mk, mode.v) != R::Ok)
+        return Value();
+    return text.v;
 }
 
 // ------------------------------------------------------------- the functions
@@ -488,6 +292,36 @@ R b_getfilesystemencoding(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+R b_getfilesystemencodeerrors(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "getfilesystemencodeerrors", 0, 0))
+        return R::Err;
+    out = str_new("surrogateescape");
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// There are no audit hooks here: an event is raised and nobody hears it.
+R b_audit(const CallArgs &a, Value &out)
+{
+    if (a.nkw)
+        return err_set("TypeError", "audit() takes no keyword arguments");
+    if (!a.nargs)
+        return err_set("TypeError", "audit() missing 1 required positional argument: 'event'");
+    if (!is_str(a.args[0]))
+        return err_set2("TypeError", "expected str for argument 'event', not",
+                        type_name(a.args[0]));
+    out = value_none();
+    return R::Ok;
+}
+
+R b_addaudithook(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "addaudithook", 1, 1))
+        return R::Err;
+    out = value_none();
+    return R::Ok;
+}
+
 R b_is_finalizing(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "is_finalizing", 0, 0))
@@ -508,6 +342,9 @@ constexpr ModDef SYS_DEFS[] = {
     { "getrefcount", b_getrefcount },
     { "getdefaultencoding", b_getdefaultencoding },
     { "getfilesystemencoding", b_getfilesystemencoding },
+    { "getfilesystemencodeerrors", b_getfilesystemencodeerrors },
+    { "audit", b_audit },
+    { "addaudithook", b_addaudithook },
     { "is_finalizing", b_is_finalizing },
 };
 
@@ -604,6 +441,15 @@ void sys_set_argv(Value argv)
         h->argv = argv;
 }
 
+bool sys_tty(i32 fd, bool &known)
+{
+    Home *h = here();
+    known   = h && fd >= 0 && fd <= 2;
+    if (!known)
+        return false;
+    return fd == 0 ? h->tty_in : fd == 1 ? h->tty_out : h->tty_err;
+}
+
 void sys_set_tty(bool in, bool out, bool err)
 {
     Home *h = here();
@@ -612,23 +458,37 @@ void sys_set_tty(bool in, bool out, bool err)
     h->tty_in  = in;
     h->tty_out = out;
     h->tty_err = err;
+    // A stream made before this was known is told now.
+    if (!h->in.is_nil())
+        textio_set_line_buffering(h->in, in);
+    if (!h->out.is_nil())
+        textio_set_line_buffering(h->out, out);
 }
 
 namespace {
 
-// The write() of a stream the program put in sys.stdout: one call, and the
-// answer is None whatever it returned.
+// The write() of a stream the program put in sys.stdout: one call a piece, s[1]
+// being a tuple of them, and the answer is None whatever it returned.
 R write_step(ContObj *k, Value in)
 {
     (void)in;
+    TupleObj *t = static_cast<TupleObj *>(k->s[1].obj());
+    if (k->i < t->len)
+        return cont_call(k, k->s[0], t->items()[k->i++]);
+    return cont_done(k, value_none());
+}
+
+// s[0] a continuation whose answer is dropped.
+R discard_step(ContObj *k, Value)
+{
     if (k->i++ == 0)
-        return cont_call(k, k->s[0], k->s[1]);
+        return cont_await(k, k->s[0]);
     return cont_done(k, value_none());
 }
 
 } // namespace
 
-R sys_write(Value file, Str text, Value &out)
+R sys_write(Value file, Str text, Value &out, Span<const usize> cuts)
 {
     out = Value();
     Root rf{ file };
@@ -650,14 +510,35 @@ R sys_write(Value file, Str text, Value &out)
             return R::Ok; // sys.stdout is None: print writes nowhere
         rf = got;
     }
-    if (is_std(rf.v))
-        return std_put(std_of(rf.v), text) ? R::Ok : R::Err;
+    R r = textio_print(rf.v, text, out);
+    if (r == R::Ok && !is_cont(out))
+        out = Value();
+    if (r == R::Ok && is_cont(out)) {
+        // What the write answers is not print's answer.
+        Root inner{ out };
+        Root kv{ cont_new(discard_step) };
+        if (kv.v.is_nil())
+            return R::Err;
+        cont_of(kv.v)->s[0] = inner.v;
+        out                 = kv.v;
+    }
+    if (r != R::NotImpl)
+        return r;
     // Something of the program's own: its write() is Python, so the caller
     // gets a continuation and the VM makes the call. What write() answers is
     // thrown away -- print's own answer is None.
-    Root rt{ str_new(text) };
-    if (rt.v.is_nil())
-        return R::Err;
+    usize parts = cuts.size() > 1 ? cuts.size() - 1 : 1;
+    TupleObj *pt = tuple_new(parts);
+    if (!pt)
+        return oom();
+    Root rt{ obj_value(pt) };
+    for (usize i = 0; i < parts; i++) {
+        Value piece = cuts.size() > 1 ? str_new(text.substr(cuts[i], cuts[i + 1] - cuts[i]))
+                                      : str_new(text);
+        if (piece.is_nil())
+            return R::Err;
+        static_cast<TupleObj *>(rt.v.obj())->items()[i] = piece;
+    }
     StrObj *w = str_intern("write");
     Root fn;
     if (!w || py_getattr(rf.v, w, fn.v) != R::Ok)
@@ -671,18 +552,32 @@ R sys_write(Value file, Str text, Value &out)
     return R::Ok;
 }
 
+Value sys_stream(Str name)
+{
+    Value m = builtin_module("sys");
+    if (m.is_nil())
+        return Value();
+    StrObj *n = str_intern(name);
+    Value got;
+    if (!n || dict_get(module_dict(m), obj_value(n), got) != R::Ok)
+        return Value();
+    return got;
+}
+
 bool sys_install(DictObj *into)
 {
     Home *h = here();
     if (!h)
         return oom() == R::Ok;
     Root rd{ obj_value(into) };
-    if (!method_install(&std_type, STD_METHODS))
-        return false;
+    // The streams are _io's, whose types have to be made first.
+    Root io{ builtin_module("_io") };
+    if (io.v.is_nil())
+        return err_pending() ? false : oom() == R::Ok;
     if (h->in.is_nil()) {
-        h->in  = std_new("<stdin>", SYS_STDIN, false);
-        h->out = std_new("<stdout>", SYS_STDOUT, true);
-        h->err = std_new("<stderr>", SYS_STDERR, true);
+        h->in  = std_new("<stdin>", SYS_STDIN);
+        h->out = std_new("<stdout>", SYS_STDOUT);
+        h->err = std_new("<stderr>", SYS_STDERR);
         if (h->in.is_nil() || h->out.is_nil() || h->err.is_nil())
             return false;
     }
@@ -713,7 +608,10 @@ bool sys_install(DictObj *into)
 
     if (!mod_str(d, "version", "3.14.0 (braam)") || !mod_str(d, "platform", "braam") ||
         !mod_str(d, "byteorder", "little") || !mod_str(d, "executable", "") ||
-        !mod_str(d, "prefix", "/pkg") || !mod_str(d, "exec_prefix", "/pkg"))
+        !mod_str(d, "prefix", "/pkg") || !mod_str(d, "exec_prefix", "/pkg") ||
+        !mod_str(d, "base_prefix", "/pkg") || !mod_str(d, "base_exec_prefix", "/pkg") ||
+        !mod_str(d, "platlibdir", "lib") || !mod_str(d, "float_repr_style", "short") ||
+        !mod_put(d, "pycache_prefix", value_none()))
         return false;
     if (!mod_int(d, "maxsize", 2147483647) || !mod_int(d, "maxunicode", 1114111) ||
         !mod_int(d, "hexversion", 0x030E00F0))

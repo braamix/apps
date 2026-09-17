@@ -1,0 +1,13 @@
+--- unittest ---
+ok RebindBuiltinsTests.test_cannot_change_globals_or_builtins_with_eval
+ok RebindBuiltinsTests.test_cannot_change_globals_or_builtins_with_exec
+ok RebindBuiltinsTests.test_cannot_replace_builtins_dict_between_calls
+ok RebindBuiltinsTests.test_cannot_replace_builtins_dict_while_active
+ok RebindBuiltinsTests.test_eval_gives_lambda_custom_globals
+ok RebindBuiltinsTests.test_globals_shadow_builtins
+error RebindBuiltinsTests.test_load_global_specialization_failure_keeps_oparg: TypeError: globals must be a real dict: MyGlobals
+ok RebindBuiltinsTests.test_modify_builtins
+ok RebindBuiltinsTests.test_modify_builtins_from_leaf_function
+ok RebindBuiltinsTests.test_modify_builtins_while_generator_active
+error TestTracing.test_after_specialization: setUp: AttributeError: 'module' object has no attribute 'settrace'
+--- ran 11 ok 9 fail 0 error 2 skip 0 ---

@@ -41,6 +41,7 @@ struct ContObj : Obj {
     Value caught;  // the exception `catching` swallowed
     u32 nargs;
     u32 i, j;     // counters a step keeps across its requests
+    i64 x[4];     // numbers a step keeps, where two counters are not enough
     u32 catching; // a CATCH_*: the step is resumed with Nil rather than unwound
     bool drop;    // the answer is not wanted: push nothing
     bool reading; // parked on a file read; see cont_read
@@ -150,3 +151,21 @@ R cont_read(ContObj *k, Str path);
 // Inside a step: park for `ms`, and come back with None. time.sleep is the
 // only caller, and the driver is what actually waits.
 R cont_sleep(ContObj *k, u32 ms);
+
+// Inside a step: run `cont`, a ContObj some native answered, and come back
+// with what it answers. How one continuation waits on another it made.
+R cont_await(ContObj *k, Value cont);
+
+// Inside a step: call `obj.name(args)`, with `n` of `a0` and `a1`, and come
+// back with the answer. A method that is a property or a __getattr__ is
+// fetched first.
+R cont_method(ContObj *k, Value obj, Str name, u32 n = 0, Value a0 = Value(), Value a1 = Value());
+
+// Inside a step: fetch `obj.name`, which may be a property, and come back
+// with it.
+R cont_attr(ContObj *k, Value obj, Str name);
+
+// Inside a step: make one system call, and come back with None; the answer is
+// vm_sys_answer(). The strings are copied. vm.h says what each op takes.
+struct SysReq;
+R cont_sys(ContObj *k, const SysReq &r);

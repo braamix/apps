@@ -386,6 +386,12 @@ Got inst_attr(Value v, StrObj *name, Value &out, Value &args)
     // base's attributes -- comes after the namespace. Not __class__, which
     // is the class and never the native base's.
     const Type *t = type_of(rv.v);
+    Value nat     = inst_of(rv.v)->native;
+    if (!nat.is_nil() && nat.is_obj() && nat.obj()->type->lazyattr) {
+        Got lazy = nat.obj()->type->lazyattr(nat, name, out, args);
+        if (lazy != Got::Missing)
+            return lazy;
+    }
     if (t->getattr && Str("__class__") != name->str()) {
         R g = t->getattr(rv.v, name, out);
         if (g == R::Ok)
@@ -677,6 +683,8 @@ R inst_store(Value v, StrObj *name, Value val, Value &fn)
     Str n = name->str();
     if (is_exc(rv.v)) {
         R u = unierr_store(rv.v, n, rx.v);
+        if (u == R::NotImpl && is_oserror(rv.v))
+            u = oserror_store(rv.v, n, rx.v);
         if (u != R::NotImpl)
             return u;
     }
@@ -741,6 +749,8 @@ R inst_erase(Value v, StrObj *name, Value &fn)
 
     if (is_exc(rv.v)) {
         R u = unierr_store(rv.v, name->str(), Value());
+        if (u == R::NotImpl && is_oserror(rv.v))
+            u = oserror_store(rv.v, name->str(), Value());
         if (u != R::NotImpl)
             return u;
     }

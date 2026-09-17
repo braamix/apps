@@ -1,0 +1,20 @@
+--- unittest ---
+fail CycleChainFinalizationTest.test_heterogenous_resurrect_one: AssertionError: unexpectedly None
+fail CycleChainFinalizationTest.test_heterogenous_resurrect_three: AssertionError: unexpectedly None
+fail CycleChainFinalizationTest.test_heterogenous_resurrect_two: AssertionError: unexpectedly None
+ok CycleChainFinalizationTest.test_heterogenous_suicidal_one
+ok CycleChainFinalizationTest.test_heterogenous_suicidal_two
+ok CycleChainFinalizationTest.test_homogenous
+fail CycleChainFinalizationTest.test_homogenous_resurrect: AssertionError: unexpectedly None
+ok CycleChainFinalizationTest.test_homogenous_suicidal
+skip LegacyFinalizationTest.test_legacy: implementation detail of CPython
+skip LegacyFinalizationTest.test_legacy_resurrect: implementation detail of CPython
+skip LegacyFinalizationTest.test_legacy_self_cycle: implementation detail of CPython
+ok SelfCycleFinalizationTest.test_simple
+fail SelfCycleFinalizationTest.test_simple_resurrect: AssertionError: unexpectedly None
+ok SelfCycleFinalizationTest.test_simple_suicide
+skip SimpleFinalizationTest.test_non_gc: implementation detail of CPython
+skip SimpleFinalizationTest.test_non_gc_resurrect: implementation detail of CPython
+ok SimpleFinalizationTest.test_simple
+fail SimpleFinalizationTest.test_simple_resurrect: AssertionError: unexpectedly None
+--- ran 18 ok 7 fail 6 error 0 skip 5 ---

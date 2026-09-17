@@ -38,6 +38,9 @@ Value show_special(Value v, bool want_str);
 // __format__ is written in Python; the VM lands either.
 R format_field(Value v, Str spec, u32 conv, i32 min_digits, Value &out);
 
+// float(v): a float, or a ContObj when v's __float__ is Python.
+R py_float_of(Value v, Value &out);
+
 // callable(v).
 bool py_callable(Value v);
 

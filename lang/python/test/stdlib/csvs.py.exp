@@ -1,0 +1,30 @@
+'name,note\r\n"a,b","say ""hi"""\r\n"multi\nline",\r\n1,2.5,\r\nx\r\n'
+[['name', 'note'], ['a,b', 'say "hi"'], ['multi\nline', ''], ['1', '2.5', ''], ['x']]
+1 '"a","1","2.0","",""\r\n'
+2 '"a",1,2.0,"",""\r\n'
+0 'a,1,2.0,,\r\n'
+4 '"a",1,2.0,,""\r\n'
+5 '"a","1","2.0",,""\r\n'
+'a\\,b,c\\"d\r\n'
+need to escape, but no escapechar set
+[['1', '2,3', '4']]
+[['a', 'b;c']]
+[['a', 'b']]
+[[1.0, '2', 3.0]]
+[['a', 'bc']]
+',' expected after '"'
+['a', 'b'] 1 ,
+True ;
+'"x;y";z\n'
+unknown dialect
+TypeError "delimiter" must be a unicode character, not a string of length 0
+TypeError "delimiter" must be a unicode character, not a string of length 2
+TypeError "quotechar" must be a unicode character or None, not int
+TypeError "lineterminator" must be a string, not NoneType
+'a,b\r\n1,?\r\n2,3\r\n'
+dict contains fields not in fieldnames: 'c'
+['a', 'b'] [{'a': '1', 'b': '2'}, {'a': '3', 'b': '4', 'more': ['5']}, {'a': '6', 'b': None}]
+; True
+131072 131072 10
+field larger than field limit (10)
+, 	 True

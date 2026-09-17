@@ -123,6 +123,10 @@ R any_binop(Value a, Value b, Op op, Value &out)
         if (!bytes_like(s, x) || !as_index(n, count))
             return R::NotImpl;
         String joined;
+        if (count > 0 && i64(x.size()) > (i64(1) << 31) / count)
+            return err_set("OverflowError", "repeated bytes are too long");
+        if (count > 0 && !gc_room(joined, usize(count) * x.size()))
+            return oom();
         for (i64 i = 0; i < count; i++)
             if (!joined.append(x))
                 return oom();

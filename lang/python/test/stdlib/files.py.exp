@@ -1,0 +1,47 @@
+TextIOWrapper w utf-8 True False
+8 True
+'one\n' 'two' '\n'
+True ['three\n', 'four\n', 'five']
+['one', 'two', 'three', 'four', 'five']
+['one\n', 'two\n', 'three\n']
+four
+five
+BufferedReader b'one\n' b't' b'two' 7
+21 b've' 0 b'one\n'
+23 4
+BufferedRandom b'one' 1 4
+b'one!two\n'
+5 5
+b'one!t'
+caf True 'é €\n'
+True
+x: 17 a.txt
+missing: 2 No such file or directory
+dir: 21
+closed: read of closed file
+closed: I/O operation on closed file
+closed: seek of closed file
+b'\xfcber\n'
+b'\xff\xfeh\x00i\x00\n\x00t\x00h\x00e\x00r\x00e\x00\n\x00'
+['hi\n', 'there\n']
+b'a\r\nb\r\n'
+['a\r\n', 'b\r\n']
+['a\n', 'b\n'] 
+
+ok �� end
+
+'ok \udcff\udcfe end\n'
+decode: invalid start byte 3
+rw must have exactly one of create/read/write/append mode
+rt+b can't have text and binary mode at once
+q invalid mode: 'q'
+wbb invalid mode: 'wbb'
+binary mode doesn't take an encoding argument
+can't have unbuffered text I/O
+FileIO 3 wb
+b'raw' False
+b'' 0 b'ra'
+rb True False True b'raw'
+1 b'a' 2
+3 bytearray(b'raw\x00')
+False

@@ -10,11 +10,13 @@
 #include "fs/path.h"
 #include "gc.h"
 #include "import.h"
+#include "kernel/alloc.h"
 #include "kernel/args.h"
 #include "kernel/fmt.h"
 #include "lex.h"
 #include "module.h"
 #include "parse.h"
+#include "posix.h"
 #include "proc/io.h"
 #include "proc/opt.h"
 #include "proc/rt.h"
@@ -142,6 +144,382 @@ Task<void> find_library(String &out)
     }
 }
 
+// ------------------------------------------------------------ system calls
+//
+// One coroutine per family, so that no frame carries every kind of Result
+// at once; each stays well under the 512 bytes a frame is allowed.
+
+void fail(SysAns &a, Error e)
+{
+    a.ok  = false;
+    a.err = e;
+}
+
+void set_info(SysAns &a, const FileInfo &st)
+{
+    a.ok    = true;
+    a.kind  = st.kind;
+    a.size  = st.size;
+    a.mtime = st.mtime;
+}
+
+// Whatever answers a Result<void>.
+void done_void(SysAns &a, const Result<void> &r)
+{
+    if (r.is_err())
+        fail(a, r.error());
+    else
+        a.ok = true;
+}
+
+// The files O_TMPFILE made, each removed when its descriptor closes.
+struct Hidden {
+    i32 fd;
+    String path;
+};
+Vec<Hidden> *hidden;
+
+Task<Result<i32>> open_hidden(Str dir, u32 flags)
+{
+    if (!hidden)
+        hidden = heap_new<Vec<Hidden>>();
+    if (!hidden)
+        co_return Err(Error::NoMemory);
+    flags = (flags & ~(SYS_O_HIDDEN | SYS_O_TRUNC)) | SYS_O_CREATE | SYS_O_EXCL;
+    for (u32 tries = 0;; tries++) {
+        Buf<32> leaf;
+        leaf.put(".pytmp-").put(proc_pid()).put('-').put_hex(proc_random());
+        Hidden h{ -1, String() };
+        if (path_join(dir, leaf.str(), h.path).is_err())
+            co_return Err(Error::NoMemory);
+        Result<i32> r = Err(Error::NoMemory);
+        if (Task<Result<i32>> t = open_at(h.path.str(), flags))
+            r = co_await t;
+        if (r.is_err() && r.error() == Error::Exists && tries < 16)
+            continue;
+        if (r.is_err())
+            co_return r;
+        h.fd = r.value();
+        if (!hidden->push(static_cast<Hidden &&>(h))) {
+            co_await sys_call(Sys::Close, u32(r.value()));
+            co_return Err(Error::NoMemory);
+        }
+        co_return r;
+    }
+}
+
+// The path to remove once `fd` is closed; empty when it is not one of them.
+String hidden_take(i32 fd)
+{
+    String out;
+    for (usize i = 0; hidden && i < hidden->size(); i++)
+        if ((*hidden)[i].fd == fd) {
+            out = static_cast<String &&>((*hidden)[i].path);
+            (*hidden)[i] = static_cast<Hidden &&>((*hidden)[hidden->size() - 1]);
+            hidden->pop();
+            break;
+        }
+    return out;
+}
+
+Task<void> hidden_sweep()
+{
+    while (hidden && !hidden->empty()) {
+        String p = hidden_take((*hidden)[0].fd);
+        if (Task<Result<void>> t = remove_path(p.str(), false))
+            co_await t;
+    }
+}
+
+// Every Task below is null when there was no memory for its frame.
+Task<void> sys_stream(const SysReq &q, SysAns &a)
+{
+    switch (q.op) {
+    case SysOp::Read: {
+        Result<String> r = Err(Error::NoMemory);
+        if (Task<Result<String>> t = read_some(u32(q.fd), q.max ? q.max : SYS_READ_MAX))
+            r = co_await t;
+        if (r.is_ok()) {
+            a.ok   = true;
+            a.data = static_cast<String &&>(r.value());
+        } else if (r.error() == Error::Closed) {
+            a.ok = true; // the end of input is an empty read
+        } else {
+            fail(a, r.error());
+        }
+        break;
+    }
+    case SysOp::Write: {
+        Result<void> r = Err(Error::NoMemory);
+        if (Task<Result<void>> t = write_all(u32(q.fd), q.data))
+            r = co_await t;
+        done_void(a, r);
+        a.n = i64(q.data.size());
+        break;
+    }
+    case SysOp::Open: {
+        Result<i32> r = Err(Error::NoMemory);
+        if (q.flags & SYS_O_HIDDEN) {
+            if (Task<Result<i32>> t = open_hidden(q.path, q.flags))
+                r = co_await t;
+        } else if (Task<Result<i32>> t = open_at(q.path, q.flags)) {
+            r = co_await t;
+        }
+        if (r.is_ok()) {
+            a.ok = true;
+            a.n  = r.value();
+        } else {
+            fail(a, r.error());
+        }
+        break;
+    }
+    case SysOp::Close: {
+        // close_fd says nothing; a descriptor that was not open is an error.
+        Result<SysReply> r = co_await sys_call(Sys::Close, u32(q.fd));
+        if (r.is_ok())
+            a.ok = true;
+        else
+            fail(a, r.error());
+        if (r.is_ok() && hidden) {
+            String p = hidden_take(q.fd);
+            if (!p.empty())
+                if (Task<Result<void>> t = remove_path(p.str(), false))
+                    co_await t;
+        }
+        break;
+    }
+    case SysOp::Dup: {
+        Result<u32> r = Err(Error::NoMemory);
+        if (Task<Result<u32>> t = dup_fd(u32(q.fd)))
+            r = co_await t;
+        if (r.is_ok()) {
+            a.ok = true;
+            a.n  = r.value();
+        } else {
+            fail(a, r.error());
+        }
+        break;
+    }
+    case SysOp::Pipe: {
+        Result<Piped> r = Err(Error::NoMemory);
+        if (Task<Result<Piped>> t = make_pipe())
+            r = co_await t;
+        if (r.is_ok()) {
+            a.ok  = true;
+            a.n   = r.value().r;
+            a.off = r.value().w;
+        } else {
+            fail(a, r.error());
+        }
+        break;
+    }
+    default:
+        fail(a, Error::Unsupported);
+    }
+}
+
+Task<void> sys_file(const SysReq &q, SysAns &a)
+{
+    switch (q.op) {
+    case SysOp::Seek: {
+        Result<u64> r = Err(Error::NoMemory);
+        if (Task<Result<u64>> t = seek_fd(u32(q.fd), q.off, q.whence))
+            r = co_await t;
+        if (r.is_ok()) {
+            a.ok = true;
+            a.n  = i64(r.value());
+        } else {
+            fail(a, r.error());
+        }
+        break;
+    }
+    case SysOp::Truncate: {
+        Result<void> r = Err(Error::NoMemory);
+        if (Task<Result<void>> t = truncate_fd(u32(q.fd), u64(q.off)))
+            r = co_await t;
+        done_void(a, r);
+        break;
+    }
+    case SysOp::Stat:
+    case SysOp::FStat: {
+        Result<FileInfo> r = Err(Error::NoMemory);
+        if (q.op == SysOp::Stat) {
+            if (Task<Result<FileInfo>> t = stat_of(q.path, q.follow))
+                r = co_await t;
+        } else if (Task<Result<FileInfo>> t = stat_fd(u32(q.fd))) {
+            r = co_await t;
+        }
+        if (r.is_ok())
+            set_info(a, r.value());
+        else
+            fail(a, r.error());
+        break;
+    }
+    case SysOp::Tty: {
+        Result<TtyInfo> r = Err(Error::NoMemory);
+        if (Task<Result<TtyInfo>> t = tty_of(u32(q.fd)))
+            r = co_await t;
+        if (r.is_ok()) {
+            a.ok   = true;
+            a.n    = r.value().console ? 1 : 0;
+            a.kind = r.value().at.cols;
+            a.size = r.value().at.rows;
+        } else {
+            fail(a, r.error());
+        }
+        break;
+    }
+    case SysOp::SigCatch: {
+        Result<void> r = Err(Error::NoMemory);
+        if (Task<Result<void>> t = sig_catch(u32(q.fd), q.flags != 0))
+            r = co_await t;
+        done_void(a, r);
+        break;
+    }
+    case SysOp::Kill: {
+        Result<void> r = Err(Error::NoMemory);
+        if (Task<Result<void>> t = kill_child(u32(q.fd), q.flags))
+            r = co_await t;
+        done_void(a, r);
+        break;
+    }
+    default:
+        fail(a, Error::Unsupported);
+    }
+}
+
+Task<void> sys_list(const SysReq &q, SysAns &a)
+{
+    Result<Vec<DirEntry>> r = Err(Error::NoMemory);
+    if (Task<Result<Vec<DirEntry>>> t = list_dir(q.path))
+        r = co_await t;
+    if (r.is_err()) {
+        fail(a, r.error());
+        co_return;
+    }
+    a.ok = true;
+    for (const DirEntry &e : r.value()) {
+        SysEnt s;
+        if (!s.name.assign(e.name.str())) {
+            fail(a, Error::NoMemory);
+            co_return;
+        }
+        s.kind  = e.kind;
+        s.size  = e.size;
+        s.mtime = e.mtime;
+        if (!a.ents.push(static_cast<SysEnt &&>(s))) {
+            fail(a, Error::NoMemory);
+            co_return;
+        }
+    }
+}
+
+Task<void> sys_names(const SysReq &q, SysAns &a)
+{
+    Result<void> r = Err(Error::NoMemory);
+    switch (q.op) {
+    case SysOp::MkDir:
+        if (Task<Result<void>> t = make_dir(q.path))
+            r = co_await t;
+        break;
+    case SysOp::Remove:
+        if (Task<Result<void>> t = remove_path(q.path, q.flags & 1))
+            r = co_await t;
+        break;
+    case SysOp::Rename:
+        if (Task<Result<void>> t = rename_path(q.path, q.path2))
+            r = co_await t;
+        break;
+    case SysOp::Symlink:
+        if (Task<Result<void>> t = make_link(q.data, q.path))
+            r = co_await t;
+        break;
+    case SysOp::Touch:
+        if (Task<Result<void>> t = touch_path(q.path))
+            r = co_await t;
+        break;
+    default:
+        r = Err(Error::Unsupported);
+    }
+    done_void(a, r);
+}
+
+Task<void> sys_text(const SysReq &q, SysAns &a)
+{
+    Result<String> r = Err(Error::NoMemory);
+    if (q.op == SysOp::ReadLink) {
+        if (Task<Result<String>> t = read_link(q.path))
+            r = co_await t;
+    } else if (q.op == SysOp::Cwd) {
+        if (Task<Result<String>> t = cwd_get())
+            r = co_await t;
+    } else if (Task<Result<String>> t = cwd_set(q.path)) {
+        r = co_await t;
+    }
+    if (r.is_ok()) {
+        a.ok   = true;
+        a.data = static_cast<String &&>(r.value());
+    } else {
+        fail(a, r.error());
+    }
+}
+
+// The answer lives here rather than in a frame: a listing can be long.
+SysAns *answer;
+
+Task<void> perform(const SysReq &q)
+{
+    if (!answer)
+        answer = heap_new<SysAns>();
+    if (!answer)
+        co_return;
+    SysAns &a = *answer;
+    a         = SysAns{};
+    Task<void> t;
+    switch (q.op) {
+    case SysOp::Read:
+    case SysOp::Write:
+    case SysOp::Open:
+    case SysOp::Close:
+    case SysOp::Dup:
+    case SysOp::Pipe:
+        t = sys_stream(q, a);
+        break;
+    case SysOp::List:
+        t = sys_list(q, a);
+        break;
+    case SysOp::MkDir:
+    case SysOp::Remove:
+    case SysOp::Rename:
+    case SysOp::Symlink:
+    case SysOp::Touch:
+        t = sys_names(q, a);
+        break;
+    case SysOp::ReadLink:
+    case SysOp::Cwd:
+    case SysOp::Chdir:
+        t = sys_text(q, a);
+        break;
+    default:
+        t = sys_file(q, a);
+    }
+    if (t)
+        co_await t;
+    else
+        fail(a, Error::NoMemory);
+}
+
+// What arrived while the driver was parked, for the VM to deliver.
+void take_signals()
+{
+    if (sig_take(SIG_INT))
+        vm_interrupt();
+    if (sig_take(SIG_TERM))
+        vm_signal(SIG_TERM);
+    if (sig_take(SIG_WINCH))
+        vm_signal(SIG_WINCH);
+}
+
 // The whole of the platform half: compile, then hand the VM to the driver
 // loop below. Only this task awaits; the interpreter under it is plain C++
 // and says what it wants done.
@@ -186,21 +564,26 @@ Task<i32> interpret(Str source, Str name, Args argv, Str script)
         time_set_clock(clock.value().epoch_ms, clock.value().tz_min, proc_now());
     // sys.path: the directory the program came from, then the shipped library.
     // A `-c` or a pipe has no directory of its own, and gets the cwd.
+    Result<String> cwd = Err(Error::NoMemory);
+    if (Task<Result<String>> q = cwd_get())
+        cwd = co_await q;
+    sys_set_cwd(cwd.is_ok() ? cwd.value().str() : Str("/"));
     String lib;
     co_await find_library(lib);
     sys_set_path(script.empty() ? Str(".") : path_dirname(script), lib.str());
 
     for (;;) {
         Req r = vm_burst();
-        if (r.kind == ReqKind::Exit)
+        if (r.kind == ReqKind::Exit) {
+            co_await hidden_sweep();
             co_return r.status;
+        }
         if (r.kind == ReqKind::Tick) {
             // The burst is up. Parking is the only thing that lets a signal
             // in, and a zero sleep is the cheapest park there is.
             if (Task<Result<void>> t = sleep_for(0))
                 co_await t;
-            if (sig_take(SIG_INT))
-                vm_interrupt();
+            take_signals();
             continue;
         }
         if (r.kind == ReqKind::Sleep) {
@@ -208,9 +591,23 @@ Task<i32> interpret(Str source, Str name, Args argv, Str script)
             // interruptible; the raise happens at the next instruction.
             if (Task<Result<void>> t = sleep_for(r.ms))
                 co_await t;
-            if (sig_take(SIG_INT))
-                vm_interrupt();
+            take_signals();
             vm_sleep_done();
+            continue;
+        }
+        if (r.kind == ReqKind::Sys) {
+            // io and os. A ^C abandons a read, which answers Err(Intr); the
+            // step that asked takes the interrupt from there.
+            if (Task<void> t = perform(*r.sys))
+                co_await t;
+            take_signals();
+            if (answer) {
+                vm_sys_done(*answer);
+            } else {
+                SysAns none;
+                none.err = Error::NoMemory;
+                vm_sys_done(none);
+            }
             continue;
         }
         if (r.kind == ReqKind::Read) {

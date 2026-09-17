@@ -62,6 +62,24 @@ def get_attribute(obj, name):
         raise unittest.SkipTest("object " + repr(obj) + " has no attribute " + repr(name))
 
 
+def disable_gc():
+    """The collector off for the block, and on again after if it was."""
+    import contextlib
+    import gc
+
+    @contextlib.contextmanager
+    def manager():
+        have = gc.isenabled()
+        gc.disable()
+        try:
+            yield
+        finally:
+            if have:
+                gc.enable()
+
+    return manager()
+
+
 def gc_collect():
     """A collection, and everything unreachable gone after it."""
     try:
@@ -158,20 +176,115 @@ def subTests(arg_names, arg_values, /, *, _do_cleanups=False):
     raise unittest.SkipTest("subTests needs generators")
 
 
+def _contextmanager(fn):
+    import contextlib
+    return contextlib.contextmanager(fn)
+
+
+@_contextmanager
+def captured_output(stream_name):
+    """sys.<stream_name> is a StringIO for the block, which it hands out."""
+    import io
+    orig = getattr(sys, stream_name)
+    setattr(sys, stream_name, io.StringIO())
+    try:
+        yield getattr(sys, stream_name)
+    finally:
+        setattr(sys, stream_name, orig)
+
+
 def captured_stdout():
-    raise unittest.SkipTest("captured_stdout needs io")
+    return captured_output("stdout")
 
 
 def captured_stderr():
-    raise unittest.SkipTest("captured_stderr needs io")
+    return captured_output("stderr")
 
 
-def swap_attr(obj, name, new_val):
-    raise unittest.SkipTest("swap_attr needs a context manager over contextlib")
+def captured_stdin():
+    return captured_output("stdin")
+
+
+@_contextmanager
+def swap_attr(obj, attr, new_val):
+    """obj.attr is new_val for the block, and what it was after."""
+    if hasattr(obj, attr):
+        real_val = getattr(obj, attr)
+        setattr(obj, attr, new_val)
+        try:
+            yield real_val
+        finally:
+            setattr(obj, attr, real_val)
+    else:
+        setattr(obj, attr, new_val)
+        try:
+            yield
+        finally:
+            if hasattr(obj, attr):
+                delattr(obj, attr)
+
+
+@_contextmanager
+def swap_item(obj, item, new_val):
+    """obj[item] is new_val for the block, and what it was after."""
+    if item in obj:
+        real_val = obj[item]
+        obj[item] = new_val
+        try:
+            yield real_val
+        finally:
+            obj[item] = real_val
+    else:
+        obj[item] = new_val
+        try:
+            yield
+        finally:
+            if item in obj:
+                del obj[item]
+
+
+def _test_home():
+    import os
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def findfile(filename, subdir=None):
-    raise unittest.SkipTest("findfile needs os.path")
+    """The file under the test package, or on sys.path, or the name itself."""
+    import os
+    if os.path.isabs(filename):
+        return filename
+    if subdir is not None:
+        filename = os.path.join(subdir, filename)
+    for dn in [_test_home()] + sys.path:
+        fn = os.path.join(dn, filename)
+        if os.path.exists(fn):
+            return fn
+    return filename
+
+
+class infinite_recursion:
+    """A recursion limit a runaway recursion reaches soon, for a block or a
+    decorated test. A class rather than contextlib's decorator, which needs
+    inspect."""
+
+    def __init__(self, max_depth=None):
+        self.max_depth = 20_000 if max_depth is None else max_depth
+
+    def __enter__(self):
+        self.original = sys.getrecursionlimit()
+        sys.setrecursionlimit(self.max_depth)
+        return self
+
+    def __exit__(self, *exc):
+        sys.setrecursionlimit(self.original)
+        return False
+
+    def __call__(self, fn):
+        def wrapper(*args, **kwds):
+            with infinite_recursion(self.max_depth):
+                return fn(*args, **kwds)
+        wrapper.__name__ = fn.__name__
+        return wrapper
 
 
 # The frames are heap here, so no test can exhaust a C stack: a deep one

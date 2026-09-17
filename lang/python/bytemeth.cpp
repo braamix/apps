@@ -1239,6 +1239,30 @@ R m_take_bytes(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// resize(size): cut, or grow with zeros.
+R m_resize(const CallArgs &a, Value &out)
+{
+    ArrayObj *b = self_array(a, "resize");
+    if (!b || !meth_args(a, "resize", 1, 1))
+        return R::Err;
+    i64 n = 0;
+    if (!as_index(a.args[1], n))
+        return err_set2("TypeError", "an integer is required", type_name(a.args[1]));
+    if (n < 0) {
+        char t[24];
+        Buf<96> m;
+        m.put("Can only resize to positive sizes, got ").put(int_text(t, sizeof t, n));
+        return err_set("ValueError", m.str());
+    }
+    usize old = b->data.size();
+    if (!b->data.resize(usize(n)))
+        return oom_err();
+    for (usize i = old; i < usize(n); i++)
+        b->data[i] = 0;
+    out = value_none();
+    return R::Ok;
+}
+
 R m_reverse(const CallArgs &a, Value &out)
 {
     ArrayObj *b = self_array(a, "reverse");
@@ -1374,6 +1398,33 @@ R mem_setitem(Value v, Value key, Value item)
         return R::Err;
     if (!writable)
         return err_set("TypeError", "cannot modify read-only memory");
+    if (is_slice(key)) {
+        // A slice takes octets of its own shape, copied first in case they
+        // are this memory's.
+        i64 start = 0, stop = 0, step = 1;
+        usize count = 0;
+        if (!slice_resolve(key, mem_of(v)->len, start, stop, step, count))
+            return R::Err;
+        Str src;
+        if (!bytes_like(item, src))
+            return err_not("a bytes-like object is required", item, true);
+        MemObj *m = mem_of(v);
+        if (src.size() != count * m->width)
+            return err_set("ValueError",
+                           "memoryview assignment: lvalue and rvalue have different structures");
+        String copy;
+        if (!copy.assign(src))
+            return oom_err();
+        u8 *base = is_bytearray(m->owner) ? array_of(m->owner)->data.data() : array_data(m->owner);
+        if (!base)
+            return err_set("TypeError", "cannot modify read-only memory");
+        for (usize i = 0; i < count; i++) {
+            usize at = mem_offset(m, usize(start + i64(i) * step));
+            for (usize j = 0; j < m->width; j++)
+                base[at + j] = u8(copy[i * m->width + j]);
+        }
+        return R::Ok;
+    }
     usize i = 0;
     if (index_of(key, mem_of(v)->len, i) != R::Ok)
         return R::Err;
@@ -1618,6 +1669,7 @@ constexpr Method ARRAY_ONLY[] = {
     { "reverse", m_reverse },
     { "copy", m_copy },
     { "take_bytes", m_take_bytes },
+    { "resize", m_resize },
 };
 
 } // namespace

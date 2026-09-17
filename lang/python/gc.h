@@ -12,6 +12,7 @@
 // collector that reclaims cycles, which Python makes constantly.
 #pragma once
 
+#include "kernel/string.h"
 #include "value.h"
 
 struct Obj;
@@ -48,6 +49,14 @@ struct Root {
 
     Obj *obj() const { return v.obj(); }
 };
+
+// heap_alloc for a block no object header leads: when it fails, what is
+// garbage is collected and the request made once more, as obj_alloc does.
+void *gc_heap_alloc(usize n);
+
+// Room for `n` bytes in `s`, collecting once when there is none. A big
+// temporary is what finds the heap full of garbage not yet swept.
+bool gc_room(String &s, usize n);
 
 // Reachable, and its children with it. Safe on Nil and on small integers.
 void gc_mark(Value v);

@@ -1,0 +1,39 @@
+b'hel' 3 b'lo\n' [b'world\n']
+0 b'he' b'llo'
+20 1 b'hello\nworld\n\x00\x00\x00\x00\x00\x00\x00\x00!'
+18 b'\x00\x00!' 21
+4 b'hell' 21
+b'Jell' 4
+3 bytearray(b'Jel') True True True False
+True
+I/O operation on closed file.
+I/O operation on closed file.
+I/O operation on closed file.
+a bytes-like object is required, not 'str'
+negative seek value -1
+[b'a\n', b'b\n', b'c']
+b'xyz' (b'xyz', 3)
+ca 2 'fé\n' 'bar'
+0 ['café\n', 'bar'] 1 'café\nbar€'
+9 9 3 'caf'
+None None False None
+Can't do nonzero cur-relative seeks
+string argument expected, got 'bytes'
+I/O operation on closed file
+None 'a\nb\nc\nd' ['a\n', 'b\n', 'c\n', 'd'] ('\r', '\n', '\r\n')
+'' 'a\rb\r\nc\nd' ['a\r', 'b\r\n', 'c\n', 'd'] ('\r', '\n', '\r\n')
+'\n' 'a\rb\r\nc\nd' ['a\rb\r\n', 'c\n', 'd'] None
+'\r' 'a\rb\r\rc\rd' ['a\r', 'b\r', '\r', 'c\r', 'd'] None
+'\r\n' 'a\rb\r\r\nc\r\nd' ['a\rb\r\r\n', 'c\r\n', 'd'] None
+'x\ny\nz\n' ('\r', '\n', '\r\n')
+illegal newline value: 'x'
+initial_value must be str or None, not int
+3 6 1 'abc\x00\x00\x00z'
+['1\n', '2\n', '3']
+'a' '\nb' '\n'
+('\r', '\r\n') (b'', 0)
+'\nx'
+None
+'' 'é' (b'', 1)
+'\r\n' 
+

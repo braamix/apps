@@ -7,6 +7,7 @@
 // 1.6 license; see LICENSE.
 #include "sre.h"
 
+#include "gc.h"
 #include "kernel/alloc.h"
 #include "ucd.h"
 
@@ -382,7 +383,7 @@ int data_stack_grow(SreState *state, usize size)
     usize cursize = state->data_stack_size;
     if (cursize < minsize) {
         cursize     = minsize + minsize / 4 + 1024;
-        char *stack = static_cast<char *>(heap_alloc(cursize));
+        char *stack = static_cast<char *>(gc_heap_alloc(cursize));
         if (!stack) {
             data_stack_dealloc(state);
             return int(SRE_ERROR_MEMORY);
@@ -404,7 +405,7 @@ SreRepeat *repeat_pool_malloc(SreState *state)
         repeat                    = state->repeat_pool_unused;
         state->repeat_pool_unused = repeat->pool_next;
     } else {
-        repeat = static_cast<SreRepeat *>(heap_alloc(sizeof(SreRepeat)));
+        repeat = static_cast<SreRepeat *>(gc_heap_alloc(sizeof(SreRepeat)));
         if (!repeat)
             return nullptr;
     }

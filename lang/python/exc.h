@@ -8,6 +8,7 @@
 // compares and no allocation.
 #pragma once
 
+#include "kernel/result.h"
 #include "obj.h"
 
 struct ExcType {
@@ -109,3 +110,36 @@ bool unierr_init(Value e, Value args);
 // The field `name` of a UnicodeError, stored; Nil `v` deletes. NotImpl when
 // `name` is not one of the five.
 R unierr_store(Value e, Str name, Value v);
+
+// ------------------------------------------------------------------ OSError
+
+// OSError's errno, strerror, filename, filename2 and BlockingIOError's
+// characters_written, kept where a UnicodeError keeps its five: no class is
+// both.
+enum : u8 { OS_ERRNO, OS_STRERROR, OS_FILENAME, OS_FILENAME2, OS_WRITTEN };
+
+bool is_oserror(Value v);
+
+// The subclass OSError(code, ...) makes, or OSError itself.
+const ExcType *oserror_for(i64 code);
+
+// The fields from a constructor's arguments, as CPython's oserror_init reads
+// them; `args` may be cut to (errno, strerror). False with an error pending.
+bool oserror_init(Value e);
+
+// A field, stored; Nil `v` deletes. NotImpl when `name` is not one.
+R oserror_store(Value e, Str name, Value v);
+
+// strerror(code) in glibc's words, empty for a number it does not know.
+// miscmod.cpp, beside the errno table.
+Str errno_text(i64 code);
+
+// The errno a Braam error stands for.
+i32 errno_of(Error e);
+
+// OSError(code, strerror(code), f1, None, f2) pending, as the subclass the
+// number picks; a Nil filename is left out. Always R::Err.
+R err_errno(i32 code, Value f1 = Value(), Value f2 = Value());
+
+// The same for a failed system call.
+R err_os(Error e, Value f1 = Value(), Value f2 = Value());

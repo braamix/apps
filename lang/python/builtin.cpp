@@ -17,6 +17,7 @@
 #include "genalias.h"
 #include "import.h"
 #include "intern.h"
+#include "io.h"
 #include "iter.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
@@ -331,9 +332,25 @@ R print_step(ContObj *k, Value in)
     return cont_done(k, wrote.is_nil() ? value_none() : wrote);
 }
 
+R flush_after_step(ContObj *k, Value);
+
+// The print's continuation, or Nil, and then file.flush().
+R flush_after(Value first, Value file, Value &out)
+{
+    Root rf{ first }, rfile{ file };
+    Root kv{ cont_new(flush_after_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[0] = is_cont(rf.v) ? rf.v : Value();
+    cont_of(kv.v)->s[1] = rfile.v;
+    out                 = kv.v;
+    return R::Ok;
+}
+
 R b_print(const CallArgs &a, Value &out)
 {
     Str sep = " ", end = "\n";
+    bool flush = false;
     Root file;
     for (u32 k = 0; k < a.nkw; k++) {
         Str name = is_str(a.kwnames[k]) ? str_of(a.kwnames[k])->str() : Str();
@@ -341,10 +358,20 @@ R b_print(const CallArgs &a, Value &out)
             file = a.kwvals[k];
             continue;
         }
-        if (name == "flush")
-            continue; // nothing is held back here: the VM decides when to write
-        if (!is_str(a.kwvals[k]))
-            return err_set2("TypeError", "print() argument must be str", name);
+        if (name == "flush") {
+            flush = py_truth(a.kwvals[k]);
+            continue;
+        }
+        if (is_none(a.kwvals[k]) && (name == "sep" || name == "end"))
+            continue;
+        if (!is_str(a.kwvals[k])) {
+            if (name != "sep" && name != "end")
+                return err_set2("TypeError", "print() got an unexpected keyword argument",
+                                name);
+            Buf<96> m;
+            m.put(name).put(" must be None or a string, not ").put(type_name(a.kwvals[k]));
+            return err_set("TypeError", m.str());
+        }
         if (name == "sep")
             sep = str_of(a.kwvals[k])->str();
         else if (name == "end")
@@ -386,12 +413,14 @@ R b_print(const CallArgs &a, Value &out)
         cont_of(kv.v)->s[3] = ev.v;
         cont_of(kv.v)->s[6] = file.v;
         out                 = kv.v;
-        return R::Ok;
+        return flush ? flush_after(kv.v, file.v, out) : R::Ok;
     }
     Value wrote;
     if (print_line(a.args, a.nargs, sep, end, file.v, wrote) != R::Ok)
         return R::Err;
     out = wrote.is_nil() ? value_none() : wrote;
+    if (flush)
+        return flush_after(wrote, file.v, out);
     return R::Ok;
 }
 
@@ -402,16 +431,23 @@ R print_line(const Value *args, u32 n, Str sep, Str end, Value file, Value &out)
 {
     Roots pin{ const_cast<Value *>(args), n };
     Root rf{ file };
+    // Where each piece starts, for a file of the program's own: it is
+    // written a piece at a time, separators and end included.
     String line;
+    Vec<usize> cuts;
+    if (!cuts.push(0))
+        return oom();
     for (u32 i = 0; i < n; i++) {
-        if (i && !line.append(sep))
+        if (i && (!line.append(sep) || !cuts.push(line.size())))
             return oom();
         if (py_str(args[i], line) != R::Ok)
             return R::Err;
+        if (!cuts.push(line.size()))
+            return oom();
     }
-    if (!line.append(end))
+    if (!line.append(end) || !cuts.push(line.size()))
         return oom();
-    return sys_write(rf.v, line.str(), out);
+    return sys_write(rf.v, line.str(), out, Span<const usize>(cuts.data(), cuts.size()));
 }
 
 // ------------------------------------------------------------- conversions
@@ -1109,6 +1145,18 @@ R b_float(const CallArgs &a, Value &out)
     out = float_new(v);
     return out.is_nil() ? R::Err : R::Ok;
 }
+
+} // namespace
+
+R py_float_of(Value v, Value &out)
+{
+    CallArgs a;
+    a.args  = &v;
+    a.nargs = 1;
+    return b_float(a, out);
+}
+
+namespace {
 
 // ------------------------------------------------------------- collections
 
@@ -3014,6 +3062,97 @@ R b_anext(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// input(prompt=''): s[0] the prompt, s[1] stdin, s[2] stdout.
+R input_step(ContObj *k, Value in)
+{
+    switch (k->i++) {
+    case 0:
+        // stderr first, as CPython flushes it; what that raises is ignored.
+        {
+            Value err = sys_stream("stderr");
+            if (!err.is_nil() && !is_none(err)) {
+                k->catching = CATCH_ANY;
+                return cont_method(k, err, "flush");
+            }
+        }
+        [[fallthrough]];
+    case 1:
+        k->i        = 2;
+        k->catching = CATCH_NONE;
+        k->caught   = Value();
+        if (!k->s[0].is_nil()) {
+            String text;
+            if (py_str(k->s[0], text) != R::Ok)
+                return R::Err;
+            Value s = str_new(text.str());
+            if (s.is_nil())
+                return R::Err;
+            return cont_method(k, k->s[2], "write", 1, s);
+        }
+        [[fallthrough]];
+    case 2:
+        k->i = 3;
+        return cont_method(k, k->s[2], "flush");
+    case 3:
+        return cont_method(k, k->s[1], "readline");
+    default: {
+        if (!is_str(in)) {
+            Buf<96> m;
+            m.put("object.readline() returned non-string");
+            return err_set("TypeError", m.str());
+        }
+        Str line = str_of(in)->str();
+        if (line.empty())
+            return err_set("EOFError", "EOF when reading a line");
+        if (line[line.size() - 1] == '\n')
+            line = line.substr(0, line.size() - 1);
+        Value out = str_new(line);
+        return out.is_nil() ? R::Err : cont_done(k, out);
+    }
+    }
+}
+
+R b_input(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "input", 0, 1))
+        return R::Err;
+    Root stdin_{ sys_stream("stdin") };
+    if (stdin_.v.is_nil() || is_none(stdin_.v))
+        return err_pending() ? R::Err : err_set("RuntimeError", "input(): lost sys.stdin");
+    Root stdout_{ sys_stream("stdout") };
+    if (stdout_.v.is_nil() || is_none(stdout_.v))
+        return err_pending() ? R::Err : err_set("RuntimeError", "input(): lost sys.stdout");
+    Root kv{ cont_new(input_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[0] = a.nargs ? a.args[0] : Value();
+    cont_of(kv.v)->s[1] = stdin_.v;
+    cont_of(kv.v)->s[2] = stdout_.v;
+    out                 = kv.v;
+    return R::Ok;
+}
+
+// print(..., flush=True): s[0] the write's own continuation or Nil, s[1] the
+// file, or Nil for sys.stdout.
+R flush_after_step(ContObj *k, Value)
+{
+    switch (k->i++) {
+    case 0:
+        if (!k->s[0].is_nil())
+            return cont_await(k, k->s[0]);
+        [[fallthrough]];
+    case 1: {
+        k->i       = 2;
+        Value file = k->s[1].is_nil() || is_none(k->s[1]) ? sys_stream("stdout") : k->s[1];
+        if (file.is_nil() || is_none(file))
+            return err_pending() ? R::Err : cont_done(k, value_none());
+        return cont_method(k, file, "flush");
+    }
+    default:
+        return cont_done(k, value_none());
+    }
+}
+
 struct Builtin {
     Str name;
     R (*fn)(const CallArgs &, Value &out);
@@ -3021,6 +3160,8 @@ struct Builtin {
 
 constexpr Builtin TABLE[] = {
     { "print", b_print },
+    { "input", b_input },
+    { "open", io_open },
     { "len", b_len },
     { "abs", b_abs },
     { "repr", b_repr },
@@ -3139,6 +3280,8 @@ bool py_callable(Value v)
 {
     bool yes =
         is_func(v) || is_native(v) || is_method(v) || is_type(v) || is_exc_type(v) || is_newwrap(v);
+    if (!yes && v.is_obj() && v.obj()->type == &staticmethod_type)
+        return py_callable(static_cast<WrapObj *>(v.obj())->fn);
     if (!yes && is_inst(v))
         yes = !type_special(v, "__call__").is_nil();
     // A built-in whose type has a __call__ method: partial, the cache wrapper.

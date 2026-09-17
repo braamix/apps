@@ -214,7 +214,7 @@ R r_getrandbits(const CallArgs &a, Value &out)
     if (!as_index(a.args[1], k))
         return err_set("TypeError", "getrandbits() wants an integer");
     if (k < 0)
-        return err_set("ValueError", "number of bits must be non-negative");
+        return err_set("ValueError", "Cannot convert negative int");
     if (k == 0) {
         out = Value::of_int(0);
         return R::Ok;

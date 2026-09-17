@@ -13,7 +13,7 @@ error TestBisectC.test_optionalSlicing: setUp: AttributeError: 'NoneType' object
 error TestBisectC.test_precomputed: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
 error TestBisectC.test_random: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
 ok TestBisectPython.test_backcompatibility
-error TestBisectPython.test_insort: ModuleNotFoundError: No module named 'random'
+ok TestBisectPython.test_insort
 ok TestBisectPython.test_insort_keynotNone
 ok TestBisectPython.test_keyword_args
 ok TestBisectPython.test_large_pyrange
@@ -24,7 +24,7 @@ ok TestBisectPython.test_lt_returns_notimplemented
 ok TestBisectPython.test_negative_lo
 ok TestBisectPython.test_optionalSlicing
 ok TestBisectPython.test_precomputed
-error TestBisectPython.test_random: ModuleNotFoundError: No module named 'random'
+ok TestBisectPython.test_random
 error TestDocExampleC.test_colors: AttributeError: 'NoneType' object has no attribute 'bisect_left'
 error TestDocExampleC.test_grades: AttributeError: 'NoneType' object has no attribute 'bisect'
 ok TestDocExamplePython.test_colors
@@ -41,8 +41,8 @@ ok TestErrorHandlingPython.test_len_only
 ok TestErrorHandlingPython.test_non_sequence
 error TestInsortC.test_backcompatibility: AttributeError: 'NoneType' object has no attribute 'insort'
 error TestInsortC.test_listDerived: AttributeError: 'NoneType' object has no attribute 'insort_left'
-error TestInsortC.test_vsBuiltinSort: ModuleNotFoundError: No module named 'random'
+error TestInsortC.test_vsBuiltinSort: AttributeError: 'NoneType' object has no attribute 'insort_right'
 ok TestInsortPython.test_backcompatibility
 ok TestInsortPython.test_listDerived
-error TestInsortPython.test_vsBuiltinSort: ModuleNotFoundError: No module named 'random'
---- ran 46 ok 20 fail 0 error 26 skip 0 ---
+ok TestInsortPython.test_vsBuiltinSort
+--- ran 46 ok 23 fail 0 error 23 skip 0 ---

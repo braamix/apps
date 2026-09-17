@@ -3,6 +3,7 @@
 #include "bigint.h"
 #include "kernel/fmt.h"
 #include "ops.h"
+#include "type.h"
 
 namespace {
 
@@ -123,6 +124,18 @@ Value int_from_i64(i64 n)
 bool as_index(Value v, i64 &out)
 {
     return int_to_i64(v, out);
+}
+
+bool as_int_arg(Value v, i64 &out)
+{
+    if (int_to_i64(v, out))
+        return true;
+    // An instance of a subclass of int -- an IntEnum member -- is an int.
+    if (is_inst(v)) {
+        Value n = inst_of(v)->native;
+        return !n.is_nil() && (n.is_int() || is_big(n)) && int_to_i64(n, out);
+    }
+    return false;
 }
 
 bool as_number(Value v, f64 &out)

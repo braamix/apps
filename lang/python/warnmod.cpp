@@ -177,6 +177,39 @@ R b_getattr(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// warnings.warn(s[1], s[2], j) from C++: s[0] the module, once imported.
+R warn_step(ContObj *k, Value in)
+{
+    switch (k->i++) {
+    case 0: {
+        StrObj *imp = str_intern("__import__");
+        Value fn;
+        if (!imp || dict_get(builtins_dict(), obj_value(imp), fn) != R::Ok)
+            return err_pending() ? R::Err : oom();
+        Value mod = str_new("warnings");
+        if (mod.is_nil())
+            return R::Err;
+        return cont_call(k, fn, mod);
+    }
+    case 1: {
+        StrObj *n = str_intern("warn");
+        Value fn;
+        if (!n || py_getattr(in, n, fn) != R::Ok)
+            return R::Err;
+        Root rf{ fn };
+        TupleObj *t = tuple_new(3);
+        if (!t)
+            return oom();
+        t->items()[0] = k->s[1];
+        t->items()[1] = k->s[2];
+        t->items()[2] = Value::of_int(i32(k->j));
+        return cont_call_v(k, rf.v, obj_value(t));
+    }
+    default:
+        return cont_done(k, value_none());
+    }
+}
+
 constexpr ModDef DEFS[] = {
     { "_acquire_lock", b_nothing },
     { "_release_lock", b_nothing },
@@ -184,6 +217,21 @@ constexpr ModDef DEFS[] = {
 };
 
 } // namespace
+
+Value warn_cont(Str category, Str message, u32 stacklevel)
+{
+    Root cat{ exc_type_value(exc_find(category)) };
+    Root msg{ str_new(message) };
+    if (cat.v.is_nil() || msg.v.is_nil())
+        return Value();
+    Root kv{ cont_new(warn_step) };
+    if (kv.v.is_nil())
+        return Value();
+    cont_of(kv.v)->s[1] = msg.v;
+    cont_of(kv.v)->s[2] = cat.v;
+    cont_of(kv.v)->j    = stacklevel;
+    return kv.v;
+}
 
 bool warnings_install(DictObj *into)
 {

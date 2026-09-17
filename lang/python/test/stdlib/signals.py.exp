@@ -1,0 +1,17 @@
+2 15 28 <Signals.SIGINT: 2> SIGTERM
+True
+0 0 1 <Handlers.SIG_IGN: 1>
+KeyboardInterrupt ()
+0 True
+[(15, 'frame')]
+[(2, 'frame'), (2, 'frame')]
+ignored 1
+from handler 28
+ValueError signal number out of range
+TypeError signal handler must be signal.SIG_IGN, signal.SIG_DFL, or a callable object
+ValueError signal number out of range
+None
+OSError 22
+True True
+int True
+True 15 True

@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 24.**
+**Phase 25.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -99,6 +99,13 @@ print(m.groupdict(), re.sub(r"(\w)(\w*)", lambda m: m[1].upper() + m[2], "déjà
 print(json.dumps({"re": re.split(r"\s*,\s*", "a , b,c")}), textwrap.shorten("A long line of text", 12))'
 {'key': 'answer', 'val': '42'} Déjà Vu
 {"re": ["a", "b", "c"]} A long [...]
+$ python -c 'import csv, pathlib, tempfile
+d = pathlib.Path(tempfile.mkdtemp())
+with open(d / "n.csv", "w", newline="") as f:
+    csv.writer(f).writerows([["name", "n"], ["café", 3]])
+print(list(csv.DictReader(open(d / "n.csv"))),
+      [p.name for p in d.glob("*.csv")])'
+[{'name': 'café', 'n': '3'}] ['n.csv']
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
@@ -217,15 +224,16 @@ state machines that ask for one call at a time. `sorted`, `list.sort`, `min`,
 through it, and the merge is the same bottom-up stable one as the plain path,
 so a list of instances and a list of integers come out in the same order.
 
-**Twenty-five modules are written in C++.** `sys` in full, `builtins`,
+**Twenty-nine modules are written in C++.** `sys` in full, `builtins`,
 `_collections`, `_functools`, `itertools`, `_operator`, `_random`, `_struct`,
 `array`, `math`, `cmath`, `time`, `errno`, `gc`, `_types`, the `_weakref` and
 `_abc` phase 17 wrote, the `_typing` phase 20 did, phase 21's `_codecs`
 and `unicodedata`, phase 22's `_thread`, `_contextvars` and `_string`, and
-phase 23's `_warnings` and `atexit`, and phase 24's `_sre`. They are the
-floor CPython's own library stands on rather than that library:
-`collections/__init__.py` imports this `deque`, `random.py` will import this
-Mersenne Twister, and `re/` runs over this `_sre`. Each is measured against
+phase 23's `_warnings` and `atexit`, phase 24's `_sre`, and phase 25's
+`_io`, `posix`, `_signal` and `_csv`. They are the floor CPython's own library
+stands on rather than that library: `collections/__init__.py` imports this
+`deque`, `random.py` this Mersenne Twister, `re/` runs over this `_sre` and
+`os.py` over this `posix`. Each is measured against
 CPython by
 running the same program under both — [test/module/](test/module/), nineteen
 cases, 633 lines byte for byte.
@@ -264,8 +272,8 @@ as a type `weakref.py` subclasses, `from m import x` through a module's
 `__getattr__`, and `int()`, `float()`, `complex()`, `divmod()` and `seq[i]`
 reaching `__int__`, `__index__`, `__float__`, `__complex__` and `__divmod__`
 written in Python. Every run finds the library where an installed package
-keeps it, and [test/stdlib/](test/stdlib/) holds twenty programs over it, 173
-lines identical to CPython 3.16's.
+keeps it, and [test/stdlib/](test/stdlib/) holds thirty-one programs over it,
+590 lines identical to CPython 3.16's.
 
 **`re` is CPython's, over a native `_sre`.** The whole of `re/` — the parser,
 the compiler, the optimizer and the `\p{...}` properties of CPython's main
@@ -284,6 +292,27 @@ instead. `textwrap`, `json`, `fractions` and `difflib` came with it, and
 `idna` codec wait, for the reason under **Known differences**, over a
 `unicodedata.ucd_3_2_0` that is here and checked against CPython's for every
 codepoint.
+
+**A program has files.** `open()` is CPython's three layers over a native
+`_io` — `FileIO` on a Braam descriptor, `BufferedReader`, `BufferedWriter`,
+`BufferedRandom` and `BufferedRWPair`, and `TextIOWrapper` with its codec, its
+newline translation and CPython's `tell()` cookie — with `BytesIO`, `StringIO`
+and the abstract classes a program's own stream derives from; CPython's
+`io.py` is the module a program imports. Every layer is a continuation, so a
+read is a `Req` the driver makes, a class of the program's own can sit under
+any of them, and what is still open when the program ends is flushed and
+closed. `sys.stdin`, `sys.stdout` and `sys.stderr` are those objects, and
+`input()` and `print()` go through them. `os` is CPython's over a native
+`posix`: files, directories, links, descriptors, `scandir`, `walk`,
+`environ`, `urandom` and `stat_result`, with `os.path`, `stat`, `contextlib`,
+`fnmatch`, `glob`, `tempfile`, `shutil`, `pathlib`, `random`, `pprint`,
+`shlex`, `gettext` and `csv` over it, byte for byte. `signal` is CPython's
+over a native `_signal`: a handler the program installs for `SIGINT`,
+`SIGTERM` or `SIGWINCH` asks the kernel through the driver, is called between
+two instructions with the frame the program was in, and a `time.sleep` it cut
+short sleeps on afterwards, as PEP 475 says. The `_io` is native rather than
+`_pyio.py`, which opens by importing `io` and so could not be the floor; see
+[TODO.md](TODO.md).
 
 **The protocol methods are in each built-in type's namespace.** `len(x)`
 reaches a slot and a slot is not an entry, so `'__len__' in list.__dict__` used
@@ -308,11 +337,13 @@ under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
 `type.__subclasses__` and the rule that an abstract class cannot be
 instantiated.
 
-**424 of MicroPython's own tests pass unchanged**, out of 449 in
-[test/manifest.txt](test/manifest.txt), against 423 at phase 23:
-`object_new.py` passes now that `object.__new__` refuses a built-in type, as
-CPython's does. Phase 23 had added eleven that imported `collections`,
-`struct` or `types` and said `SKIP`. Of the twenty-five that do not, most
+**425 of MicroPython's own tests pass unchanged**, out of 449 in
+[test/manifest.txt](test/manifest.txt), against 424 at phase 24:
+`memoryview_slice_assign.py` passes now that a memoryview's slice can be
+assigned to. Phase 24 had passed `object_new.py`, once `object.__new__`
+refused a built-in type, and phase 23 added eleven that imported
+`collections`, `struct` or `types` and said `SKIP`. Of the twenty-four that do
+not, most
 exercise what MicroPython does and CPython does not — a native base class's
 own `__init__` protocol, `pend_throw`, `machine` — or a memoryview with more
 than one dimension; `assign_expr_syntaxerror.py` expects what MicroPython
@@ -320,9 +351,29 @@ accepts and CPython refuses, and this refuses it. Every expected output a
 CPython wrote now comes from 3.14, and [test/goldens.txt](test/goldens.txt)
 says which interpreter wrote each of our own.
 
-**CPython's tests are the second ruler.** Forty are in
-[test/cpython.txt](test/cpython.txt), thirty-two of them run, and 620 test
-methods of 796 pass, against 354 of 498 at phase 23. Phase 24 added three
+**CPython's tests are the second ruler.** Seventy-three are in
+[test/cpython.txt](test/cpython.txt), fifty-two of them run, and 975 test
+methods of 1,282 pass, against 620 of 796 at phase 24. Phase 25 added
+thirty-three rows. Twenty run. Of the twenty-two the plan and the file system
+brought, nine do: `test_file.py` and `test_univnewlines.py` pass
+whole, and so does `test_fnmatch.py`; `test_fileio.py` passes 90 of 100, the
+ten being three skips, two opens of a directory, four second opens of a file
+the store gives one writer, and a `__setattr__` written in Python that the
+native `__init__` does not call; `test_glob.py` 19 of 22,
+`test_weakset.py` 27 of 46, `test_sort.py` 15 of 21, `test_finalization.py` 7
+of 18, and `test_print.py` 3 of 9, the six a Python 2 hint the parser does not
+give. Twelve stop at an import — `pickle`, `inspect`, `unittest.mock`,
+`threading`, `subprocess`, `socket`, `dataclasses` and `script_helper` — and
+`test_genericpath.py` at the circular import under **Known differences**.
+The other eleven are what the survey found running once `os` and `io` were
+here: `test_unicode_file_functions.py` passes all 30, `test_bool.py` 24 of 31,
+`test_string_literals.py` 13 of 20, `test_dynamic.py` 9 of 11,
+`test_strtod.py` 8 of 9, once `float.hex()` wrote a subnormal as CPython
+does, `test_richcmp.py` 6 of 11, `test_pkg.py` 4 of 8 and
+`test_unicode_file.py` 1 of 2; `test_popen.py` skips all five, and
+`test_global.py` and `test_sys_setprofile.py` error in every method. Three rows
+went up: `test_bisect.py`, `test_pow.py` and `test_decorators.py`, the last
+because a class called from C++ now answers its instance. Phase 24 added three
 rows: `test_re.py`, 150 of 170 with the two failures a buffer that is copied
 rather than pinned and `pickle`; `test_textwrap.py`, all 68; and
 `test_fractions.py`, which stops at `decimal`. `test_except_star.py` runs now,
@@ -340,24 +391,29 @@ and `pickle`. Running the whole of `Lib/test/`
 under this interpreter — `node test/pycases.mjs --survey`, which needs the
 clone in `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 23 | 22 | 21 | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 351 | a module that is not written yet | 356 | 373 | 372 | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 25–27 |
-| 34 | these run | 30 | 14 | 14 | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
-| 5 | a runtime error, or nothing this can read | 4 | 3 | 3 | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
-| 1 | other syntax — PEP 798 | 1 | 1 | 2 | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
-| — | a lone surrogate in a literal | — | — | — | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
-| — | `\N{...}` | — | — | — | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
-| — | `async` | — | — | — | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
-| — | complex numbers | — | — | — | — | — | — | — | — | — | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | — | — | — | — | — | — | — | — | — | 39 | 17 | **done** |
-| — | f-strings | — | — | — | — | — | — | — | — | — | — | 124 | **done** |
+| now | what stops it | 24 | 23 | 22 | 21 | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 328 | a module that is not written yet | 351 | 356 | 373 | 372 | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 26–28 |
+| 51 | these run | 34 | 30 | 14 | 14 | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
+| 11 | a runtime error, or nothing this can read | 5 | 4 | 3 | 3 | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
+| 1 | other syntax — PEP 798 | 1 | 1 | 1 | 2 | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
+| — | a lone surrogate in a literal | — | — | — | — | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
+| — | `\N{...}` | — | — | — | — | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
+| — | `async` | — | — | — | — | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
+| — | complex numbers | — | — | — | — | — | — | — | — | — | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | — | — | — | — | — | — | — | — | — | 39 | 17 | **done** |
+| — | f-strings | — | — | — | — | — | — | — | — | — | — | — | 124 | **done** |
 
-Phase 24 moved five files: `test_re.py`, `test_textwrap.py` and
-`test_except_star.py` run, and so do `test_bigmem.py`, which skips all it has,
-and `test_datetime.py`, whose `load_tests` the shim does not call; one more
-gets past its imports to a runtime error. What stops the most files now is `os` and `io`,
-which is phase 25. Phase 23 moved seventeen files, sixteen of them to running: what stops the rest
+Phase 25 moved twenty-three files: seventeen run — the six rows above that
+are files of their own, and the eleven the survey found — and six more get
+past their imports to a runtime error or to nothing this can read.
+What stops the most files now is `pickle` (34), `subprocess` and `doctest`
+(17 each), `importlib` (12), `inspect` (11) and `threading` (9). Phase 24
+moved five files: `test_re.py`, `test_textwrap.py` and `test_except_star.py`
+run, and so do `test_bigmem.py`, which skips all it has, and
+`test_datetime.py`, whose `load_tests` the shim does not call; one more gets
+past its imports to a runtime error. What stopped the most files then was `os`
+and `io`, which phase 25 wrote. Phase 23 moved seventeen files, sixteen of them to running: what stops the rest
 is `re`, `os`, `io`, `inspect`, `typing`, `pickle` and `unittest.mock`, which
 is where the next phases start. Phase 22 moved one file: `test_super.py`
 compiles now that the implicit `__class__` cell is made, and stops at
@@ -458,6 +514,14 @@ green.
 | [typesmod.cpp](typesmod.cpp) | `_types`: the names for types that are not builtins, SimpleNamespace, `mappingproxy`, and the constructors of module, method and GenericAlias |
 | [warnmod.cpp](warnmod.cpp) | `_warnings`: the default filters and the lock under `_py_warnings.py` |
 | [atexit.h](atexit.h), [atexitmod.cpp](atexitmod.cpp) | `atexit`, and the calls the VM makes before the program ends |
+| [io.h](io.h), [iobase.cpp](iobase.cpp) | `_io`: the abstract layers, `open()`, and the closing a program's end owes |
+| [iofile.cpp](iofile.cpp) | `FileIO`, the raw layer over a descriptor |
+| [iobuf.cpp](iobuf.cpp) | The buffered layer: reader, writer, random and the pair, as one machine |
+| [iotext.cpp](iotext.cpp) | `TextIOWrapper`, its codecs and its `tell()` cookie, and `IncrementalNewlineDecoder` |
+| [iomem.cpp](iomem.cpp) | `BytesIO` and `StringIO` |
+| [posix.h](posix.h), [posixmod.cpp](posixmod.cpp) | `posix`: paths, descriptors, directories, `stat_result`, `environ`, and the system-call turn every module here takes |
+| [signalmod.cpp](signalmod.cpp) | `_signal`: the handlers, and what the driver is asked to catch |
+| [csvmod.cpp](csvmod.cpp) | `_csv`: the dialect, the reader's state machine and the writer |
 | [lib/](lib/) | Modules taken from CPython's library, byte for byte, with [lib/manifest.txt](lib/manifest.txt) saying where each came from |
 | [call.h](call.h), [call.cpp](call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
@@ -486,6 +550,7 @@ green.
 | [test/pyexec.mjs](test/pyexec.mjs) | The same for `test/exec/`: compile, eval, exec, the namespaces, the attributes and the syntax since 3.9 |
 | [test/pylazy.mjs](test/pylazy.mjs) | The same for `test/lazy/`, against CPython 3.16, with the modules the cases import planted beside them |
 | [test/pystdlib.mjs](test/pystdlib.mjs) | The same for `test/stdlib/`: programs over the library, against CPython 3.16 |
+| [test/pyio.mjs](test/pyio.mjs) | What needs a stream or a signal: `sys.stdin` and `input()`, the files a program leaves open, and a handler called while the program sleeps |
 | [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the modules written in C++ |
 | [test/pyunicode.mjs](test/pyunicode.mjs) | The same for `test/unicode/`, with the library planted; the streams; and `--full`, every codepoint as now, as 3.2.0 and through the regex engine, and NormalizationTest.txt |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
@@ -493,7 +558,7 @@ green.
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
 | [test/pystress.mjs](test/pystress.mjs) | Every case again, collecting at every allocation |
 | [test/shim/unittest.py](test/shim/unittest.py) | `TestCase`, the assertions, `subTest`, the skips and the loader |
-| [test/shim/test/support/](test/shim/test/support/) | The names CPython's tests take from `test.support`, and its `import_helper` |
+| [test/shim/test/support/](test/shim/test/support/) | The names CPython's tests take from `test.support`, and its `import_helper`, `os_helper`, `warnings_helper` and `strace_helper` |
 | [test/shim/selfcheck.py](test/shim/selfcheck.py) | What `pyunit.mjs` runs: the shims measured against themselves |
 | [tools/pyref.py](tools/pyref.py) | Which CPython writes a golden, and the record in `test/goldens.txt` of which one did |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
@@ -595,9 +660,9 @@ All recorded rather than hidden, and all in reach later:
   `RuntimeWarning` goes through `warnings` as CPython's does, but when the
   collector finds the coroutine rather than when the last name goes, so the
   line it names is where the program was then.
-- **A warning is shown without its source line.** `linecache` cannot read a
-  file until `io` is here (phase 25), so the line under the location is left
-  out. `_warnings` itself is the default filters and the lock; `warn` and
+- **A warning is shown without its source line.** `linecache` reads a file
+  through `tokenize`, which is phase 26, so the line under the location is
+  left out. `_warnings` itself is the default filters and the lock; `warn` and
   `warn_explicit` are `_py_warnings.py`'s, reached through its `__getattr__`.
 - **`object`'s defaults are skipped by the special-method lookup.**
   `object.__eq__`, `object.__hash__`, `object.__reduce_ex__` and the rest are
@@ -615,9 +680,8 @@ All recorded rather than hidden, and all in reach later:
   The mixing is the same shape over this port's 30-bit hashes.
 - **An `atexit` callback that raises is reported without a traceback,** as
   every "Exception ignored" message here is.
-- **`string.Template`, `locale.format_string` and `warnings.deprecated` wait.**
-  The first two compile a regular expression (phase 24), the third imports
-  `inspect` (phase 27).
+- **`warnings.deprecated` and `contextlib`'s decorator form wait.** Both
+  import `inspect` (phase 27).
 - **An async generator has no hooks.** `sys.set_asyncgen_hooks` is not there,
   so nothing is told when one starts or is dropped; one dropped while
   suspended is closed by the collector, as a generator is. The hooks are for
@@ -694,14 +758,10 @@ All recorded rather than hidden, and all in reach later:
   methods, since a slot cannot call the program's function, so `KeyWrapper` is
   a class whose `__lt__` and the rest are natives. `type(K)` is that class,
   and like any class here its repr has no module in it.
-- **`print` writes its line in one call.** CPython calls `sys.stdout.write`
-  once per argument and separator; this builds the line and writes it once. A
-  program that has put an object of its own in `sys.stdout` sees one call with
-  the whole line in it.
-- **`_random` seeds a str differently.** An integer seed is spread with
+- **`random.seed` takes no str yet.** An integer seed is spread with
   CPython's own `init_by_array`, so `seed(42)` gives CPython's stream word for
-  word; a str or bytes seed is hashed here and put through `sha512` there, and
-  `random.py` never reaches this path because it does that conversion itself.
+  word; `random.py` puts a str or bytes seed through `hashlib`'s `sha512`,
+  which is phase 26, and until then that seed raises `ModuleNotFoundError`.
 - **`errno`'s numbers are musl's.** They are Linux's, which is the dialect the
   port kit's `<errno.h>` already uses and the one a modern port's `#ifdef`
   ladder is written against. A host whose libc numbers differ — macOS, where
@@ -755,7 +815,7 @@ All recorded rather than hidden, and all in reach later:
 - **`json` is the pure-Python one.** There is no `_json`, so a malformed
   document is reported in `json.decoder`'s words, which are not always the C
   accelerator's: `Invalid \escape: 'x'` where CPython says `Invalid \escape`.
-- **`difflib.unified_diff` waits for `_colorize`**, which imports `os` and
+- **`difflib.unified_diff` waits for `_colorize`**, which imports
   `dataclasses`; the rest of `difflib` runs.
 - **A namespace package can shadow a module on a later path entry.** CPython
   scans the whole of sys.path for a real module before settling for a
@@ -771,6 +831,38 @@ All recorded rather than hidden, and all in reach later:
 - **`python -m` is not there.** A program is a file, `-c` or stdin.
 - **A traceback is a string, not an object.** It is collected as the frames go
   and printed at the end; there is no `__traceback__` to read.
+- **The store gives a file one writer or any number of readers.** POSIX lets a
+  file be opened as often as the program likes; here a second open of one
+  being written is refused with `PermissionError`. A refusal first collects
+  and runs the finalizers owed, then tries once more, so a file object the
+  program dropped without closing does not hold the file.
+- **A removed file is gone at once**, even while it is open, and its
+  descriptor stops working. `os.O_TMPFILE` is there, and it is how
+  `tempfile.TemporaryFile` works: the driver makes a hidden file and removes
+  it when the descriptor closes, or when the program ends.
+- **There are no inodes, modes or owners.** `st_ino` is a hash of the path,
+  `st_mode` is 0644 for a file, 0755 for a directory and 0777 for a link,
+  `chmod` and `chown` check that
+  the path is there and change nothing, and `utime` with times checks the path
+  and does not set them, the store having no setter; with none it touches the
+  file. `shutil.disk_usage` is missing, having no `statvfs` under it.
+- **`os.environ` is the process's own.** A change is seen by `getenv` and
+  `os.environ` and reaches nothing else; there is no child to hand it to.
+- **The standard streams write straight through.** A write to `sys.stdout`
+  reaches the buffer the VM keeps for descriptor 1 at once, as `os.write(1,
+  ...)` does, so everything written to the three streams stays in order.
+  CPython buffers a redirected stdout in `TextIOWrapper`, and bytes written to
+  `sys.stdout.buffer` overtake text still pending there.
+- **`BytesIO.getbuffer()` does not pin the buffer.** Resizing it while a view
+  is held succeeds here and raises `BufferError` in CPython.
+- **`genericpath` imported before `os` is a circular import.** CPython's
+  startup imports `os`, so its `genericpath` never meets a half-made
+  `posixpath`; this one imports nothing a program did not ask for, which saves
+  every run up to 35 ms under the harness.
+- **Three signals are delivered: `SIGINT`, `SIGTERM` and `SIGWINCH`.** They
+  are Braam's whole catchable set. A handler for another is kept and runs only
+  for `raise_signal`, and a delivered signal reaches the program where it
+  parks, which the VM does at the end of every burst.
 
 ## How a match stops
 
@@ -1148,6 +1240,33 @@ A source file is bytes until PEP 263 says how to read it. The lexer honours a
 BOM and a coding cookie itself for UTF-8, Latin-1 and the other codecs written
 here; a cookie naming one written in Python stops it with that name, and
 `compile()` and `import` decode the source through the registry and try again.
+
+## How a file is read
+
+`f.read()` on a text file is three layers deep — the wrapper asks its buffer,
+the buffer asks its raw file, the raw file asks the driver — and any of the
+three may be a class the program wrote. So a layer reaches the one below by
+calling its method, as CPython's C does, and each layer is a continuation.
+`cont_method` makes the call without a second continuation when the method
+is a plain one, so a native stack of layers costs one continuation per layer
+per call. The text layer has a few dozen states, and runs as one flat loop
+over a state number ([iotext.cpp](iotext.cpp)'s `text_step`) rather than as a
+chain; a codec written here decodes in place, and only a codec written in
+Python is a call.
+
+The raw file's system call is a `Req`. `cont_sys` parks the continuation with
+a `SysReq`, [braam.cpp](braam.cpp) performs it, and `vm_sys_done` hands the
+answer back. `sys_turn` in [posixmod.cpp](posixmod.cpp) is where every module
+reads that answer: an error becomes the `OSError` CPython raises for it, and
+`Err(Intr)` — a signal cut the call short — runs the program's handler and
+makes the call again, which is PEP 475. `time.sleep` does the same with what
+is left of its sleep.
+
+A write to descriptor 1 or 2 goes into the buffer the VM already keeps for
+`print` and the traceback, which the driver writes out before it parks for
+anything else. What the program leaves open is closed after `atexit` has run:
+the text layers first, then the buffers under them, then the raw files, and
+the standard streams are only flushed.
 
 ## How a module is written in C++
 

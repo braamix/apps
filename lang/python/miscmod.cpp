@@ -16,6 +16,7 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "posix.h"
 #include "proc/rt.h"
 #include "type.h"
 
@@ -271,15 +272,37 @@ R t_monotonic_ns(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-// The step a sleep has come back from; there is nothing to do but answer.
+// j the length, x[0] when it ends. A signal cuts a sleep short; its handler
+// runs, and the sleep goes on for what is left, as PEP 475 says.
 R sleep_step(ContObj *k, Value)
 {
-    if (k->i) {
-        k->i = 0;
-        return cont_done(k, value_none());
+    switch (k->i) {
+    case 0:
+        k->x[0] = i64(proc_now()) + k->j;
+        k->i    = 1;
+        return cont_sleep(k, k->j);
+    case 1: {
+        u32 sig = vm_take_signal();
+        if (!sig)
+            return cont_done(k, value_none());
+        Value h;
+        if (sig_handler(sig, h) != R::Ok)
+            return R::Err;
+        if (!h.is_nil()) {
+            k->i    = 2;
+            Value f = vm_frame();
+            return cont_call(k, h, Value::of_int(i32(sig)), 2, f.is_nil() ? value_none() : f);
+        }
+        [[fallthrough]];
     }
-    k->i = 1;
-    return cont_sleep(k, k->j);
+    default: {
+        i64 left = k->x[0] - i64(proc_now());
+        if (left <= 0)
+            return cont_done(k, value_none());
+        k->i = 1;
+        return cont_sleep(k, u32(left));
+    }
+    }
 }
 
 R t_sleep(const CallArgs &a, Value &out)
@@ -432,21 +455,72 @@ constexpr ModDef TIME_DEFS[] = {
 struct Errno {
     Str name;
     i64 code;
+    Str text; // strerror's, in glibc's words
 };
 
 // musl's numbers, which is the dialect the port kit's <errno.h> already uses.
 constexpr Errno ERRNOS[] = {
-    { "EPERM", 1 },         { "ENOENT", 2 },  { "ESRCH", 3 },       { "EINTR", 4 },
-    { "EIO", 5 },           { "ENXIO", 6 },   { "E2BIG", 7 },       { "ENOEXEC", 8 },
-    { "EBADF", 9 },         { "ECHILD", 10 }, { "EAGAIN", 11 },     { "ENOMEM", 12 },
-    { "EACCES", 13 },       { "EFAULT", 14 }, { "EBUSY", 16 },      { "EEXIST", 17 },
-    { "EXDEV", 18 },        { "ENODEV", 19 }, { "ENOTDIR", 20 },    { "EISDIR", 21 },
-    { "EINVAL", 22 },       { "ENFILE", 23 }, { "EMFILE", 24 },     { "ENOTTY", 25 },
-    { "EFBIG", 27 },        { "ENOSPC", 28 }, { "ESPIPE", 29 },     { "EROFS", 30 },
-    { "EMLINK", 31 },       { "EPIPE", 32 },  { "EDOM", 33 },       { "ERANGE", 34 },
-    { "ENAMETOOLONG", 36 }, { "ENOSYS", 38 }, { "ENOTEMPTY", 39 },  { "ELOOP", 40 },
-    { "EOVERFLOW", 75 },    { "EILSEQ", 84 }, { "EOPNOTSUPP", 95 },
+    { "EPERM", 1, "Operation not permitted" },
+    { "ENOENT", 2, "No such file or directory" },
+    { "ESRCH", 3, "No such process" },
+    { "EINTR", 4, "Interrupted system call" },
+    { "EIO", 5, "Input/output error" },
+    { "ENXIO", 6, "No such device or address" },
+    { "E2BIG", 7, "Argument list too long" },
+    { "ENOEXEC", 8, "Exec format error" },
+    { "EBADF", 9, "Bad file descriptor" },
+    { "ECHILD", 10, "No child processes" },
+    { "EAGAIN", 11, "Resource temporarily unavailable" },
+    { "ENOMEM", 12, "Cannot allocate memory" },
+    { "EACCES", 13, "Permission denied" },
+    { "EFAULT", 14, "Bad address" },
+    { "EBUSY", 16, "Device or resource busy" },
+    { "EEXIST", 17, "File exists" },
+    { "EXDEV", 18, "Invalid cross-device link" },
+    { "ENODEV", 19, "No such device" },
+    { "ENOTDIR", 20, "Not a directory" },
+    { "EISDIR", 21, "Is a directory" },
+    { "EINVAL", 22, "Invalid argument" },
+    { "ENFILE", 23, "Too many open files in system" },
+    { "EMFILE", 24, "Too many open files" },
+    { "ENOTTY", 25, "Inappropriate ioctl for device" },
+    { "EFBIG", 27, "File too large" },
+    { "ENOSPC", 28, "No space left on device" },
+    { "ESPIPE", 29, "Illegal seek" },
+    { "EROFS", 30, "Read-only file system" },
+    { "EMLINK", 31, "Too many links" },
+    { "EPIPE", 32, "Broken pipe" },
+    { "EDOM", 33, "Numerical argument out of domain" },
+    { "ERANGE", 34, "Numerical result out of range" },
+    { "ENAMETOOLONG", 36, "File name too long" },
+    { "ENOSYS", 38, "Function not implemented" },
+    { "ENOTEMPTY", 39, "Directory not empty" },
+    { "ELOOP", 40, "Too many levels of symbolic links" },
+    { "EOVERFLOW", 75, "Value too large for defined data type" },
+    { "EILSEQ", 84, "Invalid or incomplete multibyte or wide character" },
+    { "EOPNOTSUPP", 95, "Operation not supported" },
+    { "ECONNABORTED", 103, "Software caused connection abort" },
+    { "ECONNRESET", 104, "Connection reset by peer" },
+    { "ENOTCONN", 107, "Transport endpoint is not connected" },
+    { "ESHUTDOWN", 108, "Cannot send after transport endpoint shutdown" },
+    { "ETIMEDOUT", 110, "Connection timed out" },
+    { "ECONNREFUSED", 111, "Connection refused" },
+    { "EALREADY", 114, "Operation already in progress" },
+    { "EINPROGRESS", 115, "Operation now in progress" },
+    { "ECANCELED", 125, "Operation canceled" },
 };
+
+} // namespace
+
+Str errno_text(i64 code)
+{
+    for (const Errno &e : ERRNOS)
+        if (e.code == code)
+            return e.text;
+    return Str();
+}
+
+namespace {
 
 // --------------------------------------------------------------------- gc
 
@@ -664,7 +738,8 @@ bool errno_install(DictObj *into)
             R::Ok)
             return false;
     }
-    return mod_int(d, "EWOULDBLOCK", 11) && mod_put(d, "errorcode", rc.v);
+    return mod_int(d, "EWOULDBLOCK", 11) && mod_int(d, "ENOTSUP", 95) &&
+           mod_put(d, "errorcode", rc.v);
 }
 
 bool gcmod_install(DictObj *into)

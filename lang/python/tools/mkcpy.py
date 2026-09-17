@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Bring one of CPython's own tests into this port's suite.
 
-    tools/mkcpy.py test_unary.py [more...]
+    tools/mkcpy.py test_unary.py test_io/test_fileio.py [more...]
 
-Copies Lib/test/<name> into test/cpython/<name> byte for byte and adds a row
-to test/cpython.txt. The golden beside it is what this interpreter printed, so
+Copies Lib/test/<path> into test/cpython/<name> byte for byte and adds a row
+to test/cpython.txt. A test inside a package of tests is taken on its own,
+under its file name, where it runs the same when it imports nothing of the
+package; the row records the path it came from. The golden beside it is what this interpreter printed, so
 it is written by the harness rather than here:
 
     node test/pycases.mjs --bless
@@ -68,17 +70,18 @@ def write_manifest(head, rows):
             f.write("  ".join(v.ljust(width[i]) for i, v in enumerate(r)).rstrip() + "\n")
 
 
-def add(name):
-    src = os.path.join(TESTS, name)
+def add(path):
+    src = os.path.join(TESTS, path)
     if not os.path.isfile(src):
-        die(f"{name}: no such test under {TESTS}")
+        die(f"{path}: no such test under {TESTS}")
+    name = os.path.basename(path)
 
     os.makedirs(CASES, exist_ok=True)
     shutil.copyfile(src, os.path.join(CASES, name))
 
     head, rows = read_manifest()
     rows = [r for r in rows if r[1] != name]
-    rows.append(["fail", name, "new", commit(), "Lib/test/" + name])
+    rows.append(["fail", name, "new", commit(), "Lib/test/" + path])
     write_manifest(head, rows)
     print(f"mkcpy: {name} — now run `node test/pycases.mjs --bless`")
 
@@ -91,7 +94,7 @@ def main():
     if not os.path.isdir(TESTS):
         die(f"no upstream clone at {UPSTREAM}")
     for name in args.tests:
-        add(os.path.basename(name))
+        add(name)
 
 
 if __name__ == "__main__":

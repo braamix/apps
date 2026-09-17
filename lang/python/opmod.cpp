@@ -332,8 +332,10 @@ R o_index(const CallArgs &a, Value &out)
     R r = R::Ok;
     if (redo_converted(a, 0, "__index__", o_index, out, r))
         return r;
-    i64 n = 0;
-    if (!as_index(a.args[0], n))
+    // Any int, of any width; an instance of a subclass of int is one.
+    i64 n       = 0;
+    Value inner = is_inst(a.args[0]) ? inst_of(a.args[0])->native : a.args[0];
+    if (!is_intval(inner) && !as_index(a.args[0], n))
         return err_set2("TypeError", "object cannot be interpreted as an integer",
                         type_name(a.args[0]));
     out = a.args[0];
