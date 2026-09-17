@@ -415,7 +415,7 @@ the order `P V I T o t k g D p i`, and only `P` and `V` are required — `p:`
 `cmd:` names are the publisher's, generated into the index. Optional `/bin/sh`
 hooks: `.pre-install`, `.post-install`, `.pre-deinstall`, `.post-deinstall`,
 `.pre-upgrade`, `.post-upgrade`, `.trigger`. **An unknown top-level dot-entry
-makes the package uninstallable.** A package must stay under 4 MiB compressed
+makes the package uninstallable.** A package must stay under 50 MiB compressed
 and unpack to no more than 50 MiB.
 
 Versions follow apk's grammar (`1.2-r0`), and nothing checks the spelling —

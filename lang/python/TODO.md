@@ -400,7 +400,7 @@ fallback for.
 - [ ] `importlib`, `__spec__`, `__loader__` and reloading. Phase 11's loader is
       C++ and the only thing that finds a module: there is no `sys.meta_path`,
       no `sys.path_hooks`, and nothing for a library module to hook.
-- [ ] The packaging question: `share/lib/` against a 4 MiB compressed package
+- [ ] The packaging question: `share/lib/` against a 50 MiB compressed package
       limit, and whether the whole library or a chosen set ships.
 
 Tests: `test_base64.py`, `test_binascii.py`, `test_hashlib.py`,
