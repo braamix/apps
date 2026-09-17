@@ -1,13 +1,13 @@
 # Python for Braam — a development plan
 
 Python 3 written for Braam: our own compiler, bytecode VM and object model,
-and CPython's library taken byte for byte over a native floor. Phases 0 to 27
+and CPython's library taken byte for byte over a native floor. Phases 0 to 28
 are done; their record is the git history and [README.md](README.md). This
 file describes only what is left.
 
 Where it stands: **427 of the 449 MicroPython tests** in
-[test/manifest.txt](test/manifest.txt) pass, and **61 of the 87 CPython tests**
-in [test/cpython.txt](test/cpython.txt) run, 1,662 of their 1,956 methods
+[test/manifest.txt](test/manifest.txt) pass, and **66 of the 92 CPython tests**
+in [test/cpython.txt](test/cpython.txt) run, 1,814 of their 2,107 methods
 passing. `node test/pycases.mjs --survey` says what stops each file of
 `Lib/test/`; most stop at a module that is not here yet, which is how each
 phase is chosen.
@@ -160,10 +160,10 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-The order is the layers that need the whole library (28–30); the language
+The order is the layers that need the whole library (29–30); the language
 phases, the floor, both waves of the library, `re`, the file system,
-annotations and typing are done. Each phase lists only what the phases before
-it have made possible.
+annotations, typing and asyncio are done. Each phase lists only what the
+phases before it have made possible.
 
 After Phase 27: **the library ships as the package's `lib/`**, exactly the
 rows of [lib/manifest.txt](lib/manifest.txt) — 194 files, 2.0 MB
@@ -197,23 +197,26 @@ got. **`test_importlib/` skips whole**, as it does on any CPython built
 without the `_testmultiphase` test extension; `test/stdlib/imports.py`
 measures importlib against CPython instead.
 
-### Phase 28 — `asyncio`
+After Phase 28: **asyncio runs, and the loop is this port's.** CPython's
+`base_events` is built round a selector and its `events` names `socket` and
+`subprocess` in the signatures of `AbstractEventLoop`; there are no sockets
+here, so those two and the package's `__init__` are written for Braam and
+carry `(this port)` in the manifest. Everything else is CPython's own, byte
+for byte: `futures`, `tasks`, `locks`, `queues`, `timeouts`, `taskgroups`,
+`runners`, `graph` and the rest, over `concurrent.futures`. What the loop
+waits on is the process: `time.sleep` parks it through the driver, which is
+Braam's own event loop. **`streams`, `subprocess` and the transports over a
+socket are not here**, so the names they export are not either.
 
-The language half was phase 19. What makes this interesting here is that
-Braam already *is* an event loop.
+**The clock may not move.** Under the headless harness `proc_now()` is frozen
+on purpose, so a park comes back with `time.monotonic()` where it was and a
+timer would never come due. The loop counts what it slept instead: where a
+park did not advance the clock, what it asked for is added to an offset of
+its own, and in a browser that offset stays at zero.
 
-- [ ] `asyncio`: the event loop is `braam.cpp`'s park. A `Req` is what the loop
-      waits on and `proc_spawn` is what a task is — the mapping is closer than
-      it is on a POSIX host, and the selector layer CPython's `asyncio` assumes
-      is the part to replace rather than borrow.
-- [ ] `sys.set_asyncgen_hooks` and `get_asyncgen_hooks`, so the loop hears
-      when an async generator starts and when one is dropped unfinished.
-- [ ] `threading` as the shim `asyncio` needs over phase 22's `_thread`.
-- [ ] `contextvars.py` over phase 22's `_contextvars`, and the context each
-      task runs in.
-
-Tests: the `asyncio` suite as far as it reaches, and `test_contextlib.py`,
-which imports `threading`.
+**A loop with nothing ready, no timer and nothing to wait for raises**, where
+CPython's would block on its selector for ever. There is no I/O here to wake
+one, so saying so is better than hanging.
 
 ### Phase 29 — the REPL
 

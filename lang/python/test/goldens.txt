@@ -89,6 +89,7 @@ number/bigint.py                    cpython3.14
 number/complex.py                   cpython3.14
 stdlib/argparses.py                 cpython3.16
 stdlib/asts.py                      cpython3.16
+stdlib/asyncios.py                  cpython3.16
 stdlib/colls.py                     cpython3.16
 stdlib/copies.py                    cpython3.16
 stdlib/csvs.py                      cpython3.16

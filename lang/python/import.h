@@ -43,3 +43,8 @@ R import_absolute(Str name, i64 level, Value where, Value &out);
 
 // `from m import name` where `m` has no such name. Always returns R::Err.
 R import_missing(Value m, StrObj *name);
+
+// `m.name` as sys.modules["<m.__name__>.<name>"], for a relative import that
+// came round on itself: the submodule is loading and the package has no
+// attribute for it yet. Nil, with no error, when there is no such module.
+Value import_submodule(Value m, StrObj *name);

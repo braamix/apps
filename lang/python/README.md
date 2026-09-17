@@ -29,7 +29,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 27.**
+**Phase 28.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -324,6 +324,24 @@ short sleeps on afterwards, as PEP 475 says. The `_io` is native rather than
 `_pyio.py`, which opens by importing `io` and so could not be the floor; see
 [TODO.md](TODO.md).
 
+**asyncio runs, and the loop is this port's.** CPython's `base_events` is
+built round a selector and its `events` names `socket` and `subprocess` in
+the signatures of `AbstractEventLoop`; there are no sockets here, so those
+two and the package's `__init__` are written for Braam and say so in
+[lib/manifest.txt](lib/manifest.txt). The rest is CPython's own, byte for
+byte, and what the loop waits on is the process: `time.sleep` parks it
+through the driver, which is Braam's own event loop. `sys.set_asyncgen_hooks`
+is PEP 525's pair, and the first one fires where an async generator is first
+stepped, so the loop closes what a program abandons. CPython's own
+`test_locks.py`, `test_queues.py`, `test_protocols.py`, `test_transports.py`
+and `test_context.py` run, 151 of 151 methods passing.
+
+**A `break` out of a loop written inside a `finally` no longer swallows the
+exception being unwound.** The clause holds the exception on the stack and an
+exit out of the *clause* has to drop it, but a loop opened inside the clause
+is left without touching it; the two were not told apart, which is what
+`asyncio.Condition.wait` tripped over.
+
 **An annotation is evaluated when something asks for it**, which is PEP 649
 and what 3.14 does. The compiler collects the annotations of a def, a class
 body or a module into an `__annotate__` function of one argument, and
@@ -371,9 +389,9 @@ in `format()`, and `<class '__main__.C'>` — a class repr now names its module.
 And two old faults went: an `except` clause that raised left the exception it
 had handled current, so the next one's `__context__` was wrong, and the
 collector's owed finalizers nested inside each other until one hit the
-recursion limit. [test/stdlib/](test/stdlib/) holds forty programs now,
-2,469 lines identical to CPython 3.16's. The package carries the library as
-`lib/`: the 194 files [lib/manifest.txt](lib/manifest.txt) lists, 2.0 MB
+recursion limit. [test/stdlib/](test/stdlib/) holds forty-one programs now,
+2,490 lines identical to CPython 3.16's. The package carries the library as
+`lib/`: the 195 files [lib/manifest.txt](lib/manifest.txt) lists, 2.0 MB
 compressed with the binary.
 
 **The protocol methods are in each built-in type's namespace.** `len(x)`
@@ -417,9 +435,9 @@ CPython wrote now comes from 3.14, and [test/goldens.txt](test/goldens.txt)
 says which interpreter wrote each of our own.
 
 **CPython's tests are the second ruler.** Eighty-seven are in
-[test/cpython.txt](test/cpython.txt), sixty-one of them run, and 1,662 test
-methods of 1,956 pass, against 1,513 of 1,920 at phase 26 and 975 of 1,282 at
-phase 25. Phase 27 took the shim out from under them: `unittest` is CPython's
+[test/cpython.txt](test/cpython.txt) — ninety-two now, five of them
+asyncio's — sixty-six of them run, and 1,814 test methods of 2,107 pass,
+against 1,662 of 1,956 at phase 27 and 1,513 of 1,920 at phase 26. Phase 27 took the shim out from under them: `unittest` is CPython's
 own now, so `setUp`, `subTest`, the skips and an expected failure all behave
 as they do there, and the golden is the report unittest itself printed.
 Phase 26 added
@@ -747,6 +765,17 @@ All recorded rather than hidden, and all in reach later:
 - **A SyntaxError's message and column are this parser's.** `ast.parse` raises
   where CPython raises, on the same line, but what it says and the column it
   points at are not copied.
+- **A loop with nothing to do raises rather than blocking.** CPython's event
+  loop waits in its selector for ever; there is no I/O here to wake one, so a
+  loop with nothing ready, no timer and nothing to wait for says so.
+- **The event loop counts what it slept where the clock is frozen.** The
+  headless harness stops `proc_now()` on purpose, so a park comes back with
+  `time.monotonic()` where it was; the loop adds what it asked for to an
+  offset of its own so a timer still comes due. In a browser the offset stays
+  at zero.
+- **asyncio has no streams, no subprocesses and no sockets**, so
+  `asyncio.streams`, `asyncio.subprocess` and the transports over a socket are
+  not there and their names are not exported.
 - **`dis` is this port's, not CPython's.** CPython's `Lib/dis.py` decodes
   CPython's instruction stream; this one's is an opcode and a whole `u32`, so
   the module is written in [dismod.cpp](dismod.cpp) instead, against the names

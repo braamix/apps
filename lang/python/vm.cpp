@@ -3188,7 +3188,16 @@ void interpret()
                 Value v = st[f->sp - 1];
                 if (is_agen(v)) {
                     Value aw = await_new(v, AK_ASEND, value_none());
-                    if (aw.is_nil() || !push(f, aw))
+                    if (!aw.is_nil())
+                        aw = agen_firstiter(v, aw);
+                    if (aw.is_nil())
+                        goto oops;
+                    if (is_cont(aw)) {
+                        if (!land(aw, false))
+                            goto oops;
+                        break;
+                    }
+                    if (!push(f, aw))
                         goto oops;
                     break;
                 }
@@ -3775,8 +3784,17 @@ void interpret()
                     break;
                 }
                 if (g != Got::Ok) {
-                    // The name is missing, not the object: say so as an import.
                     err_clear();
+                    // A circular relative import: the submodule is being
+                    // loaded and is in sys.modules, but the package has no
+                    // attribute for it yet.
+                    Value sub = import_submodule(st[f->sp - 1], what);
+                    if (!sub.is_nil()) {
+                        if (!push(f, sub))
+                            goto oops;
+                        break;
+                    }
+                    // The name is missing, not the object: say so as an import.
                     import_missing(st[f->sp - 1], what);
                     goto oops;
                 }

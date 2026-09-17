@@ -30,6 +30,7 @@ pass  test_calendar.py                86/86    82952e3  Lib/test/test_calendar.p
 pass  test_charmapcodec.py            4/4      82952e3  Lib/test/test_charmapcodec.py
 fail  test_codeop.py                  silent   82952e3  Lib/test/test_codeop.py
 pass  test_contains.py                3/4      82952e3  Lib/test/test_contains.py
+pass  test_context.py                 1/1      82952e3  Lib/test/test_asyncio/test_context.py
 pass  test_contextlib.py              84/100   82952e3  Lib/test/test_contextlib.py
 fail  test_csv.py                     import   82952e3  Lib/test/test_csv.py
 pass  test_datetime.py                0/1      82952e3  Lib/test/test_datetime.py
@@ -58,7 +59,8 @@ fail  test_hmac.py                    import   82952e3  Lib/test/test_hmac.py
 pass  test_int_literal.py             6/6      82952e3  Lib/test/test_int_literal.py
 pass  test_iterlen.py                 1/22     82952e3  Lib/test/test_iterlen.py
 pass  test_keyword.py                 11/11    82952e3  Lib/test/test_keyword.py
-pass  test_keywordonlyarg.py          8/11     82952e3  Lib/test/test_keywordonlyarg.py
+pass  test_keywordonlyarg.py          9/11     82952e3  Lib/test/test_keywordonlyarg.py
+pass  test_locks.py                   75/75    82952e3  Lib/test/test_asyncio/test_locks.py
 pass  test_longexp.py                 1/1      82952e3  Lib/test/test_longexp.py
 pass  test_math.py                    0/1      82952e3  Lib/test/test_math.py
 fail  test_memoryio.py                import   82952e3  Lib/test/test_io/test_memoryio.py
@@ -73,6 +75,8 @@ pass  test_pow.py                     5/7      82952e3  Lib/test/test_pow.py
 pass  test_pprint.py                  28/76    82952e3  Lib/test/test_pprint.py
 pass  test_print.py                   3/9      82952e3  Lib/test/test_print.py
 pass  test_property.py                12/31    82952e3  Lib/test/test_property.py
+pass  test_protocols.py               7/7      82952e3  Lib/test/test_asyncio/test_protocols.py
+pass  test_queues.py                  59/59    82952e3  Lib/test/test_asyncio/test_queues.py
 pass  test_raise.py                   28/37    82952e3  Lib/test/test_raise.py
 fail  test_random.py                  import   82952e3  Lib/test/test_random.py
 pass  test_re.py                      168/170  82952e3  Lib/test/test_re.py
@@ -94,6 +98,7 @@ fail  test_tempfile.py                import   82952e3  Lib/test/test_tempfile.p
 pass  test_textwrap.py                68/68    82952e3  Lib/test/test_textwrap.py
 fail  test_time.py                    import   82952e3  Lib/test/test_time.py
 fail  test_traceback.py               import   82952e3  Lib/test/test_traceback.py
+pass  test_transports.py              9/9      82952e3  Lib/test/test_asyncio/test_transports.py
 fail  test_tstring.py                 import   82952e3  Lib/test/test_tstring.py
 fail  test_type_aliases.py            import   82952e3  Lib/test/test_type_aliases.py
 fail  test_type_params.py             import   82952e3  Lib/test/test_type_params.py

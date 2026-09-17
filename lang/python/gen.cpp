@@ -5,6 +5,7 @@
 #include "gc.h"
 #include "kernel/fmt.h"
 #include "method.h"
+#include "module.h"
 #include "ops.h"
 
 namespace {
@@ -225,6 +226,19 @@ GenObj *self_agen(const CallArgs &a, Str who)
     return nullptr;
 }
 
+// `collections.abc.Awaitable` looks for __await__ in the type's namespace, so
+// answering it from the getattr slot alone is not enough: inspect.isawaitable
+// would say no and asyncio would refuse `await agen.aclose()`.
+R a_await(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__await__", 0, 0))
+        return R::Err;
+    out = method_self(a.args[0]);
+    return R::Ok;
+}
+
+constexpr Method AWAITABLE_METHODS[] = { { "__await__", a_await } };
+
 R m_aiter(const CallArgs &a, Value &out)
 {
     if (!self_agen(a, "__aiter__") || !meth_args(a, "__aiter__", 0, 0))
@@ -233,11 +247,50 @@ R m_aiter(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// s[0] the generator, s[1] the hook, s[2] the awaitable to answer with.
+R firstiter_step(ContObj *k, Value in)
+{
+    (void)in;
+    if (k->i++ == 0)
+        return cont_call(k, k->s[1], k->s[0]);
+    return cont_done(k, k->s[2]);
+}
+
+// PEP 525: the loop is told the first time an async generator is stepped, so
+// that it can close the ones a program abandons. The hook is Python, so the
+// awaitable is handed over behind a continuation that calls it first.
+} // namespace
+
+Value agen_firstiter(Value agen, Value awaitable)
+{
+    GenObj *g = gen_of(agen);
+    if (g->hooks)
+        return awaitable;
+    g->hooks   = true;
+    Value hook = sys_asyncgen_firstiter();
+    if (hook.is_nil())
+        return awaitable;
+    Root ra{ agen }, rw{ awaitable }, rh{ hook };
+    Root kv{ cont_new(firstiter_step) };
+    if (kv.v.is_nil())
+        return Value();
+    cont_of(kv.v)->s[0] = ra.v;
+    cont_of(kv.v)->s[1] = rh.v;
+    cont_of(kv.v)->s[2] = rw.v;
+    return kv.v;
+}
+
+namespace {
+
 R m_anext(const CallArgs &a, Value &out)
 {
     if (!self_agen(a, "__anext__") || !meth_args(a, "__anext__", 0, 0))
         return R::Err;
-    out = await_new(a.args[0], AK_ASEND, value_none());
+    Root self{ a.args[0] };
+    out = await_new(self.v, AK_ASEND, value_none());
+    if (out.is_nil())
+        return R::Err;
+    out = agen_firstiter(self.v, out);
     return out.is_nil() ? R::Err : R::Ok;
 }
 
@@ -245,7 +298,11 @@ R m_asend(const CallArgs &a, Value &out)
 {
     if (!self_agen(a, "asend") || !meth_args(a, "asend", 1, 1))
         return R::Err;
-    out = await_new(a.args[0], AK_ASEND, a.args[1]);
+    Root self{ a.args[0] };
+    out = await_new(self.v, AK_ASEND, a.args[1]);
+    if (out.is_nil())
+        return R::Err;
+    out = agen_firstiter(self.v, out);
     return out.is_nil() ? R::Err : R::Ok;
 }
 
@@ -343,6 +400,7 @@ Value gen_new(Value frame)
     g->state    = GEN_CREATED;
     g->running  = false;
     g->closed   = false;
+    g->hooks    = false;
     // A generator dropped at a yield owes its `finally` a run, and that is
     // what a finalizer is: the collector owes it one close.
     g->flags |= OBJ_FINAL;
@@ -426,5 +484,8 @@ Value wrapval_new(Value v)
 
 bool gen_methods()
 {
-    return method_install(&agen_type, AGEN_METHODS);
+    return method_install(&agen_type, AGEN_METHODS) &&
+           method_install(&asend_type, AWAITABLE_METHODS) &&
+           method_install(&athrow_type, AWAITABLE_METHODS) &&
+           method_install(&anext_type, AWAITABLE_METHODS);
 }

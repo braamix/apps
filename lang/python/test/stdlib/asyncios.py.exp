@@ -1,0 +1,21 @@
+gather [6, 2, 4] [1, 2, 3]
+task 0 True True
+queue 2 1 2
+lock True
+event True
+group 2 4
+timeout fired
+wait 1 0
+shield 0
+loop True
+cancelled
+propagated
+done
+agen 0
+agen 1
+hooks set: True
+agen closed
+order ['soon', 'later'] True
+closed False False
+closed True
+RuntimeError Event loop is closed

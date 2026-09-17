@@ -1016,6 +1016,27 @@ R import_absolute(Str name, i64 level, Value where, Value &out)
     return absolute(name, level, where, out);
 }
 
+Value import_submodule(Value m, StrObj *name)
+{
+    if (!is_module(m))
+        return Value();
+    Root rm{ m }, rn{ obj_value(name) };
+    Value pkg;
+    if (get(module_dict(rm.v), "__name__", pkg) != R::Ok || !is_str(pkg))
+        return err_clear(), Value();
+    String full;
+    if (!full.append(str_of(pkg)->str()) || !full.push('.') || !full.append(str_of(rn.v)->str()))
+        return err_set("MemoryError", "out of memory"), Value();
+    DictObj *mods = sys_modules();
+    StrObj *key   = str_intern(full.str());
+    Value found;
+    if (!mods || !key)
+        return Value();
+    if (dict_get(mods, obj_value(key), found) != R::Ok)
+        return err_clear(), Value();
+    return found;
+}
+
 R import_missing(Value m, StrObj *name)
 {
     Buf<192> b;

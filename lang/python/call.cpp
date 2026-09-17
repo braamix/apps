@@ -161,8 +161,12 @@ R drain_step(ContObj *k, Value in)
     return r == R::Ok ? cont_done(k, got) : r;
 }
 
+// CPython names the function by its qualname in these messages, so a method
+// reads as `C.m()` and not as `m()`.
 Str fn_name(CodeObj *co)
 {
+    if (is_str(co->qualname))
+        return str_of(co->qualname)->str();
     return is_str(co->name) ? str_of(co->name)->str() : Str("?");
 }
 
@@ -174,13 +178,30 @@ bool same_name(Value a, Value b)
     return is_str(a) && is_str(b) && py_eq(a, b, eq) == R::Ok && eq;
 }
 
-R too_many(CodeObj *co, u32 given)
+// `ndefaults` are the trailing parameters a call may leave out, so the count
+// reads as a range where there are any, which is what CPython says.
+R too_many(CodeObj *co, u32 given, u32 ndefaults, u32 nkwonly)
 {
     char tmp[24];
-    Buf<128> m;
-    m.put(fn_name(co)).put("() takes ").put(int_text(tmp, sizeof tmp, i64(co->argcount)));
-    m.put(" positional arguments but ").put(int_text(tmp, sizeof tmp, i64(given)));
-    m.put(" were given");
+    u32 least = ndefaults < co->argcount ? co->argcount - ndefaults : 0;
+    Buf<192> m;
+    m.put(fn_name(co)).put("() takes ");
+    if (least != co->argcount) {
+        m.put("from ").put(int_text(tmp, sizeof tmp, i64(least)));
+        m.put(" to ").put(int_text(tmp, sizeof tmp, i64(co->argcount)));
+    } else {
+        m.put(int_text(tmp, sizeof tmp, i64(co->argcount)));
+    }
+    m.put(" positional argument").put(co->argcount == 1 && least == co->argcount ? "" : "s");
+    m.put(" but ").put(int_text(tmp, sizeof tmp, i64(given)));
+    if (!nkwonly) {
+        m.put(given == 1 ? " was given" : " were given");
+        return err_set("TypeError", m.str());
+    }
+    m.put(given == 1 ? " positional argument (and " : " positional arguments (and ");
+    m.put(int_text(tmp, sizeof tmp, i64(nkwonly)));
+    m.put(nkwonly == 1 ? " keyword-only argument) were given"
+                       : " keyword-only arguments) were given");
     return err_set("TypeError", m.str());
 }
 
@@ -577,8 +598,15 @@ R bind_args(FuncObj *fn, CodeObj *co, FrameObj *nf, const CallArgs &a)
     u32 at_star = named;
     u32 at_kw   = named + ((co->flags & CO_VARARGS) ? 1 : 0);
 
-    if (a.nargs > argc && !(co->flags & CO_VARARGS))
-        return too_many(co, a.nargs);
+    if (a.nargs > argc && !(co->flags & CO_VARARGS)) {
+        u32 nd = is_tuple(fn->defaults) ? static_cast<TupleObj *>(fn->defaults.obj())->len : 0;
+        u32 kw = 0;
+        for (u32 i = 0; i < a.nkw; i++)
+            for (u32 k = 0; k < co->kwonly; k++)
+                if (same_name(a.kwnames[i], co->varnames[argc + k]))
+                    kw++;
+        return too_many(co, a.nargs, nd, kw);
+    }
 
     u32 direct = a.nargs < argc ? a.nargs : argc;
     for (u32 i = 0; i < direct; i++)

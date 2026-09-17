@@ -41,6 +41,8 @@ R oom()
 struct Home {
     Value argv;
     Value in, out, err; // the stream each of the three descriptors started as
+    Value firstiter;    // set_asyncgen_hooks: called when one is first stepped
+    Value finalizer;    // and when one is dropped unfinished
     bool tty_in, tty_out, tty_err;
 };
 
@@ -54,6 +56,8 @@ void home_mark()
     gc_mark(home->in);
     gc_mark(home->out);
     gc_mark(home->err);
+    gc_mark(home->firstiter);
+    gc_mark(home->finalizer);
 }
 
 Home *here()
@@ -291,6 +295,47 @@ R b_getsizeof(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+INFO_TYPE(asyncgen_hooks_type, "asyncgen_hooks");
+
+constexpr Str HOOK_NAMES[2] = { "firstiter", "finalizer" };
+
+// PEP 525's pair. The loop sets them while it runs and puts back what it
+// found; gen.cpp calls the first one when an async generator is first
+// stepped.
+R b_set_asyncgen_hooks(const CallArgs &a, Value &out)
+{
+    static const Str NAMES[] = { "firstiter", "finalizer" };
+    Value v[2];
+    if (!fn_take(a, "set_asyncgen_hooks", NAMES, 2, 0, v))
+        return R::Err;
+    Home *h = here();
+    if (!h)
+        return err_set("MemoryError", "out of memory");
+    for (u32 i = 0; i < 2; i++) {
+        if (v[i].is_nil())
+            continue;
+        if (!is_none(v[i]) && !py_callable(v[i]))
+            return err_set2("TypeError", "callable or None was expected", NAMES[i]);
+        (i ? h->finalizer : h->firstiter) = is_none(v[i]) ? Value() : v[i];
+    }
+    out = value_none();
+    return R::Ok;
+}
+
+R b_get_asyncgen_hooks(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "get_asyncgen_hooks", 0, 0))
+        return R::Err;
+    Home *h = here();
+    if (!h)
+        return err_set("MemoryError", "out of memory");
+    Value items[2] = { h->firstiter.is_nil() ? value_none() : h->firstiter,
+                       h->finalizer.is_nil() ? value_none() : h->finalizer };
+    Roots pin{ items, 2 };
+    out = info_new(&asyncgen_hooks_type, items, HOOK_NAMES, 2);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 R b_getrecursionlimit(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "getrecursionlimit", 0, 0))
@@ -415,6 +460,8 @@ constexpr ModDef SYS_DEFS[] = {
     { "exception", b_exception },
     { "getsizeof", b_getsizeof },
     { "getrecursionlimit", b_getrecursionlimit },
+    { "set_asyncgen_hooks", b_set_asyncgen_hooks },
+    { "get_asyncgen_hooks", b_get_asyncgen_hooks },
     { "setrecursionlimit", b_setrecursionlimit },
     { "intern", b_intern },
     { "_getframe", b_getframe },
@@ -634,6 +681,11 @@ Value sys_stream(Str name)
     if (!n || dict_get(module_dict(m), obj_value(n), got) != R::Ok)
         return Value();
     return got;
+}
+
+Value sys_asyncgen_firstiter()
+{
+    return home ? home->firstiter : Value();
 }
 
 bool sys_install(DictObj *into)

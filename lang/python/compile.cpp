@@ -36,6 +36,7 @@ struct FBlock {
     u32 cont     = 0;       // Loop: where `continue` jumps
     u32 pops     = 0;       // Loop: values the loop itself left on the stack
     u32 node     = 0;       // Finally: the Try node, for the inline copy
+    u32 held     = 0;       // what `pending` was when the block was opened
     StrObj *name = nullptr; // Handler: the name `as` bound, or null
     bool busy    = false;   // Finally: its copy is being emitted right now
     bool async   = false;   // With: `async with`, whose __aexit__ is awaited
@@ -316,6 +317,7 @@ struct Compiler {
     // Every push goes through here, so blocks_max is the frame's block stack.
     bool block_push(FBlock &f)
     {
+        f.held = u->pending;
         if (!u->blocks.push(static_cast<FBlock &&>(f)))
             return oom();
         note_blocks(0);
@@ -553,7 +555,10 @@ bool Compiler::loop_exit(bool is_break, u32 node)
 
     if (!unwind(b, false))
         return false;
-    for (u32 k = 0; k < u->pending; k++)
+    // Only what an enclosing finally clause left below this loop: a loop
+    // opened inside the clause is left without touching what the clause
+    // holds, so `break` there does not swallow the exception being unwound.
+    for (u32 k = u->blocks[b - 1].held; k < u->pending; k++)
         if (!emit(Bc::PopTop, node))
             return false;
     if (is_break) {

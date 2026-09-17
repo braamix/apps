@@ -1,4 +1,4 @@
-...FF.F....
+...FF......
 ======================================================================
 FAIL: testSyntaxErrorForFunctionCall (__main__.KeywordOnlyArgTestCase.testSyntaxErrorForFunctionCall)
 ----------------------------------------------------------------------
@@ -19,18 +19,7 @@ Traceback (most recent call last):
     self.assertRaises(SyntaxError, shouldRaiseSyntaxError, codestr)
 AssertionError: SyntaxError not raised by shouldRaiseSyntaxError
 
-======================================================================
-FAIL: testTooManyPositionalErrorMessage (__main__.KeywordOnlyArgTestCase.testTooManyPositionalErrorMessage)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_keywordonlyarg.py", line 68, in testTooManyPositionalErrorMessage
-    self.assertEqual(str(exc.exception), expected)
-AssertionError: 'f() takes 2 positional arguments but 3 were given' != 'KeywordOnlyArgTestCase.testTooManyPositio[80 chars]iven'
-- f() takes 2 positional arguments but 3 were given
-+ KeywordOnlyArgTestCase.testTooManyPositionalErrorMessage.<locals>.f() takes from 1 to 2 positional arguments but 3 were given
-
-
 ----------------------------------------------------------------------
 Ran 11 tests in Ns
 
-FAILED (failures=3)
+FAILED (failures=2)

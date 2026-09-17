@@ -7,7 +7,7 @@ Traceback (most recent call last):
     class A(Left, Middle, Right, middle="middle"):
   File "/tmp/test_subclassinit.py", line 88, in __init_subclass__
     super().__init_subclass__(**kwargs)
-TypeError: __init_subclass__() missing a required positional argument: 'cls'
+TypeError: Test.test_init_subclass_diamond.<locals>.Right.__init_subclass__() missing a required positional argument: 'cls'
 
 ======================================================================
 ERROR: test_set_name_error (__main__.Test.test_set_name_error)

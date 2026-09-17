@@ -103,6 +103,9 @@ bool types_install(DictObj *into);
 bool typing_install(DictObj *into);
 bool ast_install(DictObj *into);
 bool dismod_install(DictObj *into);
+
+// sys.set_asyncgen_hooks's firstiter, or Nil. gen.cpp calls it (PEP 525).
+Value sys_asyncgen_firstiter();
 bool unicodedata_install(DictObj *into);
 bool thread_install(DictObj *into);
 bool contextvars_install(DictObj *into);

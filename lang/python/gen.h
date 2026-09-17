@@ -31,6 +31,7 @@ struct GenObj : Obj {
     u8 state;
     bool running; // async generator: an asend or athrow is under way
     bool closed;  // async generator: finished, or aclose() has begun
+    bool hooks;   // async generator: sys.set_asyncgen_hooks has been told
 };
 
 extern const Type gen_type;
@@ -40,6 +41,11 @@ extern const Type agen_type;
 // The generator, coroutine or async generator owning `frame`, by its code's
 // flags. Nil with the error pending.
 Value gen_new(Value frame);
+
+// PEP 525: the loop is told the first time an async generator is stepped, so
+// that it can close what a program abandons. `awaitable` comes back behind a
+// continuation where the hook has to be called first. Nil on an error.
+Value agen_firstiter(Value agen, Value awaitable);
 
 inline bool is_gen(Value v)
 {
