@@ -4,7 +4,7 @@ home $ py -i </tmp/i >/tmp/o 2>/tmp/e
 home $ py -m mod a b >/tmp/o 2>/tmp/e
 home $ py -m nosuch >/tmp/o 2>/tmp/e
 [1] home $ py
-Python 0.1 on Braam
+Python 3.14.0 on Braam
 >>> 1+1
 2
 >>> 'é' + 'x'

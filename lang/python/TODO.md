@@ -218,18 +218,6 @@ its own, and in a browser that offset stays at zero.
 CPython's would block on its selector for ever. There is no I/O here to wake
 one, so saying so is better than hanging.
 
-### Phase 29 — the REPL
-
-- [x] `python` with no arguments, `-i`, `sys.ps1`/`sys.ps2`, and the
-      incomplete-input rule `codeop` states.
-- [x] `python -m <module>`, which needs `runpy` or its own small version of it.
-- [x] The line editor, and the keyboard-ownership problem `mbasic` had to
-      solve: a key ring has one receiver and there is no non-blocking key
-      read, so the editor holds it at the prompt and gives it back the moment
-      a program runs.
-- [x] History, `sys.displayhook` and `builtins._`, and a traceback that reads
-      well at a prompt.
-
 After Phase 29: **a bare `python` is a prompt, and a pipe is still a
 program.** CPython's rule, and it decides what a session can be tested as:
 `python -i < file` writes a whole transcript down, prompts and all, because

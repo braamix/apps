@@ -24,7 +24,7 @@ Both upstream clones sit in `tmp/` and are not committed.
 
 ```
 $ python --version
-Python 0.1 on Braam
+Python 3.14.0 on Braam
 ```
 
 ## Status
@@ -122,7 +122,7 @@ their lines through:
 
 ```
 $ python
-Python 0.1 on Braam
+Python 3.14.0 on Braam
 >>> sum(i * i for i in range(10))
 285
 >>> _ + 1

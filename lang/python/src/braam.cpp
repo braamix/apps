@@ -30,8 +30,9 @@ namespace {
 
 constexpr Str WHO = "python";
 
-// The number is this implementation's; the language it aims at is 3.
-constexpr Str VERSION = "Python 0.1 on Braam";
+// The language version, which is also what sys.version says. The port's own
+// number is the package's.
+constexpr Str VERSION = "Python 3.14.0 on Braam";
 
 constexpr Str USAGE =
     "Usage:\n"

@@ -3,7 +3,7 @@
 
 import { boot, put, rm, run, ok, die, same } from "./pylib.mjs";
 
-const VERSION = "Python 0.1 on Braam\n";
+const VERSION = "Python 3.14.0 on Braam\n";
 
 await boot("pysmoke");
 
