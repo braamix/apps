@@ -363,7 +363,7 @@ R alias_call_step(ContObj *k, Value in)
     return cont_done(k, in);
 }
 
-constexpr Type genalias_type{ .name    = "GenericAlias",
+constexpr Type genalias_type{ .name    = "types.GenericAlias",
                               .trace   = alias_trace,
                               .hash    = alias_hash,
                               .eq      = alias_eq,

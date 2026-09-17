@@ -1,0 +1,105 @@
+Namespace(files=['x', 'y'], verbose=2, mode='b', n=3, ratio=0.5, tags=['t1', 't2'], color=True)
+Namespace(files=[], verbose=0, mode='a', n=None, ratio=0.5, tags=None, color=True)
+Namespace(files=['-notanoption'], verbose=0, mode='a', n=None, ratio=2.5, tags=None, color=False)
+usage: demo [-h] [-v] [--mode {a,b}] [-n N] [--ratio RATIO] [--tag TAGS]
+            [--no-color] [--version]
+            [files ...]
+usage: demo [-h] [-v] [--mode {a,b}] [-n N] [--ratio RATIO] [--tag TAGS]
+            [--no-color] [--version]
+            [files ...]
+
+A demo.
+
+positional arguments:
+  files          input files
+
+options:
+  -h, --help     show this help message and exit
+  -v, --verbose  say more
+  --mode {a,b}   the mode (default: a)
+  -n N           how many
+  --ratio RATIO
+  --tag TAGS
+  --no-color
+  --version      show program's version number and exit
+
+That is all.
+
+exit 2
+exit 2
+exit 2
+exit 2
+usage: demo [-h] [-v] [--mode {a,b}] [-n N] [--ratio RATIO] [--tag TAGS]
+            [--no-color] [--version]
+            [files ...]
+demo: error: argument --mode: invalid choice: 'c' (choose from 'a', 'b')
+usage: demo [-h] [-v] [--mode {a,b}] [-n N] [--ratio RATIO] [--tag TAGS]
+            [--no-color] [--version]
+            [files ...]
+demo: error: argument -n: invalid int value: 'x'
+usage: demo [-h] [-v] [--mode {a,b}] [-n N] [--ratio RATIO] [--tag TAGS]
+            [--no-color] [--version]
+            [files ...]
+demo: error: unrecognized arguments: --bogus
+usage: demo [-h] [-v] [--mode {a,b}] [-n N] [--ratio RATIO] [--tag TAGS]
+            [--no-color] [--version]
+            [files ...]
+demo: error: argument -n: expected one argument
+'demo 1.0\n' 0
+Namespace(level=1, cmd='run', on=True, off=False, fast=True, target='here')
+Namespace(level=1, cmd='r', on=False, off=False, fast=False, target='there')
+Namespace(level=4, cmd='show', on=False, off=False, what='all', func='shower')
+error: argument --off: not allowed with argument --on | --off
+error: argument --level: invalid int value: 'z' | --level
+usage: tool [-h] [--level LEVEL] [--on | --off] {run,r,show} ...
+
+options:
+  -h, --help     show this help message and exit
+  --level LEVEL
+  --on
+  --off
+
+commands:
+  {run,r,show}
+    run (r)      run it
+    show         show it
+
+usage: tool run [-h] [--fast] target
+
+positional arguments:
+  target
+
+options:
+  -h, --help  show this help message and exit
+  --fast
+
+Namespace(level=1, cmd='show', on=False, off=False, what='some', func='shower') ['--zzz', 'tail']
+(Namespace(foo='bar', cmd='doit', rest=[1, 2, 3]), ['--zzz'])
+Namespace(verbosity=2, pair=['A', 'B'], rest=['c', '--d'])
+usage: r [-h] [--verbosity VERBOSITY] pair pair ...
+
+  keep
+    this layout
+
+positional arguments:
+  pair
+  rest
+
+options:
+  -h, --help            show this help message and exit
+  --verbosity VERBOSITY
+
+False True
+{'a': 1, 'b': 'two'} True
+True
+Namespace(y='1')
+ArgumentDefaultsHelpFormatter
+usage: f [-h] [--size SIZE] IN [IN ...]
+
+positional arguments:
+  IN           some inputs
+
+options:
+  -h, --help   show this help message and exit
+  --size SIZE  the size (default: 10)
+

@@ -95,12 +95,12 @@ Task<bool> slurp(Args paths, String &out)
     }
 }
 
-// Is `root`/share/lib a directory? mbasic's epath.cpp resolves its examples
+// Is `root`/lib a directory? mbasic's epath.cpp resolves its examples
 // the same way, and for the same reason: the store path carries a version the
 // binary does not know.
 Task<bool> holds_library(Str root, String &out)
 {
-    if (!out.assign(root) || !out.append("/share/lib"))
+    if (!out.assign(root) || !out.append("/lib"))
         co_return false;
     Result<FileInfo> st = Err(Error::NoMemory);
     if (Task<Result<FileInfo>> t = stat_of(out.str()))
@@ -214,7 +214,7 @@ String hidden_take(i32 fd)
     String out;
     for (usize i = 0; hidden && i < hidden->size(); i++)
         if ((*hidden)[i].fd == fd) {
-            out = static_cast<String &&>((*hidden)[i].path);
+            out          = static_cast<String &&>((*hidden)[i].path);
             (*hidden)[i] = static_cast<Hidden &&>((*hidden)[hidden->size() - 1]);
             hidden->pop();
             break;

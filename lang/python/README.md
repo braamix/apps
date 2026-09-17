@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 25.**
+**Phase 26.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -106,6 +106,15 @@ with open(d / "n.csv", "w", newline="") as f:
 print(list(csv.DictReader(open(d / "n.csv"))),
       [p.name for p in d.glob("*.csv")])'
 [{'name': 'café', 'n': '3'}] ['n.csv']
+$ python -c 'import argparse, hashlib, base64, decimal, datetime, importlib
+p = argparse.ArgumentParser(prog="sum")
+p.add_argument("n", type=int, nargs="+")
+print(sum(p.parse_args(["1", "2", "3"]).n), hashlib.sha256(b"abc").hexdigest()[:16])
+print(base64.b64encode(b"Braam"), decimal.Decimal(1) / 7, datetime.date(2026, 9, 17).isoformat())
+print(importlib.import_module("json").__spec__.loader.__class__.__name__)'
+6 ba7816bf8f01cfea
+b'QnJhYW0=' 0.1428571428571428571428571429 2026-09-17
+SourceFileLoader
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
@@ -125,7 +134,7 @@ new `frozenset`, and int and float. `divmod`, `round(x, n)`, `pow(a, b, m)`,
 **A program can import another file**: modules and packages, `import a.b.c`,
 `from x import y`, `as`, `from x import *`, relative imports, namespace
 packages, `sys.modules`, `sys.path` and `__import__`. The shipped library will
-live in the package's own `share/lib/`, which the binary finds through the
+live in the package's own `lib/`, which the binary finds through the
 `/pkg/bin` link.
 
 **Text can be formatted**: the format-spec mini-language — fill, align, sign,
@@ -224,19 +233,21 @@ state machines that ask for one call at a time. `sorted`, `list.sort`, `min`,
 through it, and the merge is the same bottom-up stable one as the plain path,
 so a list of instances and a list of integers come out in the same order.
 
-**Twenty-nine modules are written in C++.** `sys` in full, `builtins`,
+**Thirty-nine modules are written in C++.** `sys` in full, `builtins`,
 `_collections`, `_functools`, `itertools`, `_operator`, `_random`, `_struct`,
 `array`, `math`, `cmath`, `time`, `errno`, `gc`, `_types`, the `_weakref` and
 `_abc` phase 17 wrote, the `_typing` phase 20 did, phase 21's `_codecs`
 and `unicodedata`, phase 22's `_thread`, `_contextvars` and `_string`, and
-phase 23's `_warnings` and `atexit`, phase 24's `_sre`, and phase 25's
-`_io`, `posix`, `_signal` and `_csv`. They are the floor CPython's own library
+phase 23's `_warnings` and `atexit`, phase 24's `_sre`, phase 25's
+`_io`, `posix`, `_signal` and `_csv`, and phase 26's `binascii`, `_md5`,
+`_sha1`, `_sha2`, `_sha3`, `_blake2`, `_tokenize`, `marshal`, `_imp` and a
+colourless `_colorize`. They are the floor CPython's own library
 stands on rather than that library: `collections/__init__.py` imports this
 `deque`, `random.py` this Mersenne Twister, `re/` runs over this `_sre` and
 `os.py` over this `posix`. Each is measured against
 CPython by
-running the same program under both — [test/module/](test/module/), nineteen
-cases, 633 lines byte for byte.
+running the same program under both — [test/module/](test/module/), twenty-three
+cases, 1,298 lines byte for byte.
 
 **The floor under the first wave is down.** Phase 22 wrote what CPython's
 pure-Python modules were found to import and this did not have: `_thread`'s
@@ -272,8 +283,8 @@ as a type `weakref.py` subclasses, `from m import x` through a module's
 `__getattr__`, and `int()`, `float()`, `complex()`, `divmod()` and `seq[i]`
 reaching `__int__`, `__index__`, `__float__`, `__complex__` and `__divmod__`
 written in Python. Every run finds the library where an installed package
-keeps it, and [test/stdlib/](test/stdlib/) holds thirty-one programs over it,
-590 lines identical to CPython 3.16's.
+keeps it, and [test/stdlib/](test/stdlib/) holds programs over it, each
+measured against CPython 3.16.
 
 **`re` is CPython's, over a native `_sre`.** The whole of `re/` — the parser,
 the compiler, the optimizer and the `\p{...}` properties of CPython's main
@@ -314,6 +325,33 @@ short sleeps on afterwards, as PEP 475 says. The `_io` is native rather than
 `_pyio.py`, which opens by importing `io` and so could not be the floor; see
 [TODO.md](TODO.md).
 
+**The library's second wave runs, byte for byte.** Phase 26 took
+`base64`, `hashlib` and `hmac` over native digests — MD5, SHA-1, SHA-2, SHA-3,
+SHAKE and BLAKE2 with every parameter — `decimal` and `datetime` as
+CPython's pure-Python `_pydecimal` and `_pydatetime`, `statistics`,
+`calendar`, `_strptime`, `tokenize` and `token` over a native `_tokenize`
+that is CPython's tokenizer, `argparse`, `traceback`, `codeop`, `logging`,
+`threading` and `platform`, and `importlib`. **An import can be hooked**:
+`importlib` is CPython's `_bootstrap` over a native `_imp`, importing it
+installs CPython's finders and path hook and gives every module its
+`__spec__` and `__loader__`, `importlib.reload` works, and a finder or path
+hook the program adds is asked, in order, for every import after it. **An
+exception carries its traceback**: `__traceback__` is a chain of traceback
+objects over the frames it passed, `sys.exc_info()` answers it,
+`__suppress_context__` is kept, and `traceback` formats all of it — without
+carets, which need `ast`. Under those, the interpreter learned
+`ImportError(name=, path=)`, `SystemExit.code`, `frame.clear()`,
+`code.co_positions()`, `float.__getformat__`, `__call__` on functions,
+`reversed()` over a class of the program's own, an `IntEnum` as an index and
+in `format()`, and `<class '__main__.C'>` — a class repr now names its module.
+And two old faults went: an `except` clause that raised left the exception it
+had handled current, so the next one's `__context__` was wrong, and the
+collector's owed finalizers nested inside each other until one hit the
+recursion limit. [test/stdlib/](test/stdlib/) holds thirty-six programs now,
+1,124 lines identical to CPython 3.16's. The package carries the library as
+`lib/`: the 178 files [lib/manifest.txt](lib/manifest.txt) lists, 1.9 MB
+compressed with the binary.
+
 **The protocol methods are in each built-in type's namespace.** `len(x)`
 reaches a slot and a slot is not an entry, so `'__len__' in list.__dict__` used
 to be False and `dir(list)` listed none of them; every abstract base class in
@@ -337,12 +375,15 @@ under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
 `type.__subclasses__` and the rule that an abstract class cannot be
 instantiated.
 
-**425 of MicroPython's own tests pass unchanged**, out of 449 in
-[test/manifest.txt](test/manifest.txt), against 424 at phase 24:
-`memoryview_slice_assign.py` passes now that a memoryview's slice can be
+**427 of MicroPython's own tests pass unchanged**, out of 449 in
+[test/manifest.txt](test/manifest.txt), against 425 at phase 25:
+`subclass_native_init.py` passes now that `dict`, `list` and `set` have an
+`__init__` a subclass can reach through `super()`, and `builtin_reversed.py`
+now that `reversed()` takes a class of the program's own. Phase 25 had passed
+`memoryview_slice_assign.py`, once a memoryview's slice could be
 assigned to. Phase 24 had passed `object_new.py`, once `object.__new__`
 refused a built-in type, and phase 23 added eleven that imported
-`collections`, `struct` or `types` and said `SKIP`. Of the twenty-four that do
+`collections`, `struct` or `types` and said `SKIP`. Of the twenty-two that do
 not, most
 exercise what MicroPython does and CPython does not — a native base class's
 own `__init__` protocol, `pend_throw`, `machine` — or a memoryview with more
@@ -351,9 +392,21 @@ accepts and CPython refuses, and this refuses it. Every expected output a
 CPython wrote now comes from 3.14, and [test/goldens.txt](test/goldens.txt)
 says which interpreter wrote each of our own.
 
-**CPython's tests are the second ruler.** Seventy-three are in
-[test/cpython.txt](test/cpython.txt), fifty-two of them run, and 975 test
-methods of 1,282 pass, against 620 of 796 at phase 24. Phase 25 added
+**CPython's tests are the second ruler.** Eighty-seven are in
+[test/cpython.txt](test/cpython.txt), fifty-nine of them run, and 1,513 test
+methods of 1,920 pass, against 975 of 1,282 at phase 25. Phase 26 added
+fourteen rows. Six run: `test_binascii.py` passes 220 of 237 and skips the
+rest, `test_base64.py` 59 of 67, `test_calendar.py` 65 of 86 and
+`test_strptime.py` 54 of 60 with nothing failing, and `test_math.py` 69 of
+88, the misses a `__float__` that raises, the data files the test reads
+beside itself and a `-0.0` from `fma`; `test_contextlib.py`, which stopped at
+`threading`, runs 54 of 100, most of the rest at `inspect`.
+`test_datetime.py` runs none, its `load_tests` not being called. The other
+eight stop at an import: `sysconfig`, `pickle`, `doctest`, `typing`,
+`inspect`, `ast` and `unittest.mock`. Old rows went up with them:
+`test_raise.py` from 18 to 28 of 37 with traceback objects,
+`test_except_star.py` to 45, `test_exception_group.py` to 42, `test_pkg.py`
+to 5 and `test_bool.py` to 25. Phase 25 added
 thirty-three rows. Twenty run. Of the twenty-two the plan and the file system
 brought, nine do: `test_file.py` and `test_univnewlines.py` pass
 whole, and so does `test_fnmatch.py`; `test_fileio.py` passes 90 of 100, the
@@ -391,19 +444,24 @@ and `pickle`. Running the whole of `Lib/test/`
 under this interpreter — `node test/pycases.mjs --survey`, which needs the
 clone in `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 24 | 23 | 22 | 21 | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 328 | a module that is not written yet | 351 | 356 | 373 | 372 | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 26–28 |
-| 51 | these run | 34 | 30 | 14 | 14 | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
-| 11 | a runtime error, or nothing this can read | 5 | 4 | 3 | 3 | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
-| 1 | other syntax — PEP 798 | 1 | 1 | 1 | 2 | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
-| — | a lone surrogate in a literal | — | — | — | — | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
-| — | `\N{...}` | — | — | — | — | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
-| — | `async` | — | — | — | — | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
-| — | complex numbers | — | — | — | — | — | — | — | — | — | — | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | — | — | — | — | — | — | — | — | — | — | 39 | 17 | **done** |
-| — | f-strings | — | — | — | — | — | — | — | — | — | — | — | 124 | **done** |
+| now | what stops it | 25 | 24 | 23 | 22 | 21 | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 310 | a module that is not written yet | 328 | 351 | 356 | 373 | 372 | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 27–28 |
+| 70 | these run | 51 | 34 | 30 | 14 | 14 | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
+| 10 | a runtime error, or nothing this can read | 11 | 5 | 4 | 3 | 3 | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
+| 1 | other syntax — PEP 798 | 1 | 1 | 1 | 1 | 2 | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
+| — | a lone surrogate in a literal | — | — | — | — | — | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
+| — | `\N{...}` | — | — | — | — | — | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
+| — | `async` | — | — | — | — | — | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
+| — | complex numbers | — | — | — | — | — | — | — | — | — | — | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | — | — | — | — | — | — | — | — | — | — | 39 | 17 | **done** |
+| — | f-strings | — | — | — | — | — | — | — | — | — | — | — | — | 124 | **done** |
 
+Phase 26 moved nineteen files to running: the six rows above and thirteen
+the survey found once the library they import was here. What stops the most files now is
+`pickle` (41), `doctest` (20), `subprocess` (19), `inspect` (14), and
+`test.support`'s `threading_helper` and the multibyte-codec helpers (11 each);
+`importlib`, which stopped twelve, stops none.
 Phase 25 moved twenty-three files: seventeen run — the six rows above that
 are files of their own, and the eleven the survey found — and six more get
 past their imports to a runtime error or to nothing this can read.
@@ -423,7 +481,7 @@ them once whitespace after `!s` was accepted. Before that, the fifth: of the
 forty-two files the syntax let go, three ran and thirty-nine stopped at an
 import. The one left is `test_listcomps.py`, which is written to PEP 798's
 `[*x for x in y]` from 3.15. **Nothing the library is written in is refused
-now**, so what stops 356 of the 391 files is the library itself.
+now**, so what stops 310 of the 391 files is the library itself.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -510,7 +568,15 @@ green.
 | [structmod.cpp](structmod.cpp) | `_struct`: the format language, and values to octets |
 | [arraymod.cpp](arraymod.cpp) | `array`: the only thing here that gives a buffer a width |
 | [randmod.cpp](randmod.cpp) | `_random`: MT19937, seeded the way CPython seeds it |
-| [miscmod.cpp](miscmod.cpp) | `time` over one clock reading, `errno` and `gc` |
+| [timemod.cpp](timemod.cpp) | `time` over one clock reading: struct_time, strftime and the clocks |
+| [miscmod.cpp](miscmod.cpp) | `errno` and `gc` |
+| [binasciimod.cpp](binasciimod.cpp) | `binascii`: base64, base32, base85, uu, quoted-printable, hex and the CRCs |
+| [hashmod.cpp](hashmod.cpp) | `_md5`, `_sha1`, `_sha2`, `_sha3` and `_blake2`: the digests under `hashlib` |
+| [tokenizemod.cpp](tokenizemod.cpp) | `_tokenize`: CPython's tokenizer as an iterator over a `readline` |
+| [marshalmod.cpp](marshalmod.cpp) | `marshal`: the format, written and read without recursion |
+| [impmod.cpp](impmod.cpp) | `_imp`: what `importlib._bootstrap` asks of the interpreter |
+| [colorizemod.cpp](colorizemod.cpp) | `_colorize`, without colour, until `dataclasses` is here |
+| [traceback.cpp](traceback.cpp) | The traceback object, and `with_traceback` |
 | [typesmod.cpp](typesmod.cpp) | `_types`: the names for types that are not builtins, SimpleNamespace, `mappingproxy`, and the constructors of module, method and GenericAlias |
 | [warnmod.cpp](warnmod.cpp) | `_warnings`: the default filters and the lock under `_py_warnings.py` |
 | [atexit.h](atexit.h), [atexitmod.cpp](atexitmod.cpp) | `atexit`, and the calls the VM makes before the program ends |
@@ -528,7 +594,7 @@ green.
 | [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices and the iterators |
 | [range.cpp](range.cpp) | range at any width, and its two iterators |
 | [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, and `builtins` as a module |
-| [import.h](import.h), [import.cpp](import.cpp) | The module cache, the search path, and the loader |
+| [import.h](import.h), [import.cpp](import.cpp) | The module cache, the search path, the loader, and where importlib takes over |
 | [selftest.cpp](selftest.cpp) | What `--selftest` checks |
 | [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary and the library, run a command, read back what it wrote |
 | [test/pysmoke.mjs](test/pysmoke.mjs) | That the program starts, answers its flags, and reports the right status |
@@ -660,9 +726,7 @@ All recorded rather than hidden, and all in reach later:
   `RuntimeWarning` goes through `warnings` as CPython's does, but when the
   collector finds the coroutine rather than when the last name goes, so the
   line it names is where the program was then.
-- **A warning is shown without its source line.** `linecache` reads a file
-  through `tokenize`, which is phase 26, so the line under the location is
-  left out. `_warnings` itself is the default filters and the lock; `warn` and
+- **`_warnings` is the default filters and the lock.** `_warnings` itself is the default filters and the lock; `warn` and
   `warn_explicit` are `_py_warnings.py`'s, reached through its `__getattr__`.
 - **`object`'s defaults are skipped by the special-method lookup.**
   `object.__eq__`, `object.__hash__`, `object.__reduce_ex__` and the rest are
@@ -689,8 +753,11 @@ All recorded rather than hidden, and all in reach later:
 - **`aclose()` throws GeneratorExit the way `close()` does.** When an async
   generator is parked in an await, CPython throws it through into whatever is
   awaited; this closes that first, as for a generator's `yield from`.
-- **A class repr has no module in it.** CPython prints
-  `<class '__main__.C'>`; this prints `<class 'C'>`, there being one module.
+- **The method and descriptor types are one type.** `types.MethodDescriptorType`,
+  `WrapperDescriptorType`, `MethodWrapperType` and `ClassMethodDescriptorType`
+  are all `builtin_function_or_method`, `GetSetDescriptorType` is `property`,
+  and the iterators over the built-in containers share one `iterator` type
+  where CPython has a `list_iterator`, a `dict_keyiterator` and the rest.
 - **A comprehension is a function of its own.** PEP 709 inlined them in 3.12;
   here `[x for x in y]` still pushes a frame, which shows in a traceback and in
   `locals()` inside one, and nowhere else. Zero-argument `super()` in a list,
@@ -756,12 +823,7 @@ All recorded rather than hidden, and all in reach later:
   a program sees is the same.
 - **`cmp_to_key`'s key is a class.** A sort compares keys through their
   methods, since a slot cannot call the program's function, so `KeyWrapper` is
-  a class whose `__lt__` and the rest are natives. `type(K)` is that class,
-  and like any class here its repr has no module in it.
-- **`random.seed` takes no str yet.** An integer seed is spread with
-  CPython's own `init_by_array`, so `seed(42)` gives CPython's stream word for
-  word; `random.py` puts a str or bytes seed through `hashlib`'s `sha512`,
-  which is phase 26, and until then that seed raises `ModuleNotFoundError`.
+  a class whose `__lt__` and the rest are natives, and `type(K)` is that class.
 - **`errno`'s numbers are musl's.** They are Linux's, which is the dialect the
   port kit's `<errno.h>` already uses and the one a modern port's `#ifdef`
   ladder is written against. A host whose libc numbers differ — macOS, where
@@ -787,9 +849,9 @@ All recorded rather than hidden, and all in reach later:
   through the registry; the program's own file is read before there is a VM
   to run the codec in, so only UTF-8, Latin-1, ASCII, UTF-16 and UTF-32 are
   read there.
-- **An invalid escape says nothing.** CPython warns about `"\N"` or
-  `"\777"` with a SyntaxWarning; there is no `warnings` yet, and they are kept
-  as CPython keeps them, silently.
+- **An invalid escape says nothing when compiled.** CPython warns about `"\N"`
+  or `"\777"` with a SyntaxWarning at compile time; this keeps them silently.
+  `tokenize` does warn, as CPython's does.
 - **`--dump-tokens` prints a name in its NFKC form.** The lexer normalizes
   as it scans; `tokenize` prints `ﬁx` where this prints `fix`.
 - **Unicode is 16.0, 3.14's.** The CPython clone under tmp/ is 17.0; the
@@ -815,22 +877,44 @@ All recorded rather than hidden, and all in reach later:
 - **`json` is the pure-Python one.** There is no `_json`, so a malformed
   document is reported in `json.decoder`'s words, which are not always the C
   accelerator's: `Invalid \escape: 'x'` where CPython says `Invalid \escape`.
-- **`difflib.unified_diff` waits for `_colorize`**, which imports
-  `dataclasses`; the rest of `difflib` runs.
+- **`_colorize` is native and colourless.** CPython's is built on
+  `dataclasses` (phase 27); until then `can_colorize()` answers False and a
+  theme is empty in every field, so `argparse`, `traceback` and `difflib`
+  print without colour.
 - **A namespace package can shadow a module on a later path entry.** CPython
   scans the whole of sys.path for a real module before settling for a
   directory; this settles per entry, so `a/` on the first entry wins over
   `a.py` on the second.
-- **There is no `__spec__`, no `importlib` and no import hook.** The loader is
-  C++ and the only thing that finds a module. `sys.path_hooks`,
-  `sys.meta_path`, `__loader__` and reloading are not there.
+- **The loader is C++ until the program adds a finder.** Every module gets its
+  `__spec__` and `__loader__` from importlib once `importlib` is imported,
+  which also installs CPython's three finders and its path hook; the C++ path
+  still finds each module while `sys.meta_path` and `sys.path_hooks` are what
+  importlib left, and a finder or hook of the program's own sends every import
+  after it through `importlib._bootstrap`. A module imported before
+  `importlib` has `__spec__` None until then. `sys.path_importer_cache` is only
+  filled by that second path, there are no frozen modules and no extensions,
+  and `importlib.invalidate_caches()`, `importlib.resources`, `importlib.abc`
+  and `importlib.metadata` wait for `typing` (phase 27).
+- **`marshal` does not write code objects**, whose bytecode no `.pyc`
+  describes. It marks every object for reuse from version 3 on, as CPython
+  does for an object something else also refers to; CPython skips one only
+  its container holds, which this cannot know without reference counts, so a
+  list nested in a list is written with `FLAG_REF` here and without it there.
+  Both read back the same.
 - **Nothing is cached in compiled form.** A module is parsed and compiled every
   time the program runs: 1.8 ms for 1,667 lines against 3.6 ms to start the
   process at all, measured under the harness, so a marshalled code object would
   buy little.
 - **`python -m` is not there.** A program is a file, `-c` or stdin.
-- **A traceback is a string, not an object.** It is collected as the frames go
-  and printed at the end; there is no `__traceback__` to read.
+- **A traceback has no columns.** `__traceback__`, `tb_next`, `tb_frame`,
+  `tb_lineno` and `co_positions()` are there, but the compiler records lines
+  only, so `traceback` prints each source line without the carets under it —
+  placing those needs `ast` (phase 27) as well. `co_lines()` starts at the
+  first instruction, where CPython's starts at the `def` line.
+- **An `ImportError` from `traceback` may suggest site-packages.**
+  `sys.flags.no_site` is 1, there being no `site`, so `TracebackException`
+  says site initialization is disabled; with 0 it would import
+  `importlib.resources`, which waits for phase 27.
 - **The store gives a file one writer or any number of readers.** POSIX lets a
   file be opened as often as the program likes; here a second open of one
   being written is refused with `PermissionError`. A refusal first collects
@@ -1406,7 +1490,7 @@ a silent regression.
 
 Every run has [lib/](lib/) where an installed package keeps it:
 [test/pylib.mjs](test/pylib.mjs) plants it under
-`/pkg/store/python-0/share/lib/`, which the binary finds and puts on
+`/pkg/store/python-0/lib/`, which the binary finds and puts on
 `sys.path`. A module goes into it with
 
     tools/mklib.py --floor _string string/__init__.py

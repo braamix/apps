@@ -180,6 +180,9 @@ extern const Type property_type;
 extern const Type staticmethod_type;
 extern const Type classmethod_type;
 
+// types.SimpleNamespace over `dict`, which it takes. In typesmod.cpp.
+Value namespace_new(Value dict);
+
 // types.MappingProxyType, which `type.__dict__` answers. In typesmod.cpp.
 extern const Type mappingproxy_type;
 Value mappingproxy_new(Value mapping);

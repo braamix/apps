@@ -539,7 +539,7 @@ constexpr Method DEQUE_METHODS[] = {
     { "index", d_index },     { "remove", d_remove },         { "insert", d_insert },
 };
 
-constexpr Type deque_type{ .name     = "deque",
+constexpr Type deque_type{ .name     = "collections.deque",
                            .trace    = deque_trace,
                            .fini     = deque_fini,
                            .truth    = deque_truth,
@@ -1010,7 +1010,8 @@ bool coll_install(DictObj *into)
         if (!body)
             return oom() == R::Ok;
         Root rb{ obj_value(body) };
-        if (!put_methods(static_cast<DictObj *>(rb.v.obj()), s.tab, s.n))
+        if (!put_methods(static_cast<DictObj *>(rb.v.obj()), s.tab, s.n) ||
+            !mod_str(static_cast<DictObj *>(rb.v.obj()), "__module__", "collections"))
             return false;
         Root cls{ dict_subclass(s.name, static_cast<DictObj *>(rb.v.obj())) };
         if (cls.v.is_nil() || !mod_put(static_cast<DictObj *>(rd.v.obj()), s.name, cls.v))

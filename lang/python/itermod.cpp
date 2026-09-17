@@ -63,7 +63,7 @@ void it_trace(Obj *o)
 R it_repr(Value v, String &out)
 {
     Buf<64> b;
-    b.put("<itertools.").put(type_name(v)).put(" object>");
+    b.put("<").put(type_name(v)).put(" object>");
     return out.append(b.str()) ? R::Ok : oom();
 }
 
@@ -137,9 +137,9 @@ R repeat_next(Value v, Value &out)
     return R::Ok;
 }
 
-IT_TYPE(count_type, "count", count_next);
-IT_TYPE(cycle_type, "cycle", cycle_next);
-IT_TYPE(repeat_type, "repeat", repeat_next);
+IT_TYPE(count_type, "itertools.count", count_next);
+IT_TYPE(cycle_type, "itertools.cycle", cycle_next);
+IT_TYPE(repeat_type, "itertools.repeat", repeat_next);
 
 R b_count(const CallArgs &a, Value &out)
 {
@@ -332,11 +332,11 @@ R longest_next(Value v, Value &out)
     return R::Ok;
 }
 
-IT_TYPE(chain_type, "chain", chain_next);
-IT_TYPE(compress_type, "compress", compress_next);
-IT_TYPE(islice_type, "islice", islice_next);
-IT_TYPE(pairwise_type, "pairwise", pairwise_next);
-IT_TYPE(longest_type, "zip_longest", longest_next);
+IT_TYPE(chain_type, "itertools.chain", chain_next);
+IT_TYPE(compress_type, "itertools.compress", compress_next);
+IT_TYPE(islice_type, "itertools.islice", islice_next);
+IT_TYPE(pairwise_type, "itertools.pairwise", pairwise_next);
+IT_TYPE(longest_type, "itertools.zip_longest", longest_next);
 
 R b_chain(const CallArgs &a, Value &out)
 {
@@ -584,10 +584,10 @@ R odo_next(Value v, Value &out)
     return R::Ok;
 }
 
-IT_TYPE(product_type, "product", odo_next);
-IT_TYPE(perm_type, "permutations", odo_next);
-IT_TYPE(comb_type, "combinations", odo_next);
-IT_TYPE(comb_rep_type, "combinations_with_replacement", odo_next);
+IT_TYPE(product_type, "itertools.product", odo_next);
+IT_TYPE(perm_type, "itertools.permutations", odo_next);
+IT_TYPE(comb_type, "itertools.combinations", odo_next);
+IT_TYPE(comb_rep_type, "itertools.combinations_with_replacement", odo_next);
 
 // `pools` is already a list of lists; `width` how many indices the vector has.
 Value odo_new(const Type *t, Value pools, usize width, i64 rule, bool empty)

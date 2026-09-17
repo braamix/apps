@@ -4,22 +4,22 @@ fail TestBreakContinueReturnInExceptStarBlock.test_break_in_except_star: Asserti
 fail TestBreakContinueReturnInExceptStarBlock.test_continue_in_except_star_block_invalid: AssertionError: "'break', 'continue' and 'return' cannot appear in an except\\* block" does not match "'return' outside function (<string>, line 10)"
 ok TestBreakContinueReturnInExceptStarBlock.test_return_in_except_star_block_invalid
 ok TestBreakContinueReturnInExceptStarBlock.test_return_in_except_star_block_valid
-fail TestExceptStarCleanup.test_sys_exception_restored: AssertionError: ValueError(42) != None
-error TestExceptStarExceptionGroupSubclass.test_except_star_EG_subclass: AttributeError: 'EG' object has no attribute '__traceback__'
+ok TestExceptStarCleanup.test_sys_exception_restored
+ok TestExceptStarExceptionGroupSubclass.test_except_star_EG_subclass
 fail TestExceptStarExceptionGroupSubclass.test_exception_group_subclass_with_bad_split_func: AssertionError: 'split must return a tuple, not str' does not match 'BadEG1.split must return a 2-tuple, got str'
 ok TestExceptStarExceptionGroupSubclass.test_falsy_exception_group_subclass
-error TestExceptStarRaise.test_raise_handle_all_raise_one_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaise.test_raise_handle_all_raise_one_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaise.test_raise_handle_all_raise_two_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaise.test_raise_handle_all_raise_two_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaise.test_raise_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaise.test_raise_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaiseFrom.test_raise_handle_all_raise_one_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaiseFrom.test_raise_handle_all_raise_one_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaiseFrom.test_raise_handle_all_raise_two_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaiseFrom.test_raise_handle_all_raise_two_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaiseFrom.test_raise_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error TestExceptStarRaiseFrom.test_raise_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+fail TestExceptStarRaise.test_raise_handle_all_raise_one_named: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaise.test_raise_handle_all_raise_one_unnamed: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaise.test_raise_handle_all_raise_two_named: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaise.test_raise_handle_all_raise_two_unnamed: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaise.test_raise_named: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaise.test_raise_unnamed: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaiseFrom.test_raise_handle_all_raise_one_named: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaiseFrom.test_raise_handle_all_raise_one_unnamed: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaiseFrom.test_raise_handle_all_raise_two_named: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaiseFrom.test_raise_handle_all_raise_two_unnamed: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaiseFrom.test_raise_named: AssertionError: <traceback object at 0xX> != None
+fail TestExceptStarRaiseFrom.test_raise_unnamed: AssertionError: <traceback object at 0xX> != None
 ok TestExceptStarReraise.test_reraise_all_named
 ok TestExceptStarReraise.test_reraise_all_unnamed
 ok TestExceptStarReraise.test_reraise_partial_handle_all_unnamed
@@ -59,4 +59,4 @@ ok TestInvalidExceptStar.test_except_star_ExceptionGroup_is_runtime_error_single
 ok TestInvalidExceptStar.test_except_star_ExceptionGroup_is_runtime_error_tuple
 ok TestInvalidExceptStar.test_except_star_invalid_exception_type
 ok TestInvalidExceptStar.test_mixed_except_and_except_star_is_syntax_error
---- ran 60 ok 43 fail 4 error 13 skip 0 ---
+--- ran 60 ok 45 fail 15 error 0 skip 0 ---

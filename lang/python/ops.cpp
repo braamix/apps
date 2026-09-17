@@ -134,6 +134,13 @@ bool py_truth(Value v)
     return true;
 }
 
+R err_not_index(Value v)
+{
+    Buf<96> m;
+    m.put('\'').put(type_name(v)).put("' object cannot be interpreted as an integer");
+    return err_set("TypeError", m.str());
+}
+
 R err_unhashable(Value v)
 {
     Buf<96> m;
@@ -250,6 +257,14 @@ R py_cmp(Value a, Value b, Cmp op, bool &out)
     return err_set("TypeError", b2.str());
 }
 
+namespace {
+
+// A container's repr is native recursion; this keeps it off the stack's end.
+constexpr u32 REPR_DEPTH = 300;
+u32 repr_depth;
+
+} // namespace
+
 R py_repr(Value v, String &out)
 {
     const Type *t = type_of(v);
@@ -257,7 +272,13 @@ R py_repr(Value v, String &out)
         return err_set("SystemError", "repr of no value");
     if (!t->repr)
         return err_set2("SystemError", "no repr", t->name);
-    return t->repr(v, out);
+    if (repr_depth >= REPR_DEPTH)
+        return err_set("RecursionError",
+                       "maximum recursion depth exceeded while getting the repr of an object");
+    repr_depth++;
+    R r = t->repr(v, out);
+    repr_depth--;
+    return r;
 }
 
 R py_str(Value v, String &out)
@@ -424,6 +445,8 @@ R py_binop_try(Value a, Value b, Op op, Value &out)
         f64 x, y;
         as_number(a, x);
         as_number(b, y);
+        if (int_too_wide(a, x) || int_too_wide(b, y))
+            return R::Err;
         return float_binop(x, y, op, out);
     }
 
@@ -603,7 +626,8 @@ R py_neg(Value a, Value &out)
 R index_of(Value key, usize len, usize &out)
 {
     i64 n = 0;
-    if (!as_index(key, n))
+    // An int subclass, an IntEnum member, is an index as it stands.
+    if (!as_int_arg(key, n))
         return err_set2("TypeError", "indices must be integers", type_name(key));
     if (n < 0)
         n += i64(len);

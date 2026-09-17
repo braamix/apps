@@ -84,6 +84,10 @@ R b_dunder_format(const CallArgs &a, Value &out)
         if (err_pending())
             return R::Err;
     }
+    // A subclass of a built-in formats as that built-in, as its inherited
+    // __format__ does in CPython: an IntEnum member is a number here.
+    if (is_inst(self) && !inst_of(self)->native.is_nil() && spec.size())
+        self = inst_of(self)->native;
     String text;
     if (format_builtin(self, spec, text) != R::Ok)
         return R::Err;
@@ -129,8 +133,8 @@ bool methods_install()
            seq_methods() && map_methods() && num_methods() && complex_methods() && gen_methods() &&
            code_methods() && slot_methods() && union_install() && seqiter_methods() &&
            typing_methods() && lazy_methods() && templatelib_methods() && range_methods() &&
-           frame_locals_methods() && mappingproxy_methods() && sentinel_methods() &&
-           descr_methods();
+           frame_locals_methods() && frame_methods() && mappingproxy_methods() &&
+           sentinel_methods() && descr_methods();
 }
 
 Value method_self(Value v)

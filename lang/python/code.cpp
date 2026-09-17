@@ -5,6 +5,7 @@
 #include "gc.h"
 #include "kernel/fmt.h"
 #include "method.h"
+#include "ops.h"
 
 namespace {
 
@@ -198,7 +199,75 @@ R m_replace(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-constexpr Method CODE_METHODS[] = { { "replace", m_replace } };
+// An iterator over `n` tuples that `make` fills in, one per index.
+R tuples_iter(u32 n, u32 width, void (*make)(const CodeObj *, u32 i, Value *out), Value self,
+              Value &out)
+{
+    Root rs{ self };
+    ListObj *l = list_new();
+    if (!l)
+        return err_set("MemoryError", "out of memory");
+    Root rl{ obj_value(l) };
+    for (u32 i = 0; i < n; i++) {
+        TupleObj *t = tuple_new(width);
+        if (!t || !list_push(list_of(rl.v), obj_value(t)))
+            return err_set("MemoryError", "out of memory");
+        make(code_of(rs.v), i, t->items());
+    }
+    out = py_iter(rl.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// co_positions(): (line, end line, column, end column) per instruction. The
+// compiler keeps lines only, so the columns are None.
+R m_co_positions(const CallArgs &a, Value &out)
+{
+    if (a.nargs != 1 || !is_code(a.args[0]))
+        return err_set("TypeError", "co_positions() takes no arguments");
+    auto make = [](const CodeObj *c, u32 i, Value *t) {
+        Value line = Value::of_int(i32(code_line(c, i)));
+        t[0] = t[1] = line;
+        t[2] = t[3] = value_none();
+    };
+    return tuples_iter(u32(code_of(a.args[0])->code.size()), 4, make, a.args[0], out);
+}
+
+// co_lines(): (start, end, line), in the two-per-instruction offsets that
+// f_lasti and tb_lasti count in.
+R m_co_lines(const CallArgs &a, Value &out)
+{
+    if (a.nargs != 1 || !is_code(a.args[0]))
+        return err_set("TypeError", "co_lines() takes no arguments");
+    const CodeObj *c = code_of(a.args[0]);
+    // One range per run of instructions on the same line.
+    u32 runs = 0;
+    for (u32 i = 0; i < c->code.size(); i++)
+        if (i == 0 || code_line(c, i) != code_line(c, i - 1))
+            runs++;
+    auto make = [](const CodeObj *c, u32 k, Value *t) {
+        u32 run = 0, start = 0;
+        for (u32 i = 0; i < c->code.size(); i++)
+            if (i == 0 || code_line(c, i) != code_line(c, i - 1)) {
+                if (run++ == k) {
+                    start = i;
+                    break;
+                }
+            }
+        u32 end = start + 1;
+        while (end < c->code.size() && code_line(c, end) == code_line(c, start))
+            end++;
+        t[0] = Value::of_int(i32(start * 2));
+        t[1] = Value::of_int(i32(end * 2));
+        t[2] = Value::of_int(i32(code_line(c, start)));
+    };
+    return tuples_iter(runs, 3, make, a.args[0], out);
+}
+
+constexpr Method CODE_METHODS[] = {
+    { "replace", m_replace },
+    { "co_positions", m_co_positions },
+    { "co_lines", m_co_lines },
+};
 
 } // namespace
 

@@ -73,7 +73,6 @@ INFO_TYPE(float_info_type, "sys.float_info");
 INFO_TYPE(int_info_type, "sys.int_info");
 INFO_TYPE(hash_info_type, "sys.hash_info");
 INFO_TYPE(flags_type, "sys.flags");
-INFO_TYPE(impl_type, "sys.implementation");
 
 // A field of a struct sequence, before the object is built.
 struct Field {
@@ -175,6 +174,29 @@ R b_exception(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// excepthook(type, value, traceback): the report an uncaught exception gets.
+R b_excepthook(const CallArgs &a, Value &out)
+{
+    if (a.nkw || a.nargs != 3) {
+        char t[16];
+        Buf<96> b;
+        b.put("excepthook expected 3 arguments, got ").put(int_text(t, sizeof t, a.nargs));
+        return err_set("TypeError", b.str());
+    }
+    Value e = a.args[1];
+    if (is_exc(e)) {
+        Root re{ e };
+        if (is_traceback(a.args[2]))
+            static_cast<ExcObj *>(re.v.obj())->tb = a.args[2];
+        vm_report(re.v);
+    } else {
+        return err_set2("TypeError", "print_exception(): Exception expected for value",
+                        type_name(e));
+    }
+    out = value_none();
+    return R::Ok;
+}
+
 R b_exc_info(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "exc_info", 0, 0))
@@ -189,6 +211,8 @@ R b_exc_info(const CallArgs &a, Value &out)
         cls = type_of_value(e.v);
         if (cls.is_nil())
             return R::Err;
+        if (is_exc(e.v) && !static_cast<ExcObj *>(e.v.obj())->tb.is_nil())
+            tb = static_cast<ExcObj *>(e.v.obj())->tb;
     }
     TupleObj *o   = static_cast<TupleObj *>(rt.v.obj());
     o->items()[0] = cls;
@@ -196,6 +220,60 @@ R b_exc_info(const CallArgs &a, Value &out)
     o->items()[2] = tb;
     out           = rt.v;
     return R::Ok;
+}
+
+// sys.stdlib_module_names: CPython's own list (Python/stdlib_module_names.h),
+// space-separated.
+constexpr Str STDLIB_NAMES =
+    "__future__ _abc _aix_support _android_support _apple_support _ast _ast_unparse _asyncio "
+    "_bisect _blake2 _bz2 _codecs _codecs_cn _codecs_hk _codecs_iso2022 _codecs_jp "
+    "_codecs_kr _codecs_tw _collections _collections_abc _colorize _compat_pickle "
+    "_contextvars _csv _ctypes _curses _curses_panel _datetime _dbm _decimal _elementtree "
+    "_frozen_importlib _frozen_importlib_external _functools _gdbm _hashlib _heapq _hmac "
+    "_imp _interpchannels _interpqueues _interpreters _io _ios_support _json _locale _lsprof "
+    "_lzma _markupbase _math_integer _md5 _multibytecodec _multiprocessing _opcode "
+    "_opcode_metadata _operator _osx_support _overlapped _pickle _posixshmem "
+    "_posixsubprocess _py_abc _py_warnings _pydatetime _pydecimal _pyio _pylong _pyrepl "
+    "_queue _random _remote_debugging _scproxy _sha1 _sha2 _sha3 _signal _sitebuiltins "
+    "_socket _sqlite3 _sre _ssl _stat _statistics _string _strptime _struct _suggestions "
+    "_symtable _sysconfig _thread _threading_local _tkinter _tokenize _tracemalloc _types "
+    "_typing _uuid _warnings _weakref _weakrefset _winapi _wmi _zoneinfo _zstd abc "
+    "annotationlib antigravity argparse array ast asyncio atexit base64 bdb binascii bisect "
+    "builtins bz2 cProfile calendar cmath cmd code codecs codeop collections colorsys "
+    "compileall compression concurrent configparser contextlib contextvars copy copyreg csv "
+    "ctypes curses dataclasses datetime dbm decimal difflib dis doctest email encodings "
+    "ensurepip enum errno faulthandler fcntl filecmp fileinput fnmatch fractions ftplib "
+    "functools gc genericpath getopt getpass gettext glob graphlib grp gzip hashlib heapq "
+    "hmac html http idlelib imaplib importlib inspect io ipaddress itertools json keyword "
+    "linecache locale logging lzma mailbox marshal math mimetypes mmap modulefinder msvcrt "
+    "multiprocessing netrc nt ntpath nturl2path numbers opcode operator optparse os pathlib "
+    "pdb pickle pickletools pkgutil platform plistlib poplib posix posixpath pprint profile "
+    "profiling pstats pty pwd py_compile pyclbr pydoc pydoc_data pyexpat queue quopri random "
+    "re readline reprlib resource rlcompleter runpy sched secrets select selectors shelve "
+    "shlex shutil signal site smtplib socket socketserver sqlite3 ssl stat statistics string "
+    "stringprep struct subprocess symtable sys sysconfig syslog tabnanny tarfile tempfile "
+    "termios textwrap this threading time timeit tkinter token tokenize tomllib trace "
+    "traceback tracemalloc tty turtle turtledemo types typing unicodedata unittest urllib "
+    "uuid venv warnings wave weakref webbrowser winreg winsound wsgiref xml xmlrpc zipapp "
+    "zipfile zipimport zlib zoneinfo";
+
+Value stdlib_names()
+{
+    SetObj *s = frozenset_new();
+    if (!s)
+        return oom(), Value();
+    Root rs{ obj_value(s) };
+    Str all  = STDLIB_NAMES;
+    usize at = 0;
+    for (usize i = 0; i <= all.size(); i++) {
+        if (i < all.size() && all[i] != ' ')
+            continue;
+        Value n = str_new(all.substr(at, i - at));
+        if (n.is_nil() || set_add(set_at(rs.v), n) != R::Ok)
+            return Value();
+        at = i + 1;
+    }
+    return rs.v;
 }
 
 // The bytes an object holds, header and payload, as the allocator knows them.
@@ -333,6 +411,7 @@ R b_is_finalizing(const CallArgs &a, Value &out)
 constexpr ModDef SYS_DEFS[] = {
     { "exit", b_exit },
     { "exc_info", b_exc_info },
+    { "excepthook", b_excepthook },
     { "exception", b_exception },
     { "getsizeof", b_getsizeof },
     { "getrecursionlimit", b_getrecursionlimit },
@@ -411,13 +490,6 @@ constexpr Field FLAGS[] = {
 };
 
 constexpr usize FLAGS_SHOWN = 18;
-
-constexpr Field IMPLEMENTATION[] = {
-    text("name", "braam"),
-    num("hexversion", 0x030E00F0),
-    text("cache_tag", "braam-0.1"),
-    text("_multiarch", "wasm32-braam"),
-};
 
 bool put_info(DictObj *into, Str name, const Type *t, const Field *fs, usize n, usize shown)
 {
@@ -527,14 +599,14 @@ R sys_write(Value file, Str text, Value &out, Span<const usize> cuts)
     // Something of the program's own: its write() is Python, so the caller
     // gets a continuation and the VM makes the call. What write() answers is
     // thrown away -- print's own answer is None.
-    usize parts = cuts.size() > 1 ? cuts.size() - 1 : 1;
+    usize parts  = cuts.size() > 1 ? cuts.size() - 1 : 1;
     TupleObj *pt = tuple_new(parts);
     if (!pt)
         return oom();
     Root rt{ obj_value(pt) };
     for (usize i = 0; i < parts; i++) {
-        Value piece = cuts.size() > 1 ? str_new(text.substr(cuts[i], cuts[i + 1] - cuts[i]))
-                                      : str_new(text);
+        Value piece =
+            cuts.size() > 1 ? str_new(text.substr(cuts[i], cuts[i + 1] - cuts[i])) : str_new(text);
         if (piece.is_nil())
             return R::Err;
         static_cast<TupleObj *>(rt.v.obj())->items()[i] = piece;
@@ -602,16 +674,32 @@ bool sys_install(DictObj *into)
         !put_info(d, "float_info", &float_info_type, FLOAT_INFO) ||
         !put_info(d, "int_info", &int_info_type, INT_INFO) ||
         !put_info(d, "hash_info", &hash_info_type, HASH_INFO) ||
-        !put_info(d, "flags", &flags_type, FLAGS, sizeof FLAGS / sizeof FLAGS[0], FLAGS_SHOWN) ||
-        !put_info(d, "implementation", &impl_type, IMPLEMENTATION))
+        !put_info(d, "flags", &flags_type, FLAGS, sizeof FLAGS / sizeof FLAGS[0], FLAGS_SHOWN))
         return false;
+    // A SimpleNamespace, as CPython's is. No cache tag: nothing is compiled
+    // to a file, so importlib neither reads nor writes a .pyc.
+    {
+        Root ns{ obj_value(dict_new()) };
+        Root ver;
+        if (ns.v.is_nil() || dict_get(d, obj_value(str_intern("version_info")), ver.v) != R::Ok)
+            return false;
+        DictObj *nd = static_cast<DictObj *>(ns.v.obj());
+        if (!mod_str(nd, "name", "braam") || !mod_put(nd, "cache_tag", value_none()) ||
+            !mod_put(nd, "version", ver.v) || !mod_int(nd, "hexversion", 0x030E00F0) ||
+            !mod_str(nd, "_multiarch", "wasm32-braam") ||
+            !mod_put(nd, "supports_isolated_interpreters", value_bool(false)))
+            return false;
+        Root impl{ namespace_new(ns.v) };
+        if (impl.v.is_nil() || !mod_put(d, "implementation", impl.v))
+            return false;
+    }
 
-    if (!mod_str(d, "version", "3.14.0 (braam)") || !mod_str(d, "platform", "braam") ||
-        !mod_str(d, "byteorder", "little") || !mod_str(d, "executable", "") ||
-        !mod_str(d, "prefix", "/pkg") || !mod_str(d, "exec_prefix", "/pkg") ||
-        !mod_str(d, "base_prefix", "/pkg") || !mod_str(d, "base_exec_prefix", "/pkg") ||
-        !mod_str(d, "platlibdir", "lib") || !mod_str(d, "float_repr_style", "short") ||
-        !mod_put(d, "pycache_prefix", value_none()))
+    if (!mod_str(d, "version", "3.14.0 (braam, Jan  1 2026, 00:00:00) [clang wasm32]") ||
+        !mod_str(d, "platform", "braam") || !mod_str(d, "byteorder", "little") ||
+        !mod_str(d, "executable", "") || !mod_str(d, "prefix", "/pkg") ||
+        !mod_str(d, "exec_prefix", "/pkg") || !mod_str(d, "base_prefix", "/pkg") ||
+        !mod_str(d, "base_exec_prefix", "/pkg") || !mod_str(d, "platlibdir", "lib") ||
+        !mod_str(d, "float_repr_style", "short") || !mod_put(d, "pycache_prefix", value_none()))
         return false;
     if (!mod_int(d, "maxsize", 2147483647) || !mod_int(d, "maxunicode", 1114111) ||
         !mod_int(d, "hexversion", 0x030E00F0))
@@ -622,6 +710,13 @@ bool sys_install(DictObj *into)
     ListObj *warn = list_new();
     if (!warn || !mod_put(d, "warnoptions", obj_value(warn)))
         return false;
+    Value hook;
+    if (dict_get(d, obj_value(str_intern("excepthook")), hook) != R::Ok ||
+        !mod_put(d, "__excepthook__", hook))
+        return false;
+    Root std{ stdlib_names() };
+    if (std.v.is_nil() || !mod_put(d, "stdlib_module_names", std.v))
+        return false;
     Root names{ native_module_names() };
     if (names.v.is_nil() || !mod_put(d, "builtin_module_names", names.v))
         return false;
@@ -631,6 +726,12 @@ bool sys_install(DictObj *into)
     DictObj *sm = sys_modules();
     Root sp{ sys_path() };
     if (!sm || sp.v.is_nil() || !mod_put(d, "modules", obj_value(sm)) || !mod_put(d, "path", sp.v))
+        return false;
+    Root mp{ sys_import_state(IMPORT_META_PATH) }, ph{ sys_import_state(IMPORT_PATH_HOOKS) };
+    Root pic{ sys_import_state(IMPORT_PATH_CACHE) }, lib{ sys_import_state(IMPORT_STDLIB) };
+    if (mp.v.is_nil() || ph.v.is_nil() || pic.v.is_nil() || lib.v.is_nil() ||
+        !mod_put(d, "meta_path", mp.v) || !mod_put(d, "path_hooks", ph.v) ||
+        !mod_put(d, "path_importer_cache", pic.v) || !mod_put(d, "_stdlib_dir", lib.v))
         return false;
     if (!lazy_sys_install(d))
         return false;

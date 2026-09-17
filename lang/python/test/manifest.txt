@@ -73,7 +73,7 @@ pass  basics/builtin_print.py                   cpython3.14  52b5fbc  tests/basi
 pass  basics/builtin_property.py                cpython3.14  52b5fbc  tests/basics/builtin_property.py
 pass  basics/builtin_property_inherit.py        cpython3.14  52b5fbc  tests/basics/builtin_property_inherit.py
 pass  basics/builtin_range.py                   cpython3.14  52b5fbc  tests/basics/builtin_range.py
-fail  basics/builtin_reversed.py                cpython3.14  52b5fbc  tests/basics/builtin_reversed.py
+pass  basics/builtin_reversed.py                cpython3.14  52b5fbc  tests/basics/builtin_reversed.py
 pass  basics/builtin_round.py                   cpython3.14  52b5fbc  tests/basics/builtin_round.py
 pass  basics/builtin_round_int.py               cpython3.14  52b5fbc  tests/basics/builtin_round_int.py
 pass  basics/builtin_round_intbig.py            cpython3.14  52b5fbc  tests/basics/builtin_round_intbig.py
@@ -395,7 +395,7 @@ fail  basics/subclass_native_call.py            upstream     52b5fbc  tests/basi
 pass  basics/subclass_native_cmp.py             cpython3.14  52b5fbc  tests/basics/subclass_native_cmp.py
 pass  basics/subclass_native_containment.py     cpython3.14  52b5fbc  tests/basics/subclass_native_containment.py
 fail  basics/subclass_native_exc_new.py         upstream     52b5fbc  tests/basics/subclass_native_exc_new.py
-fail  basics/subclass_native_init.py            cpython3.14  52b5fbc  tests/basics/subclass_native_init.py
+pass  basics/subclass_native_init.py            cpython3.14  52b5fbc  tests/basics/subclass_native_init.py
 fail  basics/subclass_native_iter.py            cpython3.14  52b5fbc  tests/basics/subclass_native_iter.py
 pass  basics/subclass_native_specmeth.py        cpython3.14  52b5fbc  tests/basics/subclass_native_specmeth.py
 pass  basics/subclass_native_str.py             cpython3.14  52b5fbc  tests/basics/subclass_native_str.py

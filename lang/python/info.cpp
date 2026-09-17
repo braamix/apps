@@ -2,8 +2,10 @@
 // INFO_TYPE declares.
 #include "info.h"
 
+#include "func.h"
 #include "gc.h"
 #include "intern.h"
+#include "kernel/fmt.h"
 #include "ops.h"
 
 namespace {
@@ -161,4 +163,71 @@ Value info_new(const Type *t, const Value *items, const Str *names, usize n, usi
     o->names  = rn.v;
     o->hidden = rh.v;
     return obj_value(o);
+}
+
+R info_construct(const Type *t, const Str *names, usize n, usize shown, const CallArgs &a,
+                 Value &out)
+{
+    Value seq, dict;
+    for (u32 k = 0; k < a.nkw; k++) {
+        Str nm = is_str(a.kwnames[k]) ? str_of(a.kwnames[k])->str() : Str();
+        if (nm == "sequence" && a.nargs < 1)
+            seq = a.kwvals[k];
+        else if (nm == "dict" && a.nargs < 2)
+            dict = a.kwvals[k];
+        else
+            return err_set2("TypeError", "structseq() got an unexpected keyword argument", nm);
+    }
+    if (a.nargs > 2)
+        return err_set("TypeError", "structseq() takes at most 2 arguments");
+    if (a.nargs > 0)
+        seq = a.args[0];
+    if (a.nargs > 1)
+        dict = a.args[1];
+    if (seq.is_nil())
+        return err_set("TypeError", "structseq() missing required argument 'sequence' (pos 1)");
+    Root rs{ seq }, rd{ dict };
+    Root l{ obj_value(py_list_of(rs.v)) };
+    if (l.v.is_nil()) {
+        err_clear();
+        return err_set("TypeError", "constructor requires a sequence");
+    }
+    usize len = list_of(l.v)->items.size();
+    if (len < shown || len > n) {
+        char t1[24], t2[24];
+        Buf<200> b;
+        b.put(t->name).put("() takes ");
+        if (shown == n)
+            b.put("a ");
+        else
+            b.put(len < shown ? "an at least " : "an at most ");
+        b.put(int_text(t1, sizeof t1, i64(len < shown ? shown : n))).put("-sequence (");
+        b.put(int_text(t2, sizeof t2, i64(len))).put("-sequence given)");
+        return err_set("TypeError", b.str());
+    }
+    if (!rd.v.is_nil() && !is_none(rd.v) && !is_dict(rd.v)) {
+        Buf<160> b;
+        b.put(t->name).put("() takes a dict as second arg, if any");
+        return err_set("TypeError", b.str());
+    }
+    Vec<Value> items;
+    for (usize i = 0; i < n; i++) {
+        Value v = i < len ? list_of(l.v)->items[i] : value_none();
+        if (i >= len && is_dict(rd.v)) {
+            StrObj *k = str_intern(names[i]);
+            if (!k)
+                return oom();
+            Value got;
+            R r = dict_get(static_cast<DictObj *>(rd.v.obj()), obj_value(k), got);
+            if (r == R::Err)
+                return R::Err;
+            if (r == R::Ok)
+                v = got;
+        }
+        if (!items.push(v))
+            return oom();
+    }
+    Roots pin{ items.data(), items.size() };
+    out = info_new(t, items.data(), names, n, shown);
+    return out.is_nil() ? R::Err : R::Ok;
 }

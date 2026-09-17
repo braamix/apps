@@ -44,7 +44,40 @@ struct ExcObj : Obj {
     Value msg;     // a group's message, or Nil
     Value excs;    // a group's members, a tuple, or Nil
     Value uni[5];  // a UnicodeError's encoding, object, start, end and reason
+    Value tb;      // __traceback__, or Nil
+    bool suppress; // __suppress_context__
 };
+
+// ---------------------------------------------------------------- traceback
+
+struct TracebackObj : Obj {
+    Value next;  // the frame further in, or Nil
+    Value frame; // FrameObj
+    i32 lasti;
+    i32 lineno;
+};
+
+extern const Type traceback_type;
+
+inline bool is_traceback(Value v)
+{
+    return v.is_obj() && v.obj()->type == &traceback_type;
+}
+
+inline TracebackObj *tb_of(Value v)
+{
+    return static_cast<TracebackObj *>(v.obj());
+}
+
+// Nil with the error pending.
+Value tb_new(Value next, Value frame, i32 lasti, i32 lineno);
+
+struct CallArgs;
+// types.TracebackType(tb_next, tb_frame, tb_lasti, tb_lineno).
+R traceback_ctor(const CallArgs &a, Value &out);
+
+// BaseException.with_traceback.
+R exc_with_traceback(const CallArgs &a, Value &out);
 
 // A user class deriving from one of these carries its own type, so the flag
 // rather than the descriptor is what says an object is an exception.
@@ -110,6 +143,18 @@ bool unierr_init(Value e, Value args);
 // The field `name` of a UnicodeError, stored; Nil `v` deletes. NotImpl when
 // `name` is not one of the five.
 R unierr_store(Value e, Str name, Value v);
+
+// -------------------------------------------------------------- ImportError
+
+// ImportError's msg, name, path and name_from live in `uni` too.
+bool is_importerr(Value v);
+struct CallArgs;
+R importerr_init(Value e, const CallArgs &a, u32 from);
+R importerr_store(Value e, Str name, Value v);
+
+// An ImportError of class `kind` with `msg`, and `name` and `path` unless Nil.
+// Always returns R::Err.
+R exc_raise_import(Str kind, Value msg, Value name, Value path);
 
 // ------------------------------------------------------------------ OSError
 

@@ -255,9 +255,120 @@ Value next_special(Value v)
     return type_special(v, "__next__");
 }
 
+// ------------------------------------------------------- callable_iterator
+
+namespace {
+
+// iter(callable, sentinel): the callable until it answers the sentinel.
+struct CallIterObj : Obj {
+    Value fn; // Nil once the sentinel has been seen
+    Value sentinel;
+};
+
+void calliter_trace(Obj *o)
+{
+    gc_mark(static_cast<CallIterObj *>(o)->fn);
+    gc_mark(static_cast<CallIterObj *>(o)->sentinel);
+}
+
+extern const Type calliter_type;
+
+R stop_now()
+{
+    Value e = exc_new(exc_find("StopIteration"), Value());
+    return e.is_nil() ? R::Err : err_set_value(e);
+}
+
+// s[0] the iterator.
+R calliter_step(ContObj *k, Value in)
+{
+    CallIterObj *it = static_cast<CallIterObj *>(k->s[0].obj());
+    if (k->i++ == 0) {
+        k->catching = CATCH_STOP;
+        return cont_call(k, it->fn, Value(), 0);
+    }
+    k->catching = CATCH_NONE;
+    if (in.is_nil()) {
+        // The callable raised StopIteration: the end, for good.
+        k->caught = Value();
+        it->fn    = Value();
+        return stop_now();
+    }
+    bool same = false;
+    Root rin{ in };
+    if (py_eq(rin.v, it->sentinel, same) != R::Ok)
+        return R::Err;
+    it = static_cast<CallIterObj *>(k->s[0].obj());
+    if (same) {
+        it->fn = Value();
+        return stop_now();
+    }
+    return cont_done(k, rin.v);
+}
+
+R calliter_next(Value v, Value &out)
+{
+    if (static_cast<CallIterObj *>(v.obj())->fn.is_nil())
+        return R::NotImpl;
+    Root rv{ v };
+    Root kv{ cont_new(calliter_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[0] = rv.v;
+    out                 = kv.v;
+    return R::Ok;
+}
+
+R ci_next(const CallArgs &a, Value &out)
+{
+    if (!a.nargs || !a.args[0].is_obj() || a.args[0].obj()->type != &calliter_type)
+        return err_set("TypeError", "a callable_iterator is required");
+    R r = calliter_next(a.args[0], out);
+    return r == R::NotImpl ? stop_now() : r;
+}
+
+R ci_iter(const CallArgs &a, Value &out)
+{
+    if (!a.nargs)
+        return err_set("TypeError", "__iter__ needs self");
+    out = a.args[0];
+    return R::Ok;
+}
+
+Value calliter_self(Value v)
+{
+    return v;
+}
+
+constexpr Method CALLITER_METHODS[] = {
+    { "__next__", ci_next },
+    { "__iter__", ci_iter },
+};
+
+constexpr Type calliter_type{ .name   = "callable_iterator",
+                              .trace  = calliter_trace,
+                              .iter   = calliter_self,
+                              .next   = calliter_next,
+                              .final  = true,
+                              .vmnext = true };
+
+} // namespace
+
+Value calliter_new(Value fn, Value sentinel)
+{
+    Root rf{ fn }, rs{ sentinel };
+    CallIterObj *it = static_cast<CallIterObj *>(obj_alloc(&calliter_type, sizeof(CallIterObj)));
+    if (!it)
+        return oom(), Value();
+    it->fn       = rf.v;
+    it->sentinel = rs.v;
+    return obj_value(it);
+}
+
 bool seqiter_methods()
 {
-    return method_install(&seqiter_type, SEQITER_METHODS);
+    return method_install(&seqiter_type, SEQITER_METHODS) &&
+           method_install(&calliter_type, CALLITER_METHODS);
 }
 
 constexpr Type cont_type{ .name = "continuation", .trace = cont_trace, .repr = cont_repr };

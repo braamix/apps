@@ -16,154 +16,160 @@ code <module>  file /tmp/c.py  line 1
      11  3
     1       0  LoadConst             0 (None)
             1  StoreName             0 (__doc__)
-            2  SetupFinally         50
+            2  SetupFinally         56
             3  SetupFinally          8
     2       4  LoadConst             1 (1)
             5  StoreName             1 (x)
     1       6  PopBlock
-            7  Jump                 44
+            7  Jump                 50
       >>    8  PushExcInfo
     3       9  DupTop
            10  LoadName              2 (ValueError)
            11  CheckExcMatch
-           12  PopJumpIfFalse       18
+           12  PopJumpIfFalse       21
            13  PopTop
-    4      14  LoadConst             2 (2)
-           15  StoreName             1 (x)
-    3      16  PopExcept
-           17  Jump                 46
-    5 >>   18  DupTop
-           19  LoadName              3 (TypeError)
-           20  LoadName              4 (KeyError)
-           21  BuildTuple            2
-           22  CheckExcMatch
-           23  PopJumpIfFalse       38
-           24  StoreName             5 (e)
-           25  SetupFinally         34
-    6      26  LoadName              5 (e)
-           27  StoreName             1 (x)
-    5      28  PopBlock
-           29  LoadConst             0 (None)
-           30  StoreName             5 (e)
-           31  DeleteName            5 (e)
-           32  PopExcept
-           33  Jump                 46
-      >>   34  LoadConst             0 (None)
-           35  StoreName             5 (e)
-           36  DeleteName            5 (e)
-           37  Reraise               1
-    7 >>   38  PopTop
-    8      39  LoadConst             3 (4)
-           40  StoreName             1 (x)
-    7      41  PopExcept
-           42  Jump                 46
-    1      43  Reraise               1
-   10 >>   44  LoadConst             4 (5)
-           45  StoreName             1 (x)
-    1 >>   46  PopBlock
-   12      47  LoadConst             5 (6)
-           48  StoreName             1 (x)
-    1      49  Jump                 53
-   12 >>   50  LoadConst             5 (6)
+           14  SetupFinally         20
+    4      15  LoadConst             2 (2)
+           16  StoreName             1 (x)
+    3      17  PopBlock
+           18  PopExcept
+           19  Jump                 52
+      >>   20  Reraise               1
+    5 >>   21  DupTop
+           22  LoadName              3 (TypeError)
+           23  LoadName              4 (KeyError)
+           24  BuildTuple            2
+           25  CheckExcMatch
+           26  PopJumpIfFalse       41
+           27  StoreName             5 (e)
+           28  SetupFinally         37
+    6      29  LoadName              5 (e)
+           30  StoreName             1 (x)
+    5      31  PopBlock
+           32  LoadConst             0 (None)
+           33  StoreName             5 (e)
+           34  DeleteName            5 (e)
+           35  PopExcept
+           36  Jump                 52
+      >>   37  LoadConst             0 (None)
+           38  StoreName             5 (e)
+           39  DeleteName            5 (e)
+           40  Reraise               1
+    7 >>   41  PopTop
+           42  SetupFinally         48
+    8      43  LoadConst             3 (4)
+           44  StoreName             1 (x)
+    7      45  PopBlock
+           46  PopExcept
+           47  Jump                 52
+      >>   48  Reraise               1
+    1      49  Reraise               1
+   10 >>   50  LoadConst             4 (5)
            51  StoreName             1 (x)
-    1      52  Reraise               0
-   14 >>   53  SetupFinally         60
-   15      54  LoadName              2 (ValueError)
-           55  LoadConst             6 ('bad')
-           56  Call                  1
-           57  Raise                 1
-   14      58  PopBlock
-           59  Jump                 83
-      >>   60  PushExcInfo
-   16      61  DupTop
-           62  LoadName              2 (ValueError)
-           63  CheckExcMatch
-           64  PopJumpIfFalse       82
-           65  StoreName             6 (err)
-           66  SetupFinally         78
-   17      67  LoadName              7 (RuntimeError)
-           68  LoadConst             7 ('worse')
-           69  Call                  1
-           70  LoadName              6 (err)
-           71  Raise                 2
-   16      72  PopBlock
-           73  LoadConst             0 (None)
-           74  StoreName             6 (err)
-           75  DeleteName            6 (err)
-           76  PopExcept
-           77  Jump                 83
-      >>   78  LoadConst             0 (None)
-           79  StoreName             6 (err)
-           80  DeleteName            6 (err)
-           81  Reraise               1
-   14 >>   82  Reraise               1
-   19 >>   83  LoadName              8 (open)
-           84  LoadConst             8 ('a')
-           85  Call                  1
-           86  BeforeWith
-           87  SetupWith           114
-           88  StoreName             9 (f)
-           89  LoadName              8 (open)
-           90  LoadConst             9 ('b')
+    1 >>   52  PopBlock
+   12      53  LoadConst             5 (6)
+           54  StoreName             1 (x)
+    1      55  Jump                 59
+   12 >>   56  LoadConst             5 (6)
+           57  StoreName             1 (x)
+    1      58  Reraise               0
+   14 >>   59  SetupFinally         66
+   15      60  LoadName              2 (ValueError)
+           61  LoadConst             6 ('bad')
+           62  Call                  1
+           63  Raise                 1
+   14      64  PopBlock
+           65  Jump                 89
+      >>   66  PushExcInfo
+   16      67  DupTop
+           68  LoadName              2 (ValueError)
+           69  CheckExcMatch
+           70  PopJumpIfFalse       88
+           71  StoreName             6 (err)
+           72  SetupFinally         84
+   17      73  LoadName              7 (RuntimeError)
+           74  LoadConst             7 ('worse')
+           75  Call                  1
+           76  LoadName              6 (err)
+           77  Raise                 2
+   16      78  PopBlock
+           79  LoadConst             0 (None)
+           80  StoreName             6 (err)
+           81  DeleteName            6 (err)
+           82  PopExcept
+           83  Jump                 89
+      >>   84  LoadConst             0 (None)
+           85  StoreName             6 (err)
+           86  DeleteName            6 (err)
+           87  Reraise               1
+   14 >>   88  Reraise               1
+   19 >>   89  LoadName              8 (open)
+           90  LoadConst             8 ('a')
            91  Call                  1
            92  BeforeWith
-           93  SetupWith           102
-           94  PopTop
-           95  PopBlock
-           96  LoadConst             0 (None)
-           97  DupTop
-           98  DupTop
-           99  Call                  3
+           93  SetupWith           120
+           94  StoreName             9 (f)
+           95  LoadName              8 (open)
+           96  LoadConst             9 ('b')
+           97  Call                  1
+           98  BeforeWith
+           99  SetupWith           108
           100  PopTop
-          101  Jump                107
-      >>  102  WithExceptStart
-          103  PopJumpIfTrue       105
-          104  Reraise               0
-      >>  105  PopTop
+          101  PopBlock
+          102  LoadConst             0 (None)
+          103  DupTop
+          104  DupTop
+          105  Call                  3
           106  PopTop
-      >>  107  PopBlock
-          108  LoadConst             0 (None)
-          109  DupTop
-          110  DupTop
-          111  Call                  3
+          107  Jump                113
+      >>  108  WithExceptStart
+          109  PopJumpIfTrue       111
+          110  Reraise               0
+      >>  111  PopTop
           112  PopTop
-          113  Jump                119
-      >>  114  WithExceptStart
-          115  PopJumpIfTrue       117
-          116  Reraise               0
-      >>  117  PopTop
+      >>  113  PopBlock
+          114  LoadConst             0 (None)
+          115  DupTop
+          116  DupTop
+          117  Call                  3
           118  PopTop
-   22 >>  119  LoadName              1 (x)
-          120  PopJumpIfTrue       125
-          121  LoadAssertionError
-          122  LoadConst            10 ('must hold')
-          123  Call                  1
-          124  Raise                 1
-   24 >>  125  LoadName             10 (range)
-          126  LoadConst            11 (3)
-          127  Call                  1
-          128  GetIter
-      >>  129  ForIter             151
-          130  StoreName            11 (i)
-   25     131  SetupFinally        147
-   26     132  LoadName             11 (i)
-          133  PopJumpIfFalse      139
-   25     134  PopBlock
-   30     135  LoadName             11 (i)
-          136  StoreName             1 (x)
-   27     137  PopTop
-          138  Jump                151
-   25 >>  139  PopBlock
-   30     140  LoadName             11 (i)
-          141  StoreName             1 (x)
-   28     142  Jump                129
-   25     143  PopBlock
-   30     144  LoadName             11 (i)
-          145  StoreName             1 (x)
-   25     146  Jump                150
-   30 >>  147  LoadName             11 (i)
-          148  StoreName             1 (x)
-   25     149  Reraise               0
-   24 >>  150  Jump                129
-      >>  151  LoadConst             0 (None)
-          152  Return
+          119  Jump                125
+      >>  120  WithExceptStart
+          121  PopJumpIfTrue       123
+          122  Reraise               0
+      >>  123  PopTop
+          124  PopTop
+   22 >>  125  LoadName              1 (x)
+          126  PopJumpIfTrue       131
+          127  LoadAssertionError
+          128  LoadConst            10 ('must hold')
+          129  Call                  1
+          130  Raise                 1
+   24 >>  131  LoadName             10 (range)
+          132  LoadConst            11 (3)
+          133  Call                  1
+          134  GetIter
+      >>  135  ForIter             157
+          136  StoreName            11 (i)
+   25     137  SetupFinally        153
+   26     138  LoadName             11 (i)
+          139  PopJumpIfFalse      145
+   25     140  PopBlock
+   30     141  LoadName             11 (i)
+          142  StoreName             1 (x)
+   27     143  PopTop
+          144  Jump                157
+   25 >>  145  PopBlock
+   30     146  LoadName             11 (i)
+          147  StoreName             1 (x)
+   28     148  Jump                135
+   25     149  PopBlock
+   30     150  LoadName             11 (i)
+          151  StoreName             1 (x)
+   25     152  Jump                156
+   30 >>  153  LoadName             11 (i)
+          154  StoreName             1 (x)
+   25     155  Reraise               0
+   24 >>  156  Jump                135
+      >>  157  LoadConst             0 (None)
+          158  Return

@@ -538,6 +538,20 @@ R m_update(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// dict.__init__: what a subclass's own __init__ reaches through super(), since
+// the built-in is made empty for it.
+R m_dict_init(const CallArgs &a, Value &out)
+{
+    if (a.nargs > 2) {
+        char tmp[24];
+        Buf<96> b;
+        b.put("dict expected at most 1 argument, got ");
+        b.put(int_text(tmp, sizeof tmp, i64(a.nargs - 1)));
+        return err_set("TypeError", b.str());
+    }
+    return m_update(a, out);
+}
+
 R m_dict_clear(const CallArgs &a, Value &out)
 {
     DictObj *d = self_dict(a, "clear");
@@ -912,6 +926,29 @@ R m_set_update(const CallArgs &a, Value &out)
     return set_update(a, "update", OP_OR, out);
 }
 
+// set.__init__(iterable=()): emptied, then filled.
+R m_set_init(const CallArgs &a, Value &out)
+{
+    SetObj *s = mutable_self(a, "__init__");
+    if (!s)
+        return R::Err;
+    if (a.nkw)
+        return err_set("TypeError", "set() takes no keyword arguments");
+    if (a.nargs > 2) {
+        char tmp[24];
+        Buf<96> b;
+        b.put("set expected at most 1 argument, got ");
+        b.put(int_text(tmp, sizeof tmp, i64(a.nargs - 1)));
+        return err_set("TypeError", b.str());
+    }
+    if (a.nargs == 2 && iter_needs_vm(a.args[1]))
+        return iter_park(a, 1, m_set_init, out);
+    s->t.entries.clear();
+    s->t.index.clear();
+    s->t.live = 0;
+    return set_update(a, "__init__", OP_OR, out);
+}
+
 R m_inter_update(const CallArgs &a, Value &out)
 {
     return set_update(a, "intersection_update", OP_AND, out);
@@ -974,7 +1011,7 @@ constexpr Method DICT[] = {
     { "keys", m_keys },       { "values", m_values },         { "items", m_items },
     { "get", m_get },         { "setdefault", m_setdefault }, { "pop", m_dict_pop },
     { "popitem", m_popitem }, { "update", m_update },         { "clear", m_dict_clear },
-    { "copy", m_dict_copy },
+    { "copy", m_dict_copy },  { "__init__", m_dict_init },
 };
 
 constexpr Method FROZENDICT[] = {
@@ -1001,6 +1038,7 @@ constexpr Method SET_MUT[] = {
     { "pop", m_set_pop },
     { "clear", m_set_clear },
     { "update", m_set_update },
+    { "__init__", m_set_init },
     { "intersection_update", m_inter_update },
     { "difference_update", m_diff_update },
     { "symmetric_difference_update", m_symdiff_update },

@@ -5,6 +5,7 @@
 #include "iter.h"
 #include "kernel/hash.h"
 #include "method.h"
+#include "module.h"
 #include "ops.h"
 
 namespace {
@@ -105,7 +106,9 @@ R any_contains(Value v, Value item, bool &out)
 R any_binop(Value a, Value b, Op op, Value &out)
 {
     Str x, y;
-    if (op == Op::Add && bytes_like(a, x) && bytes_like(b, y)) {
+    // Anything with a buffer may follow bytes or a bytearray.
+    if (op == Op::Add && (is_bytes(a) || is_bytearray(a)) && bytes_like(a, x) &&
+        buffer_like(b, y)) {
         String joined;
         if (!joined.append(x) || !joined.append(y))
             return oom();

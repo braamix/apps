@@ -117,6 +117,9 @@ Value iter_special(Value v);
 // bound __next__, or the step of that sequence iterator. Nil otherwise.
 Value next_special(Value v);
 
+// iter(callable, sentinel). Nil with the error pending.
+Value calliter_new(Value fn, Value sentinel);
+
 // The sequence iterator's methods, from methods_install().
 bool seqiter_methods();
 

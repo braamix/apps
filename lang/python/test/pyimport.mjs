@@ -177,7 +177,7 @@ function withModules(files, source, env = "") {
     const store = "/pkg/store/python-0.1-r0";
     const binary = H.store.files.get("/bin/py");
     put(`${store}/bin/python`, binary);
-    put(`${store}/share/lib/shipped.py`, "GREETING = 'from the store'\n");
+    put(`${store}/lib/shipped.py`, "GREETING = 'from the store'\n");
     for (const d of ["/pkg", "/pkg/bin"]) H.store.dirs.add(d);
     H.store.files.set("/pkg/bin/python", linkBytes(`${store}/bin/python`));
     H.store.files.set("/bin/py", binary);
@@ -185,7 +185,7 @@ function withModules(files, source, env = "") {
     put("/tmp/c.py", "import sys\nprint(sys.path)\nimport shipped\nprint(shipped.GREETING)\n");
     const r = run("/tmp/c.py");
     check("the library in the store", r.out + r.err,
-          `['/tmp', '${store}/share/lib']\nfrom the store\n`);
+          `['/tmp', '${store}/lib']\nfrom the store\n`);
 }
 
 if (bad) die(`${bad} checks failed`);

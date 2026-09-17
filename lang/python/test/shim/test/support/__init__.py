@@ -343,3 +343,154 @@ class _AlwaysEqual:
 
 NEVER_EQ = _NeverEqual()
 ALWAYS_EQ = _AlwaysEqual()
+
+
+# What phase 26's tests reach.
+_1M = 1024 * 1024
+_1G = 1024 * _1M
+_2G = 2 * _1G
+_4G = 4 * _1G
+MAX_Py_ssize_t = sys.maxsize
+
+requires_IEEE_754 = unittest.skipUnless(
+    float.__getformat__("double").startswith("IEEE"),
+    "test requires IEEE 754 doubles")
+
+skip_on_newlib = lambda reason="": (lambda test: test)
+requires_mac_ver = lambda *min_version: (lambda test: test)
+
+
+def force_not_colorized(func):
+    """Nothing is coloured here; the decorator is only a name."""
+    return func
+
+
+def force_colorized(func):
+    return unittest.skip("no colour")(func)
+
+
+def force_not_colorized_test_class(cls):
+    return cls
+
+
+def force_colorized_test_class(cls):
+    return unittest.skip("no colour")(cls)
+
+
+@_contextmanager
+def adjust_int_max_str_digits(max_digits):
+    """Temporarily change the integer string conversion length limit."""
+    current = sys.get_int_max_str_digits()
+    try:
+        sys.set_int_max_str_digits(max_digits)
+        yield
+    finally:
+        sys.set_int_max_str_digits(current)
+
+
+def _decorate(func, make):
+    """`make(func)`, reaching under a skip marker the shim's unittest made."""
+    if hasattr(func, "wrapped") and hasattr(func, "kind"):
+        func.wrapped = make(func.wrapped)
+        return func
+    wrapper = make(func)
+    wrapper.__name__ = func.__name__
+    return wrapper
+
+
+class run_with_locale:
+    """Upstream's: the first of `locales` that can be set, for the length of a
+    `with` or a call, and SkipTest when none can. Written as a class because
+    contextlib's decorator form imports inspect."""
+
+    def __init__(self, catstr, *locales):
+        self.catstr = catstr
+        self.locales = locales
+
+    def __enter__(self):
+        import locale
+        self.category = getattr(locale, self.catstr)
+        self.orig = locale.setlocale(self.category)
+        for loc in self.locales:
+            try:
+                locale.setlocale(self.category, loc)
+                return
+            except locale.Error:
+                pass
+        if '' not in self.locales:
+            raise unittest.SkipTest(f'no locales {self.locales}')
+
+    def __exit__(self, *exc):
+        import locale
+        locale.setlocale(self.category, self.orig)
+        return False
+
+    def __call__(self, func):
+        def make(f):
+            def wrapper(*args, **kwargs):
+                with run_with_locale(self.catstr, *self.locales):
+                    return f(*args, **kwargs)
+            return wrapper
+        return _decorate(func, make)
+
+
+def run_with_locales(catstr, *locales):
+    """Upstream runs the test under each locale that can be set; only C can."""
+    def decorator(func):
+        return _decorate(func, lambda f: _each_locale(f, catstr, locales))
+    return decorator
+
+
+def _each_locale(func, catstr, locales):
+    def wrapper(self, *args, **kwargs):
+        import locale
+        category = getattr(locale, catstr)
+        orig = locale.setlocale(category)
+        ran = False
+        try:
+            for loc in locales:
+                try:
+                    locale.setlocale(category, loc)
+                except locale.Error:
+                    continue
+                ran = True
+                func(self, *args, **kwargs)
+        finally:
+            locale.setlocale(category, orig)
+        if not ran:
+            raise unittest.SkipTest(f'no locales {locales}')
+    return wrapper
+
+
+def check__all__(test_case, module, name_of_module=None, extra=(),
+                 not_exported=()):
+    """Upstream's: __all__ names every public name the module defines."""
+    if name_of_module is None:
+        name_of_module = (module.__name__, )
+    elif isinstance(name_of_module, str):
+        name_of_module = (name_of_module, )
+
+    expected = set(extra)
+
+    for name in dir(module):
+        if name.startswith('_') or name in not_exported:
+            continue
+        obj = getattr(module, name)
+        if (getattr(obj, '__module__', None) in name_of_module or
+                (not hasattr(obj, '__module__') and
+                 not isinstance(obj, type(sys)))):
+            expected.add(name)
+    test_case.assertCountEqual(module.__all__, expected)
+
+# x87 double rounding is a hardware property, and wasm has none.
+skip_if_double_rounding = unittest.skipIf(False, "no double rounding")
+
+
+def skip_if_buggy_ucrt_strfptime(test):
+    """The UCRT is Windows'; nothing is skipped here."""
+    return test
+
+
+def run_with_tz(tz):
+    """There is one zone, the one the clock was read in; nothing is switched."""
+    return unittest.skip("time zones are not switched")

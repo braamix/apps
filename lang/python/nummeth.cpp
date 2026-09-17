@@ -84,7 +84,7 @@ bool int_kws(const CallArgs &a, Str who, Value &length, Value &order, bool &out)
             if (!slot.is_nil()) {
                 Buf<96> b;
                 b.put("argument for ").put(who).put("() given by name ('").put(n);
-                b.put("') and position");
+                b.put(n == "length" ? Str("') and position (1)") : Str("') and position (2)"));
                 return err_set("TypeError", b.str()), false;
             }
             slot = a.kwvals[i];
@@ -249,6 +249,20 @@ R m_fromhex(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// float.__getformat__(typestr): how a double and a float are laid out.
+R m_getformat(const CallArgs &a, Value &out)
+{
+    if (a.nkw || a.nargs != 1)
+        return err_set("TypeError", "__getformat__() takes exactly one argument");
+    if (!is_str(a.args[0]))
+        return err_set2("TypeError", "__getformat__() argument must be str", type_name(a.args[0]));
+    Str t = str_of(a.args[0])->str();
+    if (t != "double" && t != "float")
+        return err_set("ValueError", "__getformat__() argument 1 must be 'double' or 'float'");
+    out = str_new("IEEE, little-endian");
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 R m_float_ratio(const CallArgs &a, Value &out)
 {
     f64 v = 0;
@@ -275,7 +289,7 @@ constexpr Method INT[] = {
 constexpr Method FLOAT[] = {
     { "is_integer", m_is_integer },        { "hex", m_hex },
     { "fromhex", m_fromhex, true },        { "conjugate", m_conjugate },
-    { "as_integer_ratio", m_float_ratio },
+    { "as_integer_ratio", m_float_ratio }, { "__getformat__", m_getformat, true },
 };
 
 } // namespace

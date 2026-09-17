@@ -263,6 +263,25 @@ Value native_new(Str name, R (*fn)(const CallArgs &, Value &out))
     return obj_value(n);
 }
 
+bool module_defaults(DictObj *d)
+{
+    Root rd{ obj_value(d) };
+    constexpr Str NONES[] = { "__doc__", "__package__", "__loader__", "__spec__" };
+    for (Str k : NONES) {
+        StrObj *ks = str_intern(k);
+        if (!ks)
+            return err_set("MemoryError", "out of memory"), false;
+        Value had;
+        R r = dict_get(static_cast<DictObj *>(rd.v.obj()), obj_value(ks), had);
+        if (r == R::Err)
+            return false;
+        if (r == R::NotImpl &&
+            dict_set(static_cast<DictObj *>(rd.v.obj()), obj_value(ks), value_none()) != R::Ok)
+            return false;
+    }
+    return true;
+}
+
 Value module_new(Str name)
 {
     Root n{ str_new(name) };
@@ -279,10 +298,18 @@ Value module_new(Str name)
     m->dict = rd.v;
     Root rm{ obj_value(m) };
     // The body of the module reads its own name, so it is in the namespace
-    // and not only on the object.
+    // and not only on the object; the other four are what ModuleType's own
+    // __init__ puts there.
     StrObj *key = str_intern("__name__");
     if (!key || dict_set(static_cast<DictObj *>(rd.v.obj()), obj_value(key), n.v) != R::Ok)
         return Value();
+    constexpr Str NONES[] = { "__doc__", "__package__", "__loader__", "__spec__" };
+    for (Str k : NONES) {
+        StrObj *ks = str_intern(k);
+        if (!ks ||
+            dict_set(static_cast<DictObj *>(rd.v.obj()), obj_value(ks), value_none()) != R::Ok)
+            return err_pending() ? Value() : (err_set("MemoryError", "out of memory"), Value());
+    }
     return rm.v;
 }
 

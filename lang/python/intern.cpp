@@ -47,6 +47,14 @@ StrObj *str_intern(Str s)
     return o;
 }
 
+bool str_is_interned(const StrObj *s)
+{
+    if (!table)
+        return false;
+    StrObj **found = table->by_bytes.find(s->str());
+    return found && *found == s;
+}
+
 void intern_mark()
 {
     if (!table)

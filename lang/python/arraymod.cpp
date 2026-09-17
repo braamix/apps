@@ -624,7 +624,7 @@ constexpr Method ARRAY_METHODS[] = {
     { "index", a_index },         { "remove", a_remove },
 };
 
-constexpr Type array_type{ .name     = "array",
+constexpr Type array_type{ .name     = "array.array",
                            .fini     = arr_fini,
                            .truth    = arr_truth,
                            .eq       = arr_eq,

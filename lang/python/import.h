@@ -13,6 +13,11 @@ DictObj *sys_modules();
 // sys.path, made on first use. Nil with the error pending.
 Value sys_path();
 
+// sys.meta_path, sys.path_hooks, sys.path_importer_cache and
+// sys._stdlib_dir, made on first use. Nil with the error pending.
+enum ImportState { IMPORT_META_PATH, IMPORT_PATH_HOOKS, IMPORT_PATH_CACHE, IMPORT_STDLIB };
+Value sys_import_state(ImportState which);
+
 // What goes on sys.path before the program starts: the directory the program
 // came from, then the one the shipped library lives in. Either may be empty.
 void sys_set_path(Str script_dir, Str library_dir);

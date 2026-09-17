@@ -22,7 +22,7 @@ ok CAutoFileTests.testOpendir
 ok CAutoFileTests.testReadintoByteArray
 ok CAutoFileTests.testRecursiveRepr
 ok CAutoFileTests.testRepr
-error CAutoFileTests.testReprNoCloseFD: PermissionError: [Errno 13] Permission denied: '@test_21_tmpæ'
+error CAutoFileTests.testReprNoCloseFD: PermissionError: [Errno 13] Permission denied: '@test_28_tmpæ'
 ok CAutoFileTests.testSeekTell
 ok CAutoFileTests.testWeakRefs
 ok CAutoFileTests.testWritelinesError
@@ -30,7 +30,7 @@ ok CAutoFileTests.testWritelinesList
 ok CAutoFileTests.testWritelinesUserList
 ok CAutoFileTests.test_none_args
 ok CAutoFileTests.test_reject
-error CAutoFileTests.test_subclass_repr: PermissionError: [Errno 13] Permission denied: '@test_21_tmpæ'
+error CAutoFileTests.test_subclass_repr: PermissionError: [Errno 13] Permission denied: '@test_28_tmpæ'
 skip CAutoFileTests.test_syscalls_read: strace not found
 ok COtherFileTests.testAbles
 ok COtherFileTests.testAppend
@@ -72,7 +72,7 @@ ok PyAutoFileTests.testOpendir
 ok PyAutoFileTests.testReadintoByteArray
 ok PyAutoFileTests.testRecursiveRepr
 ok PyAutoFileTests.testRepr
-error PyAutoFileTests.testReprNoCloseFD: PermissionError: [Errno 13] Permission denied: '@test_21_tmpæ'
+error PyAutoFileTests.testReprNoCloseFD: PermissionError: [Errno 13] Permission denied: '@test_28_tmpæ'
 ok PyAutoFileTests.testSeekTell
 ok PyAutoFileTests.testWeakRefs
 ok PyAutoFileTests.testWritelinesError
@@ -80,7 +80,7 @@ ok PyAutoFileTests.testWritelinesList
 ok PyAutoFileTests.testWritelinesUserList
 ok PyAutoFileTests.test_none_args
 ok PyAutoFileTests.test_reject
-error PyAutoFileTests.test_subclass_repr: PermissionError: [Errno 13] Permission denied: '@test_21_tmpæ'
+error PyAutoFileTests.test_subclass_repr: PermissionError: [Errno 13] Permission denied: '@test_28_tmpæ'
 skip PyAutoFileTests.test_syscalls_read: strace not found
 ok PyOtherFileTests.testAbles
 ok PyOtherFileTests.testAppend

@@ -192,17 +192,24 @@ R warn_step(ContObj *k, Value in)
         return cont_call(k, fn, mod);
     }
     case 1: {
-        StrObj *n = str_intern("warn");
+        // With a filename, warn_explicit(message, category, filename, j).
+        bool explicit_ = !k->s[3].is_nil();
+        StrObj *n      = str_intern(explicit_ ? Str("warn_explicit") : Str("warn"));
         Value fn;
         if (!n || py_getattr(in, n, fn) != R::Ok)
             return R::Err;
         Root rf{ fn };
-        TupleObj *t = tuple_new(3);
+        TupleObj *t = tuple_new(explicit_ ? 4 : 3);
         if (!t)
             return oom();
         t->items()[0] = k->s[1];
         t->items()[1] = k->s[2];
-        t->items()[2] = Value::of_int(i32(k->j));
+        if (explicit_) {
+            t->items()[2] = k->s[3];
+            t->items()[3] = Value::of_int(i32(k->j));
+        } else {
+            t->items()[2] = Value::of_int(i32(k->j));
+        }
         return cont_call_v(k, rf.v, obj_value(t));
     }
     default:
@@ -231,6 +238,50 @@ Value warn_cont(Str category, Str message, u32 stacklevel)
     cont_of(kv.v)->s[2] = cat.v;
     cont_of(kv.v)->j    = stacklevel;
     return kv.v;
+}
+
+namespace {
+
+// s[0] the warning's continuation, s[1] the answer.
+R then_step(ContObj *k, Value)
+{
+    if (k->i++ == 0)
+        return cont_await(k, k->s[0]);
+    return cont_done(k, k->s[1]);
+}
+
+} // namespace
+
+Value warn_explicit_cont(Str category, Str message, Str filename, u32 lineno)
+{
+    Root f{ str_new(filename) };
+    if (f.v.is_nil())
+        return Value();
+    Value k = warn_cont(category, message, lineno);
+    if (!k.is_nil())
+        cont_of(k)->s[3] = f.v;
+    return k;
+}
+
+R warn_then(Str category, Str message, u32 stacklevel, Value answer, Value &out)
+{
+    Root ans{ answer };
+    Root w{ warn_cont(category, message, stacklevel) };
+    if (w.v.is_nil())
+        return R::Err;
+    return warn_then_cont(w.v, ans.v, out);
+}
+
+R warn_then_cont(Value warning, Value answer, Value &out)
+{
+    Root w{ warning }, ans{ answer };
+    Value k = cont_new(then_step);
+    if (k.is_nil())
+        return R::Err;
+    cont_of(k)->s[0] = w.v;
+    cont_of(k)->s[1] = ans.v;
+    out              = k;
+    return R::Ok;
 }
 
 bool warnings_install(DictObj *into)

@@ -1,0 +1,88 @@
+--- unittest ---
+ok CalendarTestCase.test_days
+ok CalendarTestCase.test_deprecation_warning
+ok CalendarTestCase.test_enumerate_weekdays
+ok CalendarTestCase.test_illegal_weekday_reported
+ok CalendarTestCase.test_isleap
+ok CalendarTestCase.test_itermonthdays
+ok CalendarTestCase.test_itermonthdays2
+ok CalendarTestCase.test_itermonthdays3
+ok CalendarTestCase.test_itermonthdays4
+ok CalendarTestCase.test_iterweekdays
+skip CalendarTestCase.test_locale_calendar_formatmonthname: cannot set the en_US locale
+skip CalendarTestCase.test_locale_calendar_formatweekday: cannot set the en_US locale
+skip CalendarTestCase.test_locale_calendar_long_weekday_names: no locales ('Portuguese', 'pt_PT.UTF-8', 'German', 'de_DE.UTF-8', 'Russian', 'ru_RU.UTF-8')
+skip CalendarTestCase.test_locale_calendar_short_weekday_names: no locales ('Chinese', 'zh_CN.UTF-8', 'French', 'fr_FR.UTF-8', 'Norwegian', 'nb_NO.UTF-8', 'Malay', 'ms_MY.UTF8')
+ok CalendarTestCase.test_locale_calendars_reset_locale_properly
+ok CalendarTestCase.test_locale_html_calendar
+ok CalendarTestCase.test_locale_html_calendar_custom_css_class_month_name
+ok CalendarTestCase.test_locale_html_calendar_custom_css_class_weekday
+ok CalendarTestCase.test_locale_text_calendar
+ok CalendarTestCase.test_months
+ok CalendarTestCase.test_setfirstweekday
+ok CalendarTestCase.test_standalone_month_name_and_abbr_C_locale
+skip CalendarTestCase.test_standalone_month_name_and_abbr_pl_locale: Guaranteed to work with glibc and macOS
+skip ColorTestCase.test_formatmonth_color: no colour
+skip CommandLineTestCase.test_help: no subprocess
+skip CommandLineTestCase.test_html_output_current_year: no subprocess
+skip CommandLineTestCase.test_html_output_year_css: no subprocess
+skip CommandLineTestCase.test_html_output_year_encoding: no subprocess
+skip CommandLineTestCase.test_illegal_arguments: no subprocess
+skip CommandLineTestCase.test_option_encoding: no subprocess
+skip CommandLineTestCase.test_option_lines: no subprocess
+skip CommandLineTestCase.test_option_locale: no subprocess
+skip CommandLineTestCase.test_option_months: no subprocess
+skip CommandLineTestCase.test_option_spacing: no subprocess
+skip CommandLineTestCase.test_option_type: no subprocess
+skip CommandLineTestCase.test_option_width: no subprocess
+skip CommandLineTestCase.test_output_current_year: no subprocess
+skip CommandLineTestCase.test_output_month: no subprocess
+skip CommandLineTestCase.test_output_year: no subprocess
+ok LeapdaysTestCase.test_no_leapdays
+ok LeapdaysTestCase.test_no_leapdays_upper_boundary
+ok LeapdaysTestCase.test_no_range
+ok LeapdaysTestCase.test_one_leapday_lower_boundary
+ok LeapdaysTestCase.test_several_leapyears_in_range
+ok MiscTestCase.test__all__
+ok MondayTestCase.test_april
+ok MondayTestCase.test_december
+ok MondayTestCase.test_february
+ok MonthRangeTestCase.test_december
+ok MonthRangeTestCase.test_february_leap
+ok MonthRangeTestCase.test_february_nonleap
+ok MonthRangeTestCase.test_illegal_month_reported
+ok MonthRangeTestCase.test_january
+ok MonthRangeTestCase.test_thirteenth_month
+ok MonthRangeTestCase.test_zeroth_month
+ok OutputTestCase.test_format
+ok OutputTestCase.test_format_html_year_with_month
+ok OutputTestCase.test_formatmonth
+ok OutputTestCase.test_formatmonth_with_invalid_month
+ok OutputTestCase.test_formatmonthname_with_year
+ok OutputTestCase.test_formatmonthname_without_year
+ok OutputTestCase.test_formatmonthpage_no_width
+ok OutputTestCase.test_formatweekheader_long
+ok OutputTestCase.test_formatweekheader_short
+ok OutputTestCase.test_illegal_month_error_bases
+ok OutputTestCase.test_output
+ok OutputTestCase.test_output_htmlcalendar_encoding_ascii
+ok OutputTestCase.test_output_htmlcalendar_encoding_default
+ok OutputTestCase.test_output_htmlcalendar_encoding_utf8
+ok OutputTestCase.test_output_textcalendar
+ok OutputTestCase.test_prmonth
+ok OutputTestCase.test_prweek
+ok OutputTestCase.test_pryear
+ok OutputTestCase.test_yeardatescalendar
+ok OutputTestCase.test_yeardayscalendar
+ok SundayTestCase.test_april
+ok SundayTestCase.test_december
+ok SundayTestCase.test_february
+ok TestSubClassingCase.test_format_year
+ok TestSubClassingCase.test_format_year_head
+ok TestSubClassingCase.test_formatmonth
+ok TestSubClassingCase.test_formatmonth_with_invalid_month
+ok TestSubClassingCase.test_formatmonthname
+ok TestSubClassingCase.test_formatweek
+ok TestSubClassingCase.test_formatweek_head
+ok TimegmTestCase.test_timegm
+--- ran 86 ok 65 fail 0 error 0 skip 21 ---

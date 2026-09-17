@@ -11,6 +11,7 @@
 #include "iter.h"
 #include "kernel/fmt.h"
 #include "method.h"
+#include "module.h"
 #include "ops.h"
 
 namespace {
@@ -895,7 +896,7 @@ R pad(const CallArgs &a, Str who, int side, Value &out)
         out = like(self, s);
         return out.is_nil() ? R::Err : R::Ok;
     }
-    i64 left = side < 0 ? 0 : side > 0 ? need : need / 2;
+    i64 left = side < 0 ? 0 : side > 0 ? need : need / 2 + (need & width & 1);
     String b;
     for (i64 i = 0; i < left; i++)
         if (!b.push(fill))
@@ -990,24 +991,16 @@ R m_hex(const CallArgs &a, Value &out)
 {
     Value self;
     Str s;
-    if (!self_bytes(a, "hex", self, s) || !meth_args(a, "hex", 0, 1))
+    static const Str NAMES[] = { "sep", "bytes_per_sep" };
+    Value got[2];
+    if (!self_bytes(a, "hex", self, s) || !meth_take(a, "hex", NAMES, 0, got))
         return R::Err;
-    // The separator goes between every pair. A str or a bytes-like.
-    Str sep;
-    if (a.nargs > 1) {
-        if (is_str(a.args[1]))
-            sep = str_of(a.args[1])->str();
-        else if (!bytes_like(a.args[1], sep))
-            return err_set2("TypeError", "hex() separator must be a str", type_name(a.args[1]));
-    }
-    const char *HEX = "0123456789abcdef";
+    i64 per = 1;
+    if (!got[1].is_nil() && !as_index(got[1], per))
+        return err_not_index(got[1]);
     String b;
-    for (usize i = 0; i < s.size(); i++) {
-        if (i && !b.append(sep))
-            return oom_err();
-        if (!b.push(HEX[(u8(s[i]) >> 4) & 0xf]) || !b.push(HEX[u8(s[i]) & 0xf]))
-            return oom_err();
-    }
+    if (!hex_with_sep(s, got[0], per, false, b))
+        return R::Err;
     out = str_of_bytes(b.str());
     return out.is_nil() ? R::Err : R::Ok;
 }
@@ -1728,7 +1721,7 @@ bool memview_bytes(Value v, Str &out, bool *writable)
     if (!mem_owner_bytes(v, all, writable))
         return false;
     if (m->step != 1)
-        return err_set("BufferError", "a strided memoryview is not contiguous"), false;
+        return err_set("BufferError", "memoryview: underlying buffer is not C-contiguous"), false;
     usize at = m->at < all.size() ? m->at : all.size();
     usize n  = usize(m->len) * m->width;
     if (n > all.size() - at)

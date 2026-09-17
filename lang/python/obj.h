@@ -228,6 +228,10 @@ bool as_int_arg(Value v, i64 &out);
 // int, bool or float, widened.
 bool as_number(Value v, f64 &out);
 
+// OverflowError, pending, when `v` is an integer as_number made infinite:
+// CPython refuses to widen one. False otherwise, with nothing pending.
+bool int_too_wide(Value v, f64 x);
+
 // ---------------------------------------------------------------- str, bytes
 
 // Bytes inline after the header; immutable, so hash and chars are cached.

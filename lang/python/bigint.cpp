@@ -519,10 +519,33 @@ f64 int_to_f64(Value v)
     i64 n = 0;
     if (!is_big(v) && as_index(v, n))
         return f64(n);
-    BigObj *b = big_of(v);
-    f64 x     = 0;
-    for (usize i = b->len; i-- > 0;)
-        x = x * 4294967296.0 + f64(b->limbs()[i]);
+    // Correctly rounded, half to even, as CPython's PyLong_AsDouble is: the
+    // top 54 bits, and whether anything below them is set.
+    BigObj *b    = big_of(v);
+    const u32 *l = b->limbs();
+    usize bits   = (b->len - 1) * 32 + (32 - __builtin_clz(l[b->len - 1]));
+    if (bits > 1024 + 1)
+        return b->neg ? -__builtin_inf() : __builtin_inf();
+    usize shift = bits > 54 ? bits - 54 : 0;
+    u64 top     = 0;
+    bool sticky = false;
+    for (usize i = 0; i < b->len * 32; i++) {
+        bool bit = (l[i / 32] >> (i % 32)) & 1;
+        if (i < shift)
+            sticky |= bit;
+        else if (bit)
+            top |= u64(1) << (i - shift);
+    }
+    if (shift && (top & 1) && (sticky || (top & 2)))
+        top += 2;
+    f64 x = shift ? f64(top >> 1) : f64(top);
+    int e = shift ? int(shift + 1) : 0;
+    // Scale by powers of two: exact until the result overflows to inf.
+    while (e > 0) {
+        int step = e > 512 ? 512 : e;
+        x *= f64(u64(1) << (step > 62 ? 62 : step));
+        e -= step > 62 ? 62 : step;
+    }
     return b->neg ? -x : x;
 }
 

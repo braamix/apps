@@ -29,6 +29,7 @@
 #include "module.h"
 #include "ops.h"
 #include "parse.h"
+#include "posix.h"
 #include "type.h"
 #include "ucd.h"
 #include "ustr.h"
@@ -366,8 +367,7 @@ R b_print(const CallArgs &a, Value &out)
             continue;
         if (!is_str(a.kwvals[k])) {
             if (name != "sep" && name != "end")
-                return err_set2("TypeError", "print() got an unexpected keyword argument",
-                                name);
+                return err_set2("TypeError", "print() got an unexpected keyword argument", name);
             Buf<96> m;
             m.put(name).put(" must be None or a string, not ").put(type_name(a.kwvals[k]));
             return err_set("TypeError", m.str());
@@ -1076,6 +1076,8 @@ R b_complex(const CallArgs &a, Value &out)
                             type_name(a.args[1]));
         }
     }
+    if (int_too_wide(a.args[0], re) || (a.nargs > 1 && int_too_wide(a.args[1], im)))
+        return R::Err;
     out = complex_new(re, im);
     return out.is_nil() ? R::Err : R::Ok;
 }
@@ -1126,9 +1128,13 @@ R b_float(const CallArgs &a, Value &out)
     f64 v      = 0;
     Value self = a.nargs ? method_self(a.args[0]) : Value();
     if (a.nargs && self != a.args[0] && as_number(self, v)) {
+        if (int_too_wide(self, v))
+            return R::Err;
         out = float_new(v);
         return out.is_nil() ? R::Err : R::Ok;
     }
+    if (a.nargs && as_number(a.args[0], v) && int_too_wide(a.args[0], v))
+        return R::Err;
     if (a.nargs && !as_number(a.args[0], v)) {
         Str text;
         if (is_str(a.args[0]))
@@ -1379,6 +1385,12 @@ R b_range(const CallArgs &a, Value &out)
         return R::Err;
     Value n[3] = { Value::of_int(0), Value::of_int(0), Value::of_int(1) };
     for (u32 i = 0; i < a.nargs; i++) {
+        // An int subclass, an IntEnum member, stands for its value.
+        Value v = a.args[i];
+        if (is_inst(v) && is_intval(inst_of(v)->native)) {
+            n[i] = inst_of(v)->native;
+            continue;
+        }
         if (!is_intval(a.args[i])) {
             Buf<96> m;
             m.put('\'')
@@ -1724,8 +1736,10 @@ R b_sum(const CallArgs &a, Value &out)
                 return R::Err;
         }
         Value next;
-        if (py_binop(acc.v, got.v, Op::Add, next) != R::Ok)
+        if (binop_call(acc.v, got.v, Op::Add, next) != R::Ok)
             return R::Err;
+        if (is_cont(next))
+            return fold_rest(it.v, next, Op::Add, out);
         acc = next;
     }
     if (comp)
@@ -1873,8 +1887,14 @@ R b_enumerate(const CallArgs &a, Value &out)
 
 R b_iter(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "iter", 1, 1))
+    if (!args_only(a, "iter", 1, 2))
         return R::Err;
+    if (a.nargs == 2) {
+        if (!py_callable(a.args[0]))
+            return err_set("TypeError", "iter(v, w): v must be callable");
+        out = calliter_new(a.args[0], a.args[1]);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     // A class's own __iter__, or the walk over its __getitem__.
     Root m{ iter_special(a.args[0]) };
     if (!m.v.is_nil()) {
@@ -2268,10 +2288,93 @@ R b_pow(const CallArgs &a, Value &out)
 
 // ----------------------------------------------------------- the iterators
 
+// reversed() of a class of the program's own: its __reversed__, or its
+// __len__ and __getitem__ read from the end, eagerly, into a list. s[0] the
+// object, s[1] __getitem__, s[2] the list; x[0] the next index.
+R rev_step(ContObj *k, Value in)
+{
+    if (k->i == 0) {
+        k->i = 1;
+        return cont_call(k, k->s[1], Value(), 0);
+    }
+    if (k->i == 1) {
+        i64 n = 0;
+        if (!as_index(in, n))
+            return err_set2("TypeError", "'__len__' must return an integer", type_name(in));
+        if (n < 0)
+            return err_set("ValueError", "__len__() should return >= 0");
+        ListObj *l = list_new();
+        if (!l)
+            return oom();
+        k->s[2] = obj_value(l);
+        k->x[0] = n - 1;
+        k->i    = 2;
+        Root get{ type_special(k->s[0], "__getitem__") };
+        if (get.v.is_nil())
+            return err_pending() ? R::Err : err_set("TypeError", "object is not reversible");
+        k->s[1] = get.v;
+    } else if (!list_push(list_of(k->s[2]), in)) {
+        return oom();
+    }
+    if (k->x[0] < 0) {
+        Value it = py_iter(k->s[2]);
+        return it.is_nil() ? R::Err : cont_done(k, it);
+    }
+    Value idx = int_from_i64(k->x[0]--);
+    return idx.is_nil() ? R::Err : cont_call(k, k->s[1], idx);
+}
+
+R reversed_python(Value obj, Value &out, bool &done)
+{
+    done = false;
+    if (!is_inst(obj) || !inst_of(obj)->native.is_nil())
+        return R::Ok;
+    Root ro{ obj };
+    Root rev{ type_special(ro.v, "__reversed__") };
+    Root len;
+    if (rev.v.is_nil() || is_none(rev.v)) {
+        len = type_special(ro.v, "__len__");
+        if (err_pending())
+            return R::Err;
+        if (!rev.v.is_nil() || len.v.is_nil() || type_special(ro.v, "__getitem__").is_nil()) {
+            Buf<128> m;
+            m.put('\'').put(type_name(ro.v)).put("' object is not reversible");
+            return err_set("TypeError", m.str());
+        }
+    }
+    Root kv{ cont_new(rev_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = ro.v;
+    if (!rev.v.is_nil()) {
+        // Its answer is the iterator.
+        k->i    = 3;
+        k->step = [](ContObj *c, Value in) -> R {
+            if (c->i == 3) {
+                c->i = 4;
+                return cont_call(c, c->s[1], Value(), 0);
+            }
+            return cont_done(c, in);
+        };
+        k->s[1] = rev.v;
+    } else {
+        k->s[1] = len.v;
+    }
+    out  = kv.v;
+    done = true;
+    return R::Ok;
+}
+
 R b_reversed(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "reversed", 1, 1))
         return R::Err;
+    bool done = false;
+    if (reversed_python(a.args[0], out, done) != R::Ok)
+        return R::Err;
+    if (done)
+        return R::Ok;
     // A FrameLocalsProxy is reversed as its keys.
     if (is_frame_locals(a.args[0])) {
         Root d{ frame_locals_dict(a.args[0]) };
@@ -2629,6 +2732,33 @@ Value compile_source(Value src, Str filename, CompileMode mode, String *codec = 
 
 R b_compile(const CallArgs &a, Value &out)
 {
+    if (a.nkw) {
+        // The keywords into their places, so what is parked and redone is
+        // positional.
+        static const Str NAMES[] = {
+            "source",   "filename",         "mode",  "flags", "dont_inherit",
+            "optimize", "_feature_version", "module"
+        };
+        Value v[8];
+        if (!fn_take(a, "compile", NAMES, 3, v))
+            return R::Err;
+        if (!v[7].is_nil() && !is_none(v[7]) && !is_str(v[7])) {
+            Buf<96> b;
+            b.put("compile() argument 'module' must be str or None, not ").put(type_name(v[7]));
+            return err_set("TypeError", b.str());
+        }
+        Value pos[6] = { v[0],
+                         v[1],
+                         v[2],
+                         v[3].is_nil() ? Value::of_int(0) : v[3],
+                         v[4].is_nil() ? value_bool(false) : v[4],
+                         v[5].is_nil() ? Value::of_int(-1) : v[5] };
+        Roots pin{ pos, 6 };
+        CallArgs b;
+        b.args  = pos;
+        b.nargs = 6;
+        return b_compile(b, out);
+    }
     if (!args_only(a, "compile", 3, 6))
         return R::Err;
     if (!is_str(a.args[1]))
@@ -3361,7 +3491,7 @@ Value builtins_module()
     if (h->builtins_mod.is_nil()) {
         DictObj *b = builtins_dict();
         Root m{ module_new("builtins") };
-        if (!b || m.v.is_nil())
+        if (!b || m.v.is_nil() || !module_defaults(b))
             return Value();
         static_cast<ModuleObj *>(m.v.obj())->dict = obj_value(b);
         h->builtins_mod                           = m.v;

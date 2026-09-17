@@ -29,28 +29,31 @@ code <module>  file /tmp/c.py  line 1
            21  ImportNameEager       7 (csv)
            22  StoreName             7 (csv)
     4      23  PopBlock
-           24  Jump                 34
+           24  Jump                 37
       >>   25  PushExcInfo
     6      26  DupTop
            27  LoadName              8 (ImportError)
            28  CheckExcMatch
-           29  PopJumpIfFalse       33
+           29  PopJumpIfFalse       36
            30  PopTop
-           31  PopExcept
-           32  Jump                 34
-    4 >>   33  Reraise               1
-    8 >>   34  LoadName              9 (print)
-           35  LoadName              1 (json)
-           36  LoadName              4 (p)
-           37  LoadName              5 (sep)
-           38  LoadName             10 (a)
-           39  LoadName             11 (b)
-           40  BinaryOp             12 (@)
-           41  Call                  4
-           42  PopTop
-    9      43  LoadName             10 (a)
-           44  LoadName             11 (b)
-           45  InplaceOp            12 (@)
-           46  StoreName            10 (a)
-           47  LoadConst             0 (None)
-           48  Return
+           31  SetupFinally         35
+           32  PopBlock
+           33  PopExcept
+           34  Jump                 37
+      >>   35  Reraise               1
+    4 >>   36  Reraise               1
+    8 >>   37  LoadName              9 (print)
+           38  LoadName              1 (json)
+           39  LoadName              4 (p)
+           40  LoadName              5 (sep)
+           41  LoadName             10 (a)
+           42  LoadName             11 (b)
+           43  BinaryOp             12 (@)
+           44  Call                  4
+           45  PopTop
+    9      46  LoadName             10 (a)
+           47  LoadName             11 (b)
+           48  InplaceOp            12 (@)
+           49  StoreName            10 (a)
+           50  LoadConst             0 (None)
+           51  Return

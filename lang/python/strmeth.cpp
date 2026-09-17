@@ -1064,8 +1064,9 @@ R pad(const CallArgs &a, Str who, int side, Value &out)
         out = obj_value(s);
         return R::Ok;
     }
-    // center puts the odd character on the right, as CPython does.
-    i64 left  = side < 0 ? 0 : side > 0 ? need : need / 2;
+    // center puts the odd character on the left when the width is odd, and on
+    // the right otherwise, as CPython's pad() does.
+    i64 left  = side < 0 ? 0 : side > 0 ? need : need / 2 + (need & width & 1);
     i64 right = need - left;
     String b;
     for (i64 i = 0; i < left; i++)

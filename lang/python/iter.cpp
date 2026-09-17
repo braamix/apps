@@ -235,8 +235,11 @@ Value reversed_new(Value seq)
         return py_iter(obj_value(keys));
     }
     const Type *t = type_of(seq);
-    if (!t || !t->len || !t->getitem)
-        return err_set2("TypeError", "object is not reversible", type_name(seq)), Value();
+    if (!t || !t->len || !t->getitem) {
+        Buf<128> m;
+        m.put('\'').put(type_name(seq)).put("' object is not reversible");
+        return err_set("TypeError", m.str()), Value();
+    }
     return obj_value(iter_new(&rev_iter_type, seq));
 }
 

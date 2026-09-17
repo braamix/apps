@@ -65,10 +65,10 @@ export async function boot(caseName) {
 }
 
 // The library CPython lends, where an installed package keeps it: python
-// finds a store directory named python-* with share/lib inside, and puts that
+// finds a store directory named python-* with lib inside, and puts that
 // on sys.path after the program's own directory.
 export const LIB = join(HERE, "..", "lib");
-export const STORE_LIB = "/pkg/store/python-0/share/lib";
+export const STORE_LIB = "/pkg/store/python-0/lib";
 
 function plant_lib() {
     const walk = (at) => {

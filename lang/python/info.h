@@ -42,6 +42,12 @@ R info_repr(Value v, String &out);
 // alone, as sys.flags.gil is. Nil with the error pending.
 Value info_new(const Type *t, const Value *items, const Str *names, usize n, usize shown);
 
+// `t(sequence, dict=None)`, as CPython's structseq_new: at least `shown`
+// items and at most `n`, the rest from `dict` by name or None.
+struct CallArgs;
+R info_construct(const Type *t, const Str *names, usize n, usize shown, const CallArgs &a,
+                 Value &out);
+
 inline Value info_new(const Type *t, const Value *items, const Str *names, usize n)
 {
     return info_new(t, items, names, n, n);

@@ -52,3 +52,8 @@ def import_fresh_module(name, fresh=(), blocked=(), *,
     finally:
         _save_and_remove_modules(names)
         sys.modules.update(orig_modules)
+
+
+def ensure_lazy_imports(imported_module, modules_to_block, *, additional_code=None):
+    """Upstream runs a second interpreter for this; there is none."""
+    raise unittest.SkipTest("no subprocess")

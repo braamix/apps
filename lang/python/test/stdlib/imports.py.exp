@@ -1,0 +1,36 @@
+json json json
+True
+SourceFileLoader True
+__init__.py True
+built-in True
+True textwrap
+['BuiltinImporter', 'FrozenImporter', 'PathFinder']
+path_hook_for_FileFinder None
+fnmatch True
+json.decoder
+json.encoder
+pkg.x pkg.y
+glob None
+json
+ModuleNotFoundError No module named 'no_such_module_here' no_such_module_here None
+attempted relative import beyond top-level package
+m n p None m ('m',)
+other ModuleNotFoundError('gone', name='x')
+ImportError() got an unexpected keyword argument 'bogus'
+1 apkg ('apkg.leaf', 'apkg', False) True
+None True True
+True 2 yes
+True
+reload() argument must be a module
+virtual virt virtual virt.sub virtual virt.other virt True
+Loader []
+encodings.cp1252
+No module named 'definitely_not_here'
+virtual hooked_mod HookFinder
+42 ModuleSpec(name='dyn', loader=None) dyn
+2 byfile False
+['.py'] b'\r\n'
+# coding: latin-1
+x = 'é'
+
+json json

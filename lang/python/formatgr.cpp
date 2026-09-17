@@ -651,9 +651,17 @@ R plan_percent(ListObj *plan, Str t, Value values, Value mapping, bool bytes, bo
         // A number is required here, and `%` says so with a TypeError where
         // the spec grammar would call the spec itself wrong.
         if (p.type != 's' && p.type != 'r' && p.type != 'a' && p.type != 'b') {
-            i64 n   = 0;
-            f64 x   = 0;
-            bool ok = p.type == 'c' ? (as_index(rv.v, n) || is_str(rv.v))
+            i64 n = 0;
+            f64 x = 0;
+            if (bytes && p.type == 'c' && (is_bytes(rv.v) || is_bytearray(rv.v))) {
+                Str one;
+                bytes_like(rv.v, one);
+                if (one.size() != 1)
+                    return err_set("TypeError",
+                                   "%c requires an integer in range(256) or a single byte");
+                rv = Value::of_int(u8(one[0]));
+            }
+            bool ok = p.type == 'c' ? (as_index(rv.v, n) || (!bytes && is_str(rv.v)))
                       : (p.type == 'e' || p.type == 'E' || p.type == 'f' || p.type == 'F' ||
                          p.type == 'g' || p.type == 'G')
                           ? (is_intval(rv.v) || as_number(rv.v, x))

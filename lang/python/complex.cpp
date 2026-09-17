@@ -186,6 +186,8 @@ R complex_binop(Value a, Value b, Op op, Value &out)
     f64 ar = 0, ai = 0, br = 0, bi = 0;
     if (!pair(a, b, ar, ai, br, bi))
         return R::NotImpl;
+    if (int_too_wide(a, ar) || int_too_wide(b, br))
+        return R::Err;
 
     f64 r = 0, i = 0;
     switch (op) {

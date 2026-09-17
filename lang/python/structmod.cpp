@@ -61,6 +61,8 @@ Value error_class()
     if (!body)
         return oom(), Value();
     Root rd{ obj_value(body) };
+    if (!mod_str(static_cast<DictObj *>(rd.v.obj()), "__module__", "struct"))
+        return Value();
     Value cls = type_new(name.v, rb.v, rd.v);
     if (cls.is_nil())
         return Value();
@@ -723,7 +725,7 @@ constexpr Method STRUCT_METHODS[] = {
     { "iter_unpack", m_iter_unpack },
 };
 
-constexpr Type struct_type{ .name    = "Struct",
+constexpr Type struct_type{ .name    = "_struct.Struct",
                             .trace   = struct_trace,
                             .fini    = struct_fini,
                             .repr    = struct_repr,

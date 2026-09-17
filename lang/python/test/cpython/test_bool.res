@@ -18,7 +18,7 @@ ok BoolTest.test_interpreter_convert_to_bool_raises
 ok BoolTest.test_isinstance
 ok BoolTest.test_issubclass
 ok BoolTest.test_keyword_args
-error BoolTest.test_marshal: ModuleNotFoundError: No module named 'marshal'
+ok BoolTest.test_marshal
 fail BoolTest.test_math: AssertionError: DeprecationWarning not triggered
 ok BoolTest.test_operator
 error BoolTest.test_pickle: ModuleNotFoundError: No module named 'pickle'
@@ -30,4 +30,4 @@ ok BoolTest.test_str
 ok BoolTest.test_string
 ok BoolTest.test_subclass
 ok BoolTest.test_types
---- ran 31 ok 24 fail 4 error 3 skip 0 ---
+--- ran 31 ok 25 fail 4 error 2 skip 0 ---

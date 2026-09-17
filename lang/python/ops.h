@@ -57,6 +57,15 @@ R binop_failed(Value a, Value b, Op op);
 // the left's own operator goes before the right's reflected one.
 R py_binop_try(Value a, Value b, Op op, Value &out);
 
+// `a op b` where either side may be a class whose operator is Python: `out`
+// is the answer, or a ContObj that makes the calls. In opmod.cpp.
+R binop_call(Value a, Value b, Op op, Value &out);
+
+// The rest of a fold -- sum(), prod() -- once a step needed Python: await
+// `pending`, the ContObj binop_call answered, then fold what is left of `it`
+// into its answer with `op`. `out` takes the ContObj.
+R fold_rest(Value it, Value pending, Op op, Value &out);
+
 // `a op= b`. Only a list mutates; everything else is py_binop.
 R py_inplace(Value a, Value b, Op op, Value &out);
 
@@ -71,6 +80,9 @@ R index_of(Value key, usize len, usize &out);
 R seq_eq(const Value *x, usize nx, const Value *y, usize ny, bool &out);
 R seq_order(const Value *x, usize nx, const Value *y, usize ny, Cmp op, bool &out);
 R seq_contains(const Value *x, usize n, Value item, bool &out);
+
+// "'str' object cannot be interpreted as an integer", pending. Always R::Err.
+R err_not_index(Value v);
 
 // "<head>, not int" -- CPython's spelling of a wrong type -- pending, with the
 // type name in quotes where `quoted`. Always R::Err.

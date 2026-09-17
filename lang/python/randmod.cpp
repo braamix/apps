@@ -311,7 +311,7 @@ constexpr Method RANDOM_METHODS[] = {
     { "getstate", r_getstate }, { "setstate", r_setstate },
 };
 
-constexpr Type random_type{ .name    = "Random",
+constexpr Type random_type{ .name    = "_random.Random",
                             .trace   = rand_trace,
                             .repr    = rand_repr,
                             .getattr = r_getattr,

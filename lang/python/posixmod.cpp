@@ -5,21 +5,20 @@
 // asks the driver (posix.h's sys_turn) and turns the answer into a value.
 // What the platform does not have -- modes, owners, inodes, a second link to
 // a file -- is answered the way README.md's Known differences say.
-#include "posix.h"
-
 #include "builtin.h"
 #include "codec.h"
 #include "exc.h"
 #include "gc.h"
-#include "io.h"
 #include "info.h"
 #include "intern.h"
+#include "io.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "kernel/sysabi.h"
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "posix.h"
 #include "proc/rt.h"
 #include "type.h"
 #include "ustr.h"
@@ -263,8 +262,9 @@ bool fn_take(const CallArgs &a, Str who, const Str *names, u32 n, u32 least, Val
         }
         if (!out[i].is_nil()) {
             Buf<128> b;
+            char t[16];
             b.put("argument for ").put(who).put("() given by name ('").put(nm);
-            b.put("') and position");
+            b.put("') and position (").put(int_text(t, sizeof t, i + 1)).put(')');
             return err_set("TypeError", b.str()) == R::Ok;
         }
         out[i] = a.kwvals[k];
@@ -301,9 +301,9 @@ bool sys_turn(ContObj *k, const SysReq &q, R &r, Value f1, Value f2)
             bool fdop = q.op == SysOp::Read || q.op == SysOp::Write || q.op == SysOp::Close ||
                         q.op == SysOp::Seek || q.op == SysOp::Truncate || q.op == SysOp::FStat ||
                         q.op == SysOp::Dup || q.op == SysOp::Tty;
-            r = fdop && (a.err == Error::Invalid || a.err == Error::NotFound)
-                    ? err_errno(9, f1, f2)
-                    : err_os(a.err, f1, f2);
+            r         = fdop && (a.err == Error::Invalid || a.err == Error::NotFound)
+                            ? err_errno(9, f1, f2)
+                            : err_os(a.err, f1, f2);
             return false;
         }
         if (u32 sig = vm_take_signal()) {
@@ -355,10 +355,9 @@ INFO_TYPE(times_type, "posix.times_result");
 // Index 7 to 9 are the integer times, shown under the names the float ones
 // are reached by -- which is what CPython's repr prints too.
 constexpr Str STAT_NAMES[] = {
-    "st_mode",     "st_ino",      "st_dev",      "st_nlink",    "st_uid",
-    "st_gid",      "st_size",     "st_atime",    "st_mtime",    "st_ctime",
-    "st_atime",    "st_mtime",    "st_ctime",    "st_atime_ns", "st_mtime_ns",
-    "st_ctime_ns", "st_blksize",  "st_blocks",   "st_rdev",
+    "st_mode",     "st_ino",      "st_dev",     "st_nlink",  "st_uid",   "st_gid",   "st_size",
+    "st_atime",    "st_mtime",    "st_ctime",   "st_atime",  "st_mtime", "st_ctime", "st_atime_ns",
+    "st_mtime_ns", "st_ctime_ns", "st_blksize", "st_blocks", "st_rdev",
 };
 constexpr usize STAT_SHOWN = 10;
 constexpr usize STAT_ALL   = sizeof STAT_NAMES / sizeof STAT_NAMES[0];
@@ -391,20 +390,21 @@ i64 fake_ino(Str path)
 
 Value stat_new(u32 kind, u64 size, u64 mtime_ms, i64 ino)
 {
-    i64 mode = kind == SYS_KIND_DIR ? S_IFDIR | 0755 : kind == SYS_KIND_LINK ? S_IFLNK | 0777
-                                                                             : S_IFREG | 0644;
+    i64 mode = kind == SYS_KIND_DIR    ? S_IFDIR | 0755
+               : kind == SYS_KIND_LINK ? S_IFLNK | 0777
+                                       : S_IFREG | 0644;
     i64 secs = i64(mtime_ms / 1000);
     f64 fsec = f64(mtime_ms) / 1000.0;
     i64 ns   = i64(mtime_ms) * 1000000;
     Value items[STAT_ALL];
     Roots pin{ items, STAT_ALL };
-    items[0]  = int_from_i64(mode);
-    items[1]  = int_from_i64(ino);
-    items[2]  = Value::of_int(1);
-    items[3]  = Value::of_int(kind == SYS_KIND_DIR ? 2 : 1);
-    items[4]  = Value::of_int(0);
-    items[5]  = Value::of_int(0);
-    items[6]  = int_from_i64(i64(size));
+    items[0] = int_from_i64(mode);
+    items[1] = int_from_i64(ino);
+    items[2] = Value::of_int(1);
+    items[3] = Value::of_int(kind == SYS_KIND_DIR ? 2 : 1);
+    items[4] = Value::of_int(0);
+    items[5] = Value::of_int(0);
+    items[6] = int_from_i64(i64(size));
     for (usize i = 7; i < 10; i++)
         items[i] = int_from_i64(secs);
     for (usize i = 10; i < 13; i++)
@@ -457,7 +457,7 @@ R b_terminal_size(const CallArgs &a, Value &out)
     if (list_of(l.v)->items.size() != 2)
         return err_set("TypeError", "os.terminal_size() takes a 2-sequence");
     constexpr Str NAMES[] = { "columns", "lines" };
-    out = info_new(&tsize_type, list_of(l.v)->items.data(), NAMES, 2);
+    out                   = info_new(&tsize_type, list_of(l.v)->items.data(), NAMES, 2);
     return out.is_nil() ? R::Err : R::Ok;
 }
 
@@ -761,12 +761,12 @@ R one_step(ContObj *k, Value)
             return R::Err;
         Root rs{ st };
         Value items[STAT_ALL];
-        InfoObj *io = static_cast<InfoObj *>(rs.v.obj());
+        InfoObj *io      = static_cast<InfoObj *>(rs.v.obj());
         TupleObj *shown  = static_cast<TupleObj *>(io->items.obj());
         TupleObj *hidden = static_cast<TupleObj *>(io->hidden.obj());
         for (usize i = 0; i < STAT_ALL; i++)
             items[i] = i < STAT_SHOWN ? shown->items()[i] : hidden->items()[i - STAT_SHOWN];
-        items[0] = Value::of_int(tty ? 0020620 : 0010600);
+        items[0]   = Value::of_int(tty ? 0020620 : 0010600);
         Value made = info_new(&stat_type, items, STAT_NAMES, STAT_ALL, STAT_SHOWN);
         return made.is_nil() ? R::Err : cont_done(k, made);
     }
@@ -846,7 +846,7 @@ R one_step(ContObj *k, Value)
             if (sz.is_nil())
                 return R::Err;
             static_cast<TupleObj *>(rt.v.obj())->items()[2] = sz;
-            Value mt = int_from_i64(i64(e.mtime));
+            Value mt                                        = int_from_i64(i64(e.mtime));
             if (mt.is_nil())
                 return R::Err;
             static_cast<TupleObj *>(rt.v.obj())->items()[3] = mt;
@@ -953,14 +953,14 @@ R start_fd(u32 op, const OpState &st, Value &out, Value data = Value())
 
 // Every path function takes `(path, *, dir_fd=None)` and a few take more; the
 // shape below repeats for each.
-#define TAKE_PATH(who, names, least, self)                                                         \
-    Value v[sizeof names / sizeof names[0]];                                                       \
-    if (!fn_take(a, who, names, least, v))                                                         \
-        return R::Err;                                                                             \
-    {                                                                                              \
-        R conv;                                                                                    \
-        if (fs_convert(v, sizeof names / sizeof names[0], 1, self, out, conv))                     \
-            return conv;                                                                           \
+#define TAKE_PATH(who, names, least, self)                                     \
+    Value v[sizeof names / sizeof names[0]];                                   \
+    if (!fn_take(a, who, names, least, v))                                     \
+        return R::Err;                                                         \
+    {                                                                          \
+        R conv;                                                                \
+        if (fs_convert(v, sizeof names / sizeof names[0], 1, self, out, conv)) \
+            return conv;                                                       \
     }
 
 R p_stat(const CallArgs &a, Value &out)
@@ -1169,7 +1169,9 @@ R p_scandir(const CallArgs &a, Value &out)
 u32 open_flags(i64 f)
 {
     u32 acc   = u32(f & O_ACCMODE);
-    u32 flags = acc == O_WRONLY ? SYS_O_WRITE : acc == O_RDWR ? SYS_O_READ | SYS_O_WRITE : SYS_O_READ;
+    u32 flags = acc == O_WRONLY ? SYS_O_WRITE
+                : acc == O_RDWR ? SYS_O_READ | SYS_O_WRITE
+                                : SYS_O_READ;
     if (f & O_CREAT)
         flags |= SYS_O_CREATE;
     if (f & O_EXCL)
@@ -1917,9 +1919,8 @@ R de_class_getitem(const CallArgs &a, Value &out)
 }
 
 constexpr Method DIRENT_METHODS[] = {
-    { "is_dir", de_is_dir },         { "is_file", de_is_file },
-    { "is_symlink", de_is_symlink }, { "is_junction", de_is_junction },
-    { "stat", de_stat },             { "inode", de_inode },
+    { "is_dir", de_is_dir },           { "is_file", de_is_file }, { "is_symlink", de_is_symlink },
+    { "is_junction", de_is_junction }, { "stat", de_stat },       { "inode", de_inode },
     { "__fspath__", de_fspath },
 };
 

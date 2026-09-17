@@ -1,0 +1,37 @@
+[('<module>', 24, 'outer()'), ('outer', 16, 'raise RuntimeError("wrapped") from e')] [('outer', 14, 'inner()'), ('inner', 20, 'raise ValueError("bad")')]
+True ValueError('bad') True
+24 <module> outer None True
+RuntimeError: wrapped
+ True 9
+[38, 36]
+[44]
+[('<module>', 52, '{}["a"]')]
+[('<module>', 65, 'for x in gen():'), ('gen', 61, 'raise ValueError("in gen")')]
+[('<module>', 71), ('<lambda>', 71)]
+[('<module>', 82, 'Boom()'), ('__init__', 78, 'raise OSError("boom")')]
+<class 'KeyError'> True None True
+True KeyError: 'x'
+TypeError('first') False [('<module>', 95, 'raise TypeError("first")')]
+second
+None (None, None, None)
+None False
+99 4 None True True
+7
+__traceback__ must be a traceback or None
+__traceback__ must be a traceback or None
+traceback loop detected
+attribute 'tb_lineno' of 'traceback' objects is not writable
+None True
+['ValueError: v\n']
+['ValueError: w\n']
+["KeyError: 'k'\n"]
+x.py 1 a = 1 +
+
+1 <module> 134
+['<module>']
+[('<module>', 146), ('deep', 142), ('deep', 142), ('deep', 142), ('deep', 141)]
+deep(3)
+LookupError deep LookupError: deep
+9 True
+157 <module> True
+3 None (1, 2)

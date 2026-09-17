@@ -452,7 +452,135 @@ R b_interrupt_main(const CallArgs &a, Value &out)
     return err_set("KeyboardInterrupt", "");
 }
 
+// ----------------------------------------------------------- the handle
+
+// What threading.Thread keeps of its OS thread: an ident and whether it is
+// over. Only the main thread ever has one that is running.
+struct HandleObj : Obj {
+    i64 ident;
+    bool done;
+};
+
+extern const Type handle_type;
+
+HandleObj *self_handle(const CallArgs &a, Str who)
+{
+    Value s = a.nargs ? method_self(a.args[0]) : Value();
+    if (!s.is_obj() || s.obj()->type != &handle_type) {
+        Buf<96> b;
+        b.put("descriptor '").put(who).put("' requires a '_thread._ThreadHandle' object");
+        return err_set2("TypeError", b.str(), type_name(s)), nullptr;
+    }
+    return static_cast<HandleObj *>(s.obj());
+}
+
+R handle_repr(Value v, String &out)
+{
+    char tmp[24];
+    Buf<96> b;
+    b.put("<_thread._ThreadHandle object: ident=");
+    b.put(int_text(tmp, sizeof tmp, static_cast<HandleObj *>(v.obj())->ident)).put('>');
+    return out.append(b.str()) ? R::Ok : oom();
+}
+
+R handle_getattr(Value v, StrObj *name, Value &out)
+{
+    if (name->str() != "ident")
+        return R::NotImpl;
+    out = int_from_i64(static_cast<HandleObj *>(v.obj())->ident);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R h_is_done(const CallArgs &a, Value &out)
+{
+    HandleObj *h = self_handle(a, "is_done");
+    if (!h)
+        return R::Err;
+    out = value_bool(h->done);
+    return R::Ok;
+}
+
+R h_set_done(const CallArgs &a, Value &out)
+{
+    HandleObj *h = self_handle(a, "_set_done");
+    if (!h)
+        return R::Err;
+    h->done = true;
+    out     = value_none();
+    return R::Ok;
+}
+
+// join(timeout=None): nothing else runs, so a thread that is not over is
+// this one.
+R h_join(const CallArgs &a, Value &out)
+{
+    HandleObj *h = self_handle(a, "join");
+    if (!h)
+        return R::Err;
+    if (!h->done && h->ident == ident())
+        return err_set("RuntimeError", "Cannot join current thread");
+    if (!h->done)
+        return err_set("RuntimeError", "thread not started");
+    out = value_none();
+    return R::Ok;
+}
+
+constexpr Method HANDLE_METHODS[] = {
+    { "is_done", h_is_done },
+    { "_set_done", h_set_done },
+    { "join", h_join },
+};
+
+constexpr Type handle_type{ .name    = "_thread._ThreadHandle",
+                            .repr    = handle_repr,
+                            .getattr = handle_getattr,
+                            .final   = true };
+
+Value handle_new(i64 id)
+{
+    HandleObj *h = static_cast<HandleObj *>(obj_alloc(&handle_type, sizeof(HandleObj)));
+    if (!h)
+        return oom(), Value();
+    h->ident = id;
+    h->done  = false;
+    return obj_value(h);
+}
+
+R b_handle(const CallArgs &a, Value &out)
+{
+    if (!no_args(a, "_ThreadHandle", 0))
+        return R::Err;
+    out = handle_new(0);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_make_handle(const CallArgs &a, Value &out)
+{
+    i64 id = 0;
+    if (a.nargs != 1 || a.nkw || !as_index(a.args[0], id))
+        return err_set("TypeError", "_make_thread_handle() takes one integer");
+    out = handle_new(id);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_true(const CallArgs &, Value &out)
+{
+    out = value_bool(true);
+    return R::Ok;
+}
+
+R b_none(const CallArgs &, Value &out)
+{
+    out = value_none();
+    return R::Ok;
+}
+
 constexpr ModDef THREAD_DEFS[] = {
+    { "_make_thread_handle", b_make_handle },
+    { "daemon_threads_allowed", b_true },
+    { "_is_main_interpreter", b_true },
+    { "_shutdown", b_none },
+    { "set_name", b_none },
     { "allocate_lock", b_allocate_lock },
     { "allocate", b_allocate_lock },
     { "get_ident", b_get_ident },
@@ -471,12 +599,13 @@ constexpr ModDef THREAD_DEFS[] = {
 bool thread_install(DictObj *into)
 {
     Root rd{ obj_value(into) };
-    if (!method_install(&lock_type, LOCK_METHODS) || !method_install(&rlock_type, RLOCK_METHODS))
+    if (!method_install(&lock_type, LOCK_METHODS) || !method_install(&rlock_type, RLOCK_METHODS) ||
+        !method_install(&handle_type, HANDLE_METHODS))
         return false;
     DictObj *d = static_cast<DictObj *>(rd.v.obj());
     if (!mod_type(d, &lock_type, b_lock) || !mod_type(d, &rlock_type, b_rlock) ||
-        !mod_type(d, &local_type, b_local) || !mod_defs(d, THREAD_DEFS) ||
-        !mod_float(d, "TIMEOUT_MAX", TIMEOUT_MAX))
+        !mod_type(d, &local_type, b_local) || !mod_type(d, &handle_type, b_handle) ||
+        !mod_defs(d, THREAD_DEFS) || !mod_float(d, "TIMEOUT_MAX", TIMEOUT_MAX))
         return false;
     Root lk{ type_wrap(&lock_type) };
     Value err;

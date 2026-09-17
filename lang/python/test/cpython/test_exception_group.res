@@ -5,7 +5,7 @@ ok BadConstructorArgs.test_bad_EG_construction__nested_non_exceptions
 ok BadConstructorArgs.test_bad_EG_construction__too_many_args
 ok DeepRecursionInSplitAndSubgroup.test_deep_split
 ok DeepRecursionInSplitAndSubgroup.test_deep_subgroup
-error ExceptionGroupFields.test_basics_ExceptionGroup_fields: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+ok ExceptionGroupFields.test_basics_ExceptionGroup_fields
 fail ExceptionGroupFields.test_fields_are_readonly: AssertionError: AttributeError not raised
 ok ExceptionGroupSplitTests.test_basics_split_by_predicate__match
 ok ExceptionGroupSplitTests.test_basics_split_by_predicate__no_match
@@ -30,19 +30,19 @@ ok InstanceCreation.test_EG_subclass_does_not_wrap_base_exceptions
 ok InstanceCreation.test_EG_subclass_wraps_non_base_exceptions
 ok InstanceCreation.test_EG_wraps_BaseException__raises_TypeError
 ok InstanceCreation.test_EG_wraps_Exceptions__creates_EG
-error LeafGeneratorTest.test_leaf_generator: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error NestedExceptionGroupBasicsTest.test_iteration_full_tracebacks: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
-error NestedExceptionGroupBasicsTest.test_nested_exception_group_tracebacks: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+ok LeafGeneratorTest.test_leaf_generator
+fail NestedExceptionGroupBasicsTest.test_iteration_full_tracebacks: AssertionError: [] != [620, 607, 605]
+ok NestedExceptionGroupBasicsTest.test_nested_exception_group_tracebacks
 ok NestedExceptionGroupBasicsTest.test_nested_group_chaining
 ok NestedExceptionGroupBasicsTest.test_nested_group_matches_template
 ok NestedExceptionGroupSplitTest.test_drive_invalid_return_value
-error NestedExceptionGroupSplitTest.test_split_BaseExceptionGroup: AttributeError: 'BaseExceptionGroup' object has no attribute '__traceback__'
-error NestedExceptionGroupSplitTest.test_split_by_type: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+fail NestedExceptionGroupSplitTest.test_split_BaseExceptionGroup: AssertionError: <traceback object at 0xX> is not None
+fail NestedExceptionGroupSplitTest.test_split_by_type: AssertionError: <traceback object at 0xX> is not None
 ok NestedExceptionGroupSplitTest.test_split_copies_notes
 ok NestedExceptionGroupSplitTest.test_split_does_not_copy_non_sequence_notes
-error NestedExceptionGroupSubclassSplitTest.test_split_BaseExceptionGroup_subclass_no_derive_new_override: AttributeError: 'BaseExceptionGroup' object has no attribute '__traceback__'
-error NestedExceptionGroupSubclassSplitTest.test_split_ExceptionGroup_subclass_derive_and_new_overrides: AttributeError: 'EG' object has no attribute '__traceback__'
-error NestedExceptionGroupSubclassSplitTest.test_split_ExceptionGroup_subclass_no_derive_no_new_override: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+fail NestedExceptionGroupSubclassSplitTest.test_split_BaseExceptionGroup_subclass_no_derive_new_override: AssertionError: <traceback object at 0xX> is not None
+fail NestedExceptionGroupSubclassSplitTest.test_split_ExceptionGroup_subclass_derive_and_new_overrides: AssertionError: <traceback object at 0xX> is not None
+fail NestedExceptionGroupSubclassSplitTest.test_split_ExceptionGroup_subclass_no_derive_no_new_override: AssertionError: <traceback object at 0xX> is not None
 ok StrAndReprTests.test_BaseExceptionGroup
 ok StrAndReprTests.test_ExceptionGroup
 ok StrAndReprTests.test_custom_exception
@@ -52,4 +52,4 @@ fail StrAndReprTests.test_repr_small_size_args: AssertionError: "ExceptionGroup(
 ok TestExceptionGroupTypeHierarchy.test_exception_group_is_generic_type
 ok TestExceptionGroupTypeHierarchy.test_exception_group_types
 ok TestExceptionGroupTypeHierarchy.test_exception_is_not_generic_type
---- ran 53 ok 39 fail 5 error 9 skip 0 ---
+--- ran 53 ok 42 fail 11 error 0 skip 0 ---

@@ -685,8 +685,20 @@ R inst_store(Value v, StrObj *name, Value val, Value &fn)
         R u = unierr_store(rv.v, n, rx.v);
         if (u == R::NotImpl && is_oserror(rv.v))
             u = oserror_store(rv.v, n, rx.v);
+        if (u == R::NotImpl && is_importerr(rv.v))
+            u = importerr_store(rv.v, n, rx.v);
         if (u != R::NotImpl)
             return u;
+    }
+    if (is_exc(rv.v) && n == Str("__suppress_context__")) {
+        static_cast<ExcObj *>(rv.v.obj())->suppress = py_truth(rx.v);
+        return R::Ok;
+    }
+    if (is_exc(rv.v) && n == Str("__traceback__")) {
+        if (!is_none(rx.v) && !is_traceback(rx.v))
+            return err_set("TypeError", "__traceback__ must be a traceback or None");
+        static_cast<ExcObj *>(rv.v.obj())->tb = is_none(rx.v) ? Value() : rx.v;
+        return R::Ok;
     }
     bool cause = n == Str("__cause__");
     if (is_exc(rv.v) && (cause || n == Str("__context__"))) {
@@ -697,6 +709,8 @@ R inst_store(Value v, StrObj *name, Value val, Value &fn)
                                                     "from BaseException"));
         ExcObj *e                       = static_cast<ExcObj *>(rv.v.obj());
         (cause ? e->cause : e->context) = is_none(rx.v) ? Value() : rx.v;
+        if (cause)
+            e->suppress = true;
         return R::Ok;
     }
     if (type_obj(cls.v)->nodict)
@@ -751,6 +765,8 @@ R inst_erase(Value v, StrObj *name, Value &fn)
         R u = unierr_store(rv.v, name->str(), Value());
         if (u == R::NotImpl && is_oserror(rv.v))
             u = oserror_store(rv.v, name->str(), Value());
+        if (u == R::NotImpl && is_importerr(rv.v))
+            u = importerr_store(rv.v, name->str(), Value());
         if (u != R::NotImpl)
             return u;
     }

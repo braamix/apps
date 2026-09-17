@@ -12,6 +12,9 @@ struct StrObj;
 
 StrObj *str_intern(Str s);
 
+// Whether `s` is the table's own object for its bytes.
+bool str_is_interned(const StrObj *s);
+
 // Called by the collector, from gc_collect.
 void intern_mark();
 

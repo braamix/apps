@@ -712,8 +712,13 @@ bool egroup_install()
     }
     Root nw{ native_new("__new__", eg_dunder_new) };
     Root note{ native_new("add_note", exc_add_note) };
+    Root wtb{ native_new("with_traceback", exc_with_traceback) };
     StrObj *nn = str_intern("__new__"), *an = str_intern("add_note");
-    if (nw.v.is_nil() || note.v.is_nil() || !nn || !an)
+    StrObj *wn = str_intern("with_traceback");
+    if (nw.v.is_nil() || note.v.is_nil() || wtb.v.is_nil() || !nn || !an || !wn)
+        return false;
+    if (dict_set(static_cast<DictObj *>(type_obj(top.v)->dict.obj()), obj_value(wn), wtb.v) !=
+        R::Ok)
         return false;
     return dict_set(static_cast<DictObj *>(type_obj(base.v)->dict.obj()), obj_value(nn), nw.v) ==
                R::Ok &&

@@ -55,6 +55,7 @@ constexpr u32 BURST = 20000;
 struct VM {
     FrameObj *between = nullptr; // the frame a ^C is raised in, between two instructions
     bool exiting      = false;   // atexit's calls have been started
+    u32 finalizing    = 0;       // owed finalizers whose frames are running
     Value frame;                 // the innermost FrameObj
     Value globals;               // __main__'s namespace
     Value builtins;              // the builtins namespace
@@ -69,10 +70,10 @@ struct VM {
     Value reading;               // the ContObj waiting on a file or a sleep, or Nil
     u32 nap_ms   = 0;            // how long, when it is a sleep
     bool napping = false;
-    bool calling = false;        // it is a system call, `sys`
-    SysReq sys;                  // whose strings view the three below
+    bool calling = false; // it is a system call, `sys`
+    SysReq sys;           // whose strings view the three below
     String sys_path, sys_path2, sys_data;
-    SysAns answer;               // what the last one said
+    SysAns answer;          // what the last one said
     Value resume;           // the same, once the answer is in
     Value thrown;           // what gen.throw passed, to raise at the resume point
     String want;            // the file it asked for
@@ -976,6 +977,10 @@ R final_step(ContObj *k, Value in)
         k->catching = CATCH_ANY;
         return cont_call(k, k->s[0], k->s[1], k->s[1].is_nil() ? 0 : 1);
     }
+    if (k->j) {
+        k->j = 0;
+        vm->finalizing--;
+    }
     if (in.is_nil() && !k->caught.is_nil()) {
         vm->tb.clear();
         vm->err.append("Exception ignored in a finalizer:\n");
@@ -997,9 +1002,9 @@ Value owed_next()
     bool unawaited = fn.v.is_nil() && is_coro(o.v) && gen_of(o.v)->state == GEN_CREATED;
     if (unawaited)
         fn = native_new("_warn_unawaited_coroutine", b_warn_unawaited);
-    Root m{ !fn.v.is_nil()        ? fn.v
-            : is_genlike(o.v)     ? (gen_of(o.v)->state == GEN_SUSPENDED ? genrun_new(o.v, GR_CLOSE)
-                                                                         : Value())
+    Root m{ !fn.v.is_nil() ? fn.v
+            : is_genlike(o.v)
+                ? (gen_of(o.v)->state == GEN_SUSPENDED ? genrun_new(o.v, GR_CLOSE) : Value())
             : o.v.obj()->type->del ? o.v.obj()->type->del(o.v)
                                    : type_special(o.v, "__del__") };
     if (m.v.is_nil())
@@ -1266,14 +1271,51 @@ bool note_frame(FrameObj *f)
     return line.append(b.str()) && vm->tb.push(static_cast<String &&>(line));
 }
 
+// The frame `f` is one `e` passes through: a traceback entry for it, in front
+// of the ones already there.
+bool tb_here(FrameObj *f, Value e)
+{
+    if (!is_exc(e))
+        return true;
+    Root re{ e };
+    CodeObj *c = code_of(f->code);
+    u32 at     = f == vm->between ? f->pc : f->pc ? f->pc - 1 : 0;
+    Value t    = tb_new(static_cast<ExcObj *>(re.v.obj())->tb, obj_value(f), i32(at * 2),
+                        i32(code_line(c, at)));
+    if (t.is_nil())
+        return false;
+    static_cast<ExcObj *>(re.v.obj())->tb = t;
+    return true;
+}
+
+// The traceback lines of `e`, outermost first, each behind `margin`. False
+// when `e` has no traceback of its own.
+bool tb_lines(Value e, Str margin)
+{
+    if (!is_exc(e) || static_cast<ExcObj *>(e.obj())->tb.is_nil())
+        return false;
+    for (Value t = static_cast<ExcObj *>(e.obj())->tb; is_traceback(t); t = tb_of(t)->next) {
+        CodeObj *c = code_of(frame_of(tb_of(t)->frame)->code);
+        char tmp[24];
+        Buf<192> b;
+        b.put(margin).put("  File \"");
+        b.put(is_str(c->filename) ? str_of(c->filename)->str() : Str("?"));
+        b.put("\", line ").put(int_text(tmp, sizeof tmp, i64(tb_of(t)->lineno)));
+        b.put(", in ").put(is_str(c->name) ? str_of(c->name)->str() : Str("?")).put('\n');
+        vm->err.append(b.str());
+    }
+    return true;
+}
+
 // Print an exception the way CPython does, its cause or context first. The
 // depth is a bound: a context chain can be made to loop.
 void report(Value e, u32 depth = 0)
 {
     if (is_exc(e) && depth < 8) {
-        Value under = static_cast<ExcObj *>(e.obj())->cause;
+        ExcObj *eo  = static_cast<ExcObj *>(e.obj());
+        Value under = eo->cause;
         Str joiner  = "\nThe above exception was the direct cause of the following exception:\n\n";
-        if (under.is_nil()) {
+        if (under.is_nil() && !eo->suppress) {
             under  = static_cast<ExcObj *>(e.obj())->context;
             joiner = "\nDuring handling of the above exception, another exception occurred:\n\n";
         }
@@ -1286,10 +1328,11 @@ void report(Value e, u32 depth = 0)
         // A group is drawn as CPython draws it: its traceback and its line
         // behind a margin, and each member in a box below.
         vm->err.append("  + Exception Group Traceback (most recent call last):\n");
-        for (usize k = vm->tb.size(); k > 0; k--) {
-            vm->err.append("  | ");
-            vm->err.append(vm->tb[k - 1].str());
-        }
+        if (!tb_lines(e, "  | "))
+            for (usize k = vm->tb.size(); k > 0; k--) {
+                vm->err.append("  | ");
+                vm->err.append(vm->tb[k - 1].str());
+            }
         vm->tb.clear();
         String line;
         exc_line(e, line);
@@ -1308,10 +1351,14 @@ void report(Value e, u32 depth = 0)
         egroup_report(e, vm->err);
         return;
     }
-    if (vm->tb.size())
+    if (is_exc(e) && !static_cast<ExcObj *>(e.obj())->tb.is_nil()) {
         vm->err.append("Traceback (most recent call last):\n");
-    for (usize k = vm->tb.size(); k > 0; k--)
-        vm->err.append(vm->tb[k - 1].str());
+        tb_lines(e, "");
+    } else if (vm->tb.size()) {
+        vm->err.append("Traceback (most recent call last):\n");
+        for (usize k = vm->tb.size(); k > 0; k--)
+            vm->err.append(vm->tb[k - 1].str());
+    }
     vm->tb.clear();
     exc_line(e, vm->err);
     vm->err.push('\n');
@@ -1456,12 +1503,16 @@ bool rethrow_pending()
     return raise_value(pending_exception());
 }
 
-bool dispatch(Value e)
+// `here` is false for a re-raise, whose frame the traceback already has.
+bool dispatch(Value e, bool here = true)
 {
     Root re{ e };
     err_clear();
     for (;;) {
         FrameObj *f = frame_of(vm->frame);
+        if (here && !tb_here(f, re.v))
+            return uncaught(re.v), false;
+        here = true;
         if (f->nb) {
             Block b = f->blocks()[--f->nb];
             f->sp   = b.sp;
@@ -2450,14 +2501,22 @@ void interpret()
         // here, between two opcodes, where a frame can be pushed. An exception
         // out of one is reported and goes no further, which is what CPython
         // means by ignoring it.
-        if (gc_owes()) {
+        // One at a time: the next waits for this one's frame to finish, or a
+        // sweep that owes many would nest them all.
+        if (gc_owes() && !vm->finalizing) {
             Root kv{ owed_next() };
             if (kv.v.is_nil()) {
                 err_clear();
                 continue;
             }
             cont_of(kv.v)->drop = true;
+            cont_of(kv.v)->j    = 1;
+            vm->finalizing++;
             if (!run_cont(kv.v, Value())) {
+                if (cont_of(kv.v)->j) {
+                    cont_of(kv.v)->j = 0;
+                    vm->finalizing--;
+                }
                 report(pending_exception());
                 err_clear();
                 vm->tb.clear();
@@ -3129,7 +3188,7 @@ void interpret()
                     f->sp--;
                     break;
                 }
-                if (!dispatch(exc))
+                if (!dispatch(exc, false))
                     return;
                 continue;
             }
@@ -3780,7 +3839,7 @@ void interpret()
                     Value saved  = st[--f->sp];
                     vm->handling = is_exc(saved) ? saved : Value();
                 }
-                if (!dispatch(exc))
+                if (!dispatch(exc, false))
                     return;
                 continue;
             }
@@ -3791,7 +3850,7 @@ void interpret()
                         err_set("RuntimeError", "No active exception to re-raise");
                         goto oops;
                     }
-                    if (!dispatch(vm->handling))
+                    if (!dispatch(vm->handling, false))
                         return;
                     continue;
                 }
@@ -3812,8 +3871,23 @@ void interpret()
                                  type_name(re.v));
                         goto oops;
                     }
-                    static_cast<ExcObj *>(re.v.obj())->cause = rc.v;
-                    exc                                      = re.v;
+                    if (!is_none(rc.v) && !is_exc(rc.v)) {
+                        Root made;
+                        if (is_exc_type(rc.v))
+                            made = exc_inst(rc.v, Value());
+                        if (made.v.is_nil() || !is_exc(made.v)) {
+                            if (!err_pending())
+                                err_set("TypeError",
+                                        "exception causes must derive from "
+                                        "BaseException");
+                            goto oops;
+                        }
+                        rc = made.v;
+                    }
+                    ExcObj *eo   = static_cast<ExcObj *>(re.v.obj());
+                    eo->cause    = is_none(rc.v) ? Value() : rc.v;
+                    eo->suppress = true;
+                    exc          = re.v;
                 }
                 if (!raise_value(exc))
                     return;
@@ -4206,7 +4280,8 @@ bool vm_start(Value code, Args argv, Str file)
     if (m.v.is_nil())
         return false;
     static_cast<ModuleObj *>(m.v.obj())->dict = vm->globals;
-    if (!module_register("__main__", m.v))
+    if (!module_defaults(static_cast<DictObj *>(vm->globals.obj())) ||
+        !module_register("__main__", m.v))
         return false;
 
     FrameObj *f = frame_push(code_of(rc.v), vm->globals, vm->globals, Value());
@@ -4279,6 +4354,23 @@ String *vm_out()
 String *vm_errout()
 {
     return vm ? &vm->err : nullptr;
+}
+
+void vm_report(Value e)
+{
+    Root re{ e };
+    vm->tb.clear();
+    report(re.v);
+}
+
+bool vm_frame_running(const Obj *f)
+{
+    if (!vm)
+        return false;
+    for (Value v = vm->frame; !v.is_nil(); v = frame_of(v)->back)
+        if (v.obj() == f)
+            return true;
+    return false;
 }
 
 Value vm_handling()

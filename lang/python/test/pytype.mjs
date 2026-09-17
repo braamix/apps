@@ -42,7 +42,7 @@ if (!ran) die(only.length ? "no case matched" : "no cases under test/type/");
 // The collector is what runs a __del__, so the program has to make garbage
 // before one is owed. `churn` is that, and it is why this is not a golden.
 const CHURN = "def churn():\n" +
-              "    for i in range(4000):\n" +
+              "    for i in range(20000):\n" +
               "        x = [i] * 10\n";
 
 {

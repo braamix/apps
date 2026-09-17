@@ -48,12 +48,12 @@ enum class SysOp : u8 {
 constexpr u32 SYS_O_HIDDEN = 1u << 30;
 
 struct SysReq {
-    SysOp op   = SysOp::Close;
-    i32 fd     = -1;
-    u32 flags  = 0;
-    i64 off    = 0;
-    u32 whence = 0;
-    u32 max    = 0;
+    SysOp op    = SysOp::Close;
+    i32 fd      = -1;
+    u32 flags   = 0;
+    i64 off     = 0;
+    u32 whence  = 0;
+    u32 max     = 0;
     bool follow = true;
     Str path, path2, data; // valid until vm_sys_done
 };
@@ -83,8 +83,8 @@ struct Req {
     i32 fd       = 0;
     Str data; // Write: the bytes. Valid until vm_write_done
     Str path; // Read: the file wanted. Valid until vm_read_done
-    i32 status = 0;
-    u32 ms     = 0; // Sleep: how long
+    i32 status        = 0;
+    u32 ms            = 0;       // Sleep: how long
     const SysReq *sys = nullptr; // Sys: the call. Valid until vm_sys_done
 };
 
@@ -149,6 +149,12 @@ String *vm_errout();
 
 // The exception an `except` clause is working on, or Nil. sys.exc_info().
 Value vm_handling();
+
+// Print `e` as an uncaught exception is printed, to stderr.
+void vm_report(Value e);
+
+// Whether frame `f` is on the chain now.
+bool vm_frame_running(const Obj *f);
 
 // The Python frame stack, innermost first, as a fresh list of FrameObj.
 // sys._getframe reads it.

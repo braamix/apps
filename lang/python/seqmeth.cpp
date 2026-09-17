@@ -160,6 +160,40 @@ R m_remove(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// list.__init__(iterable=()): emptied, then extended.
+R m_list_init(const CallArgs &a, Value &out)
+{
+    ListObj *l = self_list(a, "__init__");
+    if (!l)
+        return R::Err;
+    if (a.nkw)
+        return err_set("TypeError", "list() takes no keyword arguments");
+    if (a.nargs > 2) {
+        char tmp[24];
+        Buf<96> b;
+        b.put("list expected at most 1 argument, got ");
+        b.put(int_text(tmp, sizeof tmp, i64(a.nargs - 1)));
+        return err_set("TypeError", b.str());
+    }
+    if (a.nargs == 2 && iter_needs_vm(a.args[1]))
+        return iter_park(a, 1, m_list_init, out);
+    Root rl{ method_self(a.args[0]) };
+    Root more;
+    if (a.nargs == 2) {
+        ListObj *m = py_list_of(a.args[1]);
+        if (!m)
+            return R::Err;
+        more = obj_value(m);
+    }
+    list_of(rl.v)->items.clear();
+    if (!more.v.is_nil())
+        for (Value v : list_of(more.v)->items)
+            if (!list_push(list_of(rl.v), v))
+                return oom_err();
+    out = value_none();
+    return R::Ok;
+}
+
 R m_clear(const CallArgs &a, Value &out)
 {
     ListObj *l = self_list(a, "clear");
@@ -433,7 +467,7 @@ constexpr Method LIST[] = {
     { "append", m_append },    { "extend", m_extend },   { "insert", m_insert },
     { "pop", m_pop },          { "remove", m_remove },   { "clear", m_clear },
     { "copy", m_copy },        { "reverse", m_reverse }, { "index", m_list_index },
-    { "count", m_list_count }, { "sort", m_sort },
+    { "count", m_list_count }, { "sort", m_sort },       { "__init__", m_list_init },
 };
 
 constexpr Method TUPLE[] = { { "index", m_tuple_index }, { "count", m_tuple_count } };

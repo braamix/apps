@@ -70,11 +70,30 @@ void type_trace(Obj *o)
     gc_mark(t->subs);
 }
 
+// <class 'module.qualname'>, and no module for a builtin.
 R type_repr(Value v, String &out)
 {
-    Buf<96> b;
-    b.put("<class '").put(type_obj(v)->slots.name).put("'>");
-    return out.append(b.str()) ? R::Ok : oom();
+    TypeObj *t = type_obj(v);
+    Value mod, qual;
+    if (t->heap) {
+        StrObj *k = str_intern("__module__");
+        if (!k || t->dict.is_nil() ||
+            dict_get(static_cast<DictObj *>(t->dict.obj()), obj_value(k), mod) == R::Err)
+            err_clear();
+    } else {
+        StrObj *k = str_intern("__module__");
+        if (!k || t->dict.is_nil() ||
+            dict_get(static_cast<DictObj *>(t->dict.obj()), obj_value(k), mod) == R::Err)
+            err_clear();
+    }
+    qual = t->qualname.is_nil() ? t->name : t->qualname;
+    if (!out.append("<class '"))
+        return oom();
+    if (is_str(mod) && str_of(mod)->str() != "builtins" &&
+        (!out.append(str_of(mod)->str()) || !out.push('.')))
+        return oom();
+    Str q = is_str(qual) ? str_of(qual)->str() : t->slots.name;
+    return out.append(q) && out.append("'>") ? R::Ok : oom();
 }
 
 void inst_trace(Obj *o)
@@ -1670,8 +1689,11 @@ R b_object(const CallArgs &a, Value &out)
         Value own;
         if (nw && dict_get(static_cast<DictObj *>(type_obj(cls)->dict.obj()), obj_value(nw), own) ==
                       R::Ok)
-            m.put("object.__new__(").put(type_obj(cls)->slots.name).put(") is not safe, use ")
-                .put(type_obj(cls)->slots.name).put(".__new__()");
+            m.put("object.__new__(")
+                .put(type_obj(cls)->slots.name)
+                .put(") is not safe, use ")
+                .put(type_obj(cls)->slots.name)
+                .put(".__new__()");
         else
             m.put("cannot create '").put(type_obj(cls)->slots.name).put("' instances");
         return err_set("TypeError", m.str());

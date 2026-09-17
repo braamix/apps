@@ -71,6 +71,10 @@ struct ModuleObj : Obj {
 };
 
 extern const Type module_type;
+// __doc__, __package__, __loader__ and __spec__ as None, where `d` has not
+// got them. False with the error pending.
+bool module_defaults(DictObj *d);
+
 Value module_new(Str name);
 
 inline bool is_module(Value v)

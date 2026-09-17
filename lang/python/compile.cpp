@@ -162,10 +162,40 @@ struct Compiler {
 
     // -------------------------------------------------------------- pooling
 
+    // CPython interns a constant made of name characters, and the one-letter
+    // Latin-1 strings are its singletons; marshal tells them apart.
+    static Value intern_const(Value v)
+    {
+        if (!is_str(v) || type_of(v) != &str_type)
+            return v;
+        StrObj *s  = str_of(v);
+        Str b      = s->str();
+        bool names = true;
+        for (usize i = 0; i < b.size() && names; i++) {
+            char c = b[i];
+            names  = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                     c == '_';
+        }
+        bool latin1 = s->chars == 1 && b.size() <= 2 && u8(b[0]) <= 0xc3;
+        if (!names && !latin1)
+            return v;
+        StrObj *o = str_intern(b);
+        return o ? obj_value(o) : v;
+    }
+
     u32 add_const(Value v)
     {
         if (failed || v.is_nil())
             return oom(), 0;
+        v = intern_const(v);
+        if (is_tuple(v)) {
+            TupleObj *t = static_cast<TupleObj *>(v.obj());
+            for (u32 i = 0; i < t->len; i++) {
+                Root keep{ v };
+                Value m = intern_const(static_cast<TupleObj *>(keep.v.obj())->items()[i]);
+                static_cast<TupleObj *>(keep.v.obj())->items()[i] = m;
+            }
+        }
         Root r{ v };
         Vec<Value> &c = co()->consts;
         if (!is_code(v))
@@ -489,9 +519,11 @@ bool Compiler::unwind(usize down_to, bool preserve_tos)
         case FK::Handler:
             if (preserve_tos && !emit(Bc::RotTwo, node))
                 return false;
+            if (!emit(Bc::PopBlock, node))
+                return false;
             if (name) {
-                if (!emit(Bc::PopBlock, node) || !emit(Bc::LoadConst, const_none(), node) ||
-                    !store_name(name, node) || !del_name(name, node))
+                if (!emit(Bc::LoadConst, const_none(), node) || !store_name(name, node) ||
+                    !del_name(name, node))
                     return false;
             }
             if (!emit(Bc::PopExcept, node))
@@ -1552,17 +1584,13 @@ bool Compiler::try_except(u32 i)
             return oom();
 
         FBlock f;
-        f.kind      = FK::Handler;
-        f.node      = h;
-        f.name      = name;
-        u32 cleanup = 0;
-        if (name) {
-            if (!store_name(name, h))
-                return false;
-            cleanup = emit_jump(Bc::SetupFinally, h);
-        } else if (!emit(Bc::PopTop, h)) {
+        f.kind = FK::Handler;
+        f.node = h;
+        f.name = name;
+        // Whatever the body raises puts back what was being handled first.
+        if (!(name ? store_name(name, h) : emit(Bc::PopTop, h)))
             return false;
-        }
+        u32 cleanup = emit_jump(Bc::SetupFinally, h);
         if (!block_push(f))
             return false;
 
@@ -1571,22 +1599,22 @@ bool Compiler::try_except(u32 i)
         if (!ok)
             return false;
 
-        if (name) {
-            if (!emit(Bc::PopBlock, h) || !emit(Bc::LoadConst, const_none(), h) ||
-                !store_name(name, h) || !del_name(name, h))
-                return false;
-        }
+        if (!emit(Bc::PopBlock, h))
+            return false;
+        if (name &&
+            (!emit(Bc::LoadConst, const_none(), h) || !store_name(name, h) || !del_name(name, h)))
+            return false;
         if (!emit(Bc::PopExcept, h))
             return false;
         if (!ends.push(emit_jump(Bc::Jump, h)))
             return oom();
 
-        if (name) {
-            patch(cleanup);
-            if (!emit(Bc::LoadConst, const_none(), h) || !store_name(name, h) ||
-                !del_name(name, h) || !emit(Bc::Reraise, 1, h))
-                return false;
-        }
+        patch(cleanup);
+        if (name &&
+            (!emit(Bc::LoadConst, const_none(), h) || !store_name(name, h) || !del_name(name, h)))
+            return false;
+        if (!emit(Bc::Reraise, 1, h))
+            return false;
     }
     if (next)
         patch(next);

@@ -36,11 +36,61 @@ R oom()
     return err_set("MemoryError", "out of memory");
 }
 
+constexpr Str IMPORT_FIELDS[] = { "msg", "name", "path", "name_from" };
+
+} // namespace
+
+// ImportError(*args, name=None, path=None, name_from=None). The keywords are
+// a.kwnames; the positionals start at `from`.
+R importerr_init(Value e, const CallArgs &a, u32 from)
+{
+    ExcObj *o = static_cast<ExcObj *>(e.obj());
+    for (Value &f : o->uni)
+        f = Value();
+    if (a.nargs - from == 1)
+        o->uni[0] = a.args[from];
+    for (u32 k = 0; k < a.nkw; k++) {
+        Str nm = is_str(a.kwnames[k]) ? str_of(a.kwnames[k])->str() : Str();
+        u32 i  = 1;
+        while (i < 4 && IMPORT_FIELDS[i] != nm)
+            i++;
+        if (i == 4) {
+            Buf<128> b;
+            b.put("ImportError() got an unexpected keyword argument '").put(nm).put("'");
+            return err_set("TypeError", b.str());
+        }
+        o->uni[i] = is_none(a.kwvals[k]) ? Value() : a.kwvals[k];
+    }
+    return R::Ok;
+}
+
+R exc_raise_import(Str kind, Value msg, Value name, Value path)
+{
+    Root rm{ msg }, rn{ name }, rp{ path };
+    TupleObj *t = tuple_new(1);
+    if (!t)
+        return err_set("MemoryError", "out of memory");
+    t->items()[0] = rm.v;
+    Root ra{ obj_value(t) };
+    Root e{ exc_new(exc_find(kind), ra.v) };
+    if (e.v.is_nil())
+        return R::Err;
+    ExcObj *o = static_cast<ExcObj *>(e.v.obj());
+    o->uni[0] = rm.v;
+    o->uni[1] = rn.v;
+    o->uni[2] = rp.v;
+    o->uni[3] = Value();
+    return err_set_value(e.v, kind);
+}
+
+namespace {
+
 // A type is called to make an instance: ValueError('x').
 R exc_type_call(const CallArgs &a, Value &out, Value cls)
 {
     Root rc{ cls };
-    if (a.nkw)
+    bool imp = type_obj(rc.v)->exc && exc_is(type_obj(rc.v)->exc, exc_find("ImportError"));
+    if (a.nkw && !imp)
         return err_set2("TypeError", "exception takes no keyword arguments", type_name(cls));
     TupleObj *args = tuple_new(a.nargs);
     if (!args)
@@ -49,7 +99,9 @@ R exc_type_call(const CallArgs &a, Value &out, Value cls)
         args->items()[i] = a.args[i];
     Root ra{ obj_value(args) };
     out = exc_construct(rc.v, ra.v);
-    return out.is_nil() ? R::Err : R::Ok;
+    if (out.is_nil())
+        return R::Err;
+    return imp ? importerr_init(out, a, 0) : R::Ok;
 }
 
 void exc_trace(Obj *o)
@@ -64,6 +116,7 @@ void exc_trace(Obj *o)
     gc_mark(e->excs);
     for (Value v : e->uni)
         gc_mark(v);
+    gc_mark(e->tb);
 }
 
 usize args_len(Value t)
@@ -158,6 +211,21 @@ R exc_repr(Value v, String &out)
         if (py_repr(a->items()[i], out) != R::Ok)
             return R::Err;
     }
+    // An ImportError shows its name and path as the keywords they were.
+    if (is_importerr(v)) {
+        constexpr Str KEYS[] = { "name=", "path=" };
+        bool more            = a->len > 0;
+        for (u32 k = 0; k < 2; k++) {
+            Value f = e->uni[1 + k];
+            if (f.is_nil())
+                continue;
+            if ((more && !out.append(", ")) || !out.append(KEYS[k]))
+                return oom();
+            if (py_repr(f, out) != R::Ok)
+                return R::Err;
+            more = true;
+        }
+    }
     return out.push(')') ? R::Ok : oom();
 }
 
@@ -188,6 +256,8 @@ R exc_str(Value v, String &out)
     UniKind uk = unierr_kind(v);
     if (uk != UniKind::None)
         return unierr_str(v, uk, out);
+    if (is_importerr(v) && !static_cast<ExcObj *>(v.obj())->uni[0].is_nil())
+        return py_str(static_cast<ExcObj *>(v.obj())->uni[0], out);
     if (is_oserror(v)) {
         R r = oserror_str(v, out);
         if (r != R::NotImpl)
@@ -239,6 +309,14 @@ R exc_getattr(Value v, StrObj *name, Value &out)
         out = e->args;
         return R::Ok;
     }
+    if (n == "__suppress_context__") {
+        out = value_bool(e->suppress);
+        return R::Ok;
+    }
+    if (n == "__traceback__") {
+        out = e->tb.is_nil() ? value_none() : e->tb;
+        return R::Ok;
+    }
     if (n == "__cause__") {
         out = e->cause.is_nil() ? value_none() : e->cause;
         return R::Ok;
@@ -247,7 +325,12 @@ R exc_getattr(Value v, StrObj *name, Value &out)
         out = e->context.is_nil() ? value_none() : e->context;
         return R::Ok;
     }
-    // The two the built-in subclasses carry, which upstream's tests read.
+    // The ones the built-in subclasses carry, which upstream's tests read.
+    if (n == "code" && exc_is(e->t, exc_find("SystemExit"))) {
+        TupleObj *a = args_of(v);
+        out         = a->len == 0 ? value_none() : a->len == 1 ? a->items()[0] : e->args;
+        return R::Ok;
+    }
     if (n == "value" && exc_is(e->t, exc_find("StopIteration"))) {
         TupleObj *a = args_of(v);
         out         = a->len ? a->items()[0] : value_none();
@@ -266,7 +349,12 @@ R exc_getattr(Value v, StrObj *name, Value &out)
                 out = d ? d->items()[k] : value_none();
                 return R::Ok;
             }
-        if (n == "end_lineno" || n == "end_offset" || n == "print_file_and_line") {
+        if (n == "end_lineno" || n == "end_offset") {
+            TupleObj *full = d && d->len >= 6 ? d : nullptr;
+            out            = full ? full->items()[n == "end_lineno" ? 4 : 5] : value_none();
+            return R::Ok;
+        }
+        if (n == "print_file_and_line") {
             out = value_none();
             return R::Ok;
         }
@@ -286,6 +374,13 @@ R exc_getattr(Value v, StrObj *name, Value &out)
         out = n == "message" ? e->msg : e->excs;
         return R::Ok;
     }
+    if (is_importerr(v)) {
+        for (u32 k = 0; k < 4; k++)
+            if (n == IMPORT_FIELDS[k]) {
+                out = e->uni[k].is_nil() ? value_none() : e->uni[k];
+                return R::Ok;
+            }
+    }
     if (is_oserror(v)) {
         constexpr Str FIELDS[] = { "errno", "strerror", "filename", "filename2" };
         for (u32 k = 0; k < 4; k++)
@@ -304,14 +399,18 @@ R exc_getattr(Value v, StrObj *name, Value &out)
 // BaseException.__init__(self, *args): what a subclass reaches through super().
 R b_exc_init(const CallArgs &a, Value &out)
 {
-    if (a.nkw || !a.nargs || !is_exc(a.args[0]))
+    if (!a.nargs || !is_exc(a.args[0]))
         return err_set("TypeError", "BaseException.__init__() needs an exception");
+    if (a.nkw && !is_importerr(a.args[0]))
+        return err_set2("TypeError", "exception takes no keyword arguments", type_name(a.args[0]));
     TupleObj *args = tuple_new(a.nargs - 1);
     if (!args)
         return oom();
     for (u32 i = 1; i < a.nargs; i++)
         args->items()[i - 1] = a.args[i];
     static_cast<ExcObj *>(a.args[0].obj())->args = obj_value(args);
+    if (is_importerr(a.args[0]) && importerr_init(a.args[0], a, 1) != R::Ok)
+        return R::Err;
     if (unierr_kind(a.args[0]) != UniKind::None && !unierr_init(a.args[0], obj_value(args)))
         return R::Err;
     if (is_oserror(a.args[0]) && !oserror_init(a.args[0]))
@@ -631,12 +730,14 @@ Value exc_inst(Value cls, Value args)
     if (!o)
         return Value();
     o->flags |= OBJ_EXC;
-    o->t       = type_obj(rc.v)->exc;
-    o->args    = ra.v;
-    o->cause   = Value();
-    o->context = Value();
-    o->msg     = Value();
-    o->excs    = Value();
+    o->t        = type_obj(rc.v)->exc;
+    o->args     = ra.v;
+    o->cause    = Value();
+    o->context  = Value();
+    o->msg      = Value();
+    o->excs     = Value();
+    o->tb       = Value();
+    o->suppress = false;
     for (Value &v : o->uni)
         v = Value();
     return obj_value(o);
@@ -653,7 +754,8 @@ Value exc_construct(Value cls, Value args)
     if (!type_obj(rc.v)->heap && type_obj(rc.v)->exc == os) {
         TupleObj *t = static_cast<TupleObj *>(ra.v.obj());
         i64 code    = 0;
-        if (t->len >= 2 && t->len <= 5 && as_index(t->items()[0], code) && oserror_for(code) != os) {
+        if (t->len >= 2 && t->len <= 5 && as_index(t->items()[0], code) &&
+            oserror_for(code) != os) {
             rc = exc_type_value(oserror_for(code));
             if (rc.v.is_nil())
                 return Value();
@@ -859,8 +961,8 @@ bool oserror_init(Value e)
     TupleObj *a = args_of(e);
     if (a->len < 2 || a->len > 5)
         return true;
-    Value f1 = a->len > 2 ? a->items()[2] : Value();
-    Value f2 = a->len > 4 ? a->items()[4] : Value();
+    Value f1            = a->len > 2 ? a->items()[2] : Value();
+    Value f2            = a->len > 4 ? a->items()[4] : Value();
     o->uni[OS_ERRNO]    = a->items()[0];
     o->uni[OS_STRERROR] = a->items()[1];
     if (f1.is_nil() || is_none(f1))
@@ -881,11 +983,27 @@ bool oserror_init(Value e)
     TupleObj *two = tuple_new(2);
     if (!two)
         return oom(), false;
-    TupleObj *had  = args_of(re.v);
-    two->items()[0] = had->items()[0];
-    two->items()[1] = had->items()[1];
+    TupleObj *had                           = args_of(re.v);
+    two->items()[0]                         = had->items()[0];
+    two->items()[1]                         = had->items()[1];
     static_cast<ExcObj *>(re.v.obj())->args = obj_value(two);
     return true;
+}
+
+bool is_importerr(Value v)
+{
+    return is_exc(v) && exc_is(exc_type_of(v), exc_find("ImportError"));
+}
+
+R importerr_store(Value e, Str name, Value v)
+{
+    ExcObj *o = static_cast<ExcObj *>(e.obj());
+    for (u32 k = 0; k < 4; k++)
+        if (name == IMPORT_FIELDS[k]) {
+            o->uni[k] = v.is_nil() || is_none(v) ? Value() : v;
+            return R::Ok;
+        }
+    return R::NotImpl;
 }
 
 R oserror_store(Value e, Str name, Value v)

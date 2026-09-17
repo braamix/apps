@@ -79,8 +79,9 @@ R binop_step(ContObj *k, Value in)
     return cont_done(k, got);
 }
 
-// `a op b`. `out` may come back a ContObj, which the VM lands.
-R binary(Value a, Value b, Op op, Value &out)
+} // namespace
+
+R binop_call(Value a, Value b, Op op, Value &out)
 {
     if (!is_inst(a) && !is_inst(b))
         return py_binop(a, b, op, out);
@@ -103,6 +104,64 @@ R binary(Value a, Value b, Op op, Value &out)
     k->j       = u32(op);
     out        = kv.v;
     return R::Ok;
+}
+
+namespace {
+
+// s[0] the iterator, s[1] the total, s[2] what the pending step answers; `j`
+// the operator. `i` is 0 while a step is being awaited.
+R fold_step(ContObj *k, Value in)
+{
+    if (k->i == 0) {
+        if (!in.is_nil()) {
+            k->s[1] = in;
+            k->s[2] = Value();
+        }
+        if (!k->s[2].is_nil()) {
+            // Entered first with the step still to run.
+            Value c = k->s[2];
+            k->s[2] = Value();
+            return cont_await(k, c);
+        }
+    }
+    k->i = 0;
+    for (;;) {
+        Root got;
+        R r = py_next(k->s[0], got.v);
+        if (r == R::Err)
+            return R::Err;
+        if (r == R::NotImpl)
+            return cont_done(k, k->s[1]);
+        Value next;
+        if (binop_call(k->s[1], got.v, Op(k->j), next) != R::Ok)
+            return R::Err;
+        if (is_cont(next))
+            return cont_await(k, next);
+        k->s[1] = next;
+    }
+}
+
+} // namespace
+
+R fold_rest(Value it, Value pending, Op op, Value &out)
+{
+    Root ri{ it }, rp{ pending };
+    Value kv = cont_new(fold_step);
+    if (kv.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv);
+    k->s[0]    = ri.v;
+    k->s[2]    = rp.v;
+    k->j       = u32(op);
+    out        = kv;
+    return R::Ok;
+}
+
+namespace {
+
+R binary(Value a, Value b, Op op, Value &out)
+{
+    return binop_call(a, b, op, out);
 }
 
 // The same for `a op= b`: the in-place method first, then the plain one.

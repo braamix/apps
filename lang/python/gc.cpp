@@ -19,7 +19,7 @@ Roots *roots = nullptr; // the innermost pin
 // A handful of root providers, because more than one subsystem outlives an
 // operation: the VM's frames, the builtins namespace, the type objects, the
 // exception types and the module cache.
-constexpr usize MAX_HOOKS = 16;
+constexpr usize MAX_HOOKS = 64;
 void (*hooks[MAX_HOOKS])();
 usize nhooks = 0;
 
@@ -274,6 +274,18 @@ bool gc_take(Value &obj, Value &fn)
 {
     if (!gc_owes())
         return false;
+    // A __del__ before any weak reference's callback, as CPython orders them:
+    // the first finalizer still owed moves to the front, the rest keep order.
+    Vec<Owed> &q = *owed;
+    for (usize k = owed_at; k < q.size(); k++) {
+        if (!q[k].fn.is_nil())
+            continue;
+        Owed first = q[k];
+        for (usize j = k; j > owed_at; j--)
+            q[j] = q[j - 1];
+        q[owed_at] = first;
+        break;
+    }
     obj = (*owed)[owed_at].obj;
     fn  = (*owed)[owed_at].fn;
     owed_at++;

@@ -470,12 +470,67 @@ R s_getnewargs(const CallArgs &a, Value &out)
 
 constexpr Method NEWARGS[] = { { "__getnewargs__", s_getnewargs } };
 
+// f.__call__(*args, **kwargs): the call itself, for the callables whose call
+// is a slot. s[0] the callable, s[1..3] the arguments.
+R call_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0) {
+        if (k->s[2].is_nil())
+            return cont_call_v(k, k->s[0], k->s[1]);
+        return cont_call_kw(k, k->s[0], k->s[1], k->s[2], k->s[3]);
+    }
+    return cont_done(k, in);
+}
+
+R s_call(const CallArgs &a, Value &out)
+{
+    if (a.nargs < 1)
+        return err_set("TypeError", "__call__() needs a callable");
+    Root self{ a.args[0] };
+    TupleObj *args = tuple_new(a.nargs - 1);
+    if (!args)
+        return err_set("MemoryError", "out of memory");
+    for (u32 i = 1; i < a.nargs; i++)
+        args->items()[i - 1] = a.args[i];
+    Root ra{ obj_value(args) }, names, vals;
+    if (a.nkw) {
+        TupleObj *n = tuple_new(a.nkw);
+        if (!n)
+            return err_set("MemoryError", "out of memory");
+        for (u32 i = 0; i < a.nkw; i++)
+            n->items()[i] = a.kwnames[i];
+        names       = obj_value(n);
+        TupleObj *v = tuple_new(a.nkw);
+        if (!v)
+            return err_set("MemoryError", "out of memory");
+        for (u32 i = 0; i < a.nkw; i++)
+            v->items()[i] = a.kwvals[i];
+        vals = obj_value(v);
+    }
+    Root kv{ cont_new(call_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = self.v;
+    k->s[1]    = ra.v;
+    k->s[2]    = names.v;
+    k->s[3]    = vals.v;
+    out        = kv.v;
+    return R::Ok;
+}
+
+constexpr Method CALL[] = { { "__call__", s_call } };
+
 bool slot_methods()
 {
     static const Type *const IMMUTABLE[] = { &int_type, &float_type, &complex_type,
                                              &str_type, &bytes_type, &tuple_type };
     for (const Type *t : IMMUTABLE)
         if (!method_install(t, NEWARGS))
+            return false;
+    static const Type *const CALLABLE[] = { &func_type, &native_type, &method_type };
+    for (const Type *t : CALLABLE)
+        if (!method_install(t, CALL))
             return false;
     const Row ROWS[] = {
         { &int_type, NEED_NUM | NEED_INT, OP_INT },

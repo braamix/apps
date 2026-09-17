@@ -138,6 +138,14 @@ bool as_int_arg(Value v, i64 &out)
     return false;
 }
 
+bool int_too_wide(Value v, f64 x)
+{
+    if (!is_big(v) || (x != __builtin_inf() && x != -__builtin_inf()))
+        return false;
+    err_set("OverflowError", "int too large to convert to float");
+    return true;
+}
+
 bool as_number(Value v, f64 &out)
 {
     i64 n = 0;

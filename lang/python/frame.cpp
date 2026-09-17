@@ -4,7 +4,9 @@
 
 #include "gc.h"
 #include "kernel/fmt.h"
+#include "method.h"
 #include "ops.h"
+#include "vm.h"
 
 namespace {
 
@@ -56,7 +58,7 @@ R frame_getattr(Value v, StrObj *name, Value &out)
     else if (n == "f_code")
         out = f->code;
     else if (n == "f_lasti")
-        out = Value::of_int(i32(f->pc));
+        out = Value::of_int(i32(f->pc ? (f->pc - 1) * 2 : -1));
     else if (n == "f_lineno")
         out = Value::of_int(i32(code_line(code_of(f->code), f->pc ? f->pc - 1 : 0)));
     else if (n == "f_builtins")
@@ -70,7 +72,33 @@ R frame_getattr(Value v, StrObj *name, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// frame.clear(): drop the locals of a frame that is over.
+R m_clear(const CallArgs &a, Value &out)
+{
+    if (a.nargs != 1 || a.nkw || !is_frame(a.args[0]))
+        return err_set("TypeError", "clear() takes no arguments");
+    FrameObj *f = frame_of(a.args[0]);
+    if (vm_frame_running(f))
+        return err_set("RuntimeError", "cannot clear an executing frame");
+    if (!f->gen.is_nil())
+        return err_set("RuntimeError", "cannot clear a suspended frame");
+    for (u32 i = 0; i < f->nslots; i++)
+        f->slots()[i] = Value();
+    f->sp     = 0;
+    f->locals = Value();
+    f->extra  = Value();
+    out       = value_none();
+    return R::Ok;
+}
+
+constexpr Method FRAME_METHODS[] = { { "clear", m_clear } };
+
 } // namespace
+
+bool frame_methods()
+{
+    return method_install(&frame_type, FRAME_METHODS);
+}
 
 constexpr Type frame_type{ .name    = "frame",
                            .trace   = frame_trace,

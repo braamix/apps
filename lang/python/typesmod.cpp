@@ -11,6 +11,7 @@
 // both are NativeObj.
 #include "builtin.h"
 #include "code.h"
+#include "exc.h"
 #include "gc.h"
 #include "gen.h"
 #include "genalias.h"
@@ -104,7 +105,7 @@ R space_eq(Value a, Value b, bool &out)
     return py_eq(space_of(a)->dict, space_of(b)->dict, out);
 }
 
-constexpr Type space_type{ .name    = "SimpleNamespace",
+constexpr Type space_type{ .name    = "types.SimpleNamespace",
                            .trace   = space_trace,
                            .eq      = space_eq,
                            .repr    = space_repr,
@@ -129,6 +130,20 @@ R b_space(const CallArgs &a, Value &out)
     out     = obj_value(o);
     return R::Ok;
 }
+
+} // namespace
+
+Value namespace_new(Value dict)
+{
+    Root rd{ dict };
+    SpaceObj *o = static_cast<SpaceObj *>(obj_alloc(&space_type, sizeof(SpaceObj)));
+    if (!o)
+        return oom(), Value();
+    o->dict = rd.v;
+    return obj_value(o);
+}
+
+namespace {
 
 // --------------------------------------------------------------- mappingproxy
 
@@ -400,7 +415,12 @@ bool types_install(DictObj *into)
         if (w.v.is_nil() || !mod_put(d, one.name, w.v))
             return false;
     }
-    return mod_type(d, &space_type, b_space);
+    if (!mod_type(d, &space_type, b_space))
+        return false;
+    Root tb{ type_wrap(&traceback_type) };
+    Root fn{ native_new("traceback", traceback_ctor) };
+    return !tb.v.is_nil() && !fn.v.is_nil() && type_set_ctor(&traceback_type, fn.v) &&
+           mod_put(static_cast<DictObj *>(rd.v.obj()), "TracebackType", tb.v);
 }
 
 // ------------------------------------------------------------- ModuleType

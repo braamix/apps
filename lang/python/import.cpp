@@ -5,6 +5,7 @@
 #include "call.h"
 #include "codec.h"
 #include "compile.h"
+#include "exc.h"
 #include "fs/path.h"
 #include "gc.h"
 #include "intern.h"
@@ -27,6 +28,13 @@ struct Home {
     Value modules;
     Value path;
     Value busy; // the modules whose bodies are running
+    Value meta_path;
+    Value path_hooks;
+    Value path_cache;
+    Value stdlib;   // sys._stdlib_dir
+    Value defaults; // (meta_path, path_hooks) as importlib left them, or Nil
+    Value spec_fn;  // what gives a module loaded here its __spec__
+    Value find_fn;  // importlib's own import, for finders the program added
 };
 
 Home *home;
@@ -38,6 +46,13 @@ void home_mark()
     gc_mark(home->modules);
     gc_mark(home->path);
     gc_mark(home->busy);
+    gc_mark(home->meta_path);
+    gc_mark(home->path_hooks);
+    gc_mark(home->path_cache);
+    gc_mark(home->stdlib);
+    gc_mark(home->defaults);
+    gc_mark(home->spec_fn);
+    gc_mark(home->find_fn);
 }
 
 Home *here()
@@ -112,6 +127,7 @@ struct Job : Obj {
     Value mod;      // the module being loaded
     Value leaf;     // the deepest module, once the parts are done
     Value target;   // the dotted name of the module being loaded
+    Value body;     // the module's body, while its spec is being made
     u32 at;         // parts already loaded
     u32 cand;       // candidates already tried
     u32 from_at;    // fromlist names already looked at
@@ -120,7 +136,7 @@ struct Job : Obj {
     bool optional; // a fromlist name that need not be a module
 };
 
-enum : u32 { ST_START, ST_TRY, ST_BODY, ST_DECODE };
+enum : u32 { ST_START, ST_TRY, ST_BODY, ST_DECODE, ST_SPEC, ST_SPECD, ST_INSTALL, ST_SLOW };
 
 void job_trace(Obj *o)
 {
@@ -133,6 +149,7 @@ void job_trace(Obj *o)
     gc_mark(j->mod);
     gc_mark(j->leaf);
     gc_mark(j->target);
+    gc_mark(j->body);
 }
 
 R job_repr(Value, String &out)
@@ -153,7 +170,7 @@ Value job_new()
     if (!j)
         return oom(), Value();
     j->name = j->fromlist = j->parts = j->parent = Value();
-    j->cands = j->mod = j->leaf = j->target = Value();
+    j->cands = j->mod = j->leaf = j->target = j->body = Value();
     j->at = j->cand = j->from_at = j->stage = 0;
     j->state                                = ST_START;
     j->optional                             = false;
@@ -224,6 +241,149 @@ Value candidates(Value roots, Str leaf)
     return ro.v;
 }
 
+// ------------------------------------------------------------ importlib
+
+// Run once importlib has loaded: the finders CPython starts with, a spec for
+// every module already here, and two functions for the loader to call.
+constexpr Str INSTALL = R"PY(import sys, _imp
+from importlib import _bootstrap as _b, _bootstrap_external as _e
+sys.meta_path.append(_b.BuiltinImporter)
+sys.meta_path.append(_b.FrozenImporter)
+_e._install(_b)
+
+def _spec(module, path):
+    name = module.__name__
+    if path is False:
+        spec = _b.spec_from_loader(name, _b.BuiltinImporter, origin='built-in')
+    elif path is None:
+        loader = _e.NamespaceLoader(name, module.__path__, _e.PathFinder._get_spec)
+        spec = _b.ModuleSpec(name, loader, is_package=True)
+        spec.submodule_search_locations = loader._path
+    else:
+        spec = _e.spec_from_file_location(
+            name, path, submodule_search_locations=module.__dict__.get('__path__'))
+    _b._init_module_attrs(spec, module)
+
+def _find(name, import_):
+    return _b._find_and_load(name, import_)
+
+for _m in list(sys.modules.values()):
+    if (isinstance(_m, type(sys)) and _m.__spec__ is None
+            and _m.__name__ != '__main__'):
+        if _m.__dict__.get('__file__') is not None:
+            _spec(_m, _m.__file__)
+        elif '__path__' in _m.__dict__:
+            _spec(_m, None)
+)PY";
+
+bool installed()
+{
+    return home && !home->defaults.is_nil();
+}
+
+Value sys_attr(Str name)
+{
+    Value m, v;
+    DictObj *d = sys_modules();
+    if (!d || get(d, "sys", m) != R::Ok || !is_module(m))
+        return Value();
+    return get(module_dict(m), name, v) == R::Ok ? v : Value();
+}
+
+bool same_items(Value list, Value tuple)
+{
+    if (!is_list(list))
+        return false;
+    ListObj *l  = list_of(list);
+    TupleObj *t = static_cast<TupleObj *>(tuple.obj());
+    if (l->items.size() != t->len)
+        return false;
+    for (u32 i = 0; i < t->len; i++)
+        if (l->items[i].w != t->items()[i].w)
+            return false;
+    return true;
+}
+
+// Whether a finder or a path hook the program added has to be asked, which
+// only importlib's own import knows how to do.
+bool custom()
+{
+    if (!installed())
+        return false;
+    TupleObj *d = static_cast<TupleObj *>(home->defaults.obj());
+    return !same_items(sys_attr("meta_path"), d->items()[0]) ||
+           !same_items(sys_attr("path_hooks"), d->items()[1]);
+}
+
+Value snapshot(Value list)
+{
+    if (!is_list(list))
+        return obj_value(tuple_new(0));
+    Root rl{ list };
+    TupleObj *t = tuple_new(list_of(rl.v)->items.size());
+    if (!t)
+        return Value();
+    for (usize i = 0; i < list_of(rl.v)->items.size(); i++)
+        t->items()[i] = list_of(rl.v)->items[i];
+    return obj_value(t);
+}
+
+// Ask for the spec of `m`, whose file is `path` (None for a namespace
+// package, False for a native), then come back in state `next`.
+R ask_spec(ContObj *k, Value m, Value path, u32 next)
+{
+    job_of(k->s[0])->state = next;
+    k->locals              = Value();
+    return cont_call(k, home->spec_fn, m, 2, path);
+}
+
+R install(ContObj *k)
+{
+    Ast ast;
+    if (!ast.parse(INSTALL, true))
+        return R::Err;
+    Root code{ py_compile(ast, "<frozen importlib._bootstrap>") };
+    if (code.v.is_nil())
+        return R::Err;
+    DictObj *g = dict_new();
+    if (!g)
+        return oom();
+    Root rg{ obj_value(g) };
+    Root nm{ str_new("_braam_importlib") };
+    if (nm.v.is_nil() || !put(dict_at(rg.v), "__name__", nm.v) || !put_builtins(dict_at(rg.v)))
+        return R::Err;
+    Root fn{ func_new(code.v, rg.v) };
+    if (fn.v.is_nil())
+        return R::Err;
+    Job *j    = job_of(k->s[0]);
+    j->body   = rg.v;
+    j->state  = ST_INSTALL;
+    k->locals = rg.v;
+    return cont_call(k, fn.v, Value(), 0);
+}
+
+R installed_now(ContObj *k)
+{
+    Job *j = job_of(k->s[0]);
+    Root g{ j->body };
+    j->body   = Value();
+    k->locals = Value();
+    Value spec, find;
+    if (get(dict_at(g.v), "_spec", spec) != R::Ok || get(dict_at(g.v), "_find", find) != R::Ok)
+        return err_pending() ? R::Err : err_set("ImportError", "importlib did not install");
+    home->spec_fn = spec;
+    home->find_fn = find;
+    Root mp{ snapshot(sys_attr("meta_path")) };
+    Root ph{ snapshot(sys_attr("path_hooks")) };
+    TupleObj *t = mp.v.is_nil() || ph.v.is_nil() ? nullptr : tuple_new(2);
+    if (!t)
+        return oom();
+    t->items()[0]  = mp.v;
+    t->items()[1]  = ph.v;
+    home->defaults = obj_value(t);
+    return R::Ok;
+}
+
 // ------------------------------------------------------------- the machine
 
 R walk(ContObj *k);
@@ -254,8 +414,13 @@ bool bind_to_parent(Job *j)
 R loaded(ContObj *k)
 {
     Job *j = job_of(k->s[0]);
-    if (j->state == ST_BODY)
+    if (j->state == ST_BODY) {
         busy(j->mod, 0);
+        j = job_of(k->s[0]);
+        if (!installed() && str_of(j->target)->str() == "importlib")
+            return install(k);
+    }
+    j->state = ST_START;
     if (!bind_to_parent(j))
         return R::Err;
     j = job_of(k->s[0]);
@@ -271,7 +436,11 @@ R no_module(Value name)
 {
     Buf<128> b;
     b.put("No module named '").put(is_str(name) ? str_of(name)->str() : Str("?")).put("'");
-    return err_set("ModuleNotFoundError", b.str());
+    Root rn{ name };
+    Root msg{ str_new(b.str()) };
+    if (msg.v.is_nil())
+        return R::Err;
+    return exc_raise_import("ModuleNotFoundError", msg.v, rn.v, Value());
 }
 
 // Every candidate missed. For a fromlist name that is only maybe a module,
@@ -293,6 +462,17 @@ R begin_load(ContObj *k, Value full, Value parent, bool optional)
     j->mod      = Value();
     j->cand     = 0;
 
+    // A finder the program added: importlib does the whole of this one.
+    if (custom()) {
+        Value imp;
+        if (get(module_dict(builtins_module()), "__import__", imp) != R::Ok)
+            return err_pending() ? R::Err : no_module(rf.v);
+        j->state    = ST_SLOW;
+        k->locals   = Value();
+        k->catching = optional ? CATCH_ANY : CATCH_NONE;
+        return cont_call(k, home->find_fn, rf.v, 2, imp);
+    }
+
     // A module written in C++ needs no file at all.
     Value made = builtin_module(str_of(rf.v)->str());
     if (!made.is_nil()) {
@@ -300,6 +480,9 @@ R begin_load(ContObj *k, Value full, Value parent, bool optional)
         if (!module_register(str_of(rf.v)->str(), rm.v))
             return R::Err;
         job_of(k->s[0])->mod = rm.v;
+        Value spec;
+        if (installed() && get(module_dict(rm.v), "__spec__", spec) == R::Ok && is_none(spec))
+            return ask_spec(k, rm.v, value_bool(false), ST_SPECD);
         return loaded(k);
     }
     if (err_pending())
@@ -346,6 +529,8 @@ R make_namespace(ContObj *k, Str path)
     if (!module_register(str_of(name.v)->str(), m.v))
         return R::Err;
     job_of(k->s[0])->mod = m.v;
+    if (installed())
+        return ask_spec(k, m.v, value_none(), ST_SPECD);
     return loaded(k);
 }
 
@@ -353,6 +538,15 @@ R make_namespace(ContObj *k, Str path)
 Str source_bytes(Value v)
 {
     return is_str(v) ? str_of(v)->str() : static_cast<BytesObj *>(v.obj())->str();
+}
+
+R start_body(ContObj *k, Value fn)
+{
+    Job *j    = job_of(k->s[0]);
+    j->state  = ST_BODY;
+    j->body   = Value();
+    k->locals = mdict(j->mod);
+    return cont_call(k, fn, Value(), 0);
 }
 
 // The source of `path` became a module. Register it, then run its body.
@@ -407,11 +601,13 @@ R run_body(ContObj *k, Value source, Str path)
     Root fn{ func_new(code.v, mdict(m.v)) };
     if (fn.v.is_nil())
         return R::Err;
-    j         = job_of(k->s[0]);
-    j->mod    = m.v;
-    j->state  = ST_BODY;
-    k->locals = mdict(m.v);
-    return cont_call(k, fn.v, Value(), 0);
+    j      = job_of(k->s[0]);
+    j->mod = m.v;
+    if (installed()) {
+        j->body = fn.v;
+        return ask_spec(k, m.v, file.v, ST_SPEC);
+    }
+    return start_body(k, fn.v);
 }
 
 // Every part of the dotted name, innermost last.
@@ -504,7 +700,7 @@ R from_step(ContObj *k)
 void import_failed(ContObj *k)
 {
     Job *j = job_of(k->s[0]);
-    if (j->state != ST_BODY || j->mod.is_nil())
+    if ((j->state != ST_BODY && j->state != ST_SPEC) || j->mod.is_nil())
         return;
     busy(j->mod, 0);
     DictObj *d = sys_modules();
@@ -535,6 +731,33 @@ R import_step(ContObj *k, Value in)
     case ST_DECODE: {
         Str path = str_of(list_of(j->cands)->items[j->cand - 1])->str();
         return run_body(k, in, path);
+    }
+    case ST_SPEC:
+        return start_body(k, j->body);
+    case ST_SPECD:
+        return loaded(k);
+    case ST_INSTALL:
+        if (installed_now(k) != R::Ok)
+            return R::Err;
+        return loaded(k);
+    case ST_SLOW: {
+        k->catching = CATCH_NONE;
+        if (!k->caught.is_nil()) {
+            // A fromlist name that is not a module is not an error.
+            Root c{ k->caught };
+            k->caught = Value();
+            Value nm;
+            bool mine = exc_is(exc_type_of(c.v), exc_find("ModuleNotFoundError")) &&
+                        py_getattr(c.v, str_intern("name"), nm) == R::Ok && is_str(nm) &&
+                        str_of(nm)->str() == str_of(job_of(k->s[0])->target)->str();
+            err_clear();
+            if (!mine)
+                return err_set_value(c.v);
+            job_of(k->s[0])->mod = Value();
+            return loaded(k);
+        }
+        j->mod = in;
+        return loaded(k);
     }
     default:
         return loaded(k);
@@ -645,8 +868,41 @@ Value sys_path()
     return h->path;
 }
 
+Value sys_import_state(ImportState which)
+{
+    Home *h = here();
+    if (!h)
+        return oom(), Value();
+    Value *at = which == IMPORT_META_PATH    ? &h->meta_path
+                : which == IMPORT_PATH_HOOKS ? &h->path_hooks
+                : which == IMPORT_PATH_CACHE ? &h->path_cache
+                                             : &h->stdlib;
+    if (at->is_nil()) {
+        Obj *o = which == IMPORT_PATH_CACHE ? static_cast<Obj *>(dict_new())
+                 : which == IMPORT_STDLIB   ? nullptr
+                                            : static_cast<Obj *>(list_new());
+        if (which == IMPORT_STDLIB)
+            return value_none();
+        if (!o)
+            return oom(), Value();
+        *at = obj_value(o);
+    }
+    return *at;
+}
+
 void sys_set_path(Str script_dir, Str library_dir)
 {
+    if (!library_dir.empty() && here()) {
+        Value lib = str_new(library_dir);
+        if (lib.is_nil())
+            return;
+        home->stdlib = lib;
+        Value m;
+        DictObj *d = sys_modules();
+        if (d && get(d, "sys", m) == R::Ok && is_module(m) &&
+            !put(module_dict(m), "_stdlib_dir", home->stdlib))
+            return;
+    }
     Root p{ sys_path() };
     if (p.v.is_nil())
         return;

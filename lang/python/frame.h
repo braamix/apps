@@ -72,3 +72,6 @@ Value frame_locals_dict(Value v);
 
 // FrameLocalsProxy's methods and constructor. Called from methods_install.
 bool frame_locals_methods();
+
+// frame.clear(). Called from methods_install.
+bool frame_methods();
