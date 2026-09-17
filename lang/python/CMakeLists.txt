@@ -19,15 +19,29 @@ math(EXPR BRAAM_BIN_INITIAL_BYTES "${BRAAM_BIN_INITIAL_PAGES} * 65536")
 
 # Sources arrive a phase at a time; TODO.md names them.
 braam_add_program(NAME python
-                  SOURCES abc.cpp annot.cpp arraymod.cpp astdump.cpp astmod.cpp astpos.cpp atexitmod.cpp attr.cpp bigint.cpp binasciimod.cpp binfmt.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp codec.cpp codecsmod.cpp
-                          code.cpp collmod.cpp compare.cpp compile.cpp csvmod.cpp ctxvars.cpp complex.cpp
-                          dis.cpp dismod.cpp egroup.cpp err.cpp exc.cpp float.cpp flocals.cpp format.cpp formatgr.cpp frame.cpp func.cpp functoolsmod.cpp gc.cpp
-                          gen.cpp genalias.cpp hashmod.cpp import.cpp info.cpp int.cpp iobase.cpp iobuf.cpp iofile.cpp iomem.cpp iotext.cpp
-                          intern.cpp iter.cpp itermod.cpp lazy.cpp lex.cpp marshalmod.cpp impmod.cpp colorizemod.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
-                          mathmod.cpp miscmod.cpp module.cpp posixmod.cpp obj.cpp objmeth.cpp opmod.cpp ops.cpp parse.cpp patma.cpp
-                          randmod.cpp range.cpp repr.cpp selftest.cpp sentinel.cpp signalmod.cpp seqmeth.cpp slotmeth.cpp sre.cpp sremod.cpp str.cpp stringmod.cpp strmeth.cpp structmod.cpp symtab.cpp
-                          sysmod.cpp table.cpp templatelib.cpp thread.cpp timemod.cpp tokenizemod.cpp traceback.cpp tuple.cpp type.cpp typesmod.cpp typevar.cpp ucd.cpp ucddb.cpp unimod.cpp union.cpp weak.cpp
-                          vm.cpp warnmod.cpp
+                  SOURCES src/abc.cpp src/annot.cpp src/arraymod.cpp src/astdump.cpp src/astmod.cpp
+                          src/astpos.cpp src/atexitmod.cpp src/attr.cpp src/bigint.cpp
+                          src/binasciimod.cpp src/binfmt.cpp src/braam.cpp src/builtin.cpp
+                          src/bytemeth.cpp src/bytes.cpp src/call.cpp src/code.cpp src/codec.cpp
+                          src/codecsmod.cpp src/collmod.cpp src/colorizemod.cpp src/compare.cpp
+                          src/compile.cpp src/complex.cpp src/csvmod.cpp src/ctxvars.cpp src/dis.cpp
+                          src/dismod.cpp src/egroup.cpp src/err.cpp src/exc.cpp src/float.cpp
+                          src/flocals.cpp src/format.cpp src/formatgr.cpp src/frame.cpp src/func.cpp
+                          src/functoolsmod.cpp src/gc.cpp src/gen.cpp src/genalias.cpp
+                          src/hashmod.cpp src/impmod.cpp src/import.cpp src/info.cpp src/int.cpp
+                          src/intern.cpp src/iobase.cpp src/iobuf.cpp src/iofile.cpp src/iomem.cpp
+                          src/iotext.cpp src/iter.cpp src/itermod.cpp src/lazy.cpp src/lex.cpp
+                          src/list.cpp src/mapmeth.cpp src/marshalmod.cpp src/mathmod.cpp
+                          src/method.cpp src/miscmod.cpp src/module.cpp src/nummeth.cpp src/obj.cpp
+                          src/objmeth.cpp src/opmod.cpp src/ops.cpp src/parse.cpp src/patma.cpp
+                          src/posixmod.cpp src/randmod.cpp src/range.cpp src/repr.cpp
+                          src/selftest.cpp src/sentinel.cpp src/seqmeth.cpp src/signalmod.cpp
+                          src/slotmeth.cpp src/sre.cpp src/sremod.cpp src/str.cpp src/stringmod.cpp
+                          src/strmeth.cpp src/structmod.cpp src/symtab.cpp src/sysmod.cpp
+                          src/table.cpp src/templatelib.cpp src/thread.cpp src/timemod.cpp
+                          src/tokenizemod.cpp src/traceback.cpp src/tuple.cpp src/type.cpp
+                          src/typesmod.cpp src/typevar.cpp src/ucd.cpp src/ucddb.cpp src/unimod.cpp
+                          src/union.cpp src/vm.cpp src/warnmod.cpp src/weak.cpp
                   LIBS braam::math)
 
 # Floating-point arithmetic is this language's, not the compiler's: contracting

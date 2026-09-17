@@ -84,7 +84,7 @@ platform, and getting one wrong is a rewrite.
    trapped.
 2. **The VM never recurses for a Python call.** A call pushes a frame and the
    dispatch loop continues. A C++ builtin that must call back into Python
-   parks its state in a `ContObj` ([call.h](call.h)) and returns it; the VM
+   parks its state in a `ContObj` ([call.h](src/call.h)) and returns it; the VM
    records the continuation on the frame it pushes, and `Return` brings the
    answer back. It does not re-enter the loop.
 3. **There is no `longjmp` and nothing like it.** An error is a sticky pending
@@ -180,7 +180,7 @@ copy this tree can take.
 **`dis` is this port's, not a copy, and there is no `opcode`.** CPython's
 `Lib/dis.py` decodes CPython's instruction stream; this interpreter's is an
 opcode and a whole `u32`, so a copy would read the wrong bytes.
-[dismod.cpp](dismod.cpp) answers the names `inspect` needs instead. The eight
+[dismod.cpp](src/dismod.cpp) answers the names `inspect` needs instead. The eight
 test files that measure CPython's own bytecode cannot run here at all.
 
 **`doctest` waits, and not for a phase below.** It imports `pdb` at its top,

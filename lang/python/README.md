@@ -144,7 +144,7 @@ nested inside specs. `ascii()` came with them.
 
 **Integers have no width and `complex` exists**: a `Value` with bit 0 set is
 still a 31-bit int and always will be, but what does not fit becomes a
-[BigObj](bigint.h) whose type is the same `int`, so the difference is
+[BigObj](src/bigint.h) whose type is the same `int`, so the difference is
 invisible from Python. `2**1000`, `//` and `%` that floor, the bitwise
 operators over infinite two's complement, `int(s, base)` at any width, a
 division rounded once rather than three times, and `2j`.
@@ -186,7 +186,7 @@ CPython's main branch as well, because the library is written against it:
 and a `+` before a number in a pattern. `sys.version_info` says 3.14.
 
 **Text is Unicode's.** A str is codepoints over the Unicode 16.0 database
-CPython 3.14 carries, generated into [ucddb.cpp](ucddb.cpp) and checked against
+CPython 3.14 carries, generated into [ucddb.cpp](src/ucddb.cpp) and checked against
 that CPython for every one of the 1,114,112 codepoints. `unicodedata` is
 there in full, `ucd_3_2_0` included; `upper`, `lower`, `title`, `casefold`,
 `capitalize` and `swapcase` take the full mappings, Final_Sigma included; the
@@ -288,10 +288,10 @@ measured against CPython 3.16.
 **`re` is CPython's, over a native `_sre`.** The whole of `re/` — the parser,
 the compiler, the optimizer and the `\p{...}` properties of CPython's main
 branch — is taken as it is, and what it stands on is
-[sre.cpp](sre.cpp): Secret Labs' matcher from `Modules/_sre/`, kept in its own
+[sre.cpp](src/sre.cpp): Secret Labs' matcher from `Modules/_sre/`, kept in its own
 shape, compiled once for a one-octet text and once for codepoints, with its 68
 category codes reading the Unicode tables. The code is validated before it is
-trusted, as CPython validates it. [sremod.cpp](sremod.cpp) is the rest of
+trusted, as CPython validates it. [sremod.cpp](src/sremod.cpp) is the rest of
 `sre.c`: `Pattern`, `Match`, the scanner, the template, and the functions
 `re/` imports. A match is a **job that can stop**: every 2¹⁸ dispatches the
 engine hands its slice back, the call answers a continuation that parks, and a
@@ -359,10 +359,10 @@ it.
 **`ast` is CPython's, over a native `_ast`.** `compile()` with
 `PyCF_ONLY_AST` builds the node classes out of the parser's arena, and the
 classes themselves are made at install from CPython's own ASDL
-([asttab.h](asttab.h)), so `_fields`, `_field_types`, `__match_args__` and
+([asttab.h](src/asttab.h)), so `_fields`, `_field_types`, `__match_args__` and
 `_attributes` read back as they do there and a program may subclass one.
 Every node carries the position CPython gives it, to the byte: the lexer
-records each token's span and [astpos.cpp](astpos.cpp) widens a node over what
+records each token's span and [astpos.cpp](src/astpos.cpp) widens a node over what
 is under it, over the brackets that close inside it, and over the keyword the
 parser did not point at. That was checked against CPython over 373 files of
 its own library, node for node.
@@ -540,108 +540,111 @@ green.
 
 ## Files
 
+The interpreter is [src/](src/); everything else here is the library it
+ships, the tests and the plan.
+
 | | |
 | --- | --- |
-| [braam.cpp](braam.cpp) | The platform. The command line, and every `co_await` in the program |
-| [value.h](value.h) | A value in one 32-bit word: a 31-bit int, or a pointer |
-| [obj.h](obj.h), [obj.cpp](obj.cpp) | The object header, the type descriptor and its slots, the singletons |
-| [gc.h](gc.h), [gc.cpp](gc.cpp) | The object heap: allocation, precise mark and sweep, the pins |
-| [intern.cpp](intern.cpp) | The intern table, which is a root |
-| [err.h](err.h), [err.cpp](err.cpp) | The error channel: sticky, checked, not thrown |
-| [ops.h](ops.h), [ops.cpp](ops.cpp) | The generic operations and the number tower |
-| [int.cpp](int.cpp), [float.cpp](float.cpp) | The two number types, and CPython's float repr |
-| [bigint.h](bigint.h), [bigint.cpp](bigint.cpp) | Integers past the value word: limbs, long division, and the whole integer arm |
-| [complex.h](complex.h), [complex.cpp](complex.cpp) | complex, and the one type in the tower with no order |
-| [str.cpp](str.cpp), [bytes.cpp](bytes.cpp) | Text in codepoints, and octets both immutable and not |
-| [ustr.h](ustr.h) | A str's bytes: UTF-8 with the surrogates in it |
-| [ucd.h](ucd.h), [ucd.cpp](ucd.cpp) | The Unicode database: properties, case, decomposition, normalization, names |
-| [ucddb.h](ucddb.h), [ucddb.cpp](ucddb.cpp) | Its tables, which tools/mkucd.py writes |
-| [codec.h](codec.h), [codec.cpp](codec.cpp) | The codecs and the error handlers, as a run a handler of the program's own can interrupt |
-| [codecsmod.cpp](codecsmod.cpp) | `_codecs`: the registry, and a function per codec |
-| [unimod.cpp](unimod.cpp) | `unicodedata`, and `ucd_3_2_0` beside it |
-| [sre.h](sre.h), [sre.cpp](sre.cpp) | The regular expression engine, Secret Labs' from `Modules/_sre/`, able to stop mid-match; and the code validator |
-| [sremod.cpp](sremod.cpp) | `_sre`: Pattern, Match, the scanner and the template, and a match as a job that parks |
-| [tuple.cpp](tuple.cpp), [list.cpp](list.cpp) | The two sequences |
-| [table.cpp](table.cpp) | The insertion-ordered table behind dict and set |
-| [method.h](method.h), [method.cpp](method.cpp) | The method mechanism: a static table becomes a built-in type's namespace |
-| [strmeth.cpp](strmeth.cpp) | str's methods |
-| [bytemeth.cpp](bytemeth.cpp) | bytes', bytearray's and memoryview's |
-| [seqmeth.cpp](seqmeth.cpp) | list's, tuple's and slice's |
-| [mapmeth.cpp](mapmeth.cpp) | dict's and set's, frozenset, frozendict, and the three views |
-| [nummeth.cpp](nummeth.cpp) | int's and float's |
-| [repr.cpp](repr.cpp) | repr for every type, quoting and all |
-| [format.h](format.h), [format.cpp](format.cpp) | The format-spec mini-language, and what str, int and float make of one |
-| [formatgr.cpp](formatgr.cpp) | The other two grammars — `%` and str.format's fields — as a plan a continuation walks |
-| [lex.h](lex.h), [lex.cpp](lex.cpp) | The tokenizer, PEP 263's source encodings, and the `--dump-tokens` listing |
-| [parse.h](parse.h), [parse.cpp](parse.cpp) | The grammar, by recursive descent into an index arena |
-| [astdump.cpp](astdump.cpp) | The `--dump-ast` listing, which is the format mkast.py writes to |
-| [code.h](code.h), [code.cpp](code.cpp) | The opcode table, the instruction, the code object, the line table |
-| [symtab.h](symtab.h), [symtab.cpp](symtab.cpp) | The scope pass: local, cell, free or global |
-| [compile.h](compile.h), [compile.cpp](compile.cpp) | The emitter, jump patching, and the blocks an exit unwinds |
-| [dis.cpp](dis.cpp) | The `--dis` listing |
-| [frame.h](frame.h), [frame.cpp](frame.cpp) | One activation: locals and the value stack in one block |
-| [flocals.cpp](flocals.cpp) | `FrameLocalsProxy`: a function frame's `f_locals`, written through to its slots |
-| [gen.h](gen.h), [gen.cpp](gen.cpp) | The generator, the coroutine and the async generator — a frame parked rather than popped — and the awaitables that step one |
-| [vm.h](vm.h), [vm.cpp](vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
-| [func.h](func.h), [func.cpp](func.cpp) | Cells, functions, builtins written in C++, and modules |
-| [type.h](type.h), [type.cpp](type.cpp) | Type objects, instances, the MRO, the metaclasses and the class hooks |
-| [attr.cpp](attr.cpp) | The descriptor protocol, the attribute algorithm and `__slots__`, and the built-in descriptors' `__get__` and `__set__` |
-| [objmeth.cpp](objmeth.cpp) | What `object` lends beyond the core: the comparisons, `__hash__`, `__reduce_ex__` and `__getstate__` |
-| [sentinel.cpp](sentinel.cpp) | `sentinel` (PEP 661) |
-| [compare.h](compare.h), [compare.cpp](compare.cpp) | The sorts and searches that have to call Python, as continuations |
-| [weak.h](weak.h), [weak.cpp](weak.cpp) | Weak references and proxies, and the callbacks the sweep owes for them |
-| [abc.h](abc.h), [abc.cpp](abc.cpp) | `_abc`: the floor CPython's own abc.py stands on |
-| [genalias.h](genalias.h), [genalias.cpp](genalias.cpp) | `list[int]`: the generic alias, and PEP 560's other half |
-| [union.h](union.h), [union.cpp](union.cpp) | `int \| str`: the union, which is `typing.Union` and `types.UnionType` both |
-| [patma.h](patma.h), [patma.cpp](patma.cpp) | What `match` asks of a subject: sequence or mapping, keys, and a class pattern's attributes |
-| [egroup.h](egroup.h), [egroup.cpp](egroup.cpp) | The exception groups: `split`, `subgroup` and `derive`, and what `except*` does with them |
-| [typevar.h](typevar.h), [typevar.cpp](typevar.cpp) | `_typing`: PEP 695's type parameters, the alias, `Generic`, and the intrinsics the compiler emits |
-| [lazy.h](lazy.h), [lazy.cpp](lazy.cpp) | PEP 810: the proxy a lazy import binds, and what resolves it |
-| [templatelib.h](templatelib.h), [templatelib.cpp](templatelib.cpp) | PEP 750: `Template` and `Interpolation`, what a t-string makes |
-| [slotmeth.cpp](slotmeth.cpp) | The protocol methods in each built-in type's namespace |
-| [info.h](info.h), [info.cpp](info.cpp) | The struct sequence: a tuple whose fields also have names |
-| [binfmt.h](binfmt.h), [binfmt.cpp](binfmt.cpp) | One typecode's machine representation, which array and memoryview share |
-| [module.h](module.h), [module.cpp](module.cpp) | The registry of modules written in C++, and the helpers each installer uses |
-| [sysmod.cpp](sysmod.cpp) | `sys`: the three streams, the named tuples, and the interpreter looking at itself |
-| [mathmod.cpp](mathmod.cpp) | `math` and `cmath` over braam::math, with the exact half over the bignum |
-| [itermod.cpp](itermod.cpp) | `itertools`: the lazy half, and the eager half that has to call |
-| [opmod.cpp](opmod.cpp) | `operator`, attrgetter, itemgetter and methodcaller |
-| [collmod.cpp](collmod.cpp) | `_collections`: the deque ring, defaultdict and OrderedDict |
-| [functoolsmod.cpp](functoolsmod.cpp) | `_functools`: reduce, partial and Placeholder, cmp_to_key and the lru_cache wrapper |
-| [thread.cpp](thread.cpp) | `_thread`: the locks and `_local`, for one thread |
-| [ctxvars.cpp](ctxvars.cpp) | `_contextvars`: ContextVar, Token and Context |
-| [stringmod.cpp](stringmod.cpp) | `_string`: str.format's grammar as `string.Formatter` reads it |
-| [structmod.cpp](structmod.cpp) | `_struct`: the format language, and values to octets |
-| [arraymod.cpp](arraymod.cpp) | `array`: the only thing here that gives a buffer a width |
-| [randmod.cpp](randmod.cpp) | `_random`: MT19937, seeded the way CPython seeds it |
-| [timemod.cpp](timemod.cpp) | `time` over one clock reading: struct_time, strftime and the clocks |
-| [miscmod.cpp](miscmod.cpp) | `errno` and `gc` |
-| [binasciimod.cpp](binasciimod.cpp) | `binascii`: base64, base32, base85, uu, quoted-printable, hex and the CRCs |
-| [hashmod.cpp](hashmod.cpp) | `_md5`, `_sha1`, `_sha2`, `_sha3` and `_blake2`: the digests under `hashlib` |
-| [tokenizemod.cpp](tokenizemod.cpp) | `_tokenize`: CPython's tokenizer as an iterator over a `readline` |
-| [marshalmod.cpp](marshalmod.cpp) | `marshal`: the format, written and read without recursion |
-| [impmod.cpp](impmod.cpp) | `_imp`: what `importlib._bootstrap` asks of the interpreter |
-| [colorizemod.cpp](colorizemod.cpp) | `_colorize`, without colour, until `dataclasses` is here |
-| [traceback.cpp](traceback.cpp) | The traceback object, and `with_traceback` |
-| [typesmod.cpp](typesmod.cpp) | `_types`: the names for types that are not builtins, SimpleNamespace, `mappingproxy`, and the constructors of module, method and GenericAlias |
-| [warnmod.cpp](warnmod.cpp) | `_warnings`: the default filters and the lock under `_py_warnings.py` |
-| [atexit.h](atexit.h), [atexitmod.cpp](atexitmod.cpp) | `atexit`, and the calls the VM makes before the program ends |
-| [io.h](io.h), [iobase.cpp](iobase.cpp) | `_io`: the abstract layers, `open()`, and the closing a program's end owes |
-| [iofile.cpp](iofile.cpp) | `FileIO`, the raw layer over a descriptor |
-| [iobuf.cpp](iobuf.cpp) | The buffered layer: reader, writer, random and the pair, as one machine |
-| [iotext.cpp](iotext.cpp) | `TextIOWrapper`, its codecs and its `tell()` cookie, and `IncrementalNewlineDecoder` |
-| [iomem.cpp](iomem.cpp) | `BytesIO` and `StringIO` |
-| [posix.h](posix.h), [posixmod.cpp](posixmod.cpp) | `posix`: paths, descriptors, directories, `stat_result`, `environ`, and the system-call turn every module here takes |
-| [signalmod.cpp](signalmod.cpp) | `_signal`: the handlers, and what the driver is asked to catch |
-| [csvmod.cpp](csvmod.cpp) | `_csv`: the dialect, the reader's state machine and the writer |
+| [braam.cpp](src/braam.cpp) | The platform. The command line, and every `co_await` in the program |
+| [value.h](src/value.h) | A value in one 32-bit word: a 31-bit int, or a pointer |
+| [obj.h](src/obj.h), [obj.cpp](src/obj.cpp) | The object header, the type descriptor and its slots, the singletons |
+| [gc.h](src/gc.h), [gc.cpp](src/gc.cpp) | The object heap: allocation, precise mark and sweep, the pins |
+| [intern.cpp](src/intern.cpp) | The intern table, which is a root |
+| [err.h](src/err.h), [err.cpp](src/err.cpp) | The error channel: sticky, checked, not thrown |
+| [ops.h](src/ops.h), [ops.cpp](src/ops.cpp) | The generic operations and the number tower |
+| [int.cpp](src/int.cpp), [float.cpp](src/float.cpp) | The two number types, and CPython's float repr |
+| [bigint.h](src/bigint.h), [bigint.cpp](src/bigint.cpp) | Integers past the value word: limbs, long division, and the whole integer arm |
+| [complex.h](src/complex.h), [complex.cpp](src/complex.cpp) | complex, and the one type in the tower with no order |
+| [str.cpp](src/str.cpp), [bytes.cpp](src/bytes.cpp) | Text in codepoints, and octets both immutable and not |
+| [ustr.h](src/ustr.h) | A str's bytes: UTF-8 with the surrogates in it |
+| [ucd.h](src/ucd.h), [ucd.cpp](src/ucd.cpp) | The Unicode database: properties, case, decomposition, normalization, names |
+| [ucddb.h](src/ucddb.h), [ucddb.cpp](src/ucddb.cpp) | Its tables, which tools/mkucd.py writes |
+| [codec.h](src/codec.h), [codec.cpp](src/codec.cpp) | The codecs and the error handlers, as a run a handler of the program's own can interrupt |
+| [codecsmod.cpp](src/codecsmod.cpp) | `_codecs`: the registry, and a function per codec |
+| [unimod.cpp](src/unimod.cpp) | `unicodedata`, and `ucd_3_2_0` beside it |
+| [sre.h](src/sre.h), [sre.cpp](src/sre.cpp) | The regular expression engine, Secret Labs' from `Modules/_sre/`, able to stop mid-match; and the code validator |
+| [sremod.cpp](src/sremod.cpp) | `_sre`: Pattern, Match, the scanner and the template, and a match as a job that parks |
+| [tuple.cpp](src/tuple.cpp), [list.cpp](src/list.cpp) | The two sequences |
+| [table.cpp](src/table.cpp) | The insertion-ordered table behind dict and set |
+| [method.h](src/method.h), [method.cpp](src/method.cpp) | The method mechanism: a static table becomes a built-in type's namespace |
+| [strmeth.cpp](src/strmeth.cpp) | str's methods |
+| [bytemeth.cpp](src/bytemeth.cpp) | bytes', bytearray's and memoryview's |
+| [seqmeth.cpp](src/seqmeth.cpp) | list's, tuple's and slice's |
+| [mapmeth.cpp](src/mapmeth.cpp) | dict's and set's, frozenset, frozendict, and the three views |
+| [nummeth.cpp](src/nummeth.cpp) | int's and float's |
+| [repr.cpp](src/repr.cpp) | repr for every type, quoting and all |
+| [format.h](src/format.h), [format.cpp](src/format.cpp) | The format-spec mini-language, and what str, int and float make of one |
+| [formatgr.cpp](src/formatgr.cpp) | The other two grammars — `%` and str.format's fields — as a plan a continuation walks |
+| [lex.h](src/lex.h), [lex.cpp](src/lex.cpp) | The tokenizer, PEP 263's source encodings, and the `--dump-tokens` listing |
+| [parse.h](src/parse.h), [parse.cpp](src/parse.cpp) | The grammar, by recursive descent into an index arena |
+| [astdump.cpp](src/astdump.cpp) | The `--dump-ast` listing, which is the format mkast.py writes to |
+| [code.h](src/code.h), [code.cpp](src/code.cpp) | The opcode table, the instruction, the code object, the line table |
+| [symtab.h](src/symtab.h), [symtab.cpp](src/symtab.cpp) | The scope pass: local, cell, free or global |
+| [compile.h](src/compile.h), [compile.cpp](src/compile.cpp) | The emitter, jump patching, and the blocks an exit unwinds |
+| [dis.cpp](src/dis.cpp) | The `--dis` listing |
+| [frame.h](src/frame.h), [frame.cpp](src/frame.cpp) | One activation: locals and the value stack in one block |
+| [flocals.cpp](src/flocals.cpp) | `FrameLocalsProxy`: a function frame's `f_locals`, written through to its slots |
+| [gen.h](src/gen.h), [gen.cpp](src/gen.cpp) | The generator, the coroutine and the async generator — a frame parked rather than popped — and the awaitables that step one |
+| [vm.h](src/vm.h), [vm.cpp](src/vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
+| [func.h](src/func.h), [func.cpp](src/func.cpp) | Cells, functions, builtins written in C++, and modules |
+| [type.h](src/type.h), [type.cpp](src/type.cpp) | Type objects, instances, the MRO, the metaclasses and the class hooks |
+| [attr.cpp](src/attr.cpp) | The descriptor protocol, the attribute algorithm and `__slots__`, and the built-in descriptors' `__get__` and `__set__` |
+| [objmeth.cpp](src/objmeth.cpp) | What `object` lends beyond the core: the comparisons, `__hash__`, `__reduce_ex__` and `__getstate__` |
+| [sentinel.cpp](src/sentinel.cpp) | `sentinel` (PEP 661) |
+| [compare.h](src/compare.h), [compare.cpp](src/compare.cpp) | The sorts and searches that have to call Python, as continuations |
+| [weak.h](src/weak.h), [weak.cpp](src/weak.cpp) | Weak references and proxies, and the callbacks the sweep owes for them |
+| [abc.h](src/abc.h), [abc.cpp](src/abc.cpp) | `_abc`: the floor CPython's own abc.py stands on |
+| [genalias.h](src/genalias.h), [genalias.cpp](src/genalias.cpp) | `list[int]`: the generic alias, and PEP 560's other half |
+| [union.h](src/union.h), [union.cpp](src/union.cpp) | `int \| str`: the union, which is `typing.Union` and `types.UnionType` both |
+| [patma.h](src/patma.h), [patma.cpp](src/patma.cpp) | What `match` asks of a subject: sequence or mapping, keys, and a class pattern's attributes |
+| [egroup.h](src/egroup.h), [egroup.cpp](src/egroup.cpp) | The exception groups: `split`, `subgroup` and `derive`, and what `except*` does with them |
+| [typevar.h](src/typevar.h), [typevar.cpp](src/typevar.cpp) | `_typing`: PEP 695's type parameters, the alias, `Generic`, and the intrinsics the compiler emits |
+| [lazy.h](src/lazy.h), [lazy.cpp](src/lazy.cpp) | PEP 810: the proxy a lazy import binds, and what resolves it |
+| [templatelib.h](src/templatelib.h), [templatelib.cpp](src/templatelib.cpp) | PEP 750: `Template` and `Interpolation`, what a t-string makes |
+| [slotmeth.cpp](src/slotmeth.cpp) | The protocol methods in each built-in type's namespace |
+| [info.h](src/info.h), [info.cpp](src/info.cpp) | The struct sequence: a tuple whose fields also have names |
+| [binfmt.h](src/binfmt.h), [binfmt.cpp](src/binfmt.cpp) | One typecode's machine representation, which array and memoryview share |
+| [module.h](src/module.h), [module.cpp](src/module.cpp) | The registry of modules written in C++, and the helpers each installer uses |
+| [sysmod.cpp](src/sysmod.cpp) | `sys`: the three streams, the named tuples, and the interpreter looking at itself |
+| [mathmod.cpp](src/mathmod.cpp) | `math` and `cmath` over braam::math, with the exact half over the bignum |
+| [itermod.cpp](src/itermod.cpp) | `itertools`: the lazy half, and the eager half that has to call |
+| [opmod.cpp](src/opmod.cpp) | `operator`, attrgetter, itemgetter and methodcaller |
+| [collmod.cpp](src/collmod.cpp) | `_collections`: the deque ring, defaultdict and OrderedDict |
+| [functoolsmod.cpp](src/functoolsmod.cpp) | `_functools`: reduce, partial and Placeholder, cmp_to_key and the lru_cache wrapper |
+| [thread.cpp](src/thread.cpp) | `_thread`: the locks and `_local`, for one thread |
+| [ctxvars.cpp](src/ctxvars.cpp) | `_contextvars`: ContextVar, Token and Context |
+| [stringmod.cpp](src/stringmod.cpp) | `_string`: str.format's grammar as `string.Formatter` reads it |
+| [structmod.cpp](src/structmod.cpp) | `_struct`: the format language, and values to octets |
+| [arraymod.cpp](src/arraymod.cpp) | `array`: the only thing here that gives a buffer a width |
+| [randmod.cpp](src/randmod.cpp) | `_random`: MT19937, seeded the way CPython seeds it |
+| [timemod.cpp](src/timemod.cpp) | `time` over one clock reading: struct_time, strftime and the clocks |
+| [miscmod.cpp](src/miscmod.cpp) | `errno` and `gc` |
+| [binasciimod.cpp](src/binasciimod.cpp) | `binascii`: base64, base32, base85, uu, quoted-printable, hex and the CRCs |
+| [hashmod.cpp](src/hashmod.cpp) | `_md5`, `_sha1`, `_sha2`, `_sha3` and `_blake2`: the digests under `hashlib` |
+| [tokenizemod.cpp](src/tokenizemod.cpp) | `_tokenize`: CPython's tokenizer as an iterator over a `readline` |
+| [marshalmod.cpp](src/marshalmod.cpp) | `marshal`: the format, written and read without recursion |
+| [impmod.cpp](src/impmod.cpp) | `_imp`: what `importlib._bootstrap` asks of the interpreter |
+| [colorizemod.cpp](src/colorizemod.cpp) | `_colorize`, without colour, until `dataclasses` is here |
+| [traceback.cpp](src/traceback.cpp) | The traceback object, and `with_traceback` |
+| [typesmod.cpp](src/typesmod.cpp) | `_types`: the names for types that are not builtins, SimpleNamespace, `mappingproxy`, and the constructors of module, method and GenericAlias |
+| [warnmod.cpp](src/warnmod.cpp) | `_warnings`: the default filters and the lock under `_py_warnings.py` |
+| [atexit.h](src/atexit.h), [atexitmod.cpp](src/atexitmod.cpp) | `atexit`, and the calls the VM makes before the program ends |
+| [io.h](src/io.h), [iobase.cpp](src/iobase.cpp) | `_io`: the abstract layers, `open()`, and the closing a program's end owes |
+| [iofile.cpp](src/iofile.cpp) | `FileIO`, the raw layer over a descriptor |
+| [iobuf.cpp](src/iobuf.cpp) | The buffered layer: reader, writer, random and the pair, as one machine |
+| [iotext.cpp](src/iotext.cpp) | `TextIOWrapper`, its codecs and its `tell()` cookie, and `IncrementalNewlineDecoder` |
+| [iomem.cpp](src/iomem.cpp) | `BytesIO` and `StringIO` |
+| [posix.h](src/posix.h), [posixmod.cpp](src/posixmod.cpp) | `posix`: paths, descriptors, directories, `stat_result`, `environ`, and the system-call turn every module here takes |
+| [signalmod.cpp](src/signalmod.cpp) | `_signal`: the handlers, and what the driver is asked to catch |
+| [csvmod.cpp](src/csvmod.cpp) | `_csv`: the dialect, the reader's state machine and the writer |
 | [lib/](lib/) | Modules taken from CPython's library, byte for byte, with [lib/manifest.txt](lib/manifest.txt) saying where each came from |
-| [call.h](call.h), [call.cpp](call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
-| [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
-| [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices and the iterators |
-| [range.cpp](range.cpp) | range at any width, and its two iterators |
-| [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, and `builtins` as a module |
-| [import.h](import.h), [import.cpp](import.cpp) | The module cache, the search path, the loader, and where importlib takes over |
-| [selftest.cpp](selftest.cpp) | What `--selftest` checks |
+| [call.h](src/call.h), [call.cpp](src/call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
+| [exc.h](src/exc.h), [exc.cpp](src/exc.cpp) | The exception hierarchy, and the two objects it needs |
+| [iter.h](src/iter.h), [iter.cpp](src/iter.cpp) | Slices and the iterators |
+| [range.cpp](src/range.cpp) | range at any width, and its two iterators |
+| [builtin.h](src/builtin.h), [builtin.cpp](src/builtin.cpp) | The builtins namespace, and `builtins` as a module |
+| [import.h](src/import.h), [import.cpp](src/import.cpp) | The module cache, the search path, the loader, and where importlib takes over |
+| [selftest.cpp](src/selftest.cpp) | What `--selftest` checks |
 | [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary and the library, run a command, read back what it wrote |
 | [test/pysmoke.mjs](test/pysmoke.mjs) | That the program starts, answers its flags, and reports the right status |
 | [test/pygc.mjs](test/pygc.mjs) | Drives `--selftest` and reads what it printed |
@@ -714,7 +717,7 @@ CPython 3.11 moved exception handling to a side table and made the happy path
 free. This does not: `SetupFinally` pushes a handler, `PopBlock` pops it, and
 the VM cuts the value stack back to the depth the block recorded. The 3.10
 shape is what a first VM can be written against and read, and it is what the
-opcode comments in [code.h](code.h) state exactly. The block stack lives in the
+opcode comments in [code.h](src/code.h) state exactly. The block stack lives in the
 frame, sized by a count the compiler worked out, so it is one allocation with
 everything else.
 
@@ -778,7 +781,7 @@ All recorded rather than hidden, and all in reach later:
   not there and their names are not exported.
 - **`dis` is this port's, not CPython's.** CPython's `Lib/dis.py` decodes
   CPython's instruction stream; this one's is an opcode and a whole `u32`, so
-  the module is written in [dismod.cpp](dismod.cpp) instead, against the names
+  the module is written in [dismod.cpp](src/dismod.cpp) instead, against the names
   its callers need. `opcode` and `_opcode` are not here at all, and the eight
   test files that measure CPython's own bytecode cannot run.
 - **`locals()` in a function is a fresh snapshot every time.** A function's
@@ -1019,7 +1022,7 @@ All recorded rather than hidden, and all in reach later:
 ## How a match stops
 
 A regular expression that backtracks is a loop in C++, and a `co_await` cannot
-appear in it. [sre.cpp](sre.cpp) is CPython's engine, whose contexts were
+appear in it. [sre.cpp](src/sre.cpp) is CPython's engine, whose contexts were
 already on a data stack of their own rather than on the C stack, so ground
 rule 4 was kept before this port touched it. What is added is a way out in the
 middle: at the top of its dispatch loop, where the whole of its state is the
@@ -1033,7 +1036,7 @@ single character — never stops, because its work is bounded by the pattern.
 `search()` is a loop over start positions around those matches, so it stops
 too: it records which of its four arms it was in and where, works everything
 above them out again from the INFO block, and jumps back to just after the
-call. [sremod.cpp](sremod.cpp) keeps each call's work in a `StateObj` — the
+call. [sremod.cpp](src/sremod.cpp) keeps each call's work in a `StateObj` — the
 engine's state and the loop variables of `findall`, `split` or `sub` — and runs
 it as a job: done, suspended, or waiting on a call. A suspended job becomes a
 continuation that parks with a zero sleep and runs the job on when the driver
@@ -1062,7 +1065,7 @@ awaited would therefore grow the stack until the process trapped.
 
 So the VM is plain C++ that runs until it has something for its caller to do —
 a write, a file to read, an exit — and returns saying what. Only
-[braam.cpp](braam.cpp) awaits. It is the shape
+[braam.cpp](src/braam.cpp) awaits. It is the shape
 [emulators/simbesm](../../emulators/simbesm/) arrived at for the same reason,
 and it decides much else: a Python call pushes a frame rather than recursing,
 and an error is a sticky flag unwound a frame at a time, because there is no
@@ -1103,7 +1106,7 @@ to call the other — and the same rule that keeps the VM out of the native stac
 keeps a builtin out of it. It **must not re-enter the dispatch loop**.
 
 So it does not call `f` at all. It parks what it knows in a `ContObj`
-([call.h](call.h)) and returns that as its result; the VM sees it, records the
+([call.h](src/call.h)) and returns that as its result; the VM sees it, records the
 continuation on the frame it pushes for `f`, and returns to the loop. `Return`
 brings the answer back to `ContObj::step`, which asks for the next call or says
 it is finished. Nothing nests, and four thousand key calls cost the native
@@ -1180,7 +1183,7 @@ function binds nothing.
 A generator wants a frame that outlives the call that made it, and this VM
 already has one: frames are heap objects chained through `back`, not C++ stack
 frames. So a call to a function whose body yields binds the arguments into a
-frame and stops there. The frame goes into a [GenObj](gen.h) instead of onto
+frame and stops there. The frame goes into a [GenObj](src/gen.h) instead of onto
 the chain, and nothing of the body has run.
 
 Resuming pushes that frame back on the chain and the loop carries on in it.
@@ -1193,7 +1196,7 @@ continuation was already waiting for.
 One thing follows from all this and shapes the rest. **Resuming a generator
 pushes a frame, and only the dispatch loop may push a frame.** So `gen.send`
 cannot be a builtin: a builtin returns a value, and this has to return into the
-loop. It is a small object of its own instead ([gen.h](gen.h)), which `do_call`
+loop. It is a small object of its own instead ([gen.h](src/gen.h)), which `do_call`
 recognises — and because it is *callable*, a continuation can ask for the next
 item the same way it asks for a `key=` function. That is what makes `list(g)`,
 `sum(g)`, `sorted(g)`, `", ".join(g)` and the rest work at all: each parks, the
@@ -1251,7 +1254,7 @@ is no longer running when its body raises.
 
 `obj.name` is not a dict lookup. It is the descriptor protocol, and phase 9
 knew one instance of it -- `property` -- and looked for that by hand. The rule
-[attr.cpp](attr.cpp) states instead is CPython's: a class-dict entry with a
+[attr.cpp](src/attr.cpp) states instead is CPython's: a class-dict entry with a
 `__get__` is a descriptor, one that also has a `__set__` or a `__delete__` is a
 *data* descriptor, and only a data descriptor comes before the instance's own
 namespace. Functions, `staticmethod`, `classmethod`, `property` and a
@@ -1284,7 +1287,7 @@ is an `AttributeError` and a name that is not a slot cannot be stored.
 ## How a class is made
 
 `class C(B, metaclass=M, x=1)` is five steps, and four of them can call Python,
-so [type.cpp](type.cpp)'s `build_step` is a state machine rather than a
+so [type.cpp](src/type.cpp)'s `build_step` is a state machine rather than a
 function. A base that is not a class is asked for its `__mro_entries__` and
 replaced by what it names, which may change the bases again, so that step
 loops; the metaclass is then the most derived of the one asked for and the
@@ -1317,9 +1320,9 @@ cell, where a nested scope captured it -- and what that cell holds.
 ## How a finalizer runs
 
 `__del__` and a weak reference's callback make the collector's sweep
-observable, and a sweep cannot call Python. So [gc.cpp](gc.cpp) does not run
+observable, and a sweep cannot call Python. So [gc.cpp](src/gc.cpp) does not run
 them: it *owes* them. Between marking and sweeping, where everything is still
-whole, [weak.cpp](weak.cpp) clears every reference whose target is about to go
+whole, [weak.cpp](src/weak.cpp) clears every reference whose target is about to go
 and owes its callback; then every unmarked object whose class writes `__del__`
 is owed one, and owing it marks the object, so this collection leaves it -- and
 everything it reaches -- alone. The VM makes the calls between two opcodes,
@@ -1342,7 +1345,7 @@ inside.
 `py_cmp` and `py_eq` are C++ and cannot push a frame, so for eight phases a
 class with a `__lt__` could not be sorted and one with an `__eq__` could not be
 found. The fix is the one the plan named: a continuation that owns the loop.
-[compare.cpp](compare.cpp) writes the merge, the fold, the search and the
+[compare.cpp](src/compare.cpp) writes the merge, the fold, the search and the
 item-by-item sequence compare as state machines over one object -- the merge's
 `w`, `lo`, `i`, `j` and `o` are fields rather than locals -- and each comparison
 that needs Python is one request the VM answers. A nested one, a list of lists
@@ -1361,7 +1364,7 @@ comparison differs from an arithmetic operator.
 
 A str's bytes are UTF-8, and UTF-8 has no spelling for U+D800. So the rule is
 widened by one step: a surrogate is written the way any other three-byte
-codepoint is ([ustr.h](ustr.h)). Everything that walks a str -- indexing,
+codepoint is ([ustr.h](src/ustr.h)). Everything that walks a str -- indexing,
 slicing, comparison, the methods -- already counts in lead bytes and is none
 the wiser, and codepoint order is still byte order. What changed is the
 boundary. Text from outside is never taken on trust: a codec decodes it, and
@@ -1375,7 +1378,7 @@ A codec is a loop, and the loop may have to call Python in the middle: a
 handler the program registered with `codecs.register_error` is asked what to
 put where the codec failed, and it answers before the codec goes on. Ground
 rule 2 says the loop cannot make that call. So a run is an object
-([codec.cpp](codec.cpp)'s CodecObj) holding everything the loop would keep in
+([codec.cpp](src/codec.cpp)'s CodecObj) holding everything the loop would keep in
 locals -- the position, the output so far, UTF-7's shift state -- and the loop
 stops at each fault. A built-in handler settles the fault on the spot; the
 program's own is a call the continuation asks for, and the run resumes from
@@ -1402,13 +1405,13 @@ calling its method, as CPython's C does, and each layer is a continuation.
 `cont_method` makes the call without a second continuation when the method
 is a plain one, so a native stack of layers costs one continuation per layer
 per call. The text layer has a few dozen states, and runs as one flat loop
-over a state number ([iotext.cpp](iotext.cpp)'s `text_step`) rather than as a
+over a state number ([iotext.cpp](src/iotext.cpp)'s `text_step`) rather than as a
 chain; a codec written here decodes in place, and only a codec written in
 Python is a call.
 
 The raw file's system call is a `Req`. `cont_sys` parks the continuation with
-a `SysReq`, [braam.cpp](braam.cpp) performs it, and `vm_sys_done` hands the
-answer back. `sys_turn` in [posixmod.cpp](posixmod.cpp) is where every module
+a `SysReq`, [braam.cpp](src/braam.cpp) performs it, and `vm_sys_done` hands the
+answer back. `sys_turn` in [posixmod.cpp](src/posixmod.cpp) is where every module
 reads that answer: an error becomes the `OSError` CPython raises for it, and
 `Err(Intr)` — a signal cut the call short — runs the program's handler and
 makes the call again, which is PEP 475. `time.sleep` does the same with what
@@ -1422,8 +1425,8 @@ the standard streams are only flushed.
 
 ## How a module is written in C++
 
-[module.h](module.h) is a name and a function that fills a fresh module's
-namespace. The loader asks the registry first — [import.cpp](import.cpp)'s
+[module.h](src/module.h) is a name and a function that fills a fresh module's
+namespace. The loader asks the registry first — [import.cpp](src/import.cpp)'s
 `begin_load` — and goes looking for a file only when the name is not one of
 these, which is why `import time` finds this `time` with an empty `sys.path`
 and a `time.py` beside the program the moment there is one.
@@ -1463,7 +1466,7 @@ iterable and is what makes `islice(count(), 5)` finite.
 
 **Two things cannot be asked for at all.** `tty_of` and `clock_now` are
 asynchronous syscalls and nothing under `vm_burst` awaits, so
-[braam.cpp](braam.cpp) reads both once before the program starts and hands them
+[braam.cpp](src/braam.cpp) reads both once before the program starts and hands them
 over: `sys_set_tty` and `time_set_clock`. `time.time()` counts on from that one
 wall reading with `Sys::Now`, which is monotonic and cannot name a day.
 `time.sleep` is the third and went the other way — it became a `Req`, because a
@@ -1610,9 +1613,9 @@ is the ruler the rest of the time.
 ## Licence
 
 The interpreter is this repository's, and so is the `test.support` under
-`test/shim/`, which is not a copy of anyone's code. [ucddb.cpp](ucddb.cpp) is generated
+`test/shim/`, which is not a copy of anyone's code. [ucddb.cpp](src/ucddb.cpp) is generated
 from the Unicode Character Database, under the Unicode licence.
-[sre.cpp](sre.cpp) and [sremod.cpp](sremod.cpp) follow CPython's `_sre`, which
+[sre.cpp](src/sre.cpp) and [sremod.cpp](src/sremod.cpp) follow CPython's `_sre`, which
 Secret Labs wrote, under CNRI's Python 1.6 licence and the PSF's. The tests under `test/cases/` are
 MicroPython's, MIT, Damien P. George; those under `test/cpython/` are
 CPython's, under the PSF licence, copyright the Python Software Foundation.
