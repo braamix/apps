@@ -23,9 +23,9 @@ struct Req {
     u32 ms     = 0; // Sleep: how long
 };
 
-// Make `code` the __main__ module and take the command line. False leaves the
-// error pending.
-bool vm_start(Value code, Args argv);
+// Make `code` the __main__ module and take the command line; `file`, when
+// the program came from one, is its __file__. False leaves the error pending.
+bool vm_start(Value code, Args argv, Str file = Str());
 
 // Run until the driver is needed.
 Req vm_burst();
@@ -43,6 +43,10 @@ void vm_sleep_done();
 
 // A ^C arrived. The next instruction boundary raises KeyboardInterrupt.
 void vm_interrupt();
+
+// A continuation resumed from a park takes the ^C itself: true once for each
+// that arrived, and the instruction boundary no longer sees it.
+bool vm_take_interrupt();
 
 // The frame a builtin was called from: a native pushes none, so this is the
 // caller's. Nil before the first. Zero-argument super() is why it exists.

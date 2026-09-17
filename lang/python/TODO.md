@@ -8,8 +8,8 @@ borrowed is measured, and named here.
 imported, text can be formatted, numbers have no width, a function can yield, a
 program can compile and run more of itself, the type system is whole,
 twenty-two modules are written natively, a function can be a coroutine, the
-syntax is 3.14's, text is Unicode's, the floor under the library is down, and
-its first wave runs.** Phases 0 to 23 built the lexer, the parser, the
+syntax is 3.14's, text is Unicode's, the floor under the library is down, its
+first wave runs, and so does `re`.** Phases 0 to 24 built the lexer, the parser, the
 compiler, the VM, the object heap and its collector, exceptions, functions and
 closures, classes, the method tables, the module loader, the `unittest` and
 `test.support` shims every CPython test stands on, the one format engine that
@@ -36,23 +36,25 @@ and the lone surrogate as a character — and then the rest of the native floor:
 `FrameLocalsProxy`, `Placeholder` and `cmp_to_key`, and the implicit
 `__class__` cell — and then CPython's first twenty-five library modules, over
 `frozendict`, `sentinel`, `mappingproxy`, `object`'s pickle helpers, a native
-`_warnings` and `atexit`. They are done, and their record is the git history —
-`python: phase 0` through `python: phase 23` — not this file, which from here
-describes only what is left.
+`_warnings` and `atexit` — and then CPython's whole `re/` over a native `_sre`
+that can stop in the middle of a match, with `textwrap`, `json`, `fractions`
+and `difflib` over it, and `unicodedata.ucd_3_2_0`. They are done, and their
+record is the git history — `python: phase 0` through `python: phase 24` — not
+this file, which from here describes only what is left.
 
-Where that leaves us, measured against MicroPython's suite: **423 of the 449
-tests in [test/manifest.txt](test/manifest.txt)**. Of the twenty-six that do
+Where that leaves us, measured against MicroPython's suite: **424 of the 449
+tests in [test/manifest.txt](test/manifest.txt)**. Of the twenty-five that do
 not, most exercise what MicroPython does and CPython does not — a native base
 class's `__init__` protocol, `pend_throw`, `machine` — and two want a
 memoryview of more than one dimension. One, `assign_expr_syntaxerror.py`,
 expects MicroPython to accept what CPython refuses, and stays as it is.
 
-Measured against CPython's, which is the harder ruler: **twenty-nine of the
-thirty-seven in [test/cpython.txt](test/cpython.txt) run, and 354 test methods
-of 498 pass.** `node test/pycases.mjs --survey` runs the whole of `Lib/test/`
-and counts what stops each of the 391 files: 356 an unwritten module, 30 that
-run, 4 that fail at runtime or say nothing this can read, and 1 other syntax,
-PEP 798's. Phase 23 moved sixteen files to running.
+Measured against CPython's, which is the harder ruler: **thirty-two of the
+forty in [test/cpython.txt](test/cpython.txt) run, and 620 test methods of 796
+pass.** `node test/pycases.mjs --survey` runs the whole of `Lib/test/` and
+counts what stops each of the 391 files: 351 an unwritten module, 34 that run,
+5 that fail at runtime or say nothing this can read, and 1 other syntax, PEP
+798's. Phase 24 moved four files to running and one past its imports.
 
 Three walls came down in phases 13 and 14 — f-strings, complex and the bignum
 were 204 files between them — a fourth in phase 19, whose fifteen `async` files
@@ -64,7 +66,7 @@ CPython's tests is an import**, and what those files stop on is the *library*,
 not the modules under it. The survey is how each wave is chosen, and it only
 means something read beside what it said last time.
 
-**The library is being borrowed.** Twenty-seven modules and 89 of
+**The library is being borrowed.** Forty-one files and 89 of
 `lib/encodings/` are CPython's own, byte for byte, with their provenance in
 [lib/manifest.txt](lib/manifest.txt) — `tools/mklib.py` writes a row — and the
 PSF terms in [LICENSE](LICENSE). The phases after this one grow that directory,
@@ -263,8 +265,8 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-The order is library by layer (24–26), then the layers that need all of it
-(27–30); the language phases, the floor and the first wave are done. Each phase
+The order is library by layer (25–26), then the layers that need all of it
+(27–30); the language phases, the floor, the first wave and `re` are done. Each phase
 lists only what the phases before it have made possible.
 
 Phase 18 left two things for the phases that use them. `memoryview` is flat:
@@ -286,18 +288,18 @@ Phase 20 left three. **The union and `Generic` refuse a string**, where CPython
 hands one to `typing._type_check`; phase 27 hands them over. **A comprehension
 is still a function**, where PEP 709 inlined it. And the eight CPython tests
 this phase added all compile and stop at an import — `test_exception_group.py`
-at `collections` and `test_except_star.py` at `textwrap` (phases 23 and 24),
-`test_syntax.py` at `re` (phase 24), `test_type_aliases.py` at `pickle`,
+at `collections` and `test_except_star.py` at `textwrap`, both of which run
+since phases 23 and 24, `test_syntax.py` at `doctest` (phase 27),
+`test_type_aliases.py` at `pickle`,
 `test_grammar.py` and `test_type_params.py` at `annotationlib`, and
 `test_patma.py` at `collections` then `dataclasses` (phase 27);
 `test_tstring.py` wants `test.test_string`, which is a package of tests.
 `test_lazy_import/` imports `subprocess`, `threading` and `tempfile`, and was
 not copied.
 
-Phase 21 left five. **`unicodedata.ucd_3_2_0` is missing**: `stringprep`
-reads Unicode 3.2 through it, so the `idna` codec waits for it and for `re`;
-the delta against 16.0 is 66 records and a normalization table, and phase 24
-writes it. **Seven codecs in `encodings` wait for a module**: `base64_codec`,
+Phase 21 left five. **`unicodedata.ucd_3_2_0` was missing**, and phase 24
+wrote it; what `stringprep` and the `idna` codec wait for now is below.
+**Seven codecs in `encodings` wait for a module**: `base64_codec`,
 `hex_codec`, `uu_codec` and `utf_7_imap` for `binascii`, `quopri_codec` for
 `quopri` and `io`, `bz2_codec` and `zlib_codec` for compression that is not
 planned; they were not copied, and neither were the CJK codecs over
@@ -309,65 +311,41 @@ before there is a VM; `compile`, `exec` and `import` can. And **`--dump-tokens`
 prints a name in its NFKC form**, where `tokenize` prints it as written; a
 native `_tokenize` in phase 26 has to keep both.
 
-Phase 23 left six. **Four modules of the wave wait on a later one in part**:
-`string.Template` and `locale.format_string` compile a regular expression
-(phase 24), `warnings.deprecated` imports `inspect` (phase 27), and
-`linecache` reads no file until `io` does (phase 25), so a warning prints
+Phase 23 left six. **Four modules of the wave waited on a later one in part**:
+`string.Template` and `locale.format_string` compiled a regular expression,
+which phase 24 gave them; `warnings.deprecated` imports `inspect` (phase 27),
+and `linecache` reads no file until `io` does (phase 25), so a warning prints
 without its source line. **There is no `_bisect` or `_heapq`**: the pure-Python
 fallbacks run, and `test_bisect.py`'s C half errors on the `None` its
 `import_fresh_module` answers. **Of the plan's seven tests, four wait**:
 `test_heapq.py` imports `random` and `doctest`, `test_copyreg.py`
 `test.pickletester`, `test_reprlib.py` `annotationlib`, `os` and `importlib`,
-and `test_weakset.py` `contextlib`, which imports `os`. **A traceback is still
-a string**, so the exception-group tests that read `__traceback__` error, as
-do `staticmethod.__annotations__` (phase 27) and the `_ShimLimit` patterns
-waiting for `re`. **A `mappingproxy` over a mapping written in Python** reads
-it through slots, which cannot call it. And **`test_super.py`** stops at
-`pickle` now, after `copy`.
+and `test_weakset.py` `contextlib`, which imports `os`. **A traceback is still a
+string**, so the exception-group tests that read `__traceback__` error, as does
+`staticmethod.__annotations__` (phase 27). **A `mappingproxy` over a mapping
+written in Python** reads it through slots, which cannot call it. And
+**`test_super.py`** stops at `pickle` now, after `copy`.
 
-### Phase 24 — `_sre`, and the whole of `re`
-
-The best return of any phase here. `re/` is 3,258 lines of Python we do not
-write; what it stands on is one module whose Python-visible surface is
-`compile`, `template`, `getcodesize`, `MAGIC`, `CODESIZE`, `MAXREPEAT`,
-`MAXGROUPS`, `copyright` and four case-folding helpers. Its imports are
-`enum`, `functools` and `copyreg`, and `unicodedata` and `warnings` when a
-pattern asks for them — all of them here since phase 23.
-
-- [ ] The `_sre` opcode VM: the pattern is a `u32` array `re/_compiler.py`
-      emits, and the matcher walks it with an explicit backtracking stack —
-      explicit because ground rule 4 leaves it no other choice. CPython's own
-      `sre_lib.h` already keeps its contexts on a data stack rather than the C
-      stack, so its structure is the one to follow; its 68 category codes read
-      phase 21's tables.
-- [ ] The validator `_sre.compile` runs over the code before it is trusted.
-- [ ] The `Pattern`, `Match`, `Scanner` and `Template` objects: `match`,
-      `prefixmatch`, `search`, `fullmatch`, `findall`, `finditer`, `split`,
-      `sub`, `subn`, `scanner`, `group`, `groups`, `groupdict`, `start`,
-      `end`, `span`, `expand`, `lastindex`, `lastgroup`, `regs`, the repr,
-      hash and equality.
-- [ ] `sub` with a callable and `expand` with a template are calls into
-      Python — the function, and `re._compile_template` — so both are
-      continuations. `finditer` is a native iterator over the scanner rather
-      than `iter(callable, None)`.
-- [ ] A long match is a compute loop, and a `^C` cannot reach one that never
-      parks; say how the matcher yields, or say that it does not.
-- [ ] `re/*.py` taken verbatim, with its provenance recorded.
-- [ ] Not `braam::regex`: it is POSIX leftmost-longest, and Python's is
-      leftmost-first with back-references, lazy quantifiers and lookaround.
-      The two engines answer different questions.
-- [ ] What stands on `re` and nothing later comes with it: `textwrap`,
-      `string.Template`, `locale.format_string`, `json`, `fractions`,
-      `difflib`, and the test shim's `_search` given up for `re.search`; and
-      `stringprep` with
-      the `idna` codec, over a `unicodedata.ucd_3_2_0` generated beside the
-      16.0 tables.
-
-Tests: `test_re.py`, whose top-level imports — `locale`, `string`,
-`warnings`, `weakref`, `test.support` — are all in by now; the cases that
-import `pickle` or `array` inside a method run as far as those reach.
-`test_textwrap.py`, `test_json/` and `test_fractions.py` as their imports
-allow.
+Phase 24 left eight. **`stringprep` and the `idna` codec wait for Unicode
+17.0.** `unicodedata.ucd_3_2_0` is written and agrees with CPython's for every
+codepoint, but the `stringprep.py` of CPython's main branch is generated
+against 17.0 — its B.3 table lists only where 3.2.0's case folding differs
+from 17.0's, and it asserts the version at import — and the tables here are
+16.0, 3.14's, on purpose. Either they move to 17.0, with every golden a 3.14
+wrote for a character in between, or the two modules wait; a copy is not
+edited. **A buffer is copied before it is matched**, where CPython pins it, so
+`test_re.py`'s `test_keep_buffer` fails: nothing here counts exports of a
+`bytearray`, and a memoryview does not pin one either. **`test_re.py`'s
+`test_pickling` waits for `pickle`.** **`difflib.unified_diff` waits for
+`_colorize`**, which imports `os` (phase 25) and `dataclasses` (phase 27).
+**`test_fractions.py` stops at `decimal`** (phase 26), and **`test_json/`**, a
+package of tests, wants `import_helper.import_fresh_module`, `doctest` and `os`
+(phase 27). **`json` has no `_json`**, which CPython allows for, so a
+malformed document is reported in the pure decoder's words. And **a
+`Fraction` used as a dict key still hashes by identity**, as every instance
+does: `hash()` now agrees with CPython's numeric hash, modulo 2³¹ − 1 as
+`sys.hash_info` says, but `py_hash` cannot call a `__hash__` written in
+Python, so `{0.5: 1}[Fraction(1, 2)]` misses where CPython hits.
 
 ### Phase 25 — `io`, `os`, and the file system
 
@@ -411,7 +389,8 @@ fallback for.
       limit, and whether the whole library or a chosen set ships.
 
 Tests: `test_base64.py`, `test_binascii.py`, `test_hashlib.py`,
-`test_statistics.py`, `test_decimal.py`, `test_datetime.py`,
+`test_statistics.py`, `test_decimal.py`, `test_fractions.py` once `decimal`
+is in, `test_datetime.py`,
 `test_argparse.py`, `test_traceback.py`, `test_importlib/`.
 
 ### Phase 27 — annotations and typing
@@ -438,7 +417,8 @@ Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
 `test_dataclasses/`, `test_inspect/`; and now the ones earlier phases
 deferred — `test_coroutines.py`, `test_asyncgen.py`, `test_patma.py`,
 `test_grammar.py`, `test_type_params.py`, `test_collections.py`,
-`test_functools.py`, `test_enum.py`, `test_itertools.py`.
+`test_functools.py`, `test_enum.py`, `test_itertools.py`, `test_syntax.py`,
+and `test_json/` with the `load_tests` protocol and `import_fresh_module`.
 
 ### Phase 28 — `asyncio`
 

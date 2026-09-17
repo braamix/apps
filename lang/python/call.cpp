@@ -4,6 +4,7 @@
 #include "exc.h"
 #include "gc.h"
 #include "gen.h"
+#include "intern.h"
 #include "kernel/fmt.h"
 #include "method.h"
 #include "ops.h"
@@ -238,6 +239,13 @@ Value next_special(Value v)
 {
     if (is_resumable(v))
         return genrun_new(v, GR_NEXT);
+    if (v.is_obj() && v.obj()->type->vmnext) {
+        StrObj *n = str_intern("__next__");
+        Value m;
+        if (!n)
+            return oom(), Value();
+        return method_find(v, n, m) == R::Ok ? m : Value();
+    }
     if (is_seqiter(v)) {
         Root rv{ v };
         Root fn{ native_new("__next__", si_next) };
@@ -285,6 +293,8 @@ bool iter_needs_vm(Value v)
 {
     if (is_resumable(v) || is_seqiter(v))
         return true;
+    if (v.is_obj() && v.obj()->type->vmnext)
+        return true;
     if (type_has_py_special(v, "__iter__") || type_has_py_special(v, "__next__"))
         return true;
     return type_has_py_special(v, "__getitem__") && !type_has_special(v, "__iter__");
@@ -294,8 +304,9 @@ R iter_park(const CallArgs &a, u32 at, R (*again)(const CallArgs &, Value &out),
 {
     Root src{ a.args[at] };
     // Nil for a class instance: the drain calls its __iter__ first.
-    Root m{ is_resumable(src.v) ? genrun_new(src.v, GR_NEXT) : Value() };
-    if (is_resumable(src.v) && m.v.is_nil())
+    bool own = is_resumable(src.v) || (src.v.is_obj() && src.v.obj()->type->vmnext);
+    Root m{ own ? next_special(src.v) : Value() };
+    if (own && m.v.is_nil())
         return R::Err;
     ListObj *xs = list_new();
     if (!xs)
@@ -401,6 +412,37 @@ R redo_with(const CallArgs &a, u32 at, Value fn, Value a0, Value a1, u32 n,
     k->redo    = again;
     out        = kv.v;
     return R::Ok;
+}
+
+namespace {
+
+// s[0] the bound method, s[1] its argument or Nil.
+R answer_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return k->s[1].is_nil() ? cont_call(k, k->s[0], Value(), 0)
+                                : cont_call(k, k->s[0], k->s[1]);
+    return cont_done(k, in);
+}
+
+} // namespace
+
+bool answer_special(Value v, Str name, Value a0, Value &out, R &r)
+{
+    if (!type_has_py_special(v, name))
+        return false;
+    Root ra{ a0 };
+    Root m{ type_special(v, name) };
+    Root kv{ m.v.is_nil() ? Value() : cont_new(answer_step) };
+    if (kv.v.is_nil()) {
+        r = R::Err;
+        return true;
+    }
+    cont_of(kv.v)->s[0] = m.v;
+    cont_of(kv.v)->s[1] = ra.v;
+    out                 = kv.v;
+    r                   = R::Ok;
+    return true;
 }
 
 bool redo_converted(const CallArgs &a, u32 at, Str name, R (*again)(const CallArgs &, Value &out),

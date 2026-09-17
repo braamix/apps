@@ -75,8 +75,33 @@ bool ucd_decomposition(u32 cp, String &out);
 
 enum class UcdForm : u8 { NFC, NFD, NFKC, NFKD };
 
-// The text in `cps`, normalized in place. False only when out of memory.
-bool ucd_normalize(UcdForm form, Vec<u32> &cps);
+// The text in `cps`, normalized in place; by Unicode 3.2.0's decompositions
+// where `v320`. False only when out of memory.
+bool ucd_normalize(UcdForm form, Vec<u32> &cps, bool v320 = false);
+
+// Unicode 3.2.0, which unicodedata.ucd_3_2_0 answers and the idna codec
+// reads: a record for each character it answered otherwise than this version
+// does. Each field is an index as UcdRec has it, a value, UCD_OLD_SAME for
+// what this version says, or UCD_OLD_NONE for no value at all.
+struct UcdOld {
+    u32 cp;
+    u8 cat, bidi, width, mirrored, decimal, numeric;
+};
+
+enum : u8 { UCD_OLD_NONE = 0xfe, UCD_OLD_SAME = 0xff };
+
+// 3.2.0 had not assigned it, and answers as for any unassigned codepoint.
+bool ucd_old_unassigned(u32 cp);
+
+// Its 3.2.0 record; null where 3.2.0 answers as this version does.
+const UcdOld *ucd_old(u32 cp);
+
+f64 ucd_old_number(u8 index);
+
+// The names behind a record's category, bidi and width indices.
+Str ucd_category_name(u8 index);
+Str ucd_bidi_name(u8 index);
+Str ucd_width_name(u8 index);
 
 // The character's name, appended; false where it has none.
 bool ucd_name(u32 cp, String &out);

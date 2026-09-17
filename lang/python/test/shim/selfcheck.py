@@ -134,15 +134,16 @@ class Raising(unittest.TestCase):
             return
         self.fail("a pattern that does not match should have failed the test")
 
-    def test_regex_beyond_the_shim(self):
-        # A real regex is refused rather than approximated: a shim that
-        # guessed would turn a wrong answer into a pass.
+    def test_regex_is_re(self):
+        # The pattern is re's: a metacharacter means what it means there.
+        with self.assertRaisesRegex(ValueError, "a.*b"):
+            raise ValueError("axxb")
         try:
-            with self.assertRaisesRegex(ValueError, "a.*b"):
-                raise ValueError("axxb")
-        except unittest._ShimLimit:
+            with self.assertRaisesRegex(ValueError, r"^a\d$"):
+                raise ValueError("ab")
+        except AssertionError:
             return
-        self.fail("a metacharacter should have been refused")
+        self.fail("a pattern that does not match should have failed the test")
 
 
 class SubTests(unittest.TestCase):

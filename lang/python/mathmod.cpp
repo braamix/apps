@@ -6,6 +6,7 @@
 // integer half is the interesting part: factorial, comb, gcd and isqrt are
 // exact, so they run over bigint.h and never touch a double.
 #include "bigint.h"
+#include "call.h"
 #include "complex.h"
 #include "gc.h"
 #include "intern.h"
@@ -492,6 +493,9 @@ R m_ceil(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "ceil", 1, 1))
         return R::Err;
+    R r = R::Ok;
+    if (answer_special(a.args[0], "__ceil__", Value(), out, r))
+        return r;
     if (is_intval(a.args[0])) {
         out = a.args[0];
         return R::Ok;
@@ -509,6 +513,9 @@ R m_floor(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "floor", 1, 1))
         return R::Err;
+    R r = R::Ok;
+    if (answer_special(a.args[0], "__floor__", Value(), out, r))
+        return r;
     if (is_intval(a.args[0])) {
         out = a.args[0];
         return R::Ok;
@@ -526,6 +533,9 @@ R m_trunc(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "trunc", 1, 1))
         return R::Err;
+    R r = R::Ok;
+    if (answer_special(a.args[0], "__trunc__", Value(), out, r))
+        return r;
     if (is_intval(a.args[0])) {
         out = a.args[0];
         return R::Ok;

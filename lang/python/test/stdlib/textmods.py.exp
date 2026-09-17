@@ -1,0 +1,62 @@
+['The quick brown fox jumps over', 'the lazy dog. The quick brown', 'fox jumps over the lazy dog.', 'The quick brown fox jumps over', 'the lazy dog.']
+  indented
+text with
+spaces
+'a\n  b\n\nc\n' '> x\n\n> y\n'
+Hello world, [...] []
+['* supercalifragilisticexpialidocious', "  is long, isn't it", '  -- yes']
+['a-b-', 'c-d-', 'e-f'] ['x x', 'x~']
+tim likes kung pao; $5 x likes ${what}; $5 ['who', 'what'] True
+KeyError 'what'
+ValueError Invalid placeholder in string: line 1, col 1
+ValueError Invalid placeholder in string: line 1, col 1
+ann is %user.home
+1234 items at 5.50, ok  12.3%
+x-3 
+{"a": "\u00e9\n\"", "b": [1, 2.5, null, true, false], "c": {}}
+[
+  1,
+  {
+    "k": [
+      2
+    ]
+  }
+] {"x":1}
+"\u20ac\ud83d\ude00" "€" Infinity
+{'k': [1, 2, {'z': 'é😀'}], 'n': -1500.0, 't': True, 'u': None}
+[nan, inf, -inf, 100.0, 0.5, 10] 	 7
+{'a': 2} ['1', '2'] {'p': "'1.5'"}
+['x'] [[1, 2]]
+{"1": "c", "2.5": "b", "null": "d"} [1, 2] []
+'{"a": }' Expecting value 6 1 7
+'[1, 2' Expecting ',' delimiter 5 1 6
+'{"a" 1}' Expecting ':' delimiter 5 1 6
+'tru' Expecting value 0 1 1
+'[1,]' Illegal trailing comma before end of array 2 1 3
+'' Expecting value 0 1 1
+'01' Extra data 1 1 2
+'{"a":1}x' Extra data 7 1 8
+Object of type set is not JSON serializable
+{"s": [1, 3]} [[1], 3]
+Circular reference detected
+16/21 5/4 -3/4 1/10 -1/3 5/2
+1/9 0.6666666666666666 -27/8 2/3 1 2/3
+3 4 -3 233/100 2 -3
+0.33333      3.143 12.500000% 3.141593e+00 3/2 Fraction(3, 2)
+True True True (1, 2) 1/4
+False True  5 2
+ZeroDivisionError Fraction(1, 0)
+ValueError Invalid literal for Fraction: 'x'
+ValueError Invalid literal for Fraction: '1.5/2'
+3/4
+['+ zero\n', '  one\n', '- two\n', '- three\n', '?  -\n', '+ tree\n', '  four\n']
+['*** a\n', '--- b\n', '***************\n', '*** 1,4 ****\n', '  one\n', '! two\n', '! three\n', '  four\n', '--- 1,4 ----\n', '+ zero\n', '  one\n', '! tree\n', '  four\n']
+zero
+one
+tree
+four
+
+0.8888888888888888 0.8888888888888888 [Match(a=0, b=0, size=2), Match(a=3, b=2, size=2), Match(a=5, b=4, size=0)] [('equal', 0, 2, 0, 2), ('delete', 2, 3, 2, 2), ('equal', 3, 5, 2, 4)]
+[[('equal', 1, 2, 1, 2), ('delete', 2, 3, 2, 2), ('equal', 3, 4, 2, 3)]] Match(a=0, b=0, size=2)
+['apple', 'ape'] True
+1

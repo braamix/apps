@@ -143,9 +143,8 @@ R err_unhashable(Value v)
 
 R py_hash(Value v, u32 &out)
 {
-    i64 n = 0;
-    if (as_index(v, n)) {
-        out = u32(n);
+    if (is_intval(v)) {
+        out = int_hash_of(v);
         return R::Ok;
     }
     if (type_unhashable(v))

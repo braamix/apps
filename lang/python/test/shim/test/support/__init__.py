@@ -33,6 +33,14 @@ Py_DEBUG = False
 TESTFN = "@test"
 TESTFN_ASCII = "@test"
 
+_1M = 1024 * 1024
+_1G = 1024 * _1M
+_2G = 2 * _1G
+_4G = 4 * _1G
+
+SHORT_TIMEOUT = 30.0
+LONG_TIMEOUT = 5 * 60.0
+
 
 class Error(Exception):
     pass
@@ -69,6 +77,39 @@ def requires(resource, msg=None):
 
 def requires_resource(resource):
     return unittest.skip("resource " + repr(resource) + " is not enabled")
+
+
+def check_disallow_instantiation(testcase, tp, *args, **kwds):
+    """Calling the type, or its __new__, is refused."""
+    import re
+    mod = tp.__module__
+    name = tp.__name__
+    if mod != 'builtins':
+        qualname = f"{mod}.{name}"
+    else:
+        qualname = f"{name}"
+    msg = f"cannot create '{re.escape(qualname)}' instances"
+    testcase.assertRaisesRegex(TypeError, msg, tp, *args, **kwds)
+    testcase.assertRaisesRegex(TypeError, msg, tp.__new__, tp, *args, **kwds)
+
+
+# The C library is the port's own, not musl's.
+def linked_to_musl():
+    return False
+
+
+class Stopwatch:
+    """Time a CPU-bound block. The clock may stand still under the harness."""
+
+    def __enter__(self):
+        import time
+        self.get_time = time.perf_counter
+        self.start_time = self.get_time()
+        return self
+
+    def __exit__(self, *exc):
+        self.stop_time = self.get_time()
+        self.seconds = self.stop_time - self.start_time
 
 
 def run_unittest(*classes):

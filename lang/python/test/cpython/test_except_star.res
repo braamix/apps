@@ -1,3 +1,62 @@
-Traceback (most recent call last):
-  File "/tmp/test_except_star.py", line 3, in <module>
-ModuleNotFoundError: No module named 'textwrap'
+--- unittest ---
+ok TestBreakContinueReturnInExceptStarBlock.test_break_continue_in_except_star_block_valid
+fail TestBreakContinueReturnInExceptStarBlock.test_break_in_except_star: AssertionError: "'break', 'continue' and 'return' cannot appear in an except\\* block" does not match "'break' outside loop (<string>, line 5)"
+fail TestBreakContinueReturnInExceptStarBlock.test_continue_in_except_star_block_invalid: AssertionError: "'break', 'continue' and 'return' cannot appear in an except\\* block" does not match "'return' outside function (<string>, line 10)"
+ok TestBreakContinueReturnInExceptStarBlock.test_return_in_except_star_block_invalid
+ok TestBreakContinueReturnInExceptStarBlock.test_return_in_except_star_block_valid
+fail TestExceptStarCleanup.test_sys_exception_restored: AssertionError: ValueError(42) != None
+error TestExceptStarExceptionGroupSubclass.test_except_star_EG_subclass: AttributeError: 'EG' object has no attribute '__traceback__'
+fail TestExceptStarExceptionGroupSubclass.test_exception_group_subclass_with_bad_split_func: AssertionError: 'split must return a tuple, not str' does not match 'BadEG1.split must return a 2-tuple, got str'
+ok TestExceptStarExceptionGroupSubclass.test_falsy_exception_group_subclass
+error TestExceptStarRaise.test_raise_handle_all_raise_one_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaise.test_raise_handle_all_raise_one_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaise.test_raise_handle_all_raise_two_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaise.test_raise_handle_all_raise_two_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaise.test_raise_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaise.test_raise_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaiseFrom.test_raise_handle_all_raise_one_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaiseFrom.test_raise_handle_all_raise_one_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaiseFrom.test_raise_handle_all_raise_two_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaiseFrom.test_raise_handle_all_raise_two_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaiseFrom.test_raise_named: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error TestExceptStarRaiseFrom.test_raise_unnamed: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+ok TestExceptStarReraise.test_reraise_all_named
+ok TestExceptStarReraise.test_reraise_all_unnamed
+ok TestExceptStarReraise.test_reraise_partial_handle_all_unnamed
+ok TestExceptStarReraise.test_reraise_partial_handle_some_named
+ok TestExceptStarReraise.test_reraise_partial_handle_some_unnamed
+ok TestExceptStarReraise.test_reraise_plain_exception_named
+ok TestExceptStarReraise.test_reraise_plain_exception_unnamed
+ok TestExceptStarReraise.test_reraise_some_handle_all_named
+ok TestExceptStarSplitSemantics.test_empty_groups_removed
+ok TestExceptStarSplitSemantics.test_exception_group_except_star_Exception_not_wrapped
+ok TestExceptStarSplitSemantics.test_first_match_wins_named
+ok TestExceptStarSplitSemantics.test_first_match_wins_unnamed
+ok TestExceptStarSplitSemantics.test_match__supertype
+ok TestExceptStarSplitSemantics.test_match_single_type
+ok TestExceptStarSplitSemantics.test_match_single_type_nested
+ok TestExceptStarSplitSemantics.test_match_single_type_partial_match
+ok TestExceptStarSplitSemantics.test_match_type_tuple_nested
+ok TestExceptStarSplitSemantics.test_multiple_matches_named
+ok TestExceptStarSplitSemantics.test_multiple_matches_unnamed
+ok TestExceptStarSplitSemantics.test_naked_exception_matched_wrapped1
+ok TestExceptStarSplitSemantics.test_naked_exception_matched_wrapped2
+ok TestExceptStarSplitSemantics.test_nested_except_stars
+ok TestExceptStarSplitSemantics.test_nested_in_loop
+ok TestExceptStarSplitSemantics.test_no_match_single_type
+ok TestExceptStarSplitSemantics.test_plain_exception_not_matched
+ok TestExceptStarSplitSemantics.test_singleton_groups_are_kept
+ok TestExceptStar_WeirdExceptionGroupSubclass.test_catch_all_unhashable_exception_group_subclass
+ok TestExceptStar_WeirdExceptionGroupSubclass.test_catch_none_unhashable_exception_group_subclass
+ok TestExceptStar_WeirdExceptionGroupSubclass.test_catch_some_unhashable_exception_group_subclass
+ok TestExceptStar_WeirdExceptionGroupSubclass.test_reraise_unhashable_eg
+ok TestExceptStar_WeirdLeafExceptions.test_catch_everything_unhashable_leaf
+ok TestExceptStar_WeirdLeafExceptions.test_catch_nothing_unhashable_leaf
+ok TestExceptStar_WeirdLeafExceptions.test_catch_unhashable_leaf_exception
+ok TestExceptStar_WeirdLeafExceptions.test_propagate_unhashable_leaf
+ok TestExceptStar_WeirdLeafExceptions.test_reraise_unhashable_leaf
+ok TestInvalidExceptStar.test_except_star_ExceptionGroup_is_runtime_error_single
+ok TestInvalidExceptStar.test_except_star_ExceptionGroup_is_runtime_error_tuple
+ok TestInvalidExceptStar.test_except_star_invalid_exception_type
+ok TestInvalidExceptStar.test_mixed_except_and_except_star_is_syntax_error
+--- ran 60 ok 43 fail 4 error 13 skip 0 ---

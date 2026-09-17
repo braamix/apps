@@ -309,7 +309,7 @@ fail  basics/memoryview_slice_assign.py         cpython3.14  52b5fbc  tests/basi
 fail  basics/memoryview_slice_size.py           upstream     52b5fbc  tests/basics/memoryview_slice_size.py
 pass  basics/object1.py                         cpython3.14  52b5fbc  tests/basics/object1.py
 pass  basics/object_dict.py                     cpython3.14  52b5fbc  tests/basics/object_dict.py
-fail  basics/object_new.py                      cpython3.14  52b5fbc  tests/basics/object_new.py
+pass  basics/object_new.py                      cpython3.14  52b5fbc  tests/basics/object_new.py
 pass  basics/op_error.py                        cpython3.14  52b5fbc  tests/basics/op_error.py
 pass  basics/op_precedence.py                   cpython3.14  52b5fbc  tests/basics/op_precedence.py
 pass  basics/ordereddict1.py                    cpython3.14  52b5fbc  tests/basics/ordereddict1.py

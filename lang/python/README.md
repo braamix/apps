@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 23.**
+**Phase 24.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -93,6 +93,12 @@ print(Counter("abracadabra").most_common(2), namedtuple("P", "x y")(1, 2))
 print(Color.RED | Color.BLUE, functools.reduce(max, [3, 9, 2]))'
 [('a', 5), ('b', 2)] P(x=1, y=2)
 Color.RED|BLUE 9
+$ python -c 'import re, json, textwrap
+m = re.search(r"(?P<key>\w+)=(?P<val>\d+)", "x; answer=42")
+print(m.groupdict(), re.sub(r"(\w)(\w*)", lambda m: m[1].upper() + m[2], "déjà vu"))
+print(json.dumps({"re": re.split(r"\s*,\s*", "a , b,c")}), textwrap.shorten("A long line of text", 12))'
+{'key': 'answer', 'val': '42'} Déjà Vu
+{"re": ["a", "b", "c"]} A long [...]
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
@@ -167,7 +173,7 @@ and a `+` before a number in a pattern. `sys.version_info` says 3.14.
 **Text is Unicode's.** A str is codepoints over the Unicode 16.0 database
 CPython 3.14 carries, generated into [ucddb.cpp](ucddb.cpp) and checked against
 that CPython for every one of the 1,114,112 codepoints. `unicodedata` is
-there in full but for `ucd_3_2_0`; `upper`, `lower`, `title`, `casefold`,
+there in full, `ucd_3_2_0` included; `upper`, `lower`, `title`, `casefold`,
 `capitalize` and `swapcase` take the full mappings, Final_Sigma included; the
 `is*` predicates, `split()`, `strip()`, `splitlines()`, `repr` and `int()`
 read Unicode's categories rather than a range table. A lone surrogate is a
@@ -211,15 +217,16 @@ state machines that ask for one call at a time. `sorted`, `list.sort`, `min`,
 through it, and the merge is the same bottom-up stable one as the plain path,
 so a list of instances and a list of integers come out in the same order.
 
-**Twenty-four modules are written in C++.** `sys` in full, `builtins`,
+**Twenty-five modules are written in C++.** `sys` in full, `builtins`,
 `_collections`, `_functools`, `itertools`, `_operator`, `_random`, `_struct`,
 `array`, `math`, `cmath`, `time`, `errno`, `gc`, `_types`, the `_weakref` and
 `_abc` phase 17 wrote, the `_typing` phase 20 did, phase 21's `_codecs`
 and `unicodedata`, phase 22's `_thread`, `_contextvars` and `_string`, and
-phase 23's `_warnings` and `atexit`. They are the floor CPython's own library
-stands on rather than that library: `collections/__init__.py` imports this
-`deque`, `random.py` will import this Mersenne Twister, `re/` the `_sre`
-phase 24 writes. Each is measured against CPython by
+phase 23's `_warnings` and `atexit`, and phase 24's `_sre`. They are the
+floor CPython's own library stands on rather than that library:
+`collections/__init__.py` imports this `deque`, `random.py` will import this
+Mersenne Twister, and `re/` runs over this `_sre`. Each is measured against
+CPython by
 running the same program under both — [test/module/](test/module/), nineteen
 cases, 633 lines byte for byte.
 
@@ -260,6 +267,24 @@ written in Python. Every run finds the library where an installed package
 keeps it, and [test/stdlib/](test/stdlib/) holds twenty programs over it, 173
 lines identical to CPython 3.16's.
 
+**`re` is CPython's, over a native `_sre`.** The whole of `re/` — the parser,
+the compiler, the optimizer and the `\p{...}` properties of CPython's main
+branch — is taken as it is, and what it stands on is
+[sre.cpp](sre.cpp): Secret Labs' matcher from `Modules/_sre/`, kept in its own
+shape, compiled once for a one-octet text and once for codepoints, with its 68
+category codes reading the Unicode tables. The code is validated before it is
+trusted, as CPython validates it. [sremod.cpp](sremod.cpp) is the rest of
+`sre.c`: `Pattern`, `Match`, the scanner, the template, and the functions
+`re/` imports. A match is a **job that can stop**: every 2¹⁸ dispatches the
+engine hands its slice back, the call answers a continuation that parks, and a
+`^C` lands there, so a pattern that backtracks for ever can be interrupted and
+the program goes on. `sub()` with a function is the same job parked on a call
+instead. `textwrap`, `json`, `fractions` and `difflib` came with it, and
+`string.Template` and `locale.format_string` now work; `stringprep` and the
+`idna` codec wait, for the reason under **Known differences**, over a
+`unicodedata.ucd_3_2_0` that is here and checked against CPython's for every
+codepoint.
+
 **The protocol methods are in each built-in type's namespace.** `len(x)`
 reaches a slot and a slot is not an entry, so `'__len__' in list.__dict__` used
 to be False and `dir(list)` listed none of them; every abstract base class in
@@ -283,44 +308,56 @@ under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
 `type.__subclasses__` and the rule that an abstract class cannot be
 instantiated.
 
-**423 of MicroPython's own tests pass unchanged**, out of 449 in
-[test/manifest.txt](test/manifest.txt), against 412 at phase 22: eleven that
-imported `collections`, `struct` or `types` and said `SKIP` now run. Of the
-twenty-six that do not, most exercise what MicroPython does and CPython does
-not — a native base class's own `__init__` protocol, `pend_throw`,
-`machine` — or a memoryview with more than one dimension;
-`assign_expr_syntaxerror.py` expects what MicroPython accepts and CPython
-refuses, and this refuses it. Every expected output a CPython wrote now comes from 3.14,
-and [test/goldens.txt](test/goldens.txt) says which interpreter wrote each of
-our own.
+**424 of MicroPython's own tests pass unchanged**, out of 449 in
+[test/manifest.txt](test/manifest.txt), against 423 at phase 23:
+`object_new.py` passes now that `object.__new__` refuses a built-in type, as
+CPython's does. Phase 23 had added eleven that imported `collections`,
+`struct` or `types` and said `SKIP`. Of the twenty-five that do not, most
+exercise what MicroPython does and CPython does not — a native base class's
+own `__init__` protocol, `pend_throw`, `machine` — or a memoryview with more
+than one dimension; `assign_expr_syntaxerror.py` expects what MicroPython
+accepts and CPython refuses, and this refuses it. Every expected output a
+CPython wrote now comes from 3.14, and [test/goldens.txt](test/goldens.txt)
+says which interpreter wrote each of our own.
 
-**CPython's tests are the second ruler.** Thirty-seven are in
-[test/cpython.txt](test/cpython.txt), twenty-nine of them run, and 354 test
-methods of 498 pass, against 171 of 204 at phase 22. Phase 23 added fourteen
-rows — the three the plan named, `test_keyword.py`, `test_bisect.py` and
-`test_abstract_numbers.py`, and eleven more the survey below found running
+**CPython's tests are the second ruler.** Forty are in
+[test/cpython.txt](test/cpython.txt), thirty-two of them run, and 620 test
+methods of 796 pass, against 354 of 498 at phase 23. Phase 24 added three
+rows: `test_re.py`, 150 of 170 with the two failures a buffer that is copied
+rather than pinned and `pickle`; `test_textwrap.py`, all 68; and
+`test_fractions.py`, which stops at `decimal`. `test_except_star.py` runs now,
+43 of 60, over `test.support.testcase` taken as a data file. Four rows went
+up: three where the shim's `_search` used to refuse a pattern and `re.search`
+answers instead, with the two messages that then differed made CPython's, and
+`test_pow.py`, where `pow(a, -1, m)` is now a modular inverse. Phase 23 added
+fourteen rows — the three the plan named, `test_keyword.py`, `test_bisect.py`
+and `test_abstract_numbers.py`, and eleven more the survey below found running
 once the library imports — and `test_exception_group.py` now runs where it
 stopped at `collections`. `test_keyword.py`, `test_abstract_numbers.py` and
 `test_charmapcodec.py` pass whole. The eight rows that do not run all compile
-and stop at an import: `annotationlib`, `re`, `textwrap`, `dataclasses` and
-`pickle`. Running the whole of `Lib/test/`
+and stop at an import: `annotationlib`, `doctest`, `decimal`, `dataclasses`
+and `pickle`. Running the whole of `Lib/test/`
 under this interpreter — `node test/pycases.mjs --survey`, which needs the
 clone in `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 22 | 21 | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 356 | a module that is not written yet | 373 | 372 | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 24–27 |
-| 30 | these run | 14 | 14 | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
-| 4 | a runtime error, or nothing this can read | 3 | 3 | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
-| 1 | other syntax — PEP 798 | 1 | 2 | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
-| — | a lone surrogate in a literal | — | — | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
-| — | `\N{...}` | — | — | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
-| — | `async` | — | — | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
-| — | complex numbers | — | — | — | — | — | — | — | — | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | — | — | — | — | — | — | — | — | 39 | 17 | **done** |
-| — | f-strings | — | — | — | — | — | — | — | — | — | 124 | **done** |
+| now | what stops it | 23 | 22 | 21 | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 351 | a module that is not written yet | 356 | 373 | 372 | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 25–27 |
+| 34 | these run | 30 | 14 | 14 | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
+| 5 | a runtime error, or nothing this can read | 4 | 3 | 3 | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
+| 1 | other syntax — PEP 798 | 1 | 1 | 2 | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
+| — | a lone surrogate in a literal | — | — | — | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
+| — | `\N{...}` | — | — | — | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
+| — | `async` | — | — | — | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
+| — | complex numbers | — | — | — | — | — | — | — | — | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | — | — | — | — | — | — | — | — | 39 | 17 | **done** |
+| — | f-strings | — | — | — | — | — | — | — | — | — | — | 124 | **done** |
 
-Phase 23 moved seventeen files, sixteen of them to running: what stops the rest
+Phase 24 moved five files: `test_re.py`, `test_textwrap.py` and
+`test_except_star.py` run, and so do `test_bigmem.py`, which skips all it has,
+and `test_datetime.py`, whose `load_tests` the shim does not call; one more
+gets past its imports to a runtime error. What stops the most files now is `os` and `io`,
+which is phase 25. Phase 23 moved seventeen files, sixteen of them to running: what stops the rest
 is `re`, `os`, `io`, `inspect`, `typing`, `pickle` and `unittest.mock`, which
 is where the next phases start. Phase 22 moved one file: `test_super.py`
 compiles now that the implicit `__class__` cell is made, and stops at
@@ -361,7 +398,9 @@ green.
 | [ucddb.h](ucddb.h), [ucddb.cpp](ucddb.cpp) | Its tables, which tools/mkucd.py writes |
 | [codec.h](codec.h), [codec.cpp](codec.cpp) | The codecs and the error handlers, as a run a handler of the program's own can interrupt |
 | [codecsmod.cpp](codecsmod.cpp) | `_codecs`: the registry, and a function per codec |
-| [unimod.cpp](unimod.cpp) | `unicodedata` |
+| [unimod.cpp](unimod.cpp) | `unicodedata`, and `ucd_3_2_0` beside it |
+| [sre.h](sre.h), [sre.cpp](sre.cpp) | The regular expression engine, Secret Labs' from `Modules/_sre/`, able to stop mid-match; and the code validator |
+| [sremod.cpp](sremod.cpp) | `_sre`: Pattern, Match, the scanner and the template, and a match as a job that parks |
 | [tuple.cpp](tuple.cpp), [list.cpp](list.cpp) | The two sequences |
 | [table.cpp](table.cpp) | The insertion-ordered table behind dict and set |
 | [method.h](method.h), [method.cpp](method.cpp) | The method mechanism: a static table becomes a built-in type's namespace |
@@ -437,7 +476,7 @@ green.
 | [test/pyvm.mjs](test/pyvm.mjs) | The driver: the three ways in, `sys.argv`, tracebacks, the collector under load |
 | [test/pyfun.mjs](test/pyfun.mjs) | Calls: the callback rule at four thousand turns, decorators, a deleted cell |
 | [test/pyclass.mjs](test/pyclass.mjs) | Classes: the diamond, the special methods, exceptions of one's own, all under gc stress |
-| [test/pyint.mjs](test/pyint.mjs) | That a `^C` reaches a running program, and that it may catch it |
+| [test/pyint.mjs](test/pyint.mjs) | That a `^C` reaches a running program — and a regular expression that backtracks for ever — and that it may catch it |
 | [test/pymeth.mjs](test/pymeth.mjs) | Methods through a subclass, `sort(key=)`, the views, and the new types |
 | [test/pyimport.mjs](test/pyimport.mjs) | Fifty nested imports, the cache, the search path, the store |
 | [test/pyformat.mjs](test/pyformat.mjs) | Every case under `test/format/`, against CPython and again under gc stress |
@@ -448,7 +487,7 @@ green.
 | [test/pylazy.mjs](test/pylazy.mjs) | The same for `test/lazy/`, against CPython 3.16, with the modules the cases import planted beside them |
 | [test/pystdlib.mjs](test/pystdlib.mjs) | The same for `test/stdlib/`: programs over the library, against CPython 3.16 |
 | [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the modules written in C++ |
-| [test/pyunicode.mjs](test/pyunicode.mjs) | The same for `test/unicode/`, with the library planted; the streams; and `--full`, every codepoint and NormalizationTest.txt |
+| [test/pyunicode.mjs](test/pyunicode.mjs) | The same for `test/unicode/`, with the library planted; the streams; and `--full`, every codepoint as now, as 3.2.0 and through the regex engine, and NormalizationTest.txt |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
@@ -463,7 +502,7 @@ green.
 | [tools/mkfmt.py](tools/mkfmt.py) | Runs a formatting case under the host's CPython and saves what it printed |
 | [tools/mklex.py](tools/mklex.py) | Writes a token golden out of CPython's own tokenizer |
 | [tools/mkast.py](tools/mkast.py) | Writes a tree golden out of CPython's own ast module |
-| [tools/mkucd.py](tools/mkucd.py) | Writes ucddb.cpp from the host CPython's unicodedata and the UCD files it cannot list |
+| [tools/mkucd.py](tools/mkucd.py) | Writes ucddb.cpp from the host CPython's unicodedata, its ucd_3_2_0, and the UCD files it cannot list |
 
 The table grows a row per phase.
 
@@ -675,10 +714,6 @@ All recorded rather than hidden, and all in reach later:
   and a step, and `cast()` recasts a contiguous one; but it is one-dimensional,
   `strides` is one number, and the only things that give a buffer a width are
   `array` and `cast`.
-- **`unicodedata.ucd_3_2_0` is not there.** `stringprep`, and through it the
-  `idna` codec, read Unicode 3.2 through it; neither can be imported before
-  `re` anyway. The delta it needs is 66 records, and phase 24 is where it
-  arrives.
 - **The streams are in UTF-8 mode.** `sys.flags.utf8_mode` is 1, so stdout
   and stdin use `surrogateescape` and stderr `backslashreplace`, which is what
   CPython does under `-X utf8` and not what it does by default.
@@ -699,6 +734,29 @@ All recorded rather than hidden, and all in reach later:
   as it scans; `tokenize` prints `ﬁx` where this prints `fix`.
 - **Unicode is 16.0, 3.14's.** The CPython clone under tmp/ is 17.0; the
   version follows the language this tracks, and `unidata_version` says so.
+  **So `stringprep` and the `idna` codec wait.** The `stringprep.py` of
+  CPython's main branch is generated against 17.0 — its B.3 table lists only
+  where 3.2.0's case folding differs from 17.0's, and it asserts the version
+  at import — so under 16.0 tables it would answer wrongly for the characters
+  in between, and a copy is not edited. `ucd_3_2_0`, which both read, is
+  here.
+- **A buffer is copied before it is matched.** A `bytearray` or a
+  `memoryview` handed to `re` is read from a snapshot, since a function `sub()`
+  calls could resize it under the engine; CPython pins it instead, and
+  resizing it then raises `BufferError`. A match object still cuts its groups
+  out of the buffer as it is when asked, as CPython's does.
+- **A regular expression can be interrupted.** CPython checks for a signal
+  every 4,096 steps of its engine; this one stops every 2¹⁸ and parks, which
+  is where a `^C` is taken. A slice is a few milliseconds.
+- **`hash()` is CPython's for a 32-bit `Py_hash_t`.** Numbers hash as their
+  value modulo 2³¹ − 1, as `sys.hash_info` says, so `hash(Fraction(1, 2)) ==
+  hash(0.5)` holds; a hash printed here differs from a 64-bit CPython's for
+  anything past 2³⁰.
+- **`json` is the pure-Python one.** There is no `_json`, so a malformed
+  document is reported in `json.decoder`'s words, which are not always the C
+  accelerator's: `Invalid \escape: 'x'` where CPython says `Invalid \escape`.
+- **`difflib.unified_diff` waits for `_colorize`**, which imports `os` and
+  `dataclasses`; the rest of `difflib` runs.
 - **A namespace package can shadow a module on a later path entry.** CPython
   scans the whole of sys.path for a real module before settling for a
   directory; this settles per entry, so `a/` on the first entry wins over
@@ -713,6 +771,43 @@ All recorded rather than hidden, and all in reach later:
 - **`python -m` is not there.** A program is a file, `-c` or stdin.
 - **A traceback is a string, not an object.** It is collected as the frames go
   and printed at the end; there is no `__traceback__` to read.
+
+## How a match stops
+
+A regular expression that backtracks is a loop in C++, and a `co_await` cannot
+appear in it. [sre.cpp](sre.cpp) is CPython's engine, whose contexts were
+already on a data stack of their own rather than on the C stack, so ground
+rule 4 was kept before this port touched it. What is added is a way out in the
+middle: at the top of its dispatch loop, where the whole of its state is the
+opcode pointer, the text pointer and the context chain, the outermost match
+counts a slice and, when it is spent, writes those two pointers into the
+current context, remembers where that context sits, and answers
+`SRE_SUSPEND`. Nothing is popped. The next call looks the context up again
+and jumps back to the dispatch. A match nested inside `count()` — a repeated
+single character — never stops, because its work is bounded by the pattern.
+
+`search()` is a loop over start positions around those matches, so it stops
+too: it records which of its four arms it was in and where, works everything
+above them out again from the INFO block, and jumps back to just after the
+call. [sremod.cpp](sremod.cpp) keeps each call's work in a `StateObj` — the
+engine's state and the loop variables of `findall`, `split` or `sub` — and runs
+it as a job: done, suspended, or waiting on a call. A suspended job becomes a
+continuation that parks with a zero sleep and runs the job on when the driver
+comes back; a `^C` that arrived meanwhile is taken there and becomes
+`KeyboardInterrupt`, and the state is reset so a scanner can be used again.
+`sub()` with a function waits the same way on a call instead, and so does
+compiling a template, which is `re._compile_template`, written in Python.
+
+`finditer()` is the one iterator here whose `__next__` can suspend. Its type
+says so (`Type::vmnext`), so `for` and anything that drains an iterable step
+it through the VM rather than through the `next` slot; the slot still works,
+for native code that has no VM to ask, and never stops.
+
+A str is UTF-8 here and the engine wants a character at a time, so a text that
+is all ASCII is read as its own octets, and any other is decoded once into
+codepoints with each one's byte offset beside it, so a group is cut out
+without a scan. The last text decoded is kept, which makes a tokenizer's loop
+of `p.match(s, pos)` over one string decode it once.
 
 ## Why the VM is a driver
 
@@ -1208,14 +1303,16 @@ driver plants [lib/](lib/) beside it too, so `codecs` is CPython's in both
 runs.
 `node test/pyunicode.mjs --full` adds what is too slow for every run: a
 digest of every property of every codepoint, compared with the host
-CPython's, and Unicode's own `NormalizationTest.txt`, which it expects under
+CPython's — once as this version answers, once as `ucd_3_2_0` does, and once
+through the regular expression engine's classes and case folding — and
+Unicode's own `NormalizationTest.txt`, which it expects under
 `tmp/ucd/16.0.0/`. The tables themselves are written by
 
     tools/mkucd.py --fetch
 
 which downloads the four UCD files it reads into `tmp/ucd/`, takes everything
-else from the host's `unicodedata`, and decodes each table again before
-writing it. Its output is committed, so a build needs no Python of a
+else from the host's `unicodedata` — the 3.2.0 view from its `ucd_3_2_0` —
+and decodes each table again before writing it. Its output is committed, so a build needs no Python of a
 particular version.
 
 `PY_GC_STRESS=1` in a program's environment collects at every allocation, which
@@ -1227,7 +1324,9 @@ compares; it costs a second and a half, and it found nine of them.
 
 The interpreter is this repository's, and so are the shims under `test/shim/`,
 which are not copies of anyone's code. [ucddb.cpp](ucddb.cpp) is generated
-from the Unicode Character Database, under the Unicode licence. The tests under `test/cases/` are
+from the Unicode Character Database, under the Unicode licence.
+[sre.cpp](sre.cpp) and [sremod.cpp](sremod.cpp) follow CPython's `_sre`, which
+Secret Labs wrote, under CNRI's Python 1.6 licence and the PSF's. The tests under `test/cases/` are
 MicroPython's, MIT, Damien P. George; those under `test/cpython/` are
 CPython's, under the PSF licence, copyright the Python Software Foundation.
-[LICENSE](LICENSE) carries both and says which files each covers.
+[LICENSE](LICENSE) carries all of them and says which files each covers.

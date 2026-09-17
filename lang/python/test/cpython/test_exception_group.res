@@ -1,8 +1,8 @@
 --- unittest ---
 ok BadConstructorArgs.test_bad_EG_construction__bad_excs_sequence
 ok BadConstructorArgs.test_bad_EG_construction__bad_message
-error BadConstructorArgs.test_bad_EG_construction__nested_non_exceptions: _ShimLimit: metacharacter '[' in 'Item [0-9]+ of second argument \\(exceptions\\) is not an exception'
-error BadConstructorArgs.test_bad_EG_construction__too_many_args: _ShimLimit: metacharacter '.' in 'BaseExceptionGroup.__new__\\(\\) takes exactly 2 arguments'
+ok BadConstructorArgs.test_bad_EG_construction__nested_non_exceptions
+ok BadConstructorArgs.test_bad_EG_construction__too_many_args
 ok DeepRecursionInSplitAndSubgroup.test_deep_split
 ok DeepRecursionInSplitAndSubgroup.test_deep_subgroup
 error ExceptionGroupFields.test_basics_ExceptionGroup_fields: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
@@ -47,9 +47,9 @@ ok StrAndReprTests.test_BaseExceptionGroup
 ok StrAndReprTests.test_ExceptionGroup
 ok StrAndReprTests.test_custom_exception
 fail StrAndReprTests.test_exceptions_mutation: AssertionError: "ExceptionGroup('test', (ValueError(1), TypeError(2)))" != "ExceptionGroup('test', deque([ValueError(1), TypeError(2)]))"
-error StrAndReprTests.test_repr_raises: _ShimLimit: metacharacter '.' in '.*MySeq\\.__repr__\\(\\) must return a str, not NoneType'
+fail StrAndReprTests.test_repr_raises: AssertionError: '.*MySeq\\.__repr__\\(\\) must return a str, not NoneType' does not match 'second argument (exceptions) must be a sequence'
 fail StrAndReprTests.test_repr_small_size_args: AssertionError: "ExceptionGroup('msg', [ValueError()])" != "ExceptionGroup('msg', (ValueError(),))"
 ok TestExceptionGroupTypeHierarchy.test_exception_group_is_generic_type
 ok TestExceptionGroupTypeHierarchy.test_exception_group_types
 ok TestExceptionGroupTypeHierarchy.test_exception_is_not_generic_type
---- ran 53 ok 37 fail 4 error 12 skip 0 ---
+--- ran 53 ok 39 fail 5 error 9 skip 0 ---

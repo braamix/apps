@@ -478,6 +478,72 @@ R m_removeprefix(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// A bytes-like argument, in CPython's words when it is not one.
+bool buffer_arg(Value v, Str &out)
+{
+    if (bytes_like(v, out))
+        return true;
+    Buf<128> b;
+    b.put("a bytes-like object is required, not '").put(type_name(v)).put('\'');
+    return err_set("TypeError", b.str()), false;
+}
+
+R m_translate(const CallArgs &a, Value &out)
+{
+    Value self;
+    Str s;
+    if (!self_bytes(a, "translate", self, s))
+        return R::Err;
+    static const Str NAMES[] = { "table", "delete" };
+    Value got[2];
+    if (!meth_take(a, "translate", NAMES, 2, 1, got))
+        return R::Err;
+    Str table, del;
+    bool mapped = !is_none(got[0]);
+    if (mapped && !buffer_arg(got[0], table))
+        return R::Err;
+    if (mapped && table.size() != 256)
+        return err_set("ValueError", "translation table must be 256 characters long");
+    if (!got[1].is_nil() && !buffer_arg(got[1], del))
+        return R::Err;
+    bool gone[256] = {};
+    for (usize i = 0; i < del.size(); i++)
+        gone[u8(del[i])] = true;
+    if (!mapped && del.empty() && is_bytes(self)) {
+        out = self;
+        return R::Ok;
+    }
+    String b;
+    for (usize i = 0; i < s.size(); i++) {
+        u8 c = u8(s[i]);
+        if (gone[c])
+            continue;
+        if (!b.push(mapped ? table[c] : char(c)))
+            return oom_err();
+    }
+    out = like(self, b.str());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// bytes.maketrans(frm, to): a table of 256, always bytes.
+R m_maketrans(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "maketrans", 2, 2))
+        return R::Err;
+    Str frm, to;
+    if (!buffer_arg(a.args[0], frm) || !buffer_arg(a.args[1], to))
+        return R::Err;
+    if (frm.size() != to.size())
+        return err_set("ValueError", "maketrans arguments must have same length");
+    char table[256];
+    for (usize i = 0; i < 256; i++)
+        table[i] = char(i);
+    for (usize i = 0; i < frm.size(); i++)
+        table[u8(frm[i])] = to[i];
+    out = bytes_new(Str(table, 256));
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 R m_removesuffix(const CallArgs &a, Value &out)
 {
     Value self;
@@ -1533,6 +1599,8 @@ constexpr Method COMMON[] = {
     { "strip", m_strip },
     { "swapcase", m_swapcase },
     { "title", m_title },
+    { "translate", m_translate },
+    { "maketrans", m_maketrans, true },
     { "upper", m_upper },
     { "zfill", m_zfill },
 };

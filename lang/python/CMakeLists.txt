@@ -25,7 +25,7 @@ braam_add_program(NAME python
                           gen.cpp genalias.cpp import.cpp info.cpp int.cpp
                           intern.cpp iter.cpp itermod.cpp lazy.cpp lex.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
                           mathmod.cpp miscmod.cpp module.cpp obj.cpp objmeth.cpp opmod.cpp ops.cpp parse.cpp patma.cpp
-                          randmod.cpp range.cpp repr.cpp selftest.cpp sentinel.cpp seqmeth.cpp slotmeth.cpp str.cpp stringmod.cpp strmeth.cpp structmod.cpp symtab.cpp
+                          randmod.cpp range.cpp repr.cpp selftest.cpp sentinel.cpp seqmeth.cpp slotmeth.cpp sre.cpp sremod.cpp str.cpp stringmod.cpp strmeth.cpp structmod.cpp symtab.cpp
                           sysmod.cpp table.cpp templatelib.cpp thread.cpp tuple.cpp type.cpp typesmod.cpp typevar.cpp ucd.cpp ucddb.cpp unimod.cpp union.cpp weak.cpp
                           vm.cpp warnmod.cpp
                   LIBS braam::math)

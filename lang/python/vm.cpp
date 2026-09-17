@@ -351,14 +351,18 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
     if (!nw || !in)
         return oom();
 
-    if (type_lookup(rc.v, nw, ctor.v) == R::Err)
+    if (type_lookup(rc.v, nw, ctor.v, &owner.v) == R::Err)
         return R::Err;
     if (type_obj(rc.v)->exc && !type_obj(rc.v)->heap)
         return exc_type_invoke(rc.v, a, out);
     if (!type_obj(rc.v)->heap) {
-        if (ctor.v.is_nil())
-            return err_set2("TypeError", "this type cannot be instantiated",
-                            type_obj(rc.v)->slots.name);
+        // A built-in type with no constructor of its own is not object's to
+        // make: its instances have a layout object.__new__ knows nothing of.
+        if (ctor.v.is_nil() || (owner.v == type_object() && rc.v != type_object())) {
+            Buf<128> m;
+            m.put("cannot create '").put(type_obj(rc.v)->slots.name).put("' instances");
+            return err_set("TypeError", m.str());
+        }
         return do_call(ctor.v, a, out, entered);
     }
 
@@ -2243,6 +2247,16 @@ R eg_match_step(ContObj *k, Value in)
     return eg_place(frame_of(vm->frame), in) ? cont_done(k, value_none()) : R::Err;
 }
 
+// s[0][s[1]] = list(s[2]), with s[3] the list type.
+R slice_store_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[3], k->s[2]);
+    if (py_setitem(k->s[0], k->s[1], in) != R::Ok)
+        return R::Err;
+    return cont_done(k, value_none());
+}
+
 // A lazy import read as a name: the import runs, and its answer is pushed
 // and stored where the proxy was.
 bool reify_into(Value lazy, Value space, Value name)
@@ -2650,6 +2664,23 @@ void interpret()
                 if (!m.is_nil()) {
                     Value av[2] = { st[f->sp - 1], st[f->sp - 3] };
                     if (!run_special(f, m, av, 2, 3, SP_DROP))
+                        goto oops;
+                    break;
+                }
+                // `a[i:j] = g` where g iterates in Python: a list of it first.
+                if (is_slice(st[f->sp - 1]) && iter_needs_vm(st[f->sp - 3])) {
+                    Root kv{ cont_new(slice_store_step) };
+                    Root lt{ type_wrap(&list_type) };
+                    if (kv.v.is_nil() || lt.v.is_nil())
+                        goto oops;
+                    ContObj *k = cont_of(kv.v);
+                    k->s[0]    = st[f->sp - 2];
+                    k->s[1]    = st[f->sp - 1];
+                    k->s[2]    = st[f->sp - 3];
+                    k->s[3]    = lt.v;
+                    k->drop    = true;
+                    f->sp -= 3;
+                    if (!run_cont(kv.v, Value()))
                         goto oops;
                     break;
                 }
@@ -3997,7 +4028,7 @@ R truth_answer(Value in, bool len, bool &yes)
     return R::Ok;
 }
 
-bool vm_start(Value code, Args argv)
+bool vm_start(Value code, Args argv, Str file)
 {
     py_init();
     if (!vm) {
@@ -4038,6 +4069,12 @@ bool vm_start(Value code, Args argv)
         return false;
     if (!put_builtins(dict_at(vm->globals)))
         return false;
+    if (!file.empty()) {
+        StrObj *key = str_intern("__file__");
+        Value path  = str_new(file);
+        if (!key || path.is_nil() || dict_set(dict_at(vm->globals), obj_value(key), path) != R::Ok)
+            return false;
+    }
 
     // The program is a module too, so `import __main__` and sys.modules both
     // find it. Its namespace is the one already made, not a second one.
@@ -4144,6 +4181,14 @@ ListObj *vm_frames()
 void vm_interrupt()
 {
     vm->interrupt = true;
+}
+
+bool vm_take_interrupt()
+{
+    bool was = vm && vm->interrupt;
+    if (was)
+        vm->interrupt = false;
+    return was;
 }
 
 R cont_read(ContObj *k, Str path)

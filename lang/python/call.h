@@ -134,6 +134,11 @@ R iter_park(const CallArgs &a, u32 at, R (*again)(const CallArgs &, Value &out),
 bool redo_converted(const CallArgs &a, u32 at, Str name, R (*again)(const CallArgs &, Value &out),
                     Value &out, R &r);
 
+// `v` is a class instance whose class writes `name` in Python: the answer is
+// what that method returns, called with `a0` unless it is Nil. False when
+// there is no such method, and nothing is done. round() and __round__.
+bool answer_special(Value v, Str name, Value a0, Value &out, R &r);
+
 R redo_with(const CallArgs &a, u32 at, Value fn, Value a0, Value a1, u32 n,
             R (*again)(const CallArgs &, Value &out), Value &out);
 

@@ -425,6 +425,106 @@ def names_tables(out, hdr):
 
 # ------------------------------------------------------------------ main
 
+def old_version(out, hdr):
+    """unicodedata.ucd_3_2_0, as what it answers otherwise than this version:
+    the ranges 3.2.0 had not assigned, a record for each character whose
+    answers differ, and the decompositions corrected since. Every answer is
+    the host's own ucd_3_2_0, and is checked against it through the tables."""
+    old = unicodedata.ucd_3_2_0
+    new = unicodedata
+    SAME, NONE = 0xFF, 0xFE
+    unassigned, recs, norms, nums = [], [], [], []
+    for cp in range(NCP):
+        c = chr(cp)
+        if old.category(c) == "Cn" and new.category(c) != "Cn":
+            if unassigned and unassigned[-1][1] == cp - 1:
+                unassigned[-1][1] = cp
+            else:
+                unassigned.append([cp, cp])
+            continue
+        # Unassigned in both: 3.2.0 answers as this version does.
+        assert old.bidirectional(c) == new.bidirectional(c) or new.category(c) != "Cn", hex(cp)
+        rec = [SAME] * 6
+        if old.category(c) != new.category(c):
+            rec[0] = CATEGORIES.index(old.category(c))
+        if old.bidirectional(c) != new.bidirectional(c):
+            rec[1] = BIDI.index(old.bidirectional(c))
+        if old.east_asian_width(c) != new.east_asian_width(c):
+            rec[2] = WIDTHS.index(old.east_asian_width(c))
+        if old.mirrored(c) != new.mirrored(c):
+            rec[3] = old.mirrored(c)
+        if old.decimal(c, None) != new.decimal(c, None):
+            v = old.decimal(c, None)
+            rec[4] = NONE if v is None else v
+        if old.numeric(c, None) != new.numeric(c, None):
+            v = old.numeric(c, None)
+            if v is not None and v not in nums:
+                nums.append(v)
+            rec[5] = NONE if v is None else nums.index(v)
+        if rec != [SAME] * 6:
+            recs.append([cp] + rec)
+        # Everything else is the same, but where a decomposition was corrected.
+        assert old.combining(c) == new.combining(c), hex(cp)
+        assert old.decomposition(c) == new.decomposition(c), hex(cp)
+        assert old.digit(c, None) == new.digit(c, None), hex(cp)
+        if old.normalize("NFD", c) != new.normalize("NFD", c):
+            d = old.normalize("NFD", c)
+            assert len(d) == 1, hex(cp)
+            norms.append((cp, ord(d)))
+    if len(nums) >= NONE:
+        die("the 3.2.0 numbers outgrew their index")
+
+    flat = [x for r in unassigned for x in r]
+    out.array("u32", "UCD_OLD_UNASSIGNED", flat, 4,
+              "Unicode 3.2.0: first and last of each run it had not assigned; sorted")
+    hdr.append(f"extern const u32 UCD_OLD_UNASSIGNED[{len(flat)}];\n")
+    out.sizes.append(("UCD_OLD_RECS", len(recs) * 12))
+    out.parts.append("// Unicode 3.2.0: codepoint, then category, bidi, width, mirrored,\n")
+    out.parts.append("// decimal and numeric as it had them; 255 is as now, 254 is none\n")
+    out.parts.append(f"extern const UcdOld UCD_OLD_RECS[{len(recs)}] = {{\n")
+    for r in recs:
+        out.parts.append("    { 0x%04X, %d, %d, %d, %d, %d, %d },\n" % tuple(r))
+    out.parts.append("};\n\n")
+    hdr.append(f"extern const UcdOld UCD_OLD_RECS[{len(recs)}];\n")
+    out.sizes.append(("UCD_OLD_NUMBERS", len(nums) * 8))
+    out.parts.append(f"extern const f64 UCD_OLD_NUMBERS[{len(nums)}] = {{\n")
+    for v in nums:
+        out.parts.append(f"    {float(v)!r},\n")
+    out.parts.append("};\n\n")
+    hdr.append(f"extern const f64 UCD_OLD_NUMBERS[{len(nums)}];\n")
+    flat = [x for r in norms for x in r]
+    out.array("u32", "UCD_OLD_NORM", flat, 4,
+              "Unicode 3.2.0: codepoint, and the one it decomposed to before a correction")
+    hdr.append(f"extern const u32 UCD_OLD_NORM[{len(flat)}];\n")
+
+    # Decode them again, and ask every question of every codepoint.
+    import bisect
+    starts = [r[0] for r in unassigned]
+    by_cp = {r[0]: r[1:] for r in recs}
+    for cp in range(NCP):
+        c = chr(cp)
+        i = bisect.bisect_right(starts, cp) - 1
+        if i >= 0 and unassigned[i][0] <= cp <= unassigned[i][1]:
+            assert old.category(c) == "Cn" and old.bidirectional(c) == ""
+            assert old.east_asian_width(c) == WIDTHS[0] and old.mirrored(c) == 0
+            assert old.decimal(c, None) is None and old.numeric(c, None) is None
+            assert old.combining(c) == 0 and old.decomposition(c) == ""
+            assert old.name(c, None) is None, hex(cp)
+            continue
+        r = by_cp.get(cp, [SAME] * 6)
+        pick = lambda k, now, tab: now if r[k] == SAME else tab(r[k])
+        assert old.category(c) == pick(0, new.category(c), CATEGORIES.__getitem__)
+        assert old.bidirectional(c) == pick(1, new.bidirectional(c), BIDI.__getitem__)
+        assert old.east_asian_width(c) == pick(2, new.east_asian_width(c), WIDTHS.__getitem__)
+        assert old.mirrored(c) == pick(3, new.mirrored(c), int)
+        assert old.decimal(c, None) == pick(4, new.decimal(c, None),
+                                            lambda v: None if v == NONE else v)
+        assert old.numeric(c, None) == pick(5, new.numeric(c, None),
+                                            lambda v: None if v == NONE else nums[v])
+        assert old.name(c, None) == new.name(c, None), hex(cp)
+    return len(unassigned), len(recs), len(norms)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fetch", action="store_true")
@@ -545,6 +645,8 @@ def main():
     out.array("u32", "UCD_COMPOSE", flat, 4, "first, second, composite; sorted")
     hdr.append(f"extern const u32 UCD_COMPOSE[{len(flat)}];\n")
 
+    olds = old_version(out, hdr)
+
     tables = names_tables(out, hdr)
     for name, arr in tables.items():
         t = {"UCD_LEX": "u8", "UCD_NAMES": "u8", "UCD_EXTRA_TEXT": "u8",
@@ -599,7 +701,8 @@ def main():
         print(f"{size:9}  {name}")
         total += size
     print(f"{total:9}  in all, Unicode {VERSION}: {len(recs)} records, {len(cases)} casings, "
-          f"{len(dec_ids)} decompositions, {len(pairs)} compositions")
+          f"{len(dec_ids)} decompositions, {len(pairs)} compositions; 3.2.0 is "
+          f"{olds[0]} runs unassigned, {olds[1]} records and {olds[2]} corrections")
 
 
 if __name__ == "__main__":

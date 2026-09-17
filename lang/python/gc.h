@@ -55,6 +55,10 @@ void gc_mark(Value v);
 // Mark from every root, then free what was not marked.
 void gc_collect();
 
+// About to take `bytes` of heap outside any object: collect first if that
+// would carry the heap past the point a collection is due.
+void gc_reserve(usize bytes);
+
 // Where the VM's stacks, the builtins and anything else that outlives one
 // operation join the root set. Idempotent: registering the same function twice
 // adds it once.

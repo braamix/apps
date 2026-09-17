@@ -138,8 +138,8 @@ R s_hash(const CallArgs &a, Value &out)
     u32 h = 0;
     if (py_hash(me(a), h) != R::Ok)
         return R::Err;
-    out = Value::of_int(i32(h & 0x3fffffff));
-    return R::Ok;
+    out = int_from_i64(i32(h));
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R s_repr(const CallArgs &a, Value &out)

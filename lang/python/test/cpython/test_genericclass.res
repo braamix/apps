@@ -18,7 +18,7 @@ ok TestMROEntry.test_mro_entry_errors_2
 ok TestMROEntry.test_mro_entry_metaclass
 ok TestMROEntry.test_mro_entry_none
 ok TestMROEntry.test_mro_entry_signature
-error TestMROEntry.test_mro_entry_type_call: _ShimLimit: metacharacter '.' in 'MRO entry resolution; use types.new_class()'
+ok TestMROEntry.test_mro_entry_type_call
 ok TestMROEntry.test_mro_entry_with_builtins
 ok TestMROEntry.test_mro_entry_with_builtins_2
---- ran 22 ok 19 fail 1 error 1 skip 1 ---
+--- ran 22 ok 20 fail 1 error 0 skip 1 ---

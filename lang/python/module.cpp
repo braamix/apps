@@ -83,6 +83,7 @@ constexpr Native NATIVES[] = {
     { "_operator", operator_install },
     { "_random", random_install },
     { "_struct", struct_install },
+    { "_sre", sre_install },
     { "array", array_install },
     { "math", math_install },
     { "cmath", cmath_install },

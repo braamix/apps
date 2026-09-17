@@ -138,8 +138,8 @@ R o_hash(const CallArgs &a, Value &out)
         h = u32(usize(a.args[0].obj())) >> 4;
     else if (py_hash(a.args[0], h) != R::Ok)
         return R::Err;
-    out = Value::of_int(i32(h & 0x3fffffff));
-    return R::Ok;
+    out = int_from_i64(i32(h));
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R o_sizeof(const CallArgs &a, Value &out)

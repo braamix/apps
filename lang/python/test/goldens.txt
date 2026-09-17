@@ -95,8 +95,10 @@ stdlib/modgetattr.py  cpython3.16
 stdlib/numproto.py    cpython3.16
 stdlib/objects.py     cpython3.16
 stdlib/proxies.py     cpython3.16
+stdlib/regex.py       cpython3.16
 stdlib/smallmods.py   cpython3.16
 stdlib/strtypes.py    cpython3.16
+stdlib/textmods.py    cpython3.16
 stdlib/tools.py       cpython3.16
 stdlib/unawaited.py   cpython3.16
 stdlib/warns.py       cpython3.16
@@ -110,3 +112,4 @@ unicode/codecsmod.py  cpython3.14
 unicode/source.py     cpython3.14
 unicode/strmeth.py    cpython3.14
 unicode/ucd.py        cpython3.14
+unicode/ucd320.py     cpython3.14

@@ -74,6 +74,9 @@ R int_negate(Value v, Value &out);
 R int_invert_op(Value v, Value &out);
 R int_absolute(Value v, Value &out);
 
+// sys.hash_info.modulus: every number hashes as its value modulo this prime.
+constexpr u64 HASH_MODULUS = 0x7fffffff;
+
 u32 int_hash_of(Value v);
 
 // int.bit_length and int.bit_count, both over the magnitude.

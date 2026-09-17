@@ -37,6 +37,8 @@ R complex_hash(Value v, u32 &out)
     if (py_hash(re.v, a) != R::Ok || py_hash(im.v, b) != R::Ok)
         return R::Err;
     out = a + 1000003u * b;
+    if (out == u32(-1))
+        out = u32(-2);
     return R::Ok;
 }
 

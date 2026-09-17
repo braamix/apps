@@ -916,8 +916,11 @@ R text_decode(Value obj, Value encoding, Value errors, Value &out)
     if (is_str(obj))
         return err_set("TypeError", "decoding str is not supported");
     Str data;
-    if (!bytes_like(obj, data))
-        return err_not("decoding to str: need a bytes-like object", obj);
+    if (!bytes_like(obj, data)) {
+        Buf<128> m;
+        m.put("decoding to str: need a bytes-like object, ").put(type_name(obj)).put(" found");
+        return err_set("TypeError", m.str());
+    }
     Codec c = encoding.is_nil() ? Codec::Utf8 : codec_shortcut(str_of(encoding)->str());
     if (c == Codec::None) {
         Root b{ is_bytes(obj) ? obj : bytes_new(data) };

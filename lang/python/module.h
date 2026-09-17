@@ -79,3 +79,4 @@ bool contextvars_install(DictObj *into);
 bool string_install(DictObj *into);
 bool warnings_install(DictObj *into);
 bool atexit_install(DictObj *into);
+bool sre_install(DictObj *into);

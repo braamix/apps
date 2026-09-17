@@ -562,13 +562,22 @@ bool int_truth_of(Value v)
 
 u32 int_hash_of(Value v)
 {
-    i64 n = 0;
-    if (!is_big(v) && as_index(v, n))
-        return u32(n);
-    BigObj *b = big_of(v);
-    // The low 32 bits of the two's-complement form, which is what a small int
-    // and an equal float both hash to.
-    return b->neg ? u32(0u - b->limbs()[0]) : b->limbs()[0];
+    // CPython's numeric hash for a 32-bit Py_hash_t: the magnitude modulo
+    // 2**31 - 1, the sign kept, and -1 said as -2.
+    u64 x    = 0;
+    bool neg = false;
+    i64 n    = 0;
+    if (!is_big(v) && as_index(v, n)) {
+        neg = n < 0;
+        x   = (neg ? u64(-(n + 1)) + 1 : u64(n)) % HASH_MODULUS;
+    } else {
+        BigObj *b = big_of(v);
+        neg       = b->neg;
+        for (usize i = b->len; i-- > 0;)
+            x = ((x << 32) | b->limbs()[i]) % HASH_MODULUS;
+    }
+    u32 h = neg ? u32(0u - u32(x)) : u32(x);
+    return h == u32(-1) ? u32(-2) : h;
 }
 
 usize int_bits(Value v)

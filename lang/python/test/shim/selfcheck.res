@@ -32,8 +32,8 @@ ok Raising.test_context_manager
 ok Raising.test_exception_is_kept
 ok Raising.test_not_raised_is_a_failure
 ok Raising.test_regex_anchored
-ok Raising.test_regex_beyond_the_shim
 ok Raising.test_regex_escape
+ok Raising.test_regex_is_re
 ok Raising.test_regex_plain
 ok Raising.test_regex_that_does_not_match
 ok Raising.test_tuple_of_types

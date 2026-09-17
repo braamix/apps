@@ -88,9 +88,18 @@ bool hex_put(String &out, u32 v, int least)
     return true;
 }
 
+// The decomposition 3.2.0 had before it was corrected, or 0.
+u32 old_norm(u32 cp)
+{
+    for (usize i = 0; i + 1 < sizeof UCD_OLD_NORM / sizeof UCD_OLD_NORM[0]; i += 2)
+        if (UCD_OLD_NORM[i] == cp)
+            return UCD_OLD_NORM[i + 1];
+    return 0;
+}
+
 // Full decomposition of one codepoint, appended; canonical only unless
-// `compat`.
-bool decompose(u32 cp, bool compat, Vec<u32> &out)
+// `compat`, and by 3.2.0's data where `old`.
+bool decompose(u32 cp, bool compat, Vec<u32> &out, bool old)
 {
     if (cp >= S_BASE && cp < S_BASE + S_COUNT) {
         u32 s = cp - S_BASE;
@@ -99,6 +108,12 @@ bool decompose(u32 cp, bool compat, Vec<u32> &out)
             return false;
         return !t || out.push(T_BASE + t);
     }
+    if (old) {
+        if (u32 v = old_norm(cp))
+            return decompose(v, compat, out, old);
+        if (ucd_old_unassigned(cp))
+            return out.push(cp);
+    }
     u32 at  = dec_at(cp);
     u32 tag = 0;
     u32 parts[DEC_MAX];
@@ -106,7 +121,7 @@ bool decompose(u32 cp, bool compat, Vec<u32> &out)
     if (!n || (tag && !compat))
         return out.push(cp);
     for (usize i = 0; i < n; i++)
-        if (!decompose(parts[i], compat, out))
+        if (!decompose(parts[i], compat, out, old))
             return false;
     return true;
 }
@@ -270,6 +285,56 @@ usize jamo(Str s, const Str *col, usize n, int &which)
 
 } // namespace
 
+bool ucd_old_unassigned(u32 cp)
+{
+    // First and last of each run, sorted: find the last run starting at or
+    // before cp.
+    usize n  = sizeof UCD_OLD_UNASSIGNED / sizeof UCD_OLD_UNASSIGNED[0] / 2;
+    usize lo = 0, hi = n;
+    while (lo < hi) {
+        usize mid = (lo + hi) / 2;
+        if (UCD_OLD_UNASSIGNED[mid * 2] <= cp)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo > 0 && cp <= UCD_OLD_UNASSIGNED[(lo - 1) * 2 + 1];
+}
+
+const UcdOld *ucd_old(u32 cp)
+{
+    usize lo = 0, hi = sizeof UCD_OLD_RECS / sizeof UCD_OLD_RECS[0];
+    while (lo < hi) {
+        usize mid = (lo + hi) / 2;
+        if (UCD_OLD_RECS[mid].cp < cp)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    usize n = sizeof UCD_OLD_RECS / sizeof UCD_OLD_RECS[0];
+    return lo < n && UCD_OLD_RECS[lo].cp == cp ? &UCD_OLD_RECS[lo] : nullptr;
+}
+
+f64 ucd_old_number(u8 index)
+{
+    return UCD_OLD_NUMBERS[index];
+}
+
+Str ucd_category_name(u8 index)
+{
+    return CATEGORIES[index];
+}
+
+Str ucd_bidi_name(u8 index)
+{
+    return BIDI[index];
+}
+
+Str ucd_width_name(u8 index)
+{
+    return WIDTHS[index];
+}
+
 const UcdRec &ucd_rec(u32 cp)
 {
     return UCD_RECS[trie(UCD_REC_1, UCD_REC_2, UCD_REC_3, UCD_REC_SHIFT1, UCD_REC_SHIFT2, cp)];
@@ -371,14 +436,14 @@ bool ucd_decomposition(u32 cp, String &out)
     return true;
 }
 
-bool ucd_normalize(UcdForm form, Vec<u32> &cps)
+bool ucd_normalize(UcdForm form, Vec<u32> &cps, bool v320)
 {
     bool compat = form == UcdForm::NFKC || form == UcdForm::NFKD;
     Vec<u32> d;
     if (!d.reserve(cps.size()))
         return false;
     for (usize i = 0; i < cps.size(); i++)
-        if (!decompose(cps[i], compat, d))
+        if (!decompose(cps[i], compat, d, v320))
             return false;
 
     // Canonical order: a stable sort of each run of non-starters by class.

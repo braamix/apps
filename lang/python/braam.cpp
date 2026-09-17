@@ -162,7 +162,7 @@ Task<i32> interpret(Str source, Str name, Args argv, Str script)
         co_await write_all(SYS_STDERR, where().str());
         co_return 1;
     }
-    if (!vm_start(code.v, argv)) {
+    if (!vm_start(code.v, argv, script.empty() ? Str() : name)) {
         co_await write_all(SYS_STDERR, where().str());
         co_return 1;
     }

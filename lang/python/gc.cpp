@@ -5,6 +5,7 @@
 #include "intern.h"
 #include "kernel/alloc.h"
 #include "kernel/host.h"
+#include "kernel/sysabi.h"
 #include "obj.h"
 
 namespace {
@@ -45,6 +46,18 @@ bool collecting    = false;
 bool automatic     = true;
 
 constexpr usize THRESHOLD_MIN = 64 * 1024;
+
+// The heap as a whole, which holds what an object points at -- a list's
+// items, a bytearray's octets -- as well as the objects. A collection is due
+// when it has doubled since the last one, and sooner as it nears the cap.
+constexpr usize HEAP_CAP  = usize(PROC_MAX_PAGES) * 65536;
+constexpr usize HEAP_SOFT = HEAP_CAP / 4 * 3;
+usize heap_mark           = 8 * 1024 * 1024;
+
+usize heap_in_use()
+{
+    return heap_stats().bytes_in_use;
+}
 
 void sweep()
 {
@@ -145,7 +158,17 @@ void gc_collect()
     sweep();
     since_gc   = 0;
     threshold  = live_bytes > THRESHOLD_MIN / 2 ? live_bytes * 2 : THRESHOLD_MIN;
+    usize used = heap_in_use();
+    heap_mark  = used * 2 > HEAP_SOFT ? used + (HEAP_CAP - used) / 8 : used * 2;
+    if (heap_mark < 8 * 1024 * 1024)
+        heap_mark = 8 * 1024 * 1024;
     collecting = false;
+}
+
+void gc_reserve(usize bytes)
+{
+    if (!collecting && automatic && heap_in_use() + bytes >= heap_mark)
+        gc_collect();
 }
 
 void gc_root_hook(void (*f)())
@@ -275,10 +298,15 @@ Obj *obj_alloc(const Type *t, usize bytes)
 {
     // Before the allocation, never during: what is being built is not yet
     // reachable from anything.
-    if (!collecting && automatic && (stress || since_gc >= threshold))
+    if (!collecting && automatic && (stress || since_gc >= threshold || heap_in_use() >= heap_mark))
         gc_collect();
 
     Obj *o = static_cast<Obj *>(heap_alloc(bytes));
+    if (!o && !collecting) {
+        // Out of room: what is garbage may be enough to make some.
+        gc_collect();
+        o = static_cast<Obj *>(heap_alloc(bytes));
+    }
     if (!o)
         return nullptr;
 

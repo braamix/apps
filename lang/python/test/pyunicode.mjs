@@ -6,8 +6,10 @@
 // own codecs.py and encodings package planted beside them. What a golden
 // cannot hold is asserted here: the bytes a lone surrogate becomes on stdout
 // and on stderr. And --full runs what is too slow for every run: every
-// codepoint's properties against the host's CPython, block by block, and
-// Unicode's own NormalizationTest.txt, which lives under tmp/ucd/.
+// codepoint's properties against the host's CPython, block by block -- as
+// this version answers them, as 3.2.0 does, and as the regular expression
+// engine classes and folds them -- and Unicode's own NormalizationTest.txt,
+// which lives under tmp/ucd/.
 
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -97,6 +99,13 @@ if (full) {
     const want = host(["-"], digest);
     const r = script(digest);
     check("every codepoint against the host's CPython", r.out + r.err, want);
+
+    // The same of Unicode 3.2.0, and of the regular expression engine.
+    for (const name of ["digest320.py", "sre.py"]) {
+        const src = readFileSync(join(HERE, "unicode", "full", name));
+        const got = script(src);
+        check(`${name} against the host's CPython`, got.out + got.err, host(["-"], src));
+    }
 
     // Unicode's conformance file for the four forms.
     const ver = host(["-c", "import unicodedata; print(unicodedata.unidata_version)"]).trim();

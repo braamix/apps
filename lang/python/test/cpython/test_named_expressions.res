@@ -32,7 +32,7 @@ ok NamedExpressionInvalidTest.test_named_expression_invalid_13
 ok NamedExpressionInvalidTest.test_named_expression_invalid_14
 ok NamedExpressionInvalidTest.test_named_expression_invalid_15
 ok NamedExpressionInvalidTest.test_named_expression_invalid_16
-error NamedExpressionInvalidTest.test_named_expression_invalid_17: _ShimLimit: metacharacter '?' in 'did you forget parentheses around the comprehension target?'
+ok NamedExpressionInvalidTest.test_named_expression_invalid_17
 ok NamedExpressionInvalidTest.test_named_expression_invalid_dict_comprehension_iterable_expression
 ok NamedExpressionInvalidTest.test_named_expression_invalid_in_class_body
 ok NamedExpressionInvalidTest.test_named_expression_invalid_list_comprehension_iterable_expression
@@ -73,4 +73,4 @@ ok NamedExpressionScopeTest.test_named_expression_scope_25
 ok NamedExpressionScopeTest.test_named_expression_scope_in_genexp
 ok NamedExpressionScopeTest.test_named_expression_scope_mangled_names
 ok NamedExpressionScopeTest.test_named_expression_variable_reuse_in_comprehensions
---- ran 74 ok 73 fail 0 error 1 skip 0 ---
+--- ran 74 ok 74 fail 0 error 0 skip 0 ---

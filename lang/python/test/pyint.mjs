@@ -7,10 +7,10 @@
 // it gives the shell its turn where the VM parks -- which, for a compute loop,
 // is only at the end of a burst.
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 
-import { boot, opt, ok, die, CORE } from "./pylib.mjs";
+import { boot, opt, ok, die, CORE, LIB, STORE_LIB } from "./pylib.mjs";
 
 // boot() only to be told what is missing to build; each case then takes a
 // kernel of its own, because the interrupt needs both command lines queued
@@ -97,4 +97,53 @@ async function interrupted(source) {
         die(`^C did not reach a sleeping program: ${JSON.stringify(out)}`);
 }
 
-ok("^C becomes KeyboardInterrupt, and a program may catch it");
+// A regular expression that backtracks for ever is one native call. The
+// matcher parks every slice of its own, and a ^C arrives there -- after the
+// program has imported re, which parks on every file it reads, so the signal
+// waits behind `sleep 1` on a clock this loop drives. run() cannot: it pumps
+// until the kernel is idle, and a spinning matcher never lets it be.
+{
+    const K = await import(join(CORE, "test/system/harness.mjs"));
+    await K.init(opt.kernel, opt.rootfs);
+    K.kernel().init(0);
+    if (K.run(0) !== -1) die("the shell did not park on the keyboard");
+    K.regrid(80, 24, "resize returned no screen descriptor");
+    K.store.files.set("/bin/py", new Uint8Array(readFileSync(opt.binary)));
+    const plant = (at) => {
+        for (const e of readdirSync(at)) {
+            const p = join(at, e);
+            if (statSync(p).isDirectory()) { plant(p); continue; }
+            if (!p.endsWith(".py")) continue;
+            const dst = `${STORE_LIB}/${relative(LIB, p)}`;
+            for (let i = dst.indexOf("/", 1); i > 0; i = dst.indexOf("/", i + 1))
+                K.store.dirs.add(dst.slice(0, i));
+            K.store.files.set(dst, new Uint8Array(readFileSync(p)));
+        }
+    };
+    plant(LIB);
+    K.store.files.set("/tmp/c.py", new TextEncoder().encode(
+        "import re\n" +
+        "try:\n" +
+        "    re.match(r'(a|aa)*c', 'a' * 60)\n" +
+        "    print('matched it')\n" +
+        "except KeyboardInterrupt:\n" +
+        "    print('caught in a match')\n" +
+        "print(re.match(r'(a|aa)*c', 'aaac').span())\n"));
+    for (const line of ["py /tmp/c.py >/tmp/o &", "sleep 1; kill -INT %1"]) {
+        K.type(line);
+        K.press(K.KEY.ENTER);
+    }
+    let now = 100;
+    for (let n = 0; ; n++) {
+        const d = K.kernel().tick(now);
+        const busy = K.net.drain();
+        if (d === -1 && !busy) break;
+        if (n > 100000) die("the match was never interrupted");
+        now += d > 0 ? d : 1;
+    }
+    const out = new TextDecoder().decode(K.store.files.get("/tmp/o") ?? new Uint8Array());
+    if (out !== "caught in a match\n(0, 4)\n")
+        die(`^C did not reach a running match: ${JSON.stringify(out)}`);
+}
+
+ok("^C becomes KeyboardInterrupt, and a program may catch it, in a match too");

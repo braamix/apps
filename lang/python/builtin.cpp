@@ -436,10 +436,15 @@ R one_step(ContObj *k, Value in)
             return err_set2("TypeError", "a special method returned a non-integer", type_name(in));
         break;
     case WANT_HASH:
-        // A __hash__ of any width is truncated to one, as CPython does.
+        // A __hash__ past the width of a hash is hashed as an int, as
+        // CPython does; -1 is said as -2.
         if (!is_intval(in))
             return err_set2("TypeError", "__hash__ returned a non-integer", type_name(in));
-        in = Value::of_int(i32(int_hash_of(in)) & 0x3fffffff);
+        if (!as_index(in, n) || n < -0x7fffffffll - 1 || n > 0x7fffffffll)
+            n = i32(int_hash_of(in));
+        in = int_from_i64(n == -1 ? -2 : n);
+        if (in.is_nil())
+            return R::Err;
         break;
     case WANT_STR:
         if (!is_str(in))
@@ -1199,6 +1204,13 @@ R b_dict(const CallArgs &a, Value &out)
             return R::Err;
         CallArgs b = a;
         b.args     = &d.v;
+        return b_dict(b, out);
+    }
+    // A mapping proxy is the mapping it shows.
+    if (a.nargs == 1 && is_mappingproxy(a.args[0])) {
+        Root inner{ mappingproxy_inner(a.args[0]) };
+        CallArgs b = a;
+        b.args     = &inner.v;
         return b_dict(b, out);
     }
     if (a.nargs && !is_anydict(method_self(a.args[0])) && type_has_py_special(a.args[0], "keys")) {
@@ -1978,8 +1990,8 @@ R b_hash(const CallArgs &a, Value &out)
     u32 h = 0;
     if (py_hash(a.args[0], h) != R::Ok)
         return R::Err;
-    out = Value::of_int(i32(h) & 0x3fffffff);
-    return R::Ok;
+    out = int_from_i64(i32(h));
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R b_id(const CallArgs &a, Value &out)
@@ -2066,6 +2078,11 @@ R b_round(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "round", 1, 2))
         return R::Err;
+    // A class's own __round__, with ndigits when that was given.
+    R own = R::Ok;
+    if (answer_special(a.args[0], "__round__",
+                       a.nargs > 1 && !is_none(a.args[1]) ? a.args[1] : Value(), out, own))
+        return own;
     i64 digits = 0;
     if (a.nargs > 1 && !is_none(a.args[1]) && !as_index(a.args[1], digits))
         return err_set2("TypeError", "round() ndigits must be an integer", type_name(a.args[1]));
@@ -2106,8 +2123,11 @@ R b_round(const CallArgs &a, Value &out)
         return py_binop(q.v, scale.v, Op::Mul, out);
     }
     f64 v = 0;
-    if (!as_number(a.args[0], v))
-        return err_set2("TypeError", "a number is required", type_name(a.args[0]));
+    if (!as_number(a.args[0], v)) {
+        Buf<128> b;
+        b.put("type ").put(type_name(a.args[0])).put(" doesn't define __round__ method");
+        return err_set("TypeError", b.str());
+    }
     if (to_int) {
         out = int_from_i64(i64(round_half_even(v)));
         return out.is_nil() ? R::Err : R::Ok;
@@ -2133,6 +2153,36 @@ R b_round(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// a⁻¹ modulo n, n positive: extended Euclid, as CPython's long_invmod.
+R int_invmod(Value a, Value n, Value &out)
+{
+    Root b{ Value::of_int(1) }, c{ Value::of_int(0) }, x, y{ n }, q, r, t;
+    if (py_binop(a, n, Op::Mod, x.v) != R::Ok)
+        return R::Err;
+    for (;;) {
+        bool zero = false;
+        if (py_eq(y.v, Value::of_int(0), zero) != R::Ok)
+            return R::Err;
+        if (zero)
+            break;
+        if (py_binop(x.v, y.v, Op::FloorDiv, q.v) != R::Ok ||
+            py_binop(x.v, y.v, Op::Mod, r.v) != R::Ok)
+            return R::Err;
+        x = y.v;
+        y = r.v;
+        if (py_binop(q.v, c.v, Op::Mul, t.v) != R::Ok || py_binop(b.v, t.v, Op::Sub, t.v) != R::Ok)
+            return R::Err;
+        b = c.v;
+        c = t.v;
+    }
+    bool one = false;
+    if (py_eq(x.v, Value::of_int(1), one) != R::Ok)
+        return R::Err;
+    if (!one)
+        return err_set("ValueError", "base is not invertible for the given modulus");
+    return py_binop(b.v, n, Op::Mod, out);
+}
+
 R b_pow(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "pow", 2, 3))
@@ -2142,9 +2192,30 @@ R b_pow(const CallArgs &a, Value &out)
 
     if (!is_intval(a.args[0]) || !is_intval(a.args[1]) || !is_intval(a.args[2]))
         return err_set("TypeError", "pow() 3rd argument not allowed unless all arguments are ints");
-    if (int_is_neg(a.args[1]))
-        return err_set("ValueError", "base is not invertible for the given modulus");
-    return int_power(a.args[0], a.args[1], a.args[2], out);
+    if (!int_is_neg(a.args[1]))
+        return int_power(a.args[0], a.args[1], a.args[2], out);
+    // A negative exponent is the modular inverse raised to its magnitude.
+    bool zero = false;
+    if (py_eq(a.args[2], Value::of_int(0), zero) != R::Ok)
+        return R::Err;
+    if (zero)
+        return err_set("ValueError", "pow() 3rd argument cannot be 0");
+    Root m, e, inv;
+    if (py_binop(Value::of_int(0), a.args[2], Op::Sub, m.v) != R::Ok ||
+        py_binop(Value::of_int(0), a.args[1], Op::Sub, e.v) != R::Ok)
+        return R::Err;
+    if (!int_is_neg(a.args[2]))
+        m = a.args[2];
+    bool unit = false;
+    if (py_eq(m.v, Value::of_int(1), unit) != R::Ok)
+        return R::Err;
+    if (unit) {
+        out = Value::of_int(0);
+        return R::Ok;
+    }
+    if (int_invmod(a.args[0], m.v, inv.v) != R::Ok)
+        return R::Err;
+    return int_power(inv.v, e.v, a.args[2], out);
 }
 
 // ----------------------------------------------------------- the iterators

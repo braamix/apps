@@ -64,6 +64,9 @@ struct Type {
 
     bool plain = false; // a base that lends no layout: a subclass is object's
     bool final = false; // not an acceptable base type
+    // Its __next__, in the type's namespace, may answer a ContObj: the VM
+    // steps it rather than the `next` slot, which answers without parking.
+    bool vmnext = false;
 };
 
 // Py_TPFLAGS_SEQUENCE and Py_TPFLAGS_MAPPING, and _Py_TPFLAGS_MATCH_SELF: a

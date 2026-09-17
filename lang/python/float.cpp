@@ -1,4 +1,5 @@
 // float: a boxed f64, printed the way CPython prints one.
+#include "bigint.h"
 #include "math/ftoa.h"
 #include "math/math.h"
 #include "ops.h"
@@ -10,17 +11,46 @@ bool float_truth(Value v)
     return float_of(v) != 0;
 }
 
+// _Py_HashDouble for a 32-bit Py_hash_t: the value as a rational, modulo
+// 2**31 - 1, so an equal int, Fraction or Decimal hashes the same.
 R float_hash(Value v, u32 &out)
 {
-    f64 x = float_of(v);
-    // An integral float must hash as the equal int, or {1: 'a'}[1.0] misses.
-    if (x == floor(x) && x >= -9.2e18 && x <= 9.2e18) {
-        out = u32(i64(x));
+    constexpr int BITS = 31;
+    constexpr u32 MOD  = u32(HASH_MODULUS);
+    f64 x              = float_of(v);
+    if (isinf(x)) {
+        out = x > 0 ? 314159u : u32(0u - 314159u);
         return R::Ok;
     }
-    u64 bits;
-    __builtin_memcpy(&bits, &x, sizeof bits);
-    out = u32(bits) ^ u32(bits >> 32);
+    if (isnan(x)) {
+        // A NaN hashes as the object it is.
+        usize y = usize(v.obj());
+        out     = u32((y >> 4) | (y << (8 * sizeof(usize) - 4)));
+        return R::Ok;
+    }
+    int e    = 0;
+    f64 m    = frexp(x, &e);
+    u32 sign = 1;
+    if (m < 0) {
+        sign = u32(-1);
+        m    = -m;
+    }
+    u32 h = 0;
+    while (m != 0) {
+        h = ((h << 28) & MOD) | h >> (BITS - 28);
+        m *= 268435456.0; // 2**28
+        e -= 28;
+        u32 y = u32(m); // the integer part
+        m -= y;
+        h += y;
+        if (h >= MOD)
+            h -= MOD;
+    }
+    // The exponent, reduced modulo BITS first.
+    e   = e >= 0 ? e % BITS : BITS - 1 - ((-1 - e) % BITS);
+    h   = ((h << e) & MOD) | h >> (BITS - e);
+    h   = h * sign;
+    out = h == u32(-1) ? u32(-2) : h;
     return R::Ok;
 }
 

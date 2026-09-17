@@ -780,10 +780,18 @@ Value type_new_meta(Value meta, Value name, Value bases, Value dict)
         t->items()[0] = ob;
         rb            = obj_value(t);
     }
-    for (usize i = 0; i < tuple_len(rb.v); i++)
-        if (!is_type(tuple_at(rb.v, i)))
-            return err_set2("TypeError", "a base is not a class", type_name(tuple_at(rb.v, i))),
+    for (usize i = 0; i < tuple_len(rb.v); i++) {
+        Value base = tuple_at(rb.v, i);
+        if (is_type(base))
+            continue;
+        // Only a class statement resolves __mro_entries__.
+        if (type_has_special(base, "__mro_entries__"))
+            return err_set("TypeError",
+                           "type() doesn't support MRO entry resolution; "
+                           "use types.new_class()"),
                    Value();
+        return err_set2("TypeError", "a base is not a class", type_name(base)), Value();
+    }
     for (usize i = 0; i < tuple_len(rb.v); i++) {
         const Type *d = type_obj(tuple_at(rb.v, i))->desc;
         if (d && d->final) {
@@ -1649,6 +1657,19 @@ R b_object(const CallArgs &a, Value &out)
     Value cls = a.nargs ? a.args[0] : type_object();
     if (!is_type(cls))
         return err_set2("TypeError", "object.__new__() argument must be a type", type_name(cls));
+    // A built-in type is laid out by its own constructor, if it has one.
+    if (!type_obj(cls)->heap && cls != type_object()) {
+        Buf<160> m;
+        StrObj *nw = str_intern("__new__");
+        Value own;
+        if (nw && dict_get(static_cast<DictObj *>(type_obj(cls)->dict.obj()), obj_value(nw), own) ==
+                      R::Ok)
+            m.put("object.__new__(").put(type_obj(cls)->slots.name).put(") is not safe, use ")
+                .put(type_obj(cls)->slots.name).put(".__new__()");
+        else
+            m.put("cannot create '").put(type_obj(cls)->slots.name).put("' instances");
+        return err_set("TypeError", m.str());
+    }
     out = inst_new(cls);
     return out.is_nil() ? R::Err : R::Ok;
 }

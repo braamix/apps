@@ -706,6 +706,8 @@ u32 Parser::bracketed()
             if (!hold(elts, starred_or(true, &Parser::named)))
                 return 0;
         }
+        if (at(Tok::KwFor) || (at(Tok::KwAsync) && kind(1) == Tok::KwFor))
+            return fail_node("did you forget parentheses around the comprehension target?", first);
         if (!expect(Tok::RSqb, "expected ']'"))
             return 0;
         u32 n = add(Nd::List, t);
@@ -771,6 +773,8 @@ u32 Parser::bracketed()
                 return 0;
             }
         }
+        if (!dict && (at(Tok::KwFor) || (at(Tok::KwAsync) && kind(1) == Tok::KwFor)))
+            return fail_node("did you forget parentheses around the comprehension target?", key);
         if (!expect(Tok::RBrace, "expected '}'"))
             return 0;
         u32 n = add(dict ? Nd::Dict : Nd::Set, t);

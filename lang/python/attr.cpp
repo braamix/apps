@@ -383,9 +383,10 @@ Got inst_attr(Value v, StrObj *name, Value &out, Value &args)
     }
 
     // What the class's own slots answer -- an exception's `args`, a native
-    // base's attributes -- comes after the namespace.
+    // base's attributes -- comes after the namespace. Not __class__, which
+    // is the class and never the native base's.
     const Type *t = type_of(rv.v);
-    if (t->getattr) {
+    if (t->getattr && Str("__class__") != name->str()) {
         R g = t->getattr(rv.v, name, out);
         if (g == R::Ok)
             return Got::Ok;

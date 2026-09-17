@@ -21,10 +21,6 @@ class SkipTest(Exception):
     pass
 
 
-class _ShimLimit(Exception):
-    """What the shim itself cannot honour. Never a test's own failure."""
-
-
 # A decorator cannot mark a function here -- a function object takes no
 # attributes -- so a skipped test is replaced in the class body by one of
 # these, and the loader recognises it by type.
@@ -100,6 +96,48 @@ class _Raises:
         return True
 
 
+class _Warns:
+    """assertWarns and assertWarnsRegex: every warning recorded, and one of
+    the expected category (and text) among them."""
+
+    def __init__(self, case, expected, pattern):
+        self.case = case
+        self.expected = expected
+        self.pattern = pattern
+        self.warning = None
+
+    def __enter__(self):
+        import warnings
+        # A warning already given once from a place is given again.
+        for v in list(sys.modules.values()):
+            if getattr(v, "__warningregistry__", None):
+                v.__warningregistry__ = {}
+        self._cm = warnings.catch_warnings(record=True)
+        self._log = self._cm.__enter__()
+        warnings.simplefilter("always")
+        return self
+
+    def __exit__(self, ty, val, tb):
+        self._cm.__exit__(ty, val, tb)
+        if ty is not None:
+            return False
+        first = None
+        for w in self._log:
+            if not _is_expected(w.category, self.expected):
+                continue
+            if first is None:
+                first = w
+            if self.pattern is not None and not _search(self.pattern, str(w.message)):
+                continue
+            self.warning = w.message
+            self.filename = w.filename
+            self.lineno = w.lineno
+            return None
+        if first is not None and self.pattern is not None:
+            self.case.fail(repr(self.pattern) + " does not match " + repr(str(first.message)))
+        self.case.fail(_name_of(self.expected) + " not triggered")
+
+
 def _is_expected(ty, expected):
     if isinstance(expected, tuple):
         for e in expected:
@@ -118,49 +156,9 @@ def _name_of(expected):
     return expected.__name__
 
 
-_META = "\\.*+?[]{}()|"
-
-
 def _search(pattern, text):
-    """re.search over the subset CPython's tests here actually use: literal
-    text, ^, $, and a backslash escaping a punctuation character. A pattern
-    wanting more raises rather than guessing."""
-    start = False
-    end = False
-    body = pattern
-    if body.startswith("^"):
-        start = True
-        body = body[1:]
-    if body.endswith("$") and not body.endswith("\\$"):
-        end = True
-        body = body[:-1]
-
-    lit = ""
-    i = 0
-    n = len(body)
-    while i < n:
-        c = body[i]
-        if c == "\\":
-            if i + 1 >= n:
-                raise _ShimLimit("trailing backslash in " + repr(pattern))
-            nxt = body[i + 1]
-            if nxt.isalnum():
-                raise _ShimLimit("escape \\" + nxt + " in " + repr(pattern))
-            lit = lit + nxt
-            i = i + 2
-            continue
-        if c in _META:
-            raise _ShimLimit("metacharacter " + repr(c) + " in " + repr(pattern))
-        lit = lit + c
-        i = i + 1
-
-    if start and end:
-        return text == lit
-    if start:
-        return text.startswith(lit)
-    if end:
-        return text.endswith(lit)
-    return lit in text
+    import re
+    return re.search(pattern, text)
 
 
 class _SubTest:
@@ -405,6 +403,34 @@ class TestCase:
         if not args:
             return ctx
         return _call_in(ctx, args, kwargs)
+
+    def assertWarns(self, expected, *args, **kwargs):
+        ctx = _Warns(self, expected, None)
+        if not args:
+            return ctx
+        return _call_in(ctx, args, kwargs)
+
+    def assertWarnsRegex(self, expected, pattern, *args, **kwargs):
+        ctx = _Warns(self, expected, pattern)
+        if not args:
+            return ctx
+        return _call_in(ctx, args, kwargs)
+
+    def assertStartsWith(self, s, prefix, msg=None):
+        if not s.startswith(prefix):
+            self._fail(_short(repr(s)) + " doesn't start with " + _short(repr(prefix)), msg)
+
+    def assertNotStartsWith(self, s, prefix, msg=None):
+        if s.startswith(prefix):
+            self._fail(_short(repr(s)) + " starts with " + _short(repr(prefix)), msg)
+
+    def assertEndsWith(self, s, suffix, msg=None):
+        if not s.endswith(suffix):
+            self._fail(_short(repr(s)) + " doesn't end with " + _short(repr(suffix)), msg)
+
+    def assertNotEndsWith(self, s, suffix, msg=None):
+        if s.endswith(suffix):
+            self._fail(_short(repr(s)) + " ends with " + _short(repr(suffix)), msg)
 
     def subTest(self, msg=None, **params):
         parts = []

@@ -100,12 +100,36 @@ R str_getitem(Value v, Value key, Value &out)
         if (!slice_resolve(key, s->chars, start, stop, step, count))
             return R::Err;
         String buf;
-        for (usize k = 0; k < count; k++) {
-            usize c  = usize(start + i64(k) * step);
-            usize at = str_offset_of(s, c);
-            usize to = str_offset_of(s, c + 1);
-            if (!buf.append(Str(s->bytes() + at, to - at)))
+        if (step == 1 && count) {
+            // One walk: finding each character from the start again would
+            // make a slice of non-ASCII text quadratic.
+            usize at = str_offset_of(s, usize(start));
+            usize to = at;
+            for (usize k = 0; k < count && to < s->len; k++)
+                to += cp_width(u8(s->bytes()[to]));
+            if (!buf.append(Str(s->bytes() + at, (to < s->len ? to : s->len) - at)))
                 return err_set("MemoryError", "out of memory");
+        } else if (!(s->flags & OBJ_ASCII) && count) {
+            // Every character's offset, once.
+            Vec<u32> offs;
+            if (!offs.reserve(usize(s->chars) + 1))
+                return err_set("MemoryError", "out of memory");
+            for (usize at = 0; at < s->len; at += cp_width(u8(s->bytes()[at])))
+                offs.push(u32(at));
+            offs.push(s->len);
+            for (usize k = 0; k < count; k++) {
+                usize c = usize(start + i64(k) * step);
+                if (!buf.append(Str(s->bytes() + offs[c], offs[c + 1] - offs[c])))
+                    return err_set("MemoryError", "out of memory");
+            }
+        } else {
+            for (usize k = 0; k < count; k++) {
+                usize c  = usize(start + i64(k) * step);
+                usize at = str_offset_of(s, c);
+                usize to = str_offset_of(s, c + 1);
+                if (!buf.append(Str(s->bytes() + at, to - at)))
+                    return err_set("MemoryError", "out of memory");
+            }
         }
         out = obj_value(str_raw(buf.str()));
         return out.is_nil() ? err_set("MemoryError", "out of memory") : R::Ok;
