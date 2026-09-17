@@ -1,18 +1,25 @@
---- unittest ---
-ok TestClassDecorators.test_double
-ok TestClassDecorators.test_order
-ok TestClassDecorators.test_simple
-ok TestDecorators.test_argforms
-ok TestDecorators.test_bound_function_inside_classmethod
-error TestDecorators.test_classmethod: AttributeError: 'classmethod' object has no attribute '__annotations__'
-ok TestDecorators.test_dbcheck
-ok TestDecorators.test_dotted
-ok TestDecorators.test_double
-ok TestDecorators.test_errors
-ok TestDecorators.test_eval_order
-ok TestDecorators.test_expressions
-ok TestDecorators.test_memoize
-ok TestDecorators.test_order
-ok TestDecorators.test_single
-error TestDecorators.test_staticmethod: AttributeError: 'staticmethod' object has no attribute '__annotations__'
---- ran 16 ok 14 fail 0 error 2 skip 0 ---
+.....E.........E
+======================================================================
+ERROR: test_classmethod (__main__.TestDecorators.test_classmethod)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_decorators.py", line 103, in test_classmethod
+    wrapper = self.check_wrapper_attrs(classmethod, '<classmethod({!r})>')
+  File "/tmp/test_decorators.py", line 90, in check_wrapper_attrs
+    self.assertIs(getattr(wrapper, attr),
+AttributeError: 'classmethod' object has no attribute '__annotations__'
+
+======================================================================
+ERROR: test_staticmethod (__main__.TestDecorators.test_staticmethod)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_decorators.py", line 97, in test_staticmethod
+    wrapper = self.check_wrapper_attrs(staticmethod, '<staticmethod({!r})>')
+  File "/tmp/test_decorators.py", line 90, in check_wrapper_attrs
+    self.assertIs(getattr(wrapper, attr),
+AttributeError: 'staticmethod' object has no attribute '__annotations__'
+
+----------------------------------------------------------------------
+Ran 16 tests in Ns
+
+FAILED (errors=2)

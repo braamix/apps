@@ -1,15 +1,15 @@
-// The shims, before anything stands on them.
+// unittest and the shims, before anything stands on them.
 //
 // CPython's tests are not self-contained the way MicroPython's are: every one
-// of them imports unittest and most import test.support, and the real unittest
-// pulls in asyncio, logging, argparse and inspect. So shim/ carries a unittest
-// and a test.support of our own, and pycases.mjs plants them beside every
-// case. A shim that answered wrongly would turn a wrong answer into a pass
-// everywhere at once, so it is measured here first.
+// of them imports unittest and most import test.support. The unittest is
+// CPython's own as of phase 27; `test.support` is still shim/'s, and
+// pycases.mjs plants it beside every case. Something that answered wrongly
+// there would turn a wrong answer into a pass everywhere at once, so it is
+// measured here first.
 //
 // shim/selfcheck.py produces one of every outcome on purpose -- ok, fail,
-// error, skip and an expected failure -- so the summary line the harness reads
-// has each of its columns exercised.
+// error, skip and an expected failure -- so every column of the report the
+// harness reads is exercised.
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join, dirname, relative } from "node:path";
@@ -32,7 +32,9 @@ const walk = (at) => {
 walk(SHIM);
 
 const r = run("/tmp/selfcheck.py");
-const got = (r.out + r.err).replace(/0x[0-9a-fA-F]+/g, "0xX");
+const got = (r.out + r.err)
+    .replace(/0x[0-9a-fA-F]+/g, "0xX")
+    .replace(/ in [0-9.]+s$/gm, " in Ns");
 
 const exp = join(SHIM, "selfcheck.res");
 if (opt.bless) {
@@ -43,18 +45,28 @@ if (opt.bless) {
 if (!existsSync(exp)) die(`no golden at ${exp} — run with --bless`);
 if (!same("selfcheck.py", got, readFileSync(exp, "utf8"))) process.exit(1);
 
-const m = /^--- ran (\d+) ok (\d+) fail (\d+) error (\d+) skip (\d+) ---$/m.exec(got);
+const m = /^Ran (\d+) tests? in /m.exec(got);
 if (!m) die("no summary line — unittest.main() did not finish");
-const [, ran, okc, fail, error, skip] = m.map(Number);
+const ran = Number(m[1]);
 
-// The three that are meant to fail live in one class, and every other test in
-// the file must pass. Counting them here as well as comparing the golden says
-// the shim's own arithmetic is right, not just unchanged.
-const deliberate = (got.match(/^(fail|error) Outcomes\./gm) || []).length;
+// The outcomes unittest reported, off the line it ends with.
+const tally = {};
+const f = /^FAILED \((.*)\)$/m.exec(got);
+if (f)
+    for (const part of f[1].split(", ")) {
+        const [kind, n] = part.split("=");
+        tally[kind] = Number(n);
+    }
+const fail = tally.failures || 0;
+const error = tally.errors || 0;
+const skip = tally.skipped || 0;
+
+// The ones meant to fail live in one class, and every other test in the file
+// must pass. Counting them here as well as comparing the golden says the
+// arithmetic is right, not just unchanged.
+const deliberate = (got.match(/^(FAIL|ERROR): \w+ \(__main__\.Outcomes\./gm) || []).length;
 if (fail + error !== deliberate)
     die(`${fail} failures and ${error} errors, but ${deliberate} are deliberate`);
-if (okc + fail + error + skip !== ran)
-    die(`the summary does not add up: ${okc}+${fail}+${error}+${skip} != ${ran}`);
 
-ok(`unittest and test.support: ${ran} shim tests, ${okc} pass, ${skip} skip, ` +
+ok(`unittest and test.support: ${ran} tests, ${ran - fail - error} pass, ${skip} skip, ` +
    `${deliberate} fail on purpose`);

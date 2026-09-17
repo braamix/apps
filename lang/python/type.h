@@ -182,6 +182,11 @@ extern const Type property_type;
 // rather than a getattr slot: `type.__annotations__` is one, because
 // annotationlib reaches for the descriptor itself.
 Value property_of(Value get, Value set);
+
+// The names a class answers for itself -- __mro__, __bases__, __dict__ and
+// the rest -- which CPython keeps as getset descriptors on `type`. False for
+// a name that is not one of them.
+bool type_own_attr(Value v, Str n, Value &out);
 extern const Type staticmethod_type;
 extern const Type classmethod_type;
 
@@ -229,9 +234,21 @@ struct MemberObj : Obj {
 
 extern const Type member_type;
 
+// A getset written in C++, as CPython's `type.__mro__` is. Unlike a property
+// it answers without a call, so every caller can read it.
+// `get` answers as a lazyattr does: Got::Call when reading it is a call.
+struct GetSetObj : Obj {
+    Str name; // a literal
+    Got (*get)(Value self, Value &out, Value &args);
+    R (*set)(Value self, Value val); // null where it is read-only
+};
+
+extern const Type getset_type;
+Value getset_new(Str name, Got (*get)(Value, Value &, Value &), R (*set)(Value, Value));
+
 // What a name found in a class namespace turns out to be. `data` says it comes
 // before the instance namespace rather than after it.
-enum : u8 { D_NONE, D_BIND, D_PROP, D_MEMBER, D_PY };
+enum : u8 { D_NONE, D_BIND, D_PROP, D_MEMBER, D_GETSET, D_PY };
 
 u8 descr_of(Value d, bool &data);
 

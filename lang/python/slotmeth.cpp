@@ -12,6 +12,7 @@
 // subclass's __missing__ is finally consulted.
 #include "bigint.h"
 #include "call.h"
+#include "compare.h"
 #include "complex.h"
 #include "exc.h"
 #include "gc.h"
@@ -105,8 +106,17 @@ R s_contains(const CallArgs &a, Value &out)
 {
     if (!meth_args(a, "__contains__", 1, 1))
         return R::Err;
+    Root self{ me(a) }, item{ a.args[1] };
+    // An __eq__ written in Python makes each step a call, so the search is
+    // handed back for the VM to drive.
+    Root seq{ cmp_items(self.v) };
+    if (!seq.v.is_nil() &&
+        (cmp_is_python(item.v, false) || cmp_any_python(list_of(seq.v)->items, false))) {
+        out = cmp_find(seq.v, item.v, CMP_IN, 0, list_of(seq.v)->items.size());
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     bool got = false;
-    if (py_contains(me(a), a.args[1], got) != R::Ok)
+    if (py_contains(self.v, item.v, got) != R::Ok)
         return R::Err;
     out = value_bool(got);
     return R::Ok;

@@ -1,15 +1,10 @@
-// `_ast`: the node classes CPython's ast module is written against, and the
-// tree `compile()` answers for PyCF_ONLY_AST.
+// `_ast`: the node classes, and the tree compile() answers for PyCF_ONLY_AST.
 //
-// A class is a heap type made at install rather than a static descriptor, so
-// a program may subclass one and ast.py's visitors need nothing said about
-// them; an instance keeps its fields in its own dict, which is what CPython
-// does too. The table below is CPython's ASDL, taken from the clone's own
-// classes: name, base, the fields with their types, the fields that default
-// to None, and whether the kind carries a position.
+// A class is a heap type made at install, so a program may subclass one. An
+// instance keeps its fields in its own dict. The table is CPython's ASDL.
 //
 // The tree is built out of the parser's arena, node for node, the way
-// astdump.cpp prints it; astpos.cpp says where each one is.
+// astdump.cpp prints it; astpos.cpp says where each node is.
 #include "astmod.h"
 
 #include "astpos.h"
@@ -71,9 +66,9 @@ constexpr usize NCLASSES = sizeof(CLASSES) / sizeof(CLASSES[0]);
 // Every class, by the index of its row, plus the AST base at the end.
 struct Home {
     Value cls[NCLASSES + 1];
-    Value ctx[3];   // Load, Store and Del, made once
-    Value ops[32];  // the operator, unaryop, cmpop and boolop singletons
-    Value module;   // the _ast module's namespace
+    Value ctx[3];  // Load, Store and Del, made once
+    Value ops[32]; // the operator, unaryop, cmpop and boolop singletons
+    Value module;  // the _ast module's namespace
 };
 
 Home *home = nullptr;
@@ -129,8 +124,7 @@ Value class_by_name(Str name)
     return home->cls[class_index(name)];
 }
 
-// `stmt`, `expr*`, `expr?` as ast.py wants to read it back: the class, a
-// `list[T]`, or `T | None`.
+// The type of a field: the class, `list[T]` for a `*`, `T | None` for a `?`.
 Value field_type(Str spec)
 {
     bool list = spec.size() && spec[spec.size() - 1] == '*';
@@ -198,15 +192,15 @@ R n_ast_init(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-// `Call(func=Name(...), args=[...])`, as CPython's own repr writes it: three
-// levels deep, and a list shown by its first and last item alone.
+// `Call(func=Name(...), args=[...])`: three levels deep, and a list shows
+// its first and last item alone.
 bool repr_node(Value v, String &out, i32 depth);
 
 bool repr_list(Value v, String &out, i32 depth)
 {
     Root rv{ v };
-    bool list  = is_list(rv.v);
-    usize len  = list ? list_at(rv.v)->items.size() : static_cast<TupleObj *>(rv.v.obj())->len;
+    bool list = is_list(rv.v);
+    usize len = list ? list_at(rv.v)->items.size() : static_cast<TupleObj *>(rv.v.obj())->len;
     if (!len)
         return py_repr(rv.v, out) == R::Ok;
     if (!out.push(list ? '[' : '('))
@@ -215,8 +209,8 @@ bool repr_list(Value v, String &out, i32 depth)
         usize at = i ? len - 1 : 0;
         if (i && !out.append(", "))
             return false;
-        Value item = list ? list_at(rv.v)->items[at]
-                          : static_cast<TupleObj *>(rv.v.obj())->items()[at];
+        Value item =
+            list ? list_at(rv.v)->items[at] : static_cast<TupleObj *>(rv.v.obj())->items()[at];
         if (!(is_inst(item) ? repr_node(item, out, depth - 1) : py_repr(item, out) == R::Ok))
             return false;
         if (!i && len > 2 && !out.append(", ..."))
@@ -255,7 +249,7 @@ bool repr_node(Value v, String &out, i32 depth)
         if (!out.append(str_of(fn.v)->str()) || !out.push('='))
             return false;
         bool seq = is_list(got.v) || is_tuple(got.v);
-        if (!(seq        ? repr_list(got.v, out, depth)
+        if (!(seq              ? repr_list(got.v, out, depth)
               : is_inst(got.v) ? repr_node(got.v, out, depth - 1)
                                : py_repr(got.v, out) == R::Ok))
             return false;
@@ -341,16 +335,14 @@ bool make_class(usize i, Value base)
     if (nm.v.is_nil() || bases.v.is_nil())
         return oom() == R::Ok;
     static_cast<TupleObj *>(bases.v.obj())->items()[0] = rb.v;
-    Value made = type_new(nm.v, bases.v, d.v);
+    Value made                                         = type_new(nm.v, bases.v, d.v);
     if (made.is_nil())
         return false;
     home->cls[i] = made;
     return true;
 }
 
-// `_field_types`, once every class exists: a field may name one further down
-// the table, and ast.dump reads the answer back to tell a context from a
-// list it may leave out.
+// `_field_types`, once every class exists: a field may name a later one.
 bool fill_types(usize i)
 {
     const Cls &c = CLASSES[i];
@@ -400,8 +392,7 @@ struct Builder {
     Value constant_of(const Node &n);
     Value list_of(const Node &n, usize from, usize count);
 
-    // The parser does not record what an expression is read or written for,
-    // so a target gets its context once the tree under it is built.
+    // The parser records no context, so a target gets one afterwards.
     bool retarget(Value v, usize ctx);
     bool retarget_list(Value v, usize ctx);
 };
@@ -421,9 +412,9 @@ Value Builder::make(Str name, u32 at)
     Value found;
     if (!has || type_lookup(rc.v, has, found) != R::Ok)
         return o.v;
-    Pos p                = ast_pos(*ast, at);
-    constexpr Str N[4]   = { "lineno", "col_offset", "end_lineno", "end_col_offset" };
-    const u32 value[4]   = { p.line, p.col, p.eline, p.ecol };
+    Pos p              = ast_pos(*ast, at);
+    constexpr Str N[4] = { "lineno", "col_offset", "end_lineno", "end_col_offset" };
+    const u32 value[4] = { p.line, p.col, p.eline, p.ecol };
     for (usize k = 0; k < 4; k++)
         if (!set(o.v, N[k], Value::of_int(i32(value[k]))))
             return Value();
@@ -468,13 +459,12 @@ bool Builder::set_list(Value obj, Str field, const Node &n, usize from, usize co
 namespace {
 
 // The operator singletons, by the enum the parser stored.
-constexpr Str BINOPS[] = { "Add",    "Sub",    "Mult",   "Div",  "FloorDiv", "Mod",    "Pow",
-                           "BitAnd", "BitOr",  "BitXor", "LShift", "RShift", "MatMult" };
+constexpr Str BINOPS[] = { "Add",    "Sub",   "Mult",   "Div",    "FloorDiv", "Mod",    "Pow",
+                           "BitAnd", "BitOr", "BitXor", "LShift", "RShift",   "MatMult" };
 constexpr Str CMPOPS[] = { "Eq", "NotEq", "Lt", "LtE", "Gt", "GtE", "In", "NotIn", "Is", "IsNot" };
 constexpr Str UNOPS[]  = { "Invert", "Not", "UAdd", "USub" };
 
-// A singleton kept in `ops`, made on first use. The index is the class's own
-// row, so two asks answer the same object, as CPython's do.
+// A singleton kept in `ops`, made on first use: two asks answer one object.
 Value op_of(Str name)
 {
     usize i = class_index(name);
@@ -496,9 +486,7 @@ Value op_of(Str name)
     return c.v.is_nil() ? Value() : inst_new(c.v);
 }
 
-// Load(), the context every expression this parser makes is read in. A target
-// is rewritten by ast.py's users rather than here, which is what CPython's
-// own `ast` does for a tree it did not compile.
+// Load(), the context an expression is read in.
 Value ctx_of(usize k)
 {
     if (home->ctx[k].is_nil()) {
@@ -568,7 +556,7 @@ Value dotted_of(const Ast *ast, u32 from, u32 to)
     return str_new(b.str());
 }
 
-// Store or Del, down through the shapes an assignment target may take.
+// Store or Del, through the shapes a target may take.
 bool Builder::retarget(Value v, usize ctx)
 {
     if (!ok || !is_inst(v))
@@ -636,8 +624,7 @@ Value Builder::node(u32 i)
         Root nm{ ident_of(ast, i) };
         Root args{ node(n.a) };
         if (!ok || !set(o.v, "name", nm.v) || !set(o.v, "args", args.v) ||
-            !set_list(o.v, "body", n, 0, n.b) ||
-            !set_list(o.v, "decorator_list", n, n.b, n.c))
+            !set_list(o.v, "body", n, 0, n.b) || !set_list(o.v, "decorator_list", n, n.b, n.c))
             return Value();
         Root ret{ node(n.d) };
         if (!ok || !set(o.v, "returns", ret.v) ||
@@ -650,8 +637,7 @@ Value Builder::node(u32 i)
         Root o{ make("ClassDef", i) };
         Root nm{ ident_of(ast, i) };
         if (!ok || !set(o.v, "name", nm.v) || !set_list(o.v, "bases", n, 0, n.a) ||
-            !set_list(o.v, "keywords", n, n.a, n.b) ||
-            !set_list(o.v, "body", n, n.a + n.b, n.c) ||
+            !set_list(o.v, "keywords", n, n.a, n.b) || !set_list(o.v, "body", n, n.a + n.b, n.c) ||
             !set_list(o.v, "decorator_list", n, n.a + n.b + n.c, n.d) ||
             !set_list(o.v, "type_params", n, n.a + n.b + n.c + n.d, n.pad))
             return Value();
@@ -665,15 +651,15 @@ Value Builder::node(u32 i)
     case Nd::Yield:
     case Nd::YieldFrom:
     case Nd::Starred: {
-        constexpr Str NAME[] = { "Return", "Delete", "Expr", "Await", "Yield", "YieldFrom",
-                                 "Starred" };
-        usize k = n.kind == Nd::Return      ? 0
-                  : n.kind == Nd::Delete    ? 1
-                  : n.kind == Nd::Expr      ? 2
-                  : n.kind == Nd::Await     ? 3
-                  : n.kind == Nd::Yield     ? 4
-                  : n.kind == Nd::YieldFrom ? 5
-                                            : 6;
+        constexpr Str NAME[] = { "Return", "Delete",    "Expr",   "Await",
+                                 "Yield",  "YieldFrom", "Starred" };
+        usize k              = n.kind == Nd::Return      ? 0
+                               : n.kind == Nd::Delete    ? 1
+                               : n.kind == Nd::Expr      ? 2
+                               : n.kind == Nd::Await     ? 3
+                               : n.kind == Nd::Yield     ? 4
+                               : n.kind == Nd::YieldFrom ? 5
+                                                         : 6;
         Root o{ make(NAME[k], i) };
         if (!ok)
             return Value();
@@ -720,8 +706,7 @@ Value Builder::node(u32 i)
         Root o{ make("ImportFrom", i) };
         Root mod{ n.flags ? dotted_of(ast, n.tok, n.b) : value_none() };
         if (!ok || mod.v.is_nil() || !set(o.v, "module", mod.v) ||
-            !set_list(o.v, "names", n, 0, n.nkid) ||
-            !set(o.v, "level", Value::of_int(i32(n.a))) ||
+            !set_list(o.v, "names", n, 0, n.nkid) || !set(o.v, "level", Value::of_int(i32(n.a))) ||
             !set(o.v, "is_lazy", Value::of_int((n.pad & 1) ? 1 : 0)))
             return Value();
         return o.v;
@@ -731,8 +716,7 @@ Value Builder::node(u32 i)
         Root o{ make("Assign", i) };
         Root v{ node(n.a) };
         Root l{ list_of(n, 0, n.nkid) };
-        if (!ok || !retarget_list(l.v, 1) || !set(o.v, "targets", l.v) ||
-            !set(o.v, "value", v.v))
+        if (!ok || !retarget_list(l.v, 1) || !set(o.v, "targets", l.v) || !set(o.v, "value", v.v))
             return Value();
         return o.v;
     }
@@ -750,8 +734,7 @@ Value Builder::node(u32 i)
         Root o{ make("AnnAssign", i) };
         Root t{ node(n.a) }, an{ node(n.b) }, v{ node(n.c) };
         if (!ok || !retarget(t.v, 1) || !set(o.v, "target", t.v) || !set(o.v, "annotation", an.v) ||
-            !set(o.v, "value", v.v) ||
-            !set(o.v, "simple", Value::of_int((n.flags & 1) ? 1 : 0)))
+            !set(o.v, "value", v.v) || !set(o.v, "simple", Value::of_int((n.flags & 1) ? 1 : 0)))
             return Value();
         return o.v;
     }
@@ -795,8 +778,7 @@ Value Builder::node(u32 i)
     case Nd::Try:
     case Nd::TryStar: {
         Root o{ make(n.kind == Nd::Try ? Str("Try") : Str("TryStar"), i) };
-        if (!ok || !set_list(o.v, "body", n, 0, n.a) ||
-            !set_list(o.v, "handlers", n, n.a, n.b) ||
+        if (!ok || !set_list(o.v, "body", n, 0, n.a) || !set_list(o.v, "handlers", n, n.a, n.b) ||
             !set_list(o.v, "orelse", n, n.a + n.b, n.c) ||
             !set_list(o.v, "finalbody", n, n.a + n.b + n.c, n.d))
             return Value();
@@ -902,9 +884,9 @@ Value Builder::node(u32 i)
     case Nd::ListComp:
     case Nd::SetComp:
     case Nd::GeneratorExp: {
-        Root o{ make(n.kind == Nd::ListComp     ? "ListComp"
-                     : n.kind == Nd::SetComp    ? Str("SetComp")
-                                                : Str("GeneratorExp"),
+        Root o{ make(n.kind == Nd::ListComp  ? "ListComp"
+                     : n.kind == Nd::SetComp ? Str("SetComp")
+                                             : Str("GeneratorExp"),
                      i) };
         Root e{ node(n.a) };
         if (!ok || !set(o.v, "elt", e.v) || !set_list(o.v, "generators", n, 0, n.nkid))
@@ -1290,9 +1272,9 @@ bool ast_install(DictObj *into)
         Root init{ native_new("__init__", n_ast_init) };
         Root rep{ native_new("__repr__", n_ast_repr) };
         StrObj *rk2 = str_intern("__repr__");
-        StrObj *ik = str_intern("__init__");
-        StrObj *fk = str_intern("_fields");
-        StrObj *ak = str_intern("_attributes");
+        StrObj *ik  = str_intern("__init__");
+        StrObj *fk  = str_intern("_fields");
+        StrObj *ak  = str_intern("_attributes");
         Root empty{ obj_value(tuple_new(0)) };
         if (d.v.is_nil() || nm.v.is_nil() || bases.v.is_nil() || init.v.is_nil() || !ik || !fk ||
             !ak || !rk2 || rep.v.is_nil() || empty.v.is_nil())

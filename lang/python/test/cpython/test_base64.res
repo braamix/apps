@@ -1,69 +1,25 @@
---- unittest ---
-ok BaseXYTestCase.test_ErrorHeritage
-ok BaseXYTestCase.test_RFC4648_test_cases
-ok BaseXYTestCase.test_a85_encode_decode_round_trip
-ok BaseXYTestCase.test_a85_padding
-ok BaseXYTestCase.test_a85decode
-ok BaseXYTestCase.test_a85decode_errors
-ok BaseXYTestCase.test_a85encode
-ok BaseXYTestCase.test_a85encode_wrapcol
-ok BaseXYTestCase.test_b16_encode_decode_round_trip
-ok BaseXYTestCase.test_b16decode
-ok BaseXYTestCase.test_b16decode_ignorechars
-ok BaseXYTestCase.test_b16encode
-ok BaseXYTestCase.test_b16encode_wrapcol
-ok BaseXYTestCase.test_b32_encode_decode_round_trip
-ok BaseXYTestCase.test_b32_hexencode_decode_round_trip
-ok BaseXYTestCase.test_b32decode
-ok BaseXYTestCase.test_b32decode_casefold
-ok BaseXYTestCase.test_b32decode_error
-ok BaseXYTestCase.test_b32decode_ignorechars
-ok BaseXYTestCase.test_b32decode_map01
-ok BaseXYTestCase.test_b32decode_padded
-ok BaseXYTestCase.test_b32encode
-ok BaseXYTestCase.test_b32encode_padded
-ok BaseXYTestCase.test_b32encode_wrapcol
-ok BaseXYTestCase.test_b32hexdecode
-ok BaseXYTestCase.test_b32hexdecode_error
-ok BaseXYTestCase.test_b32hexdecode_ignorechars
-ok BaseXYTestCase.test_b32hexdecode_other_types
-ok BaseXYTestCase.test_b32hexdecode_padded
-ok BaseXYTestCase.test_b32hexencode
-ok BaseXYTestCase.test_b32hexencode_other_types
-ok BaseXYTestCase.test_b32hexencode_wrapcol
-ok BaseXYTestCase.test_b64_encode_decode_round_trip
-ok BaseXYTestCase.test_b64decode
-ok BaseXYTestCase.test_b64decode_altchars
-ok BaseXYTestCase.test_b64decode_invalid_chars
-ok BaseXYTestCase.test_b64decode_padded
-ok BaseXYTestCase.test_b64decode_padding_error
-ok BaseXYTestCase.test_b64encode
-ok BaseXYTestCase.test_b64encode_padded
-ok BaseXYTestCase.test_b64encode_wrapcol
-ok BaseXYTestCase.test_b85_encode_decode_round_trip
-ok BaseXYTestCase.test_b85_padding
-ok BaseXYTestCase.test_b85decode
-ok BaseXYTestCase.test_b85decode_errors
-ok BaseXYTestCase.test_b85encode
-ok BaseXYTestCase.test_b85encode_wrapcol
-ok BaseXYTestCase.test_decode_nonascii_str
-ok BaseXYTestCase.test_standard_b64_encode_decode_round_trip
-ok BaseXYTestCase.test_urlsafe_b64_encode_decode_round_trip
-ok BaseXYTestCase.test_z85_padding
-ok BaseXYTestCase.test_z85decode
-ok BaseXYTestCase.test_z85decode_errors
-ok BaseXYTestCase.test_z85encode
-ok BaseXYTestCase.test_z85encode_wrapcol
-skip LazyImportTest.test_lazy_import: implementation detail of CPython
-ok LegacyBase64TestCase.test_bytes_encode_decode_round_trip
-ok LegacyBase64TestCase.test_decode
-fail LegacyBase64TestCase.test_decodebytes: AssertionError: TypeError not raised
-ok LegacyBase64TestCase.test_encode
-fail LegacyBase64TestCase.test_encodebytes: AssertionError: TypeError not raised
-ok LegacyBase64TestCase.test_legacy_encode_decode_round_trip
-skip TestMain.test_decode: no subprocess
-skip TestMain.test_encode_file: no subprocess
-skip TestMain.test_encode_from_stdin: no subprocess
-skip TestMain.test_prints_usage_with_help_flag: no subprocess
-skip TestMain.test_prints_usage_with_invalid_flag: no subprocess
---- ran 67 ok 59 fail 2 error 0 skip 6 ---
+.......................................................s..F.F.sssss
+======================================================================
+FAIL: test_decodebytes (__main__.LegacyBase64TestCase.test_decodebytes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_base64.py", line 73, in test_decodebytes
+    self.check_type_errors(base64.decodebytes)
+  File "/tmp/test_base64.py", line 29, in check_type_errors
+    self.assertRaises(TypeError, f, multidimensional)
+AssertionError: TypeError not raised by decodebytes
+
+======================================================================
+FAIL: test_encodebytes (__main__.LegacyBase64TestCase.test_encodebytes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_base64.py", line 52, in test_encodebytes
+    self.check_type_errors(base64.encodebytes)
+  File "/tmp/test_base64.py", line 29, in check_type_errors
+    self.assertRaises(TypeError, f, multidimensional)
+AssertionError: TypeError not raised by encodebytes
+
+----------------------------------------------------------------------
+Ran 67 tests in Ns
+
+FAILED (failures=2, skipped=6)

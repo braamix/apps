@@ -1,0 +1,20 @@
+typing.List[int] typing.Dict[str, int] int | None int | str
+<class 'list'> (<class 'str'>, <class 'int'>)
+__main__.Box[int] 3
+(~T,)
+True False
+Point(x=1, y=0) 1 0 ('x', 'y')
+{'name': <class 'str'>, 'year': <class 'int'>} True
+{'a': <class 'int'>, 'b': typing.List[str], 'return': __main__.Box[int]}
+typing.Annotated[int, 'meta'] typing.Literal[1, 2] typing.Final typing.ClassVar[int]
+{'return': ~T}
+typing.Callable[[int, str], bool]
+typing.Tuple[int, ...]
+__main__.X 3
+3
+Alias Alias (<class 'int'>,) list[T]
+P(x=1, y=2, tags=[]) True True
+['x', 'y', 'tags'] {'x': 1, 'y': 2, 'tags': []} (1, 2, [])
+P(x=1, y=9, tags=[])
+Q(a='s') True
+{'x': <class 'int'>, 'y': <class 'int'>, 'tags': <class 'list'>} [<class 'int'>, <class 'int'>, <class 'list'>]

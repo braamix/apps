@@ -1,55 +1,119 @@
---- unittest ---
-ok BadConstructorArgs.test_bad_EG_construction__bad_excs_sequence
-ok BadConstructorArgs.test_bad_EG_construction__bad_message
-ok BadConstructorArgs.test_bad_EG_construction__nested_non_exceptions
-ok BadConstructorArgs.test_bad_EG_construction__too_many_args
-ok DeepRecursionInSplitAndSubgroup.test_deep_split
-ok DeepRecursionInSplitAndSubgroup.test_deep_subgroup
-ok ExceptionGroupFields.test_basics_ExceptionGroup_fields
-fail ExceptionGroupFields.test_fields_are_readonly: AssertionError: AttributeError not raised
-ok ExceptionGroupSplitTests.test_basics_split_by_predicate__match
-ok ExceptionGroupSplitTests.test_basics_split_by_predicate__no_match
-ok ExceptionGroupSplitTests.test_basics_split_by_predicate__passthrough
-ok ExceptionGroupSplitTests.test_basics_split_by_type__match
-ok ExceptionGroupSplitTests.test_basics_split_by_type__no_match
-ok ExceptionGroupSplitTests.test_basics_split_by_type__passthrough
-ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_predicate__match
-ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_predicate__no_match
-ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_predicate__passthrough
-ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_type__match
-ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_type__no_match
-ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_type__passthrough
-ok ExceptionGroupSubgroupTests.test_basics_subgroup_split__bad_arg_type
-fail InstanceCreation.test_BEG_and_E_subclass_does_not_wrap_base_exceptions: AssertionError: TypeError not raised
-ok InstanceCreation.test_BEG_and_specific_subclass_can_wrap_any_nonbase_exception
-ok InstanceCreation.test_BEG_subclass_wraps_anything
-ok InstanceCreation.test_BEG_wraps_BaseException__creates_BEG
-ok InstanceCreation.test_BEG_wraps_Exceptions__creates_EG
-ok InstanceCreation.test_EG_and_specific_subclass_can_wrap_any_nonbase_exception
-ok InstanceCreation.test_EG_subclass_does_not_wrap_base_exceptions
-ok InstanceCreation.test_EG_subclass_wraps_non_base_exceptions
-ok InstanceCreation.test_EG_wraps_BaseException__raises_TypeError
-ok InstanceCreation.test_EG_wraps_Exceptions__creates_EG
-ok LeafGeneratorTest.test_leaf_generator
-fail NestedExceptionGroupBasicsTest.test_iteration_full_tracebacks: AssertionError: [] != [620, 607, 605]
-ok NestedExceptionGroupBasicsTest.test_nested_exception_group_tracebacks
-ok NestedExceptionGroupBasicsTest.test_nested_group_chaining
-ok NestedExceptionGroupBasicsTest.test_nested_group_matches_template
-ok NestedExceptionGroupSplitTest.test_drive_invalid_return_value
-fail NestedExceptionGroupSplitTest.test_split_BaseExceptionGroup: AssertionError: <traceback object at 0xX> is not None
-fail NestedExceptionGroupSplitTest.test_split_by_type: AssertionError: <traceback object at 0xX> is not None
-ok NestedExceptionGroupSplitTest.test_split_copies_notes
-ok NestedExceptionGroupSplitTest.test_split_does_not_copy_non_sequence_notes
-fail NestedExceptionGroupSubclassSplitTest.test_split_BaseExceptionGroup_subclass_no_derive_new_override: AssertionError: <traceback object at 0xX> is not None
-fail NestedExceptionGroupSubclassSplitTest.test_split_ExceptionGroup_subclass_derive_and_new_overrides: AssertionError: <traceback object at 0xX> is not None
-fail NestedExceptionGroupSubclassSplitTest.test_split_ExceptionGroup_subclass_no_derive_no_new_override: AssertionError: <traceback object at 0xX> is not None
-ok StrAndReprTests.test_BaseExceptionGroup
-ok StrAndReprTests.test_ExceptionGroup
-ok StrAndReprTests.test_custom_exception
-fail StrAndReprTests.test_exceptions_mutation: AssertionError: "ExceptionGroup('test', (ValueError(1), TypeError(2)))" != "ExceptionGroup('test', deque([ValueError(1), TypeError(2)]))"
-fail StrAndReprTests.test_repr_raises: AssertionError: '.*MySeq\\.__repr__\\(\\) must return a str, not NoneType' does not match 'second argument (exceptions) must be a sequence'
-fail StrAndReprTests.test_repr_small_size_args: AssertionError: "ExceptionGroup('msg', [ValueError()])" != "ExceptionGroup('msg', (ValueError(),))"
-ok TestExceptionGroupTypeHierarchy.test_exception_group_is_generic_type
-ok TestExceptionGroupTypeHierarchy.test_exception_group_types
-ok TestExceptionGroupTypeHierarchy.test_exception_is_not_generic_type
---- ran 53 ok 42 fail 11 error 0 skip 0 ---
+.......F.............F..........F....FF..FFF...FFF...
+======================================================================
+FAIL: test_fields_are_readonly (__main__.ExceptionGroupFields.test_fields_are_readonly)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 350, in test_fields_are_readonly
+    with self.assertRaises(AttributeError):
+AssertionError: AttributeError not raised
+
+======================================================================
+FAIL: test_BEG_and_E_subclass_does_not_wrap_base_exceptions (__main__.InstanceCreation.test_BEG_and_E_subclass_does_not_wrap_base_exceptions)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 104, in test_BEG_and_E_subclass_does_not_wrap_base_exceptions
+    with self.assertRaisesRegex(TypeError, msg):
+AssertionError: TypeError not raised
+
+======================================================================
+FAIL: test_iteration_full_tracebacks (__main__.NestedExceptionGroupBasicsTest.test_iteration_full_tracebacks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 663, in test_iteration_full_tracebacks
+    self.assertSequenceEqual(
+AssertionError: Sequences differ: [] != [620, 607, 605]
+
+Second sequence contains 3 additional elements.
+First extra element 0:
+620
+
+- []
++ [620, 607, 605]
+
+======================================================================
+FAIL: test_split_BaseExceptionGroup (__main__.NestedExceptionGroupSplitTest.test_split_BaseExceptionGroup)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 852, in test_split_BaseExceptionGroup
+    match, rest = self.split_exception_group(beg, TypeError)
+  File "/tmp/test_exception_group.py", line 714, in split_exception_group
+    self.assertIs(eg.__traceback__, part.__traceback__)
+AssertionError: <traceback object at 0xX> is not None
+
+======================================================================
+FAIL: test_split_by_type (__main__.NestedExceptionGroupSplitTest.test_split_by_type)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 806, in test_split_by_type
+    match, rest = self.split_exception_group(eg, SyntaxError)
+  File "/tmp/test_exception_group.py", line 714, in split_exception_group
+    self.assertIs(eg.__traceback__, part.__traceback__)
+AssertionError: <traceback object at 0xX> is not None
+
+======================================================================
+FAIL: test_split_BaseExceptionGroup_subclass_no_derive_new_override (__main__.NestedExceptionGroupSubclassSplitTest.test_split_BaseExceptionGroup_subclass_no_derive_new_override)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 982, in test_split_BaseExceptionGroup_subclass_no_derive_new_override
+    match, rest = self.split_exception_group(eg, OSError)
+  File "/tmp/test_exception_group.py", line 714, in split_exception_group
+    self.assertIs(eg.__traceback__, part.__traceback__)
+AssertionError: <traceback object at 0xX> is not None
+
+======================================================================
+FAIL: test_split_ExceptionGroup_subclass_derive_and_new_overrides (__main__.NestedExceptionGroupSubclassSplitTest.test_split_ExceptionGroup_subclass_derive_and_new_overrides)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 1033, in test_split_ExceptionGroup_subclass_derive_and_new_overrides
+    match, rest = self.split_exception_group(eg, OSError)
+  File "/tmp/test_exception_group.py", line 714, in split_exception_group
+    self.assertIs(eg.__traceback__, part.__traceback__)
+AssertionError: <traceback object at 0xX> is not None
+
+======================================================================
+FAIL: test_split_ExceptionGroup_subclass_no_derive_no_new_override (__main__.NestedExceptionGroupSubclassSplitTest.test_split_ExceptionGroup_subclass_no_derive_no_new_override)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 943, in test_split_ExceptionGroup_subclass_no_derive_no_new_override
+    match, rest = self.split_exception_group(eg, OSError)
+  File "/tmp/test_exception_group.py", line 714, in split_exception_group
+    self.assertIs(eg.__traceback__, part.__traceback__)
+AssertionError: <traceback object at 0xX> is not None
+
+======================================================================
+FAIL: test_exceptions_mutation (__main__.StrAndReprTests.test_exceptions_mutation)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 227, in test_exceptions_mutation
+    self.assertEqual(
+AssertionError: "ExceptionGroup('test', (ValueError(1), TypeError(2)))" != "ExceptionGroup('test', deque([ValueError(1), TypeError(2)]))"
+- ExceptionGroup('test', (ValueError(1), TypeError(2)))
++ ExceptionGroup('test', deque([ValueError(1), TypeError(2)]))
+?                        +++++ +                           +
+
+
+======================================================================
+FAIL: test_repr_raises (__main__.StrAndReprTests.test_repr_raises)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 270, in test_repr_raises
+    with self.assertRaisesRegex(
+AssertionError: ".*MySeq\.__repr__\(\) must return a str, not NoneType" does not match "second argument (exceptions) must be a sequence"
+
+======================================================================
+FAIL: test_repr_small_size_args (__main__.StrAndReprTests.test_repr_small_size_args)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_exception_group.py", line 243, in test_repr_small_size_args
+    self.assertEqual(repr(eg), "ExceptionGroup('msg', (ValueError(),))")
+AssertionError: "ExceptionGroup('msg', [ValueError()])" != "ExceptionGroup('msg', (ValueError(),))"
+- ExceptionGroup('msg', [ValueError()])
+?                       ^            ^
++ ExceptionGroup('msg', (ValueError(),))
+?                       ^            ^^
+
+
+----------------------------------------------------------------------
+Ran 53 tests in Ns
+
+FAILED (failures=11)

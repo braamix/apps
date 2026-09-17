@@ -93,9 +93,33 @@ R member_repr(Value v, String &out)
 
 } // namespace
 
+namespace {
+
+R getset_repr(Value v, String &out)
+{
+    Buf<96> b;
+    b.put("<attribute '").put(static_cast<GetSetObj *>(v.obj())->name).put("' of objects>");
+    return out.append(b.str()) ? R::Ok : oom();
+}
+
+} // namespace
+
 constexpr Type member_type{ .name  = "member_descriptor",
                             .trace = member_trace,
                             .repr  = member_repr };
+
+constexpr Type getset_type{ .name = "getset_descriptor", .repr = getset_repr };
+
+Value getset_new(Str name, Got (*get)(Value, Value &, Value &), R (*set)(Value, Value))
+{
+    GetSetObj *g = static_cast<GetSetObj *>(obj_alloc(&getset_type, sizeof(GetSetObj)));
+    if (!g)
+        return oom(), Value();
+    g->name = name;
+    g->get  = get;
+    g->set  = set;
+    return obj_value(g);
+}
 
 Value *inst_slots(Obj *o, u32 &n)
 {
@@ -148,6 +172,8 @@ u8 descr_of(Value d, bool &data)
         return data = true, D_PROP;
     if (t == &member_type)
         return data = true, D_MEMBER;
+    if (t == &getset_type)
+        return data = true, D_GETSET;
     if (!is_inst(d))
         return D_NONE;
     if (!type_has_special(d, "__get__"))
@@ -240,6 +266,12 @@ Got descr_get(Value d, u8 kind, Value self, Value cls, Value &out, Value &args)
         out  = method_new(p->get, self);
         args = Value();
         return out.is_nil() ? Got::Error : Got::Call;
+    }
+
+    case D_GETSET: {
+        if (self.is_nil())
+            return out = d, Got::Ok;
+        return static_cast<GetSetObj *>(descr_inner(d).obj())->get(self, out, args);
     }
 
     case D_MEMBER: {
@@ -403,6 +435,8 @@ Got inst_attr(Value v, StrObj *name, Value &out, Value &args)
     return Got::Missing;
 }
 
+} // namespace
+
 // The names a class answers for itself, which CPython keeps as getset
 // descriptors on `type`.
 bool type_own_attr(Value v, Str n, Value &out)
@@ -426,6 +460,21 @@ bool type_own_attr(Value v, Str n, Value &out)
         return out = t->mro, !out.is_nil();
     if (n == "__dict__")
         return out = mappingproxy_new(t->dict), !out.is_nil();
+    // Py_TPFLAGS_HEAPTYPE and Py_TPFLAGS_IS_ABSTRACT, which inspect reads.
+    if (n == "__flags__") {
+        u32 f     = t->heap ? (1u << 9) : 0;
+        StrObj *k = str_intern("__abstractmethods__");
+        Value am;
+        if (k && !t->dict.is_nil() &&
+            dict_get(static_cast<DictObj *>(t->dict.obj()), obj_value(k), am) == R::Ok) {
+            usize n2 = 0;
+            if (py_len(am, n2) == R::Ok && n2)
+                f |= 1u << 20;
+        }
+        err_clear();
+        out = Value::of_int(i32(f));
+        return true;
+    }
     if (n == "__base__")
         return out = tuple_len(t->bases) ? tuple_at(t->bases, 0) : Value(), !out.is_nil();
     if (n == "__orig_bases__")
@@ -440,6 +489,8 @@ bool type_own_attr(Value v, Str n, Value &out)
     }
     return false;
 }
+
+namespace {
 
 Got type_attr(Value v, StrObj *name, Value &out, Value &args)
 {
@@ -679,6 +730,12 @@ R inst_store(Value v, StrObj *name, Value val, Value &fn)
             *s = rx.v;
             return R::Ok;
         }
+        if (kind == D_GETSET) {
+            GetSetObj *g = static_cast<GetSetObj *>(descr_inner(d.v).obj());
+            if (!g->set)
+                return err_set2("AttributeError", "can't set attribute", name->str());
+            return g->set(rv.v, rx.v);
+        }
         Root set{ type_special(d.v, "__set__") };
         if (set.v.is_nil())
             return err_set2("AttributeError", "can't set attribute", name->str());
@@ -762,6 +819,8 @@ R inst_erase(Value v, StrObj *name, Value &fn)
             *s = Value();
             return R::Ok;
         }
+        if (kind == D_GETSET)
+            return err_set2("AttributeError", "can't delete attribute", name->str());
         Root del{ type_special(d.v, "__delete__") };
         if (del.v.is_nil())
             return err_set2("AttributeError", "can't delete attribute", name->str());
@@ -1011,6 +1070,13 @@ R d_set_or_delete(const CallArgs &a, Value &out, bool del)
         out = value_none();
         return R::Ok;
     }
+    if (kind == D_GETSET) {
+        GetSetObj *g = static_cast<GetSetObj *>(descr_inner(desc.v).obj());
+        if (del || !g->set)
+            return err_set("AttributeError", "can't set attribute");
+        out = value_none();
+        return g->set(obj.v, val.v);
+    }
     if (kind != D_PROP)
         return err_set2("TypeError", "not a data descriptor", type_name(desc.v));
     PropObj *p = static_cast<PropObj *>(descr_inner(desc.v).obj());
@@ -1049,5 +1115,5 @@ bool descr_methods()
 {
     return method_install(&func_type, GET_ONLY) && method_install(&staticmethod_type, GET_ONLY) &&
            method_install(&classmethod_type, GET_ONLY) && method_install(&property_type, GET_SET) &&
-           method_install(&member_type, GET_SET);
+           method_install(&member_type, GET_SET) && method_install(&getset_type, GET_SET);
 }

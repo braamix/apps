@@ -16,10 +16,9 @@ expects instead. The copies that `make test` runs are under
 [test/cpython/](test/cpython/) with its rows in
 [test/cpython.txt](test/cpython.txt). Those tests are not self-contained the
 way MicroPython's are — every one of them imports `unittest` and most import
-`test.support` — so [test/shim/](test/shim/) carries a `unittest` and a
-`test.support` written against what this interpreter has, and the harness
-plants them beside each case. The real `unittest` pulls in `asyncio`,
-`logging`, `argparse` and `inspect`, and is a much later milestone.
+`test.support`. The `unittest` is CPython's own as of phase 27; the
+`test.support` beside it is [test/shim/](test/shim/)'s, written against what
+this interpreter has, and the harness plants it beside each case.
 
 Both upstream clones sit in `tmp/` and are not committed.
 
@@ -30,7 +29,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 26.**
+**Phase 27.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -372,9 +371,9 @@ in `format()`, and `<class '__main__.C'>` — a class repr now names its module.
 And two old faults went: an `except` clause that raised left the exception it
 had handled current, so the next one's `__context__` was wrong, and the
 collector's owed finalizers nested inside each other until one hit the
-recursion limit. [test/stdlib/](test/stdlib/) holds thirty-six programs now,
-1,124 lines identical to CPython 3.16's. The package carries the library as
-`lib/`: the 178 files [lib/manifest.txt](lib/manifest.txt) lists, 1.9 MB
+recursion limit. [test/stdlib/](test/stdlib/) holds forty programs now,
+2,469 lines identical to CPython 3.16's. The package carries the library as
+`lib/`: the 194 files [lib/manifest.txt](lib/manifest.txt) lists, 2.0 MB
 compressed with the binary.
 
 **The protocol methods are in each built-in type's namespace.** `len(x)`
@@ -418,8 +417,12 @@ CPython wrote now comes from 3.14, and [test/goldens.txt](test/goldens.txt)
 says which interpreter wrote each of our own.
 
 **CPython's tests are the second ruler.** Eighty-seven are in
-[test/cpython.txt](test/cpython.txt), fifty-nine of them run, and 1,513 test
-methods of 1,920 pass, against 975 of 1,282 at phase 25. Phase 26 added
+[test/cpython.txt](test/cpython.txt), sixty-one of them run, and 1,662 test
+methods of 1,956 pass, against 1,513 of 1,920 at phase 26 and 975 of 1,282 at
+phase 25. Phase 27 took the shim out from under them: `unittest` is CPython's
+own now, so `setUp`, `subTest`, the skips and an expected failure all behave
+as they do there, and the golden is the report unittest itself printed.
+Phase 26 added
 fourteen rows. Six run: `test_binascii.py` passes 220 of 237 and skips the
 rest, `test_base64.py` 59 of 67, `test_calendar.py` 65 of 86 and
 `test_strptime.py` 54 of 60 with nothing failing, and `test_math.py` 69 of
@@ -494,7 +497,7 @@ What stops the most files now is `pickle` (34), `subprocess` and `doctest`
 (17 each), `importlib` (12), `inspect` (11) and `threading` (9). Phase 24
 moved five files: `test_re.py`, `test_textwrap.py` and `test_except_star.py`
 run, and so do `test_bigmem.py`, which skips all it has, and
-`test_datetime.py`, whose `load_tests` the shim does not call; one more gets
+`test_datetime.py`, whose `load_tests` is not called; one more gets
 past its imports to a runtime error. What stopped the most files then was `os`
 and `io`, which phase 25 wrote. Phase 23 moved seventeen files, sixteen of them to running: what stops the rest
 is `re`, `os`, `io`, `inspect`, `typing`, `pickle` and `unittest.mock`, which
@@ -644,13 +647,12 @@ green.
 | [test/pyio.mjs](test/pyio.mjs) | What needs a stream or a signal: `sys.stdin` and `input()`, the files a program leaves open, and a handler called while the program sleeps |
 | [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the modules written in C++ |
 | [test/pyunicode.mjs](test/pyunicode.mjs) | The same for `test/unicode/`, with the library planted; the streams; and `--full`, every codepoint as now, as 3.2.0 and through the regex engine, and NormalizationTest.txt |
-| [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
+| [test/pyunit.mjs](test/pyunit.mjs) | unittest and the shims, before anything stands on them: one of every outcome |
 | [test/runcases.mjs](test/runcases.mjs) | Every case in the manifest, in one boot |
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
 | [test/pystress.mjs](test/pystress.mjs) | Every case again, collecting at every allocation; `make test STRESS=1` only |
-| [test/shim/unittest.py](test/shim/unittest.py) | `TestCase`, the assertions, `subTest`, the skips and the loader |
 | [test/shim/test/support/](test/shim/test/support/) | The names CPython's tests take from `test.support`, and its `import_helper`, `os_helper`, `warnings_helper` and `strace_helper` |
-| [test/shim/selfcheck.py](test/shim/selfcheck.py) | What `pyunit.mjs` runs: the shims measured against themselves |
+| [test/shim/selfcheck.py](test/shim/selfcheck.py) | What `pyunit.mjs` runs: one of every outcome unittest reports |
 | [tools/pyref.py](tools/pyref.py) | Which CPython writes a golden, and the record in `test/goldens.txt` of which one did |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
 | [tools/mkcpy.py](tools/mkcpy.py) | Copies one of CPython's tests in; `pycases.mjs --bless` writes its golden |
@@ -1578,8 +1580,8 @@ is the ruler the rest of the time.
 
 ## Licence
 
-The interpreter is this repository's, and so are the shims under `test/shim/`,
-which are not copies of anyone's code. [ucddb.cpp](ucddb.cpp) is generated
+The interpreter is this repository's, and so is the `test.support` under
+`test/shim/`, which is not a copy of anyone's code. [ucddb.cpp](ucddb.cpp) is generated
 from the Unicode Character Database, under the Unicode licence.
 [sre.cpp](sre.cpp) and [sremod.cpp](sremod.cpp) follow CPython's `_sre`, which
 Secret Labs wrote, under CNRI's Python 1.6 licence and the PSF's. The tests under `test/cases/` are

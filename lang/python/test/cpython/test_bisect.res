@@ -1,48 +1,193 @@
---- unittest ---
-error TestBisectC.test_backcompatibility: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_insort: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_insort_keynotNone: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_keyword_args: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_large_pyrange: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_large_range: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_lookups_with_key_function: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_lt_returns_non_bool: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_lt_returns_notimplemented: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_negative_lo: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_optionalSlicing: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_precomputed: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-error TestBisectC.test_random: setUp: AttributeError: 'NoneType' object has no attribute 'bisect_right'
-ok TestBisectPython.test_backcompatibility
-ok TestBisectPython.test_insort
-ok TestBisectPython.test_insort_keynotNone
-ok TestBisectPython.test_keyword_args
-ok TestBisectPython.test_large_pyrange
-ok TestBisectPython.test_large_range
-ok TestBisectPython.test_lookups_with_key_function
-ok TestBisectPython.test_lt_returns_non_bool
-ok TestBisectPython.test_lt_returns_notimplemented
-ok TestBisectPython.test_negative_lo
-ok TestBisectPython.test_optionalSlicing
-ok TestBisectPython.test_precomputed
-ok TestBisectPython.test_random
-error TestDocExampleC.test_colors: AttributeError: 'NoneType' object has no attribute 'bisect_left'
-error TestDocExampleC.test_grades: AttributeError: 'NoneType' object has no attribute 'bisect'
-ok TestDocExamplePython.test_colors
-ok TestDocExamplePython.test_grades
-error TestErrorHandlingC.test_arg_parsing: AttributeError: 'NoneType' object has no attribute 'bisect_left'
-error TestErrorHandlingC.test_cmp_err: AttributeError: 'NoneType' object has no attribute 'bisect_left'
-error TestErrorHandlingC.test_get_only: AttributeError: 'NoneType' object has no attribute 'bisect_left'
-error TestErrorHandlingC.test_len_only: AttributeError: 'NoneType' object has no attribute 'bisect_left'
-error TestErrorHandlingC.test_non_sequence: AttributeError: 'NoneType' object has no attribute 'bisect_left'
-ok TestErrorHandlingPython.test_arg_parsing
-ok TestErrorHandlingPython.test_cmp_err
-ok TestErrorHandlingPython.test_get_only
-ok TestErrorHandlingPython.test_len_only
-ok TestErrorHandlingPython.test_non_sequence
-error TestInsortC.test_backcompatibility: AttributeError: 'NoneType' object has no attribute 'insort'
-error TestInsortC.test_listDerived: AttributeError: 'NoneType' object has no attribute 'insort_left'
-error TestInsortC.test_vsBuiltinSort: AttributeError: 'NoneType' object has no attribute 'insort_right'
-ok TestInsortPython.test_backcompatibility
-ok TestInsortPython.test_listDerived
-ok TestInsortPython.test_vsBuiltinSort
---- ran 46 ok 23 fail 0 error 23 skip 0 ---
+EEEEEEEEEEEEE.............EE..EEEEE.....EEE...
+======================================================================
+ERROR: test_backcompatibility (__main__.TestBisectC.test_backcompatibility)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_insort (__main__.TestBisectC.test_insort)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_insort_keynotNone (__main__.TestBisectC.test_insort_keynotNone)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_keyword_args (__main__.TestBisectC.test_keyword_args)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_large_pyrange (__main__.TestBisectC.test_large_pyrange)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_large_range (__main__.TestBisectC.test_large_range)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_lookups_with_key_function (__main__.TestBisectC.test_lookups_with_key_function)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_lt_returns_non_bool (__main__.TestBisectC.test_lt_returns_non_bool)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_lt_returns_notimplemented (__main__.TestBisectC.test_lt_returns_notimplemented)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_negative_lo (__main__.TestBisectC.test_negative_lo)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_optionalSlicing (__main__.TestBisectC.test_optionalSlicing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_precomputed (__main__.TestBisectC.test_precomputed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_random (__main__.TestBisectC.test_random)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 35, in setUp
+    (self.module.bisect_right, [], 1, 0),
+AttributeError: 'NoneType' object has no attribute 'bisect_right'
+
+======================================================================
+ERROR: test_colors (__main__.TestDocExampleC.test_colors)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 405, in test_colors
+    bisect_left = self.module.bisect_left
+AttributeError: 'NoneType' object has no attribute 'bisect_left'
+
+======================================================================
+ERROR: test_grades (__main__.TestDocExampleC.test_grades)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 398, in test_grades
+    result = [grade(score) for score in [33, 99, 77, 70, 89, 90, 100]]
+  File "/tmp/test_bisect.py", line 398, in <listcomp>
+    result = [grade(score) for score in [33, 99, 77, 70, 89, 90, 100]]
+  File "/tmp/test_bisect.py", line 395, in grade
+    i = self.module.bisect([60, 70, 80, 90], score)
+AttributeError: 'NoneType' object has no attribute 'bisect'
+
+======================================================================
+ERROR: test_arg_parsing (__main__.TestErrorHandlingC.test_arg_parsing)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 380, in test_arg_parsing
+    for f in (self.module.bisect_left, self.module.bisect_right,
+AttributeError: 'NoneType' object has no attribute 'bisect_left'
+
+======================================================================
+ERROR: test_cmp_err (__main__.TestErrorHandlingC.test_cmp_err)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 375, in test_cmp_err
+    for f in (self.module.bisect_left, self.module.bisect_right,
+AttributeError: 'NoneType' object has no attribute 'bisect_left'
+
+======================================================================
+ERROR: test_get_only (__main__.TestErrorHandlingC.test_get_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 369, in test_get_only
+    for f in (self.module.bisect_left, self.module.bisect_right,
+AttributeError: 'NoneType' object has no attribute 'bisect_left'
+
+======================================================================
+ERROR: test_len_only (__main__.TestErrorHandlingC.test_len_only)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 364, in test_len_only
+    for f in (self.module.bisect_left, self.module.bisect_right,
+AttributeError: 'NoneType' object has no attribute 'bisect_left'
+
+======================================================================
+ERROR: test_non_sequence (__main__.TestErrorHandlingC.test_non_sequence)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 359, in test_non_sequence
+    for f in (self.module.bisect_left, self.module.bisect_right,
+AttributeError: 'NoneType' object has no attribute 'bisect_left'
+
+======================================================================
+ERROR: test_backcompatibility (__main__.TestInsortC.test_backcompatibility)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 316, in test_backcompatibility
+    self.assertEqual(self.module.insort, self.module.insort_right)
+AttributeError: 'NoneType' object has no attribute 'insort'
+
+======================================================================
+ERROR: test_listDerived (__main__.TestInsortC.test_listDerived)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 325, in test_listDerived
+    self.module.insort_left(lst, 10)
+AttributeError: 'NoneType' object has no attribute 'insort_left'
+
+======================================================================
+ERROR: test_vsBuiltinSort (__main__.TestInsortC.test_vsBuiltinSort)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bisect.py", line 311, in test_vsBuiltinSort
+    f = self.module.insort_right
+AttributeError: 'NoneType' object has no attribute 'insort_right'
+
+----------------------------------------------------------------------
+Ran 46 tests in Ns
+
+FAILED (errors=23)

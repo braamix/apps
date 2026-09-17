@@ -1,14 +1,5 @@
---- unittest ---
-ok PropertySubclassTests.test_docstring_copy
-ok PropertySubclassTests.test_property_new_getter_new_docstring
-ok PropertySubclassTests.test_property_setter_copies_getter_docstring
-skip PropertySubclassTests.test_slots_docstring_copy_exception: __doc__ is already present, __slots__ will have no effect
-ok PropertyTests.test_abstract_virtual
-ok PropertyTests.test_property___isabstractmethod__descriptor
-ok PropertyTests.test_property_decorator_baseclass
-ok PropertyTests.test_property_decorator_baseclass_doc
-ok PropertyTests.test_property_decorator_doc
-ok PropertyTests.test_property_decorator_subclass
-ok PropertyTests.test_property_decorator_subclass_doc
-ok PropertyTests.test_property_getter_doc_override
---- ran 12 ok 11 fail 0 error 0 skip 1 ---
+...s........
+----------------------------------------------------------------------
+Ran 12 tests in Ns
+
+OK (skipped=1)

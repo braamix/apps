@@ -1,33 +1,55 @@
---- unittest ---
-ok BoolTest.test_blocked
-ok BoolTest.test_bool_called_at_least_once
-ok BoolTest.test_bool_new
-fail BoolTest.test_boolean: AssertionError: 1 is not True
-ok BoolTest.test_callable
-ok BoolTest.test_complex
-ok BoolTest.test_contains
-ok BoolTest.test_convert
-fail BoolTest.test_convert_to_bool: AssertionError: TypeError not raised
-ok BoolTest.test_fileclosed
-ok BoolTest.test_float
-ok BoolTest.test_format
-fail BoolTest.test_from_bytes: AssertionError: 0 is not False
-ok BoolTest.test_hasattr
-ok BoolTest.test_int
-ok BoolTest.test_interpreter_convert_to_bool_raises
-ok BoolTest.test_isinstance
-ok BoolTest.test_issubclass
-ok BoolTest.test_keyword_args
-ok BoolTest.test_marshal
-fail BoolTest.test_math: AssertionError: DeprecationWarning not triggered
-ok BoolTest.test_operator
-error BoolTest.test_pickle: ModuleNotFoundError: No module named 'pickle'
-error BoolTest.test_picklevalues: ModuleNotFoundError: No module named 'pickle'
-ok BoolTest.test_real_and_imag
-ok BoolTest.test_repr
-ok BoolTest.test_sane_len
-ok BoolTest.test_str
-ok BoolTest.test_string
-ok BoolTest.test_subclass
-ok BoolTest.test_types
---- ran 31 ok 25 fail 4 error 2 skip 0 ---
+...F....F...F.......F.EE.......
+======================================================================
+ERROR: test_pickle (__main__.BoolTest.test_pickle)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bool.py", line 290, in test_pickle
+    import pickle
+ModuleNotFoundError: Standard library module 'pickle' was not found
+
+======================================================================
+ERROR: test_picklevalues (__main__.BoolTest.test_picklevalues)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bool.py", line 297, in test_picklevalues
+    import pickle
+ModuleNotFoundError: Standard library module 'pickle' was not found
+
+======================================================================
+FAIL: test_boolean (__main__.BoolTest.test_boolean)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bool.py", line 245, in test_boolean
+    self.assertIs(True & True, True)
+AssertionError: 1 is not True
+
+======================================================================
+FAIL: test_convert_to_bool (__main__.BoolTest.test_convert_to_bool)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bool.py", line 313, in test_convert_to_bool
+    check(Foo())
+  File "/tmp/test_bool.py", line 309, in <lambda>
+    check = lambda o: self.assertRaises(TypeError, bool, o)
+AssertionError: TypeError not raised by bool
+
+======================================================================
+FAIL: test_from_bytes (__main__.BoolTest.test_from_bytes)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bool.py", line 357, in test_from_bytes
+    self.assertIs(bool.from_bytes(b'\x00'*8, 'big'), False)
+AssertionError: 0 is not False
+
+======================================================================
+FAIL: test_math (__main__.BoolTest.test_math)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_bool.py", line 61, in test_math
+    with self.assertWarns(DeprecationWarning):
+AssertionError: DeprecationWarning not triggered
+
+----------------------------------------------------------------------
+Ran 31 tests in Ns
+
+FAILED (failures=4, errors=2)

@@ -1,12 +1,9 @@
-// `dis`, and it is this port's rather than CPython's.
+// `dis`, this port's own rather than CPython's.
 //
-// CPython's Lib/dis.py decodes CPython's instruction stream -- one byte an
-// opcode, one an argument, EXTENDED_ARG above 255, and inline caches between
-// them. This interpreter's is none of that: an instruction is an opcode and a
-// whole u32 (code.h), so a copy of that module would read the wrong bytes and
-// print nonsense. So `dis` is written here instead, against the names its
-// callers need: `inspect` wants COMPILER_FLAG_NAMES, get_instructions() and
-// Positions, and dis() itself prints what --dis prints.
+// CPython's Lib/dis.py decodes CPython's instruction stream. This one's is an
+// opcode and a whole u32 (code.h), so a copy would read the wrong bytes. The
+// names here are the ones its callers need: inspect wants
+// COMPILER_FLAG_NAMES, get_instructions() and Positions.
 #include "builtin.h"
 #include "call.h"
 #include "code.h"
@@ -39,8 +36,8 @@ INFO_TYPE(instruction_type, "dis.Instruction");
 
 constexpr Str POSITION_NAMES[4] = { "lineno", "end_lineno", "col_offset", "end_col_offset" };
 
-constexpr Str INSTRUCTION_NAMES[8] = { "opname",  "opcode",       "arg",        "argval",
-                                       "argrepr", "offset",       "line_number", "positions" };
+constexpr Str INSTRUCTION_NAMES[8] = { "opname",  "opcode", "arg",         "argval",
+                                       "argrepr", "offset", "line_number", "positions" };
 
 // `Positions(lineno, end_lineno, col_offset, end_col_offset)`, each of which
 // may be left out; a missing one is None, as CPython's namedtuple defaults it.
@@ -122,7 +119,7 @@ Value instruction_new(const CodeObj *c, usize at)
     Root repr{ str_new(text.str()) };
     if (repr.v.is_nil())
         return Value();
-    u32 line = line_at(c, u32(at));
+    u32 line     = line_at(c, u32(at));
     Value pos[4] = { Value::of_int(i32(line)), Value::of_int(i32(line)), value_none(),
                      value_none() };
     Roots ppin{ pos, 4 };
@@ -142,8 +139,7 @@ Value instruction_new(const CodeObj *c, usize at)
     return info_new(&instruction_type, items, INSTRUCTION_NAMES, 8);
 }
 
-// The code object behind whatever was handed over: a function, a method, a
-// class, a frame or a code object itself.
+// The code object behind whatever was handed over.
 const CodeObj *code_of_any(Value v)
 {
     if (is_code(v))
@@ -180,8 +176,7 @@ R b_get_instructions(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-// s[0] the listing: print() puts it wherever sys.stdout is, which a native
-// cannot do for itself.
+// s[0] the listing. A native cannot reach sys.stdout, so print() does it.
 R dis_step(ContObj *k, Value in)
 {
     if (k->i++ == 0) {
@@ -235,20 +230,17 @@ constexpr ModDef DEFS[] = {
     { "disassemble", b_dis },
 };
 
-// What inspect reads the CO_* constants back out of. The numbers are
-// CPython's, and this port's code.h agrees with them.
+// What inspect reads the CO_* constants out of. The numbers are CPython's.
 struct Flag {
     u32 bit;
     Str name;
 };
 
 constexpr Flag FLAGS[] = {
-    { 0x0001, "OPTIMIZED" },  { 0x0002, "NEWLOCALS" },
-    { 0x0004, "VARARGS" },    { 0x0008, "VARKEYWORDS" },
-    { 0x0010, "NESTED" },     { 0x0020, "GENERATOR" },
-    { 0x0040, "NOFREE" },     { 0x0080, "COROUTINE" },
-    { 0x0100, "ITERABLE_COROUTINE" }, { 0x0200, "ASYNC_GENERATOR" },
-    { 0x4000000, "HAS_DOCSTRING" },   { 0x8000000, "METHOD" },
+    { 0x0001, "OPTIMIZED" },       { 0x0002, "NEWLOCALS" },        { 0x0004, "VARARGS" },
+    { 0x0008, "VARKEYWORDS" },     { 0x0010, "NESTED" },           { 0x0020, "GENERATOR" },
+    { 0x0040, "NOFREE" },          { 0x0080, "COROUTINE" },        { 0x0100, "ITERABLE_COROUTINE" },
+    { 0x0200, "ASYNC_GENERATOR" }, { 0x4000000, "HAS_DOCSTRING" }, { 0x8000000, "METHOD" },
 };
 
 bool put_flag_names(DictObj *into)
@@ -259,8 +251,7 @@ bool put_flag_names(DictObj *into)
         return oom() == R::Ok;
     for (const Flag &f : FLAGS) {
         Root nm{ str_new(f.name) };
-        if (nm.v.is_nil() ||
-            dict_set(dict_at(d.v), Value::of_int(i32(f.bit)), nm.v) != R::Ok)
+        if (nm.v.is_nil() || dict_set(dict_at(d.v), Value::of_int(i32(f.bit)), nm.v) != R::Ok)
             return false;
     }
     return mod_put(static_cast<DictObj *>(rd.v.obj()), "COMPILER_FLAG_NAMES", d.v);

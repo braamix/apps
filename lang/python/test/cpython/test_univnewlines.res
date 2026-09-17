@@ -1,36 +1,5 @@
---- unittest ---
-ok CTestCRLFNewlines.test_read
-ok CTestCRLFNewlines.test_readline
-ok CTestCRLFNewlines.test_readlines
-ok CTestCRLFNewlines.test_seek
-ok CTestCRLFNewlines.test_tell
-ok CTestCRNewlines.test_read
-ok CTestCRNewlines.test_readline
-ok CTestCRNewlines.test_readlines
-ok CTestCRNewlines.test_seek
-ok CTestLFNewlines.test_read
-ok CTestLFNewlines.test_readline
-ok CTestLFNewlines.test_readlines
-ok CTestLFNewlines.test_seek
-ok CTestMixedNewlines.test_read
-ok CTestMixedNewlines.test_readline
-ok CTestMixedNewlines.test_readlines
-ok CTestMixedNewlines.test_seek
-ok PyTestCRLFNewlines.test_read
-ok PyTestCRLFNewlines.test_readline
-ok PyTestCRLFNewlines.test_readlines
-ok PyTestCRLFNewlines.test_seek
-ok PyTestCRLFNewlines.test_tell
-ok PyTestCRNewlines.test_read
-ok PyTestCRNewlines.test_readline
-ok PyTestCRNewlines.test_readlines
-ok PyTestCRNewlines.test_seek
-ok PyTestLFNewlines.test_read
-ok PyTestLFNewlines.test_readline
-ok PyTestLFNewlines.test_readlines
-ok PyTestLFNewlines.test_seek
-ok PyTestMixedNewlines.test_read
-ok PyTestMixedNewlines.test_readline
-ok PyTestMixedNewlines.test_readlines
-ok PyTestMixedNewlines.test_seek
---- ran 34 ok 34 fail 0 error 0 skip 0 ---
+..................................
+----------------------------------------------------------------------
+Ran 34 tests in Ns
+
+OK

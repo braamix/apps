@@ -1,8 +1,7 @@
 // The scope pass. Two walks: collect, then resolve.
 //
-// An annotation is visited in an annotation scope of its own, never in the
-// scope it is written in: PEP 649 evaluates it when something asks, out of a
-// function the compiler makes, so its names are that function's.
+// An annotation is visited in a scope of its own, never in the scope it is
+// written in: PEP 649 evaluates it out of a function the compiler makes.
 #include "symtab.h"
 
 #include "err.h"
@@ -105,9 +104,9 @@ struct Builder {
         if (!st->annos.push(Anno{ node, role, made }))
             return oom(), 0;
         cur = made;
-        // Every scope but the type parameters' is an evaluator, and an
-        // evaluator takes the format annotationlib asks it for. The parameter
-        // is spelled `.format` so that an annotation may still name `format`.
+        // Every scope but the type parameters' is an evaluator, and takes
+        // the format annotationlib asks for. The name is `.format`, so an
+        // annotation may still use `format`.
         if (role != AN_PARAMS) {
             if (!param(str_intern(".format")))
                 return 0;
@@ -221,8 +220,7 @@ void Builder::args_outer(u32 i)
     kids(i, s.at_kwdefaults, s.kwdefaults, &Builder::expr);
 }
 
-// The Arg nodes of an Arguments run, in two pieces: everything up to the
-// keyword-only defaults, and the **kwargs behind them.
+// The Arg nodes of an Arguments run, in two pieces.
 bool any_arg_annotation(const Ast *ast, u32 args, u32 returns)
 {
     if (returns)
@@ -280,8 +278,7 @@ void Builder::deferred_annotations(u32 node)
         return;
     if (!annotate_scope(node, sees))
         return;
-    if (st->scopes[owner].nconds &&
-        !note(str_intern("__conditional_annotations__"), SF_USE, node))
+    if (st->scopes[owner].nconds && !note(str_intern("__conditional_annotations__"), SF_USE, node))
         return;
     for (usize k = 0; k < st->scopes[owner].deferred.size() && !failed; k++)
         expr(ast->at(st->scopes[owner].deferred[k]).b);
@@ -343,8 +340,8 @@ void Builder::function(u32 i)
         if (failed)
             return;
     }
-    // The annotations are the __annotate__ function's, not this scope's, and
-    // a generic's see its type parameters, so this sits inside that scope.
+    // The annotations belong to __annotate__. A generic's see its type
+    // parameters, so this sits inside that scope.
     if (n.kind != Nd::Lambda && any_arg_annotation(ast, n.a, n.d)) {
         u32 outer = cur;
         if (!annotate_scope(i, st->scopes[outer].kind == ScopeKind::Class))
@@ -835,8 +832,7 @@ void Builder::stmt(u32 i)
         bool simple  = (n.flags & 1) != 0;
         ScopeKind sk = scope().kind;
         if (simple && (sk == ScopeKind::Module || sk == ScopeKind::Class)) {
-            // The annotation is deferred; the name itself is only recorded,
-            // since `x: int` alone binds nothing here.
+            // The annotation is deferred, and `x: int` alone binds nothing.
             if (!note_at(n.a, SF_ANNOT))
                 return;
             Scope &sc = scope();
@@ -846,8 +842,7 @@ void Builder::stmt(u32 i)
                 return;
             }
         } else if (simple) {
-            // In a function the annotation is dropped, but it still makes the
-            // name a local of it.
+            // In a function the annotation is dropped, but the name is local.
             if (!note_at(n.a, SF_ASSIGN))
                 return;
         }
@@ -1020,9 +1015,9 @@ bool link_free(Symtab &st, u32 from, StrObj *name)
         // itself in another for its methods, and the set of the annotations it
         // reached in a third for its __annotate__.
         if ((dict || cls || cond) && st.scopes[a].kind == ScopeKind::Class) {
-            (dict     ? st.scopes[a].classdict
-             : cls    ? st.scopes[a].classcell
-                      : st.scopes[a].condcell) = true;
+            (dict  ? st.scopes[a].classdict
+             : cls ? st.scopes[a].classcell
+                   : st.scopes[a].condcell) = true;
             if (y) {
                 y->bind = Bind::Cell;
                 return true;
@@ -1167,8 +1162,7 @@ bool analyze(Symtab &st, u32 si, const Names &bound)
             if (!cd || (!holds(next, cd) && !next.push(cd)) || !cc ||
                 (!holds(next, cc) && !next.push(cc)))
                 return err_set("MemoryError", "out of memory"), false;
-            // Its __annotate__ reads the set of the annotations the body
-            // reached, so that name is the third a class hands down.
+            // Its __annotate__ reads the set the body filled in.
             if (st.scopes[si].nconds) {
                 StrObj *ca = str_intern("__conditional_annotations__");
                 if (!ca || (!holds(next, ca) && !next.push(ca)))
@@ -1190,10 +1184,8 @@ bool analyze(Symtab &st, u32 si, const Names &bound)
 
         for (usize i = 0; i < st.scopes[c].syms.size(); i++) {
             Sym &y = st.scopes[c].syms[i];
-            // FreeOrClass is free as well: it looks in the class first, and
-            // in the closure when the class has not got it.
-            if ((y.bind == Bind::Free || y.bind == Bind::FreeOrClass) &&
-                !link_free(st, si, y.name))
+            // FreeOrClass is free too: the class first, then the closure.
+            if ((y.bind == Bind::Free || y.bind == Bind::FreeOrClass) && !link_free(st, si, y.name))
                 return err_set("MemoryError", "out of memory"), false;
         }
     }

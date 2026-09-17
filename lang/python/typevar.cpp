@@ -530,7 +530,7 @@ R ta_getattr(Value v, StrObj *name, Value &out)
 {
     AliasObj *a = ta_of(v);
     Str n       = name->str();
-    if (n == "__name__")
+    if (n == "__name__" || n == "__qualname__")
         return out = a->name, R::Ok;
     if (n == "__module__")
         return out = a->module.is_nil() ? value_none() : a->module, R::Ok;
@@ -562,8 +562,8 @@ R ta_setattr(Value v, StrObj *name, Value val)
     (void)val;
     Buf<128> b;
     Str n = name->str();
-    if (n == "__value__" || n == "__name__" || n == "__type_params__" || n == "__module__" ||
-        n == "__parameters__") {
+    if (n == "__value__" || n == "__name__" || n == "__qualname__" || n == "__type_params__" ||
+        n == "__module__" || n == "__parameters__") {
         b.put("attribute '").put(n).put("' of 'typing.TypeAliasType' objects is not writable");
         return err_set("AttributeError", b.str());
     }
@@ -848,18 +848,17 @@ R g_init_subclass(const CallArgs &a, Value &out)
 {
     if (a.nkw)
         return err_set("TypeError", "__init_subclass__() takes no keyword arguments");
-    if (a.nargs != 1 || !is_type(a.args[0]))
+    if (a.nargs < 1 || !is_type(a.args[0]))
         return err_set("TypeError", "__init_subclass__() takes no arguments");
     Root cls{ a.args[0] };
     Root generic{ generic_class() };
     if (generic.v.is_nil())
         return R::Err;
-    // Plain `Generic` is not a base, with the two exceptions typing.py's own
-    // version makes for the classes that have to be written that way.
+    // Plain `Generic` is not a base, bar the two exceptions typing.py makes.
     Value orig  = type_obj(cls.v)->origbases;
     Value bases = orig.is_nil() ? type_obj(cls.v)->bases : orig;
-    bool named  = is_str(type_obj(cls.v)->name) && str_of(type_obj(cls.v)->name)->str() ==
-                                                      Str("Protocol");
+    bool named =
+        is_str(type_obj(cls.v)->name) && str_of(type_obj(cls.v)->name)->str() == Str("Protocol");
     Root meta{ type_of_value(cls.v) };
     bool typed = !meta.v.is_nil() && is_str(type_obj(meta.v)->name) &&
                  str_of(type_obj(meta.v)->name)->str() == Str("_TypedDictMeta");
@@ -1304,9 +1303,19 @@ bool typing_methods()
         return false;
     constexpr Method GENERIC_METHODS[] = {
         { "__class_getitem__", g_class_getitem },
-        { "__init_subclass__", g_init_subclass },
     };
     if (!method_install(&generic_type, GENERIC_METHODS))
+        return false;
+    // __init_subclass__ is an implicit classmethod: typing.py reaches it
+    // through super(), which binds no class to a plain one.
+    Root gen{ type_wrap(&generic_type) };
+    Root isc{ native_new("__init_subclass__", g_init_subclass) };
+    StrObj *ik = str_intern("__init_subclass__");
+    if (gen.v.is_nil() || isc.v.is_nil() || !ik)
+        return false;
+    Root wrapped{ classmethod_new(isc.v) };
+    if (wrapped.v.is_nil() || dict_set(static_cast<DictObj *>(type_obj(gen.v)->dict.obj()),
+                                       obj_value(ik), wrapped.v) != R::Ok)
         return false;
     // A Generic instance is a plain object, traced as one.
     Root generic{ generic_class() };

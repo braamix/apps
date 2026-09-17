@@ -76,14 +76,16 @@ function plant_data() {
 // processes the boot has spawned before it. Nothing else in a listing is
 // unstable.
 function stable(text) {
-    return text.replace(/0x[0-9a-fA-F]+/g, "0xX").replace(/@test_\d+_tmp/g, "@test_N_tmp");
+    return text
+        .replace(/0x[0-9a-fA-F]+/g, "0xX")
+        .replace(/@test_\d+_tmp/g, "@test_N_tmp")
+        .replace(/ in [0-9.]+s$/gm, " in Ns");
 }
 
-// What unittest.main() fenced off, or the whole of it when the case never got
-// that far.
+// What unittest.main() printed, which is the whole of the output: its report
+// ends with the line `Ran N tests in ...`. Null when the case never got there.
 function listing(text) {
-    const at = text.indexOf("--- unittest ---\n");
-    return at < 0 ? null : text.slice(at);
+    return /^Ran \d+ tests? in /m.test(text) ? text : null;
 }
 
 // A one-word reason for a case that does not run, read off what it printed.
@@ -105,10 +107,19 @@ function reason(text) {
     return m ? "runtime" : "silent";
 }
 
-// ok/ran off the summary line the shim prints last.
+// ok/ran off unittest's own last two lines. A skip counts as a pass, as the
+// shim's own tally did.
 function counts(text) {
-    const m = /^--- ran (\d+) ok (\d+) fail (\d+) error (\d+) skip (\d+) ---$/m.exec(text);
-    return m ? `${m[2]}/${m[1]}` : null;
+    const m = /^Ran (\d+) tests? in /m.exec(text);
+    if (!m) return null;
+    let bad = 0;
+    const f = /^FAILED \((.*)\)$/m.exec(text);
+    if (f)
+        for (const part of f[1].split(", ")) {
+            const [kind, n] = part.split("=");
+            if (kind === "failures" || kind === "errors") bad += Number(n);
+        }
+    return `${Number(m[1]) - bad}/${m[1]}`;
 }
 
 await boot("pycases");

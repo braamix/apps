@@ -1,9 +1,10 @@
-"""The shims' own test: the loader, the assertions, and every outcome.
+"""unittest and the shim's test.support: the loader, the assertions, and
+every outcome.
 
 Not one of CPython's, and never in cpython.txt. It is what says the mechanism
 is sound on a day when no upstream test runs at all, and it is written to
 produce one of each result -- ok, fail, error, skip and an expected failure --
-so the harness's reading of the summary is exercised too.
+so the harness's reading of the report is exercised too.
 """
 
 import unittest

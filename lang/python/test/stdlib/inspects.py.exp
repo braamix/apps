@@ -1,0 +1,33 @@
+(a, b=1, *rest, kw, other=2, **more) -> bool
+['a', 'b', 'rest', 'kw', 'other', 'more']
+a POSITIONAL_OR_KEYWORD True <class 'inspect._empty'>
+b POSITIONAL_OR_KEYWORD False <class 'inspect._empty'>
+rest VAR_POSITIONAL True <class 'inspect._empty'>
+kw KEYWORD_ONLY True <class 'inspect._empty'>
+other KEYWORD_ONLY False <class 'inspect._empty'>
+more VAR_KEYWORD True <class 'inspect._empty'>
+<class 'bool'>
+{'a': 1, 'b': 2, 'rest': (3,), 'kw': 4}
+A docstring.
+
+Indented.
+a
+  b
+c
+True True
+True True
+True True
+False True
+['method', 'sm']
+(<class 'bool'>, <class 'int'>, <class 'object'>)
+(self, a: 'C') -> None
+{'a': 'C', 'return': None}
+{'x': <class 'int'>}
+FullArgSpec(args=['a', 'b'], varargs='rest', varkw='more', defaults=(1,), kwonlyargs=['kw', 'other'], kwonlydefaults={'other': 2}, annotations={'return': <class 'bool'>})
+(
+{'v': 1}
+True
+(*, a, b=2)
+<class 'int'>
+(z=5)
+True

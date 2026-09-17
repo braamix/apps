@@ -1,13 +1,13 @@
 # Python for Braam — a development plan
 
 Python 3 written for Braam: our own compiler, bytecode VM and object model,
-and CPython's library taken byte for byte over a native floor. Phases 0 to 26
+and CPython's library taken byte for byte over a native floor. Phases 0 to 27
 are done; their record is the git history and [README.md](README.md). This
 file describes only what is left.
 
 Where it stands: **427 of the 449 MicroPython tests** in
-[test/manifest.txt](test/manifest.txt) pass, and **59 of the 87 CPython tests**
-in [test/cpython.txt](test/cpython.txt) run, 1,513 of their 1,920 methods
+[test/manifest.txt](test/manifest.txt) pass, and **61 of the 87 CPython tests**
+in [test/cpython.txt](test/cpython.txt) run, 1,662 of their 1,956 methods
 passing. `node test/pycases.mjs --survey` says what stops each file of
 `Lib/test/`; most stop at a module that is not here yet, which is how each
 phase is chosen.
@@ -160,66 +160,42 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-The order is the layers that need the whole library (27–30); the language
-phases, the floor, both waves of the library, `re` and the file system are
-done. Each phase
-lists only what the phases before it have made possible.
+The order is the layers that need the whole library (28–30); the language
+phases, the floor, both waves of the library, `re`, the file system,
+annotations and typing are done. Each phase lists only what the phases before
+it have made possible.
 
-After Phase 26: **the library ships as the package's `lib/`**, exactly the
-rows of [lib/manifest.txt](lib/manifest.txt) — 178 files, 1.9 MB
+After Phase 27: **the library ships as the package's `lib/`**, exactly the
+rows of [lib/manifest.txt](lib/manifest.txt) — 194 files, 2.0 MB
 compressed with the binary. The whole of CPython's `Lib/` less its tests is
 3.5 MB compressed, so the 50 MiB limit decides nothing; what does is the rule
 that a module ships once it has been copied and runs. **importlib is
 CPython's, and the C++ loader stays the fast path**: importing `importlib`
 installs the three finders and the path hook and gives every module its
 `__spec__`, and a finder or hook the program adds sends each import after it
-through `importlib._bootstrap._find_and_load`. **A traceback is an object** —
-`__traceback__`, `tb_next`, `tb_frame`, `co_positions()` — but carries lines
-only, so `traceback` prints no carets until `ast` is here. **`_colorize` is
-native and colourless** until `dataclasses` is. **`sysconfig` waits**: it
+through `importlib._bootstrap._find_and_load`. **`sysconfig` waits**: it
 imports a `_sysconfigdata_*` module a CPython build generates, which is not a
-copy this tree can take. **Of the plan's tests**, `test_base64.py`,
-`test_binascii.py`, `test_math.py`, `test_calendar.py`, `test_strptime.py` and
-`test_contextlib.py` run; `test_datetime.py` runs none, its `load_tests` not
-being called; `test_hashlib.py` and `test_time.py` stop at `sysconfig`,
-`test_decimal.py` at `pickle`, `test_statistics.py` at `doctest`,
-`test_fractions.py` at `typing`, `test_traceback.py` at `inspect`,
-`test_codeop.py` at `ast`, and `test_argparse.py` and `test_hmac.py` at
-`unittest.mock`. **`test_importlib/` skips whole**, as it does on any CPython
-built without the `_testmultiphase` test extension; `test/stdlib/imports.py`
-measures importlib against CPython instead. `importlib.invalidate_caches()`,
-`importlib.resources`, `importlib.abc` and `importlib.metadata` import
-`typing` (phase 27).
+copy this tree can take.
 
-### Phase 27 — annotations and typing
+**`dis` is this port's, not a copy, and there is no `opcode`.** CPython's
+`Lib/dis.py` decodes CPython's instruction stream; this interpreter's is an
+opcode and a whole `u32`, so a copy would read the wrong bytes.
+[dismod.cpp](dismod.cpp) answers the names `inspect` needs instead. The eight
+test files that measure CPython's own bytecode cannot run here at all.
 
-Annotations are discarded today: `x: int = 1` compiles as `x = 1`, and a
-parameter annotation costs nothing at `def` time. The compiler half has no
-dependency; the library half imports `ast`, which is why the phase is here.
+**`doctest` waits, and not for a phase below.** It imports `pdb` at its top,
+and `pdb` imports `socket` and `selectors`, which are on the list of what is
+deliberately not here. Twenty-one of CPython's test files stop at it.
 
-- [ ] `__annotations__` and `__annotate__` on modules, classes and functions,
-      under PEP 649's lazy evaluation — what 3.14 onwards does.
-- [ ] `_ast`, so `ast.py` can be copied: the node classes, and `compile()`
-      with `PyCF_ONLY_AST` answering them from the parser's arena.
-      `annotationlib.py` imports `ast` at the top; `inspect.py` does too.
-- [ ] `annotationlib`, `typing` (3,955 lines over the `_typing` phase 20
-      wrote), `dis` and `opcode` over a native `_opcode`, `inspect`, and
-      `dataclasses`, which is the first thing most code wants annotations for.
-- [ ] Hand `typing.py` what `_typing` and the union answer natively today, as
-      CPython does: a string in a union or a `Generic` becomes a
-      `ForwardRef` through `typing._type_check`, and substitution, unpacking
-      a `TypeVarTuple` and `Generic.__class_getitem__` are typing's.
-- [ ] `doctest` and the real `unittest`, which is where the shims end.
-
-Tests: `test_annotations.py`, `test_type_annotations.py`, `test_typing.py`,
-`test_dataclasses/`, `test_inspect/`; and now the ones earlier phases
-deferred — `test_coroutines.py`, `test_asyncgen.py`, `test_patma.py`,
-`test_grammar.py`, `test_type_params.py`, `test_collections.py`,
-`test_fractions.py`, `test_traceback.py`, `test_codeop.py`,
-`test_functools.py`, `test_enum.py`, `test_itertools.py`, `test_syntax.py`,
-`test_posixpath.py`, `test_random.py`, `test_shlex.py`, `test_shutil.py`,
-`test_pprint.py`, and `test_json/` and `test_io/` with the `load_tests`
-protocol and `import_fresh_module`.
+**Of the plan's tests**, the sixty-one rows of
+[test/cpython.txt](test/cpython.txt) marked `pass` run; `test_datetime.py`
+runs none, its `load_tests` not being called; `test_hashlib.py` and
+`test_time.py` stop at `sysconfig`, `test_decimal.py`, `test_fractions.py`
+and `test_type_params.py` at `pickle`, `test_statistics.py` at `doctest`, and
+`test_grammar.py` and `test_traceback.py` at data modules the shims have not
+got. **`test_importlib/` skips whole**, as it does on any CPython built
+without the `_testmultiphase` test extension; `test/stdlib/imports.py`
+measures importlib against CPython instead.
 
 ### Phase 28 — `asyncio`
 

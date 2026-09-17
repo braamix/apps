@@ -137,8 +137,7 @@ R rev_iter_next(Value v, Value &out)
 }
 
 // zip(): one item from each, until one runs out.
-// `at` is zip(strict=True): the iterables must end together, and the message
-// names the one that did not.
+// zip(strict=True), which `at` holds: the iterables must end together.
 R zip_strict(IterObj *it, usize len, usize ended)
 {
     TupleObj *s = static_cast<TupleObj *>(it->owner.obj());

@@ -1,19 +1,31 @@
---- unittest ---
-ok Test.test_errors
-ok Test.test_errors_changed_pep487
-ok Test.test_init_subclass
-error Test.test_init_subclass_diamond: TypeError: __init_subclass__() missing a required positional argument: 'cls'
-ok Test.test_init_subclass_dict
-ok Test.test_init_subclass_error
-ok Test.test_init_subclass_kwargs
-ok Test.test_init_subclass_skipped
-ok Test.test_init_subclass_wrong
-ok Test.test_set_name
-error Test.test_set_name_error: AttributeError: 'ZeroDivisionError' object has no attribute '__notes__'
-ok Test.test_set_name_init_subclass
-ok Test.test_set_name_lookup
-ok Test.test_set_name_metaclass
-ok Test.test_set_name_modifying_dict
-error Test.test_set_name_wrong: AttributeError: 'TypeError' object has no attribute '__notes__'
-ok Test.test_type
---- ran 17 ok 14 fail 0 error 3 skip 0 ---
+...E......E....E.
+======================================================================
+ERROR: test_init_subclass_diamond (__main__.Test.test_init_subclass_diamond)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_subclassinit.py", line 96, in test_init_subclass_diamond
+    class A(Left, Middle, Right, middle="middle"):
+  File "/tmp/test_subclassinit.py", line 88, in __init_subclass__
+    super().__init_subclass__(**kwargs)
+TypeError: __init_subclass__() missing a required positional argument: 'cls'
+
+======================================================================
+ERROR: test_set_name_error (__main__.Test.test_set_name_error)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_subclassinit.py", line 141, in test_set_name_error
+    notes = cm.exception.__notes__
+AttributeError: 'ZeroDivisionError' object has no attribute '__notes__'
+
+======================================================================
+ERROR: test_set_name_wrong (__main__.Test.test_set_name_wrong)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_subclassinit.py", line 155, in test_set_name_wrong
+    notes = cm.exception.__notes__
+AttributeError: 'TypeError' object has no attribute '__notes__'
+
+----------------------------------------------------------------------
+Ran 17 tests in Ns
+
+FAILED (errors=3)

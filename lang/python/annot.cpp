@@ -11,8 +11,7 @@
 namespace {
 
 // Where the three owners keep the pair. A class hides both behind names of
-// its own so that neither is inherited and neither collides with an
-// annotation called `__annotations__`.
+// its own, so neither is inherited.
 struct Names {
     Str annotate;
     Str cache;
@@ -212,8 +211,7 @@ R annot_store(Value v, StrObj *name, Value val)
 
 namespace {
 
-// A class is the only thing these are installed for, and a built-in one has
-// neither: `int.__annotations__` is an AttributeError, as it is in CPython.
+// A built-in type has neither: `int.__annotations__` is an AttributeError.
 R refuse(Value v, Str name)
 {
     Buf<96> b;
@@ -222,75 +220,71 @@ R refuse(Value v, Str name)
     return err_set("AttributeError", b.str());
 }
 
-R n_type_annotations(const CallArgs &a, Value &out)
+Got g_annotations(Value self, Value &out, Value &args)
 {
-    if (!a.nargs || !is_type(a.args[0]))
-        return err_set("TypeError", "__annotations__ wants a class");
-    Root self{ a.args[0] };
-    if (!type_obj(self.v)->heap)
-        return refuse(self.v, "__annotations__");
-    Value args;
+    if (!is_type(self))
+        return err_set("TypeError", "__annotations__ wants a class"), Got::Error;
+    if (!type_obj(self)->heap)
+        return refuse(self, "__annotations__"), Got::Error;
     StrObj *n = str_intern("__annotations__");
     if (!n)
-        return err_set("MemoryError", "out of memory");
-    switch (annot_lazy(self.v, n, out, args)) {
-    case Got::Ok:
-        return R::Ok;
-    case Got::Call:
-        out = attr_invoke(out, args);
-        return out.is_nil() ? R::Err : R::Ok;
-    default:
-        return R::Err;
-    }
+        return err_set("MemoryError", "out of memory"), Got::Error;
+    return annot_lazy(self, n, out, args);
 }
 
-R n_type_annotate(const CallArgs &a, Value &out)
+Got g_annotate(Value self, Value &out, Value &args)
 {
-    if (!a.nargs || !is_type(a.args[0]))
-        return err_set("TypeError", "__annotate__ wants a class");
-    Root self{ a.args[0] };
-    if (!type_obj(self.v)->heap)
-        return refuse(self.v, "__annotate__");
-    out = annot_func(self.v);
-    return out.is_nil() ? R::Err : R::Ok;
+    (void)args;
+    if (!is_type(self))
+        return err_set("TypeError", "__annotate__ wants a class"), Got::Error;
+    if (!type_obj(self)->heap)
+        return refuse(self, "__annotate__"), Got::Error;
+    out = annot_func(self);
+    return out.is_nil() ? Got::Error : Got::Ok;
 }
 
-R type_set(const CallArgs &a, Str which, Value &out)
+R s_annotations(Value self, Value val)
 {
-    if (a.nargs < 2 || !is_type(a.args[0]))
-        return err_set("TypeError", "a class was expected");
-    Root self{ a.args[0] }, val{ a.args[1] };
-    StrObj *n = str_intern(which);
-    if (!n)
-        return err_set("MemoryError", "out of memory");
-    out = value_none();
-    return annot_store(self.v, n, val.v);
+    StrObj *n = str_intern("__annotations__");
+    return n ? annot_store(self, n, val) : err_set("MemoryError", "out of memory");
 }
 
-R n_set_annotations(const CallArgs &a, Value &out)
+R s_annotate(Value self, Value val)
 {
-    return type_set(a, "__annotations__", out);
+    StrObj *n = str_intern("__annotate__");
+    return n ? annot_store(self, n, val) : err_set("MemoryError", "out of memory");
 }
 
-R n_set_annotate(const CallArgs &a, Value &out)
+// inspect reads an MRO through `type.__dict__["__mro__"].__get__`.
+Got g_own(Value self, Str name, Value &out)
 {
-    return type_set(a, "__annotate__", out);
+    if (!is_type(self))
+        return err_set("TypeError", "a class was expected"), Got::Error;
+    if (!type_own_attr(self, name, out))
+        return refuse(self, name), Got::Error;
+    return Got::Ok;
 }
 
-bool put_descriptor(Value cls, Str name, R (*get)(const CallArgs &, Value &),
-                    R (*set)(const CallArgs &, Value &))
+Got g_mro(Value self, Value &out, Value &args)
+{
+    (void)args;
+    return g_own(self, "__mro__", out);
+}
+
+Got g_dict(Value self, Value &out, Value &args)
+{
+    (void)args;
+    return g_own(self, "__dict__", out);
+}
+
+bool put_getset(Value cls, Str name, Got (*get)(Value, Value &, Value &), R (*set)(Value, Value))
 {
     Root rc{ cls };
-    Root g{ native_new(name, get) };
-    Root s{ native_new(name, set) };
-    if (g.v.is_nil() || s.v.is_nil())
-        return false;
-    Root p{ property_of(g.v, s.v) };
+    Root d{ getset_new(name, get, set) };
     StrObj *k = str_intern(name);
-    if (p.v.is_nil() || !k)
+    if (d.v.is_nil() || !k)
         return false;
-    return dict_set(static_cast<DictObj *>(type_obj(rc.v)->dict.obj()), obj_value(k), p.v) ==
-           R::Ok;
+    return dict_set(static_cast<DictObj *>(type_obj(rc.v)->dict.obj()), obj_value(k), d.v) == R::Ok;
 }
 
 } // namespace
@@ -300,6 +294,8 @@ bool annot_install()
     Root cls{ type_wrap(&type_type) };
     if (cls.v.is_nil())
         return false;
-    return put_descriptor(cls.v, "__annotations__", n_type_annotations, n_set_annotations) &&
-           put_descriptor(cls.v, "__annotate__", n_type_annotate, n_set_annotate);
+    return put_getset(cls.v, "__annotations__", g_annotations, s_annotations) &&
+           put_getset(cls.v, "__annotate__", g_annotate, s_annotate) &&
+           put_getset(cls.v, "__mro__", g_mro, nullptr) &&
+           put_getset(cls.v, "__dict__", g_dict, nullptr);
 }

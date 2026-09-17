@@ -1,9 +1,9 @@
-// Where each node of the tree is in the source, as CPython's ast reports it.
+// Where each node is in the source, as CPython's ast reports it.
 //
-// The parser records only the token a node is *at*. A position is the span of
-// tokens the node was written as, which is that token widened over everything
-// under it, then over the brackets that close inside it; a few kinds begin at
-// a keyword the parser did not point at, and those are named one by one.
+// The parser records only the token a node is at. A position is the span of
+// tokens the node was written as: that token widened over everything under
+// it, then over the brackets that close inside it. A few kinds begin at a
+// keyword the parser did not point at; those are named one by one.
 #pragma once
 
 #include "parse.h"

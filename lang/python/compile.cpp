@@ -1483,11 +1483,11 @@ bool Compiler::anno_body(u32 node, u8 role)
 // ---------------------------------------------------------------- PEP 649
 //
 // An annotation is not evaluated where it is written. The compiler collects
-// the annotations of a def, a class body or a module into a function of one
-// argument, __annotate__, and __annotations__ is what calling it answers.
+// the annotations of a def, a class body or a module into __annotate__, a
+// function of one argument.
 
-// The __annotate__ of `node`, left on the stack under the code object it goes
-// with. Nothing is emitted, and no flag set, where there are no annotations.
+// The __annotate__ of `node`, left under the code object. Nothing is emitted
+// where there are no annotations.
 bool Compiler::annotate_of(u32 node, u32 &flags)
 {
     u32 scope = st.anno(node, AN_ANNOTATE);
@@ -1508,9 +1508,8 @@ bool Compiler::annotate_of(u32 node, u32 &flags)
     return true;
 }
 
-// `if .format > VALUE_WITH_FAKE_GLOBALS: raise NotImplementedError`. This is
-// the whole of what a compiled __annotate__ says about the formats it cannot
-// answer, and annotationlib reads it as the signal to do the work itself.
+// `if .format > VALUE_WITH_FAKE_GLOBALS: raise NotImplementedError`, which is
+// how annotationlib knows to evaluate the annotations itself.
 bool Compiler::annotate_prologue(u32 node)
 {
     const ExcType *nie = exc_find("NotImplementedError");
@@ -1528,8 +1527,8 @@ bool Compiler::annotate_prologue(u32 node)
     return true;
 }
 
-// The dict a class's or a module's __annotate__ answers: one entry for each
-// `x: T` the body deferred, less those whose statement did not run.
+// The dict a class's or a module's __annotate__ answers: one entry per
+// deferred `x: T`, less those whose statement did not run.
 bool Compiler::annotate_deferred(u32 node)
 {
     u32 owner     = st.at_node[node];
@@ -1578,8 +1577,7 @@ bool Compiler::annotate_one(u32 arg, u32 &count)
     return expr(ann);
 }
 
-// The dict a def's __annotate__ answers: the parameters in the order they are
-// written, then the return.
+// The dict a def's __annotate__ answers: the parameters, then the return.
 bool Compiler::annotate_args(u32 node)
 {
     const Node &n = ast->at(node);
@@ -1607,8 +1605,8 @@ bool Compiler::annotate_args(u32 node)
     return emit(Bc::BuildMap, count, node) && emit(Bc::Return, node);
 }
 
-// A class body or a module keeps its __annotate__ in its namespace, under the
-// name the runtime looks for; only a def carries it on the object.
+// A class body or a module keeps its __annotate__ in its namespace; only a
+// def carries it on the object.
 bool Compiler::store_annotate(u32 node)
 {
     u32 flags = 0;
@@ -1616,14 +1614,15 @@ bool Compiler::store_annotate(u32 node)
         return false;
     if (!flags)
         return true;
-    StrObj *key = str_intern(ast->at(node).kind == Nd::Module ? "__annotate__" : "__annotate_func__");
+    StrObj *key =
+        str_intern(ast->at(node).kind == Nd::Module ? "__annotate__" : "__annotate_func__");
     if (!key)
         return oom();
     return emit(Bc::StoreName, name_index(key), 0);
 }
 
-// The set a conditional annotation reports itself to, made before the body
-// runs. A class keeps it in a cell, so that its __annotate__ sees it.
+// The set a conditional annotation reports itself to. A class keeps it in a
+// cell, so its __annotate__ sees it.
 bool Compiler::conditional_set(u32 node)
 {
     if (!st.scopes[u->scope].nconds)
@@ -2548,8 +2547,7 @@ bool Compiler::stmt(u32 i)
             if (!conds)
                 return oom();
             i32 idx = st.scopes[owner].cond[k];
-            if (!load_name(conds, i) ||
-                !emit(Bc::LoadConst, add_const(Value::of_int(idx)), i) ||
+            if (!load_name(conds, i) || !emit(Bc::LoadConst, add_const(Value::of_int(idx)), i) ||
                 !emit(Bc::SetAdd, 1, i) || !emit(Bc::PopTop, i))
                 return false;
             break;

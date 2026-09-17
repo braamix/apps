@@ -1,62 +1,153 @@
---- unittest ---
-ok TestBreakContinueReturnInExceptStarBlock.test_break_continue_in_except_star_block_valid
-fail TestBreakContinueReturnInExceptStarBlock.test_break_in_except_star: AssertionError: "'break', 'continue' and 'return' cannot appear in an except\\* block" does not match "'break' outside loop (<string>, line 5)"
-fail TestBreakContinueReturnInExceptStarBlock.test_continue_in_except_star_block_invalid: AssertionError: "'break', 'continue' and 'return' cannot appear in an except\\* block" does not match "'return' outside function (<string>, line 10)"
-ok TestBreakContinueReturnInExceptStarBlock.test_return_in_except_star_block_invalid
-ok TestBreakContinueReturnInExceptStarBlock.test_return_in_except_star_block_valid
-ok TestExceptStarCleanup.test_sys_exception_restored
-ok TestExceptStarExceptionGroupSubclass.test_except_star_EG_subclass
-fail TestExceptStarExceptionGroupSubclass.test_exception_group_subclass_with_bad_split_func: AssertionError: 'split must return a tuple, not str' does not match 'BadEG1.split must return a 2-tuple, got str'
-ok TestExceptStarExceptionGroupSubclass.test_falsy_exception_group_subclass
-fail TestExceptStarRaise.test_raise_handle_all_raise_one_named: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaise.test_raise_handle_all_raise_one_unnamed: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaise.test_raise_handle_all_raise_two_named: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaise.test_raise_handle_all_raise_two_unnamed: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaise.test_raise_named: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaise.test_raise_unnamed: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaiseFrom.test_raise_handle_all_raise_one_named: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaiseFrom.test_raise_handle_all_raise_one_unnamed: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaiseFrom.test_raise_handle_all_raise_two_named: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaiseFrom.test_raise_handle_all_raise_two_unnamed: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaiseFrom.test_raise_named: AssertionError: <traceback object at 0xX> != None
-fail TestExceptStarRaiseFrom.test_raise_unnamed: AssertionError: <traceback object at 0xX> != None
-ok TestExceptStarReraise.test_reraise_all_named
-ok TestExceptStarReraise.test_reraise_all_unnamed
-ok TestExceptStarReraise.test_reraise_partial_handle_all_unnamed
-ok TestExceptStarReraise.test_reraise_partial_handle_some_named
-ok TestExceptStarReraise.test_reraise_partial_handle_some_unnamed
-ok TestExceptStarReraise.test_reraise_plain_exception_named
-ok TestExceptStarReraise.test_reraise_plain_exception_unnamed
-ok TestExceptStarReraise.test_reraise_some_handle_all_named
-ok TestExceptStarSplitSemantics.test_empty_groups_removed
-ok TestExceptStarSplitSemantics.test_exception_group_except_star_Exception_not_wrapped
-ok TestExceptStarSplitSemantics.test_first_match_wins_named
-ok TestExceptStarSplitSemantics.test_first_match_wins_unnamed
-ok TestExceptStarSplitSemantics.test_match__supertype
-ok TestExceptStarSplitSemantics.test_match_single_type
-ok TestExceptStarSplitSemantics.test_match_single_type_nested
-ok TestExceptStarSplitSemantics.test_match_single_type_partial_match
-ok TestExceptStarSplitSemantics.test_match_type_tuple_nested
-ok TestExceptStarSplitSemantics.test_multiple_matches_named
-ok TestExceptStarSplitSemantics.test_multiple_matches_unnamed
-ok TestExceptStarSplitSemantics.test_naked_exception_matched_wrapped1
-ok TestExceptStarSplitSemantics.test_naked_exception_matched_wrapped2
-ok TestExceptStarSplitSemantics.test_nested_except_stars
-ok TestExceptStarSplitSemantics.test_nested_in_loop
-ok TestExceptStarSplitSemantics.test_no_match_single_type
-ok TestExceptStarSplitSemantics.test_plain_exception_not_matched
-ok TestExceptStarSplitSemantics.test_singleton_groups_are_kept
-ok TestExceptStar_WeirdExceptionGroupSubclass.test_catch_all_unhashable_exception_group_subclass
-ok TestExceptStar_WeirdExceptionGroupSubclass.test_catch_none_unhashable_exception_group_subclass
-ok TestExceptStar_WeirdExceptionGroupSubclass.test_catch_some_unhashable_exception_group_subclass
-ok TestExceptStar_WeirdExceptionGroupSubclass.test_reraise_unhashable_eg
-ok TestExceptStar_WeirdLeafExceptions.test_catch_everything_unhashable_leaf
-ok TestExceptStar_WeirdLeafExceptions.test_catch_nothing_unhashable_leaf
-ok TestExceptStar_WeirdLeafExceptions.test_catch_unhashable_leaf_exception
-ok TestExceptStar_WeirdLeafExceptions.test_propagate_unhashable_leaf
-ok TestExceptStar_WeirdLeafExceptions.test_reraise_unhashable_leaf
-ok TestInvalidExceptStar.test_except_star_ExceptionGroup_is_runtime_error_single
-ok TestInvalidExceptStar.test_except_star_ExceptionGroup_is_runtime_error_tuple
-ok TestInvalidExceptStar.test_except_star_invalid_exception_type
-ok TestInvalidExceptStar.test_mixed_except_and_except_star_is_syntax_error
---- ran 60 ok 45 fail 15 error 0 skip 0 ---
+.FF....F.FFFFFFFFFFFF.......................................
+======================================================================
+FAIL: test_break_in_except_star (__main__.TestBreakContinueReturnInExceptStarBlock.test_break_in_except_star)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 60, in test_break_in_except_star
+    self.check_invalid(
+  File "/tmp/test_except_star.py", line 56, in check_invalid
+    with self.assertRaisesRegex(SyntaxError, self.MSG):
+AssertionError: "'break', 'continue' and 'return' cannot appear in an except\* block" does not match "'break' outside loop (<string>, line 5)"
+
+======================================================================
+FAIL: test_continue_in_except_star_block_invalid (__main__.TestBreakContinueReturnInExceptStarBlock.test_continue_in_except_star_block_invalid)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 112, in test_continue_in_except_star_block_invalid
+    self.check_invalid(
+  File "/tmp/test_except_star.py", line 56, in check_invalid
+    with self.assertRaisesRegex(SyntaxError, self.MSG):
+AssertionError: "'break', 'continue' and 'return' cannot appear in an except\* block" does not match "'return' outside function (<string>, line 10)"
+
+======================================================================
+FAIL: test_exception_group_subclass_with_bad_split_func (__main__.TestExceptStarExceptionGroupSubclass.test_exception_group_subclass_with_bad_split_func)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 975, in test_exception_group_subclass_with_bad_split_func
+    with self.assertRaisesRegex(TypeError, msg) as m:
+AssertionError: "split must return a tuple, not str" does not match "BadEG1.split must return a 2-tuple, got str"
+
+======================================================================
+FAIL: test_raise_handle_all_raise_one_named (__main__.TestExceptStarRaise.test_raise_handle_all_raise_one_named)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 633, in test_raise_handle_all_raise_one_named
+    self.assertMetadataEqual(orig, exc.__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_handle_all_raise_one_unnamed (__main__.TestExceptStarRaise.test_raise_handle_all_raise_one_unnamed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 652, in test_raise_handle_all_raise_one_unnamed
+    self.assertMetadataEqual(orig, exc.__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_handle_all_raise_two_named (__main__.TestExceptStarRaise.test_raise_handle_all_raise_two_named)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 678, in test_raise_handle_all_raise_two_named
+    self.assertMetadataEqual(orig, exc.exceptions[0].__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_handle_all_raise_two_unnamed (__main__.TestExceptStarRaise.test_raise_handle_all_raise_two_unnamed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 705, in test_raise_handle_all_raise_two_unnamed
+    self.assertMetadataEqual(orig, exc.exceptions[0].__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_named (__main__.TestExceptStarRaise.test_raise_named)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 592, in test_raise_named
+    self.assertMetadataEqual(orig, exc.exceptions[0].__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_unnamed (__main__.TestExceptStarRaise.test_raise_unnamed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 614, in test_raise_unnamed
+    self.assertMetadataEqual(orig, exc.exceptions[0].__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_handle_all_raise_one_named (__main__.TestExceptStarRaiseFrom.test_raise_handle_all_raise_one_named)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 790, in test_raise_handle_all_raise_one_named
+    self.assertMetadataEqual(orig, exc.__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_handle_all_raise_one_unnamed (__main__.TestExceptStarRaiseFrom.test_raise_handle_all_raise_one_unnamed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 815, in test_raise_handle_all_raise_one_unnamed
+    self.assertMetadataEqual(orig, exc.__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_handle_all_raise_two_named (__main__.TestExceptStarRaiseFrom.test_raise_handle_all_raise_two_named)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 850, in test_raise_handle_all_raise_two_named
+    self.assertMetadataEqual(orig, exc.exceptions[0].__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_handle_all_raise_two_unnamed (__main__.TestExceptStarRaiseFrom.test_raise_handle_all_raise_two_unnamed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 887, in test_raise_handle_all_raise_two_unnamed
+    self.assertMetadataEqual(orig, exc.exceptions[0].__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_named (__main__.TestExceptStarRaiseFrom.test_raise_named)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 734, in test_raise_named
+    self.assertMetadataEqual(orig, exc.exceptions[0].__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+======================================================================
+FAIL: test_raise_unnamed (__main__.TestExceptStarRaiseFrom.test_raise_unnamed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_except_star.py", line 764, in test_raise_unnamed
+    self.assertMetadataEqual(orig, exc.exceptions[0].__context__)
+  File "/tmp/test_except_star.py", line 182, in assertMetadataEqual
+    self.assertEqual(e1.__traceback__, e2.__traceback__)
+AssertionError: <traceback object at 0xX> != None
+
+----------------------------------------------------------------------
+Ran 60 tests in Ns
+
+FAILED (failures=15)

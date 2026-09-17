@@ -1,10 +1,10 @@
 // Cells, functions, builtins and modules.
 #include "func.h"
 
+#include "annot.h"
 #include "gc.h"
 #include "intern.h"
 #include "kernel/fmt.h"
-#include "annot.h"
 #include "lazy.h"
 #include "ops.h"
 
@@ -13,6 +13,27 @@ namespace {
 void cell_trace(Obj *o)
 {
     gc_mark(static_cast<CellObj *>(o)->v);
+}
+
+// cell.cell_contents, which annotationlib reads and writes to rebuild the
+// closure of an __annotate__.
+R cell_getattr(Value v, StrObj *name, Value &out)
+{
+    if (name->str() != "cell_contents")
+        return R::NotImpl;
+    CellObj *c = static_cast<CellObj *>(v.obj());
+    if (c->v.is_nil())
+        return err_set("ValueError", "Cell is empty");
+    out = c->v;
+    return R::Ok;
+}
+
+R cell_setattr(Value v, StrObj *name, Value val)
+{
+    if (name->str() != "cell_contents")
+        return R::NotImpl;
+    static_cast<CellObj *>(v.obj())->v = val;
+    return R::Ok;
 }
 
 R cell_repr(Value v, String &out)
@@ -215,7 +236,7 @@ R module_getattr(Value v, StrObj *name, Value &out)
     return R::NotImpl;
 }
 
-// A name a lazy import still owes, and then PEP 649's pair.
+// A name a lazy import still owes, then PEP 649's pair.
 Got module_lazy(Value v, StrObj *name, Value &out, Value &args)
 {
     Got g = lazy_module_attr(v, name, out, args);
@@ -237,7 +258,11 @@ R module_setattr(Value v, StrObj *name, Value val)
 
 } // namespace
 
-constexpr Type cell_type{ .name = "cell", .trace = cell_trace, .repr = cell_repr };
+constexpr Type cell_type{ .name    = "cell",
+                          .trace   = cell_trace,
+                          .repr    = cell_repr,
+                          .getattr = cell_getattr,
+                          .setattr = cell_setattr };
 
 constexpr Type func_type{ .name     = "function",
                           .trace    = func_trace,
@@ -272,13 +297,13 @@ Value func_new(Value code, Value globals)
     FuncObj *f = static_cast<FuncObj *>(obj_alloc(&func_type, sizeof(FuncObj)));
     if (!f)
         return err_set("MemoryError", "out of memory"), Value();
-    f->code       = rc.v;
-    f->globals    = rg.v;
-    f->defaults   = Value();
-    f->kwdefaults = Value();
-    f->closure    = Value();
-    f->name       = code_of(rc.v)->name;
-    f->qualname   = code_of(rc.v)->qualname;
+    f->code        = rc.v;
+    f->globals     = rg.v;
+    f->defaults    = Value();
+    f->kwdefaults  = Value();
+    f->closure     = Value();
+    f->name        = code_of(rc.v)->name;
+    f->qualname    = code_of(rc.v)->qualname;
     f->doc         = code_of(rc.v)->doc;
     f->dict        = Value();
     f->annotate    = Value();

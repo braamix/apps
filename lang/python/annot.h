@@ -1,11 +1,10 @@
 // PEP 649: an annotation is evaluated when something asks for it.
 //
-// The compiler makes an __annotate__ function out of the annotations of a
-// def, a class body or a module, and __annotations__ is what calling it with
-// Format.VALUE answers, kept once it has. The three owners keep the pair
-// differently -- a function in fields of its own, a class in
-// __annotate_func__ and __annotations_cache__, a module under the two plain
-// names in its dict -- so everything that knows the difference is here.
+// The compiler makes an __annotate__ out of the annotations of a def, a class
+// body or a module. __annotations__ is what calling it with Format.VALUE
+// answers, kept once it has. The three owners keep the pair differently: a
+// function in fields of its own, a class in __annotate_func__ and
+// __annotations_cache__, a module under the two plain names in its dict.
 #pragma once
 
 #include "type.h"
@@ -36,8 +35,6 @@ Value annot_func(Value v);
 // is neither.
 R annot_store(Value v, StrObj *name, Value val);
 
-// `type.__annotations__` and `type.__annotate__` as descriptors in `type`'s
-// own namespace: annotationlib reaches for
-// `type.__dict__["__annotations__"].__get__` rather than for the attribute,
-// so answering it from a getattr slot is not enough.
+// The descriptors `type` keeps in its own namespace. annotationlib reaches
+// for `type.__dict__["__annotations__"].__get__`, not for the attribute.
 bool annot_install();

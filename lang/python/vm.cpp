@@ -122,10 +122,9 @@ DictObj *dict_at(Value v)
     return static_cast<DictObj *>(v.obj());
 }
 
-// A frame's globals are usually a plain dict, but exec() and FunctionType
-// both take a mapping, and annotationlib hands over a dict subclass whose
-// __missing__ answers every name with a stand-in. The real dict inside one is
-// where a name is looked up first; globals_missing says what happens then.
+// A frame's globals are usually a plain dict, but FunctionType takes any
+// mapping: annotationlib hands over a dict subclass whose __missing__ answers
+// every name. The real dict inside one is where a name is looked up first.
 DictObj *globals_at(Value v)
 {
     return dict_at(is_anydict(v) ? v : method_self(v));
@@ -254,6 +253,8 @@ Value make_cells(CodeObj *co, Value closure)
 // Nil for anything else, and for an empty one -- which needs no search at all.
 Value list_or_tuple_of(Value v)
 {
+    // A subclass of one keeps the real sequence inside it.
+    v = method_self(v);
     if (is_list(v))
         return list_of(v)->items.empty() ? Value() : v;
     if (!is_tuple(v) || !static_cast<TupleObj *>(v.obj())->len)
@@ -571,6 +572,10 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
         if (!cl)
             return oom();
         if (type_lookup(inst_of(callable)->cls, cl, fn.v) == R::Ok) {
+            // A plain native does not bind, so it is called without the
+            // instance: `typing.NewType.__call__` is `_typing._idfunc`.
+            if (fn.v.is_obj() && (fn.v.obj()->flags & OBJ_PLAINFN))
+                return do_call(fn.v, a, out, entered);
             Root bound{ method_new(fn.v, callable) };
             if (bound.v.is_nil())
                 return R::Err;
@@ -2713,9 +2718,8 @@ void interpret()
             case Bc::LoadGlobal: {
                 Value out;
                 R r = dict_get(globals_at(f->globals), co->names[arg], out);
-                // A mapping of the program's own answers for itself, and the
-                // builtins are not consulted behind its back: that is what
-                // annotationlib's stand-in globals rely on.
+                // A mapping of the program's own answers for itself; the
+                // builtins are not consulted behind its back.
                 if (r == R::NotImpl && !is_anydict(f->globals)) {
                     Value m = type_special(f->globals, "__missing__");
                     if (!m.is_nil()) {

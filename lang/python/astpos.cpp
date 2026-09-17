@@ -136,14 +136,13 @@ struct Spanner {
     NodeSpan walk(u32 i);
 };
 
-// The token a node really begins at, where the parser points elsewhere. The
-// answer is NONE where what is under the node already says.
+// The token a node begins at, where the parser points elsewhere. NONE when
+// what is under the node already says.
 u32 Spanner::keyword_start(const Node &n, u32 tok) const
 {
     switch (n.kind) {
-    // A def is at `def`, an `async def` two tokens earlier still, a class at
-    // `class`; and their decorators are not part of them, so these three are
-    // set rather than taken from what is under them.
+    // A def is at `def`, an `async def` two tokens earlier, a class at
+    // `class`. Their decorators are not part of them.
     case Nd::FunctionDef:
         return tok >= 1 ? tok - 1 : NONE;
     case Nd::AsyncFunctionDef:
@@ -242,14 +241,12 @@ NodeSpan Spanner::walk(u32 i)
         return out;
 
     const Node &n = ast->at(i);
-    // A tuple is written with no brackets of its own unless it is in
-    // parentheses, so the `[` a subscript put it at is not part of it.
+    // A tuple has no brackets of its own unless it is in parentheses.
     bool bare = n.kind == Nd::Tuple && n.nkid;
     u32 first = bare ? u32(-1) : n.tok, last = bare ? 0 : n.tok;
 
-    // The pieces of an f-string are lexed out of the literal rather than in
-    // place, so their tokens say nothing about where the string is: the
-    // literal itself, and any literal written beside it, is the whole span.
+    // The pieces of an f-string are lexed out of the literal, so their tokens
+    // say nothing about where it is. The literal is the whole span.
     if (n.kind == Nd::JoinedStr || n.kind == Nd::TemplateStr) {
         while (kind_at(last + 1) == Tok::Str || kind_at(last + 1) == Tok::Bytes ||
                kind_at(last + 1) == Tok::FStr)
@@ -275,12 +272,10 @@ NodeSpan Spanner::walk(u32 i)
         first = fixed;
     widen_ends(n, first, last);
 
-    // Brackets. One that opened inside this node and closes just after it is
-    // part of it, so `f(a)` ends at the `)`; one that opened just before it
-    // and closes inside it is too, so `(1 + 2) * 3` begins at the `(`. A `(`
-    // around a name closes past the whole node and is not part of it -- but a
-    // generator expression is the one thing written in the parentheses that
-    // hold it, so for that kind it is.
+    // A bracket that opened inside this node and closes just after it is part
+    // of it: `f(a)` ends at the `)`. One that opened just before and closes
+    // inside is too: `(1 + 2) * 3` begins at the `(`. A `(` around a name
+    // closes past the node and is not part of it.
     bool again = true;
     while (again) {
         again = false;
@@ -300,11 +295,10 @@ NodeSpan Spanner::walk(u32 i)
             again = true;
         }
     }
-    // A generator expression is the parentheses that hold it, and so is a
-    // tuple that was written in some.
+    // A generator expression is the parentheses that hold it; so is a tuple
+    // written in some.
     bool parens = false;
-    // A generator expression the parser put at its own `(` has its
-    // parentheses already; the next pair out belongs to the call round it.
+    // One already in its own parentheses: the next pair out is the call's.
     bool wrapped = !bare && kind_at(first) == Tok::LPar && closer[first] == last;
     if ((n.kind == Nd::GeneratorExp || bare) && !wrapped && first &&
         kind_at(first - 1) == Tok::LPar) {
@@ -321,8 +315,7 @@ NodeSpan Spanner::walk(u32 i)
     if (bare && !parens)
         while (kind_at(last + 1) == Tok::Comma)
             last++;
-    // The reach past the children is taken again: a bracket absorbed above
-    // may have put a colon or a comma within sight that was not before.
+    // Again: a bracket taken above may have brought a colon into sight.
     widen_ends(n, first, last);
     // `case +1 + 2j`: the sign belongs to the sum, not to the number under it.
     if (n.kind == Nd::MatchValue && n.a && ast->at(n.a).kind == Nd::BinOp)
@@ -350,7 +343,7 @@ bool ast_spans(Ast &ast)
 
 Pos ast_pos(const Ast &ast, u32 node)
 {
-    NodeSpan s         = node < ast.spans.size() ? ast.spans[node] : NodeSpan{};
+    NodeSpan s     = node < ast.spans.size() ? ast.spans[node] : NodeSpan{};
     const Token &a = ast.lex.tokens[s.first];
     const Token &b = ast.lex.tokens[s.last];
     return Pos{ a.line, a.bcol, b.eline, b.ecol };

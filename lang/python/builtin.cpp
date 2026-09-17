@@ -2785,8 +2785,8 @@ R b_compile(const CallArgs &a, Value &out)
         return err_set("TypeError", "compile() flags must be an int");
     Root rf{ a.args[1] };
     String codec;
-    out = compile_source(a.args[0], str_of(rf.v)->str(), mode, &codec,
-                         (flags & PYCF_ONLY_AST) != 0);
+    out =
+        compile_source(a.args[0], str_of(rf.v)->str(), mode, &codec, (flags & PYCF_ONLY_AST) != 0);
     if (out.is_nil() && !codec.empty())
         return park_decode(a, codec.str(), b_compile, out);
     return out.is_nil() ? R::Err : R::Ok;
@@ -2957,18 +2957,33 @@ R run_code(const CallArgs &a, CompileMode mode, bool want, Value &out)
     return R::Ok;
 }
 
+// Both take `globals` and `locals` by name as well; annotationlib does.
+R run_named(const CallArgs &a, Str who, CompileMode mode, bool want, Value &out)
+{
+    if (!a.nkw)
+        return args_only(a, who, 1, 3) ? run_code(a, mode, want, out) : R::Err;
+    static const Str NAMES[] = { "source", "globals", "locals" };
+    Value v[3];
+    if (!fn_take(a, who, NAMES, 3, 1, v))
+        return R::Err;
+    Roots pin{ v, 3 };
+    u32 n = v[2].is_nil() ? (v[1].is_nil() ? 1 : 2) : 3;
+    if (n == 3 && v[1].is_nil())
+        v[1] = value_none();
+    CallArgs b;
+    b.args  = v;
+    b.nargs = n;
+    return run_code(b, mode, want, out);
+}
+
 R b_exec(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "exec", 1, 3))
-        return R::Err;
-    return run_code(a, CompileMode::Exec, false, out);
+    return run_named(a, "exec", CompileMode::Exec, false, out);
 }
 
 R b_eval(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "eval", 1, 3))
-        return R::Err;
-    return run_code(a, CompileMode::Eval, true, out);
+    return run_named(a, "eval", CompileMode::Eval, true, out);
 }
 
 // ------------------------------------------------------------------- dir()
@@ -3095,9 +3110,8 @@ R b_dir(const CallArgs &a, Value &out)
 }
 
 // FunctionType(code, globals, name=None, argdefs=None, closure=None,
-// kwdefaults=None), which is how a code object becomes callable over a
-// namespace of one's own. annotationlib calls it by keyword, to run an
-// __annotate__ over globals that answer every name with a stand-in.
+// kwdefaults=None): a code object made callable over a namespace of one's
+// own. annotationlib calls it by keyword.
 R b_function(const CallArgs &a, Value &out)
 {
     static const Str NAMES[] = { "code", "globals", "name", "argdefs", "closure", "kwdefaults" };
@@ -3109,8 +3123,7 @@ R b_function(const CallArgs &a, Value &out)
         return err_set2("TypeError", "function() first argument must be a code object",
                         type_name(v[0]));
     if (!is_anydict(v[1]) && !type_has_special(v[1], "__getitem__"))
-        return err_set2("TypeError", "function() second argument must be a dict",
-                        type_name(v[1]));
+        return err_set2("TypeError", "function() second argument must be a dict", type_name(v[1]));
     Root fn{ func_new(v[0], v[1]) };
     if (fn.v.is_nil())
         return R::Err;

@@ -1,0 +1,44 @@
+ran 8
+failures 1
+errors 1
+skipped [(<__main__.T testMethod=test_skipped>, 'because')]
+expected 1
+wasSuccessful False
+test_class_setup (__main__.Other.test_class_setup) ... ok
+test_errors (__main__.T.test_errors) ... ERROR
+test_expected (__main__.T.test_expected) ... expected failure
+test_fails (__main__.T.test_fails) ... FAIL
+test_ok (__main__.T.test_ok) ... ok
+test_raises (__main__.T.test_raises) ... ok
+test_skipped (__main__.T.test_skipped) ... skipped 'because'
+test_sub (__main__.T.test_sub) ... ok
+
+======================================================================
+ERROR: test_errors (__main__.T.test_errors)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "F", line 45, in test_errors
+    raise RuntimeError("boom")
+RuntimeError: boom
+
+======================================================================
+FAIL: test_fails (__main__.T.test_fails)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "F", line 42, in test_fails
+    self.assertEqual(1, 2)
+AssertionError: 1 != 2
+
+----------------------------------------------------------------------
+Ran 8 tests in Ns
+
+FAILED (failures=1, errors=1, skipped=1, expected failures=1)
+
+3 call(1, 2) True 1
+MagicMock
+True True
+True False
+99 True
+1
+True True
+n

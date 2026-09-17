@@ -126,17 +126,18 @@ void method_trace(Obj *o)
 }
 
 // A bound method answers for what it is bound to: `A().f.__name__` is `f`.
+// A bound method answers for the function it wraps, so an attribute a
+// decorator left on the function is found through it too.
 R method_getattr(Value v, StrObj *name, Value &out)
 {
-    Str n = name->str();
-    if (n != "__name__" && n != "__qualname__" && n != "__doc__" && n != "__module__" &&
-        n != "__func__" && n != "__self__")
-        return R::NotImpl;
+    Str n        = name->str();
     MethodObj *m = static_cast<MethodObj *>(v.obj());
     if (n == "__func__")
         return out = m->fn, R::Ok;
     if (n == "__self__")
         return out = m->self, R::Ok;
+    if (n == "__class__" || n == "__dict__" || n == "__get__")
+        return R::NotImpl;
     return py_getattr(m->fn, name, out) == R::Ok ? R::Ok : (err_clear(), R::NotImpl);
 }
 
@@ -1091,6 +1092,12 @@ Value mro_entries_of(Value base)
     StrObj *n = str_intern("__mro_entries__");
     Value found;
     if (n && base.is_obj() && method_find(base, n, found) == R::Ok)
+        return found;
+    err_clear();
+    // Or an attribute of the object itself: typing.NamedTuple is a function
+    // with one stored on it.
+    if (n && base.is_obj() && py_attr_opt(base, n, found, Value(), false) == Got::Ok &&
+        !found.is_nil())
         return found;
     err_clear();
     return Value();

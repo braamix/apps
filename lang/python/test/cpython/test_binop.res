@@ -1,14 +1,36 @@
---- unittest ---
-error FallbackBlockingTests.test_fallback_ne_blocking: TypeError: 'NoneType' object is not callable
-fail FallbackBlockingTests.test_fallback_rmethod_blocking: AssertionError: TypeError not raised
-fail OperationOrderTests.test_comparison_orders: AssertionError: ['B.__eq__', 'C.__eq__'] != ['C.__eq__', 'B.__eq__']
-ok RatTestCase.test_add
-ok RatTestCase.test_constructor
-ok RatTestCase.test_div
-ok RatTestCase.test_eq
-ok RatTestCase.test_floordiv
-ok RatTestCase.test_gcd
-ok RatTestCase.test_mul
-ok RatTestCase.test_sub
-ok RatTestCase.test_true_div
---- ran 12 ok 9 fail 2 error 1 skip 0 ---
+EFF.........
+======================================================================
+ERROR: test_fallback_ne_blocking (__main__.FallbackBlockingTests.test_fallback_ne_blocking)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_binop.py", line 436, in test_fallback_ne_blocking
+    self.assertFalse(e != xn)
+TypeError: 'NoneType' object is not callable
+
+======================================================================
+FAIL: test_fallback_rmethod_blocking (__main__.FallbackBlockingTests.test_fallback_rmethod_blocking)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_binop.py", line 428, in test_fallback_rmethod_blocking
+    self.assertRaises(TypeError, eq, e, s)
+AssertionError: TypeError not raised by eq
+
+======================================================================
+FAIL: test_comparison_orders (__main__.OperationOrderTests.test_comparison_orders)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test_binop.py", line 377, in test_comparison_orders
+    self.assertEqual(op_sequence(eq, B, C), ['C.__eq__', 'B.__eq__'])
+AssertionError: Lists differ: ['B.__eq__', 'C.__eq__'] != ['C.__eq__', 'B.__eq__']
+
+First differing element 0:
+'B.__eq__'
+'C.__eq__'
+
+- ['B.__eq__', 'C.__eq__']
++ ['C.__eq__', 'B.__eq__']
+
+----------------------------------------------------------------------
+Ran 12 tests in Ns
+
+FAILED (failures=2, errors=1)
