@@ -61,10 +61,20 @@ foreach(row IN LISTS PYTHON_LIB_ROWS)
     list(APPEND PYTHON_LIB ${CMAKE_CURRENT_SOURCE_DIR}/lib/${mod}=lib/${mod})
 endforeach()
 
+# The demos. share/ is nested, so it is payload rather than a command.
+# CONFIGURE_DEPENDS because adding one must reconfigure.
+file(GLOB PYTHON_DEMOS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.py)
+set(PYTHON_EXAMPLES "")
+foreach(f ${PYTHON_DEMOS})
+    get_filename_component(n ${f} NAME)
+    list(APPEND PYTHON_EXAMPLES ${f}=share/${n})
+endforeach()
+
 braam_add_package(NAME python VERSION 0.1-r0
                   FIELD "T=Python 3, written for Braam"
                   FILES $<TARGET_FILE:bin_python>=bin/python
-                        ${PYTHON_LIB})
+                        ${PYTHON_LIB}
+                        ${PYTHON_EXAMPLES})
 
 if(TARGET packages)
     add_dependencies(packages pkg_python)

@@ -137,6 +137,18 @@ $ python -m mymodule arg
 $ python -i prog.py
 ```
 
+Three demos ship with it, under the package's own `share/`:
+
+```
+$ python /pkg/store/python-0.1-r0/share/fizzbuzz.py 15
+1 2 Fizz 4 Buzz Fizz 7 8 Fizz Buzz 11 Fizz 13 14 FizzBuzz
+```
+
+`hello.py` is the first program and the loop after it, `fizzbuzz.py` reads an
+argument, and `guess.py` plays `mbasic`'s `guess.bas` over `input()` and
+`random` -- with `GUESS_SEED` in the environment to pin the number, which is
+what lets [test/pyexamples.mjs](test/pyexamples.mjs) play a whole game.
+
 Prompts and the banner go to stderr, so `python -i < session.txt` writes the
 whole transcript down with the two apart. `-i` keeps the prompt after the
 program, over the same `__main__`; `-m` runs a module through CPython's own
@@ -689,6 +701,7 @@ ships, the tests and the plan.
 | [signalmod.cpp](src/signalmod.cpp) | `_signal`: the handlers, and what the driver is asked to catch |
 | [csvmod.cpp](src/csvmod.cpp) | `_csv`: the dialect, the reader's state machine and the writer |
 | [lib/](lib/) | Modules taken from CPython's library, byte for byte, with [lib/manifest.txt](lib/manifest.txt) saying where each came from |
+| [examples/](examples/) | The demos the package ships as `share/`: `hello.py`, `fizzbuzz.py` and `guess.py` |
 | [call.h](src/call.h), [call.cpp](src/call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](src/exc.h), [exc.cpp](src/exc.cpp) | The exception hierarchy, and the two objects it needs |
 | [iter.h](src/iter.h), [iter.cpp](src/iter.cpp) | Slices and the iterators |
@@ -716,6 +729,7 @@ ships, the tests and the plan.
 | [test/pyexec.mjs](test/pyexec.mjs) | The same for `test/exec/`: compile, eval, exec, the namespaces, the attributes and the syntax since 3.9 |
 | [test/pylazy.mjs](test/pylazy.mjs) | The same for `test/lazy/`, against CPython 3.16, with the modules the cases import planted beside them |
 | [test/pystdlib.mjs](test/pystdlib.mjs) | The same for `test/stdlib/`: programs over the library, against CPython 3.16 |
+| [test/pyexamples.mjs](test/pyexamples.mjs) | The three demos under `examples/`, run as a user runs them, with `guess.py`'s number pinned by `GUESS_SEED` |
 | [test/pyrepl.mjs](test/pyrepl.mjs) | The prompt: a session down a pipe with `-i`, `-m`, and one typed at the console with the editor holding the keys |
 | [test/pyio.mjs](test/pyio.mjs) | What needs a stream or a signal: `sys.stdin` and `input()`, the files a program leaves open, and a handler called while the program sleeps |
 | [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the modules written in C++ |

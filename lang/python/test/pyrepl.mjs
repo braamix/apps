@@ -3,7 +3,7 @@
 // in CPython, so a redirected stdout holds what the commands printed and
 // nothing else -- which is what makes the transcripts below comparable.
 
-import { boot, run, put, get, same, golden, die, H } from "./pylib.mjs";
+import { boot, run, put, same, golden, ok, die, H } from "./pylib.mjs";
 
 await boot("pyrepl");
 let bad = 0;
@@ -140,4 +140,5 @@ const transcript = screen();
 if (!transcript.includes("home $ py")) die(`python did not start:\n${transcript}`);
 golden("repl.log", transcript.slice(transcript.indexOf("home $ py")));
 
-process.exit(bad ? 1 : 0);
+if (bad) process.exit(1);
+ok("a session down a pipe, -m, and one typed at the console");

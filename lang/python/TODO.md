@@ -252,8 +252,9 @@ does too. `site` is not there, so neither are `help`, `exit` and `quit` --
 
 ### Phase 30 — shipping
 
-- [ ] Examples written in Python, beside the library the package already
-      ships as `lib/`.
+- [x] Examples written in Python, beside the library the package already
+      ships as `lib/`. Three so far, under [examples/](examples/), packaged as
+      `share/` the way `mbasic` ships its `.bas` ones; more would be welcome.
 - [ ] `Manual.md`, and the "what had to change" half of
       [README.md](README.md) — which for this program is "what was borrowed,
       and from where".
