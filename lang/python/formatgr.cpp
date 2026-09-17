@@ -869,8 +869,11 @@ static Value mod_common(Value fmt, Value right, bool bytes)
     // A mapping on the right is both: it answers %(name) and it is also the
     // one positional value, which is why `'%s %(foo)s' % {'foo': 1}` works.
     // Nothing is left over in that case, so the count is not checked either.
-    bool map = !is_tuple(rr.v) &&
-               (is_dict(rr.v) || (is_inst(rr.v) && !type_special(rr.v, "__getitem__").is_nil()));
+    // A tuple subclass is the tuple inside it.
+    if (is_inst(rr.v) && is_tuple(inst_of(rr.v)->native))
+        rr = inst_of(rr.v)->native;
+    bool map = !is_tuple(rr.v) && !is_str(rr.v) &&
+               (is_anydict(rr.v) || (is_inst(rr.v) && !type_special(rr.v, "__getitem__").is_nil()));
 
     Root mapping;
     Root values;

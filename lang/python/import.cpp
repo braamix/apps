@@ -427,6 +427,12 @@ R walk(ContObj *k)
         R r = dict_get(sys_modules(), full.v, got);
         if (r == R::Err)
             return R::Err;
+        if (r == R::Ok && is_none(got)) {
+            // A module blocked on purpose, as test.support does it.
+            Buf<160> b;
+            b.put("import of ").put(str_of(full.v)->str()).put(" halted; None in sys.modules");
+            return err_set("ModuleNotFoundError", b.str());
+        }
         if (r == R::Ok) {
             j         = job_of(k->s[0]);
             j->parent = got;
@@ -770,6 +776,8 @@ R import_missing(Value m, StrObj *name)
         Value file;
         if (get(module_dict(rm.v), "__file__", file) == R::Ok && is_str(file))
             b.put(" (").put(str_of(file)->str()).put(")");
+        else if (!part)
+            b.put(" (unknown location)");
         err_clear();
     }
     return err_set("ImportError", b.str());

@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 22.**
+**Phase 23.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -84,6 +84,15 @@ class C(B):
     def hi(self): v.set(5); return "C>" + super().hi() + str(v.get())
 print(cv.copy_context().run(C().hi), v.get(), range(1 << 70)[-1])'
 C>B5 0 1180591620717411303423
+$ python -c 'import enum, functools
+from collections import Counter, namedtuple
+class Color(enum.Flag):
+    RED = 1
+    BLUE = 2
+print(Counter("abracadabra").most_common(2), namedtuple("P", "x y")(1, 2))
+print(Color.RED | Color.BLUE, functools.reduce(max, [3, 9, 2]))'
+[('a', 5), ('b', 2)] P(x=1, y=2)
+Color.RED|BLUE 9
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
@@ -202,15 +211,15 @@ state machines that ask for one call at a time. `sorted`, `list.sort`, `min`,
 through it, and the merge is the same bottom-up stable one as the plain path,
 so a list of instances and a list of integers come out in the same order.
 
-**Twenty-two modules are written in C++.** `sys` in full, `builtins`,
-`_collections`, `_functools`, `itertools`, `operator`, `_random`, `_struct`,
+**Twenty-four modules are written in C++.** `sys` in full, `builtins`,
+`_collections`, `_functools`, `itertools`, `_operator`, `_random`, `_struct`,
 `array`, `math`, `cmath`, `time`, `errno`, `gc`, `_types`, the `_weakref` and
 `_abc` phase 17 wrote, the `_typing` phase 20 did, phase 21's `_codecs`
-and `unicodedata`, and phase 22's `_thread`, `_contextvars` and `_string`.
-They are the floor
-CPython's own library stands on rather than that library:
-`collections/__init__.py` will import this `deque`, `random.py` this Mersenne
-Twister, `re/` the `_sre` phase 24 writes. Each is measured against CPython by
+and `unicodedata`, phase 22's `_thread`, `_contextvars` and `_string`, and
+phase 23's `_warnings` and `atexit`. They are the floor CPython's own library
+stands on rather than that library: `collections/__init__.py` imports this
+`deque`, `random.py` will import this Mersenne Twister, `re/` the `_sre`
+phase 24 writes. Each is measured against CPython by
 running the same program under both — [test/module/](test/module/), nineteen
 cases, 633 lines byte for byte.
 
@@ -229,6 +238,28 @@ unchanged; `_collections_abc.py` now reads past `framelocalsproxy` and
 `longrange_iterator` and stops at CPython main's new `frozendict`, which is
 phase 23's first job.
 
+**The library's first wave runs, byte for byte.** Twenty-five modules came
+over from CPython's `Lib/` with phase 23 — `types`, `operator`, `keyword`,
+`reprlib`, `heapq`, `bisect`, `numbers`, `copyreg`, `_collections_abc`,
+`collections`, `weakref`, `_weakrefset`, `_py_abc`, `copy`, `functools`,
+`enum`, `warnings` and `_py_warnings`, `string` and `string.templatelib`,
+`contextvars`, `struct`, `__future__`, `linecache` and `locale` — with a row
+each in [lib/manifest.txt](lib/manifest.txt), which `tools/mklib.py` writes.
+What they asked for is the rest of the builtins of CPython's main branch:
+**`frozendict`** (PEP 814) and **`sentinel`** (PEP 661), `mappingproxy` as
+`type.__dict__`, the `Warning` and `OSError` families, and `object`'s
+comparisons, `__hash__` and the pickle helpers `__reduce_ex__`, `__reduce__`
+and `__getstate__` that `copy` stands on. Under those, the language had
+corners the library found: a class body in a mapping of the program's own
+(enum's `EnumDict`), a metaclass answering `iter()`, `len()` and `repr()` for
+its classes, `__get__` and `__set__` on the built-in descriptors, `_weakref.ref`
+as a type `weakref.py` subclasses, `from m import x` through a module's
+`__getattr__`, and `int()`, `float()`, `complex()`, `divmod()` and `seq[i]`
+reaching `__int__`, `__index__`, `__float__`, `__complex__` and `__divmod__`
+written in Python. Every run finds the library where an installed package
+keeps it, and [test/stdlib/](test/stdlib/) holds twenty programs over it, 173
+lines identical to CPython 3.16's.
+
 **The protocol methods are in each built-in type's namespace.** `len(x)`
 reaches a slot and a slot is not an entry, so `'__len__' in list.__dict__` used
 to be False and `dir(list)` listed none of them; every abstract base class in
@@ -243,8 +274,8 @@ the `__class_getitem__` phase 17 wrote: `__origin__`, `__args__`,
 is the class's. `types.GenericAlias` is `type(list[int])`, and `_types` is the
 native floor CPython's `types.py` opens by importing.
 
-**CPython's own `abc.py`, `codecs.py` and `encodings` run here, byte for
-byte**, over an `_abc` written
+**CPython's own `abc.py`, `codecs.py` and `encodings` were the first to run
+here, byte for byte**, over an `_abc` written
 natively — the first module borrowed from the library rather than written.
 [lib/manifest.txt](lib/manifest.txt) records where it came from; the floor
 under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
@@ -252,48 +283,54 @@ under it is `_abc_init`, `_abc_register`, `_abc_instancecheck`,
 `type.__subclasses__` and the rule that an abstract class cannot be
 instantiated.
 
-**412 of MicroPython's own tests pass unchanged**, out of 449 in
-[test/manifest.txt](test/manifest.txt), as at phase 20. Of the thirty-seven
-that do not, most import `collections` or `struct` — the pure-Python wrappers
-over phase 18's floor, which are phase 23 — and say `SKIP` until then;
+**423 of MicroPython's own tests pass unchanged**, out of 449 in
+[test/manifest.txt](test/manifest.txt), against 412 at phase 22: eleven that
+imported `collections`, `struct` or `types` and said `SKIP` now run. Of the
+twenty-six that do not, most exercise what MicroPython does and CPython does
+not — a native base class's own `__init__` protocol, `pend_throw`,
+`machine` — or a memoryview with more than one dimension;
 `assign_expr_syntaxerror.py` expects what MicroPython accepts and CPython
 refuses, and this refuses it. Every expected output a CPython wrote now comes from 3.14,
 and [test/goldens.txt](test/goldens.txt) says which interpreter wrote each of
 our own.
 
-**CPython's tests are the second ruler.** Twenty-three are in
-[test/cpython.txt](test/cpython.txt), fourteen of them run, and 171 test
-methods of 204 pass, as at phase 21, when `test_unicode_identifiers.py` and
-`test_utf8source.py` came to pass whole. The nine rows that do not run all
-compile and stop at an import: `annotationlib`, `re`, `collections`,
-`textwrap`, `pickle`, and `copy` for `test_super.py`, phase 22's, which the
-`__class__` cell let through the compiler. Running the whole of `Lib/test/`
+**CPython's tests are the second ruler.** Thirty-seven are in
+[test/cpython.txt](test/cpython.txt), twenty-nine of them run, and 354 test
+methods of 498 pass, against 171 of 204 at phase 22. Phase 23 added fourteen
+rows — the three the plan named, `test_keyword.py`, `test_bisect.py` and
+`test_abstract_numbers.py`, and eleven more the survey below found running
+once the library imports — and `test_exception_group.py` now runs where it
+stopped at `collections`. `test_keyword.py`, `test_abstract_numbers.py` and
+`test_charmapcodec.py` pass whole. The eight rows that do not run all compile
+and stop at an import: `annotationlib`, `re`, `textwrap`, `dataclasses` and
+`pickle`. Running the whole of `Lib/test/`
 under this interpreter — `node test/pycases.mjs --survey`, which needs the
 clone in `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 21 | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 373 | a module that is not written yet | 372 | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 23–27 |
-| 14 | these run | 14 | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
-| 3 | a runtime error, or nothing this can read | 3 | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
-| 1 | other syntax — PEP 798 | 2 | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
-| — | a lone surrogate in a literal | — | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
-| — | `\N{...}` | — | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
-| — | `async` | — | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
-| — | complex numbers | — | — | — | — | — | — | — | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | — | — | — | — | — | — | — | 39 | 17 | **done** |
-| — | f-strings | — | — | — | — | — | — | — | — | 124 | **done** |
+| now | what stops it | 22 | 21 | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 356 | a module that is not written yet | 373 | 372 | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 24–27 |
+| 30 | these run | 14 | 14 | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
+| 4 | a runtime error, or nothing this can read | 3 | 3 | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
+| 1 | other syntax — PEP 798 | 1 | 2 | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
+| — | a lone surrogate in a literal | — | — | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
+| — | `\N{...}` | — | — | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
+| — | `async` | — | — | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
+| — | complex numbers | — | — | — | — | — | — | — | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | — | — | — | — | — | — | — | 39 | 17 | **done** |
+| — | f-strings | — | — | — | — | — | — | — | — | — | 124 | **done** |
 
-Phase 22 moved one file: `test_super.py` compiles now that the implicit
-`__class__` cell is made, and stops at `import copy`. The sixth wall went the
-way the fifth did: all forty-seven files the Unicode
-literals held back now stop at an import, `test_fstring.py` among them once
-whitespace after `!s` was accepted. Before that, the fifth: of the forty-two
-files the syntax let go, three ran and thirty-nine stopped at an import. The
-one left is `test_listcomps.py`, which is written to PEP 798's
+Phase 23 moved seventeen files, sixteen of them to running: what stops the rest
+is `re`, `os`, `io`, `inspect`, `typing`, `pickle` and `unittest.mock`, which
+is where the next phases start. Phase 22 moved one file: `test_super.py`
+compiles now that the implicit `__class__` cell is made, and stops at
+`import copy`. The sixth wall went the way the fifth did: all forty-seven files
+the Unicode literals held back now stop at an import, `test_fstring.py` among
+them once whitespace after `!s` was accepted. Before that, the fifth: of the
+forty-two files the syntax let go, three ran and thirty-nine stopped at an
+import. The one left is `test_listcomps.py`, which is written to PEP 798's
 `[*x for x in y]` from 3.15. **Nothing the library is written in is refused
-now**, so what stops 373 of the 391 files is the library itself, and with its
-floor written the phases after this one are about taking it.
+now**, so what stops 356 of the 391 files is the library itself.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -331,7 +368,7 @@ green.
 | [strmeth.cpp](strmeth.cpp) | str's methods |
 | [bytemeth.cpp](bytemeth.cpp) | bytes', bytearray's and memoryview's |
 | [seqmeth.cpp](seqmeth.cpp) | list's, tuple's and slice's |
-| [mapmeth.cpp](mapmeth.cpp) | dict's and set's, frozenset, and the three views |
+| [mapmeth.cpp](mapmeth.cpp) | dict's and set's, frozenset, frozendict, and the three views |
 | [nummeth.cpp](nummeth.cpp) | int's and float's |
 | [repr.cpp](repr.cpp) | repr for every type, quoting and all |
 | [format.h](format.h), [format.cpp](format.cpp) | The format-spec mini-language, and what str, int and float make of one |
@@ -349,7 +386,9 @@ green.
 | [vm.h](vm.h), [vm.cpp](vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
 | [func.h](func.h), [func.cpp](func.cpp) | Cells, functions, builtins written in C++, and modules |
 | [type.h](type.h), [type.cpp](type.cpp) | Type objects, instances, the MRO, the metaclasses and the class hooks |
-| [attr.cpp](attr.cpp) | The descriptor protocol, the attribute algorithm and `__slots__` |
+| [attr.cpp](attr.cpp) | The descriptor protocol, the attribute algorithm and `__slots__`, and the built-in descriptors' `__get__` and `__set__` |
+| [objmeth.cpp](objmeth.cpp) | What `object` lends beyond the core: the comparisons, `__hash__`, `__reduce_ex__` and `__getstate__` |
+| [sentinel.cpp](sentinel.cpp) | `sentinel` (PEP 661) |
 | [compare.h](compare.h), [compare.cpp](compare.cpp) | The sorts and searches that have to call Python, as continuations |
 | [weak.h](weak.h), [weak.cpp](weak.cpp) | Weak references and proxies, and the callbacks the sweep owes for them |
 | [abc.h](abc.h), [abc.cpp](abc.cpp) | `_abc`: the floor CPython's own abc.py stands on |
@@ -377,8 +416,10 @@ green.
 | [arraymod.cpp](arraymod.cpp) | `array`: the only thing here that gives a buffer a width |
 | [randmod.cpp](randmod.cpp) | `_random`: MT19937, seeded the way CPython seeds it |
 | [miscmod.cpp](miscmod.cpp) | `time` over one clock reading, `errno` and `gc` |
-| [typesmod.cpp](typesmod.cpp) | `_types`: the names for types that are not builtins, and SimpleNamespace |
-| [lib/](lib/) | Modules taken from CPython's library, byte for byte: `abc`, `codecs` and `encodings` |
+| [typesmod.cpp](typesmod.cpp) | `_types`: the names for types that are not builtins, SimpleNamespace, `mappingproxy`, and the constructors of module, method and GenericAlias |
+| [warnmod.cpp](warnmod.cpp) | `_warnings`: the default filters and the lock under `_py_warnings.py` |
+| [atexit.h](atexit.h), [atexitmod.cpp](atexitmod.cpp) | `atexit`, and the calls the VM makes before the program ends |
+| [lib/](lib/) | Modules taken from CPython's library, byte for byte, with [lib/manifest.txt](lib/manifest.txt) saying where each came from |
 | [call.h](call.h), [call.cpp](call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
 | [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices and the iterators |
@@ -386,7 +427,7 @@ green.
 | [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, and `builtins` as a module |
 | [import.h](import.h), [import.cpp](import.cpp) | The module cache, the search path, and the loader |
 | [selftest.cpp](selftest.cpp) | What `--selftest` checks |
-| [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary, run a command, read back what it wrote |
+| [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary and the library, run a command, read back what it wrote |
 | [test/pysmoke.mjs](test/pysmoke.mjs) | That the program starts, answers its flags, and reports the right status |
 | [test/pygc.mjs](test/pygc.mjs) | Drives `--selftest` and reads what it printed |
 | [test/pytype.mjs](test/pytype.mjs) | The descriptors, `__slots__`, the metaclasses, the finalizers and abc |
@@ -405,6 +446,7 @@ green.
 | [test/pycoro.mjs](test/pycoro.mjs) | The same for `test/coro/`: coroutines, async generators, the async statements and a scheduler written in Python |
 | [test/pyexec.mjs](test/pyexec.mjs) | The same for `test/exec/`: compile, eval, exec, the namespaces, the attributes and the syntax since 3.9 |
 | [test/pylazy.mjs](test/pylazy.mjs) | The same for `test/lazy/`, against CPython 3.16, with the modules the cases import planted beside them |
+| [test/pystdlib.mjs](test/pystdlib.mjs) | The same for `test/stdlib/`: programs over the library, against CPython 3.16 |
 | [test/pymodule.mjs](test/pymodule.mjs) | The same for `test/module/`: the modules written in C++ |
 | [test/pyunicode.mjs](test/pyunicode.mjs) | The same for `test/unicode/`, with the library planted; the streams; and `--full`, every codepoint and NormalizationTest.txt |
 | [test/pyunit.mjs](test/pyunit.mjs) | The shims, before anything stands on them: one of every outcome |
@@ -412,11 +454,12 @@ green.
 | [test/pycases.mjs](test/pycases.mjs) | Every CPython test in `cpython.txt`, and `--survey` over the whole clone |
 | [test/pystress.mjs](test/pystress.mjs) | Every case again, collecting at every allocation |
 | [test/shim/unittest.py](test/shim/unittest.py) | `TestCase`, the assertions, `subTest`, the skips and the loader |
-| [test/shim/test/support.py](test/shim/test/support.py) | The names CPython's tests take from `test.support` |
+| [test/shim/test/support/](test/shim/test/support/) | The names CPython's tests take from `test.support`, and its `import_helper` |
 | [test/shim/selfcheck.py](test/shim/selfcheck.py) | What `pyunit.mjs` runs: the shims measured against themselves |
 | [tools/pyref.py](tools/pyref.py) | Which CPython writes a golden, and the record in `test/goldens.txt` of which one did |
 | [tools/mkexp.py](tools/mkexp.py) | Copies one upstream test in and writes its expected output |
 | [tools/mkcpy.py](tools/mkcpy.py) | Copies one of CPython's tests in; `pycases.mjs --bless` writes its golden |
+| [tools/mklib.py](tools/mklib.py) | Copies a module of CPython's library into `lib/` and writes its row |
 | [tools/mkfmt.py](tools/mkfmt.py) | Runs a formatting case under the host's CPython and saves what it printed |
 | [tools/mklex.py](tools/mklex.py) | Writes a token golden out of CPython's own tokenizer |
 | [tools/mkast.py](tools/mkast.py) | Writes a tree golden out of CPython's own ast module |
@@ -509,10 +552,33 @@ All recorded rather than hidden, and all in reach later:
 - **A `single`-mode code object prints through no hook.** `PrintExpr` writes
   the repr itself; CPython calls `sys.displayhook` and sets `builtins._`, and
   both wait for the REPL in phase 29.
-- **A coroutine that is never awaited says nothing.** CPython warns, with a
-  `RuntimeWarning` naming the line that made it, when one is collected
-  without having started; there is no `warnings` module yet to say it
-  through, which is phase 23.
+- **A coroutine that is never awaited is reported late.** The
+  `RuntimeWarning` goes through `warnings` as CPython's does, but when the
+  collector finds the coroutine rather than when the last name goes, so the
+  line it names is where the program was then.
+- **A warning is shown without its source line.** `linecache` cannot read a
+  file until `io` is here (phase 25), so the line under the location is left
+  out. `_warnings` itself is the default filters and the lock; `warn` and
+  `warn_explicit` are `_py_warnings.py`'s, reached through its `__getattr__`.
+- **`object`'s defaults are skipped by the special-method lookup.**
+  `object.__eq__`, `object.__hash__`, `object.__reduce_ex__` and the rest are
+  there to be called by name, and a class that inherits them is compared,
+  hashed and printed by the native path, as before. A built-in type with no
+  such method of its own answers `__eq__` and `__hash__` through its slots,
+  where CPython's has one of its own. `object.__sizeof__` is always 16.
+- **`dir()` names `__class__`, `__dict__` and `__weakref__` without them being
+  entries.** CPython keeps them as descriptors in the class; here they are
+  answered by the attribute lookup, and `dir()` adds them.
+- **A `mappingproxy` over a mapping written in Python reads it natively.**
+  Its methods call the mapping's own, but `proxy[key]`, `len()` and `in` are
+  slots and see only a built-in mapping.
+- **A frozendict hashes by its pairs, as CPython's does, to other numbers.**
+  The mixing is the same shape over this port's 30-bit hashes.
+- **An `atexit` callback that raises is reported without a traceback,** as
+  every "Exception ignored" message here is.
+- **`string.Template`, `locale.format_string` and `warnings.deprecated` wait.**
+  The first two compile a regular expression (phase 24), the third imports
+  `inspect` (phase 27).
 - **An async generator has no hooks.** `sys.set_asyncgen_hooks` is not there,
   so nothing is told when one starts or is dropped; one dropped while
   suspended is closed by the collector, as a generator is. The hooks are for
@@ -593,9 +659,6 @@ All recorded rather than hidden, and all in reach later:
   once per argument and separator; this builds the line and writes it once. A
   program that has put an object of its own in `sys.stdout` sees one call with
   the whole line in it.
-- **A module's `real` and `imag` are not on `int` and `float`.** `(3).real`
-  raises; `complex` has both. Nothing here needs them until the numbers tower
-  in `numbers.py`.
 - **`_random` seeds a str differently.** An integer seed is spread with
   CPython's own `init_by_array`, so `seed(42)` gives CPython's stream word for
   word; a str or bytes seed is hashed here and put through `sha512` there, and
@@ -1127,8 +1190,22 @@ this implementation's, so there is nothing to generate the golden from and
 before blessing** — that golden is the only thing standing between a change and
 a silent regression.
 
+Every run has [lib/](lib/) where an installed package keeps it:
+[test/pylib.mjs](test/pylib.mjs) plants it under
+`/pkg/store/python-0/share/lib/`, which the binary finds and puts on
+`sys.path`. A module goes into it with
+
+    tools/mklib.py --floor _string string/__init__.py
+
+which copies the file and writes its row in the manifest. A case over the
+library is a `.py` under `test/stdlib/`, and its golden comes from the CPython
+the library was taken from, so `PYTHON=tmp/cpython-build/python.exe`; a case
+there may not be named after a module, because CPython runs it from its own
+directory and would import it.
+
 A Unicode case is a `.py` under `test/unicode/`, written the same way; its
-driver plants [lib/](lib/) beside it, so `codecs` is CPython's in both runs.
+driver plants [lib/](lib/) beside it too, so `codecs` is CPython's in both
+runs.
 `node test/pyunicode.mjs --full` adds what is too slow for every run: a
 digest of every property of every codepoint, compared with the host
 CPython's, and Unicode's own `NormalizationTest.txt`, which it expects under

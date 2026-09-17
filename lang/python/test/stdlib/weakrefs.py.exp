@@ -1,0 +1,12 @@
+True ReferenceType weakref
+ to 'A'  True None True True
+True kk K True True True True
+[('K', 'kk', None)] None
+('W', True) True True True
+cannot create weak reference to 'int' object
+cannot create weak reference to 'str' object
+cannot create weak reference to 'tuple' object
+cannot create weak reference to 'list' object
+cannot create weak reference to 'dict' object
+ReferenceType True True
+__new__ expected at most 2 arguments, got 3

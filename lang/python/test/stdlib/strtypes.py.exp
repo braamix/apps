@@ -1,0 +1,9 @@
+abcde 0123456789 !"#$% Hello Big World
+a-   'n'-b [('x', '0', '>3', None), ('y', None, None, None)]
+A and B
+True ['Interpolation', 'str', 'Interpolation'] ('', ' is ', '') (2, 'two')
+namespace(a=1) 1 <class 'function'> <class 'builtin_function_or_method'> <class 'method'>
+C 5 (<class 'int'>,) (<class 'object'>,)
+1 True
+<module 'mm'> the doc list[int] <class 'NoneType'> <class 'ellipsis'>
+<class 'type'>

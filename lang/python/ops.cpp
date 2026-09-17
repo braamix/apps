@@ -280,8 +280,14 @@ R py_len(Value v, usize &out)
 R py_getitem(Value v, Value key, Value &out)
 {
     const Type *t = type_of(v);
-    if (!t || !t->getitem)
-        return err_set2("TypeError", "object is not subscriptable", type_name(v));
+    if (!t || !t->getitem) {
+        Buf<128> m;
+        if (is_type(v))
+            m.put("type '").put(type_obj(v)->slots.name).put("' is not subscriptable");
+        else
+            m.put('\'').put(type_name(v)).put("' object is not subscriptable");
+        return err_set("TypeError", m.str());
+    }
     return t->getitem(v, key, out);
 }
 
@@ -502,6 +508,8 @@ R py_inplace(Value a, Value b, Op op, Value &out)
         out = ra.v;
         return R::Ok;
     }
+    if (op == Op::Or && is_mappingproxy(a))
+        return err_set("TypeError", "'|=' is not supported by mappingproxy; use '|' instead");
     // `d |= x` updates d from a mapping or from pairs; a FrameLocalsProxy
     // takes only a mapping.
     if (op == Op::Or && (is_dict(a) || is_frame_locals(a))) {

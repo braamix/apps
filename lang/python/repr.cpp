@@ -228,6 +228,18 @@ R dict_repr(Value v, String &out)
     return out.push('}') ? R::Ok : oom();
 }
 
+// frozendict({...}), or frozendict() when empty.
+R frozendict_repr(Value v, String &out)
+{
+    if (!static_cast<DictObj *>(v.obj())->t.live)
+        return out.append("frozendict()") ? R::Ok : oom();
+    if (!out.append("frozendict("))
+        return oom();
+    if (dict_repr(v, out) != R::Ok)
+        return R::Err;
+    return out.push(')') ? R::Ok : oom();
+}
+
 R set_repr(Value v, String &out)
 {
     SetObj *s = set_at(v);

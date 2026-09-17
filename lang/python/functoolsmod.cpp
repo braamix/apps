@@ -670,6 +670,7 @@ struct CacheObj : Obj {
     i64 maxsize; // -1 for no bound
     i64 hits, misses;
     bool typed;
+    Value dict; // __dict__: what update_wrapper and functools store on it
 };
 
 CacheObj *cache_of(Value v)
@@ -682,6 +683,7 @@ void cache_trace(Obj *o)
     gc_mark(static_cast<CacheObj *>(o)->fn);
     gc_mark(static_cast<CacheObj *>(o)->cache);
     gc_mark(static_cast<CacheObj *>(o)->info);
+    gc_mark(static_cast<CacheObj *>(o)->dict);
 }
 
 R cache_repr(Value v, String &out)
@@ -695,10 +697,43 @@ R cache_repr(Value v, String &out)
 
 R cache_getattr(Value v, StrObj *name, Value &out)
 {
+    Root rv{ v };
+    if (name->str() == "__dict__") {
+        if (cache_of(rv.v)->dict.is_nil()) {
+            DictObj *d = dict_new();
+            if (!d)
+                return oom();
+            cache_of(rv.v)->dict = obj_value(d);
+        }
+        out = cache_of(rv.v)->dict;
+        return R::Ok;
+    }
+    if (!cache_of(rv.v)->dict.is_nil()) {
+        R r = dict_get(static_cast<DictObj *>(cache_of(rv.v)->dict.obj()), obj_value(name), out);
+        if (r != R::NotImpl)
+            return r;
+    }
     if (name->str() != "__wrapped__")
         return R::NotImpl;
-    out = cache_of(v)->fn;
+    out = cache_of(rv.v)->fn;
     return R::Ok;
+}
+
+R cache_setattr(Value v, StrObj *name, Value val)
+{
+    Root rv{ v }, rx{ val };
+    if (cache_of(rv.v)->dict.is_nil()) {
+        DictObj *d = dict_new();
+        if (!d)
+            return oom();
+        cache_of(rv.v)->dict = obj_value(d);
+    }
+    DictObj *d = static_cast<DictObj *>(cache_of(rv.v)->dict.obj());
+    if (rx.v.is_nil()) {
+        R r = dict_del(d, obj_value(name));
+        return r == R::NotImpl ? err_set2("AttributeError", "no such attribute", name->str()) : r;
+    }
+    return dict_set(d, obj_value(name), rx.v);
 }
 
 extern const Type cache_type;
@@ -891,7 +926,8 @@ constexpr Method CACHE_METHODS[] = {
 constexpr Type cache_type{ .name    = "_lru_cache_wrapper",
                            .trace   = cache_trace,
                            .repr    = cache_repr,
-                           .getattr = cache_getattr };
+                           .getattr = cache_getattr,
+                           .setattr = cache_setattr };
 
 R b_lru_cache(const CallArgs &a, Value &out)
 {
@@ -918,6 +954,7 @@ R b_lru_cache(const CallArgs &a, Value &out)
     c->maxsize = most;
     c->hits = c->misses = 0;
     c->typed            = typed;
+    c->dict             = Value();
     out                 = obj_value(c);
     return R::Ok;
 }

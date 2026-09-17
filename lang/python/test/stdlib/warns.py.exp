@@ -1,0 +1,11 @@
+[('ignore', None, <class 'PendingDeprecationWarning'>, None, 0), ('ignore', None, <class 'ImportWarning'>, None, 0), ('ignore', None, <class 'ResourceWarning'>, None, 0)]
+default {} _Lock
+[('plain', 'UserWarning', 13)]
+[('dep', 'DeprecationWarning', 13)]
+[('an instance', 'UserWarning', 13)]
+[('up', 'UserWarning', 23)]
+1 ['once only']
+raised boom
+[('ignore', None, <class 'PendingDeprecationWarning'>, None, 0), ('ignore', None, <class 'ImportWarning'>, None, 0), ('ignore', None, <class 'ResourceWarning'>, None, 0)]
+invalid action: 'nonsense'
+category must be a Warning subclass, not class 'int'

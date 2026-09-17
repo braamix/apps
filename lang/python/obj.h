@@ -132,6 +132,7 @@ extern const Type dict_type;
 extern const Type set_type;
 extern const Type bytearray_type;
 extern const Type frozenset_type;
+extern const Type frozendict_type;
 
 inline Value value_none()
 {
@@ -354,6 +355,21 @@ inline bool is_dict(Value v)
 {
     return v.is_obj() && v.obj()->type == &dict_type;
 }
+
+// frozendict has dict's layout, and neither its setters nor its methods that
+// change it.
+inline bool is_frozendict(Value v)
+{
+    return v.is_obj() && v.obj()->type == &frozendict_type;
+}
+
+inline bool is_anydict(Value v)
+{
+    return is_dict(v) || is_frozendict(v);
+}
+
+// real, imag, numerator and denominator of an int or a bool. In int.cpp.
+R int_getattr(Value v, StrObj *name, Value &out);
 
 inline bool is_set(Value v)
 {

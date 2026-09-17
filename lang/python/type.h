@@ -120,6 +120,10 @@ Got attr_plain(Value v, StrObj *name, Value &out, Value &args);
 R attr_plain_store(Value v, StrObj *name, Value val, Value &fn);
 R attr_plain_delete(Value v, StrObj *name, Value &fn);
 
+// A Got::Call's ContObj answers `dflt` rather than raising AttributeError.
+// False when `kv` is not one.
+bool attr_cont_guard(Value kv, Value dflt);
+
 // `fn(*args)` as a ContObj, for a native that has to hand one back.
 Value attr_invoke(Value fn, Value args);
 
@@ -176,6 +180,27 @@ extern const Type property_type;
 extern const Type staticmethod_type;
 extern const Type classmethod_type;
 
+// types.MappingProxyType, which `type.__dict__` answers. In typesmod.cpp.
+extern const Type mappingproxy_type;
+Value mappingproxy_new(Value mapping);
+Value mappingproxy_inner(Value proxy);
+bool mappingproxy_methods();
+
+inline bool is_mappingproxy(Value v)
+{
+    return v.is_obj() && v.obj()->type == &mappingproxy_type;
+}
+
+// __get__, __set__ and __delete__ on the built-in descriptors. In attr.cpp.
+bool descr_methods();
+
+// classmethod(fn). Nil with the error pending.
+Value classmethod_new(Value fn);
+
+// object's methods beyond the core ones, in objmeth.cpp.
+bool objmeth_install(Value dict);
+bool objmeth_is(R (*fn)(const CallArgs &, Value &));
+
 inline bool is_property(Value v)
 {
     return v.is_obj() && v.obj()->type == &property_type;
@@ -184,6 +209,7 @@ inline bool is_property(Value v)
 // What a staticmethod or a classmethod holds.
 struct WrapObj : Obj {
     Value fn;
+    Value dict; // __dict__, made when something is stored or first read
 };
 
 // One name of a __slots__ class: an index into the instance's slot array.

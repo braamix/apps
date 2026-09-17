@@ -10,6 +10,7 @@ extern const Type weakref_type;
 struct WeakRefObj : Obj {
     Obj *target;
     Value callback; // called with this reference once the target has gone
+    Value owner;    // the instance of a subclass of ref this is laid inside, or Nil
     u32 hash;       // the target's identity, kept so a dead ref still hashes
 };
 
@@ -35,6 +36,11 @@ inline Value unproxy(Value v)
 {
     return is_weakproxy(v) ? proxy_target(v) : v;
 }
+
+// `made` is laid inside `self`, an instance of a subclass of ref: what to lay
+// there. A shared reference is copied first, and the callback is then handed
+// `self`. Anything that is not a reference comes back as it is.
+Value weak_adopt(Value made, Value self);
 
 // Fill a module namespace with ref, ReferenceType and the two counters, and
 // register the sweep hook that clears a reference whose target has gone.

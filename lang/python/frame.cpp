@@ -57,6 +57,14 @@ R frame_getattr(Value v, StrObj *name, Value &out)
         out = f->code;
     else if (n == "f_lasti")
         out = Value::of_int(i32(f->pc));
+    else if (n == "f_lineno")
+        out = Value::of_int(i32(code_line(code_of(f->code), f->pc ? f->pc - 1 : 0)));
+    else if (n == "f_builtins")
+        out = f->builtins.is_nil() ? value_none() : f->builtins;
+    else if (n == "f_trace")
+        out = value_none();
+    else if (n == "f_generator")
+        out = f->gen.is_nil() ? value_none() : f->gen;
     else
         return R::NotImpl;
     return out.is_nil() ? R::Err : R::Ok;

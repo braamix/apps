@@ -195,6 +195,22 @@ class TestCase:
     def __init__(self, methodName="runTest"):
         self._testMethodName = methodName
         self._subfail = []
+        self._cleanups = []
+
+    def addCleanup(self, function, /, *args, **kwargs):
+        self._cleanups.append((function, args, kwargs))
+
+    def doCleanups(self):
+        """Every cleanup, last added first; the first error is kept."""
+        first = None
+        while self._cleanups:
+            function, args, kwargs = self._cleanups.pop()
+            try:
+                function(*args, **kwargs)
+            except BaseException as e:
+                if first is None:
+                    first = e
+        return first
 
     def setUp(self):
         pass
@@ -280,6 +296,34 @@ class TestCase:
     def assertNotIsInstance(self, obj, cls, msg=None):
         if isinstance(obj, cls):
             self._fail(repr(obj) + " is an instance of " + repr(cls), msg)
+
+    def assertRegex(self, text, regex, msg=None):
+        if not _search(regex, text):
+            self._fail(repr(regex) + " not found in " + repr(text), msg)
+
+    def assertNotRegex(self, text, regex, msg=None):
+        if _search(regex, text):
+            self._fail(repr(regex) + " matches " + repr(text), msg)
+
+    def assertIsSubclass(self, cls, superclass, msg=None):
+        try:
+            if issubclass(cls, superclass):
+                return
+        except TypeError:
+            if not isinstance(cls, type):
+                self._fail(repr(cls) + " is not a class", msg)
+            raise
+        self._fail(repr(cls) + " is not a subclass of " + repr(superclass), msg)
+
+    def assertNotIsSubclass(self, cls, superclass, msg=None):
+        try:
+            if not issubclass(cls, superclass):
+                return
+        except TypeError:
+            if not isinstance(cls, type):
+                self._fail(repr(cls) + " is not a class", msg)
+            raise
+        self._fail(repr(cls) + " is a subclass of " + repr(superclass), msg)
 
     def assertHasAttr(self, obj, name, msg=None):
         if not hasattr(obj, name):
@@ -402,6 +446,10 @@ class TestCase:
         except BaseException as e:
             if state[0] == "ok":
                 state = ("error", "tearDown: " + _describe(e))
+
+        e = self.doCleanups()
+        if e is not None and state[0] == "ok":
+            state = ("error", "cleanup: " + _describe(e))
 
         if state[0] == "ok" and self._subfail:
             state = ("fail", str(len(self._subfail)) + " subtests: " +

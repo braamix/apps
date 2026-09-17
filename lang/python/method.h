@@ -53,6 +53,7 @@ inline bool meth_take(const CallArgs &a, Str who, const Str (&names)[N], u32 lea
 StrObj *self_str(const CallArgs &a, Str who);
 ListObj *self_list(const CallArgs &a, Str who);
 DictObj *self_dict(const CallArgs &a, Str who);
+DictObj *self_anydict(const CallArgs &a, Str who); // a frozendict too
 SetObj *self_set(const CallArgs &a, Str who, bool frozen_ok = true);
 TupleObj *self_tuple(const CallArgs &a, Str who);
 

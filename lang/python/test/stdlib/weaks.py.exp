@@ -1,0 +1,7 @@
+['a', 'b'] x 2 True True
+['a'] 1 1 ['x'] [K1]
+1 True True
+True True
+['gone'] False None [] 0
+None True
+4 4 True True

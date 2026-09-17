@@ -48,6 +48,7 @@ void info_trace(Obj *o)
 {
     gc_mark(static_cast<InfoObj *>(o)->items);
     gc_mark(static_cast<InfoObj *>(o)->names);
+    gc_mark(static_cast<InfoObj *>(o)->hidden);
 }
 
 R info_len(Value v, usize &out)
@@ -64,9 +65,11 @@ R info_getitem(Value v, Value key, Value &out)
 R info_getattr(Value v, StrObj *name, Value &out)
 {
     TupleObj *n = names_of(v);
+    u32 shown   = items_of(v)->len;
     for (u32 i = 0; i < n->len; i++)
         if (str_of(n->items()[i])->str() == name->str()) {
-            out = items_of(v)->items()[i];
+            out = i < shown ? items_of(v)->items()[i]
+                            : static_cast<TupleObj *>(info_of(v)->hidden.obj())->items()[i - shown];
             return R::Ok;
         }
     return R::NotImpl;
@@ -111,7 +114,7 @@ R info_repr(Value v, String &out)
     TupleObj *n = names_of(v);
     if (!out.append(v.obj()->type->name) || !out.push('('))
         return oom();
-    for (u32 i = 0; i < n->len; i++) {
+    for (u32 i = 0; i < items_of(v)->len; i++) {
         if (i && !out.append(", "))
             return oom();
         if (!out.append(str_of(n->items()[i])->str()) || !out.push('='))
@@ -122,15 +125,21 @@ R info_repr(Value v, String &out)
     return out.push(')') ? R::Ok : oom();
 }
 
-Value info_new(const Type *t, const Value *items, const Str *names, usize n)
+Value info_new(const Type *t, const Value *items, const Str *names, usize n, usize shown)
 {
     Roots pin{ const_cast<Value *>(items), n };
-    TupleObj *xs = tuple_new(n);
+    TupleObj *xs = tuple_new(shown);
     if (!xs)
         return oom(), Value();
-    for (usize i = 0; i < n; i++)
+    for (usize i = 0; i < shown; i++)
         xs->items()[i] = items[i];
     Root rx{ obj_value(xs) };
+    TupleObj *hs = tuple_new(n - shown);
+    if (!hs)
+        return oom(), Value();
+    for (usize i = shown; i < n; i++)
+        hs->items()[i - shown] = items[i];
+    Root rh{ obj_value(hs) };
     TupleObj *ns = tuple_new(n);
     if (!ns)
         return oom(), Value();
@@ -144,7 +153,8 @@ Value info_new(const Type *t, const Value *items, const Str *names, usize n)
     InfoObj *o = static_cast<InfoObj *>(obj_alloc(t, sizeof(InfoObj)));
     if (!o)
         return oom(), Value();
-    o->items = rx.v;
-    o->names = rn.v;
+    o->items  = rx.v;
+    o->names  = rn.v;
+    o->hidden = rh.v;
     return obj_value(o);
 }

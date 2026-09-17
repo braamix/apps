@@ -329,23 +329,15 @@ R o_index(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "index", 1, 1))
         return R::Err;
+    R r = R::Ok;
+    if (redo_converted(a, 0, "__index__", o_index, out, r))
+        return r;
     i64 n = 0;
     if (!as_index(a.args[0], n))
         return err_set2("TypeError", "object cannot be interpreted as an integer",
                         type_name(a.args[0]));
     out = a.args[0];
     return R::Ok;
-}
-
-R o_length(const CallArgs &a, Value &out)
-{
-    if (!args_only(a, "length", 1, 1))
-        return R::Err;
-    usize n = 0;
-    if (py_len(a.args[0], n) != R::Ok)
-        return R::Err;
-    out = int_from_i64(i64(n));
-    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R o_length_hint(const CallArgs &a, Value &out)
@@ -704,6 +696,85 @@ constexpr ModDef CMP_DEFS[] = {
 
 #undef CMP_DEF
 
+R o_is_none(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "is_none", 1, 1))
+        return R::Err;
+    out = value_bool(is_none(a.args[0]));
+    return R::Ok;
+}
+
+R o_is_not_none(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "is_not_none", 1, 1))
+        return R::Err;
+    out = value_bool(!is_none(a.args[0]));
+    return R::Ok;
+}
+
+// call(obj, /, *args, **kwargs)
+R o_call(const CallArgs &a, Value &out)
+{
+    if (!a.nargs)
+        return err_set("TypeError", "call() missing 1 required positional argument: 'obj'");
+    TupleObj *args = tuple_new(a.nargs - 1);
+    if (!args)
+        return oom();
+    for (u32 i = 1; i < a.nargs; i++)
+        args->items()[i - 1] = a.args[i];
+    Root ra{ obj_value(args) };
+    TupleObj *kn = tuple_new(a.nkw);
+    if (!kn)
+        return oom();
+    for (u32 i = 0; i < a.nkw; i++)
+        kn->items()[i] = a.kwnames[i];
+    Root rn{ obj_value(kn) };
+    TupleObj *kv = tuple_new(a.nkw);
+    if (!kv)
+        return oom();
+    for (u32 i = 0; i < a.nkw; i++)
+        kv->items()[i] = a.kwvals[i];
+    Root rv{ obj_value(kv) };
+    Root k{ cont_new(call_step) };
+    if (k.v.is_nil())
+        return R::Err;
+    cont_of(k.v)->s[0] = a.args[0];
+    cont_of(k.v)->s[1] = ra.v;
+    cont_of(k.v)->s[2] = rn.v;
+    cont_of(k.v)->s[3] = rv.v;
+    out                = k.v;
+    return R::Ok;
+}
+
+// _compare_digest(a, b): equality that CPython keeps constant-time. Two ASCII
+// strs or two bytes-likes.
+R o_compare_digest(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "_compare_digest", 2, 2))
+        return R::Err;
+    Str x, y;
+    bool sx = is_str(a.args[0]), sy = is_str(a.args[1]);
+    if (sx && sy) {
+        if (!(a.args[0].obj()->flags & OBJ_ASCII) || !(a.args[1].obj()->flags & OBJ_ASCII))
+            return err_set("TypeError",
+                           "comparing strings with non-ASCII characters is not supported");
+        x = str_of(a.args[0])->str();
+        y = str_of(a.args[1])->str();
+    } else if (sx || sy) {
+        return err_set("TypeError", "a bytes-like object is required, not 'str'");
+    } else if (!bytes_like(a.args[0], x) || !bytes_like(a.args[1], y)) {
+        Buf<128> m;
+        m.put("unsupported operand types(s) or combination of types: '").put(type_name(a.args[0]));
+        m.put("' and '").put(type_name(a.args[1])).put('\'');
+        return err_set("TypeError", m.str());
+    }
+    u8 diff = x.size() != y.size();
+    for (usize i = 0; i < x.size() && i < y.size(); i++)
+        diff |= u8(x[i] ^ y[i]);
+    out = value_bool(diff == 0);
+    return R::Ok;
+}
+
 constexpr ModDef REST_DEFS[] = {
     { "neg", o_neg },
     { "__neg__", o_neg },
@@ -720,10 +791,12 @@ constexpr ModDef REST_DEFS[] = {
     { "truth", o_truth },
     { "is_", o_is },
     { "is_not", o_is_not },
+    { "is_none", o_is_none },
+    { "is_not_none", o_is_not_none },
+    { "call", o_call },
+    { "_compare_digest", o_compare_digest },
     { "index", o_index },
     { "__index__", o_index },
-    { "length", o_length },
-    { "__len__", o_length },
     { "length_hint", o_length_hint },
     { "getitem", o_getitem },
     { "__getitem__", o_getitem },
@@ -753,5 +826,9 @@ bool operator_install(DictObj *into)
         return false;
     DictObj *d = static_cast<DictObj *>(rd.v.obj());
     return mod_defs(d, BINARY_DEFS) && mod_defs(d, INPLACE_DEFS) && mod_defs(d, CMP_DEFS) &&
-           mod_defs(d, REST_DEFS);
+           mod_defs(d, REST_DEFS) &&
+           mod_str(d, "__doc__",
+                   "Operator interface.\n\nThis module exports a set of functions "
+                   "implemented in C corresponding\nto the intrinsic operators of "
+                   "Python.");
 }

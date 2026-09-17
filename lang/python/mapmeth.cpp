@@ -2,11 +2,13 @@
 //
 // A view is its own iterable type, not a list. That makes `d.keys() & other` a
 // set operation, and `for k in d.keys()` copies nothing.
+#include "builtin.h"
 #include "call.h"
 #include "exc.h"
 #include "frame.h"
 #include "gc.h"
 #include "gen.h"
+#include "intern.h"
 #include "iter.h"
 #include "kernel/fmt.h"
 #include "method.h"
@@ -200,7 +202,7 @@ SetObj *set_from(Value v, bool frozen)
 
 const Table *table_of(Value v)
 {
-    if (is_dict(v))
+    if (is_anydict(v))
         return &dict_at(v)->t;
     if (is_anyset(v))
         return &set_at(v)->t;
@@ -371,7 +373,7 @@ namespace {
 
 R m_keys(const CallArgs &a, Value &out)
 {
-    DictObj *d = self_dict(a, "keys");
+    DictObj *d = self_anydict(a, "keys");
     if (!d || !meth_args(a, "keys", 0, 0))
         return R::Err;
     out = dict_view(method_self(a.args[0]), VIEW_KEYS);
@@ -380,7 +382,7 @@ R m_keys(const CallArgs &a, Value &out)
 
 R m_values(const CallArgs &a, Value &out)
 {
-    DictObj *d = self_dict(a, "values");
+    DictObj *d = self_anydict(a, "values");
     if (!d || !meth_args(a, "values", 0, 0))
         return R::Err;
     out = dict_view(method_self(a.args[0]), VIEW_VALUES);
@@ -389,7 +391,7 @@ R m_values(const CallArgs &a, Value &out)
 
 R m_items(const CallArgs &a, Value &out)
 {
-    DictObj *d = self_dict(a, "items");
+    DictObj *d = self_anydict(a, "items");
     if (!d || !meth_args(a, "items", 0, 0))
         return R::Err;
     out = dict_view(method_self(a.args[0]), VIEW_ITEMS);
@@ -398,7 +400,7 @@ R m_items(const CallArgs &a, Value &out)
 
 R m_get(const CallArgs &a, Value &out)
 {
-    DictObj *d = self_dict(a, "get");
+    DictObj *d = self_anydict(a, "get");
     if (!d || !meth_args(a, "get", 1, 2))
         return R::Err;
     R r = dict_get(d, a.args[1], out);
@@ -477,8 +479,16 @@ R m_update(const CallArgs &a, Value &out)
         Root src{ frame_locals_dict(a.args[1]) };
         if (src.v.is_nil())
             return R::Err;
+        while (is_mappingproxy(src.v))
+            src = mappingproxy_inner(src.v);
+        if (is_inst(src.v) && type_has_py_special(src.v, "keys")) {
+            if (a.nkw)
+                return err_set("TypeError", "update() with a mapping of one's own and keywords");
+            return dict_fill_keys(rd.v, src.v, out);
+        }
+        src            = method_self(src.v);
         const Table *t = table_of(src.v);
-        if (t && is_dict(src.v)) {
+        if (t && is_anydict(src.v)) {
             usize at = 0;
             Value k, val;
             while (table_next(dict_at(src.v)->t, at, k, val))
@@ -488,7 +498,7 @@ R m_update(const CallArgs &a, Value &out)
             Root it{ py_iter(src.v) };
             if (it.v.is_nil())
                 return R::Err;
-            for (;;) {
+            for (usize at = 0;; at++) {
                 Root got;
                 R r = py_next(it.v, got.v);
                 if (r == R::Err)
@@ -498,9 +508,14 @@ R m_update(const CallArgs &a, Value &out)
                 usize n = 0;
                 if (py_len(got.v, n) != R::Ok)
                     return R::Err;
-                if (n != 2)
-                    return err_set("ValueError",
-                                   "dictionary update sequence element has the wrong length");
+                if (n != 2) {
+                    char c[24];
+                    Buf<128> m;
+                    m.put("dictionary update sequence element #")
+                        .put(int_text(c, sizeof c, i64(at)));
+                    m.put(" has length ").put(int_text(c, sizeof c, i64(n))).put("; 2 is required");
+                    return err_set("ValueError", m.str());
+                }
                 // Pin the key: taking the value allocates.
                 Root k, val;
                 if (py_getitem(got.v, Value::of_int(0), k.v) != R::Ok ||
@@ -574,6 +589,149 @@ R m_fromkeys(const CallArgs &a, Value &out)
             return R::Err;
     }
     out = rd.v;
+    return R::Ok;
+}
+
+// -------------------------------------------------------------- frozendict
+
+// A fresh dict becomes a frozendict: the layout is the same.
+Value frozen(Value d)
+{
+    d.obj()->type = &frozendict_type;
+    return d;
+}
+
+R frozen_step(ContObj *k, Value in)
+{
+    return cont_done(k, is_dict(in) ? frozen(in) : in);
+}
+
+// A dict made, possibly by a continuation, handed back as a frozendict.
+R freeze(Value made, Value &out)
+{
+    if (!is_cont(made)) {
+        out = frozen(made);
+        return R::Ok;
+    }
+    Root rm{ made };
+    Root kv{ cont_new(frozen_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(rm.v)->next = kv.v;
+    out                 = rm.v;
+    return R::Ok;
+}
+
+// A frozendict is its own copy; a subclass's copy is a frozendict.
+R m_fd_copy(const CallArgs &a, Value &out)
+{
+    Value self = a.nargs ? a.args[0] : Value();
+    DictObj *d = self_anydict(a, "copy");
+    if (!d || !meth_args(a, "copy", 0, 0))
+        return R::Err;
+    if (is_frozendict(self)) {
+        out = self;
+        return R::Ok;
+    }
+    Root rs{ method_self(self) };
+    DictObj *c = dict_new();
+    if (!c)
+        return oom_err();
+    Root rc{ obj_value(c) };
+    usize at = 0;
+    Value k, val;
+    while (table_next(dict_at(rs.v)->t, at, k, val))
+        if (dict_set(dict_at(rc.v), k, val) != R::Ok)
+            return R::Err;
+    out = frozen(rc.v);
+    return R::Ok;
+}
+
+// What pickle rebuilds one from: a dict of the same pairs.
+R m_fd_getnewargs(const CallArgs &a, Value &out)
+{
+    DictObj *d = self_anydict(a, "__getnewargs__");
+    if (!d || !meth_args(a, "__getnewargs__", 0, 0))
+        return R::Err;
+    Root rs{ method_self(a.args[0]) };
+    DictObj *c = dict_new();
+    if (!c)
+        return oom_err();
+    Root rc{ obj_value(c) };
+    usize at = 0;
+    Value k, val;
+    while (table_next(dict_at(rs.v)->t, at, k, val))
+        if (dict_set(dict_at(rc.v), k, val) != R::Ok)
+            return R::Err;
+    TupleObj *t = tuple_new(1);
+    if (!t)
+        return oom_err();
+    t->items()[0] = rc.v;
+    out           = obj_value(t);
+    return R::Ok;
+}
+
+// dict.fromkeys(iterable, value) on a class of the program's own: cls(), then
+// each key stored as the class stores it. s[0] the class, s[1] the keys, s[2]
+// the value, s[3] what cls() made, s[4] its __setitem__ where that is Python.
+R fromkeys_step(ContObj *k, Value in)
+{
+    if (k->i == 0) {
+        k->i = 1;
+        return cont_call(k, k->s[0], Value(), 0);
+    }
+    if (k->i == 1) {
+        k->i    = 2;
+        k->s[3] = in;
+        if (type_has_py_special(in, "__setitem__")) {
+            k->s[4] = type_special(in, "__setitem__");
+            if (k->s[4].is_nil())
+                return R::Err;
+        }
+    }
+    ListObj *keys = list_of(k->s[1]);
+    while (k->j < keys->items.size()) {
+        Value key = keys->items[k->j++];
+        if (!k->s[4].is_nil())
+            return cont_call(k, k->s[4], key, 2, k->s[2]);
+        if (py_setitem(k->s[3], key, k->s[2]) != R::Ok)
+            return R::Err;
+        keys = list_of(k->s[1]);
+    }
+    return cont_done(k, k->s[3]);
+}
+
+R m_dict_fromkeys(const CallArgs &a, Value &out)
+{
+    if (a.nkw || a.nargs < 2 || a.nargs > 3)
+        return err_set("TypeError", "fromkeys expected at least 1 argument");
+    if (iter_needs_vm(a.args[1]))
+        return iter_park(a, 1, m_dict_fromkeys, out);
+    Value cls = a.args[0];
+    CallArgs rest;
+    rest.args  = a.args + 1;
+    rest.nargs = a.nargs - 1;
+    if (!is_type(cls) || type_obj(cls)->desc == &dict_type)
+        return m_fromkeys(rest, out);
+    if (type_obj(cls)->desc == &frozendict_type) {
+        Root made;
+        if (m_fromkeys(rest, made.v) != R::Ok)
+            return R::Err;
+        return freeze(made.v, out);
+    }
+    Root rc{ cls }, fill{ a.nargs > 2 ? a.args[2] : value_none() };
+    ListObj *keys = py_list_of(a.args[1]);
+    if (!keys)
+        return R::Err;
+    Root rk{ obj_value(keys) };
+    Root kv{ cont_new(fromkeys_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = rc.v;
+    k->s[1]    = rk.v;
+    k->s[2]    = fill.v;
+    out        = kv.v;
     return R::Ok;
 }
 
@@ -808,10 +966,15 @@ R m_isdisjoint(const CallArgs &a, Value &out)
 // ------------------------------------------------------------------ tables
 
 constexpr Method DICT[] = {
-    { "keys", m_keys },       { "values", m_values },           { "items", m_items },
-    { "get", m_get },         { "setdefault", m_setdefault },   { "pop", m_dict_pop },
-    { "popitem", m_popitem }, { "update", m_update },           { "clear", m_dict_clear },
-    { "copy", m_dict_copy },  { "fromkeys", m_fromkeys, true },
+    { "keys", m_keys },       { "values", m_values },         { "items", m_items },
+    { "get", m_get },         { "setdefault", m_setdefault }, { "pop", m_dict_pop },
+    { "popitem", m_popitem }, { "update", m_update },         { "clear", m_dict_clear },
+    { "copy", m_dict_copy },
+};
+
+constexpr Method FROZENDICT[] = {
+    { "keys", m_keys }, { "values", m_values }, { "items", m_items },
+    { "get", m_get },   { "copy", m_fd_copy },  { "__getnewargs__", m_fd_getnewargs },
 };
 
 // The half a frozenset has as well.
@@ -852,6 +1015,25 @@ bool view_is(Value v)
 
 } // namespace
 
+R b_frozendict(const CallArgs &a, Value &out)
+{
+    if (a.nargs > 1) {
+        char n[24];
+        Buf<96> b;
+        b.put("frozendict expected at most 1 argument, got ")
+            .put(int_text(n, sizeof n, i64(a.nargs)));
+        return err_set("TypeError", b.str());
+    }
+    if (a.nargs == 1 && !a.nkw && is_frozendict(a.args[0])) {
+        out = a.args[0];
+        return R::Ok;
+    }
+    Root made;
+    if (py_dict_of(a, made.v) != R::Ok)
+        return R::Err;
+    return freeze(made.v, out);
+}
+
 constexpr Type view_type{ .name     = "dict_view",
                           .trace    = view_trace,
                           .hash     = view_hash,
@@ -876,7 +1058,20 @@ Value dict_view(Value d, u32 kind)
 
 bool map_methods()
 {
-    return method_install(&dict_type, DICT) && method_install(&set_type, SET_CONST) &&
-           method_install(&set_type, SET_MUT) && method_install(&frozenset_type, SET_CONST) &&
-           method_install(&view_type, VIEW);
+    // fromkeys is a classmethod: a subclass's call makes the subclass.
+    Root dt{ type_wrap(&dict_type) };
+    Root fk{ native_new("fromkeys", m_dict_fromkeys) };
+    if (dt.v.is_nil() || fk.v.is_nil())
+        return false;
+    Root cm{ classmethod_new(fk.v) };
+    Root ft{ type_wrap(&frozendict_type) };
+    StrObj *fkn = str_intern("fromkeys");
+    if (cm.v.is_nil() || ft.v.is_nil() || !fkn ||
+        dict_set(static_cast<DictObj *>(type_obj(dt.v)->dict.obj()), obj_value(fkn), cm.v) !=
+            R::Ok ||
+        dict_set(static_cast<DictObj *>(type_obj(ft.v)->dict.obj()), obj_value(fkn), cm.v) != R::Ok)
+        return false;
+    return method_install(&dict_type, DICT) && method_install(&frozendict_type, FROZENDICT) &&
+           method_install(&set_type, SET_CONST) && method_install(&set_type, SET_MUT) &&
+           method_install(&frozenset_type, SET_CONST) && method_install(&view_type, VIEW);
 }

@@ -4,7 +4,7 @@ ok TestClassDecorators.test_order
 ok TestClassDecorators.test_simple
 ok TestDecorators.test_argforms
 ok TestDecorators.test_bound_function_inside_classmethod
-error TestDecorators.test_classmethod: AttributeError: 'classmethod' object has no attribute '__func__'
+error TestDecorators.test_classmethod: AttributeError: 'classmethod' object has no attribute '__annotations__'
 ok TestDecorators.test_dbcheck
 ok TestDecorators.test_dotted
 ok TestDecorators.test_double
@@ -14,5 +14,5 @@ ok TestDecorators.test_expressions
 ok TestDecorators.test_memoize
 ok TestDecorators.test_order
 ok TestDecorators.test_single
-error TestDecorators.test_staticmethod: AttributeError: 'staticmethod' object has no attribute '__func__'
+error TestDecorators.test_staticmethod: AttributeError: 'staticmethod' object has no attribute '__annotations__'
 --- ran 16 ok 13 fail 0 error 3 skip 0 ---

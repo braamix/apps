@@ -122,6 +122,8 @@ enum : u32 { SP_START, SP_TESTED, SP_MATCHED, SP_RESTED };
 // s[0] the matcher, s[1] the stack, s[2] the leaf under test, s[3] the match
 // of the group being finished; j the kind and WANT_REST. A frame is a list
 // [group, next index, matches, rests].
+constexpr usize SPLIT_DEPTH = 20000; // nested groups a split walks into
+
 Value frame_new(Value group, bool rest)
 {
     Root rg{ group };
@@ -239,6 +241,11 @@ R place(ContObj *k, Value e, bool hit)
     if (hit)
         return list_push(list_of(f->items[2]), re.v) ? R::Ok : oom();
     if (is_egroup(re.v)) {
+        // CPython recurses on the C stack and runs out of it; the stack here
+        // is a list, and this bound stands in for that one.
+        if (list_of(k->s[1])->items.size() >= SPLIT_DEPTH)
+            return err_set("RecursionError",
+                           "maximum recursion depth exceeded in an exception group split");
         Value nf = frame_new(re.v, (k->j & WANT_REST) != 0);
         if (nf.is_nil())
             return R::Err;

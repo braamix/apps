@@ -1,0 +1,15 @@
+True NotImplemented NotImplemented NotImplemented
+True True NotImplemented True
+False True False True
+True True {'x': 1} None None
+(None, {'a': 3}) None {'x': 1}
+_reconstructor _reconstructor
+['L'] {'z': 5} [1, 2] None
+[('k', 1)]
+(1, 2) st
+__newobj_ex__ ((1,), {'k': 2})
+R
+object ok
+cannot pickle 'weakref.ReferenceType' object
+(<class 'int'>, 1) ['__class__', '__delattr__', '__dict__'] NotImplemented
+True True True True

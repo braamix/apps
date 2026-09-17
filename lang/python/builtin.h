@@ -40,3 +40,26 @@ R format_field(Value v, Str spec, u32 conv, i32 min_digits, Value &out);
 
 // callable(v).
 bool py_callable(Value v);
+
+// dict(...), for frozendict(...): a dict, or a ContObj that makes one.
+R py_dict_of(const CallArgs &a, Value &out);
+
+// sentinel(...) and its methods, in sentinel.cpp.
+extern const Type sentinel_type;
+R b_sentinel(const CallArgs &a, Value &out);
+bool sentinel_methods();
+
+// method(function, instance) and module(name, doc=None), in typesmod.cpp.
+R b_method(const CallArgs &a, Value &out);
+R b_genericalias(const CallArgs &a, Value &out);
+R b_module(const CallArgs &a, Value &out);
+
+// dict.update(m) for a mapping written in Python: every key of m into `d`,
+// as a ContObj that answers None.
+R dict_fill_keys(Value d, Value src, Value &out);
+
+// frozendict(...), in mapmeth.cpp.
+R b_frozendict(const CallArgs &a, Value &out);
+
+// dir(), for object.__dir__.
+R py_dir(const CallArgs &a, Value &out);

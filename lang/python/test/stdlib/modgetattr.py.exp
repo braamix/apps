@@ -1,0 +1,2 @@
+42
+ImportError cannot import name 'y' from 'dyn' (unknown location)

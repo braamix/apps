@@ -33,11 +33,24 @@ R float_repr(Value v, String &out)
 
 } // namespace
 
-constexpr Type float_type{ .name  = "float",
-                           .truth = float_truth,
-                           .hash  = float_hash,
-                           .repr  = float_repr,
-                           .patma = PATMA_SELF };
+// A float is its own real part.
+R float_getattr(Value v, StrObj *name, Value &out)
+{
+    if (name->str() == "real")
+        out = v;
+    else if (name->str() == "imag")
+        out = float_new(0.0);
+    else
+        return R::NotImpl;
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+constexpr Type float_type{ .name    = "float",
+                           .truth   = float_truth,
+                           .hash    = float_hash,
+                           .repr    = float_repr,
+                           .getattr = float_getattr,
+                           .patma   = PATMA_SELF };
 
 Value float_new(f64 x)
 {

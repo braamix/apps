@@ -1,6 +1,7 @@
 // Type objects, instances, the MRO and the descriptors.
 #include "type.h"
 
+#include "builtin.h"
 #include "call.h"
 #include "complex.h"
 #include "exc.h"
@@ -143,6 +144,91 @@ void prop_trace(Obj *o)
 void wrap_trace(Obj *o)
 {
     gc_mark(static_cast<WrapObj *>(o)->fn);
+    gc_mark(static_cast<WrapObj *>(o)->dict);
+}
+
+WrapObj *wrap_of(Value v)
+{
+    return static_cast<WrapObj *>(v.obj());
+}
+
+// The wrapper's own dict, with what it copied off the function when made.
+DictObj *wrap_dict(Value v)
+{
+    if (!wrap_of(v)->dict.is_nil())
+        return static_cast<DictObj *>(wrap_of(v)->dict.obj());
+    Root rv{ v };
+    DictObj *d = dict_new();
+    if (!d)
+        return oom(), nullptr;
+    wrap_of(rv.v)->dict    = obj_value(d);
+    constexpr Str COPIED[] = { "__module__", "__name__", "__qualname__", "__doc__" };
+    for (Str name : COPIED) {
+        StrObj *n = str_intern(name);
+        if (!n)
+            return oom(), nullptr;
+        Value got, args;
+        Got g = attr_plain(wrap_of(rv.v)->fn, n, got, args);
+        if (g == Got::Error)
+            err_clear();
+        if (g != Got::Ok)
+            continue;
+        if (dict_set(static_cast<DictObj *>(wrap_of(rv.v)->dict.obj()), obj_value(n), got) != R::Ok)
+            return nullptr;
+    }
+    return static_cast<DictObj *>(wrap_of(rv.v)->dict.obj());
+}
+
+R wrap_getattr(Value v, StrObj *name, Value &out)
+{
+    Str n = name->str();
+    if (n == "__func__" || n == "__wrapped__") {
+        out = wrap_of(v)->fn;
+        return R::Ok;
+    }
+    Root rv{ v };
+    DictObj *d = wrap_dict(rv.v);
+    if (!d)
+        return R::Err;
+    if (n == "__dict__") {
+        out = wrap_of(rv.v)->dict;
+        return R::Ok;
+    }
+    R r = dict_get(d, obj_value(name), out);
+    if (r != R::NotImpl)
+        return r;
+    if (n == "__isabstractmethod__") {
+        Value got, args;
+        Got g = attr_plain(wrap_of(rv.v)->fn, name, got, args);
+        if (g == Got::Error)
+            err_clear();
+        out = g == Got::Ok ? value_bool(py_truth(got)) : value_bool(false);
+        return R::Ok;
+    }
+    return R::NotImpl;
+}
+
+R wrap_setattr(Value v, StrObj *name, Value val)
+{
+    Root rv{ v }, rx{ val };
+    DictObj *d = wrap_dict(rv.v);
+    if (!d)
+        return R::Err;
+    if (rx.v.is_nil()) {
+        R r = dict_del(d, obj_value(name));
+        return r == R::NotImpl ? err_set2("AttributeError", "no such attribute", name->str()) : r;
+    }
+    return dict_set(d, obj_value(name), rx.v);
+}
+
+R wrap_repr(Value v, String &out)
+{
+    Root rv{ v };
+    if (!out.push('<') || !out.append(type_name(rv.v)) || !out.push('('))
+        return oom();
+    if (py_repr(wrap_of(rv.v)->fn, out) != R::Ok)
+        return R::Err;
+    return out.append(")>") ? R::Ok : oom();
 }
 
 void super_trace(Obj *o)
@@ -288,9 +374,18 @@ R dg_order(Value a, Value b, Cmp op, bool &out)
     return py_cmp(delegate(a), delegate(b), op, out);
 }
 
+// A frozendict subclass prints under its own name, as frozendict does.
 R dg_repr(Value v, String &out)
 {
-    return py_repr(delegate(v), out);
+    Value d = delegate(v);
+    if (!is_frozendict(d) || !static_cast<DictObj *>(d.obj())->t.live)
+        return is_frozendict(d) ? (out.append(type_name(v)) && out.append("()") ? R::Ok : oom())
+                                : py_repr(d, out);
+    if (!out.append(type_name(v)) || !out.push('('))
+        return oom();
+    if (dict_repr(d, out) != R::Ok)
+        return R::Err;
+    return out.push(')') ? R::Ok : oom();
 }
 
 R dg_str(Value v, String &out)
@@ -431,9 +526,17 @@ constexpr Type property_type{ .name    = "property",
                               .getattr = prop_getattr,
                               .setattr = prop_setattr };
 
-constexpr Type staticmethod_type{ .name = "staticmethod", .trace = wrap_trace, .repr = plain_repr };
+constexpr Type staticmethod_type{ .name    = "staticmethod",
+                                  .trace   = wrap_trace,
+                                  .repr    = wrap_repr,
+                                  .getattr = wrap_getattr,
+                                  .setattr = wrap_setattr };
 
-constexpr Type classmethod_type{ .name = "classmethod", .trace = wrap_trace, .repr = plain_repr };
+constexpr Type classmethod_type{ .name    = "classmethod",
+                                 .trace   = wrap_trace,
+                                 .repr    = wrap_repr,
+                                 .getattr = wrap_getattr,
+                                 .setattr = wrap_setattr };
 
 // No getattr slot: attr.cpp answers a super() lookup, because it goes through
 // the descriptor protocol and may therefore have to call Python.
@@ -647,6 +750,26 @@ Value type_new(Value name, Value bases, Value dict)
 Value type_new_meta(Value meta, Value name, Value bases, Value dict)
 {
     Root rm{ meta }, rn{ name }, rb{ bases }, rd{ dict };
+    // A dict subclass's contents become the class's own dict, as CPython
+    // copies them.
+    if (!is_dict(rd.v)) {
+        Value inner = is_inst(rd.v) ? inst_of(rd.v)->native : Value();
+        if (!is_dict(inner)) {
+            Buf<128> m;
+            m.put("type.__new__() argument 3 must be dict, not ").put(type_name(rd.v));
+            return err_set("TypeError", m.str()), Value();
+        }
+        Root src{ inner };
+        DictObj *copy = dict_new();
+        if (!copy)
+            return oom(), Value();
+        rd       = obj_value(copy);
+        usize at = 0;
+        Value k, v;
+        while (table_next(dict_at(src.v)->t, at, k, v))
+            if (dict_set(dict_at(rd.v), k, v) != R::Ok)
+                return Value();
+    }
     if (rb.v.is_nil() || !tuple_len(rb.v)) {
         Value ob = type_object();
         if (ob.is_nil())
@@ -1012,8 +1135,13 @@ R build_step(ContObj *k, Value in)
     }
     case 2:
         if (!in.is_nil()) {
-            if (!is_dict(in))
-                return err_set2("TypeError", "__prepare__() must return a dict", type_name(in));
+            if (!is_dict(in) && !is_inst(in)) {
+                Buf<128> m;
+                m.put(type_obj(k->s[4])->slots.name)
+                    .put(".__prepare__() must return a mapping, not ");
+                m.put(type_name(in));
+                return err_set("TypeError", m.str());
+            }
             k->s[3]   = in;
             k->locals = in;
         }
@@ -1029,7 +1157,8 @@ R build_step(ContObj *k, Value in)
         k->s[7] = in;
         if (!k->s[6].is_nil()) {
             StrObj *ob = str_intern("__orig_bases__");
-            if (!ob || dict_set(dict_at(k->s[3]), obj_value(ob), k->s[6]) != R::Ok)
+            Value ns   = is_inst(k->s[3]) ? inst_of(k->s[3])->native : k->s[3];
+            if (!ob || !is_dict(ns) || dict_set(dict_at(ns), obj_value(ob), k->s[6]) != R::Ok)
                 return R::Err;
         }
         TupleObj *t = tuple_new(3);
@@ -1292,12 +1421,14 @@ R b_object(const CallArgs &a, Value &out);
 
 bool is_object_default(Value v)
 {
+    if (v.is_obj() && v.obj()->type == &classmethod_type)
+        v = static_cast<WrapObj *>(v.obj())->fn;
     if (!is_native(v))
         return false;
     R (*f)(const CallArgs &, Value &) = static_cast<NativeObj *>(v.obj())->fn;
     return f == b_object_init || f == b_object_getattribute || f == b_object_setattr ||
            f == b_object_delattr || f == b_object_init_subclass || f == b_object ||
-           f == b_object_repr;
+           f == b_object_repr || objmeth_is(f);
 }
 
 namespace {
@@ -1676,10 +1807,25 @@ R wrap_one(const CallArgs &a, const Type *t, Str who, Value &out)
     WrapObj *w = static_cast<WrapObj *>(obj_alloc(t, sizeof(WrapObj)));
     if (!w)
         return oom();
-    w->fn = rf.v;
-    out   = obj_value(w);
+    w->fn   = rf.v;
+    w->dict = Value();
+    out     = obj_value(w);
     return R::Ok;
 }
+
+} // namespace
+
+Value classmethod_new(Value fn)
+{
+    Value out;
+    Value args[1] = { fn };
+    CallArgs a;
+    a.args  = args;
+    a.nargs = 1;
+    return wrap_one(a, &classmethod_type, "classmethod", out) == R::Ok ? out : Value();
+}
+
+namespace {
 
 R b_staticmethod(const CallArgs &a, Value &out)
 {
@@ -1823,10 +1969,11 @@ constexpr Named OBJECT_METHODS[] = {
 };
 
 // The built-in types a program can name, subclass or test against.
-const Type *const NAMED[] = { &int_type,       &float_type,     &bool_type,    &str_type,
-                              &bytes_type,     &bytearray_type, &tuple_type,   &list_type,
-                              &dict_type,      &set_type,       &range_type,   &type_type,
-                              &frozenset_type, &slice_type,     &memview_type, &complex_type };
+const Type *const NAMED[] = { &int_type,        &float_type,     &bool_type,    &str_type,
+                              &bytes_type,      &bytearray_type, &tuple_type,   &list_type,
+                              &dict_type,       &set_type,       &range_type,   &type_type,
+                              &frozenset_type,  &slice_type,     &memview_type, &complex_type,
+                              &frozendict_type, &sentinel_type };
 
 // `v` is pinned first: interning the name allocates, and a fresh native with
 // nothing pointing at it is exactly what a collection there would take.
@@ -1857,6 +2004,8 @@ bool type_install(DictObj *into)
     for (const Named &e : OBJECT_METHODS)
         if (!put(type_obj(ob.v)->dict, e.name, native_new("object", e.fn)))
             return false;
+    if (!objmeth_install(type_obj(ob.v)->dict))
+        return false;
     for (const Type *t : NAMED) {
         Value w = type_wrap(t);
         if (w.is_nil() || !put(rd.v, t->name, w))
@@ -1951,6 +2100,9 @@ R newwrap_call(Value wv, const CallArgs &a, Value &out)
     Root self{ inst_new(rc.v) };
     if (self.v.is_nil())
         return R::Err;
+    made = weak_adopt(made.v, self.v);
+    if (made.v.is_nil())
+        return R::Err;
     inst_of(self.v)->native = made.v;
     out                     = self.v;
     return R::Ok;
@@ -1966,6 +2118,8 @@ bool type_set_ctor(const Type *t, Value fn)
     return !w.is_nil() && put(type_obj(w)->dict, "__new__", rf.v);
 }
 
+Value meta_special(Value v, Str name);
+
 Value type_special(Value v, Str name)
 {
     // What a weak proxy's referent answers in Python, the proxy answers.
@@ -1974,11 +2128,15 @@ Value type_special(Value v, Str name)
         if (v.is_nil())
             return err_clear(), Value();
     }
+    // A class whose metaclass was written in Python asks the metaclass.
+    if (is_meta_inst(v))
+        return meta_special(v, name);
     if (!is_inst(v))
         return Value();
     StrObj *n = str_intern(name);
     Root found;
-    if (!n || type_lookup(inst_of(v)->cls, n, found.v) != R::Ok)
+    // object's own default is what the native path already does.
+    if (!n || type_lookup(inst_of(v)->cls, n, found.v) != R::Ok || is_object_default(found.v))
         return Value();
     // A staticmethod or a classmethod here too: the wrapper is not callable.
     Value out;
@@ -1994,6 +2152,11 @@ Value operand_special(Value v, Str name)
 {
     if (!is_meta_inst(v))
         return type_special(v, name);
+    return meta_special(v, name);
+}
+
+Value meta_special(Value v, Str name)
+{
     Root rv{ v };
     Root meta{ obj_value(rv.v.obj()->type->owner) };
     Value fn = type_hook(meta.v, name);
@@ -2042,11 +2205,13 @@ bool type_has_special(Value v, Str name)
             return false;
         v = Value::of_obj(t);
     }
+    if (is_meta_inst(v))
+        return !type_hook(obj_value(v.obj()->type->owner), name).is_nil();
     if (!is_inst(v))
         return false;
     StrObj *n = str_intern(name);
     Value found;
-    return n && type_lookup(inst_of(v)->cls, n, found) == R::Ok;
+    return n && type_lookup(inst_of(v)->cls, n, found) == R::Ok && !is_object_default(found);
 }
 
 bool type_has_py_special(Value v, Str name)
@@ -2056,6 +2221,10 @@ bool type_has_py_special(Value v, Str name)
         if (!t)
             return false;
         v = Value::of_obj(t);
+    }
+    if (is_meta_inst(v)) {
+        Value fn = type_hook(obj_value(v.obj()->type->owner), name);
+        return !fn.is_nil() && !is_native(fn);
     }
     if (!is_inst(v))
         return false;
@@ -2087,7 +2256,7 @@ bool type_native_takes_args(Value cls)
         return false;
     const Type *d = type_obj(n)->desc;
     return d == &tuple_type || d == &str_type || d == &bytes_type || d == &int_type ||
-           d == &float_type;
+           d == &float_type || d == &weakref_type || d == &frozendict_type || d == &frozenset_type;
 }
 
 Value type_make_native(Str name, Value base, const Type *desc, const ExcType *exc)

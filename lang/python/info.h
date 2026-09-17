@@ -13,8 +13,9 @@
 #include "obj.h"
 
 struct InfoObj : Obj {
-    Value items; // TupleObj
-    Value names; // TupleObj of StrObj
+    Value items;  // TupleObj: the fields an index reaches
+    Value names;  // TupleObj of StrObj: those, then the hidden ones
+    Value hidden; // TupleObj: fields only a name reaches
 };
 
 void info_trace(Obj *o);
@@ -37,8 +38,14 @@ R info_repr(Value v, String &out);
         .iter = info_iter, .getattr = info_getattr                                                 \
     }
 
-// `items` and `names` are `n` long. Nil with the error pending.
-Value info_new(const Type *t, const Value *items, const Str *names, usize n);
+// `items` and `names` are `n` long; the last `n - shown` are reached by name
+// alone, as sys.flags.gil is. Nil with the error pending.
+Value info_new(const Type *t, const Value *items, const Str *names, usize n, usize shown);
+
+inline Value info_new(const Type *t, const Value *items, const Str *names, usize n)
+{
+    return info_new(t, items, names, n, n);
+}
 
 inline bool is_info(Value v)
 {

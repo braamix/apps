@@ -1,0 +1,25 @@
+frozendict({'a': 1, 'b': 2}) frozendict() frozendict builtins 2 1 True ['a', 'b']
+True True True True
+True True
+9 dict_keys(['a', 'b']) dict_values([1, 2]) dict_items([('a', 1), ('b', 2)]) True {'a': 1, 'b': 2} True
+frozendict({1: 2}) frozendict({3: 4, 'x': 5}) frozendict({'a': 0, 'b': 0}) frozendict
+frozendict({'a': 1, 'b': 2, 'c': 3}) {'c': 3, 'a': 1, 'b': 2} dict True True
+frozendict({'a': 1, 'b': 2, 'z': 0}) frozendict({'a': 1, 'b': 2}) False
+AttributeError 'frozendict' object has no attribute '__setitem__'
+AttributeError 'frozendict' object has no attribute '__delitem__'
+AttributeError 'frozendict' object has no attribute 'update'
+AttributeError 'frozendict' object has no attribute 'pop'
+AttributeError 'frozendict' object has no attribute 'setdefault'
+AttributeError 'frozendict' object has no attribute 'clear'
+TypeError unhashable type: 'list'
+TypeError 'int' object is not iterable
+TypeError frozendict expected at most 1 argument, got 2
+KeyError 'zz'
+'frozendict' object does not support item assignment
+'frozendict' object does not support item deletion
+frozendict[str, int] ({'a': 1, 'b': 2},) ['b', 'a'] ['__str__', '__subclasshook__', 'copy', 'fromkeys', 'get', 'items', 'keys', 'values']
+F F({'k': 1}) 1 True True frozendict
+False 1 frozendict({1: frozendict()})
+True [1]
+matched 1
+5 frozendict({'a': 'x'})

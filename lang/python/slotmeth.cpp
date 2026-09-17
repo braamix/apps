@@ -23,6 +23,7 @@
 #include "module.h"
 #include "ops.h"
 #include "type.h"
+#include "weak.h"
 
 namespace {
 
@@ -145,8 +146,11 @@ R s_repr(const CallArgs &a, Value &out)
 {
     if (!meth_args(a, "__repr__", 0, 0))
         return R::Err;
+    // A frozendict subclass prints under its own name, so its instance is
+    // asked rather than the dict inside it.
     String text;
-    if (py_repr(me(a), text) != R::Ok)
+    Value self = is_inst(a.args[0]) && is_frozendict(me(a)) ? a.args[0] : me(a);
+    if (py_repr(self, text) != R::Ok)
         return R::Err;
     out = str_new(text.str());
     return out.is_nil() ? R::Err : R::Ok;
@@ -447,8 +451,32 @@ struct Row {
 
 } // namespace
 
+// __getnewargs__ of an immutable built-in: the plain value, as a 1-tuple,
+// which is what pickle and copy rebuild one from.
+R s_getnewargs(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__getnewargs__", 0, 0))
+        return R::Err;
+    Root v{ me(a) };
+    if (is_bool(v.v))
+        v = Value::of_int(is_true(v.v) ? 1 : 0);
+    TupleObj *t = tuple_new(1);
+    if (!t)
+        return err_set("MemoryError", "out of memory");
+    t->items()[0] = v.v;
+    out           = obj_value(t);
+    return R::Ok;
+}
+
+constexpr Method NEWARGS[] = { { "__getnewargs__", s_getnewargs } };
+
 bool slot_methods()
 {
+    static const Type *const IMMUTABLE[] = { &int_type, &float_type, &complex_type,
+                                             &str_type, &bytes_type, &tuple_type };
+    for (const Type *t : IMMUTABLE)
+        if (!method_install(t, NEWARGS))
+            return false;
     const Row ROWS[] = {
         { &int_type, NEED_NUM | NEED_INT, OP_INT },
         { &bool_type, NEED_NUM | NEED_INT, OP_INT },
@@ -460,6 +488,7 @@ bool slot_methods()
         { &tuple_type, NEED_SEQ, OP_SEQ },
         { &list_type, NEED_SEQ, OP_SEQ },
         { &dict_type, 0, OP_OR },
+        { &frozendict_type, 0, OP_OR },
         { &set_type, 0, OP_SET },
         { &frozenset_type, 0, OP_SET },
         { &view_type, 0, OP_SET },
@@ -467,6 +496,7 @@ bool slot_methods()
         { &slice_type, 0, 0 },
         { &memview_type, NEED_SEQ, 0 },
         { &none_type, 0, 0 },
+        { &weakref_type, 0, 0 },
     };
     for (const Row &r : ROWS)
         if (!install_for(r.t, r.extra, r.ops))
@@ -474,8 +504,8 @@ bool slot_methods()
     // PEP 560: the containers answer a subscript with a generic alias, which
     // is what makes `list[int]` a value and `types.GenericAlias` a name.
     static const Type *const GENERIC[] = {
-        &list_type,  &dict_type,    &set_type,   &frozenset_type,
-        &tuple_type, &memview_type, &range_type, &type_type,
+        &list_type,    &dict_type,  &set_type,  &frozenset_type,  &tuple_type,
+        &memview_type, &range_type, &type_type, &frozendict_type,
     };
     return genalias_install(GENERIC, sizeof GENERIC / sizeof GENERIC[0]);
 }

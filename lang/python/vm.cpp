@@ -10,6 +10,7 @@
 #include "vm.h"
 
 #include "abc.h"
+#include "atexit.h"
 #include "bigint.h"
 #include "builtin.h"
 #include "call.h"
@@ -50,19 +51,21 @@ u32 max_frames               = FRAMES_DEFAULT;
 constexpr u32 BURST = 20000;
 
 struct VM {
-    Value frame;            // the innermost FrameObj
-    Value globals;          // __main__'s namespace
-    Value builtins;         // the builtins namespace
-    Value handling;         // the exception an `except` clause is working on
-    Vec<Value> flat;        // CallEx's arguments, flattened
-    Vec<Value> kwnames;     // and their names
-    Vec<Value> bound;       // self, then a bound method's own arguments
-    Vec<String> tb;         // the traceback, innermost first, as it unwinds
-    String out;             // what print has buffered
-    String err;             // what goes to stderr, once there is any
-    String *sent = nullptr; // which of the two the driver is writing
-    Value reading;          // the ContObj waiting on a file or a sleep, or Nil
-    u32 nap_ms   = 0;       // how long, when it is a sleep
+    FrameObj *between = nullptr; // the frame a ^C is raised in, between two instructions
+    bool exiting      = false;   // atexit's calls have been started
+    Value frame;                 // the innermost FrameObj
+    Value globals;               // __main__'s namespace
+    Value builtins;              // the builtins namespace
+    Value handling;              // the exception an `except` clause is working on
+    Vec<Value> flat;             // CallEx's arguments, flattened
+    Vec<Value> kwnames;          // and their names
+    Vec<Value> bound;            // self, then a bound method's own arguments
+    Vec<String> tb;              // the traceback, innermost first, as it unwinds
+    String out;                  // what print has buffered
+    String err;                  // what goes to stderr, once there is any
+    String *sent = nullptr;      // which of the two the driver is writing
+    Value reading;               // the ContObj waiting on a file or a sleep, or Nil
+    u32 nap_ms   = 0;            // how long, when it is a sleep
     bool napping = false;
     Value resume;           // the same, once the answer is in
     Value thrown;           // what gen.throw passed, to raise at the resume point
@@ -121,10 +124,27 @@ bool push(FrameObj *f, Value v)
 
 // ------------------------------------------------------------------- naming
 
+// The dict a namespace keeps its names in: itself, the dict inside a dict
+// subclass, or Nil for a mapping written in Python.
+Value names_dict(Value space)
+{
+    if (is_dict(space))
+        return space;
+    if (is_inst(space) && is_dict(inst_of(space)->native))
+        return inst_of(space)->native;
+    return Value();
+}
+
 R lookup(FrameObj *f, StrObj *name, Value &out)
 {
     if (!f->locals.is_nil()) {
-        R r = dict_get(dict_at(f->locals), obj_value(name), out);
+        Value d = names_dict(f->locals);
+        R r     = d.is_nil() ? py_getitem(f->locals, obj_value(name), out)
+                             : dict_get(dict_at(d), obj_value(name), out);
+        if (r == R::Err && d.is_nil() && err_kind() == "KeyError") {
+            err_clear();
+            r = R::NotImpl;
+        }
         if (r != R::NotImpl)
             return r;
     }
@@ -414,6 +434,9 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
         bool give_args = !own_init || type_native_takes_args(rc.v);
         if (do_call(base.v, give_args ? a : none, made, e) != R::Ok)
             return R::Err;
+        made = weak_adopt(made, self.v);
+        if (made.is_nil())
+            return R::Err;
         inst_of(self.v)->native = made;
     }
     if (!own_init) {
@@ -428,12 +451,13 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
     }
 
     // self before the call's own arguments, which is what a method call is.
-    vm->bound.clear();
-    if (!vm->bound.push(self.v))
+    Vec<Value> next; // a.args may be in vm->bound already
+    if (!next.push(self.v))
         return oom();
     for (u32 i = 0; i < a.nargs; i++)
-        if (!vm->bound.push(a.args[i]))
+        if (!next.push(a.args[i]))
             return oom();
+    vm->bound = static_cast<Vec<Value> &&>(next);
     CallArgs b;
     b.args    = vm->bound.data();
     b.nargs   = a.nargs + 1;
@@ -486,12 +510,15 @@ R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
     if (is_method(callable)) {
         MethodObj *m = static_cast<MethodObj *>(callable.obj());
         Root rf{ m->fn }, rs{ m->self };
-        vm->bound.clear();
-        if (!vm->bound.push(rs.v))
+        // The arguments may already be in vm->bound, when the function is
+        // itself a callable object: the list is built apart and then swapped.
+        Vec<Value> next;
+        if (!next.push(rs.v))
             return oom();
         for (u32 i = 0; i < a.nargs; i++)
-            if (!vm->bound.push(a.args[i]))
+            if (!next.push(a.args[i]))
                 return oom();
+        vm->bound = static_cast<Vec<Value> &&>(next);
         CallArgs b;
         b.args    = vm->bound.data();
         b.nargs   = a.nargs + 1;
@@ -864,6 +891,40 @@ R next_step(ContObj *k, Value in)
 // A finalizer: s[0] the callable, s[1] its one argument or Nil. Whatever it
 // raises is caught here and reported rather than raised on, because there is
 // no statement for it to have come from.
+// warnings._warn_unawaited_coroutine(coro), importing warnings first.
+R unawaited_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0) {
+        StrObj *imp = str_intern("__import__");
+        Value fn;
+        if (!imp || dict_get(dict_at(vm->builtins), obj_value(imp), fn) != R::Ok)
+            return err_pending() ? R::Err : err_set("MemoryError", "out of memory");
+        Value name = str_new("warnings");
+        if (name.is_nil())
+            return R::Err;
+        return cont_call(k, fn, name);
+    }
+    if (k->i == 2) {
+        StrObj *n = str_intern("_warn_unawaited_coroutine");
+        Value fn;
+        if (!n || py_getattr(in, n, fn) != R::Ok)
+            return R::Err;
+        return cont_call(k, fn, k->s[0]);
+    }
+    return cont_done(k, value_none());
+}
+
+R b_warn_unawaited(const CallArgs &a, Value &out)
+{
+    Root rc{ a.nargs ? a.args[0] : Value() };
+    Root kv{ cont_new(unawaited_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[0] = rc.v;
+    out                 = kv.v;
+    return R::Ok;
+}
+
 R final_step(ContObj *k, Value in)
 {
     if (k->i++ == 0) {
@@ -901,6 +962,98 @@ bool run_special(FrameObj *f, Value m, const Value *args, u32 n, u32 pop, u32 wh
     return run_cont(kv.v, Value());
 }
 
+// seq[i] where i answers __index__ in Python: s[0] the bound __index__, s[1]
+// the sequence.
+R index_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], Value(), 0);
+    if (!is_intval(in)) {
+        Buf<128> m;
+        m.put("__index__ returned non-int (type ").put(type_name(in)).put(')');
+        return err_set("TypeError", m.str());
+    }
+    Value out;
+    if (py_getitem(k->s[1], in, out) != R::Ok)
+        return R::Err;
+    return cont_done(k, out);
+}
+
+// True when the subscript was handed to index_step, or failed doing so.
+bool index_special(FrameObj *f)
+{
+    Value seq = f->stack()[f->sp - 2], key = f->stack()[f->sp - 1];
+    const Type *t = type_of(seq);
+    if (!is_inst(key) || is_inst(seq) || !t || !t->getitem || is_anydict(seq) ||
+        is_mappingproxy(seq) || !type_has_py_special(key, "__index__"))
+        return false;
+    Root rs{ seq };
+    Root m{ type_special(key, "__index__") };
+    if (m.v.is_nil())
+        return true;
+    Root kv{ cont_new(index_step) };
+    if (kv.v.is_nil())
+        return true;
+    cont_of(kv.v)->s[0] = m.v;
+    cont_of(kv.v)->s[1] = rs.v;
+    f->sp -= 2;
+    run_cont(kv.v, Value());
+    return true;
+}
+
+// `from m import x` through a getter: the guard answers this continuation
+// a fresh marker when the name is missing. s[0] the module, s[1] the name,
+// s[2] the marker.
+R from_step(ContObj *k, Value in)
+{
+    if (in == k->s[2])
+        return import_missing(k->s[0], str_of(k->s[1]));
+    return cont_done(k, in);
+}
+
+// A name read from a namespace written in Python: its __getitem__, and a
+// KeyError there sends the lookup on to the globals and the builtins.
+R load_name_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0) {
+        k->catching = CATCH_ANY;
+        return cont_call(k, k->s[0], k->s[1]);
+    }
+    k->catching = CATCH_NONE;
+    if (k->caught.is_nil())
+        return cont_done(k, in);
+    Root c{ k->caught };
+    k->caught        = Value();
+    const ExcType *t = exc_type_of(c.v);
+    if (!t || !exc_is(t, exc_find("KeyError")))
+        return err_set_value(c.v);
+    FrameObj *f = frame_of(vm->frame);
+    StrObj *n   = str_of(k->s[1]);
+    Value out;
+    R r = dict_get(dict_at(f->globals), obj_value(n), out);
+    if (r == R::NotImpl)
+        r = dict_get(dict_at(f->builtins), obj_value(n), out);
+    if (r == R::Err)
+        return R::Err;
+    if (r == R::NotImpl)
+        return name_error("NameError", n);
+    return cont_done(k, out);
+}
+
+bool load_name_python(FrameObj *f, Value name)
+{
+    Root rn{ name };
+    Root m{ type_special(f->locals, "__getitem__") };
+    if (m.v.is_nil())
+        return false;
+    Root kv{ cont_new(load_name_step) };
+    if (kv.v.is_nil())
+        return false;
+    cont_of(kv.v)->s[0] = m.v;
+    cont_of(kv.v)->s[1] = rn.v;
+    return run_cont(kv.v, Value());
+}
+
 // s[0] the bound method and s[1] its argument, s[2]/s[3] the reflected pair;
 // j is the operator, with bit 8 set for a comparison.
 R dunder_step(ContObj *k, Value in)
@@ -909,14 +1062,14 @@ R dunder_step(ContObj *k, Value in)
     if (phase == 0)
         return cont_call(k, k->s[0], k->s[1]);
     if (!is_notimpl(in))
-        return cont_done(k, in);
+        return cont_done(k, (k->j & 0x200) ? value_bool(!py_truth(in)) : in);
     if (phase == 1 && !k->s[2].is_nil())
         return cont_call(k, k->s[2], k->s[3]);
 
     bool compare = (k->j & 0x100) != 0;
     Value a = k->s[4], b = k->s[5];
     if (compare) {
-        Cmp op = Cmp(k->j & 0xff);
+        Cmp op = (k->j & 0x200) ? Cmp::Ne : Cmp(k->j & 0xff);
         if (op == Cmp::Eq || op == Cmp::Ne)
             return cont_done(k, value_bool((a == b) == (op == Cmp::Eq)));
         Buf<96> m;
@@ -1019,7 +1172,10 @@ bool note_frame(FrameObj *f)
     Buf<192> b;
     b.put("  File \"").put(is_str(c->filename) ? str_of(c->filename)->str() : Str("?"));
     b.put("\", line ");
-    b.put(int_text(tmp, sizeof tmp, i64(code_line(c, f->pc ? f->pc - 1 : 0))));
+    // A frame raised in between two instructions is at the one it was about
+    // to run; any other is at the one that raised.
+    u32 at = f == vm->between ? f->pc : f->pc ? f->pc - 1 : 0;
+    b.put(int_text(tmp, sizeof tmp, i64(code_line(c, at))));
     b.put(", in ").put(is_str(c->name) ? str_of(c->name)->str() : Str("?")).put('\n');
     String line;
     return line.append(b.str()) && vm->tb.push(static_cast<String &&>(line));
@@ -1076,6 +1232,30 @@ void report(Value e, u32 depth = 0)
     vm->err.push('\n');
 }
 
+bool run_cont(Value kv, Value in);
+
+// The program is over: what atexit holds runs first, once. The last frame is
+// gone, so the loop finishes when the calls are done and nothing is left.
+void exit_hooks()
+{
+    if (vm->exiting || !atexit_pending())
+        return;
+    vm->exiting  = true;
+    vm->finished = false;
+    vm->frame    = Value();
+    Root kv{ atexit_runner() };
+    if (kv.v.is_nil()) {
+        vm->finished = true;
+        return;
+    }
+    cont_of(kv.v)->drop = true;
+    if (!run_cont(kv.v, Value())) {
+        report(pending_exception());
+        err_clear();
+        vm->finished = true;
+    }
+}
+
 // Nothing caught it. SystemExit is the one that is not an error.
 void uncaught(Value e)
 {
@@ -1093,11 +1273,13 @@ void uncaught(Value e)
             }
         }
         vm->tb.clear();
+        exit_hooks();
         return;
     }
     vm->failed = true;
     vm->status = 1;
     report(e);
+    exit_hooks();
 }
 
 // Find the handler that wants `e`, unwinding frames until one does. False
@@ -1189,7 +1371,7 @@ bool dispatch(Value e)
                 }
             }
         }
-        if (f->back.is_nil()) {
+        if (f->back.is_nil() && f->cont.is_nil()) {
             uncaught(re.v);
             return false;
         }
@@ -2078,6 +2260,11 @@ void interpret()
         if (vm->finished || !vm->reading.is_nil() || vm->out.size() >= FLUSH_AT ||
             vm->err.size() >= FLUSH_AT || !vm->budget--)
             return;
+        // The last atexit call has returned and there is no frame left.
+        if (vm->frame.is_nil()) {
+            vm->finished = true;
+            return;
+        }
 
         // The `self` of the last bound call is a root while the call is being
         // made and not after it: leaving it there would keep an object alive
@@ -2133,6 +2320,10 @@ void interpret()
             gc_take(o.v, fn.v);
             // A generator parked at a yield is closed rather than deleted,
             // which is what runs the `finally` it is sitting inside.
+            // A coroutine never started says so through warnings.
+            bool unawaited = fn.v.is_nil() && is_coro(o.v) && gen_of(o.v)->state == GEN_CREATED;
+            if (unawaited)
+                fn = native_new("_warn_unawaited_coroutine", b_warn_unawaited);
             Root m{ !fn.v.is_nil() ? fn.v
                     : is_genlike(o.v)
                         ? (gen_of(o.v)->state == GEN_SUSPENDED ? genrun_new(o.v, GR_CLOSE)
@@ -2164,7 +2355,10 @@ void interpret()
             vm->interrupt = false;
             err_set("KeyboardInterrupt", "");
             vm->tb.clear();
-            if (!raise_value(pending_exception()))
+            vm->between = frame_of(vm->frame);
+            bool go     = raise_value(pending_exception());
+            vm->between = nullptr;
+            if (!go)
                 return;
             continue;
         }
@@ -2225,6 +2419,12 @@ void interpret()
 
             case Bc::LoadName: {
                 StrObj *n = str_of(co->names[arg]);
+                if (!f->locals.is_nil() && !is_dict(f->locals) &&
+                    type_has_py_special(f->locals, "__getitem__")) {
+                    if (!load_name_python(f, co->names[arg]))
+                        goto oops;
+                    break;
+                }
                 Value out;
                 R r = lookup(f, n, out);
                 if (r == R::Err)
@@ -2243,12 +2443,38 @@ void interpret()
                 break;
             }
             case Bc::StoreName:
+                if (!is_dict(f->locals)) {
+                    // A namespace __prepare__ made: its own __setitem__.
+                    Value two[2] = { co->names[arg], st[f->sp - 1] };
+                    if (type_has_py_special(f->locals, "__setitem__")) {
+                        Value m = type_special(f->locals, "__setitem__");
+                        if (m.is_nil() || !run_special(f, m, two, 2, 1, SP_DROP))
+                            goto oops;
+                        break;
+                    }
+                    if (py_setitem(f->locals, two[0], two[1]) != R::Ok)
+                        goto oops;
+                    f->sp--;
+                    break;
+                }
                 if (dict_set(dict_at(f->locals), co->names[arg], st[f->sp - 1]) != R::Ok)
                     goto oops;
                 f->sp--;
                 break;
             case Bc::DeleteName: {
-                R r = dict_del(dict_at(f->locals), co->names[arg]);
+                if (!is_dict(f->locals) && type_has_py_special(f->locals, "__delitem__")) {
+                    Value m = type_special(f->locals, "__delitem__");
+                    if (m.is_nil() || !run_special(f, m, &co->names[arg], 1, 0, SP_DROP))
+                        goto oops;
+                    break;
+                }
+                Value space = names_dict(f->locals);
+                if (space.is_nil()) {
+                    if (py_delitem(f->locals, co->names[arg]) != R::Ok)
+                        goto oops;
+                    break;
+                }
+                R r = dict_del(dict_at(space), co->names[arg]);
                 if (r == R::Err)
                     goto oops;
                 if (r == R::NotImpl) {
@@ -2403,6 +2629,12 @@ void interpret()
                                                  : type_special(st[f->sp - 2], "__getitem__");
                 if (!m.is_nil()) {
                     if (!run_special(f, m, &st[f->sp - 1], 1, 2))
+                        goto oops;
+                    break;
+                }
+                // A sequence indexed by an object whose __index__ is Python.
+                if (index_special(f)) {
+                    if (err_pending())
                         goto oops;
                     break;
                 }
@@ -2602,6 +2834,15 @@ void interpret()
                         goto oops;
                     if (done)
                         break;
+                    // No __ne__ of its own: __eq__, and the answer turned
+                    // round, which is what object.__ne__ does.
+                    if (op == Cmp::Ne) {
+                        if (!dunder_binop(f, st[f->sp - 2], st[f->sp - 1], arg | 0x300,
+                                          cmp_dunder(Cmp::Eq), done))
+                            goto oops;
+                        if (done)
+                            break;
+                    }
                     if (py_cmp(st[f->sp - 2], st[f->sp - 1], op, ok) != R::Ok)
                         goto oops;
                 } else if (py_cmp(st[f->sp - 2], st[f->sp - 1], op, ok) != R::Ok) {
@@ -3208,8 +3449,9 @@ void interpret()
                         return;
                     continue;
                 }
-                if (f->back.is_nil()) {
+                if (f->back.is_nil() && f->cont.is_nil()) {
                     vm->finished = true;
+                    exit_hooks();
                     return;
                 }
                 Value k   = f->cont;
@@ -3271,7 +3513,27 @@ void interpret()
                         goto oops;
                     break;
                 }
-                if (py_getattr(st[f->sp - 1], what, out) != R::Ok) {
+                Got g = py_attr(st[f->sp - 1], what, out);
+                if (g == Got::Call) {
+                    // A module's __getattr__, or another getter in Python: an
+                    // AttributeError from it is the name being missing.
+                    Root got{ out };
+                    Root kv{ cont_new(from_step) };
+                    if (kv.v.is_nil())
+                        goto oops;
+                    cont_of(kv.v)->s[0] = st[f->sp - 1];
+                    cont_of(kv.v)->s[1] = co->names[arg];
+                    ListObj *marker     = list_new();
+                    if (!marker)
+                        goto oops;
+                    cont_of(kv.v)->s[2] = obj_value(marker);
+                    attr_cont_guard(got.v, obj_value(marker));
+                    cont_of(got.v)->next = kv.v;
+                    if (!land(got.v, false))
+                        goto oops;
+                    break;
+                }
+                if (g != Got::Ok) {
                     // The name is missing, not the object: say so as an import.
                     err_clear();
                     import_missing(st[f->sp - 1], what);
@@ -3282,7 +3544,11 @@ void interpret()
                 break;
             }
             case Bc::ImportStar: {
-                Value into = f->locals.is_nil() ? f->globals : f->locals;
+                Value into = f->locals.is_nil() ? f->globals : names_dict(f->locals);
+                if (into.is_nil()) {
+                    err_set("TypeError", "import * needs a dict namespace here");
+                    goto oops;
+                }
                 if (import_star(st[f->sp - 1], dict_at(into)) != R::Ok)
                     goto oops;
                 f->sp--;
@@ -3618,7 +3884,8 @@ void interpret()
                                                ? co->cellvars[arg]
                                                : co->freevars[arg - co->cellvars.size()]);
                 Value out;
-                R r = is_dict(space) ? dict_get(dict_at(space), obj_value(n), out) : R::NotImpl;
+                Value sd = names_dict(space);
+                R r      = sd.is_nil() ? R::NotImpl : dict_get(dict_at(sd), obj_value(n), out);
                 if (r == R::Err)
                     goto oops;
                 if (r == R::NotImpl && in.op == Bc::LoadFromDictOrGlobals) {
@@ -3677,6 +3944,12 @@ void interpret()
 }
 
 } // namespace
+
+void atexit_report(Str text)
+{
+    if (vm)
+        vm->err.append(text);
+}
 
 // What makes a truth test Python: an instance whose class wrote __bool__, or
 // failing that __len__, and a weak proxy to one.

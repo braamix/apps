@@ -133,6 +133,27 @@ def findfile(filename, subdir=None):
     raise unittest.SkipTest("findfile needs os.path")
 
 
+# The frames are heap here, so no test can exhaust a C stack: a deep one
+# stops at the recursion limit, and these run it as it is.
+def skip_emscripten_stack_overflow():
+    return unittest.skipIf(is_emscripten, "Exhausts stack on Emscripten")
+
+
+def skip_wasi_stack_overflow():
+    return unittest.skipIf(is_wasi, "Exhausts stack on WASI")
+
+
+def exceeds_recursion_limit():
+    """For recursion tests, easily exceeds default recursion limit."""
+    return 150_000
+
+
+def run_with_limited_c_stack(depth=150_000, size=None):
+    def decorator(test):
+        return test
+    return decorator
+
+
 # Reference counting is what these guard on, and there is none: the collector
 # is mark-and-sweep, so a count is not merely unavailable but meaningless.
 refcount_test = unittest.skip("the collector does not count references")

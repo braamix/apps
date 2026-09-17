@@ -757,10 +757,19 @@ R b_struct_new(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// There is no cache of compiled formats to clear.
+R s_clearcache(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "_clearcache", 0, 0))
+        return R::Err;
+    out = value_none();
+    return R::Ok;
+}
+
 constexpr ModDef DEFS[] = {
-    { "calcsize", s_calcsize },       { "pack", s_pack },
-    { "pack_into", s_pack_into },     { "unpack", s_unpack },
-    { "unpack_from", s_unpack_from }, { "iter_unpack", s_iter_unpack },
+    { "_clearcache", s_clearcache },  { "calcsize", s_calcsize }, { "pack", s_pack },
+    { "pack_into", s_pack_into },     { "unpack", s_unpack },     { "unpack_from", s_unpack_from },
+    { "iter_unpack", s_iter_unpack },
 };
 
 } // namespace
@@ -775,5 +784,7 @@ bool struct_install(DictObj *into)
         return false;
     // struct.error is its own class, which the library catches by name.
     Root err{ error_class() };
-    return !err.v.is_nil() && mod_put(d, "error", err.v) && mod_int(d, "_PY_STRUCT_RANGE_CHECK", 1);
+    return !err.v.is_nil() && mod_put(d, "error", err.v) &&
+           mod_int(d, "_PY_STRUCT_RANGE_CHECK", 1) &&
+           mod_str(d, "__doc__", "Functions to convert between Python values and C structs.");
 }

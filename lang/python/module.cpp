@@ -80,7 +80,6 @@ constexpr Native NATIVES[] = {
     { "_collections", coll_install },
     { "_functools", functools_install },
     { "itertools", itertools_install },
-    { "operator", operator_install },
     { "_operator", operator_install },
     { "_random", random_install },
     { "_struct", struct_install },
@@ -95,6 +94,8 @@ constexpr Native NATIVES[] = {
     { "_thread", thread_install },
     { "_contextvars", contextvars_install },
     { "_string", string_install },
+    { "_warnings", warnings_install },
+    { "atexit", atexit_install },
 };
 
 } // namespace

@@ -1,0 +1,10 @@
+True True True False True False False
+function
+AttributeError property 'p' of 'C' object has no setter
+AttributeError property 'p' of 'C' object has no deleter
+TypeError __get__(None, None) is invalid
+TypeError __get__ expected at least 1 argument, got 0
+AttributeError 'C' object has no attribute 'm'
+5
+AttributeError 'C' object has no attribute 'm'
+1 True <class 'int'> True

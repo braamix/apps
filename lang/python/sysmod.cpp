@@ -101,7 +101,7 @@ constexpr Field real(Str name, f64 x)
 // block for something that lives one call.
 constexpr usize MAX_FIELDS = 24;
 
-Value fields_new(const Type *t, const Field *fs, usize n)
+Value fields_new(const Type *t, const Field *fs, usize n, usize shown)
 {
     if (n > MAX_FIELDS)
         return err_set("SystemError", "too many fields"), Value();
@@ -116,7 +116,7 @@ Value fields_new(const Type *t, const Field *fs, usize n)
             return Value();
         names[i] = fs[i].name;
     }
-    return info_new(t, items, names, n);
+    return info_new(t, items, names, n, shown);
 }
 
 // ---------------------------------------------------------- the three streams
@@ -566,7 +566,14 @@ constexpr Field FLAGS[] = {
     num("warn_default_encoding", 0),
     num("safe_path", 0),
     num("int_max_str_digits", -1),
+    // Reached by name only, as CPython's are.
+    num("gil", 1),
+    num("thread_inherit_context", 0),
+    num("context_aware_warnings", 0),
+    num("lazy_imports", -1),
 };
+
+constexpr usize FLAGS_SHOWN = 18;
 
 constexpr Field IMPLEMENTATION[] = {
     text("name", "braam"),
@@ -575,17 +582,17 @@ constexpr Field IMPLEMENTATION[] = {
     text("_multiarch", "wasm32-braam"),
 };
 
-bool put_info(DictObj *into, Str name, const Type *t, const Field *fs, usize n)
+bool put_info(DictObj *into, Str name, const Type *t, const Field *fs, usize n, usize shown)
 {
     Root rd{ obj_value(into) };
-    Root v{ fields_new(t, fs, n) };
+    Root v{ fields_new(t, fs, n, shown) };
     return !v.v.is_nil() && mod_put(static_cast<DictObj *>(rd.v.obj()), name, v.v);
 }
 
 template <usize N>
 inline bool put_info(DictObj *into, Str name, const Type *t, const Field (&fs)[N])
 {
-    return put_info(into, name, t, fs, N);
+    return put_info(into, name, t, fs, N, N);
 }
 
 } // namespace
@@ -700,7 +707,7 @@ bool sys_install(DictObj *into)
         !put_info(d, "float_info", &float_info_type, FLOAT_INFO) ||
         !put_info(d, "int_info", &int_info_type, INT_INFO) ||
         !put_info(d, "hash_info", &hash_info_type, HASH_INFO) ||
-        !put_info(d, "flags", &flags_type, FLAGS) ||
+        !put_info(d, "flags", &flags_type, FLAGS, sizeof FLAGS / sizeof FLAGS[0], FLAGS_SHOWN) ||
         !put_info(d, "implementation", &impl_type, IMPLEMENTATION))
         return false;
 

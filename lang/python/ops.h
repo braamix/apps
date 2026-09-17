@@ -16,6 +16,9 @@ R py_cmp(Value a, Value b, Cmp op, bool &out);
 
 R py_repr(Value v, String &out);
 
+// A dict's repr, whatever kind of dict it is.
+R dict_repr(Value v, String &out);
+
 // repr's guard against a container that holds itself: false when `v` is
 // already being printed. A true one is paired with repr_leave.
 bool repr_enter(Value v);

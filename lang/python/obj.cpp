@@ -36,12 +36,13 @@ constexpr Type ellipsis_type{ .name = "ellipsis", .repr = ellipsis_repr };
 
 constexpr Type notimpl_type{ .name = "NotImplementedType", .repr = notimpl_repr };
 
-constexpr Type bool_type{ .name  = "bool",
-                          .truth = bool_truth,
-                          .hash  = bool_hash,
-                          .repr  = bool_repr,
-                          .patma = PATMA_SELF,
-                          .final = true };
+constexpr Type bool_type{ .name    = "bool",
+                          .truth   = bool_truth,
+                          .hash    = bool_hash,
+                          .repr    = bool_repr,
+                          .getattr = int_getattr,
+                          .patma   = PATMA_SELF,
+                          .final   = true };
 
 Obj none_obj{ &none_type, nullptr, nullptr, OBJ_IMMORTAL };
 Obj true_obj{ &bool_type, nullptr, nullptr, OBJ_IMMORTAL };

@@ -77,3 +77,5 @@ bool unicodedata_install(DictObj *into);
 bool thread_install(DictObj *into);
 bool contextvars_install(DictObj *into);
 bool string_install(DictObj *into);
+bool warnings_install(DictObj *into);
+bool atexit_install(DictObj *into);

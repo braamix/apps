@@ -33,7 +33,8 @@ Value static_wrap(Value fn)
     WrapObj *w = static_cast<WrapObj *>(obj_alloc(&staticmethod_type, sizeof(WrapObj)));
     if (!w)
         return oom_err(), Value();
-    w->fn = rf.v;
+    w->fn   = rf.v;
+    w->dict = Value();
     return obj_value(w);
 }
 
@@ -128,7 +129,8 @@ bool methods_install()
            seq_methods() && map_methods() && num_methods() && complex_methods() && gen_methods() &&
            code_methods() && slot_methods() && union_install() && seqiter_methods() &&
            typing_methods() && lazy_methods() && templatelib_methods() && range_methods() &&
-           frame_locals_methods();
+           frame_locals_methods() && mappingproxy_methods() && sentinel_methods() &&
+           descr_methods();
 }
 
 Value method_self(Value v)
@@ -287,6 +289,14 @@ DictObj *self_dict(const CallArgs &a, Str who)
 {
     Value s = a.nargs ? method_self(a.args[0]) : Value();
     if (!is_dict(s))
+        return static_cast<DictObj *>(wrong(who, s));
+    return static_cast<DictObj *>(s.obj());
+}
+
+DictObj *self_anydict(const CallArgs &a, Str who)
+{
+    Value s = a.nargs ? method_self(a.args[0]) : Value();
+    if (!is_anydict(s))
         return static_cast<DictObj *>(wrong(who, s));
     return static_cast<DictObj *>(s.obj());
 }

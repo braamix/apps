@@ -1,3 +1,55 @@
-Traceback (most recent call last):
-  File "/tmp/test_exception_group.py", line 1, in <module>
-ModuleNotFoundError: No module named 'collections'
+--- unittest ---
+ok BadConstructorArgs.test_bad_EG_construction__bad_excs_sequence
+ok BadConstructorArgs.test_bad_EG_construction__bad_message
+error BadConstructorArgs.test_bad_EG_construction__nested_non_exceptions: _ShimLimit: metacharacter '[' in 'Item [0-9]+ of second argument \\(exceptions\\) is not an exception'
+error BadConstructorArgs.test_bad_EG_construction__too_many_args: _ShimLimit: metacharacter '.' in 'BaseExceptionGroup.__new__\\(\\) takes exactly 2 arguments'
+ok DeepRecursionInSplitAndSubgroup.test_deep_split
+ok DeepRecursionInSplitAndSubgroup.test_deep_subgroup
+error ExceptionGroupFields.test_basics_ExceptionGroup_fields: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+fail ExceptionGroupFields.test_fields_are_readonly: AssertionError: AttributeError not raised
+ok ExceptionGroupSplitTests.test_basics_split_by_predicate__match
+ok ExceptionGroupSplitTests.test_basics_split_by_predicate__no_match
+ok ExceptionGroupSplitTests.test_basics_split_by_predicate__passthrough
+ok ExceptionGroupSplitTests.test_basics_split_by_type__match
+ok ExceptionGroupSplitTests.test_basics_split_by_type__no_match
+ok ExceptionGroupSplitTests.test_basics_split_by_type__passthrough
+ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_predicate__match
+ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_predicate__no_match
+ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_predicate__passthrough
+ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_type__match
+ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_type__no_match
+ok ExceptionGroupSubgroupTests.test_basics_subgroup_by_type__passthrough
+ok ExceptionGroupSubgroupTests.test_basics_subgroup_split__bad_arg_type
+fail InstanceCreation.test_BEG_and_E_subclass_does_not_wrap_base_exceptions: AssertionError: TypeError not raised
+ok InstanceCreation.test_BEG_and_specific_subclass_can_wrap_any_nonbase_exception
+ok InstanceCreation.test_BEG_subclass_wraps_anything
+ok InstanceCreation.test_BEG_wraps_BaseException__creates_BEG
+ok InstanceCreation.test_BEG_wraps_Exceptions__creates_EG
+ok InstanceCreation.test_EG_and_specific_subclass_can_wrap_any_nonbase_exception
+ok InstanceCreation.test_EG_subclass_does_not_wrap_base_exceptions
+ok InstanceCreation.test_EG_subclass_wraps_non_base_exceptions
+ok InstanceCreation.test_EG_wraps_BaseException__raises_TypeError
+ok InstanceCreation.test_EG_wraps_Exceptions__creates_EG
+error LeafGeneratorTest.test_leaf_generator: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error NestedExceptionGroupBasicsTest.test_iteration_full_tracebacks: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+error NestedExceptionGroupBasicsTest.test_nested_exception_group_tracebacks: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+ok NestedExceptionGroupBasicsTest.test_nested_group_chaining
+ok NestedExceptionGroupBasicsTest.test_nested_group_matches_template
+ok NestedExceptionGroupSplitTest.test_drive_invalid_return_value
+error NestedExceptionGroupSplitTest.test_split_BaseExceptionGroup: AttributeError: 'BaseExceptionGroup' object has no attribute '__traceback__'
+error NestedExceptionGroupSplitTest.test_split_by_type: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+ok NestedExceptionGroupSplitTest.test_split_copies_notes
+ok NestedExceptionGroupSplitTest.test_split_does_not_copy_non_sequence_notes
+error NestedExceptionGroupSubclassSplitTest.test_split_BaseExceptionGroup_subclass_no_derive_new_override: AttributeError: 'BaseExceptionGroup' object has no attribute '__traceback__'
+error NestedExceptionGroupSubclassSplitTest.test_split_ExceptionGroup_subclass_derive_and_new_overrides: AttributeError: 'EG' object has no attribute '__traceback__'
+error NestedExceptionGroupSubclassSplitTest.test_split_ExceptionGroup_subclass_no_derive_no_new_override: AttributeError: 'ExceptionGroup' object has no attribute '__traceback__'
+ok StrAndReprTests.test_BaseExceptionGroup
+ok StrAndReprTests.test_ExceptionGroup
+ok StrAndReprTests.test_custom_exception
+fail StrAndReprTests.test_exceptions_mutation: AssertionError: "ExceptionGroup('test', (ValueError(1), TypeError(2)))" != "ExceptionGroup('test', deque([ValueError(1), TypeError(2)]))"
+error StrAndReprTests.test_repr_raises: _ShimLimit: metacharacter '.' in '.*MySeq\\.__repr__\\(\\) must return a str, not NoneType'
+fail StrAndReprTests.test_repr_small_size_args: AssertionError: "ExceptionGroup('msg', [ValueError()])" != "ExceptionGroup('msg', (ValueError(),))"
+ok TestExceptionGroupTypeHierarchy.test_exception_group_is_generic_type
+ok TestExceptionGroupTypeHierarchy.test_exception_group_types
+ok TestExceptionGroupTypeHierarchy.test_exception_is_not_generic_type
+--- ran 53 ok 37 fail 4 error 12 skip 0 ---

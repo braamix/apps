@@ -6,6 +6,7 @@
 #include "kernel/fmt.h"
 #include "method.h"
 #include "ops.h"
+#include "type.h"
 
 namespace {
 
@@ -218,6 +219,21 @@ Value reversed_new(Value seq)
 {
     if (seq.is_obj() && seq.obj()->type == &range_type)
         return range_reversed(seq);
+    if (is_mappingproxy(seq))
+        return reversed_new(mappingproxy_inner(seq));
+    // A dict is reversed as its keys, newest first, and a view as its items.
+    if (is_anydict(seq) || (seq.is_obj() && seq.obj()->type == &view_type)) {
+        ListObj *keys = py_list_of(seq);
+        if (!keys)
+            return Value();
+        Vec<Value> &xs = keys->items;
+        for (usize i = 0, j = xs.size(); i + 1 < j; i++, j--) {
+            Value t   = xs[i];
+            xs[i]     = xs[j - 1];
+            xs[j - 1] = t;
+        }
+        return py_iter(obj_value(keys));
+    }
     const Type *t = type_of(seq);
     if (!t || !t->len || !t->getitem)
         return err_set2("TypeError", "object is not reversible", type_name(seq)), Value();

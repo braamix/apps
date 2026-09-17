@@ -403,6 +403,16 @@ R redo_with(const CallArgs &a, u32 at, Value fn, Value a0, Value a1, u32 n,
     return R::Ok;
 }
 
+bool redo_converted(const CallArgs &a, u32 at, Str name, R (*again)(const CallArgs &, Value &out),
+                    Value &out, R &r)
+{
+    if (at >= a.nargs || !type_has_py_special(a.args[at], name))
+        return false;
+    Root m{ type_special(a.args[at], name) };
+    r = m.v.is_nil() ? R::Err : redo_with(a, at, m.v, Value(), Value(), 0, again, out);
+    return true;
+}
+
 R bind_args(FuncObj *fn, CodeObj *co, FrameObj *nf, const CallArgs &a)
 {
     Value *lo   = nf->slots();

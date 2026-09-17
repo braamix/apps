@@ -479,6 +479,35 @@ const ExcType EXC_TABLE[] = {
     { "ImportCycleError", &EXC_TABLE[14] },
     { "UnicodeTranslateError", &EXC_TABLE[31] },
     { "ReferenceError", &EXC_TABLE[4] },
+    { "Warning", &EXC_TABLE[4] },
+    { "UserWarning", &EXC_TABLE[41] },
+    { "DeprecationWarning", &EXC_TABLE[41] },
+    { "PendingDeprecationWarning", &EXC_TABLE[41] },
+    { "SyntaxWarning", &EXC_TABLE[41] },
+    { "RuntimeWarning", &EXC_TABLE[41] },
+    { "FutureWarning", &EXC_TABLE[41] },
+    { "ImportWarning", &EXC_TABLE[41] },
+    { "UnicodeWarning", &EXC_TABLE[41] },
+    { "BytesWarning", &EXC_TABLE[41] },
+    { "ResourceWarning", &EXC_TABLE[41] },
+    { "EncodingWarning", &EXC_TABLE[41] },
+    { "ConnectionError", &EXC_TABLE[21] },
+    { "BrokenPipeError", &EXC_TABLE[53] },
+    { "ConnectionAbortedError", &EXC_TABLE[53] },
+    { "ConnectionRefusedError", &EXC_TABLE[53] },
+    { "ConnectionResetError", &EXC_TABLE[53] },
+    { "BlockingIOError", &EXC_TABLE[21] },
+    { "ChildProcessError", &EXC_TABLE[21] },
+    { "FileExistsError", &EXC_TABLE[21] },
+    { "FileNotFoundError", &EXC_TABLE[21] },
+    { "InterruptedError", &EXC_TABLE[21] },
+    { "IsADirectoryError", &EXC_TABLE[21] },
+    { "NotADirectoryError", &EXC_TABLE[21] },
+    { "PermissionError", &EXC_TABLE[21] },
+    { "ProcessLookupError", &EXC_TABLE[21] },
+    { "TimeoutError", &EXC_TABLE[21] },
+    { "PythonFinalizationError", &EXC_TABLE[22] },
+    { "_IncompleteInputError", &EXC_TABLE[25] },
 };
 
 const usize EXC_COUNT = sizeof(EXC_TABLE) / sizeof(EXC_TABLE[0]);
@@ -673,6 +702,16 @@ bool exc_install(DictObj *into)
         if (!name)
             return oom() == R::Ok;
         if (dict_set(static_cast<DictObj *>(rd.v.obj()), obj_value(name), rt.v) != R::Ok)
+            return false;
+    }
+    // The two old names for OSError.
+    Root os{ exc_type_value(exc_find("OSError")) };
+    constexpr Str ALIASES[] = { "EnvironmentError", "IOError" };
+    for (Str alias : ALIASES) {
+        StrObj *name = str_intern(alias);
+        if (os.v.is_nil() || !name)
+            return false;
+        if (dict_set(static_cast<DictObj *>(rd.v.obj()), obj_value(name), os.v) != R::Ok)
             return false;
     }
     return true;

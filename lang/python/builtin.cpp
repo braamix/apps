@@ -14,6 +14,7 @@
 #include "frame.h"
 #include "gc.h"
 #include "gen.h"
+#include "genalias.h"
 #include "import.h"
 #include "intern.h"
 #include "iter.h"
@@ -90,6 +91,14 @@ Value text_of(Value v, bool want_str)
         if (v.is_nil())
             return err_clear(), Value();
     }
+    // A class whose metaclass writes __repr__ or __str__ is shown by it.
+    if (is_meta_inst(v)) {
+        Value meta = obj_value(v.obj()->type->owner);
+        Value fn   = type_hook(meta, want_str ? "__str__" : "__repr__");
+        if ((fn.is_nil() || is_native(fn)) && want_str)
+            fn = type_hook(meta, "__repr__");
+        return fn.is_nil() || is_native(fn) ? Value() : method_new(fn, v);
+    }
     if (!is_inst(v))
         return Value();
     // object's own __repr__ is the native one the instance already answers.
@@ -165,15 +174,15 @@ bool collect_nested(Value v, ListObj *into, u32 depth)
         for (usize i = 0; i < l->items.size(); i++)
             if (!collect_one(l->items[i], into, depth + 1))
                 return false;
-    } else if (is_dict(v) || is_set(v)) {
+    } else if (is_anydict(v) || is_set(v)) {
         const Table &t =
-            is_dict(v) ? static_cast<DictObj *>(v.obj())->t : static_cast<SetObj *>(v.obj())->t;
+            is_anydict(v) ? static_cast<DictObj *>(v.obj())->t : static_cast<SetObj *>(v.obj())->t;
         usize at = 0;
         Value k, x;
         while (table_next(t, at, k, x)) {
             if (!collect_one(k, into, depth + 1))
                 return false;
-            if (is_dict(v) && !collect_one(x, into, depth + 1))
+            if (is_anydict(v) && !collect_one(x, into, depth + 1))
                 return false;
         }
     }
@@ -226,8 +235,8 @@ Value rewrite(Value v, ListObj *text, usize &at, u32 depth)
         }
         return rl.v;
     }
-    if (is_dict(rv.v) || is_set(rv.v)) {
-        bool dict = is_dict(rv.v);
+    if (is_anydict(rv.v) || is_set(rv.v)) {
+        bool dict = is_anydict(rv.v);
         Root out{ dict ? obj_value(dict_new()) : obj_value(set_new()) };
         if (out.v.is_nil())
             return oom(), Value();
@@ -250,6 +259,8 @@ Value rewrite(Value v, ListObj *text, usize &at, u32 depth)
             if (nx.is_nil() || dict_set(static_cast<DictObj *>(out.v.obj()), nk.v, nx) != R::Ok)
                 return Value();
         }
+        if (is_frozendict(rv.v))
+            out.v.obj()->type = &frozendict_type;
         return out.v;
     }
     return rv.v;
@@ -804,6 +815,15 @@ R int_of_text(Value obj, Str s, i64 base, Value &out)
 
 R b_int(const CallArgs &a, Value &out)
 {
+    // int(x, base=b): the base alone may be a keyword.
+    if (a.nkw == 1 && is_str(a.kwnames[0]) && str_of(a.kwnames[0])->str() == "base" &&
+        a.nargs == 1) {
+        Value two[2] = { a.args[0], a.kwvals[0] };
+        CallArgs b;
+        b.args  = two;
+        b.nargs = 2;
+        return b_int(b, out);
+    }
     if (!args_only(a, "int", 0, 2))
         return R::Err;
     if (!a.nargs) {
@@ -826,13 +846,22 @@ R b_int(const CallArgs &a, Value &out)
         return R::Ok;
     if (err_pending())
         return R::Err;
-    if (is_intval(a.args[0])) {
+    out = one_special(a.args[0], "__index__", WANT_INT);
+    if (!out.is_nil())
+        return R::Ok;
+    if (err_pending())
+        return R::Err;
+    // A subclass of int, float or str stands for the value inside it.
+    Value v = is_inst(a.args[0]) ? method_self(a.args[0]) : a.args[0];
+    if (is_intval(v)) {
         // int(True) is 1, so bool does not simply pass through.
-        out = is_bool(a.args[0]) ? Value::of_int(is_true(a.args[0]) ? 1 : 0) : a.args[0];
+        out = is_bool(v) ? Value::of_int(is_true(v) ? 1 : 0) : v;
         return R::Ok;
     }
-    if (is_float(a.args[0])) {
-        f64 x = float_of(a.args[0]);
+    if (!textual && v != a.args[0])
+        textual = is_str(v) ? (text = str_of(v)->str(), true) : bytes_like(v, text);
+    if (is_float(v)) {
+        f64 x = float_of(v);
         if (isnan(x))
             return err_set("ValueError", "cannot convert float NaN to integer");
         if (isinf(x))
@@ -954,6 +983,13 @@ R b_complex(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "complex", 0, 2))
         return R::Err;
+    R r = R::Ok;
+    if (redo_converted(a, 0, "__complex__", b_complex, out, r) ||
+        redo_converted(a, 0, "__float__", b_complex, out, r) ||
+        redo_converted(a, 0, "__index__", b_complex, out, r) ||
+        redo_converted(a, 1, "__float__", b_complex, out, r) ||
+        redo_converted(a, 1, "__index__", b_complex, out, r))
+        return r;
     if (!a.nargs) {
         out = complex_new(0, 0);
         return out.is_nil() ? R::Err : R::Ok;
@@ -1042,7 +1078,16 @@ R b_float(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "float", 0, 1))
         return R::Err;
-    f64 v = 0;
+    R r = R::Ok;
+    if (redo_converted(a, 0, "__float__", b_float, out, r) ||
+        redo_converted(a, 0, "__index__", b_float, out, r))
+        return r;
+    f64 v      = 0;
+    Value self = a.nargs ? method_self(a.args[0]) : Value();
+    if (a.nargs && self != a.args[0] && as_number(self, v)) {
+        out = float_new(v);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     if (a.nargs && !as_number(a.args[0], v)) {
         Str text;
         if (is_str(a.args[0]))
@@ -1116,8 +1161,14 @@ R dict_keys_step(ContObj *k, Value in)
         return cont_call(k, k->s[1], Value(), 0);
     }
     if (k->i == 1) {
-        if (iter_needs_vm(in))
-            return err_set("TypeError", "keys() answered something only the interpreter can walk");
+        // A view written in Python is walked by list(), which can.
+        if (iter_needs_vm(in) || (is_inst(in) && !is_list(in))) {
+            StrObj *ln = str_intern("list");
+            Value fn;
+            if (!ln || dict_get(builtins_dict(), obj_value(ln), fn) != R::Ok)
+                return err_pending() ? R::Err : oom();
+            return cont_call(k, fn, in);
+        }
         ListObj *ks = py_list_of(in);
         if (!ks)
             return R::Err;
@@ -1134,7 +1185,8 @@ R dict_keys_step(ContObj *k, Value in)
     for (usize i = 0; i < names->len; i++)
         if (dict_set(d, names->items()[i], vals->items()[i]) != R::Ok)
             return R::Err;
-    return cont_done(k, k->s[0]);
+    // dict.update answers None; dict() answers the dict.
+    return cont_done(k, k->s[6].is_nil() ? k->s[0] : value_none());
 }
 
 R b_dict(const CallArgs &a, Value &out)
@@ -1149,7 +1201,7 @@ R b_dict(const CallArgs &a, Value &out)
         b.args     = &d.v;
         return b_dict(b, out);
     }
-    if (a.nargs && !is_dict(method_self(a.args[0])) && type_has_py_special(a.args[0], "keys")) {
+    if (a.nargs && !is_anydict(method_self(a.args[0])) && type_has_py_special(a.args[0], "keys")) {
         Root src{ a.args[0] };
         Root keys{ type_special(src.v, "keys") };
         Root get{ type_special(src.v, "__getitem__") };
@@ -1186,7 +1238,7 @@ R b_dict(const CallArgs &a, Value &out)
         // A dict subclass stands for the dict inside it, so dict(d) copies
         // the mapping rather than trying to walk it as pairs.
         Root src{ method_self(a.args[0]) };
-        if (is_dict(src.v)) {
+        if (is_anydict(src.v)) {
             usize at = 0;
             Value k, v;
             while (table_next(static_cast<DictObj *>(src.v.obj())->t, at, k, v))
@@ -1197,7 +1249,7 @@ R b_dict(const CallArgs &a, Value &out)
             Root it{ py_iter(src.v) };
             if (it.v.is_nil())
                 return R::Err;
-            for (;;) {
+            for (usize at = 0;; at++) {
                 Root got;
                 R r = py_next(it.v, got.v);
                 if (r == R::Err)
@@ -1208,10 +1260,14 @@ R b_dict(const CallArgs &a, Value &out)
                 Root key, val;
                 if (py_len(got.v, n) != R::Ok)
                     return R::Err;
-                if (n != 2)
-                    return err_set("ValueError",
-                                   "dictionary update sequence element "
-                                   "has the wrong length");
+                if (n != 2) {
+                    char t[24];
+                    Buf<128> m;
+                    m.put("dictionary update sequence element #")
+                        .put(int_text(t, sizeof t, i64(at)));
+                    m.put(" has length ").put(int_text(t, sizeof t, i64(n))).put("; 2 is required");
+                    return err_set("ValueError", m.str());
+                }
                 // Pin the key: taking the value allocates.
                 if (py_getitem(got.v, Value::of_int(0), key.v) != R::Ok ||
                     py_getitem(got.v, Value::of_int(1), val.v) != R::Ok)
@@ -1936,10 +1992,51 @@ R b_id(const CallArgs &a, Value &out)
 
 // --------------------------------------------------- arithmetic with a shape
 
+// divmod(a, b) over __divmod__ and __rdivmod__ written in Python. s[0] and
+// s[1] the two calls to try, s[2] and s[3] their arguments, s[4]/s[5] a and b.
+R divmod_step(ContObj *k, Value in)
+{
+    u32 phase = k->i++;
+    if (phase == 0 && !k->s[0].is_nil())
+        return cont_call(k, k->s[0], k->s[2]);
+    if (phase == 0)
+        k->i = 2;
+    if (phase > 0 && !is_notimpl(in))
+        return cont_done(k, in);
+    if (k->i == 2 && !k->s[1].is_nil()) {
+        k->i = 3;
+        return cont_call(k, k->s[1], k->s[3]);
+    }
+    Buf<128> m;
+    m.put("unsupported operand type(s) for divmod(): '").put(type_name(k->s[4]));
+    m.put("' and '").put(type_name(k->s[5])).put('\'');
+    return err_set("TypeError", m.str());
+}
+
 R b_divmod(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "divmod", 2, 2))
         return R::Err;
+    if (type_has_py_special(a.args[0], "__divmod__") ||
+        type_has_py_special(a.args[1], "__rdivmod__")) {
+        Root l{ type_has_py_special(a.args[0], "__divmod__") ? type_special(a.args[0], "__divmod__")
+                                                             : Value() };
+        Root r{ type_has_py_special(a.args[1], "__rdivmod__")
+                    ? type_special(a.args[1], "__rdivmod__")
+                    : Value() };
+        Root kv{ cont_new(divmod_step) };
+        if (kv.v.is_nil())
+            return R::Err;
+        ContObj *k = cont_of(kv.v);
+        k->s[0]    = l.v;
+        k->s[1]    = r.v;
+        k->s[2]    = a.args[1];
+        k->s[3]    = a.args[0];
+        k->s[4]    = a.args[0];
+        k->s[5]    = a.args[1];
+        out        = kv.v;
+        return R::Ok;
+    }
     Root q, r;
     if (py_binop(a.args[0], a.args[1], Op::FloorDiv, q.v) != R::Ok ||
         py_binop(a.args[0], a.args[1], Op::Mod, r.v) != R::Ok)
@@ -2627,10 +2724,21 @@ bool dir_type(SetObj *into, Value cls)
     Value mro = type_obj(cls)->mro;
     if (!is_tuple(mro))
         return dir_dict(into, type_obj(cls)->dict);
+    Root rc{ cls };
     TupleObj *t = static_cast<TupleObj *>(mro.obj());
     for (usize i = 0; i < t->len; i++)
         if (!dir_dict(into, type_obj(t->items()[i])->dict))
             return false;
+    // What CPython keeps as descriptors and this answers without them:
+    // object's __class__, and a class's __dict__ and __weakref__.
+    Root into_v{ obj_value(into) };
+    Str names[3] = { "__class__", "__dict__", "__weakref__" };
+    usize n      = type_obj(rc.v)->heap && !type_obj(rc.v)->nodict ? 3 : 1;
+    for (usize i = 0; i < n; i++) {
+        StrObj *k = str_intern(names[i]);
+        if (!k || set_add(set_at(into_v.v), obj_value(k)) != R::Ok)
+            return false;
+    }
     return true;
 }
 
@@ -2908,6 +3016,11 @@ constexpr Ctor CTORS[] = {
     { &bytes_type, b_bytes },
     { &bytearray_type, b_bytearray },
     { &frozenset_type, b_frozenset },
+    { &frozendict_type, b_frozendict },
+    { &sentinel_type, b_sentinel },
+    { &module_type, b_module },
+    { &method_type, b_method },
+    { &genalias_type, b_genericalias },
     { &complex_type, b_complex },
     { &memview_type, b_memoryview },
     { &slice_type, b_slice },
@@ -2915,6 +3028,41 @@ constexpr Ctor CTORS[] = {
 };
 
 } // namespace
+
+R dict_fill_keys(Value d, Value src, Value &out)
+{
+    Root rd{ d }, rs{ src };
+    Root keys{ type_special(rs.v, "keys") };
+    Root get{ type_special(rs.v, "__getitem__") };
+    if (keys.v.is_nil() || get.v.is_nil())
+        return err_pending() ? R::Err : not_iterable(rs.v);
+    TupleObj *n = tuple_new(0);
+    if (!n)
+        return oom();
+    Root none{ obj_value(n) };
+    Root kv{ cont_new(dict_keys_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = rd.v;
+    k->s[1]    = keys.v;
+    k->s[2]    = get.v;
+    k->s[4]    = none.v;
+    k->s[5]    = none.v;
+    k->s[6]    = value_none();
+    out        = kv.v;
+    return R::Ok;
+}
+
+R py_dict_of(const CallArgs &a, Value &out)
+{
+    return b_dict(a, out);
+}
+
+R py_dir(const CallArgs &a, Value &out)
+{
+    return b_dir(a, out);
+}
 
 bool py_callable(Value v)
 {

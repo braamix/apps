@@ -1,0 +1,13 @@
+--- unittest ---
+ok Test_iskeyword.test_all_keywords_fail_to_be_used_as_names
+ok Test_iskeyword.test_all_soft_keywords_can_be_used_as_names
+ok Test_iskeyword.test_async_and_await_are_keywords
+ok Test_iskeyword.test_changing_the_kwlist_does_not_affect_iskeyword
+ok Test_iskeyword.test_changing_the_softkwlist_does_not_affect_issoftkeyword
+ok Test_iskeyword.test_keywords_are_sorted
+ok Test_iskeyword.test_none_value_is_not_a_keyword
+ok Test_iskeyword.test_soft_keywords
+ok Test_iskeyword.test_softkeywords_are_sorted
+ok Test_iskeyword.test_true_is_a_keyword
+ok Test_iskeyword.test_uppercase_true_is_not_a_keyword
+--- ran 11 ok 11 fail 0 error 0 skip 0 ---

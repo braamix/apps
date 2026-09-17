@@ -50,14 +50,30 @@ R int_binop_slot(Value a, Value b, Op op, Value &out)
 
 // A big int's type is this one, so `type(2**99)` is `int` and nothing outside
 // bigint.cpp has to know which shape a value has.
-constexpr Type int_type{ .name  = "int",
-                         .truth = int_truth_of,
-                         .hash  = int_hash,
-                         .eq    = int_eq,
-                         .order = int_order,
-                         .repr  = int_repr,
-                         .binop = int_binop_slot,
-                         .patma = PATMA_SELF };
+// An int is its own real part and numerator, as numbers.Integral says.
+R int_getattr(Value v, StrObj *name, Value &out)
+{
+    Str n = name->str();
+    if (n == "real" || n == "numerator")
+        out = is_bool(v) ? Value::of_int(is_true(v) ? 1 : 0) : v;
+    else if (n == "imag")
+        out = Value::of_int(0);
+    else if (n == "denominator")
+        out = Value::of_int(1);
+    else
+        return R::NotImpl;
+    return R::Ok;
+}
+
+constexpr Type int_type{ .name    = "int",
+                         .truth   = int_truth_of,
+                         .hash    = int_hash,
+                         .eq      = int_eq,
+                         .order   = int_order,
+                         .repr    = int_repr,
+                         .binop   = int_binop_slot,
+                         .getattr = int_getattr,
+                         .patma   = PATMA_SELF };
 
 Str addr_text(char *out, usize cap, const Obj *o)
 {

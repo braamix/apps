@@ -10,8 +10,10 @@
 // module itself waits for the phase that borrows the library.
 #include "weak.h"
 
+#include "bigint.h"
 #include "builtin.h"
 #include "call.h"
+#include "complex.h"
 #include "gc.h"
 #include "intern.h"
 #include "kernel/fmt.h"
@@ -41,17 +43,39 @@ WeakObj *weak_of(Value v)
 void weak_trace(Obj *o)
 {
     gc_mark(static_cast<WeakObj *>(o)->callback);
+    gc_mark(static_cast<WeakObj *>(o)->owner);
 }
 
 R weak_repr(Value v, String &out)
 {
     WeakObj *w = weak_of(v);
-    Buf<96> b;
+    Buf<160> b;
     b.put("<weakref at ");
     char tmp[24];
-    b.put(addr_text(tmp, sizeof tmp, v.obj()));
-    b.put("; ").put(w->target ? Str("to an object") : Str("dead")).put('>');
+    b.put(addr_text(tmp, sizeof tmp, w->owner.is_nil() ? v.obj() : w->owner.obj()));
+    if (!w->target) {
+        b.put("; dead>");
+    } else {
+        b.put("; to '").put(type_name(Value::of_obj(w->target))).put("' at ");
+        b.put(addr_text(tmp, sizeof tmp, w->target)).put('>');
+    }
     return out.append(b.str()) ? R::Ok : oom();
+}
+
+// A subclass instance stands for the reference inside it.
+Value as_ref(Value v)
+{
+    if (is_inst(v) && is_weakref(inst_of(v)->native))
+        return inst_of(v)->native;
+    return v;
+}
+
+R weak_getattr(Value v, StrObj *name, Value &out)
+{
+    if (name->str() != "__callback__")
+        return R::NotImpl;
+    out = weak_of(v)->callback.is_nil() ? value_none() : weak_of(v)->callback;
+    return R::Ok;
 }
 
 R weak_hash(Value v, u32 &out)
@@ -64,6 +88,7 @@ R weak_hash(Value v, u32 &out)
 // once either is dead only identity is left, which is what CPython says.
 R weak_eq(Value a, Value b, bool &out)
 {
+    b = as_ref(b);
     if (!is_weakref(b))
         return R::NotImpl;
     WeakObj *x = weak_of(a), *y = weak_of(b);
@@ -77,7 +102,10 @@ R weak_call(const CallArgs &a, Value &out)
 {
     if (!meth_args(a, "__call__", 0, 0))
         return R::Err;
-    Obj *t = weak_of(a.args[0])->target;
+    Value self = method_self(a.args[0]);
+    if (!is_weakref(self))
+        return err_set2("TypeError", "__call__ requires a weak reference", type_name(self));
+    Obj *t = weak_of(self)->target;
     out    = t ? Value::of_obj(t) : value_none();
     return R::Ok;
 }
@@ -85,18 +113,39 @@ R weak_call(const CallArgs &a, Value &out)
 constexpr Method WEAK_METHODS[] = { { "__call__", weak_call } };
 
 // A weak reference cannot point at just anything: the target has to be an
-// object the collector owns and nothing else has a stake in.
+// object the collector owns, and CPython refuses the plain values -- numbers,
+// strings, tuples, lists and dicts -- as this does.
 bool referenceable(Value v)
 {
-    return is_inst(v) || is_type(v) || is_func(v);
+    if (!v.is_obj() || (v.obj()->flags & OBJ_IMMORTAL))
+        return false;
+    if (is_inst(v))
+        return !is_intval(inst_of(v)->native) && !is_str(inst_of(v)->native) &&
+               !is_tuple(inst_of(v)->native);
+    const Type *t = v.obj()->type;
+    return t != &str_type && t != &bytes_type && t != &bytearray_type && t != &tuple_type &&
+           t != &list_type && t != &dict_type && t != &frozendict_type && t != &float_type &&
+           t != &complex_type && t != &int_type && t != &weakref_type && !is_weakproxy(v) &&
+           !is_intval(v);
 }
 
 // ref(o) and proxy(o) with no callback are one object per target, as in
 // CPython; one with a callback is always new.
 R make_weak(const CallArgs &a, Str who, const Type *t, Value &out)
 {
-    if (!args_only(a, who, 1, 2))
-        return R::Err;
+    if (a.nkw) {
+        Buf<96> m;
+        m.put(t == &weakref_type ? Str("ref") : who).put("() takes no keyword arguments");
+        return err_set("TypeError", m.str());
+    }
+    if (a.nargs < 1 || a.nargs > 2) {
+        char n[24];
+        Buf<96> m;
+        m.put(who).put(a.nargs ? " expected at most 2 arguments, got "
+                               : " expected at least 1 argument, got ");
+        m.put(int_text(n, sizeof n, i64(a.nargs)));
+        return err_set("TypeError", m.str());
+    }
     if (!referenceable(a.args[0])) {
         Buf<128> m;
         m.put("cannot create weak reference to '").put(type_name(a.args[0])).put("' object");
@@ -111,7 +160,8 @@ R make_weak(const CallArgs &a, Str who, const Type *t, Value &out)
     if (rc.v.is_nil())
         for (usize i = 0; i < all->size(); i++) {
             WeakObj *w = (*all)[i];
-            if (w->type == t && w->target == rt.v.obj() && w->callback.is_nil()) {
+            if (w->type == t && w->target == rt.v.obj() && w->callback.is_nil() &&
+                w->owner.is_nil()) {
                 out = obj_value(w);
                 return R::Ok;
             }
@@ -121,6 +171,7 @@ R make_weak(const CallArgs &a, Str who, const Type *t, Value &out)
         return oom();
     w->target   = rt.v.obj();
     w->callback = rc.v;
+    w->owner    = Value();
     w->hash     = u32(usize(rt.v.obj())) >> 4;
     Root rw{ obj_value(w) };
     if (!all->push(weak_of(rw.v)))
@@ -131,7 +182,7 @@ R make_weak(const CallArgs &a, Str who, const Type *t, Value &out)
 
 R b_ref(const CallArgs &a, Value &out)
 {
-    return make_weak(a, "ref", &weakref_type, out);
+    return make_weak(a, "__new__", &weakref_type, out);
 }
 
 R b_proxy(const CallArgs &a, Value &out)
@@ -269,6 +320,7 @@ R b_remove_dead_weakref(const CallArgs &a, Value &out)
     R r = dict_get(d, a.args[1], got);
     if (r == R::Err)
         return R::Err;
+    got = as_ref(got);
     if (r == R::Ok) {
         if (!is_weakref(got))
             return err_set("TypeError", "not a weakref");
@@ -311,7 +363,7 @@ void weak_sweep()
         if (w->target && gc_is_dying(w->target)) {
             w->target = nullptr;
             if (!w->callback.is_nil()) {
-                gc_defer(obj_value(w), w->callback);
+                gc_defer(w->owner.is_nil() ? obj_value(w) : w->owner, w->callback);
                 w->callback = Value();
             }
         }
@@ -323,11 +375,35 @@ void weak_sweep()
 
 } // namespace
 
-constexpr Type weakref_type{ .name  = "weakref",
-                             .trace = weak_trace,
-                             .hash  = weak_hash,
-                             .eq    = weak_eq,
-                             .repr  = weak_repr };
+constexpr Type weakref_type{ .name    = "weakref.ReferenceType",
+                             .trace   = weak_trace,
+                             .hash    = weak_hash,
+                             .eq      = weak_eq,
+                             .repr    = weak_repr,
+                             .getattr = weak_getattr };
+
+Value weak_adopt(Value made, Value self)
+{
+    if (!is_weakref(made))
+        return made;
+    WeakObj *w = weak_of(made);
+    if (!w->owner.is_nil() || w->callback.is_nil()) {
+        Root rm{ made }, rs{ self };
+        WeakObj *c = static_cast<WeakObj *>(obj_alloc(&weakref_type, sizeof(WeakObj)));
+        if (!c)
+            return oom(), Value();
+        c->target   = weak_of(rm.v)->target;
+        c->callback = weak_of(rm.v)->callback;
+        c->hash     = weak_of(rm.v)->hash;
+        c->owner    = rs.v;
+        Root rc{ obj_value(c) };
+        if (!all->push(weak_of(rc.v)))
+            return oom(), Value();
+        return rc.v;
+    }
+    w->owner = self;
+    return made;
+}
 
 #define PROXY_SLOTS                                                                \
     .trace = weak_trace, .truth = proxy_truth, .hash = proxy_hash, .eq = proxy_eq, \
@@ -359,7 +435,6 @@ bool weak_install(DictObj *into)
         R (*fn)(const CallArgs &, Value &out);
     };
     static constexpr Named NAMES[] = {
-        { "ref", b_ref },
         { "proxy", b_proxy },
         { "getweakrefcount", b_getweakrefcount },
         { "getweakrefs", b_getweakrefs },
@@ -372,10 +447,11 @@ bool weak_install(DictObj *into)
             dict_set(static_cast<DictObj *>(rd.v.obj()), obj_value(n), fn.v) != R::Ok)
             return false;
     }
+    // ref is the type itself, which weakref.py subclasses.
+    if (!mod_type(static_cast<DictObj *>(rd.v.obj()), &weakref_type, b_ref))
+        return false;
     Root t{ type_wrap(&weakref_type) };
-    StrObj *n = str_intern("ReferenceType");
-    if (t.v.is_nil() || !n ||
-        dict_set(static_cast<DictObj *>(rd.v.obj()), obj_value(n), t.v) != R::Ok)
+    if (t.v.is_nil() || !mod_put(static_cast<DictObj *>(rd.v.obj()), "ref", t.v))
         return false;
     return mod_type(static_cast<DictObj *>(rd.v.obj()), &proxy_type) &&
            mod_type(static_cast<DictObj *>(rd.v.obj()), &callable_proxy_type);

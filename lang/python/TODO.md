@@ -6,52 +6,53 @@ borrowed is measured, and named here.
 
 **The language stands, the built-in types have their methods, a file can be
 imported, text can be formatted, numbers have no width, a function can yield, a
-program can compile and run more of itself, the type system is whole, twenty
-modules are written natively, a function can be a coroutine, the syntax is
-3.14's, text is Unicode's, and the floor under the library is down.** Phases 0
-to 22 built the lexer, the parser, the compiler, the VM, the
-object heap and its collector, exceptions, functions and closures, classes, the
-method tables, the module loader, the `unittest` and `test.support` shims every
-CPython test stands on, the one format engine that `format()`, `__format__`,
-`str.format`, `%` and f-strings all reach, the bignum and `complex` that finish
-the number tower, generators with `yield from`, `compile`/`eval`/`exec` with the
-namespaces and the attributes they make visible, the half of the type system the
-library uses — the metaclasses, the descriptor protocol, `__slots__`, the
-attribute hooks, the finalizers and weak references, the comparisons a sort has
-to make from C++, and the native `_abc` that CPython's own `abc.py` runs over —
-then the primitive modules: `sys` in full, `_collections`, `_functools`,
-`itertools`, `operator`, `_random`, `_struct`, `array`, `math`, `cmath`, `time`,
-`errno`, `gc` and `_types`, with the protocol methods in each built-in type's
-namespace and the generic alias that makes `list[int]` a value — and then `async
-def`, `await`, `async for`, `async with`, the async comprehensions and async
-generators, with the awaitables they make — and then everything the library's
-syntax asks since 3.9: `@`, unions, `match`, `except*` and the exception groups,
-PEP 695 over a native `_typing`, PEP 701's f-strings, PEP 750's t-strings and
-PEP 810's lazy imports — and then the Unicode database and `unicodedata`, str
-by Unicode's categories and case mappings, `_codecs` with CPython's own
-`codecs.py` and `encodings` over it, PEP 263's source encodings, `\N{...}`,
-identifiers by XID and NFKC, and the lone surrogate as a character — and then
-the rest of the native floor: `_thread`, `_contextvars`, `_string`, the weak
-proxies, `range` at any width, `FrameLocalsProxy`, `Placeholder` and
-`cmp_to_key`, and the implicit `__class__` cell. They are done, and their
-record is the git history — `python: phase 0` through `python: phase 22` —
-not this file, which from here describes only what is
-left.
+program can compile and run more of itself, the type system is whole,
+twenty-two modules are written natively, a function can be a coroutine, the
+syntax is 3.14's, text is Unicode's, the floor under the library is down, and
+its first wave runs.** Phases 0 to 23 built the lexer, the parser, the
+compiler, the VM, the object heap and its collector, exceptions, functions and
+closures, classes, the method tables, the module loader, the `unittest` and
+`test.support` shims every CPython test stands on, the one format engine that
+`format()`, `__format__`, `str.format`, `%` and f-strings all reach, the bignum
+and `complex` that finish the number tower, generators with `yield from`,
+`compile`/`eval`/`exec` with the namespaces and the attributes they make
+visible, the half of the type system the library uses — the metaclasses, the
+descriptor protocol, `__slots__`, the attribute hooks, the finalizers and weak
+references, the comparisons a sort has to make from C++, and the native `_abc`
+that CPython's own `abc.py` runs over — then the primitive modules: `sys` in
+full, `_collections`, `_functools`, `itertools`, `operator`, `_random`,
+`_struct`, `array`, `math`, `cmath`, `time`, `errno`, `gc` and `_types`, with
+the protocol methods in each built-in type's namespace and the generic alias
+that makes `list[int]` a value — and then `async def`, `await`, `async for`,
+`async with`, the async comprehensions and async generators, with the
+awaitables they make — and then everything the library's syntax asks since 3.9:
+`@`, unions, `match`, `except*` and the exception groups, PEP 695 over a native
+`_typing`, PEP 701's f-strings, PEP 750's t-strings and PEP 810's lazy imports
+— and then the Unicode database and `unicodedata`, str by Unicode's categories
+and case mappings, `_codecs` with CPython's own `codecs.py` and `encodings`
+over it, PEP 263's source encodings, `\N{...}`, identifiers by XID and NFKC,
+and the lone surrogate as a character — and then the rest of the native floor:
+`_thread`, `_contextvars`, `_string`, the weak proxies, `range` at any width,
+`FrameLocalsProxy`, `Placeholder` and `cmp_to_key`, and the implicit
+`__class__` cell — and then CPython's first twenty-five library modules, over
+`frozendict`, `sentinel`, `mappingproxy`, `object`'s pickle helpers, a native
+`_warnings` and `atexit`. They are done, and their record is the git history —
+`python: phase 0` through `python: phase 23` — not this file, which from here
+describes only what is left.
 
-Where that leaves us, measured against MicroPython's suite: **412 of the 449
-tests in [test/manifest.txt](test/manifest.txt)**. Of the thirty-seven that do
-not, most print `SKIP` because they import `collections` or `struct` — the
-pure-Python wrappers over what phase 18 wrote — and three import `types` for
-`types.coroutine`; all of those arrive with the library in phase 23. One,
-`assign_expr_syntaxerror.py`, expects MicroPython to accept what CPython
-refuses, and stays as it is. None stop at the object model.
+Where that leaves us, measured against MicroPython's suite: **423 of the 449
+tests in [test/manifest.txt](test/manifest.txt)**. Of the twenty-six that do
+not, most exercise what MicroPython does and CPython does not — a native base
+class's `__init__` protocol, `pend_throw`, `machine` — and two want a
+memoryview of more than one dimension. One, `assign_expr_syntaxerror.py`,
+expects MicroPython to accept what CPython refuses, and stays as it is.
 
-Measured against CPython's, which is the harder ruler: **fourteen of the
-twenty-three in [test/cpython.txt](test/cpython.txt) run, and 171 test methods
-of 204 pass.** `node test/pycases.mjs --survey` runs the whole of `Lib/test/`
-and counts what stops each of the 391 files: 373 an unwritten module, 14 that
-run, 3 that fail at runtime or say nothing this can read, and 1 other syntax,
-PEP 798's. Phase 22 moved `test_super.py` from syntax to an import.
+Measured against CPython's, which is the harder ruler: **twenty-nine of the
+thirty-seven in [test/cpython.txt](test/cpython.txt) run, and 354 test methods
+of 498 pass.** `node test/pycases.mjs --survey` runs the whole of `Lib/test/`
+and counts what stops each of the 391 files: 356 an unwritten module, 30 that
+run, 4 that fail at runtime or say nothing this can read, and 1 other syntax,
+PEP 798's. Phase 23 moved sixteen files to running.
 
 Three walls came down in phases 13 and 14 — f-strings, complex and the bignum
 were 204 files between them — a fourth in phase 19, whose fifteen `async` files
@@ -63,12 +64,12 @@ CPython's tests is an import**, and what those files stop on is the *library*,
 not the modules under it. The survey is how each wave is chosen, and it only
 means something read beside what it said last time.
 
-**The library has begun to be borrowed.** `lib/abc.py`, `lib/codecs.py` and
-89 modules of `lib/encodings/` are CPython's own, byte for byte, with their
-provenance in [lib/manifest.txt](lib/manifest.txt) and the PSF terms in
-[LICENSE](LICENSE). Phase 23 is where that directory grows and phase 30 where
-it ships; the pattern is that we write the floor natively and take the rest as
-it is.
+**The library is being borrowed.** Twenty-seven modules and 89 of
+`lib/encodings/` are CPython's own, byte for byte, with their provenance in
+[lib/manifest.txt](lib/manifest.txt) — `tools/mklib.py` writes a row — and the
+PSF terms in [LICENSE](LICENSE). The phases after this one grow that directory,
+and phase 30 ships it; the pattern is that we write the floor natively and take
+the rest as it is.
 
 ## Why the phases are in this order
 
@@ -128,20 +129,19 @@ core, and it is MIT ([LICENSE](LICENSE)).
 It is the ruler for everything after the core, and it is two distinct things:
 
 - **[tmp/cpython/Lib/test/](tmp/cpython/Lib/test/)** — 519 entries, the real
-  specification of the language. `test_descr.py` is the type system,
-  `test_grammar.py` the syntax, `test_str.py`/`test_dict.py`/`test_list.py`
-  the built-in types, and `list_tests.py`, `seq_tests.py`, `mapping_tests.py`
-  and `string_tests.py` are shared behaviour suites several of them mix in.
-  These are unforgiving in a way MicroPython's are not, and they are the
-  measure this plan ends on.
-- **[tmp/cpython/Lib/](tmp/cpython/Lib/)** — the standard library, most of it
-  pure Python written against a small C floor. `re/` is 3,258 lines of Python
-  over an `_sre` whose whole Python-visible surface is a dozen names;
-  `collections`, `functools`, `heapq`, `json`, `datetime` and `decimal` each
-  carry an `except ImportError` fallback for the day their C accelerator is
-  missing, which is our day. **A Python that runs CPython's own library is a
-  real Python**, and writing that library again would be both enormous and
-  worse. So we implement the floor and take the rest verbatim.
+specification of the language. `test_descr.py` is the type system,
+`test_grammar.py` the syntax, `test_str.py`/`test_dict.py`/`test_list.py` the
+built-in types, and `list_tests.py`, `seq_tests.py`, `mapping_tests.py` and
+`string_tests.py` are shared behaviour suites several of them mix in. These are
+unforgiving in a way MicroPython's are not, and they are the measure this plan
+ends on. - **[tmp/cpython/Lib/](tmp/cpython/Lib/)** — the standard library,
+most of it pure Python written against a small C floor. `re/` is 3,258 lines of
+Python over an `_sre` whose whole Python-visible surface is a dozen names;
+`collections`, `functools`, `heapq`, `json`, `datetime` and `decimal` each
+carry an `except ImportError` fallback for the day their C accelerator is
+missing, which is our day. **A Python that runs CPython's own library is a real
+Python**, and writing that library again would be both enormous and worse. So
+we implement the floor and take the rest verbatim.
 
 Taking it has two prices. The first is paid: CPython's licence is the PSF
 licence, not MIT, and [LICENSE](LICENSE) now carries both and says which files
@@ -263,9 +263,9 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-The order is library by layer (23–26), then the layers that need all of it
-(27–30); the language phases and the floor are done. Each phase lists only what
-the phases before it have made possible.
+The order is library by layer (24–26), then the layers that need all of it
+(27–30); the language phases, the floor and the first wave are done. Each phase
+lists only what the phases before it have made possible.
 
 Phase 18 left two things for the phases that use them. `memoryview` is flat:
 it has an item size, a format and a stride, and `cast()` recasts a contiguous
@@ -309,52 +309,21 @@ before there is a VM; `compile`, `exec` and `import` can. And **`--dump-tokens`
 prints a name in its NFKC form**, where `tokenize` prints it as written; a
 native `_tokenize` in phase 26 has to keep both.
 
-Phase 22 left four, all of them met by importing the first wave.
-**`frozendict` is not a builtin**: CPython's main branch has PEP 814's, and
-`_collections_abc.py` registers it at line 824, which is now where that module,
-and everything importing it, stops. **`types.MappingProxyType` is missing**,
-because `type.__dict__` is a plain dict here and `_types` has no
-`mappingproxy` to name; `enum.py` imports it. **`sys.flags` has no
-attribute-only fields** — `gil`, `thread_inherit_context`,
-`context_aware_warnings`, `lazy_imports` — which a struct sequence here cannot
-hold beside its indexed ones; `_py_warnings.py` reads the third. And
-**`object` lends `__repr__` and not the rest of CPython's**: `__reduce_ex__`,
-`__reduce__` and `__getstate__`, which `copy` and `copyreg` call, `__eq__`,
-`__hash__`, `__dir__` and `__sizeof__`. `test_super.py` compiles now and
-stops at `import copy`, and after that wants `pickle`, `threading` and
-`unittest.mock`.
-
-### Phase 23 — the library, first wave
-
-With the language and the floor in hand, the modules that need nothing else
-can simply be copied. Their order is their imports, and the list is that
-order.
-
-- [ ] What phase 22 left in their way: `frozendict`, `mappingproxy` as
-      `types.MappingProxyType`, the attribute-only `sys.flags`, and the rest
-      of `object`'s methods.
-- [ ] `types`, `_weakrefset`, `_py_abc`, `operator`, `keyword`, `reprlib`,
-      `heapq`, `bisect`, `numbers`, `copyreg`, `_collections_abc`,
-      `collections.abc`, `weakref`, `copy`, `collections`, `functools`,
-      `enum`, `warnings` (`_py_warnings.py`), `string`, `__future__`,
-      `linecache`. `abc` is already in `lib/`, borrowed by phase 17.
-- [ ] `contextlib` is not here: it imports `os`, which is phase 25.
-- [ ] Each module is a row in [lib/manifest.txt](lib/manifest.txt) with the
-      CPython commit it came from. A module that turns out to need something
-      later waits, and this list moves it; `abc.py` is the worked example.
-- [ ] `locale` over the pure-Python emulation of `_locale` that it carries,
-      which `test_re.py` imports at the top.
-- [ ] The test shim loses what the real modules now answer, and
-      `test.support` grows what the next wave's tests import.
-- [ ] The `RuntimeWarning` for a coroutine collected without being awaited,
-      once `warnings` is here to say it through.
-- [ ] MicroPython's `async_await2.py`, `async_for2.py` and `async_with2.py`
-      move to `pass`: they wait only for `types.coroutine`.
-
-Tests: `test_keyword.py`, `test_bisect.py`, `test_heapq.py`, `test_copyreg.py`,
-`test_reprlib.py`, `test_weakset.py` and `test_abstract_numbers.py`, as far as
-their imports reach. `test_collections.py`, `test_functools.py` and
-`test_enum.py` import `typing`, `inspect` or `doctest`, and wait for phase 27.
+Phase 23 left six. **Four modules of the wave wait on a later one in part**:
+`string.Template` and `locale.format_string` compile a regular expression
+(phase 24), `warnings.deprecated` imports `inspect` (phase 27), and
+`linecache` reads no file until `io` does (phase 25), so a warning prints
+without its source line. **There is no `_bisect` or `_heapq`**: the pure-Python
+fallbacks run, and `test_bisect.py`'s C half errors on the `None` its
+`import_fresh_module` answers. **Of the plan's seven tests, four wait**:
+`test_heapq.py` imports `random` and `doctest`, `test_copyreg.py`
+`test.pickletester`, `test_reprlib.py` `annotationlib`, `os` and `importlib`,
+and `test_weakset.py` `contextlib`, which imports `os`. **A traceback is still
+a string**, so the exception-group tests that read `__traceback__` error, as
+do `staticmethod.__annotations__` (phase 27) and the `_ShimLimit` patterns
+waiting for `re`. **A `mappingproxy` over a mapping written in Python** reads
+it through slots, which cannot call it. And **`test_super.py`** stops at
+`pickle` now, after `copy`.
 
 ### Phase 24 — `_sre`, and the whole of `re`
 
@@ -362,8 +331,8 @@ The best return of any phase here. `re/` is 3,258 lines of Python we do not
 write; what it stands on is one module whose Python-visible surface is
 `compile`, `template`, `getcodesize`, `MAGIC`, `CODESIZE`, `MAXREPEAT`,
 `MAXGROUPS`, `copyright` and four case-folding helpers. Its imports are
-`enum`, `functools` and `copyreg` (phase 23), and `unicodedata` and `warnings`
-when a pattern asks for them (phase 21 wrote the first, 23 brings the second).
+`enum`, `functools` and `copyreg`, and `unicodedata` and `warnings` when a
+pattern asks for them — all of them here since phase 23.
 
 - [ ] The `_sre` opcode VM: the pattern is a `u32` array `re/_compiler.py`
       emits, and the matcher walks it with an explicit backtracking stack —
@@ -388,7 +357,9 @@ when a pattern asks for them (phase 21 wrote the first, 23 brings the second).
       leftmost-first with back-references, lazy quantifiers and lookaround.
       The two engines answer different questions.
 - [ ] What stands on `re` and nothing later comes with it: `textwrap`,
-      `string.Template`, `json`, `fractions`, `difflib`; and `stringprep` with
+      `string.Template`, `locale.format_string`, `json`, `fractions`,
+      `difflib`, and the test shim's `_search` given up for `re.search`; and
+      `stringprep` with
       the `idna` codec, over a `unicodedata.ucd_3_2_0` generated beside the
       16.0 tables.
 

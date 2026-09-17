@@ -192,7 +192,7 @@ R dict_contains(Value v, Value item, bool &out)
 
 R dict_eq(Value a, Value b, bool &out)
 {
-    if (!b.is_obj() || b.obj()->type != &dict_type)
+    if (!is_anydict(b))
         return R::NotImpl;
     DictObj *x = static_cast<DictObj *>(a.obj());
     DictObj *y = static_cast<DictObj *>(b.obj());
@@ -244,18 +244,32 @@ R set_contains(Value v, Value item, bool &out)
 } // namespace
 
 R dict_repr(Value v, String &out);
+R frozendict_repr(Value v, String &out);
 R set_repr(Value v, String &out);
 R frozenset_repr(Value v, String &out);
 
-// `a | b` of two dicts is a new one, b's values winning (PEP 584).
+// `a | b` of two dicts is a new one, b's values winning (PEP 584), and of
+// the left's kind. A frozendict with nothing to add is itself.
 R dict_binop(Value a, Value b, Op op, Value &out)
 {
-    if (op != Op::Or || !is_dict(a) || !is_dict(b))
+    if (op != Op::Or || !is_anydict(a) || !is_anydict(b))
         return R::NotImpl;
+    if (is_frozendict(a)) {
+        if (!static_cast<DictObj *>(a.obj())->t.live && is_frozendict(b)) {
+            out = b;
+            return R::Ok;
+        }
+        if (!static_cast<DictObj *>(b.obj())->t.live) {
+            out = a;
+            return R::Ok;
+        }
+    }
     Root ra{ a }, rb{ b };
     DictObj *d = dict_new();
     if (!d)
         return err_set("MemoryError", "out of memory");
+    if (is_frozendict(ra.v))
+        d->type = &frozendict_type;
     Root rd{ obj_value(d) };
     Value both[2] = { ra.v, rb.v };
     for (Value from : both) {
@@ -282,6 +296,39 @@ constexpr Type dict_type{ .name     = "dict",
                           .binop    = dict_binop,
                           .iter     = table_iter,
                           .patma    = PATMA_MAP | PATMA_SELF };
+
+// A frozendict hashes by its pairs, in any order: exclusive-or, as
+// frozenset's does, with each pair mixed first.
+R frozendict_hash(Value v, u32 &out)
+{
+    u32 h    = 0;
+    usize at = 0;
+    Value k, x;
+    while (table_next(static_cast<DictObj *>(v.obj())->t, at, k, x)) {
+        u32 hk = 0, hv = 0;
+        if (py_hash(k, hk) != R::Ok || py_hash(x, hv) != R::Ok)
+            return R::Err;
+        u32 p = (hk * 0x9e3779b1u) ^ (hv + 0x7f4a7c15u + (hk << 6));
+        h ^= ((p ^ 89869747u) ^ (p << 16)) * 3644798167u;
+    }
+    h ^= (static_cast<DictObj *>(v.obj())->t.live + 1) * 1927868237u;
+    h ^= (h >> 11) ^ (h >> 25);
+    out = h * 69069u + 907133923u;
+    return R::Ok;
+}
+
+constexpr Type frozendict_type{ .name     = "frozendict",
+                                .trace    = dict_trace,
+                                .fini     = dict_fini,
+                                .hash     = frozendict_hash,
+                                .eq       = dict_eq,
+                                .repr     = frozendict_repr,
+                                .len      = dict_len_slot,
+                                .getitem  = dict_getitem,
+                                .contains = dict_contains,
+                                .binop    = dict_binop,
+                                .iter     = table_iter,
+                                .patma    = PATMA_MAP | PATMA_SELF };
 
 // The set protocol is in mapmeth.cpp: a dict view answers it too.
 constexpr Type set_type{ .name     = "set",

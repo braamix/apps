@@ -5,8 +5,8 @@
 // exactly what the program printed -- which is what makes it comparable byte
 // for byte with CPython's.
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, resolve, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -60,7 +60,25 @@ export async function boot(caseName) {
     // Planted, not packed: exec takes any path carrying a stamp. `py`,
     // because a command line here has sixty characters to live in.
     H.store.files.set("/bin/py", new Uint8Array(readFileSync(opt.binary)));
+    plant_lib();
     return H;
+}
+
+// The library CPython lends, where an installed package keeps it: python
+// finds a store directory named python-* with share/lib inside, and puts that
+// on sys.path after the program's own directory.
+export const LIB = join(HERE, "..", "lib");
+export const STORE_LIB = "/pkg/store/python-0/share/lib";
+
+function plant_lib() {
+    const walk = (at) => {
+        for (const e of readdirSync(at)) {
+            const p = join(at, e);
+            if (statSync(p).isDirectory()) walk(p);
+            else if (p.endsWith(".py")) put(`${STORE_LIB}/${relative(LIB, p)}`, readFileSync(p));
+        }
+    };
+    walk(LIB);
 }
 
 export function put(path, text) {

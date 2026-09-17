@@ -6,7 +6,7 @@ fail PropertySubclassTests.test_prefer_explicit_doc: AssertionError: 'This is a 
 fail PropertySubclassTests.test_property_new_getter_new_docstring: AssertionError: 'a docstring' != 'a new docstring'
 fail PropertySubclassTests.test_property_no_doc_on_getter: AssertionError: 'This is a subclass of property' != None
 ok PropertySubclassTests.test_property_setter_copies_getter_docstring
-error PropertySubclassTests.test_property_with_slots_and_doc_slot_docstring_present: AttributeError: object has no attribute: __doc__
+error PropertySubclassTests.test_property_with_slots_and_doc_slot_docstring_present: AttributeError: 'slotted_prop' object has no attribute '__doc__'
 fail PropertySubclassTests.test_property_with_slots_docstring_silently_dropped: AssertionError: AttributeError not raised
 ok PropertySubclassTests.test_property_with_slots_no_docstring
 skip PropertySubclassTests.test_slots_docstring_copy_exception: test requires docstrings

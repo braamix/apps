@@ -203,6 +203,19 @@ Value attr_cont(Value fn, Value args, Value alt, Value altargs, Value dflt, u32 
     return kv;
 }
 
+} // namespace
+
+bool attr_cont_guard(Value kv, Value dflt)
+{
+    if (!is_cont(kv) || cont_of(kv)->step != attr_step)
+        return false;
+    cont_of(kv)->j |= G_GUARD;
+    cont_of(kv)->s[4] = dflt;
+    return true;
+}
+
+namespace {
+
 // ------------------------------------------------------------- descriptor get
 
 // What `d`, found on `cls`, answers for `self` -- Nil when reached through the
@@ -234,8 +247,10 @@ Got descr_get(Value d, u8 kind, Value self, Value cls, Value &out, Value &args)
         Value *s = slot_at(self, descr_inner(d));
         if (!s || s->is_nil()) {
             MemberObj *m = static_cast<MemberObj *>(descr_inner(d).obj());
-            err_set2("AttributeError", "object has no attribute",
-                     is_str(m->name) ? str_of(m->name)->str() : Str("?"));
+            Buf<160> b;
+            b.put('\'').put(type_name(self)).put("' object has no attribute '");
+            b.put(is_str(m->name) ? str_of(m->name)->str() : Str("?")).put('\'');
+            err_set("AttributeError", b.str());
             return Got::Error;
         }
         out = *s;
@@ -402,7 +417,7 @@ bool type_own_attr(Value v, Str n, Value &out)
     if (n == "__mro__")
         return out = t->mro, !out.is_nil();
     if (n == "__dict__")
-        return out = t->dict, !out.is_nil();
+        return out = mappingproxy_new(t->dict), !out.is_nil();
     if (n == "__base__")
         return out = tuple_len(t->bases) ? tuple_at(t->bases, 0) : Value(), !out.is_nil();
     if (n == "__orig_bases__")
@@ -872,4 +887,129 @@ R inst_delattr(Value v, StrObj *name)
     if (r != R::Ok || fn.is_nil())
         return r;
     return err_set2("TypeError", "this attribute needs the interpreter", name->str());
+}
+
+// ------------------------------------------------------- __get__ and __set__
+
+namespace {
+
+// The name a descriptor is known by, and the class it is read on, for the
+// messages a missing setter or deleter makes.
+Str prop_name(const PropObj *p)
+{
+    return is_str(p->pname) ? str_of(p->pname)->str() : Str("?");
+}
+
+R no_accessor(Value desc, Value obj, Str what)
+{
+    PropObj *p = static_cast<PropObj *>(descr_inner(desc).obj());
+    Buf<160> m;
+    m.put("property '").put(prop_name(p)).put("' of '").put(type_name(obj));
+    m.put("' object has no ").put(what);
+    return err_set("AttributeError", m.str());
+}
+
+// d.__get__(obj, type=None): what reading d off obj, or off type, answers.
+R d_get(const CallArgs &a, Value &out)
+{
+    if (a.nkw)
+        return err_set("TypeError", "__get__() takes no keyword arguments");
+    if (a.nargs < 2 || a.nargs > 3) {
+        Buf<96> m;
+        m.put(a.nargs < 2 ? "__get__ expected at least 1 argument, got 0"
+                          : "__get__ expected at most 2 arguments");
+        return err_set("TypeError", m.str());
+    }
+    Value obj  = a.args[1];
+    Value type = a.nargs > 2 ? a.args[2] : value_none();
+    if (is_none(obj) && is_none(type))
+        return err_set("TypeError", "__get__(None, None) is invalid");
+    Root self{ is_none(obj) ? Value() : obj };
+    Root cls{ is_none(type) ? type_of_value(obj) : type };
+    if (cls.v.is_nil())
+        return R::Err;
+    bool data = false;
+    u8 kind   = descr_of(a.args[0], data);
+    Root args;
+    switch (descr_get(a.args[0], kind, self.v, cls.v, out, args.v)) {
+    case Got::Ok:
+        return R::Ok;
+    case Got::Call:
+        out = attr_invoke(out, args.v);
+        return out.is_nil() ? R::Err : R::Ok;
+    default:
+        if (err_pending())
+            return R::Err;
+        out = a.args[0];
+        return R::Ok;
+    }
+}
+
+R member_miss(Value obj, Value desc)
+{
+    MemberObj *m = static_cast<MemberObj *>(descr_inner(desc).obj());
+    Buf<160> b;
+    b.put('\'').put(type_name(obj)).put("' object has no attribute '");
+    b.put(is_str(m->name) ? str_of(m->name)->str() : Str("?")).put('\'');
+    return err_set("AttributeError", b.str());
+}
+
+// d.__set__(obj, value) and d.__delete__(obj), for a property and a slot.
+R d_set_or_delete(const CallArgs &a, Value &out, bool del)
+{
+    Str who = del ? Str("__delete__") : Str("__set__");
+    if (!args_only(a, who, del ? 2 : 3, del ? 2 : 3))
+        return R::Err;
+    Root desc{ a.args[0] }, obj{ a.args[1] }, val{ del ? Value() : a.args[2] };
+    bool data = false;
+    u8 kind   = descr_of(desc.v, data);
+    if (kind == D_MEMBER) {
+        Value *s = slot_at(obj.v, descr_inner(desc.v));
+        if (!s)
+            return member_miss(obj.v, desc.v);
+        if (del && s->is_nil())
+            return member_miss(obj.v, desc.v);
+        *s  = val.v;
+        out = value_none();
+        return R::Ok;
+    }
+    if (kind != D_PROP)
+        return err_set2("TypeError", "not a data descriptor", type_name(desc.v));
+    PropObj *p = static_cast<PropObj *>(descr_inner(desc.v).obj());
+    Value fn   = del ? p->del : p->set;
+    if (fn.is_nil())
+        return no_accessor(desc.v, obj.v, del ? Str("deleter") : Str("setter"));
+    Root rf{ fn };
+    Root args{ args_of(obj.v, val.v, del ? 1 : 2) };
+    if (args.v.is_nil())
+        return R::Err;
+    out = attr_invoke(rf.v, args.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R d_set(const CallArgs &a, Value &out)
+{
+    return d_set_or_delete(a, out, false);
+}
+
+R d_delete(const CallArgs &a, Value &out)
+{
+    return d_set_or_delete(a, out, true);
+}
+
+constexpr Method GET_ONLY[] = { { "__get__", d_get } };
+
+constexpr Method GET_SET[] = {
+    { "__get__", d_get },
+    { "__set__", d_set },
+    { "__delete__", d_delete },
+};
+
+} // namespace
+
+bool descr_methods()
+{
+    return method_install(&func_type, GET_ONLY) && method_install(&staticmethod_type, GET_ONLY) &&
+           method_install(&classmethod_type, GET_ONLY) && method_install(&property_type, GET_SET) &&
+           method_install(&member_type, GET_SET);
 }

@@ -10,3 +10,4 @@
 tokenizedata/__init__.py          82952e3  Lib/test/tokenizedata/__init__.py
 tokenizedata/badsyntax_3131.py    82952e3  Lib/test/tokenizedata/badsyntax_3131.py
 tokenizedata/badsyntax_pep3120.py 82952e3  Lib/test/tokenizedata/badsyntax_pep3120.py
+testcodec.py                      82952e3  Lib/test/testcodec.py

@@ -254,18 +254,16 @@ R sub_step(ContObj *k, Value in)
             return cont_done(k, value_bool(true));
         if (impl->negver == counter && holds(impl->negative, k->s[1]))
             return cont_done(k, value_bool(false));
-        Root hook{ type_special(k->s[0], "__subclasshook__") };
-        if (hook.v.is_nil()) {
-            // Reached through the class rather than an instance, which is what
-            // a classmethod on the ABC is.
-            StrObj *n = str_intern("__subclasshook__");
-            Value found;
-            if (!n)
-                return oom();
-            if (type_lookup(k->s[0], n, found) == R::Ok &&
-                type_bind(found, Value(), k->s[0], hook.v) != R::Ok)
-                return R::Err;
-        }
+        // Reached through the class, which is what a classmethod on the ABC
+        // is; object's own answers NotImplemented, and so does its absence.
+        Root hook;
+        StrObj *n = str_intern("__subclasshook__");
+        Value found;
+        if (!n)
+            return oom();
+        if (type_lookup(k->s[0], n, found) == R::Ok && !is_object_default(found) &&
+            type_bind(found, Value(), k->s[0], hook.v) != R::Ok)
+            return R::Err;
         if (hook.v.is_nil())
             return sub_step(k, value_notimpl());
         return cont_call(k, hook.v, k->s[1]);

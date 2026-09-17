@@ -1,0 +1,10 @@
+120 9
+[1, 4, 1, 9, 1] [1, 2, 3] CacheInfo(hits=2, misses=3, maxsize=2, currsize=2)
+832040
+2 named doc 1
+True True False 1
+42 42 1
+[3, 2, 1]
+int list object int
+5 True {'base': 2}
+1
