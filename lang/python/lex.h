@@ -137,15 +137,21 @@ enum : u8 {
     TOK_STR_T     = 1 << 3, // 3.14's t-string, which is an FStr too
 };
 
+// `line`/`col` are what a SyntaxError points at. `bcol`, `eline` and `ecol`
+// are the span CPython's ast reports instead: a byte offset into the line,
+// counted from zero, and the position one past the token's last byte.
 struct Token {
-    Tok kind = Tok::End;
-    u8 flags = 0; // string literals: raw, and which quote was used
-    u32 line = 0; // 1-based
-    u32 col  = 0; // 1-based, counted in codepoints
-    u32 at   = 0; // offset into Lexer::text
-    u32 len  = 0;
-    i64 ival = 0;
-    f64 fval = 0;
+    Tok kind  = Tok::End;
+    u8 flags  = 0; // string literals: raw, and which quote was used
+    u32 line  = 0; // 1-based
+    u32 col   = 0; // 1-based, counted in codepoints
+    u32 at    = 0; // offset into Lexer::text
+    u32 len   = 0;
+    u32 bcol  = 0;
+    u32 eline = 0;
+    u32 ecol  = 0;
+    i64 ival  = 0;
+    f64 fval  = 0;
 };
 
 // The whole source in one pass. False leaves a SyntaxError pending, with the

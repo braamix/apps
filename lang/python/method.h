@@ -105,7 +105,7 @@ bool slot_methods();
 Value reversed_new(Value seq);
 
 // zip(*iters): lazy, stopping at the shortest.
-Value zip_new(Value iters);
+Value zip_new(Value iters, bool strict = false);
 
 // An iterator over a list already built, under a borrowed name. This is what
 // the eager map() and filter() hand back; see README.

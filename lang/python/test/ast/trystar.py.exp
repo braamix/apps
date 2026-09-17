@@ -1,37 +1,37 @@
 Module
   body:
-    TryStar
+    TryStar @1:0-10:8
       body:
-        Pass
+        Pass @2:4-2:8
       handlers:
-        ExceptHandler e
+        ExceptHandler e @3:0-4:8
           type:
-            Name ValueError
+            Name ValueError @3:8-3:18
           body:
-            Pass
-        ExceptHandler
+            Pass @4:4-4:8
+        ExceptHandler @5:0-6:8
           type:
-            Tuple
+            Tuple @5:8-5:29
               elts:
-                Name TypeError
-                Name KeyError
+                Name TypeError @5:9-5:18
+                Name KeyError @5:20-5:28
           body:
-            Pass
+            Pass @6:4-6:8
       orelse:
-        Pass
+        Pass @8:4-8:8
       finalbody:
-        Pass
-    Try
+        Pass @10:4-10:8
+    Try @11:0-14:8
       body:
-        Pass
+        Pass @12:4-12:8
       handlers:
-        ExceptHandler
+        ExceptHandler @13:0-14:8
           type:
-            Tuple
+            Tuple @13:7-13:28
               elts:
-                Name ValueError
-                Name TypeError
+                Name ValueError @13:7-13:17
+                Name TypeError @13:19-13:28
           body:
-            Pass
+            Pass @14:4-14:8
       orelse: []
       finalbody: []

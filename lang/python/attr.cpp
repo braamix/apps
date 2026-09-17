@@ -10,6 +10,7 @@
 // Everything a lookup may have to run is Python -- a getter, a __get__, a
 // __getattribute__, a __getattr__ -- so py_attr hands back a ContObj and the
 // caller drives it. That is ground rule 2: the lookup cannot call.
+#include "annot.h"
 #include "call.h"
 #include "exc.h"
 #include "gc.h"
@@ -457,6 +458,16 @@ Got type_attr(Value v, StrObj *name, Value &out, Value &args)
     u8 mkind   = mr == R::Ok ? descr_of(mfound.v, mdata) : D_NONE;
     if (mdata)
         return descr_get(mfound.v, mkind, rv.v, meta.v, out, args);
+
+    // PEP 649's pair is the class's own, never a base's, so it is answered
+    // here rather than found along the MRO. A built-in type has neither.
+    if (name->str() == Str("__annotations__") || name->str() == Str("__annotate__")) {
+        if (!type_obj(rv.v)->heap)
+            return Got::Missing;
+        Got g = annot_lazy(rv.v, name, out, args);
+        if (g != Got::Missing)
+            return g;
+    }
 
     Root found, owner;
     R r = type_lookup(rv.v, name, found.v, &owner.v);

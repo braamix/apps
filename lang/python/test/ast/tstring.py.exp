@@ -1,8 +1,8 @@
 Module
   body:
-    Expr
+    Expr @1:0-1:8
       value:
-        TemplateStr
+        TemplateStr @1:0-1:8
           values:
             Constant 'a'
             Interpolation -
@@ -12,9 +12,9 @@ Module
                 Constant 'x'
               format_spec: -
             Constant 'b'
-    Expr
+    Expr @2:0-2:25
       value:
-        TemplateStr
+        TemplateStr @2:0-2:25
           values:
             Constant 'x='
             Interpolation r
@@ -37,9 +37,9 @@ Module
                       value:
                         Name w
                       format_spec: -
-    Expr
+    Expr @3:0-3:28
       value:
-        TemplateStr
+        TemplateStr @3:0-3:28
           values:
             Interpolation -
               value:
@@ -65,9 +65,9 @@ Module
               str:
                 Constant 'x'
               format_spec: -
-    Expr
+    Expr @4:0-5:2
       value:
-        TemplateStr
+        TemplateStr @4:0-5:2
           values:
             Interpolation -
               value:
@@ -79,9 +79,9 @@ Module
               str:
                 Constant ' x + 1'
               format_spec: -
-    Expr
+    Expr @6:0-7:5
       value:
-        TemplateStr
+        TemplateStr @6:0-7:5
           values:
             Constant 'x\n='
             Interpolation r
@@ -90,9 +90,9 @@ Module
               str:
                 Constant 'x'
               format_spec: -
-    Expr
+    Expr @8:0-8:13
       value:
-        TemplateStr
+        TemplateStr @8:0-8:13
           values:
             Interpolation -
               value:
@@ -107,9 +107,9 @@ Module
               str:
                 Constant 't"{x!a}"'
               format_spec: -
-    Expr
+    Expr @9:0-9:11
       value:
-        JoinedStr
+        JoinedStr @9:0-9:11
           values:
             FormattedValue -
               value:

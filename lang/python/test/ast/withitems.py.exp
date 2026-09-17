@@ -1,118 +1,118 @@
 Module
   body:
-    With
+    With @1:0-2:8
       items:
         WithItem
           context:
-            Name a
+            Name a @1:6-1:7
           vars:
-            Name b
+            Name b @1:11-1:12
         WithItem
           context:
-            Name c
+            Name c @1:14-1:15
           vars: -
       body:
-        Pass
-    With
+        Pass @2:4-2:8
+    With @3:0-4:8
       items:
         WithItem
           context:
-            Name a
+            Name a @3:6-3:7
           vars: -
         WithItem
           context:
-            Name b
+            Name b @3:9-3:10
           vars: -
       body:
-        Pass
-    With
+        Pass @4:4-4:8
+    With @5:0-6:8
       items:
         WithItem
           context:
-            Name a
+            Name a @5:6-5:7
           vars:
-            Name b
+            Name b @5:12-5:13
         WithItem
           context:
-            Name c
+            Name c @5:16-5:17
           vars: -
       body:
-        Pass
-    With
+        Pass @6:4-6:8
+    With @7:0-8:8
       items:
         WithItem
           context:
-            Tuple
+            Tuple @7:5-7:11
               elts:
-                Name a
-                Name b
+                Name a @7:6-7:7
+                Name b @7:9-7:10
           vars:
-            Name c
+            Name c @7:15-7:16
       body:
-        Pass
-    With
+        Pass @8:4-8:8
+    With @9:0-10:8
       items:
         WithItem
           context:
-            Yield
+            Yield @9:6-9:11
               value: -
           vars: -
       body:
-        Pass
-    For
+        Pass @10:4-10:8
+    For @11:0-12:8
       target:
-        Tuple
+        Tuple @11:4-11:9
           elts:
-            Name x
-            Starred
+            Name x @11:4-11:5
+            Starred @11:7-11:9
               value:
-                Name y
+                Name y @11:8-11:9
       iter:
-        Name z
+        Name z @11:13-11:14
       body:
-        Pass
+        Pass @12:4-12:8
       orelse: []
-    Delete
+    Delete @13:0-13:13
       targets:
-        Name a
-        List
+        Name a @13:5-13:6
+        List @13:9-13:12
           elts:
-            Name b
-    Expr
+            Name b @13:10-13:11
+    Expr @14:0-14:26
       value:
-        Call
+        Call @14:0-14:26
           func:
-            Name f
+            Name f @14:0-14:1
           args:
-            Starred
+            Starred @14:2-14:9
               value:
-                BoolOp or
+                BoolOp or @14:3-14:9
                   values:
-                    Name a
-                    Name b
-            Starred
+                    Name a @14:3-14:4
+                    Name b @14:8-14:9
+            Starred @14:11-14:25
               value:
-                IfExp
+                IfExp @14:12-14:25
                   test:
-                    Name d
+                    Name d @14:17-14:18
                   body:
-                    Name c
+                    Name c @14:12-14:13
                   orelse:
-                    Name e
+                    Name e @14:24-14:25
           keywords: []
-    Assign
+    Assign @15:0-15:14
       targets:
-        Name x
+        Name x @15:0-15:1
       value:
-        Tuple
+        Tuple @15:4-15:14
           elts:
-            Starred
+            Starred @15:4-15:6
               value:
-                Name a
-            Starred
+                Name a @15:5-15:6
+            Starred @15:8-15:14
               value:
-                BinOp |
+                BinOp | @15:9-15:14
                   left:
-                    Name b
+                    Name b @15:9-15:10
                   right:
-                    Name c
+                    Name c @15:13-15:14

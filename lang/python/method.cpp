@@ -2,6 +2,8 @@
 // namespace, and py_attr finds them there.
 #include "method.h"
 
+#include "annot.h"
+
 #include "builtin.h"
 #include "call.h"
 #include "complex.h"
@@ -134,7 +136,7 @@ bool methods_install()
            code_methods() && slot_methods() && union_install() && seqiter_methods() &&
            typing_methods() && lazy_methods() && templatelib_methods() && range_methods() &&
            frame_locals_methods() && frame_methods() && mappingproxy_methods() &&
-           sentinel_methods() && descr_methods();
+           sentinel_methods() && descr_methods() && annot_install();
 }
 
 Value method_self(Value v)

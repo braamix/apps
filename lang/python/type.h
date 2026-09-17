@@ -177,6 +177,11 @@ struct PropObj : Obj {
 };
 
 extern const Type property_type;
+
+// A property built in C++, for a built-in type that wants a getset of its own
+// rather than a getattr slot: `type.__annotations__` is one, because
+// annotationlib reaches for the descriptor itself.
+Value property_of(Value get, Value set);
 extern const Type staticmethod_type;
 extern const Type classmethod_type;
 

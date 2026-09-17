@@ -1720,6 +1720,15 @@ Value prop_new(Value get, Value set, Value del, Value doc)
     return obj_value(p);
 }
 
+} // namespace
+
+Value property_of(Value get, Value set)
+{
+    return prop_new(get, set, Value(), Value());
+}
+
+namespace {
+
 // property.getter/setter/deleter: a copy with one of the three replaced.
 R prop_with(const CallArgs &a, u32 which, Value &out)
 {

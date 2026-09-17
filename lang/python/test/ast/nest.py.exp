@@ -1,111 +1,111 @@
 Module
   body:
-    Assign
+    Assign @1:0-1:38
       targets:
-        Name x
+        Name x @1:0-1:1
       value:
-        ListComp
+        ListComp @1:4-1:38
           elt:
-            ListComp
+            ListComp @1:5-1:21
               elt:
-                Name y
+                Name y @1:6-1:7
               generators:
                 Comprehen
                   target:
-                    Name y
+                    Name y @1:12-1:13
                   iter:
-                    Name row
+                    Name row @1:17-1:20
                   ifs: []
           generators:
             Comprehen
               target:
-                Name row
+                Name row @1:26-1:29
               iter:
-                Name grid
+                Name grid @1:33-1:37
               ifs: []
-    Assign
+    Assign @2:0-2:47
       targets:
-        Name z
+        Name z @2:0-2:1
       value:
-        DictComp
+        DictComp @2:4-2:47
           key:
-            Name k
+            Name k @2:5-2:6
           value:
-            ListComp
+            ListComp @2:8-2:23
               elt:
-                Name v
+                Name v @2:9-2:10
               generators:
                 Comprehen
                   target:
-                    Name v
+                    Name v @2:15-2:16
                   iter:
-                    Name vs
+                    Name vs @2:20-2:22
                   ifs: []
           generators:
             Comprehen
               target:
-                Tuple
+                Tuple @2:28-2:33
                   elts:
-                    Name k
-                    Name vs
+                    Name k @2:28-2:29
+                    Name vs @2:31-2:33
               iter:
-                Call
+                Call @2:37-2:46
                   func:
-                    Attribute items
+                    Attribute items @2:37-2:44
                       value:
-                        Name d
+                        Name d @2:37-2:38
                   args: []
                   keywords: []
               ifs: []
-    Assign
+    Assign @3:0-3:32
       targets:
-        Name w
+        Name w @3:0-3:1
       value:
-        Call
+        Call @3:4-3:32
           func:
-            Name sum
+            Name sum @3:4-3:7
           args:
-            GeneratorExp
+            GeneratorExp @3:7-3:32
               elt:
-                BinOp *
+                BinOp * @3:8-3:13
                   left:
-                    Name a
+                    Name a @3:8-3:9
                   right:
-                    Name b
+                    Name b @3:12-3:13
               generators:
                 Comprehen
                   target:
-                    Tuple
+                    Tuple @3:18-3:22
                       elts:
-                        Name a
-                        Name b
+                        Name a @3:18-3:19
+                        Name b @3:21-3:22
                   iter:
-                    Name pairs
+                    Name pairs @3:26-3:31
                   ifs: []
           keywords: []
-    Assign
+    Assign @4:0-4:39
       targets:
-        Name q
+        Name q @4:0-4:1
       value:
-        ListComp
+        ListComp @4:4-4:39
           elt:
-            Name a
+            Name a @4:5-4:6
           generators:
             Comprehen
               target:
-                Name a
+                Name a @4:11-4:12
               iter:
-                Name b
+                Name b @4:16-4:17
               ifs: []
             Comprehen
               target:
-                Name c
+                Name c @4:22-4:23
               iter:
-                Name d
+                Name d @4:27-4:28
               ifs:
-                Name c
-                Name a
-    FunctionDef outer
+                Name c @4:32-4:33
+                Name a @4:37-4:38
+    FunctionDef outer @5:0-11:16
       args:
         Arguments
           posonly: []
@@ -116,7 +116,7 @@ Module
           kwarg: -
           defaults: []
       body:
-        FunctionDef inner
+        FunctionDef inner @6:4-10:19
           args:
             Arguments
               posonly: []
@@ -127,16 +127,16 @@ Module
               kwarg: -
               defaults: []
           body:
-            ClassDef Deep
+            ClassDef Deep @7:8-9:52
               bases: []
               keywords: []
               body:
-                FunctionDef m
+                FunctionDef m @8:12-9:52
                   args:
                     Arguments
                       posonly: []
                       args:
-                        Arg self
+                        Arg self @8:18-8:22
                           annotation: -
                       vararg: -
                       kwonly: []
@@ -144,9 +144,9 @@ Module
                       kwarg: -
                       defaults: []
                   body:
-                    Return
+                    Return @9:16-9:52
                       value:
-                        Lambda
+                        Lambda @9:23-9:52
                           args:
                             Arguments
                               posonly: []
@@ -157,31 +157,31 @@ Module
                               kwarg: -
                               defaults: []
                           body:
-                            ListComp
+                            ListComp @9:31-9:52
                               elt:
-                                Name i
+                                Name i @9:32-9:33
                               generators:
                                 Comprehen
                                   target:
-                                    Name i
+                                    Name i @9:38-9:39
                                   iter:
-                                    Call
+                                    Call @9:43-9:51
                                       func:
-                                        Name range
+                                        Name range @9:43-9:48
                                       args:
-                                        Constant 3
+                                        Constant 3 @9:49-9:50
                                       keywords: []
                                   ifs: []
                   decorators: []
                   returns: -
               decorators: []
-            Return
+            Return @10:8-10:19
               value:
-                Name Deep
+                Name Deep @10:15-10:19
           decorators: []
           returns: -
-        Return
+        Return @11:4-11:16
           value:
-            Name inner
+            Name inner @11:11-11:16
       decorators: []
       returns: -

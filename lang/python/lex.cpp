@@ -116,6 +116,10 @@ struct Scanner {
     u32 depth  = 0;    // open brackets
     bool fresh = true; // at the start of a logical line
 
+    usize bol  = 0; // where the current line begins, for a byte column
+    usize tok0 = 0; // where the token being scanned begins
+    usize tbol = 0; // its line's beginning
+
     // One expression out of an f-string's braces: no indentation, no trailing
     // Newline, Dedent or End, and no complaint that the brackets never closed.
     bool fragment = false;
@@ -156,9 +160,26 @@ struct Scanner {
         if (c == '\n') {
             line++;
             col = 1;
+            bol = i;
         } else if ((c & 0xc0) != 0x80) {
             col++;
         }
+    }
+
+    // Where the token about to be scanned begins. Called beside the capture
+    // of the line and column an error would name.
+    void begin()
+    {
+        tok0 = i;
+        tbol = bol;
+    }
+
+    // The span every token carries: from `begin()` to wherever scanning got.
+    void span(Token &t)
+    {
+        t.bcol  = u32(tok0 - tbol);
+        t.eline = line;
+        t.ecol  = u32(i - bol);
     }
 
     bool emit(Tok kind, u32 at_line, u32 at_col)
@@ -167,6 +188,7 @@ struct Scanner {
         t.kind = kind;
         t.line = at_line;
         t.col  = at_col;
+        span(t);
         return out->tokens.push(t) ? true : fail("out of memory");
     }
 
@@ -177,6 +199,7 @@ struct Scanner {
         t.line  = at_line;
         t.col   = at_col;
         t.flags = flags;
+        span(t);
         t.at    = u32(out->text.size());
         t.len   = u32(body.size());
         if (!out->text.append(body))
@@ -263,6 +286,7 @@ bool Scanner::line_start()
 bool Scanner::scan_name()
 {
     u32 at_line = line, at_col = col;
+    begin();
     usize from = i;
     while (!at_end() && is_name_char(peek()))
         bump();
@@ -324,6 +348,7 @@ bool Scanner::scan_name()
 bool Scanner::scan_number()
 {
     u32 at_line = line, at_col = col;
+    begin();
     usize from = i;
 
     u32 base = 10;
@@ -371,6 +396,7 @@ bool Scanner::scan_number()
         t.line = at_line;
         t.col  = at_col;
         t.ival = value;
+        span(t);
         return out->tokens.push(t) ? true : fail("out of memory");
     }
 
@@ -419,6 +445,7 @@ bool Scanner::scan_number()
     Token t;
     t.line = at_line;
     t.col  = at_col;
+    span(t);
     // `2j` is an imaginary literal whatever the digits look like, so the
     // integer path is not taken for one.
     if (imag) {
@@ -703,6 +730,7 @@ bool Scanner::scan_string(u8 flags, u32 at_line, u32 at_col)
 bool Scanner::one_token()
 {
     u32 at_line = line, at_col = col;
+    begin();
     u8 c = peek();
 
     if (is_digit(c) || (c == '.' && is_digit(peek(1))))
@@ -768,6 +796,7 @@ bool Scanner::run()
         }
         if (peek() == '\n') {
             u32 at_line = line, at_col = col;
+            begin();
             bump();
             if (depth > 0)
                 continue; // implicit joining inside brackets

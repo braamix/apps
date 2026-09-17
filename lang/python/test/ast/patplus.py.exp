@@ -1,32 +1,32 @@
 Module
   body:
-    Match
+    Match @1:0-3:12
       subject:
-        Name x
+        Name x @1:6-1:7
       cases:
         MatchCase
           pattern:
-            MatchOr
+            MatchOr @2:9-2:38
               patterns:
-                MatchValue
+                MatchValue @2:9-2:11
                   value:
-                    Constant 0
-                MatchValue
+                    Constant 0 @2:10-2:11
+                MatchValue @2:14-2:18
                   value:
-                    Constant 1.5
-                MatchValue
+                    Constant 1.5 @2:15-2:18
+                MatchValue @2:21-2:28
                   value:
-                    BinOp +
+                    BinOp + @2:21-2:28
                       left:
-                        Constant 1
+                        Constant 1 @2:22-2:23
                       right:
-                        Constant 2j
-                MatchMapping
+                        Constant 2j @2:26-2:28
+                MatchMapping @2:31-2:38
                   keys:
-                    Constant 3
+                    Constant 3 @2:33-2:34
                   patterns:
-                    MatchAs
+                    MatchAs @2:36-2:37
                       pattern: -
           guard: -
           body:
-            Pass
+            Pass @3:8-3:12

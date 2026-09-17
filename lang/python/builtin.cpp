@@ -4,6 +4,7 @@
 // from inside the iterator protocol and py_next has no way to suspend.
 #include "builtin.h"
 
+#include "astmod.h"
 #include "bigint.h"
 #include "call.h"
 #include "compare.h"
@@ -2390,8 +2391,13 @@ R b_reversed(const CallArgs &a, Value &out)
 
 R b_zip(const CallArgs &a, Value &out)
 {
-    if (a.nkw)
-        return err_set("TypeError", "zip() takes no keyword arguments");
+    bool strict = false;
+    for (u32 i = 0; i < a.nkw; i++) {
+        if (str_of(a.kwnames[i])->str() != "strict")
+            return err_set2("TypeError", "zip() got an unexpected keyword argument",
+                            str_of(a.kwnames[i])->str());
+        strict = py_truth(a.kwvals[i]);
+    }
     for (u32 i = 0; i < a.nargs; i++)
         if (parks(a, i))
             return iter_park(a, i, b_zip, out);
@@ -2405,7 +2411,7 @@ R b_zip(const CallArgs &a, Value &out)
             return R::Err;
         static_cast<TupleObj *>(rt.v.obj())->items()[i] = it;
     }
-    out = zip_new(rt.v);
+    out = zip_new(rt.v, strict);
     return out.is_nil() ? R::Err : R::Ok;
 }
 
@@ -2712,7 +2718,9 @@ R park_decode(const CallArgs &a, Str codec, R (*again)(const CallArgs &, Value &
 // Parse and compile. The Ast is a stack object, so the code object it leaves
 // behind is what outlives this. `codec` takes the name of a codec the source
 // has to be decoded with first, when that is what stopped it.
-Value compile_source(Value src, Str filename, CompileMode mode, String *codec = nullptr)
+// `tree` asks for what PyCF_ONLY_AST answers rather than a code object.
+Value compile_source(Value src, Str filename, CompileMode mode, String *codec = nullptr,
+                     bool tree = false)
 {
     Str text;
     if (!source_text(src, text))
@@ -2723,6 +2731,12 @@ Value compile_source(Value src, Str filename, CompileMode mode, String *codec = 
         if (codec && !ast.lex.codec.empty() && !codec->assign(ast.lex.codec.str()))
             return oom(), Value();
         return err_set_file(filename, text), Value();
+    }
+    if (tree) {
+        Value made = ast_tree(ast, mode == CompileMode::Single, mode == CompileMode::Eval);
+        if (made.is_nil())
+            err_set_file(filename, text);
+        return made;
     }
     Value code = py_compile(ast, filename, mode);
     if (code.is_nil())
@@ -2766,9 +2780,13 @@ R b_compile(const CallArgs &a, Value &out)
     CompileMode mode = CompileMode::Exec;
     if (!compile_mode(a.args[2], mode))
         return R::Err;
+    i64 flags = 0;
+    if (a.nargs > 3 && !is_none(a.args[3]) && !int_to_i64(a.args[3], flags))
+        return err_set("TypeError", "compile() flags must be an int");
     Root rf{ a.args[1] };
     String codec;
-    out = compile_source(a.args[0], str_of(rf.v)->str(), mode, &codec);
+    out = compile_source(a.args[0], str_of(rf.v)->str(), mode, &codec,
+                         (flags & PYCF_ONLY_AST) != 0);
     if (out.is_nil() && !codec.empty())
         return park_decode(a, codec.str(), b_compile, out);
     return out.is_nil() ? R::Err : R::Ok;
@@ -3076,36 +3094,46 @@ R b_dir(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-// FunctionType(code, globals, name=None, argdefs=None, closure=None), which
-// is how a code object becomes callable over a namespace of one's own.
+// FunctionType(code, globals, name=None, argdefs=None, closure=None,
+// kwdefaults=None), which is how a code object becomes callable over a
+// namespace of one's own. annotationlib calls it by keyword, to run an
+// __annotate__ over globals that answer every name with a stand-in.
 R b_function(const CallArgs &a, Value &out)
 {
-    if (!args_only(a, "function", 2, 5))
+    static const Str NAMES[] = { "code", "globals", "name", "argdefs", "closure", "kwdefaults" };
+    Value v[6];
+    if (!fn_take(a, "function", NAMES, 6, 2, v))
         return R::Err;
-    if (!is_code(a.args[0]))
+    Roots pin{ v, 6 };
+    if (!is_code(v[0]))
         return err_set2("TypeError", "function() first argument must be a code object",
-                        type_name(a.args[0]));
-    if (!is_dict(a.args[1]))
+                        type_name(v[0]));
+    if (!is_anydict(v[1]) && !type_has_special(v[1], "__getitem__"))
         return err_set2("TypeError", "function() second argument must be a dict",
-                        type_name(a.args[1]));
-    Root fn{ func_new(a.args[0], a.args[1]) };
+                        type_name(v[1]));
+    Root fn{ func_new(v[0], v[1]) };
     if (fn.v.is_nil())
         return R::Err;
     FuncObj *f = func_of(fn.v);
-    if (a.nargs > 2 && !is_none(a.args[2])) {
-        if (!is_str(a.args[2]))
+    if (!v[2].is_nil() && !is_none(v[2])) {
+        if (!is_str(v[2]))
             return err_set("TypeError", "function() name must be a string");
-        f->name = f->qualname = a.args[2];
+        f->name = f->qualname = v[2];
     }
-    if (a.nargs > 3 && !is_none(a.args[3])) {
-        if (!is_tuple(a.args[3]))
+    if (!v[3].is_nil() && !is_none(v[3])) {
+        if (!is_tuple(v[3]))
             return err_set("TypeError", "function() defaults must be a tuple");
-        f->defaults = a.args[3];
+        f->defaults = v[3];
     }
-    if (a.nargs > 4 && !is_none(a.args[4])) {
-        if (!is_tuple(a.args[4]))
+    if (!v[4].is_nil() && !is_none(v[4])) {
+        if (!is_tuple(v[4]))
             return err_set("TypeError", "function() closure must be a tuple");
-        f->closure = a.args[4];
+        f->closure = v[4];
+    }
+    if (!v[5].is_nil() && !is_none(v[5])) {
+        if (!is_dict(v[5]))
+            return err_set("TypeError", "function() kwdefaults must be a dict");
+        f->kwdefaults = v[5];
     }
     out = fn.v;
     return R::Ok;

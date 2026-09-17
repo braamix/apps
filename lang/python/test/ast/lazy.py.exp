@@ -1,63 +1,63 @@
 Module
   body:
-    Import lazy
+    Import lazy @1:0-1:16
       names:
-        Alias json
-    Import lazy
+        Alias json @1:12-1:16
+    Import lazy @2:0-2:31
       names:
-        Alias os.path as osp
-        Alias sys
-    ImportFrom - level=1 lazy
+        Alias os.path as osp @2:12-2:26
+        Alias sys @2:28-2:31
+    ImportFrom - level=1 lazy @3:0-3:26
       names:
-        Alias sibling
-    ImportFrom pkg.mod level=2 lazy
+        Alias sibling @3:19-3:26
+    ImportFrom pkg.mod level=2 lazy @4:0-4:36
       names:
-        Alias a as b
-        Alias c
-    Assign
+        Alias a as b @4:27-4:33
+        Alias c @4:35-4:36
+    Assign @5:0-5:8
       targets:
-        Name lazy
+        Name lazy @5:0-5:4
       value:
-        Constant 1
-    Assign
+        Constant 1 @5:7-5:8
+    Assign @6:0-6:19
       targets:
-        Attribute attr
+        Attribute attr @6:0-6:9
           value:
-            Name lazy
+            Name lazy @6:0-6:4
       value:
-        Subscript
+        Subscript @6:12-6:19
           value:
-            Name lazy
+            Name lazy @6:12-6:16
           slice:
-            Constant 0
-    Expr
+            Constant 0 @6:17-6:18
+    Expr @7:0-7:11
       value:
-        Call
+        Call @7:0-7:11
           func:
-            Name print
+            Name print @7:0-7:5
           args:
-            Name lazy
+            Name lazy @7:6-7:10
           keywords: []
-    Assign
+    Assign @8:0-8:25
       targets:
-        Name x
+        Name x @8:0-8:1
       value:
-        ListComp
+        ListComp @8:4-8:25
           elt:
-            BinOp @
+            BinOp @ @8:5-8:10
               left:
-                Name a
+                Name a @8:5-8:6
               right:
-                Name b
+                Name b @8:9-8:10
           generators:
             Comprehen
               target:
-                Name lazy
+                Name lazy @8:15-8:19
               iter:
-                Name y
+                Name y @8:23-8:24
               ifs: []
-    AugAssign @=
+    AugAssign @= @9:0-9:6
       target:
-        Name x
+        Name x @9:0-9:1
       value:
-        Name m
+        Name m @9:5-9:6

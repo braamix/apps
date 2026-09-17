@@ -4,6 +4,7 @@
 // be compared with what CPython's own ast module built for the same source.
 // A node line is `Kind` and its inline scalars; a field is `name:` with its
 // children indented under it, `name: -` when absent and `name: []` when empty.
+#include "astpos.h"
 #include "bigint.h"
 #include "complex.h"
 #include "err.h"
@@ -77,6 +78,35 @@ struct Dumper {
         list_head(d, name, count);
         for (usize k = 0; k < count; k++)
             node(d + 1, kid(n, from + k));
+    }
+
+    // The kinds CPython's ast gives lineno and col_offset to: everything but
+    // a module, an `arguments`, and the four helpers that are a field of
+    // something else rather than a node of their own.
+    static bool has_pos(Nd k)
+    {
+        return k != Nd::Nop && k != Nd::Module && k != Nd::CmpOp && k != Nd::Comprehen &&
+               k != Nd::Arguments && k != Nd::WithItem && k != Nd::MatchCase;
+    }
+
+    // Set where the nodes below are not CPython's: the pieces of an f-string,
+    // which this lexer re-scans out of the literal rather than in place, and
+    // the two places a bare identifier is spelled as a node here and as a
+    // string there.
+    bool quiet = false;
+    bool once  = false; // the next node alone, for one that wraps a name
+
+    void position(Nd kind, u32 i)
+    {
+        bool skip = once;
+        once      = false;
+        if (!has_pos(kind) || quiet || skip)
+            return;
+        Pos p = ast_pos(*ast, i);
+        Buf<48> b;
+        b.put(" @").put(u64(p.line)).put(':').put(u64(p.col));
+        b.put('-').put(u64(p.eline)).put(':').put(u64(p.ecol));
+        put(b.str());
     }
 
     void constant(const Node &n);
@@ -256,6 +286,7 @@ void Dumper::node(u32 d, u32 i)
     }
     if (n.kind == Nd::Import && (n.pad & 1))
         put(" lazy");
+    position(n.kind, i);
     put('\n');
 
     switch (n.kind) {
@@ -294,7 +325,11 @@ void Dumper::node(u32 d, u32 i)
         break;
     case Nd::Global:
     case Nd::Nonlocal:
-        slice(d + 1, "names", n, 0, n.nkid);
+        list_head(d + 1, "names", n.nkid);
+        for (u32 k = 0; k < n.nkid; k++) {
+            once = true;
+            node(d + 2, kid(n, k));
+        }
         break;
     case Nd::Import:
     case Nd::ImportFrom:
@@ -411,9 +446,13 @@ void Dumper::node(u32 d, u32 i)
         slice(d + 1, "keywords", n, n.b, n.nkid - n.b);
         break;
     case Nd::JoinedStr:
-    case Nd::TemplateStr:
+    case Nd::TemplateStr: {
+        bool was = quiet;
+        quiet    = true;
         slice(d + 1, "values", n, 0, n.nkid);
+        quiet = was;
         break;
+    }
     case Nd::FormattedValue:
         field(d + 1, "value", n.a);
         field(d + 1, "format_spec", n.b);
@@ -500,11 +539,18 @@ void Dumper::node(u32 d, u32 i)
         slice(d + 1, "keys", n, 0, n.a);
         slice(d + 1, "patterns", n, n.a, n.nkid - n.a);
         break;
-    case Nd::MatchClass:
+    case Nd::MatchClass: {
         field(d + 1, "cls", n.a);
         slice(d + 1, "patterns", n, 0, n.b);
-        slice(d + 1, "keywords", n, n.b, n.nkid - n.b);
+        // The keywords of a class pattern are a name and a pattern there, so
+        // the Keyword this port wraps them in has no position of its own.
+        list_head(d + 1, "keywords", n.nkid - n.b);
+        for (u32 k = n.b; k < n.nkid; k++) {
+            once = true;
+            node(d + 2, kid(n, k));
+        }
         break;
+    }
     case Nd::MatchAs:
         field(d + 1, "pattern", n.a);
         break;
@@ -627,7 +673,7 @@ Str nd_name(Nd k)
 bool ast_dump(Str source, String &out)
 {
     Ast ast;
-    if (!ast.parse(source))
+    if (!ast.parse(source) || !ast_spans(ast))
         return false;
     Dumper d{ &ast, &out };
     d.node(0, ast.root);

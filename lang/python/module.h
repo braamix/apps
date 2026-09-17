@@ -101,6 +101,8 @@ bool errno_install(DictObj *into);
 bool gcmod_install(DictObj *into);
 bool types_install(DictObj *into);
 bool typing_install(DictObj *into);
+bool ast_install(DictObj *into);
+bool dismod_install(DictObj *into);
 bool unicodedata_install(DictObj *into);
 bool thread_install(DictObj *into);
 bool contextvars_install(DictObj *into);

@@ -235,6 +235,7 @@ enum : u32 {
     MF_DEFAULTS   = 1 << 0, // a tuple of positional defaults
     MF_KWDEFAULTS = 1 << 1, // a dict of keyword-only defaults
     MF_CLOSURE    = 1 << 2, // a tuple of cells, in freevars order
+    MF_ANNOTATE   = 1 << 3, // PEP 649's __annotate__, directly under the code
 };
 
 // FormatValue's operand: a conversion in the low octet, and whether a format

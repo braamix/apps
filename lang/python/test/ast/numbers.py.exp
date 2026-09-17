@@ -1,44 +1,44 @@
 Module
   body:
-    Expr
+    Expr @1:0-1:1
       value:
-        Constant 1
-    Expr
+        Constant 1 @1:0-1:1
+    Expr @2:0-2:3
       value:
-        Constant 1.5
-    Expr
+        Constant 1.5 @2:0-2:3
+    Expr @3:0-3:2
       value:
-        Constant 3j
-    Expr
+        Constant 3j @3:0-3:2
+    Expr @4:0-4:4
       value:
-        Constant 16
-    Expr
+        Constant 16 @4:0-4:4
+    Expr @5:0-5:4
       value:
-        Constant 15
-    Expr
+        Constant 15 @5:0-5:4
+    Expr @6:0-6:6
       value:
-        Constant 10
-    Expr
+        Constant 10 @6:0-6:6
+    Expr @7:0-7:30
       value:
-        Constant 123456789012345678901234567890
-    Expr
+        Constant 123456789012345678901234567890 @7:0-7:30
+    Expr @8:0-8:6
       value:
-        UnaryOp -
+        UnaryOp - @8:0-8:6
           operand:
-            BinOp **
+            BinOp ** @8:1-8:6
               left:
-                Constant 2
+                Constant 2 @8:1-8:2
               right:
-                Constant 64
-    Expr
+                Constant 64 @8:4-8:6
+    Expr @9:0-9:5
       value:
-        Constant 1000
-    Expr
+        Constant 1000 @9:0-9:5
+    Expr @10:0-10:3
       value:
-        Constant 1000.0
-    Expr
+        Constant 1000.0 @10:0-10:3
+    Expr @11:0-11:3
       value:
-        Constant 0.5j
-    Expr
+        Constant 0.5j @11:0-11:3
+    Expr @12:0-12:6
       value:
-        Constant 0.0025
+        Constant 0.0025 @12:0-12:6

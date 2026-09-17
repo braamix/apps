@@ -137,18 +137,50 @@ R rev_iter_next(Value v, Value &out)
 }
 
 // zip(): one item from each, until one runs out.
+// `at` is zip(strict=True): the iterables must end together, and the message
+// names the one that did not.
+R zip_strict(IterObj *it, usize len, usize ended)
+{
+    TupleObj *s = static_cast<TupleObj *>(it->owner.obj());
+    Buf<96> b;
+    if (ended) {
+        b.put("zip() argument ").put(u64(ended + 1)).put(" is shorter than argument");
+        if (ended > 1)
+            b.put("s 1-").put(u64(ended));
+        else
+            b.put(" 1");
+        return err_set("ValueError", b.str());
+    }
+    // The first ran out: the others must have too.
+    for (usize j = 1; j < len; j++) {
+        Value got;
+        R r = py_next(s->items()[j], got);
+        if (r == R::Err)
+            return r;
+        if (r == R::Ok) {
+            b.put("zip() argument ").put(u64(j + 1)).put(" is longer than argument 1");
+            return err_set("ValueError", b.str());
+        }
+    }
+    return R::NotImpl;
+}
+
 R zip_iter_next(Value v, Value &out)
 {
     IterObj *it = static_cast<IterObj *>(v.obj());
     TupleObj *s = static_cast<TupleObj *>(it->owner.obj());
     if (!s->len) // zip() with no arguments yields nothing
         return R::NotImpl;
-    Root made{ obj_value(tuple_new(s->len)) };
+    bool strict = it->at != 0;
+    usize len   = s->len;
+    Root made{ obj_value(tuple_new(len)) };
     if (made.v.is_nil())
         return err_set("MemoryError", "out of memory");
-    for (usize i = 0; i < static_cast<TupleObj *>(it->owner.obj())->len; i++) {
+    for (usize i = 0; i < len; i++) {
         Value got;
         R r = py_next(static_cast<TupleObj *>(it->owner.obj())->items()[i], got);
+        if (r == R::NotImpl && strict)
+            return zip_strict(it, len, i);
         if (r != R::Ok)
             return r;
         static_cast<TupleObj *>(made.v.obj())->items()[i] = got;
@@ -243,9 +275,12 @@ Value reversed_new(Value seq)
     return obj_value(iter_new(&rev_iter_type, seq));
 }
 
-Value zip_new(Value iters)
+Value zip_new(Value iters, bool strict)
 {
-    return obj_value(iter_new(&zip_iter_type, iters));
+    Value v = obj_value(iter_new(&zip_iter_type, iters));
+    if (!v.is_nil() && strict)
+        static_cast<IterObj *>(v.obj())->at = 1;
+    return v;
 }
 
 constexpr Type slice_type{ .name    = "slice",

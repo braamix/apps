@@ -325,6 +325,31 @@ short sleeps on afterwards, as PEP 475 says. The `_io` is native rather than
 `_pyio.py`, which opens by importing `io` and so could not be the floor; see
 [TODO.md](TODO.md).
 
+**An annotation is evaluated when something asks for it**, which is PEP 649
+and what 3.14 does. The compiler collects the annotations of a def, a class
+body or a module into an `__annotate__` function of one argument, and
+`__annotations__` is what calling it with `Format.VALUE` answers, kept once it
+has; a class keeps the pair as `__annotate_func__` and
+`__annotations_cache__`, so neither is inherited, and `type.__annotations__`
+is a real descriptor in `type`'s own namespace because that is where
+`annotationlib` reaches for it. A name that does not exist costs nothing until
+the annotation is asked for, and `__conditional_annotations__` records which
+of a class's or a module's annotations were reached, so `if 0: x: int` leaves
+nothing behind. The annotation scopes PEP 695 already had take the same
+`.format` argument, so `TypeVar.evaluate_bound` is what `annotationlib` calls
+it.
+
+**`ast` is CPython's, over a native `_ast`.** `compile()` with
+`PyCF_ONLY_AST` builds the node classes out of the parser's arena, and the
+classes themselves are made at install from CPython's own ASDL
+([asttab.h](asttab.h)), so `_fields`, `_field_types`, `__match_args__` and
+`_attributes` read back as they do there and a program may subclass one.
+Every node carries the position CPython gives it, to the byte: the lexer
+records each token's span and [astpos.cpp](astpos.cpp) widens a node over what
+is under it, over the brackets that close inside it, and over the keyword the
+parser did not point at. That was checked against CPython over 373 files of
+its own library, node for node.
+
 **The library's second wave runs, byte for byte.** Phase 26 took
 `base64`, `hashlib` and `hmac` over native digests — MD5, SHA-1, SHA-2, SHA-3,
 SHAKE and BLAKE2 with every parameter — `decimal` and `datetime` as
@@ -710,9 +735,21 @@ All recorded rather than hidden, and all in reach later:
   table's size and probing, and matching it exactly would mean copying that
   table. Anything that prints a set directly will differ; anything that prints
   `sorted(s)` will not.
-- **An annotation is neither evaluated nor recorded.** `x: int = 1` compiles as
-  `x = 1`, and a parameter annotation costs nothing at `def` time. CPython
-  evaluates both and keeps `__annotations__`.
+- **The pieces of an f-string carry the whole literal's position.** This
+  lexer scans what is inside the braces out of the literal's decoded text
+  rather than in place, so a `Constant`, a `FormattedValue` or an
+  `Interpolation` under a `JoinedStr` reports the span of the string it is in.
+  Everything outside an f-string is CPython's answer to the byte; `--dump-ast`
+  prints no position under a `JoinedStr` for that reason, and
+  [test/ast/](test/ast/) compares the rest.
+- **A SyntaxError's message and column are this parser's.** `ast.parse` raises
+  where CPython raises, on the same line, but what it says and the column it
+  points at are not copied.
+- **`dis` is this port's, not CPython's.** CPython's `Lib/dis.py` decodes
+  CPython's instruction stream; this one's is an opcode and a whole `u32`, so
+  the module is written in [dismod.cpp](dismod.cpp) instead, against the names
+  its callers need. `opcode` and `_opcode` are not here at all, and the eight
+  test files that measure CPython's own bytecode cannot run.
 - **`locals()` in a function is a fresh snapshot every time.** A function's
   locals are frame slots, so the mapping is built from them on the spot: two
   calls are two dicts, and what `exec("x = 1")` writes into one is dropped.

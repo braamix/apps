@@ -122,6 +122,15 @@ DictObj *dict_at(Value v)
     return static_cast<DictObj *>(v.obj());
 }
 
+// A frame's globals are usually a plain dict, but exec() and FunctionType
+// both take a mapping, and annotationlib hands over a dict subclass whose
+// __missing__ answers every name with a stand-in. The real dict inside one is
+// where a name is looked up first; globals_missing says what happens then.
+DictObj *globals_at(Value v)
+{
+    return dict_at(is_anydict(v) ? v : method_self(v));
+}
+
 bool push(FrameObj *f, Value v)
 {
     if (f->nlocals + f->sp >= f->nslots)
@@ -156,7 +165,7 @@ R lookup(FrameObj *f, StrObj *name, Value &out)
         if (r != R::NotImpl)
             return r;
     }
-    R r = dict_get(dict_at(f->globals), obj_value(name), out);
+    R r = dict_get(globals_at(f->globals), obj_value(name), out);
     if (r != R::NotImpl)
         return r;
     return dict_get(dict_at(f->builtins), obj_value(name), out);
@@ -1120,7 +1129,7 @@ R load_name_step(ContObj *k, Value in)
     FrameObj *f = frame_of(vm->frame);
     StrObj *n   = str_of(k->s[1]);
     Value out;
-    R r = dict_get(dict_at(f->globals), obj_value(n), out);
+    R r = dict_get(globals_at(f->globals), obj_value(n), out);
     if (r == R::NotImpl)
         r = dict_get(dict_at(f->builtins), obj_value(n), out);
     if (r == R::Err)
@@ -2703,7 +2712,19 @@ void interpret()
 
             case Bc::LoadGlobal: {
                 Value out;
-                R r = dict_get(dict_at(f->globals), co->names[arg], out);
+                R r = dict_get(globals_at(f->globals), co->names[arg], out);
+                // A mapping of the program's own answers for itself, and the
+                // builtins are not consulted behind its back: that is what
+                // annotationlib's stand-in globals rely on.
+                if (r == R::NotImpl && !is_anydict(f->globals)) {
+                    Value m = type_special(f->globals, "__missing__");
+                    if (!m.is_nil()) {
+                        Value key = co->names[arg];
+                        if (!run_special(f, m, &key, 1, 0))
+                            goto oops;
+                        break;
+                    }
+                }
                 if (r == R::NotImpl)
                     r = dict_get(dict_at(f->builtins), co->names[arg], out);
                 if (r == R::Err)
@@ -2722,12 +2743,12 @@ void interpret()
                 break;
             }
             case Bc::StoreGlobal:
-                if (dict_set(dict_at(f->globals), co->names[arg], st[f->sp - 1]) != R::Ok)
+                if (dict_set(globals_at(f->globals), co->names[arg], st[f->sp - 1]) != R::Ok)
                     goto oops;
                 f->sp--;
                 break;
             case Bc::DeleteGlobal: {
-                R r = dict_del(dict_at(f->globals), co->names[arg]);
+                R r = dict_del(globals_at(f->globals), co->names[arg]);
                 if (r == R::Err)
                     goto oops;
                 if (r == R::NotImpl) {
@@ -3610,6 +3631,8 @@ void interpret()
                     goto oops;
                 FuncObj *fo = func_of(fv);
                 u32 at      = f->sp - 1;
+                if (arg & MF_ANNOTATE)
+                    fo->annotate = st[--at];
                 if (arg & MF_CLOSURE)
                     fo->closure = st[--at];
                 if (arg & MF_KWDEFAULTS)
@@ -4085,7 +4108,7 @@ void interpret()
                 u32 n = intrinsic_arity(arg);
                 Value module;
                 StrObj *mk = str_intern("__name__");
-                if (!mk || dict_get(dict_at(f->globals), obj_value(mk), module) != R::Ok)
+                if (!mk || dict_get(globals_at(f->globals), obj_value(mk), module) != R::Ok)
                     module = value_none();
                 err_clear();
                 Value out;
@@ -4118,7 +4141,7 @@ void interpret()
                 if (r == R::Err)
                     goto oops;
                 if (r == R::NotImpl && in.op == Bc::LoadFromDictOrGlobals) {
-                    r = dict_get(dict_at(f->globals), obj_value(n), out);
+                    r = dict_get(globals_at(f->globals), obj_value(n), out);
                     if (r == R::NotImpl)
                         r = dict_get(dict_at(f->builtins), obj_value(n), out);
                     if (r == R::Err)

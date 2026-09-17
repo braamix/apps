@@ -25,6 +25,8 @@ struct FuncObj : Obj {
     Value qualname;   // StrObj
     Value doc;        // the body's first string, or Nil
     Value dict;       // __dict__, made when something is stored in it
+    Value annotate;   // PEP 649's __annotate__, or Nil
+    Value annotations; // what it last answered, or Nil
 };
 
 extern const Type func_type;

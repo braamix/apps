@@ -7,6 +7,7 @@
 // what came back.
 #include "typevar.h"
 
+#include "annot.h"
 #include "call.h"
 #include "frame.h"
 #include "func.h"
@@ -213,7 +214,7 @@ R tv_getattr(Value v, StrObj *name, Value &out)
 R eval_step(ContObj *k, Value in)
 {
     if (k->i++ == 0)
-        return cont_call(k, k->s[1], Value(), 0);
+        return cont_call(k, k->s[1], Value::of_int(ANN_VALUE));
     if (k->j != EV_VALUE) {
         TvarObj *t = tv_of(k->s[0]);
         (k->j == EV_BOUND ? t->bound : k->j == EV_CONSTRAINTS ? t->constraints : t->dflt) = in;
@@ -853,9 +854,18 @@ R g_init_subclass(const CallArgs &a, Value &out)
     Root generic{ generic_class() };
     if (generic.v.is_nil())
         return R::Err;
+    // Plain `Generic` is not a base, with the two exceptions typing.py's own
+    // version makes for the classes that have to be written that way.
     Value orig  = type_obj(cls.v)->origbases;
     Value bases = orig.is_nil() ? type_obj(cls.v)->bases : orig;
-    for (usize i = 0; i < tuple_len(bases); i++)
+    bool named  = is_str(type_obj(cls.v)->name) && str_of(type_obj(cls.v)->name)->str() ==
+                                                      Str("Protocol");
+    Root meta{ type_of_value(cls.v) };
+    bool typed = !meta.v.is_nil() && is_str(type_obj(meta.v)->name) &&
+                 str_of(type_obj(meta.v)->name)->str() == Str("_TypedDictMeta");
+    if (orig.is_nil() && (named || typed))
+        bases = Value();
+    for (usize i = 0; !bases.is_nil() && i < tuple_len(bases); i++)
         if (tuple_at(bases, i) == generic.v)
             return err_set("TypeError", "Cannot inherit from plain Generic");
     Vec<Value> tvars;

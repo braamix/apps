@@ -204,10 +204,16 @@ struct Node {
 // The parser bounds its own recursion: it runs on the 128 KiB native stack.
 constexpr u32 MAX_NEST = 100;
 
+// The first and last token a node was written as; see astpos.h.
+struct NodeSpan {
+    u32 first = 0, last = 0;
+};
+
 struct Ast {
     Lexer lex;
     Vec<Node> nodes;
     Vec<u32> kids;
+    Vec<NodeSpan> spans; // filled by ast_spans, empty until something asks
     u32 root = 0;
 
     // False leaves a SyntaxError pending, with the line and column.

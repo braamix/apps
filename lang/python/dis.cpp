@@ -166,6 +166,11 @@ void Lister::hint(const CodeObj *c, const Instr &in)
             if (in.arg & MF_CLOSURE) {
                 put(first ? "" : " ");
                 put("closure");
+                first = false;
+            }
+            if (in.arg & MF_ANNOTATE) {
+                put(first ? "" : " ");
+                put("annotate");
             }
             put(')');
         } else if (in.op == Bc::FormatValue || in.op == Bc::BuildInterpolation) {

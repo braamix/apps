@@ -1,222 +1,222 @@
 Module
   body:
-    Match
+    Match @1:0-25:12
       subject:
-        Name x
+        Name x @1:6-1:7
       cases:
         MatchCase
           pattern:
-            MatchAs y
+            MatchAs y @2:9-2:19
               pattern:
-                MatchOr
+                MatchOr @2:9-2:14
                   patterns:
-                    MatchValue
+                    MatchValue @2:9-2:10
                       value:
-                        Constant 1
-                    MatchValue
+                        Constant 1 @2:9-2:10
+                    MatchValue @2:13-2:14
                       value:
-                        Constant 2
+                        Constant 2 @2:13-2:14
           guard:
-            Name y
+            Name y @2:23-2:24
           body:
-            Pass
+            Pass @3:8-3:12
         MatchCase
           pattern:
-            MatchSequence
+            MatchSequence @4:9-4:19
               patterns:
-                MatchAs a
+                MatchAs a @4:10-4:11
                   pattern: -
-                MatchStar rest
+                MatchStar rest @4:13-4:18
           guard: -
           body:
-            Pass
+            Pass @5:8-5:12
         MatchCase
           pattern:
-            MatchMapping **kw
+            MatchMapping **kw @6:9-6:23
               keys:
-                Constant 'k'
+                Constant 'k' @6:10-6:13
               patterns:
-                MatchAs v
+                MatchAs v @6:15-6:16
                   pattern: -
           guard: -
           body:
-            Pass
+            Pass @7:8-7:12
         MatchCase
           pattern:
-            MatchClass
+            MatchClass @8:9-8:22
               cls:
-                Name Point
+                Name Point @8:9-8:14
               patterns:
-                MatchValue
+                MatchValue @8:15-8:16
                   value:
-                    Constant 1
+                    Constant 1 @8:15-8:16
               keywords:
                 Keyword y
                   value:
-                    MatchValue
+                    MatchValue @8:20-8:21
                       value:
-                        Constant 2
+                        Constant 2 @8:20-8:21
           guard: -
           body:
-            Pass
+            Pass @9:8-9:12
         MatchCase
           pattern:
-            MatchSingleton None
+            MatchSingleton None @10:9-10:13
           guard: -
           body:
-            Pass
+            Pass @11:8-11:12
         MatchCase
           pattern:
-            MatchValue
+            MatchValue @12:9-12:16
               value:
-                BinOp +
+                BinOp + @12:9-12:16
                   left:
-                    UnaryOp -
+                    UnaryOp - @12:9-12:11
                       operand:
-                        Constant 1
+                        Constant 1 @12:10-12:11
                   right:
-                    Constant 2j
+                    Constant 2j @12:14-12:16
           guard: -
           body:
-            Pass
+            Pass @13:8-13:12
         MatchCase
           pattern:
-            MatchValue
+            MatchValue @14:9-14:12
               value:
-                Attribute b
+                Attribute b @14:9-14:12
                   value:
-                    Name a
+                    Name a @14:9-14:10
           guard: -
           body:
-            Pass
+            Pass @15:8-15:12
         MatchCase
           pattern:
-            MatchOr
+            MatchOr @16:9-16:20
               patterns:
-                MatchSequence
+                MatchSequence @16:9-16:15
                   patterns:
-                    MatchValue
+                    MatchValue @16:10-16:11
                       value:
-                        Constant 1
-                    MatchValue
+                        Constant 1 @16:10-16:11
+                    MatchValue @16:13-16:14
                       value:
-                        Constant 2
-                MatchSequence
+                        Constant 2 @16:13-16:14
+                MatchSequence @16:18-16:20
                   patterns: []
           guard: -
           body:
-            Pass
+            Pass @17:8-17:12
         MatchCase
           pattern:
-            MatchValue
+            MatchValue @18:9-18:18
               value:
-                Constant b'xy'
+                Constant b'xy' @18:9-18:18
           guard: -
           body:
-            Pass
+            Pass @19:8-19:12
         MatchCase
           pattern:
-            MatchMapping
+            MatchMapping @20:9-20:35
               keys:
-                Constant 1
-                UnaryOp -
+                Constant 1 @20:10-20:11
+                UnaryOp - @20:16-20:18
                   operand:
-                    Constant 2
-                Attribute b
+                    Constant 2 @20:17-20:18
+                Attribute b @20:26-20:29
                   value:
-                    Name a
+                    Name a @20:26-20:27
               patterns:
-                MatchAs
+                MatchAs @20:13-20:14
                   pattern: -
-                MatchSequence
+                MatchSequence @20:20-20:24
                   patterns:
-                    MatchStar
-                MatchAs c
+                    MatchStar @20:21-20:23
+                MatchAs c @20:32-20:33
                   pattern: -
           guard: -
           body:
-            Pass
+            Pass @21:8-21:12
         MatchCase
           pattern:
-            MatchSequence
+            MatchSequence @22:9-22:17
               patterns:
-                MatchAs x
+                MatchAs x @22:9-22:10
                   pattern: -
-                MatchStar y
-                MatchAs z
+                MatchStar y @22:12-22:14
+                MatchAs z @22:16-22:17
                   pattern: -
           guard: -
           body:
-            Pass
+            Pass @23:8-23:12
         MatchCase
           pattern:
-            MatchAs
+            MatchAs @24:9-24:10
               pattern: -
           guard: -
           body:
-            Pass
-    Match
+            Pass @25:8-25:12
+    Match @26:0-28:12
       subject:
-        Tuple
+        Tuple @26:6-26:12
           elts:
-            Name a
-            Name b
+            Name a @26:7-26:8
+            Name b @26:10-26:11
       cases:
         MatchCase
           pattern:
-            MatchAs q
+            MatchAs q @27:9-27:10
               pattern: -
           guard: -
           body:
-            Pass
-    Match
+            Pass @28:8-28:12
+    Match @29:0-31:12
       subject:
-        Tuple
+        Tuple @29:6-29:11
           elts:
-            Name a
-            Starred
+            Name a @29:6-29:7
+            Starred @29:9-29:11
               value:
-                Name b
+                Name b @29:10-29:11
       cases:
         MatchCase
           pattern:
-            MatchAs q
+            MatchAs q @30:9-30:10
               pattern: -
           guard:
-            Name q
+            Name q @30:14-30:15
           body:
-            Pass
-    Assign
+            Pass @31:8-31:12
+    Assign @32:0-32:9
       targets:
-        Name match
+        Name match @32:0-32:5
       value:
-        Constant 1
-    AnnAssign
+        Constant 1 @32:8-32:9
+    AnnAssign @33:0-33:17
       target:
-        Subscript
+        Subscript @33:0-33:8
           value:
-            Name match
+            Name match @33:0-33:5
           slice:
-            Name x
+            Name x @33:6-33:7
       annotation:
-        Name int
+        Name int @33:10-33:13
       value:
-        Constant 2
-    Expr
+        Constant 2 @33:16-33:17
+    Expr @34:0-34:10
       value:
-        Attribute y
+        Attribute y @34:0-34:10
           value:
-            Call
+            Call @34:0-34:8
               func:
-                Name match
+                Name match @34:0-34:5
               args:
-                Name x
+                Name x @34:6-34:7
               keywords: []
-    Assign
+    Assign @35:0-35:20
       targets:
-        Name case
+        Name case @35:0-35:4
       value:
-        List
+        List @35:7-35:20
           elts:
-            Name match
-            Name case
+            Name match @35:8-35:13
+            Name case @35:15-35:19

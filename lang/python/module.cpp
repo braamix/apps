@@ -97,6 +97,8 @@ constexpr Native NATIVES[] = {
     { "gc", gcmod_install },
     { "_types", types_install },
     { "_typing", typing_install },
+    { "_ast", ast_install },
+    { "dis", dismod_install },
     { "_thread", thread_install },
     { "_contextvars", contextvars_install },
     { "_string", string_install },

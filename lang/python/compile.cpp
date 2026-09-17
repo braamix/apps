@@ -7,9 +7,11 @@
 // alone.
 #include "compile.h"
 
+#include "annot.h"
 #include "bigint.h"
 #include "complex.h"
 #include "err.h"
+#include "exc.h"
 #include "gc.h"
 #include "intern.h"
 #include "kernel/fmt.h"
@@ -401,6 +403,13 @@ struct Compiler {
     bool emit_type_params(u32 n, u32 from, u32 count);
     bool anno_function(u32 node, u8 role, StrObj *name);
     bool anno_body(u32 node, u8 role);
+    bool annotate_of(u32 node, u32 &flags);
+    bool annotate_prologue(u32 node);
+    bool annotate_deferred(u32 node);
+    bool annotate_args(u32 node);
+    bool annotate_one(u32 arg, u32 &count);
+    bool store_annotate(u32 node);
+    bool conditional_set(u32 node);
     bool generic_function(u32 i, u32 flags);
     bool generic_class(u32 i);
     bool type_alias(u32 i);
@@ -815,7 +824,7 @@ bool Compiler::function(u32 i, bool as_statement)
         if (!generic_function(i, flags))
             return false;
     } else {
-        if (!closure_of(i, flags))
+        if (!closure_of(i, flags) || (!lambda && !annotate_of(i, flags)))
             return false;
         u32 k = nested(i);
         if (failed)
@@ -1393,6 +1402,8 @@ bool Compiler::anno_function(u32 node, u8 role, StrObj *name)
 bool Compiler::anno_body(u32 node, u8 role)
 {
     const Node &n = ast->at(node);
+    if (role != AN_PARAMS && !annotate_prologue(node))
+        return false;
     switch (role) {
     case AN_BOUND:
         return expr(n.a) && emit(Bc::Return, node);
@@ -1403,6 +1414,10 @@ bool Compiler::anno_body(u32 node, u8 role)
         return expr(n.b) && emit(Bc::Return, node);
     case AN_VALUE:
         return expr(n.b) && emit(Bc::Return, node);
+    case AN_ANNOTATE:
+        if (n.kind == Nd::Module || n.kind == Nd::ClassDef)
+            return annotate_deferred(node);
+        return annotate_args(node);
     default:
         break;
     }
@@ -1426,7 +1441,7 @@ bool Compiler::anno_body(u32 node, u8 role)
         (void)kwarg;
         flags |= a.d ? MF_DEFAULTS : 0;
         flags |= kwdef ? MF_KWDEFAULTS : 0;
-        if (!closure_of(node, flags))
+        if (!closure_of(node, flags) || !annotate_of(node, flags))
             return false;
         u32 k = nested(node);
         if (failed)
@@ -1463,6 +1478,168 @@ bool Compiler::anno_body(u32 node, u8 role)
     return emit(Bc::LoadConst, add_const(obj_value(nm)), node) && emit_type_params(node, 0, n.c) &&
            anno_function(node, AN_VALUE, nm) && emit(Bc::BuildTuple, 3, node) &&
            emit(Bc::Intrinsic, TI_TYPEALIAS, node) && emit(Bc::Return, node);
+}
+
+// ---------------------------------------------------------------- PEP 649
+//
+// An annotation is not evaluated where it is written. The compiler collects
+// the annotations of a def, a class body or a module into a function of one
+// argument, __annotate__, and __annotations__ is what calling it answers.
+
+// The __annotate__ of `node`, left on the stack under the code object it goes
+// with. Nothing is emitted, and no flag set, where there are no annotations.
+bool Compiler::annotate_of(u32 node, u32 &flags)
+{
+    u32 scope = st.anno(node, AN_ANNOTATE);
+    if (!scope)
+        return true;
+    StrObj *name = str_intern("__annotate__");
+    if (!name)
+        return oom();
+    u32 sub = 0;
+    if (!closure_of_scope(scope, node, sub))
+        return false;
+    u32 k = nested_scope(scope, node, name, AN_ANNOTATE);
+    if (failed)
+        return false;
+    if (!emit(Bc::LoadConst, k, node) || !emit(Bc::MakeFunction, sub, node))
+        return false;
+    flags |= MF_ANNOTATE;
+    return true;
+}
+
+// `if .format > VALUE_WITH_FAKE_GLOBALS: raise NotImplementedError`. This is
+// the whole of what a compiled __annotate__ says about the formats it cannot
+// answer, and annotationlib reads it as the signal to do the work itself.
+bool Compiler::annotate_prologue(u32 node)
+{
+    const ExcType *nie = exc_find("NotImplementedError");
+    Value cls          = nie ? exc_type_value(nie) : Value();
+    if (cls.is_nil())
+        return oom();
+    if (!emit(Bc::LoadFast, 0, node) ||
+        !emit(Bc::LoadConst, add_const(Value::of_int(ANN_FAKEGLOBAL)), node) ||
+        !emit(Bc::CompareOp, u32(Cmp::Gt), node))
+        return false;
+    u32 skip = emit_jump(Bc::PopJumpIfFalse, node);
+    if (!emit(Bc::LoadConst, add_const(cls), node) || !emit(Bc::Raise, 1, node))
+        return false;
+    patch(skip);
+    return true;
+}
+
+// The dict a class's or a module's __annotate__ answers: one entry for each
+// `x: T` the body deferred, less those whose statement did not run.
+bool Compiler::annotate_deferred(u32 node)
+{
+    u32 owner     = st.at_node[node];
+    StrObj *conds = str_intern("__conditional_annotations__");
+    if (!conds)
+        return oom();
+    if (!emit(Bc::BuildMap, 0, node))
+        return false;
+    for (usize k = 0; k < st.scopes[owner].deferred.size(); k++) {
+        u32 a    = st.scopes[owner].deferred[k];
+        i32 idx  = st.scopes[owner].cond[k];
+        u32 skip = 0;
+        if (idx >= 0) {
+            if (!emit(Bc::LoadConst, add_const(Value::of_int(idx)), a) || !load_name(conds, a) ||
+                !emit(Bc::CompareOp, u32(Cmp::In), a))
+                return false;
+            skip = emit_jump(Bc::PopJumpIfFalse, a);
+        }
+        StrObj *nm = ident(ast->at(a).a);
+        if (!nm)
+            return oom();
+        if (!expr(ast->at(a).b) || !emit(Bc::Copy, 2, a) ||
+            !emit(Bc::LoadConst, add_const(obj_value(nm)), a) || !emit(Bc::StoreSubscr, a))
+            return false;
+        if (idx >= 0)
+            patch(skip);
+    }
+    return emit(Bc::Return, node);
+}
+
+// One parameter's name and annotation, as a pair for the dict below.
+bool Compiler::annotate_one(u32 arg, u32 &count)
+{
+    if (!arg || !ast->at(arg).a)
+        return true;
+    u32 ann    = ast->at(arg).a;
+    StrObj *nm = ident(arg);
+    if (!nm)
+        return oom();
+    if (!emit(Bc::LoadConst, add_const(obj_value(nm)), arg))
+        return false;
+    count++;
+    // `*args: *Ts`, whose annotation is the unpacking rather than the tuple.
+    if (ast->at(ann).kind == Nd::Starred)
+        return expr(ast->at(ann).a) && emit(Bc::UnpackSequence, 1, ann);
+    return expr(ann);
+}
+
+// The dict a def's __annotate__ answers: the parameters in the order they are
+// written, then the return.
+bool Compiler::annotate_args(u32 node)
+{
+    const Node &n = ast->at(node);
+    u32 count     = 0;
+    if (n.a) {
+        const Node &a = ast->at(n.a);
+        u32 vararg    = (a.flags & ARG_VARARG) ? 1 : 0;
+        u32 kwarg     = (a.flags & ARG_KWARG) ? 1 : 0;
+        u32 at_kwdef  = a.a + a.b + vararg + a.c;
+        for (u32 k = 0; k < at_kwdef; k++)
+            if (!annotate_one(kid(n.a, k), count))
+                return false;
+        for (u32 k = 0; k < kwarg; k++)
+            if (!annotate_one(kid(n.a, at_kwdef + a.c + k), count))
+                return false;
+    }
+    if (n.d) {
+        StrObj *ret = str_intern("return");
+        if (!ret)
+            return oom();
+        if (!emit(Bc::LoadConst, add_const(obj_value(ret)), n.d) || !expr(n.d))
+            return false;
+        count++;
+    }
+    return emit(Bc::BuildMap, count, node) && emit(Bc::Return, node);
+}
+
+// A class body or a module keeps its __annotate__ in its namespace, under the
+// name the runtime looks for; only a def carries it on the object.
+bool Compiler::store_annotate(u32 node)
+{
+    u32 flags = 0;
+    if (!annotate_of(node, flags))
+        return false;
+    if (!flags)
+        return true;
+    StrObj *key = str_intern(ast->at(node).kind == Nd::Module ? "__annotate__" : "__annotate_func__");
+    if (!key)
+        return oom();
+    return emit(Bc::StoreName, name_index(key), 0);
+}
+
+// The set a conditional annotation reports itself to, made before the body
+// runs. A class keeps it in a cell, so that its __annotate__ sees it.
+bool Compiler::conditional_set(u32 node)
+{
+    if (!st.scopes[u->scope].nconds)
+        return true;
+    StrObj *conds = str_intern("__conditional_annotations__");
+    if (!conds)
+        return oom();
+    if (!emit(Bc::BuildSet, 0, node))
+        return false;
+    if (scope().condcell) {
+        const Sym *y = st.find(u->scope, conds);
+        if (!y)
+            return fail("the conditional annotation cell is missing", node);
+        return emit(Bc::StoreDeref, y->slot, 0);
+    }
+    return emit(Bc::StoreName, name_index(conds), 0);
 }
 
 // A call to the scope of `i`'s type parameters, with `flags`' defaults on the
@@ -2356,9 +2533,29 @@ bool Compiler::stmt(u32 i)
         }
     }
 
-    // An annotation is neither evaluated nor recorded; only the value is.
-    case Nd::AnnAssign:
-        return n.c ? expr(n.c) && store(n.a) : true;
+    // The annotation is the __annotate__ function's; all that happens here is
+    // the assignment, and a note that a conditional annotation was reached.
+    case Nd::AnnAssign: {
+        if (n.c && !(expr(n.c) && store(n.a)))
+            return false;
+        if (!(n.flags & 1) || !scope().nconds)
+            return true;
+        u32 owner = u->scope;
+        for (usize k = 0; k < st.scopes[owner].deferred.size(); k++) {
+            if (st.scopes[owner].deferred[k] != i || st.scopes[owner].cond[k] < 0)
+                continue;
+            StrObj *conds = str_intern("__conditional_annotations__");
+            if (!conds)
+                return oom();
+            i32 idx = st.scopes[owner].cond[k];
+            if (!load_name(conds, i) ||
+                !emit(Bc::LoadConst, add_const(Value::of_int(idx)), i) ||
+                !emit(Bc::SetAdd, 1, i) || !emit(Bc::PopTop, i))
+                return false;
+            break;
+        }
+        return true;
+    }
 
     case Nd::Delete:
         for (u32 k = 0; k < n.nkid; k++)
@@ -2529,7 +2726,8 @@ bool Compiler::body_of(u32 node)
         return expr(n.b) && emit(Bc::Return, node);
 
     case Nd::ClassDef:
-        if (!class_preamble(node) || !stmts(node, n.a + n.b, n.c) || !store_statics())
+        if (!class_preamble(node) || !stmts(node, n.a + n.b, n.c) || !store_annotate(node) ||
+            !store_statics())
             return false;
         // The body answers the __class__ cell, and leaves it where
         // type.__new__ looks; __build_class__ checks it was filled.
@@ -2907,6 +3105,8 @@ bool Compiler::class_preamble(u32 node)
         if (!y || !emit(Bc::LoadLocals, 0) || !emit(Bc::StoreDeref, y->slot, 0))
             return y ? false : fail("the class namespace cell is missing", node);
     }
+    if (!conditional_set(node))
+        return false;
     if (d.v.is_nil())
         return true;
     return emit(Bc::LoadConst, add_const(d.v), 0) && emit(Bc::StoreName, name_index(doc), 0);
@@ -3060,7 +3260,10 @@ Value py_compile(const Ast &ast, Str filename, CompileMode mode)
 
     const Node &root        = ast.at(ast.root);
     code_of(mu.code.v)->doc = c.docstring(ast.root);
-    if (!c.store_doc() || !c.stmts(ast.root, 0, root.nkid))
+    // A module's __annotate__ goes in before the body, not after it, so that
+    // the body itself can read the annotations of the lines above it.
+    if (!c.store_annotate(ast.root) || !c.conditional_set(ast.root) || !c.store_doc() ||
+        !c.stmts(ast.root, 0, root.nkid))
         return Value();
     if (!c.emit(Bc::LoadConst, c.const_none(), 0) || !c.emit(Bc::Return, 0))
         return Value();

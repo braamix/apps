@@ -33,6 +33,9 @@ UNARY = {ast.Invert: "~", ast.Not: "not", ast.UAdd: "+", ast.USub: "-"}
 class Out:
     def __init__(self):
         self.lines = []
+        # The pieces of an f-string: the port re-scans them out of the
+        # literal rather than in place, so their positions are its own.
+        self.quiet = False
 
     def line(self, depth, text):
         self.lines.append("  " * depth + text)
@@ -57,7 +60,12 @@ class Out:
 
     def node(self, d, n):
         k = type(n).__name__
+        at = len(self.lines)
         getattr(self, "n_" + k, self.unknown)(d, n, k)
+        # The nodes CPython gives a position to carry it on their header.
+        if hasattr(n, "lineno") and not self.quiet:
+            self.lines[at] += " @%d:%d-%d:%d" % (
+                n.lineno, n.col_offset, n.end_lineno, n.end_col_offset)
 
     def unknown(self, d, n, k):
         raise SystemExit(f"mkast: {k} is not handled")
@@ -399,9 +407,14 @@ class Out:
         self.field(d + 1, "upper", n.upper)
         self.field(d + 1, "step", n.step)
 
+    def quiet_listing(self, d, name, items):
+        was, self.quiet = self.quiet, True
+        self.listing(d, name, items)
+        self.quiet = was
+
     def n_JoinedStr(self, d, n, _k):
         self.line(d, "JoinedStr")
-        self.listing(d + 1, "values", n.values)
+        self.quiet_listing(d + 1, "values", n.values)
 
     def n_FormattedValue(self, d, n, _k):
         # -1 is "no conversion"; otherwise it is the character itself.
@@ -412,7 +425,7 @@ class Out:
 
     def n_TemplateStr(self, d, n, _k):
         self.line(d, "TemplateStr")
-        self.listing(d + 1, "values", n.values)
+        self.quiet_listing(d + 1, "values", n.values)
 
     def n_Interpolation(self, d, n, _k):
         conv = chr(n.conversion) if n.conversion and n.conversion > 0 else "-"

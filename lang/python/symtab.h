@@ -20,11 +20,12 @@ enum class Bind : u8 {
 
 // An annotation scope is PEP 695's: a function-like scope for type
 // parameters, their bounds and defaults, and an alias's value, which may see
-// the namespace of a class it is written in.
+// the namespace of a class it is written in. PEP 649's __annotate__ body is
+// one too, and for the same reason.
 enum class ScopeKind : u8 { Module, Function, Lambda, Class, Comprehension, Annotation };
 
 // What an annotation scope is for; with the node, it names the scope.
-enum : u8 { AN_PARAMS, AN_BOUND, AN_DEFAULT, AN_VALUE };
+enum : u8 { AN_PARAMS, AN_BOUND, AN_DEFAULT, AN_VALUE, AN_ANNOTATE };
 
 enum : u8 {
     SF_PARAM    = 1 << 0,
@@ -34,6 +35,7 @@ enum : u8 {
     SF_NONLOCAL = 1 << 4, // declared `nonlocal`
     SF_ITER     = 1 << 5, // a comprehension's iteration variable
     SF_TPARAM   = 1 << 6, // a type parameter
+    SF_ANNOT    = 1 << 7, // annotated by a bare `x: int`, which binds nothing
 };
 
 struct Sym {
@@ -67,7 +69,16 @@ struct Scope {
     bool sees_class = false;   // an annotation scope that looks in a class first
     bool classdict  = false;   // a class whose namespace such a scope looks in
     bool classcell  = false;   // a class whose methods use __class__ or super()
+    bool condcell   = false;   // a class that keeps __conditional_annotations__
     Str info;                  // an annotation scope, as a complaint names it
+
+    // PEP 649, on a module or a class: the `x: int` statements whose
+    // annotations its __annotate__ evaluates, in source order, and for each
+    // the index it reports in __conditional_annotations__, or -1 when it
+    // cannot be skipped.
+    Vec<u32> deferred;
+    Vec<i32> cond;
+    u32 nconds = 0;
 };
 
 struct Anno {

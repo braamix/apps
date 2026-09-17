@@ -19,9 +19,9 @@ math(EXPR BRAAM_BIN_INITIAL_BYTES "${BRAAM_BIN_INITIAL_PAGES} * 65536")
 
 # Sources arrive a phase at a time; TODO.md names them.
 braam_add_program(NAME python
-                  SOURCES abc.cpp arraymod.cpp astdump.cpp atexitmod.cpp attr.cpp bigint.cpp binasciimod.cpp binfmt.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp codec.cpp codecsmod.cpp
+                  SOURCES abc.cpp annot.cpp arraymod.cpp astdump.cpp astmod.cpp astpos.cpp atexitmod.cpp attr.cpp bigint.cpp binasciimod.cpp binfmt.cpp braam.cpp builtin.cpp bytemeth.cpp bytes.cpp call.cpp codec.cpp codecsmod.cpp
                           code.cpp collmod.cpp compare.cpp compile.cpp csvmod.cpp ctxvars.cpp complex.cpp
-                          dis.cpp egroup.cpp err.cpp exc.cpp float.cpp flocals.cpp format.cpp formatgr.cpp frame.cpp func.cpp functoolsmod.cpp gc.cpp
+                          dis.cpp dismod.cpp egroup.cpp err.cpp exc.cpp float.cpp flocals.cpp format.cpp formatgr.cpp frame.cpp func.cpp functoolsmod.cpp gc.cpp
                           gen.cpp genalias.cpp hashmod.cpp import.cpp info.cpp int.cpp iobase.cpp iobuf.cpp iofile.cpp iomem.cpp iotext.cpp
                           intern.cpp iter.cpp itermod.cpp lazy.cpp lex.cpp marshalmod.cpp impmod.cpp colorizemod.cpp list.cpp mapmeth.cpp method.cpp nummeth.cpp
                           mathmod.cpp miscmod.cpp module.cpp posixmod.cpp obj.cpp objmeth.cpp opmod.cpp ops.cpp parse.cpp patma.cpp

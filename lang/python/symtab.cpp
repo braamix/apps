@@ -1,7 +1,8 @@
 // The scope pass. Two walks: collect, then resolve.
 //
-// Annotations are not visited, because they are not compiled either; the
-// README records that as a difference from CPython.
+// An annotation is visited in an annotation scope of its own, never in the
+// scope it is written in: PEP 649 evaluates it when something asks, out of a
+// function the compiler makes, so its names are that function's.
 #include "symtab.h"
 
 #include "err.h"
@@ -104,6 +105,15 @@ struct Builder {
         if (!st->annos.push(Anno{ node, role, made }))
             return oom(), 0;
         cur = made;
+        // Every scope but the type parameters' is an evaluator, and an
+        // evaluator takes the format annotationlib asks it for. The parameter
+        // is spelled `.format` so that an annotation may still name `format`.
+        if (role != AN_PARAMS) {
+            if (!param(str_intern(".format")))
+                return 0;
+            scope().argcount = 1;
+            scope().posonly  = 1;
+        }
         if (sees && !note(str_intern("__classdict__"), SF_USE, node))
             return 0;
         return made;
@@ -129,6 +139,7 @@ struct Builder {
 
     u32 in_iter = 0; // inside a comprehension's iterable
     u32 in_try  = 0; // inside a try statement
+    u32 in_cond = 0; // inside a statement whose body may not run
 
     void stmt(u32 i);
     void expr(u32 i);
@@ -142,9 +153,36 @@ struct Builder {
     void comprehension(u32 i);
     void args_outer(u32 i);
     void args_inner(u32 i);
+    void arg_annotations(u32 args, u32 returns);
+    bool annotate_scope(u32 node, bool sees);
+    void deferred_annotations(u32 node);
     void function(u32 i);
     void classdef(u32 i);
     bool in_async();
+};
+
+// A statement whose body may not run at all, so an annotation inside it is
+// recorded only where it did.
+bool conditional_kind(Nd k)
+{
+    return k == Nd::If || k == Nd::While || k == Nd::For || k == Nd::AsyncFor || k == Nd::Try ||
+           k == Nd::TryStar || k == Nd::With || k == Nd::AsyncWith || k == Nd::Match;
+}
+
+// Counts the statement in while its body is walked.
+struct CondBlock {
+    u32 *at;
+    CondBlock(u32 *p, bool on) : at(on ? p : nullptr)
+    {
+        if (at)
+            (*at)++;
+    }
+    ~CondBlock()
+    {
+        if (at)
+            (*at)--;
+    }
+    CondBlock(const CondBlock &) = delete;
 };
 
 // The seven runs of an Arguments node, by the counts it carries.
@@ -181,6 +219,73 @@ void Builder::args_outer(u32 i)
     ArgSpan s = arg_span(ast->at(i));
     kids(i, s.at_defaults, s.defaults, &Builder::expr);
     kids(i, s.at_kwdefaults, s.kwdefaults, &Builder::expr);
+}
+
+// The Arg nodes of an Arguments run, in two pieces: everything up to the
+// keyword-only defaults, and the **kwargs behind them.
+bool any_arg_annotation(const Ast *ast, u32 args, u32 returns)
+{
+    if (returns)
+        return true;
+    if (!args)
+        return false;
+    const Node &a = ast->at(args);
+    ArgSpan s     = arg_span(a);
+    for (u32 k = 0; k < s.at_kwdefaults; k++) {
+        u32 g = ast->kids[a.kid0 + k];
+        if (g && ast->at(g).a)
+            return true;
+    }
+    for (u32 k = 0; k < s.kwarg; k++) {
+        u32 g = ast->kids[a.kid0 + s.at_kwarg + k];
+        if (g && ast->at(g).a)
+            return true;
+    }
+    return false;
+}
+
+void Builder::arg_annotations(u32 args, u32 returns)
+{
+    if (args) {
+        const Node &a = ast->at(args);
+        ArgSpan s     = arg_span(a);
+        for (u32 k = 0; k < s.at_kwdefaults && !failed; k++) {
+            u32 g = ast->kids[a.kid0 + k];
+            if (g)
+                expr(ast->at(g).a);
+        }
+        for (u32 k = 0; k < s.kwarg && !failed; k++) {
+            u32 g = ast->kids[a.kid0 + s.at_kwarg + k];
+            if (g)
+                expr(ast->at(g).a);
+        }
+    }
+    expr(returns);
+}
+
+bool Builder::annotate_scope(u32 node, bool sees)
+{
+    return open_anno(node, AN_ANNOTATE, sees, "an annotation") != 0;
+}
+
+// The annotations a class or module body deferred, walked in its __annotate__.
+void Builder::deferred_annotations(u32 node)
+{
+    u32 owner = cur;
+    if (!st->scopes[owner].deferred.size())
+        return;
+    bool sees = st->scopes[owner].kind == ScopeKind::Class;
+    if (st->scopes[owner].nconds &&
+        !note(str_intern("__conditional_annotations__"), SF_ASSIGN | SF_USE, node))
+        return;
+    if (!annotate_scope(node, sees))
+        return;
+    if (st->scopes[owner].nconds &&
+        !note(str_intern("__conditional_annotations__"), SF_USE, node))
+        return;
+    for (usize k = 0; k < st->scopes[owner].deferred.size() && !failed; k++)
+        expr(ast->at(st->scopes[owner].deferred[k]).b);
+    cur = owner;
 }
 
 void Builder::args_inner(u32 i)
@@ -238,6 +343,17 @@ void Builder::function(u32 i)
         if (failed)
             return;
     }
+    // The annotations are the __annotate__ function's, not this scope's, and
+    // a generic's see its type parameters, so this sits inside that scope.
+    if (n.kind != Nd::Lambda && any_arg_annotation(ast, n.a, n.d)) {
+        u32 outer = cur;
+        if (!annotate_scope(i, st->scopes[outer].kind == ScopeKind::Class))
+            return;
+        arg_annotations(n.a, n.d);
+        cur = outer;
+        if (failed)
+            return;
+    }
     if (!open(n.kind == Nd::Lambda ? ScopeKind::Lambda : ScopeKind::Function, i))
         return;
     scope().coroutine = n.kind == Nd::AsyncFunctionDef;
@@ -286,6 +402,7 @@ void Builder::classdef(u32 i)
                   !note(str_intern(".type_params"), SF_USE, i)))
         return;
     kids(i, n.a + n.b, n.c, &Builder::stmt);
+    deferred_annotations(i);
     cur = saved;
 }
 
@@ -670,9 +787,11 @@ void Builder::stmt(u32 i)
     if (!i || failed)
         return;
     const Node &n = ast->at(i);
+    CondBlock cb{ &in_cond, conditional_kind(n.kind) };
     switch (n.kind) {
     case Nd::Module:
         kids(i, 0, n.nkid, &Builder::stmt);
+        deferred_annotations(i);
         return;
     case Nd::FunctionDef:
     case Nd::AsyncFunctionDef:
@@ -712,14 +831,34 @@ void Builder::stmt(u32 i)
         expr(n.a); // an augmented target is read as well as written
         target(n.a);
         return;
-    case Nd::AnnAssign:
+    case Nd::AnnAssign: {
+        bool simple  = (n.flags & 1) != 0;
+        ScopeKind sk = scope().kind;
+        if (simple && (sk == ScopeKind::Module || sk == ScopeKind::Class)) {
+            // The annotation is deferred; the name itself is only recorded,
+            // since `x: int` alone binds nothing here.
+            if (!note_at(n.a, SF_ANNOT))
+                return;
+            Scope &sc = scope();
+            i32 idx   = (sk == ScopeKind::Module || in_cond) ? i32(sc.nconds++) : -1;
+            if (!sc.deferred.push(i) || !sc.cond.push(idx)) {
+                oom();
+                return;
+            }
+        } else if (simple) {
+            // In a function the annotation is dropped, but it still makes the
+            // name a local of it.
+            if (!note_at(n.a, SF_ASSIGN))
+                return;
+        }
         if (n.c) {
             expr(n.c);
             target(n.a);
-        } else if (ast->at(n.a).kind != Nd::Name) {
+        } else if (!simple) {
             target(n.a);
         }
         return;
+    }
     case Nd::AsyncFor:
         if (!in_async()) {
             fail("'async for' outside async function", i);
@@ -874,12 +1013,16 @@ bool link_free(Symtab &st, u32 from, StrObj *name)
 {
     bool dict = name->str() == "__classdict__";
     bool cls  = name->str() == "__class__";
+    bool cond = name->str() == "__conditional_annotations__";
     for (u32 a = from;; a = st.scopes[a].parent) {
         Sym *y = find_mut(st.scopes[a], name);
         // A class keeps its namespace in a cell for the scopes that see it,
-        // and itself in another for its methods.
-        if ((dict || cls) && st.scopes[a].kind == ScopeKind::Class) {
-            (dict ? st.scopes[a].classdict : st.scopes[a].classcell) = true;
+        // itself in another for its methods, and the set of the annotations it
+        // reached in a third for its __annotate__.
+        if ((dict || cls || cond) && st.scopes[a].kind == ScopeKind::Class) {
+            (dict     ? st.scopes[a].classdict
+             : cls    ? st.scopes[a].classcell
+                      : st.scopes[a].condcell) = true;
             if (y) {
                 y->bind = Bind::Cell;
                 return true;
@@ -933,7 +1076,8 @@ bool decide(Symtab &st, u32 si, const Names &bound)
             y.bind = block ? Bind::Name : Bind::Global;
         }
         // An annotation scope in a class looks in its namespace first.
-        if (s.sees_class && y.name->str() != "__classdict__") {
+        if (s.sees_class && y.name->str() != "__classdict__" &&
+            y.name->str() != "__conditional_annotations__") {
             if (y.bind == Bind::Global && !(y.flags & SF_GLOBAL))
                 y.bind = Bind::GlobalOrClass;
             else if (y.bind == Bind::Free)
@@ -980,7 +1124,8 @@ bool slots(Scope &s)
         if (s.syms[i].bind == Bind::Cell && !s.cellvars.push(u32(i)))
             return false;
     for (usize i = 0; i < s.syms.size(); i++)
-        if (s.syms[i].bind == Bind::Free && !s.freevars.push(u32(i)))
+        if ((s.syms[i].bind == Bind::Free || s.syms[i].bind == Bind::FreeOrClass) &&
+            !s.freevars.push(u32(i)))
             return false;
     sort_names(s, s.cellvars);
     sort_names(s, s.freevars);
@@ -1022,6 +1167,13 @@ bool analyze(Symtab &st, u32 si, const Names &bound)
             if (!cd || (!holds(next, cd) && !next.push(cd)) || !cc ||
                 (!holds(next, cc) && !next.push(cc)))
                 return err_set("MemoryError", "out of memory"), false;
+            // Its __annotate__ reads the set of the annotations the body
+            // reached, so that name is the third a class hands down.
+            if (st.scopes[si].nconds) {
+                StrObj *ca = str_intern("__conditional_annotations__");
+                if (!ca || (!holds(next, ca) && !next.push(ca)))
+                    return err_set("MemoryError", "out of memory"), false;
+            }
         } else
             for (usize i = 0; i < st.scopes[si].syms.size(); i++) {
                 Sym &y = st.scopes[si].syms[i];
@@ -1038,7 +1190,10 @@ bool analyze(Symtab &st, u32 si, const Names &bound)
 
         for (usize i = 0; i < st.scopes[c].syms.size(); i++) {
             Sym &y = st.scopes[c].syms[i];
-            if (y.bind == Bind::Free && !link_free(st, si, y.name))
+            // FreeOrClass is free as well: it looks in the class first, and
+            // in the closure when the class has not got it.
+            if ((y.bind == Bind::Free || y.bind == Bind::FreeOrClass) &&
+                !link_free(st, si, y.name))
                 return err_set("MemoryError", "out of memory"), false;
         }
     }

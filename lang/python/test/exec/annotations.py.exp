@@ -1,0 +1,21 @@
+{'a': <class 'int'>, 'b': 'str', 'rest': <class 'float'>, 'kw': <class 'bytes'>, 'more': <class 'complex'>, 'return': <class 'bool'>}
+True
+{'a': <class 'int'>, 'b': 'str', 'rest': <class 'float'>, 'kw': <class 'bytes'>, 'more': <class 'complex'>, 'return': <class 'bool'>}
+format 4 is not the compiler's
+{} None
+{'x': 1} None
+late was made
+late: name 'NoSuchNameAtAll' is not defined
+1
+False
+{'y': <class 'int'>, 'z': 'Plain'}
+True
+{}
+{'by': 'hand'}
+{'always': <class 'int'>, 'looped': <class 'int'>}
+{'a': <class 'float'>, 'return': <class 'float'>}
+({'a': <class 'memoryview'>, 'return': <class 'memoryview'>}, {'b': <class 'memoryview'>})
+{'x': T, 'args': typing.Unpack[Ts], 'return': T}
+<class 'int'>
+{'mod': <class 'float'>, 'here': <class 'str'>}
+['__annotate__', '__annotations__', '__conditional_annotations__']

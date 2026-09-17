@@ -1,11 +1,11 @@
 Module
   body:
-    FunctionDef f
+    FunctionDef f @1:0-1:17
       args:
         Arguments
           posonly: []
           args:
-            Arg x
+            Arg x @1:9-1:10
               annotation: -
           vararg: -
           kwonly: []
@@ -13,57 +13,57 @@ Module
           kwarg: -
           defaults: []
       body:
-        Pass
+        Pass @1:13-1:17
       decorators: []
       returns: -
       type_params:
-        TypeVar T
+        TypeVar T @1:6-1:7
           bound: -
           default: -
-    AsyncFunctionDef g
+    AsyncFunctionDef g @2:0-2:49
       args:
         Arguments
           posonly: []
           args: []
           vararg:
-            Arg a
+            Arg a @2:31-2:37
               annotation:
-                Starred
+                Starred @2:34-2:37
                   value:
-                    Name Ts
+                    Name Ts @2:35-2:37
           kwonly: []
           kw_defaults: []
           kwarg:
-            Arg k
+            Arg k @2:41-2:42
               annotation: -
           defaults: []
       body:
-        Pass
+        Pass @2:45-2:49
       decorators: []
       returns: -
       type_params:
-        TypeVar T
+        TypeVar T @2:12-2:18
           bound:
-            Name int
+            Name int @2:15-2:18
           default: -
-        TypeVarTuple Ts
+        TypeVarTuple Ts @2:20-2:23
           default: -
-        ParamSpec P
+        ParamSpec P @2:25-2:28
           default: -
-    ClassDef C
+    ClassDef C @3:0-4:36
       bases:
-        Name Base
+        Name Base @3:54-3:58
       keywords:
-        Keyword metaclass
+        Keyword metaclass @3:60-3:71
           value:
-            Name M
+            Name M @3:70-3:71
       body:
-        FunctionDef m
+        FunctionDef m @4:4-4:36
           args:
             Arguments
               posonly: []
               args:
-                Arg self
+                Arg self @4:25-4:29
                   annotation: -
               vararg: -
               kwonly: []
@@ -71,101 +71,101 @@ Module
               kwarg: -
               defaults: []
           body:
-            Pass
+            Pass @4:32-4:36
           decorators: []
           returns: -
           type_params:
-            TypeVar U
+            TypeVar U @4:10-4:23
               bound:
-                Tuple
+                Tuple @4:13-4:23
                   elts:
-                    Name int
-                    Name str
+                    Name int @4:14-4:17
+                    Name str @4:19-4:22
               default: -
       decorators: []
       type_params:
-        TypeVar T
+        TypeVar T @3:8-3:15
           bound: -
           default:
-            Name int
-        TypeVarTuple Ts
+            Name int @3:12-3:15
+        TypeVarTuple Ts @3:17-3:34
           default:
-            Starred
+            Starred @3:23-3:34
               value:
-                Subscript
+                Subscript @3:24-3:34
                   value:
-                    Name tuple
+                    Name tuple @3:24-3:29
                   slice:
-                    Name int
-        ParamSpec P
+                    Name int @3:30-3:33
+        ParamSpec P @3:36-3:52
           default:
-            List
+            List @3:42-3:52
               elts:
-                Name int
-                Name str
-    ClassDef D
+                Name int @3:43-3:46
+                Name str @3:48-3:51
+    ClassDef D @6:0-6:16
       bases: []
       keywords: []
       body:
-        Pass
+        Pass @6:12-6:16
       decorators:
-        Name deco
+        Name deco @5:1-5:5
       type_params:
-        TypeVar T
+        TypeVar T @6:8-6:9
           bound: -
           default: -
-    TypeAlias
+    TypeAlias @7:0-7:12
       name:
-        Name A
+        Name A @7:5-7:6
       type_params: []
       value:
-        Name int
-    TypeAlias
+        Name int @7:9-7:12
+    TypeAlias @8:0-8:30
       name:
-        Name B
+        Name B @8:5-8:6
       type_params:
-        TypeVar K
+        TypeVar K @8:7-8:8
           bound: -
           default: -
-        TypeVar V
+        TypeVar V @8:10-8:16
           bound:
-            Name str
+            Name str @8:13-8:16
           default: -
       value:
-        Subscript
+        Subscript @8:20-8:30
           value:
-            Name dict
+            Name dict @8:20-8:24
           slice:
-            Tuple
+            Tuple @8:25-8:29
               elts:
-                Name K
-                Name V
-    Assign
+                Name K @8:25-8:26
+                Name V @8:28-8:29
+    Assign @9:0-9:8
       targets:
-        Name type
+        Name type @9:0-9:4
       value:
-        Constant 1
-    Assign
+        Constant 1 @9:7-9:8
+    Assign @10:0-10:11
       targets:
-        Subscript
+        Subscript @10:0-10:7
           value:
-            Name type
+            Name type @10:0-10:4
           slice:
-            Name x
+            Name x @10:5-10:6
       value:
-        Constant 2
-    Assign
+        Constant 2 @10:10-10:11
+    Assign @11:0-11:10
       targets:
-        Attribute x
+        Attribute x @11:0-11:6
           value:
-            Name type
+            Name type @11:0-11:4
       value:
-        Constant 3
-    Expr
+        Constant 3 @11:9-11:10
+    Expr @12:0-12:11
       value:
-        Call
+        Call @12:0-12:11
           func:
-            Name print
+            Name print @12:0-12:5
           args:
-            Name type
+            Name type @12:6-12:10
           keywords: []

@@ -4,6 +4,7 @@
 #include "gc.h"
 #include "intern.h"
 #include "kernel/fmt.h"
+#include "annot.h"
 #include "lazy.h"
 #include "ops.h"
 
@@ -32,6 +33,8 @@ void func_trace(Obj *o)
     gc_mark(f->qualname);
     gc_mark(f->doc);
     gc_mark(f->dict);
+    gc_mark(f->annotate);
+    gc_mark(f->annotations);
 }
 
 R func_repr(Value v, String &out)
@@ -78,7 +81,18 @@ R func_getattr(Value v, StrObj *name, Value &out)
         out = f->closure.is_nil() ? value_none() : f->closure;
     else if (n == "__dict__")
         out = obj_value(func_dict(v));
-    else if (n == "__module__") {
+    else if (n == "__builtins__") {
+        StrObj *k = str_intern("__builtins__");
+        if (!k)
+            return err_set("MemoryError", "out of memory");
+        R r = dict_get(static_cast<DictObj *>(f->globals.obj()), obj_value(k), out);
+        if (r == R::NotImpl)
+            return r;
+        // A module's __builtins__ is the module; what is wanted is its dict.
+        if (is_module(out))
+            out = obj_value(module_dict(out));
+        return r;
+    } else if (n == "__module__") {
         StrObj *k = str_intern("__name__");
         if (!k)
             return err_set("MemoryError", "out of memory");
@@ -144,8 +158,17 @@ R func_setattr(Value v, StrObj *name, Value val)
     }
     if (n == "__globals__" || n == "__closure__")
         return err_set2("AttributeError", "readonly attribute", n);
+    R r = annot_store(rv.v, name, rx.v);
+    if (r != R::NotImpl)
+        return r;
     DictObj *d = func_dict(rv.v);
     return d ? dict_set(d, obj_value(name), rx.v) : R::Err;
+}
+
+// __annotations__ is what __annotate__ answers, so reading it may be a call.
+Got func_lazy(Value v, StrObj *name, Value &out, Value &args)
+{
+    return annot_lazy(v, name, out, args);
 }
 
 R native_getattr(Value v, StrObj *name, Value &out)
@@ -192,6 +215,13 @@ R module_getattr(Value v, StrObj *name, Value &out)
     return R::NotImpl;
 }
 
+// A name a lazy import still owes, and then PEP 649's pair.
+Got module_lazy(Value v, StrObj *name, Value &out, Value &args)
+{
+    Got g = lazy_module_attr(v, name, out, args);
+    return g == Got::Missing ? annot_lazy(v, name, out, args) : g;
+}
+
 // `sys.stdout = x` and `del mod.name`: a module's namespace is its dict, and
 // an attribute of one is an entry in it.
 R module_setattr(Value v, StrObj *name, Value val)
@@ -209,11 +239,12 @@ R module_setattr(Value v, StrObj *name, Value val)
 
 constexpr Type cell_type{ .name = "cell", .trace = cell_trace, .repr = cell_repr };
 
-constexpr Type func_type{ .name    = "function",
-                          .trace   = func_trace,
-                          .repr    = func_repr,
-                          .getattr = func_getattr,
-                          .setattr = func_setattr };
+constexpr Type func_type{ .name     = "function",
+                          .trace    = func_trace,
+                          .repr     = func_repr,
+                          .getattr  = func_getattr,
+                          .setattr  = func_setattr,
+                          .lazyattr = func_lazy };
 
 constexpr Type native_type{ .name    = "builtin_function_or_method",
                             .repr    = native_repr,
@@ -224,7 +255,7 @@ constexpr Type module_type{ .name     = "module",
                             .repr     = module_repr,
                             .getattr  = module_getattr,
                             .setattr  = module_setattr,
-                            .lazyattr = lazy_module_attr };
+                            .lazyattr = module_lazy };
 
 CellObj *cell_new()
 {
@@ -248,8 +279,10 @@ Value func_new(Value code, Value globals)
     f->closure    = Value();
     f->name       = code_of(rc.v)->name;
     f->qualname   = code_of(rc.v)->qualname;
-    f->doc        = code_of(rc.v)->doc;
-    f->dict       = Value();
+    f->doc         = code_of(rc.v)->doc;
+    f->dict        = Value();
+    f->annotate    = Value();
+    f->annotations = Value();
     return obj_value(f);
 }
 

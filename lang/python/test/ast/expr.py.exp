@@ -1,352 +1,352 @@
 Module
   body:
-    Assign
+    Assign @1:0-1:21
       targets:
-        Name a
+        Name a @1:0-1:1
       value:
-        BinOp -
+        BinOp - @1:4-1:21
           left:
-            BinOp +
+            BinOp + @1:4-1:13
               left:
-                Constant 1
+                Constant 1 @1:4-1:5
               right:
-                BinOp *
+                BinOp * @1:8-1:13
                   left:
-                    Constant 2
+                    Constant 2 @1:8-1:9
                   right:
-                    Constant 3
+                    Constant 3 @1:12-1:13
           right:
-            BinOp /
+            BinOp / @1:16-1:21
               left:
-                Constant 4
+                Constant 4 @1:16-1:17
               right:
-                Constant 5
-    Assign
+                Constant 5 @1:20-1:21
+    Assign @2:0-2:15
       targets:
-        Name b
+        Name b @2:0-2:1
       value:
-        BinOp **
+        BinOp ** @2:4-2:15
           left:
-            Constant 2
+            Constant 2 @2:4-2:5
           right:
-            BinOp **
+            BinOp ** @2:9-2:15
               left:
-                Constant 3
+                Constant 3 @2:9-2:10
               right:
-                Constant 2
-    Assign
+                Constant 2 @2:14-2:15
+    Assign @3:0-3:11
       targets:
-        Name c
+        Name c @3:0-3:1
       value:
-        UnaryOp -
+        UnaryOp - @3:4-3:11
           operand:
-            BinOp **
+            BinOp ** @3:5-3:11
               left:
-                Constant 2
+                Constant 2 @3:5-3:6
               right:
-                Constant 2
-    Assign
+                Constant 2 @3:10-3:11
+    Assign @4:0-4:20
       targets:
-        Name d
+        Name d @4:0-4:1
       value:
-        BoolOp or
+        BoolOp or @4:4-4:20
           values:
-            BoolOp and
+            BoolOp and @4:4-4:15
               values:
-                UnaryOp not
+                UnaryOp not @4:4-4:9
                   operand:
-                    Name a
-                Name b
-            Name c
-    Assign
+                    Name a @4:8-4:9
+                Name b @4:14-4:15
+            Name c @4:19-4:20
+    Assign @5:0-5:19
       targets:
-        Name e
+        Name e @5:0-5:1
       value:
-        Compare
+        Compare @5:4-5:19
           left:
-            Name a
+            Name a @5:4-5:5
           ops:
             CmpOp <
               operand:
-                Name b
+                Name b @5:8-5:9
             CmpOp <=
               operand:
-                Name c
+                Name c @5:13-5:14
             CmpOp !=
               operand:
-                Name d
-    Assign
+                Name d @5:18-5:19
+    Assign @6:0-6:17
       targets:
-        Name f
+        Name f @6:0-6:1
       value:
-        IfExp
+        IfExp @6:4-6:17
           test:
-            Name b
+            Name b @6:9-6:10
           body:
-            Name a
+            Name a @6:4-6:5
           orelse:
-            Name c
-    Assign
+            Name c @6:16-6:17
+    Assign @7:0-7:13
       targets:
-        Name g
+        Name g @7:0-7:1
       value:
-        Tuple
+        Tuple @7:4-7:13
           elts:
-            Name a
-            Name b
-            Name c
-    Assign
+            Name a @7:5-7:6
+            Name b @7:8-7:9
+            Name c @7:11-7:12
+    Assign @8:0-8:10
       targets:
-        Name h
+        Name h @8:0-8:1
       value:
-        List
+        List @8:4-8:10
           elts:
-            Name a
-            Name b
-    Assign
+            Name a @8:5-8:6
+            Name b @8:8-8:9
+    Assign @9:0-9:20
       targets:
-        Name i
+        Name i @9:0-9:1
       value:
-        Dict
+        Dict @9:4-9:20
           keys:
-            Constant 1
-            Constant 2
+            Constant 1 @9:5-9:6
+            Constant 2 @9:13-9:14
           values:
-            Constant 'x'
-            Constant 'y'
-    Assign
+            Constant 'x' @9:8-9:11
+            Constant 'y' @9:16-9:19
+    Assign @10:0-10:10
       targets:
-        Name j
+        Name j @10:0-10:1
       value:
-        Set
+        Set @10:4-10:10
           elts:
-            Name a
-            Name b
-    Assign
+            Name a @10:5-10:6
+            Name b @10:8-10:9
+    Assign @11:0-11:26
       targets:
-        Name k
+        Name k @11:0-11:1
       value:
-        Call
+        Call @11:4-11:26
           func:
-            Attribute c
+            Attribute c @11:4-11:9
               value:
-                Attribute b
+                Attribute b @11:4-11:7
                   value:
-                    Name a
+                    Name a @11:4-11:5
           args:
-            Name d
-            Starred
+            Name d @11:10-11:11
+            Starred @11:18-11:20
               value:
-                Name f
+                Name f @11:19-11:20
           keywords:
-            Keyword e
+            Keyword e @11:13-11:16
               value:
-                Constant 1
-            Keyword **
+                Constant 1 @11:15-11:16
+            Keyword ** @11:22-11:25
               value:
-                Name g
-    Assign
+                Name g @11:24-11:25
+    Assign @12:0-12:34
       targets:
-        Name m
+        Name m @12:0-12:1
       value:
-        Tuple
+        Tuple @12:4-12:34
           elts:
-            Subscript
+            Subscript @12:4-12:8
               value:
-                Name a
+                Name a @12:4-12:5
               slice:
-                Constant 1
-            Subscript
+                Constant 1 @12:6-12:7
+            Subscript @12:10-12:16
               value:
-                Name a
+                Name a @12:10-12:11
               slice:
-                Slice
+                Slice @12:12-12:15
                   lower:
-                    Constant 1
+                    Constant 1 @12:12-12:13
                   upper:
-                    Constant 2
+                    Constant 2 @12:14-12:15
                   step: -
-            Subscript
+            Subscript @12:18-12:24
               value:
-                Name a
+                Name a @12:18-12:19
               slice:
-                Slice
+                Slice @12:20-12:23
                   lower: -
                   upper: -
                   step:
-                    Constant 2
-            Subscript
+                    Constant 2 @12:22-12:23
+            Subscript @12:26-12:34
               value:
-                Name a
+                Name a @12:26-12:27
               slice:
-                Slice
+                Slice @12:28-12:33
                   lower:
-                    Constant 1
+                    Constant 1 @12:28-12:29
                   upper:
-                    Constant 2
+                    Constant 2 @12:30-12:31
                   step:
-                    Constant 3
-    Assign
+                    Constant 3 @12:32-12:33
+    Assign @13:0-13:32
       targets:
-        Name n
+        Name n @13:0-13:1
       value:
-        Lambda
+        Lambda @13:4-13:32
           args:
             Arguments
               posonly: []
               args:
-                Arg x
+                Arg x @13:11-13:12
                   annotation: -
-                Arg y
+                Arg y @13:14-13:15
                   annotation: -
               vararg:
-                Arg z
+                Arg z @13:20-13:21
                   annotation: -
               kwonly:
-                Arg w
+                Arg w @13:23-13:24
                   annotation: -
               kw_defaults:
                 -
               kwarg:
-                Arg v
+                Arg v @13:28-13:29
                   annotation: -
               defaults:
-                Constant 1
+                Constant 1 @13:16-13:17
           body:
-            Name x
-    Assign
+            Name x @13:31-13:32
+    Assign @14:0-14:43
       targets:
-        Name o
+        Name o @14:0-14:1
       value:
-        ListComp
+        ListComp @14:4-14:43
           elt:
-            BinOp *
+            BinOp * @14:5-14:10
               left:
-                Name x
+                Name x @14:5-14:6
               right:
-                Constant 2
+                Constant 2 @14:9-14:10
           generators:
             Comprehen
               target:
-                Name x
+                Name x @14:15-14:16
               iter:
-                Call
+                Call @14:20-14:28
                   func:
-                    Name range
+                    Name range @14:20-14:25
                   args:
-                    Constant 3
+                    Constant 3 @14:26-14:27
                   keywords: []
               ifs:
-                Name x
-                Compare
+                Name x @14:32-14:33
+                Compare @14:37-14:42
                   left:
-                    Name x
+                    Name x @14:37-14:38
                   ops:
                     CmpOp >
                       operand:
-                        Constant 1
-    Assign
+                        Constant 1 @14:41-14:42
+    Assign @15:0-15:28
       targets:
-        Name p
+        Name p @15:0-15:1
       value:
-        DictComp
+        DictComp @15:4-15:28
           key:
-            Name k
+            Name k @15:5-15:6
           value:
-            Name v
+            Name v @15:8-15:9
           generators:
             Comprehen
               target:
-                Tuple
+                Tuple @15:14-15:18
                   elts:
-                    Name k
-                    Name v
+                    Name k @15:14-15:15
+                    Name v @15:17-15:18
               iter:
-                Name items
+                Name items @15:22-15:27
               ifs: []
-    Assign
+    Assign @16:0-16:18
       targets:
-        Name q
+        Name q @16:0-16:1
       value:
-        GeneratorExp
+        GeneratorExp @16:4-16:18
           elt:
-            Name x
+            Name x @16:5-16:6
           generators:
             Comprehen
               target:
-                Name x
+                Name x @16:11-16:12
               iter:
-                Name y
+                Name y @16:16-16:17
               ifs: []
-    Assign
+    Assign @17:0-17:18
       targets:
-        Name r
+        Name r @17:0-17:1
       value:
-        SetComp
+        SetComp @17:4-17:18
           elt:
-            Name x
+            Name x @17:5-17:6
           generators:
             Comprehen
               target:
-                Name x
+                Name x @17:11-17:12
               iter:
-                Name y
+                Name y @17:16-17:17
               ifs: []
-    Assign
+    Assign @18:0-18:28
       targets:
-        Name s
+        Name s @18:0-18:1
       value:
-        BinOp |
+        BinOp | @18:4-18:28
           left:
-            UnaryOp ~
+            UnaryOp ~ @18:4-18:6
               operand:
-                Name a
+                Name a @18:5-18:6
           right:
-            BinOp ^
+            BinOp ^ @18:9-18:28
               left:
-                BinOp &
+                BinOp & @18:9-18:14
                   left:
-                    Name b
+                    Name b @18:9-18:10
                   right:
-                    Name c
+                    Name c @18:13-18:14
               right:
-                BinOp >>
+                BinOp >> @18:17-18:28
                   left:
-                    BinOp <<
+                    BinOp << @18:17-18:23
                       left:
-                        Name d
+                        Name d @18:17-18:18
                       right:
-                        Name e
+                        Name e @18:22-18:23
                   right:
-                    Name f
-    Assign
+                    Name f @18:27-18:28
+    Assign @19:0-19:14
       targets:
-        Name t
+        Name t @19:0-19:1
       value:
-        Compare
+        Compare @19:4-19:14
           left:
-            Name a
+            Name a @19:4-19:5
           ops:
             CmpOp is not
               operand:
-                Name b
-    Assign
+                Name b @19:13-19:14
+    Assign @20:0-20:14
       targets:
-        Name u
+        Name u @20:0-20:1
       value:
-        Compare
+        Compare @20:4-20:14
           left:
-            Name a
+            Name a @20:4-20:5
           ops:
             CmpOp not in
               operand:
-                Name b
-    Assign
+                Name b @20:13-20:14
+    Assign @21:0-21:13
       targets:
-        Name v
+        Name v @21:0-21:1
       value:
-        NamedExpr
+        NamedExpr @21:5-21:12
           target:
-            Name n2
+            Name n2 @21:5-21:7
           value:
-            Constant 5
+            Constant 5 @21:11-21:12
