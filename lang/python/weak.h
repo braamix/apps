@@ -5,9 +5,35 @@
 
 extern const Type weakref_type;
 
+// A reference or a proxy: the target is raw, so the collector does not
+// follow it, and Null once it has gone.
+struct WeakRefObj : Obj {
+    Obj *target;
+    Value callback; // called with this reference once the target has gone
+    u32 hash;       // the target's identity, kept so a dead ref still hashes
+};
+
 inline bool is_weakref(Value v)
 {
     return v.is_obj() && v.obj()->type == &weakref_type;
+}
+
+extern const Type proxy_type;
+extern const Type callable_proxy_type;
+
+inline bool is_weakproxy(Value v)
+{
+    return v.is_obj() && (v.obj()->type == &proxy_type || v.obj()->type == &callable_proxy_type);
+}
+
+// What a proxy stands for: the referent, or Nil with ReferenceError pending
+// once it has gone.
+Value proxy_target(Value v);
+
+// `v` itself, or the referent where `v` is a proxy. Nil only for a dead one.
+inline Value unproxy(Value v)
+{
+    return is_weakproxy(v) ? proxy_target(v) : v;
 }
 
 // Fill a module namespace with ref, ReferenceType and the two counters, and

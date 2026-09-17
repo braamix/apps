@@ -1,4 +1,5 @@
-// Slice, range, and the three iterators every container here is walked with.
+// Slice, and the iterators every container here is walked with; range is
+// range.cpp.
 #include "iter.h"
 
 #include "gc.h"
@@ -18,7 +19,7 @@ void slice_trace(Obj *o)
     gc_mark(s->step);
 }
 
-// start, stop and step, on a slice and on a range.
+// start, stop and step.
 R slice_getattr(Value v, StrObj *name, Value &out)
 {
     SliceObj *s = static_cast<SliceObj *>(v.obj());
@@ -32,17 +33,6 @@ R slice_getattr(Value v, StrObj *name, Value &out)
     else
         return R::NotImpl;
     return R::Ok;
-}
-
-R range_getattr(Value v, StrObj *name, Value &out)
-{
-    RangeObj *r = static_cast<RangeObj *>(v.obj());
-    Str n       = name->str();
-    i64 x       = n == "start" ? r->start : n == "stop" ? r->stop : r->step;
-    if (n != "start" && n != "stop" && n != "step")
-        return R::NotImpl;
-    out = int_from_i64(x);
-    return out.is_nil() ? R::Err : R::Ok;
 }
 
 R slice_repr(Value v, String &out)
@@ -60,52 +50,6 @@ R slice_repr(Value v, String &out)
     return out.push(')') ? R::Ok : err_set("MemoryError", "out of memory");
 }
 
-// ------------------------------------------------------------------- range
-
-R range_len(Value v, usize &out)
-{
-    RangeObj *r = static_cast<RangeObj *>(v.obj());
-    i64 span    = r->step > 0 ? r->stop - r->start : r->start - r->stop;
-    i64 step    = r->step > 0 ? r->step : -r->step;
-    out         = span <= 0 ? 0 : usize((span + step - 1) / step);
-    return R::Ok;
-}
-
-R range_getitem(Value v, Value key, Value &out)
-{
-    RangeObj *r = static_cast<RangeObj *>(v.obj());
-    usize n     = 0;
-    range_len(v, n);
-    if (is_slice(key)) {
-        i64 start = 0, stop = 0, step = 1;
-        usize count = 0;
-        if (!slice_resolve(key, n, start, stop, step, count))
-            return R::Err;
-        // A slice of a range is a range: no items are made, and the bounds are
-        // the slice's own indices mapped back through this range's step.
-        out = range_new(r->start + start * r->step, r->start + stop * r->step, step * r->step);
-        return out.is_nil() ? R::Err : R::Ok;
-    }
-    usize i = 0;
-    if (index_of(key, n, i) != R::Ok)
-        return R::Err;
-    out = int_from_i64(r->start + i64(i) * r->step);
-    return out.is_nil() ? R::Err : R::Ok;
-}
-
-R range_repr(Value v, String &out)
-{
-    RangeObj *r = static_cast<RangeObj *>(v.obj());
-    char tmp[24];
-    Buf<96> b;
-    b.put("range(").put(int_text(tmp, sizeof tmp, r->start));
-    b.put(", ").put(int_text(tmp, sizeof tmp, r->stop));
-    if (r->step != 1)
-        b.put(", ").put(int_text(tmp, sizeof tmp, r->step));
-    b.put(')');
-    return out.append(b.str()) ? R::Ok : err_set("MemoryError", "out of memory");
-}
-
 // --------------------------------------------------------------- iterators
 
 // One shape for all three: `at` is the next position, `owner` what is walked.
@@ -116,7 +60,6 @@ struct IterObj : Obj {
 
 extern const Type seq_iter_type;
 extern const Type table_iter_type;
-extern const Type range_iter_type;
 
 void iter_trace(Obj *o)
 {
@@ -159,18 +102,6 @@ R table_iter_next(Value v, Value &out)
                                         : static_cast<SetObj *>(it->owner.obj())->t;
     Value key, val;
     return table_next(t, it->at, key, val) ? (out = key, R::Ok) : R::NotImpl;
-}
-
-R range_iter_next(Value v, Value &out)
-{
-    IterObj *it = static_cast<IterObj *>(v.obj());
-    RangeObj *r = static_cast<RangeObj *>(it->owner.obj());
-    i64 at      = r->start + i64(it->at) * r->step;
-    if (r->step > 0 ? at >= r->stop : at <= r->stop)
-        return R::NotImpl;
-    it->at++;
-    out = int_from_i64(at);
-    return out.is_nil() ? R::Err : R::Ok;
 }
 
 // `at` counts, `owner` is the iterator being walked.
@@ -244,12 +175,6 @@ constexpr Type table_iter_type{ .name  = "iterator",
                                 .iter  = iter_self,
                                 .next  = table_iter_next };
 
-constexpr Type range_iter_type{ .name  = "range_iterator",
-                                .trace = iter_trace,
-                                .repr  = iter_repr,
-                                .iter  = iter_self,
-                                .next  = range_iter_next };
-
 constexpr Type enum_iter_type{ .name  = "enumerate",
                                .trace = iter_trace,
                                .repr  = iter_repr,
@@ -267,11 +192,6 @@ constexpr Type zip_iter_type{ .name  = "zip",
                               .repr  = iter_repr,
                               .iter  = iter_self,
                               .next  = zip_iter_next };
-
-Value range_iter(Value v)
-{
-    return obj_value(iter_new(&range_iter_type, v));
-}
 
 } // namespace
 
@@ -296,6 +216,8 @@ Value made_iter(Value list, const Type *t)
 
 Value reversed_new(Value seq)
 {
+    if (seq.is_obj() && seq.obj()->type == &range_type)
+        return range_reversed(seq);
     const Type *t = type_of(seq);
     if (!t || !t->len || !t->getitem)
         return err_set2("TypeError", "object is not reversible", type_name(seq)), Value();
@@ -311,14 +233,6 @@ constexpr Type slice_type{ .name    = "slice",
                            .trace   = slice_trace,
                            .repr    = slice_repr,
                            .getattr = slice_getattr };
-
-constexpr Type range_type{ .name    = "range",
-                           .repr    = range_repr,
-                           .len     = range_len,
-                           .getitem = range_getitem,
-                           .iter    = range_iter,
-                           .getattr = range_getattr,
-                           .patma   = PATMA_SEQ };
 
 Value slice_new(Value start, Value stop, Value step)
 {
@@ -368,19 +282,6 @@ bool slice_resolve(Value v, usize len, i64 &start, i64 &stop, i64 &step, usize &
     stop     = last;
     count    = span <= 0 ? 0 : usize((span + mag - 1) / mag);
     return true;
-}
-
-Value range_new(i64 start, i64 stop, i64 step)
-{
-    if (step == 0)
-        return err_set("ValueError", "range() arg 3 must not be zero"), Value();
-    RangeObj *r = static_cast<RangeObj *>(obj_alloc(&range_type, sizeof(RangeObj)));
-    if (!r)
-        return err_set("MemoryError", "out of memory"), Value();
-    r->start = start;
-    r->stop  = stop;
-    r->step  = step;
-    return obj_value(r);
 }
 
 Value seq_iter(Value seq)

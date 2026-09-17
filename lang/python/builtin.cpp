@@ -31,6 +31,7 @@
 #include "ucd.h"
 #include "ustr.h"
 #include "vm.h"
+#include "weak.h"
 
 namespace {
 
@@ -83,15 +84,22 @@ inline bool parks(const CallArgs &a, u32 at)
 // has to ask the VM for it. `text_of` says which method, if any, is wanted.
 Value text_of(Value v, bool want_str)
 {
+    // A weak proxy's str is its referent's; its repr is its own.
+    if (want_str && is_weakproxy(v)) {
+        v = proxy_target(v);
+        if (v.is_nil())
+            return err_clear(), Value();
+    }
     if (!is_inst(v))
         return Value();
+    // object's own __repr__ is the native one the instance already answers.
     Root found;
     StrObj *n = str_intern(want_str ? "__str__" : "__repr__");
-    if (n && type_lookup(inst_of(v)->cls, n, found.v) == R::Ok)
+    if (n && type_lookup(inst_of(v)->cls, n, found.v) == R::Ok && !is_object_default(found.v))
         return method_new(found.v, v);
     if (want_str) {
         n = str_intern("__repr__");
-        if (n && type_lookup(inst_of(v)->cls, n, found.v) == R::Ok)
+        if (n && type_lookup(inst_of(v)->cls, n, found.v) == R::Ok && !is_object_default(found.v))
             return method_new(found.v, v);
     }
     return Value();
@@ -742,7 +750,7 @@ R b_bool(const CallArgs &a, Value &out)
             return R::Err;
     }
     out = value_bool(a.nargs && py_truth(a.args[0]));
-    return R::Ok;
+    return err_pending() ? R::Err : R::Ok;
 }
 
 // A str's digits and spaces in ASCII, which is all the number grammars read.
@@ -1133,6 +1141,14 @@ R b_dict(const CallArgs &a, Value &out)
 {
     if (a.nargs > 1)
         return err_set("TypeError", "dict() takes at most one positional argument");
+    if (a.nargs == 1 && is_frame_locals(a.args[0])) {
+        Root d{ frame_locals_dict(a.args[0]) };
+        if (d.v.is_nil())
+            return R::Err;
+        CallArgs b = a;
+        b.args     = &d.v;
+        return b_dict(b, out);
+    }
     if (a.nargs && !is_dict(method_self(a.args[0])) && type_has_py_special(a.args[0], "keys")) {
         Root src{ a.args[0] };
         Root keys{ type_special(src.v, "keys") };
@@ -1245,16 +1261,22 @@ R b_range(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "range", 1, 3))
         return R::Err;
-    i64 n[3] = { 0, 0, 1 };
-    for (u32 i = 0; i < a.nargs; i++)
-        if (!as_index(a.args[i], n[i]))
-            return err_set2("TypeError", "range() argument must be an integer",
-                            type_name(a.args[i]));
+    Value n[3] = { Value::of_int(0), Value::of_int(0), Value::of_int(1) };
+    for (u32 i = 0; i < a.nargs; i++) {
+        if (!is_intval(a.args[i])) {
+            Buf<96> m;
+            m.put('\'')
+                .put(type_name(a.args[i]))
+                .put("' object cannot be interpreted as an integer");
+            return err_set("TypeError", m.str());
+        }
+        n[i] = a.args[i];
+    }
     if (a.nargs == 1) {
         n[1] = n[0];
-        n[0] = 0;
+        n[0] = Value::of_int(0);
     }
-    out = range_new(n[0], n[1], n[2]);
+    out = range_new_ints(n[0], n[1], n[2]);
     return out.is_nil() ? R::Err : R::Ok;
 }
 
@@ -1596,32 +1618,12 @@ R b_sum(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
-R every(const CallArgs &a, bool want, Value &out)
-{
-    Root it{ py_iter(a.args[0]) };
-    if (it.v.is_nil())
-        return R::Err;
-    for (;;) {
-        Root got;
-        R r = py_next(it.v, got.v);
-        if (r == R::Err)
-            return R::Err;
-        if (r == R::NotImpl)
-            break;
-        if (py_truth(got.v) == want) {
-            out = value_bool(want);
-            return R::Ok;
-        }
-    }
-    out = value_bool(!want);
-    return R::Ok;
-}
-
-// all() and any() over a generator, one item at a time: they stop at the
-// first answer, and the rest is never run. s[0] the iterable, s[1] its
-// __next__; j is the item that decides.
+// all() and any(), one item at a time: they stop at the first answer, and the
+// rest is never run. s[0] the iterable, then its iterator; s[1] its __next__,
+// Nil for a native one. j is the item that decides, bit 8 a __len__ pending.
 R every_step(ContObj *k, Value in)
 {
+    bool want = k->j & 1;
     switch (k->i) {
     case 0: {
         k->i = 1;
@@ -1635,36 +1637,68 @@ R every_step(ContObj *k, Value in)
             return R::Err;
     }
         [[fallthrough]];
-    case 1: {
-        Root it{ in };
-        if (!iter_needs_vm(it.v)) {
-            Value v[1] = { it.v };
-            CallArgs a;
-            a.args  = v;
-            a.nargs = 1;
-            Value got;
-            if (every(a, k->j, got) != R::Ok)
-                return R::Err;
-            return cont_done(k, got);
+    case 1:
+        k->s[0] = in;
+        if (iter_needs_vm(in)) {
+            k->s[1] = next_special(in);
+            if (k->s[1].is_nil()) {
+                if (err_pending())
+                    return R::Err;
+                Buf<96> b;
+                b.put("iter() returned non-iterator of type '").put(type_name(in)).put("'");
+                return err_set("TypeError", b.str());
+            }
         }
-        k->s[1] = next_special(it.v);
-        if (k->s[1].is_nil()) {
-            if (err_pending())
-                return R::Err;
-            Buf<96> b;
-            b.put("iter() returned non-iterator of type '").put(type_name(it.v)).put("'");
-            return err_set("TypeError", b.str());
-        }
-        k->i        = 2;
-        k->catching = CATCH_STOP;
-        return cont_call(k, k->s[1], Value(), 0);
-    }
-    default:
+        in = Value();
+        break;
+    case 2:
+        // An item from __next__, or Nil at its end.
         if (in.is_nil())
-            return cont_done(k, value_bool(!k->j));
-        if (py_truth(in) == bool(k->j))
-            return cont_done(k, value_bool(k->j));
-        return cont_call(k, k->s[1], Value(), 0);
+            return cont_done(k, value_bool(!want));
+        break;
+    default: {
+        // What an item's __bool__ or __len__ said.
+        bool yes = false;
+        if (truth_answer(in, k->j & 0x100, yes) != R::Ok)
+            return R::Err;
+        if (yes == want)
+            return cont_done(k, value_bool(want));
+        in = Value();
+        break;
+    }
+    }
+    for (;;) {
+        if (in.is_nil()) {
+            if (!k->s[1].is_nil()) {
+                k->i        = 2;
+                k->catching = CATCH_STOP;
+                return cont_call(k, k->s[1], Value(), 0);
+            }
+            Root got;
+            R r = py_next(k->s[0], got.v);
+            if (r == R::Err)
+                return R::Err;
+            if (r == R::NotImpl)
+                return cont_done(k, value_bool(!want));
+            in = got.v;
+        }
+        Root item{ in };
+        bool len = false;
+        Root m{ truth_special(item.v, len) };
+        if (!m.v.is_nil()) {
+            k->i        = 3;
+            k->j        = (k->j & 1) | (len ? 0x100 : 0);
+            k->catching = CATCH_NONE;
+            return cont_call(k, m.v, Value(), 0);
+        }
+        if (err_pending())
+            return R::Err;
+        bool yes = py_truth(item.v);
+        if (err_pending())
+            return R::Err;
+        if (yes == want)
+            return cont_done(k, value_bool(want));
+        in = Value();
     }
 }
 
@@ -1672,8 +1706,6 @@ R every_of(const CallArgs &a, Str who, bool want, Value &out)
 {
     if (!args_only(a, who, 1, 1))
         return R::Err;
-    if (!parks(a, 0))
-        return every(a, want, out);
     Root it{ a.args[0] };
     Root kv{ cont_new(every_step) };
     if (kv.v.is_nil())
@@ -1881,7 +1913,7 @@ R b_hash(const CallArgs &a, Value &out)
     if (!args_only(a, "hash", 1, 1))
         return R::Err;
     if (type_unhashable(a.args[0]))
-        return err_set2("TypeError", "unhashable type", type_name(a.args[0]));
+        return err_unhashable(a.args[0]);
     out = one_special(a.args[0], "__hash__", WANT_HASH);
     if (!out.is_nil())
         return R::Ok;
@@ -2024,6 +2056,15 @@ R b_reversed(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "reversed", 1, 1))
         return R::Err;
+    // A FrameLocalsProxy is reversed as its keys.
+    if (is_frame_locals(a.args[0])) {
+        Root d{ frame_locals_dict(a.args[0]) };
+        ListObj *keys = d.v.is_nil() ? nullptr : py_list_of(d.v);
+        if (!keys)
+            return R::Err;
+        out = reversed_new(obj_value(keys));
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     out = reversed_new(a.args[0]);
     return out.is_nil() ? R::Err : R::Ok;
 }
@@ -2419,6 +2460,13 @@ Value frame_locals(FrameObj *f)
             continue;
         if (dict_set(dict_at(rd.v), name, static_cast<CellObj *>(cell.obj())->v) != R::Ok)
             return Value();
+    }
+    if (!f->extra.is_nil()) {
+        usize at = 0;
+        Value k, x;
+        while (table_next(dict_at(f->extra)->t, at, k, x))
+            if (dict_set(dict_at(rd.v), k, x) != R::Ok)
+                return Value();
     }
     return rd.v;
 }
@@ -2874,6 +2922,14 @@ bool py_callable(Value v)
         is_func(v) || is_native(v) || is_method(v) || is_type(v) || is_exc_type(v) || is_newwrap(v);
     if (!yes && is_inst(v))
         yes = !type_special(v, "__call__").is_nil();
+    // A built-in whose type has a __call__ method: partial, the cache wrapper.
+    if (!yes && v.is_obj() && !is_inst(v)) {
+        StrObj *n = str_intern("__call__");
+        Value m;
+        yes = n && method_find(v, n, m) == R::Ok;
+        if (!yes)
+            err_clear();
+    }
     return yes;
 }
 

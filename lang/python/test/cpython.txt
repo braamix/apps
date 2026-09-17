@@ -32,6 +32,7 @@ pass  test_named_expressions.py     73/74   82952e3  Lib/test/test_named_express
 fail  test_patma.py                 import  82952e3  Lib/test/test_patma.py
 pass  test_pow.py                   3/7     82952e3  Lib/test/test_pow.py
 pass  test_property.py              9/31    82952e3  Lib/test/test_property.py
+fail  test_super.py                 import  82952e3  Lib/test/test_super.py
 fail  test_syntax.py                import  82952e3  Lib/test/test_syntax.py
 fail  test_tstring.py               import  82952e3  Lib/test/test_tstring.py
 fail  test_type_aliases.py          import  82952e3  Lib/test/test_type_aliases.py

@@ -3,6 +3,7 @@
 
 #include "bigint.h"
 #include "complex.h"
+#include "frame.h"
 #include "gc.h"
 #include "kernel/fmt.h"
 #include "math/math.h"
@@ -133,6 +134,13 @@ bool py_truth(Value v)
     return true;
 }
 
+R err_unhashable(Value v)
+{
+    Buf<96> m;
+    m.put("unhashable type: '").put(type_name(v)).put('\'');
+    return err_set("TypeError", m.str());
+}
+
 R py_hash(Value v, u32 &out)
 {
     i64 n = 0;
@@ -141,14 +149,14 @@ R py_hash(Value v, u32 &out)
         return R::Ok;
     }
     if (type_unhashable(v))
-        return err_set2("TypeError", "unhashable type", type_name(v));
+        return err_unhashable(v);
     const Type *t = type_of(v);
     if (t && t->hash)
         return t->hash(v, out);
     // A container is unhashable; anything else hashes by identity, which is
     // what CPython's default __hash__ does.
     if (!t || t->len)
-        return err_set2("TypeError", "unhashable type", type_name(v));
+        return err_unhashable(v);
     out = u32(usize(v.obj())) >> 4;
     return R::Ok;
 }
@@ -280,16 +288,22 @@ R py_getitem(Value v, Value key, Value &out)
 R py_setitem(Value v, Value key, Value item)
 {
     const Type *t = type_of(v);
-    if (!t || !t->setitem)
-        return err_set2("TypeError", "object does not support item assignment", type_name(v));
+    if (!t || !t->setitem) {
+        Buf<128> m;
+        m.put('\'').put(type_name(v)).put("' object does not support item assignment");
+        return err_set("TypeError", m.str());
+    }
     return t->setitem(v, key, item);
 }
 
 R py_delitem(Value v, Value key)
 {
     const Type *t = type_of(v);
-    if (!t || !t->delitem)
-        return err_set2("TypeError", "object does not support item deletion", type_name(v));
+    if (!t || !t->delitem) {
+        Buf<128> m;
+        m.put('\'').put(type_name(v)).put("' object does not support item deletion");
+        return err_set("TypeError", m.str());
+    }
     return t->delitem(v, key);
 }
 
@@ -485,6 +499,56 @@ R py_inplace(Value a, Value b, Op op, Value &out)
         while (table_next(set_at(made.v)->t, at, k, val))
             if (set_add(set_at(ra.v), k) != R::Ok)
                 return R::Err;
+        out = ra.v;
+        return R::Ok;
+    }
+    // `d |= x` updates d from a mapping or from pairs; a FrameLocalsProxy
+    // takes only a mapping.
+    if (op == Op::Or && (is_dict(a) || is_frame_locals(a))) {
+        Root ra{ a }, rb{ b };
+        Root src{ frame_locals_dict(rb.v) };
+        if (src.v.is_nil())
+            return R::Err;
+        if (!is_dict(src.v) && is_frame_locals(ra.v))
+            return py_binop(ra.v, rb.v, op, out);
+        Root it{ is_dict(src.v) ? Value() : py_iter(src.v) };
+        if (!is_dict(src.v) && it.v.is_nil())
+            return R::Err;
+        usize at = 0;
+        for (;;) {
+            Root k, v;
+            if (is_dict(src.v)) {
+                Value x, y;
+                if (!table_next(static_cast<DictObj *>(src.v.obj())->t, at, x, y))
+                    break;
+                k = x;
+                v = y;
+            } else {
+                Root pair;
+                R r = py_next(it.v, pair.v);
+                if (r == R::Err)
+                    return R::Err;
+                if (r == R::NotImpl)
+                    break;
+                usize n = 0;
+                if (py_len(pair.v, n) != R::Ok)
+                    return R::Err;
+                if (n != 2) {
+                    char t[24];
+                    Buf<128> m;
+                    m.put("dictionary update sequence element #")
+                        .put(int_text(t, sizeof t, i64(at)));
+                    m.put(" has length ").put(int_text(t, sizeof t, i64(n))).put("; 2 is required");
+                    return err_set("ValueError", m.str());
+                }
+                if (py_getitem(pair.v, Value::of_int(0), k.v) != R::Ok ||
+                    py_getitem(pair.v, Value::of_int(1), v.v) != R::Ok)
+                    return R::Err;
+                at++;
+            }
+            if (py_setitem(ra.v, k.v, v.v) != R::Ok)
+                return R::Err;
+        }
         out = ra.v;
         return R::Ok;
     }

@@ -8,10 +8,18 @@
 bool py_truth(Value v);
 
 R py_hash(Value v, u32 &out);
+
+// TypeError: unhashable type: 'T'.
+R err_unhashable(Value v);
 R py_eq(Value a, Value b, bool &out);
 R py_cmp(Value a, Value b, Cmp op, bool &out);
 
 R py_repr(Value v, String &out);
+
+// repr's guard against a container that holds itself: false when `v` is
+// already being printed. A true one is paired with repr_leave.
+bool repr_enter(Value v);
+void repr_leave();
 R py_str(Value v, String &out);
 
 R py_len(Value v, usize &out);

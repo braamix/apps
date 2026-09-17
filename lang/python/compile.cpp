@@ -212,6 +212,9 @@ struct Compiler {
     {
         const Sym *y = st.find(u->scope, s);
         Bind b       = y ? y->bind : Bind::Name;
+        // A class body names its own __class__ cell only to hand it on.
+        if (scope().kind == ScopeKind::Class && b == Bind::Cell && s->str() == "__class__")
+            b = Bind::Name;
         switch (b) {
         case Bind::Local:
             return { Bc::LoadFast, Bc::StoreFast, Bc::DeleteFast, y->slot };
@@ -2500,6 +2503,16 @@ bool Compiler::body_of(u32 node)
     case Nd::ClassDef:
         if (!class_preamble(node) || !stmts(node, n.a + n.b, n.c) || !store_statics())
             return false;
+        // The body answers the __class__ cell, and leaves it where
+        // type.__new__ looks; __build_class__ checks it was filled.
+        if (scope().classcell) {
+            const Sym *y = st.find(u->scope, str_intern("__class__"));
+            StrObj *cc   = str_intern("__classcell__");
+            if (!y || !cc)
+                return y ? oom() : fail("the __class__ cell is missing", node);
+            return emit(Bc::LoadClosure, y->slot, 0) && emit(Bc::StoreName, name_index(cc), 0) &&
+                   emit(Bc::LoadClosure, y->slot, 0) && emit(Bc::Return, 0);
+        }
         break;
 
     case Nd::ListComp:

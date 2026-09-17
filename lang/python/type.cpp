@@ -13,6 +13,7 @@
 #include "ops.h"
 #include "union.h"
 #include "vm.h"
+#include "weak.h"
 
 namespace {
 
@@ -660,6 +661,14 @@ Value type_new_meta(Value meta, Value name, Value bases, Value dict)
         if (!is_type(tuple_at(rb.v, i)))
             return err_set2("TypeError", "a base is not a class", type_name(tuple_at(rb.v, i))),
                    Value();
+    for (usize i = 0; i < tuple_len(rb.v); i++) {
+        const Type *d = type_obj(tuple_at(rb.v, i))->desc;
+        if (d && d->final) {
+            Buf<128> m;
+            m.put("type '").put(d->name).put("' is not an acceptable base type");
+            return err_set("TypeError", m.str()), Value();
+        }
+    }
 
     // An instance of the metaclass, so that type(C) is M and M's own methods
     // are found on C. Without one it is an instance of `type`.
@@ -735,6 +744,31 @@ Value type_new_meta(Value meta, Value name, Value bases, Value dict)
     Value orig;
     if (dict_get(dict_at(rd.v), obj_value(obk), orig) == R::Ok && is_tuple(orig))
         type_obj(rt.v)->origbases = orig;
+
+    // The cell the body's methods read __class__ from: filled with the class,
+    // and not a name in its namespace.
+    StrObj *ck = str_intern("__classcell__");
+    if (!ck)
+        return oom(), Value();
+    Value cell;
+    R cr = dict_get(dict_at(rd.v), obj_value(ck), cell);
+    if (cr == R::Err)
+        return Value();
+    if (cr == R::Ok) {
+        if (!cell.is_obj() || cell.obj()->type != &cell_type) {
+            Root rc{ cell };
+            String msg;
+            if (!msg.append("__classcell__ must be a nonlocal cell, not "))
+                return oom(), Value();
+            Root ct{ type_of_value(rc.v) };
+            if (ct.v.is_nil() || py_repr(ct.v, msg) != R::Ok)
+                return Value();
+            return err_set("TypeError", msg.str()), Value();
+        }
+        static_cast<CellObj *>(cell.obj())->v = rt.v;
+        if (dict_del(dict_at(rd.v), obj_value(ck)) == R::Err)
+            return Value();
+    }
 
     // A class without a docstring still says so in its namespace.
     StrObj *dk = str_intern("__doc__");
@@ -990,7 +1024,9 @@ R build_step(ContObj *k, Value in)
         // The body has run and its namespace is the class. Calling the
         // metaclass is what makes one, so that a metaclass with a __new__ or
         // an __init__ of its own is obeyed, and the class keywords reach it.
-        k->i = 4;
+        // The body answers its __class__ cell, if it has one.
+        k->i    = 4;
+        k->s[7] = in;
         if (!k->s[6].is_nil()) {
             StrObj *ob = str_intern("__orig_bases__");
             if (!ob || dict_set(dict_at(k->s[3]), obj_value(ob), k->s[6]) != R::Ok)
@@ -1004,7 +1040,7 @@ R build_step(ContObj *k, Value in)
         t->items()[1]  = k->s[2];
         t->items()[2]  = k->s[3];
         TupleObj *pair = static_cast<TupleObj *>(k->s[5].obj());
-        k->s[0]        = Value();
+        k->s[0]        = k->s[1]; // the name, for the cell check
         k->s[1]        = pair->items()[0];
         k->s[2]        = pair->items()[1];
         return cont_call_kw(k, k->s[4], args.v, k->s[1], k->s[2]);
@@ -1014,6 +1050,27 @@ R build_step(ContObj *k, Value in)
         // all that is left is to say what the bases were written as.
         if (is_type(in) && !k->s[6].is_nil())
             type_obj(in)->origbases = k->s[6];
+        // type.__new__ fills the cell; a metaclass that drops __classcell__
+        // leaves it empty.
+        if (is_type(in) && k->s[7].is_obj() && k->s[7].obj()->type == &cell_type) {
+            Value held = static_cast<CellObj *>(k->s[7].obj())->v;
+            if (held != in) {
+                Root cls{ in };
+                String m;
+                if (held.is_nil() ? !m.append("__class__ not set defining ")
+                                  : (!m.append("__class__ set to ") || py_repr(held, m) != R::Ok ||
+                                     !m.append(" defining ")))
+                    return err_pending() ? R::Err : oom();
+                if (py_repr(k->s[0], m) != R::Ok || !m.append(" as ") || py_repr(cls.v, m) != R::Ok)
+                    return err_pending() ? R::Err : oom();
+                if (held.is_nil()) {
+                    if (!m.append(". Was __classcell__ propagated to type.__new__?"))
+                        return oom();
+                    return err_set("RuntimeError", m.str());
+                }
+                return err_set("TypeError", m.str());
+            }
+        }
         return cont_done(k, in);
     }
 }
@@ -1214,6 +1271,20 @@ R b_object_init_subclass(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// object.__repr__(x): the default, whatever the class wrote.
+R b_object_repr(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "__repr__", 1, 1))
+        return R::Err;
+    char tmp[24];
+    Buf<128> b;
+    b.put("<").put(type_name(a.args[0])).put(" object at ");
+    b.put(a.args[0].is_obj() ? addr_text(tmp, sizeof tmp, a.args[0].obj()) : Str("0x0"));
+    b.put('>');
+    out = str_new(b.str());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 // object.__new__(cls), which is where every class's instance comes from.
 R b_object(const CallArgs &a, Value &out);
 
@@ -1225,7 +1296,8 @@ bool is_object_default(Value v)
         return false;
     R (*f)(const CallArgs &, Value &) = static_cast<NativeObj *>(v.obj())->fn;
     return f == b_object_init || f == b_object_getattribute || f == b_object_setattr ||
-           f == b_object_delattr || f == b_object_init_subclass || f == b_object;
+           f == b_object_delattr || f == b_object_init_subclass || f == b_object ||
+           f == b_object_repr;
 }
 
 namespace {
@@ -1619,48 +1691,73 @@ R b_classmethod(const CallArgs &a, Value &out)
     return wrap_one(a, &classmethod_type, "classmethod", out);
 }
 
-// Zero-argument super(): the class is the one in self's MRO whose namespace
-// holds the function now running. CPython uses a __class__ cell for this; the
-// search finds the same class and costs the compiler nothing.
+// Zero-argument super(): the running function's first argument, and the
+// class its __class__ cell holds. A list, set or dict comprehension is part of
+// the function it is written in, as CPython inlines it.
 R super_here(Value &self, Value &cls)
 {
     Value fr = vm_frame();
-    if (fr.is_nil() || !frame_of(fr)->nlocals)
+    if (fr.is_nil())
+        return err_set("RuntimeError", "super(): no current frame");
+    FrameObj *f = frame_of(fr);
+    CodeObj *c  = code_of(f->code);
+    Str name    = is_str(c->name) ? str_of(c->name)->str() : Str();
+    FrameObj *a = f;
+    if ((name == "<listcomp>" || name == "<setcomp>" || name == "<dictcomp>") && !f->back.is_nil())
+        a = frame_of(f->back);
+    CodeObj *ac = code_of(a->code);
+    if (!ac->argcount)
         return err_set("RuntimeError", "super(): no arguments");
-    self       = frame_of(fr)->slots()[0];
-    Value code = frame_of(fr)->code;
-    Value t    = type_of_value(self);
-    if (t.is_nil())
-        return R::Err;
-    // The class the running function was written in. A classmethod and a
-    // metaclass's __new__ take a class rather than an instance, so its own
-    // linearization is searched as well as its type's.
-    Value where[2] = { type_obj(t)->mro, is_type(self) ? type_obj(self)->mro : Value() };
-    for (Value m : where) {
-        for (usize i = 0; i < tuple_len(m); i++) {
-            Value c  = tuple_at(m, i);
-            usize at = 0;
-            Value k, v;
-            while (table_next(dict_at(type_obj(c)->dict)->t, at, k, v)) {
-                if (v.is_obj() && v.obj()->type == &classmethod_type)
-                    v = static_cast<WrapObj *>(v.obj())->fn;
-                if (v.is_obj() && v.obj()->type == &staticmethod_type)
-                    v = static_cast<WrapObj *>(v.obj())->fn;
-                if (is_func(v) && func_of(v)->code == code) {
-                    cls = c;
-                    return R::Ok;
-                }
-            }
-        }
+    // The first argument, or its cell where a nested scope captured it.
+    self = a->slots()[0];
+    for (usize i = 0; i < ac->cellvars.size() && !a->cells.is_nil(); i++) {
+        if (ac->cellvars[i] != ac->varnames[0])
+            continue;
+        Value cell = static_cast<TupleObj *>(a->cells.obj())->items()[i];
+        self       = cell.is_nil() ? Value() : static_cast<CellObj *>(cell.obj())->v;
     }
-    return err_set("RuntimeError", "super(): no class found");
+    if (self.is_nil())
+        return err_set("RuntimeError", "super(): arg[0] deleted");
+    usize own = c->cellvars.size();
+    for (usize i = 0; i < c->freevars.size(); i++) {
+        if (str_of(c->freevars[i])->str() != "__class__")
+            continue;
+        Value cell =
+            f->cells.is_nil() ? Value() : static_cast<TupleObj *>(f->cells.obj())->items()[own + i];
+        cls = cell.is_nil() ? Value() : static_cast<CellObj *>(cell.obj())->v;
+        if (cls.is_nil())
+            return err_set("RuntimeError", "super(): empty __class__ cell");
+        if (!is_type(cls)) {
+            Buf<128> m;
+            m.put("super(): __class__ is not a type (").put(type_name(cls)).put(')');
+            return err_set("RuntimeError", m.str());
+        }
+        return R::Ok;
+    }
+    return err_set("RuntimeError", "super(): __class__ cell not found");
+}
+
+// super(type, obj) wants obj to be an instance or a subclass of type.
+R super_check(Value t, Value obj)
+{
+    bool ok = (is_type(obj) && type_issub(obj, t)) || type_isinstance(obj, t);
+    if (ok)
+        return R::Ok;
+    Buf<256> m;
+    m.put("super(type, obj): obj (");
+    if (is_type(obj))
+        m.put("type ").put(type_obj(obj)->slots.name);
+    else
+        m.put("instance of ").put(type_name(obj));
+    m.put(") is not an instance or subtype of type (").put(type_obj(t)->slots.name).put(").");
+    return err_set("TypeError", m.str());
 }
 
 R b_super(const CallArgs &a, Value &out)
 {
     if (!a.nargs && !a.nkw) {
         Root self, cls;
-        if (super_here(self.v, cls.v) != R::Ok)
+        if (super_here(self.v, cls.v) != R::Ok || super_check(cls.v, self.v) != R::Ok)
             return R::Err;
         SuperObj *s = static_cast<SuperObj *>(obj_alloc(&super_type, sizeof(SuperObj)));
         if (!s)
@@ -1676,10 +1773,8 @@ R b_super(const CallArgs &a, Value &out)
         return err_set2("TypeError", "super() argument 1 must be a type", type_name(a.args[0]));
     // A class is the second argument twice over: as a subclass of the first,
     // and as an instance of it where the first is a metaclass.
-    bool ok = (is_type(a.args[1]) && type_issub(a.args[1], a.args[0])) ||
-              type_isinstance(a.args[1], a.args[0]);
-    if (!ok)
-        return err_set("TypeError", "super(type, obj): obj must be an instance or subtype");
+    if (super_check(a.args[0], a.args[1]) != R::Ok)
+        return R::Err;
     Root rc{ a.args[0] }, rs{ a.args[1] };
     SuperObj *s = static_cast<SuperObj *>(obj_alloc(&super_type, sizeof(SuperObj)));
     if (!s)
@@ -1724,6 +1819,7 @@ constexpr Named OBJECT_METHODS[] = {
     { "__setattr__", b_object_setattr },
     { "__delattr__", b_object_delattr },
     { "__init_subclass__", b_object_init_subclass },
+    { "__repr__", b_object_repr },
 };
 
 // The built-in types a program can name, subclass or test against.
@@ -1872,6 +1968,12 @@ bool type_set_ctor(const Type *t, Value fn)
 
 Value type_special(Value v, Str name)
 {
+    // What a weak proxy's referent answers in Python, the proxy answers.
+    if (is_weakproxy(v)) {
+        v = proxy_target(v);
+        if (v.is_nil())
+            return err_clear(), Value();
+    }
     if (!is_inst(v))
         return Value();
     StrObj *n = str_intern(name);
@@ -1934,6 +2036,12 @@ bool type_unhashable(Value v)
 
 bool type_has_special(Value v, Str name)
 {
+    if (is_weakproxy(v)) {
+        Obj *t = static_cast<WeakRefObj *>(v.obj())->target;
+        if (!t)
+            return false;
+        v = Value::of_obj(t);
+    }
     if (!is_inst(v))
         return false;
     StrObj *n = str_intern(name);
@@ -1943,6 +2051,12 @@ bool type_has_special(Value v, Str name)
 
 bool type_has_py_special(Value v, Str name)
 {
+    if (is_weakproxy(v)) {
+        Obj *t = static_cast<WeakRefObj *>(v.obj())->target;
+        if (!t)
+            return false;
+        v = Value::of_obj(t);
+    }
     if (!is_inst(v))
         return false;
     StrObj *n = str_intern(name);
@@ -1953,7 +2067,7 @@ bool type_has_py_special(Value v, Str name)
     // built-in's own namespace, and each of those is a native over the slot
     // the instance already carries. Only a method written in Python needs a
     // frame, and that is the whole question here.
-    return !is_native(found);
+    return !is_native(found) || (found.obj()->flags & OBJ_PYLIKE);
 }
 
 // The `__new__` a class wrote itself, rather than the one object lends it.

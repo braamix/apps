@@ -24,12 +24,20 @@ inline bool is_slice(Value v)
 // False leaves the error pending.
 bool slice_resolve(Value v, usize len, i64 &start, i64 &stop, i64 &step, usize &count);
 
+// Any width: the bounds and the length are ints, small or big.
 struct RangeObj : Obj {
-    i64 start, stop, step;
+    Value start, stop, step, len;
 };
 
 // Nil with ValueError pending on a zero step.
 Value range_new(i64 start, i64 stop, i64 step);
+Value range_new_ints(Value start, Value stop, Value step);
+
+// reversed(range): the items from the last, however wide.
+Value range_reversed(Value r);
+
+// count, index and __reversed__, from methods_install().
+bool range_methods();
 
 // An iterator over anything with a len and an integer getitem: str, bytes,
 // tuple, list.

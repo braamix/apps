@@ -74,3 +74,6 @@ bool gcmod_install(DictObj *into);
 bool types_install(DictObj *into);
 bool typing_install(DictObj *into);
 bool unicodedata_install(DictObj *into);
+bool thread_install(DictObj *into);
+bool contextvars_install(DictObj *into);
+bool string_install(DictObj *into);

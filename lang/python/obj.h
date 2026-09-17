@@ -63,6 +63,7 @@ struct Type {
     Got (*lazyattr)(Value, StrObj *name, Value &out, Value &args) = nullptr;
 
     bool plain = false; // a base that lends no layout: a subclass is object's
+    bool final = false; // not an acceptable base type
 };
 
 // Py_TPFLAGS_SEQUENCE and Py_TPFLAGS_MAPPING, and _Py_TPFLAGS_MATCH_SELF: a
@@ -79,16 +80,17 @@ struct Obj {
 };
 
 enum : u32 {
-    OBJ_MARK      = 1u << 0, // reachable, this collection
-    OBJ_GREY      = 1u << 1, // on the marker's worklist
-    OBJ_IMMORTAL  = 1u << 2, // static storage: never swept, never freed
-    OBJ_ASCII     = 1u << 3, // a str whose bytes are all under 0x80
-    OBJ_EXC       = 1u << 4, // an ExcObj, whatever class it belongs to
-    OBJ_TYPE      = 1u << 5, // a TypeObj, whatever metaclass it belongs to
-    OBJ_FINAL     = 1u << 6, // its class has a __del__ the sweep owes a call
-    OBJ_FINALIZED = 1u << 7, // that call has been owed once, and never is again
-    OBJ_PLAINFN   = 1u << 8, // a native that is a function, not a method: it never binds
-    OBJ_CTOR      = 1u << 9, // a built-in's constructor, which takes no class
+    OBJ_MARK      = 1u << 0,  // reachable, this collection
+    OBJ_GREY      = 1u << 1,  // on the marker's worklist
+    OBJ_IMMORTAL  = 1u << 2,  // static storage: never swept, never freed
+    OBJ_ASCII     = 1u << 3,  // a str whose bytes are all under 0x80
+    OBJ_EXC       = 1u << 4,  // an ExcObj, whatever class it belongs to
+    OBJ_TYPE      = 1u << 5,  // a TypeObj, whatever metaclass it belongs to
+    OBJ_FINAL     = 1u << 6,  // its class has a __del__ the sweep owes a call
+    OBJ_FINALIZED = 1u << 7,  // that call has been owed once, and never is again
+    OBJ_PLAINFN   = 1u << 8,  // a native that is a function, not a method: it never binds
+    OBJ_CTOR      = 1u << 9,  // a built-in's constructor, which takes no class
+    OBJ_PYLIKE    = 1u << 10, // a native a class body holds as a method that calls back
 };
 
 // Allocate `bytes` (header included) and thread it onto the heap list. Null on

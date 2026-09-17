@@ -1,0 +1,5 @@
+no
+True C False
+[1, 0] L 5 True False
+__bool__ should return bool, returned int
+True False 1

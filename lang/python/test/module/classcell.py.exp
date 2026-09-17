@@ -1,0 +1,20 @@
+class body name '__class__' is not defined
+True ('__class__',) ('__class__',) ()
+True True False
+('__class__',)
+comp [<class 'super'>]
+gen TypeError super(type, obj): obj
+lam RuntimeError super(): no arguments
+cellarg <class 'super'>
+star RuntimeError super(): no arguments
+True ('RuntimeError', 'super(): no arguments') ('RuntimeError', 'super(): no arguments') ('RuntimeError', 'super(): arg[0] deleted')
+('RuntimeError', 'super(): __class__ cell not found')
+5 5
+RuntimeError super(): __class__ is not a type (int)
+RuntimeError __class__ not set defining 'B' as <class 'B'>. Was __classcell__ propagated to type.__new__?
+True None
+TypeError __classcell__ must be a nonlocal cell, not <class 'int'>
+['__firstlineno__', '__module__', '__qualname__']
+True
+init_subclass J I
+K via >

@@ -10,6 +10,7 @@
 #include "vm.h"
 
 #include "abc.h"
+#include "bigint.h"
 #include "builtin.h"
 #include "call.h"
 #include "codec.h"
@@ -35,6 +36,7 @@
 #include "type.h"
 #include "typevar.h"
 #include "ustr.h"
+#include "weak.h"
 
 namespace {
 
@@ -465,6 +467,11 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
 R do_call(Value callable, const CallArgs &a, Value &out, bool &entered)
 {
     entered = false;
+    if (is_weakproxy(callable)) {
+        callable = proxy_target(callable);
+        if (callable.is_nil())
+            return R::Err;
+    }
     if (is_native(callable))
         return static_cast<NativeObj *>(callable.obj())->fn(a, out);
     if (is_type(callable))
@@ -776,6 +783,68 @@ R once_step(ContObj *k, Value in)
     return cont_done(k, in);
 }
 
+// The jumps and `not` over such a test. s[0] the call, s[1] the jump target;
+// j the opcode, with bit 8 set for __len__. The step does the jump itself.
+R truth_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call(k, k->s[0], Value(), 0);
+    bool yes = false;
+    if (truth_answer(in, k->j & 0x100, yes) != R::Ok)
+        return R::Err;
+    FrameObj *f = frame_of(vm->frame);
+    Value *st   = f->stack();
+    u32 target  = u32(k->s[1].as_int());
+    switch (Bc(k->j & 0xff)) {
+    case Bc::PopJumpIfFalse:
+        f->sp--;
+        if (!yes)
+            f->pc = target;
+        break;
+    case Bc::PopJumpIfTrue:
+        f->sp--;
+        if (yes)
+            f->pc = target;
+        break;
+    case Bc::JumpIfFalseOrPop:
+        if (!yes)
+            f->pc = target;
+        else
+            f->sp--;
+        break;
+    case Bc::JumpIfTrueOrPop:
+        if (yes)
+            f->pc = target;
+        else
+            f->sp--;
+        break;
+    default: // `not`
+        st[f->sp - 1] = value_bool(!yes);
+        break;
+    }
+    return cont_done(k, value_none());
+}
+
+// A truth test the operand answers in Python. False on failure; `done` false
+// when the native test stands.
+bool truth_python(FrameObj *f, Bc op, u32 target, bool &done)
+{
+    bool len = false;
+    Root m{ truth_special(f->stack()[f->sp - 1], len) };
+    done = !m.v.is_nil();
+    if (!done)
+        return !err_pending();
+    Root kv{ cont_new(truth_step) };
+    if (kv.v.is_nil())
+        return false;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = m.v;
+    k->s[1]    = Value::of_int(i32(target));
+    k->j       = u32(op) | (len ? 0x100 : 0);
+    k->drop    = true;
+    return run_cont(kv.v, Value());
+}
+
 // One turn of a `for` over a class instance: the item is pushed, and the
 // StopIteration this continuation catches pops the iterator and jumps.
 // `drop` is set, so the push and the jump are both ours.
@@ -856,6 +925,22 @@ R dunder_step(ContObj *k, Value in)
         return err_set("TypeError", m.str());
     }
     return binop_failed(a, b, Op(k->j & 0xff));
+}
+
+// A weak proxy among the top `n` operands becomes its referent, which is what
+// every operator on one asks. False with ReferenceError for a dead one.
+bool unproxy_operands(FrameObj *f, u32 n)
+{
+    Value *st = f->stack();
+    for (u32 i = 1; i <= n; i++) {
+        Value &v = st[f->sp - i];
+        if (!is_weakproxy(v))
+            continue;
+        v = proxy_target(v);
+        if (v.is_nil())
+            return false;
+    }
+    return true;
 }
 
 // A binary operator where one side is a class instance. False on failure;
@@ -2356,6 +2441,8 @@ void interpret()
 
             case Bc::UnaryOp: {
                 Value out;
+                if (!unproxy_operands(f, 1))
+                    goto oops;
                 Value a = st[f->sp - 1];
                 if (is_inst(a) && Un(arg) != Un::Not) {
                     Str d   = Un(arg) == Un::Invert ? Str("__invert__")
@@ -2367,6 +2454,13 @@ void interpret()
                             goto oops;
                         break;
                     }
+                }
+                if (Un(arg) == Un::Not && is_inst(a)) {
+                    bool done = false;
+                    if (!truth_python(f, Bc::UnaryOp, 0, done))
+                        goto oops;
+                    if (done)
+                        break;
                 }
                 R r = R::Ok;
                 switch (Un(arg)) {
@@ -2391,6 +2485,8 @@ void interpret()
 
             case Bc::BinaryOp:
             case Bc::InplaceOp: {
+                if (!unproxy_operands(f, 2))
+                    goto oops;
                 Value a = st[f->sp - 2], b = st[f->sp - 1];
                 // `xs += gen` is the one operator that iterates.
                 if (in.op == Bc::InplaceOp && Op(arg) == Op::Add && is_list(a) &&
@@ -2452,20 +2548,23 @@ void interpret()
             case Bc::CompareOp: {
                 Cmp op  = Cmp(arg);
                 bool ok = false;
+                if (op != Cmp::Is && op != Cmp::IsNot && !unproxy_operands(f, 2))
+                    goto oops;
                 if (op == Cmp::Is || op == Cmp::IsNot) {
                     ok = (st[f->sp - 2] == st[f->sp - 1]) == (op == Cmp::Is);
                 } else if (op == Cmp::In || op == Cmp::NotIn) {
-                    if (iter_needs_vm(st[f->sp - 1])) {
-                        if (!drain_operand(f, 0))
-                            goto oops;
-                        break;
-                    }
-                    // `not in` on a class needs the answer negated, which the
-                    // ordinary path does and a call cannot.
+                    // __contains__ first; iterating is the fallback. `not in`
+                    // on a class needs the answer negated, which the ordinary
+                    // path does and a call cannot.
                     Value m = type_special(st[f->sp - 1], "__contains__");
                     if (!m.is_nil()) {
                         u32 w = SP_BOOL | (op == Cmp::NotIn ? SP_NOT : 0);
                         if (!run_special(f, m, &st[f->sp - 2], 1, 2, w))
+                            goto oops;
+                        break;
+                    }
+                    if (iter_needs_vm(st[f->sp - 1])) {
+                        if (!drain_operand(f, 0))
                             goto oops;
                         break;
                     }
@@ -2517,25 +2616,30 @@ void interpret()
                 f->pc = arg;
                 break;
             case Bc::PopJumpIfFalse:
-                if (!py_truth(st[--f->sp]))
-                    f->pc = arg;
-                break;
             case Bc::PopJumpIfTrue:
-                if (py_truth(st[--f->sp]))
-                    f->pc = arg;
-                break;
             case Bc::JumpIfFalseOrPop:
-                if (!py_truth(st[f->sp - 1]))
+            case Bc::JumpIfTrueOrPop: {
+                Value top = st[f->sp - 1];
+                if (is_inst(top) || is_weakproxy(top)) {
+                    bool done = false;
+                    if (!truth_python(f, in.op, arg, done))
+                        goto oops;
+                    if (done)
+                        break;
+                    if (is_weakproxy(top) && proxy_target(top).is_nil())
+                        goto oops;
+                }
+                bool yes = py_truth(top);
+                bool pop = in.op == Bc::PopJumpIfFalse || in.op == Bc::PopJumpIfTrue;
+                bool on  = in.op == Bc::PopJumpIfTrue || in.op == Bc::JumpIfTrueOrPop;
+                if (pop)
+                    f->sp--;
+                if (yes == on)
                     f->pc = arg;
-                else
+                else if (!pop)
                     f->sp--;
                 break;
-            case Bc::JumpIfTrueOrPop:
-                if (py_truth(st[f->sp - 1]))
-                    f->pc = arg;
-                else
-                    f->sp--;
-                break;
+            }
 
             case Bc::GetIter:
                 if (!get_iter(f))
@@ -2869,6 +2973,12 @@ void interpret()
             }
             case Bc::DictUpdate:
             case Bc::DictMerge: {
+                if (is_frame_locals(st[f->sp - 1])) {
+                    Value d = frame_locals_dict(st[f->sp - 1]);
+                    if (d.is_nil())
+                        goto oops;
+                    st[f->sp - 1] = d;
+                }
                 Value from = st[f->sp - 1];
                 if (!is_dict(from)) {
                     err_set2("TypeError", "argument after ** must be a mapping", type_name(from));
@@ -3001,6 +3111,12 @@ void interpret()
                         }
                     a.nargs = u32(vm->flat.size());
                     if (arg & CX_KWARGS) {
+                        if (is_frame_locals(st[f->sp - 1])) {
+                            Value d = frame_locals_dict(st[f->sp - 1]);
+                            if (d.is_nil())
+                                goto oops;
+                            st[f->sp - 1] = d;
+                        }
                         Value kw = st[f->sp - 1];
                         if (!is_dict(kw)) {
                             err_set2("TypeError", "argument after ** must be a mapping",
@@ -3561,6 +3677,52 @@ void interpret()
 }
 
 } // namespace
+
+// What makes a truth test Python: an instance whose class wrote __bool__, or
+// failing that __len__, and a weak proxy to one.
+Value truth_special(Value v, bool &len)
+{
+    len = false;
+    if (is_weakproxy(v)) {
+        Value t = proxy_target(v);
+        if (t.is_nil())
+            return Value();
+        v = t;
+    }
+    if (!is_inst(v))
+        return Value();
+    if (type_has_py_special(v, "__bool__"))
+        return type_special(v, "__bool__");
+    if (type_has_py_special(v, "__len__")) {
+        len = true;
+        return type_special(v, "__len__");
+    }
+    return Value();
+}
+
+// What such a method returned, as a truth.
+R truth_answer(Value in, bool len, bool &yes)
+{
+    if (len) {
+        i64 n = 0;
+        if (!is_intval(in) || !as_index(in, n)) {
+            Buf<96> m;
+            m.put('\'').put(type_name(in)).put("' object cannot be interpreted as an integer");
+            return err_set("TypeError", m.str());
+        }
+        if (n < 0)
+            return err_set("ValueError", "__len__() should return >= 0");
+        yes = n != 0;
+        return R::Ok;
+    }
+    if (!is_bool(in)) {
+        Buf<96> m;
+        m.put("__bool__ should return bool, returned ").put(type_name(in));
+        return err_set("TypeError", m.str());
+    }
+    yes = is_true(in);
+    return R::Ok;
+}
 
 bool vm_start(Value code, Args argv)
 {

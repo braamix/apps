@@ -64,3 +64,10 @@ ListObj *vm_frames();
 // frames are heap, so this is a stated limit rather than a stack measurement.
 u32 vm_recursion_limit();
 void vm_set_recursion_limit(u32 n);
+
+// The bound __bool__, or __len__ with `len` set, a class instance answers its
+// truth with; Nil for the native test, with an error pending for a dead proxy.
+Value truth_special(Value v, bool &len);
+
+// What that method returned, as a truth.
+R truth_answer(Value in, bool len, bool &yes);

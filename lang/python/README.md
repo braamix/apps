@@ -30,7 +30,7 @@ Python 0.1 on Braam
 
 ## Status
 
-**Phase 21.**
+**Phase 22.**
 
 ```
 $ python -c 'print(sum([i * i for i in range(10)]))'
@@ -76,6 +76,14 @@ print("stra\N{LATIN SMALL LETTER SHARP S}e".upper(), u.name("\u20ac"), int("\u06
 print("\u00e9t\u00e9".encode("utf-16-le"), u.normalize("NFD", "\u00e9") == "e\u0301")'
 STRASSE EURO SIGN 12
 b'\xe9\x00t\x00\xe9\x00' True
+$ python -c 'import _contextvars as cv
+v = cv.ContextVar("v", default=0)
+class B:
+    def hi(self): return "B"
+class C(B):
+    def hi(self): v.set(5); return "C>" + super().hi() + str(v.get())
+print(cv.copy_context().run(C().hi), v.get(), range(1 << 70)[-1])'
+C>B5 0 1180591620717411303423
 ```
 
 Expressions, `if`, `while`, `for`, comprehensions, `def` and `lambda` with the
@@ -194,16 +202,32 @@ state machines that ask for one call at a time. `sorted`, `list.sort`, `min`,
 through it, and the merge is the same bottom-up stable one as the plain path,
 so a list of instances and a list of integers come out in the same order.
 
-**Nineteen modules are written in C++.** `sys` in full, `builtins`,
+**Twenty-two modules are written in C++.** `sys` in full, `builtins`,
 `_collections`, `_functools`, `itertools`, `operator`, `_random`, `_struct`,
 `array`, `math`, `cmath`, `time`, `errno`, `gc`, `_types`, the `_weakref` and
-`_abc` phase 17 wrote, the `_typing` phase 20 did, and phase 21's `_codecs`
-and `unicodedata`. They are the floor
+`_abc` phase 17 wrote, the `_typing` phase 20 did, phase 21's `_codecs`
+and `unicodedata`, and phase 22's `_thread`, `_contextvars` and `_string`.
+They are the floor
 CPython's own library stands on rather than that library:
 `collections/__init__.py` will import this `deque`, `random.py` this Mersenne
 Twister, `re/` the `_sre` phase 24 writes. Each is measured against CPython by
-running the same program under both — [test/module/](test/module/), ten cases,
-355 lines byte for byte.
+running the same program under both — [test/module/](test/module/), nineteen
+cases, 633 lines byte for byte.
+
+**The floor under the first wave is down.** Phase 22 wrote what CPython's
+pure-Python modules were found to import and this did not have: `_thread`'s
+locks and `_local` for a process with one thread, `_contextvars`, `_string`'s
+view of the format grammar, `_weakref.proxy`, `_functools.Placeholder` and
+`cmp_to_key`, a `range` of any width with CPython's two iterators, and a
+function frame's `f_locals` as a `FrameLocalsProxy` that writes through to the
+slots. **The implicit `__class__` cell is made**: a class whose methods name
+`__class__` or call `super()` keeps one, the body hands it to `type.__new__`
+as `__classcell__`, and zero-argument `super()` reads it rather than searching
+the MRO. `reprlib`, `string`, `string.templatelib`, `numbers`, `heapq`,
+`bisect`, `copyreg`, `keyword`, `linecache`, `types` and `_weakrefset` import
+unchanged; `_collections_abc.py` now reads past `framelocalsproxy` and
+`longrange_iterator` and stops at CPython main's new `frozendict`, which is
+phase 23's first job.
 
 **The protocol methods are in each built-in type's namespace.** `len(x)`
 reaches a slot and a slot is not an entry, so `'__len__' in list.__dict__` used
@@ -237,38 +261,39 @@ refuses, and this refuses it. Every expected output a CPython wrote now comes fr
 and [test/goldens.txt](test/goldens.txt) says which interpreter wrote each of
 our own.
 
-**CPython's tests are the second ruler.** Twenty-two are in
+**CPython's tests are the second ruler.** Twenty-three are in
 [test/cpython.txt](test/cpython.txt), fourteen of them run, and 171 test
-methods of 204 pass, against 166 at phase 20: `test_unicode_identifiers.py`
-and `test_utf8source.py`, this phase's two, now pass whole, with the
-`test.tokenizedata` files they import copied in beside them. The eight rows
-that do not run all compile and stop at an import: `annotationlib`, `re`,
-`collections`, `textwrap`, `pickle`. Running the whole of `Lib/test/` under
-this interpreter — `node test/pycases.mjs --survey`, which needs the clone in
-`tmp/` — says why each of the 391 files stops:
+methods of 204 pass, as at phase 21, when `test_unicode_identifiers.py` and
+`test_utf8source.py` came to pass whole. The nine rows that do not run all
+compile and stop at an import: `annotationlib`, `re`, `collections`,
+`textwrap`, `pickle`, and `copy` for `test_super.py`, phase 22's, which the
+`__class__` cell let through the compiler. Running the whole of `Lib/test/`
+under this interpreter — `node test/pycases.mjs --survey`, which needs the
+clone in `tmp/` — says why each of the 391 files stops:
 
-| now | what stops it | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 372 | a module that is not written yet | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 22–27 |
-| 14 | these run | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
-| 3 | a runtime error, or nothing this can read | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
-| 2 | other syntax — PEP 798, and `nonlocal __class__` | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
-| — | a lone surrogate in a literal | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
-| — | `\N{...}` | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
-| — | `async` | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
-| — | complex numbers | — | — | — | — | — | — | 41 | 41 | **done** |
-| — | an integer past 2³⁰ | — | — | — | — | — | — | 39 | 17 | **done** |
-| — | f-strings | — | — | — | — | — | — | — | 124 | **done** |
+| now | what stops it | 21 | 20 | 19 | 18 | 17 | 16 | 14 | 13 | 12 | lands in |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 373 | a module that is not written yet | 372 | 325 | 286 | 272 | 276 | 276 | 276 | 213 | 130 | phases 23–27 |
+| 14 | these run | 14 | 14 | 11 | 11 | 9 | 7 | 7 | 5 | 3 | |
+| 3 | a runtime error, or nothing this can read | 3 | 3 | 3 | 3 | 1 | 3 | 3 | 3 | 2 | |
+| 1 | other syntax — PEP 798 | 2 | 2 | 44 | 43 | 43 | 43 | 43 | 34 | 28 | see TODO.md |
+| — | a lone surrogate in a literal | — | 33 | 33 | 33 | 33 | 33 | 33 | 31 | 31 | **done** |
+| — | `\N{...}` | — | 14 | 14 | 14 | 14 | 14 | 14 | 12 | 12 | **done** |
+| — | `async` | — | — | — | 15 | 15 | 15 | 15 | 13 | 3 | **done** |
+| — | complex numbers | — | — | — | — | — | — | — | 41 | 41 | **done** |
+| — | an integer past 2³⁰ | — | — | — | — | — | — | — | 39 | 17 | **done** |
+| — | f-strings | — | — | — | — | — | — | — | — | 124 | **done** |
 
-The sixth wall went the way the fifth did: all forty-seven files the Unicode
+Phase 22 moved one file: `test_super.py` compiles now that the implicit
+`__class__` cell is made, and stops at `import copy`. The sixth wall went the
+way the fifth did: all forty-seven files the Unicode
 literals held back now stop at an import, `test_fstring.py` among them once
 whitespace after `!s` was accepted. Before that, the fifth: of the forty-two
-files the syntax let go, three ran and thirty-nine stopped at an import. The two left are
-`test_listcomps.py`, which is written to PEP 798's `[*x for x in y]` from 3.15,
-and `test_super.py`, which assigns the implicit `__class__` cell this
-interpreter does not make. **Nothing the library is written in is refused
-now**, so what stops 325 of the 391 files is the library itself, and the
-phases after this one are about writing its floor and taking it.
+files the syntax let go, three ran and thirty-nine stopped at an import. The
+one left is `test_listcomps.py`, which is written to PEP 798's
+`[*x for x in y]` from 3.15. **Nothing the library is written in is refused
+now**, so what stops 373 of the 391 files is the library itself, and with its
+floor written the phases after this one are about taking it.
 
 `python --dump-tokens f.py`, `python --dump-ast f.py` and `python --dis f.py`
 print what the lexer, the parser and the compiler produced; the first two are
@@ -319,13 +344,14 @@ green.
 | [compile.h](compile.h), [compile.cpp](compile.cpp) | The emitter, jump patching, and the blocks an exit unwinds |
 | [dis.cpp](dis.cpp) | The `--dis` listing |
 | [frame.h](frame.h), [frame.cpp](frame.cpp) | One activation: locals and the value stack in one block |
+| [flocals.cpp](flocals.cpp) | `FrameLocalsProxy`: a function frame's `f_locals`, written through to its slots |
 | [gen.h](gen.h), [gen.cpp](gen.cpp) | The generator, the coroutine and the async generator — a frame parked rather than popped — and the awaitables that step one |
 | [vm.h](vm.h), [vm.cpp](vm.cpp) | The dispatch loop, and the `Req` it hands the driver |
 | [func.h](func.h), [func.cpp](func.cpp) | Cells, functions, builtins written in C++, and modules |
 | [type.h](type.h), [type.cpp](type.cpp) | Type objects, instances, the MRO, the metaclasses and the class hooks |
 | [attr.cpp](attr.cpp) | The descriptor protocol, the attribute algorithm and `__slots__` |
 | [compare.h](compare.h), [compare.cpp](compare.cpp) | The sorts and searches that have to call Python, as continuations |
-| [weak.h](weak.h), [weak.cpp](weak.cpp) | Weak references, and the callbacks the sweep owes for them |
+| [weak.h](weak.h), [weak.cpp](weak.cpp) | Weak references and proxies, and the callbacks the sweep owes for them |
 | [abc.h](abc.h), [abc.cpp](abc.cpp) | `_abc`: the floor CPython's own abc.py stands on |
 | [genalias.h](genalias.h), [genalias.cpp](genalias.cpp) | `list[int]`: the generic alias, and PEP 560's other half |
 | [union.h](union.h), [union.cpp](union.cpp) | `int \| str`: the union, which is `typing.Union` and `types.UnionType` both |
@@ -343,7 +369,10 @@ green.
 | [itermod.cpp](itermod.cpp) | `itertools`: the lazy half, and the eager half that has to call |
 | [opmod.cpp](opmod.cpp) | `operator`, attrgetter, itemgetter and methodcaller |
 | [collmod.cpp](collmod.cpp) | `_collections`: the deque ring, defaultdict and OrderedDict |
-| [functoolsmod.cpp](functoolsmod.cpp) | `_functools`: reduce, partial and the lru_cache wrapper |
+| [functoolsmod.cpp](functoolsmod.cpp) | `_functools`: reduce, partial and Placeholder, cmp_to_key and the lru_cache wrapper |
+| [thread.cpp](thread.cpp) | `_thread`: the locks and `_local`, for one thread |
+| [ctxvars.cpp](ctxvars.cpp) | `_contextvars`: ContextVar, Token and Context |
+| [stringmod.cpp](stringmod.cpp) | `_string`: str.format's grammar as `string.Formatter` reads it |
 | [structmod.cpp](structmod.cpp) | `_struct`: the format language, and values to octets |
 | [arraymod.cpp](arraymod.cpp) | `array`: the only thing here that gives a buffer a width |
 | [randmod.cpp](randmod.cpp) | `_random`: MT19937, seeded the way CPython seeds it |
@@ -352,7 +381,8 @@ green.
 | [lib/](lib/) | Modules taken from CPython's library, byte for byte: `abc`, `codecs` and `encodings` |
 | [call.h](call.h), [call.cpp](call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](exc.h), [exc.cpp](exc.cpp) | The exception hierarchy, and the two objects it needs |
-| [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices, ranges and the three iterators |
+| [iter.h](iter.h), [iter.cpp](iter.cpp) | Slices and the iterators |
+| [range.cpp](range.cpp) | range at any width, and its two iterators |
 | [builtin.h](builtin.h), [builtin.cpp](builtin.cpp) | The builtins namespace, and `builtins` as a module |
 | [import.h](import.h), [import.cpp](import.cpp) | The module cache, the search path, and the loader |
 | [selftest.cpp](selftest.cpp) | What `--selftest` checks |
@@ -492,19 +522,14 @@ All recorded rather than hidden, and all in reach later:
   awaited; this closes that first, as for a generator's `yield from`.
 - **A class repr has no module in it.** CPython prints
   `<class '__main__.C'>`; this prints `<class 'C'>`, there being one module.
-- **There is no implicit `__class__` cell.** Zero-argument `super()` finds its
-  class by looking for the running code in the MRO, so it works; but
-  `__class__` as a name in a method, and `nonlocal __class__`, are refused.
 - **A comprehension is a function of its own.** PEP 709 inlined them in 3.12;
   here `[x for x in y]` still pushes a frame, which shows in a traceback and in
-  `locals()` inside one, and nowhere else.
+  `locals()` inside one, and nowhere else. Zero-argument `super()` in a list,
+  set or dict comprehension reads the frame that called it, which is the
+  function it was written in, so that works as it does in CPython.
 - **A union or a `Generic` does not take a string.** CPython hands a forward
   reference to `typing.py`, which makes a `ForwardRef` of it; there is no
   `typing.py` until phase 27, so `int | "C"` is refused.
-- **`string.templatelib` cannot be imported.** A t-string works and its two
-  types are `type(t"")` and `type(t"{0}".interpolations[0])`, which is where
-  CPython's own `templatelib.py` gets them from. The module is library, and
-  its package's `__init__.py` imports the `_string` phase 22 writes.
 - **A `+` before a number in a pattern is accepted.** 3.14 refuses
   `case +0:`; CPython's main branch takes it, and `test_patma.py` is written
   against that.
@@ -552,6 +577,18 @@ All recorded rather than hidden, and all in reach later:
   `islice(count(), 5)` is fine and `takewhile(p, count())` is not.
   `groupby`'s group is a list already built rather than CPython's shared
   iterator, which makes it *more* usable: it survives the next key.
+- **A lock never waits.** There is one thread, so nobody else can release a
+  held lock: `acquire` with a timeout, or without blocking, answers False at
+  once, and a blocking `acquire` with no timeout raises `RuntimeError` where
+  CPython would hang for ever. `start_new_thread` raises too, and
+  `get_ident()` is the process id.
+- **A context is a dict.** CPython keeps a `Context`'s variables in an
+  immutable map, so `copy_context()` costs nothing; here it copies them. What
+  a program sees is the same.
+- **`cmp_to_key`'s key is a class.** A sort compares keys through their
+  methods, since a slot cannot call the program's function, so `KeyWrapper` is
+  a class whose `__lt__` and the rest are natives. `type(K)` is that class,
+  and like any class here its repr has no module in it.
 - **`print` writes its line in one call.** CPython calls `sys.stdout.write`
   once per argument and separator; this builds the line and writes it once. A
   program that has put an object of its own in `sys.stdout` sees one call with
@@ -866,6 +903,15 @@ runs them: `__set_name__` over every entry in the namespace, then
 Python, so that too is a continuation -- and because it lives in `type.__new__`
 rather than in the `class` statement, `type('C', (B,), ns)` gets them as well.
 
+A method that names `__class__` or calls `super()` closes over a cell the
+class body owns, as CPython's does. The symbol table notes `__class__` wherever
+`super` is read in a function, the class keeps the cell, and the body ends by
+storing it as `__classcell__` and answering it. `type.__new__` fills the cell
+with the class and drops the name; `build_step` then checks the cell holds the
+class it made, which is how a metaclass that forgot to pass `__classcell__` on
+is caught. Zero-argument `super()` is the frame's first argument -- or its
+cell, where a nested scope captured it -- and what that cell holds.
+
 ## How a finalizer runs
 
 `__del__` and a weak reference's callback make the collector's sweep
@@ -975,7 +1021,10 @@ Three things shape what the modules can be.
 `__missing__` — every one of them calls a function the program wrote, so every
 one of them is a `ContObj` that asks for one call at a time and lets the VM
 drive it. That is ground rule 2, and it is the same machinery `sorted(key=)`
-already used.
+already used. Where the call has to come from a comparison, as
+`cmp_to_key`'s does, the object is an instance of a class whose methods are
+natives flagged `OBJ_PYLIKE`, so the sort's own machinery sees a method it
+must call rather than a slot.
 
 **A builtin cannot step a generator.** Anything taking an iterable checks
 `iter_needs_vm` and parks on `iter_park`, which drains it into a list and

@@ -478,6 +478,7 @@ const ExcType EXC_TABLE[] = {
     { "ExceptionGroup", &EXC_TABLE[36], &EXC_TABLE[4] },
     { "ImportCycleError", &EXC_TABLE[14] },
     { "UnicodeTranslateError", &EXC_TABLE[31] },
+    { "ReferenceError", &EXC_TABLE[4] },
 };
 
 const usize EXC_COUNT = sizeof(EXC_TABLE) / sizeof(EXC_TABLE[0]);

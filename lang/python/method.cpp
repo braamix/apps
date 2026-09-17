@@ -10,6 +10,7 @@
 #include "gc.h"
 #include "gen.h"
 #include "intern.h"
+#include "iter.h"
 #include "kernel/fmt.h"
 #include "lazy.h"
 #include "ops.h"
@@ -126,7 +127,8 @@ bool methods_install()
     return method_install(&object_type, OBJECT) && str_methods() && bytes_methods() &&
            seq_methods() && map_methods() && num_methods() && complex_methods() && gen_methods() &&
            code_methods() && slot_methods() && union_install() && seqiter_methods() &&
-           typing_methods() && lazy_methods() && templatelib_methods();
+           typing_methods() && lazy_methods() && templatelib_methods() && range_methods() &&
+           frame_locals_methods();
 }
 
 Value method_self(Value v)

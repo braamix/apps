@@ -1,14 +1,17 @@
-// `_functools`: the three names CPython writes in C and functools.py prefers
-// over its own fallbacks -- reduce, partial and the lru_cache wrapper.
+// `_functools`: the names CPython writes in C and functools.py prefers over its
+// own fallbacks -- reduce, partial and Placeholder, cmp_to_key, and the
+// lru_cache wrapper.
 //
-// All three call a function the program wrote, so all three are continuations
+// Each calls a function the program wrote, so each is a continuation
 // rather than loops: ground rule 2 again. The cache is the only one with state
 // worth describing -- an insertion-ordered dict, which is what makes "least
 // recently used" a matter of deleting a key and putting it back.
+#include "builtin.h"
 #include "call.h"
 #include "gc.h"
 #include "info.h"
 #include "intern.h"
+#include "kernel/alloc.h"
 #include "kernel/fmt.h"
 #include "method.h"
 #include "module.h"
@@ -83,6 +86,44 @@ R uncached_step(ContObj *k, Value in)
     return cont_done(k, in);
 }
 
+// ------------------------------------------------------------- Placeholder
+
+extern const Type placeholder_type;
+
+Obj placeholder_obj{ &placeholder_type, nullptr, nullptr, OBJ_IMMORTAL };
+
+bool is_placeholder(Value v)
+{
+    return v.is_obj() && v.obj() == &placeholder_obj;
+}
+
+R placeholder_repr(Value, String &out)
+{
+    return out.append("Placeholder") ? R::Ok : oom();
+}
+
+R ph_reduce(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    out = str_new("Placeholder");
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+constexpr Method PLACEHOLDER_METHODS[] = { { "__reduce__", ph_reduce } };
+
+constexpr Type placeholder_type{ .name  = "functools._PlaceholderType",
+                                 .repr  = placeholder_repr,
+                                 .final = true };
+
+R b_placeholder(const CallArgs &a, Value &out)
+{
+    if (a.nargs || a.nkw)
+        return err_set("TypeError", "PlaceholderType takes no arguments");
+    out = Value::of_obj(&placeholder_obj);
+    return R::Ok;
+}
+
 // ----------------------------------------------------------------- partial
 
 struct PartObj : Obj {
@@ -90,7 +131,8 @@ struct PartObj : Obj {
     Value args;    // TupleObj, always
     Value kwnames; // TupleObj of StrObj, always
     Value kwvals;
-    Value dict; // __dict__, made when something is stored in it
+    Value dict;  // __dict__, made when something is stored in it
+    u32 phcount; // the Placeholders in args
 };
 
 PartObj *part_of(Value v)
@@ -206,15 +248,27 @@ R part_call(const CallArgs &a, Value &out)
     TupleObj *pa = static_cast<TupleObj *>(p->args.obj());
     TupleObj *pn = static_cast<TupleObj *>(p->kwnames.obj());
 
-    TupleObj *args = tuple_new(pa->len + (a.nargs ? a.nargs - 1 : 0));
+    u32 given = a.nargs ? a.nargs - 1 : 0;
+    u32 holes = p->phcount;
+    if (given < holes) {
+        char t[24];
+        Buf<128> b;
+        b.put("missing positional arguments in 'partial' call; expected at least ");
+        b.put(int_text(t, sizeof t, i64(holes))).put(", got ");
+        b.put(int_text(t, sizeof t, i64(given)));
+        return err_set("TypeError", b.str());
+    }
+    TupleObj *args = tuple_new(pa->len + given - holes);
     if (!args)
         return oom();
     Root ra{ obj_value(args) };
-    pa = static_cast<TupleObj *>(part_of(self.v)->args.obj());
+    pa        = static_cast<TupleObj *>(part_of(self.v)->args.obj());
+    u32 taken = 1;
     for (u32 i = 0; i < pa->len; i++)
-        static_cast<TupleObj *>(ra.v.obj())->items()[i] = pa->items()[i];
-    for (u32 i = 1; i < a.nargs; i++)
-        static_cast<TupleObj *>(ra.v.obj())->items()[pa->len + i - 1] = a.args[i];
+        static_cast<TupleObj *>(ra.v.obj())->items()[i] =
+            is_placeholder(pa->items()[i]) ? a.args[taken++] : pa->items()[i];
+    for (u32 i = taken; i < a.nargs; i++)
+        static_cast<TupleObj *>(ra.v.obj())->items()[pa->len + i - taken] = a.args[i];
 
     pn      = static_cast<TupleObj *>(part_of(self.v)->kwnames.obj());
     u32 own = 0;
@@ -265,7 +319,7 @@ R part_call(const CallArgs &a, Value &out)
 
 constexpr Method PARTIAL_METHODS[] = { { "__call__", part_call } };
 
-constexpr Type partial_type{ .name    = "partial",
+constexpr Type partial_type{ .name    = "functools.partial",
                              .trace   = part_trace,
                              .repr    = part_repr,
                              .getattr = part_getattr,
@@ -274,28 +328,85 @@ constexpr Type partial_type{ .name    = "partial",
 R b_partial(const CallArgs &a, Value &out)
 {
     if (a.nargs < 1)
-        return err_set("TypeError", "partial() takes at least one argument");
-    TupleObj *args = tuple_new(a.nargs - 1);
+        return err_set("TypeError", "type 'partial' takes at least one argument");
+    if (!py_callable(a.args[0]))
+        return err_set("TypeError", "the first argument must be callable");
+    if (a.nargs > 1 && is_placeholder(a.args[a.nargs - 1]))
+        return err_set("TypeError", "trailing Placeholders are not allowed");
+    for (u32 i = 0; i < a.nkw; i++)
+        if (is_placeholder(a.kwvals[i]))
+            return err_set("TypeError", "Placeholder cannot be passed as a keyword argument");
+
+    // partial(partial(f, x), y) is one partial: y fills x's Placeholders
+    // first, and its keywords go over x's.
+    Root fn{ a.args[0] };
+    Root inner_args, inner_names, inner_vals;
+    if (fn.v.is_obj() && fn.v.obj()->type == &partial_type && part_of(fn.v)->dict.is_nil()) {
+        inner_args  = part_of(fn.v)->args;
+        inner_names = part_of(fn.v)->kwnames;
+        inner_vals  = part_of(fn.v)->kwvals;
+        fn          = part_of(fn.v)->fn;
+    }
+    u32 old   = inner_args.v.is_nil() ? 0 : static_cast<TupleObj *>(inner_args.v.obj())->len;
+    u32 given = a.nargs - 1;
+    u32 holes = 0;
+    for (u32 i = 0; i < old; i++)
+        holes += is_placeholder(static_cast<TupleObj *>(inner_args.v.obj())->items()[i]);
+    u32 filled     = given < holes ? given : holes;
+    TupleObj *args = tuple_new(old + given - filled);
     if (!args)
         return oom();
-    for (u32 i = 1; i < a.nargs; i++)
-        args->items()[i - 1] = a.args[i];
     Root ra{ obj_value(args) };
-    TupleObj *names = tuple_new(a.nkw);
+    u32 next = 1;
+    for (u32 i = 0; i < old; i++) {
+        Value x = static_cast<TupleObj *>(inner_args.v.obj())->items()[i];
+        if (is_placeholder(x) && next < a.nargs)
+            x = a.args[next++];
+        static_cast<TupleObj *>(ra.v.obj())->items()[i] = x;
+    }
+    for (u32 i = next; i < a.nargs; i++)
+        static_cast<TupleObj *>(ra.v.obj())->items()[old + i - next] = a.args[i];
+    u32 phcount    = 0;
+    TupleObj *made = static_cast<TupleObj *>(ra.v.obj());
+    for (u32 i = 0; i < made->len; i++)
+        phcount += is_placeholder(made->items()[i]);
+
+    // The kept keywords, less those given again, then the new ones.
+    u32 had  = inner_names.v.is_nil() ? 0 : static_cast<TupleObj *>(inner_names.v.obj())->len;
+    u32 keep = 0;
+    for (u32 i = 0; i < had; i++) {
+        bool shadowed = false;
+        for (u32 k = 0; k < a.nkw; k++)
+            shadowed = shadowed ||
+                       a.kwnames[k] == static_cast<TupleObj *>(inner_names.v.obj())->items()[i];
+        keep += !shadowed;
+    }
+    TupleObj *names = tuple_new(keep + a.nkw);
     if (!names)
         return oom();
-    for (u32 i = 0; i < a.nkw; i++)
-        names->items()[i] = a.kwnames[i];
     Root rn{ obj_value(names) };
-    TupleObj *vals = tuple_new(a.nkw);
+    TupleObj *vals = tuple_new(keep + a.nkw);
     if (!vals)
         return oom();
-    for (u32 i = 0; i < a.nkw; i++)
-        vals->items()[i] = a.kwvals[i];
     Root rv{ obj_value(vals) };
+    u32 at = 0;
+    for (u32 i = 0; i < had; i++) {
+        Value key     = static_cast<TupleObj *>(inner_names.v.obj())->items()[i];
+        bool shadowed = false;
+        for (u32 k = 0; k < a.nkw; k++)
+            shadowed = shadowed || a.kwnames[k] == key;
+        if (shadowed)
+            continue;
+        static_cast<TupleObj *>(rn.v.obj())->items()[at] = key;
+        static_cast<TupleObj *>(rv.v.obj())->items()[at] =
+            static_cast<TupleObj *>(inner_vals.v.obj())->items()[i];
+        at++;
+    }
+    for (u32 k = 0; k < a.nkw; k++, at++) {
+        static_cast<TupleObj *>(rn.v.obj())->items()[at] = a.kwnames[k];
+        static_cast<TupleObj *>(rv.v.obj())->items()[at] = a.kwvals[k];
+    }
 
-    // partial(partial(f, x), y) is one partial, which is what CPython does.
-    Root fn{ a.args[0] };
     PartObj *p = static_cast<PartObj *>(obj_alloc(&partial_type, sizeof(PartObj)));
     if (!p)
         return oom();
@@ -304,8 +415,248 @@ R b_partial(const CallArgs &a, Value &out)
     p->kwnames = rn.v;
     p->kwvals  = rv.v;
     p->dict    = Value();
+    p->phcount = phcount;
     out        = obj_value(p);
     return R::Ok;
+}
+
+// -------------------------------------------------------------- cmp_to_key
+
+// KeyWrapper is a class whose methods are natives: an instance compares by
+// calling the program's function, which the sort can only do through a
+// method. The factory and the keys it makes are both instances; the factory
+// keeps no `obj`.
+struct KeyHome {
+    Value cls;
+};
+
+KeyHome *key_home;
+
+void key_mark()
+{
+    gc_mark(key_home->cls);
+}
+
+StrObj *key_name(Str n)
+{
+    StrObj *k = str_intern(n);
+    return k ? k : (oom(), nullptr);
+}
+
+// One of the instance's two entries, or Nil.
+Value key_get(Value self, Str n)
+{
+    StrObj *k = key_name(n);
+    Value d   = inst_of(self)->dict;
+    Value got;
+    if (!k || d.is_nil() || dict_get(static_cast<DictObj *>(d.obj()), obj_value(k), got) != R::Ok)
+        return Value();
+    return got;
+}
+
+bool is_key(Value v)
+{
+    return key_home && is_inst(v) && inst_of(v)->cls == key_home->cls;
+}
+
+Value key_make(Value cmp, Value obj)
+{
+    Root rc{ cmp }, ro{ obj };
+    Root self{ inst_new(key_home->cls) };
+    if (self.v.is_nil())
+        return Value();
+    DictObj *d = dict_new();
+    if (!d)
+        return oom(), Value();
+    inst_of(self.v)->dict = obj_value(d);
+    StrObj *kc            = key_name("_cmp");
+    if (!kc || dict_set(d, obj_value(kc), rc.v) != R::Ok)
+        return Value();
+    if (!ro.v.is_nil()) {
+        StrObj *ko = key_name("obj");
+        if (!ko || dict_set(static_cast<DictObj *>(inst_of(self.v)->dict.obj()), obj_value(ko),
+                            ro.v) != R::Ok)
+            return Value();
+    }
+    return self.v;
+}
+
+R key_call(const CallArgs &a, Value &out)
+{
+    if (!a.nargs || !is_key(a.args[0]))
+        return err_set("TypeError", "KeyWrapper.__call__ requires a KeyWrapper");
+    Value obj;
+    if (a.nargs == 2 && !a.nkw)
+        obj = a.args[1];
+    else if (a.nargs == 1 && a.nkw == 1 && is_str(a.kwnames[0]) &&
+             str_of(a.kwnames[0])->str() == "obj")
+        obj = a.kwvals[0];
+    else if (a.nargs == 1 && !a.nkw)
+        return err_set("TypeError", "K() missing required argument 'obj' (pos 1)");
+    else
+        return err_set("TypeError", "K() takes exactly one argument");
+    out = key_make(key_get(a.args[0], "_cmp"), obj);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+Str cmp_name(Cmp op)
+{
+    switch (op) {
+    case Cmp::Lt:
+        return "__lt__";
+    case Cmp::Le:
+        return "__le__";
+    case Cmp::Gt:
+        return "__gt__";
+    case Cmp::Ge:
+        return "__ge__";
+    case Cmp::Eq:
+        return "__eq__";
+    default:
+        return "__ne__";
+    }
+}
+
+// s[0..2] the function and the two objects; j the operator. The answer is
+// `cmp(x, y) op 0`, which may itself be a call.
+R key_step(ContObj *k, Value in)
+{
+    switch (k->i++) {
+    case 0:
+        return cont_call(k, k->s[0], k->s[1], 2, k->s[2]);
+    case 1: {
+        Cmp op = Cmp(k->j);
+        if (type_has_py_special(in, cmp_name(op))) {
+            Root m{ type_special(in, cmp_name(op)) };
+            if (!m.v.is_nil())
+                return cont_call(k, m.v, Value::of_int(0));
+            if (err_pending())
+                return R::Err;
+        }
+        bool yes = false;
+        if (py_cmp(in, Value::of_int(0), op, yes) != R::Ok)
+            return R::Err;
+        return cont_done(k, value_bool(yes));
+    }
+    default:
+        return cont_done(k, in);
+    }
+}
+
+R key_compare(const CallArgs &a, Value &out, Cmp op)
+{
+    if (!meth_args(a, cmp_name(op), 1, 1))
+        return R::Err;
+    if (!is_key(a.args[0]) || !is_key(a.args[1]))
+        return err_set("TypeError", "other argument must be K instance");
+    Root x{ key_get(a.args[0], "obj") }, y{ key_get(a.args[1], "obj") };
+    Root fn{ key_get(a.args[0], "_cmp") };
+    if (x.v.is_nil() || y.v.is_nil() || fn.v.is_nil())
+        return err_set("TypeError", "object argument is not set");
+    Root kv{ cont_new(key_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = fn.v;
+    k->s[1]    = x.v;
+    k->s[2]    = y.v;
+    k->j       = u32(op);
+    out        = kv.v;
+    return R::Ok;
+}
+
+R key_lt(const CallArgs &a, Value &out)
+{
+    return key_compare(a, out, Cmp::Lt);
+}
+
+R key_le(const CallArgs &a, Value &out)
+{
+    return key_compare(a, out, Cmp::Le);
+}
+
+R key_gt(const CallArgs &a, Value &out)
+{
+    return key_compare(a, out, Cmp::Gt);
+}
+
+R key_ge(const CallArgs &a, Value &out)
+{
+    return key_compare(a, out, Cmp::Ge);
+}
+
+R key_eq(const CallArgs &a, Value &out)
+{
+    return key_compare(a, out, Cmp::Eq);
+}
+
+R key_ne(const CallArgs &a, Value &out)
+{
+    return key_compare(a, out, Cmp::Ne);
+}
+
+R key_init(const CallArgs &, Value &)
+{
+    return err_set("TypeError", "cannot create 'functools.KeyWrapper' instances");
+}
+
+constexpr Method KEY_METHODS[] = {
+    { "__call__", key_call }, { "__lt__", key_lt }, { "__le__", key_le }, { "__gt__", key_gt },
+    { "__ge__", key_ge },     { "__eq__", key_eq }, { "__ne__", key_ne }, { "__init__", key_init },
+};
+
+bool key_class()
+{
+    key_home = heap_new<KeyHome>();
+    if (!key_home)
+        return oom() == R::Ok;
+    gc_root_hook(key_mark);
+    DictObj *body = dict_new();
+    if (!body)
+        return oom() == R::Ok;
+    Root rd{ obj_value(body) };
+    for (const Method &m : KEY_METHODS) {
+        Root fn{ native_new(m.name, m.fn) };
+        StrObj *k = str_intern(m.name);
+        if (fn.v.is_nil() || !k)
+            return false;
+        if (m.fn != key_init && m.fn != key_call)
+            fn.v.obj()->flags |= OBJ_PYLIKE;
+        if (dict_set(static_cast<DictObj *>(rd.v.obj()), obj_value(k), fn.v) != R::Ok)
+            return false;
+    }
+    if (!mod_put(static_cast<DictObj *>(rd.v.obj()), "__hash__", value_none()) ||
+        !mod_str(static_cast<DictObj *>(rd.v.obj()), "__module__", "functools"))
+        return false;
+    Root name{ str_new("KeyWrapper") };
+    Root base{ type_object() };
+    if (name.v.is_nil() || base.v.is_nil())
+        return false;
+    TupleObj *bases = tuple_new(1);
+    if (!bases)
+        return oom() == R::Ok;
+    bases->items()[0] = base.v;
+    Root rb{ obj_value(bases) };
+    key_home->cls = type_new(name.v, rb.v, rd.v);
+    return !key_home->cls.is_nil();
+}
+
+R b_cmp_to_key(const CallArgs &a, Value &out)
+{
+    Value fn;
+    if (a.nargs == 1 && !a.nkw)
+        fn = a.args[0];
+    else if (!a.nargs && a.nkw == 1 && is_str(a.kwnames[0]) &&
+             str_of(a.kwnames[0])->str() == "mycmp")
+        fn = a.kwvals[0];
+    else if (!a.nargs && !a.nkw)
+        return err_set("TypeError", "cmp_to_key() missing required argument 'mycmp' (pos 1)");
+    else
+        return err_set("TypeError", "cmp_to_key() takes exactly one argument");
+    if (!key_home && !key_class())
+        return R::Err;
+    out = key_make(fn, Value());
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 // --------------------------------------------------------------- lru_cache
@@ -574,7 +925,7 @@ R b_lru_cache(const CallArgs &a, Value &out)
 constexpr ModDef DEFS[] = {
     { "reduce", b_reduce },
     { "_lru_cache_wrapper", b_lru_cache },
-    { "lru_cache", b_lru_cache },
+    { "cmp_to_key", b_cmp_to_key },
 };
 
 } // namespace
@@ -583,8 +934,12 @@ bool functools_install(DictObj *into)
 {
     Root rd{ obj_value(into) };
     if (!method_install(&partial_type, PARTIAL_METHODS) ||
-        !method_install(&cache_type, CACHE_METHODS))
+        !method_install(&cache_type, CACHE_METHODS) ||
+        !method_install(&placeholder_type, PLACEHOLDER_METHODS))
         return false;
     DictObj *d = static_cast<DictObj *>(rd.v.obj());
-    return mod_defs(d, DEFS) && mod_type(d, &partial_type, b_partial);
+    if (!mod_defs(d, DEFS) || !mod_type(d, &partial_type, b_partial) ||
+        !mod_type(d, &placeholder_type, b_placeholder))
+        return false;
+    return mod_put(d, "Placeholder", Value::of_obj(&placeholder_obj));
 }

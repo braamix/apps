@@ -4,6 +4,7 @@
 // set operation, and `for k in d.keys()` copies nothing.
 #include "call.h"
 #include "exc.h"
+#include "frame.h"
 #include "gc.h"
 #include "gen.h"
 #include "iter.h"
@@ -127,7 +128,7 @@ R view_repr(Value v, String &out)
 R view_hash(Value v, u32 &out)
 {
     if (static_cast<ViewObj *>(v.obj())->kind != VIEW_VALUES)
-        return err_set2("TypeError", "unhashable type", type_name(v));
+        return err_unhashable(v);
     out = u32(usize(v.obj())) >> 4;
     return R::Ok;
 }
@@ -473,7 +474,9 @@ R m_update(const CallArgs &a, Value &out)
         return iter_park(a, 1, m_update, out);
     Root rd{ method_self(a.args[0]) };
     if (a.nargs == 2) {
-        Root src{ a.args[1] };
+        Root src{ frame_locals_dict(a.args[1]) };
+        if (src.v.is_nil())
+            return R::Err;
         const Table *t = table_of(src.v);
         if (t && is_dict(src.v)) {
             usize at = 0;

@@ -18,6 +18,7 @@
 #include "method.h"
 #include "ops.h"
 #include "type.h"
+#include "weak.h"
 
 namespace {
 
@@ -353,16 +354,6 @@ Got inst_attr(Value v, StrObj *name, Value &out, Value &args)
         return descr_get(found.v, kind, rv.v, rc.v, out, args);
     }
 
-    // What the class's own slots answer -- an exception's `args`, a native
-    // base's attributes -- comes after the namespace.
-    const Type *t = type_of(rv.v);
-    if (t->getattr) {
-        R g = t->getattr(rv.v, name, out);
-        if (g == R::Ok)
-            return Got::Ok;
-        if (g == R::Err)
-            return Got::Error;
-    }
     if (Str("__dict__") == name->str()) {
         if (type_obj(rc.v)->nodict)
             return Got::Missing;
@@ -374,6 +365,17 @@ Got inst_attr(Value v, StrObj *name, Value &out, Value &args)
         }
         out = inst_of(rv.v)->dict;
         return Got::Ok;
+    }
+
+    // What the class's own slots answer -- an exception's `args`, a native
+    // base's attributes -- comes after the namespace.
+    const Type *t = type_of(rv.v);
+    if (t->getattr) {
+        R g = t->getattr(rv.v, name, out);
+        if (g == R::Ok)
+            return Got::Ok;
+        if (g == R::Err)
+            return Got::Error;
     }
     return Got::Missing;
 }
@@ -463,6 +465,21 @@ Got super_attr(Value v, StrObj *name, Value &out, Value &args)
     // nothing; anything else walks the type's and binds x. A metaclass method
     // takes a class as its self and is the second kind, not the first.
     bool as_class = is_type(rs.v) && type_issub(rs.v, rc.v);
+    // The super object's own members.
+    Str n = name->str();
+    if (n == "__thisclass__" || n == "__self__" || n == "__self_class__" || n == "__class__") {
+        if (n == "__class__")
+            out = type_of_value(v);
+        else if (n == "__thisclass__")
+            out = rc.v;
+        else if (rs.v.is_nil())
+            out = value_none();
+        else if (n == "__self__" || as_class)
+            out = rs.v;
+        else
+            out = type_of_value(rs.v);
+        return out.is_nil() ? Got::Error : Got::Ok;
+    }
     Value mro;
     if (as_class)
         mro = type_obj(rs.v)->mro;
@@ -526,6 +543,12 @@ Got attr_hooks(Value v, Root &ga, Root &gattr)
 
 Got attr_any(Value v, StrObj *name, Value &out, Value dflt, u32 flags)
 {
+    // A weak proxy is its referent in everything.
+    if (is_weakproxy(v)) {
+        v = proxy_target(v);
+        if (v.is_nil())
+            return Got::Error;
+    }
     Root rv{ v }, rn{ obj_value(name) }, rd{ dflt };
     Root ga, gattr;
     if (attr_hooks(rv.v, ga, gattr) == Got::Error)
@@ -548,7 +571,12 @@ Got attr_any(Value v, StrObj *name, Value &out, Value dflt, u32 flags)
     }
     if (g == Got::Error) {
         // A getter that is not there at all, or a slot never assigned: a
-        // __getattr__ answers for that too.
+        // __getattr__ answers for that too, and a default for want of one.
+        if (gattr.v.is_nil() && (flags & (G_GUARD | G_FOUND)) && pending_is_attr_error()) {
+            err_clear();
+            out = (flags & G_FOUND) ? value_bool(false) : rd.v;
+            return Got::Ok;
+        }
         if (gattr.v.is_nil() || !pending_is_attr_error())
             return Got::Error;
         err_clear();
@@ -749,6 +777,11 @@ Got py_attr_opt(Value v, StrObj *name, Value &out, Value dflt, bool found)
 R attr_store(Value v, StrObj *name, Value val, Value &fn)
 {
     fn = Value();
+    if (is_weakproxy(v)) {
+        v = proxy_target(v);
+        if (v.is_nil())
+            return R::Err;
+    }
     if (is_type(v)) {
         if (!type_obj(v)->heap)
             return err_set2("TypeError", "cannot set an attribute on a built-in type",
@@ -787,6 +820,11 @@ R attr_store(Value v, StrObj *name, Value val, Value &fn)
 R attr_delete(Value v, StrObj *name, Value &fn)
 {
     fn = Value();
+    if (is_weakproxy(v)) {
+        v = proxy_target(v);
+        if (v.is_nil())
+            return R::Err;
+    }
     if (is_type(v)) {
         if (!type_obj(v)->heap)
             return err_set2("TypeError", "cannot delete an attribute of a built-in type",

@@ -459,7 +459,7 @@ bool slot_methods()
         { &bytearray_type, NEED_SEQ, OP_TEXT },
         { &tuple_type, NEED_SEQ, OP_SEQ },
         { &list_type, NEED_SEQ, OP_SEQ },
-        { &dict_type, 0, 0 },
+        { &dict_type, 0, OP_OR },
         { &set_type, 0, OP_SET },
         { &frozenset_type, 0, OP_SET },
         { &view_type, 0, OP_SET },

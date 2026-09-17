@@ -1,0 +1,41 @@
+['Context', 'ContextVar', 'Token', 'copy_context']
+<ContextVar name='v' v 5 9 <ContextVar name='w' default=5
+LookupError True
+<Token var=<ContextVar name='v' True <Token.MISSING> <Token.MISSING> <Token.MISSING> 1
+True
+1
+1
+RuntimeError <Token used var=<ContextVar name='v'
+ValueError <Token var=<ContextVar name='v'
+TypeError expected an instance of Token, got 1
+TypeError ContextVar.set() takes exactly one argument (0 given)
+TypeError get expected at most 1 argument, got 2
+TypeError ContextVar() takes at most 1 positional argument (2 given)
+TypeError context variable name must be a str
+TypeError ContextVar() takes exactly 1 positional argument (0 given)
+TypeError Context() does not accept any arguments
+RuntimeError Tokens can only be created by ContextVars
+TypeError unhashable type: '_contextvars.Context'
+None
+Context _contextvars 0
+None False 1
+(11, 11) 3 11 True True [11] [(True, 11)]
+cannot enter context: <_contextvars.Context object
+caught 'x' 3 99
+99
+KeyError <ContextVar name='w' default=5
+TypeError a ContextVar key was expected, got 'x'
+a ContextVar key was expected, got 'a'
+'_contextvars.Context' object does not support item assignment
+_contextvars.ContextVar[int] 0
+7 None 8
+True
+40 True
+3
+True False 99 False False
+type '_contextvars.ContextVar' is not an acceptable base type
+type '_contextvars.Context' is not an acceptable base type
+type '_contextvars.Token' is not an acceptable base type
+_contextvars Context
+3 0
+<ContextVar name='a' default=None

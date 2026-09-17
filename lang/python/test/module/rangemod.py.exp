@@ -1,0 +1,20 @@
+longrange_iterator 5 True True True 7 1
+range(-1180591620717411303424, 1180591620717411303424, 3) 0 True 1
+Python int too large to convert to C ssize_t
+True True True
+longrange_iterator True [7, 4, 1]
+range(10, 20) True range(10, 10)
+[3, 1, -1] [9, 6, 3, 0] [7, 6, 5, 4, 3] range(2, 8, 2)
+['range_iterator', 'longrange_iterator', 'longrange_iterator'] longrange_iterator
+[18446744073709551614, 18446744073709551615, 18446744073709551616, 18446744073709551617] [9223372036854775805, 9223372036854775806, 9223372036854775807, 9223372036854775808] [-9223372036854775807, -9223372036854775808, -9223372036854775809]
+IndexError range object index out of range
+TypeError 'float' object cannot be interpreted as an integer
+ValueError range() arg 3 must not be zero
+TypeError range indices must be integers or slices, not str
+ValueError range.index(x): x not in range
+ValueError sequence.index(x): x not in sequence
+ValueError slice step cannot be zero
+True 1 1 False 0
+1 1 0 3 [5, 3, 1]
+[range(0, 3)] True False
+range(2, 8, 3) range(84, 105, 7) 499999500000 4

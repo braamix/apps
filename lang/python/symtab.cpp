@@ -508,6 +508,10 @@ void Builder::expr(u32 i)
     switch (n.kind) {
     case Nd::Name:
         note_at(i, SF_USE);
+        // super() with no arguments reads the class through __class__.
+        if (ast->text(i) == "super" && scope().kind != ScopeKind::Module &&
+            scope().kind != ScopeKind::Class)
+            note(str_intern("__class__"), SF_USE, i);
         return;
     case Nd::Constant:
         return;
@@ -869,11 +873,13 @@ Sym *find_mut(Scope &s, const StrObj *name)
 bool link_free(Symtab &st, u32 from, StrObj *name)
 {
     bool dict = name->str() == "__classdict__";
+    bool cls  = name->str() == "__class__";
     for (u32 a = from;; a = st.scopes[a].parent) {
         Sym *y = find_mut(st.scopes[a], name);
-        // A class keeps its namespace in a cell for the scopes that see it.
-        if (dict && st.scopes[a].kind == ScopeKind::Class) {
-            st.scopes[a].classdict = true;
+        // A class keeps its namespace in a cell for the scopes that see it,
+        // and itself in another for its methods.
+        if ((dict || cls) && st.scopes[a].kind == ScopeKind::Class) {
+            (dict ? st.scopes[a].classdict : st.scopes[a].classcell) = true;
             if (y) {
                 y->bind = Bind::Cell;
                 return true;
@@ -937,7 +943,29 @@ bool decide(Symtab &st, u32 si, const Names &bound)
     return true;
 }
 
+bool name_before(Str a, Str b)
+{
+    usize n = a.size() < b.size() ? a.size() : b.size();
+    for (usize i = 0; i < n; i++)
+        if (a[i] != b[i])
+            return u8(a[i]) < u8(b[i]);
+    return a.size() < b.size();
+}
+
+// By name, as CPython orders co_cellvars and co_freevars.
+void sort_names(Scope &s, Vec<u32> &v)
+{
+    for (usize i = 1; i < v.size(); i++)
+        for (usize j = i; j && name_before(s.syms[v[j]].name->str(), s.syms[v[j - 1]].name->str());
+             j--) {
+            u32 t    = v[j];
+            v[j]     = v[j - 1];
+            v[j - 1] = t;
+        }
+}
+
 // Parameters first, in the order a call binds them; then the plain locals.
+// Cells and free names are sorted.
 bool slots(Scope &s)
 {
     if (!s.varnames.resize(s.nparams))
@@ -954,6 +982,8 @@ bool slots(Scope &s)
     for (usize i = 0; i < s.syms.size(); i++)
         if (s.syms[i].bind == Bind::Free && !s.freevars.push(u32(i)))
             return false;
+    sort_names(s, s.cellvars);
+    sort_names(s, s.freevars);
 
     for (usize k = 0; k < s.varnames.size(); k++)
         if (s.syms[s.varnames[k]].bind == Bind::Local)
@@ -988,7 +1018,9 @@ bool analyze(Symtab &st, u32 si, const Names &bound)
         }
         if (st.scopes[si].kind == ScopeKind::Class) {
             StrObj *cd = str_intern("__classdict__");
-            if (!cd || (!holds(next, cd) && !next.push(cd)))
+            StrObj *cc = str_intern("__class__");
+            if (!cd || (!holds(next, cd) && !next.push(cd)) || !cc ||
+                (!holds(next, cc) && !next.push(cc)))
                 return err_set("MemoryError", "out of memory"), false;
         } else
             for (usize i = 0; i < st.scopes[si].syms.size(); i++) {

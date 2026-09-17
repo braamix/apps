@@ -1,0 +1,31 @@
+<class '_thread.lock'> True True 9223372036.0
+True lock _thread
+<unlocked _thread.lock object True <locked _thread.lock object True
+False False False False
+RuntimeError release unlocked lock
+ValueError can't specify a timeout for a non-blocking call
+ValueError timeout value must be a non-negative number
+OverflowError timestamp out of range for C PyTime_t
+TypeError 'str' object cannot be interpreted as an integer or float
+TypeError lock.release() takes no arguments (1 given)
+TypeError _thread.allocate_lock() takes no arguments (1 given)
+TypeError Initialization arguments are not supported
+TypeError Initialization arguments are not supported
+ValueError size must be at least 53248 bytes
+True
+False True True None
+<class 'int'> <class 'int'> True
+<unlocked _thread.RLock object owner=0 count=0
+<locked _thread.RLock object True 2 True
+0 2
+2
+cannot release un-acquired lock
+2
+False
+1 {'a': 1}
+'_thread._local' object has no attribute 'b'
+'_thread._local' object has no attribute 'a'
+3 {'v': 3} True
+True
+0 0 0
+type _local _thread RLock

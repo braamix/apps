@@ -1,0 +1,32 @@
+['Placeholder', '_PlaceholderType', '_lru_cache_wrapper', 'cmp_to_key', 'partial', 'reduce']
+Placeholder True True _PlaceholderType functools Placeholder
+<class 'type'> partial functools
+PlaceholderType takes no arguments
+type 'functools._PlaceholderType' is not an acceptable base type
+((10, 2, 30, 3, 40), {'x': 1, 'y': 2}) (Placeholder, 2, Placeholder, 3) {'x': 1}
+functools.partial(F, Placeholder, 2, Placeholder, 3, x=1)
+missing positional arguments in 'partial' call; expected at least 2, got 1
+(5, 2, Placeholder, 3) ((5, 2, 6, 3, 7), {'x': 1}) True
+(Placeholder, 2, 8, 3) (5, 2, 9, 3) ((5, 2, 9, 3), {'x': 1})
+trailing Placeholders are not allowed
+Placeholder cannot be passed as a keyword argument
+trailing Placeholders are not allowed
+trailing Placeholders are not allowed
+type 'partial' takes at least one argument
+the first argument must be callable
+((1, 2), {}) {'a': 3} (1, 2) {'x': 1}
+True (2,)
+True True True
+[1, 2, 3] True True False False True True
+KeyWrapper KeyWrapper True 1 4
+TypeError unhashable type: 'KeyWrapper'
+TypeError other argument must be K instance
+TypeError K() missing required argument 'obj' (pos 1)
+TypeError cmp_to_key() missing required argument 'mycmp' (pos 1)
+TypeError '>' not supported between instances of 'str' and 'int'
+True
+['c', 'b', 'a']
+2 x
+neg
+((1, 2), {}) True
+[3, 4, 5]

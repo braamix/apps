@@ -6,9 +6,10 @@ borrowed is measured, and named here.
 
 **The language stands, the built-in types have their methods, a file can be
 imported, text can be formatted, numbers have no width, a function can yield, a
-program can compile and run more of itself, the type system is whole, seventeen
+program can compile and run more of itself, the type system is whole, twenty
 modules are written natively, a function can be a coroutine, the syntax is
-3.14's, and text is Unicode's.** Phases 0 to 21 built the lexer, the parser, the compiler, the VM, the
+3.14's, text is Unicode's, and the floor under the library is down.** Phases 0
+to 22 built the lexer, the parser, the compiler, the VM, the
 object heap and its collector, exceptions, functions and closures, classes, the
 method tables, the module loader, the `unittest` and `test.support` shims every
 CPython test stands on, the one format engine that `format()`, `__format__`,
@@ -29,9 +30,12 @@ PEP 695 over a native `_typing`, PEP 701's f-strings, PEP 750's t-strings and
 PEP 810's lazy imports — and then the Unicode database and `unicodedata`, str
 by Unicode's categories and case mappings, `_codecs` with CPython's own
 `codecs.py` and `encodings` over it, PEP 263's source encodings, `\N{...}`,
-identifiers by XID and NFKC, and the lone surrogate as a character. They are
-done, and their record is the git history — `python: phase 0` through
-`python: phase 21` — not this file, which from here describes only what is
+identifiers by XID and NFKC, and the lone surrogate as a character — and then
+the rest of the native floor: `_thread`, `_contextvars`, `_string`, the weak
+proxies, `range` at any width, `FrameLocalsProxy`, `Placeholder` and
+`cmp_to_key`, and the implicit `__class__` cell. They are done, and their
+record is the git history — `python: phase 0` through `python: phase 22` —
+not this file, which from here describes only what is
 left.
 
 Where that leaves us, measured against MicroPython's suite: **412 of the 449
@@ -43,10 +47,11 @@ pure-Python wrappers over what phase 18 wrote — and three import `types` for
 refuses, and stays as it is. None stop at the object model.
 
 Measured against CPython's, which is the harder ruler: **fourteen of the
-twenty-two in [test/cpython.txt](test/cpython.txt) run, and 171 test methods of
-204 pass.** `node test/pycases.mjs --survey` runs the whole of `Lib/test/` and
-counts what stops each of the 391 files: 372 an unwritten module, 14 that run,
-3 that fail at runtime or say nothing this can read, and 2 other syntax.
+twenty-three in [test/cpython.txt](test/cpython.txt) run, and 171 test methods
+of 204 pass.** `node test/pycases.mjs --survey` runs the whole of `Lib/test/`
+and counts what stops each of the 391 files: 373 an unwritten module, 14 that
+run, 3 that fail at runtime or say nothing this can read, and 1 other syntax,
+PEP 798's. Phase 22 moved `test_super.py` from syntax to an import.
 
 Three walls came down in phases 13 and 14 — f-strings, complex and the bignum
 were 204 files between them — a fourth in phase 19, whose fifteen `async` files
@@ -99,8 +104,10 @@ compile.
 Phase 19 has taken the first two rows away. Measured again after it:
 `types.py` imports; `enum.py`, `functools.py` and `copyreg.py` compile; and
 `_collections_abc.py` compiles and stops at runtime on `range(1 << 1000)`,
-which phase 22 now carries. Phase 20 took the other three language rows, so
-what is left of the table is the floor and the file system.
+which phase 22 now carries. Phase 20 took the other three language rows, and
+phase 22 the floor rows: `reprlib` and `string` import, and `_py_warnings.py`
+gets as far as `sys.flags.context_aware_warnings`. What is left of the table
+is the file system.
 
 It also says what a phase's CPython tests can prove. A test file imports far
 more than the module it tests — `test_functools.py` imports `annotationlib`,
@@ -256,9 +263,9 @@ Numbering continues from the core, so a commit message and a phase still name
 the same thing. Test names are real files under
 [tmp/cpython/Lib/test/](tmp/cpython/Lib/test/) unless they say otherwise.
 
-The order is floor (22), library by layer (23–26), then the layers that need
-all of it (27–30); the language phases are done. Each phase lists only what the phases
-before it have made possible.
+The order is library by layer (23–26), then the layers that need all of it
+(27–30); the language phases and the floor are done. Each phase lists only what
+the phases before it have made possible.
 
 Phase 18 left two things for the phases that use them. `memoryview` is flat:
 it has an item size, a format and a stride, and `cast()` recasts a contiguous
@@ -275,16 +282,11 @@ there is no `warnings` to warn through. And nothing is told when an async
 generator starts or is dropped, because `sys.set_asyncgen_hooks` is for an
 event loop.
 
-Phase 20 left five. **There is no implicit `__class__` cell**: zero-argument
-`super()` searches the MRO for the running code, so `__class__` as a name and
-`nonlocal __class__` are refused, and `test_super.py` stops on that; phase 22
-makes the cell. **The union and `Generic` refuse a string**, where CPython hands
-one to `typing._type_check`; phase 27 hands them over. **`string.templatelib`
-cannot be imported**, because `string/__init__.py` imports the `_string` phase
-22 writes; the types themselves are there. **A comprehension is still a
-function**, where PEP 709 inlined it. And the eight CPython tests this phase
-added all compile and stop at an import — `test_exception_group.py` at
-`collections` and `test_except_star.py` at `textwrap` (phases 23 and 24),
+Phase 20 left three. **The union and `Generic` refuse a string**, where CPython
+hands one to `typing._type_check`; phase 27 hands them over. **A comprehension
+is still a function**, where PEP 709 inlined it. And the eight CPython tests
+this phase added all compile and stop at an import — `test_exception_group.py`
+at `collections` and `test_except_star.py` at `textwrap` (phases 23 and 24),
 `test_syntax.py` at `re` (phase 24), `test_type_aliases.py` at `pickle`,
 `test_grammar.py` and `test_type_params.py` at `annotationlib`, and
 `test_patma.py` at `collections` then `dataclasses` (phase 27);
@@ -307,35 +309,20 @@ before there is a VM; `compile`, `exec` and `import` can. And **`--dump-tokens`
 prints a name in its NFKC form**, where `tokenize` prints it as written; a
 native `_tokenize` in phase 26 has to keep both.
 
-### Phase 22 — the rest of the native floor
-
-Phase 18 wrote most of what the first wave stands on. These are the pieces the
-measurement above found missing, each named by the module that imports it.
-
-- [ ] `_thread`: `allocate_lock` and `LockType`, `RLock`, `get_ident`,
-      `get_native_id`, `_local`, `TIMEOUT_MAX`, and a `start_new_thread` that
-      raises. `reprlib`, `functools`, `_py_warnings`, `threading` and `_pyio`
-      import it; a lock that is never contended is all one Web Worker needs.
-- [ ] `_contextvars`: `ContextVar`, `Context`, `Token` and `copy_context`.
-      `_py_warnings` makes a `ContextVar` at import; `_pydecimal` and
-      `asyncio` want the rest.
-- [ ] `_string`: `formatter_parser` and `formatter_field_name_split`, over
-      phase 13's format grammar. `string/__init__.py` imports it.
-- [ ] `_weakref.proxy`, `ProxyType` and `CallableProxyType`, which
-      `collections` imports.
-- [ ] `sys._getframe().f_locals` answering a mapping of its own type, which
-      is how `_collections_abc.py` names `framelocalsproxy`.
-- [ ] `range` past a small integer: `_collections_abc.py` names
-      `longrange_iterator` by `type(iter(range(1 << 1000)))`, and this is
-      where its import stops since phase 19.
-- [ ] `_functools.Placeholder` and `cmp_to_key`, so `functools.py` takes the
-      native path throughout rather than half of it.
-- [ ] The implicit `__class__` cell: a class whose methods name `__class__`
-      or call `super()` keeps one, `__classcell__` carries it to `type.__new__`,
-      and zero-argument `super()` reads it rather than searching the MRO.
-      `test_super.py` stops on `nonlocal __class__` until then.
-
-Tests: cases of our own under `test/module/`, against the host's CPython.
+Phase 22 left four, all of them met by importing the first wave.
+**`frozendict` is not a builtin**: CPython's main branch has PEP 814's, and
+`_collections_abc.py` registers it at line 824, which is now where that module,
+and everything importing it, stops. **`types.MappingProxyType` is missing**,
+because `type.__dict__` is a plain dict here and `_types` has no
+`mappingproxy` to name; `enum.py` imports it. **`sys.flags` has no
+attribute-only fields** — `gil`, `thread_inherit_context`,
+`context_aware_warnings`, `lazy_imports` — which a struct sequence here cannot
+hold beside its indexed ones; `_py_warnings.py` reads the third. And
+**`object` lends `__repr__` and not the rest of CPython's**: `__reduce_ex__`,
+`__reduce__` and `__getstate__`, which `copy` and `copyreg` call, `__eq__`,
+`__hash__`, `__dir__` and `__sizeof__`. `test_super.py` compiles now and
+stops at `import copy`, and after that wants `pickle`, `threading` and
+`unittest.mock`.
 
 ### Phase 23 — the library, first wave
 
@@ -343,6 +330,9 @@ With the language and the floor in hand, the modules that need nothing else
 can simply be copied. Their order is their imports, and the list is that
 order.
 
+- [ ] What phase 22 left in their way: `frozendict`, `mappingproxy` as
+      `types.MappingProxyType`, the attribute-only `sys.flags`, and the rest
+      of `object`'s methods.
 - [ ] `types`, `_weakrefset`, `_py_abc`, `operator`, `keyword`, `reprlib`,
       `heapq`, `bisect`, `numbers`, `copyreg`, `_collections_abc`,
       `collections.abc`, `weakref`, `copy`, `collections`, `functools`,

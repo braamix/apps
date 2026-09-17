@@ -207,8 +207,9 @@ R dict_eq(Value a, Value b, bool &out)
         R r = table_take(y->t, k, other, false);
         if (r == R::Err)
             return R::Err;
-        bool same = false;
-        if (r == R::NotImpl || py_eq(v, other, same) != R::Ok || !same) {
+        // Identity first, as CPython's comparison does.
+        bool same = r == R::Ok && v == other;
+        if (r == R::NotImpl || (!same && (py_eq(v, other, same) != R::Ok || !same))) {
             if (err_pending())
                 return R::Err;
             out = false;
@@ -246,6 +247,28 @@ R dict_repr(Value v, String &out);
 R set_repr(Value v, String &out);
 R frozenset_repr(Value v, String &out);
 
+// `a | b` of two dicts is a new one, b's values winning (PEP 584).
+R dict_binop(Value a, Value b, Op op, Value &out)
+{
+    if (op != Op::Or || !is_dict(a) || !is_dict(b))
+        return R::NotImpl;
+    Root ra{ a }, rb{ b };
+    DictObj *d = dict_new();
+    if (!d)
+        return err_set("MemoryError", "out of memory");
+    Root rd{ obj_value(d) };
+    Value both[2] = { ra.v, rb.v };
+    for (Value from : both) {
+        usize at = 0;
+        Value k, v;
+        while (table_next(static_cast<DictObj *>(from.obj())->t, at, k, v))
+            if (dict_set(static_cast<DictObj *>(rd.v.obj()), k, v) != R::Ok)
+                return R::Err;
+    }
+    out = rd.v;
+    return R::Ok;
+}
+
 constexpr Type dict_type{ .name     = "dict",
                           .trace    = dict_trace,
                           .fini     = dict_fini,
@@ -256,6 +279,7 @@ constexpr Type dict_type{ .name     = "dict",
                           .setitem  = dict_setitem,
                           .delitem  = dict_delitem,
                           .contains = dict_contains,
+                          .binop    = dict_binop,
                           .iter     = table_iter,
                           .patma    = PATMA_MAP | PATMA_SELF };
 

@@ -1,0 +1,54 @@
+['formatter_field_name_split', 'formatter_parser']
+'' formatteriterator []
+'abc' formatteriterator [('abc', None, None, None)]
+'a{0}b' formatteriterator [('a', '0', '', None), ('b', None, None, None)]
+'{}' formatteriterator [('', '', '', None)]
+'{{' formatteriterator [('{', None, None, None)]
+'}}' formatteriterator [('}', None, None, None)]
+'a{{b}}c' formatteriterator [('a{', None, None, None), ('b}', None, None, None), ('c', None, None, None)]
+'{0!r:>{1}}' formatteriterator [('', '0', '>{1}', 'r')]
+'{a.b[c]}' formatteriterator [('', 'a.b[c]', '', None)]
+'{!s}' formatteriterator [('', '', '', 's')]
+'{:}' formatteriterator [('', '', '', None)]
+'{0:}' formatteriterator [('', '0', '', None)]
+'x{0!}' [] ValueError unmatched '{' in format spec
+'{0!rr}' [] ValueError expected ':' after conversion specifier
+'}' [] ValueError Single '}' encountered in format string
+'{' [] ValueError Single '{' encountered in format string
+'a{0' [] ValueError expected '}' before end of string
+'{0:{1:{2}}}' formatteriterator [('', '0', '{1:{2}}', None)]
+'{0[}' [] ValueError expected '}' before end of string
+'{0]}' formatteriterator [('', '0]', '', None)]
+'{ 0 }' formatteriterator [('', ' 0 ', '', None)]
+'{0!r' [] ValueError unmatched '{' in format spec
+'{:{}' [] ValueError unmatched '{' in format spec
+'{a!=}' formatteriterator [('', 'a', '', '=')]
+'{a[!]}x' formatteriterator [('', 'a[!]', '', None), ('x', None, None, None)]
+'é{0!é}ü' formatteriterator [('é', '0', '', 'é'), ('ü', None, None, None)]
+'{a{b}' [] ValueError unexpected '{' in field name
+'{0!' [] ValueError end of string while looking for conversion specifier
+'x}y' [] ValueError Single '}' encountered in format string
+'' '' fieldnameiterator []
+'a' 'a' fieldnameiterator []
+'0' 0 fieldnameiterator []
+'a.b[c]' 'a' fieldnameiterator [(True, 'b'), (False, 'c')]
+'0[1].x' 0 fieldnameiterator [(False, 1), (True, 'x')]
+'a[' 'a' [] ValueError Missing ']' in format string
+'a.' 'a' [] ValueError Empty attribute in format string
+'a..b' 'a' [] ValueError Empty attribute in format string
+'a[0]x' 'a' [(False, 0)] ValueError Only '.' or '[' may follow ']' in format field specifier
+'[0]' '' fieldnameiterator [(False, 0)]
+'.a' '' fieldnameiterator [(True, 'a')]
+'a[x]]' 'a' [(False, 'x')] ValueError Only '.' or '[' may follow ']' in format field specifier
+'00' 0 fieldnameiterator []
+'a[-1]' 'a' fieldnameiterator [(False, '-1')]
+'a[01]' 'a' fieldnameiterator [(False, 1)]
+'1a' '1a' fieldnameiterator []
+'a[]' 'a' [] ValueError Empty attribute in format string
+'٣' 3 fieldnameiterator []
+'a[٤٥]' 'a' fieldnameiterator [(False, 45)]
+'999999999999999999999999999999' ValueError Too many decimal digits in format string
+'a[999999999999999999999999999999]' 'a' [] ValueError Too many decimal digits in format string
+expected str, got int
+expected str, got int
+True

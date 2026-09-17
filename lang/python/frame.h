@@ -25,6 +25,7 @@ struct FrameObj : Obj {
     Value handling; // what the VM was handling when this frame was entered
     Value cont;     // a ContObj this frame's return value belongs to, or Nil
     Value gen;      // the GenObj this frame belongs to, or Nil
+    Value extra;    // DictObj: what f_locals stored that is not a local, or Nil
     u32 pc;
     u32 sp;      // values on the stack
     u32 nb;      // handlers on the block stack
@@ -49,3 +50,25 @@ inline FrameObj *frame_of(Value v)
 {
     return static_cast<FrameObj *>(v.obj());
 }
+
+inline bool is_frame(Value v)
+{
+    return v.is_obj() && v.obj()->type == &frame_type;
+}
+
+// f_locals of a function's frame: a mapping over its slots and cells.
+Value frame_locals_proxy(Value frame);
+
+extern const Type frame_locals_type;
+
+inline bool is_frame_locals(Value v)
+{
+    return v.is_obj() && v.obj()->type == &frame_locals_type;
+}
+
+// A FrameLocalsProxy as a fresh dict, for what reads a mapping as one; `v`
+// itself otherwise.
+Value frame_locals_dict(Value v);
+
+// FrameLocalsProxy's methods and constructor. Called from methods_install.
+bool frame_locals_methods();

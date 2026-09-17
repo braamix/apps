@@ -40,7 +40,8 @@ constexpr Type bool_type{ .name  = "bool",
                           .truth = bool_truth,
                           .hash  = bool_hash,
                           .repr  = bool_repr,
-                          .patma = PATMA_SELF };
+                          .patma = PATMA_SELF,
+                          .final = true };
 
 Obj none_obj{ &none_type, nullptr, nullptr, OBJ_IMMORTAL };
 Obj true_obj{ &bool_type, nullptr, nullptr, OBJ_IMMORTAL };

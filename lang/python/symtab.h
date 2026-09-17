@@ -66,6 +66,7 @@ struct Scope {
     StrObj *priv    = nullptr; // the class a `__name` in here is private to
     bool sees_class = false;   // an annotation scope that looks in a class first
     bool classdict  = false;   // a class whose namespace such a scope looks in
+    bool classcell  = false;   // a class whose methods use __class__ or super()
     Str info;                  // an annotation scope, as a complaint names it
 };
 

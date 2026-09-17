@@ -169,6 +169,16 @@ R octets_repr(Str s, Str open, Str close, String &out)
 
 } // namespace
 
+bool repr_enter(Value v)
+{
+    return enter(v);
+}
+
+void repr_leave()
+{
+    leave();
+}
+
 R bytes_repr(Value v, String &out)
 {
     return octets_repr(static_cast<BytesObj *>(v.obj())->str(), "b", "", out);

@@ -24,6 +24,7 @@ void frame_trace(Obj *o)
     gc_mark(f->handling);
     gc_mark(f->cont);
     gc_mark(f->gen);
+    gc_mark(f->extra);
     for (u32 i = 0; i < f->nlocals; i++)
         gc_mark(f->slots()[i]);
     for (u32 i = 0; i < f->sp; i++)
@@ -48,6 +49,8 @@ R frame_getattr(Value v, StrObj *name, Value &out)
         out = f->back.is_nil() ? value_none() : f->back;
     else if (n == "f_globals")
         out = f->globals.is_nil() ? value_none() : f->globals;
+    else if (n == "f_locals" && f->locals.is_nil() && (code_of(f->code)->flags & CO_OPTIMIZED))
+        out = frame_locals_proxy(v);
     else if (n == "f_locals")
         out = f->locals.is_nil() ? f->globals : f->locals;
     else if (n == "f_code")
@@ -56,7 +59,7 @@ R frame_getattr(Value v, StrObj *name, Value &out)
         out = Value::of_int(i32(f->pc));
     else
         return R::NotImpl;
-    return R::Ok;
+    return out.is_nil() ? R::Err : R::Ok;
 }
 
 } // namespace
@@ -86,6 +89,7 @@ FrameObj *frame_new(CodeObj *c)
     f->handling = Value();
     f->cont     = Value();
     f->gen      = Value();
+    f->extra    = Value();
     f->pc       = 0;
     f->sp       = 0;
     f->nb       = 0;
