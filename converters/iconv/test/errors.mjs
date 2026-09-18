@@ -5,10 +5,10 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CORE } from "../../../test/core.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APPS = resolve(HERE, "../../..");
-const CORE = resolve(APPS, "../braam-core");
 
 const opt = {
     kernel: join(CORE, "build/kernel.wasm"),
@@ -21,8 +21,8 @@ for (const a of process.argv.slice(2)) {
     if (m && m[1] in opt) opt[m[1]] = m[2];
 }
 for (const [what, path, how] of [
-    ["kernel", opt.kernel, "make -C ../braam-core"],
-    ["rootfs", opt.rootfs, "make -C ../braam-core"],
+    ["kernel", opt.kernel, "make core"],
+    ["rootfs", opt.rootfs, "make core"],
     ["iconv", opt.binary, "make"],
     ["the i18n tree", opt.data, "make"],
 ]) {

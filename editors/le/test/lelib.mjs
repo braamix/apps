@@ -8,10 +8,11 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { CORE } from "../../../test/core.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const APPS = resolve(HERE, "../../..");
-export const CORE = resolve(APPS, "../braam-core");
+export { CORE };
 
 export const opt = {
     kernel: join(CORE, "build/kernel.wasm"),
@@ -38,8 +39,8 @@ export let H;
 export async function boot(caseName) {
     name = caseName;
     for (const [what, path, how] of [
-        ["kernel", opt.kernel, "make -C ../braam-core"],
-        ["rootfs", opt.rootfs, "make -C ../braam-core"],
+        ["kernel", opt.kernel, "make core"],
+        ["rootfs", opt.rootfs, "make core"],
         ["le", opt.binary, "make"],
     ]) {
         if (!existsSync(path)) {

@@ -1,4 +1,4 @@
-// Plays walkthrough.txt against adventure.wasm under braam-core's system
+// Plays walkthrough.txt against adventure.wasm under core's system
 // harness, headless; node pumps the kernel's clock by hand.
 //
 // Input is a file, not the keyboard, so the game prints no prompt and echoes
@@ -9,10 +9,10 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { CORE } from "../../../test/core.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APPS = resolve(HERE, "../../..");
-const CORE = resolve(APPS, "../braam-core");
 
 const DEFAULTS = {
     kernel: join(CORE, "build/kernel.wasm"),
@@ -43,7 +43,7 @@ const die = (msg) => {
 
 for (const [what, path] of [["kernel", opt.kernel], ["rootfs", opt.rootfs]])
     if (!existsSync(path))
-        die(`no ${what} at ${path} — build ../braam-core first`);
+        die(`no ${what} at ${path} — run \`make core\``);
 if (!existsSync(opt.binary))
     die(`no binary at ${opt.binary} — run make`);
 

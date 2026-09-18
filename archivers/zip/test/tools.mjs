@@ -12,10 +12,10 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
+import { CORE } from "../../../test/core.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APPS = resolve(HERE, "../../..");
-const CORE = resolve(APPS, "../braam-core");
 
 const DEFAULTS = {
     kernel: join(CORE, "build/kernel.wasm"),
@@ -40,7 +40,7 @@ const die = (msg) => {
 
 for (const [what, path] of [["kernel", opt.kernel], ["rootfs", opt.rootfs]])
     if (!existsSync(path))
-        die(`no ${what} at ${path} — build ../braam-core first`);
+        die(`no ${what} at ${path} — run \`make core\``);
 const TOOLS = ["zip", "zipnote", "zipsplit", "zipcloak"];
 for (const t of TOOLS)
     if (!existsSync(join(opt.bindir, t + ".wasm")))

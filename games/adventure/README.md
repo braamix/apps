@@ -170,7 +170,7 @@ is in the binary. `bin/` is what reaches `PATH` once `/bin/pkg` installs it.
 make test       # from the top of this repository
 ```
 
-Each case boots `../braam-core`'s kernel under node and plants the built
+Each case boots core's kernel under node and plants the built
 `adventure.wasm` in the image.
 
 - `test/play.mjs` runs `test/walkthrough.txt` on stdin with

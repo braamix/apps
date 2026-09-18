@@ -204,9 +204,18 @@ writing any code here:
 toolchain file and builds everything. `make SDK=<prefix>` uses an SDK that is
 already unpacked and skips the download; `make clean` removes `build/` and the
 next `make` fetches again. `make test` runs the headless tests, for which you
-also need node and a built `../braam-core` — see Testing a program below. You
-need clang with the wasm32 target, `wasm-ld`, CMake 3.24, Python 3, `curl` and
-`unzip`.
+also need node 22.12 — see Testing a program below. You need clang with the
+wasm32 target, `wasm-ld`, CMake 3.24, Python 3, `git`, `curl` and `unzip`.
+
+**The tests do not use `../braam-core`.** `make core`, which `make test` runs
+first, fetches `build/braam-<SDK_VERSION>/`: a sparse clone of
+`github.com/braamix/core` at the commit the version names (`test/` and `web/`),
+with `build/kernel.wasm` and `build/web/rootfs.zip` unpacked from
+`braam-<SDK_VERSION>.zip` of the same release. It is laid out as a core tree,
+so `make test CORE=../braam-core` runs the tests on a local build instead.
+[test/core.mjs](test/core.mjs) is the one place a test learns where core is:
+`BRAAM_CORE` when set, otherwise that directory, so a test run by hand with
+`node` finds the same tree.
 
 **The SDK version lives in the Makefile**, and [README.md](README.md) repeats
 it. Move both with each Braam release: a binary stamped for another process ABI
@@ -503,7 +512,7 @@ in their bytes and therefore in `C`. Set it when a rebuild should produce the
 package that is already published.
 
 To check a repository end to end without uploading, drive
-`../braam-core/test/system/harness.mjs` with the unmodified rootfs and serve
+`test/system/harness.mjs` under `CORE` with the unmodified rootfs and serve
 `index` and the zips from `net.routes` — the shipped anchor is the real one, so
 `pkg update` and `pkg install` exercise §7 in full. Boot it by hand, as no
 `run.mjs` case is being used: `await init(kernel, rootfs)`, then
@@ -576,11 +585,11 @@ node -e 'const m=new WebAssembly.Module(require("fs").readFileSync(
   console.log(new Uint32Array(WebAssembly.Module.customSections(m,"braam")[0]))'
 ```
 
-From a built core tree, `test/system/abi.mjs` asserts all of it for any binary
+From a core tree, `test/system/abi.mjs` asserts all of it for any binary
 named after the rootfs — silently, so a clean `system ok` is the pass:
 
 ```
-cd ../braam-core && node test/run.mjs --kernel build/kernel.wasm \
+cd build/braam-<SDK_VERSION> && node test/run.mjs --kernel build/kernel.wasm \
     build/web/rootfs.zip <path>/<name>.wasm
 ```
 
@@ -620,7 +629,7 @@ a hundred times its plain run — 140 ms against 38 s for one of them, and 7
 minutes against 8 seconds over the suite. Ask for it after touching the
 interpreter's C++. [games/adventure/test/](games/adventure/test/) is the worked
 example, the way dhrystone is the worked example for the build: `play.mjs`
-imports `../braam-core/test/system/harness.mjs` directly — `test/run.mjs` is not
+imports `test/system/harness.mjs` under `CORE` directly — `test/run.mjs` is not
 reusable, its case list is a literal and it never injects an out-of-tree
 binary — boots the kernel, plants the `.wasm`, and drives one run. It asserts
 what the run meant (landmarks in order, the score, no parser refusal) and then

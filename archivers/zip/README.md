@@ -136,7 +136,7 @@ a command of its own.
 make test       # from the top of this repository
 ```
 
-Each case boots `../braam-core`'s kernel under node and plants the built
+Each case boots core's kernel under node and plants the built
 binaries in the image. The check that matters most is not a golden: **Braam's
 own `/bin/unzip`, written independently against Package_Formats.md §5.2, reads
 what this `zip` writes** — and so does a real Info-ZIP `unzip`, which is worth
