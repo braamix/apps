@@ -255,13 +255,19 @@ does too. `site` is not there, so neither are `help`, `exit` and `quit` --
 - [x] Examples written in Python, beside the library the package already
       ships as `lib/`. Three so far, under [examples/](examples/), packaged as
       `share/` the way `mbasic` ships its `.bas` ones; more would be welcome.
-- [ ] `Manual.md`, and the "what had to change" half of
-      [README.md](README.md) — which for this program is "what was borrowed,
-      and from where".
-- [ ] [LICENSE](LICENSE) carrying both the MIT and the PSF terms, saying which
+- [x] [Manual.md](Manual.md) — running it, the prompt, the language, the
+      modules, the limits, and what is not here and why.
+- [x] [LICENSE](LICENSE) carrying both the MIT and the PSF terms, saying which
       files each covers.
-- [ ] A version that is not `0.1-r0`, `make index`, and one commit in
+- [x] A version that is `3.14.0-r0`, `make index`, and one commit in
       `braamix.github.io`.
+
+After Phase 30: **it is published.** `pkg install python` at
+`https://braamix.github.io` brings the binary, the library as `lib/`, and
+`Manual.md` and the three demos as `share/` -- 2.1 MB compressed, 7.4 MB
+unpacked. The index moved to G:49 and no other package moved with it: the
+thirteen already published are vouched for by the same bytes they were
+before.
 
 ## What is deliberately not here
 

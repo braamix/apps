@@ -20,6 +20,7 @@ that runs in a browser tab.
 | [games/asciiquarium](games/asciiquarium/) | goquarium, the ASCII aquarium — fish, sharks, whales and a castle |
 | [emulators/simbesm](emulators/simbesm/) | The BESM-6, the Soviet mainframe — it boots Unix |
 | [lang/mbasic](lang/mbasic/) | Microsoft BASIC 1.1 for the 6502, the one that shipped on the Apple II |
+| [lang/python](lang/python/) | Python 3.14, written from scratch for Braam, with CPython's own library |
 
 The rest of the tree is category directories, a few of them holding a `TODO.md`
 naming an upstream worth porting.

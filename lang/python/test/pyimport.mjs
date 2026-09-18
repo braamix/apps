@@ -174,7 +174,7 @@ function withModules(files, source, env = "") {
 // the leaf, so one syscall recovers the prefix. Last, because it moves the
 // planted binary.
 {
-    const store = "/pkg/store/python-0.1-r0";
+    const store = "/pkg/store/python-3.14.0-r0";
     const binary = H.store.files.get("/bin/py");
     put(`${store}/bin/python`, binary);
     put(`${store}/lib/shipped.py`, "GREETING = 'from the store'\n");

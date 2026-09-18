@@ -140,7 +140,7 @@ $ python -i prog.py
 Three demos ship with it, under the package's own `share/`:
 
 ```
-$ python /pkg/store/python-0.1-r0/share/fizzbuzz.py 15
+$ python /pkg/store/python-3.14.0-r0/share/fizzbuzz.py 15
 1 2 Fizz 4 Buzz Fizz 7 8 Fizz Buzz 11 Fizz 13 14 FizzBuzz
 ```
 
@@ -701,6 +701,7 @@ ships, the tests and the plan.
 | [signalmod.cpp](src/signalmod.cpp) | `_signal`: the handlers, and what the driver is asked to catch |
 | [csvmod.cpp](src/csvmod.cpp) | `_csv`: the dialect, the reader's state machine and the writer |
 | [lib/](lib/) | Modules taken from CPython's library, byte for byte, with [lib/manifest.txt](lib/manifest.txt) saying where each came from |
+| [Manual.md](Manual.md) | The reference manual: running it, the prompt, the language, the modules, and what is not here |
 | [examples/](examples/) | The demos the package ships as `share/`: `hello.py`, `fizzbuzz.py` and `guess.py` |
 | [call.h](src/call.h), [call.cpp](src/call.cpp) | Argument binding, and the continuation a suspending builtin parks in |
 | [exc.h](src/exc.h), [exc.cpp](src/exc.cpp) | The exception hierarchy, and the two objects it needs |

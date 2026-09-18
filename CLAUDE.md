@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Twelve programs are ported so far**:
+**Fourteen programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -477,7 +477,7 @@ both halves of the system:
 - **The runtime**, copied from `../braam-core/build/web/` — `kernel.wasm`,
   `rootfs.zip`, the `.js` and the `.html`. This is what a browser loads at
   `https://braamix.github.io`.
-- **The repository**, copied from `build/repo/` here — `index` and the twelve
+- **The repository**, copied from `build/repo/` here — `index` and the fourteen
   package zips, which is what `pkg` fetches.
 
 Publishing is by hand, and it is one commit over both:

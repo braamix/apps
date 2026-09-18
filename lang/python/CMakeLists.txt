@@ -70,9 +70,10 @@ foreach(f ${PYTHON_DEMOS})
     list(APPEND PYTHON_EXAMPLES ${f}=share/${n})
 endforeach()
 
-braam_add_package(NAME python VERSION 0.1-r0
+braam_add_package(NAME python VERSION 3.14.0-r0
                   FIELD "T=Python 3, written for Braam"
                   FILES $<TARGET_FILE:bin_python>=bin/python
+                        ${CMAKE_CURRENT_SOURCE_DIR}/Manual.md=share/Manual.md
                         ${PYTHON_LIB}
                         ${PYTHON_EXAMPLES})
 
