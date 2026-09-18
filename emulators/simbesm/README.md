@@ -48,7 +48,7 @@ overrides where they are copied from.
 
 `make test` here runs [tests/unix.exp](tests/unix.exp), which needs
 `/usr/bin/expect`. [test/boot.mjs](test/boot.mjs) does the same under
-core's system harness, on two screens, and is what `make test` at the top
+the SDK's harness, on two screens, and is what `make test` at the top
 of the tree runs.
 
 ## What the port changed

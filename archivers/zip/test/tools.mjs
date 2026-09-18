@@ -12,14 +12,14 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
-import { CORE } from "../../../test/core.mjs";
+import { HARNESS, KERNEL, ROOTFS } from "../../../test/sdk.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APPS = resolve(HERE, "../../..");
 
 const DEFAULTS = {
-    kernel: join(CORE, "build/kernel.wasm"),
-    rootfs: join(CORE, "build/web/rootfs.zip"),
+    kernel: KERNEL,
+    rootfs: ROOTFS,
     bindir: join(APPS, "build/archivers/zip"),
 };
 
@@ -40,13 +40,13 @@ const die = (msg) => {
 
 for (const [what, path] of [["kernel", opt.kernel], ["rootfs", opt.rootfs]])
     if (!existsSync(path))
-        die(`no ${what} at ${path} — run \`make core\``);
+        die(`no ${what} at ${path} — run \`make\``);
 const TOOLS = ["zip", "zipnote", "zipsplit", "zipcloak"];
 for (const t of TOOLS)
     if (!existsSync(join(opt.bindir, t + ".wasm")))
         die(`no ${t}.wasm in ${opt.bindir} — run make`);
 
-const H = await import(join(CORE, "test/system/harness.mjs"));
+const H = await import(HARNESS);
 
 await H.init(opt.kernel, opt.rootfs);
 H.kernel().init(0);

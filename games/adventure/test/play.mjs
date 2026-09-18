@@ -1,4 +1,4 @@
-// Plays walkthrough.txt against adventure.wasm under core's system
+// Plays walkthrough.txt against adventure.wasm under the SDK's
 // harness, headless; node pumps the kernel's clock by hand.
 //
 // Input is a file, not the keyboard, so the game prints no prompt and echoes
@@ -9,14 +9,14 @@
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { CORE } from "../../../test/core.mjs";
+import { HARNESS, KERNEL, ROOTFS } from "../../../test/sdk.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APPS = resolve(HERE, "../../..");
 
 const DEFAULTS = {
-    kernel: join(CORE, "build/kernel.wasm"),
-    rootfs: join(CORE, "build/web/rootfs.zip"),
+    kernel: KERNEL,
+    rootfs: ROOTFS,
     binary: join(APPS, "build/games/adventure/adventure.wasm"),
     // The seed the walkthrough was written against and the score it reaches.
     // Move the seed and the dwarves move.
@@ -43,13 +43,13 @@ const die = (msg) => {
 
 for (const [what, path] of [["kernel", opt.kernel], ["rootfs", opt.rootfs]])
     if (!existsSync(path))
-        die(`no ${what} at ${path} — run \`make core\``);
+        die(`no ${what} at ${path} — run \`make\``);
 if (!existsSync(opt.binary))
     die(`no binary at ${opt.binary} — run make`);
 
 // After the paths are checked: the harness exits the process itself, and would
 // not say what to build.
-const H = await import(join(CORE, "test/system/harness.mjs"));
+const H = await import(HARNESS);
 
 const LOG = join(APPS, "build/games/adventure/game.log");
 

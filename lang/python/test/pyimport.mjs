@@ -6,10 +6,10 @@
 // at once. The search path, `__file__`, `__path__` and the cache are this
 // port's own arrangement, and upstream tests none of them.
 
-import { boot, put, run, ok, die, same, H, CORE } from "./pylib.mjs";
+import { boot, put, run, ok, die, same, H, SHARE } from "./pylib.mjs";
 import { join } from "node:path";
 
-const { linkBytes } = await import(join(CORE, "web/fs.js"));
+const { linkBytes } = await import(join(SHARE, "web/fs.js"));
 
 await boot("pyimport");
 

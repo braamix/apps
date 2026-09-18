@@ -10,7 +10,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-import { boot, opt, ok, die, CORE, LIB, STORE_LIB } from "./pylib.mjs";
+import { boot, opt, ok, die, HARNESS, LIB, STORE_LIB } from "./pylib.mjs";
 
 // boot() only to be told what is missing to build; each case then takes a
 // kernel of its own, because the interrupt needs both command lines queued
@@ -18,7 +18,7 @@ import { boot, opt, ok, die, CORE, LIB, STORE_LIB } from "./pylib.mjs";
 await boot("pyint");
 
 async function interrupted(source) {
-    const K = await import(join(CORE, "test/system/harness.mjs"));
+    const K = await import(HARNESS);
     await K.init(opt.kernel, opt.rootfs);
     K.kernel().init(0);
     if (K.run(0) !== -1) die("the shell did not park on the keyboard");
@@ -103,7 +103,7 @@ async function interrupted(source) {
 // waits behind `sleep 1` on a clock this loop drives. run() cannot: it pumps
 // until the kernel is idle, and a spinning matcher never lets it be.
 {
-    const K = await import(join(CORE, "test/system/harness.mjs"));
+    const K = await import(HARNESS);
     await K.init(opt.kernel, opt.rootfs);
     K.kernel().init(0);
     if (K.run(0) !== -1) die("the shell did not park on the keyboard");

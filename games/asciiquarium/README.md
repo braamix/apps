@@ -129,7 +129,7 @@ bottom of the screen.
 | [info.cpp](info.cpp) | `info.go`, `version.go`: the help text |
 | [quarium.h](quarium.h) | `depth.go`, and what the other files share |
 | [Entities.md](Entities.md) | every entity, with its spawn rule and its layer |
-| [test/](test/) | five headless cases under core's harness |
+| [test/](test/) | five headless cases under the SDK's harness |
 
 ## Building and packaging
 

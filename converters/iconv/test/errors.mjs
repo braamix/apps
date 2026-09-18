@@ -5,14 +5,14 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CORE } from "../../../test/core.mjs";
+import { HARNESS, KERNEL, ROOTFS } from "../../../test/sdk.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APPS = resolve(HERE, "../../..");
 
 const opt = {
-    kernel: join(CORE, "build/kernel.wasm"),
-    rootfs: join(CORE, "build/web/rootfs.zip"),
+    kernel: KERNEL,
+    rootfs: ROOTFS,
     binary: join(APPS, "build/converters/iconv/iconv.wasm"),
     data: join(APPS, "build/converters/iconv/i18n"),
 };
@@ -21,8 +21,8 @@ for (const a of process.argv.slice(2)) {
     if (m && m[1] in opt) opt[m[1]] = m[2];
 }
 for (const [what, path, how] of [
-    ["kernel", opt.kernel, "make core"],
-    ["rootfs", opt.rootfs, "make core"],
+    ["kernel", opt.kernel, "make"],
+    ["rootfs", opt.rootfs, "make"],
     ["iconv", opt.binary, "make"],
     ["the i18n tree", opt.data, "make"],
 ]) {
@@ -32,7 +32,7 @@ for (const [what, path, how] of [
     }
 }
 
-const H = await import(join(CORE, "test/system/harness.mjs"));
+const H = await import(HARNESS);
 
 function die(msg) {
     console.error("errors: " + msg);

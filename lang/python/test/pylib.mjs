@@ -8,15 +8,15 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CORE } from "../../../test/core.mjs";
+import { HARNESS, KERNEL, ROOTFS, SHARE } from "../../../test/sdk.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const APPS = resolve(HERE, "../../..");
-export { CORE };
+export { HARNESS, SHARE };
 
 export const opt = {
-    kernel: join(CORE, "build/kernel.wasm"),
-    rootfs: join(CORE, "build/web/rootfs.zip"),
+    kernel: KERNEL,
+    rootfs: ROOTFS,
     binary: join(APPS, "build/lang/python/python.wasm"),
     bless: "",
     shard: "",
@@ -43,8 +43,8 @@ export let H;
 export async function boot(caseName) {
     name = opt.shard ? `${caseName} ${opt.shard}` : caseName;
     for (const [what, path, how] of [
-        ["kernel", opt.kernel, "make core"],
-        ["rootfs", opt.rootfs, "make core"],
+        ["kernel", opt.kernel, "make"],
+        ["rootfs", opt.rootfs, "make"],
         ["python", opt.binary, "make"],
     ]) {
         if (!existsSync(path)) {
@@ -53,7 +53,7 @@ export async function boot(caseName) {
         }
     }
 
-    H = await import(join(CORE, "test/system/harness.mjs"));
+    H = await import(HARNESS);
     await H.init(opt.kernel, opt.rootfs);
     H.kernel().init(0);
     if (H.run(0) !== -1) die("the kernel did not settle after boot");

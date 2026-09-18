@@ -6,7 +6,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-import { boot, put, get, run, same, ok, die, opt, CORE, LIB, STORE_LIB, H } from "./pylib.mjs";
+import { boot, put, get, run, same, ok, die, opt, HARNESS, LIB, STORE_LIB, H } from "./pylib.mjs";
 
 await boot("pyio");
 let bad = 0;
@@ -115,7 +115,7 @@ raise SystemExit(4)
 // here in small steps: a jump straight to the next timer would leave the shell
 // holding the second line until the program's sleep was over.
 async function signalled(source, sig) {
-    const K = await import(join(CORE, "test/system/harness.mjs"));
+    const K = await import(HARNESS);
     await K.init(opt.kernel, opt.rootfs);
     K.kernel().init(0);
     if (K.run(0) !== -1) die("the shell did not park on the keyboard");

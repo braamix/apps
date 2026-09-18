@@ -1,17 +1,11 @@
 # Convenience wrapper over CMake. The build system proper is CMakeLists.txt.
-# Override with GENERATOR=Ninja, JOBS=1, BUILD=<dir>, SDK=<prefix>, CORE=<dir>.
+# Override with GENERATOR=Ninja, JOBS=1, BUILD=<dir>, SDK=<prefix>.
 
 # The SDK this tree builds against. Move it with each Braam release, here and
 # in README.md. A binary stamped for another process ABI is refused at exec.
 SDK_RELEASE := v0.9
 SDK_VERSION := 0.9.264-d8e705b
 SDK_URL := https://github.com/braamix/core/releases/download/$(SDK_RELEASE)/braam-sdk-$(SDK_VERSION).zip
-
-# What the tests run on: core's harness at the SDK's own commit, and the kernel
-# and rootfs of the same release.
-CORE_URL    := https://github.com/braamix/core
-CORE_COMMIT := $(lastword $(subst -, ,$(SDK_VERSION)))
-RELEASE_URL := https://github.com/braamix/core/releases/download/$(SDK_RELEASE)/braam-$(SDK_VERSION).zip
 
 BUILD     ?= build
 GENERATOR ?= Unix Makefiles
@@ -23,11 +17,8 @@ TEST_LOG  ?= test.log
 SDK       ?= $(BUILD)/braam-sdk-$(SDK_VERSION)
 TOOLCHAIN := $(SDK)/lib/cmake/braam/wasm32-unknown-unknown.cmake
 
-# Laid out as a core tree, so CORE=../braam-core names a local build instead.
-# Only the fetched one has a rule: a local tree is never fetched over.
-FETCHED   := $(BUILD)/braam-$(SDK_VERSION)
-CORE      ?= $(FETCHED)
-KERNEL    := $(CORE)/build/kernel.wasm
+# What the tests run on: the SDK's harness, and the kernel and rootfs it ships.
+HARNESS   := $(SDK)/share/braam
 
 # make's own -jN cannot reach the generated build: its jobserver descriptors do
 # not survive the cmake process in between. Pass a count explicitly instead.
@@ -55,7 +46,7 @@ MKINDEX ?= $(firstword $(wildcard $(SDK)/libexec/braam/mkindex.py))
 
 REPO := $(BUILD)/repo
 
-.PHONY: all core package test index clean
+.PHONY: all package test index clean
 
 all: $(BUILD)/CMakeCache.txt
 	@cmake --build $(BUILD) -j $(JOBS)
@@ -65,10 +56,7 @@ all: $(BUILD)/CMakeCache.txt
 package: all
 	@cmake --build $(BUILD) -j $(JOBS) --target packages
 
-# The harness and the kernel the tests run on, fetched on first use.
-core: $(KERNEL)
-
-# Headless tests, driving a built binary under core's system harness. Needs
+# Headless tests, driving a built binary under the SDK's harness. Needs
 # node 22.12 or later. They run $(TEST_JOBS) at a time, each into
 # a log of its own, and $(TEST_LOG) is those logs in this order.
 #
@@ -202,12 +190,14 @@ TEST_DIR  := $(BUILD)/test
 # concatenated in the order of $(TESTS), whatever order they finished in. The
 # whole list runs and the failures are named at the end, rather than the run
 # stopping at the first.
-test: all $(KERNEL)
+test: all
+	@test -f $(HARNESS)/test/system/harness.mjs || \
+	    { echo "$(SDK) has no test harness"; exit 1; }
 	@rm -rf $(TEST_DIR) && mkdir -p $(TEST_DIR)
 	@i=0; for t in $(TESTS) $(if $(STRESS),$(STRESS_TESTS)); do \
 	    i=`expr $$i + 1`; printf '%03d %s\n' $$i "`echo $$t | tr , ' '`"; \
 	done > $(TEST_DIR)/list
-	@BRAAM_CORE=$(abspath $(CORE)) PY_STRESS=$(STRESS) xargs -P $(TEST_JOBS) -L1 sh -c \
+	@BRAAM_SDK=$(abspath $(SDK)) PY_STRESS=$(STRESS) xargs -P $(TEST_JOBS) -L1 sh -c \
 	    'node "$$@" > $(TEST_DIR)/$$0.log 2>&1 || \
 	         echo "$$*" >> $(TEST_DIR)/failed; cat $(TEST_DIR)/$$0.log' \
 	    < $(TEST_DIR)/list
@@ -242,21 +232,6 @@ $(TOOLCHAIN):
 	@echo "fetching braam-sdk-$(SDK_VERSION)"
 	@curl -fsSL -o $(BUILD)/braam-sdk-$(SDK_VERSION).zip $(SDK_URL)
 	@unzip -q -o -d $(BUILD) $(BUILD)/braam-sdk-$(SDK_VERSION).zip
-	@touch $@
-
-# A blobless clone has every commit, so the short hash in the version resolves;
-# only test/ and web/ are checked out. The release zip holds one directory,
-# braam-<version>/.
-$(FETCHED)/build/kernel.wasm:
-	@rm -rf $(FETCHED)
-	@echo "fetching braam-$(SDK_VERSION)"
-	@git clone -q --filter=blob:none --no-checkout --sparse $(CORE_URL) $(FETCHED)
-	@git -C $(FETCHED) sparse-checkout set test web
-	@git -C $(FETCHED) checkout -q $(CORE_COMMIT)
-	@mkdir -p $(FETCHED)/build/web
-	@curl -fsSL -o $(BUILD)/braam-$(SDK_VERSION).zip $(RELEASE_URL)
-	@unzip -q -o -j -d $(FETCHED)/build/web $(BUILD)/braam-$(SDK_VERSION).zip '*/rootfs.zip'
-	@unzip -q -o -j -d $(FETCHED)/build $(BUILD)/braam-$(SDK_VERSION).zip '*/kernel.wasm'
 	@touch $@
 
 # The toolchain file is named on this first configure and only here: CMake

@@ -37,7 +37,7 @@ orders of magnitude.
 runs every case again under a collector that collects at **every** allocation.
 It found nine missing pins; ask for it after touching any of this C++.
 
-The tests need node 22.12 and `git`; see the top README.
+The tests need node 22.12; see the top README.
 
 ## The two upstreams
 
