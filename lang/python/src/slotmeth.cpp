@@ -436,14 +436,20 @@ bool install_for(const Type *t, u32 extra, u32 ops)
         if ((need & s.need) != s.need)
             continue;
         Root fn{ native_new(s.name, s.fn) };
-        if (fn.v.is_nil() || !add_if_absent(cls.v, s.name, fn.v))
+        if (fn.v.is_nil())
+            return false;
+        static_cast<NativeObj *>(fn.v.obj())->owner = cls.v;
+        if (!add_if_absent(cls.v, s.name, fn.v))
             return false;
     }
     for (const Slot &s : BINOPS) {
         if (!(ops & s.need))
             continue;
         Root fn{ native_new(s.name, s.fn) };
-        if (fn.v.is_nil() || !add_if_absent(cls.v, s.name, fn.v))
+        if (fn.v.is_nil())
+            return false;
+        static_cast<NativeObj *>(fn.v.obj())->owner = cls.v;
+        if (!add_if_absent(cls.v, s.name, fn.v))
             return false;
     }
     // An unhashable built-in says so the way CPython does, with the name bound
@@ -470,6 +476,19 @@ R s_getnewargs(const CallArgs &a, Value &out)
     Root v{ me(a) };
     if (is_bool(v.v))
         v = Value::of_int(is_true(v.v) ? 1 : 0);
+    // A complex is rebuilt from its two parts.
+    if (v.v.is_obj() && v.v.obj()->type == &complex_type) {
+        ComplexObj *c = static_cast<ComplexObj *>(v.v.obj());
+        Root re{ float_new(c->re) };
+        Root im{ float_new(static_cast<ComplexObj *>(v.v.obj())->im) };
+        TupleObj *t = re.v.is_nil() || im.v.is_nil() ? nullptr : tuple_new(2);
+        if (!t)
+            return err_pending() ? R::Err : err_set("MemoryError", "out of memory");
+        t->items()[0] = re.v;
+        t->items()[1] = im.v;
+        out           = obj_value(t);
+        return R::Ok;
+    }
     TupleObj *t = tuple_new(1);
     if (!t)
         return err_set("MemoryError", "out of memory");

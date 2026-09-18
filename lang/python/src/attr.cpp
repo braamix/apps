@@ -19,7 +19,36 @@
 #include "method.h"
 #include "ops.h"
 #include "type.h"
+#include "vm.h"
 #include "weak.h"
+
+// AttributeError for `v.name`, in CPython's words for a module, a class and
+// anything else, with `name` and `obj` set on it as CPython sets them.
+R attr_missing(Value v, Str name)
+{
+    Root rv{ v };
+    Buf<192> m;
+    if (is_module(rv.v)) {
+        Value n = static_cast<ModuleObj *>(rv.v.obj())->name;
+        m.put("module '").put(is_str(n) ? str_of(n)->str() : Str("?")).put("' has no attribute '");
+    } else if (is_type(rv.v)) {
+        m.put("type object '").put(type_obj(rv.v)->slots.name).put("' has no attribute '");
+    } else {
+        m.put("'").put(type_name(rv.v)).put("' object has no attribute '");
+    }
+    m.put(name).put("'");
+    err_set("AttributeError", m.str());
+    Root e{ exc_pending() };
+    Root rn{ str_new(name) };
+    StrObj *kn = str_intern("name"), *ko = str_intern("obj");
+    if (e.v.is_nil() || rn.v.is_nil() || !kn || !ko || !is_exc(e.v))
+        return R::Err;
+    err_clear();
+    Root fn;
+    if (attr_store(e.v, kn, rn.v, fn.v) != R::Ok || attr_store(e.v, ko, rv.v, fn.v) != R::Ok)
+        return R::Err;
+    return err_set_value(e.v);
+}
 
 namespace {
 
@@ -69,9 +98,7 @@ bool pending_is_attr_error()
 
 R no_attr(Value v, StrObj *name)
 {
-    Buf<96> m;
-    m.put("'").put(type_name(v)).put("' object has no attribute '").put(name->str()).put("'");
-    return err_set("AttributeError", m.str());
+    return attr_missing(v, name->str());
 }
 
 // ------------------------------------------------------------- the members
@@ -398,7 +425,7 @@ Got inst_attr(Value v, StrObj *name, Value &out, Value &args)
     if (r == R::Ok) {
         // __new__ is implicitly a staticmethod.
         if (Str("__new__") == name->str())
-            return out = found.v, Got::Ok;
+            return out = new_unwrap(found.v), Got::Ok;
         return descr_get(found.v, kind, rv.v, rc.v, out, args);
     }
 
@@ -526,7 +553,7 @@ Got type_attr(Value v, StrObj *name, Value &out, Value &args)
         return Got::Error;
     if (r == R::Ok) {
         if (Str("__new__") == name->str()) {
-            out = type_new_attr(found.v, owner.v);
+            out = type_new_attr(new_unwrap(found.v), owner.v);
             return out.is_nil() ? Got::Error : Got::Ok;
         }
         bool data = false;
@@ -590,7 +617,7 @@ Got super_attr(Value v, StrObj *name, Value &out, Value &args)
         if (r != R::Ok)
             continue;
         if (Str("__new__") == name->str()) {
-            out = type_new_attr(found.v, c);
+            out = type_new_attr(new_unwrap(found.v), c);
             return out.is_nil() ? Got::Error : Got::Ok;
         }
         bool data  = false;

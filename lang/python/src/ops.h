@@ -74,7 +74,9 @@ R py_pos(Value a, Value &out);
 R py_invert(Value a, Value &out);
 
 // A sequence index: negative counts from the end, out of range is IndexError.
-R index_of(Value key, usize len, usize &out);
+// `what` names the container in the IndexError, as CPython's
+// "list index out of range" does; empty for bytes, which CPython leaves out.
+R index_of(Value key, usize len, usize &out, Str what = Str());
 
 // Shared by tuple and list, which compare and search alike.
 R seq_eq(const Value *x, usize nx, const Value *y, usize ny, bool &out);

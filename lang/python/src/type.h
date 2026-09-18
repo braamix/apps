@@ -107,6 +107,9 @@ Got py_attr_opt(Value v, StrObj *name, Value &out, Value dflt, bool found);
 // `v.name = val` and `del v.name`. R::Ok with `fn` Nil means it is done;
 // otherwise `fn` is a ContObj the caller must run.
 R attr_store(Value v, StrObj *name, Value val, Value &fn);
+
+// AttributeError for `v.name`, as CPython words it, with .name and .obj set.
+R attr_missing(Value v, Str name);
 R attr_delete(Value v, StrObj *name, Value &fn);
 
 // The same, refusing rather than suspending where a Python call is needed.
@@ -209,6 +212,10 @@ bool descr_methods();
 
 // classmethod(fn). Nil with the error pending.
 Value classmethod_new(Value fn);
+Value staticmethod_new(Value fn);
+
+// What a class's __new__ is called as: the function a staticmethod wraps.
+Value new_unwrap(Value found);
 
 // object's methods beyond the core ones, in objmeth.cpp.
 bool objmeth_install(Value dict);

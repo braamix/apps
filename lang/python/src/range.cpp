@@ -2,11 +2,14 @@
 // everything fits a machine word, longrange_iterator where it does not. The
 // rule for which is CPython's, with its 64-bit long.
 #include "bigint.h"
+#include "builtin.h"
 #include "gc.h"
+#include "intern.h"
 #include "iter.h"
 #include "kernel/fmt.h"
 #include "method.h"
 #include "ops.h"
+#include "reduce.h"
 
 namespace {
 
@@ -352,6 +355,42 @@ R iter_repr(Value v, String &out)
     return out.append(b.str()) ? R::Ok : oom();
 }
 
+// __reduce__: iter() over a range of what is left, as CPython answers.
+R iter_reduce(const CallArgs &a, Value &out)
+{
+    const Type *t = a.nargs && a.args[0].is_obj() ? a.args[0].obj()->type : nullptr;
+    if ((t != &range_iter_type && t != &longrange_iter_type) || !meth_args(a, "__reduce__", 0, 0))
+        return err_pending() ? R::Err : err_set("TypeError", "__reduce__ needs a range iterator");
+    Root self{ a.args[0] };
+    Root r;
+    if (t == &range_iter_type) {
+        RangeIterObj *it = static_cast<RangeIterObj *>(self.v.obj());
+        i64 stop         = i64(u64(it->next) + it->left * u64(it->step));
+        r                = range_new(it->next, stop, it->step);
+    } else {
+        LongIterObj *it = static_cast<LongIterObj *>(self.v.obj());
+        Root off, first, span, last;
+        if (!arith(it->at, it->step, Op::Mul, off.v) ||
+            !arith(static_cast<LongIterObj *>(self.v.obj())->start, off.v, Op::Add, first.v) ||
+            !arith(static_cast<LongIterObj *>(self.v.obj())->len,
+                   static_cast<LongIterObj *>(self.v.obj())->step, Op::Mul, span.v) ||
+            !arith(static_cast<LongIterObj *>(self.v.obj())->start, span.v, Op::Add, last.v))
+            return R::Err;
+        r = range_new_ints(first.v, last.v, static_cast<LongIterObj *>(self.v.obj())->step);
+    }
+    StrObj *n = str_intern("iter");
+    Root fn;
+    if (r.v.is_nil() || !n || dict_get(builtins_dict(), obj_value(n), fn.v) != R::Ok)
+        return err_pending() ? R::Err : err_set("SystemError", "no builtins.iter");
+    Root args{ tuple_of(r.v) };
+    if (args.v.is_nil())
+        return R::Err;
+    out = tuple_of(fn.v, args.v, value_none());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+constexpr Method RANGE_ITER[] = { { "__reduce__", iter_reduce } };
+
 constexpr Type range_iter_type{ .name = "range_iterator",
                                 .repr = iter_repr,
                                 .iter = self_iter,
@@ -467,7 +506,22 @@ R m_reversed(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+R m_range_reduce(const CallArgs &a, Value &out)
+{
+    RangeObj *r = self_range(a, "__reduce__");
+    if (!r || !meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root rr{ obj_value(r) };
+    Root cls{ type_of_value(rr.v) };
+    Root args{ tuple_of(r->start, r->stop, r->step) };
+    if (cls.v.is_nil() || args.v.is_nil())
+        return R::Err;
+    out = tuple_of(cls.v, args.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 constexpr Method RANGE[] = {
+    { "__reduce__", m_range_reduce },
     { "count", m_count },
     { "index", m_index },
     { "__reversed__", m_reversed },
@@ -528,5 +582,6 @@ Value range_new(i64 start, i64 stop, i64 step)
 
 bool range_methods()
 {
-    return method_install(&range_type, RANGE);
+    return method_install(&range_type, RANGE) && method_install(&range_iter_type, RANGE_ITER) &&
+           method_install(&longrange_iter_type, RANGE_ITER);
 }

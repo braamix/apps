@@ -178,9 +178,7 @@ R lookup(FrameObj *f, StrObj *name, Value &out)
 
 R no_attr(Value v, StrObj *name)
 {
-    Buf<96> m;
-    m.put("'").put(type_name(v)).put("' object has no attribute '").put(name->str()).put("'");
-    return err_set("AttributeError", m.str());
+    return attr_missing(v, name->str());
 }
 
 R name_error(Str kind, StrObj *name)
@@ -407,7 +405,7 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
     // to make; every other class without one is made here.
     Root own{ type_own_new(rc.v) };
     if (own.v.is_nil() && type_obj(rc.v)->meta)
-        own = ctor.v;
+        own = new_unwrap(ctor.v);
     if (!own.v.is_nil()) {
         TupleObj *na = tuple_new(a.nargs + 1);
         if (!na)
@@ -3106,7 +3104,8 @@ void interpret()
                     if (c.is_nil() || !land(c, false))
                         goto oops;
                     break;
-                } else if (is_inst(st[f->sp - 2]) || is_inst(st[f->sp - 1])) {
+                } else if (is_inst(st[f->sp - 2]) || is_inst(st[f->sp - 1]) ||
+                           is_meta_inst(st[f->sp - 2]) || is_meta_inst(st[f->sp - 1])) {
                     bool done = false;
                     if (!dunder_binop(f, st[f->sp - 2], st[f->sp - 1], arg | 0x100, cmp_dunder(op),
                                       done))
@@ -3478,8 +3477,17 @@ void interpret()
                     break;
                 }
                 Root it{ py_iter(st[f->sp - 1]) };
-                if (it.v.is_nil())
+                if (it.v.is_nil()) {
+                    // `f(*x)` and `[*x]` say which star it was.
+                    if (in.op == Bc::ListExtend && err_kind() == Str("TypeError")) {
+                        err_clear();
+                        Buf<128> m;
+                        m.put("Value after * must be an iterable, not ");
+                        m.put(type_name(st[f->sp - 1]));
+                        err_set("TypeError", m.str());
+                    }
                     goto oops;
+                }
                 Value into = st[f->sp - 1 - arg];
                 for (;;) {
                     Root got;
@@ -3510,7 +3518,13 @@ void interpret()
                 }
                 Value from = st[f->sp - 1];
                 if (!is_dict(from)) {
-                    err_set2("TypeError", "argument after ** must be a mapping", type_name(from));
+                    // `f(**x)` names the star; `{**x}` does not.
+                    Buf<128> m;
+                    if (in.op == Bc::DictMerge)
+                        m.put("Value after ** must be a mapping, not ").put(type_name(from));
+                    else
+                        m.put('\'').put(type_name(from)).put("' object is not a mapping");
+                    err_set("TypeError", m.str());
                     goto oops;
                 }
                 Value into = st[f->sp - 1 - arg];
@@ -3648,17 +3662,23 @@ void interpret()
                         }
                         Value kw = st[f->sp - 1];
                         if (!is_dict(kw)) {
-                            err_set2("TypeError", "argument after ** must be a mapping",
-                                     type_name(kw));
+                            Buf<128> m;
+                            m.put("Value after ** must be a mapping, not ").put(type_name(kw));
+                            err_set("TypeError", m.str());
                             goto oops;
                         }
                         usize at = 0;
                         Value k, v;
-                        while (table_next(dict_at(kw)->t, at, k, v))
+                        while (table_next(dict_at(kw)->t, at, k, v)) {
+                            if (!is_str(k)) {
+                                err_set("TypeError", "keywords must be strings");
+                                goto oops;
+                            }
                             if (!vm->kwnames.push(k) || !vm->flat.push(v)) {
                                 oom();
                                 goto oops;
                             }
+                        }
                     }
                     a.args    = vm->flat.data();
                     a.kwvals  = vm->flat.data() + a.nargs;

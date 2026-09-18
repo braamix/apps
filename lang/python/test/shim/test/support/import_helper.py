@@ -91,3 +91,9 @@ def ensure_lazy_imports(imported_module, modules_to_block, *, additional_code=No
 def make_legacy_pyc(source, allow_compile=False):
     """There are no .pyc files here, so a test of one skips."""
     raise unittest.SkipTest("no .pyc files")
+
+
+def forget(modname):
+    """'Forget' a module was ever imported. There are no .pyc files to remove."""
+    sys.modules.pop(modname, None)
+

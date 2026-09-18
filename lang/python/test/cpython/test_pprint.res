@@ -201,7 +201,7 @@ Traceback (most recent call last):
     object = sorted(object, key=key)
   File "/pkg/store/python-0/lib/pprint.py", line 111, in _safe_tuple
     return _safe_key(t[0]), _safe_key(t[1])
-IndexError: index out of range
+IndexError: string index out of range
 
 ======================================================================
 ERROR: test_dict_views (__main__.QueryTestCase.test_dict_views) (length='long', prefix='dict')
@@ -223,7 +223,7 @@ Traceback (most recent call last):
     object = sorted(object, key=key)
   File "/pkg/store/python-0/lib/pprint.py", line 111, in _safe_tuple
     return _safe_key(t[0]), _safe_key(t[1])
-IndexError: index out of range
+IndexError: string index out of range
 
 ======================================================================
 ERROR: test_dict_views (__main__.QueryTestCase.test_dict_views) (length='short', prefix='odict')
@@ -245,7 +245,7 @@ Traceback (most recent call last):
     object = sorted(object, key=key)
   File "/pkg/store/python-0/lib/pprint.py", line 111, in _safe_tuple
     return _safe_key(t[0]), _safe_key(t[1])
-IndexError: index out of range
+IndexError: string index out of range
 
 ======================================================================
 ERROR: test_dict_views (__main__.QueryTestCase.test_dict_views) (length='long', prefix='odict')
@@ -267,7 +267,7 @@ Traceback (most recent call last):
     object = sorted(object, key=key)
   File "/pkg/store/python-0/lib/pprint.py", line 111, in _safe_tuple
     return _safe_key(t[0]), _safe_key(t[1])
-IndexError: index out of range
+IndexError: string index out of range
 
 ======================================================================
 ERROR: test_dict_views (__main__.QueryTestCase.test_dict_views) (length='short', prefix='dict')
@@ -289,7 +289,7 @@ Traceback (most recent call last):
     object = sorted(object, key=key)
   File "/pkg/store/python-0/lib/pprint.py", line 111, in _safe_tuple
     return _safe_key(t[0]), _safe_key(t[1])
-IndexError: index out of range
+IndexError: string index out of range
 
 ======================================================================
 ERROR: test_dict_views (__main__.QueryTestCase.test_dict_views) (length='long', prefix='dict')
@@ -311,7 +311,7 @@ Traceback (most recent call last):
     object = sorted(object, key=key)
   File "/pkg/store/python-0/lib/pprint.py", line 111, in _safe_tuple
     return _safe_key(t[0]), _safe_key(t[1])
-IndexError: index out of range
+IndexError: string index out of range
 
 ======================================================================
 ERROR: test_expand_chainmap (__main__.QueryTestCase.test_expand_chainmap)
@@ -497,7 +497,7 @@ Traceback (most recent call last):
     p(self, object, stream, indent, allowance, context, level + 1)
   File "/pkg/store/python-0/lib/pprint.py", line 762, in _pprint_interpolation
     ("value", object.value),
-AttributeError: 'mappingproxy' object has no attribute 'value'
+AttributeError: 'mappingproxy' object has no attribute 'value'. Did you mean '.values' instead of '.value'?
 
 ======================================================================
 ERROR: test_expand_namespace (__main__.QueryTestCase.test_expand_namespace)
@@ -581,7 +581,7 @@ Traceback (most recent call last):
     p(self, object, stream, indent, allowance, context, level + 1)
   File "/pkg/store/python-0/lib/pprint.py", line 777, in _pprint_interpolation
     object.value,
-AttributeError: 'mappingproxy' object has no attribute 'value'
+AttributeError: 'mappingproxy' object has no attribute 'value'. Did you mean '.values' instead of '.value'?
 
 ======================================================================
 ERROR: test_nested_indentations (__main__.QueryTestCase.test_nested_indentations)

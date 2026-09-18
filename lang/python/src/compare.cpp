@@ -134,7 +134,8 @@ bool seq_is_python(Value v, bool order, u32 depth)
         return false;
     for (usize i = 0; i < items_of(xs).size(); i++) {
         Value one = items_of(xs)[i];
-        if (is_inst(one) ? cmp_is_python(one, order) : seq_is_python(one, order, depth + 1))
+        if (is_inst(one) || is_meta_inst(one) ? cmp_is_python(one, order)
+                                              : seq_is_python(one, order, depth + 1))
             return true;
     }
     return false;
@@ -393,13 +394,27 @@ Value driver(Value cv)
 
 bool cmp_same_kind(Value a, Value b)
 {
-    return (is_list(a) && is_list(b)) || (is_tuple(a) && is_tuple(b));
+    return (is_list(a) && is_list(b)) || (is_tuple(a) && is_tuple(b)) || (is_dict(a) && is_dict(b));
 }
 
 Value cmp_items(Value v)
 {
     if (is_list(v))
         return v;
+    if (is_dict(v)) {
+        // A dict's values: what a comparison of two of them compares.
+        Root rv{ v };
+        ListObj *l = list_new();
+        if (!l)
+            return oom(), Value();
+        Root rl{ obj_value(l) };
+        usize at = 0;
+        Value k, x;
+        while (table_next(static_cast<DictObj *>(rv.v.obj())->t, at, k, x))
+            if (!list_push(list_of(rl.v), x))
+                return oom(), Value();
+        return rl.v;
+    }
     if (!is_tuple(v))
         return Value();
     Root rv{ v };
@@ -414,9 +429,48 @@ Value cmp_items(Value v)
     return rl.v;
 }
 
+// Two dicts as two lists of values: a's in its order, and b's under the same
+// keys. When the keys differ the lists differ in length, which is unequal.
+bool dict_pair(Value a, Value b, Value &la, Value &lb)
+{
+    Root ra{ a }, rb{ b };
+    Root x{ obj_value(list_new()) }, y{ obj_value(list_new()) };
+    if (x.v.is_nil() || y.v.is_nil())
+        return oom(), false;
+    la = x.v;
+    lb = y.v;
+    if (dict_len(static_cast<DictObj *>(ra.v.obj())) !=
+        dict_len(static_cast<DictObj *>(rb.v.obj())))
+        return list_push(list_of(x.v), value_none()) || (oom(), false);
+    usize at = 0;
+    Value k, v;
+    while (table_next(static_cast<DictObj *>(ra.v.obj())->t, at, k, v)) {
+        Root rk{ k }, rvv{ v };
+        Value other;
+        R r = dict_get(static_cast<DictObj *>(rb.v.obj()), rk.v, other);
+        if (r == R::Err)
+            return false;
+        if (r != R::Ok) {
+            list_of(x.v)->items.clear();
+            list_of(y.v)->items.clear();
+            return list_push(list_of(x.v), value_none()) || (oom(), false);
+        }
+        if (!list_push(list_of(x.v), rvv.v) || !list_push(list_of(y.v), other))
+            return oom(), false;
+    }
+    return true;
+}
+
 Value cmp_seq(Value a, Value b, bool ne)
 {
-    Root ra{ cmp_items(a) }, rb{ cmp_items(b) };
+    Root ra, rb;
+    if (is_dict(a) && is_dict(b)) {
+        if (!dict_pair(a, b, ra.v, rb.v))
+            return Value();
+    } else {
+        ra = cmp_items(a);
+        rb = cmp_items(b);
+    }
     if (ra.v.is_nil() || rb.v.is_nil())
         return Value();
     Root rc{ cmp_new(T_SEQ) };
@@ -431,7 +485,8 @@ Value cmp_seq(Value a, Value b, bool ne)
 
 bool cmp_is_python(Value v, bool order)
 {
-    if (!is_inst(v))
+    // A class whose metaclass writes the comparison is asked as an instance is.
+    if (!is_inst(v) && !is_meta_inst(v))
         return seq_is_python(v, order, 0);
     if (!order)
         return type_has_py_special(v, "__eq__") || type_has_py_special(v, "__ne__");

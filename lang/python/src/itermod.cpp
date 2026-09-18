@@ -22,6 +22,7 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "posix.h"
 #include "type.h"
 
 namespace {
@@ -335,7 +336,45 @@ R longest_next(Value v, Value &out)
 IT_TYPE(chain_type, "itertools.chain", chain_next);
 IT_TYPE(compress_type, "itertools.compress", compress_next);
 IT_TYPE(islice_type, "itertools.islice", islice_next);
+// batched(iterable, n, *, strict=False): tuples of `a` items, the last one
+// shorter unless `b`, strict, says it may not be.
+R batched_next(Value v, Value &out)
+{
+    Root rv{ v };
+    if (it_of(rv.v)->done)
+        return R::NotImpl;
+    ListObj *l = list_new();
+    if (!l)
+        return oom();
+    Root rl{ obj_value(l) };
+    while (i64(list_of(rl.v)->items.size()) < it_of(rv.v)->a) {
+        Root got;
+        R r = py_next(it_of(rv.v)->src, got.v);
+        if (r == R::Err)
+            return it_of(rv.v)->done = true, r;
+        if (r == R::NotImpl) {
+            it_of(rv.v)->done = true;
+            break;
+        }
+        if (!list_push(list_of(rl.v), got.v))
+            return oom();
+    }
+    usize n = list_of(rl.v)->items.size();
+    if (!n)
+        return R::NotImpl;
+    if (it_of(rv.v)->b && i64(n) < it_of(rv.v)->a)
+        return err_set("ValueError", "batched(): incomplete batch");
+    TupleObj *t = tuple_new(n);
+    if (!t)
+        return oom();
+    for (usize i = 0; i < n; i++)
+        t->items()[i] = list_of(rl.v)->items[i];
+    out = obj_value(t);
+    return R::Ok;
+}
+
 IT_TYPE(pairwise_type, "itertools.pairwise", pairwise_next);
+IT_TYPE(batched_type, "itertools.batched", batched_next);
 IT_TYPE(longest_type, "itertools.zip_longest", longest_next);
 
 R b_chain(const CallArgs &a, Value &out)
@@ -439,6 +478,41 @@ R b_pairwise(const CallArgs &a, Value &out)
         return R::Err;
     out = it_new(&pairwise_type, it.v);
     return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_batched(const CallArgs &a, Value &out)
+{
+    bool strict = false;
+    for (u32 k = 0; k < a.nkw; k++) {
+        Str n = is_str(a.kwnames[k]) ? str_of(a.kwnames[k])->str() : Str();
+        if (n != "strict")
+            return err_set2("TypeError", "batched() got an unexpected keyword argument", n);
+        strict = py_truth(a.kwvals[k]);
+    }
+    if (a.nargs != 2) {
+        char t[24];
+        Buf<96> b;
+        b.put("batched() takes exactly 2 positional arguments (");
+        b.put(int_text(t, sizeof t, i64(a.nargs))).put(" given)");
+        return err_set("TypeError", b.str());
+    }
+    i64 n = 0;
+    if (!as_index(a.args[1], n))
+        return err_pending() ? R::Err : err_set("TypeError", "an integer is required");
+    if (n < 1)
+        return err_set("ValueError", "n must be at least one");
+    if (parks(a, 0))
+        return iter_park(a, 0, b_batched, out);
+    Root it{ iter_arg(a.args[0]) };
+    if (it.v.is_nil())
+        return R::Err;
+    Root r{ it_new(&batched_type, it.v) };
+    if (r.v.is_nil())
+        return R::Err;
+    it_of(r.v)->a = n;
+    it_of(r.v)->b = strict;
+    out           = r.v;
+    return R::Ok;
 }
 
 R b_zip_longest(const CallArgs &a, Value &out)
@@ -645,6 +719,17 @@ R b_product(const CallArgs &a, Value &out)
 R one_pool(const CallArgs &a, Value &out, Str who, const Type *t, i64 rule,
            R (*again)(const CallArgs &, Value &out))
 {
+    // `iterable` and `r` may be given by name.
+    if (a.nkw) {
+        constexpr Str NAMES[] = { "iterable", "r" };
+        Value v[2];
+        if (!fn_take(a, who, NAMES, rule == ODO_PERM ? 1 : 2, v))
+            return R::Err;
+        CallArgs b;
+        b.args  = v;
+        b.nargs = v[1].is_nil() ? 1 : 2;
+        return again(b, out);
+    }
     if (!args_only(a, who, rule == ODO_PERM ? 1 : 2, 2))
         return R::Err;
     if (parks(a, 0))
@@ -1000,12 +1085,19 @@ struct Ctor {
 };
 
 constexpr Ctor CTORS[] = {
-    { &count_type, b_count },       { &cycle_type, b_cycle },
-    { &repeat_type, b_repeat },     { &chain_type, b_chain },
-    { &compress_type, b_compress }, { &islice_type, b_islice },
-    { &pairwise_type, b_pairwise }, { &longest_type, b_zip_longest },
-    { &product_type, b_product },   { &perm_type, b_permutations },
-    { &comb_type, b_combinations }, { &comb_rep_type, b_combinations_rep },
+    { &count_type, b_count },
+    { &cycle_type, b_cycle },
+    { &repeat_type, b_repeat },
+    { &chain_type, b_chain },
+    { &compress_type, b_compress },
+    { &islice_type, b_islice },
+    { &pairwise_type, b_pairwise },
+    { &longest_type, b_zip_longest },
+    { &batched_type, b_batched },
+    { &product_type, b_product },
+    { &perm_type, b_permutations },
+    { &comb_type, b_combinations },
+    { &comb_rep_type, b_combinations_rep },
 };
 
 constexpr ModDef PLAIN[] = {

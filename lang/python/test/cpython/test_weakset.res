@@ -1,22 +1,4 @@
-.......EEE...F.E.EFE.FEE...F.....E.EE.EEF....E
-======================================================================
-ERROR: test_copying (__main__.TestWeakSet.test_copying)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_weakset.py", line 471, in test_copying
-    dup = copy.deepcopy(s)
-  File "/pkg/store/python-0/lib/copy.py", line 157, in deepcopy
-    y = _reconstruct(x, memo, *rv)
-  File "/pkg/store/python-0/lib/copy.py", line 255, in _reconstruct
-    state = deepcopy(state, memo)
-  File "/pkg/store/python-0/lib/copy.py", line 131, in deepcopy
-    y = copier(x, memo)
-  File "/pkg/store/python-0/lib/copy.py", line 202, in _deepcopy_dict
-    y[deepcopy(key, memo)] = deepcopy(value, memo)
-  File "/pkg/store/python-0/lib/copy.py", line 146, in deepcopy
-    rv = reductor(4)
-TypeError: cannot pickle 'set' object
-
+........EE...F.E.EFE.FEE...F.....E.EE.EEF....E
 ======================================================================
 ERROR: test_difference (__main__.TestWeakSet.test_difference)
 ----------------------------------------------------------------------
@@ -212,4 +194,4 @@ AssertionError: False != True
 ----------------------------------------------------------------------
 Ran 46 tests in Ns
 
-FAILED (failures=5, errors=14)
+FAILED (failures=5, errors=13)

@@ -23,6 +23,11 @@ bool both_int(Value a, Value b)
 // same number.
 bool int_and_float(Value a, Value b, Value &i, f64 &x, bool &flip)
 {
+    // An instance of a float subclass is that float.
+    if (is_inst(a) && is_float(inst_of(a)->native))
+        a = inst_of(a)->native;
+    if (is_inst(b) && is_float(inst_of(b)->native))
+        b = inst_of(b)->native;
     if (is_intval(a) && is_float(b)) {
         i    = a;
         x    = float_of(b);
@@ -167,6 +172,41 @@ R py_hash(Value v, u32 &out)
     return R::Ok;
 }
 
+namespace {
+
+// A container's comparison is native recursion too, and a container that
+// holds itself would otherwise run off the stack's end.
+constexpr u32 CMP_DEPTH = 300;
+u32 cmp_depth;
+
+R cmp_too_deep()
+{
+    return err_set("RecursionError", "maximum recursion depth exceeded in comparison");
+}
+
+// A type's eq or order slot, one level deeper.
+R deeper_eq(const Type *t, Value a, Value b, bool &out)
+{
+    if (cmp_depth >= CMP_DEPTH)
+        return cmp_too_deep();
+    cmp_depth++;
+    R r = t->eq(a, b, out);
+    cmp_depth--;
+    return r;
+}
+
+R deeper_order(const Type *t, Value a, Value b, Cmp op, bool &out)
+{
+    if (cmp_depth >= CMP_DEPTH)
+        return cmp_too_deep();
+    cmp_depth++;
+    R r = t->order(a, b, op, out);
+    cmp_depth--;
+    return r;
+}
+
+} // namespace
+
 R py_eq(Value a, Value b, bool &out)
 {
     if (both_int(a, b))
@@ -188,13 +228,13 @@ R py_eq(Value a, Value b, bool &out)
 
     const Type *t = type_of(a);
     if (t && t->eq) {
-        R r = t->eq(a, b, out);
+        R r = deeper_eq(t, a, b, out);
         if (r != R::NotImpl)
             return r;
     }
     const Type *u = type_of(b);
     if (u && u->eq) {
-        R r = u->eq(b, a, out);
+        R r = deeper_eq(u, b, a, out);
         if (r != R::NotImpl)
             return r;
     }
@@ -234,7 +274,7 @@ R py_cmp(Value a, Value b, Cmp op, bool &out)
 
     const Type *t = type_of(a);
     if (t && t->order) {
-        R r = t->order(a, b, op, out);
+        R r = deeper_order(t, a, b, op, out);
         if (r != R::NotImpl)
             return r;
     }
@@ -246,7 +286,7 @@ R py_cmp(Value a, Value b, Cmp op, bool &out)
                    : op == Cmp::Le ? Cmp::Ge
                    : op == Cmp::Gt ? Cmp::Lt
                                    : Cmp::Le;
-        R r      = u->order(b, a, back, out);
+        R r      = deeper_order(u, b, a, back, out);
         if (r != R::NotImpl)
             return r;
     }
@@ -381,9 +421,7 @@ R py_getattr(Value v, StrObj *name, Value &out)
     case Got::Missing:
         break;
     }
-    Buf<96> m;
-    m.put("'").put(type_name(v)).put("' object has no attribute '").put(name->str()).put("'");
-    return err_set("AttributeError", m.str());
+    return attr_missing(v, name->str());
 }
 
 R not_iterable(Value v)
@@ -623,7 +661,7 @@ R py_neg(Value a, Value &out)
     return err_set2("TypeError", "bad operand type for unary -", type_name(a));
 }
 
-R index_of(Value key, usize len, usize &out)
+R index_of(Value key, usize len, usize &out, Str what)
 {
     i64 n = 0;
     // An int subclass, an IntEnum member, is an index as it stands.
@@ -631,8 +669,13 @@ R index_of(Value key, usize len, usize &out)
         return err_set2("TypeError", "indices must be integers", type_name(key));
     if (n < 0)
         n += i64(len);
-    if (n < 0 || n >= i64(len))
-        return err_set("IndexError", "index out of range");
+    if (n < 0 || n >= i64(len)) {
+        Buf<64> m;
+        if (!what.empty())
+            m.put(what).put(' ');
+        m.put("index out of range");
+        return err_set("IndexError", m.str());
+    }
     out = usize(n);
     return R::Ok;
 }

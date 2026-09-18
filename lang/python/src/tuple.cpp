@@ -70,7 +70,7 @@ R tuple_getitem(Value v, Value key, Value &out)
         return R::Ok;
     }
     usize i = 0;
-    if (index_of(key, t->len, i) != R::Ok)
+    if (index_of(key, t->len, i, "tuple") != R::Ok)
         return R::Err;
     out = t->items()[i];
     return R::Ok;

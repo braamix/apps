@@ -135,7 +135,7 @@ R str_getitem(Value v, Value key, Value &out)
         return out.is_nil() ? err_set("MemoryError", "out of memory") : R::Ok;
     }
     usize i = 0;
-    if (index_of(key, s->chars, i) != R::Ok)
+    if (index_of(key, s->chars, i, "string") != R::Ok)
         return R::Err;
     usize at = str_offset_of(s, i);
     usize to = str_offset_of(s, i + 1);

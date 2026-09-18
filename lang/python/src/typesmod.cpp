@@ -22,6 +22,7 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "reduce.h"
 #include "type.h"
 #include "union.h"
 
@@ -111,6 +112,22 @@ constexpr Type space_type{ .name    = "types.SimpleNamespace",
                            .repr    = space_repr,
                            .getattr = space_getattr,
                            .setattr = space_setattr };
+
+// __reduce__: (type, (), the attributes).
+R space_reduce(const CallArgs &a, Value &out)
+{
+    if (!a.nargs || !a.args[0].is_obj() || a.args[0].obj()->type != &space_type ||
+        !meth_args(a, "__reduce__", 0, 0))
+        return err_pending() ? R::Err : err_set("TypeError", "__reduce__ needs a namespace");
+    Root self{ a.args[0] };
+    Root none{ tuple_of() };
+    if (none.v.is_nil())
+        return R::Err;
+    out = reduce_of(self.v, none.v, space_of(self.v)->dict);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+constexpr Method SPACE_METHODS[] = { { "__reduce__", space_reduce } };
 
 R b_space(const CallArgs &a, Value &out)
 {
@@ -415,7 +432,7 @@ bool types_install(DictObj *into)
         if (w.v.is_nil() || !mod_put(d, one.name, w.v))
             return false;
     }
-    if (!mod_type(d, &space_type, b_space))
+    if (!method_install(&space_type, SPACE_METHODS) || !mod_type(d, &space_type, b_space))
         return false;
     Root tb{ type_wrap(&traceback_type) };
     Root fn{ native_new("traceback", traceback_ctor) };

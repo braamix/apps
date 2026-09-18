@@ -774,11 +774,8 @@ R cont_attr(ContObj *k, Value obj, Str name)
     Got g = py_attr(ro.v, nm, got);
     if (g == Got::Error)
         return R::Err;
-    if (g == Got::Missing) {
-        Buf<128> m;
-        m.put("'").put(type_name(ro.v)).put("' object has no attribute '").put(name).put("'");
-        return err_set("AttributeError", m.str());
-    }
+    if (g == Got::Missing)
+        return attr_missing(ro.v, name);
     return cont_await(k, got);
 }
 

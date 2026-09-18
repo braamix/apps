@@ -24,30 +24,26 @@ One item in the list is not planned. It is at the end, with the reason.
   file that is not a module.
 - **`__index__` returning a non-int** says "an integer is required" where
   CPython says `__index__ returned non-int (type str)`.
-
-## Stage 3 — `pickle`
-
-16. **`__reduce__` for every native type.** `copy` works, but most native
-    types have no `__reduce__` yet, so `object.__reduce_ex__` loses their
-    contents: `set`, `frozenset`, `range`, `slice`, `complex`, `bytearray`,
-    `deque`, `defaultdict`, `OrderedDict`, `array`, every exception
-    (`BaseException.__reduce__` and `__setstate__`), `SimpleNamespace`, and
-    the `functools`/`operator` objects that do not have one yet. Also check
-    `object.__getstate__` and `copyreg.__newobj_ex__`. Test: `test_copy` and
-    the reduce cases in each type's own test.
-
-17. **`pickle`, `_compat_pickle`, `pickletools`.** The pure-Python pickler
-    (`_pickle` is guarded). It needs `struct`, `codecs`, `io`,
-    `itertools.batched`, `copyreg`, and `whichmodule` over `sys.modules`. A
-    `PickleBuffer` is not needed below protocol 5. Tests: `test_pickle`
-    (through `pickletester`), `test_pickletools`.
-
-18. **`marshal` in CPython's format, for data.** The Manual says marshal
-    uses this interpreter's own format. Write CPython's format for `None`,
-    bool, int, float, complex, str, bytes, tuple, list, dict, set and
-    frozenset, including references. Code objects stay this interpreter's,
-    and loading a CPython code object is a `ValueError`. `pstats` needs this
-    (task 31). Test: `test_marshal`, without the code-object cases.
+- **A `MemoryError` that is not caught crashes the process** while it is
+  being reported. `tempfile.mkdtemp(dir=b"/tmp")` shows it: `map` is eager,
+  so mapping `os.fsencode` over the endless name generator runs out of memory,
+  and then the report traps. That is also why `test_tempfile` cannot run.
+- **`importlib.invalidate_caches()` fails**: it imports `importlib.metadata`,
+  which is not shipped.
+- **`python <directory>`** says "is a directory" instead of running the
+  directory's `__main__.py`, and **`python -m`** refuses a module name that is
+  not ASCII. `test_argparse` shows both.
+- **Reserved memory ratchets up to the cap.** braam-core's allocator never
+  gives a span back once a size class has taken it, so a burst of small
+  objects leaves spans that later multi-megabyte buffers cannot use.
+  `test_pickle` gets to 102 MB reserved with 11 MB in use, and its framing
+  tests then raise `MemoryError`. Which subtest tips over depends on the pid,
+  so that golden was blessed with `--shard=3/4`, as `make test` runs it. The
+  fix is in braam-core: return a class's empty spans to the free runs.
+- **Deep structures and the recursion limit.** `pickle.py` spends four
+  frames on each level of a list, so a structure nested past about fifty
+  levels raises `RecursionError`, where CPython's limit of 1000 takes 250.
+  The limit is what the native stack holds; this is the cost of it.
 
 ## Stage 4 — compression
 
@@ -151,8 +147,9 @@ One item in the list is not planned. It is at the end, with the reason.
 31. **`profile`, `pstats`, `cProfile`.** `profile` runs on `setprofile`.
     `cProfile` is `profiling.tracing`, which stands on `_lsprof`: write
     `_lsprof` natively on the task 28 event points, with no Python calls per
-    event. `pstats` saves and loads through `marshal` (task 18). The harness
-    clock is frozen, so the tests can check only the structure. Tests:
+    event. `pstats` saves and loads through `marshal`, which writes
+    CPython's format. The harness clock is frozen, so the tests can check
+    only the structure. Tests:
     `test_profile`, `test_profiling/test_tracing_profiler.py`, `test_pstats`.
 
 32. **`pdb`.** Now a working debugger: `run`, `runcall`, `post_mortem`,

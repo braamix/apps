@@ -29,7 +29,7 @@ ERROR: test_3611 (__main__.TestContext.test_3611)
 Traceback (most recent call last):
   File "/tmp/test_raise.py", line 491, in test_3611
     with support.catch_unraisable_exception() as cm:
-AttributeError: 'module' object has no attribute 'catch_unraisable_exception'
+AttributeError: module 'test.support' has no attribute 'catch_unraisable_exception'
 
 ======================================================================
 ERROR: test_erroneous_exception (__main__.TestRaise.test_erroneous_exception)

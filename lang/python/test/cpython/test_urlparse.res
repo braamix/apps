@@ -1,3 +1,5 @@
-Traceback (most recent call last):
-  File "/tmp/test_urlparse.py", line 2, in <module>
-ModuleNotFoundError: No module named 'pickle'
+....................ssss............................s..............................
+----------------------------------------------------------------------
+Ran 81 tests in Ns
+
+OK (skipped=5)

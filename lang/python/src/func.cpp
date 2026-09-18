@@ -195,10 +195,22 @@ Got func_lazy(Value v, StrObj *name, Value &out, Value &args)
 R native_getattr(Value v, StrObj *name, Value &out)
 {
     Str n = name->str();
+    if (n == "__module__") {
+        Value owner = static_cast<NativeObj *>(v.obj())->owner;
+        if (!is_str(owner))
+            return R::NotImpl;
+        out = owner;
+        return R::Ok;
+    }
     if (n != "__name__" && n != "__qualname__")
         return R::NotImpl;
     out = str_new(static_cast<NativeObj *>(v.obj())->name);
     return out.is_nil() ? R::Err : R::Ok;
+}
+
+void native_trace(Obj *o)
+{
+    gc_mark(static_cast<NativeObj *>(o)->owner);
 }
 
 R native_repr(Value v, String &out)
@@ -272,6 +284,7 @@ constexpr Type func_type{ .name     = "function",
                           .lazyattr = func_lazy };
 
 constexpr Type native_type{ .name    = "builtin_function_or_method",
+                            .trace   = native_trace,
                             .repr    = native_repr,
                             .getattr = native_getattr };
 
@@ -316,8 +329,9 @@ Value native_new(Str name, R (*fn)(const CallArgs &, Value &out))
     NativeObj *n = static_cast<NativeObj *>(obj_alloc(&native_type, sizeof(NativeObj)));
     if (!n)
         return err_set("MemoryError", "out of memory"), Value();
-    n->name = name;
-    n->fn   = fn;
+    n->name  = name;
+    n->fn    = fn;
+    n->owner = Value();
     return obj_value(n);
 }
 

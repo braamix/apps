@@ -1,0 +1,84 @@
+reduce
+set (builtins.set, ([3],), None)
+range (builtins.range, (1, 9, 2))
+slice (builtins.slice, (1, None, 3))
+bytearray (builtins.bytearray, ('ab', 'latin-1'), None)
+deque (collections.deque, ((), 5), None, iter[1, 2])
+defaultdict (collections.defaultdict, (builtins.list,), None, None, iter[('a', 1)])
+array (array.array, ('i', [1]), None)
+ValueError (builtins.ValueError, ('x', 2))
+OSError (builtins.FileNotFoundError, (2, 'no', 'f'))
+namespace (types.SimpleNamespace, (), {'a': 1})
+partial (functools.partial, (__main__.f,), (__main__.f, (1,), {'y': 2}, None))
+itemgetter (operator.itemgetter, (1, 2))
+attrgetter (operator.attrgetter, ('a.b',))
+list iterator (builtins.iter, ([1, 2],), 0)
+enumerate (builtins.enumerate, (iter['a', 'b'], 0))
+reversed (builtins.reversed, ([1, 2],), 1)
+zip (builtins.zip, (iter['a'], iter['b']))
+bound builtin (builtins.getattr, ([], 'append'))
+unbound builtin (builtins.getattr, (builtins.str, 'index'))
+bytes
+0 b'N.'
+2 b'\x80\x02N.'
+4 b'\x80\x04N.'
+0 b'I1\n.'
+2 b'\x80\x02K\x01.'
+4 b'\x80\x04K\x01.'
+0 b'I-1\n.'
+2 b'\x80\x02J\xff\xff\xff\xff.'
+4 b'\x80\x04\x95\x06\x00\x00\x00\x00\x00\x00\x00J\xff\xff\xff\xff.'
+0 b'I300\n.'
+2 b'\x80\x02M,\x01.'
+4 b'\x80\x04\x95\x04\x00\x00\x00\x00\x00\x00\x00M,\x01.'
+0 b'L1099511627776L\n.'
+2 b'\x80\x02\x8a\x06\x00\x00\x00\x00\x00\x01.'
+4 b'\x80\x04\x95\t\x00\x00\x00\x00\x00\x00\x00\x8a\x06\x00\x00\x00\x00\x00\x01.'
+0 b'F1.5\n.'
+2 b'\x80\x02G?\xf8\x00\x00\x00\x00\x00\x00.'
+4 b'\x80\x04\x95\n\x00\x00\x00\x00\x00\x00\x00G?\xf8\x00\x00\x00\x00\x00\x00.'
+0 b'Va\np0\n.'
+2 b'\x80\x02X\x01\x00\x00\x00aq\x00.'
+4 b'\x80\x04\x95\x05\x00\x00\x00\x00\x00\x00\x00\x8c\x01a\x94.'
+0 b'c_codecs\nencode\np0\n(Vb\np1\nVlatin1\np2\ntp3\nRp4\n.'
+2 b'\x80\x02c_codecs\nencode\nq\x00X\x01\x00\x00\x00bq\x01X\x06\x00\x00\x00latin1q\x02\x86q\x03Rq\x04.'
+4 b'\x80\x04\x95\x05\x00\x00\x00\x00\x00\x00\x00C\x01b\x94.'
+0 b'(I1\nVx\np0\ntp1\n.'
+2 b'\x80\x02K\x01X\x01\x00\x00\x00xq\x00\x86q\x01.'
+4 b'\x80\x04\x95\t\x00\x00\x00\x00\x00\x00\x00K\x01\x8c\x01x\x94\x86\x94.'
+0 b'(lp0\nI1\naI2\na.'
+2 b'\x80\x02]q\x00(K\x01K\x02e.'
+4 b'\x80\x04\x95\t\x00\x00\x00\x00\x00\x00\x00]\x94(K\x01K\x02e.'
+0 b'(dp0\nVk\np1\n(lp2\nI3\nas.'
+2 b'\x80\x02}q\x00X\x01\x00\x00\x00kq\x01]q\x02K\x03as.'
+4 b'\x80\x04\x95\r\x00\x00\x00\x00\x00\x00\x00}\x94\x8c\x01k\x94]\x94K\x03as.'
+0 b'c__builtin__\nset\np0\n((lp1\nI5\natp2\nRp3\n.'
+2 b'\x80\x02c__builtin__\nset\nq\x00]q\x01K\x05a\x85q\x02Rq\x03.'
+4 b'\x80\x04\x95\x07\x00\x00\x00\x00\x00\x00\x00\x8f\x94(K\x05\x90.'
+0 b'ccopy_reg\n_reconstructor\np0\n(c__main__\nPoint\np1\nc__builtin__\nobject\np2\nNtp3\nRp4\n(dp5\nVx\np6\nI1\nsVy\np7\nI2\nsb.'
+2 b'\x80\x02c__main__\nPoint\nq\x00)\x81q\x01}q\x02(X\x01\x00\x00\x00xq\x03K\x01X\x01\x00\x00\x00yq\x04K\x02ub.'
+4 b'\x80\x04\x95*\x00\x00\x00\x00\x00\x00\x00\x8c\x08__main__\x94\x8c\x05Point\x94\x93\x94)\x81\x94}\x94(\x8c\x01x\x94K\x01\x8c\x01y\x94K\x02ub.'
+round trip
+0 ok
+1 ok
+2 ok
+3 ok
+4 ok
+5 ok
+recursive True
+    0: \x80 PROTO      2
+    2: }    EMPTY_DICT
+    3: q    BINPUT     0
+    5: X    BINUNICODE 'a'
+   11: q    BINPUT     1
+   13: ]    EMPTY_LIST
+   14: q    BINPUT     2
+   16: (    MARK
+   17: K        BININT1    1
+   19: K        BININT1    2
+   21: e        APPENDS    (MARK at 16)
+   22: s    SETITEM
+   23: .    STOP
+highest protocol among opcodes = 2
+copy
+True True True

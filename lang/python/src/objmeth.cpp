@@ -12,6 +12,7 @@
 #include "call.h"
 #include "exc.h"
 #include "gc.h"
+#include "info.h"
 #include "intern.h"
 #include "kernel/fmt.h"
 #include "method.h"
@@ -514,6 +515,11 @@ R o_reduce_ex(const CallArgs &a, Value &out)
     }
     if (proto < 0)
         proto = 0;
+    // A struct sequence is made again from its fields, at any protocol.
+    if (is_info(a.args[0])) {
+        out = info_reduce(a.args[0]);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     return reduce_start(a.args[0], ST_START, u32(proto > 5 ? 5 : proto), out);
 }
 
@@ -521,6 +527,10 @@ R o_reduce(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "__reduce__", 1, 1))
         return R::Err;
+    if (is_info(a.args[0])) {
+        out = info_reduce(a.args[0]);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
     return reduce_start(a.args[0], ST_COMMON, 0, out);
 }
 

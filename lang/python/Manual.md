@@ -238,11 +238,11 @@ warning categories.
 
 ```
 _abc _ast _blake2 _codecs _collections _colorize _contextvars _csv
-_functools _imp _io _math_integer _md5 _operator _posixsubprocess
-_random _sha1 _sha2 _sha3 _signal _sre _string _struct _thread
-_tokenize _types _typing _warnings _weakref array atexit binascii
-builtins cmath dis errno faulthandler gc itertools marshal math posix
-select sys time unicodedata
+_functools _imp _io _math_integer _md5 _operator _pickle
+_posixsubprocess _random _sha1 _sha2 _sha3 _signal _sre _string
+_struct _thread _tokenize _types _typing _warnings _weakref array
+atexit binascii builtins cmath dis errno faulthandler gc itertools
+marshal math posix select sys time unicodedata
 ```
 
 `sys.builtin_module_names` is that list.
@@ -255,7 +255,7 @@ it was taken from. The ones you reach for:
 | Area | Modules |
 | --- | --- |
 | Text | `re`, `string`, `textwrap`, `difflib`, `unicodedata`, `codecs`, `encodings`, `html`, `quopri` |
-| Data | `collections`, `dataclasses`, `enum`, `heapq`, `bisect`, `copy`, `pprint`, `reprlib`, `types`, `weakref`, `queue`, `graphlib` |
+| Data | `collections`, `dataclasses`, `enum`, `heapq`, `bisect`, `copy`, `pickle`, `pickletools`, `marshal`, `pprint`, `reprlib`, `types`, `weakref`, `queue`, `graphlib`, `dbm` (`dbm.dumb` only) |
 | Numbers | `decimal`, `fractions`, `statistics`, `numbers`, `random`, `struct` |
 | Files | `os`, `os.path`, `pathlib`, `io`, `shutil`, `tempfile`, `glob`, `fnmatch`, `stat`, `csv`, `json`, `base64`, `binascii`, `configparser`, `tomllib`, `mimetypes`, `zipfile` (stored members only) |
 | Time | `datetime`, `calendar`, `time`, `locale`, `gettext`, `sched`, `timeit` |
@@ -263,7 +263,7 @@ it was taken from. The ones you reach for:
 | Async | `asyncio`, `concurrent.futures`, `contextvars`, `threading` |
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
 | Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
-| Addresses | `urllib.parse`, `ipaddress`, `uuid` |
+| Addresses | `urllib.parse`, `ipaddress`, `uuid`, `http.cookies` |
 | Crypto | `hashlib`, `hmac`, `secrets` |
 
 **`sys.stdlib_module_names` is CPython's whole list and not this one** — it is
@@ -381,7 +381,8 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   them runs — but nothing runs in parallel. Concurrency here is `asyncio`.
 - **`fork` and `exec`.** A process can start another but cannot become one;
   §7 says what `subprocess` does instead.
-- **Sockets and everything over them**: `socket`, `ssl`, `urllib`, `http`,
+- **Sockets and everything over them**: `socket`, `ssl`, `urllib`, `http`
+  (but `http.cookies`),
   `ftplib`, `smtplib`, `socketserver`, `xmlrpc`.
 - **Waiting for a descriptor.** `select.select` answers for regular files,
   which are always ready, and raises `OSError` for anything else; `selectors`
@@ -393,13 +394,10 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   reaches a child started here, but `os.putenv` alone reaches nothing.
 - **`signal.alarm`, `SIGUSR1` and the rest.** Only three signals exist.
 - **`curses`, `tkinter`, `turtle`, `webbrowser`, `multiprocessing`,
-  `sqlite3`, `dbm`.**
+  `sqlite3`**, and so every `dbm` backend but `dbm.dumb`.
 
 ### Because they are not written yet
 
-- **`pickle`.** `copyreg` is here and `copy` works; nothing serialises to
-  bytes. `marshal` is here too, but its format is this interpreter's and not
-  CPython's.
 - **`zlib`, `gzip`, `bz2`, `lzma`, `tarfile`** — no compression of any
   kind, so `zipfile` reads and writes stored members only.
 - **`email`, `xml`, `symtable`**, and of `urllib` only `parse`.
@@ -413,6 +411,15 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   would cost more than it saves.
 
 ### Differences you can see
+
+- **`pickle` is the pure-Python pickler.** `_pickle` holds only
+  `PickleBuffer`, and answers for `Pickler`, `dumps` and the rest with
+  `pickle.py`'s own. A pickle is CPython's format and loads there, with two
+  exceptions: a `map` or `filter` object pickles as an iterator over what it
+  has left, since both are eager here, and a structure nested more than about
+  fifty deep exceeds the recursion limit.
+- **`marshal` writes CPython's format for data, and no code objects**, which
+  are this interpreter's own.
 
 - **`SyntaxWarning` is never raised.** `x is "s"` and an invalid escape
   compile quietly.

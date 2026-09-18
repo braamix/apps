@@ -13,6 +13,7 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "reduce.h"
 
 namespace {
 
@@ -1295,6 +1296,7 @@ struct MemObj : Obj {
     i32 step;
     u8 width;
     char code;
+    bool ro; // toreadonly(): not written through, whatever the owner
 };
 
 MemObj *mem_of(Value v)
@@ -1305,6 +1307,14 @@ MemObj *mem_of(Value v)
 void mem_trace(Obj *o)
 {
     gc_mark(static_cast<MemObj *>(o)->owner);
+}
+
+// What holds the octets: the owner, or the bytes inside a subclass instance,
+// which is what `obj` names.
+Value mem_data(const MemObj *m)
+{
+    Value o = m->owner;
+    return is_inst(o) && !inst_of(o)->native.is_nil() ? inst_of(o)->native : o;
 }
 
 R mem_len(Value v, usize &out)
@@ -1324,16 +1334,17 @@ R mem_repr(Value v, String &out)
 // Every octet the owner holds, whatever this view shows of them.
 bool mem_owner_bytes(Value v, Str &out, bool *writable)
 {
-    MemObj *m = mem_of(v);
-    char code = 'B';
-    if (is_bytes(m->owner))
-        out = static_cast<BytesObj *>(m->owner.obj())->str();
-    else if (is_bytearray(m->owner))
-        out = array_of(m->owner)->str();
-    else if (!array_bytes(m->owner, out, code))
+    MemObj *m  = mem_of(v);
+    char code  = 'B';
+    Value data = mem_data(m);
+    if (is_bytes(data))
+        out = static_cast<BytesObj *>(data.obj())->str();
+    else if (is_bytearray(data))
+        out = array_of(data)->str();
+    else if (!array_bytes(data, out, code))
         return err_set("BufferError", "the underlying object is gone"), false;
     if (writable)
-        *writable = !is_bytes(m->owner);
+        *writable = !is_bytes(data) && !m->ro;
     return true;
 }
 
@@ -1341,6 +1352,17 @@ bool mem_owner_bytes(Value v, Str &out, bool *writable)
 usize mem_offset(const MemObj *m, usize i)
 {
     return usize(i64(m->at) + i64(i) * i64(m->step) * i64(m->width));
+}
+
+// An index into a flat view, in CPython's words for one out of range.
+R mem_index(Value key, usize len, usize &out)
+{
+    R r = index_of(key, len, out);
+    if (r == R::Err && err_kind() == Str("IndexError")) {
+        err_clear();
+        return err_set("IndexError", "index out of bounds on dimension 1");
+    }
+    return r;
 }
 
 R mem_item(Value v, usize i, Value &out)
@@ -1378,7 +1400,7 @@ R mem_getitem(Value v, Value key, Value &out)
         return R::Ok;
     }
     usize i = 0;
-    if (index_of(key, n, i) != R::Ok)
+    if (mem_index(key, n, i) != R::Ok)
         return R::Err;
     return mem_item(rv.v, i, out);
 }
@@ -1408,7 +1430,8 @@ R mem_setitem(Value v, Value key, Value item)
         String copy;
         if (!copy.assign(src))
             return oom_err();
-        u8 *base = is_bytearray(m->owner) ? array_of(m->owner)->data.data() : array_data(m->owner);
+        Value data = mem_data(m);
+        u8 *base   = is_bytearray(data) ? array_of(data)->data.data() : array_data(data);
         if (!base)
             return err_set("TypeError", "cannot modify read-only memory");
         for (usize i = 0; i < count; i++) {
@@ -1419,13 +1442,14 @@ R mem_setitem(Value v, Value key, Value item)
         return R::Ok;
     }
     usize i = 0;
-    if (index_of(key, mem_of(v)->len, i) != R::Ok)
+    if (mem_index(key, mem_of(v)->len, i) != R::Ok)
         return R::Err;
     const ItemKind *k = item_kind(mem_of(v)->code);
     if (!k)
         return err_set("NotImplementedError", "this memoryview format");
-    MemObj *m = mem_of(v);
-    u8 *base  = is_bytearray(m->owner) ? array_of(m->owner)->data.data() : array_data(m->owner);
+    MemObj *m  = mem_of(v);
+    Value data = mem_data(m);
+    u8 *base   = is_bytearray(data) ? array_of(data)->data.data() : array_data(data);
     if (!base)
         return err_set("TypeError", "cannot modify read-only memory");
     return item_put(reinterpret_cast<char *>(base), mem_offset(m, i), k, item);
@@ -1528,6 +1552,40 @@ R m_release(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// toreadonly(): the same window, which may not be written through.
+R m_toreadonly(const CallArgs &a, Value &out)
+{
+    Value self = a.nargs ? method_self(a.args[0]) : Value();
+    if (!is_memview(self))
+        return err_set2("TypeError", "toreadonly() requires a memoryview", type_name(self));
+    if (!meth_args(a, "toreadonly", 0, 0))
+        return R::Err;
+    Value w = memview_new(self);
+    if (w.is_nil())
+        return R::Err;
+    mem_of(w)->ro = true;
+    out           = w;
+    return R::Ok;
+}
+
+// `with memoryview(b) as m:` releases the view at the end, which here is
+// nothing more than a promise.
+R m_mem_enter(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__enter__", 0, 0))
+        return R::Err;
+    out = a.args[0];
+    return R::Ok;
+}
+
+R m_mem_exit(const CallArgs &a, Value &out)
+{
+    if (a.nargs < 1)
+        return err_set("TypeError", "__exit__() needs self");
+    out = value_none();
+    return R::Ok;
+}
+
 // A one-item tuple, which is what shape and strides are for a flat view.
 Value one_tuple(i64 n)
 {
@@ -1559,7 +1617,7 @@ R mem_getattr(Value v, StrObj *name, Value &out)
     else if (n == "strides")
         out = one_tuple(i64(m->step) * m->width);
     else if (n == "readonly")
-        out = value_bool(is_bytes(m->owner));
+        out = value_bool(is_bytes(mem_data(m)) || m->ro);
     else if (n == "obj")
         out = m->owner;
     else if (n == "c_contiguous" || n == "f_contiguous" || n == "contiguous")
@@ -1572,8 +1630,9 @@ R mem_getattr(Value v, StrObj *name, Value &out)
 }
 
 constexpr Method MEMVIEW[] = {
-    { "tobytes", m_tobytes }, { "tolist", m_tolist },   { "hex", m_hex },
-    { "cast", m_cast },       { "release", m_release },
+    { "tobytes", m_tobytes },   { "tolist", m_tolist },         { "hex", m_hex },
+    { "cast", m_cast },         { "release", m_release },       { "__enter__", m_mem_enter },
+    { "__exit__", m_mem_exit }, { "toreadonly", m_toreadonly },
 };
 
 // A view compares and searches as the octets it shows.
@@ -1651,8 +1710,64 @@ constexpr Method COMMON[] = {
 
 constexpr Method BYTES_ONLY[] = { { "fromhex", m_fromhex_bytes, true } };
 
+// bytearray.__reduce_ex__(proto): the bytes, or below protocol 3 -- which
+// has no bytes type -- a latin-1 str and the codec that makes them again.
+R bytearray_reduce(const CallArgs &a, Value &out, i64 proto)
+{
+    Root self{ a.args[0] };
+    ArrayObj *b = array_of(method_self(self.v));
+    Root state{ inst_state(self.v) };
+    Root args;
+    if (!b->data.size()) {
+        args = tuple_of();
+    } else if (proto < 3) {
+        String text;
+        for (usize i = 0; i < b->data.size(); i++) {
+            u8 c    = b->data[i];
+            bool ok = c < 0x80
+                          ? text.push(char(c))
+                          : text.push(char(0xc0 | (c >> 6))) && text.push(char(0x80 | (c & 0x3f)));
+            if (!ok)
+                return err_set("MemoryError", "out of memory");
+        }
+        Root s{ str_new(text.str()) };
+        Root codec{ str_new("latin-1") };
+        if (s.v.is_nil() || codec.v.is_nil())
+            return R::Err;
+        args = tuple_of(s.v, codec.v);
+    } else {
+        Root s{ bytes_new(b->str()) };
+        if (s.v.is_nil())
+            return R::Err;
+        args = tuple_of(s.v);
+    }
+    if (args.v.is_nil())
+        return R::Err;
+    out = reduce_of(self.v, args.v, state.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R m_reduce(const CallArgs &a, Value &out)
+{
+    if (!self_array(a, "__reduce__") || !meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    return bytearray_reduce(a, out, 2);
+}
+
+R m_reduce_ex(const CallArgs &a, Value &out)
+{
+    if (!self_array(a, "__reduce_ex__") || !meth_args(a, "__reduce_ex__", 1, 1))
+        return R::Err;
+    i64 proto = 0;
+    if (!as_index(a.args[1], proto))
+        return err_pending() ? R::Err : err_set("TypeError", "an integer is required");
+    return bytearray_reduce(a, out, proto);
+}
+
 constexpr Method ARRAY_ONLY[] = {
     { "fromhex", m_fromhex_array, true },
+    { "__reduce__", m_reduce },
+    { "__reduce_ex__", m_reduce_ex },
     { "append", m_append },
     { "extend", m_extend },
     { "insert", m_insert },
@@ -1681,6 +1796,18 @@ constexpr Type memview_type{ .name     = "memoryview",
 
 Value memview_new(Value owner)
 {
+    // An instance of a bytes or bytearray subclass is viewed as those octets,
+    // and stays what the view's `obj` is.
+    Value keep = owner;
+    if (is_inst(owner) &&
+        (is_bytes(inst_of(owner)->native) || is_bytearray(inst_of(owner)->native)))
+        owner = inst_of(owner)->native;
+    // A PickleBuffer is the view it holds.
+    Value pb = picklebuffer_view(owner);
+    if (!pb.is_nil())
+        return memview_new(pb);
+    if (err_pending())
+        return Value();
     Str s;
     char code = 'B';
     u8 width  = 1;
@@ -1697,7 +1824,7 @@ Value memview_new(Value owner)
                         type_name(owner)),
                Value();
     }
-    Root ro{ is_memview(owner) ? static_cast<MemObj *>(owner.obj())->owner : owner };
+    Root ro{ is_memview(owner) ? static_cast<MemObj *>(owner.obj())->owner : keep };
     u32 base  = is_memview(owner) ? static_cast<MemObj *>(owner.obj())->at : 0;
     u32 len   = is_memview(owner) ? static_cast<MemObj *>(owner.obj())->len : u32(s.size() / width);
     MemObj *m = static_cast<MemObj *>(obj_alloc(&memview_type, sizeof(MemObj)));
@@ -1709,7 +1836,28 @@ Value memview_new(Value owner)
     m->step  = 1;
     m->width = width;
     m->code  = code;
+    m->ro    = false;
+    // A view of a view has its shape, as well as its owner.
+    if (is_memview(owner)) {
+        m->step = static_cast<MemObj *>(owner.obj())->step;
+        m->ro   = static_cast<MemObj *>(owner.obj())->ro;
+    }
     return obj_value(m);
+}
+
+Value memview_raw(Value view)
+{
+    Root rv{ view };
+    if (mem_of(rv.v)->step != 1)
+        return err_set("BufferError", "cannot extract raw buffer from non-contiguous buffer"),
+               Value();
+    Value w = memview_new(rv.v);
+    if (w.is_nil())
+        return Value();
+    mem_of(w)->len   = mem_of(rv.v)->len * mem_of(rv.v)->width;
+    mem_of(w)->width = 1;
+    mem_of(w)->code  = 'B';
+    return w;
 }
 
 // The octets this view shows, as a span of the owner's. A strided view is not

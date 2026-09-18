@@ -174,6 +174,7 @@ bool posix_install(DictObj *into);
 bool signal_install(DictObj *into);
 bool posixsubprocess_install(DictObj *into);
 bool select_install(DictObj *into);
+bool pickle_install(DictObj *into);
 bool io_install(DictObj *into);
 bool csv_install(DictObj *into);
 bool binascii_install(DictObj *into);

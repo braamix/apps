@@ -1050,6 +1050,17 @@ R b_complex(const CallArgs &a, Value &out)
         out = complex_new(0, 0);
         return out.is_nil() ? R::Err : R::Ok;
     }
+    // An instance of a complex subclass is that complex.
+    for (u32 i = 0; i < a.nargs; i++)
+        if (is_inst(a.args[i]) && is_complex(inst_of(a.args[i])->native)) {
+            Value args[2] = { a.args[0], a.nargs > 1 ? a.args[1] : Value() };
+            for (u32 k = 0; k < a.nargs; k++)
+                if (is_inst(args[k]) && is_complex(inst_of(args[k])->native))
+                    args[k] = inst_of(args[k])->native;
+            CallArgs b = a;
+            b.args     = args;
+            return b_complex(b, out);
+        }
     if (is_str(a.args[0])) {
         if (a.nargs > 1)
             return err_set("TypeError", "complex() can't take second arg if first is a string");
@@ -2002,10 +2013,7 @@ R attr_of(const CallArgs &a, Str who, bool want_bool, Value &out)
         out = a.args[2];
         return R::Ok;
     }
-    Buf<96> m;
-    m.put("'").put(type_name(a.args[0])).put("' object has no attribute '");
-    m.put(str_of(a.args[1])->str()).put("'");
-    return err_set("AttributeError", m.str());
+    return attr_missing(a.args[0], str_of(a.args[1])->str());
 }
 
 R b_getattr(const CallArgs &a, Value &out)
@@ -3541,12 +3549,16 @@ DictObj *builtins_dict()
         return oom(), nullptr;
     h->builtins = obj_value(d);
 
+    Root modname{ str_new("builtins") };
+    if (modname.v.is_nil())
+        return nullptr;
     for (const Builtin &e : TABLE) {
         Root fn{ native_new(e.name, e.fn) };
         if (fn.v.is_nil())
             return nullptr;
         fn.v.obj()->flags |= OBJ_PLAINFN;
-        StrObj *name = str_intern(e.name);
+        static_cast<NativeObj *>(fn.v.obj())->owner = modname.v;
+        StrObj *name                                = str_intern(e.name);
         if (!name)
             return oom(), nullptr;
         if (dict_set(static_cast<DictObj *>(h->builtins.obj()), obj_value(name), fn.v) != R::Ok)

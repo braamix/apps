@@ -22,3 +22,5 @@ mime.types2                       82952e3  Lib/test/mime.types2
 configdata/cfgparser.1            82952e3  Lib/test/configdata/cfgparser.1
 configdata/cfgparser.2            82952e3  Lib/test/configdata/cfgparser.2
 configdata/cfgparser.3            82952e3  Lib/test/configdata/cfgparser.3
+pickletester.py                   82952e3  Lib/test/pickletester.py
+picklecommon.py                   82952e3  Lib/test/picklecommon.py

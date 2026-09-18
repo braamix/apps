@@ -37,7 +37,7 @@ ERROR: testLocalsClass (__main__.ScopeTests.testLocalsClass)
 Traceback (most recent call last):
   File "/tmp/test_scope.py", line 540, in testLocalsClass
     self.assertEqual(f(1).x, 12)
-AttributeError: 'type' object has no attribute 'x'
+AttributeError: type object 'C' has no attribute 'x'
 
 ======================================================================
 ERROR: testScopeOfGlobalStmt (__main__.ScopeTests.testScopeOfGlobalStmt)

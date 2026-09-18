@@ -53,6 +53,10 @@ inline Value info_new(const Type *t, const Value *items, const Str *names, usize
     return info_new(t, items, names, n, n);
 }
 
+// __reduce__: (type, (the fields an index reaches, {the hidden ones})), which
+// is what `t(sequence, dict)` makes again. Nil with the error pending.
+Value info_reduce(Value v);
+
 inline bool is_info(Value v)
 {
     return v.is_obj() && v.obj()->type->trace == info_trace;

@@ -840,6 +840,151 @@ R key_error(Value key)
     return e.is_nil() ? R::Err : err_set_value(e, "KeyError");
 }
 
+namespace {
+
+// ------------------------------------------------------------------- pickle
+
+// A copy of the instance dict, or a new one; `drop` is left out of it.
+DictObj *dict_of_exc(Value e, Str drop = Str())
+{
+    Root re{ e };
+    DictObj *d = dict_new();
+    if (!d)
+        return oom(), nullptr;
+    Root rd{ obj_value(d) };
+    Value had = static_cast<ExcObj *>(re.v.obj())->dict;
+    usize at  = 0;
+    Value k, v;
+    while (!had.is_nil() && table_next(static_cast<DictObj *>(had.obj())->t, at, k, v)) {
+        if (!drop.empty() && is_str(k) && str_of(k)->str() == drop)
+            continue;
+        if (dict_set(static_cast<DictObj *>(rd.v.obj()), k, v) != R::Ok)
+            return nullptr;
+        had = static_cast<ExcObj *>(re.v.obj())->dict;
+    }
+    return static_cast<DictObj *>(rd.v.obj());
+}
+
+bool dict_put(DictObj *d, Str name, Value v)
+{
+    Root rd{ obj_value(d) }, rv{ v };
+    StrObj *n = str_intern(name);
+    return n && dict_set(static_cast<DictObj *>(rd.v.obj()), obj_value(n), rv.v) == R::Ok;
+}
+
+// BaseException.__reduce__: (type, args), with the instance dict as a third
+// item when there is one. OSError puts a filename back into the arguments it
+// took it out of; ImportError and AttributeError carry their fields in the
+// state, as CPython's do.
+R exc_reduce(const CallArgs &a, Value &out)
+{
+    if (!a.nargs || !is_exc(a.args[0]) || !args_only(a, "__reduce__", 1, 1))
+        return a.nargs && !is_exc(a.args[0]) ? err_set("TypeError", "__reduce__ needs an exception")
+                                             : R::Err;
+    Root self{ a.args[0] };
+    Root cls{ type_of_value(self.v) };
+    ExcObj *e = static_cast<ExcObj *>(self.v.obj());
+    Root args{ e->args };
+    Root state{ e->dict.is_nil() || !static_cast<DictObj *>(e->dict.obj())->t.live ? Value()
+                                                                                   : e->dict };
+    if (is_oserror(self.v) && args_of(self.v)->len == 2 && !e->uni[OS_FILENAME].is_nil()) {
+        bool two    = !e->uni[OS_FILENAME2].is_nil();
+        TupleObj *t = tuple_new(two ? 5 : 3);
+        if (!t)
+            return oom();
+        e             = static_cast<ExcObj *>(self.v.obj());
+        t->items()[0] = args_of(self.v)->items()[0];
+        t->items()[1] = args_of(self.v)->items()[1];
+        t->items()[2] = e->uni[OS_FILENAME];
+        if (two) {
+            t->items()[3] = value_none();
+            t->items()[4] = e->uni[OS_FILENAME2];
+        }
+        args = obj_value(t);
+    } else if (is_importerr(self.v) &&
+               (!e->uni[1].is_nil() || !e->uni[2].is_nil() || !e->uni[3].is_nil())) {
+        DictObj *d = dict_of_exc(self.v);
+        if (!d)
+            return R::Err;
+        state = obj_value(d);
+        for (u32 k = 1; k < 4; k++) {
+            Value f = static_cast<ExcObj *>(self.v.obj())->uni[k];
+            if (!f.is_nil() &&
+                !dict_put(static_cast<DictObj *>(state.v.obj()), IMPORT_FIELDS[k], f))
+                return R::Err;
+        }
+    } else if (exc_is(e->t, exc_find("AttributeError"))) {
+        // The object is left out: it is so often not picklable.
+        DictObj *d = dict_of_exc(self.v, "obj");
+        if (!d)
+            return R::Err;
+        state = obj_value(d);
+        if (!dict_put(d, "args", args.v))
+            return R::Err;
+    }
+    TupleObj *t = tuple_new(state.v.is_nil() ? 2 : 3);
+    if (!t)
+        return oom();
+    t->items()[0] = cls.v;
+    t->items()[1] = args.v;
+    if (!state.v.is_nil())
+        t->items()[2] = state.v;
+    out = obj_value(t);
+    return R::Ok;
+}
+
+// BaseException.__setstate__(state): each item of a dict set as an attribute.
+// s[0] self, s[1] the items as a list of pairs, j the next.
+R setstate_step(ContObj *k, Value)
+{
+    ListObj *items = list_of(k->s[1]);
+    while (k->j < items->items.size()) {
+        TupleObj *pair = static_cast<TupleObj *>(items->items[k->j++].obj());
+        if (!is_str(pair->items()[0]))
+            return err_set("TypeError", "attribute name must be string");
+        StrObj *n = str_intern(str_of(pair->items()[0])->str());
+        if (!n)
+            return oom();
+        Root fn;
+        if (attr_store(k->s[0], n, pair->items()[1], fn.v) != R::Ok)
+            return R::Err;
+        if (!fn.v.is_nil())
+            return cont_await(k, fn.v);
+        items = list_of(k->s[1]);
+    }
+    return cont_done(k, value_none());
+}
+
+R exc_setstate(const CallArgs &a, Value &out)
+{
+    if (!a.nargs || !is_exc(a.args[0]) || !args_only(a, "__setstate__", 2, 2))
+        return a.nargs && !is_exc(a.args[0])
+                   ? err_set("TypeError", "__setstate__ needs an exception")
+                   : R::Err;
+    if (is_none(a.args[1])) {
+        out = value_none();
+        return R::Ok;
+    }
+    if (!is_dict(a.args[1]))
+        return err_set("TypeError", "state is not a dictionary");
+    Root self{ a.args[0] };
+    Root view{ dict_view(a.args[1], VIEW_ITEMS) };
+    if (view.v.is_nil())
+        return R::Err;
+    Root items{ obj_value(py_list_of(view.v)) };
+    if (items.v.is_nil())
+        return R::Err;
+    Root kv{ cont_new(setstate_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[0] = self.v;
+    cont_of(kv.v)->s[1] = items.v;
+    out                 = kv.v;
+    return R::Ok;
+}
+
+} // namespace
+
 bool exc_install(DictObj *into)
 {
     Root rd{ obj_value(into) };
@@ -851,6 +996,15 @@ bool exc_install(DictObj *into)
     if (dict_set(static_cast<DictObj *>(type_obj(base.v)->dict.obj()), obj_value(init), fn.v) !=
         R::Ok)
         return false;
+    constexpr Method PICKLE[] = { { "__reduce__", exc_reduce }, { "__setstate__", exc_setstate } };
+    for (const Method &m : PICKLE) {
+        Root f{ native_new(m.name, m.fn) };
+        StrObj *n = str_intern(m.name);
+        if (f.v.is_nil() || !n ||
+            dict_set(static_cast<DictObj *>(type_obj(base.v)->dict.obj()), obj_value(n), f.v) !=
+                R::Ok)
+            return false;
+    }
     if (!egroup_install())
         return false;
     for (usize i = 0; i < EXC_COUNT; i++) {

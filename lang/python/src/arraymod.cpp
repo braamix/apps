@@ -16,7 +16,9 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "reduce.h"
 #include "type.h"
+#include "ustr.h"
 
 namespace {
 
@@ -31,6 +33,14 @@ struct ArrObj : Obj {
 };
 
 extern const Type array_type;
+
+// The module's namespace, where __reduce_ex__ finds _array_reconstructor.
+Value home_dict;
+
+void home_mark()
+{
+    gc_mark(home_dict);
+}
 
 bool is_array(Value v)
 {
@@ -114,7 +124,7 @@ R arr_getitem(Value v, Value key, Value &out)
         return R::Ok;
     }
     usize i = 0;
-    if (index_of(key, n, i) != R::Ok)
+    if (index_of(key, n, i, "array") != R::Ok)
         return R::Err;
     out = item_get(arr_str(a), i * a->k->width, a->k);
     return out.is_nil() ? R::Err : R::Ok;
@@ -124,7 +134,7 @@ R arr_setitem(Value v, Value key, Value item)
 {
     ArrObj *a = arr_of(v);
     usize i   = 0;
-    if (index_of(key, arr_count(a), i) != R::Ok)
+    if (index_of(key, arr_count(a), i, "array assignment") != R::Ok)
         return R::Err;
     return item_put(reinterpret_cast<char *>(a->data.data()), i * a->k->width, a->k, item);
 }
@@ -133,7 +143,7 @@ R arr_delitem(Value v, Value key)
 {
     ArrObj *a = arr_of(v);
     usize i   = 0;
-    if (index_of(key, arr_count(a), i) != R::Ok)
+    if (index_of(key, arr_count(a), i, "array assignment") != R::Ok)
         return R::Err;
     usize w = a->k->width;
     for (usize j = i * w; j + w < a->data.size(); j++)
@@ -598,6 +608,239 @@ R a_remove(const CallArgs &a, Value &out)
     return err_set("ValueError", "array.remove(x): x not in array");
 }
 
+// ----------------------------------------------------------------- pickle
+
+// CPython's machine formats: how an array's octets are laid out, so that one
+// pickled on a machine with other widths or another byte order can be read.
+enum : i64 {
+    MF_U8,
+    MF_S8,
+    MF_U16_LE,
+    MF_U16_BE,
+    MF_S16_LE,
+    MF_S16_BE,
+    MF_U32_LE,
+    MF_U32_BE,
+    MF_S32_LE,
+    MF_S32_BE,
+    MF_U64_LE,
+    MF_U64_BE,
+    MF_S64_LE,
+    MF_S64_BE,
+    MF_F32_LE,
+    MF_F32_BE,
+    MF_F64_LE,
+    MF_F64_BE,
+    MF_UTF16_LE,
+    MF_UTF16_BE,
+    MF_UTF32_LE,
+    MF_UTF32_BE,
+};
+
+// This machine's format for a typecode: little-endian, at its width.
+i64 mformat_of(const ItemKind *k)
+{
+    switch (k->code) {
+    case 'f':
+        return MF_F32_LE;
+    case 'd':
+        return MF_F64_LE;
+    case 'u':
+        return k->width == 2 ? MF_UTF16_LE : MF_UTF32_LE;
+    }
+    bool sign = k->kind == IT_INT;
+    switch (k->width) {
+    case 1:
+        return sign ? MF_S8 : MF_U8;
+    case 2:
+        return sign ? MF_S16_LE : MF_U16_LE;
+    case 4:
+        return sign ? MF_S32_LE : MF_U32_LE;
+    default:
+        return sign ? MF_S64_LE : MF_U64_LE;
+    }
+}
+
+// array.__reduce_ex__(proto): the items as a list below protocol 3, and above
+// it the octets with the format that reads them.
+R a_reduce_ex(const CallArgs &a, Value &out)
+{
+    ArrObj *x = self_arr(a, "__reduce_ex__");
+    if (!x || !meth_args(a, "__reduce_ex__", 1, 1))
+        return R::Err;
+    i64 proto = 0;
+    if (!as_index(a.args[1], proto))
+        return err_pending() ? R::Err : err_set("TypeError", "an integer is required");
+    Root self{ a.args[0] };
+    Root cls{ type_of_value(self.v) };
+    char c = x->k->code;
+    Root code{ str_new(Str(&c, 1)) };
+    if (cls.v.is_nil() || code.v.is_nil())
+        return R::Err;
+    Root state{ inst_state(self.v) };
+    if (proto < 3) {
+        Root items{ obj_value(arr_items(method_self(self.v))) };
+        if (items.v.is_nil())
+            return R::Err;
+        Root args{ tuple_of(code.v, items.v) };
+        if (args.v.is_nil())
+            return R::Err;
+        out = tuple_of(cls.v, args.v, state.v);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    StrObj *rn = str_intern("_array_reconstructor");
+    Root fn, mod;
+    Root octets{ bytes_new(arr_str(arr_of(method_self(self.v)))) };
+    Root mf{ int_from_i64(mformat_of(arr_of(method_self(self.v))->k)) };
+    if (!rn || octets.v.is_nil() || mf.v.is_nil())
+        return err_pending() ? R::Err : oom();
+    if (dict_get(static_cast<DictObj *>(home_dict.obj()), obj_value(rn), fn.v) != R::Ok)
+        return err_pending() ? R::Err : err_set("SystemError", "no _array_reconstructor");
+    Root args{ tuple_of(cls.v, code.v, mf.v, octets.v) };
+    if (args.v.is_nil())
+        return R::Err;
+    out = tuple_of(fn.v, args.v, state.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// One item of a machine format, as the int, float or code point it is.
+Value mformat_item(const u8 *p, i64 mf)
+{
+    usize w  = mf <= MF_S8         ? 1
+               : mf <= MF_S16_BE   ? 2
+               : mf <= MF_S32_BE   ? 4
+               : mf <= MF_S64_BE   ? 8
+               : mf <= MF_F32_BE   ? 4
+               : mf <= MF_F64_BE   ? 8
+               : mf <= MF_UTF16_BE ? 2
+                                   : 4;
+    bool big = mf > MF_S8 && (mf & 1);
+    u64 v    = 0;
+    for (usize i = 0; i < w; i++)
+        v |= u64(p[big ? w - 1 - i : i]) << (8 * i);
+    if (mf == MF_F32_LE || mf == MF_F32_BE) {
+        u32 bits = u32(v);
+        f32 f;
+        __builtin_memcpy(&f, &bits, 4);
+        return float_new(f64(f));
+    }
+    if (mf == MF_F64_LE || mf == MF_F64_BE) {
+        f64 d;
+        __builtin_memcpy(&d, &v, 8);
+        return float_new(d);
+    }
+    bool sign = mf <= MF_S64_BE && (mf == MF_S8 || (mf >= MF_S16_LE && (mf - MF_S16_LE) % 4 < 2));
+    if (mf >= MF_UTF16_LE || !sign) {
+        if (v <= u64(0x7fffffffffffffff))
+            return int_from_i64(i64(v));
+        // Past i64: twice the upper half, plus the low bit.
+        Root half{ int_from_i64(i64(v >> 1)) };
+        Value two;
+        if (half.v.is_nil() || py_binop(half.v, Value::of_int(2), Op::Mul, two) != R::Ok)
+            return Value();
+        Root rt{ two };
+        Value got;
+        return py_binop(rt.v, Value::of_int(i32(v & 1)), Op::Add, got) == R::Ok ? got : Value();
+    }
+    i64 s = w == 8 ? i64(v) : i64(v << (64 - 8 * w)) >> (64 - 8 * w);
+    return int_from_i64(s);
+}
+
+// s[0] the class, s[1] the typecode, s[2] the items.
+R reconstruct_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0) {
+        Root args{ tuple_of(k->s[1], k->s[2]) };
+        if (args.v.is_nil())
+            return R::Err;
+        return cont_call_v(k, k->s[0], args.v);
+    }
+    return cont_done(k, in);
+}
+
+// _array_reconstructor(arraytype, typecode, mformat_code, items): what
+// __reduce_ex__ gave, made into an array of `arraytype`.
+R b_array_reconstructor(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "_array_reconstructor", 4, 4))
+        return R::Err;
+    if (!is_type(a.args[0]))
+        return err_set2("TypeError", "first argument must be a type object, not",
+                        type_name(a.args[0]));
+    if (!is_str(a.args[1]) || str_of(a.args[1])->chars != 1)
+        return err_set("TypeError",
+                       "_array_reconstructor() argument 2 must be a unicode character");
+    const ItemKind *k = item_kind(str_of(a.args[1])->bytes()[0]);
+    if (!k || k->code == '?' || k->code == 'c')
+        return err_set("ValueError", "second argument must be a valid type code");
+    i64 mf = 0;
+    if (!as_index(a.args[2], mf))
+        return err_pending() ? R::Err : err_set("TypeError", "an integer is required");
+    if (mf < MF_U8 || mf > MF_UTF32_BE)
+        return err_set("ValueError", "third argument must be a valid machine format code.");
+    if (!is_bytes(a.args[3]))
+        return err_set2("TypeError", "fourth argument should be bytes, not", type_name(a.args[3]));
+    Root items{ a.args[3] };
+    if (mf != mformat_of(k)) {
+        Str b   = static_cast<BytesObj *>(items.v.obj())->str();
+        usize w = mf <= MF_S8         ? 1
+                  : mf <= MF_S16_BE   ? 2
+                  : mf <= MF_S32_BE   ? 4
+                  : mf <= MF_S64_BE   ? 8
+                  : mf <= MF_F32_BE   ? 4
+                  : mf <= MF_F64_BE   ? 8
+                  : mf <= MF_UTF16_BE ? 2
+                                      : 4;
+        if (b.size() % w)
+            return err_set("ValueError", "string length not a multiple of item size");
+        ListObj *l = list_new();
+        if (!l)
+            return oom();
+        Root rl{ obj_value(l) };
+        for (usize at = 0; at < b.size(); at += w) {
+            Str now = static_cast<BytesObj *>(items.v.obj())->str();
+            Value v = mformat_item(reinterpret_cast<const u8 *>(now.data()) + at, mf);
+            if (v.is_nil() || !list_push(list_of(rl.v), v))
+                return v.is_nil() ? R::Err : oom();
+        }
+        if (mf >= MF_UTF16_LE) {
+            // A 'u' array is made from a str.
+            String text;
+            Vec<Value> &cps = list_of(rl.v)->items;
+            for (usize i = 0; i < cps.size(); i++) {
+                u32 cp = u32(cps[i].as_int());
+                // UTF-16 names what is past the BMP in two halves.
+                if (cp >= 0xd800 && cp < 0xdc00 && i + 1 < cps.size()) {
+                    u32 lo = u32(cps[i + 1].as_int());
+                    if (lo >= 0xdc00 && lo < 0xe000) {
+                        cp = 0x10000 + ((cp - 0xd800) << 10) + (lo - 0xdc00);
+                        i++;
+                    }
+                }
+                char buf[4];
+                if (cp > 0x10ffff)
+                    return err_set("ValueError",
+                                   "character U+110000 is not in range [U+0000; U+10ffff]");
+                if (!text.append(Str(buf, cp_encode(cp, buf))))
+                    return oom();
+            }
+            items = str_new(text.str());
+        } else {
+            items = rl.v;
+        }
+        if (items.v.is_nil())
+            return R::Err;
+    }
+    Root kv{ cont_new(reconstruct_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    cont_of(kv.v)->s[0] = a.args[0];
+    cont_of(kv.v)->s[1] = a.args[1];
+    cont_of(kv.v)->s[2] = items.v;
+    out                 = kv.v;
+    return R::Ok;
+}
+
 R a_getattr(Value v, StrObj *name, Value &out)
 {
     ArrObj *x = arr_of(v);
@@ -614,14 +857,23 @@ R a_getattr(Value v, StrObj *name, Value &out)
 }
 
 constexpr Method ARRAY_METHODS[] = {
-    { "append", a_append },       { "extend", a_extend },
-    { "fromlist", a_fromlist },   { "tolist", a_tolist },
-    { "tobytes", a_tobytes },     { "frombytes", a_frombytes },
-    { "tounicode", a_tounicode }, { "fromunicode", a_fromunicode },
-    { "byteswap", a_byteswap },   { "buffer_info", a_buffer_info },
-    { "reverse", a_reverse },     { "pop", a_pop },
-    { "insert", a_insert },       { "count", a_count },
-    { "index", a_index },         { "remove", a_remove },
+    { "append", a_append },
+    { "extend", a_extend },
+    { "fromlist", a_fromlist },
+    { "tolist", a_tolist },
+    { "tobytes", a_tobytes },
+    { "frombytes", a_frombytes },
+    { "tounicode", a_tounicode },
+    { "fromunicode", a_fromunicode },
+    { "byteswap", a_byteswap },
+    { "buffer_info", a_buffer_info },
+    { "reverse", a_reverse },
+    { "pop", a_pop },
+    { "insert", a_insert },
+    { "count", a_count },
+    { "index", a_index },
+    { "remove", a_remove },
+    { "__reduce_ex__", a_reduce_ex },
 };
 
 constexpr Type array_type{ .name     = "array.array",
@@ -693,7 +945,7 @@ R b_array(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-constexpr ModDef DEFS[] = { { "_array_reconstructor", b_array } };
+constexpr ModDef DEFS[] = { { "_array_reconstructor", b_array_reconstructor } };
 
 } // namespace
 
@@ -705,6 +957,8 @@ bool array_install(DictObj *into)
     DictObj *d = static_cast<DictObj *>(rd.v.obj());
     if (!mod_type(d, &array_type, b_array) || !mod_defs(d, DEFS))
         return false;
+    home_dict = rd.v;
+    gc_root_hook(home_mark);
     // The two names array.py's own users read: the codes and the class under
     // its other name.
     Root w{ type_wrap(&array_type) };

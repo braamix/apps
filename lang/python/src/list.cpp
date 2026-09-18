@@ -59,7 +59,7 @@ R list_getitem(Value v, Value key, Value &out)
         return R::Ok;
     }
     usize i = 0;
-    if (index_of(key, l->items.size(), i) != R::Ok)
+    if (index_of(key, l->items.size(), i, "list") != R::Ok)
         return R::Err;
     out = l->items[i];
     return R::Ok;
@@ -97,7 +97,7 @@ R list_setitem(Value v, Value key, Value item)
         return R::Ok;
     }
     usize i = 0;
-    if (index_of(key, l->items.size(), i) != R::Ok)
+    if (index_of(key, l->items.size(), i, "list assignment") != R::Ok)
         return R::Err;
     l->items[i] = item;
     return R::Ok;
@@ -117,7 +117,7 @@ R list_delitem(Value v, Value key)
         return R::Ok;
     }
     usize i = 0;
-    if (index_of(key, l->items.size(), i) != R::Ok)
+    if (index_of(key, l->items.size(), i, "list assignment") != R::Ok)
         return R::Err;
     l->items.erase(i, 1);
     return R::Ok;

@@ -161,5 +161,10 @@ bool as_number(Value v, f64 &out)
         out = float_of(v);
         return true;
     }
+    // An instance of a float subclass is that float.
+    if (is_inst(v) && is_float(inst_of(v)->native)) {
+        out = float_of(inst_of(v)->native);
+        return true;
+    }
     return false;
 }

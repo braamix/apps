@@ -339,6 +339,14 @@ def exceeds_recursion_limit():
     return 150_000
 
 
+def skip_if_huge_c_stack(depth=150_000):
+    # The native stack is fixed and small here: recursion is stopped by the
+    # recursion limit long before it could overflow.
+    def decorator(test):
+        return test
+    return decorator
+
+
 def run_with_limited_c_stack(depth=150_000, size=None):
     def decorator(test):
         return test
@@ -551,3 +559,37 @@ def check_sanitizer(*, address=False, memory=False, ub=False, thread=False, func
     if not (address or memory or ub or thread):
         raise ValueError("At least one of address, memory, ub or thread must be True")
     return False
+
+
+# There is no PGO build and the stack is not the operating system's.
+def skip_if_pgo_task(test):
+    return test
+
+
+def skip_if_unlimited_stack_size(test):
+    return test
+
+
+# Objects here have no C layout to measure, so a test of a size skips.
+def calcobjsize(fmt):
+    raise unittest.SkipTest("objects have no C layout here")
+
+
+def check_sizeof(test, o, size):
+    raise unittest.SkipTest("_testinternalcapi required")
+
+
+# Only code objects carry debug ranges, and marshal does not write this
+# interpreter's code objects, so what needs them skips.
+def requires_debug_ranges(reason="requires co_positions / debug_ranges"):
+    return unittest.skip("code objects are not marshalled here")
+
+
+# Only an old Linux kernel is skipped, and this is not Linux.
+def requires_linux_version(*min_version):
+    return lambda test: test
+
+
+# What _testcapi.set_nomemory does cannot be done here.
+nomemtest = unittest.skip("needs _testcapi")
+

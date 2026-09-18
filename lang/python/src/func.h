@@ -55,6 +55,7 @@ struct CallArgs {
 struct NativeObj : Obj {
     Str name; // a literal: the bytes outlive the object
     R (*fn)(const CallArgs &, Value &out);
+    Value owner; // the type it is a method of, its module's name, or Nil
 };
 
 extern const Type native_type;

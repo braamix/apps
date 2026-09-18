@@ -18,6 +18,7 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "reduce.h"
 #include "type.h"
 
 namespace {
@@ -136,7 +137,7 @@ R deque_getitem(Value v, Value key, Value &out)
     if (is_slice(key))
         return err_set("TypeError", "sequence index must be an integer");
     usize i = 0;
-    if (index_of(key, d->count, i) != R::Ok)
+    if (index_of(key, d->count, i, "deque") != R::Ok)
         return R::Err;
     out = slot_at(d, i);
     return R::Ok;
@@ -146,7 +147,7 @@ R deque_setitem(Value v, Value key, Value item)
 {
     DequeObj *d = deque_of(v);
     usize i     = 0;
-    if (index_of(key, d->count, i) != R::Ok)
+    if (index_of(key, d->count, i, "deque") != R::Ok)
         return R::Err;
     slot_at(d, i) = item;
     return R::Ok;
@@ -165,7 +166,7 @@ R deque_delitem(Value v, Value key)
 {
     DequeObj *d = deque_of(v);
     usize i     = 0;
-    if (index_of(key, d->count, i) != R::Ok)
+    if (index_of(key, d->count, i, "deque") != R::Ok)
         return R::Err;
     deque_erase(d, i);
     return R::Ok;
@@ -531,12 +532,46 @@ R d_getattr(Value v, StrObj *name, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// deque.__reduce__: (type, () or ((), maxlen), state, iter(self)).
+R d_reduce(const CallArgs &a, Value &out)
+{
+    DequeObj *d = self_deque(a, "__reduce__");
+    if (!d || !meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ a.args[0] };
+    Root args{ tuple_of() };
+    if (d->maxlen >= 0) {
+        Root n{ int_from_i64(d->maxlen) };
+        args = n.v.is_nil() ? Value() : tuple_of(args.v, n.v);
+    }
+    Root it{ py_iter(method_self(self.v)) };
+    if (args.v.is_nil() || it.v.is_nil())
+        return R::Err;
+    Root head{ reduce_of(self.v, args.v, inst_state(self.v)) };
+    if (head.v.is_nil())
+        return R::Err;
+    TupleObj *h = static_cast<TupleObj *>(head.v.obj());
+    out         = tuple_of(h->items()[0], h->items()[1], h->items()[2], it.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 constexpr Method DEQUE_METHODS[] = {
-    { "append", d_append },   { "appendleft", d_appendleft }, { "pop", d_pop },
-    { "popleft", d_popleft }, { "extend", d_extend },         { "extendleft", d_extendleft },
-    { "rotate", d_rotate },   { "clear", d_clear },           { "reverse", d_reverse },
-    { "copy", d_copy },       { "__copy__", d_copy },         { "count", d_count },
-    { "index", d_index },     { "remove", d_remove },         { "insert", d_insert },
+    { "__reduce__", d_reduce },
+    { "append", d_append },
+    { "appendleft", d_appendleft },
+    { "pop", d_pop },
+    { "popleft", d_popleft },
+    { "extend", d_extend },
+    { "extendleft", d_extendleft },
+    { "rotate", d_rotate },
+    { "clear", d_clear },
+    { "reverse", d_reverse },
+    { "copy", d_copy },
+    { "__copy__", d_copy },
+    { "count", d_count },
+    { "index", d_index },
+    { "remove", d_remove },
+    { "insert", d_insert },
 };
 
 constexpr Type deque_type{ .name     = "collections.deque",
@@ -748,9 +783,33 @@ R dd_copy(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// The items of a dict subclass, for the fifth place of a reduce value.
+Value items_iter(Value self)
+{
+    Root view{ dict_view(method_self(self), VIEW_ITEMS) };
+    return view.v.is_nil() ? Value() : py_iter(view.v);
+}
+
+// defaultdict.__reduce__: (type, (factory,) or (), None, None, items). The
+// factory is the only state; CPython keeps no other.
+R dd_reduce(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ a.args[0] };
+    Root fn{ factory_of(self.v) };
+    Root args{ is_none(fn.v) ? tuple_of() : tuple_of(fn.v) };
+    Root cls{ type_of_value(self.v) };
+    Root it{ items_iter(self.v) };
+    if (args.v.is_nil() || cls.v.is_nil() || it.v.is_nil())
+        return R::Err;
+    out = tuple_of(cls.v, args.v, value_none(), value_none(), it.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 constexpr Method DEFAULTDICT[] = {
     { "__init__", dd_init }, { "__missing__", dd_missing }, { "__repr__", dd_repr },
-    { "copy", dd_copy },     { "__copy__", dd_copy },
+    { "copy", dd_copy },     { "__copy__", dd_copy },       { "__reduce__", dd_reduce },
 };
 
 // OrderedDict. The dict under it is already insertion-ordered, so what is
@@ -938,11 +997,24 @@ R od_repr(const CallArgs &a, Value &out)
     return out.is_nil() ? R::Err : R::Ok;
 }
 
+// OrderedDict.__reduce__: (type, (), state, None, items).
+R od_reduce(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ a.args[0] };
+    Root args{ tuple_of() };
+    Root cls{ type_of_value(self.v) };
+    Root it{ items_iter(self.v) };
+    if (args.v.is_nil() || cls.v.is_nil() || it.v.is_nil())
+        return R::Err;
+    out = tuple_of(cls.v, args.v, inst_state(self.v), value_none(), it.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 constexpr Method ORDEREDDICT[] = {
-    { "move_to_end", od_move_to_end },
-    { "popitem", od_popitem },
-    { "__eq__", od_eq },
-    { "__repr__", od_repr },
+    { "__reduce__", od_reduce }, { "move_to_end", od_move_to_end }, { "popitem", od_popitem },
+    { "__eq__", od_eq },         { "__repr__", od_repr },
 };
 
 // _count_elements(mapping, iterable): what Counter.update reaches for.

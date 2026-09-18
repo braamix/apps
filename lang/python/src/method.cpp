@@ -16,6 +16,7 @@
 #include "kernel/fmt.h"
 #include "lazy.h"
 #include "ops.h"
+#include "reduce.h"
 #include "templatelib.h"
 #include "typevar.h"
 #include "union.h"
@@ -51,6 +52,7 @@ bool method_install(const Type *t, const Method *tab, usize n)
         Root fn{ native_new(tab[i].name, tab[i].fn) };
         if (fn.v.is_nil())
             return false;
+        static_cast<NativeObj *>(fn.v.obj())->owner = cls.v;
         if (tab[i].stat) {
             fn = static_wrap(fn.v);
             if (fn.v.is_nil())
@@ -136,7 +138,8 @@ bool methods_install()
            code_methods() && slot_methods() && union_install() && seqiter_methods() &&
            typing_methods() && lazy_methods() && templatelib_methods() && range_methods() &&
            frame_locals_methods() && frame_methods() && mappingproxy_methods() &&
-           sentinel_methods() && descr_methods() && annot_install();
+           sentinel_methods() && descr_methods() && annot_install() && reduce_methods() &&
+           iter_pickle_methods();
 }
 
 Value method_self(Value v)
@@ -325,12 +328,18 @@ TupleObj *self_tuple(const CallArgs &a, Str who)
 
 bool bytes_like(Value v, Str &out)
 {
+    // An instance of a bytes or bytearray subclass is those octets.
+    if (is_inst(v) && (is_bytes(inst_of(v)->native) || is_bytearray(inst_of(v)->native)))
+        v = inst_of(v)->native;
     if (is_bytes(v))
         return out = static_cast<BytesObj *>(v.obj())->str(), true;
     if (is_bytearray(v))
         return out = array_of(v)->str(), true;
     if (is_memview(v))
         return memview_bytes(v, out);
+    Value pb = picklebuffer_view(v);
+    if (!pb.is_nil())
+        return memview_bytes(pb, out);
     return false;
 }
 

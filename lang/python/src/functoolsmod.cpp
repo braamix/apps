@@ -16,6 +16,7 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "reduce.h"
 #include "type.h"
 
 namespace {
@@ -317,7 +318,90 @@ R part_call(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-constexpr Method PARTIAL_METHODS[] = { { "__call__", part_call } };
+// __reduce__: (type, (fn,), (fn, args, keywords, __dict__ or None)).
+R part_reduce(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ a.args[0] };
+    Root p{ method_self(self.v) };
+    Root cls{ type_of_value(self.v) };
+    StrObj *kn = str_intern("keywords");
+    Root kw;
+    if (cls.v.is_nil() || !kn || part_getattr(p.v, kn, kw.v) != R::Ok)
+        return err_pending() ? R::Err : oom();
+    Value dict = part_of(p.v)->dict;
+    Root rd{ dict.is_nil() ? value_none() : dict };
+    Root first{ tuple_of(part_of(p.v)->fn) };
+    Root state{ tuple_of(part_of(p.v)->fn, part_of(p.v)->args, kw.v, rd.v) };
+    if (first.v.is_nil() || state.v.is_nil())
+        return R::Err;
+    out = tuple_of(cls.v, first.v, state.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// __setstate__((fn, args, keywords, dict)): what __reduce__ gave.
+R part_setstate(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__setstate__", 1, 1))
+        return R::Err;
+    Root p{ method_self(a.args[0]) }, st{ a.args[1] };
+    if (!is_tuple(st.v) || static_cast<TupleObj *>(st.v.obj())->len != 4)
+        return err_set("TypeError", "invalid partial state");
+    TupleObj *t = static_cast<TupleObj *>(st.v.obj());
+    Value fn = t->items()[0], args = t->items()[1], kw = t->items()[2], dict = t->items()[3];
+    if (!py_callable(fn) || (!is_tuple(args) && !is_none(args)) || (!is_dict(kw) && !is_none(kw)) ||
+        (!is_dict(dict) && !is_none(dict)))
+        return err_set("TypeError", "invalid partial state");
+    if (is_tuple(args)) {
+        TupleObj *at = static_cast<TupleObj *>(args.obj());
+        if (at->len && is_placeholder(at->items()[at->len - 1]))
+            return err_set("TypeError", "trailing Placeholders are not allowed");
+    }
+    Root rargs{ is_none(args) ? obj_value(tuple_new(0)) : args };
+    if (rargs.v.is_nil())
+        return oom();
+    usize n         = is_dict(kw) ? dict_len(static_cast<DictObj *>(kw.obj())) : 0;
+    TupleObj *names = tuple_new(n);
+    if (!names)
+        return oom();
+    Root rn{ obj_value(names) };
+    TupleObj *vals = tuple_new(n);
+    if (!vals)
+        return oom();
+    Root rv{ obj_value(vals) };
+    if (n) {
+        usize at = 0, i = 0;
+        Value k, v;
+        while (table_next(
+            static_cast<DictObj *>(static_cast<TupleObj *>(st.v.obj())->items()[2].obj())->t, at, k,
+            v)) {
+            if (!is_str(k))
+                return err_set("TypeError", "keywords must be strings");
+            static_cast<TupleObj *>(rn.v.obj())->items()[i] = k;
+            static_cast<TupleObj *>(rv.v.obj())->items()[i] = v;
+            i++;
+        }
+    }
+    u32 phcount   = 0;
+    TupleObj *had = static_cast<TupleObj *>(rargs.v.obj());
+    for (u32 i = 0; i < had->len; i++)
+        phcount += is_placeholder(had->items()[i]);
+    PartObj *self = part_of(p.v);
+    t             = static_cast<TupleObj *>(st.v.obj());
+    self->fn      = t->items()[0];
+    self->args    = rargs.v;
+    self->kwnames = rn.v;
+    self->kwvals  = rv.v;
+    self->dict    = is_none(t->items()[3]) ? Value() : t->items()[3];
+    self->phcount = phcount;
+    out           = value_none();
+    return R::Ok;
+}
+
+constexpr Method PARTIAL_METHODS[] = { { "__call__", part_call },
+                                       { "__reduce__", part_reduce },
+                                       { "__setstate__", part_setstate } };
 
 constexpr Type partial_type{ .name    = "functools.partial",
                              .trace   = part_trace,
@@ -966,6 +1050,11 @@ constexpr ModDef DEFS[] = {
 };
 
 } // namespace
+
+R functools_partial(const CallArgs &a, Value &out)
+{
+    return b_partial(a, out);
+}
 
 bool functools_install(DictObj *into)
 {

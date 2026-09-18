@@ -10,6 +10,7 @@
 #include "kernel/fmt.h"
 #include "method.h"
 #include "ops.h"
+#include "reduce.h"
 
 namespace {
 
@@ -472,7 +473,21 @@ constexpr Method LIST[] = {
 
 constexpr Method TUPLE[] = { { "index", m_tuple_index }, { "count", m_tuple_count } };
 
-constexpr Method SLICE[] = { { "indices", m_indices } };
+R m_slice_reduce(const CallArgs &a, Value &out)
+{
+    if (!a.nargs || !is_slice(a.args[0]) || !meth_args(a, "__reduce__", 0, 0))
+        return err_pending() ? R::Err : err_set("TypeError", "__reduce__() requires a slice");
+    Root rs{ a.args[0] };
+    SliceObj *s = static_cast<SliceObj *>(rs.v.obj());
+    Root cls{ type_of_value(rs.v) };
+    Root args{ tuple_of(s->start, s->stop, s->step) };
+    if (cls.v.is_nil() || args.v.is_nil())
+        return R::Err;
+    out = tuple_of(cls.v, args.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+constexpr Method SLICE[] = { { "indices", m_indices }, { "__reduce__", m_slice_reduce } };
 
 } // namespace
 

@@ -3028,6 +3028,10 @@ Value Compiler::qualname_of(StrObj *name)
         p = p->prev;
     if (!p || !p->prev)
         return obj_value(name);
+    // A name the enclosing scope declares `global` is a module-level name.
+    const Sym *sym = st.find(p->scope, name);
+    if (sym && (sym->flags & SF_GLOBAL))
+        return obj_value(name);
     Root rn{ obj_value(name) };
     String b;
     Value outer = code_of(p->code.v)->qualname;

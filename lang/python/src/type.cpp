@@ -136,7 +136,8 @@ R method_getattr(Value v, StrObj *name, Value &out)
         return out = m->fn, R::Ok;
     if (n == "__self__")
         return out = m->self, R::Ok;
-    if (n == "__class__" || n == "__dict__" || n == "__get__")
+    if (n == "__class__" || n == "__dict__" || n == "__get__" || n == "__reduce__" ||
+        n == "__reduce_ex__")
         return R::NotImpl;
     return py_getattr(m->fn, name, out) == R::Ok ? R::Ok : (err_clear(), R::NotImpl);
 }
@@ -535,8 +536,36 @@ constexpr Type type_type{ .name  = "type",
                           .repr  = type_repr,
                           .binop = union_binop };
 
+// Two bound methods are equal when they bind the same function to the very
+// same object, and hash to match.
+R method_eq(Value a, Value b, bool &out)
+{
+    if (!is_method(b))
+        return R::NotImpl;
+    MethodObj *x = static_cast<MethodObj *>(a.obj());
+    MethodObj *y = static_cast<MethodObj *>(b.obj());
+    if (x->self != y->self) {
+        out = false;
+        return R::Ok;
+    }
+    return py_eq(x->fn, y->fn, out);
+}
+
+R method_hash(Value v, u32 &out)
+{
+    MethodObj *m = static_cast<MethodObj *>(v.obj());
+    u32 h        = 0;
+    if (py_hash(m->fn, h) != R::Ok)
+        return R::Err;
+    u32 self = m->self.w >> 4;
+    out      = h ^ self;
+    return R::Ok;
+}
+
 constexpr Type method_type{ .name    = "method",
                             .trace   = method_trace,
+                            .hash    = method_hash,
+                            .eq      = method_eq,
                             .repr    = method_repr,
                             .getattr = method_getattr };
 
@@ -713,8 +742,11 @@ namespace {
 // __slots__ is a name or an iterable of them. Each becomes a member descriptor
 // in the class namespace over an index into the instance's slot array, which
 // starts where the base's ended.
-bool slots_declare(Value cls, u32 base)
+// '__dict__' among them keeps the instance dict, and '__weakref__' names what
+// every instance here has anyway: neither is a slot.
+bool slots_declare(Value cls, u32 base, bool &dict)
 {
+    dict = false;
     Root rc{ cls };
     StrObj *key = str_intern("__slots__");
     if (!key)
@@ -750,6 +782,12 @@ bool slots_declare(Value cls, u32 base)
             err_set2("TypeError", "__slots__ items must be strings", type_name(one.v));
             return false;
         }
+        if (str_of(one.v)->str() == "__dict__") {
+            dict = true;
+            continue;
+        }
+        if (str_of(one.v)->str() == "__weakref__")
+            continue;
         StrObj *nm = py_mangle(str_of(type_obj(rc.v)->name), str_of(one.v)->str());
         if (!nm)
             return oom(), false;
@@ -824,6 +862,19 @@ Value type_new_meta(Value meta, Value name, Value bases, Value dict)
             Buf<128> m;
             m.put("type '").put(d->name).put("' is not an acceptable base type");
             return err_set("TypeError", m.str()), Value();
+        }
+    }
+
+    // A __new__ the body wrote is a staticmethod, as CPython makes it.
+    {
+        StrObj *nw = str_intern("__new__");
+        Value fn;
+        if (!nw)
+            return oom(), Value();
+        if (dict_get(dict_at(rd.v), obj_value(nw), fn) == R::Ok && is_func(fn)) {
+            Root wrapped{ staticmethod_new(fn) };
+            if (wrapped.v.is_nil() || dict_set(dict_at(rd.v), obj_value(nw), wrapped.v) != R::Ok)
+                return Value();
         }
     }
 
@@ -958,8 +1009,9 @@ Value type_new_meta(Value meta, Value name, Value bases, Value dict)
     StrObj *sk = str_intern("__slots__");
     if (!sk)
         return oom(), Value();
-    R sr = dict_get(dict_at(rd.v), obj_value(sk), has.v);
-    if (sr == R::Err || !slots_declare(rt.v, base))
+    R sr           = dict_get(dict_at(rd.v), obj_value(sk), has.v);
+    bool slot_dict = false;
+    if (sr == R::Err || !slots_declare(rt.v, base, slot_dict))
         return Value();
 
     // A class that writes __eq__ and not __hash__ is unhashable: two objects
@@ -974,8 +1026,9 @@ Value type_new_meta(Value meta, Value name, Value bases, Value dict)
         dict_get(dict_at(rd.v), obj_value(hk), seen) == R::NotImpl &&
         dict_set(dict_at(rd.v), obj_value(hk), value_none()) != R::Ok)
         return Value();
-    type_obj(rt.v)->nodict = nodict && sr == R::Ok && type_obj(rt.v)->native.is_nil() &&
-                             !type_obj(rt.v)->exc && !type_obj(rt.v)->meta;
+    type_obj(rt.v)->nodict = nodict && sr == R::Ok && !slot_dict &&
+                             type_obj(rt.v)->native.is_nil() && !type_obj(rt.v)->exc &&
+                             !type_obj(rt.v)->meta;
     type_note_del(rt.v);
     // Each base remembers what was made under it, which is what
     // __subclasses__ answers and what an ABC's subclass check walks.
@@ -1880,6 +1933,23 @@ R wrap_one(const CallArgs &a, const Type *t, Str who, Value &out)
 
 } // namespace
 
+Value staticmethod_new(Value fn)
+{
+    Value out;
+    Value args[1] = { fn };
+    CallArgs a;
+    a.args  = args;
+    a.nargs = 1;
+    return wrap_one(a, &staticmethod_type, "staticmethod", out) == R::Ok ? out : Value();
+}
+
+Value new_unwrap(Value found)
+{
+    if (found.is_obj() && found.obj()->type == &staticmethod_type)
+        return static_cast<WrapObj *>(found.obj())->fn;
+    return found;
+}
+
 Value classmethod_new(Value fn)
 {
     Value out;
@@ -2053,6 +2123,8 @@ bool put(Value d, Str name, Value v)
 
 } // namespace
 
+bool newwrap_methods();
+
 bool type_install(DictObj *into)
 {
     Root rd{ obj_value(into) };
@@ -2066,9 +2138,14 @@ bool type_install(DictObj *into)
     // others are the defaults every class inherits and may override, and they
     // have to be reachable -- super().__setattr__(n, v) is the ordinary way to
     // write a __setattr__ that stores after all.
-    for (const Named &e : OBJECT_METHODS)
-        if (!put(type_obj(ob.v)->dict, e.name, native_new("object", e.fn)))
+    for (const Named &e : OBJECT_METHODS) {
+        Root fn{ native_new("object", e.fn) };
+        if (fn.v.is_nil())
             return false;
+        static_cast<NativeObj *>(fn.v.obj())->owner = ob.v;
+        if (!put(type_obj(ob.v)->dict, e.name, fn.v))
+            return false;
+    }
     if (!objmeth_install(type_obj(ob.v)->dict))
         return false;
     for (const Type *t : NAMED) {
@@ -2079,7 +2156,7 @@ bool type_install(DictObj *into)
     // type's own methods, which a class reaches through its metatype.
     if (!method_install(&type_type, TYPE_METHODS))
         return false;
-    if (!method_install(&property_type, PROPERTY_METHODS))
+    if (!method_install(&property_type, PROPERTY_METHODS) || !newwrap_methods())
         return false;
     for (const Ctor &e : CLASS_TYPES) {
         Value w = type_wrap(e.t);
@@ -2109,11 +2186,59 @@ R newwrap_repr(Value v, String &out)
     return out.append(b.str()) ? R::Ok : err_set("MemoryError", "out of memory");
 }
 
+// __self__ is the type it makes, which copyreg._reduce_ex looks for.
+R newwrap_getattr(Value v, StrObj *name, Value &out)
+{
+    Str n = name->str();
+    if (n == "__self__") {
+        out = static_cast<NewObj *>(v.obj())->type;
+        return R::Ok;
+    }
+    if (n == "__name__" || n == "__qualname__") {
+        out = str_new("__new__");
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    return R::NotImpl;
+}
+
 } // namespace
 
-constexpr Type newwrap_type{ .name  = "builtin_function_or_method",
-                             .trace = newwrap_trace,
-                             .repr  = newwrap_repr };
+// __reduce__: getattr(type, '__new__'), which finds this again.
+R newwrap_reduce(const CallArgs &a, Value &out)
+{
+    if (!a.nargs || !a.args[0].is_obj() || a.args[0].obj()->type != &newwrap_type)
+        return err_set("TypeError", "__reduce__ needs a __new__");
+    Root self{ a.args[0] };
+    StrObj *gn = str_intern("getattr");
+    Root fn, name{ str_new("__new__") };
+    if (!gn || name.v.is_nil() || dict_get(builtins_dict(), obj_value(gn), fn.v) != R::Ok)
+        return err_pending() ? R::Err : err_set("SystemError", "no builtins.getattr");
+    TupleObj *args = tuple_new(2);
+    if (!args)
+        return err_set("MemoryError", "out of memory");
+    args->items()[0] = static_cast<NewObj *>(self.v.obj())->type;
+    args->items()[1] = name.v;
+    Root ra{ obj_value(args) };
+    TupleObj *t = tuple_new(2);
+    if (!t)
+        return err_set("MemoryError", "out of memory");
+    t->items()[0] = fn.v;
+    t->items()[1] = ra.v;
+    out           = obj_value(t);
+    return R::Ok;
+}
+
+constexpr Method NEWWRAP_METHODS[] = { { "__reduce__", newwrap_reduce } };
+
+constexpr Type newwrap_type{ .name    = "builtin_function_or_method",
+                             .trace   = newwrap_trace,
+                             .repr    = newwrap_repr,
+                             .getattr = newwrap_getattr };
+
+bool newwrap_methods()
+{
+    return method_install(&newwrap_type, NEWWRAP_METHODS);
+}
 
 Value type_new_attr(Value found, Value owner)
 {
@@ -2391,9 +2516,10 @@ Value type_own_new(Value cls)
 {
     StrObj *n = str_intern("__new__");
     Value found;
-    if (!n || type_lookup(cls, n, found) != R::Ok || is_native(found))
+    if (!n || type_lookup(cls, n, found) != R::Ok)
         return Value();
-    return found;
+    found = new_unwrap(found);
+    return is_native(found) ? Value() : found;
 }
 
 bool type_native_takes_args(Value cls)

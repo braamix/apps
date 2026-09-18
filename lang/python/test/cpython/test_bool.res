@@ -1,20 +1,4 @@
-...F....F...F.......F.EE.......
-======================================================================
-ERROR: test_pickle (__main__.BoolTest.test_pickle)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_bool.py", line 290, in test_pickle
-    import pickle
-ModuleNotFoundError: Standard library module 'pickle' was not found
-
-======================================================================
-ERROR: test_picklevalues (__main__.BoolTest.test_picklevalues)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_bool.py", line 297, in test_picklevalues
-    import pickle
-ModuleNotFoundError: Standard library module 'pickle' was not found
-
+...F....F...F.......F..........
 ======================================================================
 FAIL: test_boolean (__main__.BoolTest.test_boolean)
 ----------------------------------------------------------------------
@@ -52,4 +36,4 @@ AssertionError: DeprecationWarning not triggered
 ----------------------------------------------------------------------
 Ran 31 tests in Ns
 
-FAILED (failures=4, errors=2)
+FAILED (failures=4)

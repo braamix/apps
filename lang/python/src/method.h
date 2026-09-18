@@ -83,6 +83,14 @@ inline bool is_memview(Value v)
 // The window's octets, and whether it may be written through.
 bool memview_bytes(Value v, Str &out, bool *writable = nullptr);
 
+// A contiguous view's octets as a flat view of bytes: PickleBuffer.raw().
+// Nil with BufferError pending for a strided one.
+Value memview_raw(Value view);
+
+// The memoryview a PickleBuffer holds, or Nil when `v` is not one; Nil with
+// ValueError pending when it has been released. picklemod.cpp.
+Value picklebuffer_view(Value v);
+
 // A fresh str with no validation, or Nil with MemoryError pending.
 Value str_of_bytes(Str s);
 

@@ -34,7 +34,7 @@ pass  basics/async_with2.py                     cpython3.14  52b5fbc  tests/basi
 pass  basics/async_with_break.py                cpython3.14  52b5fbc  tests/basics/async_with_break.py
 pass  basics/async_with_return.py               cpython3.14  52b5fbc  tests/basics/async_with_return.py
 pass  basics/bool1.py                           cpython3.14  52b5fbc  tests/basics/bool1.py
-fail  basics/boundmeth1.py                      cpython3.14  52b5fbc  tests/basics/boundmeth1.py
+pass  basics/boundmeth1.py                      cpython3.14  52b5fbc  tests/basics/boundmeth1.py
 pass  basics/builtin_abs.py                     cpython3.14  52b5fbc  tests/basics/builtin_abs.py
 pass  basics/builtin_abs_intbig.py              cpython3.14  52b5fbc  tests/basics/builtin_abs_intbig.py
 pass  basics/builtin_allany.py                  cpython3.14  52b5fbc  tests/basics/builtin_allany.py

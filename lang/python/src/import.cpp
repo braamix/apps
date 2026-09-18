@@ -1083,7 +1083,7 @@ R py_import(const CallArgs &a, Value &out)
     // `from . import x` has no name of its own, so only an absolute one has
     // to have something in it.
     if (!lv && !str_of(name.v)->len)
-        return err_set("ValueError", "empty module name");
+        return err_set("ValueError", "Empty module name");
     Root full;
     if (absolute(str_of(name.v)->str(), lv, where.v, full.v) != R::Ok)
         return R::Err;

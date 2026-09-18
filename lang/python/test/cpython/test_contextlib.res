@@ -35,7 +35,7 @@ ERROR: test_typo_enter (__main__.TestContextDecorator.test_typo_enter)
 Traceback (most recent call last):
   File "/tmp/test_contextlib.py", line 622, in test_typo_enter
     with mycontext():
-AttributeError: 'mycontext' object has no attribute '__enter__'
+AttributeError: 'mycontext' object has no attribute '__enter__'. Did you mean '.__unter__' instead of '.__enter__'?
 
 ======================================================================
 ERROR: test_typo_exit (__main__.TestContextDecorator.test_typo_exit)
@@ -43,7 +43,7 @@ ERROR: test_typo_exit (__main__.TestContextDecorator.test_typo_exit)
 Traceback (most recent call last):
   File "/tmp/test_contextlib.py", line 634, in test_typo_exit
     with mycontext():
-AttributeError: 'mycontext' object has no attribute '__exit__'
+AttributeError: 'mycontext' object has no attribute '__exit__'. Did you mean '.__uxit__' instead of '.__exit__'?
 
 ======================================================================
 ERROR: test_dont_reraise_RuntimeError (__main__.TestExitStack.test_dont_reraise_RuntimeError)

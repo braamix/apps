@@ -100,7 +100,7 @@ R any_getitem(Value v, Value key, Value &out)
         return out.is_nil() ? R::Err : R::Ok;
     }
     usize i = 0;
-    if (index_of(key, s.size(), i) != R::Ok)
+    if (index_of(key, s.size(), i, is_bytearray(v) ? Str("bytearray") : Str()) != R::Ok)
         return R::Err;
     out = Value::of_int(u8(s[i]));
     return R::Ok;
@@ -242,7 +242,7 @@ R array_setitem(Value v, Value key, Value item)
         return R::Ok;
     }
     usize i = 0;
-    if (index_of(key, b->data.size(), i) != R::Ok)
+    if (index_of(key, b->data.size(), i, "bytearray") != R::Ok)
         return R::Err;
     u8 o = 0;
     if (octet_of(item, o) != R::Ok)
@@ -264,7 +264,7 @@ R array_delitem(Value v, Value key)
         return R::Ok;
     }
     usize i = 0;
-    if (index_of(key, b->data.size(), i) != R::Ok)
+    if (index_of(key, b->data.size(), i, "bytearray") != R::Ok)
         return R::Err;
     b->data.erase(i, 1);
     return R::Ok;

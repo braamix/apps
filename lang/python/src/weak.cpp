@@ -120,7 +120,7 @@ bool referenceable(Value v)
     if (!v.is_obj() || (v.obj()->flags & OBJ_IMMORTAL))
         return false;
     if (is_inst(v))
-        return !is_intval(inst_of(v)->native) && !is_str(inst_of(v)->native) &&
+        return !is_intval(inst_of(v)->native) && !is_bytes(inst_of(v)->native) &&
                !is_tuple(inst_of(v)->native);
     const Type *t = v.obj()->type;
     return t != &str_type && t != &bytes_type && t != &bytearray_type && t != &tuple_type &&

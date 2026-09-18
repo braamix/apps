@@ -7,6 +7,7 @@
 #include "intern.h"
 #include "kernel/fmt.h"
 #include "ops.h"
+#include "type.h"
 
 namespace {
 
@@ -230,4 +231,35 @@ R info_construct(const Type *t, const Str *names, usize n, usize shown, const Ca
     Roots pin{ items.data(), items.size() };
     out = info_new(t, items.data(), names, n, shown);
     return out.is_nil() ? R::Err : R::Ok;
+}
+
+Value info_reduce(Value v)
+{
+    Root rv{ v };
+    InfoObj *o = static_cast<InfoObj *>(rv.v.obj());
+    DictObj *d = dict_new();
+    if (!d)
+        return err_set("MemoryError", "out of memory"), Value();
+    Root rd{ obj_value(d) };
+    o                = static_cast<InfoObj *>(rv.v.obj());
+    TupleObj *shown  = static_cast<TupleObj *>(o->items.obj());
+    TupleObj *names  = static_cast<TupleObj *>(o->names.obj());
+    TupleObj *hidden = o->hidden.is_nil() ? nullptr : static_cast<TupleObj *>(o->hidden.obj());
+    for (usize i = 0; hidden && i < hidden->len; i++)
+        if (dict_set(static_cast<DictObj *>(rd.v.obj()), names->items()[shown->len + i],
+                     hidden->items()[i]) != R::Ok)
+            return Value();
+    Root cls{ type_of_value(rv.v) };
+    TupleObj *args = tuple_new(2);
+    if (cls.v.is_nil() || !args)
+        return err_pending() ? Value() : (err_set("MemoryError", "out of memory"), Value());
+    args->items()[0] = static_cast<InfoObj *>(rv.v.obj())->items;
+    args->items()[1] = rd.v;
+    Root ra{ obj_value(args) };
+    TupleObj *t = tuple_new(2);
+    if (!t)
+        return err_set("MemoryError", "out of memory"), Value();
+    t->items()[0] = cls.v;
+    t->items()[1] = ra.v;
+    return obj_value(t);
 }

@@ -16,6 +16,7 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "reduce.h"
 #include "type.h"
 
 namespace {
@@ -536,7 +537,7 @@ R get_repr(Value v, String &out)
     return out.push(')') ? R::Ok : oom();
 }
 
-extern const Type getter_type;
+extern const Type itemgetter_type, attrgetter_type, methodcaller_type;
 
 // methodcaller: the arguments it kept, applied to the method just found.
 R call_step(ContObj *k, Value in)
@@ -618,9 +619,64 @@ R getter_call(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-constexpr Method GETTER_METHODS[] = { { "__call__", getter_call } };
+// __reduce__: the class and what it was made with. A methodcaller with
+// keywords is a partial over the class, since a reduce value has no keywords.
+R getter_reduce(const CallArgs &a, Value &out)
+{
+    if (!meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ method_self(a.args[0]) };
+    Root cls{ type_of_value(self.v) };
+    if (cls.v.is_nil())
+        return R::Err;
+    GetObj *g = get_of(self.v);
+    if (!g->method) {
+        out = tuple_of(cls.v, g->keys);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    TupleObj *rest = static_cast<TupleObj *>(g->args.obj());
+    TupleObj *kwn  = static_cast<TupleObj *>(g->kwn.obj());
+    Value name     = static_cast<TupleObj *>(g->keys.obj())->items()[0];
+    if (!kwn->len) {
+        TupleObj *t = tuple_new(rest->len + 1);
+        if (!t)
+            return oom();
+        g             = get_of(self.v);
+        rest          = static_cast<TupleObj *>(g->args.obj());
+        t->items()[0] = static_cast<TupleObj *>(g->keys.obj())->items()[0];
+        for (u32 i = 0; i < rest->len; i++)
+            t->items()[i + 1] = rest->items()[i];
+        Root rt{ obj_value(t) };
+        out = tuple_of(cls.v, rt.v);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    Value pos[2] = { cls.v, name };
+    Roots pin{ pos, 2 };
+    CallArgs pa;
+    pa.args    = pos;
+    pa.nargs   = 2;
+    pa.kwnames = kwn->items();
+    pa.kwvals  = static_cast<TupleObj *>(g->kwv.obj())->items();
+    pa.nkw     = kwn->len;
+    Root part;
+    if (functools_partial(pa, part.v) != R::Ok)
+        return R::Err;
+    out = tuple_of(part.v, get_of(self.v)->args);
+    return out.is_nil() ? R::Err : R::Ok;
+}
 
-constexpr Type getter_type{ .name = "attrgetter", .trace = get_trace, .repr = get_repr };
+constexpr Method GETTER_METHODS[] = { { "__call__", getter_call },
+                                      { "__reduce__", getter_reduce } };
+
+constexpr Type itemgetter_type{ .name  = "operator.itemgetter",
+                                .trace = get_trace,
+                                .repr  = get_repr };
+constexpr Type attrgetter_type{ .name  = "operator.attrgetter",
+                                .trace = get_trace,
+                                .repr  = get_repr };
+constexpr Type methodcaller_type{ .name  = "operator.methodcaller",
+                                  .trace = get_trace,
+                                  .repr  = get_repr };
 
 Value getter_new(const CallArgs &a, bool attr, bool method, Str who)
 {
@@ -666,7 +722,8 @@ Value getter_new(const CallArgs &a, bool attr, bool method, Str who)
         return err_set("TypeError", b.str()), Value();
     }
 
-    GetObj *g = static_cast<GetObj *>(obj_alloc(&getter_type, sizeof(GetObj)));
+    const Type *t = method ? &methodcaller_type : attr ? &attrgetter_type : &itemgetter_type;
+    GetObj *g     = static_cast<GetObj *>(obj_alloc(t, sizeof(GetObj)));
     if (!g)
         return oom(), Value();
     g->keys   = rk.v;
@@ -873,9 +930,6 @@ constexpr ModDef REST_DEFS[] = {
     { "__iconcat__", o_iconcat },
     { "countOf", o_countOf },
     { "indexOf", o_indexOf },
-    { "attrgetter", o_attrgetter },
-    { "itemgetter", o_itemgetter },
-    { "methodcaller", o_methodcaller },
 };
 
 } // namespace
@@ -883,11 +937,15 @@ constexpr ModDef REST_DEFS[] = {
 bool operator_install(DictObj *into)
 {
     Root rd{ obj_value(into) };
-    if (!method_install(&getter_type, GETTER_METHODS))
+    if (!method_install(&itemgetter_type, GETTER_METHODS) ||
+        !method_install(&attrgetter_type, GETTER_METHODS) ||
+        !method_install(&methodcaller_type, GETTER_METHODS))
         return false;
     DictObj *d = static_cast<DictObj *>(rd.v.obj());
-    return mod_defs(d, BINARY_DEFS) && mod_defs(d, INPLACE_DEFS) && mod_defs(d, CMP_DEFS) &&
-           mod_defs(d, REST_DEFS) &&
+    return mod_type(d, &itemgetter_type, o_itemgetter) &&
+           mod_type(d, &attrgetter_type, o_attrgetter) &&
+           mod_type(d, &methodcaller_type, o_methodcaller) && mod_defs(d, BINARY_DEFS) &&
+           mod_defs(d, INPLACE_DEFS) && mod_defs(d, CMP_DEFS) && mod_defs(d, REST_DEFS) &&
            mod_str(d, "__doc__",
                    "Operator interface.\n\nThis module exports a set of functions "
                    "implemented in C corresponding\nto the intrinsic operators of "

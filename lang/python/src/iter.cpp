@@ -2,10 +2,13 @@
 // range.cpp.
 #include "iter.h"
 
+#include "builtin.h"
 #include "gc.h"
+#include "intern.h"
 #include "kernel/fmt.h"
 #include "method.h"
 #include "ops.h"
+#include "reduce.h"
 #include "type.h"
 
 namespace {
@@ -241,6 +244,193 @@ constexpr Type filter_type{ .name  = "filter",
                             .iter  = iter_self,
                             .next  = seq_iter_next };
 
+// ------------------------------------------------------------------ pickle
+
+namespace {
+
+R oom()
+{
+    return err_set("MemoryError", "out of memory");
+}
+
+// The builtin `name`, which a reduce value names as its callable.
+Value builtin_named(Str name)
+{
+    StrObj *n = str_intern(name);
+    Value v;
+    if (!n || dict_get(builtins_dict(), obj_value(n), v) != R::Ok)
+        return err_pending() ? Value() : (err_set("SystemError", "no such builtin"), Value());
+    return v;
+}
+
+IterObj *self_iter_of(const CallArgs &a, const Type *t, Str who)
+{
+    if (!a.nargs || !a.args[0].is_obj() || a.args[0].obj()->type != t) {
+        Buf<96> b;
+        b.put(who).put("() requires a ").put(t->name);
+        return err_set("TypeError", b.str()), nullptr;
+    }
+    return static_cast<IterObj *>(a.args[0].obj());
+}
+
+// (fn, args[, state]) with the builtin `fn`.
+R answer(Str fn, Value args, Value state, Value &out)
+{
+    Root ra{ args }, rs{ state };
+    Root f{ builtin_named(fn) };
+    if (f.v.is_nil() || ra.v.is_nil())
+        return R::Err;
+    out = rs.v.is_nil() ? tuple_of(f.v, ra.v) : tuple_of(f.v, ra.v, rs.v);
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+// A sequence iterator: iter(seq), then the position.
+R seq_reduce(const CallArgs &a, Value &out)
+{
+    IterObj *it = self_iter_of(a, a.nargs ? type_of(a.args[0]) : nullptr, "__reduce__");
+    if (!it || !meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ a.args[0] };
+    Root at{ int_from_i64(i64(it->at)) };
+    return answer("iter", tuple_of(it->owner), at.v, out);
+}
+
+// __setstate__(index): where a sequence or reversed iterator resumes.
+R seq_setstate(const CallArgs &a, Value &out)
+{
+    IterObj *it = self_iter_of(a, a.nargs ? type_of(a.args[0]) : nullptr, "__setstate__");
+    if (!it || !meth_args(a, "__setstate__", 1, 1))
+        return R::Err;
+    i64 i = 0;
+    if (!as_index(a.args[1], i))
+        return err_pending() ? R::Err : err_set("TypeError", "an integer is required");
+    usize n = 0;
+    if (py_len(it->owner, n) != R::Ok)
+        return R::Err;
+    if (i < 0)
+        i = 0;
+    if (u64(i) > n)
+        i = i64(n);
+    it = static_cast<IterObj *>(a.args[0].obj());
+    if (a.args[0].obj()->type == &rev_iter_type)
+        it->at = i >= i64(n) ? 0 : n - 1 - usize(i); // the index of the next item, from the front
+    else
+        it->at = usize(i);
+    out = value_none();
+    return R::Ok;
+}
+
+// A dict's or set's keys: what is left of them, as a list.
+R table_reduce(const CallArgs &a, Value &out)
+{
+    IterObj *it = self_iter_of(a, &table_iter_type, "__reduce__");
+    if (!it || !meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ a.args[0] };
+    ListObj *l = list_new();
+    if (!l)
+        return oom();
+    Root rl{ obj_value(l) };
+    usize at = static_cast<IterObj *>(self.v.obj())->at;
+    Value k, v;
+    for (;;) {
+        IterObj *now   = static_cast<IterObj *>(self.v.obj());
+        const Table &t = is_dict(now->owner) ? static_cast<DictObj *>(now->owner.obj())->t
+                                             : static_cast<SetObj *>(now->owner.obj())->t;
+        if (!table_next(t, at, k, v))
+            break;
+        if (!list_push(list_of(rl.v), k))
+            return oom();
+    }
+    return answer("iter", tuple_of(rl.v), Value(), out);
+}
+
+R enum_reduce(const CallArgs &a, Value &out)
+{
+    IterObj *it = self_iter_of(a, &enum_iter_type, "__reduce__");
+    if (!it || !meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ a.args[0] };
+    Root n{ int_from_i64(i64(it->at)) };
+    if (n.v.is_nil())
+        return R::Err;
+    return answer("enumerate", tuple_of(static_cast<IterObj *>(self.v.obj())->owner, n.v), Value(),
+                  out);
+}
+
+// reversed: the sequence and the index of the next item from the front.
+R rev_reduce(const CallArgs &a, Value &out)
+{
+    IterObj *it = self_iter_of(a, &rev_iter_type, "__reduce__");
+    if (!it || !meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ a.args[0] };
+    usize n = 0;
+    if (py_len(it->owner, n) != R::Ok)
+        return R::Err;
+    it = static_cast<IterObj *>(self.v.obj());
+    if (it->at >= n)
+        return answer("reversed", tuple_of(obj_value(tuple_new(0))), Value(), out);
+    Root at{ int_from_i64(i64(n - 1 - it->at)) };
+    return answer("reversed", tuple_of(it->owner), at.v, out);
+}
+
+R zip_reduce(const CallArgs &a, Value &out)
+{
+    IterObj *it = self_iter_of(a, &zip_iter_type, "__reduce__");
+    if (!it || !meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    return answer("zip", it->owner, it->at ? value_bool(true) : Value(), out);
+}
+
+R zip_setstate(const CallArgs &a, Value &out)
+{
+    IterObj *it = self_iter_of(a, &zip_iter_type, "__setstate__");
+    if (!it || !meth_args(a, "__setstate__", 1, 1))
+        return R::Err;
+    it->at = py_truth(a.args[1]) ? 1 : 0;
+    out    = value_none();
+    return R::Ok;
+}
+
+// map and filter have made their list already: what is left of it.
+R made_reduce(const CallArgs &a, Value &out)
+{
+    const Type *t = a.nargs ? type_of(a.args[0]) : nullptr;
+    IterObj *it   = self_iter_of(a, t == &map_type ? &map_type : &filter_type, "__reduce__");
+    if (!it || !meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ a.args[0] };
+    ListObj *l = list_new();
+    if (!l)
+        return oom();
+    Root rl{ obj_value(l) };
+    ListObj *src = list_of(static_cast<IterObj *>(self.v.obj())->owner);
+    for (usize i = static_cast<IterObj *>(self.v.obj())->at; i < src->items.size(); i++)
+        if (!list_push(list_of(rl.v), src->items[i]))
+            return oom();
+    return answer("iter", tuple_of(rl.v), Value(), out);
+}
+
+constexpr Method SEQ_PICKLE[] = { { "__reduce__", seq_reduce }, { "__setstate__", seq_setstate } };
+constexpr Method TABLE_PICKLE[] = { { "__reduce__", table_reduce } };
+constexpr Method ENUM_PICKLE[]  = { { "__reduce__", enum_reduce } };
+constexpr Method REV_PICKLE[]  = { { "__reduce__", rev_reduce }, { "__setstate__", seq_setstate } };
+constexpr Method ZIP_PICKLE[]  = { { "__reduce__", zip_reduce }, { "__setstate__", zip_setstate } };
+constexpr Method MADE_PICKLE[] = { { "__reduce__", made_reduce } };
+
+} // namespace
+
+bool iter_pickle_methods()
+{
+    return method_install(&seq_iter_type, SEQ_PICKLE) &&
+           method_install(&table_iter_type, TABLE_PICKLE) &&
+           method_install(&enum_iter_type, ENUM_PICKLE) &&
+           method_install(&rev_iter_type, REV_PICKLE) &&
+           method_install(&zip_iter_type, ZIP_PICKLE) && method_install(&map_type, MADE_PICKLE) &&
+           method_install(&filter_type, MADE_PICKLE);
+}
+
 Value made_iter(Value list, const Type *t)
 {
     return obj_value(iter_new(t, list));
@@ -282,8 +472,49 @@ Value zip_new(Value iters, bool strict)
     return v;
 }
 
+// A slice compares, orders and hashes as (start, stop, step) does.
+R slice_hash(Value v, u32 &out)
+{
+    SliceObj *s    = static_cast<SliceObj *>(v.obj());
+    Value parts[3] = { s->start, s->stop, s->step };
+    u32 h          = 2166136261u;
+    for (Value p : parts) {
+        u32 e = 0;
+        if (py_hash(p, e) != R::Ok)
+            return R::Err;
+        h = (h ^ e) * 16777619u;
+    }
+    out = h;
+    return R::Ok;
+}
+
+R slice_eq(Value a, Value b, bool &out)
+{
+    if (!is_slice(b))
+        return R::NotImpl;
+    SliceObj *x = static_cast<SliceObj *>(a.obj());
+    SliceObj *y = static_cast<SliceObj *>(b.obj());
+    Value xs[3] = { x->start, x->stop, x->step };
+    Value ys[3] = { y->start, y->stop, y->step };
+    return seq_eq(xs, 3, ys, 3, out);
+}
+
+R slice_order(Value a, Value b, Cmp op, bool &out)
+{
+    if (!is_slice(b))
+        return R::NotImpl;
+    SliceObj *x = static_cast<SliceObj *>(a.obj());
+    SliceObj *y = static_cast<SliceObj *>(b.obj());
+    Value xs[3] = { x->start, x->stop, x->step };
+    Value ys[3] = { y->start, y->stop, y->step };
+    return seq_order(xs, 3, ys, 3, op, out);
+}
+
 constexpr Type slice_type{ .name    = "slice",
                            .trace   = slice_trace,
+                           .hash    = slice_hash,
+                           .eq      = slice_eq,
+                           .order   = slice_order,
                            .repr    = slice_repr,
                            .getattr = slice_getattr };
 

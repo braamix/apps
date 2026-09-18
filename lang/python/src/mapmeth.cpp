@@ -13,6 +13,7 @@
 #include "kernel/fmt.h"
 #include "method.h"
 #include "ops.h"
+#include "reduce.h"
 
 namespace {
 
@@ -1005,6 +1006,25 @@ R m_isdisjoint(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// set.__reduce__: (type, (list,), state), for frozenset as well.
+R m_set_reduce(const CallArgs &a, Value &out)
+{
+    Root rs{ a.nargs ? method_self(a.args[0]) : Value() };
+    if (!is_anyset(rs.v))
+        return err_set2("TypeError", "__reduce__() requires a set", type_name(rs.v));
+    if (!meth_args(a, "__reduce__", 0, 0))
+        return R::Err;
+    Root self{ a.args[0] };
+    Root items{ obj_value(py_list_of(rs.v)) };
+    if (items.v.is_nil())
+        return R::Err;
+    Root args{ tuple_of(items.v) };
+    if (args.v.is_nil())
+        return R::Err;
+    out = reduce_of(self.v, args.v, inst_state(self.v));
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
 // ------------------------------------------------------------------ tables
 
 constexpr Method DICT[] = {
@@ -1021,13 +1041,10 @@ constexpr Method FROZENDICT[] = {
 
 // The half a frozenset has as well.
 constexpr Method SET_CONST[] = {
-    { "copy", m_set_copy },
-    { "union", m_union },
-    { "intersection", m_intersection },
-    { "difference", m_difference },
-    { "symmetric_difference", m_symdiff },
-    { "issubset", m_issubset },
-    { "issuperset", m_issuperset },
+    { "copy", m_set_copy },         { "__reduce__", m_set_reduce },
+    { "union", m_union },           { "intersection", m_intersection },
+    { "difference", m_difference }, { "symmetric_difference", m_symdiff },
+    { "issubset", m_issubset },     { "issuperset", m_issuperset },
     { "isdisjoint", m_isdisjoint },
 };
 

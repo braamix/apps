@@ -113,6 +113,7 @@ stdlib/numerics.py                  cpython3.16
 stdlib/numproto.py                  cpython3.16
 stdlib/objects.py                   cpython3.16
 stdlib/ospath.py                    cpython3.16
+stdlib/pickles.py                   cpython3.16
 stdlib/proxies.py                   cpython3.16
 stdlib/queues.py                    cpython3.16
 stdlib/quopris.py                   cpython3.16

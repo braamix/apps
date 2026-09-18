@@ -283,6 +283,7 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 | [import.cpp](src/import.cpp), [module.cpp](src/module.cpp), [impmod.cpp](src/impmod.cpp) | The module cache, the search path, the loader, and where importlib takes over |
 | [io.h](src/io.h), [iobase.cpp](src/iobase.cpp), [iofile.cpp](src/iofile.cpp), [iobuf.cpp](src/iobuf.cpp), [iotext.cpp](src/iotext.cpp), [iomem.cpp](src/iomem.cpp) | `_io`: the abstract layers, the raw descriptor, the buffer, the text wrapper, `BytesIO` and `StringIO` |
 | [posixmod.cpp](src/posixmod.cpp), [sysmod.cpp](src/sysmod.cpp), [timemod.cpp](src/timemod.cpp), [signalmod.cpp](src/signalmod.cpp), [selectmod.cpp](src/selectmod.cpp) | `posix` and `_posixsubprocess`, `sys`, `time`, `_signal` and `select` — the system-call turn every module takes |
+| [reduce.cpp](src/reduce.cpp), [picklemod.cpp](src/picklemod.cpp) | What pickle and copy need of the native types: `__reduce__` for the builtins and iterators, and `_pickle`'s `PickleBuffer` |
 | [sre.cpp](src/sre.cpp), [sremod.cpp](src/sremod.cpp) | The regular-expression engine, Secret Labs', able to stop mid-match |
 | [builtin.cpp](src/builtin.cpp), and the other `*mod.cpp` | The builtins namespace, and one file per native module |
 | [lib/](lib/) | CPython's library, byte for byte, with [lib/manifest.txt](lib/manifest.txt) saying where each file came from |
