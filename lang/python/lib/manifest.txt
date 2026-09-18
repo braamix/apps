@@ -202,6 +202,7 @@ reprlib.py                          _thread        82952e3  Lib/reprlib.py
 runpy.py                            -              82952e3  Lib/runpy.py
 sched.py                            time           82952e3  Lib/sched.py
 secrets.py                          posix          82952e3  Lib/secrets.py
+selectors.py                        select         82952e3  Lib/selectors.py
 shlex.py                            -              82952e3  Lib/shlex.py
 shutil.py                           -              82952e3  Lib/shutil.py
 signal.py                           _signal        82952e3  Lib/signal.py
@@ -211,6 +212,7 @@ statistics.py                       math           82952e3  Lib/statistics.py
 string/__init__.py                  _string        82952e3  Lib/string/__init__.py
 string/templatelib.py               -              82952e3  Lib/string/templatelib.py
 struct.py                           _struct        82952e3  Lib/struct.py
+subprocess.py                       _posixsubprocess 82952e3  Lib/subprocess.py
 tempfile.py                         -              82952e3  Lib/tempfile.py
 textwrap.py                         -              82952e3  Lib/textwrap.py
 threading.py                        -              82952e3  Lib/threading.py

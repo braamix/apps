@@ -16,9 +16,9 @@ is_android = False
 is_apple = False
 is_apple_mobile = False
 
-# Braam is one Web Worker; a process cannot fork and there is no second thread.
+# One Web Worker: no fork and no second thread, but subprocess spawns.
 has_fork_support = False
-has_subprocess_support = False
+has_subprocess_support = True
 has_socket_support = False
 has_strftime_extensions = False
 
@@ -353,7 +353,20 @@ requires_docstrings = unittest.skipUnless(HAVE_DOCSTRINGS, "test requires docstr
 
 requires_working_socket = lambda *a, **k: unittest.skip("no sockets")
 requires_fork = lambda: unittest.skip("no fork")
-requires_subprocess = lambda: unittest.skip("no subprocess")
+requires_subprocess = lambda: (lambda test: test)
+
+
+def reap_children():
+    """Wait for the children a test left behind, as upstream does."""
+    import os
+
+    while True:
+        try:
+            pid, status = os.waitpid(-1, os.WNOHANG)
+        except OSError:
+            break
+        if pid == 0:
+            break
 
 
 class _NeverEqual:
@@ -531,3 +544,10 @@ def skip_if_buggy_ucrt_strfptime(test):
 def run_with_tz(tz):
     """There is one zone, the one the clock was read in; nothing is switched."""
     return unittest.skip("time zones are not switched")
+
+
+def check_sanitizer(*, address=False, memory=False, ub=False, thread=False, function=True):
+    """Returns True if Python is compiled with sanitizer support"""
+    if not (address or memory or ub or thread):
+        raise ValueError("At least one of address, memory, ub or thread must be True")
+    return False

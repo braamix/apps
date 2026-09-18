@@ -41,11 +41,19 @@ enum class SysOp : u8 {
     Pipe,     // -> n the read end, off the write end
     Kill,     // fd the pid, flags the signal
     SigCatch, // fd the signal, flags 1 to be told of it and 0 to stop
+    Spawn,    // data argv, path2 env, path cwd, io the slots -> n the pid
+    Wait,     // fd the pid or 0 for any, flags SYS_WAIT_NOHANG -> n the pid, off the status
 };
 
 // Open: the path is a directory, and the driver makes a file in it that is
 // removed again when its descriptor closes. O_TMPFILE.
 constexpr u32 SYS_O_HIDDEN = 1u << 30;
+
+// Spawn: path2 is the child's environment. Without it the child inherits.
+constexpr u32 SYS_SPAWN_WITH_ENV = 1;
+
+// Wait: a child still running answers n = 0 rather than being waited for.
+constexpr u32 SYS_WAIT_NOHANG = 1;
 
 struct SysReq {
     SysOp op    = SysOp::Close;
@@ -55,7 +63,8 @@ struct SysReq {
     u32 whence  = 0;
     u32 max     = 0;
     bool follow = true;
-    Str path, path2, data; // valid until vm_sys_done
+    Str path, path2, data;      // valid until vm_sys_done
+    i32 io[3] = { -1, -1, -1 }; // Spawn: stdin, stdout, stderr; -1 shares the parent's
 };
 
 // One entry of a listing.

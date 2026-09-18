@@ -22,20 +22,6 @@ Two items in the list are not planned. They are at the end, with the reason.
   is such an instance park in a continuation, call `__hash__` and then `__eq__`
   on each collision, and finish in C++. This is the most useful item in this
   file that is not a module.
-- **`subprocess`, `os.system`, `os.popen`, `os.posix_spawn`, `os.waitpid`.**
-  Manual §10 files these under "Braam has no such thing", which is wrong:
-  only `fork` is missing. Braam has `Sys::Spawn`, `Pipe`, `Wait` and `Kill`,
-  and `posix` already answers `pipe` and `kill`. What is needed: `Spawn` and
-  `Wait` as requests the driver performs, a native `_posixsubprocess` whose
-  `fork_exec` is one spawn (argv, env, the three descriptors, a failed exec
-  raised at once rather than through the error pipe), then `subprocess.py`
-  byte for byte, and `os.system` and `os.posix_spawn` over the same spawn.
-  `cwd=` is a `Chdir` there and back around the spawn, since a child starts
-  where its parent is. What cannot be had: `preexec_fn`, `pass_fds` beyond
-  0-2, and `communicate()` over two pipes at once,
-  which waits in `selectors` on a readiness call Braam does not have. It is
-  also what `test.support.script_helper` runs a second interpreter with, so
-  a dozen CPython tests that skip or fail at import today would run.
 - **`__index__` returning a non-int** says "an integer is required" where
   CPython says `__index__ returned non-int (type str)`.
 
@@ -113,16 +99,15 @@ Two items in the list are not planned. They are at the end, with the reason.
 
 ## Stage 6 — debugging and profiling
 
-25. **The `_socket` and `select` floors, importable but unable to connect.**
-    `pdb` imports `socket` and `selectors` at the top, and `doctest` imports
-    `pdb`, so none of the three loads without them. `_socket` provides the
-    constants, the exception types, `gethostname` (`"localhost"`) and a
-    `socket` type whose constructor raises `OSError(EAFNOSUPPORT)`. `select`
-    provides `select()` over regular files, which are always ready; any
-    other descriptor is an `OSError`. Then ship `socket.py` and `selectors.py`
-    byte for byte. §10 "Because Braam has no such thing" still holds for
-    sockets and says what the floors are for. This also removes `selectors`
-    from the "not written" list.
+25. **The `_socket` floor, importable but unable to connect.** `pdb` imports
+    `socket` at the top, and `doctest` imports `pdb`, so none of the three
+    loads without it. `_socket` provides the constants, the exception types,
+    `gethostname` (`"localhost"`) and a `socket` type whose constructor
+    raises `OSError(EAFNOSUPPORT)`. Then ship `socket.py` byte for byte.
+    `select` and `selectors` are already here, for `subprocess`. §10
+    "Because Braam has no such thing" still holds for sockets and says what
+    the floor is for. `test_subprocess` imports `socket` and `sysconfig` at
+    the top, so it runs once this and task 30 are done.
 
 26. **The `sys.monitoring` namespace.** `bdb` reads `sys.monitoring.events`
     at import. Add the tool registry (`use_tool_id`, `get_tool`,
@@ -212,5 +197,6 @@ Two items in the list are not planned. They are at the end, with the reason.
 - **`.pyc` files.** Compiling from source is fast enough that a cache costs
   more than it saves, and `marshal`'s code format is this interpreter's. `-B`
   and `PYTHONDONTWRITEBYTECODE` are accepted and change nothing.
-- **A `selectors` that waits on anything.** Braam has no poll call. Task 25
-  makes the module importable, and that is all it can be.
+- **A `selectors` that waits on anything.** Braam has no poll call. The
+  module imports, for `subprocess`, and that is all it can be. So
+  `communicate()` over two pipes stays an `OSError`.

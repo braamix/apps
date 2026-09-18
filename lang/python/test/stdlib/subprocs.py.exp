@@ -1,0 +1,29 @@
+hello
+0
+CompletedProcess(args=['echo', 'x'], returncode=0, stdout=b'x\n')
+b'out\n'
+b'two\n'
+shell
+b''
+through cat
+0
+1 7
+Command ['false'] returned non-zero exit status 1.
+FileNotFoundError 2 no-such-program
+b'bar\n'
+b'qux\n'
+got
+(2, 'st')
+'popen\n'
+b'42\n'
+['a\n', 'b\n']
+0
+poll None
+wait 0 0
+from system
+0 768
+True 5 False 5
+b'spawned\n'
+True 0
+ChildProcessError 10
+4

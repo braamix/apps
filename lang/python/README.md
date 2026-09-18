@@ -217,6 +217,10 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 - asyncio has no streams, no subprocesses and no sockets; a loop with nothing
   to do raises rather than blocking, and it counts what it slept where the
   harness clock is frozen.
+- A child is one spawn, not a fork and an exec, so `subprocess` has no
+  `preexec_fn` and hands a child 0, 1 and 2 only. `communicate()` over two
+  pipes raises, since `select` answers only for regular files, and a child
+  killed by a signal returns 130 rather than `-9`.
 - A coroutine never awaited is reported when the collector finds it.
 - `json` is the pure-Python one, so a malformed document is reported in
   `json.decoder`'s words.
@@ -278,7 +282,7 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 | [annot.cpp](src/annot.cpp), [lazy.cpp](src/lazy.cpp), [typevar.cpp](src/typevar.cpp), [union.cpp](src/union.cpp), [genalias.cpp](src/genalias.cpp) | PEP 649 lazy annotations, PEP 810 lazy imports, and the typing machinery |
 | [import.cpp](src/import.cpp), [module.cpp](src/module.cpp), [impmod.cpp](src/impmod.cpp) | The module cache, the search path, the loader, and where importlib takes over |
 | [io.h](src/io.h), [iobase.cpp](src/iobase.cpp), [iofile.cpp](src/iofile.cpp), [iobuf.cpp](src/iobuf.cpp), [iotext.cpp](src/iotext.cpp), [iomem.cpp](src/iomem.cpp) | `_io`: the abstract layers, the raw descriptor, the buffer, the text wrapper, `BytesIO` and `StringIO` |
-| [posixmod.cpp](src/posixmod.cpp), [sysmod.cpp](src/sysmod.cpp), [timemod.cpp](src/timemod.cpp), [signalmod.cpp](src/signalmod.cpp) | `posix`, `sys`, `time` and `_signal` — the system-call turn every module takes |
+| [posixmod.cpp](src/posixmod.cpp), [sysmod.cpp](src/sysmod.cpp), [timemod.cpp](src/timemod.cpp), [signalmod.cpp](src/signalmod.cpp), [selectmod.cpp](src/selectmod.cpp) | `posix` and `_posixsubprocess`, `sys`, `time`, `_signal` and `select` — the system-call turn every module takes |
 | [sre.cpp](src/sre.cpp), [sremod.cpp](src/sremod.cpp) | The regular-expression engine, Secret Labs', able to stop mid-match |
 | [builtin.cpp](src/builtin.cpp), and the other `*mod.cpp` | The builtins namespace, and one file per native module |
 | [lib/](lib/) | CPython's library, byte for byte, with [lib/manifest.txt](lib/manifest.txt) saying where each file came from |

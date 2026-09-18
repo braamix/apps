@@ -238,10 +238,11 @@ warning categories.
 
 ```
 _abc _ast _blake2 _codecs _collections _colorize _contextvars _csv
-_functools _imp _io _math_integer _md5 _operator _random _sha1 _sha2
-_sha3 _signal _sre _string _struct _thread _tokenize _types _typing
-_warnings _weakref array atexit binascii builtins cmath dis errno
-faulthandler gc itertools marshal math posix sys time unicodedata
+_functools _imp _io _math_integer _md5 _operator _posixsubprocess
+_random _sha1 _sha2 _sha3 _signal _sre _string _struct _thread
+_tokenize _types _typing _warnings _weakref array atexit binascii
+builtins cmath dis errno faulthandler gc itertools marshal math posix
+select sys time unicodedata
 ```
 
 `sys.builtin_module_names` is that list.
@@ -299,7 +300,27 @@ is in OPFS and survives a reload.
 `stat`, `lstat`, `mkdir`, `makedirs`, `remove`, `rmdir`, `rename`, `replace`,
 `symlink`, `readlink`, `truncate`, `open`/`read`/`write`/`close`/`lseek`,
 `dup`, `pipe`, `isatty`, `get_terminal_size`, `urandom`, `environ`, `getpid`,
-`uname`, `kill`.
+`uname`, `kill`, `system`, `posix_spawn`, `waitpid`, `wait` and the `W*`
+macros.
+
+`subprocess` starts other programs, and so do `os.system` and `os.popen`.
+Braam has no `fork`, so a child is one spawn: its program, its arguments, its
+environment and its three streams, and nothing else. What that leaves out:
+
+- **`communicate()` over two pipes or more**, including `capture_output=True`
+  and `stdin=PIPE` with `stdout=PIPE`, is an `OSError`. It waits in
+  `selectors`, and Braam has no call that waits for a descriptor to be ready.
+  One pipe is fine: send stderr to a file, or `stderr=STDOUT`.
+- **`preexec_fn`, `user`, `group`, `process_group`** and **`pass_fds`**
+  above 2 raise `NotImplementedError`. A child is handed 0, 1 and 2 and no
+  other descriptor, so `close_fds` is always true.
+- **A signal death is not a signal.** A child that `kill()` or `terminate()`
+  ended reports the status 130, as Braam records it, and `returncode` is 130
+  rather than `-9`.
+- **A `^C` reaches this process, not the child.** `subprocess.run` then kills
+  the child, as it does for any exception.
+
+A child starts with `os.environ` as it is, so a variable set there reaches it.
 
 `signal.signal` takes a handler for any name, but **only `SIGINT`, `SIGTERM`
 and `SIGWINCH` are ever delivered** — Braam has no others. A handler runs at
@@ -358,16 +379,18 @@ There is no `~~~^^^` anchor line under the failing expression, and no
 - **Threads.** A process is one Web Worker. `threading` and `_thread` are
   there and their locks are never contended, so a program written against
   them runs — but nothing runs in parallel. Concurrency here is `asyncio`.
-- **`fork`, `exec`, `system`, `subprocess`.** A process cannot make another
-  from inside Python. `os.popen` exists and fails for want of `subprocess`.
-- **Sockets and everything over them**: `socket`, `ssl`, `select`,
-  `selectors`, `urllib`, `http`, `ftplib`, `smtplib`, `socketserver`,
-  `xmlrpc`.
+- **`fork` and `exec`.** A process can start another but cannot become one;
+  §7 says what `subprocess` does instead.
+- **Sockets and everything over them**: `socket`, `ssl`, `urllib`, `http`,
+  `ftplib`, `smtplib`, `socketserver`, `xmlrpc`.
+- **Waiting for a descriptor.** `select.select` answers for regular files,
+  which are always ready, and raises `OSError` for anything else; `selectors`
+  imports and waits on nothing else either.
 - **`ctypes`, `mmap`, `dlopen`, C extension modules.** There is no stable ABI
   to offer and nothing to load. Anything CPython writes in C is either
   written in C++ here or taken from the pure-Python version beside it.
-- **`setenv`.** `os.environ` reads what the process was given; writing one,
-  or calling `os.putenv`, reaches neither the system nor a child.
+- **`setenv`.** `os.environ` reads what the process was given; writing one
+  reaches a child started here, but `os.putenv` alone reaches nothing.
 - **`signal.alarm`, `SIGUSR1` and the rest.** Only three signals exist.
 - **`curses`, `tkinter`, `turtle`, `webbrowser`, `multiprocessing`,
   `sqlite3`, `dbm`.**
@@ -379,7 +402,7 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   CPython's.
 - **`zlib`, `gzip`, `bz2`, `lzma`, `tarfile`** — no compression of any
   kind, so `zipfile` reads and writes stored members only.
-- **`email`, `xml`, `symtable`, `selectors`**, and of `urllib` only `parse`.
+- **`email`, `xml`, `symtable`**, and of `urllib` only `parse`.
 - **`pdb`, `doctest`, `trace`, `cProfile`, `tracemalloc`** — and
   `sys.settrace` and `sys.setprofile`, which they need. So `breakpoint()`
   finds no `pdb` and says so with a `RuntimeWarning`, as CPython does when

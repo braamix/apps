@@ -19,9 +19,9 @@
 #
 # state  case  result  commit  upstream
 pass  test_abstract_numbers.py        7/7        82952e3  Lib/test/test_abstract_numbers.py
-pass  test_argparse.py                1928/1966  82952e3  Lib/test/test_argparse.py
+pass  test_argparse.py                1925/1966  82952e3  Lib/test/test_argparse.py
 pass  test_augassign.py               7/7        82952e3  Lib/test/test_augassign.py
-pass  test_base64.py                  65/67      82952e3  Lib/test/test_base64.py
+pass  test_base64.py                  64/67      82952e3  Lib/test/test_base64.py
 pass  test_binascii.py                237/237    82952e3  Lib/test/test_binascii.py
 pass  test_binop.py                   9/12       82952e3  Lib/test/test_binop.py
 pass  test_bisect.py                  23/46      82952e3  Lib/test/test_bisect.py
@@ -87,7 +87,7 @@ pass  test_print.py                   3/9        82952e3  Lib/test/test_print.py
 pass  test_property.py                12/31      82952e3  Lib/test/test_property.py
 pass  test_protocols.py               7/7        82952e3  Lib/test/test_asyncio/test_protocols.py
 pass  test_queues.py                  59/59      82952e3  Lib/test/test_asyncio/test_queues.py
-fail  test_quopri.py                  import     82952e3  Lib/test/test_quopri.py
+pass  test_quopri.py                  9/11       82952e3  Lib/test/test_quopri.py
 pass  test_raise.py                   28/37      82952e3  Lib/test/test_raise.py
 fail  test_random.py                  import     82952e3  Lib/test/test_random.py
 pass  test_re.py                      168/170    82952e3  Lib/test/test_re.py
@@ -103,10 +103,11 @@ pass  test_string_literals.py         13/20      82952e3  Lib/test/test_string_l
 pass  test_strptime.py                60/60      82952e3  Lib/test/test_strptime.py
 pass  test_strtod.py                  9/9        82952e3  Lib/test/test_strtod.py
 pass  test_subclassinit.py            14/17      82952e3  Lib/test/test_subclassinit.py
+fail  test_subprocess.py              import     82952e3  Lib/test/test_subprocess.py
 fail  test_super.py                   import     82952e3  Lib/test/test_super.py
 fail  test_syntax.py                  import     82952e3  Lib/test/test_syntax.py
 pass  test_sys_setprofile.py          0/29       82952e3  Lib/test/test_sys_setprofile.py
-fail  test_tempfile.py                import     82952e3  Lib/test/test_tempfile.py
+fail  test_tempfile.py                silent     82952e3  Lib/test/test_tempfile.py
 pass  test_textwrap.py                68/68      82952e3  Lib/test/test_textwrap.py
 fail  test_time.py                    import     82952e3  Lib/test/test_time.py
 pass  test_timeit.py                  44/44      82952e3  Lib/test/test_timeit.py

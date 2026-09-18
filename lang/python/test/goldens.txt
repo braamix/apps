@@ -124,6 +124,7 @@ stdlib/shells.py                    cpython3.16
 stdlib/signals.py                   cpython3.16
 stdlib/smallmods.py                 cpython3.16
 stdlib/strtypes.py                  cpython3.16
+stdlib/subprocs.py                  cpython3.16
 stdlib/textio.py                    cpython3.16
 stdlib/textmods.py                  cpython3.16
 stdlib/tokens.py                    cpython3.16

@@ -106,6 +106,8 @@ constexpr Native NATIVES[] = {
     { "atexit", atexit_install },
     { "posix", posix_install },
     { "_signal", signal_install },
+    { "_posixsubprocess", posixsubprocess_install },
+    { "select", select_install },
     { "_io", io_install },
     { "_csv", csv_install },
     { "binascii", binascii_install },

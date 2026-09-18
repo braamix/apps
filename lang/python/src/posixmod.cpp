@@ -555,6 +555,9 @@ enum Op : u32 {
     OP_SCANDIR,
     OP_EXISTS,
     OP_READINTO,
+    OP_SPAWN,
+    OP_SYSTEM,
+    OP_WAITPID,
 };
 
 struct OpState {
@@ -563,6 +566,7 @@ struct OpState {
     i64 off;
     u32 whence;
     u32 max;
+    i32 io[3];
 };
 
 // The numbers a call carries, in s[5] as a bytes blob, so a step can be
@@ -581,6 +585,31 @@ OpState state_of(ContObj *k)
 }
 
 Value scandir_new(Value dir, Value ents, bool bytes);
+
+// A child's status as waitpid reports it: an exit, never a signal, since a
+// child killed here reports a status of its own (130).
+i64 wait_status(i32 code)
+{
+    return i64(code & 0xff) << 8;
+}
+
+// A spawn or a wait that failed, as the OSError CPython raises there. s[0] is
+// the directory the child was to start in and s[2] the program's name.
+R child_error(ContObj *k, u32 op, u32 stage, const SysAns &a)
+{
+    if (op == OP_WAITPID || (op == OP_SYSTEM && stage == 1))
+        return a.err == Error::NotFound ? err_errno(10) : err_os(a.err);
+    if (op == OP_SYSTEM)
+        return cont_done(k, Value::of_int(127 << 8)); // no shell
+    if (a.kind == 1)
+        return err_os(a.err, k->s[0]);
+    i32 code = a.err == Error::NotFound      ? 2
+               : a.err == Error::Invalid     ? 13
+               : a.err == Error::Unsupported ? 8
+               : a.err == Error::NoMemory    ? 11
+                                             : errno_of(a.err);
+    return err_errno(code, k->s[2]);
+}
 
 R one_step(ContObj *k, Value)
 {
@@ -700,6 +729,22 @@ R one_step(ContObj *k, Value)
     case OP_KILL:
         q.op = SysOp::Kill;
         break;
+    case OP_SPAWN:
+        q.op = SysOp::Spawn;
+        for (u32 i = 0; i < 3; i++)
+            q.io[i] = s.io[i];
+        break;
+    case OP_SYSTEM:
+        // The shell, then the wait for it.
+        q.op = stage == 0 ? SysOp::Spawn : SysOp::Wait;
+        if (stage == 1) {
+            q.fd    = k->a[0].as_int();
+            q.flags = 0;
+        }
+        break;
+    case OP_WAITPID:
+        q.op = SysOp::Wait;
+        break;
     default:
         return err_set("SystemError", "posix: unknown call");
     }
@@ -785,6 +830,11 @@ R one_step(ContObj *k, Value)
         if (r == R::Err && op == OP_RENAME && vm_sys_answer().err == Error::Unsupported) {
             err_clear();
             return err_errno(18, f1, f2);
+        }
+        if (r == R::Err && (op == OP_SPAWN || op == OP_SYSTEM || op == OP_WAITPID) &&
+            !vm_sys_answer().ok && vm_sys_answer().err != Error::Intr) {
+            err_clear();
+            return child_error(k, op, stage, vm_sys_answer());
         }
         return r;
     }
@@ -906,6 +956,23 @@ R one_step(ContObj *k, Value)
             return oom();
         t->items()[0] = Value::of_int(i32(a.n));
         t->items()[1] = Value::of_int(i32(a.off));
+        return cont_done(k, obj_value(t));
+    }
+    case OP_SPAWN:
+        return cont_done(k, int_from_i64(a.n));
+    case OP_SYSTEM:
+        if (stage == 0) {
+            k->a[0] = Value::of_int(i32(a.n));
+            k->i    = 1;
+            return one_step(k, Value());
+        }
+        return cont_done(k, int_from_i64(wait_status(i32(a.off))));
+    case OP_WAITPID: {
+        TupleObj *t = tuple_new(2);
+        if (!t)
+            return oom();
+        t->items()[0] = Value::of_int(i32(a.n));
+        t->items()[1] = Value::of_int(a.n ? wait_status(i32(a.off)) : 0);
         return cont_done(k, obj_value(t));
     }
     default:
@@ -1679,6 +1746,24 @@ R p_set_blocking(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// ---------------------------------------------------------------- children
+
+// Linux's layout of a wait status, which is what waitpid hands back.
+bool w_exited(i64 s)
+{
+    return (s & 0x7f) == 0;
+}
+
+bool w_signaled(i64 s)
+{
+    return i8((s & 0x7f) + 1) >> 1 > 0;
+}
+
+bool w_stopped(i64 s)
+{
+    return (s & 0xff) == 0x7f;
+}
+
 R p_waitstatus_to_exitcode(const CallArgs &a, Value &out)
 {
     constexpr Str NAMES[] = { "status" };
@@ -1688,8 +1773,435 @@ R p_waitstatus_to_exitcode(const CallArgs &a, Value &out)
     i64 s = 0;
     if (!as_int_arg(v[0], s))
         return err_set2("TypeError", "an integer is required", type_name(v[0]));
-    out = int_from_i64(s);
+    if (w_exited(s))
+        out = int_from_i64((s >> 8) & 0xff);
+    else if (w_signaled(s))
+        out = int_from_i64(-(s & 0x7f));
+    else {
+        char tmp[24];
+        Buf<64> b;
+        b.put("invalid wait status: ").put(int_text(tmp, sizeof tmp, s));
+        return err_set("ValueError", b.str());
+    }
     return R::Ok;
+}
+
+// The W* macros, each over one status.
+bool status_arg(const CallArgs &a, Str who, i64 &s)
+{
+    constexpr Str NAMES[] = { "status" };
+    Value v[1];
+    if (!fn_take(a, who, NAMES, 1, v))
+        return false;
+    if (!as_int_arg(v[0], s))
+        return err_set2("TypeError", "an integer is required", type_name(v[0])) == R::Ok;
+    return true;
+}
+
+#define W_MACRO(fn, who, expr)          \
+    R fn(const CallArgs &a, Value &out) \
+    {                                   \
+        i64 s = 0;                      \
+        if (!status_arg(a, who, s))     \
+            return R::Err;              \
+        out = expr;                     \
+        return R::Ok;                   \
+    }
+
+W_MACRO(p_wifexited, "WIFEXITED", value_bool(w_exited(s)))
+W_MACRO(p_wexitstatus, "WEXITSTATUS", int_from_i64((s >> 8) & 0xff))
+W_MACRO(p_wifsignaled, "WIFSIGNALED", value_bool(w_signaled(s)))
+W_MACRO(p_wtermsig, "WTERMSIG", int_from_i64(s & 0x7f))
+W_MACRO(p_wifstopped, "WIFSTOPPED", value_bool(w_stopped(s)))
+W_MACRO(p_wstopsig, "WSTOPSIG", int_from_i64((s >> 8) & 0xff))
+W_MACRO(p_wcoredump, "WCOREDUMP", value_bool(s & 0x80))
+W_MACRO(p_wifcontinued, "WIFCONTINUED", value_bool(s == 0xffff))
+
+constexpr i64 WNOHANG = 1;
+
+// The environment a child is handed when the program names none: os.environ
+// as it is now. putenv keeps nothing, so this is how a change reaches a child.
+bool environ_blob(String &out)
+{
+    Home *h = here();
+    if (!h || !is_dict(h->environ))
+        return true;
+    for (const Entry &e : static_cast<DictObj *>(h->environ.obj())->t.entries) {
+        if (!is_bytes(e.key) || !is_bytes(e.val))
+            continue;
+        if (!out.append(bytes_str(e.key)) || !out.push('=') || !out.append(bytes_str(e.val)) ||
+            !out.push('\0'))
+            return oom() == R::Ok;
+    }
+    return true;
+}
+
+// One word of an argv or env blob. A NUL ends a word, so none may be inside.
+bool put_word(String &blob, Str w)
+{
+    for (usize i = 0; i < w.size(); i++)
+        if (!w[i])
+            return err_set("ValueError", "embedded null byte") == R::Ok;
+    if (!blob.append(w) || !blob.push('\0'))
+        return oom() == R::Ok;
+    return true;
+}
+
+// A child, as the continuation that spawns it: `cwd` Nil to start here, and
+// `name` what an error names.
+R start_child(u32 op, Str argv, Str env, Value cwd, Value name, const i32 *io, Value &out)
+{
+    Root rc{ cwd }, rn{ name };
+    Root cb{ cwd.is_nil() ? Value() : path_bytes(cwd, "cwd") };
+    if (!rc.v.is_nil() && cb.v.is_nil())
+        return R::Err;
+    Root ab{ bytes_new(argv) };
+    Root eb{ bytes_new(env) };
+    OpState st{};
+    st.flags = SYS_SPAWN_WITH_ENV;
+    for (u32 i = 0; i < 3; i++)
+        st.io[i] = io ? io[i] : -1;
+    Root blob{ state_blob(st) };
+    if (ab.v.is_nil() || eb.v.is_nil() || blob.v.is_nil())
+        return R::Err;
+    Root kv{ cont_new(one_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->j       = op;
+    k->s[0]    = rc.v;
+    k->s[1]    = cb.v;
+    k->s[2]    = rn.v;
+    k->s[3]    = eb.v;
+    k->s[4]    = ab.v;
+    k->s[5]    = blob.v;
+    out        = kv.v;
+    return R::Ok;
+}
+
+R p_system(const CallArgs &a, Value &out)
+{
+    constexpr Str NAMES[] = { "command" };
+    TAKE_PATH("system", NAMES, 1, p_system);
+    String cmd, argv, env;
+    if (!fs_bytes(v[0], "system", cmd))
+        return R::Err;
+    if (!put_word(argv, "/bin/sh") || !put_word(argv, "-c") || !put_word(argv, cmd.str()) ||
+        !environ_blob(env))
+        return R::Err;
+    return start_child(OP_SYSTEM, argv.str(), env.str(), Value(), Value(), nullptr, out);
+}
+
+R p_waitpid(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "waitpid", 2, 2))
+        return R::Err;
+    i64 pid = 0, options = 0;
+    if (!as_int_arg(a.args[0], pid) || !as_int_arg(a.args[1], options))
+        return err_set("TypeError", "an integer is required");
+    // No process groups: 0 and -pgid are any child, as -1 is.
+    OpState st{};
+    st.fd    = pid > 0 ? i32(pid) : 0;
+    st.flags = options & WNOHANG ? SYS_WAIT_NOHANG : 0;
+    return start_fd(OP_WAITPID, st, out);
+}
+
+R p_wait(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "wait", 0, 0))
+        return R::Err;
+    return start_fd(OP_WAITPID, OpState{}, out);
+}
+
+R refuse(Str what)
+{
+    Buf<128> b;
+    b.put(what).put(" cannot be had without fork");
+    return err_set("NotImplementedError", b.str());
+}
+
+enum : i64 { SPAWN_OPEN, SPAWN_CLOSE, SPAWN_DUP2, SPAWN_CLOSEFROM };
+
+// A file action, as a change to the three slots a child is handed. A child
+// is handed nothing else, so closing or dup-ing anything above 2 is already
+// so; opening a file into a slot is not here.
+bool file_action(Value act, i32 *io)
+{
+    if (!is_tuple(act) || !static_cast<TupleObj *>(act.obj())->len)
+        return err_set("TypeError", "Each file_actions element must be a non-empty tuple") == R::Ok;
+    TupleObj *t = static_cast<TupleObj *>(act.obj());
+    i64 w[3]    = { 0, 0, 0 };
+    for (usize i = 0; i < t->len && i < 3; i++)
+        if (!as_int_arg(t->items()[i], w[i]) && w[0] != SPAWN_OPEN)
+            return err_set("TypeError", "an integer is required") == R::Ok;
+    switch (w[0]) {
+    case SPAWN_DUP2:
+        if (t->len != 3)
+            return err_set("TypeError", "A dup2 file_action must have 3 elements") == R::Ok;
+        if (w[2] < 0 || w[2] >= i64(SYS_FD_MIN))
+            return refuse("a dup2 onto a descriptor above 2") == R::Ok;
+        io[w[2]] = i32(w[1]);
+        return true;
+    case SPAWN_CLOSE:
+        if (w[1] >= 0 && w[1] < i64(SYS_FD_MIN))
+            return refuse("closing 0, 1 or 2") == R::Ok;
+        return true;
+    case SPAWN_CLOSEFROM:
+        return true;
+    case SPAWN_OPEN:
+        return refuse("an open file_action") == R::Ok;
+    default:
+        return err_set("TypeError", "Unknown file_actions identifier") == R::Ok;
+    }
+}
+
+// posix_spawn(path, argv, env, *, file_actions, ...): one spawn, with `path`
+// the program; posix_spawnp looks it up along PATH instead.
+R spawn_like(const CallArgs &a, Value &out, bool search, R (*self)(const CallArgs &, Value &))
+{
+    Str who               = search ? "posix_spawnp" : "posix_spawn";
+    constexpr Str NAMES[] = { "path",     "argv",   "env",        "file_actions", "setpgroup",
+                              "resetids", "setsid", "setsigmask", "setsigdef",    "scheduler" };
+    Value v[10];
+    if (!fn_take(a, who, NAMES, 3, v))
+        return R::Err;
+    {
+        R conv;
+        if (fs_convert(v, 10, 1, self, out, conv))
+            return conv;
+    }
+    if (!is_none(v[2]) && !is_dict(v[2])) {
+        // os.environ and every other mapping, as a dict.
+        Root d{ type_wrap(&dict_type) };
+        if (d.v.is_nil())
+            return R::Err;
+        return redo_with(a, 2, d.v, v[2], Value(), 1, self, out);
+    }
+    if ((!v[4].is_nil() && !is_none(v[4])) || (!v[5].is_nil() && py_truth(v[5])) ||
+        (!v[6].is_nil() && py_truth(v[6])) || (!v[9].is_nil() && !is_none(v[9])))
+        return refuse("a process group, session, id or scheduler");
+    // setsigdef is what every child starts with: nothing is inherited.
+    if (!v[7].is_nil()) {
+        ListObj *l = py_list_of(v[7]);
+        if (!l)
+            return R::Err;
+        if (!l->items.empty())
+            return refuse("a signal mask");
+    }
+    i32 io[3] = { -1, -1, -1 };
+    if (!v[3].is_nil() && !is_none(v[3])) {
+        Root acts{ obj_value(py_list_of(v[3])) };
+        if (acts.v.is_nil())
+            return R::Err;
+        for (Value act : list_of(acts.v)->items)
+            if (!file_action(act, io))
+                return R::Err;
+    }
+    Root seq{ obj_value(py_list_of(v[1])) };
+    if (seq.v.is_nil())
+        return R::Err;
+    if (list_of(seq.v)->items.empty()) {
+        Buf<64> b;
+        b.put(who).put(": argv must not be empty");
+        return err_set("ValueError", b.str());
+    }
+    String path, argv, env;
+    if (!fs_bytes(v[0], who, path))
+        return R::Err;
+    // A path without a slash is a file here, unless it is to be looked for.
+    bool bare = true;
+    for (usize i = 0; i < path.size(); i++)
+        bare = bare && path[i] != '/';
+    if (bare && !search && !argv.append("./"))
+        return oom();
+    if (!put_word(argv, path.str()))
+        return R::Err;
+    for (usize i = 1; i < list_of(seq.v)->items.size(); i++) {
+        String w;
+        if (!fs_bytes(list_of(seq.v)->items[i], who, w) || !put_word(argv, w.str()))
+            return R::Err;
+    }
+    if (is_none(v[2]) && !environ_blob(env))
+        return R::Err;
+    if (!is_none(v[2]))
+        for (const Entry &e : static_cast<DictObj *>(v[2].obj())->t.entries) {
+            if (e.key.is_nil())
+                continue;
+            String k, val;
+            if (!fs_bytes(e.key, who, k) || !fs_bytes(e.val, who, val))
+                return R::Err;
+            if (!env_name_ok(k.str()))
+                return err_set("ValueError", "illegal environment variable name");
+            if (!k.push('=') || !k.append(val.str()))
+                return oom();
+            if (!put_word(env, k.str()))
+                return R::Err;
+        }
+    return start_child(OP_SPAWN, argv.str(), env.str(), Value(), v[0], io, out);
+}
+
+R p_posix_spawn(const CallArgs &a, Value &out)
+{
+    return spawn_like(a, out, false, p_posix_spawn);
+}
+
+R p_posix_spawnp(const CallArgs &a, Value &out)
+{
+    return spawn_like(a, out, true, p_posix_spawnp);
+}
+
+// ---------------------------------------------------------- _posixsubprocess
+
+// fork_exec's args, when some of them write __fspath__ in Python: each is
+// called in turn, then fork_exec entered again with what they gave. s[0] the
+// positionals as a tuple, s[1] the args as a list, j the next to look at.
+R argv_step(ContObj *k, Value in)
+{
+    ListObj *l = list_of(k->s[1]);
+    if (k->i) {
+        if (!is_str(in) && !is_bytes(in)) {
+            Buf<160> b;
+            b.put("expected ").put(type_name(l->items[k->j]));
+            b.put(".__fspath__() to return str or bytes, not ").put(type_name(in));
+            return err_set("TypeError", b.str());
+        }
+        l->items[k->j++] = in;
+    }
+    k->i = 1;
+    while (k->j < l->items.size() && !fs_needs_call(l->items[k->j]))
+        k->j++;
+    if (k->j < l->items.size()) {
+        Root m{ type_special(l->items[k->j], "__fspath__") };
+        if (m.v.is_nil())
+            return R::Err;
+        return cont_call(k, m.v, Value(), 0);
+    }
+    TupleObj *t   = static_cast<TupleObj *>(k->s[0].obj());
+    t->items()[0] = k->s[1];
+    CallArgs a;
+    a.args  = t->items();
+    a.nargs = u32(t->len);
+    Value got;
+    R r = k->redo(a, got);
+    return r == R::Ok ? cont_done(k, got) : r;
+}
+
+constexpr u32 FORK_EXEC_ARGS = 22;
+
+bool fd_or_none(Value v, i32 &fd)
+{
+    fd = -1;
+    return is_none(v) || fd_of(v, fd);
+}
+
+// fork_exec(args, executable_list, close_fds, pass_fds, cwd, env_list,
+// p2cread, p2cwrite, c2pread, c2pwrite, errread, errwrite, errpipe_read,
+// errpipe_write, restore_signals, call_setsid, pgid_to_set, gid,
+// extra_groups, uid, child_umask, preexec_fn): one spawn. A child that cannot
+// be started is an error raised here, not a report down errpipe_write, which
+// the child is never handed.
+R ps_fork_exec(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "fork_exec", FORK_EXEC_ARGS, FORK_EXEC_ARGS))
+        return R::Err;
+    const Value *v = a.args;
+    {
+        R conv;
+        if (fs_convert(v, FORK_EXEC_ARGS, 1u << 4, ps_fork_exec, out, conv))
+            return conv;
+    }
+    Root seq{ obj_value(py_list_of(v[0])) };
+    if (seq.v.is_nil())
+        return R::Err;
+    ListObj *args = list_of(seq.v);
+    for (usize i = 0; i < args->items.size(); i++) {
+        if (!fs_needs_call(args->items[i]))
+            continue;
+        // Some are converted by a call: do those, then come back.
+        TupleObj *t = tuple_new(FORK_EXEC_ARGS);
+        if (!t)
+            return oom();
+        for (u32 n = 0; n < FORK_EXEC_ARGS; n++)
+            t->items()[n] = v[n];
+        Root rt{ obj_value(t) };
+        Root kv{ cont_new(argv_step) };
+        if (kv.v.is_nil())
+            return R::Err;
+        ContObj *k = cont_of(kv.v);
+        k->s[0]    = rt.v;
+        k->s[1]    = seq.v;
+        k->redo    = ps_fork_exec;
+        out        = kv.v;
+        return R::Ok;
+    }
+    if (args->items.empty())
+        return err_set("ValueError", "fork_exec: args must not be empty");
+    if (!is_none(v[21]))
+        return refuse("preexec_fn");
+    if (!is_none(v[17]) || !is_none(v[18]) || !is_none(v[19]))
+        return refuse("a user or group to run as");
+    i64 pgid = -1;
+    if (!as_int_arg(v[16], pgid) || pgid != -1)
+        return err_pending() ? R::Err : refuse("process_group");
+    i32 io[3], errpipe = -1;
+    if (!fd_or_none(v[6], io[0]) || !fd_or_none(v[9], io[1]) || !fd_or_none(v[11], io[2]) ||
+        !fd_or_none(v[13], errpipe))
+        return R::Err;
+    // Only 0, 1 and 2 reach a child, and the error pipe is not needed.
+    Root keep{ obj_value(py_list_of(v[3])) };
+    if (keep.v.is_nil())
+        return R::Err;
+    for (Value f : list_of(keep.v)->items) {
+        i32 fd = -1;
+        if (!fd_of(f, fd))
+            return R::Err;
+        if (fd != errpipe && fd >= i32(SYS_FD_MIN))
+            return refuse("pass_fds");
+    }
+
+    // The program: the one path given, or the name the kernel looks for along
+    // PATH, which is what executable_list was made of.
+    Root exes{ obj_value(py_list_of(v[1])) };
+    if (exes.v.is_nil())
+        return R::Err;
+    args = list_of(seq.v);
+    Root name{ args->items[0] };
+    if (list_of(exes.v)->items.empty())
+        return err_errno(2, name.v);
+    String exe, argv, env;
+    if (!fs_bytes(list_of(exes.v)->items[0], "fork_exec", exe))
+        return R::Err;
+    Str prog = exe.str();
+    if (list_of(exes.v)->items.size() > 1) {
+        usize cut = prog.size();
+        while (cut > 0 && prog[cut - 1] != '/')
+            cut--;
+        prog = prog.substr(cut);
+    }
+    if (!put_word(argv, prog))
+        return R::Err;
+    for (usize i = 1; i < list_of(seq.v)->items.size(); i++) {
+        String w;
+        if (!fs_bytes(list_of(seq.v)->items[i], "fork_exec", w) || !put_word(argv, w.str()))
+            return R::Err;
+    }
+    if (is_none(v[5])) {
+        if (!environ_blob(env))
+            return R::Err;
+    } else {
+        Root envs{ obj_value(py_list_of(v[5])) };
+        if (envs.v.is_nil())
+            return R::Err;
+        for (Value e : list_of(envs.v)->items) {
+            Str w;
+            if (!bytes_like(e, w))
+                return err_not("a bytes-like object is required", e, true);
+            if (!put_word(env, w))
+                return R::Err;
+        }
+    }
+    return start_child(OP_SPAWN, argv.str(), env.str(), is_none(v[4]) ? Value() : v[4], name.v, io,
+                       out);
 }
 
 // ----------------------------------------------------------------- DirEntry
@@ -2114,6 +2626,23 @@ constexpr ModDef DEFS[] = {
     { "get_blocking", p_get_blocking },
     { "set_blocking", p_set_blocking },
     { "waitstatus_to_exitcode", p_waitstatus_to_exitcode },
+    { "waitpid", p_waitpid },
+    { "wait", p_wait },
+    { "system", p_system },
+    { "posix_spawn", p_posix_spawn },
+    { "posix_spawnp", p_posix_spawnp },
+    { "WIFEXITED", p_wifexited },
+    { "WEXITSTATUS", p_wexitstatus },
+    { "WIFSIGNALED", p_wifsignaled },
+    { "WTERMSIG", p_wtermsig },
+    { "WIFSTOPPED", p_wifstopped },
+    { "WSTOPSIG", p_wstopsig },
+    { "WCOREDUMP", p_wcoredump },
+    { "WIFCONTINUED", p_wifcontinued },
+};
+
+constexpr ModDef SUBPROCESS_DEFS[] = {
+    { "fork_exec", ps_fork_exec },
 };
 
 struct IntDef {
@@ -2151,6 +2680,13 @@ constexpr IntDef INTS[] = {
     { "SEEK_SET", 0 },
     { "SEEK_CUR", 1 },
     { "SEEK_END", 2 },
+    { "WNOHANG", WNOHANG },
+    { "WUNTRACED", 2 },
+    { "WCONTINUED", 8 },
+    { "POSIX_SPAWN_OPEN", SPAWN_OPEN },
+    { "POSIX_SPAWN_CLOSE", SPAWN_CLOSE },
+    { "POSIX_SPAWN_DUP2", SPAWN_DUP2 },
+    { "POSIX_SPAWN_CLOSEFROM", SPAWN_CLOSEFROM },
 };
 
 bool environ_install(DictObj *into)
@@ -2227,4 +2763,9 @@ bool posix_install(DictObj *into)
             return v.is_nil() ? false : oom() == R::Ok;
     }
     return mod_put(d, "_have_functions", rh.v);
+}
+
+bool posixsubprocess_install(DictObj *into)
+{
+    return mod_defs(into, SUBPROCESS_DEFS);
 }

@@ -564,6 +564,196 @@ Task<void> sys_text(const SysReq &q, SysAns &a)
     }
 }
 
+// The words of a list each ended by a NUL, as views into it.
+bool split_words(Str blob, Vec<Str> &out)
+{
+    usize at = 0;
+    while (at < blob.size()) {
+        usize end = at;
+        while (end < blob.size() && blob[end])
+            end++;
+        if (!out.push(blob.substr(at, end - at)))
+            return false;
+        at = end + 1;
+    }
+    return true;
+}
+
+// Whether slot `i` may share `fd` rather than be handed one of its own.
+bool shares(u32 i, i32 fd)
+{
+    if (fd < 0)
+        return true;
+    if (fd >= i32(SYS_FD_MIN))
+        return false;
+    return i == 0 ? fd == 0 : fd == 1 || fd == 2;
+}
+
+// What a spawn keeps while it runs, too much for a frame. A spawn moves a
+// descriptor out of this table, and the program closes its own ends itself, so
+// each slot gets a copy. `made` are those copies, -1 where there is none.
+struct Spawning {
+    Vec<Str> argv, env;
+    String home;
+    i32 made[3] = { -1, -1, -1 };
+};
+
+// The children spawned and not yet waited for, so that a wait for any of
+// them that must not park can ask after each.
+Vec<u32> *children;
+
+void child_gone(u32 pid)
+{
+    for (usize i = 0; children && i < children->size(); i++)
+        if ((*children)[i] == pid) {
+            (*children)[i] = (*children)[children->size() - 1];
+            children->pop();
+            return;
+        }
+}
+
+// Spawn: the child, with the working directory moved there and back around it,
+// since a child starts where its parent is. A failed chdir answers kind 1.
+Task<void> sys_spawn(const SysReq &q, SysAns &a)
+{
+    Spawning *w = heap_new<Spawning>();
+    if (!w) {
+        fail(a, Error::NoMemory);
+        co_return;
+    }
+    u32 slot[3] = { SYS_STDIN, SYS_STDOUT, SYS_STDERR };
+    bool moved  = false;
+    bool away   = false;
+    if (!split_words(q.data, w->argv) || !split_words(q.path2, w->env)) {
+        fail(a, Error::NoMemory);
+        goto out;
+    }
+    if (w->argv.empty()) {
+        fail(a, Error::Invalid);
+        goto out;
+    }
+    for (u32 i = 0; i < 3; i++) {
+        if (shares(i, q.io[i])) {
+            if (q.io[i] >= 0)
+                slot[i] = u32(q.io[i]);
+            continue;
+        }
+        Result<u32> d = Err(Error::NoMemory);
+        if (Task<Result<u32>> t = dup_fd(u32(q.io[i])))
+            d = co_await t;
+        if (d.is_err()) {
+            fail(a, d.error());
+            goto out;
+        }
+        w->made[i] = i32(d.value());
+        slot[i]    = d.value();
+    }
+    if (!q.path.empty()) {
+        Result<String> h = Err(Error::NoMemory);
+        if (Task<Result<String>> t = cwd_get())
+            h = co_await t;
+        if (h.is_ok())
+            w->home = static_cast<String &&>(h.value());
+        Result<String> c = Err(Error::NoMemory);
+        if (h.is_ok())
+            if (Task<Result<String>> t = cwd_set(q.path))
+                c = co_await t;
+        if (c.is_err()) {
+            fail(a, c.error());
+            a.kind = 1;
+            goto out;
+        }
+        away = true;
+    }
+    {
+        Args env{ w->env };
+        Result<u32> r = Err(Error::NoMemory);
+        if (Task<Result<u32>> t = spawn(Args{ w->argv }, ChildIo{ slot[0], slot[1], slot[2] },
+                                        q.flags & SYS_SPAWN_WITH_ENV ? &env : nullptr))
+            r = co_await t;
+        if (r.is_ok()) {
+            a.ok  = true;
+            a.n   = r.value();
+            moved = true;
+            if (!children)
+                children = heap_new<Vec<u32>>();
+            if (children)
+                (void)children->push(r.value());
+        } else {
+            fail(a, r.error());
+        }
+    }
+out:
+    if (away)
+        if (Task<Result<String>> t = cwd_set(w->home.str()))
+            co_await t;
+    for (u32 i = 0; i < 3 && !moved; i++)
+        if (w->made[i] >= 0)
+            co_await sys_call(Sys::Close, u32(w->made[i]));
+    heap_delete(w);
+}
+
+// Whether `pid` is still running: its /proc entry goes when it ends.
+Task<bool> running(u32 pid)
+{
+    Buf<24> p;
+    p.put("/proc/").put(pid);
+    Result<FileInfo> st = Err(Error::NoMemory);
+    if (Task<Result<FileInfo>> t = stat_of(p.str()))
+        st = co_await t;
+    co_return st.is_ok();
+}
+
+// Wait. There is no asking whether a child has ended, so a wait that must not
+// park looks for one that has, and then waits for that one, which answers at
+// once.
+Task<void> sys_wait(const SysReq &q, SysAns &a)
+{
+    u32 pid = q.fd > 0 ? u32(q.fd) : SYS_WAIT_ANY;
+    if (q.flags & SYS_WAIT_NOHANG) {
+        bool found = false;
+        for (usize i = 0; children && i < children->size() && !found; i++) {
+            u32 c = (*children)[i];
+            if (pid != SYS_WAIT_ANY && c != pid)
+                continue;
+            Task<bool> t = running(c);
+            if (!t) {
+                fail(a, Error::NoMemory);
+                co_return;
+            }
+            if (co_await t) {
+                if (pid != SYS_WAIT_ANY)
+                    break;
+                continue;
+            }
+            pid   = c;
+            found = true;
+        }
+        // Nothing has ended: none, when there is something to wait for.
+        if (!found && children && !children->empty()) {
+            bool known = pid == SYS_WAIT_ANY;
+            for (usize i = 0; i < children->size() && !known; i++)
+                known = (*children)[i] == pid;
+            if (known) {
+                a.ok = true;
+                a.n  = 0;
+                co_return;
+            }
+        }
+    }
+    Result<Exited> r = Err(Error::NoMemory);
+    if (Task<Result<Exited>> t = wait_child(pid))
+        r = co_await t;
+    if (r.is_ok()) {
+        a.ok  = true;
+        a.n   = r.value().pid;
+        a.off = r.value().status;
+        child_gone(r.value().pid);
+    } else {
+        fail(a, r.error());
+    }
+}
+
 // The answer lives here rather than in a frame: a listing can be long.
 SysAns *answer;
 
@@ -599,6 +789,12 @@ Task<void> perform(const SysReq &q)
     case SysOp::Cwd:
     case SysOp::Chdir:
         t = sys_text(q, a);
+        break;
+    case SysOp::Spawn:
+        t = sys_spawn(q, a);
+        break;
+    case SysOp::Wait:
+        t = sys_wait(q, a);
         break;
     default:
         t = sys_file(q, a);
