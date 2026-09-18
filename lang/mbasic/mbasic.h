@@ -179,13 +179,13 @@ struct Array {
 // original re-derives it in so many places -- and a suspension has to hold one
 // across a return to the driver.
 struct VarRef {
-    enum Kind : u8 { None, Simple, Element, Scratch } kind = None;
-    u32 index                                              = 0; // into vars, or into arrays
-    u32 elem                                               = 0; // Element: the linear element index
-    u8 valtyp                                              = VNUM;
-    bool intflg                                            = false;
+    enum Kind : u8 { Unset, Simple, Element, Scratch } kind = Unset;
+    u32 index                                               = 0; // into vars, or into arrays
+    u32 elem    = 0; // Element: the linear element index
+    u8 valtyp   = VNUM;
+    bool intflg = false;
 
-    bool null() const { return kind == None; }
+    bool null() const { return kind == Unset; }
 
     static VarRef scratch() { return VarRef{ Scratch, 0, 0, VNUM, false }; }
 
