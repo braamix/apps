@@ -11,7 +11,7 @@ that needs something missing waits for it rather than being trimmed. Its test
 comes in through `tools/mkcpy.py`. Each task ends by moving its entry out of
 §10 of `Manual.md`.
 
-Two items in the list are not planned. They are at the end, with the reason.
+One item in the list is not planned. It is at the end, with the reason.
 
 ## Found along the way
 
@@ -192,11 +192,60 @@ Two items in the list are not planned. They are at the end, with the reason.
     are enough for `tracemalloc.py`. Low value here, so it is last. Test:
     `test_tracemalloc`.
 
+## Stage 8 — waiting on descriptors
+
+38. **`Sys::Poll` in braam-core.** This is kernel work, released as a new SDK
+    before task 39 can start. It adds a syscall number, so `PROC_ABI` rises
+    and every package here is rebuilt.
+    - Shape: `Poll = 86`. The payload is a timeout in milliseconds
+      (`0xffffffff` waits for ever) and then `u32 fd, u32 events` pairs; the
+      reply is a `u32 revents` for each pair. Events are `IN`, `OUT` and
+      `HUP`.
+    - Mechanism: `Source::Read` (`src/user/prog.h`) over N channels. One
+      `Waiter`, one token, armed with `park_receiver` for `IN` or
+      `park_sender` for `OUT` on every pipe named, and disarmed on all of
+      them on resume. A channel that fires after the task has already woken
+      finds nothing waiting, which `sched_wake` already treats as a late
+      event.
+    - Readiness: a read end is ready when `pend` is non-empty, the ring is
+      non-empty or the writer has closed. A write end is ready when the ring
+      is not full or the reader has hung up. Descriptors 0-2 answer through
+      their `Source` and `Stream` when they are pipes. A file is always
+      ready.
+    - Busy flags: hold `busy_r`/`busy_w` on each handle for the length of the
+      poll. A second waiter would displace the first on `park_receiver` and
+      panic on `park_sender`. A handle already busy is `Err(Busy)`, and a
+      `Read` during the poll gets `Err(Perm)`, as it already does.
+    - Timeout: fix the scheduler first. A waiter that is both timed and
+      listed is resumed twice today, because `sched_tick` does not remove it
+      from the wake table and `sched_wake` does not remove it from the timer
+      queue. Each path must remove the other registration.
+    - Signals: `Poll` joins `Read`, `KeyRead`, `Sleep`, `Wait` and `ClipRead`
+      as a call a signal abandons with `Err(Intr)`.
+    - Not in scope: sockets, fetch bodies and keys wait on host calls, not
+      channels, and are `Err(Unsupported)` until something needs them.
+    - Also: `poll_fds()` in `proc/io.h`, `poll()` in the kit, and the
+      syscall in `System_Calls.md` and `Concept.md` §3.5. Test: a case in
+      `test/system/` for two pipes written in turn by two children, a
+      timeout, `^C` during a poll, and `Err(Busy)`.
+
+39. **`select.poll`, `select.select` on pipes, `communicate()`.**
+    - `selectmod.cpp` gains a `poll` object (`register`, `modify`,
+      `unregister`, `poll`), and `select.select` is rewritten over the same
+      call. The wait is a request the driver performs, as `Wait` is.
+    - `selectors.py` is already byte for byte and picks `PollSelector` by
+      itself once `select.poll` exists. So does `subprocess._PopenSelector`.
+      `communicate()` over two or three pipes, `capture_output=True` and
+      `communicate(timeout=)` then work without touching `lib/`.
+    - Remove the "Waiting for a descriptor" entry from §10 of `Manual.md`,
+      and the `communicate()` limit from its `subprocess` section.
+    - The harness clock is frozen, so a timeout expires only when the test
+      passes a later `now` to `run()`.
+    - Tests: `test_select`, `test_selectors` and the `communicate` cases of
+      `test_subprocess`, without the socket ones.
+
 ## Not planned
 
 - **`.pyc` files.** Compiling from source is fast enough that a cache costs
   more than it saves, and `marshal`'s code format is this interpreter's. `-B`
   and `PYTHONDONTWRITEBYTECODE` are accepted and change nothing.
-- **A `selectors` that waits on anything.** Braam has no poll call. The
-  module imports, for `subprocess`, and that is all it can be. So
-  `communicate()` over two pipes stays an `OSError`.
