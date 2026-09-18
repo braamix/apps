@@ -34,13 +34,13 @@ for (const tail of ["-V", "--version"]) {
 
 // Got wrong: stderr and 2.
 {
-    const r = run("-q");
-    check("`py -q` stdout", r.out, "");
-    if (!r.err.startsWith("python: unknown option -q\n"))
-        die(`-q did not name the option: ${JSON.stringify(r.err.slice(0, 60))}`);
+    const r = run("-Z");
+    check("`py -Z` stdout", r.out, "");
+    if (!r.err.startsWith("python: unknown option -Z\n"))
+        die(`-Z did not name the option: ${JSON.stringify(r.err.slice(0, 60))}`);
     if (!r.err.includes("Usage:"))
         die("the usage block did not follow the complaint");
-    check("`py -q` status", String(r.status), "2");
+    check("`py -Z` status", String(r.status), "2");
 }
 
 // A valued letter with nothing after it.

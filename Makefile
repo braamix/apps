@@ -134,6 +134,7 @@ TESTS := \
     lang/mbasic/test/script.mjs \
     lang/mbasic/test/interrupt.mjs \
     lang/python/test/pysmoke.mjs \
+    lang/python/test/pyflags.mjs \
     lang/python/test/pygc.mjs \
     lang/python/test/pylex.mjs \
     lang/python/test/pyast.mjs \

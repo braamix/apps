@@ -32,13 +32,62 @@ code or the module name belongs to the program.
 Exit status is 0, the value `sys.exit()` was given, 1 for an uncaught
 exception, and 130 for `KeyboardInterrupt`.
 
-`sys.path` is the program's own directory (`.` for `-c`, `-m` and a pipe), then
-the library shipped with the package. **No `PYTHON*` environment variable is
-read** — not `PYTHONPATH`, not `PYTHONHOME`. Add to `sys.path` from the
-program instead.
+`sys.path` is the program's own directory (`.` for `-c`, `-m` and a pipe),
+then `PYTHONPATH`, then the library shipped with the package. `site` is
+imported before the program runs, as in CPython, and adds `exit`, `quit`,
+`help`, `copyright`, `credits` and `license` to the builtins. It finds no
+site-packages, since there are none.
 
 Three demos ship as `share/` in the package: `hello.py`, `fizzbuzz.py` and
 `guess.py`.
+
+### Options
+
+CPython's, and they mean what they mean there. Letters may be bundled:
+`-OOq` is `-O -O -q`.
+
+| Option | What it does |
+| --- | --- |
+| `-b`, `-bb` | a `BytesWarning` for `str(bytes)` and for comparing bytes with `str` or `int`; `-bb` makes it an error |
+| `-B`, `-s` | accepted: nothing writes bytecode, and there is no user site-packages |
+| `-E` | ignore every `PYTHON*` variable |
+| `-I` | isolated: `-E`, `-P` and `-s` together |
+| `-O`, `-OO` | drop `assert` and make `__debug__` false; `-OO` drops docstrings too |
+| `-P` | leave the program's directory off `sys.path` |
+| `-q` | no banner at the prompt |
+| `-S` | do not import `site` |
+| `-u` | stdout and stderr are written as each write happens |
+| `-v`, `-vv` | say, on stderr, what each import loads and from where |
+| `-W <arg>` | a warnings filter, appended to `sys.warnoptions` |
+| `-X <opt>` | `dev`, `utf8`, `importtime`, `int_max_str_digits=<n>`, `warn_default_encoding`; any other is kept in `sys._xoptions` |
+
+`sys.flags` says what was asked for.
+
+### Environment
+
+Read unless `-E` or `-I` is given. The shell's `NAME=value python …` prefix
+sets one for a single run.
+
+| Variable | Means |
+| --- | --- |
+| `PYTHONPATH` | directories, colon-separated, put on `sys.path` before the library |
+| `PYTHONSTARTUP` | a file run before the first prompt, when there is no program |
+| `PYTHONWARNINGS` | filters, comma-separated, before those `-W` gives |
+| `PYTHONOPTIMIZE` | `-O`, or a number of them |
+| `PYTHONVERBOSE` | `-v`, or a number of them |
+| `PYTHONUNBUFFERED` | `-u` |
+| `PYTHONSAFEPATH` | `-P` |
+| `PYTHONINSPECT` | `-i` |
+| `PYTHONDEVMODE` | `-X dev` |
+| `PYTHONPROFILEIMPORTTIME` | `-X importtime` |
+| `PYTHONINTMAXSTRDIGITS` | `-X int_max_str_digits` |
+| `PYTHONWARNDEFAULTENCODING` | `-X warn_default_encoding` |
+| `PYTHONBREAKPOINT` | what `breakpoint()` calls; `0` makes it do nothing |
+
+`PYTHONDONTWRITEBYTECODE`, `PYTHONNOUSERSITE` and `PYTHONUTF8` are accepted
+and change nothing: nothing writes bytecode, there is no user site-packages,
+and text is always UTF-8. `PYTHONHOME` is not read; the library is found where
+the package put it.
 
 ### Extra flags
 
@@ -65,7 +114,7 @@ Python 3.14.0 on Braam
 ```
 
 The banner and both prompts go to **stderr**, so a redirected stdout holds only
-what the commands printed. `sys.ps1` and `sys.ps2` are ordinary names and
+what the commands printed; `-q` leaves the banner out. `sys.ps1` and `sys.ps2` are ordinary names and
 changing one changes the prompt.
 
 The value of an expression is printed through `sys.displayhook`, which also
@@ -76,7 +125,8 @@ until a blank line closes it — the same rule `codeop` states, so an open
 bracket, an unterminated string, a trailing `\` and an unfinished block all
 mean "keep typing" rather than "wrong".
 
-`^D` on an empty line ends the session, as does `sys.exit()`. A traceback does
+`^D` on an empty line ends the session, as do `exit()`, `quit()` and
+`sys.exit()`. A traceback does
 not: the prompt comes back and `__main__` keeps what it had.
 
 ### Keys
@@ -154,7 +204,7 @@ over infinite two's complement, `decimal`, `fractions`, `statistics`.
 ## 4. Built-in functions
 
 ```
-abs aiter all anext any ascii bin bool bytearray bytes callable chr
+abs aiter all anext any ascii bin bool breakpoint bytearray bytes callable chr
 classmethod compile complex delattr dict dir divmod enumerate eval exec
 filter float format frozendict frozenset getattr globals hasattr hash hex
 id input int isinstance issubclass iter len list locals map max memoryview
@@ -164,7 +214,8 @@ vars zip
 ```
 
 `__import__` and `__build_class__` are there too, and `True`, `False`, `None`,
-`Ellipsis` and `NotImplemented` are the constants. `_` appears at the prompt,
+`Ellipsis`, `NotImplemented` and `__debug__` are the constants. `site` adds
+`exit`, `quit`, `help`, `copyright`, `credits` and `license`, unless `-S`. `_` appears at the prompt,
 once an expression has printed.
 
 `frozendict` (PEP 814) and `sentinel` (PEP 661) come from CPython's main
@@ -189,15 +240,15 @@ warning categories.
 _abc _ast _blake2 _codecs _collections _colorize _contextvars _csv
 _functools _imp _io _math_integer _md5 _operator _random _sha1 _sha2
 _sha3 _signal _sre _string _struct _thread _tokenize _types _typing
-_warnings _weakref array atexit binascii builtins cmath dis errno gc
-itertools marshal math posix sys time unicodedata
+_warnings _weakref array atexit binascii builtins cmath dis errno
+faulthandler gc itertools marshal math posix sys time unicodedata
 ```
 
 `sys.builtin_module_names` is that list.
 
 ### CPython's own, byte for byte
 
-220 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+235 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
@@ -205,12 +256,12 @@ it was taken from. The ones you reach for:
 | Text | `re`, `string`, `textwrap`, `difflib`, `unicodedata`, `codecs`, `encodings`, `html`, `quopri` |
 | Data | `collections`, `dataclasses`, `enum`, `heapq`, `bisect`, `copy`, `pprint`, `reprlib`, `types`, `weakref`, `queue`, `graphlib` |
 | Numbers | `decimal`, `fractions`, `statistics`, `numbers`, `random`, `struct` |
-| Files | `os`, `os.path`, `pathlib`, `io`, `shutil`, `tempfile`, `glob`, `fnmatch`, `stat`, `csv`, `json`, `base64`, `binascii`, `configparser`, `tomllib`, `mimetypes` |
+| Files | `os`, `os.path`, `pathlib`, `io`, `shutil`, `tempfile`, `glob`, `fnmatch`, `stat`, `csv`, `json`, `base64`, `binascii`, `configparser`, `tomllib`, `mimetypes`, `zipfile` (stored members only) |
 | Time | `datetime`, `calendar`, `time`, `locale`, `gettext`, `sched`, `timeit` |
 | Functions | `functools`, `itertools`, `operator`, `contextlib`, `abc` |
 | Async | `asyncio`, `concurrent.futures`, `contextvars`, `threading` |
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
-| Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt` |
+| Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
 | Addresses | `urllib.parse`, `ipaddress`, `uuid` |
 | Crypto | `hashlib`, `hmac`, `secrets` |
 
@@ -326,21 +377,17 @@ There is no `~~~^^^` anchor line under the failing expression, and no
 - **`pickle`.** `copyreg` is here and `copy` works; nothing serialises to
   bytes. `marshal` is here too, but its format is this interpreter's and not
   CPython's.
-- **`zlib`, `gzip`, `bz2`, `lzma`, `zipfile`, `tarfile`** — no compression of
-  any kind.
+- **`zlib`, `gzip`, `bz2`, `lzma`, `tarfile`** — no compression of any
+  kind, so `zipfile` reads and writes stored members only.
 - **`email`, `xml`, `symtable`, `selectors`**, and of `urllib` only `parse`.
-- **`pdb`, `doctest`, `trace`, `cProfile`, `tracemalloc`,
-  `faulthandler`** — and `sys.settrace` and `sys.setprofile`, which they
-  need.
-- **`site`**, so no `help`, `exit`, `quit`, `copyright`, `credits` or
-  `license`, and no `.pth` files. Leave a session with `^D` or `sys.exit()`.
-- **`breakpoint()` and `__debug__`.**
+- **`pdb`, `doctest`, `trace`, `cProfile`, `tracemalloc`** — and
+  `sys.settrace` and `sys.setprofile`, which they need. So `breakpoint()`
+  finds no `pdb` and says so with a `RuntimeWarning`, as CPython does when
+  `PYTHONBREAKPOINT` names something that is not there.
+- **`pydoc`**, so `help()` fails when it is called.
 - **`.pyc` files.** `sys.dont_write_bytecode` is true and nothing writes a
   cache; every run compiles from source, which is fast enough that the cache
   would cost more than it saves.
-- **CPython's own command-line flags** — `-O`, `-B`, `-u`, `-E`, `-s`, `-S`,
-  `-X`, `-W`, `-v`, `-q`, `-b`, `-I`, `-P` — and every `PYTHON*` environment
-  variable.
 
 ### Differences you can see
 
@@ -360,6 +407,13 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   object dies at a collection rather than at the last name — a `__del__` runs
   later than CPython's would.
 - **`id()` is an address in this process** and is reused after a collection.
+- **`faulthandler` cannot catch a fault.** A fault is a wasm trap, and a
+  trap ends the process before anything can run, so `enable()` only records
+  the request. `dump_traceback()` works; `dump_traceback_later()` raises,
+  having no second thread to wait in; `register()` is absent, as on Windows.
+- **`-v` names where a module came from**, not the loader object CPython
+  prints, and `-X importtime` counts in whole milliseconds, which is the
+  process clock's grain.
 - **An instance used as a dict key or set member hashes by identity**, even
   where its class writes `__hash__` and `__eq__`: two equal objects are two
   keys. `ipaddress.collapse_addresses` is one casualty.

@@ -10,6 +10,7 @@
 #include "builtin.h"
 #include "call.h"
 #include "codec.h"
+#include "compile.h"
 #include "exc.h"
 #include "gc.h"
 #include "import.h"
@@ -24,6 +25,7 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "parse.h"
 #include "posix.h"
 #include "type.h"
 #include "ustr.h"
@@ -85,11 +87,17 @@ struct Field {
     Str text; // a str field
     f64 f;
     bool is_float;
+    bool is_bool = false;
 };
 
 constexpr Field num(Str name, i64 n)
 {
     return Field{ name, n, Str(), 0, false };
+}
+
+constexpr Field flag(Str name, bool b)
+{
+    return Field{ name, b ? 1 : 0, Str(), 0, false, true };
 }
 
 constexpr Field text(Str name, Str s)
@@ -115,6 +123,7 @@ Value fields_new(const Type *t, const Field *fs, usize n, usize shown)
     Roots pin{ items, n };
     for (usize i = 0; i < n; i++) {
         items[i] = fs[i].is_float       ? float_new(fs[i].f)
+                   : fs[i].is_bool      ? value_bool(fs[i].n != 0)
                    : fs[i].text.empty() ? int_from_i64(fs[i].n)
                                         : str_new(fs[i].text);
         if (items[i].is_nil())
@@ -480,7 +489,152 @@ R b_is_finalizing(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
+// sys.breakpointhook's work, in Python because every step of it may be: the
+// import, the getattr and the call. CPython's sys_breakpointhook, line for
+// line, reading os.environ where C reads getenv.
+constexpr Str BREAKPOINTHOOK = R"PY(def breakpointhook(*args, **kws):
+    import sys
+    hookname = None
+    if not sys.flags.ignore_environment:
+        import os
+        hookname = os.environ.get('PYTHONBREAKPOINT')
+    if hookname is None or len(hookname) == 0:
+        hookname = 'pdb.set_trace'
+    elif hookname == '0':
+        return None
+    modulepath, dot, attrname = hookname.rpartition('.')
+    if not dot:
+        modulepath = 'builtins'
+    try:
+        __import__(modulepath)
+        hook = getattr(sys.modules[modulepath], attrname)
+    except (ImportError, AttributeError):
+        import warnings
+        warnings.warn('Ignoring unimportable $PYTHONBREAKPOINT: "{}"'.format(hookname),
+                      RuntimeWarning, stacklevel=3)
+        return None
+    return hook(*args, **kws)
+)PY";
+
+// A call's arguments as the tuples cont_call_kw takes. False when out of memory.
+bool args_tuples(const CallArgs &a, u32 skip, Root &args, Root &names, Root &vals)
+{
+    TupleObj *t = tuple_new(a.nargs - skip);
+    if (!t)
+        return oom() == R::Ok;
+    for (u32 i = skip; i < a.nargs; i++)
+        t->items()[i - skip] = a.args[i];
+    args = obj_value(t);
+    if (!a.nkw)
+        return true;
+    TupleObj *n = tuple_new(a.nkw);
+    if (!n)
+        return oom() == R::Ok;
+    names       = obj_value(n);
+    TupleObj *v = tuple_new(a.nkw);
+    if (!v)
+        return oom() == R::Ok;
+    vals = obj_value(v);
+    for (u32 i = 0; i < a.nkw; i++) {
+        static_cast<TupleObj *>(names.v.obj())->items()[i] = a.kwnames[i];
+        static_cast<TupleObj *>(vals.v.obj())->items()[i]  = a.kwvals[i];
+    }
+    return true;
+}
+
+// s[0] the namespace the hook is defined in, s[1..3] the call's arguments,
+// s[4] the body that defines it.
+R hook_step(ContObj *k, Value in)
+{
+    switch (k->i++) {
+    case 0:
+        k->locals = k->s[0];
+        return cont_call(k, k->s[4], Value(), 0);
+    case 1: {
+        Value fn;
+        StrObj *n = str_intern("breakpointhook");
+        if (!n || dict_get(static_cast<DictObj *>(k->s[0].obj()), obj_value(n), fn) != R::Ok)
+            return err_pending() ? R::Err : oom();
+        k->locals = Value();
+        return cont_call_kw(k, fn, k->s[1], k->s[2], k->s[3]);
+    }
+    default:
+        return cont_done(k, in);
+    }
+}
+
+R b_breakpointhook(const CallArgs &a, Value &out)
+{
+    Root args, names, vals;
+    if (!args_tuples(a, 0, args, names, vals))
+        return R::Err;
+    Ast ast;
+    if (!ast.parse(BREAKPOINTHOOK, true))
+        return R::Err;
+    Root code{ py_compile(ast, "<frozen sys>") };
+    if (code.v.is_nil())
+        return R::Err;
+    Root g{ obj_value(dict_new()) };
+    Root nm{ str_new("sys") };
+    if (g.v.is_nil() || nm.v.is_nil() ||
+        !mod_put(static_cast<DictObj *>(g.v.obj()), "__name__", nm.v) ||
+        !put_builtins(static_cast<DictObj *>(g.v.obj())))
+        return R::Err;
+    Root body{ func_new(code.v, g.v) };
+    Root kv{ body.v.is_nil() ? Value() : cont_new(hook_step) };
+    if (kv.v.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = g.v;
+    k->s[1]    = args.v;
+    k->s[2]    = names.v;
+    k->s[3]    = vals.v;
+    k->s[4]    = body.v;
+    out        = kv.v;
+    return R::Ok;
+}
+
+// s[0] the hook, s[1..3] the call's arguments.
+R breakpoint_step(ContObj *k, Value in)
+{
+    if (k->i++ == 0)
+        return cont_call_kw(k, k->s[0], k->s[1], k->s[2], k->s[3]);
+    return cont_done(k, in);
+}
+
+R b_get_int_max_str_digits(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "get_int_max_str_digits", 0, 0))
+        return R::Err;
+    out = int_from_i64(int_max_str_digits());
+    return out.is_nil() ? R::Err : R::Ok;
+}
+
+R b_set_int_max_str_digits(const CallArgs &a, Value &out)
+{
+    static const Str NAMES[] = { "maxdigits" };
+    Value v[1];
+    if (!fn_take(a, "set_int_max_str_digits", NAMES, 1, v))
+        return R::Err;
+    i64 n = 0;
+    if (!int_to_i64(v[0], n)) {
+        if (is_intval(v[0]))
+            return err_set("OverflowError", "Python int too large to convert to C int");
+        Buf<96> b;
+        b.put("'").put(type_name(v[0])).put("' object cannot be interpreted as an integer");
+        return err_set("TypeError", b.str());
+    }
+    if (n != 0 && (n < 640 || n > 0x7fffffff))
+        return err_set("ValueError", "maxdigits must be >= 640 or 0 for unlimited");
+    int_set_max_str_digits(u32(n));
+    out = value_none();
+    return R::Ok;
+}
+
 constexpr ModDef SYS_DEFS[] = {
+    { "breakpointhook", b_breakpointhook },
+    { "get_int_max_str_digits", b_get_int_max_str_digits },
+    { "set_int_max_str_digits", b_set_int_max_str_digits },
     { "exit", b_exit },
     { "exc_info", b_exc_info },
     { "excepthook", b_excepthook },
@@ -536,8 +690,7 @@ constexpr Field VERSION_INFO[] = {
     num("serial", 0),
 };
 
-// None of these can be set from the command line yet; they are here because
-// the library and CPython's tests read them.
+// The defaults; sys_install puts py_config()'s answers over them.
 constexpr Field FLAGS[] = {
     num("debug", 0),
     num("inspect", 0),
@@ -552,11 +705,11 @@ constexpr Field FLAGS[] = {
     num("quiet", 0),
     num("hash_randomization", 0),
     num("isolated", 0),
-    num("dev_mode", 0),
+    flag("dev_mode", false),
     num("utf8_mode", 1),
     num("warn_default_encoding", 0),
-    num("safe_path", 0),
-    num("int_max_str_digits", -1),
+    flag("safe_path", false),
+    num("int_max_str_digits", 4300),
     // Reached by name only, as CPython's are.
     num("gil", 1),
     num("thread_inherit_context", 0),
@@ -565,6 +718,58 @@ constexpr Field FLAGS[] = {
 };
 
 constexpr usize FLAGS_SHOWN = 18;
+
+// FLAGS with what the command line settled put over the defaults.
+void flags_now(Field (&out)[sizeof FLAGS / sizeof FLAGS[0]])
+{
+    const PyConfig &c = py_config();
+    struct Set {
+        Str name;
+        i64 n;
+    };
+    const Set sets[] = {
+        { "inspect", c.inspect },
+        { "interactive", c.interactive },
+        { "optimize", c.optimize },
+        { "no_site", c.no_site },
+        { "ignore_environment", c.ignore_env },
+        { "verbose", c.verbose },
+        { "bytes_warning", c.bytes_warning },
+        { "quiet", c.quiet },
+        { "isolated", c.isolated },
+        { "dev_mode", c.dev_mode },
+        { "warn_default_encoding", c.warn_default_encoding },
+        { "safe_path", c.safe_path },
+        { "int_max_str_digits", c.int_max_str_digits < 0 ? 4300 : c.int_max_str_digits },
+    };
+    for (usize i = 0; i < sizeof FLAGS / sizeof FLAGS[0]; i++) {
+        out[i] = FLAGS[i];
+        for (const Set &s : sets)
+            if (s.name == FLAGS[i].name)
+                out[i].n = s.n;
+    }
+}
+
+// sys._xoptions: "name=value" is a str, a bare "name" is True.
+Value xoptions_new()
+{
+    DictObj *d = dict_new();
+    if (!d)
+        return oom(), Value();
+    Root rd{ obj_value(d) };
+    for (Str x : py_config().xoptions) {
+        usize eq = x.find('=');
+        Str name = eq == Str::npos ? x : x.substr(0, eq);
+        Root k{ str_new(name) };
+        Root v{ eq == Str::npos ? value_bool(true) : str_new(x.substr(eq + 1)) };
+        if (k.v.is_nil() || v.v.is_nil() ||
+            dict_set(static_cast<DictObj *>(rd.v.obj()), k.v, v.v) != R::Ok)
+            return Value();
+    }
+    return rd.v;
+}
+
+PyConfig *config;
 
 bool put_info(DictObj *into, Str name, const Type *t, const Field *fs, usize n, usize shown)
 {
@@ -580,6 +785,34 @@ inline bool put_info(DictObj *into, Str name, const Type *t, const Field (&fs)[N
 }
 
 } // namespace
+
+// breakpoint(*args, **kws): sys.breakpointhook(*args, **kws).
+R sys_breakpoint(const CallArgs &a, Value &out)
+{
+    Root hook{ sys_stream("breakpointhook") };
+    if (hook.v.is_nil())
+        return err_set("RuntimeError", "lost sys.breakpointhook");
+    Root args, names, vals;
+    if (!args_tuples(a, 0, args, names, vals))
+        return R::Err;
+    Value kv = cont_new(breakpoint_step);
+    if (kv.is_nil())
+        return R::Err;
+    ContObj *k = cont_of(kv);
+    k->s[0]    = hook.v;
+    k->s[1]    = args.v;
+    k->s[2]    = names.v;
+    k->s[3]    = vals.v;
+    out        = kv;
+    return R::Ok;
+}
+
+PyConfig &py_config()
+{
+    if (!config)
+        config = heap_new<PyConfig>();
+    return *config;
+}
 
 void sys_set_argv(Value argv)
 {
@@ -807,11 +1040,13 @@ bool sys_install(DictObj *into)
         if (!mod_put(d, s.name, here()->*s.at) || !mod_put(d, s.orig, here()->*s.at))
             return false;
 
+    Field flags[sizeof FLAGS / sizeof FLAGS[0]];
+    flags_now(flags);
     if (!put_info(d, "version_info", &version_info_type, VERSION_INFO) ||
         !put_info(d, "float_info", &float_info_type, FLOAT_INFO) ||
         !put_info(d, "int_info", &int_info_type, INT_INFO) ||
         !put_info(d, "hash_info", &hash_info_type, HASH_INFO) ||
-        !put_info(d, "flags", &flags_type, FLAGS, sizeof FLAGS / sizeof FLAGS[0], FLAGS_SHOWN))
+        !put_info(d, "flags", &flags_type, flags, sizeof flags / sizeof flags[0], FLAGS_SHOWN))
         return false;
     // A SimpleNamespace, as CPython's is. No cache tag: nothing is compiled
     // to a file, so importlib neither reads nor writes a .pyc.
@@ -841,15 +1076,33 @@ bool sys_install(DictObj *into)
     if (!mod_int(d, "maxsize", 2147483647) || !mod_int(d, "maxunicode", 1114111) ||
         !mod_int(d, "hexversion", 0x030E00F0))
         return false;
-    if (!mod_put(d, "dont_write_bytecode", value_bool(true)))
+    if (!mod_put(d, "dont_write_bytecode", value_bool(true)) ||
+        !mod_str(d, "copyright",
+                 "Copyright (c) 2001 Python Software Foundation.\nAll Rights Reserved.\n\n"
+                 "Copyright (c) 2000 BeOpen.com.\nAll Rights Reserved.\n\n"
+                 "Copyright (c) 1995-2001 Corporation for National Research Initiatives.\n"
+                 "All Rights Reserved.\n\n"
+                 "Copyright (c) 1991-1995 Stichting Mathematisch Centrum, Amsterdam.\n"
+                 "All Rights Reserved."))
         return false;
 
-    ListObj *warn = list_new();
-    if (!warn || !mod_put(d, "warnoptions", obj_value(warn)))
+    Root warn{ obj_value(list_new()) };
+    if (warn.v.is_nil())
+        return oom() == R::Ok;
+    for (Str w : py_config().warnoptions) {
+        Value v = str_new(w);
+        if (v.is_nil() || !list_push(list_of(warn.v), v))
+            return false;
+    }
+    Root xo{ xoptions_new() };
+    if (xo.v.is_nil() || !mod_put(d, "warnoptions", warn.v) || !mod_put(d, "_xoptions", xo.v))
         return false;
     Value hook;
     if (dict_get(d, obj_value(str_intern("excepthook")), hook) != R::Ok ||
         !mod_put(d, "__excepthook__", hook))
+        return false;
+    if (dict_get(d, obj_value(str_intern("breakpointhook")), hook) != R::Ok ||
+        !mod_put(d, "__breakpointhook__", hook))
         return false;
     Root std{ stdlib_names() };
     if (std.v.is_nil() || !mod_put(d, "stdlib_module_names", std.v))

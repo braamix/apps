@@ -5,6 +5,7 @@
 //
 // The command line, the three ways a program arrives, and the loop that
 // performs what vm_burst asks for. README.md says how the pieces fit.
+#include "bigint.h"
 #include "compile.h"
 #include "edit.h"
 #include "err.h"
@@ -43,6 +44,20 @@ constexpr Str USAGE =
     "    python - [arg]...        read the program from stdin\n"
     "    python -i ...            keep the prompt when the program ends\n"
     "    python -V                print the version\n"
+    "\n"
+    "    -b, -bb    warn, or fail, on str(bytes) and on bytes == str\n"
+    "    -B, -s     accepted: nothing writes bytecode, and there is no user site\n"
+    "    -E         ignore the PYTHON* variables\n"
+    "    -I         isolated: -E, -P and -s together\n"
+    "    -O, -OO    drop asserts and __debug__; -OO drops docstrings too\n"
+    "    -P         leave the program's directory off sys.path\n"
+    "    -q         no banner at the prompt\n"
+    "    -S         do not import site\n"
+    "    -u         write stdout and stderr at once\n"
+    "    -v         say what each import loads, -vv for more\n"
+    "    -W <arg>   a warnings filter, as sys.warnoptions\n"
+    "    -X <opt>   dev, utf8, importtime, int_max_str_digits=<n>,\n"
+    "               warn_default_encoding; any other is kept in sys._xoptions\n"
     "    python --dump-tokens <f> print the token stream of <f>\n"
     "    python --dump-ast <f>    print the parse tree of <f>\n"
     "    python --dis <f>         print the bytecode of <f>\n"
@@ -50,7 +65,7 @@ constexpr Str USAGE =
     "Python 3, written for Braam: its own compiler, its own bytecode and its\n"
     "own virtual machine -- see Manual.md for the language and its limits.\n";
 
-constexpr Opts SPEC = { "Vi", "cm" };
+constexpr Opts SPEC = { "VibBEIOPqsSuv", "cmWX" };
 
 // What the command line settles.
 struct Job {
@@ -59,6 +74,7 @@ struct Job {
     Str file;    // a path, or "-" for stdin
     bool version = false;
     bool stay    = false; // -i: the prompt, over what the program left behind
+    Vec<Str> warn;        // -W, which go after PYTHONWARNINGS
 };
 
 // A dotted name, which is all -m can take: nothing here has to be escaped to
@@ -75,6 +91,12 @@ bool module_name_ok(Str s)
             return false;
     }
     return true;
+}
+
+// A PYTHON* variable, or empty under -E and -I.
+Str env(Str name)
+{
+    return py_config().ignore_env ? Str() : proc_env(name);
 }
 
 // How this binary was named on the command line, for sys.executable when the
@@ -601,7 +623,7 @@ void take_signals()
 // What the interpreter needs and cannot ask for itself, because each answer is
 // an asynchronous syscall and nothing under vm_burst awaits. Called once, just
 // after vm_start.
-Task<void> settle(Str script)
+Task<void> settle()
 {
     // Whether the three descriptors are the terminal, and what day it is.
     // time.time() counts on from this reading with Sys::Now, which is
@@ -619,15 +641,15 @@ Task<void> settle(Str script)
         clock = co_await q;
     if (clock.is_ok())
         time_set_clock(clock.value().epoch_ms, clock.value().tz_min, proc_now());
-    // sys.path: the directory the program came from, then the shipped library.
-    // A `-c` or a pipe has no directory of its own, and gets the cwd.
+    // sys.path: PYTHONPATH, then the shipped library. The directory the
+    // program came from goes in front once site has run.
     Result<String> cwd = Err(Error::NoMemory);
     if (Task<Result<String>> q = cwd_get())
         cwd = co_await q;
     sys_set_cwd(cwd.is_ok() ? cwd.value().str() : Str("/"));
     String lib;
     co_await find_library(lib);
-    sys_set_path(script.empty() ? Str(".") : path_dirname(script), lib.str());
+    sys_set_path(env("PYTHONPATH"), lib.str());
     String self;
     co_await find_self(self);
     sys_set_executable(self.str());
@@ -700,7 +722,32 @@ Task<i32> drive()
     }
 }
 
-// A whole program: compile it, start the VM and run it to the end.
+// Compile `source` and run it over the __main__ that is already there. The
+// answer is the status, and a SyntaxError is reported here.
+Task<i32> run_more(Str source, Str name)
+{
+    bool started = false;
+    {
+        Ast ast;
+        Root code;
+        if (ast.parse(source))
+            code = py_compile(ast, name);
+        started = !code.v.is_nil() && vm_again(code.v);
+    }
+    if (started)
+        co_return co_await drive();
+    String out;
+    if (pending_text(name, source, out))
+        co_await write_all(SYS_STDERR, out.str());
+    else
+        co_await write_all(SYS_STDERR, where().str());
+    err_clear();
+    co_return 1;
+}
+
+// A whole program: start the VM, import site, then compile the program and
+// run it to the end. site comes first, as in CPython, and sees a sys.path
+// without the program's own directory in it.
 Task<i32> interpret(Str source, Str name, Args argv, Str script, bool stay)
 {
     // Collecting at every allocation turns a missing Root into a wrong answer
@@ -708,26 +755,43 @@ Task<i32> interpret(Str source, Str name, Args argv, Str script, bool stay)
     if (!proc_env("PY_GC_STRESS").empty())
         gc_stress(true);
 
+    // A library without site.py, as a test may plant, is taken as -S.
+    Str boot = py_config().no_site ? Str()
+                                   : Str("try:\n"
+                                         "    __import__('site')\n"
+                                         "except ModuleNotFoundError as _e:\n"
+                                         "    if _e.name != 'site':\n"
+                                         "        raise\n");
     {
         Ast ast;
         Root code;
-        if (ast.parse(source))
-            code = py_compile(ast, name);
-        if (code.v.is_nil() || !vm_start(code.v, argv, script.empty() ? Str() : name)) {
-            String out;
-            if (pending_text(name, source, out))
-                co_await write_all(SYS_STDERR, out.str());
-            else
-                co_await write_all(SYS_STDERR, where().str());
-            co_return 1;
-        }
+        if (ast.parse(boot))
+            code = py_compile(ast, "<startup>");
+        if (code.v.is_nil() || !vm_start(code.v, argv, script.empty() ? Str() : name))
+            co_return co_await complain("cannot start", err_message());
     }
+    // The start is a command of its own, so the program's end is not reached
+    // at its end.
+    vm_set_prompt(true);
+    co_await settle();
+    i32 started = co_await drive();
+    if (vm_quitting())
+        co_return co_await drive();
+    // A start that raised -- a ^C that came during it, say -- is the end of
+    // the program, which does not run.
+    if (started != 0) {
+        vm_finish();
+        (void)co_await drive();
+        co_return started;
+    }
+    // -P, or -I, leaves the program's directory off sys.path. A `-c` or a
+    // pipe has no directory of its own, and gets the cwd.
+    if (!py_config().safe_path)
+        sys_path_first(script.empty() ? Str(".") : path_dirname(script));
     // -i: the program's end is not the session's, so atexit waits for the
     // prompt to be done with.
-    if (stay)
-        vm_set_prompt(true);
-    co_await settle(script);
-    co_return co_await drive();
+    vm_set_prompt(stay);
+    co_return co_await run_more(source, name);
 }
 
 // ------------------------------------------------------------- the prompt
@@ -886,6 +950,25 @@ Task<Cmd> read_command(String &text)
     }
 }
 
+// PYTHONSTARTUP, run over __main__ before the first prompt. A file that is
+// not there is said so and the session goes on, as CPython's does.
+Task<void> startup()
+{
+    Str path = env("PYTHONSTARTUP");
+    if (path.empty())
+        co_return;
+    Result<String> text = Err(Error::NoMemory);
+    if (Task<Result<String>> t = read_file(path))
+        text = co_await t;
+    if (text.is_err()) {
+        Buf<192> b;
+        b.put("Could not open PYTHONSTARTUP\n");
+        co_await write_all(SYS_STDERR, b.str());
+        co_return;
+    }
+    (void)co_await run_more(text.value().str(), path);
+}
+
 // The read-eval-print loop. `greeting` is false for -i, which has already
 // printed whatever the program printed.
 Task<i32> repl(bool greeting)
@@ -893,7 +976,7 @@ Task<i32> repl(bool greeting)
     co_await prompt_init();
     if (!sys_set_prompts())
         co_return 1;
-    if (greeting) {
+    if (greeting && !py_config().quiet) {
         Buf<64> b;
         b.put(VERSION).put('\n');
         co_await write_all(SYS_STDERR, b.str());
@@ -922,6 +1005,113 @@ Task<i32> repl(bool greeting)
     vm_finish();
     i32 last = co_await drive();
     co_return vm_quitting() ? last : status;
+}
+
+// PYTHON* as a count: a number is itself, anything else not empty is one.
+u32 env_level(Str name)
+{
+    Str v = env(name);
+    if (v.empty())
+        return 0;
+    u32 n = 0;
+    for (usize i = 0; i < v.size(); i++) {
+        if (v[i] < '0' || v[i] > '9')
+            return 1;
+        n = n * 10 + u32(v[i] - '0');
+    }
+    return n ? n : 1;
+}
+
+// A comma-separated list of warning filters, PYTHONWARNINGS's form.
+bool add_warnings(Str list)
+{
+    while (!list.empty()) {
+        usize comma = list.find(',');
+        Str w       = comma == Str::npos ? list : list.substr(0, comma);
+        list        = comma == Str::npos ? Str() : list.substr(comma + 1);
+        if (!w.empty() && !py_config().warnoptions.push(w))
+            return false;
+    }
+    return true;
+}
+
+// The -X option called `name`: its value, "" for a bare one, or false.
+bool xoption(Str name, Str &value)
+{
+    for (Str x : py_config().xoptions) {
+        usize eq = x.find('=');
+        if ((eq == Str::npos ? x : x.substr(0, eq)) == name) {
+            value = eq == Str::npos ? Str() : x.substr(eq + 1);
+            return true;
+        }
+    }
+    return false;
+}
+
+// A digit limit as -X or the environment spells it; -1 for a bad one.
+i64 digits_of(Str s)
+{
+    i64 n = 0;
+    if (s.empty() || s.size() > 10)
+        return -1;
+    for (usize i = 0; i < s.size(); i++) {
+        if (s[i] < '0' || s[i] > '9')
+            return -1;
+        n = n * 10 + (s[i] - '0');
+    }
+    return n != 0 && (n < 640 || n > 0x7fffffff) ? -1 : n;
+}
+
+// The environment over the command line's defaults, and what both settle
+// put where the interpreter reads it. Nonzero is a status to leave with.
+Task<i32> configure(Job &job)
+{
+    PyConfig &c = py_config();
+    Str v;
+    c.optimize =
+        c.optimize > env_level("PYTHONOPTIMIZE") ? c.optimize : env_level("PYTHONOPTIMIZE");
+    c.verbose = c.verbose > env_level("PYTHONVERBOSE") ? c.verbose : env_level("PYTHONVERBOSE");
+    if (!env("PYTHONUNBUFFERED").empty())
+        c.unbuffered = true;
+    if (!env("PYTHONSAFEPATH").empty())
+        c.safe_path = true;
+    if (!env("PYTHONINSPECT").empty())
+        job.stay = true;
+    if (!env("PYTHONDEVMODE").empty() || xoption("dev", v))
+        c.dev_mode = true;
+    if (!env("PYTHONPROFILEIMPORTTIME").empty() || xoption("importtime", v))
+        c.import_time = true;
+    if (!env("PYTHONWARNDEFAULTENCODING").empty() || xoption("warn_default_encoding", v))
+        c.warn_default_encoding = 1;
+    if (job.stay)
+        c.inspect = c.interactive = true;
+    if (c.optimize > 2)
+        c.optimize = 2;
+
+    // Dev mode's own filter, then PYTHONWARNINGS, then -W: the later wins.
+    if ((c.dev_mode && !c.warnoptions.push("default")) || !add_warnings(env("PYTHONWARNINGS")))
+        co_return co_await complain("out of memory", Str());
+    for (Str w : job.warn)
+        if (!c.warnoptions.push(w))
+            co_return co_await complain("out of memory", Str());
+
+    Str digits = env("PYTHONINTMAXSTRDIGITS");
+    Str who    = "PYTHONINTMAXSTRDIGITS";
+    if (xoption("int_max_str_digits", v)) {
+        digits = v;
+        who    = "-X int_max_str_digits";
+    }
+    if (!digits.empty() || who != "PYTHONINTMAXSTRDIGITS") {
+        i64 n = digits_of(digits);
+        if (n < 0)
+            co_return co_await complain(who, "invalid limit; must be >= 640 or 0 for unlimited");
+        c.int_max_str_digits = i32(n);
+        int_set_max_str_digits(u32(n));
+    }
+
+    compile_set_optimize(c.optimize);
+    vm_set_unbuffered(c.unbuffered);
+    co_return 0;
 }
 
 } // namespace
@@ -982,10 +1172,52 @@ Task<i32> proc_main(Args args)
         }
         if (!more.value())
             break;
-        if (o.name == 'V')
+        PyConfig &c = py_config();
+        switch (o.name) {
+        case 'V':
             job.version = true;
-        if (o.name == 'i')
+            break;
+        case 'i':
             job.stay = true;
+            break;
+        case 'b':
+            c.bytes_warning++;
+            break;
+        case 'E':
+            c.ignore_env = true;
+            break;
+        case 'I':
+            c.isolated = c.ignore_env = c.safe_path = true;
+            break;
+        case 'O':
+            c.optimize++;
+            break;
+        case 'P':
+            c.safe_path = true;
+            break;
+        case 'q':
+            c.quiet = true;
+            break;
+        case 'S':
+            c.no_site = true;
+            break;
+        case 'u':
+            c.unbuffered = true;
+            break;
+        case 'v':
+            c.verbose++;
+            break;
+        case 'W':
+            if (!job.warn.push(o.value))
+                co_return co_await complain("out of memory", Str());
+            break;
+        case 'X':
+            if (!c.xoptions.push(o.value))
+                co_return co_await complain("out of memory", Str());
+            break;
+        default:
+            break;
+        }
         // -m and -c end the options: what follows is the program's.
         if (o.name == 'm') {
             job.module = o.value;
@@ -1003,6 +1235,8 @@ Task<i32> proc_main(Args args)
 
     if (job.version)
         co_return co_await banner();
+    if (i32 bad = co_await configure(job))
+        co_return bad;
 
     // No program at all. A terminal means a prompt, over a __main__ that has
     // run nothing; a pipe or a file means the program is what stdin holds,
@@ -1015,6 +1249,8 @@ Task<i32> proc_main(Args args)
         if (job.stay || (tty.is_ok() && tty.value().console)) {
             i32 status = co_await interpret(Str(), "<stdin>", rest, Str(), true);
             if (status == 0)
+                co_await startup();
+            if (status == 0 && !vm_quitting())
                 status = co_await repl(!job.stay);
             co_await hidden_sweep();
             co_return status;

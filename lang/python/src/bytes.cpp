@@ -1,5 +1,6 @@
 // bytes and bytearray: octets, immutable and not. Indexing either yields an
 // int, as in Python 3. Every read-only slot is shared.
+#include "bigint.h"
 #include "format.h"
 #include "gc.h"
 #include "iter.h"
@@ -7,6 +8,7 @@
 #include "method.h"
 #include "module.h"
 #include "ops.h"
+#include "vm.h"
 
 namespace {
 
@@ -35,11 +37,32 @@ R bytes_hash(Value v, u32 &out)
     return R::Ok;
 }
 
+// -b: the program asked to be warned, -bb to be stopped.
+R bytes_warning(Str message)
+{
+    u32 level = py_config().bytes_warning;
+    if (level >= 2)
+        return err_set("BytesWarning", message);
+    if (level)
+        vm_warn_later("BytesWarning", message);
+    return R::Ok;
+}
+
 R any_eq(Value a, Value b, bool &out)
 {
     Str y;
-    if (!bytes_like(b, y))
+    if (!bytes_like(b, y)) {
+        if (py_config().bytes_warning) {
+            bool array = a.obj()->type != &bytes_type;
+            Str m      = is_str(b) ? array ? Str("Comparison between bytearray and string")
+                                           : Str("Comparison between bytes and string")
+                         : !array && is_intval(b) ? Str("Comparison between bytes and int")
+                                                  : Str();
+            if (!m.empty() && bytes_warning(m) != R::Ok)
+                return R::Err;
+        }
         return R::NotImpl;
+    }
     out = octets(a) == y;
     return R::Ok;
 }
@@ -252,11 +275,30 @@ R array_delitem(Value v, Value key)
 R bytes_repr(Value v, String &out);
 R array_repr(Value v, String &out);
 
+namespace {
+
+R bytes_str(Value v, String &out)
+{
+    if (py_config().bytes_warning && bytes_warning("str() on a bytes instance") != R::Ok)
+        return R::Err;
+    return bytes_repr(v, out);
+}
+
+R array_str(Value v, String &out)
+{
+    if (py_config().bytes_warning && bytes_warning("str() on a bytearray instance") != R::Ok)
+        return R::Err;
+    return array_repr(v, out);
+}
+
+} // namespace
+
 constexpr Type bytes_type{ .name     = "bytes",
                            .hash     = bytes_hash,
                            .eq       = any_eq,
                            .order    = any_order,
                            .repr     = bytes_repr,
+                           .str      = bytes_str,
                            .len      = bytes_len,
                            .getitem  = any_getitem,
                            .contains = any_contains,
@@ -270,6 +312,7 @@ constexpr Type bytearray_type{ .name     = "bytearray",
                                .eq       = any_eq,
                                .order    = any_order,
                                .repr     = array_repr,
+                               .str      = array_str,
                                .len      = array_len,
                                .getitem  = any_getitem,
                                .setitem  = array_setitem,

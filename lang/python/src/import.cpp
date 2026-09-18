@@ -11,9 +11,12 @@
 #include "intern.h"
 #include "kernel/alloc.h"
 #include "kernel/fmt.h"
+#include "module.h"
 #include "ops.h"
 #include "parse.h"
+#include "proc/rt.h"
 #include "type.h"
+#include "vm.h"
 
 namespace {
 
@@ -175,6 +178,108 @@ Value job_new()
     j->state                                = ST_START;
     j->optional                             = false;
     return obj_value(j);
+}
+
+// ------------------------------------------------------------ the tracing
+
+// -v and -X importtime, both to stderr. A body in progress is a frame here:
+// when it started, and how long the imports it made took between them.
+struct Timing {
+    u32 start;
+    u32 children;
+};
+
+constexpr u32 TIMING_MAX = 64;
+Timing timing[TIMING_MAX];
+u32 timing_depth;
+bool timing_header;
+
+void trace_line(Str text)
+{
+    String *e = vm_errout();
+    if (e)
+        (void)(e->append(text) && e->push('\n'));
+}
+
+// A module is done: its line, indented by how deep it was imported.
+void time_line(Str name, u32 self_ms, u32 cum_ms, u32 depth)
+{
+    if (!timing_header) {
+        timing_header = true;
+        trace_line("import time: self [us] | cumulative | imported package");
+    }
+    char t[24];
+    Buf<192> b;
+    b.put("import time: ");
+    Str self = int_text(t, sizeof t, i64(self_ms) * 1000);
+    for (usize i = self.size(); i < 9; i++)
+        b.put(' ');
+    b.put(self).put(" | ");
+    Str cum = int_text(t, sizeof t, i64(cum_ms) * 1000);
+    for (usize i = cum.size(); i < 10; i++)
+        b.put(' ');
+    b.put(cum).put(" | ");
+    for (u32 i = 0; i < depth; i++)
+        b.put("  ");
+    b.put(name);
+    trace_line(b.str());
+}
+
+void trace_native(Str name)
+{
+    const PyConfig &c = py_config();
+    if (c.verbose) {
+        Buf<160> b;
+        b.put("import '").put(name).put("' # built-in");
+        trace_line(b.str());
+    }
+    if (c.import_time)
+        time_line(name, 0, 0, timing_depth);
+}
+
+void trace_begin(Str path)
+{
+    const PyConfig &c = py_config();
+    if (c.verbose) {
+        Buf<560> b;
+        b.put("# code object from '").put(path).put("'");
+        trace_line(b.str());
+    }
+    if (c.import_time && timing_depth < TIMING_MAX)
+        timing[timing_depth] = Timing{ proc_now(), 0 };
+    if (c.import_time)
+        timing_depth++;
+}
+
+// `ok` false for a body that raised, which gets no line.
+void trace_end(Str name, Str path, bool ok)
+{
+    const PyConfig &c = py_config();
+    if (ok && c.verbose) {
+        Buf<560> b;
+        b.put("import '").put(name).put("' # from '").put(path).put("'");
+        trace_line(b.str());
+    }
+    if (!c.import_time || !timing_depth)
+        return;
+    u32 d = --timing_depth;
+    if (d >= TIMING_MAX)
+        return;
+    u32 cum  = proc_now() - timing[d].start;
+    u32 self = cum > timing[d].children ? cum - timing[d].children : 0;
+    if (d && d - 1 < TIMING_MAX)
+        timing[d - 1].children += cum;
+    if (ok)
+        time_line(name, self, cum, d);
+}
+
+// The file a module was run from, for its trace line.
+Str module_file(Value m)
+{
+    Value f;
+    if (!is_module(m) || get(module_dict(m), "__file__", f) != R::Ok || !is_str(f))
+        return Str();
+    return str_of(f)->str();
 }
 
 // ------------------------------------------------------------ the searching
@@ -417,6 +522,7 @@ R loaded(ContObj *k)
     if (j->state == ST_BODY) {
         busy(j->mod, 0);
         j = job_of(k->s[0]);
+        trace_end(str_of(j->target)->str(), module_file(j->mod), true);
         if (!installed() && str_of(j->target)->str() == "importlib")
             return install(k);
     }
@@ -479,6 +585,7 @@ R begin_load(ContObj *k, Value full, Value parent, bool optional)
         Root rm{ made };
         if (!module_register(str_of(rf.v)->str(), rm.v))
             return R::Err;
+        trace_native(str_of(rf.v)->str());
         job_of(k->s[0])->mod = rm.v;
         Value spec;
         if (installed() && get(module_dict(rm.v), "__spec__", spec) == R::Ok && is_none(spec))
@@ -597,6 +704,7 @@ R run_body(ContObj *k, Value source, Str path)
     // In the cache before the body runs: that is what makes a cycle stop.
     if (!module_register(str_of(name.v)->str(), m.v) || !busy(m.v, 1))
         return R::Err;
+    trace_begin(path);
 
     Root fn{ func_new(code.v, mdict(m.v)) };
     if (fn.v.is_nil())
@@ -702,6 +810,7 @@ void import_failed(ContObj *k)
     Job *j = job_of(k->s[0]);
     if ((j->state != ST_BODY && j->state != ST_SPEC) || j->mod.is_nil())
         return;
+    trace_end(str_of(j->target)->str(), Str(), false);
     busy(j->mod, 0);
     DictObj *d = sys_modules();
     if (d)
@@ -890,7 +999,7 @@ Value sys_import_state(ImportState which)
     return *at;
 }
 
-void sys_set_path(Str script_dir, Str library_dir)
+void sys_set_path(Str extra, Str library_dir)
 {
     if (!library_dir.empty() && here()) {
         Value lib = str_new(library_dir);
@@ -906,14 +1015,31 @@ void sys_set_path(Str script_dir, Str library_dir)
     Root p{ sys_path() };
     if (p.v.is_nil())
         return;
-    Str dirs[2] = { script_dir, library_dir };
-    for (Str d : dirs) {
+    while (!extra.empty()) {
+        usize colon = extra.find(':');
+        Str d       = colon == Str::npos ? extra : extra.substr(0, colon);
+        extra       = colon == Str::npos ? Str() : extra.substr(colon + 1);
         if (d.empty())
             continue;
         Value v = str_new(d);
         if (v.is_nil() || !list_push(list_of(p.v), v))
             return;
     }
+    if (library_dir.empty())
+        return;
+    Value v = str_new(library_dir);
+    if (!v.is_nil())
+        list_push(list_of(p.v), v);
+}
+
+void sys_path_first(Str dir)
+{
+    Root p{ sys_path() };
+    if (p.v.is_nil())
+        return;
+    Value v = str_new(dir);
+    if (!v.is_nil())
+        (void)list_of(p.v)->items.insert(0, v);
 }
 
 bool module_register(Str name, Value m)

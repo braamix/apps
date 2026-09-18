@@ -18,9 +18,12 @@ Value sys_path();
 enum ImportState { IMPORT_META_PATH, IMPORT_PATH_HOOKS, IMPORT_PATH_CACHE, IMPORT_STDLIB };
 Value sys_import_state(ImportState which);
 
-// What goes on sys.path before the program starts: the directory the program
-// came from, then the one the shipped library lives in. Either may be empty.
-void sys_set_path(Str script_dir, Str library_dir);
+// What goes on sys.path before the program starts: PYTHONPATH's directories,
+// colon-separated, then the one the shipped library lives in. Either may be
+// empty. The directory the program came from goes in front later, once site
+// has run, with sys_path_first.
+void sys_set_path(Str extra, Str library_dir);
+void sys_path_first(Str dir);
 
 // Put `m` in sys.modules under `name`. False with the error pending.
 bool module_register(Str name, Value m);

@@ -858,7 +858,7 @@ R int_of_text(Value obj, Str s, i64 base, Value &out)
     String buf;
     if (!number_text(ro.v, s, buf))
         return R::Err;
-    out = int_parse(s, u32(base));
+    out = int_parse(s, u32(base), true);
     if (!out.is_nil())
         return R::Ok;
     if (err_kind() != "ValueError" || err_message() != "invalid literal for int()")
@@ -2831,10 +2831,20 @@ R b_compile(const CallArgs &a, Value &out)
     i64 flags = 0;
     if (a.nargs > 3 && !is_none(a.args[3]) && !int_to_i64(a.args[3], flags))
         return err_set("TypeError", "compile() flags must be an int");
+    i64 optimize = -1;
+    if (a.nargs > 5 && !int_to_i64(a.args[5], optimize)) {
+        Buf<96> b;
+        b.put("'").put(type_name(a.args[5])).put("' object cannot be interpreted as an integer");
+        return err_set("TypeError", b.str());
+    }
+    if (optimize < -1 || optimize > 2)
+        return err_set("ValueError", "compile(): invalid optimize value");
     Root rf{ a.args[1] };
     String codec;
+    compile_level_for(i32(optimize));
     out = compile_source(a.args[0], str_of(rf.v)->str(), mode, &codec, (flags & PYCF_ONLY_AST) != 0,
                          flags);
+    compile_level_for(-1);
     if (out.is_nil() && !codec.empty())
         return park_decode(a, codec.str(), b_compile, out);
     return out.is_nil() ? R::Err : R::Ok;
@@ -3418,6 +3428,7 @@ constexpr Builtin TABLE[] = {
     { "hex", b_hex },
     { "oct", b_oct },
     { "bin", b_bin },
+    { "breakpoint", sys_breakpoint },
     { "compile", b_compile },
     { "eval", b_eval },
     { "exec", b_exec },
@@ -3554,6 +3565,10 @@ DictObj *builtins_dict()
             dict_set(static_cast<DictObj *>(h->builtins.obj()), obj_value(n), g.of()) != R::Ok)
             return nullptr;
     }
+    StrObj *dbg = str_intern("__debug__");
+    if (!dbg || dict_set(static_cast<DictObj *>(h->builtins.obj()), obj_value(dbg),
+                         value_bool(compile_optimize() == 0)) != R::Ok)
+        return nullptr;
 
     // The namespace is the builtins module's, and says so.
     StrObj *nk = str_intern("__name__");

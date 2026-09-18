@@ -95,6 +95,7 @@ stdlib/colls.py                     cpython3.16
 stdlib/copies.py                    cpython3.16
 stdlib/csvs.py                      cpython3.16
 stdlib/ctxlib.py                    cpython3.16
+stdlib/debugs.py                    cpython3.16
 stdlib/descrs.py                    cpython3.16
 stdlib/enums.py                     cpython3.16
 stdlib/exits.py                     cpython3.16

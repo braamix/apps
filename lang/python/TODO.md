@@ -22,61 +22,22 @@ Two items in the list are not planned. They are at the end, with the reason.
   is such an instance park in a continuation, call `__hash__` and then `__eq__`
   on each collision, and finish in C++. This is the most useful item in this
   file that is not a module.
+- **`subprocess`, `os.system`, `os.popen`, `os.posix_spawn`, `os.waitpid`.**
+  Manual §10 files these under "Braam has no such thing", which is wrong:
+  only `fork` is missing. Braam has `Sys::Spawn`, `Pipe`, `Wait` and `Kill`,
+  and `posix` already answers `pipe` and `kill`. What is needed: `Spawn` and
+  `Wait` as requests the driver performs, a native `_posixsubprocess` whose
+  `fork_exec` is one spawn (argv, env, the three descriptors, a failed exec
+  raised at once rather than through the error pipe), then `subprocess.py`
+  byte for byte, and `os.system` and `os.posix_spawn` over the same spawn.
+  `cwd=` is a `Chdir` there and back around the spawn, since a child starts
+  where its parent is. What cannot be had: `preexec_fn`, `pass_fds` beyond
+  0-2, and `communicate()` over two pipes at once,
+  which waits in `selectors` on a readiness call Braam does not have. It is
+  also what `test.support.script_helper` runs a second interpreter with, so
+  a dozen CPython tests that skip or fail at import today would run.
 - **`__index__` returning a non-int** says "an integer is required" where
   CPython says `__index__ returned non-int (type str)`.
-
-## Stage 2 — compiler, command line, `site`
-
-10. **`__debug__`.** A builtin constant, `True`. The compiler folds
-    `if __debug__:`, and assigning to the name is a `SyntaxError`, as in
-    CPython. Nothing else changes until task 12 adds `-O`.
-
-11. **`breakpoint()` and `sys.breakpointhook`.** The builtin, the hook,
-    `sys.__breakpointhook__` and `PYTHONBREAKPOINT` (`0` turns it off, and
-    `mod.func` names another hook). Until task 32, the default hook's
-    `import pdb` fails. CPython answers that failure with a `RuntimeWarning`
-    and returns, and so will this. Test: the `breakpoint` cases in
-    `test_builtin`.
-
-12. **Command-line flags.** `OptParse` in `braam.cpp` takes `-V -i -c -m`
-    today. Add:
-    - `-O` and `-OO`: drop asserts and fold `__debug__` to `False`; `-OO`
-      also drops docstrings. Sets `sys.flags.optimize`.
-    - `-B`, `-s`: accepted, and set their `sys.flags`. Nothing writes
-      bytecode, and there is no user site.
-    - `-E`, `-P`, `-I`: `-P` leaves the script's directory off
-      `sys.path`; `-I` means `-E -P -s`.
-    - `-u`: unbuffered stdout and stderr.
-    - `-q`: no banner at the prompt.
-    - `-v`: one line to stderr for each import.
-    - `-W arg`: appends to `sys.warnoptions`, which `warnings` already reads.
-    - `-X opt`: fills `sys._xoptions`. Implement `utf8`, `dev`,
-      `int_max_str_digits`, `warn_default_encoding` and `importtime`, and
-      accept and record the rest.
-    - `-b` and `-bb`: `BytesWarning` from `str(bytes)` and from comparing
-      bytes with str. This one needs checks in the VM, so do it last.
-
-13. **`PYTHON*` environment variables.** Read through `proc_env`, and ignored
-    under `-E`/`-I`. `PYTHONPATH`, `PYTHONSTARTUP` (at the prompt only),
-    `PYTHONWARNINGS`, `PYTHONOPTIMIZE`, `PYTHONUNBUFFERED`, `PYTHONVERBOSE`,
-    `PYTHONSAFEPATH`, `PYTHONINSPECT`, `PYTHONINTMAXSTRDIGITS`,
-    `PYTHONDONTWRITEBYTECODE`, `PYTHONNOUSERSITE`, `PYTHONUTF8`, and
-    `PYTHONBREAKPOINT` from task 11. The shell's `VAR=x python …` prefix is
-    how a user sets them.
-
-14. **`site` and `_sitebuiltins`.** Imported at startup unless `-S` is
-    given. Brings `exit`, `quit`, `copyright`, `credits` and `license`, and
-    the `.pth` files in the library directory. `help` is installed too, but
-    it only works after task 34, because it imports `pydoc` when called.
-    Watch the startup cost: `site` pulls in `os` and `stat`. Test: `test_site`,
-    minus the Windows and user-site cases.
-
-15. **`faulthandler`, partly.** A native module. `dump_traceback()`,
-    `enable()`, `disable()`, `is_enabled()`. A wasm trap ends the Worker
-    before any handler can run, so `enable()` only records the request and
-    §10 says so. `dump_traceback_later` and `register` need a timer thread
-    and signals that do not exist here, so they raise `NotImplementedError`.
-    Test: the parts of `test_faulthandler` that do not start a subprocess.
 
 ## Stage 3 — `pickle`
 
@@ -119,10 +80,11 @@ Two items in the list are not planned. They are at the end, with the reason.
 20. **`compression`, `gzip`.** The `compression` package (`_common._streams`,
     `zlib`, `gzip`), `gzip`, and `python -m gzip`. Test: `test_gzip`.
 
-21. **`zipfile`, `tarfile`, and the archive half of `shutil`.** `zipfile`
-    guards its `bz2`, `lzma` and `zstd` imports. `tarfile` guards `pwd` and
+21. **`tarfile`, the archive half of `shutil`, and `zipfile`'s test.**
+    `zipfile` is already here, since `importlib.resources` imports it, and
+    handles stored members until `zlib` exists. `tarfile` guards `pwd` and
     `grp`. `shutil` is already shipped, so `make_archive` and
-    `unpack_archive` start working once these two are here. Tests:
+    `unpack_archive` start working once `tarfile` is here. Tests:
     `test_zipfile/`, `test_tarfile`, and the archive cases of `test_shutil`.
 
 ## Stage 5 — `email` and `xml`
@@ -211,7 +173,7 @@ Two items in the list are not planned. They are at the end, with the reason.
 32. **`pdb`.** Now a working debugger: `run`, `runcall`, `post_mortem`,
     `pm`, `set_trace` through the monitoring backend, and every command.
     It reads its commands from stdin, through the key ring when stdin is the
-    console. `breakpoint()` (task 11) now starts it. Leave `f_lineno` jumps
+    console. `breakpoint()` now starts it. Leave `f_lineno` jumps
     until there is a reason. Tests: `test_pdb`, `test_bdb`.
 
 33. **`symtable`.** A native `_symtable` that exposes what `symtab.cpp`
@@ -223,7 +185,7 @@ Two items in the list are not planned. They are at the end, with the reason.
 34. **`pydoc`, `help()`.** `pydoc` needs `sysconfig` (task 30), `pkgutil`,
     `platform` and `inspect`, which are here. It falls back to its plain
     pager when `_pyrepl` is missing. Its server half (`http.server`) stays
-    out. `help()` from task 14 then works, both on an object and
+    out. `help()`, which `site` installs, then works, both on an object and
     interactively. The real work is `inspect.signature` on builtins, which
     needs a `__text_signature__` on each of them. Test: `test_pydoc/`,
     without the server and browser cases.
@@ -249,6 +211,6 @@ Two items in the list are not planned. They are at the end, with the reason.
 
 - **`.pyc` files.** Compiling from source is fast enough that a cache costs
   more than it saves, and `marshal`'s code format is this interpreter's. `-B`
-  and `PYTHONDONTWRITEBYTECODE` are accepted (task 12) and change nothing.
+  and `PYTHONDONTWRITEBYTECODE` are accepted and change nothing.
 - **A `selectors` that waits on anything.** Braam has no poll call. Task 25
   makes the module importable, and that is all it can be.

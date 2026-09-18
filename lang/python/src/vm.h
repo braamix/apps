@@ -100,6 +100,13 @@ bool vm_again(Value code);
 // program ending, so atexit waits for the session to end instead.
 void vm_set_prompt(bool on);
 
+// A warning from where warnings.warn cannot be called, issued before the next
+// instruction runs. Both are literals.
+void vm_warn_later(Str category, Str message);
+
+// -u: every write reaches the descriptor before the next instruction runs.
+void vm_set_unbuffered(bool on);
+
 // The session is over: what atexit holds runs, and the next burst exits.
 void vm_finish();
 

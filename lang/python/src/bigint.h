@@ -88,6 +88,11 @@ bool int_truth_of(Value v);
 // The magnitude in `base`, without a sign. `upper` picks the digit case.
 R int_digits(Value v, u32 base, bool upper, String &out);
 
+// sys.set_int_max_str_digits: how many decimal digits int() and str() will
+// convert, 0 for no limit. int_digits obeys it, and int_parse when `limited`.
+u32 int_max_str_digits();
+void int_set_max_str_digits(u32 n);
+
 inline bool int_is_neg(Value v)
 {
     return v.is_int() ? v.as_int() < 0 : is_big(v) && big_of(v)->neg;
@@ -95,7 +100,7 @@ inline bool int_is_neg(Value v)
 
 // A literal or int(s, base). `base` of 0 reads the 0x/0o/0b prefix. Nil with
 // a ValueError pending on anything that is not wholly a number.
-Value int_parse(Str s, u32 base);
+Value int_parse(Str s, u32 base, bool limited = false);
 
 // a to the b, both non-negative ints. `mod` is Nil for the two-argument form.
 R int_power(Value a, Value b, Value mod, Value &out);

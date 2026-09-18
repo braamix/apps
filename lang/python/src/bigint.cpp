@@ -625,7 +625,55 @@ usize int_ones(Value v)
     return n;
 }
 
+namespace {
+
+u32 max_str_digits = 4300;
+
+R too_many_digits(usize n)
+{
+    Buf<192> b;
+    char t[24];
+    b.put("Exceeds the limit (").put(int_text(t, sizeof t, max_str_digits));
+    b.put(" digits) for integer string conversion");
+    if (n)
+        b.put(": value has ").put(int_text(t, sizeof t, i64(n))).put(" digits");
+    b.put("; use sys.set_int_max_str_digits() to increase the limit");
+    return err_set("ValueError", b.str());
+}
+
+} // namespace
+
+u32 int_max_str_digits()
+{
+    return max_str_digits;
+}
+
+void int_set_max_str_digits(u32 n)
+{
+    max_str_digits = n;
+}
+
+R int_digits_any(Value v, u32 base, bool upper, String &out);
+
 R int_digits(Value v, u32 base, bool upper, String &out)
+{
+    if (base != 10 || !max_str_digits)
+        return int_digits_any(v, base, upper, out);
+    // A decimal digit is log2(10) bits: a value that cannot fit is refused
+    // before the long division, and one near the line is counted after it.
+    if (int_bits(v) > usize(max_str_digits) * 3322 / 1000 + 8)
+        return too_many_digits(0);
+    usize start = out.size();
+    if (int_digits_any(v, base, upper, out) != R::Ok)
+        return R::Err;
+    if (out.size() - start > max_str_digits) {
+        out.truncate(start);
+        return too_many_digits(0);
+    }
+    return R::Ok;
+}
+
+R int_digits_any(Value v, u32 base, bool upper, String &out)
 {
     const char *D =
         upper ? "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ" : "0123456789abcdefghijklmnopqrstuvwxyz";
@@ -1173,7 +1221,7 @@ R float_ratio(f64 x, Value &num, Value &den)
 
 // ------------------------------------------------------------------ parsing
 
-Value int_parse(Str s, u32 base)
+Value int_parse(Str s, u32 base, bool limited)
 {
     usize i = 0, j = s.size();
     while (i < j && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r' || s[i] == '\f' ||
@@ -1207,6 +1255,13 @@ Value int_parse(Str s, u32 base)
     }
     if (base < 2 || base > 36)
         return err_set("ValueError", "int() base must be >= 2 and <= 36, or 0"), Value();
+    if (limited && max_str_digits && (base & (base - 1))) {
+        usize n = 0;
+        for (usize k = i; k < j; k++)
+            n += s[k] != '_';
+        if (n > max_str_digits)
+            return too_many_digits(n), Value();
+    }
 
     Mag m;
     if (!m.push(0))

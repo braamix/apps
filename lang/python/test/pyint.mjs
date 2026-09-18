@@ -26,7 +26,9 @@ async function interrupted(source) {
     K.store.files.set("/bin/py", new Uint8Array(readFileSync(opt.binary)));
     K.store.files.set("/tmp/c.py", new TextEncoder().encode(source));
 
-    for (const line of ["py /tmp/c.py &", "kill -INT %1"]) {
+    // -S: the kill is queued at once, and without it would land in site,
+    // which is startup being interrupted rather than the program.
+    for (const line of ["py -S /tmp/c.py &", "kill -INT %1"]) {
         K.type(line);
         K.press(K.KEY.ENTER);
     }
@@ -129,7 +131,7 @@ async function interrupted(source) {
         "except KeyboardInterrupt:\n" +
         "    print('caught in a match')\n" +
         "print(re.match(r'(a|aa)*c', 'aaac').span())\n"));
-    for (const line of ["py /tmp/c.py >/tmp/o &", "sleep 1; kill -INT %1"]) {
+    for (const line of ["py -S /tmp/c.py >/tmp/o &", "sleep 1; kill -INT %1"]) {
         K.type(line);
         K.press(K.KEY.ENTER);
     }

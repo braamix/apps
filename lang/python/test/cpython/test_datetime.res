@@ -9,7 +9,7 @@ Traceback (most recent call last):
     return _import(name)
   File "/tmp/test/support/import_helper.py", line 12, in _import
     __import__(name)
-ModuleNotFoundError: No module named 'test.datetimetester'. Site initialization is disabled, did you forget to add the site-packages directory to sys.path or to enable your virtual environment?
+ModuleNotFoundError: No module named 'test.datetimetester'
 
 ----------------------------------------------------------------------
 Ran 1 test in Ns

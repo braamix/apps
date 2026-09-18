@@ -43,7 +43,7 @@
 
 namespace {
 
-constexpr usize FLUSH_AT     = 4000; // bytes buffered before a write is asked for
+usize flush_at               = 4000; // bytes buffered before a write is asked for; 1 under -u
 constexpr u32 FRAMES_DEFAULT = 200;  // the frames are heap, but a limit says so
 u32 max_frames               = FRAMES_DEFAULT;
 
@@ -89,6 +89,10 @@ struct VM {
     u32 signals    = 0;     // any other, a bit each, for its handler
     bool prompt    = false; // a command at a prompt: its end is not the exit
     bool quitting  = false; // and this one asked to leave
+    // Warnings a slot asked for, issued before the next instruction; each
+    // category and message is a literal.
+    Str later[8][2];
+    u32 nlater = 0;
 };
 
 // A String has a destructor, so this lives in a heap block rather than at file
@@ -2468,8 +2472,8 @@ void interpret()
 {
     vm->budget = BURST;
     for (;;) {
-        if (vm->finished || !vm->reading.is_nil() || vm->out.size() >= FLUSH_AT ||
-            vm->err.size() >= FLUSH_AT || !vm->budget--)
+        if (vm->finished || !vm->reading.is_nil() || vm->out.size() >= flush_at ||
+            vm->err.size() >= flush_at || !vm->budget--)
             return;
         // The last atexit call has returned and there is no frame left --
         // unless a step at exit is waiting on the driver's answer.
@@ -2547,6 +2551,30 @@ void interpret()
                 err_clear();
                 vm->tb.clear();
             }
+            continue;
+        }
+
+        // A warning a slot could not issue, since warnings.warn is Python.
+        if (vm->nlater) {
+            Str cat = vm->later[0][0], msg = vm->later[0][1];
+            for (u32 i = 1; i < vm->nlater; i++) {
+                vm->later[i - 1][0] = vm->later[i][0];
+                vm->later[i - 1][1] = vm->later[i][1];
+            }
+            vm->nlater--;
+            Root kv{ warn_cont(cat, msg, 1) };
+            if (!kv.v.is_nil()) {
+                cont_of(kv.v)->drop = true;
+                if (run_cont(kv.v, Value()))
+                    continue;
+            }
+            // An error filter makes the warning an exception, raised here.
+            vm->tb.clear();
+            vm->between = frame_of(vm->frame);
+            bool go     = raise_value(pending_exception());
+            vm->between = nullptr;
+            if (!go)
+                return;
             continue;
         }
 
@@ -4365,6 +4393,20 @@ void vm_finish()
     exit_hooks();
 }
 
+void vm_warn_later(Str category, Str message)
+{
+    if (vm && vm->nlater < 8) {
+        vm->later[vm->nlater][0] = category;
+        vm->later[vm->nlater][1] = message;
+        vm->nlater++;
+    }
+}
+
+void vm_set_unbuffered(bool on)
+{
+    flush_at = on ? 1 : 4000;
+}
+
 void vm_set_prompt(bool on)
 {
     if (vm)
@@ -4382,8 +4424,8 @@ Req vm_burst()
         bool spent = false;
         if (!vm->finished && vm->reading.is_nil()) {
             interpret();
-            spent = !vm->finished && vm->reading.is_nil() && vm->out.size() < FLUSH_AT &&
-                    vm->err.size() < FLUSH_AT;
+            spent = !vm->finished && vm->reading.is_nil() && vm->out.size() < flush_at &&
+                    vm->err.size() < flush_at;
         }
 
         if (!vm->out.empty()) {

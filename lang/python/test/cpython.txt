@@ -53,7 +53,7 @@ pass  test_fnmatch.py                 24/24      82952e3  Lib/test/test_fnmatch.
 fail  test_fractions.py               import     82952e3  Lib/test/test_fractions.py
 pass  test_generator_stop.py          1/2        82952e3  Lib/test/test_generator_stop.py
 pass  test_genericclass.py            21/22      82952e3  Lib/test/test_genericclass.py
-fail  test_genericpath.py             runtime    82952e3  Lib/test/test_genericpath.py
+fail  test_genericpath.py             import     82952e3  Lib/test/test_genericpath.py
 fail  test_getopt.py                  import     82952e3  Lib/test/test_getopt.py
 pass  test_glob.py                    22/22      82952e3  Lib/test/test_glob.py
 pass  test_global.py                  20/20      82952e3  Lib/test/test_global.py

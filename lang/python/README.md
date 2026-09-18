@@ -5,7 +5,7 @@ lines that touch the OS replaced; this one is a Python implementation written
 from nothing — its own lexer, parser, compiler, bytecode and virtual machine,
 122k lines of C++ in [src/](src/).
 
-The other half is borrowed whole: **CPython's standard library**, 220 files
+The other half is borrowed whole: **CPython's standard library**, 235 files
 byte for byte as [lib/](lib/), over a floor of native modules written here. A
 Python that runs CPython's own library is a real Python, and writing that
 library again would be both enormous and worse.
@@ -293,7 +293,7 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 | [test/pycases.mjs](test/pycases.mjs) | CPython's own test files, under CPython's own `unittest` |
 | [test/pystdlib.mjs](test/pystdlib.mjs) | [test/stdlib/](test/stdlib/) — programs whose output is identical to the host CPython's, line for line |
 | [test/pylex.mjs](test/pylex.mjs), [test/pyast.mjs](test/pyast.mjs), [test/pydis.mjs](test/pydis.mjs) | The three listings, against CPython's own `tokenize` and `ast` and against goldens |
-| [test/pysmoke.mjs](test/pysmoke.mjs), [test/pyrepl.mjs](test/pyrepl.mjs), [test/pyexamples.mjs](test/pyexamples.mjs) | The command line, the prompt, and the demos |
+| [test/pysmoke.mjs](test/pysmoke.mjs), [test/pyflags.mjs](test/pyflags.mjs), [test/pyrepl.mjs](test/pyrepl.mjs), [test/pyexamples.mjs](test/pyexamples.mjs) | The command line, its options and the `PYTHON*` variables, the prompt, and the demos |
 | [test/pyio.mjs](test/pyio.mjs), [test/pyimport.mjs](test/pyimport.mjs), [test/pygc.mjs](test/pygc.mjs) | What needs a stream, a signal, the import system or the collector |
 | the other `test/py*.mjs` | One driver per area — types, numbers, functions, classes, generators, coroutines, formatting, Unicode, modules |
 | [test/pystress.mjs](test/pystress.mjs) | The whole manifest again under `STRESS=1` |

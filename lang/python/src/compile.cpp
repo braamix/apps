@@ -21,6 +21,14 @@
 
 namespace {
 
+u32 opt_default  = 0;
+i32 opt_override = -1;
+
+u32 level()
+{
+    return opt_override >= 0 ? u32(opt_override) : opt_default;
+}
+
 // What an exit has to walk back out of.
 enum class FK : u8 {
     Loop,     // break and continue land here
@@ -991,6 +999,8 @@ bool Compiler::expr(u32 i)
 
     case Nd::Name: {
         StrObj *s = ident(i);
+        if (s && s->str() == "__debug__")
+            return emit(Bc::LoadConst, add_const(value_bool(level() == 0)), i);
         return s ? load_name(s, i) : oom();
     }
 
@@ -2660,6 +2670,8 @@ bool Compiler::stmt(u32 i)
         return expr(n.b) && emit(Bc::Raise, 2, i);
 
     case Nd::Assert: {
+        if (level() >= 1)
+            return true;
         if (!expr(n.a))
             return false;
         u32 ok = emit_jump(Bc::PopJumpIfTrue, i);
@@ -3031,9 +3043,11 @@ Value Compiler::qualname_of(StrObj *name)
 }
 
 // The docstring of a body. It is the first statement, when that statement is
-// a plain string literal.
+// a plain string literal. -OO drops it.
 Value Compiler::docstring(u32 node)
 {
+    if (level() >= 2)
+        return Value();
     const Node &n = ast->at(node);
     u32 first     = 0;
     if (n.kind == Nd::Module && n.nkid)
@@ -3223,6 +3237,21 @@ u32 lone_expression(const Ast &ast)
     u32 first     = ast.kids[root.kid0];
     const Node &s = ast.at(first);
     return s.kind == Nd::Expr ? s.a : 0;
+}
+
+void compile_set_optimize(u32 l)
+{
+    opt_default = l;
+}
+
+u32 compile_optimize()
+{
+    return opt_default;
+}
+
+void compile_level_for(i32 l)
+{
+    opt_override = l;
 }
 
 Value py_compile(const Ast &ast, Str filename, CompileMode mode)

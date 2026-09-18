@@ -43,6 +43,8 @@ struct Builder {
     {
         if (!name)
             return oom(), nullptr;
+        if ((flags & (SF_PARAM | SF_ASSIGN | SF_TPARAM | SF_ANNOT)) && name->str() == "__debug__")
+            return fail("cannot assign to __debug__", node ? node : scope().node), nullptr;
         Vec<Sym> &syms = scope().syms;
         Sym *found     = nullptr;
         for (usize i = 0; i < syms.size(); i++)
@@ -139,9 +141,10 @@ struct Builder {
             (this->*f)(ast->kids[node.kid0 + from + k]);
     }
 
-    u32 in_iter = 0; // inside a comprehension's iterable
-    u32 in_try  = 0; // inside a try statement
-    u32 in_cond = 0; // inside a statement whose body may not run
+    bool deleting = false; // the targets are a `del` statement's
+    u32 in_iter   = 0;     // inside a comprehension's iterable
+    u32 in_try    = 0;     // inside a try statement
+    u32 in_cond   = 0;     // inside a statement whose body may not run
 
     void stmt(u32 i);
     void expr(u32 i);
@@ -598,6 +601,10 @@ void Builder::target(u32 i)
         note_at(i, SF_ASSIGN);
         return;
     case Nd::Attribute:
+        if (ast->text(i) == "__debug__") {
+            fail(deleting ? "cannot delete __debug__" : "cannot assign to __debug__", i);
+            return;
+        }
         expr(n.a);
         return;
     case Nd::Subscript:
@@ -705,7 +712,13 @@ void Builder::expr(u32 i)
         kids(i, 0, n.nkid, &Builder::expr);
         return;
     case Nd::CmpOp:
+        expr(n.a);
+        return;
     case Nd::Keyword:
+        if ((n.flags & 1) && ast->text(i) == "__debug__") {
+            fail("cannot assign to __debug__", i);
+            return;
+        }
         expr(n.a);
         return;
     case Nd::Call:
@@ -814,13 +827,17 @@ void Builder::stmt(u32 i)
         expr(n.a);
         return;
     case Nd::Delete:
+        deleting = true;
         for (u32 k = 0; k < n.nkid && !failed; k++) {
             u32 t = ast->kids[n.kid0 + k];
-            if (ast->at(t).kind == Nd::Name)
+            if (ast->at(t).kind == Nd::Name && ast->text(t) == "__debug__")
+                fail("cannot delete __debug__", t);
+            else if (ast->at(t).kind == Nd::Name)
                 note_at(t, SF_ASSIGN);
             else
                 target(t);
         }
+        deleting = false;
         return;
     case Nd::Assign:
         expr(n.a);

@@ -8,6 +8,7 @@
 
 #include "codec.h"
 #include "func.h"
+#include "kernel/vec.h"
 
 // One name in a module's namespace, and the native behind it.
 struct ModDef {
@@ -52,6 +53,35 @@ bool string_sized(String &s, usize n);
 bool hex_with_sep(Str data, Value sep, i64 per, bool bytes_out, String &out);
 
 // ------------------------------------------------------------------- sys
+
+// What the command line and the PYTHON* variables asked for, settled by the
+// driver before vm_start. sys.flags is made from it; the compiler, the loader
+// and the prompt read it. The Strs view argv and the environment.
+struct PyConfig {
+    u32 optimize              = 0; // -O, twice for -OO
+    u32 verbose               = 0; // -v
+    u32 bytes_warning         = 0; // -b, twice for -bb
+    bool inspect              = false;
+    bool interactive          = false;
+    bool quiet                = false;
+    bool unbuffered           = false;
+    bool no_site              = false;
+    bool ignore_env           = false;
+    bool isolated             = false;
+    bool safe_path            = false;
+    bool dev_mode             = false;
+    bool import_time          = false;
+    u32 warn_default_encoding = 0;
+    i32 int_max_str_digits    = -1; // -1: the default, 4300
+    Vec<Str> warnoptions;           // -W, after PYTHONWARNINGS
+    Vec<Str> xoptions;              // -X, each "name" or "name=value"
+};
+
+// The one config, made on first use.
+PyConfig &py_config();
+
+// The builtin breakpoint(), which is sys.breakpointhook's caller.
+R sys_breakpoint(const CallArgs &a, Value &out);
 
 // What sys.argv answers, set by the driver before the program starts.
 void sys_set_argv(Value argv);
@@ -154,3 +184,4 @@ bool tokenize_install(DictObj *into);
 bool marshal_install(DictObj *into);
 bool imp_install(DictObj *into);
 bool colorize_install(DictObj *into);
+bool faulthandler_install(DictObj *into);

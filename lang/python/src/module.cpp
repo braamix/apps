@@ -118,6 +118,7 @@ constexpr Native NATIVES[] = {
     { "marshal", marshal_install },
     { "_imp", imp_install },
     { "_colorize", colorize_install },
+    { "faulthandler", faulthandler_install },
 };
 
 } // namespace

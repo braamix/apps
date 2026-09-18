@@ -1,0 +1,45 @@
+'__debug__ = 1' cannot assign to __debug__
+'del __debug__' cannot delete __debug__
+'x.__debug__ = 1' cannot assign to __debug__
+'f(__debug__=1)' cannot assign to __debug__
+'def f(__debug__): pass' cannot assign to __debug__
+'import os as __debug__' cannot assign to __debug__
+'global __debug__' ok
+'def f(*, __debug__): pass' cannot assign to __debug__
+'class __debug__: pass' cannot assign to __debug__
+'del x.__debug__' cannot delete __debug__
+'__debug__: int' cannot assign to __debug__
+'for __debug__ in []: pass' cannot assign to __debug__
+'lambda __debug__: 0' cannot assign to __debug__
+'x = __debug__' ok
+'(__debug__ := 1)' cannot assign to __debug__
+'with a as __debug__: pass' cannot assign to __debug__
+True False True
+None
+compile(): invalid optimize value
+compile(): invalid optimize value
+4300
+Exceeds the limit (4300 digits) for integer string conversion: value has 5000 digits; use sys.set_int_max_str_digits() to increase the limit
+Exceeds the limit (4300 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit
+Exceeds the limit (4300 digits) for integer string conversion; use sys.set_int_max_str_digits() to increase the limit
+4155
+4001
+Exceeds the limit (640 digits) for integer string conversion: value has 641 digits; use sys.set_int_max_str_digits() to increase the limit
+5001 0
+maxdigits must be >= 640 or 0 for unlimited
+maxdigits must be >= 640 or 0 for unlimited
+True breakpoint
+mine (1,) {'x': 2}
+7
+None
+via-env
+None
+3
+None
+['Ignoring unimportable $PYTHONBREAKPOINT: "nosuch.mod"'] ['RuntimeWarning']
+None
+['Ignoring unimportable $PYTHONBREAKPOINT: "os.nosuch"'] ['RuntimeWarning']
+lost sys.breakpointhook
+Use exit() or Ctrl-D (i.e. EOF) to exit Use quit() or Ctrl-D (i.e. EOF) to exit Copyright (c) 2001 Python Software Foundation.
+All Rights Re _Printer
+SystemExit 5
