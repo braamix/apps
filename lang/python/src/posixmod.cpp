@@ -4,7 +4,7 @@
 // under vm_burst awaits one, so each of these answers a continuation that
 // asks the driver (posix.h's sys_turn) and turns the answer into a value.
 // What the platform does not have -- modes, owners, inodes, a second link to
-// a file -- is answered the way README.md's Known differences say.
+// a file -- is answered the way README.md's differences from CPython say.
 #include "builtin.h"
 #include "codec.h"
 #include "exc.h"
