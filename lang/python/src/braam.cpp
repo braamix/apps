@@ -4,7 +4,7 @@
 // and not a tail call.
 //
 // The command line, the three ways a program arrives, and the loop that
-// performs what vm_burst asks for. TODO.md says what is still missing.
+// performs what vm_burst asks for. README.md says how the pieces fit.
 #include "compile.h"
 #include "edit.h"
 #include "err.h"
@@ -48,7 +48,7 @@ constexpr Str USAGE =
     "    python --dis <f>         print the bytecode of <f>\n"
     "\n"
     "Python 3, written for Braam: its own compiler, its own bytecode and its\n"
-    "own virtual machine -- see TODO.md for what is still missing.\n";
+    "own virtual machine -- see Manual.md for the language and its limits.\n";
 
 constexpr Opts SPEC = { "Vi", "cm" };
 

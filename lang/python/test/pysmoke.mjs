@@ -26,8 +26,8 @@ for (const tail of ["-V", "--version"]) {
     const r = run("-h");
     if (!r.out.startsWith("Usage:\n    python  "))
         die(`-h did not print the usage block: ${JSON.stringify(r.out.slice(0, 60))}`);
-    if (!r.out.includes("TODO.md"))
-        die("the usage block does not say what is not there yet");
+    if (!r.out.includes("Manual.md"))
+        die("the usage block does not point at the manual");
     check("`py -h` stderr", r.err, "");
     check("`py -h` status", String(r.status), "0");
 }

@@ -2,7 +2,7 @@
 // their types (`*` a list, `?` optional), the fields whose default is None,
 // and whether the kind carries a position. Included by astmod.cpp.
 //
-// Generated from the clone's ast module; see TODO.md, The two upstreams.
+// Generated from the clone's ast module; see README.md, The two upstreams.
 // clang-format off
     { "mod", "AST", "", "", false },
     { "Module", "mod", "body:stmt*  type_ignores:type_ignore*", "", false },

@@ -132,7 +132,7 @@ plant_data();
 // keeps CPython's tests out is the compiler, not the imports.
 if (process.argv.includes("--survey")) {
     const dir = join(HERE, "..", "tmp", "cpython", "Lib", "test");
-    if (!existsSync(dir)) die(`no clone at ${dir} — see TODO.md, The two upstreams`);
+    if (!existsSync(dir)) die(`no clone at ${dir} — see README.md, The two upstreams`);
     const tally = new Map();
     const runs = [];
     let n = 0;

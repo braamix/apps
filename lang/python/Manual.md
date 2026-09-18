@@ -402,7 +402,6 @@ if __name__ == "__main__":
 
 - [README.md](README.md) — how the interpreter is built, and what had to
   change for this system.
-- [TODO.md](TODO.md) — the phases, and what each one settled.
 - [examples/](examples/) — the three demos the package ships.
 - [LICENSE](LICENSE) — MIT for the interpreter, PSF for what came from
   CPython.

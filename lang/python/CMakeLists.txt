@@ -17,7 +17,7 @@ endif()
 set(BRAAM_BIN_INITIAL_PAGES 16)
 math(EXPR BRAAM_BIN_INITIAL_BYTES "${BRAAM_BIN_INITIAL_PAGES} * 65536")
 
-# Sources arrive a phase at a time; TODO.md names them.
+# One file per module or layer; README.md has the table.
 braam_add_program(NAME python
                   SOURCES src/abc.cpp src/annot.cpp src/arraymod.cpp src/astdump.cpp src/astmod.cpp
                           src/astpos.cpp src/atexitmod.cpp src/attr.cpp src/bigint.cpp

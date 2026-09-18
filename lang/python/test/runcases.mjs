@@ -58,7 +58,7 @@ if (!CASES.length) {
     // An empty manifest still proves the harness, the plant and the pipe.
     await boot("runcases");
     run("-V");
-    ok(only.length ? "no case matched" : "no cases yet — see TODO.md, phase 6");
+    ok(only.length ? "no case matched" : "no cases yet — see test/manifest.txt");
     process.exit(0);
 }
 
