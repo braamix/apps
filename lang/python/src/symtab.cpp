@@ -947,8 +947,13 @@ void Builder::stmt(u32 i)
         }
         for (u32 k = 0; k < n.nkid && !failed; k++) {
             const Node &a = ast->at(ast->kids[n.kid0 + k]);
-            if (a.flags & 1) // `from x import *`
+            if (a.flags & 1) { // `from x import *`
+                if (scope().kind == ScopeKind::Function) {
+                    fail("import * only allowed at module level", ast->kids[n.kid0 + k]);
+                    return;
+                }
                 continue;
+            }
             StrObj *bound = py_mangle(scope().priv, a.a ? ast->lex.text_of(ast->lex.tokens[a.a - 1])
                                                         : ast->lex.text_of(ast->lex.tokens[a.tok]));
             if (!note(bound, SF_ASSIGN))

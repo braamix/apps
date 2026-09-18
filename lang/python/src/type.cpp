@@ -2185,6 +2185,88 @@ bool type_set_ctor(const Type *t, Value fn)
 
 Value meta_special(Value v, Str name);
 
+namespace {
+
+// s[0] the descriptor's bound __get__, s[1] the instance, s[2] its class,
+// s[3] the call's arguments, s[4] and s[5] its keywords.
+R get_call_step(ContObj *k, Value in)
+{
+    switch (k->i++) {
+    case 0:
+        return cont_call(k, k->s[0], k->s[1], 2, k->s[2]);
+    case 1:
+        return cont_call_kw(k, in, k->s[3], k->s[4], k->s[5]);
+    default:
+        return cont_done(k, in);
+    }
+}
+
+// Bound to a tuple of the bound __get__, the instance and its class.
+R get_call(const CallArgs &a, Value &out)
+{
+    Root st{ a.args[0] };
+    TupleObj *args = tuple_new(a.nargs - 1);
+    if (!args)
+        return oom();
+    for (u32 i = 1; i < a.nargs; i++)
+        args->items()[i - 1] = a.args[i];
+    Root ra{ obj_value(args) }, names, vals;
+    if (a.nkw) {
+        TupleObj *n = tuple_new(a.nkw);
+        if (!n)
+            return oom();
+        names       = obj_value(n);
+        TupleObj *v = tuple_new(a.nkw);
+        if (!v)
+            return oom();
+        vals = obj_value(v);
+        for (u32 i = 0; i < a.nkw; i++) {
+            static_cast<TupleObj *>(names.v.obj())->items()[i] = a.kwnames[i];
+            static_cast<TupleObj *>(vals.v.obj())->items()[i]  = a.kwvals[i];
+        }
+    }
+    Value kv = cont_new(get_call_step);
+    if (kv.is_nil())
+        return R::Err;
+    const Value *t = static_cast<TupleObj *>(st.v.obj())->items();
+    ContObj *k     = cont_of(kv);
+    k->s[0]        = t[0];
+    k->s[1]        = t[1];
+    k->s[2]        = t[2];
+    k->s[3]        = ra.v;
+    k->s[4]        = names.v;
+    k->s[5]        = vals.v;
+    out            = kv;
+    return R::Ok;
+}
+
+} // namespace
+
+R special_bind(Value found, Value self, Value cls, Value &out)
+{
+    // A descriptor written in Python -- mock's MagicProxy. Its __get__ cannot
+    // be called here, so the answer calls it first and then what it returned.
+    if (is_inst(found) && type_has_py_special(found, "__get__")) {
+        Root rs{ self }, rc{ cls };
+        Root get{ type_special(found, "__get__") };
+        if (get.v.is_nil())
+            return err_pending() ? R::Err : type_bind(found, rs.v, rc.v, out);
+        TupleObj *t = tuple_new(3);
+        if (!t)
+            return oom();
+        t->items()[0] = get.v;
+        t->items()[1] = rs.v;
+        t->items()[2] = rc.v;
+        Root rt{ obj_value(t) };
+        Root fn{ native_new("__get__", get_call) };
+        if (fn.v.is_nil())
+            return R::Err;
+        out = method_new(fn.v, rt.v);
+        return out.is_nil() ? R::Err : R::Ok;
+    }
+    return type_bind(found, self, cls, out);
+}
+
 Value type_special(Value v, Str name)
 {
     // What a weak proxy's referent answers in Python, the proxy answers.
@@ -2205,7 +2287,7 @@ Value type_special(Value v, Str name)
         return Value();
     // A staticmethod or a classmethod here too: the wrapper is not callable.
     Value out;
-    return type_bind(found.v, v, inst_of(v)->cls, out) == R::Ok ? out : Value();
+    return special_bind(found.v, v, inst_of(v)->cls, out) == R::Ok ? out : Value();
 }
 
 R py_isinstance(const CallArgs &a, Value &out)
@@ -2228,7 +2310,7 @@ Value meta_special(Value v, Str name)
     if (fn.is_nil())
         return Value();
     Value bound;
-    return type_bind(fn, rv.v, meta.v, bound) == R::Ok ? bound : Value();
+    return special_bind(fn, rv.v, meta.v, bound) == R::Ok ? bound : Value();
 }
 
 Value type_getitem_of(Value v)

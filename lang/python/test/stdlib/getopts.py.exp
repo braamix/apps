@@ -1,0 +1,12 @@
+([('-a', ''), ('-b', 'val'), ('-c', 'foo')], ['rest', '-d'])
+([('--alpha', ''), ('--beta', '2'), ('--gamma', 'x')], ['a1'])
+([('-a', ''), ('--beta', '3')], ['a1', 'a2', 'a3'])
+([], ['a1', '-a'])
+([('-a', '')], ['-b'])
+([('--opt', '')], []) ([('--opt', 'v')], [])
+GetoptError option -x not recognized x option -x not recognized
+GetoptError option -b requires argument b option -b requires argument
+GetoptError option --nope not recognized nope option --nope not recognized
+GetoptError option --al not a unique prefix; possible options: alpha, alps al option --al not a unique prefix; possible options: alpha, alps
+GetoptError option --yes must not have an argument yes option --yes must not have an argument
+True

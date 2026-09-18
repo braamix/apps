@@ -4451,6 +4451,17 @@ void vm_report(Value e)
     report(re.v);
 }
 
+bool vm_report_text(Value e, String &out)
+{
+    Root re{ e };
+    usize mark = vm->err.size();
+    vm->tb.clear();
+    report(re.v);
+    bool ok = out.append(vm->err.str().substr(mark));
+    vm->err.truncate(mark);
+    return ok;
+}
+
 bool vm_frame_running(const Obj *f)
 {
     if (!vm)

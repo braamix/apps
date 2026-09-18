@@ -1,0 +1,29 @@
+title 'TOML é "quoted"'
+literal 'C:\\path'
+multi 'line one continued'
+raw 'first'
+int 99000
+hex 3735928559
+oct 493
+bin 13
+flt -314.15
+inf inf
+nan_is True
+yes True
+odt datetime.datetime(1979, 5, 27, 7, 32, tzinfo=datetime.timezone(datetime.timedelta(days=-1, seconds=57600)))
+ldt datetime.datetime(1979, 5, 27, 7, 32, 0, 999000)
+ld datetime.date(1979, 5, 27)
+lt datetime.time(7, 32)
+arr [1, 2, [3, 'four']]
+inline {'x': 1, 'y': {'z': 'deep'}}
+server {'alpha beta': {'ip': '10.0.0.1'}}
+fruit [{'name': 'apple', 'physical': {'color': 'red'}}, {'name': 'banana'}]
+{'a': 'F1.5'}
+TOMLDecodeError Invalid value (at end of document) 1 5
+TOMLDecodeError Cannot overwrite a value (at end of document) 2 6
+TOMLDecodeError Cannot declare ('t',) twice (at line 2, column 3) 2 3
+TOMLDecodeError Invalid value (at line 1, column 8) 1 8
+TOMLDecodeError Expected newline or end of document after a statement (at line 1, column 6) 1 6
+TOMLDecodeError Unescaped '\' in a string (at line 1, column 8) 1 8
+{'k': 'v'}
+TypeError File must be opened in binary mode, e.g. use `open('foo.toml', 'rb')`

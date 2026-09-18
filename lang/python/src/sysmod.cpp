@@ -192,6 +192,18 @@ R b_excepthook(const CallArgs &a, Value &out)
         Root re{ e };
         if (is_traceback(a.args[2]))
             static_cast<ExcObj *>(re.v.obj())->tb = a.args[2];
+        // A sys.stderr of the program's own gets the report as one write.
+        Value now = sys_stream("stderr");
+        if (!now.is_nil() && !is_none(now) && now != sys_stream("__stderr__")) {
+            String text;
+            if (!vm_report_text(re.v, text))
+                return oom();
+            if (sys_write(now, text.str(), out) != R::Ok)
+                return R::Err;
+            if (out.is_nil())
+                out = value_none();
+            return R::Ok;
+        }
         vm_report(re.v);
     } else {
         return err_set2("TypeError", "print_exception(): Exception expected for value",
@@ -604,9 +616,17 @@ namespace {
 
 // The write() of a stream the program put in sys.stdout: one call a piece, s[1]
 // being a tuple of them, and the answer is None whatever it returned.
+// With j set, s[0] is the getattr still to run for write itself.
 R write_step(ContObj *k, Value in)
 {
-    (void)in;
+    if (k->j == 1) {
+        k->j = 2;
+        return cont_await(k, k->s[0]);
+    }
+    if (k->j == 2) {
+        k->j    = 0;
+        k->s[0] = in;
+    }
     TupleObj *t = static_cast<TupleObj *>(k->s[1].obj());
     if (k->i < t->len)
         return cont_call(k, k->s[0], t->items()[k->i++]);
@@ -675,12 +695,22 @@ R sys_write(Value file, Str text, Value &out, Span<const usize> cuts)
         static_cast<TupleObj *>(rt.v.obj())->items()[i] = piece;
     }
     StrObj *w = str_intern("write");
+    if (!w)
+        return oom();
     Root fn;
-    if (!w || py_getattr(rf.v, w, fn.v) != R::Ok)
-        return err_pending() ? R::Err : err_set("AttributeError", "write");
+    // A write found through __getattr__ is Python too.
+    Got g = py_attr(rf.v, w, fn.v);
+    if (g == Got::Error)
+        return R::Err;
+    if (g == Got::Missing) {
+        Buf<96> m;
+        m.put("'").put(type_name(rf.v)).put("' object has no attribute 'write'");
+        return err_set("AttributeError", m.str());
+    }
     Root kv{ cont_new(write_step) };
     if (kv.v.is_nil())
         return R::Err;
+    cont_of(kv.v)->j    = g == Got::Call ? 1 : 0;
     cont_of(kv.v)->s[0] = fn.v;
     cont_of(kv.v)->s[1] = rt.v;
     out                 = kv.v;

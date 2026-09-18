@@ -1,0 +1,22 @@
+IPv4Address('192.168.1.10') 3232235786 b'\xc0\xa8\x01\n' 4 True False 10.1.168.192.in-addr.arpa
+192.168.1.15 192.168.1.0 True 192.168.1.1
+192.168.0.0/22 255.255.252.0 0.0.3.255 192.168.3.255 1024 22 192.168.0.0/255.255.252.0
+[IPv4Network('192.168.0.0/24'), IPv4Network('192.168.1.0/24'), IPv4Network('192.168.2.0/24'), IPv4Network('192.168.3.0/24')] 192.168.0.0/21 True
+[IPv4Address('10.0.0.1'), IPv4Address('10.0.0.2')] False
+[IPv4Network('10.0.0.0/29'), IPv4Network('10.0.0.8/31'), IPv4Network('10.0.0.10/32')]
+[IPv4Network('10.0.0.128/25'), IPv4Network('10.0.0.64/26')]
+IPv4Interface('10.1.2.3/24') 10.1.2.0/24 10.1.2.3 10.1.2.3/24 10.1.2.3/0.0.0.255
+IPv6Address('2001:db8::8a2e:370:7334') 2001:0db8:0000:0000:0000:8a2e:0370:7334 2001:db8::8a2e:370:7334 42540766411282592856904136881884656436 False True 6
+4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa
+192.0.2.1 eth0
+True True True True
+2001:db8::/126 4 [IPv6Address('2001:db8::'), IPv6Address('2001:db8::1'), IPv6Address('2001:db8::2'), IPv6Address('2001:db8::3')] 2001:db8::/64
+False 192.0.2.4
+[IPv4Address('10.0.0.1'), IPv4Address('10.0.0.2')] b'\x00\x00\x00\x01'
+True (4, IPv4Address('192.168.1.10'))
+ValueError '1.2.3' does not appear to be an IPv4 or IPv6 network
+ValueError '256.1.1.1' does not appear to be an IPv4 or IPv6 network
+ValueError '::g' does not appear to be an IPv4 or IPv6 network
+ValueError '1.2.3.4/33' does not appear to be an IPv4 or IPv6 network
+ValueError 10.0.0.1/24 has host bits set
+10.0.0.0/24 110000001010 0xc0a8010a 2001_0DB8_0000_0000_0000_8A2E_0370_7334

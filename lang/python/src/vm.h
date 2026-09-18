@@ -167,6 +167,9 @@ Value vm_handling();
 // Print `e` as an uncaught exception is printed, to stderr.
 void vm_report(Value e);
 
+// The same report, as text rather than onto stderr. False when out of memory.
+bool vm_report_text(Value e, String &out);
+
 // Whether frame `f` is on the chain now.
 bool vm_frame_running(const Obj *f);
 

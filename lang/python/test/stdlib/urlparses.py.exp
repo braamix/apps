@@ -1,0 +1,26 @@
+ParseResult(scheme='https', netloc='user:pw@Example.COM:8080', path='/a/b', params='p', query='q=1&r=2', fragment='frag')
+https user:pw@Example.COM:8080 example.com 8080 user pw https://user:pw@Example.COM:8080/a/b;p?q=1&r=2#frag
+SplitResult(scheme='http', netloc='[::1]:80', path='/x', query='y', fragment='z') host
+http://h/p?a=1#f https://user:pw@Example.COM:8080/z?k
+'g' http://a/b/c/g
+'./g' http://a/b/c/g
+'../g' http://a/b/g
+'/g' http://a/g
+'//g' http://g
+'?y' http://a/b/c/d;p?y
+'#s' http://a/b/c/d;p?q#s
+'../../../g' http://a/g
+'g;x?y#s' http://a/b/c/g;x?y#s
+'' http://a/b/c/d;p?q
+DefragResult(url='http://a/b', fragment='c') DefragResult(url='http://a/b', fragment='')
+a%20b/c%26d%3D%C3%A9 a%20b%2Fc a+b%2Bc
+a b/cé a b+ b'\xffA'
+%FF%00 a%20b
+a=1&b=x+y&c=p&c=q k=v%26w
+{'a': ['1', '2'], 'b': [''], 'c': [' x']} [('x', '1'), ('y', '2')]
+[('a', '1')] {'a': ['1'], 'b': ['2']}
+ParseResultBytes(scheme=b'http', netloc=b'h', path=b'/p', params=b'', query=b'q', fragment=b'') http://h/p?q
+SplitResult(scheme='mailto', netloc='', path='someone@example.com', query='', fragment='') SplitResult(scheme='file', netloc='', path='/tmp/x', query='', fragment='')
+ValueError Invalid IPv6 URL
+ValueError Port could not be cast to integer value as 'bad'
+['', 'ftp', 'http', 'gopher'] http://a/b

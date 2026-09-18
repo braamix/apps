@@ -277,6 +277,10 @@ inline bool is_super(Value v)
 // its class does not have one; the caller keeps `v` rooted.
 Value type_special(Value v, Str name);
 
+// type_bind for a special method: a descriptor written in Python is bound
+// through its __get__, which the answer calls before the method itself.
+R special_bind(Value found, Value self, Value cls, Value &out);
+
 // A class whose metaclass a class statement made, and which may therefore
 // answer an operator in Python.
 inline bool is_meta_inst(Value v)

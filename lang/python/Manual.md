@@ -197,21 +197,22 @@ itertools marshal math posix sys time unicodedata
 
 ### CPython's own, byte for byte
 
-196 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+220 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
 | --- | --- |
-| Text | `re`, `string`, `textwrap`, `difflib`, `unicodedata`, `codecs`, `encodings` |
-| Data | `collections`, `dataclasses`, `enum`, `heapq`, `bisect`, `copy`, `pprint`, `reprlib`, `types`, `weakref` |
+| Text | `re`, `string`, `textwrap`, `difflib`, `unicodedata`, `codecs`, `encodings`, `html`, `quopri` |
+| Data | `collections`, `dataclasses`, `enum`, `heapq`, `bisect`, `copy`, `pprint`, `reprlib`, `types`, `weakref`, `queue`, `graphlib` |
 | Numbers | `decimal`, `fractions`, `statistics`, `numbers`, `random`, `struct` |
-| Files | `os`, `os.path`, `pathlib`, `io`, `shutil`, `tempfile`, `glob`, `fnmatch`, `stat`, `csv`, `json`, `base64`, `binascii` |
-| Time | `datetime`, `calendar`, `time`, `locale`, `gettext` |
+| Files | `os`, `os.path`, `pathlib`, `io`, `shutil`, `tempfile`, `glob`, `fnmatch`, `stat`, `csv`, `json`, `base64`, `binascii`, `configparser`, `tomllib`, `mimetypes` |
+| Time | `datetime`, `calendar`, `time`, `locale`, `gettext`, `sched`, `timeit` |
 | Functions | `functools`, `itertools`, `operator`, `contextlib`, `abc` |
 | Async | `asyncio`, `concurrent.futures`, `contextvars`, `threading` |
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
-| Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `runpy`, `codeop` |
-| Crypto | `hashlib`, `hmac` |
+| Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt` |
+| Addresses | `urllib.parse`, `ipaddress`, `uuid` |
+| Crypto | `hashlib`, `hmac`, `secrets` |
 
 **`sys.stdlib_module_names` is CPython's whole list and not this one** — it is
 a frozen constant. What is importable is the native list above plus `lib/`.
@@ -327,10 +328,8 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   CPython's.
 - **`zlib`, `gzip`, `bz2`, `lzma`, `zipfile`, `tarfile`** — no compression of
   any kind.
-- **`email`, `xml`, `html`, `configparser`, `optparse`, `getopt`, `secrets`,
-  `uuid`, `ipaddress`, `queue`, `sched`, `graphlib`, `mimetypes`, `tomllib`,
-  `symtable`, `selectors`.**
-- **`pdb`, `doctest`, `trace`, `cProfile`, `timeit`, `tracemalloc`,
+- **`email`, `xml`, `symtable`, `selectors`**, and of `urllib` only `parse`.
+- **`pdb`, `doctest`, `trace`, `cProfile`, `tracemalloc`,
   `faulthandler`** — and `sys.settrace` and `sys.setprofile`, which they
   need.
 - **`site`**, so no `help`, `exit`, `quit`, `copyright`, `credits` or
@@ -361,6 +360,12 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   object dies at a collection rather than at the last name — a `__del__` runs
   later than CPython's would.
 - **`id()` is an address in this process** and is reused after a collection.
+- **An instance used as a dict key or set member hashes by identity**, even
+  where its class writes `__hash__` and `__eq__`: two equal objects are two
+  keys. `ipaddress.collapse_addresses` is one casualty.
+- **A wait with a timeout does not wait**, since nobody else could wake it.
+  `queue.Queue.get(timeout=1)` on an empty queue spins on the clock until the
+  timeout has passed, then raises `Empty`.
 
 ---
 

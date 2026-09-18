@@ -5,7 +5,7 @@ lines that touch the OS replaced; this one is a Python implementation written
 from nothing — its own lexer, parser, compiler, bytecode and virtual machine,
 122k lines of C++ in [src/](src/).
 
-The other half is borrowed whole: **CPython's standard library**, 196 files
+The other half is borrowed whole: **CPython's standard library**, 220 files
 byte for byte as [lib/](lib/), over a floor of native modules written here. A
 Python that runs CPython's own library is a real Python, and writing that
 library again would be both enormous and worse.

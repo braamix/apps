@@ -1,0 +1,33 @@
+welcome
+(s) hello bob
+<greet bob>
+(s) 6
+<add 1 2 3>
+(s) add numbers
+<? add>
+(s) greet NAME: say hello.
+<help greet>
+(s) 
+Documented commands (type help <topic>):
+========================================
+add  greet  help
+
+Undocumented commands:
+======================
+quit
+
+<help>
+(s) what: foo bar
+<foo bar>
+(s) what: foo bar
+(s) what: !ls
+<!ls>
+(s) bye
+<quit>
+
+['greet'] ['alice', 'alan'] quit
+('add', '1 2', 'add 1 2') ('help', 'x', 'help x') (None, None, '!y') (None, None, '')
+None ['__class__', '__delattr__', '__dict__']
+one  three  five
+two  four 
+

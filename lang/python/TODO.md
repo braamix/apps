@@ -13,51 +13,17 @@ comes in through `tools/mkcpy.py`. Each task ends by moving its entry out of
 
 Two items in the list are not planned. They are at the end, with the reason.
 
-## Stage 1 — library only, no native code
+## Found along the way
 
-Pure Python whose imports this interpreter can already answer. The work is
-copying files, running the upstream test, and fixing whatever the test turns
-up in the core.
-
-1. **`graphlib`, `getopt`, `ipaddress`.** Each has a single top-level import
-   that is already here. Tests: `test_graphlib`, `test_getopt`,
-   `test_ipaddress`.
-
-2. **`queue`, `sched`.** `queue` falls back to its own `_PySimpleQueue` when
-   `_queue` is missing. With one thread, a blocking `get()` on an empty queue
-   either times out or reports the deadlock, as `_thread`'s locks already do.
-   Tests: `test_queue`, `test_sched`.
-
-3. **`optparse`, `configparser`.** Needs `gettext`, which is already here.
-   Tests: `test_optparse`, `test_configparser`.
-
-4. **`tomllib`.** The package is `__init__`, `_parser`, `_re` and `_types`.
-   Test: `test_tomllib/`.
-
-5. **`secrets`, `uuid`.** `secrets` stands on `random.SystemRandom`, which
-   uses `os.urandom` (already here). `uuid` guards its `_uuid` import. Its
-   `getnode()` falls back to a random node when neither `ifconfig` nor
-   `socket` can answer. `uuid3` and `uuid5` use `hashlib`'s md5 and sha1.
-   Tests: `test_secrets`, `test_uuid`.
-
-6. **`html`, `_markupbase`.** `html.entities`, `html.parser` and `unescape`.
-   Tests: `test_html`, `test_htmlparser`.
-
-7. **`urllib.parse`, `mimetypes`, `quopri`.** `urllib.parse` is not in §10
-   but `mimetypes` and `email` need it. It needs no sockets, only
-   `ipaddress` and `unicodedata`. Ship `urllib/__init__.py` and `parse.py`
-   only. `mimetypes` reads `/etc/mime.types` only if the file exists.
-   `quopri` stands on `binascii`'s `a2b_qp`/`b2a_qp`, which exist. Tests:
-   `test_urlparse`, `test_mimetypes`, `test_quopri`.
-
-8. **`cmd`, `code`.** Not in §10, but useful by themselves, and `pdb` needs
-   them later. `code.InteractiveConsole` gives a program a REPL of its own.
-   Tests: `test_cmd`, `test_code_module`.
-
-9. **`timeit`.** Needs `time.perf_counter`, `gc`, `itertools`, `_colorize`
-   and `argparse`, all already here. The harness clock is frozen, so a test
-   can check only the shape of the output; the timings themselves need a
-   browser. Also `python -m timeit`. Test: `test_timeit`.
+- **A `__hash__` written in Python, for dict keys and set members.** `py_hash`
+  is C++ and cannot call Python, so an instance hashes by identity and two
+  equal instances are two keys. `ipaddress.collapse_addresses` gives the wrong
+  answer because of it. The fix is VM work: dict and set operations whose key
+  is such an instance park in a continuation, call `__hash__` and then `__eq__`
+  on each collision, and finish in C++. This is the most useful item in this
+  file that is not a module.
+- **`__index__` returning a non-int** says "an integer is required" where
+  CPython says `__index__ returned non-int (type str)`.
 
 ## Stage 2 — compiler, command line, `site`
 
@@ -162,7 +128,7 @@ up in the core.
 ## Stage 5 — `email` and `xml`
 
 22. **`email`.** The whole package, pure Python. It needs `urllib.parse` and
-    `quopri` (task 7), `calendar`, `datetime` and `base64`. `socket` is
+    `quopri`, `calendar`, `datetime` and `base64`. `socket` is
     imported only inside `make_msgid`, so that one function waits for
     task 25. Test: `test_email/`.
 
@@ -203,7 +169,7 @@ up in the core.
     and the event constants. All of it is bookkeeping, and no event fires
     until task 29.
 
-27. **`bdb`, `doctest`.** With tasks 8, 25 and 26 done, `pdb` imports. It
+27. **`bdb`, `doctest`.** With tasks 25 and 26 done, `pdb` imports. It
     cannot trace yet, but `doctest` does not trace unless asked to. Ship
     `bdb`, `pdb` (import only) and `doctest`. `doctest.DocTestSuite` then
     plugs into `unittest`. Test: `test_doctest/`.

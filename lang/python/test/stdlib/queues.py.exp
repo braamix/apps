@@ -1,0 +1,13 @@
+2 True False
+Full
+Full after timeout
+1 2 True
+Empty
+Empty after timeout
+ValueError task_done() called too many times
+[2, 1, 0]
+['a', 'b', 'c']
+2 1 2 True
+SimpleQueue Empty
+ShutDown
+<class 'types.GenericAlias'> True

@@ -106,15 +106,18 @@ Value text_of(Value v, bool want_str)
         return Value();
     // object's own __repr__ is the native one the instance already answers.
     Root found;
-    StrObj *n = str_intern(want_str ? "__str__" : "__repr__");
-    if (n && type_lookup(inst_of(v)->cls, n, found.v) == R::Ok && !is_object_default(found.v))
-        return method_new(found.v, v);
-    if (want_str) {
-        n = str_intern("__repr__");
-        if (n && type_lookup(inst_of(v)->cls, n, found.v) == R::Ok && !is_object_default(found.v))
-            return method_new(found.v, v);
+    auto own = [&](Str name) {
+        StrObj *n = str_intern(name);
+        return n && type_lookup(inst_of(v)->cls, n, found.v) == R::Ok &&
+               !is_object_default(found.v);
+    };
+    if (!own(want_str ? "__str__" : "__repr__") && !(want_str && own("__repr__")))
+        return Value();
+    if (is_inst(found.v)) {
+        Value out;
+        return special_bind(found.v, v, inst_of(v)->cls, out) == R::Ok ? out : Value();
     }
-    return Value();
+    return method_new(found.v, v);
 }
 
 R print_line(const Value *args, u32 n, Str sep, Str end, Value file, Value &out);
@@ -469,7 +472,7 @@ R one_step(ContObj *k, Value in)
     i64 n = 0;
     switch (k->j) {
     case WANT_INT:
-        if (!as_index(in, n))
+        if (!is_intval(in))
             return err_set2("TypeError", "a special method returned a non-integer", type_name(in));
         break;
     case WANT_HASH:
@@ -651,6 +654,8 @@ R radix_show(const CallArgs &a, Str who, u32 base, Str prefix, Value &out)
     if (!args_only(a, who, 1, 1))
         return R::Err;
     Value v = a.args[0];
+    if (is_inst(v) && is_intval(inst_of(v)->native))
+        v = inst_of(v)->native;
     if (!is_intval(v))
         return err_set2("TypeError", "an integer is required", type_name(v));
     String text;
@@ -666,16 +671,25 @@ R radix_show(const CallArgs &a, Str who, u32 base, Str prefix, Value &out)
 
 R b_hex(const CallArgs &a, Value &out)
 {
+    R r = R::Ok;
+    if (redo_converted(a, 0, "__index__", b_hex, out, r))
+        return r;
     return radix_show(a, "hex", 16, "0x", out);
 }
 
 R b_oct(const CallArgs &a, Value &out)
 {
+    R r = R::Ok;
+    if (redo_converted(a, 0, "__index__", b_oct, out, r))
+        return r;
     return radix_show(a, "oct", 8, "0o", out);
 }
 
 R b_bin(const CallArgs &a, Value &out)
 {
+    R r = R::Ok;
+    if (redo_converted(a, 0, "__index__", b_bin, out, r))
+        return r;
     return radix_show(a, "bin", 2, "0b", out);
 }
 
@@ -2681,6 +2695,12 @@ bool source_text(Value v, Str &out)
 {
     if (is_str(v)) {
         out = str_of(v)->str();
+        // A lone surrogate is refused as encoding the source to UTF-8 would.
+        if (has_surrogate(out)) {
+            Value made;
+            if (text_encode(v, Value(), Value(), made) != R::Ok)
+                return false;
+        }
         return true;
     }
     return bytes_like(v, out);
@@ -2726,9 +2746,11 @@ Value compile_source(Value src, Str filename, CompileMode mode, String *codec = 
                      bool tree = false, i64 flags = 0)
 {
     Str text;
-    if (!source_text(src, text))
-        return err_set2("TypeError", "compile() source must be a string or bytes", type_name(src)),
-               Value();
+    if (!source_text(src, text)) {
+        if (!err_pending())
+            err_set2("TypeError", "compile() source must be a string or bytes", type_name(src));
+        return Value();
+    }
     Ast ast;
     ast.lex.keep_indent = (flags & PYCF_DONT_IMPLY_DEDENT) != 0;
     ast.lex.interactive = mode == CompileMode::Single;
@@ -2950,8 +2972,10 @@ R run_code(const CallArgs &a, CompileMode mode, bool want, Value &out)
     if (!is_code(code.v)) {
         Str text;
         if (!source_text(code.v, text))
-            return err_set2("TypeError", "source must be a string, bytes or a code object",
-                            type_name(code.v));
+            return err_pending()
+                       ? R::Err
+                       : err_set2("TypeError", "source must be a string, bytes or a code object",
+                                  type_name(code.v));
         // An expression may be written with space in front of it; a statement
         // may not, because there the indentation means something.
         if (mode == CompileMode::Eval)
@@ -3691,16 +3715,50 @@ bool set_underscore(Value v)
     return dict_set(module_dict(m.v), obj_value(k), rv.v) == R::Ok;
 }
 
+// Whether sys.stdout is still the one the process started with, which is
+// written straight into the VM's buffer.
+bool display_native()
+{
+    Value now = sys_stream("stdout");
+    return now.is_nil() || now == sys_stream("__stdout__");
+}
+
+// The repr and a newline written to a sys.stdout of the program's own, as
+// two calls. `out` is the continuation making them, or Nil.
+R display_elsewhere(Str repr, Value &out)
+{
+    String text;
+    if (!text.append(repr) || !text.push('\n'))
+        return oom();
+    usize cuts[] = { 0, repr.size(), text.size() };
+    return sys_write(Value(), text.str(), out, Span<const usize>(cuts, 3));
+}
+
 // The repr has come back. It goes where print's output goes. s[0] is the
 // value, so `_` is set once the line is out, as CPython's hook does.
 R display_step(ContObj *k, Value in)
 {
+    if (k->i == 1)
+        return cont_done(k, value_none());
     Home *h = here();
     if (!h || !h->sink)
         return err_set("SystemError", "nothing to print to");
     String text;
-    if (py_str(in, text) != R::Ok || !text.push('\n'))
+    if (py_str(in, text) != R::Ok)
         return err_pending() ? R::Err : oom();
+    if (!display_native()) {
+        if (!set_underscore(k->s[0]))
+            return R::Err;
+        Root w;
+        if (display_elsewhere(text.str(), w.v) != R::Ok)
+            return R::Err;
+        if (w.v.is_nil())
+            return cont_done(k, value_none());
+        k->i = 1;
+        return cont_await(k, w.v);
+    }
+    if (!text.push('\n'))
+        return oom();
     if (!display_put(h->sink, text.str()))
         return R::Err;
     if (!set_underscore(k->s[0]))
@@ -3733,6 +3791,11 @@ R py_display_value(Value v, Value &out)
         cont_of(kv)->drop     = true;
         out                   = text.v;
         return R::Ok;
+    }
+    if (!display_native()) {
+        if (!set_underscore(rv.v))
+            return R::Err;
+        return display_elsewhere(str_of(text.v)->str(), out);
     }
     if (!display_put(h->sink, str_of(text.v)->str()) || !display_put(h->sink, "\n"))
         return R::Err;

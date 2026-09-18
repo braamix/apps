@@ -1,0 +1,6 @@
+b'caf=C3=A9 =3D ok\ttab=20\nlong xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=\nxxxxxxxxxx\nend =20\n'
+True b'a=20b'
+b'h=5Fd_r' b'h d r'
+b'softbreak = A=4'
+b'line one two\n'
+b'=FF=FE\n' True b'=3D'

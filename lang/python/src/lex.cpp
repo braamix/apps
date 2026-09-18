@@ -765,13 +765,13 @@ bool Scanner::one_token()
             return emit(o.kind, at_line, at_col);
         }
 
-    Buf<48> m;
-    m.put("invalid character ");
-    if (c < 0x80 && c >= 0x20)
-        m.put('\'').put(char(c)).put('\'');
-    else
-        m.put("in source");
-    return fail(m.str());
+    // `?` and `$` are tokens to CPython's tokenizer, which its parser then
+    // refuses; a control character is refused by the tokenizer itself.
+    if (c < 0x80 && c >= 0x20 && c != 0x7f)
+        return fail("invalid syntax");
+    if (c < 0x80)
+        return bad_char(c, at_line, at_col);
+    return fail("invalid character in source");
 }
 
 bool Scanner::run()

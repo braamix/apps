@@ -17,3 +17,8 @@ support/hypothesis_helper.py      82952e3  Lib/test/support/hypothesis_helper.py
 support/_hypothesis_stubs/__init__.py 82952e3  Lib/test/support/_hypothesis_stubs/__init__.py
 support/_hypothesis_stubs/_helpers.py 82952e3  Lib/test/support/_hypothesis_stubs/_helpers.py
 support/_hypothesis_stubs/strategies.py 82952e3  Lib/test/support/_hypothesis_stubs/strategies.py
+mime.types                        82952e3  Lib/test/mime.types
+mime.types2                       82952e3  Lib/test/mime.types2
+configdata/cfgparser.1            82952e3  Lib/test/configdata/cfgparser.1
+configdata/cfgparser.2            82952e3  Lib/test/configdata/cfgparser.2
+configdata/cfgparser.3            82952e3  Lib/test/configdata/cfgparser.3
