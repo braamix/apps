@@ -118,6 +118,51 @@ leaves the stored line canonical, `LIST` still the exact inverse of `CRUNCH`,
 and a string, a `DATA` item, a `REM` tail and a filename keeping the case they
 were typed in. The messages are sentence case with it (`Ok`, `?Syntax error`),
 which is the one place this port stops being 1978's bytes.
+And [lang/python](lang/python/), Python 3.14 — the largest thing here by far
+at 122k lines of C++, and an **eighth shape**, because it is not a port of
+anyone's code. None of CPython's C is in it: that C is a virtual machine built
+for a refcounted heap and a C stack, and neither is available on these terms,
+so rewriting it line by line would rewrite the wrong thing. What is taken over
+is the *behaviour* — the lexer, parser, compiler, bytecode and VM are written
+for Braam, and each is held against CPython's own output rather than against
+its sources: the parse tree node for node over 373 files of CPython's library,
+the `dis` listings, 41 programs whose 2,490 lines of output are identical to
+CPython's, 427 of MicroPython's 449 tests, and 67 of 92 of CPython's own test
+files run under CPython's own `unittest`. The other half *is* byte for byte:
+196 files of `Lib/` ship as `lib/`, with
+[lang/python/lib/manifest.txt](lang/python/lib/manifest.txt) recording for each
+the upstream path, the commit, and the native module it stands on. So the rule
+the rest of this tree lives by is inverted — upstream's identifiers and
+structure are kept in the *library*, and what is under it keeps only what can
+be observed.
+
+Its hard part is simbesm's, twice. A `co_await` cannot appear in an instruction
+loop, so the VM is a driver: `vm_burst()` runs plain C++ until it has something
+for its caller to do, and only `braam.cpp` awaits. But a Python call is not an
+instruction, it is a *frame*, and the VM must not recurse for one — the native
+stack is what a `co_await` costs and there is no `setjmp` to unwind it — so a
+call pushes a `FrameObj` and returns to the same loop, and a builtin that must
+call back into Python parks its state in a `ContObj` the VM then drives. That
+is also why a `Type`'s slot may not call Python: a slot is plain C++ and cannot
+park. The recursion limit is 200 because that is what the native stack holds,
+not because CPython says so.
+
+Memory is the third rule, and the one that shaped the most code. There is no
+refcount and nothing to lean on at scope exit: the heap is precise
+mark-and-sweep, every root is an explicit `Root`/`Roots` on the C++ stack, and
+`make test STRESS=1` runs the whole suite again collecting at *every*
+allocation — which turns a missing `Root` from a rare crash into a failing
+test. A `Value` is a 32-bit tagged word and an `Obj` is 16 bytes, so this is a
+32-bit Python: `sys.maxsize` is 2\*\*31 − 1, and an int that does not fit
+becomes a `BigObj` of the same `int` type, invisibly.
+
+It is also the second program whose keyboard changes hands, for mbasic's reason
+and through mbasic's editor: the line editor holds the key ring at the `>>> `
+prompt and gives it back before a command runs, so a `^C` in a long loop
+reaches the process as `SIG_INT` instead of as a keystroke. It ships its
+library as `lib/`, and `Manual.md` and three demos as `share/` — the second
+body of code here written *in* a language this tree provides rather than
+ported into one, after mbasic's twenty `.bas` files.
 
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
@@ -131,7 +176,9 @@ A port is a rewrite, and it keeps upstream's identifiers, structure and output
 text: the value of porting a historic program is that it is still the same
 program. Replace what touches the OS, take the C library from the port kit, and
 leave the rest — including the comments — alone. Say in the program's `README.md` what had to
-change and why.
+change and why. `lang/python` is the exception and says so in its own README:
+there is no upstream source to keep, so what it keeps is the observable
+behaviour, and every claim about it is a test against CPython.
 
 ## Related trees
 
