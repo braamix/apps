@@ -119,6 +119,13 @@ void vm_set_prompt(bool on);
 // instruction runs. Both are literals.
 void vm_warn_later(Str category, Str message);
 
+// sys.settrace and sys.setprofile: the function installed, or Nil for none.
+// A frame entered from here owes it a `call` event; see FT_CALL_T.
+void vm_set_trace(Value fn);
+Value vm_trace();
+void vm_set_profile(Value fn);
+Value vm_profile();
+
 // -u: every write reaches the descriptor before the next instruction runs.
 void vm_set_unbuffered(bool on);
 

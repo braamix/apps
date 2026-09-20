@@ -27,6 +27,7 @@ void frame_trace(Obj *o)
     gc_mark(f->cont);
     gc_mark(f->gen);
     gc_mark(f->extra);
+    gc_mark(f->trace);
     for (u32 i = 0; i < f->nlocals; i++)
         gc_mark(f->slots()[i]);
     for (u32 i = 0; i < f->sp; i++)
@@ -60,16 +61,45 @@ R frame_getattr(Value v, StrObj *name, Value &out)
     else if (n == "f_lasti")
         out = Value::of_int(i32(f->pc ? (f->pc - 1) * 2 : -1));
     else if (n == "f_lineno")
-        out = Value::of_int(i32(code_line(code_of(f->code), f->pc ? f->pc - 1 : 0)));
+        // Nothing has run yet at pc 0, so the line is the one the `def` or
+        // the module began on -- which is what f_lasti answering -1 means.
+        out = Value::of_int(i32(f->pc ? code_line(code_of(f->code), f->pc - 1)
+                                      : code_of(f->code)->firstline));
     else if (n == "f_builtins")
         out = f->builtins.is_nil() ? value_none() : f->builtins;
     else if (n == "f_trace")
-        out = value_none();
+        out = f->trace.is_nil() ? value_none() : f->trace;
+    else if (n == "f_trace_lines")
+        out = value_bool((f->tflags & FT_LINES) != 0);
+    else if (n == "f_trace_opcodes")
+        out = value_bool((f->tflags & FT_OPCODES) != 0);
     else if (n == "f_generator")
         out = f->gen.is_nil() ? value_none() : f->gen;
     else
         return R::NotImpl;
     return out.is_nil() ? R::Err : R::Ok;
+}
+
+// The three a debugger writes. Everything else on a frame is the activation
+// itself and stays read-only.
+R frame_setattr(Value v, StrObj *name, Value val)
+{
+    FrameObj *f = frame_of(v);
+    Str n       = name->str();
+    if (n != "f_trace" && n != "f_trace_lines" && n != "f_trace_opcodes")
+        return R::NotImpl;
+    // `del frame.f_trace` is how a debugger stops tracing one frame, and
+    // CPython takes it; the two flags cannot be deleted.
+    if (val.is_nil() && n != "f_trace")
+        return err_set2("AttributeError", "cannot delete", n);
+    if (n == "f_trace") {
+        f->trace = val.is_nil() || is_none(val) ? Value() : val;
+        return R::Ok;
+    }
+    bool yes  = py_truth(val);
+    u8 bit    = n == "f_trace_lines" ? u8(FT_LINES) : u8(FT_OPCODES);
+    f->tflags = u8(yes ? (f->tflags | bit) : (f->tflags & ~bit));
+    return R::Ok;
 }
 
 // frame.clear(): drop the locals of a frame that is over.
@@ -103,7 +133,8 @@ bool frame_methods()
 constexpr Type frame_type{ .name    = "frame",
                            .trace   = frame_trace,
                            .repr    = frame_repr,
-                           .getattr = frame_getattr };
+                           .getattr = frame_getattr,
+                           .setattr = frame_setattr };
 
 FrameObj *frame_new(CodeObj *c)
 {
@@ -126,12 +157,18 @@ FrameObj *frame_new(CodeObj *c)
     f->cont     = Value();
     f->gen      = Value();
     f->extra    = Value();
+    f->trace    = Value();
     f->pc       = 0;
     f->sp       = 0;
     f->nb       = 0;
     f->nlocals  = nlocals;
     f->nslots   = nslots;
     f->nblocks  = nblocks;
+    f->tracepc  = ~0u;
+    f->prevpc   = ~0u;
+    f->lastline = 0;
+    f->fired    = 0;
+    f->tflags   = FT_LINES;
     for (u32 i = 0; i < nslots; i++)
         f->slots()[i] = Value();
     return f;

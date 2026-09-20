@@ -26,15 +26,16 @@ code fetch  file /tmp/c.py  line 1
   consts:
       0  None
       1  2
-    2       0  LoadFast              0 (src)
-            1  GetAwaitable          0
-            2  LoadConst             0 (None)
-            3  YieldFrom
-            4  LoadConst             1 (2)
-            5  BinaryOp              6 (**)
-            6  Return
-            7  LoadConst             0 (None)
-            8  Return
+    1       0  Nop
+    2       1  LoadFast              0 (src)
+            2  GetAwaitable          0
+            3  LoadConst             0 (None)
+            4  YieldFrom
+            5  LoadConst             1 (2)
+            6  BinaryOp              6 (**)
+            7  Return
+            8  LoadConst             0 (None)
+            9  Return
 
 code walk  file /tmp/c.py  line 5
   args 2 (posonly 0, kwonly 0)  stack 5  blocks 2  flags optimized newlocals coroutine
@@ -42,94 +43,96 @@ code walk  file /tmp/c.py  line 5
   consts:
       0  None
       1  <code <listcomp> at line 12>
-    6       0  LoadFast              1 (cm)
-            1  BeforeAsyncWith
-            2  GetAwaitable          1
-            3  LoadConst             0 (None)
-            4  YieldFrom
-            5  SetupWith            44
-            6  StoreFast             2 (c)
-    7       7  LoadFast              0 (it)
-            8  GetAIter
-      >>    9  SetupFinally         21
-           10  GetANext
-           11  GetAwaitable          3
-           12  LoadConst             0 (None)
-           13  YieldFrom
-           14  PopBlock
-           15  StoreFast             3 (x)
-    8      16  LoadFast              3 (x)
-           17  PopJumpIfFalse       20
-    9      18  PopTop
-           19  Jump                 34
-    7 >>   20  Jump                  9
-      >>   21  EndAsyncFor
-   11      22  LoadFast              2 (c)
-    6      23  RotTwo
-           24  PopBlock
-           25  LoadConst             0 (None)
-           26  DupTop
+    5       0  Nop
+    6       1  LoadFast              1 (cm)
+            2  BeforeAsyncWith
+            3  GetAwaitable          1
+            4  LoadConst             0 (None)
+            5  YieldFrom
+            6  SetupWith            45
+            7  StoreFast             2 (c)
+    7       8  LoadFast              0 (it)
+            9  GetAIter
+      >>   10  SetupFinally         22
+           11  GetANext
+           12  GetAwaitable          3
+           13  LoadConst             0 (None)
+           14  YieldFrom
+           15  PopBlock
+           16  StoreFast             3 (x)
+    8      17  LoadFast              3 (x)
+           18  PopJumpIfFalse       21
+    9      19  PopTop
+           20  Jump                 35
+    7 >>   21  Jump                 10
+      >>   22  EndAsyncFor
+   11      23  LoadFast              2 (c)
+    6      24  RotTwo
+           25  PopBlock
+           26  LoadConst             0 (None)
            27  DupTop
-           28  Call                  3
-           29  GetAwaitable          2
-           30  LoadConst             0 (None)
-           31  YieldFrom
-           32  PopTop
-   11      33  Return
-    6 >>   34  PopBlock
-           35  LoadConst             0 (None)
-           36  DupTop
+           28  DupTop
+           29  Call                  3
+           30  GetAwaitable          2
+           31  LoadConst             0 (None)
+           32  YieldFrom
+           33  PopTop
+   11      34  Return
+    6 >>   35  PopBlock
+           36  LoadConst             0 (None)
            37  DupTop
-           38  Call                  3
-           39  GetAwaitable          2
-           40  LoadConst             0 (None)
-           41  YieldFrom
-           42  PopTop
-           43  Jump                 52
-      >>   44  WithExceptStart
-           45  GetAwaitable          2
-           46  LoadConst             0 (None)
-           47  YieldFrom
-           48  PopJumpIfTrue        50
-           49  Reraise               0
-      >>   50  PopTop
-           51  PopTop
-   12 >>   52  LoadConst             1 (<code <listcomp> at line 12>)
-           53  MakeFunction          0
-           54  LoadFast              0 (it)
-           55  GetAIter
-           56  Call                  1
-           57  GetAwaitable          0
-           58  LoadConst             0 (None)
-           59  YieldFrom
-           60  Return
-           61  LoadConst             0 (None)
-           62  Return
+           38  DupTop
+           39  Call                  3
+           40  GetAwaitable          2
+           41  LoadConst             0 (None)
+           42  YieldFrom
+           43  PopTop
+           44  Jump                 53
+      >>   45  WithExceptStart
+           46  GetAwaitable          2
+           47  LoadConst             0 (None)
+           48  YieldFrom
+           49  PopJumpIfTrue        51
+           50  Reraise               0
+      >>   51  PopTop
+           52  PopTop
+   12 >>   53  LoadConst             1 (<code <listcomp> at line 12>)
+           54  MakeFunction          0
+           55  LoadFast              0 (it)
+           56  GetAIter
+           57  Call                  1
+           58  GetAwaitable          0
+           59  LoadConst             0 (None)
+           60  YieldFrom
+           61  Return
+           62  LoadConst             0 (None)
+           63  Return
 
 code <listcomp>  file /tmp/c.py  line 12
   args 1 (posonly 0, kwonly 0)  stack 4  blocks 1  flags optimized newlocals coroutine
   varnames: .0, y
   consts:
       0  None
-   12       0  BuildList             0
-            1  LoadFast              0 (.0)
-      >>    2  SetupFinally         17
-            3  GetANext
-            4  GetAwaitable          3
-            5  LoadConst             0 (None)
-            6  YieldFrom
-            7  PopBlock
-            8  StoreFast             1 (y)
-            9  LoadFast              1 (y)
-           10  GetAwaitable          0
-           11  LoadConst             0 (None)
-           12  YieldFrom
-           13  PopJumpIfFalse        2
-           14  LoadFast              1 (y)
-           15  ListAppend            2
-           16  Jump                  2
-      >>   17  EndAsyncFor
-           18  Return
+   12       0  Nop
+            1  BuildList             0
+            2  LoadFast              0 (.0)
+      >>    3  SetupFinally         18
+            4  GetANext
+            5  GetAwaitable          3
+            6  LoadConst             0 (None)
+            7  YieldFrom
+            8  PopBlock
+            9  StoreFast             1 (y)
+           10  LoadFast              1 (y)
+           11  GetAwaitable          0
+           12  LoadConst             0 (None)
+           13  YieldFrom
+           14  PopJumpIfFalse        3
+           15  LoadFast              1 (y)
+           16  ListAppend            2
+           17  Jump                  3
+      >>   18  EndAsyncFor
+           19  Return
 
 code ticks  file /tmp/c.py  line 15
   args 1 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals async_generator
@@ -137,25 +140,26 @@ code ticks  file /tmp/c.py  line 15
   names: range, fetch
   consts:
       0  None
-   16       0  LoadGlobal            0 (range)
-            1  LoadFast              0 (n)
-            2  Call                  1
-            3  GetIter
-      >>    4  ForIter              11
-            5  StoreFast             1 (i)
-   17       6  LoadFast              1 (i)
-            7  AsyncGenWrap
-            8  YieldValue
-            9  PopTop
-   16      10  Jump                  4
-   18 >>   11  LoadGlobal            1 (fetch)
-           12  LoadFast              0 (n)
-           13  Call                  1
-           14  GetAwaitable          0
-           15  LoadConst             0 (None)
-           16  YieldFrom
-           17  AsyncGenWrap
-           18  YieldValue
-           19  PopTop
-           20  LoadConst             0 (None)
-           21  Return
+   15       0  Nop
+   16       1  LoadGlobal            0 (range)
+            2  LoadFast              0 (n)
+            3  Call                  1
+            4  GetIter
+      >>    5  ForIter              12
+            6  StoreFast             1 (i)
+   17       7  LoadFast              1 (i)
+            8  AsyncGenWrap
+            9  YieldValue
+           10  PopTop
+   16      11  Jump                  5
+   18 >>   12  LoadGlobal            1 (fetch)
+           13  LoadFast              0 (n)
+           14  Call                  1
+           15  GetAwaitable          0
+           16  LoadConst             0 (None)
+           17  YieldFrom
+           18  AsyncGenWrap
+           19  YieldValue
+           20  PopTop
+           21  LoadConst             0 (None)
+           22  Return

@@ -196,10 +196,11 @@ R native_getattr(Value v, StrObj *name, Value &out)
 {
     Str n = name->str();
     if (n == "__module__") {
+        // A method of a built-in type has no module, as CPython's has none:
+        // the attribute is there and is None, which is what `inspect` and
+        // doctest's _from_module ask for.
         Value owner = static_cast<NativeObj *>(v.obj())->owner;
-        if (!is_str(owner))
-            return R::NotImpl;
-        out = owner;
+        out         = is_str(owner) ? owner : value_none();
         return R::Ok;
     }
     if (n != "__name__" && n != "__qualname__")

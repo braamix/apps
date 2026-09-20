@@ -244,6 +244,13 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
   at a handler with `XML_StopParser` and a `ContObj` makes the Python call and
   resumes, because a native here may not call Python. `ElementTree`,
   `minidom`, `pulldom` and `xml.sax` all read through it.
+- `sys.settrace` and `sys.setprofile` are the VM's, not a module's: a tracer
+  is a Python call made from inside the instruction loop, so it is a pushed
+  frame like any other and the loop resumes the instruction it was called
+  from. Unwinding cannot make that call at all -- `dispatch` is plain C++ --
+  so what each frame is owed is queued and fired at the next instruction
+  boundary. Every code object begins with a `Nop`, CPython's `RESUME`, so
+  that a frame that has not run has a position for a `call` event to report.
 - A coroutine never awaited is reported when the collector finds it.
 - `json` is the pure-Python one, so a malformed document is reported in
   `json.decoder`'s words.

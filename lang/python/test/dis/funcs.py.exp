@@ -83,64 +83,71 @@ code plain  file /tmp/c.py  line 1
   varnames: a, b
   consts:
       0  None
-    2       0  LoadFast              0 (a)
-            1  LoadFast              1 (b)
-            2  BinaryOp              0 (+)
-            3  Return
-            4  LoadConst             0 (None)
-            5  Return
+    1       0  Nop
+    2       1  LoadFast              0 (a)
+            2  LoadFast              1 (b)
+            3  BinaryOp              0 (+)
+            4  Return
+            5  LoadConst             0 (None)
+            6  Return
 
 code defaults  file /tmp/c.py  line 4
   args 2 (posonly 0, kwonly 2)  stack 6  flags optimized newlocals varargs varkw
   varnames: a, b, c, d, rest, kw
   consts:
       0  None
-    5       0  LoadFast              0 (a)
-            1  LoadFast              1 (b)
-            2  LoadFast              4 (rest)
-            3  LoadFast              2 (c)
-            4  LoadFast              3 (d)
-            5  LoadFast              5 (kw)
-            6  BuildTuple            6
-            7  Return
-            8  LoadConst             0 (None)
-            9  Return
+    4       0  Nop
+    5       1  LoadFast              0 (a)
+            2  LoadFast              1 (b)
+            3  LoadFast              4 (rest)
+            4  LoadFast              2 (c)
+            5  LoadFast              3 (d)
+            6  LoadFast              5 (kw)
+            7  BuildTuple            6
+            8  Return
+            9  LoadConst             0 (None)
+           10  Return
 
 code positional  file /tmp/c.py  line 7
   args 3 (posonly 2, kwonly 0)  stack 2  flags optimized newlocals
   varnames: a, b, c
   consts:
       0  None
-    8       0  LoadFast              0 (a)
-            1  LoadFast              1 (b)
-            2  BinaryOp              0 (+)
-            3  LoadFast              2 (c)
-            4  BinaryOp              0 (+)
-            5  Return
-            6  LoadConst             0 (None)
-            7  Return
+    7       0  Nop
+    8       1  LoadFast              0 (a)
+            2  LoadFast              1 (b)
+            3  BinaryOp              0 (+)
+            4  LoadFast              2 (c)
+            5  BinaryOp              0 (+)
+            6  Return
+            7  LoadConst             0 (None)
+            8  Return
 
 code deco  file /tmp/c.py  line 10
   args 1 (posonly 0, kwonly 0)  stack 1  flags optimized newlocals
   varnames: f
   consts:
       0  None
-   11       0  LoadFast              0 (f)
-            1  Return
-            2  LoadConst             0 (None)
-            3  Return
+   10       0  Nop
+   11       1  LoadFast              0 (f)
+            2  Return
+            3  LoadConst             0 (None)
+            4  Return
 
 code wrapped  file /tmp/c.py  line 15
   args 0 (posonly 0, kwonly 0)  stack 1  flags optimized newlocals
   consts:
       0  None
-   15       0  LoadConst             0 (None)
-            1  Return
+   15       0  Nop
+   16       1  Nop
+            2  LoadConst             0 (None)
+            3  Return
 
 code <lambda>  file /tmp/c.py  line 18
   args 2 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals
   varnames: x, y
-   18       0  LoadFast              0 (x)
-            1  LoadFast              1 (y)
-            2  BinaryOp              2 (*)
-            3  Return
+   18       0  Nop
+            1  LoadFast              0 (x)
+            2  LoadFast              1 (y)
+            3  BinaryOp              2 (*)
+            4  Return

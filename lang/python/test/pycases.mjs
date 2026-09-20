@@ -58,8 +58,10 @@ function plant_shims() {
     walk(SHIM);
 }
 
-// The data files some cases read, under the shims' test package. data.txt
-// lists them and where they came from.
+// The data files some cases read, under the shims' test package, and again
+// under /tmp alone: a case is planted flat, so a path it resolves against its
+// own module's directory starts there. data.txt lists them and where they
+// came from.
 function plant_data() {
     const list = join(CASES, "data.txt");
     if (!existsSync(list)) return;
@@ -67,7 +69,9 @@ function plant_data() {
         const t = line.trim();
         if (!t || t.startsWith("#")) continue;
         const path = t.split(/\s+/)[0];
-        put("/tmp/test/" + path, readFileSync(join(CASES, "test", path)));
+        const bytes = readFileSync(join(CASES, "test", path));
+        put("/tmp/test/" + path, bytes);
+        put("/tmp/" + path, bytes);
     }
 }
 
@@ -109,19 +113,17 @@ function reason(text) {
     return m ? "runtime" : "silent";
 }
 
-// ok/ran off unittest's own last two lines. A skip counts as a pass, as the
-// shim's own tally did.
+// ok/ran off unittest's own report. A skip counts as a pass, as the shim's
+// own tally did. The failing tests are counted off their headers rather than
+// off the FAILED line, because a subTest adds an entry of its own there: a
+// case that uses them has more entries than it ran tests.
 function counts(text) {
     const m = /^Ran (\d+) tests? in /m.exec(text);
     if (!m) return null;
-    let bad = 0;
-    const f = /^FAILED \((.*)\)$/m.exec(text);
-    if (f)
-        for (const part of f[1].split(", ")) {
-            const [kind, n] = part.split("=");
-            if (kind === "failures" || kind === "errors") bad += Number(n);
-        }
-    return `${Number(m[1]) - bad}/${m[1]}`;
+    const bad = new Set();
+    for (const h of text.matchAll(/^(?:FAIL|ERROR): (\S+ \(\S+?\))/gm)) bad.add(h[1]);
+    const ran = Number(m[1]);
+    return `${Math.max(0, ran - bad.size)}/${ran}`;
 }
 
 await boot("pycases");
@@ -169,8 +171,25 @@ for (const c of ROWS) {
     const src = join(CASES, c.name);
     if (!existsSync(src)) die(`${c.name}: no copy at ${src} — run tools/mkcpy.py`);
 
+    // A case that reaches for its package's other files -- test_doctest
+    // opens half a dozen -- has them in a directory of its own name beside
+    // it. They go both where the package would be, for what imports them by
+    // their dotted name, and beside the case, for what opens one by a path
+    // relative to the module that asks: here that is /tmp either way.
+    const bag = join(CASES, c.name.replace(/\.py$/, ""));
+    if (existsSync(bag)) {
+        const under = "/tmp/" + c.upstream.replace(/^Lib\//, "").replace(/\/[^/]+$/, "");
+        for (const e of readdirSync(bag)) {
+            const bytes = readFileSync(join(bag, e));
+            put(under + "/" + e, bytes);
+            put("/tmp/" + e, bytes);
+        }
+    }
+
     put("/tmp/" + c.name, readFileSync(src));
-    const r = run("/tmp/" + c.name);
+    // Stdin is an empty file and not the console: a case that reads one --
+    // test_doctest runs pdb -- would otherwise park with nobody to type.
+    const r = run("/tmp/" + c.name, "");
     const got = stable(r.out + r.err);
     const fenced = listing(got);
     const state = fenced === null ? "fail" : "pass";

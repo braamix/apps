@@ -164,6 +164,32 @@ def requires_non_root_user(test):
     return unittest.skip("no user ids")(test)
 
 
+# Upstream's, byte for byte: a coroutine stepped once, for a test that only
+# wants the body to run.
+def run_no_yield_async_fn(async_fn, /, *args, **kwargs):
+    coro = async_fn(*args, **kwargs)
+    try:
+        coro.send(None)
+    except StopIteration as e:
+        return e.value
+    else:
+        raise AssertionError("coroutine did not complete")
+    finally:
+        coro.close()
+
+
+def run_yielding_async_fn(async_fn, /, *args, **kwargs):
+    coro = async_fn(*args, **kwargs)
+    try:
+        while True:
+            try:
+                coro.send(None)
+            except StopIteration as e:
+                return e.value
+    finally:
+        coro.close()
+
+
 def impl_detail(msg=None, **guards):
     def deco(test):
         return test

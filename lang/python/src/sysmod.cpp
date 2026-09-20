@@ -373,13 +373,19 @@ R b_displayhook(const CallArgs &a, Value &out)
     return r;
 }
 
-// There is no tracing here -- that is a later stage -- and None is what
-// "no trace function is installed" means, which is the true answer. The
-// setters are not here, so nothing can be told otherwise.
 R b_gettrace(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "gettrace", 0, 0))
         return R::Err;
+    out = vm_trace().is_nil() ? value_none() : vm_trace();
+    return R::Ok;
+}
+
+R b_settrace(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "settrace", 1, 1))
+        return R::Err;
+    vm_set_trace(is_none(a.args[0]) ? Value() : a.args[0]);
     out = value_none();
     return R::Ok;
 }
@@ -388,6 +394,15 @@ R b_getprofile(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "getprofile", 0, 0))
         return R::Err;
+    out = vm_profile().is_nil() ? value_none() : vm_profile();
+    return R::Ok;
+}
+
+R b_setprofile(const CallArgs &a, Value &out)
+{
+    if (!args_only(a, "setprofile", 1, 1))
+        return R::Err;
+    vm_set_profile(is_none(a.args[0]) ? Value() : a.args[0]);
     out = value_none();
     return R::Ok;
 }
@@ -662,7 +677,9 @@ constexpr ModDef SYS_DEFS[] = {
     { "getsizeof", b_getsizeof },
     { "getrecursionlimit", b_getrecursionlimit },
     { "gettrace", b_gettrace },
+    { "settrace", b_settrace },
     { "getprofile", b_getprofile },
+    { "setprofile", b_setprofile },
     { "displayhook", b_displayhook },
     { "set_asyncgen_hooks", b_set_asyncgen_hooks },
     { "get_asyncgen_hooks", b_get_asyncgen_hooks },

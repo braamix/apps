@@ -1,6 +1,6 @@
 r:gz
 r|gz
-................................sssFs.sF..............................................s......................s........FFFFFEE..EF.F..............................sss....................................................sssFs.sF...................................................s......................s.......sss...ssss......................sssFs.sF............................................s......................s.............................sssFs.sF............................E.FFFFFFFFFFFFFFFFFFFFFFFFFFFF..ssss.........................................................................F.F.FFFFF.FssF.F.FF.F.....FF.FFFFFEFFFFFFs.FF...s....................................s..........................sssFs.sF..............................E.EEEEEEEEE....s......................s.......
+................................sssFs.sF..............................................s......................s........FFFFFEE..EF.F..............................sss....................................................sssFs.sF...................................................s......................s.......sss...ssss......................sssFs.sF............................................s......................s.............................sssFs.sF..............................FFFFFFFFFFFFFFFFFFFFFFFFFFFF..ssss.........................................................................F.F.FFFFF.FssF.F.FF.F.....FF.FFFFFEFFFFFFs.FF...s....................................s..........................sssFs.sF..............................E.EEEEEEEEE....s......................s.......
 ======================================================================
 ERROR: test_extract_command (__main__.CommandLineTest.test_extract_command)
 ----------------------------------------------------------------------
@@ -42,20 +42,6 @@ Traceback (most recent call last):
   File "/pkg/store/python-0/lib/tarfile.py", line 2254, in gettarinfo
     statres = os.lstat(name)
 FileNotFoundError: [Errno 2] No such file or directory: 'tokenizedata/tokenize_tests.txt'
-
-======================================================================
-ERROR: test_useful_error_message_when_modules_missing (__main__.MiscTest.test_useful_error_message_when_modules_missing)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_tarfile.py", line 3063, in test_useful_error_message_when_modules_missing
-    tarfile.open(fname)
-  File "/pkg/store/python-0/lib/tarfile.py", line 1973, in open
-    return func(name, "r", fileobj, **kwargs)
-  File "/pkg/store/python-0/lib/tarfile.py", line 2050, in gzopen
-    fileobj = GzipFile(name, mode + "b", compresslevel, fileobj, mtime=mtime)
-  File "/pkg/store/python-0/lib/gzip.py", line 212, in __init__
-    fileobj = self.myfileobj = builtins.open(filename, mode or 'rb')
-FileNotFoundError: [Errno 2] No such file or directory: '/tmp/archivetestdata/testtar.tar.xz'
 
 ======================================================================
 ERROR: test_realpath_limit_attack (__main__.TestExtractionFilters.test_realpath_limit_attack)
@@ -19632,4 +19618,4 @@ AssertionError: 0.0 != 1041808783
 ----------------------------------------------------------------------
 Ran 781 tests in Ns
 
-FAILED (failures=73, errors=15, skipped=52)
+FAILED (failures=73, errors=14, skipped=52)

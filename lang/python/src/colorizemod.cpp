@@ -3,7 +3,9 @@
 // CPython's _colorize.py is built on dataclasses, which wait for phase 27.
 // argparse and traceback reach it lazily and only to ask whether to colour;
 // the answer here is always no, and a theme is the stand-in traceback keeps
-// for late shutdown: every section and every field of it is empty.
+// for late shutdown: every section and every field of it is empty. ANSIColors
+// and NoColors are that same object, since a code that is never written is
+// the empty string either way; doctest names both.
 #include "gc.h"
 #include "method.h"
 #include "module.h"
@@ -132,6 +134,8 @@ bool colorize_install(DictObj *into)
     if (!mod_defs(d, DEFS) || !mod_put(d, "COLORIZE", value_bool(false)))
         return false;
     Root t{ nocolor() };
-    return !t.v.is_nil() && mod_put(static_cast<DictObj *>(rd.v.obj()), "theme_no_color", t.v) &&
-           mod_put(static_cast<DictObj *>(rd.v.obj()), "default_theme", t.v);
+    d = static_cast<DictObj *>(rd.v.obj());
+    return !t.v.is_nil() && mod_put(d, "theme_no_color", t.v) &&
+           mod_put(d, "default_theme", t.v) && mod_put(d, "ANSIColors", t.v) &&
+           mod_put(d, "NoColors", t.v);
 }

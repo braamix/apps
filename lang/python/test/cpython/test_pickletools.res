@@ -1,4 +1,4 @@
-...............................................s........FFF....ssssss.....ssssss...s.................ssssss....ssssss.............ss..........sssss............................................
+...............................................s........FFF....ssssss.....ssssss...s.................ssssss....ssssss.............ss..........sssss.....................................................................
 ======================================================================
 FAIL: test_compat_pickle (__main__.OptimizedPickleTests.test_compat_pickle) (type=<class 'map'>, proto=0)
 ----------------------------------------------------------------------
@@ -24,6 +24,6 @@ Traceback (most recent call last):
 AssertionError: b'citertools\nimap' not found in b'\x80\x02c__builtin__\niter\n](K\x01K\x02K\x03e\x85R.'
 
 ----------------------------------------------------------------------
-Ran 179 tests in Ns
+Ran 204 tests in Ns
 
 FAILED (failures=3, skipped=33)

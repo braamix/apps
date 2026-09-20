@@ -45,16 +45,18 @@ code Empty  file /tmp/c.py  line 1
       1  1
       2  ()
       3  None
-    1       0  LoadName              0 (__name__)
-            1  StoreName             1 (__module__)
-            2  LoadConst             0 ('Empty')
-            3  StoreName             2 (__qualname__)
-            4  LoadConst             1 (1)
-            5  StoreName             3 (__firstlineno__)
-            6  LoadConst             2 (())
-            7  StoreName             4 (__static_attributes__)
-            8  LoadConst             3 (None)
-            9  Return
+    1       0  Nop
+            1  LoadName              0 (__name__)
+            2  StoreName             1 (__module__)
+            3  LoadConst             0 ('Empty')
+            4  StoreName             2 (__qualname__)
+            5  LoadConst             1 (1)
+            6  StoreName             3 (__firstlineno__)
+    2       7  Nop
+            8  LoadConst             2 (())
+            9  StoreName             4 (__static_attributes__)
+           10  LoadConst             3 (None)
+           11  Return
 
 code Point  file /tmp/c.py  line 4
   args 0 (posonly 0, kwonly 0)  stack 1  flags -
@@ -67,24 +69,25 @@ code Point  file /tmp/c.py  line 4
       4  <code norm at line 11>
       5  ('x', 'y')
       6  None
-    4       0  LoadName              0 (__name__)
-            1  StoreName             1 (__module__)
-            2  LoadConst             0 ('Point')
-            3  StoreName             2 (__qualname__)
-            4  LoadConst             1 (4)
-            5  StoreName             3 (__firstlineno__)
-    5       6  LoadConst             2 ('point')
-            7  StoreName             4 (kind)
-    7       8  LoadConst             3 (<code __init__ at line 7>)
-            9  MakeFunction          0
-           10  StoreName             5 (__init__)
-   11      11  LoadConst             4 (<code norm at line 11>)
-           12  MakeFunction          0
-           13  StoreName             6 (norm)
-           14  LoadConst             5 (('x', 'y'))
-           15  StoreName             7 (__static_attributes__)
-           16  LoadConst             6 (None)
-           17  Return
+    4       0  Nop
+            1  LoadName              0 (__name__)
+            2  StoreName             1 (__module__)
+            3  LoadConst             0 ('Point')
+            4  StoreName             2 (__qualname__)
+            5  LoadConst             1 (4)
+            6  StoreName             3 (__firstlineno__)
+    5       7  LoadConst             2 ('point')
+            8  StoreName             4 (kind)
+    7       9  LoadConst             3 (<code __init__ at line 7>)
+           10  MakeFunction          0
+           11  StoreName             5 (__init__)
+   11      12  LoadConst             4 (<code norm at line 11>)
+           13  MakeFunction          0
+           14  StoreName             6 (norm)
+           15  LoadConst             5 (('x', 'y'))
+           16  StoreName             7 (__static_attributes__)
+           17  LoadConst             6 (None)
+           18  Return
 
 code __init__  file /tmp/c.py  line 7
   args 3 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals
@@ -92,14 +95,15 @@ code __init__  file /tmp/c.py  line 7
   names: x, y
   consts:
       0  None
-    8       0  LoadFast              1 (x)
-            1  LoadFast              0 (self)
-            2  StoreAttr             0 (x)
-    9       3  LoadFast              2 (y)
-            4  LoadFast              0 (self)
-            5  StoreAttr             1 (y)
-            6  LoadConst             0 (None)
-            7  Return
+    7       0  Nop
+    8       1  LoadFast              1 (x)
+            2  LoadFast              0 (self)
+            3  StoreAttr             0 (x)
+    9       4  LoadFast              2 (y)
+            5  LoadFast              0 (self)
+            6  StoreAttr             1 (y)
+            7  LoadConst             0 (None)
+            8  Return
 
 code norm  file /tmp/c.py  line 11
   args 1 (posonly 0, kwonly 0)  stack 3  flags optimized newlocals
@@ -107,20 +111,21 @@ code norm  file /tmp/c.py  line 11
   names: x, y
   consts:
       0  None
-   12       0  LoadFast              0 (self)
-            1  LoadAttr              0 (x)
-            2  LoadFast              0 (self)
-            3  LoadAttr              0 (x)
-            4  BinaryOp              2 (*)
-            5  LoadFast              0 (self)
-            6  LoadAttr              1 (y)
-            7  LoadFast              0 (self)
-            8  LoadAttr              1 (y)
-            9  BinaryOp              2 (*)
-           10  BinaryOp              0 (+)
-           11  Return
-           12  LoadConst             0 (None)
-           13  Return
+   11       0  Nop
+   12       1  LoadFast              0 (self)
+            2  LoadAttr              0 (x)
+            3  LoadFast              0 (self)
+            4  LoadAttr              0 (x)
+            5  BinaryOp              2 (*)
+            6  LoadFast              0 (self)
+            7  LoadAttr              1 (y)
+            8  LoadFast              0 (self)
+            9  LoadAttr              1 (y)
+           10  BinaryOp              2 (*)
+           11  BinaryOp              0 (+)
+           12  Return
+           13  LoadConst             0 (None)
+           14  Return
 
 code Meta  file /tmp/c.py  line 14
   args 0 (posonly 0, kwonly 0)  stack 1  flags -
@@ -130,13 +135,15 @@ code Meta  file /tmp/c.py  line 14
       1  14
       2  ()
       3  None
-   14       0  LoadName              0 (__name__)
-            1  StoreName             1 (__module__)
-            2  LoadConst             0 ('Meta')
-            3  StoreName             2 (__qualname__)
-            4  LoadConst             1 (14)
-            5  StoreName             3 (__firstlineno__)
-            6  LoadConst             2 (())
-            7  StoreName             4 (__static_attributes__)
-            8  LoadConst             3 (None)
-            9  Return
+   14       0  Nop
+            1  LoadName              0 (__name__)
+            2  StoreName             1 (__module__)
+            3  LoadConst             0 ('Meta')
+            4  StoreName             2 (__qualname__)
+            5  LoadConst             1 (14)
+            6  StoreName             3 (__firstlineno__)
+   15       7  Nop
+            8  LoadConst             2 (())
+            9  StoreName             4 (__static_attributes__)
+           10  LoadConst             3 (None)
+           11  Return

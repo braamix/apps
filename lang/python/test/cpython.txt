@@ -13,7 +13,13 @@
 #
 # These are not self-contained the way MicroPython's are: every one imports
 # unittest and most import test.support, so pycases.mjs plants the shims under
-# shim/ beside every case. The golden beside a case is the listing
+# shim/ beside every case. Stdin is an empty file, not the console: a case
+# that reads one would otherwise park with nobody to type. A case that opens
+# its package's other files has them in a directory of its own name beside it
+# -- `tools/mkcpy.py --with-package` puts them there -- and those are planted
+# both where the package would be and beside the case.
+#
+# The golden beside a case is the listing
 # unittest.main() printed, or -- for a fail row -- what it printed instead.
 # A case that cannot run stays byte for byte and its row says why.
 #
@@ -21,7 +27,7 @@
 pass  test__encoded_words.py          39/39      82952e3  Lib/test/test_email/test__encoded_words.py
 pass  test__header_value_parser.py    389/389    82952e3  Lib/test/test_email/test__header_value_parser.py
 pass  test_abstract_numbers.py        7/7        82952e3  Lib/test/test_abstract_numbers.py
-pass  test_argparse.py                1950/1966  82952e3  Lib/test/test_argparse.py
+pass  test_argparse.py                1956/1966  82952e3  Lib/test/test_argparse.py
 fail  test_asian_codecs.py            runtime    82952e3  Lib/test/test_email/test_asian_codecs.py
 pass  test_augassign.py               7/7        82952e3  Lib/test/test_augassign.py
 pass  test_base64.py                  65/67      82952e3  Lib/test/test_base64.py
@@ -29,17 +35,17 @@ pass  test_binascii.py                237/237    82952e3  Lib/test/test_binascii
 pass  test_binop.py                   9/12       82952e3  Lib/test/test_binop.py
 pass  test_bisect.py                  23/46      82952e3  Lib/test/test_bisect.py
 pass  test_bool.py                    27/31      82952e3  Lib/test/test_bool.py
-pass  test_bz2.py                     80/103     82952e3  Lib/test/test_bz2.py
+pass  test_bz2.py                     94/103     82952e3  Lib/test/test_bz2.py
 pass  test_calendar.py                86/86      82952e3  Lib/test/test_calendar.py
 pass  test_charmapcodec.py            4/4        82952e3  Lib/test/test_charmapcodec.py
 fail  test_cmd.py                     import     82952e3  Lib/test/test_cmd.py
 pass  test_code_module.py             17/17      82952e3  Lib/test/test_code_module.py
-pass  test_codeop.py                  5/13       82952e3  Lib/test/test_codeop.py
+pass  test_codeop.py                  9/13       82952e3  Lib/test/test_codeop.py
 pass  test_configparser.py            376/383    82952e3  Lib/test/test_configparser.py
 pass  test_contains.py                3/4        82952e3  Lib/test/test_contains.py
 pass  test_contentmanager.py          113/116    82952e3  Lib/test/test_email/test_contentmanager.py
 pass  test_context.py                 1/1        82952e3  Lib/test/test_asyncio/test_context.py
-pass  test_contextlib.py              84/100     82952e3  Lib/test/test_contextlib.py
+pass  test_contextlib.py              85/100     82952e3  Lib/test/test_contextlib.py
 pass  test_copy.py                    83/83      82952e3  Lib/test/test_copy.py
 pass  test_copyreg.py                 6/6        82952e3  Lib/test/test_copyreg.py
 pass  test_csv.py                     151/156    82952e3  Lib/test/test_csv.py
@@ -47,7 +53,8 @@ pass  test_datetime.py                0/1        82952e3  Lib/test/test_datetime
 fail  test_decimal.py                 import     82952e3  Lib/test/test_decimal.py
 pass  test_decorators.py              14/16      82952e3  Lib/test/test_decorators.py
 pass  test_defect_handling.py         60/60      82952e3  Lib/test/test_email/test_defect_handling.py
-pass  test_dynamic.py                 9/11       82952e3  Lib/test/test_dynamic.py
+pass  test_doctest.py                 64/78      82952e3  Lib/test/test_doctest/test_doctest.py
+pass  test_dynamic.py                 10/11      82952e3  Lib/test/test_dynamic.py
 pass  test_dynamicclassattribute.py   12/12      82952e3  Lib/test/test_dynamicclassattribute.py
 pass  test_email.py                   536/544    82952e3  Lib/test/test_email/test_email.py
 pass  test_errno.py                   3/3        82952e3  Lib/test/test_errno.py
@@ -64,7 +71,7 @@ pass  test_generator.py               82/83      82952e3  Lib/test/test_email/te
 pass  test_generator_stop.py          1/2        82952e3  Lib/test/test_generator_stop.py
 pass  test_genericclass.py            21/22      82952e3  Lib/test/test_genericclass.py
 pass  test_genericpath.py             21/26      82952e3  Lib/test/test_genericpath.py
-pass  test_getopt.py                  9/9        82952e3  Lib/test/test_getopt.py
+pass  test_getopt.py                  10/10      82952e3  Lib/test/test_getopt.py
 pass  test_glob.py                    22/22      82952e3  Lib/test/test_glob.py
 pass  test_global.py                  20/20      82952e3  Lib/test/test_global.py
 fail  test_grammar.py                 import     82952e3  Lib/test/test_grammar.py
@@ -84,8 +91,8 @@ pass  test_keywordonlyarg.py          9/11       82952e3  Lib/test/test_keywordo
 pass  test_locks.py                   75/75      82952e3  Lib/test/test_asyncio/test_locks.py
 pass  test_longexp.py                 1/1        82952e3  Lib/test/test_longexp.py
 pass  test_lzma.py                    121/124    82952e3  Lib/test/test_lzma.py
-pass  test_marshal.py                 56/74      82952e3  Lib/test/test_marshal.py
-pass  test_math.py                    59/88      82952e3  Lib/test/test_math.py
+pass  test_marshal.py                 59/74      82952e3  Lib/test/test_marshal.py
+pass  test_math.py                    76/89      82952e3  Lib/test/test_math.py
 pass  test_memoryio.py                163/192    82952e3  Lib/test/test_io/test_memoryio.py
 pass  test_message.py                 310/310    82952e3  Lib/test/test_email/test_message.py
 pass  test_mimetypes.py               46/46      82952e3  Lib/test/test_mimetypes.py
@@ -95,16 +102,16 @@ pass  test_optparse.py                156/156    82952e3  Lib/test/test_optparse
 pass  test_parser.py                  8/8        82952e3  Lib/test/test_email/test_parser.py
 pass  test_pathlib.py                 1090/1151  82952e3  Lib/test/test_pathlib/test_pathlib.py
 fail  test_patma.py                   import     82952e3  Lib/test/test_patma.py
-pass  test_pickle.py                  744/1082   82952e3  Lib/test/test_pickle.py
+pass  test_pickle.py                  1021/1084  82952e3  Lib/test/test_pickle.py
 pass  test_pickleable.py              12/12      82952e3  Lib/test/test_email/test_pickleable.py
-pass  test_pickletools.py             176/179    82952e3  Lib/test/test_pickletools.py
+pass  test_pickletools.py             203/204    82952e3  Lib/test/test_pickletools.py
 pass  test_pkg.py                     5/8        82952e3  Lib/test/test_pkg.py
 pass  test_policy.py                  33/33      82952e3  Lib/test/test_email/test_policy.py
 pass  test_popen.py                   5/5        82952e3  Lib/test/test_popen.py
-pass  test_posix.py                   138/187    82952e3  Lib/test/test_os/test_posix.py
+pass  test_posix.py                   142/187    82952e3  Lib/test/test_os/test_posix.py
 fail  test_posixpath.py               import     82952e3  Lib/test/test_posixpath.py
 pass  test_pow.py                     5/7        82952e3  Lib/test/test_pow.py
-pass  test_pprint.py                  28/76      82952e3  Lib/test/test_pprint.py
+pass  test_pprint.py                  37/76      82952e3  Lib/test/test_pprint.py
 pass  test_print.py                   3/9        82952e3  Lib/test/test_print.py
 pass  test_property.py                12/31      82952e3  Lib/test/test_property.py
 pass  test_protocols.py               7/7        82952e3  Lib/test/test_asyncio/test_protocols.py
@@ -125,16 +132,17 @@ pass  test_shlex.py                   46/46      82952e3  Lib/test/test_shlex.py
 pass  test_shutil.py                  216/233    82952e3  Lib/test/test_shutil.py
 pass  test_sort.py                    15/21      82952e3  Lib/test/test_sort.py
 pass  test_stat.py                    21/22      82952e3  Lib/test/test_stat.py
-pass  test_statistics.py              362/371    82952e3  Lib/test/test_statistics.py
+pass  test_statistics.py              391/400    82952e3  Lib/test/test_statistics.py
 pass  test_string_literals.py         13/20      82952e3  Lib/test/test_string_literals.py
 pass  test_strptime.py                60/60      82952e3  Lib/test/test_strptime.py
 pass  test_strtod.py                  9/9        82952e3  Lib/test/test_strtod.py
 pass  test_subclassinit.py            14/17      82952e3  Lib/test/test_subclassinit.py
 fail  test_subprocess.py              import     82952e3  Lib/test/test_subprocess.py
 pass  test_super.py                   34/40      82952e3  Lib/test/test_super.py
-pass  test_syntax.py                  63/108     82952e3  Lib/test/test_syntax.py
-pass  test_sys_setprofile.py          0/29       82952e3  Lib/test/test_sys_setprofile.py
-pass  test_tarfile.py                 693/781    82952e3  Lib/test/test_tarfile.py
+pass  test_syntax.py                  64/109     82952e3  Lib/test/test_syntax.py
+pass  test_sys_setprofile.py          27/29      82952e3  Lib/test/test_sys_setprofile.py
+pass  test_sys_settrace.py            192/448    82952e3  Lib/test/test_sys_settrace.py
+pass  test_tarfile.py                 697/781    82952e3  Lib/test/test_tarfile.py
 fail  test_tempfile.py                crash      82952e3  Lib/test/test_tempfile.py
 pass  test_textwrap.py                68/68      82952e3  Lib/test/test_textwrap.py
 fail  test_time.py                    import     82952e3  Lib/test/test_time.py

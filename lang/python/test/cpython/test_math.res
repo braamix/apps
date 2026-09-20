@@ -2,7 +2,7 @@
   return self.run(*args, **kwds)
 .....F.........................E......E../pkg/store/python-0/lib/unittest/case.py:747: DeprecationWarning: It is deprecated to return a value that is not None from a test case (<bound method <function <lambda>.<locals>.<lambda>>> returned 'MathTests')
   return self.run(*args, **kwds)
-........EE.E....FFFFFFFFEEEEEEEEE...E...........EFs.E....sssEF.
+........EE.E....FFFFFFFFEEEEEEEEE...E...........EFs.E....sssEF.F.
 ======================================================================
 ERROR: testDist (__main__.MathTests.testDist)
 ----------------------------------------------------------------------
@@ -265,7 +265,23 @@ Traceback (most recent call last):
     self.assertRaises(TypeError, math.trunc, FloatLike(23.5))
 AssertionError: TypeError not raised by trunc
 
+======================================================================
+FAIL: /tmp/mathdata/ieee754.txt [38]
+Doctest: ieee754.txt
 ----------------------------------------------------------------------
-Ran 88 tests in Ns
+Traceback (most recent call last):
+  File "/tmp/mathdata/ieee754.txt", line 116, in ieee754.txt
+    >>> 0 ** -1
+AssertionError: Failed example:
+    0 ** -1
+Expected:
+    Traceback (most recent call last):
+    ...
+    ZeroDivisionError: zero to a negative power
+Got:
+    inf
 
-FAILED (failures=11, errors=18, skipped=4)
+----------------------------------------------------------------------
+Ran 89 tests in Ns
+
+FAILED (failures=12, errors=18, skipped=4)

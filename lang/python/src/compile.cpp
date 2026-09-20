@@ -1790,14 +1790,18 @@ bool Compiler::try_except(u32 i)
         if (!ok)
             return false;
 
-        if (!emit(Bc::PopBlock, h))
+        // Leaving the handler belongs to the last statement of the handler,
+        // not to the `except` line: node 0 keeps the line the body ended on,
+        // which is where CPython puts this code and where a tracer expects
+        // to see it.
+        if (!emit(Bc::PopBlock, 0))
             return false;
         if (name &&
-            (!emit(Bc::LoadConst, const_none(), h) || !store_name(name, h) || !del_name(name, h)))
+            (!emit(Bc::LoadConst, const_none(), 0) || !store_name(name, 0) || !del_name(name, 0)))
             return false;
-        if (!emit(Bc::PopExcept, h))
+        if (!emit(Bc::PopExcept, 0))
             return false;
-        if (!ends.push(emit_jump(Bc::Jump, h)))
+        if (!ends.push(emit_jump(Bc::Jump, 0)))
             return oom();
 
         patch(cleanup);
@@ -2500,7 +2504,12 @@ bool Compiler::stmt(u32 i)
     const Node &n = ast->at(i);
 
     switch (n.kind) {
+    // `pass` is a statement a debugger can stop on, so it costs one Nop --
+    // without an instruction there is no line for a tracer to report and no
+    // line for the implicit return after it to inherit.
     case Nd::Pass:
+        return emit(Bc::Nop, i);
+
     case Nd::Global:
     case Nd::Nonlocal:
         return true;
@@ -3219,8 +3228,17 @@ u32 Compiler::nested_scope(u32 scope, u32 node, StrObj *name, u8 role)
                   (s.freevars.size() ? CO_NESTED : 0) |
                   (s.kind == ScopeKind::Class ? 0 : CO_OPTIMIZED | CO_NEWLOCALS);
 
-    u       = &nu;
-    nu.line = c->firstline;
+    u = &nu;
+    // One Nop before the body, and no line recorded for it, so that it takes
+    // the line the `def`, `class` or module began on. It is CPython's RESUME:
+    // a frame that has not run an instruction yet still has a position, which
+    // is what a `call` event reports and what f_lasti and co_lines have to
+    // agree about. Starting at line 0 also makes the body's first statement
+    // record an entry even where it is on that same line, which is what a
+    // line event needs.
+    nu.line = 0;
+    if (!emit(Bc::Nop, 0, 0))
+        return 0;
     bool ok = role == NO_ROLE ? body_of(node) : anno_body(node, role);
     u       = nu.prev;
     if (!ok)

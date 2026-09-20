@@ -757,8 +757,10 @@ Str t_scopes()
         return "the inner scope does not hold a free variable";
     if (!(n->flags & CO_NESTED) || !(o->flags & CO_NEWLOCALS))
         return "the code object flags are wrong";
-    // The cell parameter is copied out of its argument slot on entry.
-    if (o->code.size() < 2 || o->code[0].op != Bc::LoadFast || o->code[1].op != Bc::StoreDeref)
+    // The cell parameter is copied out of its argument slot on entry, after
+    // the Nop every code object begins with.
+    if (o->code.size() < 3 || o->code[0].op != Bc::Nop || o->code[1].op != Bc::LoadFast ||
+        o->code[2].op != Bc::StoreDeref)
         return "a cell parameter is not copied into its cell";
     return Str();
 }

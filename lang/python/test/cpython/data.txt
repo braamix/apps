@@ -1,6 +1,8 @@
 # Data files CPython's tests read, byte for byte. pycases.mjs plants each one
 # under /tmp/test/, beside the shims' test package, so `test.tokenizedata`
-# imports as it does in CPython's own tree. Columns:
+# imports as it does in CPython's own tree -- and again under /tmp alone, for
+# what opens one by a path relative to the module that asks, since a case is
+# planted flat and its module's directory is /tmp. Columns:
 #
 #   path      the file under test/cpython/test/
 #   commit    the cpython commit the copy was taken from
@@ -17,6 +19,7 @@ support/hypothesis_helper.py      82952e3  Lib/test/support/hypothesis_helper.py
 support/_hypothesis_stubs/__init__.py 82952e3  Lib/test/support/_hypothesis_stubs/__init__.py
 support/_hypothesis_stubs/_helpers.py 82952e3  Lib/test/support/_hypothesis_stubs/_helpers.py
 support/_hypothesis_stubs/strategies.py 82952e3  Lib/test/support/_hypothesis_stubs/strategies.py
+mathdata/ieee754.txt              82952e3  Lib/test/mathdata/ieee754.txt
 mime.types                        82952e3  Lib/test/mime.types
 mime.types2                       82952e3  Lib/test/mime.types2
 configdata/cfgparser.1            82952e3  Lib/test/configdata/cfgparser.1

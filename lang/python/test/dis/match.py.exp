@@ -25,143 +25,144 @@ code f  file /tmp/c.py  line 1
       5  ('x', 'y')
       6  ()
       7  'text'
-    2       0  LoadFast              0 (x)
-    3       1  Copy                  1
-            2  Copy                  1
-            3  LoadConst             0 (0)
-            4  CompareOp             0 (==)
-            5  PopJumpIfFalse        7
-            6  Jump                 14
-      >>    7  Copy                  1
-            8  LoadConst             1 (1)
-            9  CompareOp             0 (==)
-           10  PopJumpIfFalse       12
-           11  Jump                 14
-      >>   12  PopTop
-           13  Jump                 19
-      >>   14  PopTop
-           15  PopTop
-    4      16  LoadConst             2 ('small')
-           17  Return
-    3      18  Jump                138
-    5 >>   19  Copy                  1
-           20  MatchSequence
-           21  PopJumpIfFalse       37
-           22  GetLen
-           23  LoadConst             1 (1)
-           24  CompareOp             5 (>=)
-           25  PopJumpIfFalse       37
-           26  UnpackEx              1
-           27  Swap                  2
+    1       0  Nop
+    2       1  LoadFast              0 (x)
+    3       2  Copy                  1
+            3  Copy                  1
+            4  LoadConst             0 (0)
+            5  CompareOp             0 (==)
+            6  PopJumpIfFalse        8
+            7  Jump                 15
+      >>    8  Copy                  1
+            9  LoadConst             1 (1)
+           10  CompareOp             0 (==)
+           11  PopJumpIfFalse       13
+           12  Jump                 15
+      >>   13  PopTop
+           14  Jump                 20
+      >>   15  PopTop
+           16  PopTop
+    4      17  LoadConst             2 ('small')
+           18  Return
+    3      19  Jump                139
+    5 >>   20  Copy                  1
+           21  MatchSequence
+           22  PopJumpIfFalse       38
+           23  GetLen
+           24  LoadConst             1 (1)
+           25  CompareOp             5 (>=)
+           26  PopJumpIfFalse       38
+           27  UnpackEx              1
            28  Swap                  2
-           29  StoreFast             1 (a)
-           30  StoreFast             2 (rest)
-           31  LoadFast              1 (a)
-           32  PopJumpIfFalse       38
-           33  PopTop
-    6      34  LoadFast              2 (rest)
-           35  Return
-    5      36  Jump                138
-      >>   37  PopTop
-    7 >>   38  Copy                  1
-           39  MatchMapping
-           40  PopJumpIfFalse       73
-           41  GetLen
-           42  LoadConst             1 (1)
-           43  CompareOp             5 (>=)
-           44  PopJumpIfFalse       73
-           45  LoadConst             3 ('k')
-           46  BuildTuple            1
-           47  MatchKeys
-           48  Copy                  1
-           49  LoadConst             4 (None)
-           50  CompareOp             9 (is not)
-           51  PopJumpIfFalse       71
-           52  UnpackSequence        1
-           53  Swap                  3
-           54  Swap                  2
+           29  Swap                  2
+           30  StoreFast             1 (a)
+           31  StoreFast             2 (rest)
+           32  LoadFast              1 (a)
+           33  PopJumpIfFalse       39
+           34  PopTop
+    6      35  LoadFast              2 (rest)
+           36  Return
+    5      37  Jump                139
+      >>   38  PopTop
+    7 >>   39  Copy                  1
+           40  MatchMapping
+           41  PopJumpIfFalse       74
+           42  GetLen
+           43  LoadConst             1 (1)
+           44  CompareOp             5 (>=)
+           45  PopJumpIfFalse       74
+           46  LoadConst             3 ('k')
+           47  BuildTuple            1
+           48  MatchKeys
+           49  Copy                  1
+           50  LoadConst             4 (None)
+           51  CompareOp             9 (is not)
+           52  PopJumpIfFalse       72
+           53  UnpackSequence        1
+           54  Swap                  3
            55  Swap                  2
-           56  CopyDict
-           57  Swap                  2
-           58  UnpackSequence        1
-           59  Copy                  2
-           60  Swap                  2
-           61  DeleteSubscr
-           62  Swap                  2
-           63  StoreFast             3 (v)
-           64  StoreFast             4 (more)
-           65  PopTop
-    8      66  LoadFast              3 (v)
-           67  LoadFast              4 (more)
-           68  BuildTuple            2
-           69  Return
-    7      70  Jump                138
-      >>   71  PopTop
-           72  PopTop
-      >>   73  PopTop
-    9      74  Copy                  1
-           75  Copy                  1
-           76  LoadGlobal            0 (Point)
-           77  LoadConst             5 (('x', 'y'))
-           78  MatchClass            0
-           79  Copy                  1
-           80  LoadConst             4 (None)
-           81  CompareOp             9 (is not)
-           82  PopJumpIfFalse       97
-           83  UnpackSequence        2
-           84  LoadConst             0 (0)
-           85  CompareOp             0 (==)
-           86  PopJumpIfFalse       97
-           87  Swap                  2
+           56  Swap                  2
+           57  CopyDict
+           58  Swap                  2
+           59  UnpackSequence        1
+           60  Copy                  2
+           61  Swap                  2
+           62  DeleteSubscr
+           63  Swap                  2
+           64  StoreFast             3 (v)
+           65  StoreFast             4 (more)
+           66  PopTop
+    8      67  LoadFast              3 (v)
+           68  LoadFast              4 (more)
+           69  BuildTuple            2
+           70  Return
+    7      71  Jump                139
+      >>   72  PopTop
+           73  PopTop
+      >>   74  PopTop
+    9      75  Copy                  1
+           76  Copy                  1
+           77  LoadGlobal            0 (Point)
+           78  LoadConst             5 (('x', 'y'))
+           79  MatchClass            0
+           80  Copy                  1
+           81  LoadConst             4 (None)
+           82  CompareOp             9 (is not)
+           83  PopJumpIfFalse       98
+           84  UnpackSequence        2
+           85  LoadConst             0 (0)
+           86  CompareOp             0 (==)
+           87  PopJumpIfFalse       98
            88  Swap                  2
-           89  StoreFast             5 (py)
-           90  StoreFast             6 (p)
-           91  PopTop
-   10      92  LoadFast              6 (p)
-           93  LoadFast              5 (py)
-           94  BuildTuple            2
-           95  Return
-    9      96  Jump                138
-      >>   97  PopTop
-           98  PopTop
-   11      99  Copy                  1
-          100  Copy                  1
-          101  LoadGlobal            1 (str)
-          102  LoadConst             6 (())
-          103  MatchClass            0
-          104  Copy                  1
-          105  LoadConst             4 (None)
-          106  CompareOp             9 (is not)
-          107  PopJumpIfFalse      110
-          108  UnpackSequence        0
-          109  Jump                124
-      >>  110  PopTop
-          111  Copy                  1
-          112  LoadGlobal            2 (bytes)
-          113  LoadConst             6 (())
-          114  MatchClass            0
-          115  Copy                  1
-          116  LoadConst             4 (None)
-          117  CompareOp             9 (is not)
-          118  PopJumpIfFalse      121
-          119  UnpackSequence        0
-          120  Jump                124
-      >>  121  PopTop
-          122  PopTop
-          123  Jump                129
-      >>  124  PopTop
-          125  PopTop
-   12     126  LoadConst             7 ('text')
-          127  Return
-   11     128  Jump                138
-   13 >>  129  LoadConst             4 (None)
-          130  CompareOp             8 (is)
-          131  PopJumpIfFalse      135
-   14     132  LoadConst             4 (None)
-          133  Return
-   13     134  Jump                138
-   15 >>  135  Nop
-   16     136  LoadFast              0 (x)
-          137  Return
-      >>  138  LoadConst             4 (None)
-          139  Return
+           89  Swap                  2
+           90  StoreFast             5 (py)
+           91  StoreFast             6 (p)
+           92  PopTop
+   10      93  LoadFast              6 (p)
+           94  LoadFast              5 (py)
+           95  BuildTuple            2
+           96  Return
+    9      97  Jump                139
+      >>   98  PopTop
+           99  PopTop
+   11     100  Copy                  1
+          101  Copy                  1
+          102  LoadGlobal            1 (str)
+          103  LoadConst             6 (())
+          104  MatchClass            0
+          105  Copy                  1
+          106  LoadConst             4 (None)
+          107  CompareOp             9 (is not)
+          108  PopJumpIfFalse      111
+          109  UnpackSequence        0
+          110  Jump                125
+      >>  111  PopTop
+          112  Copy                  1
+          113  LoadGlobal            2 (bytes)
+          114  LoadConst             6 (())
+          115  MatchClass            0
+          116  Copy                  1
+          117  LoadConst             4 (None)
+          118  CompareOp             9 (is not)
+          119  PopJumpIfFalse      122
+          120  UnpackSequence        0
+          121  Jump                125
+      >>  122  PopTop
+          123  PopTop
+          124  Jump                130
+      >>  125  PopTop
+          126  PopTop
+   12     127  LoadConst             7 ('text')
+          128  Return
+   11     129  Jump                139
+   13 >>  130  LoadConst             4 (None)
+          131  CompareOp             8 (is)
+          132  PopJumpIfFalse      136
+   14     133  LoadConst             4 (None)
+          134  Return
+   13     135  Jump                139
+   15 >>  136  Nop
+   16     137  LoadFast              0 (x)
+          138  Return
+      >>  139  LoadConst             4 (None)
+          140  Return

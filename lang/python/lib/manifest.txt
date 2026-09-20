@@ -29,6 +29,7 @@ annotationlib.py                    ast               82952e3  Lib/annotationlib
 argparse.py                         -                 82952e3  Lib/argparse.py
 ast.py                              _ast              82952e3  Lib/ast.py
 base64.py                           binascii          82952e3  Lib/base64.py
+bdb.py                              -                 82952e3  Lib/bdb.py
 bisect.py                           -                 82952e3  Lib/bisect.py
 bz2.py                              _bz2              82952e3  Lib/bz2.py
 calendar.py                         -                 82952e3  Lib/calendar.py
@@ -58,6 +59,7 @@ dbm/__init__.py                     -                 82952e3  Lib/dbm/__init__.
 dbm/dumb.py                         -                 82952e3  Lib/dbm/dumb.py
 decimal.py                          -                 82952e3  Lib/decimal.py
 difflib.py                          -                 82952e3  Lib/difflib.py
+doctest.py                          -                 82952e3  Lib/doctest.py
 email/__init__.py                   -                 82952e3  Lib/email/__init__.py
 email/_encoded_words.py             binascii          82952e3  Lib/email/_encoded_words.py
 email/_header_value_parser.py       -                 82952e3  Lib/email/_header_value_parser.py
@@ -200,6 +202,7 @@ importlib/__init__.py               _imp              82952e3  Lib/importlib/__i
 importlib/_abc.py                   _imp              82952e3  Lib/importlib/_abc.py
 importlib/_bootstrap.py             _imp              82952e3  Lib/importlib/_bootstrap.py
 importlib/_bootstrap_external.py    _imp              82952e3  Lib/importlib/_bootstrap_external.py
+importlib/abc.py                    -                 82952e3  Lib/importlib/abc.py
 importlib/machinery.py              _imp              82952e3  Lib/importlib/machinery.py
 importlib/resources/__init__.py     -                 82952e3  Lib/importlib/resources/__init__.py
 importlib/resources/_adapters.py    -                 82952e3  Lib/importlib/resources/_adapters.py
@@ -232,6 +235,7 @@ pathlib/__init__.py                 -                 82952e3  Lib/pathlib/__ini
 pathlib/_local.py                   -                 82952e3  Lib/pathlib/_local.py
 pathlib/_os.py                      -                 82952e3  Lib/pathlib/_os.py
 pathlib/types.py                    -                 82952e3  Lib/pathlib/types.py
+pdb.py                              _socket           82952e3  Lib/pdb.py
 pickle.py                           struct            82952e3  Lib/pickle.py
 pickletools.py                      struct            82952e3  Lib/pickletools.py
 pkgutil.py                          -                 82952e3  Lib/pkgutil.py

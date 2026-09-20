@@ -16,7 +16,8 @@ One item in the list is not planned. It is at the end, with the reason.
 **A number is a name, not a position.** A stage or a task that is finished is
 deleted and everything left keeps the number it had, so the list has gaps.
 Stage 4 and tasks 19 to 24 were compression; Stage 5 and tasks 25 to 27 were
-`email`, `xml` and `pyexpat`; task 28 was the `_socket` floor.
+`email`, `xml` and `pyexpat`; tasks 28 to 31 were the `_socket` floor,
+`sys.monitoring`'s namespace, `bdb`/`pdb`/`doctest` and `sys.settrace`.
 
 What `email` still cannot do is the one thing this system has not got: **the
 CJK codecs are not written**. `encodings` here is the single-byte pages, the
@@ -151,39 +152,28 @@ dictionary — real, and better than none, but with no entropy tables and so no
   frames on each level of a list, so a structure nested past about fifty
   levels raises `RecursionError`, where CPython's limit of 1000 takes 250.
   The limit is what the native stack holds; this is the cost of it.
+- **The line an implicit `return None` is reported at.** CPython's compiler
+  duplicates the return into each branch that falls into it, so each copy
+  carries the line that branch ended on; there is one copy here and it
+  carries the last line the body emitted code for. Most of what
+  `test_sys_settrace` still fails on is that one difference. The other is
+  **jump by assigning `frame.f_lineno`**, which is not implemented -- ninety
+  eight of its methods are `JumpTestCase`.
+- **Two events a refcount would fire and a sweep does not.** A generator
+  abandoned unfinished is closed when the collector finds it, not at the last
+  name, so the `call`/`return` pair that close gives comes late or not at
+  all; and `sys.setprofile` from inside a `__del__` runs later than CPython's.
+  Those are the two `test_sys_setprofile` methods that fail.
 
 ## Stage 6 — debugging and profiling
 
-29. **The `sys.monitoring` namespace.** `bdb` reads `sys.monitoring.events`
-    at import. Add the tool registry (`use_tool_id`, `get_tool`,
-    `free_tool_id`, `clear_tool_id`), `register_callback`, `set_events`,
-    `get_events`, `set_local_events`, `restart_events`, `DISABLE`, `MISSING`,
-    and the event constants. All of it is bookkeeping, and no event fires
-    until task 32.
-
-30. **`bdb`, `doctest`.** With tasks 28 and 29 done, `pdb` imports. It
-    cannot trace yet, but `doctest` does not trace unless asked to. Ship
-    `bdb`, `pdb` (import only) and `doctest`. `doctest.DocTestSuite` then
-    plugs into `unittest`. Test: `test_doctest/`.
-
-31. **`sys.settrace`, `sys.setprofile`.** The VM work, together with task
-    33. `sys.gettrace` and `sys.getprofile` are already here and answer None,
-    which is the true answer while nothing can be installed; the setters are
-    what is missing. A trace function is a Python call made from inside the
-    instruction
-    loop, so it must be a pushed frame, like any other call. When it
-    returns, the loop resumes the instruction it was called from, with no
-    native recursion (the same rule as `ContObj`). Events:
-    - `call`, `line`, `return` and `exception`, plus `opcode` when
-      `f_trace_opcodes` is set.
-    - For the profiler, `c_call`, `c_return` and `c_exception` around
-      builtins.
-
-    Line events come from the code's line table. While the tracer runs,
-    tracing is off. Also: `frame.f_trace`, `f_trace_lines`, `f_trace_opcodes`,
-    `sys.gettrace`/`getprofile`, and `threading.settrace`/`setprofile`.
-    Leave jump by assigning `f_lineno` for later. Tests: `test_sys_settrace`,
-    `test_sys_setprofile`.
+**Tasks 28 to 31 are done.** `sys.settrace` and `sys.setprofile` are the VM's:
+a tracer is a pushed frame like any other call, and what unwinding owes is
+queued and fired at the next instruction boundary, because `dispatch` is plain
+C++ and cannot call Python. Every code object now begins with a `Nop`, which is
+CPython's `RESUME`: a frame that has not run needs a position for the `call`
+event to report, and `f_lasti`, `f_lineno` and `co_lines` have to agree about
+it. `pass` costs a `Nop` too, so a debugger can stop on it.
 
 32. **`sys.monitoring` events.** Built on the same event points as task 31.
     Implement the events `bdb` and `pdb.set_trace()` use: `PY_START`,

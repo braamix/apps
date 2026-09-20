@@ -116,7 +116,9 @@ export function run(tail, stdin = null, env = "") {
         cmd += " </tmp/i";
     }
     cmd += " >/tmp/o 2>/tmp/e";
-    if (cmd.length > 60)
+    // The keyboard is Channel<Key, 64> and type() posts a whole line without
+    // checking, so the line and its ENTER have to fit in 64 keys.
+    if (cmd.length > 63)
         die(`command line too long for the harness keyboard: ${cmd}`);
 
     let now = (clock += 100);

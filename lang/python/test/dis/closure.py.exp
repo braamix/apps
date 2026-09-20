@@ -27,24 +27,25 @@ code outer  file /tmp/c.py  line 3
       0  <code inner at line 6>
       1  <code deeper at line 11>
       2  None
-    4       0  LoadFast              0 (start)
-            1  StoreDeref            0 (total)
-    6       2  LoadClosure           0 (total)
-            3  BuildTuple            1
-            4  LoadConst             0 (<code inner at line 6>)
-            5  MakeFunction          4 (closure)
-            6  StoreFast             1 (inner)
-   11       7  LoadClosure           0 (total)
-            8  BuildTuple            1
-            9  LoadConst             1 (<code deeper at line 11>)
-           10  MakeFunction          4 (closure)
-           11  StoreFast             2 (deeper)
-   15      12  LoadFast              1 (inner)
-           13  LoadFast              2 (deeper)
-           14  BuildTuple            2
-           15  Return
-           16  LoadConst             2 (None)
-           17  Return
+    3       0  Nop
+    4       1  LoadFast              0 (start)
+            2  StoreDeref            0 (total)
+    6       3  LoadClosure           0 (total)
+            4  BuildTuple            1
+            5  LoadConst             0 (<code inner at line 6>)
+            6  MakeFunction          4 (closure)
+            7  StoreFast             1 (inner)
+   11       8  LoadClosure           0 (total)
+            9  BuildTuple            1
+           10  LoadConst             1 (<code deeper at line 11>)
+           11  MakeFunction          4 (closure)
+           12  StoreFast             2 (deeper)
+   15      13  LoadFast              1 (inner)
+           14  LoadFast              2 (deeper)
+           15  BuildTuple            2
+           16  Return
+           17  LoadConst             2 (None)
+           18  Return
 
 code inner  file /tmp/c.py  line 6
   args 1 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals nested
@@ -52,14 +53,15 @@ code inner  file /tmp/c.py  line 6
   freevars: total
   consts:
       0  None
-    8       0  LoadDeref             0 (total)
-            1  LoadFast              0 (step)
-            2  BinaryOp              0 (+)
-            3  StoreDeref            0 (total)
-    9       4  LoadDeref             0 (total)
-            5  Return
-            6  LoadConst             0 (None)
-            7  Return
+    6       0  Nop
+    8       1  LoadDeref             0 (total)
+            2  LoadFast              0 (step)
+            3  BinaryOp              0 (+)
+            4  StoreDeref            0 (total)
+    9       5  LoadDeref             0 (total)
+            6  Return
+            7  LoadConst             0 (None)
+            8  Return
 
 code deeper  file /tmp/c.py  line 11
   args 0 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals nested
@@ -68,25 +70,27 @@ code deeper  file /tmp/c.py  line 11
   consts:
       0  <code deepest at line 12>
       1  None
-   12       0  LoadClosure           0 (total)
-            1  BuildTuple            1
-            2  LoadConst             0 (<code deepest at line 12>)
-            3  MakeFunction          4 (closure)
-            4  StoreFast             0 (deepest)
-   14       5  LoadFast              0 (deepest)
-            6  Return
-            7  LoadConst             1 (None)
-            8  Return
+   11       0  Nop
+   12       1  LoadClosure           0 (total)
+            2  BuildTuple            1
+            3  LoadConst             0 (<code deepest at line 12>)
+            4  MakeFunction          4 (closure)
+            5  StoreFast             0 (deepest)
+   14       6  LoadFast              0 (deepest)
+            7  Return
+            8  LoadConst             1 (None)
+            9  Return
 
 code deepest  file /tmp/c.py  line 12
   args 0 (posonly 0, kwonly 0)  stack 1  flags optimized newlocals nested
   freevars: total
   consts:
       0  None
-   13       0  LoadDeref             0 (total)
-            1  Return
-            2  LoadConst             0 (None)
-            3  Return
+   12       0  Nop
+   13       1  LoadDeref             0 (total)
+            2  Return
+            3  LoadConst             0 (None)
+            4  Return
 
 code uses_global  file /tmp/c.py  line 17
   args 0 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals
@@ -94,11 +98,12 @@ code uses_global  file /tmp/c.py  line 17
   consts:
       0  1
       1  None
-   19       0  LoadGlobal            0 (counter)
-            1  LoadConst             0 (1)
-            2  BinaryOp              0 (+)
-            3  StoreGlobal           0 (counter)
-   20       4  LoadGlobal            0 (counter)
-            5  Return
-            6  LoadConst             1 (None)
-            7  Return
+   17       0  Nop
+   19       1  LoadGlobal            0 (counter)
+            2  LoadConst             0 (1)
+            3  BinaryOp              0 (+)
+            4  StoreGlobal           0 (counter)
+   20       5  LoadGlobal            0 (counter)
+            6  Return
+            7  LoadConst             1 (None)
+            8  Return

@@ -30,19 +30,20 @@ code <generic parameters of Pair>  file /tmp/c.py  line 1
       0  'Pair'
       1  'T'
       2  <code Pair at line 1>
-    1       0  LoadConst             0 ('Pair')
-            1  LoadConst             1 ('T')
-            2  Intrinsic             0 (TYPEVAR)
-            3  Copy                  1
-            4  StoreDeref            0 (T)
-            5  BuildTuple            1
-            6  LoadClosure           0 (T)
-            7  BuildTuple            1
-            8  LoadConst             2 (<code Pair at line 1>)
-            9  MakeFunction          4 (closure)
-           10  BuildTuple            3
-           11  Intrinsic             8 (TYPEALIAS)
-           12  Return
+    1       0  Nop
+            1  LoadConst             0 ('Pair')
+            2  LoadConst             1 ('T')
+            3  Intrinsic             0 (TYPEVAR)
+            4  Copy                  1
+            5  StoreDeref            0 (T)
+            6  BuildTuple            1
+            7  LoadClosure           0 (T)
+            8  BuildTuple            1
+            9  LoadConst             2 (<code Pair at line 1>)
+           10  MakeFunction          4 (closure)
+           11  BuildTuple            3
+           12  Intrinsic             8 (TYPEALIAS)
+           13  Return
 
 code Pair  file /tmp/c.py  line 1
   args 1 (posonly 1, kwonly 0)  stack 3  flags optimized newlocals nested
@@ -52,18 +53,19 @@ code Pair  file /tmp/c.py  line 1
   consts:
       0  2
       1  <class 'NotImplementedError'>
-    1       0  LoadFast              0 (.format)
-            1  LoadConst             0 (2)
-            2  CompareOp             4 (>)
-            3  PopJumpIfFalse        6
-            4  LoadConst             1 (<class 'NotImplementedError'>)
-            5  Raise                 1
-      >>    6  LoadGlobal            0 (tuple)
-            7  LoadDeref             0 (T)
+    1       0  Nop
+            1  LoadFast              0 (.format)
+            2  LoadConst             0 (2)
+            3  CompareOp             4 (>)
+            4  PopJumpIfFalse        7
+            5  LoadConst             1 (<class 'NotImplementedError'>)
+            6  Raise                 1
+      >>    7  LoadGlobal            0 (tuple)
             8  LoadDeref             0 (T)
-            9  BuildTuple            2
-           10  LoadSubscr
-           11  Return
+            9  LoadDeref             0 (T)
+           10  BuildTuple            2
+           11  LoadSubscr
+           12  Return
 
 code <generic parameters of first>  file /tmp/c.py  line 4
   args 0 (posonly 0, kwonly 0)  stack 4  flags optimized newlocals
@@ -76,30 +78,31 @@ code <generic parameters of first>  file /tmp/c.py  line 4
       3  'P'
       4  <code __annotate__ at line 4>
       5  <code first at line 4>
-    4       0  LoadConst             0 ('T')
-            1  LoadConst             1 (<code T at line 4>)
-            2  MakeFunction          0
-            3  Intrinsic             1 (TYPEVAR_WITH_BOUND)
-            4  Copy                  1
-            5  StoreDeref            0 (T)
-            6  LoadConst             2 ('Ts')
-            7  Intrinsic             4 (TYPEVARTUPLE)
-            8  Copy                  1
-            9  StoreFast             0 (Ts)
-           10  LoadConst             3 ('P')
-           11  Intrinsic             3 (PARAMSPEC)
-           12  Copy                  1
-           13  StoreFast             1 (P)
-           14  BuildTuple            3
-           15  LoadClosure           0 (T)
-           16  BuildTuple            1
-           17  LoadConst             4 (<code __annotate__ at line 4>)
-           18  MakeFunction          4 (closure)
-           19  LoadConst             5 (<code first at line 4>)
-           20  MakeFunction          8 (annotate)
-           21  RotTwo
-           22  Intrinsic             7 (SET_FUNCTION_TYPE_PARAMS)
-           23  Return
+    4       0  Nop
+            1  LoadConst             0 ('T')
+            2  LoadConst             1 (<code T at line 4>)
+            3  MakeFunction          0
+            4  Intrinsic             1 (TYPEVAR_WITH_BOUND)
+            5  Copy                  1
+            6  StoreDeref            0 (T)
+            7  LoadConst             2 ('Ts')
+            8  Intrinsic             4 (TYPEVARTUPLE)
+            9  Copy                  1
+           10  StoreFast             0 (Ts)
+           11  LoadConst             3 ('P')
+           12  Intrinsic             3 (PARAMSPEC)
+           13  Copy                  1
+           14  StoreFast             1 (P)
+           15  BuildTuple            3
+           16  LoadClosure           0 (T)
+           17  BuildTuple            1
+           18  LoadConst             4 (<code __annotate__ at line 4>)
+           19  MakeFunction          4 (closure)
+           20  LoadConst             5 (<code first at line 4>)
+           21  MakeFunction          8 (annotate)
+           22  RotTwo
+           23  Intrinsic             7 (SET_FUNCTION_TYPE_PARAMS)
+           24  Return
 
 code T  file /tmp/c.py  line 4
   args 1 (posonly 1, kwonly 0)  stack 2  flags optimized newlocals
@@ -108,14 +111,15 @@ code T  file /tmp/c.py  line 4
   consts:
       0  2
       1  <class 'NotImplementedError'>
-    4       0  LoadFast              0 (.format)
-            1  LoadConst             0 (2)
-            2  CompareOp             4 (>)
-            3  PopJumpIfFalse        6
-            4  LoadConst             1 (<class 'NotImplementedError'>)
-            5  Raise                 1
-      >>    6  LoadGlobal            0 (int)
-            7  Return
+    4       0  Nop
+            1  LoadFast              0 (.format)
+            2  LoadConst             0 (2)
+            3  CompareOp             4 (>)
+            4  PopJumpIfFalse        7
+            5  LoadConst             1 (<class 'NotImplementedError'>)
+            6  Raise                 1
+      >>    7  LoadGlobal            0 (int)
+            8  Return
 
 code __annotate__  file /tmp/c.py  line 4
   args 1 (posonly 1, kwonly 0)  stack 4  flags optimized newlocals nested
@@ -126,28 +130,30 @@ code __annotate__  file /tmp/c.py  line 4
       1  <class 'NotImplementedError'>
       2  'x'
       3  'return'
-    4       0  LoadFast              0 (.format)
-            1  LoadConst             0 (2)
-            2  CompareOp             4 (>)
-            3  PopJumpIfFalse        6
-            4  LoadConst             1 (<class 'NotImplementedError'>)
-            5  Raise                 1
-      >>    6  LoadConst             2 ('x')
-            7  LoadDeref             0 (T)
-            8  LoadConst             3 ('return')
-            9  LoadDeref             0 (T)
-           10  BuildMap              2
-           11  Return
+    4       0  Nop
+            1  LoadFast              0 (.format)
+            2  LoadConst             0 (2)
+            3  CompareOp             4 (>)
+            4  PopJumpIfFalse        7
+            5  LoadConst             1 (<class 'NotImplementedError'>)
+            6  Raise                 1
+      >>    7  LoadConst             2 ('x')
+            8  LoadDeref             0 (T)
+            9  LoadConst             3 ('return')
+           10  LoadDeref             0 (T)
+           11  BuildMap              2
+           12  Return
 
 code first  file /tmp/c.py  line 4
   args 1 (posonly 0, kwonly 0)  stack 1  flags optimized newlocals
   varnames: x
   consts:
       0  None
-    5       0  LoadFast              0 (x)
-            1  Return
-            2  LoadConst             0 (None)
-            3  Return
+    4       0  Nop
+    5       1  LoadFast              0 (x)
+            2  Return
+            3  LoadConst             0 (None)
+            4  Return
 
 code <generic parameters of Box>  file /tmp/c.py  line 8
   args 0 (posonly 0, kwonly 0)  stack 5  flags optimized newlocals
@@ -159,29 +165,30 @@ code <generic parameters of Box>  file /tmp/c.py  line 8
       1  <code T at line 8>
       2  <code Box at line 8>
       3  'Box'
-    8       0  LoadConst             0 ('T')
-            1  Intrinsic             0 (TYPEVAR)
-            2  LoadConst             1 (<code T at line 8>)
-            3  MakeFunction          0
-            4  Intrinsic             5 (SET_TYPEPARAM_DEFAULT)
-            5  Copy                  1
-            6  StoreDeref            1 (T)
-            7  BuildTuple            1
-            8  StoreDeref            0 (.type_params)
-            9  LoadBuildClass
-           10  LoadClosure           0 (.type_params)
-           11  LoadClosure           1 (T)
-           12  BuildTuple            2
-           13  LoadConst             2 (<code Box at line 8>)
-           14  MakeFunction          4 (closure)
-           15  LoadConst             3 ('Box')
-           16  LoadDeref             0 (.type_params)
-           17  Intrinsic             6 (SUBSCRIPT_GENERIC)
-           18  StoreFast             0 (.generic_base)
-           19  LoadGlobal            0 (Base)
-           20  LoadFast              0 (.generic_base)
-           21  Call                  4
-           22  Return
+    8       0  Nop
+            1  LoadConst             0 ('T')
+            2  Intrinsic             0 (TYPEVAR)
+            3  LoadConst             1 (<code T at line 8>)
+            4  MakeFunction          0
+            5  Intrinsic             5 (SET_TYPEPARAM_DEFAULT)
+            6  Copy                  1
+            7  StoreDeref            1 (T)
+            8  BuildTuple            1
+            9  StoreDeref            0 (.type_params)
+           10  LoadBuildClass
+           11  LoadClosure           0 (.type_params)
+           12  LoadClosure           1 (T)
+           13  BuildTuple            2
+           14  LoadConst             2 (<code Box at line 8>)
+           15  MakeFunction          4 (closure)
+           16  LoadConst             3 ('Box')
+           17  LoadDeref             0 (.type_params)
+           18  Intrinsic             6 (SUBSCRIPT_GENERIC)
+           19  StoreFast             0 (.generic_base)
+           20  LoadGlobal            0 (Base)
+           21  LoadFast              0 (.generic_base)
+           22  Call                  4
+           23  Return
 
 code T  file /tmp/c.py  line 8
   args 1 (posonly 1, kwonly 0)  stack 2  flags optimized newlocals
@@ -190,14 +197,15 @@ code T  file /tmp/c.py  line 8
   consts:
       0  2
       1  <class 'NotImplementedError'>
-    8       0  LoadFast              0 (.format)
-            1  LoadConst             0 (2)
-            2  CompareOp             4 (>)
-            3  PopJumpIfFalse        6
-            4  LoadConst             1 (<class 'NotImplementedError'>)
-            5  Raise                 1
-      >>    6  LoadGlobal            0 (str)
-            7  Return
+    8       0  Nop
+            1  LoadFast              0 (.format)
+            2  LoadConst             0 (2)
+            3  CompareOp             4 (>)
+            4  PopJumpIfFalse        7
+            5  LoadConst             1 (<class 'NotImplementedError'>)
+            6  Raise                 1
+      >>    7  LoadGlobal            0 (str)
+            8  Return
 
 code Box  file /tmp/c.py  line 8
   args 0 (posonly 0, kwonly 0)  stack 2  flags nested
@@ -211,28 +219,29 @@ code Box  file /tmp/c.py  line 8
       3  <code get at line 9>
       4  ()
       5  None
-    8       0  LoadName              0 (__name__)
-            1  StoreName             1 (__module__)
-            2  LoadConst             0 ('Box')
-            3  StoreName             2 (__qualname__)
-            4  LoadConst             1 (8)
-            5  StoreName             3 (__firstlineno__)
-            6  LoadDeref             1 (.type_params)
-            7  StoreName             4 (__type_params__)
-            8  LoadLocals
-            9  StoreDeref            0 (__classdict__)
-    9      10  LoadClosure           2 (T)
-           11  LoadClosure           0 (__classdict__)
-           12  BuildTuple            2
-           13  LoadConst             2 (<code __annotate__ at line 9>)
-           14  MakeFunction          4 (closure)
-           15  LoadConst             3 (<code get at line 9>)
-           16  MakeFunction          8 (annotate)
-           17  StoreName             5 (get)
-           18  LoadConst             4 (())
-           19  StoreName             6 (__static_attributes__)
-           20  LoadConst             5 (None)
-           21  Return
+    8       0  Nop
+            1  LoadName              0 (__name__)
+            2  StoreName             1 (__module__)
+            3  LoadConst             0 ('Box')
+            4  StoreName             2 (__qualname__)
+            5  LoadConst             1 (8)
+            6  StoreName             3 (__firstlineno__)
+            7  LoadDeref             1 (.type_params)
+            8  StoreName             4 (__type_params__)
+            9  LoadLocals
+           10  StoreDeref            0 (__classdict__)
+    9      11  LoadClosure           2 (T)
+           12  LoadClosure           0 (__classdict__)
+           13  BuildTuple            2
+           14  LoadConst             2 (<code __annotate__ at line 9>)
+           15  MakeFunction          4 (closure)
+           16  LoadConst             3 (<code get at line 9>)
+           17  MakeFunction          8 (annotate)
+           18  StoreName             5 (get)
+           19  LoadConst             4 (())
+           20  StoreName             6 (__static_attributes__)
+           21  LoadConst             5 (None)
+           22  Return
 
 code __annotate__  file /tmp/c.py  line 9
   args 1 (posonly 1, kwonly 0)  stack 2  flags optimized newlocals nested
@@ -242,17 +251,18 @@ code __annotate__  file /tmp/c.py  line 9
       0  2
       1  <class 'NotImplementedError'>
       2  'return'
-    9       0  LoadFast              0 (.format)
-            1  LoadConst             0 (2)
-            2  CompareOp             4 (>)
-            3  PopJumpIfFalse        6
-            4  LoadConst             1 (<class 'NotImplementedError'>)
-            5  Raise                 1
-      >>    6  LoadConst             2 ('return')
-            7  LoadDeref             1 (__classdict__)
-            8  LoadFromDictOrDeref    0 (T)
-            9  BuildMap              1
-           10  Return
+    9       0  Nop
+            1  LoadFast              0 (.format)
+            2  LoadConst             0 (2)
+            3  CompareOp             4 (>)
+            4  PopJumpIfFalse        7
+            5  LoadConst             1 (<class 'NotImplementedError'>)
+            6  Raise                 1
+      >>    7  LoadConst             2 ('return')
+            8  LoadDeref             1 (__classdict__)
+            9  LoadFromDictOrDeref    0 (T)
+           10  BuildMap              1
+           11  Return
 
 code get  file /tmp/c.py  line 9
   args 1 (posonly 0, kwonly 0)  stack 1  flags optimized newlocals
@@ -260,8 +270,9 @@ code get  file /tmp/c.py  line 9
   names: item
   consts:
       0  None
-   10       0  LoadFast              0 (self)
-            1  LoadAttr              0 (item)
-            2  Return
-            3  LoadConst             0 (None)
-            4  Return
+    9       0  Nop
+   10       1  LoadFast              0 (self)
+            2  LoadAttr              0 (item)
+            3  Return
+            4  LoadConst             0 (None)
+            5  Return

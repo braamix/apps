@@ -51,30 +51,32 @@ code <listcomp>  file /tmp/c.py  line 1
   varnames: .0, i
   consts:
       0  2
-    1       0  BuildList             0
-            1  LoadFast              0 (.0)
-      >>    2  ForIter              11
-            3  StoreFast             1 (i)
-            4  LoadFast              1 (i)
-            5  PopJumpIfFalse        2
-            6  LoadFast              1 (i)
-            7  LoadConst             0 (2)
-            8  BinaryOp              2 (*)
-            9  ListAppend            2
-           10  Jump                  2
-      >>   11  Return
+    1       0  Nop
+            1  BuildList             0
+            2  LoadFast              0 (.0)
+      >>    3  ForIter              12
+            4  StoreFast             1 (i)
+            5  LoadFast              1 (i)
+            6  PopJumpIfFalse        3
+            7  LoadFast              1 (i)
+            8  LoadConst             0 (2)
+            9  BinaryOp              2 (*)
+           10  ListAppend            2
+           11  Jump                  3
+      >>   12  Return
 
 code <setcomp>  file /tmp/c.py  line 2
   args 1 (posonly 0, kwonly 0)  stack 3  flags optimized newlocals
   varnames: .0, i
-    2       0  BuildSet              0
-            1  LoadFast              0 (.0)
-      >>    2  ForIter               7
-            3  StoreFast             1 (i)
-            4  LoadFast              1 (i)
-            5  SetAdd                2
-            6  Jump                  2
-      >>    7  Return
+    2       0  Nop
+            1  BuildSet              0
+            2  LoadFast              0 (.0)
+      >>    3  ForIter               8
+            4  StoreFast             1 (i)
+            5  LoadFast              1 (i)
+            6  SetAdd                2
+            7  Jump                  3
+      >>    8  Return
 
 code <dictcomp>  file /tmp/c.py  line 3
   args 1 (posonly 0, kwonly 0)  stack 5  flags optimized newlocals
@@ -82,61 +84,64 @@ code <dictcomp>  file /tmp/c.py  line 3
   consts:
       0  2
       1  9
-    3       0  BuildMap              0
-            1  LoadFast              0 (.0)
-      >>    2  ForIter              18
-            3  StoreFast             1 (i)
-            4  LoadFast              1 (i)
-            5  LoadConst             0 (2)
-            6  CompareOp             4 (>)
-            7  PopJumpIfFalse        2
-            8  LoadFast              1 (i)
-            9  LoadConst             1 (9)
-           10  CompareOp             2 (<)
-           11  PopJumpIfFalse        2
-           12  LoadFast              1 (i)
+    3       0  Nop
+            1  BuildMap              0
+            2  LoadFast              0 (.0)
+      >>    3  ForIter              19
+            4  StoreFast             1 (i)
+            5  LoadFast              1 (i)
+            6  LoadConst             0 (2)
+            7  CompareOp             4 (>)
+            8  PopJumpIfFalse        3
+            9  LoadFast              1 (i)
+           10  LoadConst             1 (9)
+           11  CompareOp             2 (<)
+           12  PopJumpIfFalse        3
            13  LoadFast              1 (i)
            14  LoadFast              1 (i)
-           15  BinaryOp              2 (*)
-           16  MapAdd                2
-           17  Jump                  2
-      >>   18  Return
+           15  LoadFast              1 (i)
+           16  BinaryOp              2 (*)
+           17  MapAdd                2
+           18  Jump                  3
+      >>   19  Return
 
 code <genexpr>  file /tmp/c.py  line 4
   args 1 (posonly 0, kwonly 0)  stack 2  flags optimized newlocals generator
   varnames: .0, i
   consts:
       0  None
-    4       0  LoadFast              0 (.0)
-      >>    1  ForIter               7
-            2  StoreFast             1 (i)
-            3  LoadFast              1 (i)
-            4  YieldValue
-            5  PopTop
-            6  Jump                  1
-      >>    7  LoadConst             0 (None)
-            8  Return
+    4       0  Nop
+            1  LoadFast              0 (.0)
+      >>    2  ForIter               8
+            3  StoreFast             1 (i)
+            4  LoadFast              1 (i)
+            5  YieldValue
+            6  PopTop
+            7  Jump                  2
+      >>    8  LoadConst             0 (None)
+            9  Return
 
 code <listcomp>  file /tmp/c.py  line 5
   args 1 (posonly 0, kwonly 0)  stack 5  flags optimized newlocals
   varnames: .0, i, j
   names: ys
-    5       0  BuildList             0
-            1  LoadFast              0 (.0)
-      >>    2  ForIter              18
-            3  StoreFast             1 (i)
-            4  LoadGlobal            0 (ys)
-            5  GetIter
-      >>    6  ForIter              17
-            7  StoreFast             2 (j)
-            8  LoadFast              1 (i)
-            9  LoadFast              2 (j)
-           10  CompareOp             1 (!=)
-           11  PopJumpIfFalse        6
-           12  LoadFast              1 (i)
-           13  LoadFast              2 (j)
-           14  BuildTuple            2
-           15  ListAppend            3
-           16  Jump                  6
-      >>   17  Jump                  2
-      >>   18  Return
+    5       0  Nop
+            1  BuildList             0
+            2  LoadFast              0 (.0)
+      >>    3  ForIter              19
+            4  StoreFast             1 (i)
+            5  LoadGlobal            0 (ys)
+            6  GetIter
+      >>    7  ForIter              18
+            8  StoreFast             2 (j)
+            9  LoadFast              1 (i)
+           10  LoadFast              2 (j)
+           11  CompareOp             1 (!=)
+           12  PopJumpIfFalse        7
+           13  LoadFast              1 (i)
+           14  LoadFast              2 (j)
+           15  BuildTuple            2
+           16  ListAppend            3
+           17  Jump                  7
+      >>   18  Jump                  3
+      >>   19  Return

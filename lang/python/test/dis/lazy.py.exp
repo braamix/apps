@@ -29,31 +29,32 @@ code <module>  file /tmp/c.py  line 1
            21  ImportNameEager       7 (csv)
            22  StoreName             7 (csv)
     4      23  PopBlock
-           24  Jump                 37
+           24  Jump                 38
       >>   25  PushExcInfo
     6      26  DupTop
            27  LoadName              8 (ImportError)
            28  CheckExcMatch
-           29  PopJumpIfFalse       36
+           29  PopJumpIfFalse       37
            30  PopTop
-           31  SetupFinally         35
-           32  PopBlock
-           33  PopExcept
-           34  Jump                 37
-      >>   35  Reraise               1
-    4 >>   36  Reraise               1
-    8 >>   37  LoadName              9 (print)
-           38  LoadName              1 (json)
-           39  LoadName              4 (p)
-           40  LoadName              5 (sep)
-           41  LoadName             10 (a)
-           42  LoadName             11 (b)
-           43  BinaryOp             12 (@)
-           44  Call                  4
-           45  PopTop
-    9      46  LoadName             10 (a)
-           47  LoadName             11 (b)
-           48  InplaceOp            12 (@)
-           49  StoreName            10 (a)
-           50  LoadConst             0 (None)
-           51  Return
+           31  SetupFinally         36
+    7      32  Nop
+           33  PopBlock
+           34  PopExcept
+           35  Jump                 38
+    6 >>   36  Reraise               1
+    4 >>   37  Reraise               1
+    8 >>   38  LoadName              9 (print)
+           39  LoadName              1 (json)
+           40  LoadName              4 (p)
+           41  LoadName              5 (sep)
+           42  LoadName             10 (a)
+           43  LoadName             11 (b)
+           44  BinaryOp             12 (@)
+           45  Call                  4
+           46  PopTop
+    9      47  LoadName             10 (a)
+           48  LoadName             11 (b)
+           49  InplaceOp            12 (@)
+           50  StoreName            10 (a)
+           51  LoadConst             0 (None)
+           52  Return

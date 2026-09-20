@@ -262,7 +262,7 @@ it was taken from. The ones you reach for:
 | Functions | `functools`, `itertools`, `operator`, `contextlib`, `abc` |
 | Async | `asyncio`, `concurrent.futures`, `contextvars`, `threading` |
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
-| Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
+| Tools | `argparse`, `logging`, `unittest`, `doctest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
 | Mail | `email` (the whole package, `mime` included), `quopri`, `base64`, `mimetypes` |
 | XML | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.dom.pulldom`, `xml.sax`, `pyexpat` — reading, building, searching and writing |
 | Addresses | `urllib.parse`, `urllib.request` (which cannot connect), `ipaddress`, `uuid`, `socket`, `http.client`, `http.cookies` |
@@ -467,10 +467,9 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   them: `euc-jp`, `shift_jis`, `iso-2022-jp`, `gb2312`, `big5`, `cp949` and
   their kin each stand on a C codec that is not written. So
   `email.charset.Charset('euc-jp')` raises rather than converting.
-- **`pdb`, `doctest`, `trace`, `cProfile`, `tracemalloc`** — and
-  `sys.settrace` and `sys.setprofile`, which they need. So `breakpoint()`
-  finds no `pdb` and says so with a `RuntimeWarning`, as CPython does when
-  `PYTHONBREAKPOINT` names something that is not there.
+- **`trace`, `profile`, `cProfile`, `tracemalloc`**. `sys.settrace` and
+  `sys.setprofile` are here and `pdb` imports, but the debugger itself waits:
+  `breakpoint()` still finds no working `pdb`.
 - **`pydoc`**, so `help()` fails when it is called.
 - **`.pyc` files.** `sys.dont_write_bytecode` is true and nothing writes a
   cache; every run compiles from source, which is fast enough that the cache
@@ -495,7 +494,17 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   calls are two dicts, and what `exec("x = 1")` writes into one is dropped.
 - **`dis` is this interpreter's**, not CPython's: the instruction stream is
   different, so the opcode names and `dis` output are too, and `opcode` and
-  `_opcode` do not exist.
+  `_opcode` do not exist. Every code object begins with a `Nop`, which is
+  CPython's `RESUME`: it gives a frame that has not run a position, and that
+  is the line a `call` event reports.
+- **`sys.settrace` and `sys.setprofile` work**, with `call`, `line`,
+  `return`, `exception` and `opcode` for a tracer and `c_call`, `c_return`
+  and `c_exception` around builtins for a profiler. Two differences you can
+  see: **assigning `frame.f_lineno` does not jump**, and **the line an
+  implicit `return None` is reported at** is the last line the body emitted
+  code for, where CPython duplicates the return into each branch and reports
+  the line that branch ended on. A builtin that suspends to call Python —
+  `max` with a `key` — gets its `c_return` when the whole call is done.
 - **A coroutine never awaited is reported when the collector finds it**, not
   when the last name to it goes, so the line the `RuntimeWarning` names is
   where the program was then.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Bring one of CPython's own tests into this port's suite.
 
-    tools/mkcpy.py test_unary.py test_io/test_fileio.py [more...]
+    tools/mkcpy.py [--with-package] test_unary.py test_io/test_fileio.py ...
 
 Copies Lib/test/<path> into test/cpython/<name> byte for byte and adds a row
 to test/cpython.txt. A test inside a package of tests is taken on its own,
@@ -29,6 +29,8 @@ UPSTREAM = os.path.join(ROOT, "tmp", "cpython")
 TESTS = os.path.join(UPSTREAM, "Lib", "test")
 CASES = os.path.join(ROOT, "test", "cpython")
 MANIFEST = os.path.join(ROOT, "test", "cpython.txt")
+
+args_with_package = False
 
 
 def die(msg):
@@ -70,6 +72,28 @@ def write_manifest(head, rows):
             f.write("  ".join(v.ljust(width[i]) for i, v in enumerate(r)).rstrip() + "\n")
 
 
+def add_package(path, name):
+    """The rest of a test package, for a case that opens its siblings.
+
+    test_doctest reads half a dozen .txt files and imports as many modules
+    out of its own package. They go into test/cpython/<case>/ and pycases
+    plants them both where the package would be and beside the case.
+    """
+    here = os.path.dirname(os.path.join(TESTS, path))
+    if not os.path.dirname(path):
+        return
+    bag = os.path.join(CASES, os.path.splitext(name)[0])
+    kept = []
+    for f in sorted(os.listdir(here)):
+        if f in ("__init__.py", name) or not f.endswith((".py", ".txt")):
+            continue
+        os.makedirs(bag, exist_ok=True)
+        shutil.copyfile(os.path.join(here, f), os.path.join(bag, f))
+        kept.append(f)
+    if kept:
+        print(f"mkcpy: {name} — and {len(kept)} files of its package")
+
+
 def add(path):
     src = os.path.join(TESTS, path)
     if not os.path.isfile(src):
@@ -78,6 +102,8 @@ def add(path):
 
     os.makedirs(CASES, exist_ok=True)
     shutil.copyfile(src, os.path.join(CASES, name))
+    if args_with_package:
+        add_package(path, name)
 
     head, rows = read_manifest()
     rows = [r for r in rows if r[1] != name]
@@ -89,7 +115,11 @@ def add(path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("tests", nargs="+", help="names under Lib/test/, e.g. test_unary.py")
+    ap.add_argument("--with-package", action="store_true",
+                    help="also copy the rest of the test package the case is in")
     args = ap.parse_args()
+    global args_with_package
+    args_with_package = args.with_package
 
     if not os.path.isdir(TESTS):
         die(f"no upstream clone at {UPSTREAM}")

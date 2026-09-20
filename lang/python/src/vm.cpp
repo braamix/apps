@@ -93,6 +93,13 @@ struct VM {
     // category and message is a literal.
     Str later[8][2];
     u32 nlater = 0;
+    // sys.settrace and sys.setprofile. `tracing` is set while a tracer runs,
+    // so its own frames fire nothing; `tqueue` holds the events unwinding
+    // raised, four values each, since dispatch cannot stop to call Python.
+    Value tracefn;
+    Value profilefn;
+    bool tracing = false;
+    Vec<Value> tqueue;
 };
 
 // A String has a destructor, so this lives in a heap block rather than at file
@@ -116,6 +123,10 @@ void vm_mark()
         gc_mark(vm->kwnames[i]);
     for (usize i = 0; i < vm->bound.size(); i++)
         gc_mark(vm->bound[i]);
+    gc_mark(vm->tracefn);
+    gc_mark(vm->profilefn);
+    for (usize i = 0; i < vm->tqueue.size(); i++)
+        gc_mark(vm->tqueue[i]);
 }
 
 R oom()
@@ -204,6 +215,266 @@ R unbound_cell(CodeObj *co, u32 slot)
                       : unbound("NameError", "free variable", co->freevars[slot - own]);
 }
 
+// --------------------------------------------------------------- tracing
+
+// sys.settrace's events, and the words the tracer is called with. The first
+// five go to the trace function, the last three to the profile function;
+// `call` and `return` go to both, so each has an entry for either.
+enum : u32 {
+    TE_CALL,
+    TE_LINE,
+    TE_RETURN,
+    TE_EXCEPTION,
+    TE_OPCODE,
+    TE_P_CALL,
+    TE_P_RETURN,
+    TE_C_CALL,
+    TE_C_RETURN,
+    TE_C_EXCEPTION,
+};
+
+constexpr Str TE_NAMES[] = { "call",   "line",     "return",   "exception",   "opcode",
+                             "call",   "return",   "c_call",   "c_return",    "c_exception" };
+
+// FrameObj::fired: what has already gone out at FrameObj::tracepc, so an
+// event that suspends to call Python does not fire again when the loop comes
+// back to the same instruction.
+enum : u8 {
+    FIRED_LINE   = 1 << 0,
+    FIRED_OPCODE = 1 << 1,
+    FIRED_RET_T  = 1 << 2,
+    FIRED_RET_P  = 1 << 3,
+    FIRED_CCALL  = 1 << 4,
+};
+
+bool trace_on()
+{
+    return !vm->tracefn.is_nil() || !vm->profilefn.is_nil();
+}
+
+// A frame is entered: it owes a `call` event to whoever is installed. Called
+// where a frame starts running, so a generator owes one at every resume.
+void trace_entered(FrameObj *f)
+{
+    if (vm->tracing || !trace_on())
+        return;
+    if (!vm->tracefn.is_nil())
+        f->tflags |= FT_CALL_T;
+    if (!vm->profilefn.is_nil())
+        f->tflags |= FT_CALL_P;
+}
+
+// s[0] what to call, s[1] the frame, s[2] the argument; j the event, x[0] the
+// pc to show it at and x[1] the frame's own pc, put back afterwards.
+R trace_step(ContObj *k, Value in)
+{
+    FrameObj *f = frame_of(k->s[1]);
+    if (k->i++ == 0) {
+        vm->tracing = true;
+        k->x[1]     = f->pc;
+        f->pc       = u32(k->x[0]);
+        Root name{ str_new(TE_NAMES[k->j]) };
+        if (name.v.is_nil())
+            return R::Err;
+        TupleObj *t = tuple_new(3);
+        if (!t)
+            return oom();
+        t->items()[0] = k->s[1];
+        t->items()[1] = name.v;
+        t->items()[2] = k->s[2].is_nil() ? value_none() : k->s[2];
+        Root rt{ obj_value(t) };
+        return cont_call_v(k, k->s[0], rt.v);
+    }
+    vm->tracing = false;
+    f->pc       = u32(k->x[1]);
+    // What a trace function returns becomes the frame's own tracer, unless it
+    // is None; a profile function has no such half, so its answer is dropped.
+    if (k->j < TE_P_CALL && !in.is_nil() && !is_none(in))
+        f->trace = in;
+    return cont_done(k, value_none());
+}
+
+// A tracer that raises is uninstalled, as CPython's is, and the exception
+// carries on from where the event fired.
+void trace_failed(ContObj *k)
+{
+    vm->tracing = false;
+    FrameObj *f = frame_of(k->s[1]);
+    f->pc       = u32(k->x[1]);
+    f->trace    = Value();
+    if (k->j < TE_P_CALL)
+        vm->tracefn = Value();
+    else
+        vm->profilefn = Value();
+}
+
+bool run_cont(Value kv, Value in);
+
+// One event, made and run: the tracer is a Python call, so it is a frame the
+// loop pushes and not a call made from here. False leaves the error pending.
+bool trace_fire(Value fn, FrameObj *f, u32 kind, Value arg, u32 at)
+{
+    Root rf{ fn }, rr{ obj_value(f) }, ra{ arg };
+    Root kv{ cont_new(trace_step) };
+    if (kv.v.is_nil())
+        return false;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = rf.v;
+    k->s[1]    = rr.v;
+    k->s[2]    = ra.v;
+    k->j       = kind;
+    k->x[0]    = at;
+    k->fail    = trace_failed;
+    k->drop    = true;
+    return run_cont(kv.v, Value());
+}
+
+void trace_queue(FrameObj *f, u32 kind, Value arg, u32 at);
+
+// A builtin that suspended to call Python of its own -- max() with a key --
+// is not done when do_call returns, so its c_return waits for the
+// continuation to answer. s[0] the calling frame, s[1] the callable.
+R cret_step(ContObj *k, Value in)
+{
+    trace_queue(frame_of(k->s[0]), TE_C_RETURN, k->s[1], u32(k->x[0]));
+    return cont_done(k, in);
+}
+
+void cret_failed(ContObj *k)
+{
+    trace_queue(frame_of(k->s[0]), TE_C_EXCEPTION, k->s[1], u32(k->x[0]));
+}
+
+// A callable the profiler is told about with c_call and c_return: a native,
+// bound or not. Everything else is a Python frame and has events of its own.
+bool is_c_callable(Value v)
+{
+    return is_native(v) ||
+           (is_method(v) && is_native(static_cast<MethodObj *>(v.obj())->fn));
+}
+
+// Whether the instruction at `pc` is where a line begins, which is what the
+// line table records.
+bool line_starts(const CodeObj *co, u32 pc)
+{
+    for (usize i = 0; i < co->lines.size(); i++)
+        if (co->lines[i].at == pc)
+            return true;
+    return false;
+}
+
+// The events owed before the instruction at f->pc runs: 1 when one fired and
+// the loop must come back, 0 when there is nothing, -1 with an error pending.
+int trace_before(FrameObj *f)
+{
+    if (f->tracepc != f->pc) {
+        f->tracepc = f->pc;
+        f->fired   = 0;
+    }
+    // The call event, the tracer's first and then the profiler's, which is
+    // the order CPython enters a frame in.
+    if (f->tflags & FT_CALL_T) {
+        f->tflags = u8(f->tflags & ~FT_CALL_T);
+        // A frame that has not run reports the leading Nop as its position:
+        // f_lasti 0, and the line the `def` began on.
+        if (!vm->tracefn.is_nil())
+            return trace_fire(vm->tracefn, f, TE_CALL, value_none(), f->pc ? f->pc : 1) ? 1 : -1;
+    }
+    if (f->tflags & FT_CALL_P) {
+        f->tflags = u8(f->tflags & ~FT_CALL_P);
+        if (!vm->profilefn.is_nil())
+            return trace_fire(vm->profilefn, f, TE_P_CALL, value_none(), f->pc ? f->pc : 1) ? 1
+                                                                                            : -1;
+    }
+    if (f->trace.is_nil())
+        return 0;
+    CodeObj *co = code_of(f->code);
+    if ((f->tflags & FT_LINES) && !(f->fired & FIRED_LINE) && line_starts(co, f->pc)) {
+        f->fired  = u8(f->fired | FIRED_LINE);
+        u32 line  = code_line(co, f->pc);
+        bool back = f->prevpc != ~0u && f->pc <= f->prevpc;
+        bool go   = line != f->lastline || back;
+        f->lastline = line;
+        if (go)
+            return trace_fire(f->trace, f, TE_LINE, value_none(), f->pc + 1) ? 1 : -1;
+    }
+    if ((f->tflags & FT_OPCODES) && !(f->fired & FIRED_OPCODE)) {
+        f->fired = u8(f->fired | FIRED_OPCODE);
+        return trace_fire(f->trace, f, TE_OPCODE, value_none(), f->pc + 1) ? 1 : -1;
+    }
+    return 0;
+}
+
+// The return event, fired from the Return and Yield opcodes before the frame
+// is left. The instruction is stepped back to so that the loop comes here
+// once more and finds the event already out.
+int trace_return(FrameObj *f, Value v)
+{
+    if (vm->tracing || !trace_on())
+        return 0;
+    if (f->tracepc != f->pc) {
+        f->tracepc = f->pc;
+        f->fired   = 0;
+    }
+    if (!f->trace.is_nil() && !vm->tracefn.is_nil() && !(f->fired & FIRED_RET_T)) {
+        f->fired = u8(f->fired | FIRED_RET_T);
+        return trace_fire(vm->tracefn, f, TE_RETURN, v, f->pc + 1) ? 1 : -1;
+    }
+    if (!vm->profilefn.is_nil() && !(f->fired & FIRED_RET_P)) {
+        f->fired = u8(f->fired | FIRED_RET_P);
+        return trace_fire(vm->profilefn, f, TE_P_RETURN, v, f->pc + 1) ? 1 : -1;
+    }
+    return 0;
+}
+
+// (type, value, traceback), which is what an `exception` event carries.
+Value exc_info_tuple(Value e)
+{
+    Root re{ e };
+    Root cls{ type_of_value(e) };
+    if (cls.v.is_nil())
+        return Value();
+    TupleObj *t = tuple_new(3);
+    if (!t)
+        return oom(), Value();
+    t->items()[0] = cls.v;
+    t->items()[1] = re.v;
+    t->items()[2] = is_exc(re.v) && !static_cast<ExcObj *>(re.v.obj())->tb.is_nil()
+                        ? static_cast<ExcObj *>(re.v.obj())->tb
+                        : value_none();
+    return obj_value(t);
+}
+
+// An event dispatch could not make itself: unwinding is plain C++ and cannot
+// stop to call Python, so what each frame is owed is queued here and the loop
+// drains it before the next instruction. Five values an entry, since the pc
+// an event is shown at is not bounded.
+void trace_queue(FrameObj *f, u32 kind, Value arg, u32 at)
+{
+    if (vm->tracing)
+        return;
+    bool prof = kind >= TE_P_CALL;
+    Value fn  = prof ? vm->profilefn : f->trace;
+    if (fn.is_nil() || (!prof && vm->tracefn.is_nil()))
+        return;
+    Root rf{ obj_value(f) }, rn{ fn }, ra{ arg };
+    if (!vm->tqueue.push(rf.v) || !vm->tqueue.push(rn.v) ||
+        !vm->tqueue.push(ra.v.is_nil() ? value_none() : ra.v) ||
+        !vm->tqueue.push(Value::of_int(i32(kind))) || !vm->tqueue.push(Value::of_int(i32(at))))
+        err_clear(); // a queue that cannot grow loses the event and no more
+}
+
+// The oldest queued event, fired. False leaves the error pending.
+bool trace_drain()
+{
+    Root f{ vm->tqueue[0] }, fn{ vm->tqueue[1] }, arg{ vm->tqueue[2] };
+    u32 kind = u32(vm->tqueue[3].as_int());
+    u32 at   = u32(vm->tqueue[4].as_int());
+    for (u32 i = 0; i < 5; i++)
+        vm->tqueue.erase(0);
+    return trace_fire(fn.v, frame_of(f.v), kind, arg.v, at);
+}
+
 // --------------------------------------------------------------- the frames
 
 FrameObj *frame_push(CodeObj *co, Value globals, Value locals, Value cells)
@@ -222,6 +493,7 @@ FrameObj *frame_push(CodeObj *co, Value globals, Value locals, Value cells)
     f->handling = vm->handling;
     vm->frame   = obj_value(f);
     vm->depth++;
+    trace_entered(f);
     return f;
 }
 
@@ -1545,6 +1817,13 @@ bool dispatch(Value e, bool here = true)
         FrameObj *f = frame_of(vm->frame);
         if (here && !tb_here(f, re.v))
             return uncaught(re.v), false;
+        // The tracer sees the exception in each frame it passes through,
+        // where that frame stood. It cannot be called from here, so it is
+        // queued; the loop makes the call.
+        if (trace_on() && !vm->tracing) {
+            Root info{ exc_info_tuple(re.v) };
+            trace_queue(f, TE_EXCEPTION, info.v, f->pc);
+        }
         here = true;
         if (f->nb) {
             Block b = f->blocks()[--f->nb];
@@ -1578,6 +1857,11 @@ bool dispatch(Value e, bool here = true)
                     re                                        = sub;
                 }
             }
+        }
+        // Left by an exception: CPython reports that as a return of None.
+        if (trace_on() && !vm->tracing) {
+            trace_queue(f, TE_RETURN, value_none(), f->pc);
+            trace_queue(f, TE_P_RETURN, value_none(), f->pc);
         }
         if (f->back.is_nil() && f->cont.is_nil()) {
             uncaught(re.v);
@@ -2039,6 +2323,8 @@ R gen_resume(Value gv, u8 how, const CallArgs &a, Value &out, bool &entered)
     vm->depth++;
     g->state = GEN_RUNNING;
     entered  = true;
+    // A resume enters the frame again, and so owes a `call` event again.
+    trace_entered(f);
 
     if (!started) // the body begins at the top, with nothing to hand it
         return R::Ok;
@@ -2626,7 +2912,28 @@ void interpret()
             goto oops;
         }
 
+        // What a builtin call and an unwinding frame owed the tracer. Here,
+        // at an instruction boundary, rather than where they happened: a
+        // tracer is a Python call and neither place can make one.
+        if (!vm->tqueue.empty() && !vm->tracing) {
+            if (!trace_drain()) {
+                vm->tb.clear();
+                if (!raise_value(pending_exception()))
+                    return;
+            }
+            continue;
+        }
+
+        if (trace_on() && !vm->tracing) {
+            int t = trace_before(f);
+            if (t > 0)
+                continue;
+            if (t < 0)
+                goto oops;
+        }
+
         {
+            f->prevpc = f->pc;
             Instr in  = co->code[f->pc++];
             Value *st = f->stack();
             u32 arg   = in.arg;
@@ -3694,11 +4001,54 @@ void interpret()
                     consumed  = extra + 1;
                 }
 
+                // A builtin is bracketed for the profiler, as CPython
+                // brackets a PyCFunction: c_call before it and c_return or
+                // c_exception after. A builtin that suspends to call Python
+                // gets its c_return at once rather than at the end, which
+                // keeps the two balanced.
+                // CallEx is left alone, as CPython leaves CALL_FUNCTION_EX
+                // alone: it does not unpack the callable before calling it,
+                // so a builtin reached that way gets no pair at all, and
+                // test_sys_setprofile says that is the behaviour.
+                bool cprof = !vm->profilefn.is_nil() && !vm->tracing &&
+                             in.op != Bc::CallEx && is_c_callable(callable);
+                if (cprof && !(f->fired & FIRED_CCALL)) {
+                    f->pc--;
+                    if (f->tracepc != f->pc) {
+                        f->tracepc = f->pc;
+                        f->fired   = 0;
+                    }
+                    f->fired = u8(f->fired | FIRED_CCALL);
+                    if (!trace_fire(vm->profilefn, f, TE_C_CALL, callable, f->pc + 1))
+                        goto oops;
+                    continue;
+                }
+
                 Value out;
                 bool entered = false;
-                if (do_call(callable, a, out, entered) != R::Ok)
+                if (do_call(callable, a, out, entered) != R::Ok) {
+                    if (cprof)
+                        trace_queue(f, TE_C_EXCEPTION, callable, f->pc);
                     goto oops;
+                }
                 f->sp -= consumed;
+                if (cprof) {
+                    Root rc{ callable }, ro{ out };
+                    if (is_cont(ro.v) && cont_of(ro.v)->next.is_nil()) {
+                        Root kv{ cont_new(cret_step) };
+                        if (kv.v.is_nil())
+                            goto oops;
+                        ContObj *ck            = cont_of(kv.v);
+                        ck->s[0]               = obj_value(f);
+                        ck->s[1]               = rc.v;
+                        ck->x[0]               = f->pc;
+                        ck->fail               = cret_failed;
+                        cont_of(ro.v)->next    = kv.v;
+                        out                    = ro.v;
+                    } else {
+                        trace_queue(f, TE_C_RETURN, rc.v, f->pc);
+                    }
+                }
                 if (!land(out, entered))
                     goto oops;
                 break;
@@ -3738,7 +4088,18 @@ void interpret()
                     err_set("SystemError", "yield outside a generator");
                     goto oops;
                 }
-                Value v = st[--f->sp];
+                Value v = st[f->sp - 1];
+                if (trace_on() && !vm->tracing) {
+                    // A yield is a return, to a tracer: the frame is leaving.
+                    f->pc--;
+                    int t = trace_return(f, v);
+                    if (t < 0)
+                        goto oops;
+                    if (t > 0)
+                        continue;
+                    f->pc++;
+                }
+                f->sp--;
                 Value k = f->cont;
                 f->cont = Value();
                 gen_park(f, f->pc);
@@ -3761,6 +4122,15 @@ void interpret()
 
             case Bc::Return: {
                 Value v = st[f->sp - 1];
+                if (trace_on() && !vm->tracing) {
+                    f->pc--; // back to this instruction, so the loop returns here
+                    int t = trace_return(f, v);
+                    if (t < 0)
+                        goto oops;
+                    if (t > 0)
+                        continue;
+                    f->pc++;
+                }
                 if (!f->gen.is_nil()) {
                     if (!gen_finish(f, v))
                         return;
@@ -4427,6 +4797,30 @@ void vm_warn_later(Str category, Str message)
         vm->later[vm->nlater][1] = message;
         vm->nlater++;
     }
+}
+
+void vm_set_trace(Value fn)
+{
+    vm->tracefn = fn;
+    // The frame that installs it is not traced -- it is already running --
+    // but everything it enters from here is.
+    if (fn.is_nil() && !vm->frame.is_nil())
+        frame_of(vm->frame)->trace = Value();
+}
+
+Value vm_trace()
+{
+    return vm ? vm->tracefn : Value();
+}
+
+void vm_set_profile(Value fn)
+{
+    vm->profilefn = fn;
+}
+
+Value vm_profile()
+{
+    return vm ? vm->profilefn : Value();
 }
 
 void vm_set_unbuffered(bool on)
