@@ -45,46 +45,185 @@ One item in the list is not planned. It is at the end, with the reason.
   levels raises `RecursionError`, where CPython's limit of 1000 takes 250.
   The limit is what the native stack holds; this is the cost of it.
 
-## Stage 4 — compression
+## Stage 4 — waiting on descriptors
 
-19. **`zlib`, native.** `crc32` and `adler32`; `compress` and `decompress`;
-    `compressobj` and `decompressobj`, streaming, with `wbits` choosing raw,
-    zlib or gzip framing; `flush` modes, `unused_data`, `unconsumed_tail`,
-    `eof`, and the constants. Write both directions in C++ as plain
-    functions, so that the VM can call them from a slot without an await.
-    The kernel's `inflate` syscall does not fit: it is one-shot, it blocks,
-    and its input is capped at `SYS_STAGE_MAX`. Compressed output must be
-    valid DEFLATE, but it need not match zlib's bytes. Report
-    `ZLIB_VERSION` as this implementation's. `binascii.crc32` and `zlib.crc32`
-    should share one table. Test: `test_zlib`, without the cases that
-    compare against zlib's exact output.
+`Sys::Poll` is in the kernel as of SDK 0.10.280, so the task that specified it
+is done and gone from this file. `proc/io.h` has `poll_fds(Span<PollFd>, ms)`,
+the port kit has `b_poll`, and §5 of `Programming_Manual.md` is the reference.
 
-20. **`compression`, `gzip`.** The `compression` package (`_common._streams`,
+19. **`select.poll`, `select.select` on pipes, `communicate()`.**
+    - `selectmod.cpp` gains a `poll` object (`register`, `modify`,
+      `unregister`, `poll`), and `select.select` is rewritten over the same
+      call. `poll_fds` awaits and the VM cannot, so the wait is a request the
+      driver performs, as `Wait` is: the descriptor set is parked in the
+      module's state and `braam.cpp` does the awaiting.
+    - `SYS_POLL_IN`, `SYS_POLL_OUT` and `SYS_POLL_HUP` are the whole event
+      set; `SYS_POLL_FOREVER` waits indefinitely and 0 asks without waiting.
+      `POLLPRI`, `POLLERR` and `POLLNVAL` never come back, so a registration
+      asking for one of them waits for ever.
+    - The kernel holds every descriptor named for the length of the call and
+      refuses the whole call rather than marking one entry: a descriptor
+      another task of this process is using is `Err(Busy)`, and one that waits
+      on a host call rather than a channel — a socket, a fetch body — is
+      `Err(Unsupported)`. A regular file is always ready.
+    - A signal abandons the poll with `Err(Intr)`, so the retry PEP 475 asks
+      for belongs in `selectmod.cpp` and not in `selectors.py`.
+    - `selectors.py` is already byte for byte and picks `PollSelector` by
+      itself once `select.poll` exists. So does `subprocess._PopenSelector`.
+      `communicate()` over two or three pipes, `capture_output=True` and
+      `communicate(timeout=)` then work without touching `lib/`.
+    - Remove the "Waiting for a descriptor" entry from §10 of `Manual.md`,
+      and the `communicate()` limit from its `subprocess` section.
+    - The harness clock is frozen, so a timeout expires only when the test
+      passes a later `now` to `run()`.
+    - Tests: `test_select`, `test_selectors` and the `communicate` cases of
+      `test_subprocess`, without the socket ones.
+
+## Stage 5 — compression
+
+All four libraries are in the SDK as of 0.10.280, so none of this is a codec to
+write: each task is a native module over a library that is already there, asked
+for by name — `LIBS braam::zlib braam::bzip2 braam::lzma braam::zstd`. Three
+things follow, and they are why this stage is now one stage and not two:
+
+- **Every one of them is upstream's output byte for byte**, so the tests that
+  compare against it run rather than being excluded.
+- **The calls are synchronous**: a `step` computes and returns and never
+  awaits, which is what lets the VM reach them from a slot.
+- **The state is large and lives on the heap.** Each task below says how
+  large. The 100 MB cap is the whole process, and braam-core's allocator never
+  gives a span back once a size class has taken it, so the ratchet under
+  "Found along the way" decides whether a codec buffer fits at all.
+
+What each costs the binary is at most its archive — 60 KB for zlib, 46 KB for
+bzip2, 197 KB for lzma and 467 KB for zstd, against `python.wasm`'s 2.9 MB
+today — and less where `--gc-sections` drops what the module never names.
+`Programming_Manual.md` §6 documents all four.
+
+20. **`zlib`, native, on `braam::zlib`.** The library is zlib 1.3.2.1
+    rewritten in C++, and deflate's output is zlib's for the same level,
+    strategy, window and memory level.
+    - `Deflater` and `Inflater` are `compressobj` and `decompressobj`:
+      `step` over a span of input and a span of output, advancing both past
+      what it used. `wbits` chooses `ZFormat::Raw`, `Zlib` or `Gzip` and the
+      window bits; `ZFormat::Auto` is `wbits=47`.
+    - `unused_data`, `unconsumed_tail` and `eof` are bookkeeping over what
+      `step` left in `in`. `ZStatus::Stuck` is `Z_BUF_ERROR` and is not an
+      error — it is a call with no input to take or no room to fill.
+      `Corrupt` is `zlib.error`, with `why()` as the message.
+    - `compress` and `decompress` are `zlib_compress`/`zlib_uncompress`,
+      whose `limit` is what `decompress`'s `bufsize` grows into.
+    - `copy()` is `copy_from`, the flush modes are `ZFlush`, and
+      `set_dictionary`, `params`, `prime`, `bound` and `ZHeader` answer the
+      rest of the module.
+    - `crc32` and `adler32` are `crc32_update` and `adler32_update`, with
+      `crc32_combine` beside them, and `binascii.crc32` moves onto the same
+      pair rather than keeping a table of its own.
+    - A `Deflater` is 262 KiB of heap at the defaults and an `Inflater` about
+      7 KiB plus its window. Free it when the object is collected.
+    - `ZLIB_VERSION` is `"1.3.2.1"`, which is what this really is.
+    - Test: `test_zlib`, whole.
+
+21. **`compression`, `gzip`.** The `compression` package (`_common._streams`,
     `zlib`, `gzip`), `gzip`, and `python -m gzip`. Test: `test_gzip`.
 
-21. **`tarfile`, the archive half of `shutil`, and `zipfile`'s test.**
+22. **`bz2`, native `_bz2` on `braam::bzip2`.** libbzip2 1.0.8 rewritten in
+    C++, output byte for byte for the same block size.
+    - `BzCompressor` and `BzDecompressor` step as zlib's pair does, with two
+      rules of bzip2's own. A flush or finish answers `More` until it is
+      done and must be called again with the same action and the input
+      untouched, which is what `BZ2Compressor.flush()` has to loop over. And
+      a decompressor stops at the end of one stream, so `bz2.decompress`
+      re-`init()`s while bytes remain — that is `eof` and `unused_data`.
+    - Memory is the catch. A compressor at block size 9, which is
+      `BZ2Compressor`'s default and `BZ2File`'s, is 7.6 MB, and a
+      decompressor 3.7 MB, or 2.4 MB in `init(true)`'s small mode. Against
+      the cap that is a handful of open files at once, and `test_bz2` opens
+      several.
+    - `bz_crc_update` is bzip2's CRC-32, most significant bit first and not
+      zlib's. Nothing in `bz2.py` needs it.
+    - Then `compression.bz2` and `bz2`, and `zipfile`/`tarfile`/`shutil` pick
+      it up. Test: `test_bz2`.
+
+23. **`lzma`, native `_lzma` on `braam::lzma`.** Not a rewrite: liblzma from
+    xz 5.8.4 vendored verbatim, so the output is what `xz -T1` writes.
+    - `lzma/lzma.h` is liblzma's own C API whole, which is what `_lzma`
+      wants: `lzma_stream`, the filter chains behind `FORMAT_RAW` and
+      `_encode_filter_properties`, `lzma_str_to_filters` and the index.
+      `lzma/xz.h`'s `XzEncoder`/`XzDecoder` pair is the shorter road for
+      `FORMAT_XZ` and `FORMAT_ALONE`, and both headers reach the same code.
+    - **The default preset does not fit.** An encoder is 93 MiB at preset 6,
+      which is `lzma.PRESET_DEFAULT`, against a 100 MB cap that also holds
+      the interpreter; 7 to 9 fit in nothing at all, and 0 to 3 stay under
+      32 MiB. `memusage()` gives the figure before anything is allocated, so
+      `_lzma` can refuse with `MemoryError` rather than trap. Then decide
+      whether a compressor with no preset means 6 and fails, or means
+      something lower and writes bytes CPython would not — and record the
+      answer in §10 of `Manual.md` under "Differences you can see".
+    - A decoder is about the size of the dictionary, 256 KiB to 64 MiB, and
+      takes a memory limit as `init()`'s second argument, which is what
+      `LZMADecompressor`'s `memlimit` becomes.
+    - A decoder is told when the input ends: `End` comes only on the step
+      carrying the last of it, because `.xz` and `.lz` may be several streams
+      in a row and are read as one output.
+    - There are no threads, so `lzma_stream_encoder_mt` is a compile error at
+      the call and `lzma_physmem()` answers 0. `_lzma` names neither.
+    - Then `compression.lzma` and `lzma`. Test: `test_lzma`, less whatever
+      the preset decision excludes.
+
+24. **`zstd`, native `_zstd` on `braam::zstd`.** libzstd 1.6.0 vendored
+    verbatim, for Zstandard (RFC 8878). New in 3.14 and new in this file: it
+    was not here before because the library was not.
+    - `compression.zstd` (`__init__.py`, `_zstdfile.py`) over a native
+      `_zstd`: `ZstdCompressor`, `ZstdDecompressor`, `ZstdDict`,
+      `get_frame_info`, `get_frame_size`, `set_parameter_types`, the
+      `CompressionParameter`, `DecompressionParameter` and `Strategy` enums,
+      `zstd_version` and `ZSTD_CLEVEL_DEFAULT`.
+    - There is no Braam-shaped pair over this one: `zstd/zstd.h` is libzstd's
+      C API, a context and two cursors, called as C calls it.
+    - Three things bite. `ZSTD_decompressStream` answers 0 when a frame ends
+      and not after, so the loop must stop on "input used up and 0" rather
+      than call once more. `ZSTD_getErrorName` returns a `const char *` and
+      nothing here defines `strlen`, so the length is counted in a function
+      marked `__attribute__((no_builtin("strlen")))`. And there are no
+      threads, so `CompressionParameter.nb_workers` accepts 0 alone.
+    - `train_dict` and `finalize_dict` are the dictionary builder
+      (`zdict.h`), which is not in the library: raise rather than pretend,
+      and say so in §10. `ZstdDict` itself works — `ZSTD_createCDict` and
+      `ZSTD_createDDict` are there.
+    - Memory and size: a compressor is 3.5 MiB at level 3, the default, and
+      89.5 MiB at 19, so 20 to 22 fit in nothing. Set `ZSTD_d_windowLogMax`
+      on every decompressor, or a frame claiming a 128 MiB window fails as an
+      allocation instead of as `frameParameter_windowTooLarge`. Naming
+      `ZSTD_compress` links every strategy's match finders, 320 KB, because
+      the level is a run-time choice; `ZSTD_decompress` alone is 57 KB.
+    - Test: `test_zstd`, without the dictionary-builder and thread cases.
+
+25. **`tarfile`, the archive half of `shutil`, and `zipfile`'s test.**
     `zipfile` is already here, since `importlib.resources` imports it, and
-    handles stored members until `zlib` exists. `tarfile` guards `pwd` and
-    `grp`. `shutil` is already shipped, so `make_archive` and
-    `unpack_archive` start working once `tarfile` is here. Tests:
-    `test_zipfile/`, `test_tarfile`, and the archive cases of `test_shutil`.
+    has handled stored members only; with tasks 20 to 24 done it gains
+    `ZIP_DEFLATED`, `ZIP_BZIP2`, `ZIP_LZMA` and `ZIP_ZSTANDARD`. `tarfile`
+    guards `pwd` and `grp`. `shutil` is already shipped, so `make_archive`
+    and `unpack_archive` start working once `tarfile` is here, with `gztar`,
+    `bztar`, `xztar` and `zstdtar` all registered. Tests: `test_zipfile/`,
+    `test_tarfile`, and the archive cases of `test_shutil`.
 
-## Stage 5 — `email` and `xml`
+## Stage 6 — `email` and `xml`
 
-22. **`email`.** The whole package, pure Python. It needs `urllib.parse` and
+26. **`email`.** The whole package, pure Python. It needs `urllib.parse` and
     `quopri`, `calendar`, `datetime` and `base64`. `socket` is
     imported only inside `make_msgid`, so that one function waits for
-    task 25. Test: `test_email/`.
+    task 29. Test: `test_email/`.
 
-23. **`xml`, without a parser.** `xml.etree.ElementTree` and `ElementPath`,
+27. **`xml`, without a parser.** `xml.etree.ElementTree` and `ElementPath`,
     `xml.dom.minidom`, `xml.dom.minicompat`, `xml.sax.saxutils`, `handler`
     and `xmlreader`. All of these import `expat` lazily, so building a tree,
     searching it and serialising it all work now. `fromstring`, `parse` and
-    `minidom.parseString` raise `ImportError` until task 24. Tests: the
+    `minidom.parseString` raise `ImportError` until task 28. Tests: the
     non-parsing cases of `test_xml_etree` and `test_minidom`, and
     `test_xml_dom_minicompat`.
 
-24. **`pyexpat`.** A native module with the surface that `ElementTree`,
+28. **`pyexpat`.** A native module with the surface that `ElementTree`,
     `expatbuilder` and `expatreader` use: `ParserCreate`, the handler
     attributes, `Parse` and `ParseFile`, `buffer_text`, `ordered_attributes`,
     `ExpatError` with `lineno` and `offset`, and `errors` and `model`.
@@ -93,32 +232,32 @@ One item in the list is not planned. It is at the end, with the reason.
     positions, and only expat produces those. Tests: `test_pyexpat`,
     `test_xml_etree`, `test_minidom`, `test_sax`.
 
-## Stage 6 — debugging and profiling
+## Stage 7 — debugging and profiling
 
-25. **The `_socket` floor, importable but unable to connect.** `pdb` imports
+29. **The `_socket` floor, importable but unable to connect.** `pdb` imports
     `socket` at the top, and `doctest` imports `pdb`, so none of the three
     loads without it. `_socket` provides the constants, the exception types,
     `gethostname` (`"localhost"`) and a `socket` type whose constructor
     raises `OSError(EAFNOSUPPORT)`. Then ship `socket.py` byte for byte.
-    `select` and `selectors` are already here, for `subprocess`. §10
-    "Because Braam has no such thing" still holds for sockets and says what
-    the floor is for. `test_subprocess` imports `socket` and `sysconfig` at
-    the top, so it runs once this and task 30 are done.
+    `select` and `selectors` are already here, and poll on pipes since task
+    19. §10 "Because Braam has no such thing" still holds for sockets and
+    says what the floor is for. `test_subprocess` imports `socket` and
+    `sysconfig` at the top, so it runs once this and task 34 are done.
 
-26. **The `sys.monitoring` namespace.** `bdb` reads `sys.monitoring.events`
+30. **The `sys.monitoring` namespace.** `bdb` reads `sys.monitoring.events`
     at import. Add the tool registry (`use_tool_id`, `get_tool`,
     `free_tool_id`, `clear_tool_id`), `register_callback`, `set_events`,
     `get_events`, `set_local_events`, `restart_events`, `DISABLE`, `MISSING`,
     and the event constants. All of it is bookkeeping, and no event fires
-    until task 29.
+    until task 33.
 
-27. **`bdb`, `doctest`.** With tasks 25 and 26 done, `pdb` imports. It
+31. **`bdb`, `doctest`.** With tasks 29 and 30 done, `pdb` imports. It
     cannot trace yet, but `doctest` does not trace unless asked to. Ship
     `bdb`, `pdb` (import only) and `doctest`. `doctest.DocTestSuite` then
     plugs into `unittest`. Test: `test_doctest/`.
 
-28. **`sys.settrace`, `sys.setprofile`.** The VM work, together with task
-    29. A trace function is a Python call made from inside the instruction
+32. **`sys.settrace`, `sys.setprofile`.** The VM work, together with task
+    33. A trace function is a Python call made from inside the instruction
     loop, so it must be a pushed frame, like any other call. When it
     returns, the loop resumes the instruction it was called from, with no
     native recursion (the same rule as `ContObj`). Events:
@@ -133,38 +272,38 @@ One item in the list is not planned. It is at the end, with the reason.
     Leave jump by assigning `f_lineno` for later. Tests: `test_sys_settrace`,
     `test_sys_setprofile`.
 
-29. **`sys.monitoring` events.** Built on the same event points as task 28.
+33. **`sys.monitoring` events.** Built on the same event points as task 32.
     Implement the events `bdb` and `pdb.set_trace()` use: `PY_START`,
     `PY_RESUME`, `PY_RETURN`, `PY_YIELD`, `LINE`, `INSTRUCTION`, `JUMP`,
     `CALL`, `RAISE`, `EXCEPTION_HANDLED` and `PY_UNWIND`. Also per-code local
     events and `DISABLE`. Test: `test_monitoring`, as far as its
     CPython-specific parts allow.
 
-30. **`sysconfig`, `trace`.** `trace` imports `sysconfig` at the top.
+34. **`sysconfig`, `trace`.** `trace` imports `sysconfig` at the top.
     `sysconfig` needs a small `_sysconfig` floor (`config_vars`) and the
     scheme paths that point into the library directory. Test: `test_trace`.
 
-31. **`profile`, `pstats`, `cProfile`.** `profile` runs on `setprofile`.
+35. **`profile`, `pstats`, `cProfile`.** `profile` runs on `setprofile`.
     `cProfile` is `profiling.tracing`, which stands on `_lsprof`: write
-    `_lsprof` natively on the task 28 event points, with no Python calls per
+    `_lsprof` natively on the task 32 event points, with no Python calls per
     event. `pstats` saves and loads through `marshal`, which writes
     CPython's format. The harness clock is frozen, so the tests can check
     only the structure. Tests:
     `test_profile`, `test_profiling/test_tracing_profiler.py`, `test_pstats`.
 
-32. **`pdb`.** Now a working debugger: `run`, `runcall`, `post_mortem`,
+36. **`pdb`.** Now a working debugger: `run`, `runcall`, `post_mortem`,
     `pm`, `set_trace` through the monitoring backend, and every command.
     It reads its commands from stdin, through the key ring when stdin is the
     console. `breakpoint()` now starts it. Leave `f_lineno` jumps
     until there is a reason. Tests: `test_pdb`, `test_bdb`.
 
-33. **`symtable`.** A native `_symtable` that exposes what `symtab.cpp`
+37. **`symtable`.** A native `_symtable` that exposes what `symtab.cpp`
     already computes: one table per scope, with id, name, type, lineno,
     children and a symbol-to-flags dict. The flags use CPython's `DEF_*`
     bits and scope values, so that `symtable.py` can be shipped byte for
     byte. Test: `test_symtable`.
 
-34. **`pydoc`, `help()`.** `pydoc` needs `sysconfig` (task 30), `pkgutil`,
+38. **`pydoc`, `help()`.** `pydoc` needs `sysconfig` (task 34), `pkgutil`,
     `platform` and `inspect`, which are here. It falls back to its plain
     pager when `_pyrepl` is missing. Its server half (`http.server`) stays
     out. `help()`, which `site` installs, then works, both on an object and
@@ -172,74 +311,14 @@ One item in the list is not planned. It is at the end, with the reason.
     needs a `__text_signature__` on each of them. Test: `test_pydoc/`,
     without the server and browser cases.
 
-## Stage 7 — the rest of compression
+## Stage 8 — the allocator
 
-35. **`bz2`.** A native `_bz2` on libbzip2, built as a `PORT` library.
-    libbzip2 is about 5k lines of portable C. Then `compression.bz2` and
-    `bz2`, and `zipfile`/`tarfile`/`shutil` pick it up. Test: `test_bz2`.
-
-36. **`lzma`.** A native `_lzma` on liblzma from xz-utils. It is several
-    times the size of libbzip2 and adds a lot to the binary. Do it only if
-    someone needs `.xz` files. Test: `test_lzma`.
-
-37. **`tracemalloc`.** The allocator would record a traceback for each live
+39. **`tracemalloc`.** The allocator would record a traceback for each live
     object and the collector would drop it on sweep. That costs a word or
     more per object while tracing is on, plus a snapshot type. `start`,
     `stop`, `get_traced_memory`, `take_snapshot` and `get_object_traceback`
     are enough for `tracemalloc.py`. Low value here, so it is last. Test:
     `test_tracemalloc`.
-
-## Stage 8 — waiting on descriptors
-
-38. **`Sys::Poll` in braam-core.** This is kernel work, released as a new SDK
-    before task 39 can start. It adds a syscall number, so `PROC_ABI` rises
-    and every package here is rebuilt.
-    - Shape: `Poll = 86`. The payload is a timeout in milliseconds
-      (`0xffffffff` waits for ever) and then `u32 fd, u32 events` pairs; the
-      reply is a `u32 revents` for each pair. Events are `IN`, `OUT` and
-      `HUP`.
-    - Mechanism: `Source::Read` (`src/user/prog.h`) over N channels. One
-      `Waiter`, one token, armed with `park_receiver` for `IN` or
-      `park_sender` for `OUT` on every pipe named, and disarmed on all of
-      them on resume. A channel that fires after the task has already woken
-      finds nothing waiting, which `sched_wake` already treats as a late
-      event.
-    - Readiness: a read end is ready when `pend` is non-empty, the ring is
-      non-empty or the writer has closed. A write end is ready when the ring
-      is not full or the reader has hung up. Descriptors 0-2 answer through
-      their `Source` and `Stream` when they are pipes. A file is always
-      ready.
-    - Busy flags: hold `busy_r`/`busy_w` on each handle for the length of the
-      poll. A second waiter would displace the first on `park_receiver` and
-      panic on `park_sender`. A handle already busy is `Err(Busy)`, and a
-      `Read` during the poll gets `Err(Perm)`, as it already does.
-    - Timeout: fix the scheduler first. A waiter that is both timed and
-      listed is resumed twice today, because `sched_tick` does not remove it
-      from the wake table and `sched_wake` does not remove it from the timer
-      queue. Each path must remove the other registration.
-    - Signals: `Poll` joins `Read`, `KeyRead`, `Sleep`, `Wait` and `ClipRead`
-      as a call a signal abandons with `Err(Intr)`.
-    - Not in scope: sockets, fetch bodies and keys wait on host calls, not
-      channels, and are `Err(Unsupported)` until something needs them.
-    - Also: `poll_fds()` in `proc/io.h`, `poll()` in the kit, and the
-      syscall in `System_Calls.md` and `Concept.md` §3.5. Test: a case in
-      `test/system/` for two pipes written in turn by two children, a
-      timeout, `^C` during a poll, and `Err(Busy)`.
-
-39. **`select.poll`, `select.select` on pipes, `communicate()`.**
-    - `selectmod.cpp` gains a `poll` object (`register`, `modify`,
-      `unregister`, `poll`), and `select.select` is rewritten over the same
-      call. The wait is a request the driver performs, as `Wait` is.
-    - `selectors.py` is already byte for byte and picks `PollSelector` by
-      itself once `select.poll` exists. So does `subprocess._PopenSelector`.
-      `communicate()` over two or three pipes, `capture_output=True` and
-      `communicate(timeout=)` then work without touching `lib/`.
-    - Remove the "Waiting for a descriptor" entry from §10 of `Manual.md`,
-      and the `communicate()` limit from its `subprocess` section.
-    - The harness clock is frozen, so a timeout expires only when the test
-      passes a later `now` to `run()`.
-    - Tests: `test_select`, `test_selectors` and the `communicate` cases of
-      `test_subprocess`, without the socket ones.
 
 ## Not planned
 
