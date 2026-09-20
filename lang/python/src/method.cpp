@@ -225,9 +225,11 @@ bool meth_args(const CallArgs &a, Str who, u32 least, u32 most)
     return true;
 }
 
-bool meth_take(const CallArgs &a, Str who, const Str *names, u32 n, u32 least, Value *out)
+// The body both binders share; `self` is 1 where the first argument is one.
+static bool take_args(const CallArgs &a, Str who, const Str *names, u32 n, u32 least, Value *out,
+                      u32 self)
 {
-    u32 given = a.nargs ? a.nargs - 1 : 0;
+    u32 given = a.nargs > self ? a.nargs - self : 0;
     for (u32 i = 0; i < n; i++)
         out[i] = Value();
     if (given > n) {
@@ -238,7 +240,7 @@ bool meth_take(const CallArgs &a, Str who, const Str *names, u32 n, u32 least, V
         return err_set("TypeError", b.str()), false;
     }
     for (u32 i = 0; i < given; i++)
-        out[i] = a.args[i + 1];
+        out[i] = a.args[i + self];
     for (u32 k = 0; k < a.nkw; k++) {
         Str nm = is_str(a.kwnames[k]) ? str_of(a.kwnames[k])->str() : Str();
         u32 i  = 0;
@@ -263,6 +265,16 @@ bool meth_take(const CallArgs &a, Str who, const Str *names, u32 n, u32 least, V
             return err_set("TypeError", b.str()), false;
         }
     return true;
+}
+
+bool meth_take(const CallArgs &a, Str who, const Str *names, u32 n, u32 least, Value *out)
+{
+    return take_args(a, who, names, n, least, out, 1);
+}
+
+bool func_take(const CallArgs &a, Str who, const Str *names, u32 n, u32 least, Value *out)
+{
+    return take_args(a, who, names, n, least, out, 0);
 }
 
 namespace {

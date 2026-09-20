@@ -49,6 +49,16 @@ inline bool meth_take(const CallArgs &a, Str who, const Str (&names)[N], u32 lea
     return meth_take(a, who, names, N, least, out);
 }
 
+// The same for a plain function, whose first argument is an argument and not
+// a self: pyexpat.ParserCreate(encoding, namespace_separator, intern).
+bool func_take(const CallArgs &a, Str who, const Str *names, u32 n, u32 least, Value *out);
+
+template <usize N>
+inline bool func_take(const CallArgs &a, Str who, const Str (&names)[N], u32 least, Value (&out)[N])
+{
+    return func_take(a, who, names, N, least, out);
+}
+
 // A method's self, checked. Null with a TypeError pending.
 StrObj *self_str(const CallArgs &a, Str who);
 ListObj *self_list(const CallArgs &a, Str who);

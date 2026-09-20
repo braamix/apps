@@ -1,3 +1,5 @@
-Traceback (most recent call last):
-  File "/tmp/test_minidom.py", line 13, in <module>
-ModuleNotFoundError: No module named 'xml.parsers'
+.......s....................................................................................................................................................
+----------------------------------------------------------------------
+Ran 156 tests in Ns
+
+OK (skipped=1)

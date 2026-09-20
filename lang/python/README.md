@@ -3,9 +3,12 @@
 Not a port. Every other program in this tree is somebody else's source with the
 lines that touch the OS replaced; this one is a Python implementation written
 from nothing — its own lexer, parser, compiler, bytecode and virtual machine,
-122k lines of C++ in [src/](src/).
+132k lines of C++ in [src/](src/). One corner is a port after all:
+[src/expat/](src/expat/) is libexpat 2.8.4 rewritten in C++, because what
+`pyexpat`'s callers check is expat's own error codes, messages and positions,
+and only expat's own code produces those.
 
-The other half is borrowed whole: **CPython's standard library**, 303 files
+The other half is borrowed whole: **CPython's standard library**, 307 files
 byte for byte as [lib/](lib/), over a floor of native modules written here. A
 Python that runs CPython's own library is a real Python, and writing that
 library again would be both enormous and worse.
@@ -232,10 +235,11 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 - `email` is the whole package and pure Python, so the only two things it
   cannot do are the two this system has not got: `make_msgid` imports `socket`
   for the host name, and a CJK charset has no codec.
-- `xml` is here without the thing that reads XML: `ElementTree` and `minidom`
-  build, search and serialise, and `fromstring`, `parse` and `parseString`
-  raise `ImportError` until `pyexpat` is written. `xml.sax.saxutils` is not
-  shipped, importing `urllib.request` as it does.
+- `pyexpat` is libexpat rewritten, and it is a driver: expat suspends itself
+  at a handler with `XML_StopParser` and a `ContObj` makes the Python call and
+  resumes, because a native here may not call Python. `ElementTree`,
+  `minidom` and `pulldom` all read through it. `xml.sax` does not, yet:
+  `expatreader` imports `saxutils`, which imports `urllib.request`.
 - A coroutine never awaited is reported when the collector finds it.
 - `json` is the pure-Python one, so a malformed document is reported in
   `json.decoder`'s words.
@@ -301,6 +305,7 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 | [zlibmod.cpp](src/zlibmod.cpp), [bz2mod.cpp](src/bz2mod.cpp), [lzmamod.cpp](src/lzmamod.cpp), [zstdmod.cpp](src/zstdmod.cpp) | `zlib`, `_bz2`, `_lzma` and `_zstd` over the SDK's four compression libraries |
 | [reduce.cpp](src/reduce.cpp), [picklemod.cpp](src/picklemod.cpp) | What pickle and copy need of the native types: `__reduce__` for the builtins and iterators, and `_pickle`'s `PickleBuffer` |
 | [sre.cpp](src/sre.cpp), [sremod.cpp](src/sremod.cpp) | The regular-expression engine, Secret Labs', able to stop mid-match |
+| [expat/](src/expat/), [pyexpatmod.cpp](src/pyexpatmod.cpp) | libexpat 2.8.4 rewritten in C++, and `pyexpat` over it: a handler suspends the parse and a `ContObj` makes the Python call |
 | [builtin.cpp](src/builtin.cpp), and the other `*mod.cpp` | The builtins namespace, and one file per native module |
 | [lib/](lib/) | CPython's library, byte for byte, with [lib/manifest.txt](lib/manifest.txt) saying where each file came from |
 | [Manual.md](Manual.md), [examples/](examples/) | The reference manual and three demos; the package ships both as `share/` |

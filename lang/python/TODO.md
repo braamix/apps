@@ -15,8 +15,8 @@ One item in the list is not planned. It is at the end, with the reason.
 
 **A number is a name, not a position.** A stage or a task that is finished is
 deleted and everything left keeps the number it had, so the list has gaps.
-Stage 4 and tasks 19 to 24 were compression; tasks 25 and 26 were `email`
-and `xml`.
+Stage 4 and tasks 19 to 24 were compression; Stage 5 and tasks 25 to 27 were
+`email`, `xml` and `pyexpat`.
 
 What `email` could not do is the two things this system has not got.
 **`make_msgid` imports `socket`** at the head of itself, for the host name it
@@ -30,11 +30,39 @@ of `test_email`'s methods and three of `test_contentmanager`'s are that, and
 
 **`xml.sax.saxutils` is the one file of `xml` that is not shipped**: it
 imports `urllib.request` at the top, which stands on sockets, so it waits for
-task 28 rather than being trimmed. Everything else of the package that does
-not reach `pyexpat` is here, `pulldom` and `ElementInclude` included.
-`test_xml_etree` and `test_minidom` both import expat at their own top, so
-both are `fail import` rows that flip when task 27 lands;
-`test_xml_dom_minicompat` runs, 11 of 11.
+task 28 rather than being trimmed. Everything else of the package is here.
+That one import is the whole of what SAX still waits for, because
+`xml/sax/expatreader.py` imports `saxutils` at its own top: `xml.sax.parse`
+raises `SAXReaderNotAvailable`, `test_sax` skips itself for it, and
+`test_pulldom` runs 6 of its 11 for the same reason. `xml.etree` and
+`xml.dom.minidom` do not go through SAX and are whole: `test_minidom` passes
+156 of 156.
+
+**`pyexpat` is expat 2.8.4 rewritten in C++**, under `src/expat/`, taken from
+CPython's own `Modules/expat` -- the version these tests were written
+against, and the same tree `lib/` comes from. It keeps upstream's identifiers
+and structure, because what the tests check is expat's own error codes,
+messages and positions. What it does not keep: the two `#include`d bodies are
+a template over the encoding, `XML_UNICODE` and `XML_MIN_SIZE` are gone with
+the C, the accounting keeps its limits and loses its reporting, and the
+entropy is `proc_random()`. `src/pyexpatmod.cpp` drives it the way
+`emulators/simbesm` drives a machine: a handler queues its event and suspends
+the parse with `XML_StopParser`, and a `ContObj` makes the Python call and
+resumes. `test/stdlib/xmls.py` is 244 lines of that, identical to CPython's.
+
+Four changes to expat were needed for a driver that leaves the parser to make
+a call, and each is marked in the source. `XML_ERROR_SUSPEND_PE` is gone --
+upstream refuses to suspend a parameter entity's parse because `XML_Parse` on
+such a parser is called from inside the parent's handler, and here it never
+is. The four position accessors answer from where the handler stood rather
+than from where the parse stopped, and the position cache is not advanced
+past a suspension. `XmlFailSuspendedParse` fails a stopped parse with the
+error a handler's refusal would have caused, because the three handlers that
+steer the parse by what they return get their answer a suspension too late.
+And an external parameter entity's `dtd->paramEntityRead` is read on the
+resume rather than the moment the handler returns, for the same reason. One
+corner is left: where a non-standalone document's external parameter entity
+was read and a `NotStandaloneHandler` is set, that handler is not called.
 
 What compression could not do is recorded rather than left open. **lzma's high
 presets are what the process can spare**: nothing is refused in advance —
@@ -58,10 +86,19 @@ dictionary — real, and better than none, but with no entropy tables and so no
   file that is not a module.
 - **`__index__` returning a non-int** says "an integer is required" where
   CPython says `__index__ returned non-int (type str)`.
+- **A slice's bounds do not call `__index__` either**, and for the reason the
+  note below gives: `slice_resolve` is plain C++ reached from the middle of
+  the VM, so it cannot park to make a Python call. `lst[X():]` where `X`
+  writes `__index__` is a TypeError here. Ten of `test_xml_etree`'s methods
+  are that one thing.
 - **A `MemoryError` that is not caught crashes the process** while it is
   being reported. `tempfile.mkdtemp(dir=b"/tmp")` shows it: `map` is eager,
   so mapping `os.fsencode` over the endless name generator runs out of memory,
-  and then the report traps. That is also why `test_tempfile` cannot run.
+  and then the report traps. That is why `test_tempfile` cannot run, and why
+  `test_xml_etree` cannot either: its module is 5,400 lines of classes and a
+  hundred megabytes is not much room left over, so one test out of four
+  hundred takes the last of it and the run ends where the report would be.
+  Both rows say `crash`.
 - **`importlib.invalidate_caches()` fails**: it imports `importlib.metadata`,
   which is not shipped.
 - **`python <directory>`** says "is a directory" instead of running the
@@ -116,100 +153,16 @@ dictionary — real, and better than none, but with no entropy tables and so no
   rule: where `type(b)` is a *proper subclass* of `type(a)`, CPython asks
   `b.__radd__` **first**. So `1 + IntSub()` and `[1] + ListSub()` answer with
   the built-in's operator here and with the subclass's there.
+- **Character data arrives in different pieces than CPython's**, where
+  `buffer_text` is off. Expat may report a run of text in several calls and
+  says so; suspending the parse at a handler moves where it chooses to break,
+  so the same document can give `('hi', ' there')` here and `('hi there',)` in
+  CPython. Every handler that matters concatenates, `buffer_text` hides it
+  altogether, and it is what a driver costs.
 - **Deep structures and the recursion limit.** `pickle.py` spends four
   frames on each level of a list, so a structure nested past about fifty
   levels raises `RecursionError`, where CPython's limit of 1000 takes 250.
   The limit is what the native stack holds; this is the cost of it.
-
-## Stage 5 — `email` and `xml`
-
-27. **`pyexpat`, over an expat rewritten in C++.** The largest thing left in
-    this file, and the one place `lang/python` goes back to being an ordinary
-    port: the interpreter under `lib/` keeps only what can be observed, but
-    *this* keeps upstream's identifiers and structure, because what the tests
-    check is expat's own error codes, messages and positions and only expat's
-    own code produces those.
-
-    **The upstream is FreeBSD's `contrib/expat`** — libexpat 2.6.4, 16,310
-    lines under `lib/`, at FreeBSD commit `908f215e80fa`. Three units
-    compile: `xmlparse.c` (8,571 lines), `xmltok.c` (1,672) and `xmlrole.c`
-    (1,255); `xmltok_impl.c` and `xmltok_ns.c` are not units at all but
-    bodies `#include`d several times under different macros, once per
-    encoding and once per namespace mode. Record the version and the commit
-    the way `lib/manifest.txt` records a module's.
-
-    **It is a rewrite, not a `PORT` library.** Building the C was the other
-    way and was measured first: the port kit answers everything expat asks
-    for except three things — there is no `assert.h`; `fprintf` is Group B
-    and expat reaches it from the billion-laughs accounting, which is
-    compiled whenever `XML_GE` is 1 and `XML_DTD` needs it to be; and the
-    hash salt wants `arc4random`, `getrandom` or `/dev/urandom` or expat
-    refuses to build. None of those is hard — a three-line header, a private
-    `stdio.h` whose `fprintf` discards, and `arc4random()` over
-    `proc_random()` — but all three are scaffolding around code nobody here
-    can read, and the binary would carry the debug accounting's formatting
-    for paths only an environment variable reaches. Rewriting is the same
-    decision the rest of this tree makes, and it is what lets the driver
-    below be the ordinary path rather than a trick played on a library.
-
-    What the rewrite has to become, on this system's terms: `malloc`,
-    `realloc` and `free` — which expat already takes as a
-    `XML_Memory_Handling_Suite` — become `heap_new`/`heap_delete` over
-    `kernel/alloc.h`; `<string.h>` becomes `kernel/string.h`'s, since this
-    target has no port kit and will not grow one; `assert` goes; the
-    accounting keeps its *limits* and loses its *reporting*, so the
-    amplification and activation thresholds still stop a billion laughs and
-    nothing formats a float to stderr; the entropy is `proc_random()`; and
-    the two `#include`d bodies become templates over the encoding, which is
-    what they were always imitating. Watch the rules that are a link error
-    here rather than a warning: no `new`, no namespace-scope global with a
-    destructor, and no 128-bit arithmetic — `XmlBigCount` is 64-bit and wasm
-    divides that natively, so it is already fine.
-
-    **The handler problem is why the rewrite pays.** Expat calls
-    `StartElementHandler` and its two dozen siblings from deep inside the
-    parse, and a native here may not call Python at all — the rule a `Type`
-    slot lives by. Upstream already has the answer in
-    `XML_StopParser(parser, XML_TRUE)` and `XML_ResumeParser`, which suspend
-    and continue from exactly where they stopped; owning the code means that
-    stops being an escape hatch and becomes the shape of the thing. The
-    parser is a driver in `emulators/simbesm`'s sense: it runs plain C++
-    until it has an event for its caller, the VM dispatches that one event to
-    the Python handler through a `ContObj`, and then it resumes.
-
-    It has to be suspend-and-resume and not a recorded queue of events, for
-    two reasons found in the library that will use it:
-    `xml/dom/expatbuilder.py` reassigns `StartElementHandler` *during* a
-    parse, and `xml/sax/expatreader.py` reads `ErrorLineNumber` from inside a
-    handler — so the parser must really be standing where the event happened.
-    Two cases need care either way: `ExternalEntityRefHandler`, whose return
-    value steers the parse, and `XML_ERROR_SUSPEND_PE`, which is upstream
-    refusing to suspend inside an external parameter entity.
-
-    **The module on top** is `src/pyexpatmod.cpp`, with the surface
-    `ElementTree`, `expatbuilder` and `expatreader` use: `ParserCreate`, the
-    twenty-five handler attributes, `Parse` and `ParseFile`,
-    `ExternalEntityParserCreate`, `SetBase`, `SetParamEntityParsing`,
-    `GetInputContext`, `SetReparseDeferralEnabled` and its getter,
-    `buffer_text`, `ordered_attributes`, `ErrorLineNumber` and
-    `ErrorColumnNumber`, `ExpatError` with `lineno`, `offset` and `code`, and
-    the `errors` and `model` submodules. CPython's `Modules/pyexpat.c` is the
-    shape to answer, not to copy.
-
-    **Reproduce exactly**, because the tests read them: the 56 `XML_ERROR_*`
-    codes and the text `XML_ErrorString` gives each, the line and column of a
-    failure (line from 1, column from 0), `XML_GetCurrentByteIndex`, the
-    tuples `ElementDeclHandler` is handed, and `XML_ExpatVersion`.
-
-    **The order to write it**, each layer checkable before the next: the
-    encoding scanners and their tables (`xmltok`), then the prolog and DTD
-    state machine (`xmlrole`), then the parser with entities, namespaces and
-    the accounting limits (`xmlparse`), then the module. Four files of `lib/`
-    ship when it lands, all of them held back today for importing expat at
-    their top: `xml/parsers/__init__.py` and `expat.py`,
-    `xml/dom/expatbuilder.py` and `xml/sax/expatreader.py`. Tests:
-    `test_pyexpat`, `test_xml_etree`, `test_minidom`, `test_sax` -- the last
-    of which also wants task 28, for `saxutils`.
 
 ## Stage 6 — debugging and profiling
 
@@ -218,6 +171,9 @@ dictionary — real, and better than none, but with no entropy tables and so no
     loads without it. `_socket` provides the constants, the exception types,
     `gethostname` (`"localhost"`) and a `socket` type whose constructor
     raises `OSError(EAFNOSUPPORT)`. Then ship `socket.py` byte for byte.
+    `xml.sax` waits on the same floor for the same reason -- `saxutils`
+    imports `urllib.request` -- and `test_sax` and the other five of
+    `test_pulldom` come with it.
     `select` and `selectors` are here and wait on pipes, so this floor is the
     last thing two of their tests need: `test_selectors` imports `socket` at
     the top and `test_subprocess` imports `socket` and `sysconfig`, so the
@@ -241,7 +197,10 @@ dictionary — real, and better than none, but with no entropy tables and so no
     plugs into `unittest`. Test: `test_doctest/`.
 
 31. **`sys.settrace`, `sys.setprofile`.** The VM work, together with task
-    33. A trace function is a Python call made from inside the instruction
+    33. `sys.gettrace` and `sys.getprofile` are already here and answer None,
+    which is the true answer while nothing can be installed; the setters are
+    what is missing. A trace function is a Python call made from inside the
+    instruction
     loop, so it must be a pushed frame, like any other call. When it
     returns, the loop resumes the instruction it was called from, with no
     native recursion (the same rule as `ContObj`). Events:
@@ -265,7 +224,11 @@ dictionary — real, and better than none, but with no entropy tables and so no
 
 33. **`sysconfig`, `trace`.** `trace` imports `sysconfig` at the top.
     `sysconfig` needs a small `_sysconfig` floor (`config_vars`) and the
-    scheme paths that point into the library directory. Test: `test_trace`.
+    scheme paths that point into the library directory. Tests: `test_trace`,
+    and `test_pyexpat`, which imports `sysconfig` at its own top for one
+    method that looks for CPython's build directory and is a `fail import`
+    row until it can. `test/stdlib/xmls.py` is what tests `pyexpat` until
+    then.
 
 34. **`profile`, `pstats`, `cProfile`.** `profile` runs on `setprofile`.
     `cProfile` is `profiling.tracing`, which stands on `_lsprof`: write

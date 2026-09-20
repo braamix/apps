@@ -177,6 +177,7 @@ bool select_install(DictObj *into);
 bool pickle_install(DictObj *into);
 bool io_install(DictObj *into);
 bool csv_install(DictObj *into);
+bool pyexpat_install(DictObj *into);
 bool binascii_install(DictObj *into);
 
 bool zlib_install(DictObj *into);

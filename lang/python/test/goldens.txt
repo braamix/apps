@@ -141,6 +141,7 @@ stdlib/uuids.py                     cpython3.16
 stdlib/warns.py                     cpython3.16
 stdlib/weakrefs.py                  cpython3.16
 stdlib/weaks.py                     cpython3.16
+stdlib/xmls.py                      cpython3.16
 stdlib/zips.py                      cpython3.16
 type/compare.py                     cpython3.14
 type/descr.py                       cpython3.14

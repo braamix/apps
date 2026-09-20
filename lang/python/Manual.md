@@ -242,14 +242,14 @@ _functools _imp _io _math_integer _md5 _operator _pickle
 _posixsubprocess _random _sha1 _sha2 _sha3 _signal _sre _string
 _bz2 _lzma _zstd _struct _thread _tokenize _types _typing _warnings
 _weakref array atexit binascii builtins cmath dis errno faulthandler gc
-itertools marshal math posix select sys time unicodedata zlib
+itertools marshal math posix pyexpat select sys time unicodedata zlib
 ```
 
 `sys.builtin_module_names` is that list.
 
 ### CPython's own, byte for byte
 
-303 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+307 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
@@ -264,7 +264,7 @@ it was taken from. The ones you reach for:
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
 | Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
 | Mail | `email` (the whole package, `mime` included), `quopri`, `base64`, `mimetypes` |
-| XML | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.sax`'s handlers — building, searching and writing, but not parsing |
+| XML | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.dom.pulldom`, `pyexpat` — reading, building, searching and writing; `xml.sax` waits on `urllib` |
 | Addresses | `urllib.parse`, `ipaddress`, `uuid`, `http.cookies` |
 | Crypto | `hashlib`, `hmac`, `secrets` |
 | Compression | `zlib`, `gzip`, `bz2`, `lzma`, `compression` (`zlib`, `gzip`, `bz2`, `lzma`, `zstd`), `zipfile`, `tarfile` |
@@ -458,12 +458,12 @@ There is no `~~~^^^` anchor line under the failing expression, and no
 
 ### Because they are not written yet
 
-- **An XML parser.** `xml` is here — build a tree with `ElementTree` or
-  `minidom`, search it, serialise it — but the thing that reads one is
-  `pyexpat`, which is not written. So `ET.fromstring`, `ET.parse` and
-  `minidom.parseString` raise `ImportError`, `xml.sax.make_parser` raises
-  `SAXReaderNotAvailable`, and `xml.sax.saxutils` is not shipped at all: it
-  imports `urllib.request`, which stands on sockets.
+- **SAX.** The rest of `xml` reads and writes — `ET.fromstring`, `ET.parse`,
+  `minidom.parseString`, `pyexpat` itself — but `xml.sax.saxutils` is not
+  shipped, because it imports `urllib.request` and that stands on sockets.
+  `xml/sax/expatreader.py` imports `saxutils` at its own top, so
+  `xml.sax.make_parser` raises `SAXReaderNotAvailable` and `xml.dom.pulldom`
+  raises it in turn. Everything else of the package is here.
 - **`symtable`**, and of `urllib` only `parse`.
 - **The CJK codecs.** `encodings` is 89 files here — the single-byte pages,
   the UTF forms and the transforms — and the multi-byte ones are not among

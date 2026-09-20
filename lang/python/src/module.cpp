@@ -111,6 +111,7 @@ constexpr Native NATIVES[] = {
     { "_pickle", pickle_install },
     { "_io", io_install },
     { "_csv", csv_install },
+    { "pyexpat", pyexpat_install },
     { "binascii", binascii_install },
     { "zlib", zlib_install },
     { "_bz2", bz2_install },

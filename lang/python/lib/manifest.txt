@@ -296,6 +296,7 @@ xml/__init__.py                     -                 82952e3  Lib/xml/__init__.
 xml/dom/NodeFilter.py               -                 82952e3  Lib/xml/dom/NodeFilter.py
 xml/dom/__init__.py                 -                 82952e3  Lib/xml/dom/__init__.py
 xml/dom/domreg.py                   -                 82952e3  Lib/xml/dom/domreg.py
+xml/dom/expatbuilder.py             pyexpat           82952e3  Lib/xml/dom/expatbuilder.py
 xml/dom/minicompat.py               -                 82952e3  Lib/xml/dom/minicompat.py
 xml/dom/minidom.py                  -                 82952e3  Lib/xml/dom/minidom.py
 xml/dom/pulldom.py                  -                 82952e3  Lib/xml/dom/pulldom.py
@@ -304,8 +305,11 @@ xml/etree/ElementInclude.py         -                 82952e3  Lib/xml/etree/Ele
 xml/etree/ElementPath.py            -                 82952e3  Lib/xml/etree/ElementPath.py
 xml/etree/ElementTree.py            -                 82952e3  Lib/xml/etree/ElementTree.py
 xml/etree/__init__.py               -                 82952e3  Lib/xml/etree/__init__.py
+xml/parsers/__init__.py             -                 82952e3  Lib/xml/parsers/__init__.py
+xml/parsers/expat.py                pyexpat           82952e3  Lib/xml/parsers/expat.py
 xml/sax/__init__.py                 -                 82952e3  Lib/xml/sax/__init__.py
 xml/sax/_exceptions.py              -                 82952e3  Lib/xml/sax/_exceptions.py
+xml/sax/expatreader.py              pyexpat           82952e3  Lib/xml/sax/expatreader.py
 xml/sax/handler.py                  -                 82952e3  Lib/xml/sax/handler.py
 xml/sax/xmlreader.py                -                 82952e3  Lib/xml/sax/xmlreader.py
 xml/utils.py                        -                 82952e3  Lib/xml/utils.py

@@ -119,7 +119,7 @@ and a string, a `DATA` item, a `REM` tail and a filename keeping the case they
 were typed in. The messages are sentence case with it (`Ok`, `?Syntax error`),
 which is the one place this port stops being 1978's bytes.
 And [lang/python](lang/python/), Python 3.14 — the largest thing here by far
-at 122k lines of C++, and an **eighth shape**, because it is not a port of
+at 132k lines of C++, and an **eighth shape**, because it is not a port of
 anyone's code. None of CPython's C is in it: that C is a virtual machine built
 for a refcounted heap and a C stack, and neither is available on these terms,
 so rewriting it line by line would rewrite the wrong thing. What is taken over
@@ -127,16 +127,27 @@ is the *behaviour* — the lexer, parser, compiler, bytecode and VM are written
 for Braam, and each is held against CPython's own output rather than against
 its sources: the parse tree node for node over 373 files of CPython's library,
 the `dis` listings, 41 programs whose 2,490 lines of output are identical to
-CPython's, 428 of MicroPython's 449 tests, and 116 of 138 of CPython's own test
+CPython's, 428 of MicroPython's 449 tests, and 118 of 141 of CPython's own test
 files run under CPython's own `unittest`. The other half *is* byte for byte:
-303 files of `Lib/` ship as `lib/`, with
+307 files of `Lib/` ship as `lib/`, with
 [lang/python/lib/manifest.txt](lang/python/lib/manifest.txt) recording for each
 the upstream path, the commit, and the native module it stands on. So the rule
 the rest of this tree lives by is inverted — upstream's identifiers and
 structure are kept in the *library*, and what is under it keeps only what can
-be observed.
+be observed. With one exception, which proves the rule:
+[lang/python/src/expat/](lang/python/src/expat/) is libexpat 2.8.4 rewritten
+in C++, upstream's identifiers and structure kept, because what a program
+checks of an XML parser is its error codes, its messages and its line and
+column, and only expat's own code produces those.
 
-Its hard part is simbesm's, twice. A `co_await` cannot appear in an instruction
+Its hard part is simbesm's, three times over — and the third is `pyexpat`,
+where the rule that a native may not call Python meets a parser that calls
+back from inside its scanners. Owning expat's code is what lets it be the
+ordinary shape rather than a trick: a handler queues its event and stops the
+parse with `XML_StopParser`, a `ContObj` makes the Python call, and
+`XML_ResumeParser` goes on from exactly there.
+
+The other two are the VM itself. A `co_await` cannot appear in an instruction
 loop, so the VM is a driver: `vm_burst()` runs plain C++ until it has something
 for its caller to do, and only `braam.cpp` awaits. But a Python call is not an
 instruction, it is a *frame*, and the VM must not recurse for one — the native

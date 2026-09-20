@@ -377,8 +377,13 @@ def skip_if_huge_c_stack(depth=150_000):
 
 
 def run_with_limited_c_stack(depth=150_000, size=None):
+    # Upstream shrinks the C stack so that a deliberately deep structure
+    # raises RecursionError before it exhausts one. There is no C stack to
+    # shrink here -- a frame is a heap block -- and a test that asks for this
+    # first builds a structure of the order of `depth`, which is what a
+    # hundred-megabyte address space has no room for. So it does not run.
     def decorator(test):
-        return test
+        return unittest.skip("no C stack to limit, and the structure does not fit")(test)
     return decorator
 
 

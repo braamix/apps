@@ -25,7 +25,9 @@ braam_add_program(NAME python
                           src/bytemeth.cpp src/bytes.cpp src/call.cpp src/code.cpp src/codec.cpp
                           src/codecsmod.cpp src/collmod.cpp src/colorizemod.cpp src/compare.cpp
                           src/compile.cpp src/complex.cpp src/csvmod.cpp src/ctxvars.cpp src/dis.cpp
-                          src/dismod.cpp src/edit.cpp src/egroup.cpp src/err.cpp src/exc.cpp src/faulthandlermod.cpp src/float.cpp
+                          src/dismod.cpp src/edit.cpp src/egroup.cpp src/err.cpp src/exc.cpp
+                          src/expat/xmlparse.cpp src/expat/xmlrole.cpp src/expat/xmltok.cpp
+                          src/pyexpatmod.cpp src/faulthandlermod.cpp src/float.cpp
                           src/flocals.cpp src/format.cpp src/formatgr.cpp src/frame.cpp src/func.cpp
                           src/functoolsmod.cpp src/gc.cpp src/gen.cpp src/genalias.cpp
                           src/hashmod.cpp src/impmod.cpp src/import.cpp src/info.cpp src/int.cpp

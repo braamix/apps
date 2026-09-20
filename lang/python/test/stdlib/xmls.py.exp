@@ -1,0 +1,244 @@
+--- module
+expat_2.8.4 (2, 8, 4) UTF-8
+['XML_AT_ACT_THRES', 'XML_AT_MAX_AMP', 'XML_BLAP_ACT_THRES', 'XML_BLAP_MAX_AMP', 'XML_CONTEXT_BYTES', 'XML_DTD', 'XML_GE', 'XML_NS', 'sizeof(XML_Char)', 'sizeof(XML_LChar)']
+out of memory | no element found
+syntax error | no element found
+4 not well-formed (invalid token)
+44 44
+1 6 3
+0 1 2
+True True
+--- every handler, buffered
+1
+('XmlDeclHandler', '1.0', 'UTF-8', 1)
+('DefaultHandlerExpand', '\n')
+('StartDoctypeDeclHandler', 'root', None, None, 1)
+('DefaultHandlerExpand', '\n')
+('ElementDeclHandler', 'root', (5, 2, None, ((4, 0, 'a', ()), (4, 0, 'b', ()))))
+('DefaultHandlerExpand', '\n')
+('ElementDeclHandler', 'a', (3, 0, None, ()))
+('DefaultHandlerExpand', '\n')
+('ElementDeclHandler', 'b', (1, 0, None, ()))
+('DefaultHandlerExpand', '\n')
+('AttlistDeclHandler', 'a', 'id', 'ID', None, 0)
+('AttlistDeclHandler', 'a', 'x', 'CDATA', 'd', 0)
+('AttlistDeclHandler', 'a', 'y', '(p|q)', None, 1)
+('DefaultHandlerExpand', '\n')
+('EntityDeclHandler', 'e', 0, 'expanded', None, None, None, None)
+('DefaultHandlerExpand', '\n')
+('NotationDeclHandler', 'n', None, 'n.dtd', None)
+('DefaultHandlerExpand', '\n')
+('UnparsedEntityDeclHandler', 'pic', None, 'up.gif', None, 'n')
+('DefaultHandlerExpand', '\n')
+('EndDoctypeDeclHandler',)
+('DefaultHandlerExpand', '\n')
+('StartElementHandler', 'root', {})
+('ProcessingInstructionHandler', 'target', 'data')
+('CommentHandler', 'a comment')
+('StartElementHandler', 'a', {'y': 'p', 'id': 'i1', 'x': 'd'})
+('CharacterDataHandler', 'text expanded more')
+('EndElementHandler', 'a')
+('StartElementHandler', 'b', {})
+('EndElementHandler', 'b')
+('StartCdataSectionHandler',)
+('CharacterDataHandler', 'raw <>&')
+('EndCdataSectionHandler',)
+('EndElementHandler', 'root')
+('DefaultHandlerExpand', '\n')
+--- unbuffered, ordered attributes
+('XmlDeclHandler', '1.0', 'UTF-8', 1)
+('StartDoctypeDeclHandler', 'root', None, None, 1)
+('ElementDeclHandler', 'root', (5, 2, None, ((4, 0, 'a', ()), (4, 0, 'b', ()))))
+('ElementDeclHandler', 'a', (3, 0, None, ()))
+('ElementDeclHandler', 'b', (1, 0, None, ()))
+('AttlistDeclHandler', 'a', 'id', 'ID', None, 0)
+('AttlistDeclHandler', 'a', 'x', 'CDATA', 'd', 0)
+('AttlistDeclHandler', 'a', 'y', '(p|q)', None, 1)
+('EntityDeclHandler', 'e', 0, 'expanded', None, None, None, None)
+('NotationDeclHandler', 'n', None, 'n.dtd', None)
+('UnparsedEntityDeclHandler', 'pic', None, 'up.gif', None, 'n')
+('EndDoctypeDeclHandler',)
+('StartElementHandler', 'root', [])
+('ProcessingInstructionHandler', 'target', 'data')
+('CommentHandler', 'a comment')
+('StartElementHandler', 'a', ['y', 'p', 'id', 'i1', 'x', 'd'])
+('CharacterDataHandler', 'text ')
+('CharacterDataHandler', 'expanded')
+('CharacterDataHandler', ' more')
+('EndElementHandler', 'a')
+('StartElementHandler', 'b', [])
+('EndElementHandler', 'b')
+('StartCdataSectionHandler',)
+('CharacterDataHandler', 'raw <>&')
+('EndCdataSectionHandler',)
+('EndElementHandler', 'root')
+--- namespaces
+sep None triplets False
+('StartElementHandler', 'a', {'xmlns': 'u1', 'xmlns:p': 'u2', 'p:k': 'v'})
+('StartElementHandler', 'p:b', {})
+('EndElementHandler', 'p:b')
+('StartElementHandler', 'c', {'xmlns': ''})
+('EndElementHandler', 'c')
+('EndElementHandler', 'a')
+sep | triplets False
+('StartNamespaceDeclHandler', None, 'u1')
+('StartNamespaceDeclHandler', 'p', 'u2')
+('StartElementHandler', 'u1|a', {'u2|k': 'v'})
+('StartElementHandler', 'u2|b', {})
+('EndElementHandler', 'u2|b')
+('StartNamespaceDeclHandler', None, None)
+('StartElementHandler', 'c', {})
+('EndElementHandler', 'c')
+('EndNamespaceDeclHandler', None)
+('EndElementHandler', 'u1|a')
+('EndNamespaceDeclHandler', 'p')
+('EndNamespaceDeclHandler', None)
+sep | triplets True
+('StartNamespaceDeclHandler', None, 'u1')
+('StartNamespaceDeclHandler', 'p', 'u2')
+('StartElementHandler', 'u1|a', {'u2|k|p': 'v'})
+('StartElementHandler', 'u2|b|p', {})
+('EndElementHandler', 'u2|b|p')
+('StartNamespaceDeclHandler', None, None)
+('StartElementHandler', 'c', {})
+('EndElementHandler', 'c')
+('EndNamespaceDeclHandler', None)
+('EndElementHandler', 'u1|a')
+('EndNamespaceDeclHandler', 'p')
+('EndNamespaceDeclHandler', None)
+--- chunks and positions
+1
+('start', 'r', 1, 0, 0)
+('chars', '\n ')
+('chars', ' ')
+('start', 'a', 2, 2, 6)
+('chars', 'o')
+('chars', 'ne')
+('end', 'a', 2)
+('chars', '\n  ')
+('start', 'b', 3, 2, 19)
+('chars', 'two')
+('end', 'b', 3)
+('chars', '\n')
+('end', 'r', 4)
+--- buffer_size
+['xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'] 8 0
+--- specified attributes
+False [('r', {'y': 'given', 'x': 'dflt'})] 2
+True [('r', {'y': 'given'})] 2
+--- input context
+[('outer', b'<outer><inner/></outer>'), ('inner', b'<inner/></outer>')]
+--- intern
+True ['r'] True
+--- ParseFile
+1
+('StartElementHandler', 'r', {})
+('StartElementHandler', 'a', {})
+('CharacterDataHandler', 'x')
+('EndElementHandler', 'a')
+('StartElementHandler', 'b', {})
+('EndElementHandler', 'b')
+('EndElementHandler', 'r')
+--- errors
+b'<a>' -> no element found: line 1, column 3 | 3 1 3 3 1 3 3
+b'<a></b>' -> mismatched tag: line 1, column 5 | 7 1 5 7 1 5 5
+b'<a x=1/>' -> not well-formed (invalid token): line 1, column 5 | 4 1 5 4 1 5 5
+b'<a>&undef;</a>' -> undefined entity: line 1, column 3 | 11 1 3 11 1 3 3
+b'' -> no element found: line 1, column 0 | 3 1 0 3 1 0 0
+b'<a>\x80</a>' -> not well-formed (invalid token): line 1, column 3 | 4 1 3 4 1 3 3
+b'<a><![CDATA[x</a>' -> unclosed CDATA section: line 1, column 17 | 20 1 17 20 1 17 17
+b"<a b='1' b='2'/>" -> duplicate attribute: line 1, column 9 | 8 1 9 8 1 9 9
+b"<?xml version='2.0'?><a/>" -> ok
+--- handler raises
+raised from the handler: a ['a']
+--- handler removed mid-parse
+['a']
+--- external entities
+answer 1 -> 1
+('StartDoctypeDeclHandler', 'r', 'outer.dtd', None, 1)
+('EntityDeclHandler', 'pe', 1, None, None, 'inner.dtd', None, None)
+('ExternalEntityRefHandler', None, None, 'inner.dtd', None)
+('EntityDeclHandler', 'ent2', 0, 'from a parameter entity', None, None, None, None)
+('ExternalEntityRefHandler', None, None, 'outer.dtd', None)
+('EntityDeclHandler', 'ext', 0, 'from the outer subset', None, None, None, None)
+('EndDoctypeDeclHandler',)
+('StartElementHandler', 'r', {})
+('CharacterDataHandler', 'from the outer subset')
+('EndElementHandler', 'r')
+answer 0 -> error in processing external entity reference: line 1, column 65 21
+('StartDoctypeDeclHandler', 'r', 'outer.dtd', None, 1)
+('EntityDeclHandler', 'pe', 1, None, None, 'inner.dtd', None, None)
+('ExternalEntityRefHandler', None, None, 'inner.dtd', None)
+--- NotStandaloneHandler
+answer 1 -> 1
+[]
+answer 0 -> 1
+[]
+--- SetBase and UseForeignDTD
+/base/here
+[('start', 'r')]
+--- reparse deferral
+True
+False
+['r', 'a']
+--- bad arguments
+ValueError namespace_separator must be at most one character, omitted, or None
+TypeError ParserCreate() argument 'encoding' must be str or None, not int
+TypeError 'str' object cannot be interpreted as an integer
+TypeError a bytes-like object is required, not 'int'
+ValueError buffer_size must be greater than zero
+AttributeError for an unknown attribute
+--- ElementTree
+root []
+root None []
+a 'text expanded more' [('id', 'i1'), ('x', 'd'), ('y', 'p')]
+b None []
+b'<root><a y="p" id="i1" x="d">text expanded more</a><b />raw &lt;&gt;&amp;</root>'
+b'<ns0:a xmlns:ns0="u"><ns0:b /></ns0:a>'
+--- iterparse
+start r None
+start a 'x'
+end a 'x'
+start b None
+end b None
+end r None
+--- XMLPullParser
+start r
+start a
+end a
+start b
+end b
+end r
+--- ElementTree errors
+ParseError mismatched tag: line 1, column 5 7 (1, 5)
+--- minidom
+root 
+<?xml version="1.0" ?><!DOCTYPE root [
+<!ELEMENT root (a|b)*>
+<!ELEMENT a (#PCDATA)>
+<!ELEMENT b EMPTY>
+<!ATTLIST a id ID #IMPLIED x CDATA 'd' y (p|q) #REQUIRED>
+<!ENTITY e 'expanded'>
+<!NOTATION n SYSTEM 'n.dtd'>
+<!ENTITY pic SYSTEM 'up.gif' NDATA n>
+]><root><?target data?><!--a comment--><a y="p" id="i1" x="d">text expanded more</a><b/><![CDATA[raw <>&]]></root>
+<?xml version="1.0" ?>
+<!DOCTYPE root [
+<!ELEMENT root (a|b)*>
+<!ELEMENT a (#PCDATA)>
+<!ELEMENT b EMPTY>
+<!ATTLIST a id ID #IMPLIED x CDATA 'd' y (p|q) #REQUIRED>
+<!ENTITY e 'expanded'>
+<!NOTATION n SYSTEM 'n.dtd'>
+<!ENTITY pic SYSTEM 'up.gif' NDATA n>
+]>
+<root>
+  <?target data?>
+  <!--a comment-->
+  <a y="p" id="i1" x="d">text expanded more</a>
+  <b/>
+<![CDATA[raw <>&]]></root>
+
+['target', '#comment', 'a', 'b', '#cdata-section']
+text expanded more
+b True

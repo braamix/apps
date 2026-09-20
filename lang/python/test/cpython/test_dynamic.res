@@ -13,7 +13,7 @@ ERROR: test_after_specialization (__main__.TestTracing.test_after_specialization
 Traceback (most recent call last):
   File "/tmp/test_dynamic.py", line 158, in setUp
     self.addCleanup(sys.settrace, sys.gettrace())
-AttributeError: module 'sys' has no attribute 'settrace'
+AttributeError: module 'sys' has no attribute 'settrace'. Did you mean '.gettrace' instead of '.settrace'?
 
 ----------------------------------------------------------------------
 Ran 11 tests in Ns

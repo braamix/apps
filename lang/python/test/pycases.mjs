@@ -91,6 +91,7 @@ function listing(text) {
 // A one-word reason for a case that does not run, read off what it printed.
 // The golden is the ruler; this is the column a person reads.
 const REASONS = [
+    [/\/bin\/py: crashed/, "crash"],
     [/f-strings /, "fstring"],
     [/complex numbers /, "complex"],
     [/int too large/, "bignum"],
@@ -99,6 +100,7 @@ const REASONS = [
     [/async is not compiled/, "async"],
     [/SyntaxError/, "syntax"],
     [/(ImportError|ModuleNotFoundError)/, "import"],
+    [/^SkipTest: /m, "skipped"],
 ];
 
 function reason(text) {

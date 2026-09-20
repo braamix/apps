@@ -1,4 +1,4 @@
-.......F.............F..........F....FF..FFF...FFF...
+....ss.F.............F..........F....FF..FFF...FFF...
 ======================================================================
 FAIL: test_fields_are_readonly (__main__.ExceptionGroupFields.test_fields_are_readonly)
 ----------------------------------------------------------------------
@@ -116,4 +116,4 @@ AssertionError: "ExceptionGroup('msg', [ValueError()])" != "ExceptionGroup('msg'
 ----------------------------------------------------------------------
 Ran 53 tests in Ns
 
-FAILED (failures=11)
+FAILED (failures=11, skipped=2)

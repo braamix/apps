@@ -89,7 +89,7 @@ pass  test_math.py                    59/88      82952e3  Lib/test/test_math.py
 pass  test_memoryio.py                163/192    82952e3  Lib/test/test_io/test_memoryio.py
 pass  test_message.py                 310/310    82952e3  Lib/test/test_email/test_message.py
 pass  test_mimetypes.py               46/46      82952e3  Lib/test/test_mimetypes.py
-fail  test_minidom.py                 import     82952e3  Lib/test/test_minidom.py
+pass  test_minidom.py                 156/156    82952e3  Lib/test/test_minidom.py
 pass  test_named_expressions.py       74/74      82952e3  Lib/test/test_named_expressions.py
 pass  test_optparse.py                156/156    82952e3  Lib/test/test_optparse.py
 pass  test_parser.py                  8/8        82952e3  Lib/test/test_email/test_parser.py
@@ -108,12 +108,15 @@ pass  test_pprint.py                  28/76      82952e3  Lib/test/test_pprint.p
 pass  test_print.py                   3/9        82952e3  Lib/test/test_print.py
 pass  test_property.py                12/31      82952e3  Lib/test/test_property.py
 pass  test_protocols.py               7/7        82952e3  Lib/test/test_asyncio/test_protocols.py
+pass  test_pulldom.py                 6/11       82952e3  Lib/test/test_pulldom.py
+fail  test_pyexpat.py                 import     82952e3  Lib/test/test_pyexpat.py
 pass  test_queues.py                  59/59      82952e3  Lib/test/test_asyncio/test_queues.py
 pass  test_quopri.py                  11/11      82952e3  Lib/test/test_quopri.py
 pass  test_raise.py                   28/37      82952e3  Lib/test/test_raise.py
 pass  test_random.py                  104/116    82952e3  Lib/test/test_random.py
 pass  test_re.py                      169/170    82952e3  Lib/test/test_re.py
 pass  test_richcmp.py                 6/11       82952e3  Lib/test/test_richcmp.py
+fail  test_sax.py                     skipped    82952e3  Lib/test/test_sax.py
 pass  test_scope.py                   32/41      82952e3  Lib/test/test_scope.py
 pass  test_secrets.py                 11/11      82952e3  Lib/test/test_secrets.py
 pass  test_select.py                  6/6        82952e3  Lib/test/test_select.py
@@ -132,7 +135,7 @@ pass  test_super.py                   34/40      82952e3  Lib/test/test_super.py
 pass  test_syntax.py                  63/108     82952e3  Lib/test/test_syntax.py
 pass  test_sys_setprofile.py          0/29       82952e3  Lib/test/test_sys_setprofile.py
 pass  test_tarfile.py                 693/781    82952e3  Lib/test/test_tarfile.py
-fail  test_tempfile.py                silent     82952e3  Lib/test/test_tempfile.py
+fail  test_tempfile.py                crash      82952e3  Lib/test/test_tempfile.py
 pass  test_textwrap.py                68/68      82952e3  Lib/test/test_textwrap.py
 fail  test_time.py                    import     82952e3  Lib/test/test_time.py
 pass  test_timeit.py                  44/44      82952e3  Lib/test/test_timeit.py
@@ -153,6 +156,6 @@ pass  test_utils.py                   23/23      82952e3  Lib/test/test_email/te
 pass  test_uuid.py                    118/120    82952e3  Lib/test/test_uuid.py
 pass  test_weakset.py                 28/46      82952e3  Lib/test/test_weakset.py
 pass  test_xml_dom_minicompat.py      11/11      82952e3  Lib/test/test_xml_dom_minicompat.py
-fail  test_xml_etree.py               import     82952e3  Lib/test/test_xml_etree.py
+fail  test_xml_etree.py               crash      82952e3  Lib/test/test_xml_etree.py
 pass  test_zlib.py                    89/89      82952e3  Lib/test/test_zlib.py
 pass  test_zstd.py                    107/119    82952e3  Lib/test/test_zstd.py
