@@ -15,6 +15,7 @@ is_emscripten = False
 is_android = False
 is_apple = False
 is_apple_mobile = False
+is_s390x = False
 
 # One Web Worker: no fork and no second thread, but subprocess spawns.
 has_fork_support = False
@@ -416,6 +417,56 @@ requires_IEEE_754 = unittest.skipUnless(
 
 skip_on_newlib = lambda reason="": (lambda test: test)
 requires_mac_ver = lambda *min_version: (lambda test: test)
+
+
+# The four compression modules are all here now, so each of these is the
+# import upstream's own version does -- kept as a function because that is
+# how the tests spell it: @requires_gzip().
+def _requires(name, reason):
+    try:
+        __import__(name)
+    except ImportError:
+        return unittest.skip(reason)
+    return lambda test: test
+
+
+def requires_zlib(reason='requires zlib'):
+    return _requires('zlib', reason)
+
+
+def requires_gzip(reason='requires gzip'):
+    return _requires('gzip', reason)
+
+
+def requires_bz2(reason='requires bz2'):
+    return _requires('bz2', reason)
+
+
+def requires_lzma(reason='requires lzma'):
+    return _requires('lzma', reason)
+
+
+def requires_zstd(reason='requires zstd'):
+    return _requires('compression.zstd', reason)
+
+
+class catch_unraisable_exception:
+    """There is no sys.unraisablehook here, so nothing is ever caught.
+
+    Upstream's records what the hook was handed. This interpreter reports an
+    exception it cannot raise by printing it, with no hook in between, so
+    `unraisable` stays None and a test that asserts it is None passes for the
+    right reason. One that asserts an exception *was* caught does not.
+    """
+
+    def __init__(self):
+        self.unraisable = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        del self.unraisable
 
 
 def force_not_colorized(func):

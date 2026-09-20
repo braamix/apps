@@ -27,6 +27,7 @@
 #include "exc.h"
 #include "format.h"
 #include "gc.h"
+#include "info.h"
 #include "intern.h"
 #include "kernel/fmt.h"
 #include "math/math.h"
@@ -877,9 +878,12 @@ static Value mod_common(Value fmt, Value right, bool bytes)
     // A mapping on the right is both: it answers %(name) and it is also the
     // one positional value, which is why `'%s %(foo)s' % {'foo': 1}` works.
     // Nothing is left over in that case, so the count is not checked either.
-    // A tuple subclass is the tuple inside it.
+    // A tuple subclass is the tuple inside it, and a struct sequence -- which
+    // CPython makes a tuple subclass -- is the fields it holds.
     if (is_inst(rr.v) && is_tuple(inst_of(rr.v)->native))
         rr = inst_of(rr.v)->native;
+    else if (is_info(rr.v))
+        rr = info_items(rr.v);
     bool map = !is_tuple(rr.v) && !is_str(rr.v) &&
                (is_anydict(rr.v) || (is_inst(rr.v) && !type_special(rr.v, "__getitem__").is_nil()));
 

@@ -1,4 +1,4 @@
-.....Essss...FEFFE.......s.EEE..E...Fs..E..EEEF.EE....................................EEE...F...E..E...........FE.FE......s.....E.........EEE.EE................................................
+.....Essss...F.FF........s.EEE..E...Fs..E..EEEF.EE....................................EEE...F...E..E...........F..F.......s.....E.........EEE.EE................................................
 ======================================================================
 ERROR: test_bytes_array (__main__.CBytesIOTest.test_bytes_array)
 ----------------------------------------------------------------------
@@ -6,22 +6,6 @@ Traceback (most recent call last):
   File "/tmp/test_memoryio.py", line 683, in test_bytes_array
     memio = self.ioclass(a)
 TypeError: a bytes-like object is required, not 'array.array'
-
-======================================================================
-ERROR: test_getbuffer_del (__main__.CBytesIOTest.test_getbuffer_del)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_memoryio.py", line 495, in test_getbuffer_del
-    with support.catch_unraisable_exception() as cm:
-AttributeError: module 'test.support' has no attribute 'catch_unraisable_exception'
-
-======================================================================
-ERROR: test_getbuffer_gc_collect (__main__.CBytesIOTest.test_getbuffer_gc_collect)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_memoryio.py", line 525, in test_getbuffer_gc_collect
-    with support.catch_unraisable_exception() as cm:
-AttributeError: module 'test.support' has no attribute 'catch_unraisable_exception'
 
 ======================================================================
 ERROR: test_peek (__main__.CBytesIOTest.test_peek)
@@ -166,22 +150,6 @@ Traceback (most recent call last):
   File "/tmp/test_memoryio.py", line 1128, in test_write_str_subclass
     memio.write(s)
 TypeError: string argument expected, got 'MyStr'
-
-======================================================================
-ERROR: test_getbuffer_del (__main__.PyBytesIOTest.test_getbuffer_del)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_memoryio.py", line 495, in test_getbuffer_del
-    with support.catch_unraisable_exception() as cm:
-AttributeError: module 'test.support' has no attribute 'catch_unraisable_exception'
-
-======================================================================
-ERROR: test_getbuffer_gc_collect (__main__.PyBytesIOTest.test_getbuffer_gc_collect)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_memoryio.py", line 525, in test_getbuffer_gc_collect
-    with support.catch_unraisable_exception() as cm:
-AttributeError: module 'test.support' has no attribute 'catch_unraisable_exception'
 
 ======================================================================
 ERROR: test_readinto (__main__.PyBytesIOTest.test_readinto)
@@ -332,4 +300,4 @@ AssertionError: BufferError not raised by write
 ----------------------------------------------------------------------
 Ran 192 tests in Ns
 
-FAILED (failures=8, errors=26, skipped=7)
+FAILED (failures=8, errors=22, skipped=7)

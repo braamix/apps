@@ -12,6 +12,7 @@
 #include "ops.h"
 #include "posix.h"
 #include "ustr.h"
+#include "zlib/zlib.h"
 
 namespace {
 
@@ -1146,16 +1147,6 @@ R b_crc_hqx(const CallArgs &a, Value &out)
     return crc_answer(crc, wide, out);
 }
 
-u32 crc32_table[256];
-
-u32 internal_crc32(Str d, u32 crc)
-{
-    crc = ~crc;
-    for (usize i = 0; i < d.size(); i++)
-        crc = crc32_table[(crc ^ u8(d[i])) & 0xff] ^ (crc >> 8);
-    return crc ^ 0xffffffffu;
-}
-
 R b_crc32(const CallArgs &a, Value &out)
 {
     Str d;
@@ -1164,7 +1155,7 @@ R b_crc32(const CallArgs &a, Value &out)
     if (!args_only(a, "crc32", 1, 2) || !data_buffer(a.args[0], "crc32", d) ||
         (a.nargs > 1 && !crc_arg(a.args[1], crc, wide)))
         return R::Err;
-    return crc_answer(internal_crc32(d, crc), wide, out);
+    return crc_answer(crc32_update(crc, d), wide, out);
 }
 
 // ----------------------------------------------------------------- hex
@@ -1484,12 +1475,6 @@ bool binascii_install(DictObj *into)
         reverse(table_a2b_base85, TABLE_B2A_BASE85, 85, -1);
         reverse(table_a2b_base85_a85, TABLE_B2A_BASE85_A85, 85, -1);
         reverse(table_a2b_base32, TABLE_B2A_BASE32, 32, BASE32_PAD);
-        for (u32 n = 0; n < 256; n++) {
-            u32 c = n;
-            for (u32 k = 0; k < 8; k++)
-                c = c & 1 ? 0xedb88320u ^ (c >> 1) : c >> 1;
-            crc32_table[n] = c;
-        }
     }
     if (home->error.is_nil()) {
         home->error = mod_exc_class("binascii", "Error", "ValueError");

@@ -1,4 +1,4 @@
-"""doctest: not here yet (TODO.md task 31, which needs pdb and so socket).
+"""doctest: not here yet (TODO.md task 30, which needs pdb and so socket).
 
 CPython's tests import it only to add a module's doctests to their suite, so
 that suite is empty here and the rest of the test runs.

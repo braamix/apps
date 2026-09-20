@@ -178,6 +178,14 @@ bool pickle_install(DictObj *into);
 bool io_install(DictObj *into);
 bool csv_install(DictObj *into);
 bool binascii_install(DictObj *into);
+
+bool zlib_install(DictObj *into);
+
+bool bz2_install(DictObj *into);
+
+bool lzma_install(DictObj *into);
+
+bool zstd_install(DictObj *into);
 bool md5_install(DictObj *into);
 bool sha1_install(DictObj *into);
 bool sha2_install(DictObj *into);

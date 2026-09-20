@@ -21,7 +21,7 @@ math(EXPR BRAAM_BIN_INITIAL_BYTES "${BRAAM_BIN_INITIAL_PAGES} * 65536")
 braam_add_program(NAME python
                   SOURCES src/abc.cpp src/annot.cpp src/arraymod.cpp src/astdump.cpp src/astmod.cpp
                           src/astpos.cpp src/atexitmod.cpp src/attr.cpp src/bigint.cpp
-                          src/binasciimod.cpp src/binfmt.cpp src/braam.cpp src/builtin.cpp
+                          src/binasciimod.cpp src/bz2mod.cpp src/lzmamod.cpp src/zstdmod.cpp src/binfmt.cpp src/braam.cpp src/builtin.cpp
                           src/bytemeth.cpp src/bytes.cpp src/call.cpp src/code.cpp src/codec.cpp
                           src/codecsmod.cpp src/collmod.cpp src/colorizemod.cpp src/compare.cpp
                           src/compile.cpp src/complex.cpp src/csvmod.cpp src/ctxvars.cpp src/dis.cpp
@@ -41,8 +41,8 @@ braam_add_program(NAME python
                           src/table.cpp src/templatelib.cpp src/thread.cpp src/timemod.cpp
                           src/tokenizemod.cpp src/traceback.cpp src/tuple.cpp src/type.cpp
                           src/typesmod.cpp src/typevar.cpp src/ucd.cpp src/ucddb.cpp src/unimod.cpp
-                          src/union.cpp src/vm.cpp src/warnmod.cpp src/weak.cpp
-                  LIBS braam::math)
+                          src/union.cpp src/vm.cpp src/warnmod.cpp src/weak.cpp src/zlibmod.cpp
+                  LIBS braam::math braam::zlib braam::bzip2 braam::lzma braam::zstd)
 
 # Floating-point arithmetic is this language's, not the compiler's: contracting
 # `a*b - c*d` into an fma is more accurate and therefore wrong, since CPython

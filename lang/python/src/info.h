@@ -61,3 +61,10 @@ inline bool is_info(Value v)
 {
     return v.is_obj() && v.obj()->type->trace == info_trace;
 }
+
+// The fields an index reaches, as a TupleObj. CPython makes a struct sequence
+// a tuple subclass, so what unpacks a tuple should unpack one of these.
+inline Value info_items(Value v)
+{
+    return static_cast<InfoObj *>(v.obj())->items;
+}

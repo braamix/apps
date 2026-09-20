@@ -5,7 +5,7 @@ lines that touch the OS replaced; this one is a Python implementation written
 from nothing — its own lexer, parser, compiler, bytecode and virtual machine,
 122k lines of C++ in [src/](src/).
 
-The other half is borrowed whole: **CPython's standard library**, 235 files
+The other half is borrowed whole: **CPython's standard library**, 257 files
 byte for byte as [lib/](lib/), over a floor of native modules written here. A
 Python that runs CPython's own library is a real Python, and writing that
 library again would be both enormous and worse.
@@ -222,6 +222,13 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
   signal returns 130 rather than `-9`. `select` waits over `Sys::Poll`, whose
   events are `POLLIN`, `POLLOUT` and `POLLHUP` and whose bound is 64
   descriptors a call.
+- The four compression libraries are the SDK's, so what each writes is the
+  real tool's bytes. lzma is where the 100 MB process shows: its default
+  preset wants 94 MiB, which it gets when it asks first and not once the
+  program holds much else, so a preset nobody named comes down until it fits
+  and one you name is reported. `zipfile.ZIP_LZMA` names an 8 MiB dictionary
+  and so cannot be used. zstd's dictionaries are content-only, `zdict.h`'s
+  trainer not being in the library, so `dict_id` is 0.
 - A coroutine never awaited is reported when the collector finds it.
 - `json` is the pure-Python one, so a malformed document is reported in
   `json.decoder`'s words.
@@ -284,6 +291,7 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 | [import.cpp](src/import.cpp), [module.cpp](src/module.cpp), [impmod.cpp](src/impmod.cpp) | The module cache, the search path, the loader, and where importlib takes over |
 | [io.h](src/io.h), [iobase.cpp](src/iobase.cpp), [iofile.cpp](src/iofile.cpp), [iobuf.cpp](src/iobuf.cpp), [iotext.cpp](src/iotext.cpp), [iomem.cpp](src/iomem.cpp) | `_io`: the abstract layers, the raw descriptor, the buffer, the text wrapper, `BytesIO` and `StringIO` |
 | [posixmod.cpp](src/posixmod.cpp), [sysmod.cpp](src/sysmod.cpp), [timemod.cpp](src/timemod.cpp), [signalmod.cpp](src/signalmod.cpp), [selectmod.cpp](src/selectmod.cpp) | `posix` and `_posixsubprocess`, `sys`, `time`, `_signal` and `select` — the system-call turn every module takes |
+| [zlibmod.cpp](src/zlibmod.cpp), [bz2mod.cpp](src/bz2mod.cpp), [lzmamod.cpp](src/lzmamod.cpp), [zstdmod.cpp](src/zstdmod.cpp) | `zlib`, `_bz2`, `_lzma` and `_zstd` over the SDK's four compression libraries |
 | [reduce.cpp](src/reduce.cpp), [picklemod.cpp](src/picklemod.cpp) | What pickle and copy need of the native types: `__reduce__` for the builtins and iterators, and `_pickle`'s `PickleBuffer` |
 | [sre.cpp](src/sre.cpp), [sremod.cpp](src/sremod.cpp) | The regular-expression engine, Secret Labs', able to stop mid-match |
 | [builtin.cpp](src/builtin.cpp), and the other `*mod.cpp` | The builtins namespace, and one file per native module |
@@ -301,6 +309,7 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 | [test/pylex.mjs](test/pylex.mjs), [test/pyast.mjs](test/pyast.mjs), [test/pydis.mjs](test/pydis.mjs) | The three listings, against CPython's own `tokenize` and `ast` and against goldens |
 | [test/pysmoke.mjs](test/pysmoke.mjs), [test/pyflags.mjs](test/pyflags.mjs), [test/pyrepl.mjs](test/pyrepl.mjs), [test/pyexamples.mjs](test/pyexamples.mjs) | The command line, its options and the `PYTHON*` variables, the prompt, and the demos |
 | [test/pyio.mjs](test/pyio.mjs), [test/pyselect.mjs](test/pyselect.mjs), [test/pyimport.mjs](test/pyimport.mjs), [test/pygc.mjs](test/pygc.mjs) | What needs a stream, a signal, a pipe to wait on, the import system or the collector |
+| [test/pycompress.mjs](test/pycompress.mjs) | lzma and zstd, which the reference CPython was built without, and the three places compression differs |
 | the other `test/py*.mjs` | One driver per area — types, numbers, functions, classes, generators, coroutines, formatting, Unicode, modules |
 | [test/pystress.mjs](test/pystress.mjs) | The whole manifest again under `STRESS=1` |
 

@@ -26,6 +26,7 @@ pass  test_binascii.py                237/237    82952e3  Lib/test/test_binascii
 pass  test_binop.py                   9/12       82952e3  Lib/test/test_binop.py
 pass  test_bisect.py                  23/46      82952e3  Lib/test/test_bisect.py
 pass  test_bool.py                    27/31      82952e3  Lib/test/test_bool.py
+pass  test_bz2.py                     102/103    82952e3  Lib/test/test_bz2.py
 pass  test_calendar.py                86/86      82952e3  Lib/test/test_calendar.py
 pass  test_charmapcodec.py            4/4        82952e3  Lib/test/test_charmapcodec.py
 fail  test_cmd.py                     import     82952e3  Lib/test/test_cmd.py
@@ -61,6 +62,7 @@ pass  test_glob.py                    22/22      82952e3  Lib/test/test_glob.py
 pass  test_global.py                  20/20      82952e3  Lib/test/test_global.py
 fail  test_grammar.py                 import     82952e3  Lib/test/test_grammar.py
 pass  test_graphlib.py                17/17      82952e3  Lib/test/test_graphlib.py
+pass  test_gzip.py                    74/79      82952e3  Lib/test/test_gzip.py
 fail  test_hashlib.py                 import     82952e3  Lib/test/test_hashlib.py
 fail  test_hmac.py                    import     82952e3  Lib/test/test_hmac.py
 pass  test_html.py                    2/2        82952e3  Lib/test/test_html.py
@@ -72,9 +74,10 @@ pass  test_keyword.py                 11/11      82952e3  Lib/test/test_keyword.
 pass  test_keywordonlyarg.py          9/11       82952e3  Lib/test/test_keywordonlyarg.py
 pass  test_locks.py                   75/75      82952e3  Lib/test/test_asyncio/test_locks.py
 pass  test_longexp.py                 1/1        82952e3  Lib/test/test_longexp.py
+pass  test_lzma.py                    121/124    82952e3  Lib/test/test_lzma.py
 pass  test_marshal.py                 56/74      82952e3  Lib/test/test_marshal.py
 pass  test_math.py                    59/88      82952e3  Lib/test/test_math.py
-pass  test_memoryio.py                158/192    82952e3  Lib/test/test_io/test_memoryio.py
+pass  test_memoryio.py                162/192    82952e3  Lib/test/test_io/test_memoryio.py
 pass  test_mimetypes.py               46/46      82952e3  Lib/test/test_mimetypes.py
 pass  test_named_expressions.py       74/74      82952e3  Lib/test/test_named_expressions.py
 pass  test_optparse.py                156/156    82952e3  Lib/test/test_optparse.py
@@ -114,6 +117,7 @@ fail  test_subprocess.py              import     82952e3  Lib/test/test_subproce
 pass  test_super.py                   34/40      82952e3  Lib/test/test_super.py
 pass  test_syntax.py                  63/108     82952e3  Lib/test/test_syntax.py
 pass  test_sys_setprofile.py          0/29       82952e3  Lib/test/test_sys_setprofile.py
+pass  test_tarfile.py                 693/781    82952e3  Lib/test/test_tarfile.py
 fail  test_tempfile.py                silent     82952e3  Lib/test/test_tempfile.py
 pass  test_textwrap.py                68/68      82952e3  Lib/test/test_textwrap.py
 fail  test_time.py                    import     82952e3  Lib/test/test_time.py
@@ -133,3 +137,5 @@ pass  test_urlparse.py                81/81      82952e3  Lib/test/test_urlparse
 pass  test_utf8source.py              3/3        82952e3  Lib/test/test_utf8source.py
 pass  test_uuid.py                    118/120    82952e3  Lib/test/test_uuid.py
 pass  test_weakset.py                 28/46      82952e3  Lib/test/test_weakset.py
+pass  test_zlib.py                    89/89      82952e3  Lib/test/test_zlib.py
+pass  test_zstd.py                    107/119    82952e3  Lib/test/test_zstd.py

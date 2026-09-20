@@ -24,7 +24,6 @@ No module named 'http.server'
 No module named 'urllib.robotparser'
 No module named 'urllib.request'
 No module named 'xml'
-No module named '_bz2'
 No module named '_dbm'
 No module named '_gdbm'
 No module named 'socket'
@@ -58,7 +57,6 @@ No module named 'http.cookiejar'
 No module named 'http.server'
 No module named 'urllib.robotparser'
 No module named 'urllib.request'
-No module named '_bz2'
 No module named '_dbm'
 No module named '_gdbm'
 No module named 'socket'
@@ -44312,28 +44310,11 @@ when serializing list item 0
 ERROR: test_optional_frames (__main__.DumpPickle_CLoadPickle.test_optional_frames)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/pickletester.py", line 4092, in test_optional_frames
-    pickled = self.dumps(obj, proto)
-  File "/tmp/test_pickle.py", line 91, in dumps
-    p.dump(arg)
-  File "/pkg/store/python-0/lib/pickle.py", line 514, in dump
-    self.save(obj)
-  File "/pkg/store/python-0/lib/pickle.py", line 588, in save
-    f(self, obj)  # Call unbound method with explicit self
-  File "/pkg/store/python-0/lib/pickle.py", line 1074, in save_dict
-    self._batch_setitems(obj.items(), obj)
-  File "/pkg/store/python-0/lib/pickle.py", line 1100, in _batch_setitems
-    save(v)
-  File "/pkg/store/python-0/lib/pickle.py", line 588, in save
-    f(self, obj)  # Call unbound method with explicit self
-  File "/pkg/store/python-0/lib/pickle.py", line 882, in save_bytes
-    self._save_bytes_no_memo(obj)
-  File "/pkg/store/python-0/lib/pickle.py", line 870, in _save_bytes_no_memo
-    self._write_large_bytes(BINBYTES + pack("<I", n), obj)
-  File "/pkg/store/python-0/lib/pickle.py", line 257, in write_large_bytes
-    write(payload)
+  File "/tmp/test/pickletester.py", line 4098, in test_optional_frames
+    some_frames_pickle = remove_frames(pickled, lambda i: i % 2)
+  File "/tmp/test/pickletester.py", line 4081, in remove_frames
+    newpickle += pickled[last_frame_end:]
 MemoryError: out of memory
-when serializing dict item 15
 
 ======================================================================
 ERROR: test_framing_large_objects (__main__.InMemoryPickleTests.test_framing_large_objects) (proto=5, fast=False)
@@ -44351,30 +44332,11 @@ MemoryError: out of memory
 ERROR: test_optional_frames (__main__.InMemoryPickleTests.test_optional_frames)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/pickletester.py", line 4092, in test_optional_frames
-    pickled = self.dumps(obj, proto)
-  File "/tmp/test_pickle.py", line 112, in dumps
-    return pickle.dumps(arg, protocol, **kwargs)
-  File "/pkg/store/python-0/lib/pickle.py", line 1895, in _dumps
-    buffer_callback=buffer_callback).dump(obj)
-  File "/pkg/store/python-0/lib/pickle.py", line 514, in dump
-    self.save(obj)
-  File "/pkg/store/python-0/lib/pickle.py", line 588, in save
-    f(self, obj)  # Call unbound method with explicit self
-  File "/pkg/store/python-0/lib/pickle.py", line 1074, in save_dict
-    self._batch_setitems(obj.items(), obj)
-  File "/pkg/store/python-0/lib/pickle.py", line 1100, in _batch_setitems
-    save(v)
-  File "/pkg/store/python-0/lib/pickle.py", line 588, in save
-    f(self, obj)  # Call unbound method with explicit self
-  File "/pkg/store/python-0/lib/pickle.py", line 882, in save_bytes
-    self._save_bytes_no_memo(obj)
-  File "/pkg/store/python-0/lib/pickle.py", line 870, in _save_bytes_no_memo
-    self._write_large_bytes(BINBYTES + pack("<I", n), obj)
-  File "/pkg/store/python-0/lib/pickle.py", line 257, in write_large_bytes
-    write(payload)
+  File "/tmp/test/pickletester.py", line 4098, in test_optional_frames
+    some_frames_pickle = remove_frames(pickled, lambda i: i % 2)
+  File "/tmp/test/pickletester.py", line 4081, in remove_frames
+    newpickle += pickled[last_frame_end:]
 MemoryError: out of memory
-when serializing dict item 15
 
 ======================================================================
 ERROR: test_deep_nested_struct_dict (__main__.PyPicklerTests.test_deep_nested_struct_dict) (proto=0)
@@ -58217,8 +58179,8 @@ when serializing list item 0
 ERROR: test_optional_frames (__main__.PyPicklerTests.test_optional_frames)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/pickletester.py", line 4096, in test_optional_frames
-    self.assertEqual(obj, self.loads(frameless_pickle))
+  File "/tmp/test/pickletester.py", line 4101, in test_optional_frames
+    self.assertEqual(obj, self.loads(some_frames_pickle))
   File "/tmp/test_pickle.py", line 96, in loads
     f = io.BytesIO(buf)
 MemoryError: out of memory

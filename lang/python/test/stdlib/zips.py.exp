@@ -1,0 +1,34 @@
+907060870 103547413
+907060870 907060870
+True
+True
+True
+True
+True True b''
+50 False True
+8750 True
+True 4
+True
+True
+8800
+True
+True
+True
+40 False False
+8760 True
+True
+stored True ['a.txt']
+deflated True ['a.txt']
+bzip2 True ['a.txt']
+plain ['a.txt'] True
+.gz ['a.txt'] True
+.bz2 ['a.txt'] True
+tar True
+   ['a.txt', 'sub']
+   True
+gztar True
+   ['a.txt', 'sub']
+   True
+bztar True
+   ['a.txt', 'sub']
+   True

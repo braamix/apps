@@ -240,16 +240,16 @@ warning categories.
 _abc _ast _blake2 _codecs _collections _colorize _contextvars _csv
 _functools _imp _io _math_integer _md5 _operator _pickle
 _posixsubprocess _random _sha1 _sha2 _sha3 _signal _sre _string
-_struct _thread _tokenize _types _typing _warnings _weakref array
-atexit binascii builtins cmath dis errno faulthandler gc itertools
-marshal math posix select sys time unicodedata
+_bz2 _lzma _zstd _struct _thread _tokenize _types _typing _warnings
+_weakref array atexit binascii builtins cmath dis errno faulthandler gc
+itertools marshal math posix select sys time unicodedata zlib
 ```
 
 `sys.builtin_module_names` is that list.
 
 ### CPython's own, byte for byte
 
-235 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+257 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
@@ -265,6 +265,7 @@ it was taken from. The ones you reach for:
 | Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
 | Addresses | `urllib.parse`, `ipaddress`, `uuid`, `http.cookies` |
 | Crypto | `hashlib`, `hmac`, `secrets` |
+| Compression | `zlib`, `gzip`, `bz2`, `lzma`, `compression` (`zlib`, `gzip`, `bz2`, `lzma`, `zstd`), `zipfile`, `tarfile` |
 
 **`sys.stdlib_module_names` is CPython's whole list and not this one** — it is
 a frozen constant. What is importable is the native list above plus `lib/`.
@@ -291,6 +292,47 @@ Whatever is still open is flushed and closed when the program ends, after
 
 Paths are Braam's: `/` is the root, `/tmp` is emptied at boot, everything else
 is in OPFS and survives a reload.
+
+### Compression
+
+All four codecs are here, each over the library the SDK ships — zlib 1.3.2.1,
+libbzip2 1.0.8, liblzma from xz 5.8.4, libzstd 1.6.0 — so **what each writes
+is what the real tool writes, byte for byte**. `zlib`, `gzip`, `bz2`, `lzma`
+and `compression.zstd` have their whole surfaces, and `zipfile`, `tarfile` and
+`shutil.make_archive` pick them up.
+
+Three things are this system's rather than Python's:
+
+- **lzma's high presets are what the process can spare.** Nothing is refused
+  in advance: liblzma is asked, and only what it will not build is a
+  `MemoryError` naming the figure. CPython's default preset of 6 wants 94 MiB
+  of a 100 MB process, so it works when it is the first thing a program does
+  and fails once the program holds much else; 7, 8 and 9 want 185, 369 and
+  673 MiB and never fit. A preset you **name** and that fails is reported,
+  because writing something other than what you asked for would be a lie — and
+  a preset **nobody named** comes down until it fits, so `lzma.compress(data)`
+  always works and writes a good `.xz`. A filter chain you spell out is
+  likewise reported rather than shrunk, which is why **`zipfile.ZIP_LZMA`
+  cannot be used**: `zipfile` names an 8 MiB dictionary, and by the time it
+  does, its own imports have taken the room. Decompression is unaffected — a
+  decoder is about the size of the dictionary, and reads anything preset 9
+  wrote.
+- **zstd's dictionaries are untrained.** `zdict.h`, which holds zstd's COVER
+  trainer, is not in the library, so `train_dict` and `finalize_dict` build a
+  **content-only** dictionary instead: the tail of the samples, which is what
+  `is_raw=True` means and what zstd falls back to for content without the
+  dictionary magic. It is a real dictionary and it does improve the ratio, but
+  it carries no entropy tables and therefore **`dict_id` is 0**, and a trained
+  one would do better. For the same reason a `ZstdDict` built with
+  `is_raw=False` is not refused for having no id, as CPython refuses it —
+  refusing would reject this module's own `train_dict` output.
+- **No threads**, so `CompressionParameter.nb_workers` accepts 0 alone.
+
+And one thing is the file system's: **a directory has no modification time**,
+so `shutil.make_archive(..., "zip", ...)` over a tree raises `ValueError:
+ZIP does not support timestamps before 1980`. The `tar`, `gztar` and `bztar`
+formats have no such rule and work. A zip you build yourself with
+`ZipFile.writestr` or `ZipFile.write` on a file is fine.
 
 ---
 
@@ -412,8 +454,6 @@ There is no `~~~^^^` anchor line under the failing expression, and no
 
 ### Because they are not written yet
 
-- **`zlib`, `gzip`, `bz2`, `lzma`, `tarfile`** — no compression of any
-  kind, so `zipfile` reads and writes stored members only.
 - **`email`, `xml`, `symtable`**, and of `urllib` only `parse`.
 - **`pdb`, `doctest`, `trace`, `cProfile`, `tracemalloc`** — and
   `sys.settrace` and `sys.setprofile`, which they need. So `breakpoint()`

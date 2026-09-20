@@ -1,4 +1,6 @@
-..EE...E....F....FF.E.E..E...........
+..EE...Exception ignored in a finalizer:
+ZeroDivisionError: division by zero
+E....F....FF.E.E..E...........
 ======================================================================
 ERROR: test_class_cause_nonexception_result (__main__.TestCause.test_class_cause_nonexception_result)
 ----------------------------------------------------------------------
@@ -27,9 +29,9 @@ IndexError
 ERROR: test_3611 (__main__.TestContext.test_3611)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test_raise.py", line 491, in test_3611
-    with support.catch_unraisable_exception() as cm:
-AttributeError: module 'test.support' has no attribute 'catch_unraisable_exception'
+  File "/tmp/test_raise.py", line 494, in test_3611
+    self.assertEqual(ZeroDivisionError, cm.unraisable.exc_type)
+AttributeError: 'NoneType' object has no attribute 'exc_type'
 
 ======================================================================
 ERROR: test_erroneous_exception (__main__.TestRaise.test_erroneous_exception)

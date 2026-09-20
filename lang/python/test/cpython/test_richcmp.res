@@ -39,7 +39,7 @@ AssertionError: Exc not raised by not_
 FAIL: test_recursion (__main__.MiscTest.test_recursion)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 322, in wrapper
+  File "/tmp/test/support/__init__.py", line 323, in wrapper
     return fn(*args, **kwds)
   File "/tmp/test_richcmp.py", line 227, in test_recursion
     self.assertRaises(RecursionError, operator.ne, a, b)
