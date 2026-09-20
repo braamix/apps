@@ -113,8 +113,10 @@ fail  test_posixpath.py               import     82952e3  Lib/test/test_posixpat
 pass  test_pow.py                     5/7        82952e3  Lib/test/test_pow.py
 pass  test_pprint.py                  37/76      82952e3  Lib/test/test_pprint.py
 pass  test_print.py                   3/9        82952e3  Lib/test/test_print.py
+pass  test_profile.py                 4/7        82952e3  Lib/test/test_profile.py
 pass  test_property.py                12/31      82952e3  Lib/test/test_property.py
 pass  test_protocols.py               7/7        82952e3  Lib/test/test_asyncio/test_protocols.py
+fail  test_pstats.py                  crash      82952e3  Lib/test/test_pstats.py
 pass  test_pulldom.py                 11/11      82952e3  Lib/test/test_pulldom.py
 pass  test_pyexpat.py                 57/86      82952e3  Lib/test/test_pyexpat.py
 pass  test_queues.py                  59/59      82952e3  Lib/test/test_asyncio/test_queues.py
@@ -150,6 +152,7 @@ fail  test_time.py                    import     82952e3  Lib/test/test_time.py
 pass  test_timeit.py                  44/44      82952e3  Lib/test/test_timeit.py
 pass  test_trace.py                   13/28      82952e3  Lib/test/test_trace.py
 fail  test_traceback.py               import     82952e3  Lib/test/test_traceback.py
+fail  test_tracing_profiler.py        import     82952e3  Lib/test/test_profiling/test_tracing_profiler.py
 pass  test_transports.py              9/9        82952e3  Lib/test/test_asyncio/test_transports.py
 fail  test_tstring.py                 import     82952e3  Lib/test/test_tstring.py
 fail  test_type_aliases.py            import     82952e3  Lib/test/test_type_aliases.py

@@ -32,7 +32,7 @@ braam_add_program(NAME python
                           src/functoolsmod.cpp src/gc.cpp src/gen.cpp src/genalias.cpp
                           src/hashmod.cpp src/impmod.cpp src/import.cpp src/info.cpp src/int.cpp
                           src/intern.cpp src/iobase.cpp src/iobuf.cpp src/iofile.cpp src/iomem.cpp
-                          src/iotext.cpp src/iter.cpp src/itermod.cpp src/lazy.cpp src/lex.cpp
+                          src/iotext.cpp src/iter.cpp src/itermod.cpp src/lazy.cpp src/lsprofmod.cpp src/lex.cpp
                           src/list.cpp src/mapmeth.cpp src/marshalmod.cpp src/mathmod.cpp
                           src/method.cpp src/miscmod.cpp src/module.cpp src/monitormod.cpp src/nummeth.cpp src/obj.cpp
                           src/objmeth.cpp src/opmod.cpp src/ops.cpp src/parse.cpp src/patma.cpp

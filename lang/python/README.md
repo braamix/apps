@@ -8,7 +8,7 @@ from nothing — its own lexer, parser, compiler, bytecode and virtual machine,
 `pyexpat`'s callers check is expat's own error codes, messages and positions,
 and only expat's own code produces those.
 
-The other half is borrowed whole: **CPython's standard library**, 322 files
+The other half is borrowed whole: **CPython's standard library**, 329 files
 byte for byte as [lib/](lib/), over a floor of native modules written here. A
 Python that runs CPython's own library is a real Python, and writing that
 library again would be both enormous and worse.
@@ -314,6 +314,7 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 | [io.h](src/io.h), [iobase.cpp](src/iobase.cpp), [iofile.cpp](src/iofile.cpp), [iobuf.cpp](src/iobuf.cpp), [iotext.cpp](src/iotext.cpp), [iomem.cpp](src/iomem.cpp) | `_io`: the abstract layers, the raw descriptor, the buffer, the text wrapper, `BytesIO` and `StringIO` |
 | [posixmod.cpp](src/posixmod.cpp), [sysmod.cpp](src/sysmod.cpp), [timemod.cpp](src/timemod.cpp), [signalmod.cpp](src/signalmod.cpp), [selectmod.cpp](src/selectmod.cpp), [socketmod.cpp](src/socketmod.cpp) | `posix` and `_posixsubprocess`, `sys`, `time`, `_signal`, `select` — the system-call turn every module takes — and `_socket`, which has no call to make |
 | [zlibmod.cpp](src/zlibmod.cpp), [bz2mod.cpp](src/bz2mod.cpp), [lzmamod.cpp](src/lzmamod.cpp), [zstdmod.cpp](src/zstdmod.cpp) | `zlib`, `_bz2`, `_lzma` and `_zstd` over the SDK's four compression libraries |
+| [lsprofmod.cpp](src/lsprofmod.cpp) | `_lsprof`, which cProfile stands on: the VM calls into it at every call and return, so no Python runs per event |
 | [reduce.cpp](src/reduce.cpp), [picklemod.cpp](src/picklemod.cpp) | What pickle and copy need of the native types: `__reduce__` for the builtins and iterators, and `_pickle`'s `PickleBuffer` |
 | [sre.cpp](src/sre.cpp), [sremod.cpp](src/sremod.cpp) | The regular-expression engine, Secret Labs', able to stop mid-match |
 | [expat/](src/expat/), [pyexpatmod.cpp](src/pyexpatmod.cpp) | libexpat 2.8.4 rewritten in C++, and `pyexpat` over it: a handler suspends the parse and a `ContObj` makes the Python call |

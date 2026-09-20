@@ -32,6 +32,7 @@ base64.py                           binascii          82952e3  Lib/base64.py
 bdb.py                              -                 82952e3  Lib/bdb.py
 bisect.py                           -                 82952e3  Lib/bisect.py
 bz2.py                              _bz2              82952e3  Lib/bz2.py
+cProfile.py                         _lsprof           82952e3  Lib/cProfile.py
 calendar.py                         -                 82952e3  Lib/calendar.py
 cmd.py                              -                 82952e3  Lib/cmd.py
 code.py                             -                 82952e3  Lib/code.py
@@ -242,6 +243,12 @@ pkgutil.py                          -                 82952e3  Lib/pkgutil.py
 platform.py                         -                 82952e3  Lib/platform.py
 posixpath.py                        -                 82952e3  Lib/posixpath.py
 pprint.py                           -                 82952e3  Lib/pprint.py
+profile.py                          -                 82952e3  Lib/profile.py
+profiling/__init__.py               _lsprof           82952e3  Lib/profiling/__init__.py
+profiling/tracing/__init__.py       _lsprof           82952e3  Lib/profiling/tracing/__init__.py
+profiling/tracing/__main__.py       _lsprof           82952e3  Lib/profiling/tracing/__main__.py
+profiling/tracing/_utils.py         _lsprof           82952e3  Lib/profiling/tracing/_utils.py
+pstats.py                           -                 82952e3  Lib/pstats.py
 queue.py                            _thread           82952e3  Lib/queue.py
 quopri.py                           binascii          82952e3  Lib/quopri.py
 random.py                           _random           82952e3  Lib/random.py

@@ -99,7 +99,8 @@ struct VM {
     // raised, four values each, since dispatch cannot stop to call Python.
     Value tracefn;
     Value profilefn;
-    bool tracing = false;
+    void (*nativeprof)(u32, Value) = nullptr; // _lsprof, told without a call
+    bool tracing                   = false;
     Vec<Value> tqueue;
 };
 
@@ -253,7 +254,8 @@ enum : u16 {
     FIRED_MLINE  = 1 << 6, // its LINE
     FIRED_MINSTR = 1 << 7, // its INSTRUCTION
     FIRED_MRET   = 1 << 8, // its PY_RETURN or PY_YIELD
-    FIRED_MJUMP  = 1 << 9, // its JUMP
+    FIRED_MJUMP  = 1 << 9,  // its JUMP
+    FIRED_NPROF  = 1 << 10, // the native profiler has been told of a return
 };
 
 bool run_cont(Value kv, Value in);
@@ -267,7 +269,11 @@ bool trace_on()
 // where a frame starts running, so a generator owes one at every resume.
 void trace_entered(FrameObj *f)
 {
-    if (vm->tracing || !trace_on())
+    if (vm->tracing)
+        return;
+    if (vm->nativeprof)
+        vm->nativeprof(PROF_CALL, f->code);
+    if (!trace_on())
         return;
     if (!vm->tracefn.is_nil())
         f->tflags |= FT_CALL_T;
@@ -539,12 +545,20 @@ int trace_before(FrameObj *f)
 // once more and finds the event already out.
 int trace_return(FrameObj *f, Value v, bool yielding)
 {
-    if (vm->tracing || !trace_on())
+    if (vm->tracing)
         return 0;
     if (f->tracepc != f->pc) {
         f->tracepc = f->pc;
         f->fired   = 0;
     }
+    // The native profiler makes no Python call, so it is told here and now,
+    // once for this instruction however often the loop comes back to it.
+    if (vm->nativeprof && !(f->fired & FIRED_NPROF)) {
+        f->fired = u16(f->fired | FIRED_NPROF);
+        vm->nativeprof(PROF_RETURN, f->code);
+    }
+    if (!trace_on())
+        return 0;
     CodeObj *co = code_of(f->code);
     if (!(f->fired & FIRED_MRET)) {
         f->fired = u16(f->fired | FIRED_MRET);
@@ -2001,6 +2015,8 @@ bool dispatch(Value e, bool here = true)
                 }
             }
         }
+        if (vm->nativeprof && !vm->tracing)
+            vm->nativeprof(PROF_RETURN, f->code);
         // Left by an exception: CPython reports that as a return of None to
         // a trace function, and as PY_UNWIND to sys.monitoring.
         if (trace_on() && !vm->tracing) {
@@ -4158,6 +4174,19 @@ void interpret()
                 // test_sys_setprofile says that is the behaviour.
                 bool cprof = !vm->profilefn.is_nil() && !vm->tracing &&
                              in.op != Bc::CallEx && is_c_callable(callable);
+                // The hook is taken now: the builtin about to run may be
+                // Profiler.disable(), which puts it back to null.
+                void (*nprofhook)(u32, Value) =
+                    !vm->tracing && is_c_callable(callable) ? vm->nativeprof : nullptr;
+                bool nprof = nprofhook != nullptr;
+                if (nprof && !(f->fired & FIRED_NPROF)) {
+                    if (f->tracepc != f->pc - 1) {
+                        f->tracepc = f->pc - 1;
+                        f->fired   = 0;
+                    }
+                    f->fired = u16(f->fired | FIRED_NPROF);
+                    nprofhook(PROF_C_CALL, callable);
+                }
                 if (cprof && !(f->fired & FIRED_CCALL)) {
                     f->pc--;
                     if (f->tracepc != f->pc) {
@@ -4173,10 +4202,14 @@ void interpret()
                 Value out;
                 bool entered = false;
                 if (do_call(callable, a, out, entered) != R::Ok) {
+                    if (nprof)
+                        nprofhook(PROF_C_RETURN, callable);
                     if (cprof)
                         trace_queue(f, TE_C_EXCEPTION, callable, f->pc);
                     goto oops;
                 }
+                if (nprof)
+                    nprofhook(PROF_C_RETURN, callable);
                 f->sp -= consumed;
                 if (cprof) {
                     Root rc{ callable }, ro{ out };
@@ -4235,7 +4268,7 @@ void interpret()
                     goto oops;
                 }
                 Value v = st[f->sp - 1];
-                if (trace_on() && !vm->tracing) {
+                if ((trace_on() || vm->nativeprof) && !vm->tracing) {
                     // A yield is a return, to a tracer: the frame is leaving.
                     f->pc--;
                     int t = trace_return(f, v, true);
@@ -4268,7 +4301,7 @@ void interpret()
 
             case Bc::Return: {
                 Value v = st[f->sp - 1];
-                if (trace_on() && !vm->tracing) {
+                if ((trace_on() || vm->nativeprof) && !vm->tracing) {
                     f->pc--; // back to this instruction, so the loop returns here
                     int t = trace_return(f, v, false);
                     if (t < 0)
@@ -4943,6 +4976,16 @@ void vm_warn_later(Str category, Str message)
         vm->later[vm->nlater][1] = message;
         vm->nlater++;
     }
+}
+
+void vm_set_native_profile(void (*fn)(u32, Value))
+{
+    vm->nativeprof = fn;
+}
+
+bool vm_native_profiling()
+{
+    return vm && vm->nativeprof;
 }
 
 void vm_set_trace(Value fn)

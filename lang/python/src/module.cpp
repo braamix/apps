@@ -109,6 +109,7 @@ constexpr Native NATIVES[] = {
     { "_posixsubprocess", posixsubprocess_install },
     { "select", select_install },
     { "_socket", socket_install },
+    { "_lsprof", lsprof_install },
     { "_symtable", symtable_install },
     { "_sysconfig", sysconfig_install },
     // The name sysconfig.py derives from sys.abiflags, sys.platform and

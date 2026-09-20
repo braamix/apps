@@ -175,6 +175,7 @@ bool signal_install(DictObj *into);
 bool posixsubprocess_install(DictObj *into);
 bool select_install(DictObj *into);
 bool socket_install(DictObj *into);
+bool lsprof_install(DictObj *into);
 bool symtable_install(DictObj *into);
 bool sysconfig_install(DictObj *into);
 bool sysconfigdata_install(DictObj *into);

@@ -240,7 +240,7 @@ warning categories.
 _abc _ast _blake2 _codecs _collections _colorize _contextvars _csv
 _functools _imp _io _math_integer _md5 _operator _pickle
 _posixsubprocess _random _sha1 _sha2 _sha3 _signal _socket _sre _string
-_symtable _sysconfig
+_lsprof _symtable _sysconfig
 _bz2 _lzma _zstd _struct _thread _tokenize _types _typing _warnings
 _weakref array atexit binascii builtins cmath dis errno faulthandler gc
 itertools marshal math posix pyexpat select sys time unicodedata zlib
@@ -250,7 +250,7 @@ itertools marshal math posix pyexpat select sys time unicodedata zlib
 
 ### CPython's own, byte for byte
 
-322 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+329 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
@@ -263,7 +263,7 @@ it was taken from. The ones you reach for:
 | Functions | `functools`, `itertools`, `operator`, `contextlib`, `abc` |
 | Async | `asyncio`, `concurrent.futures`, `contextvars`, `threading` |
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `symtable`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
-| Tools | `argparse`, `logging`, `unittest`, `doctest`, `trace`, `sysconfig`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
+| Tools | `argparse`, `logging`, `unittest`, `doctest`, `trace`, `profile`, `cProfile`, `pstats`, `sysconfig`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
 | Mail | `email` (the whole package, `mime` included), `quopri`, `base64`, `mimetypes` |
 | XML | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.dom.pulldom`, `xml.sax`, `pyexpat` — reading, building, searching and writing |
 | Addresses | `urllib.parse`, `urllib.request` (which cannot connect), `ipaddress`, `uuid`, `socket`, `http.client`, `http.cookies` |
@@ -467,9 +467,7 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   them: `euc-jp`, `shift_jis`, `iso-2022-jp`, `gb2312`, `big5`, `cp949` and
   their kin each stand on a C codec that is not written. So
   `email.charset.Charset('euc-jp')` raises rather than converting.
-- **`profile`, `cProfile`, `tracemalloc`**. `sys.settrace`, `sys.setprofile`
-  and `trace` are here and `pdb` imports, but the debugger itself waits:
-  `breakpoint()` still finds no working `pdb`.
+- **`tracemalloc`.**
 - **`pydoc`**, so `help()` fails when it is called.
 - **`.pyc` files.** `sys.dont_write_bytecode` is true and nothing writes a
   cache; every run compiles from source, which is fast enough that the cache
@@ -497,6 +495,11 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   `_opcode` do not exist. Every code object begins with a `Nop`, which is
   CPython's `RESUME`: it gives a frame that has not run a position, and that
   is the line a `call` event reports.
+- **The profilers count calls, not time.** `_lsprof` is driven from the
+  interpreter with no Python call per event, but its timer counts whole
+  milliseconds, so `cProfile` tells you how often something ran far better
+  than how long it took; a timer of your own is refused, since it would be a
+  call per event.
 - **`sys.monitoring` fires**, and a tool is told before `sys.setprofile` and
   `sys.settrace`, which is what its lower tool id means. `DISABLE` is taken
   and nothing is turned off: a tool that returns it to go faster simply does

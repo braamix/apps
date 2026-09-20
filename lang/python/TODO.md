@@ -18,8 +18,8 @@ deleted and everything left keeps the number it had, so the list has gaps.
 Stage 4 and tasks 19 to 24 were compression; Stage 5 and tasks 25 to 27 were
 `email`, `xml` and `pyexpat`; tasks 28 to 31 were the `_socket` floor,
 `sys.monitoring`'s namespace, `bdb`/`pdb`/`doctest` and `sys.settrace`; task
-32 was `sys.monitoring`'s events, task 33 was `sysconfig` and `trace`, and
-task 36 was `symtable`.
+32 was `sys.monitoring`'s events, task 33 was `sysconfig` and `trace`, task
+34 was the profilers, and task 36 was `symtable`.
 
 What `email` still cannot do is the one thing this system has not got: **the
 CJK codecs are not written**. `encodings` here is the single-byte pages, the
@@ -180,7 +180,7 @@ dictionary — real, and better than none, but with no entropy tables and so no
 
 ## Stage 6 — debugging and profiling
 
-**Tasks 28 to 33 and 36 are done.** `test_subprocess` imports now that
+**Tasks 28 to 34 and 36 are done.** `test_subprocess` imports now that
 `sysconfig` does, but it spawns so many children that the harness does not
 finish it; its row still says `import`, and what it is really waiting for is
 a run that ends. `sys.settrace` and `sys.setprofile` are the VM's:
@@ -199,18 +199,19 @@ about, and a tool that leans on it only runs slower here. `test_monitoring`
 has no main block -- regrtest discovers it -- so `test/stdlib/monitors.py` is
 what says the events arrive as PEP 669 states, against CPython's own output.
 
+`_lsprof` is driven from the interpreter directly: `vm_set_native_profile`
+hands the VM a function pointer, and a call, a return and a builtin either
+side of one reach it with no Python in between, which is the whole of what it
+is for. Its timer is `proc_now()` and counts whole milliseconds, so a profile
+is much coarser than CPython's and every time is zero under the frozen
+harness clock; a timer of the program's own is refused, since that would be a
+Python call per event. `test_profiling/test_tracing_profiler.py` imports
+`multiprocessing` and so cannot run at all.
+
 **`breakpoint()` stops one frame in**, inside `sys.breakpointhook`: that hook
 is written in Python here and CPython's is C, so `pdb.set_trace`'s
 `sys._getframe().f_back` is the hook's frame and not the caller's. One `r`
 reaches the caller.
-
-34. **`profile`, `pstats`, `cProfile`.** `profile` runs on `setprofile`.
-    `cProfile` is `profiling.tracing`, which stands on `_lsprof`: write
-    `_lsprof` natively on the task 31 event points, with no Python calls per
-    event. `pstats` saves and loads through `marshal`, which writes
-    CPython's format. The harness clock is frozen, so the tests can check
-    only the structure. Tests:
-    `test_profile`, `test_profiling/test_tracing_profiler.py`, `test_pstats`.
 
 35. **`pdb`.** Now a working debugger: `run`, `runcall`, `post_mortem`,
     `pm`, `set_trace` through the monitoring backend, and every command.

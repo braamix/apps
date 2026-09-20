@@ -119,6 +119,13 @@ void vm_set_prompt(bool on);
 // instruction runs. Both are literals.
 void vm_warn_later(Str category, Str message);
 
+// A native profiler, told about every call and return with no Python call
+// per event: _lsprof's, which cProfile stands on. `what` is the code object
+// of the frame entered or left, or the builtin called. Null turns it off.
+enum : u32 { PROF_CALL, PROF_RETURN, PROF_C_CALL, PROF_C_RETURN };
+void vm_set_native_profile(void (*fn)(u32 event, Value what));
+bool vm_native_profiling();
+
 // sys.settrace and sys.setprofile: the function installed, or Nil for none.
 // A frame entered from here owes it a `call` event; see FT_CALL_T.
 void vm_set_trace(Value fn);
