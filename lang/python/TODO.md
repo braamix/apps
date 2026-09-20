@@ -45,41 +45,7 @@ One item in the list is not planned. It is at the end, with the reason.
   levels raises `RecursionError`, where CPython's limit of 1000 takes 250.
   The limit is what the native stack holds; this is the cost of it.
 
-## Stage 4 — waiting on descriptors
-
-`Sys::Poll` is in the kernel as of SDK 0.10.280, so the task that specified it
-is done and gone from this file. `proc/io.h` has `poll_fds(Span<PollFd>, ms)`,
-the port kit has `b_poll`, and §5 of `Programming_Manual.md` is the reference.
-
-19. **`select.poll`, `select.select` on pipes, `communicate()`.**
-    - `selectmod.cpp` gains a `poll` object (`register`, `modify`,
-      `unregister`, `poll`), and `select.select` is rewritten over the same
-      call. `poll_fds` awaits and the VM cannot, so the wait is a request the
-      driver performs, as `Wait` is: the descriptor set is parked in the
-      module's state and `braam.cpp` does the awaiting.
-    - `SYS_POLL_IN`, `SYS_POLL_OUT` and `SYS_POLL_HUP` are the whole event
-      set; `SYS_POLL_FOREVER` waits indefinitely and 0 asks without waiting.
-      `POLLPRI`, `POLLERR` and `POLLNVAL` never come back, so a registration
-      asking for one of them waits for ever.
-    - The kernel holds every descriptor named for the length of the call and
-      refuses the whole call rather than marking one entry: a descriptor
-      another task of this process is using is `Err(Busy)`, and one that waits
-      on a host call rather than a channel — a socket, a fetch body — is
-      `Err(Unsupported)`. A regular file is always ready.
-    - A signal abandons the poll with `Err(Intr)`, so the retry PEP 475 asks
-      for belongs in `selectmod.cpp` and not in `selectors.py`.
-    - `selectors.py` is already byte for byte and picks `PollSelector` by
-      itself once `select.poll` exists. So does `subprocess._PopenSelector`.
-      `communicate()` over two or three pipes, `capture_output=True` and
-      `communicate(timeout=)` then work without touching `lib/`.
-    - Remove the "Waiting for a descriptor" entry from §10 of `Manual.md`,
-      and the `communicate()` limit from its `subprocess` section.
-    - The harness clock is frozen, so a timeout expires only when the test
-      passes a later `now` to `run()`.
-    - Tests: `test_select`, `test_selectors` and the `communicate` cases of
-      `test_subprocess`, without the socket ones.
-
-## Stage 5 — compression
+## Stage 4 — compression
 
 All four libraries are in the SDK as of 0.10.280, so none of this is a codec to
 write: each task is a native module over a library that is already there, asked
@@ -100,7 +66,7 @@ bzip2, 197 KB for lzma and 467 KB for zstd, against `python.wasm`'s 2.9 MB
 today — and less where `--gc-sections` drops what the module never names.
 `Programming_Manual.md` §6 documents all four.
 
-20. **`zlib`, native, on `braam::zlib`.** The library is zlib 1.3.2.1
+19. **`zlib`, native, on `braam::zlib`.** The library is zlib 1.3.2.1
     rewritten in C++, and deflate's output is zlib's for the same level,
     strategy, window and memory level.
     - `Deflater` and `Inflater` are `compressobj` and `decompressobj`:
@@ -124,10 +90,10 @@ today — and less where `--gc-sections` drops what the module never names.
     - `ZLIB_VERSION` is `"1.3.2.1"`, which is what this really is.
     - Test: `test_zlib`, whole.
 
-21. **`compression`, `gzip`.** The `compression` package (`_common._streams`,
+20. **`compression`, `gzip`.** The `compression` package (`_common._streams`,
     `zlib`, `gzip`), `gzip`, and `python -m gzip`. Test: `test_gzip`.
 
-22. **`bz2`, native `_bz2` on `braam::bzip2`.** libbzip2 1.0.8 rewritten in
+21. **`bz2`, native `_bz2` on `braam::bzip2`.** libbzip2 1.0.8 rewritten in
     C++, output byte for byte for the same block size.
     - `BzCompressor` and `BzDecompressor` step as zlib's pair does, with two
       rules of bzip2's own. A flush or finish answers `More` until it is
@@ -145,7 +111,7 @@ today — and less where `--gc-sections` drops what the module never names.
     - Then `compression.bz2` and `bz2`, and `zipfile`/`tarfile`/`shutil` pick
       it up. Test: `test_bz2`.
 
-23. **`lzma`, native `_lzma` on `braam::lzma`.** Not a rewrite: liblzma from
+22. **`lzma`, native `_lzma` on `braam::lzma`.** Not a rewrite: liblzma from
     xz 5.8.4 vendored verbatim, so the output is what `xz -T1` writes.
     - `lzma/lzma.h` is liblzma's own C API whole, which is what `_lzma`
       wants: `lzma_stream`, the filter chains behind `FORMAT_RAW` and
@@ -171,7 +137,7 @@ today — and less where `--gc-sections` drops what the module never names.
     - Then `compression.lzma` and `lzma`. Test: `test_lzma`, less whatever
       the preset decision excludes.
 
-24. **`zstd`, native `_zstd` on `braam::zstd`.** libzstd 1.6.0 vendored
+23. **`zstd`, native `_zstd` on `braam::zstd`.** libzstd 1.6.0 vendored
     verbatim, for Zstandard (RFC 8878). New in 3.14 and new in this file: it
     was not here before because the library was not.
     - `compression.zstd` (`__init__.py`, `_zstdfile.py`) over a native
@@ -199,31 +165,31 @@ today — and less where `--gc-sections` drops what the module never names.
       the level is a run-time choice; `ZSTD_decompress` alone is 57 KB.
     - Test: `test_zstd`, without the dictionary-builder and thread cases.
 
-25. **`tarfile`, the archive half of `shutil`, and `zipfile`'s test.**
+24. **`tarfile`, the archive half of `shutil`, and `zipfile`'s test.**
     `zipfile` is already here, since `importlib.resources` imports it, and
-    has handled stored members only; with tasks 20 to 24 done it gains
+    has handled stored members only; with tasks 19 to 23 done it gains
     `ZIP_DEFLATED`, `ZIP_BZIP2`, `ZIP_LZMA` and `ZIP_ZSTANDARD`. `tarfile`
     guards `pwd` and `grp`. `shutil` is already shipped, so `make_archive`
     and `unpack_archive` start working once `tarfile` is here, with `gztar`,
     `bztar`, `xztar` and `zstdtar` all registered. Tests: `test_zipfile/`,
     `test_tarfile`, and the archive cases of `test_shutil`.
 
-## Stage 6 — `email` and `xml`
+## Stage 5 — `email` and `xml`
 
-26. **`email`.** The whole package, pure Python. It needs `urllib.parse` and
+25. **`email`.** The whole package, pure Python. It needs `urllib.parse` and
     `quopri`, `calendar`, `datetime` and `base64`. `socket` is
     imported only inside `make_msgid`, so that one function waits for
-    task 29. Test: `test_email/`.
+    task 28. Test: `test_email/`.
 
-27. **`xml`, without a parser.** `xml.etree.ElementTree` and `ElementPath`,
+26. **`xml`, without a parser.** `xml.etree.ElementTree` and `ElementPath`,
     `xml.dom.minidom`, `xml.dom.minicompat`, `xml.sax.saxutils`, `handler`
     and `xmlreader`. All of these import `expat` lazily, so building a tree,
     searching it and serialising it all work now. `fromstring`, `parse` and
-    `minidom.parseString` raise `ImportError` until task 28. Tests: the
+    `minidom.parseString` raise `ImportError` until task 27. Tests: the
     non-parsing cases of `test_xml_etree` and `test_minidom`, and
     `test_xml_dom_minicompat`.
 
-28. **`pyexpat`.** A native module with the surface that `ElementTree`,
+27. **`pyexpat`.** A native module with the surface that `ElementTree`,
     `expatbuilder` and `expatreader` use: `ParserCreate`, the handler
     attributes, `Parse` and `ParseFile`, `buffer_text`, `ordered_attributes`,
     `ExpatError` with `lineno` and `offset`, and `errors` and `model`.
@@ -232,31 +198,34 @@ today — and less where `--gc-sections` drops what the module never names.
     positions, and only expat produces those. Tests: `test_pyexpat`,
     `test_xml_etree`, `test_minidom`, `test_sax`.
 
-## Stage 7 — debugging and profiling
+## Stage 6 — debugging and profiling
 
-29. **The `_socket` floor, importable but unable to connect.** `pdb` imports
+28. **The `_socket` floor, importable but unable to connect.** `pdb` imports
     `socket` at the top, and `doctest` imports `pdb`, so none of the three
     loads without it. `_socket` provides the constants, the exception types,
     `gethostname` (`"localhost"`) and a `socket` type whose constructor
     raises `OSError(EAFNOSUPPORT)`. Then ship `socket.py` byte for byte.
-    `select` and `selectors` are already here, and poll on pipes since task
-    19. §10 "Because Braam has no such thing" still holds for sockets and
-    says what the floor is for. `test_subprocess` imports `socket` and
-    `sysconfig` at the top, so it runs once this and task 34 are done.
+    `select` and `selectors` are here and wait on pipes, so this floor is the
+    last thing two of their tests need: `test_selectors` imports `socket` at
+    the top and `test_subprocess` imports `socket` and `sysconfig`, so the
+    first runs once this is done and the second once task 33 is too. Both
+    rows are in `test/cpython.txt` already, as `fail import`. §10 "Because
+    Braam has no such thing" still holds for sockets and says what the floor
+    is for.
 
-30. **The `sys.monitoring` namespace.** `bdb` reads `sys.monitoring.events`
+29. **The `sys.monitoring` namespace.** `bdb` reads `sys.monitoring.events`
     at import. Add the tool registry (`use_tool_id`, `get_tool`,
     `free_tool_id`, `clear_tool_id`), `register_callback`, `set_events`,
     `get_events`, `set_local_events`, `restart_events`, `DISABLE`, `MISSING`,
     and the event constants. All of it is bookkeeping, and no event fires
-    until task 33.
+    until task 32.
 
-31. **`bdb`, `doctest`.** With tasks 29 and 30 done, `pdb` imports. It
+30. **`bdb`, `doctest`.** With tasks 28 and 29 done, `pdb` imports. It
     cannot trace yet, but `doctest` does not trace unless asked to. Ship
     `bdb`, `pdb` (import only) and `doctest`. `doctest.DocTestSuite` then
     plugs into `unittest`. Test: `test_doctest/`.
 
-32. **`sys.settrace`, `sys.setprofile`.** The VM work, together with task
+31. **`sys.settrace`, `sys.setprofile`.** The VM work, together with task
     33. A trace function is a Python call made from inside the instruction
     loop, so it must be a pushed frame, like any other call. When it
     returns, the loop resumes the instruction it was called from, with no
@@ -272,38 +241,38 @@ today — and less where `--gc-sections` drops what the module never names.
     Leave jump by assigning `f_lineno` for later. Tests: `test_sys_settrace`,
     `test_sys_setprofile`.
 
-33. **`sys.monitoring` events.** Built on the same event points as task 32.
+32. **`sys.monitoring` events.** Built on the same event points as task 31.
     Implement the events `bdb` and `pdb.set_trace()` use: `PY_START`,
     `PY_RESUME`, `PY_RETURN`, `PY_YIELD`, `LINE`, `INSTRUCTION`, `JUMP`,
     `CALL`, `RAISE`, `EXCEPTION_HANDLED` and `PY_UNWIND`. Also per-code local
     events and `DISABLE`. Test: `test_monitoring`, as far as its
     CPython-specific parts allow.
 
-34. **`sysconfig`, `trace`.** `trace` imports `sysconfig` at the top.
+33. **`sysconfig`, `trace`.** `trace` imports `sysconfig` at the top.
     `sysconfig` needs a small `_sysconfig` floor (`config_vars`) and the
     scheme paths that point into the library directory. Test: `test_trace`.
 
-35. **`profile`, `pstats`, `cProfile`.** `profile` runs on `setprofile`.
+34. **`profile`, `pstats`, `cProfile`.** `profile` runs on `setprofile`.
     `cProfile` is `profiling.tracing`, which stands on `_lsprof`: write
-    `_lsprof` natively on the task 32 event points, with no Python calls per
+    `_lsprof` natively on the task 31 event points, with no Python calls per
     event. `pstats` saves and loads through `marshal`, which writes
     CPython's format. The harness clock is frozen, so the tests can check
     only the structure. Tests:
     `test_profile`, `test_profiling/test_tracing_profiler.py`, `test_pstats`.
 
-36. **`pdb`.** Now a working debugger: `run`, `runcall`, `post_mortem`,
+35. **`pdb`.** Now a working debugger: `run`, `runcall`, `post_mortem`,
     `pm`, `set_trace` through the monitoring backend, and every command.
     It reads its commands from stdin, through the key ring when stdin is the
     console. `breakpoint()` now starts it. Leave `f_lineno` jumps
     until there is a reason. Tests: `test_pdb`, `test_bdb`.
 
-37. **`symtable`.** A native `_symtable` that exposes what `symtab.cpp`
+36. **`symtable`.** A native `_symtable` that exposes what `symtab.cpp`
     already computes: one table per scope, with id, name, type, lineno,
     children and a symbol-to-flags dict. The flags use CPython's `DEF_*`
     bits and scope values, so that `symtable.py` can be shipped byte for
     byte. Test: `test_symtable`.
 
-38. **`pydoc`, `help()`.** `pydoc` needs `sysconfig` (task 34), `pkgutil`,
+37. **`pydoc`, `help()`.** `pydoc` needs `sysconfig` (task 33), `pkgutil`,
     `platform` and `inspect`, which are here. It falls back to its plain
     pager when `_pyrepl` is missing. Its server half (`http.server`) stays
     out. `help()`, which `site` installs, then works, both on an object and
@@ -311,9 +280,9 @@ today — and less where `--gc-sections` drops what the module never names.
     needs a `__text_signature__` on each of them. Test: `test_pydoc/`,
     without the server and browser cases.
 
-## Stage 8 — the allocator
+## Stage 7 — the allocator
 
-39. **`tracemalloc`.** The allocator would record a traceback for each live
+38. **`tracemalloc`.** The allocator would record a traceback for each live
     object and the collector would drop it on sweep. That costs a word or
     more per object while tracing is on, plus a snapshot type. `start`,
     `stop`, `get_traced_memory`, `take_snapshot` and `get_object_traceback`

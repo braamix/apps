@@ -218,9 +218,10 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
   to do raises rather than blocking, and it counts what it slept where the
   harness clock is frozen.
 - A child is one spawn, not a fork and an exec, so `subprocess` has no
-  `preexec_fn` and hands a child 0, 1 and 2 only. `communicate()` over two
-  pipes raises, since `select` answers only for regular files, and a child
-  killed by a signal returns 130 rather than `-9`.
+  `preexec_fn` and hands a child 0, 1 and 2 only, and a child killed by a
+  signal returns 130 rather than `-9`. `select` waits over `Sys::Poll`, whose
+  events are `POLLIN`, `POLLOUT` and `POLLHUP` and whose bound is 64
+  descriptors a call.
 - A coroutine never awaited is reported when the collector finds it.
 - `json` is the pure-Python one, so a malformed document is reported in
   `json.decoder`'s words.
@@ -299,7 +300,7 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 | [test/pystdlib.mjs](test/pystdlib.mjs) | [test/stdlib/](test/stdlib/) — programs whose output is identical to the host CPython's, line for line |
 | [test/pylex.mjs](test/pylex.mjs), [test/pyast.mjs](test/pyast.mjs), [test/pydis.mjs](test/pydis.mjs) | The three listings, against CPython's own `tokenize` and `ast` and against goldens |
 | [test/pysmoke.mjs](test/pysmoke.mjs), [test/pyflags.mjs](test/pyflags.mjs), [test/pyrepl.mjs](test/pyrepl.mjs), [test/pyexamples.mjs](test/pyexamples.mjs) | The command line, its options and the `PYTHON*` variables, the prompt, and the demos |
-| [test/pyio.mjs](test/pyio.mjs), [test/pyimport.mjs](test/pyimport.mjs), [test/pygc.mjs](test/pygc.mjs) | What needs a stream, a signal, the import system or the collector |
+| [test/pyio.mjs](test/pyio.mjs), [test/pyselect.mjs](test/pyselect.mjs), [test/pyimport.mjs](test/pyimport.mjs), [test/pygc.mjs](test/pygc.mjs) | What needs a stream, a signal, a pipe to wait on, the import system or the collector |
 | the other `test/py*.mjs` | One driver per area — types, numbers, functions, classes, generators, coroutines, formatting, Unicode, modules |
 | [test/pystress.mjs](test/pystress.mjs) | The whole manifest again under `STRESS=1` |
 

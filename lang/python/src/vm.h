@@ -43,6 +43,7 @@ enum class SysOp : u8 {
     SigCatch, // fd the signal, flags 1 to be told of it and 0 to stop
     Spawn,    // data argv, path2 env, path cwd, io the slots -> n the pid
     Wait,     // fd the pid or 0 for any, flags SYS_WAIT_NOHANG -> n the pid, off the status
+    Poll,     // data the fd/events pairs, max the timeout -> n ready, data the revents
 };
 
 // Open: the path is a directory, and the driver makes a file in it that is
@@ -54,6 +55,11 @@ constexpr u32 SYS_SPAWN_WITH_ENV = 1;
 
 // Wait: a child still running answers n = 0 rather than being waited for.
 constexpr u32 SYS_WAIT_NOHANG = 1;
+
+// Poll: a pair of u32s per descriptor, and a u32 of revents per descriptor
+// back, because a SysReq carries bytes and not a vector. The event bits in
+// them are the kernel's own SYS_POLL_*, which selectmod.cpp names directly.
+constexpr usize SYS_POLL_PAIR = 8;
 
 struct SysReq {
     SysOp op    = SysOp::Close;

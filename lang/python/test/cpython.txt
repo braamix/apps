@@ -21,7 +21,7 @@
 pass  test_abstract_numbers.py        7/7        82952e3  Lib/test/test_abstract_numbers.py
 pass  test_argparse.py                1950/1966  82952e3  Lib/test/test_argparse.py
 pass  test_augassign.py               7/7        82952e3  Lib/test/test_augassign.py
-pass  test_base64.py                  64/67      82952e3  Lib/test/test_base64.py
+pass  test_base64.py                  65/67      82952e3  Lib/test/test_base64.py
 pass  test_binascii.py                237/237    82952e3  Lib/test/test_binascii.py
 pass  test_binop.py                   9/12       82952e3  Lib/test/test_binop.py
 pass  test_bisect.py                  23/46      82952e3  Lib/test/test_bisect.py
@@ -92,13 +92,15 @@ pass  test_print.py                   3/9        82952e3  Lib/test/test_print.py
 pass  test_property.py                12/31      82952e3  Lib/test/test_property.py
 pass  test_protocols.py               7/7        82952e3  Lib/test/test_asyncio/test_protocols.py
 pass  test_queues.py                  59/59      82952e3  Lib/test/test_asyncio/test_queues.py
-pass  test_quopri.py                  9/11       82952e3  Lib/test/test_quopri.py
+pass  test_quopri.py                  11/11      82952e3  Lib/test/test_quopri.py
 pass  test_raise.py                   28/37      82952e3  Lib/test/test_raise.py
 pass  test_random.py                  104/116    82952e3  Lib/test/test_random.py
 pass  test_re.py                      169/170    82952e3  Lib/test/test_re.py
 pass  test_richcmp.py                 6/11       82952e3  Lib/test/test_richcmp.py
 pass  test_scope.py                   32/41      82952e3  Lib/test/test_scope.py
 pass  test_secrets.py                 11/11      82952e3  Lib/test/test_secrets.py
+pass  test_select.py                  6/6        82952e3  Lib/test/test_select.py
+fail  test_selectors.py               import     82952e3  Lib/test/test_selectors.py
 pass  test_shlex.py                   46/46      82952e3  Lib/test/test_shlex.py
 fail  test_shutil.py                  import     82952e3  Lib/test/test_shutil.py
 pass  test_sort.py                    15/21      82952e3  Lib/test/test_sort.py

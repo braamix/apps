@@ -1,0 +1,22 @@
+1 2 4 8 16 32
+quiet []
+ready [(True, True)]
+read b'one'
+eof [(True, True)]
+gone []
+modify FileNotFoundError
+unregister KeyError
+register argument must be an int, or have a fileno() method.
+file [True]
+select quiet True
+select ready True
+select empty ([], [], [])
+select object ([Named], [], [])
+select type argument must be an int, or have a fileno() method.
+select negative timeout must be non-negative
+selector True
+selector quiet []
+selector ready the reader True b'four'
+communicate (b'body\n', b'err\n') 0
+capture CompletedProcess(args=['sh', '-c', 'echo out; echo oops >&2'], returncode=0, stdout=b'out\n', stderr=b'oops\n')
+through cat 120000 True None

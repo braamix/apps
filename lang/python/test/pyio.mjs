@@ -217,6 +217,37 @@ time.sleep(10)
           "KeyboardInterrupt\n");
     check("SIGINT's default action, the job", r.job, "interrupt");
 }
+{
+    // A poll is a call a signal abandons, and the handler's return makes it
+    // again with what is left of its timeout -- so the wait goes on.
+    const r = await signalled(`import signal, select, os
+def handler(signum, frame):
+    print("in the handler", flush=True)
+signal.signal(signal.SIGTERM, handler)
+r, w = os.pipe()
+p = select.poll()
+p.register(r, select.POLLIN)
+print("start", flush=True)
+print("ready", p.poll(8000) != [])
+`, "TERM");
+    check("a signal through a poll", r.out, "start\nin the handler\nready False\n");
+}
+{
+    // ^C with no handler: KeyboardInterrupt out of the poll itself.
+    const r = await signalled(`import select, os
+r, w = os.pipe()
+p = select.poll()
+p.register(r, select.POLLIN)
+print("start", flush=True)
+p.poll(8000)
+`, "INT");
+    const lines = r.out.split("\n").filter((l) => !l.startsWith("    "));
+    check("^C through a poll", lines.join("\n"),
+          "start\n" +
+          "Traceback (most recent call last):\n" +
+          '  File "/tmp/c.py", line 6, in <module>\n' +
+          "KeyboardInterrupt\n");
+}
 
 if (bad) {
     console.error(`\npyio: ${bad} checks failed`);

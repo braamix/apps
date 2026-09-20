@@ -160,6 +160,7 @@ TESTS := \
     lang/python/test/pystdlib.mjs,--shard=3/4 \
     lang/python/test/pystdlib.mjs,--shard=4/4 \
     lang/python/test/pyio.mjs \
+    lang/python/test/pyselect.mjs \
     lang/python/test/pyrepl.mjs \
     lang/python/test/pyexamples.mjs \
     lang/python/test/pyunit.mjs \

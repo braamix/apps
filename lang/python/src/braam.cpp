@@ -754,6 +754,50 @@ Task<void> sys_wait(const SysReq &q, SysAns &a)
     }
 }
 
+// Poll. The pairs arrive packed into `data` and the revents go back the same
+// way; the bits are the kernel's, so nothing is translated in between.
+static_assert(SYS_POLL_PAIR == 2 * sizeof(u32));
+
+u32 get_u32(Str s, usize at)
+{
+    const u8 *p = reinterpret_cast<const u8 *>(s.data()) + at;
+    return u32(p[0]) | u32(p[1]) << 8 | u32(p[2]) << 16 | u32(p[3]) << 24;
+}
+
+bool put_u32(String &s, u32 v)
+{
+    return s.push(char(v)) && s.push(char(v >> 8)) && s.push(char(v >> 16)) &&
+           s.push(char(v >> 24));
+}
+
+Task<void> sys_poll(const SysReq &q, SysAns &a)
+{
+    usize n = q.data.size() / SYS_POLL_PAIR;
+    Vec<PollFd> fds;
+    if (!fds.resize(n)) {
+        fail(a, Error::NoMemory);
+        co_return;
+    }
+    for (usize i = 0; i < n; i++) {
+        fds[i].fd     = get_u32(q.data, i * SYS_POLL_PAIR);
+        fds[i].events = get_u32(q.data, i * SYS_POLL_PAIR + sizeof(u32));
+    }
+    Result<usize> r = Err(Error::NoMemory);
+    if (Task<Result<usize>> t = poll_fds(Span<PollFd>(fds.data(), n), q.max))
+        r = co_await t;
+    if (r.is_err()) {
+        fail(a, r.error());
+        co_return;
+    }
+    for (usize i = 0; i < n; i++)
+        if (!put_u32(a.data, fds[i].revents)) {
+            fail(a, Error::NoMemory);
+            co_return;
+        }
+    a.ok = true;
+    a.n  = i64(r.value());
+}
+
 // The answer lives here rather than in a frame: a listing can be long.
 SysAns *answer;
 
@@ -795,6 +839,9 @@ Task<void> perform(const SysReq &q)
         break;
     case SysOp::Wait:
         t = sys_wait(q, a);
+        break;
+    case SysOp::Poll:
+        t = sys_poll(q, a);
         break;
     default:
         t = sys_file(q, a);

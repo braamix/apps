@@ -307,10 +307,6 @@ macros.
 Braam has no `fork`, so a child is one spawn: its program, its arguments, its
 environment and its three streams, and nothing else. What that leaves out:
 
-- **`communicate()` over two pipes or more**, including `capture_output=True`
-  and `stdin=PIPE` with `stdout=PIPE`, is an `OSError`. It waits in
-  `selectors`, and Braam has no call that waits for a descriptor to be ready.
-  One pipe is fine: send stderr to a file, or `stderr=STDOUT`.
 - **`preexec_fn`, `user`, `group`, `process_group`** and **`pass_fds`**
   above 2 raise `NotImplementedError`. A child is handed 0, 1 and 2 and no
   other descriptor, so `close_fds` is always true.
@@ -321,6 +317,27 @@ environment and its three streams, and nothing else. What that leaves out:
   the child, as it does for any exception.
 
 A child starts with `os.environ` as it is, so a variable set there reaches it.
+
+`select.poll` and `select.select` wait for a descriptor to be ready, over the
+kernel's own `Sys::Poll`, so `communicate()` over two or three pipes and
+`capture_output=True` work — and `selectors.DefaultSelector` is
+`PollSelector`. What they answer for is pipes, the streams behind 0, 1 and 2,
+and files, which are always ready. Three things follow:
+
+- **`POLLIN`, `POLLOUT` and `POLLHUP` are the whole event set.** `POLLPRI`,
+  `POLLERR` and `POLLNVAL` can be asked for and never come back, so a
+  descriptor registered for one of them alone is never ready.
+- **A pipe end has one direction**, and asking after the other is
+  `OSError(EBADF)` rather than a wait that nothing ends — so **name the
+  direction**: `poll.register(fd)`, whose default mask is CPython's
+  `POLLIN | POLLPRI | POLLOUT`, asks after both and fails. A descriptor that
+  is not open is the same `EBADF`, which is what CPython answers too.
+- **At most 64 descriptors in one call**, which is the kernel's bound; more
+  is a `ValueError`. Each is held for the length of the call, so nothing else
+  in the process may read or write one meanwhile.
+
+`epoll`, `kqueue` and `devpoll` are not here, and neither are sockets, so
+`selectors` has `SelectSelector` and `PollSelector` and nothing else.
 
 `signal.signal` takes a handler for any name, but **only `SIGINT`, `SIGTERM`
 and `SIGWINCH` are ever delivered** — Braam has no others. A handler runs at
@@ -384,9 +401,6 @@ There is no `~~~^^^` anchor line under the failing expression, and no
 - **Sockets and everything over them**: `socket`, `ssl`, `urllib`, `http`
   (but `http.cookies`),
   `ftplib`, `smtplib`, `socketserver`, `xmlrpc`.
-- **Waiting for a descriptor.** `select.select` answers for regular files,
-  which are always ready, and raises `OSError` for anything else; `selectors`
-  imports and waits on nothing else either.
 - **`ctypes`, `mmap`, `dlopen`, C extension modules.** There is no stable ABI
   to offer and nothing to load. Anything CPython writes in C is either
   written in C++ here or taken from the pure-Python version beside it.

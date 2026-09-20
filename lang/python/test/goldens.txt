@@ -121,6 +121,7 @@ stdlib/randoms.py                   cpython3.16
 stdlib/rawio.py                     cpython3.16
 stdlib/regex.py                     cpython3.16
 stdlib/scheds.py                    cpython3.16
+stdlib/selects.py                   cpython3.16
 stdlib/shells.py                    cpython3.16
 stdlib/signals.py                   cpython3.16
 stdlib/smallmods.py                 cpython3.16

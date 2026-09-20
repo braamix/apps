@@ -1,7 +1,8 @@
 # subprocess and the os calls under it: a child's output taken through one
-# pipe, its status, its environment and its errors. Never two pipes at once,
-# which this interpreter cannot wait on. Every write is flushed before a child
-# that shares stdout runs, so the order is the same in a file as on a screen.
+# pipe, its status, its environment and its errors. Two and three pipes at
+# once are selects.py, which is where the poll under them is. Every write is
+# flushed before a child that shares stdout runs, so the order is the same in
+# a file as on a screen.
 import os
 import subprocess
 import sys

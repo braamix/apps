@@ -127,7 +127,7 @@ is the *behaviour* — the lexer, parser, compiler, bytecode and VM are written
 for Braam, and each is held against CPython's own output rather than against
 its sources: the parse tree node for node over 373 files of CPython's library,
 the `dis` listings, 41 programs whose 2,490 lines of output are identical to
-CPython's, 427 of MicroPython's 449 tests, and 77 of 107 of CPython's own test
+CPython's, 428 of MicroPython's 449 tests, and 96 of 115 of CPython's own test
 files run under CPython's own `unittest`. The other half *is* byte for byte:
 235 files of `Lib/` ship as `lib/`, with
 [lang/python/lib/manifest.txt](lang/python/lib/manifest.txt) recording for each
