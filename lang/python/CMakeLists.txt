@@ -34,7 +34,7 @@ braam_add_program(NAME python
                           src/intern.cpp src/iobase.cpp src/iobuf.cpp src/iofile.cpp src/iomem.cpp
                           src/iotext.cpp src/iter.cpp src/itermod.cpp src/lazy.cpp src/lex.cpp
                           src/list.cpp src/mapmeth.cpp src/marshalmod.cpp src/mathmod.cpp
-                          src/method.cpp src/miscmod.cpp src/module.cpp src/nummeth.cpp src/obj.cpp
+                          src/method.cpp src/miscmod.cpp src/module.cpp src/monitormod.cpp src/nummeth.cpp src/obj.cpp
                           src/objmeth.cpp src/opmod.cpp src/ops.cpp src/parse.cpp src/patma.cpp
                           src/picklemod.cpp src/posixmod.cpp src/reduce.cpp src/selectmod.cpp src/socketmod.cpp src/randmod.cpp src/range.cpp src/repr.cpp
                           src/selftest.cpp src/sentinel.cpp src/seqmeth.cpp src/signalmod.cpp

@@ -24,6 +24,7 @@
 #include "lazy.h"
 #include "method.h"
 #include "module.h"
+#include "monitor.h"
 #include "ops.h"
 #include "parse.h"
 #include "posix.h"
@@ -1144,6 +1145,13 @@ bool sys_install(DictObj *into)
         !mod_put(d, "meta_path", mp.v) || !mod_put(d, "path_hooks", ph.v) ||
         !mod_put(d, "path_importer_cache", pic.v) || !mod_put(d, "_stdlib_dir", lib.v))
         return false;
+    // sys.monitoring is an attribute and not a module in sys.modules, which
+    // is where CPython puts it too.
+    {
+        Root mon{ monitoring_new() };
+        if (mon.v.is_nil() || !mod_put(d, "monitoring", mon.v))
+            return false;
+    }
     if (!lazy_sys_install(d))
         return false;
     // The same object under both names, so `sys.displayhook is

@@ -306,6 +306,11 @@ struct CodeObj : Obj {
     u32 stacksize = 0;
     u32 nblocks   = 0; // deepest SetupFinally nesting, for the frame's blocks
     u32 firstline = 0;
+    // sys.monitoring's local event sets: MON_LOCAL_EVENTS octets, a tool
+    // bitmask each, allocated the first time a tool asks for one. See
+    // monitor.h; null on a code object nobody is watching, which is all of
+    // them until a debugger starts.
+    u8 *monitors = nullptr;
 };
 
 extern const Type code_type;

@@ -1,6 +1,7 @@
 // The code object: allocation, tracing, the line table, and the two tables the
 // opcode list generates.
 #include "code.h"
+#include "monitor.h"
 
 #include "gc.h"
 #include "kernel/fmt.h"
@@ -53,7 +54,10 @@ void code_fini(Obj *o)
     c->cellvars.~Vec();
     c->freevars.~Vec();
     c->lines.~Vec();
+    if (c->monitors)
+        heap_free(c->monitors);
 }
+
 
 R code_repr(Value v, String &out)
 {
@@ -328,6 +332,52 @@ constexpr Method CODE_METHODS[] = {
 
 } // namespace
 
+u32 mon_local_events(const CodeObj *c, u32 tool)
+{
+    u32 set = 0;
+    if (c->monitors)
+        for (u32 e = 0; e < MON_LOCAL_EVENTS; e++)
+            if (c->monitors[e] & (1u << tool))
+                set |= 1u << e;
+    return set;
+}
+
+bool mon_set_local_events(CodeObj *c, u32 tool, u32 events)
+{
+    if (!c->monitors) {
+        if (!events)
+            return true;
+        c->monitors = static_cast<u8 *>(heap_alloc(MON_LOCAL_EVENTS));
+        if (!c->monitors)
+            return false;
+        for (u32 e = 0; e < MON_LOCAL_EVENTS; e++)
+            c->monitors[e] = 0;
+    }
+    for (u32 e = 0; e < MON_LOCAL_EVENTS; e++)
+        c->monitors[e] = u8((c->monitors[e] & ~(1u << tool)) | ((events >> e & 1) << tool));
+    return true;
+}
+
+void mon_clear_local(u32 tool)
+{
+    // Rare -- a debugger stopping -- so the whole heap is walked rather than
+    // every code object carrying a version to compare against.
+    ListObj *all = gc_objects();
+    if (!all) {
+        err_clear();
+        return;
+    }
+    Root ra{ obj_value(all) };
+    for (Value v : list_of(ra.v)->items)
+        if (is_code(v) && code_of(v)->monitors)
+            mon_set_local_events(code_of(v), tool, 0);
+}
+
+void mon_restart()
+{
+    // Nothing fires yet, so nothing has been disabled to put back.
+}
+
 bool code_methods()
 {
     return method_install(&code_type, CODE_METHODS);
@@ -377,6 +427,7 @@ CodeObj *code_new(Value name, Value filename, u32 firstline)
     c->stacksize = 0;
     c->nblocks   = 0;
     c->firstline = firstline;
+    c->monitors  = nullptr;
     return c;
 }
 
