@@ -109,6 +109,7 @@ stdlib/ipaddrs.py                   cpython3.16
 stdlib/memio.py                     cpython3.16
 stdlib/metarepr.py                  cpython3.16
 stdlib/modgetattr.py                cpython3.16
+stdlib/monitors.py                  cpython3.16
 stdlib/numerics.py                  cpython3.16
 stdlib/numproto.py                  cpython3.16
 stdlib/objects.py                   cpython3.16

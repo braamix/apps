@@ -497,6 +497,10 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   `_opcode` do not exist. Every code object begins with a `Nop`, which is
   CPython's `RESUME`: it gives a frame that has not run a position, and that
   is the line a `call` event reports.
+- **`sys.monitoring` fires**, and a tool is told before `sys.setprofile` and
+  `sys.settrace`, which is what its lower tool id means. `DISABLE` is taken
+  and nothing is turned off: a tool that returns it to go faster simply does
+  not go faster.
 - **`sys.settrace` and `sys.setprofile` work**, with `call`, `line`,
   `return`, `exception` and `opcode` for a tracer and `c_call`, `c_return`
   and `c_exception` around builtins for a profiler. Two differences you can

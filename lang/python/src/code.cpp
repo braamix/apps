@@ -358,21 +358,6 @@ bool mon_set_local_events(CodeObj *c, u32 tool, u32 events)
     return true;
 }
 
-void mon_clear_local(u32 tool)
-{
-    // Rare -- a debugger stopping -- so the whole heap is walked rather than
-    // every code object carrying a version to compare against.
-    ListObj *all = gc_objects();
-    if (!all) {
-        err_clear();
-        return;
-    }
-    Root ra{ obj_value(all) };
-    for (Value v : list_of(ra.v)->items)
-        if (is_code(v) && code_of(v)->monitors)
-            mon_set_local_events(code_of(v), tool, 0);
-}
-
 void mon_restart()
 {
     // Nothing fires yet, so nothing has been disabled to put back.

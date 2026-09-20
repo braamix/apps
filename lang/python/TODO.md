@@ -18,7 +18,8 @@ deleted and everything left keeps the number it had, so the list has gaps.
 Stage 4 and tasks 19 to 24 were compression; Stage 5 and tasks 25 to 27 were
 `email`, `xml` and `pyexpat`; tasks 28 to 31 were the `_socket` floor,
 `sys.monitoring`'s namespace, `bdb`/`pdb`/`doctest` and `sys.settrace`; task
-33 was `sysconfig` and `trace`, and task 36 was `symtable`.
+32 was `sys.monitoring`'s events, task 33 was `sysconfig` and `trace`, and
+task 36 was `symtable`.
 
 What `email` still cannot do is the one thing this system has not got: **the
 CJK codecs are not written**. `encodings` here is the single-byte pages, the
@@ -179,7 +180,7 @@ dictionary — real, and better than none, but with no entropy tables and so no
 
 ## Stage 6 — debugging and profiling
 
-**Tasks 28 to 31, 33 and 36 are done.** `test_subprocess` imports now that
+**Tasks 28 to 33 and 36 are done.** `test_subprocess` imports now that
 `sysconfig` does, but it spawns so many children that the harness does not
 finish it; its row still says `import`, and what it is really waiting for is
 a run that ends. `sys.settrace` and `sys.setprofile` are the VM's:
@@ -190,12 +191,18 @@ CPython's `RESUME`: a frame that has not run needs a position for the `call`
 event to report, and `f_lasti`, `f_lineno` and `co_lines` have to agree about
 it. `pass` costs a `Nop` too, so a debugger can stop on it.
 
-32. **`sys.monitoring` events.** Built on the same event points as task 31.
-    Implement the events `bdb` and `pdb.set_trace()` use: `PY_START`,
-    `PY_RESUME`, `PY_RETURN`, `PY_YIELD`, `LINE`, `INSTRUCTION`, `JUMP`,
-    `CALL`, `RAISE`, `EXCEPTION_HANDLED` and `PY_UNWIND`. Also per-code local
-    events and `DISABLE`. Test: `test_monitoring`, as far as its
-    CPython-specific parts allow.
+`sys.monitoring`'s events fire on the same points, and are offered to each
+tool before `sys.setprofile` and `sys.settrace`, which is what their tool ids
+mean. **`DISABLE` is taken and nothing is turned off**: the answer is an
+optimisation a tool uses to stop hearing about a place it does not care
+about, and a tool that leans on it only runs slower here. `test_monitoring`
+has no main block -- regrtest discovers it -- so `test/stdlib/monitors.py` is
+what says the events arrive as PEP 669 states, against CPython's own output.
+
+**`breakpoint()` stops one frame in**, inside `sys.breakpointhook`: that hook
+is written in Python here and CPython's is C, so `pdb.set_trace`'s
+`sys._getframe().f_back` is the hook's frame and not the caller's. One `r`
+reaches the caller.
 
 34. **`profile`, `pstats`, `cProfile`.** `profile` runs on `setprofile`.
     `cProfile` is `profiling.tracing`, which stands on `_lsprof`: write

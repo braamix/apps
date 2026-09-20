@@ -28,6 +28,7 @@ configdata/cfgparser.1            82952e3  Lib/test/configdata/cfgparser.1
 configdata/cfgparser.2            82952e3  Lib/test/configdata/cfgparser.2
 configdata/cfgparser.3            82952e3  Lib/test/configdata/cfgparser.3
 pickletester.py                   82952e3  Lib/test/pickletester.py
+profilee.py                       82952e3  Lib/test/profilee.py
 picklecommon.py                   82952e3  Lib/test/picklecommon.py
 archiver_tests.py                 82952e3  Lib/test/archiver_tests.py
 archivetestdata/testtar.tar       82952e3  Lib/test/archivetestdata/testtar.tar

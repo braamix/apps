@@ -1,0 +1,45 @@
+0 1 2 5
+1 2 4 8 16 32
+64 128 2048 8192 0
+None
+mine
+in use: tool 0 is already in use
+reserved: invalid tool 6 (must be between 0 and 5)
+True
+c_return: cannot set C_RETURN or C_RAISE events independently
+None
+None
+None
+None
+None
+None
+None
+None
+True True
+('start', 'target')
+('return', 'target', 3)
+('start', 'catching')
+('start', 'failing')
+('raise', 'failing', 'ValueError')
+('unwind', 'failing', 'ValueError')
+('raise', 'catching', 'ValueError')
+('return', 'catching', 'str')
+('start', 'counting')
+('yield', 'counting', 1)
+('resume', 'counting')
+('yield', 'counting', 2)
+('resume', 'counting')
+('return', 'counting', 'NoneType')
+True
+0
+('line', 'target', 43)
+('line', 'target', 44)
+('line', 'target', 45)
+('line', 'target', 44)
+('line', 'target', 45)
+('line', 'target', 44)
+('line', 'target', 46)
+('return', 'target', 1)
+{'RAISE': 1}
+mine 0 36
+None

@@ -24,6 +24,7 @@ enum : u8 {
     FT_OPCODES = 1 << 1,
     FT_CALL_T  = 1 << 2,
     FT_CALL_P  = 1 << 3,
+    FT_CALL_M  = 1 << 4, // sys.monitoring is owed a PY_START or PY_RESUME
 };
 
 struct FrameObj : Obj {
@@ -53,7 +54,7 @@ struct FrameObj : Obj {
     u32 tracepc;
     u32 prevpc;
     u32 lastline;
-    u8 fired;   // TE_* bits already fired at tracepc
+    u16 fired;  // FIRED_* bits already fired at tracepc
     u8 tflags;  // FT_*
 
     Value *slots() { return reinterpret_cast<Value *>(this + 1); }

@@ -2978,7 +2978,11 @@ R take_namespaces(const CallArgs &a, Root &globals, Root &locals)
     Value l = a.nargs > 2 ? a.args[2] : value_none();
     if (!is_none(g) && !is_dict(g))
         return err_set2("TypeError", "globals must be a real dict", type_name(g));
-    if (!is_none(l) && !is_dict(l))
+    // Any mapping, as CPython's message says: pdb evaluates an expression in
+    // a frame's FrameLocalsProxy, and LoadName and StoreName already know
+    // what to do with a namespace that is not a dict.
+    if (!is_none(l) && !is_dict(l) && !type_of(l)->getitem &&
+        !type_has_py_special(l, "__getitem__"))
         return err_set2("TypeError", "locals must be a mapping", type_name(l));
 
     FrameObj *f = caller_frame();

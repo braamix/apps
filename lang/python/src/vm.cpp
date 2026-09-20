@@ -31,6 +31,7 @@
 #include "lazy.h"
 #include "method.h"
 #include "module.h"
+#include "monitor.h"
 #include "ops.h"
 #include "patma.h"
 #include "posix.h"
@@ -231,6 +232,9 @@ enum : u32 {
     TE_C_CALL,
     TE_C_RETURN,
     TE_C_EXCEPTION,
+    // Above this, a queued entry is one of sys.monitoring's events rather
+    // than a trace function's: the number is TE_MON plus the event.
+    TE_MON,
 };
 
 constexpr Str TE_NAMES[] = { "call",   "line",     "return",   "exception",   "opcode",
@@ -239,17 +243,24 @@ constexpr Str TE_NAMES[] = { "call",   "line",     "return",   "exception",   "o
 // FrameObj::fired: what has already gone out at FrameObj::tracepc, so an
 // event that suspends to call Python does not fire again when the loop comes
 // back to the same instruction.
-enum : u8 {
+enum : u16 {
     FIRED_LINE   = 1 << 0,
     FIRED_OPCODE = 1 << 1,
     FIRED_RET_T  = 1 << 2,
     FIRED_RET_P  = 1 << 3,
     FIRED_CCALL  = 1 << 4,
+    FIRED_MSTART = 1 << 5, // sys.monitoring's PY_START or PY_RESUME
+    FIRED_MLINE  = 1 << 6, // its LINE
+    FIRED_MINSTR = 1 << 7, // its INSTRUCTION
+    FIRED_MRET   = 1 << 8, // its PY_RETURN or PY_YIELD
+    FIRED_MJUMP  = 1 << 9, // its JUMP
 };
+
+bool run_cont(Value kv, Value in);
 
 bool trace_on()
 {
-    return !vm->tracefn.is_nil() || !vm->profilefn.is_nil();
+    return !vm->tracefn.is_nil() || !vm->profilefn.is_nil() || mon_armed();
 }
 
 // A frame is entered: it owes a `call` event to whoever is installed. Called
@@ -262,6 +273,94 @@ void trace_entered(FrameObj *f)
         f->tflags |= FT_CALL_T;
     if (!vm->profilefn.is_nil())
         f->tflags |= FT_CALL_P;
+    if (mon_armed())
+        f->tflags |= FT_CALL_M;
+}
+
+// ------------------------------------------------- sys.monitoring's events
+
+// One event, offered to each tool in turn: they are numbered so that a
+// lower id is told first, and sys.setprofile and sys.settrace are the last
+// two ids, which is why those two fire after these.
+//
+// A callback that answers DISABLE is asking not to be called at that place
+// again. It is taken and nothing is turned off: the answer is an
+// optimisation, and a tool that leans on it only runs slower here.
+//
+// s[0] the frame, s[1] the arguments; j the event, i the next tool to ask,
+// x[1] the frame's own pc, put back when the last tool has answered.
+R mon_step(ContObj *k, Value in)
+{
+    (void)in;
+    FrameObj *f = frame_of(k->s[0]);
+    CodeObj *co = code_of(f->code);
+    while (k->i < MON_TOOLS) {
+        u32 t = k->i++;
+        if (!(mon_events_for(co, t) & (1u << k->j)))
+            continue;
+        Value cb = mon_callback(t, k->j);
+        if (cb.is_nil())
+            continue;
+        return cont_call_v(k, cb, k->s[1]);
+    }
+    vm->tracing = false;
+    f->pc       = u32(k->x[1]);
+    return cont_done(k, value_none());
+}
+
+void mon_failed(ContObj *k)
+{
+    vm->tracing = false;
+    frame_of(k->s[0])->pc = u32(k->x[1]);
+}
+
+// Whether any tool wants `event` for this code object.
+bool mon_wanted(const CodeObj *co, u32 event)
+{
+    if (!mon_armed())
+        return false;
+    for (u32 t = 0; t < MON_TOOLS; t++)
+        if ((mon_events_for(co, t) & (1u << event)) && !mon_callback(t, event).is_nil())
+            return true;
+    return false;
+}
+
+// `event` with its arguments, the code object first, shown at pc `at`.
+// False leaves the error pending.
+bool mon_fire(FrameObj *f, u32 event, u32 at, Value a1, Value a2 = Value(), Value a3 = Value())
+{
+    Root rf{ obj_value(f) }, r1{ a1 }, r2{ a2 }, r3{ a3 };
+    u32 n = a3.is_nil() ? (a2.is_nil() ? 2u : 3u) : 4u;
+    TupleObj *t = tuple_new(n);
+    if (!t)
+        return oom() == R::Ok;
+    Root rt{ obj_value(t) };
+    TupleObj *tp   = static_cast<TupleObj *>(rt.v.obj());
+    tp->items()[0] = frame_of(rf.v)->code;
+    tp->items()[1] = r1.v;
+    if (n > 2)
+        tp->items()[2] = r2.v;
+    if (n > 3)
+        tp->items()[3] = r3.v;
+    Root kv{ cont_new(mon_step) };
+    if (kv.v.is_nil())
+        return false;
+    ContObj *k = cont_of(kv.v);
+    k->s[0]    = rf.v;
+    k->s[1]    = rt.v;
+    k->j       = event;
+    k->x[1]    = frame_of(rf.v)->pc;
+    k->fail    = mon_failed;
+    k->drop    = true;
+    vm->tracing = true;
+    frame_of(rf.v)->pc = at;
+    return run_cont(kv.v, Value());
+}
+
+// An instruction's offset, which is what every event but LINE carries.
+Value mon_offset(u32 pc)
+{
+    return Value::of_int(i32(pc * 2));
 }
 
 // s[0] what to call, s[1] the frame, s[2] the argument; j the event, x[0] the
@@ -307,8 +406,6 @@ void trace_failed(ContObj *k)
     else
         vm->profilefn = Value();
 }
-
-bool run_cont(Value kv, Value in);
 
 // One event, made and run: the tracer is a Python call, so it is a frame the
 // loop pushes and not a call made from here. False leaves the error pending.
@@ -371,6 +468,15 @@ int trace_before(FrameObj *f)
         f->tracepc = f->pc;
         f->fired   = 0;
     }
+    CodeObj *mco = code_of(f->code);
+    // sys.monitoring first: its tool ids are below sys.setprofile's and
+    // sys.settrace's, and a lower id is told first.
+    if (f->tflags & FT_CALL_M) {
+        f->tflags = u8(f->tflags & ~FT_CALL_M);
+        u32 ev    = f->pc ? MON_PY_RESUME : MON_PY_START;
+        if (mon_wanted(mco, ev))
+            return mon_fire(f, ev, f->pc ? f->pc : 1, mon_offset(f->pc)) ? 1 : -1;
+    }
     // The call event, the tracer's first and then the profiler's, which is
     // the order CPython enters a frame in.
     if (f->tflags & FT_CALL_T) {
@@ -386,11 +492,34 @@ int trace_before(FrameObj *f)
             return trace_fire(vm->profilefn, f, TE_P_CALL, value_none(), f->pc ? f->pc : 1) ? 1
                                                                                             : -1;
     }
+    CodeObj *co = mco;
+    // A LINE event goes out wherever a line begins, which is not the same
+    // question as whether the line changed: that is settrace's rule below.
+    if (!(f->fired & FIRED_MLINE) && line_starts(co, f->pc)) {
+        f->fired = u16(f->fired | FIRED_MLINE);
+        if (mon_wanted(co, MON_LINE))
+            return mon_fire(f, MON_LINE, f->pc + 1,
+                            Value::of_int(i32(code_line(co, f->pc))))
+                       ? 1
+                       : -1;
+    }
+    if (!(f->fired & FIRED_MINSTR)) {
+        f->fired = u16(f->fired | FIRED_MINSTR);
+        if (mon_wanted(co, MON_INSTRUCTION))
+            return mon_fire(f, MON_INSTRUCTION, f->pc + 1, mon_offset(f->pc)) ? 1 : -1;
+    }
+    if (!(f->fired & FIRED_MJUMP) && f->pc < co->code.size() && co->code[f->pc].op == Bc::Jump) {
+        f->fired = u16(f->fired | FIRED_MJUMP);
+        if (mon_wanted(co, MON_JUMP))
+            return mon_fire(f, MON_JUMP, f->pc + 1, mon_offset(f->pc),
+                            mon_offset(co->code[f->pc].arg))
+                       ? 1
+                       : -1;
+    }
     if (f->trace.is_nil())
         return 0;
-    CodeObj *co = code_of(f->code);
     if ((f->tflags & FT_LINES) && !(f->fired & FIRED_LINE) && line_starts(co, f->pc)) {
-        f->fired  = u8(f->fired | FIRED_LINE);
+        f->fired    = u16(f->fired | FIRED_LINE);
         u32 line  = code_line(co, f->pc);
         bool back = f->prevpc != ~0u && f->pc <= f->prevpc;
         bool go   = line != f->lastline || back;
@@ -399,7 +528,7 @@ int trace_before(FrameObj *f)
             return trace_fire(f->trace, f, TE_LINE, value_none(), f->pc + 1) ? 1 : -1;
     }
     if ((f->tflags & FT_OPCODES) && !(f->fired & FIRED_OPCODE)) {
-        f->fired = u8(f->fired | FIRED_OPCODE);
+        f->fired = u16(f->fired | FIRED_OPCODE);
         return trace_fire(f->trace, f, TE_OPCODE, value_none(), f->pc + 1) ? 1 : -1;
     }
     return 0;
@@ -408,7 +537,7 @@ int trace_before(FrameObj *f)
 // The return event, fired from the Return and Yield opcodes before the frame
 // is left. The instruction is stepped back to so that the loop comes here
 // once more and finds the event already out.
-int trace_return(FrameObj *f, Value v)
+int trace_return(FrameObj *f, Value v, bool yielding)
 {
     if (vm->tracing || !trace_on())
         return 0;
@@ -416,12 +545,19 @@ int trace_return(FrameObj *f, Value v)
         f->tracepc = f->pc;
         f->fired   = 0;
     }
+    CodeObj *co = code_of(f->code);
+    if (!(f->fired & FIRED_MRET)) {
+        f->fired = u16(f->fired | FIRED_MRET);
+        u32 ev   = yielding ? MON_PY_YIELD : MON_PY_RETURN;
+        if (mon_wanted(co, ev))
+            return mon_fire(f, ev, f->pc + 1, mon_offset(f->pc), v) ? 1 : -1;
+    }
     if (!f->trace.is_nil() && !vm->tracefn.is_nil() && !(f->fired & FIRED_RET_T)) {
-        f->fired = u8(f->fired | FIRED_RET_T);
+        f->fired = u16(f->fired | FIRED_RET_T);
         return trace_fire(vm->tracefn, f, TE_RETURN, v, f->pc + 1) ? 1 : -1;
     }
     if (!vm->profilefn.is_nil() && !(f->fired & FIRED_RET_P)) {
-        f->fired = u8(f->fired | FIRED_RET_P);
+        f->fired = u16(f->fired | FIRED_RET_P);
         return trace_fire(vm->profilefn, f, TE_P_RETURN, v, f->pc + 1) ? 1 : -1;
     }
     return 0;
@@ -453,9 +589,12 @@ void trace_queue(FrameObj *f, u32 kind, Value arg, u32 at)
 {
     if (vm->tracing)
         return;
-    bool prof = kind >= TE_P_CALL;
-    Value fn  = prof ? vm->profilefn : f->trace;
-    if (fn.is_nil() || (!prof && vm->tracefn.is_nil()))
+    // A monitoring event has no one callee: the drain offers it to every
+    // tool in turn, so the queue keeps a placeholder in the callee's place.
+    bool mon  = kind >= TE_MON;
+    bool prof = !mon && kind >= TE_P_CALL;
+    Value fn  = mon ? value_none() : (prof ? vm->profilefn : f->trace);
+    if (fn.is_nil() || (!mon && !prof && vm->tracefn.is_nil()))
         return;
     Root rf{ obj_value(f) }, rn{ fn }, ra{ arg };
     if (!vm->tqueue.push(rf.v) || !vm->tqueue.push(rn.v) ||
@@ -472,6 +611,8 @@ bool trace_drain()
     u32 at   = u32(vm->tqueue[4].as_int());
     for (u32 i = 0; i < 5; i++)
         vm->tqueue.erase(0);
+    if (kind >= TE_MON)
+        return mon_fire(frame_of(f.v), kind - TE_MON, at, mon_offset(at ? at - 1 : 0), arg.v);
     return trace_fire(fn.v, frame_of(f.v), kind, arg.v, at);
 }
 
@@ -1821,6 +1962,8 @@ bool dispatch(Value e, bool here = true)
         // where that frame stood. It cannot be called from here, so it is
         // queued; the loop makes the call.
         if (trace_on() && !vm->tracing) {
+            if (mon_wanted(code_of(f->code), MON_RAISE))
+                trace_queue(f, u32(TE_MON) + MON_RAISE, re.v, f->pc);
             Root info{ exc_info_tuple(re.v) };
             trace_queue(f, TE_EXCEPTION, info.v, f->pc);
         }
@@ -1858,8 +2001,11 @@ bool dispatch(Value e, bool here = true)
                 }
             }
         }
-        // Left by an exception: CPython reports that as a return of None.
+        // Left by an exception: CPython reports that as a return of None to
+        // a trace function, and as PY_UNWIND to sys.monitoring.
         if (trace_on() && !vm->tracing) {
+            if (mon_wanted(code_of(f->code), MON_PY_UNWIND))
+                trace_queue(f, u32(TE_MON) + MON_PY_UNWIND, re.v, f->pc);
             trace_queue(f, TE_RETURN, value_none(), f->pc);
             trace_queue(f, TE_P_RETURN, value_none(), f->pc);
         }
@@ -4018,7 +4164,7 @@ void interpret()
                         f->tracepc = f->pc;
                         f->fired   = 0;
                     }
-                    f->fired = u8(f->fired | FIRED_CCALL);
+                    f->fired = u16(f->fired | FIRED_CCALL);
                     if (!trace_fire(vm->profilefn, f, TE_C_CALL, callable, f->pc + 1))
                         goto oops;
                     continue;
@@ -4092,7 +4238,7 @@ void interpret()
                 if (trace_on() && !vm->tracing) {
                     // A yield is a return, to a tracer: the frame is leaving.
                     f->pc--;
-                    int t = trace_return(f, v);
+                    int t = trace_return(f, v, true);
                     if (t < 0)
                         goto oops;
                     if (t > 0)
@@ -4124,7 +4270,7 @@ void interpret()
                 Value v = st[f->sp - 1];
                 if (trace_on() && !vm->tracing) {
                     f->pc--; // back to this instruction, so the loop returns here
-                    int t = trace_return(f, v);
+                    int t = trace_return(f, v, false);
                     if (t < 0)
                         goto oops;
                     if (t > 0)

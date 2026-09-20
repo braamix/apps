@@ -59,15 +59,20 @@ Value monitoring_new();
 u32 mon_tool_events(u32 tool);
 Value mon_callback(u32 tool, u32 event);
 
+// Whether anything is watching at all: the one test the instruction loop
+// makes before it looks any closer.
+bool mon_armed();
+
+// What `tool` wants of this code object: what it asked for globally, and
+// what it asked for on this one.
+u32 mon_events_for(const CodeObj *c, u32 tool);
+
 // The DISABLE marker, which a callback returns to ask not to be called again.
 Value mon_disable();
 
 // The per-code half, defined in code.cpp beside the array it reads.
 u32 mon_local_events(const CodeObj *c, u32 tool);
 bool mon_set_local_events(CodeObj *c, u32 tool, u32 events);
-
-// Every code object forgets what this tool asked for.
-void mon_clear_local(u32 tool);
 
 // What a restart undoes. Nothing yet: no event fires, so none is disabled.
 void mon_restart();

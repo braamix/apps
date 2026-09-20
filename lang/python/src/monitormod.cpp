@@ -51,6 +51,7 @@ struct Home {
     u32 events[MON_TOOLS];                  // the global event set
     Value disable;                          // the DISABLE sentinel
     Value missing;                          // the MISSING sentinel
+    bool anylocal;                          // a code object has been asked about
 };
 
 Home *home;
@@ -121,13 +122,13 @@ R m_use_tool_id(const CallArgs &a, Value &out)
     return R::Ok;
 }
 
-// Everything the tool asked for, dropped; the name stays.
+// The callbacks and the global events, dropped; the name stays, and so do
+// the local event sets, which is what CPython's ClearToolId leaves behind.
 void clear_tool(i64 id)
 {
     for (u32 e = 0; e < MON_EVENTS; e++)
         home->callbacks[id][e] = Value();
     home->events[id] = 0;
-    mon_clear_local(u32(id));
 }
 
 R m_clear_tool_id(const CallArgs &a, Value &out)
@@ -200,7 +201,9 @@ R m_register_callback(const CallArgs &a, Value &out)
 R m_get_events(const CallArgs &a, Value &out)
 {
     i64 id = 0;
-    if (!args_only(a, "get_events", 1, 1) || !tool_arg(a, id) || !tool_in_use(id))
+    // Only that the id is one a program may ask for: reading what an unused
+    // tool wants is not an error, and the answer is nothing.
+    if (!args_only(a, "get_events", 1, 1) || !tool_arg(a, id) || !valid_tool(id))
         return R::Err;
     out = Value::of_int(i32(home->events[id]));
     return R::Ok;
@@ -261,10 +264,10 @@ R m_get_local_events(const CallArgs &a, Value &out)
     i64 id = 0;
     if (!args_only(a, "get_local_events", 2, 2) || !tool_arg(a, id))
         return R::Err;
+    if (!valid_tool(id))
+        return R::Err;
     if (!is_code(a.args[1]))
         return err_set("TypeError", "code must be a code object");
-    if (!tool_in_use(id))
-        return R::Err;
     out = Value::of_int(i32(mon_local_events(code_of(a.args[1]), u32(id))));
     return R::Ok;
 }
@@ -281,6 +284,8 @@ R m_set_local_events(const CallArgs &a, Value &out)
         return R::Err;
     if (!mon_set_local_events(code_of(a.args[1]), u32(id), set))
         return oom();
+    if (set)
+        home->anylocal = true;
     out = value_none();
     return R::Ok;
 }
@@ -368,6 +373,25 @@ u32 mon_tool_events(u32 tool)
 Value mon_callback(u32 tool, u32 event)
 {
     return home && tool < MON_TOOLS && event < MON_EVENTS ? home->callbacks[tool][event] : Value();
+}
+
+bool mon_armed()
+{
+    if (!home)
+        return false;
+    if (home->anylocal)
+        return true;
+    for (u32 t = 0; t < MON_TOOLS; t++)
+        if (home->events[t])
+            return true;
+    return false;
+}
+
+u32 mon_events_for(const CodeObj *c, u32 tool)
+{
+    if (!home || tool >= MON_TOOLS)
+        return 0;
+    return home->events[tool] | mon_local_events(c, tool);
 }
 
 Value mon_disable()

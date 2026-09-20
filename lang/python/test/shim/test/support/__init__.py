@@ -155,6 +155,11 @@ def check_impl_detail(**guards):
     return guards.get("cpython", True)
 
 
+# There is no specializing interpreter here, so what guards on one skips.
+requires_specialization = unittest.skip("no specializing interpreter")
+requires_specialization_ft = unittest.skip("no specializing interpreter")
+
+
 def cpython_only(test):
     return unittest.skip("implementation detail of CPython")(test)
 
