@@ -249,7 +249,7 @@ itertools marshal math posix select sys time unicodedata zlib
 
 ### CPython's own, byte for byte
 
-286 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+303 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
@@ -264,6 +264,7 @@ it was taken from. The ones you reach for:
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
 | Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
 | Mail | `email` (the whole package, `mime` included), `quopri`, `base64`, `mimetypes` |
+| XML | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.sax`'s handlers — building, searching and writing, but not parsing |
 | Addresses | `urllib.parse`, `ipaddress`, `uuid`, `http.cookies` |
 | Crypto | `hashlib`, `hmac`, `secrets` |
 | Compression | `zlib`, `gzip`, `bz2`, `lzma`, `compression` (`zlib`, `gzip`, `bz2`, `lzma`, `zstd`), `zipfile`, `tarfile` |
@@ -457,7 +458,13 @@ There is no `~~~^^^` anchor line under the failing expression, and no
 
 ### Because they are not written yet
 
-- **`xml`, `symtable`**, and of `urllib` only `parse`.
+- **An XML parser.** `xml` is here — build a tree with `ElementTree` or
+  `minidom`, search it, serialise it — but the thing that reads one is
+  `pyexpat`, which is not written. So `ET.fromstring`, `ET.parse` and
+  `minidom.parseString` raise `ImportError`, `xml.sax.make_parser` raises
+  `SAXReaderNotAvailable`, and `xml.sax.saxutils` is not shipped at all: it
+  imports `urllib.request`, which stands on sockets.
+- **`symtable`**, and of `urllib` only `parse`.
 - **The CJK codecs.** `encodings` is 89 files here — the single-byte pages,
   the UTF forms and the transforms — and the multi-byte ones are not among
   them: `euc-jp`, `shift_jis`, `iso-2022-jp`, `gb2312`, `big5`, `cp949` and

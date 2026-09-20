@@ -5,7 +5,7 @@ lines that touch the OS replaced; this one is a Python implementation written
 from nothing — its own lexer, parser, compiler, bytecode and virtual machine,
 122k lines of C++ in [src/](src/).
 
-The other half is borrowed whole: **CPython's standard library**, 286 files
+The other half is borrowed whole: **CPython's standard library**, 303 files
 byte for byte as [lib/](lib/), over a floor of native modules written here. A
 Python that runs CPython's own library is a real Python, and writing that
 library again would be both enormous and worse.
@@ -232,6 +232,10 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 - `email` is the whole package and pure Python, so the only two things it
   cannot do are the two this system has not got: `make_msgid` imports `socket`
   for the host name, and a CJK charset has no codec.
+- `xml` is here without the thing that reads XML: `ElementTree` and `minidom`
+  build, search and serialise, and `fromstring`, `parse` and `parseString`
+  raise `ImportError` until `pyexpat` is written. `xml.sax.saxutils` is not
+  shipped, importing `urllib.request` as it does.
 - A coroutine never awaited is reported when the collector finds it.
 - `json` is the pure-Python one, so a malformed document is reported in
   `json.decoder`'s words.

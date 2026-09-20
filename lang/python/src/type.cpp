@@ -439,9 +439,12 @@ R dg_contains(Value v, Value x, bool &out)
     return py_contains(delegate(v), x, out);
 }
 
+// py_binop_try and not py_binop: where the built-ins inside have no operator
+// between them, this has to say so rather than raise, or `[1, 2] + sub` would
+// be an error before the subclass's own __radd__ was ever asked.
 R dg_binop(Value a, Value b, Op op, Value &out)
 {
-    return py_binop(delegate(a), delegate(b), op, out);
+    return py_binop_try(delegate(a), delegate(b), op, out);
 }
 
 Value dg_iter(Value v)

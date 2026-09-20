@@ -89,6 +89,7 @@ pass  test_math.py                    59/88      82952e3  Lib/test/test_math.py
 pass  test_memoryio.py                163/192    82952e3  Lib/test/test_io/test_memoryio.py
 pass  test_message.py                 310/310    82952e3  Lib/test/test_email/test_message.py
 pass  test_mimetypes.py               46/46      82952e3  Lib/test/test_mimetypes.py
+fail  test_minidom.py                 import     82952e3  Lib/test/test_minidom.py
 pass  test_named_expressions.py       74/74      82952e3  Lib/test/test_named_expressions.py
 pass  test_optparse.py                156/156    82952e3  Lib/test/test_optparse.py
 pass  test_parser.py                  8/8        82952e3  Lib/test/test_email/test_parser.py
@@ -151,5 +152,7 @@ pass  test_utf8source.py              3/3        82952e3  Lib/test/test_utf8sour
 pass  test_utils.py                   23/23      82952e3  Lib/test/test_email/test_utils.py
 pass  test_uuid.py                    118/120    82952e3  Lib/test/test_uuid.py
 pass  test_weakset.py                 28/46      82952e3  Lib/test/test_weakset.py
+pass  test_xml_dom_minicompat.py      11/11      82952e3  Lib/test/test_xml_dom_minicompat.py
+fail  test_xml_etree.py               import     82952e3  Lib/test/test_xml_etree.py
 pass  test_zlib.py                    89/89      82952e3  Lib/test/test_zlib.py
 pass  test_zstd.py                    107/119    82952e3  Lib/test/test_zstd.py

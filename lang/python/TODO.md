@@ -15,7 +15,8 @@ One item in the list is not planned. It is at the end, with the reason.
 
 **A number is a name, not a position.** A stage or a task that is finished is
 deleted and everything left keeps the number it had, so the list has gaps.
-Stage 4 and tasks 19 to 24 were compression; task 25 was `email`.
+Stage 4 and tasks 19 to 24 were compression; tasks 25 and 26 were `email`
+and `xml`.
 
 What `email` could not do is the two things this system has not got.
 **`make_msgid` imports `socket`** at the head of itself, for the host name it
@@ -26,6 +27,14 @@ and `euc-jp`, `shift_jis`, `iso-2022-jp`, `gb2312` and `cp949` each stand on a
 C codec — `_codecs_jp` and its four siblings — that nobody has written. Nine
 of `test_email`'s methods and three of `test_contentmanager`'s are that, and
 `test_asian_codecs` is a `fail` row for it. `Manual.md` §10 says both.
+
+**`xml.sax.saxutils` is the one file of `xml` that is not shipped**: it
+imports `urllib.request` at the top, which stands on sockets, so it waits for
+task 28 rather than being trimmed. Everything else of the package that does
+not reach `pyexpat` is here, `pulldom` and `ElementInclude` included.
+`test_xml_etree` and `test_minidom` both import expat at their own top, so
+both are `fail import` rows that flip when task 27 lands;
+`test_xml_dom_minicompat` runs, 11 of 11.
 
 What compression could not do is recorded rather than left open. **lzma's high
 presets are what the process can spare**: nothing is refused in advance —
@@ -99,6 +108,14 @@ dictionary — real, and better than none, but with no entropy tables and so no
   step, because liblzma builds its dictionary there and **a coder that has
   answered an error cannot be stepped again** — there is no retrying after
   the fact. The real fix is the span ratchet above.
+- **A binary operator tries the right side's dunder too late** where the
+  right side is a subclass of a built-in and the left is a plain one.
+  `[1, 2] + sub` used to raise before `sub.__radd__` was asked, because the
+  delegating slot raised rather than saying it had nothing; it says so now.
+  What is still CPython's and not this interpreter's is the other half of the
+  rule: where `type(b)` is a *proper subclass* of `type(a)`, CPython asks
+  `b.__radd__` **first**. So `1 + IntSub()` and `[1] + ListSub()` answer with
+  the built-in's operator here and with the subclass's there.
 - **Deep structures and the recursion limit.** `pickle.py` spends four
   frames on each level of a list, so a structure nested past about fifty
   levels raises `RecursionError`, where CPython's limit of 1000 takes 250.
@@ -106,22 +123,18 @@ dictionary — real, and better than none, but with no entropy tables and so no
 
 ## Stage 5 — `email` and `xml`
 
-26. **`xml`, without a parser.** `xml.etree.ElementTree` and `ElementPath`,
-    `xml.dom.minidom`, `xml.dom.minicompat`, `xml.sax.saxutils`, `handler`
-    and `xmlreader`. All of these import `expat` lazily, so building a tree,
-    searching it and serialising it all work now. `fromstring`, `parse` and
-    `minidom.parseString` raise `ImportError` until task 27. Tests: the
-    non-parsing cases of `test_xml_etree` and `test_minidom`, and
-    `test_xml_dom_minicompat`.
-
 27. **`pyexpat`.** A native module with the surface that `ElementTree`,
     `expatbuilder` and `expatreader` use: `ParserCreate`, the handler
     attributes, `Parse` and `ParseFile`, `buffer_text`, `ordered_attributes`,
     `ExpatError` with `lineno` and `offset`, and `errors` and `model`.
     Recommendation: build libexpat's C as a separate `PORT` library rather
     than write a new parser. The tests check expat's own error messages and
-    positions, and only expat produces those. Tests: `test_pyexpat`,
-    `test_xml_etree`, `test_minidom`, `test_sax`.
+    positions, and only expat produces those. It brings four more files of
+    `lib/` with it, all of which import expat at their top and so are not
+    shipped yet: `xml/parsers/__init__.py` and `expat.py`,
+    `xml/dom/expatbuilder.py` and `xml/sax/expatreader.py`. Tests:
+    `test_pyexpat`, `test_xml_etree`, `test_minidom`, `test_sax` -- the last
+    of which also wants task 28, for `saxutils`.
 
 ## Stage 6 — debugging and profiling
 
@@ -136,7 +149,9 @@ dictionary — real, and better than none, but with no entropy tables and so no
     first runs once this is done and the second once task 33 is too. Both
     rows are in `test/cpython.txt` already, as `fail import`. §10 "Because
     Braam has no such thing" still holds for sockets and says what the floor
-    is for.
+    is for. `urllib.request` comes no closer, but `xml/sax/saxutils.py` and
+    `email.utils.make_msgid` are both waiting on this floor and should be
+    revisited with it.
 
 29. **The `sys.monitoring` namespace.** `bdb` reads `sys.monitoring.events`
     at import. Add the tool registry (`use_tool_id`, `get_tool`,

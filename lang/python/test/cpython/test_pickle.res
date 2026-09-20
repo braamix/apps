@@ -23,7 +23,6 @@ No module named 'http.cookiejar'
 No module named 'http.server'
 No module named 'urllib.robotparser'
 No module named 'urllib.request'
-No module named 'xml'
 No module named '_dbm'
 No module named '_gdbm'
 No module named 'socket'
@@ -137,8 +136,6 @@ No module named 'urllib.robotparser'
 No module named 'urllib.robotparser'
 No module named 'urllib.request'
 No module named 'urllib.request'
-No module named 'xml'
-No module named 'xml'
 No module named 'tkinter'
 No module named 'tkinter'
 No module named 'tkinter'
@@ -44279,7 +44276,7 @@ Traceback (most recent call last):
   File "/pkg/store/python-0/lib/pickle.py", line 257, in write_large_bytes
     write(payload)
 MemoryError: out of memory
-when serializing list item 11
+when serializing list item 0
 
 ======================================================================
 ERROR: test_framing_large_objects (__main__.DumpPickle_CLoadPickle.test_framing_large_objects) (proto=5, fast=True)
@@ -44310,8 +44307,8 @@ when serializing list item 0
 ERROR: test_optional_frames (__main__.DumpPickle_CLoadPickle.test_optional_frames)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/pickletester.py", line 4098, in test_optional_frames
-    some_frames_pickle = remove_frames(pickled, lambda i: i % 2)
+  File "/tmp/test/pickletester.py", line 4094, in test_optional_frames
+    frameless_pickle = remove_frames(pickled)
   File "/tmp/test/pickletester.py", line 4081, in remove_frames
     newpickle += pickled[last_frame_end:]
 MemoryError: out of memory
@@ -44320,20 +44317,37 @@ MemoryError: out of memory
 ERROR: test_framing_large_objects (__main__.InMemoryPickleTests.test_framing_large_objects) (proto=5, fast=False)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/pickletester.py", line 4048, in test_framing_large_objects
-    unpickled = self.loads(pickled)
-  File "/tmp/test_pickle.py", line 115, in loads
-    return pickle.loads(buf, **kwds)
-  File "/pkg/store/python-0/lib/pickle.py", line 1909, in _loads
-    file = io.BytesIO(s)
+  File "/tmp/test/pickletester.py", line 4038, in test_framing_large_objects
+    pickled = self.dumps(obj, proto)
+  File "/tmp/test_pickle.py", line 112, in dumps
+    return pickle.dumps(arg, protocol, **kwargs)
+  File "/pkg/store/python-0/lib/pickle.py", line 1895, in _dumps
+    buffer_callback=buffer_callback).dump(obj)
+  File "/pkg/store/python-0/lib/pickle.py", line 514, in dump
+    self.save(obj)
+  File "/pkg/store/python-0/lib/pickle.py", line 588, in save
+    f(self, obj)  # Call unbound method with explicit self
+  File "/pkg/store/python-0/lib/pickle.py", line 1025, in save_list
+    self._batch_appends(obj, obj)
+  File "/pkg/store/python-0/lib/pickle.py", line 1053, in _batch_appends
+    save(x)
+  File "/pkg/store/python-0/lib/pickle.py", line 588, in save
+    f(self, obj)  # Call unbound method with explicit self
+  File "/pkg/store/python-0/lib/pickle.py", line 882, in save_bytes
+    self._save_bytes_no_memo(obj)
+  File "/pkg/store/python-0/lib/pickle.py", line 870, in _save_bytes_no_memo
+    self._write_large_bytes(BINBYTES + pack("<I", n), obj)
+  File "/pkg/store/python-0/lib/pickle.py", line 257, in write_large_bytes
+    write(payload)
 MemoryError: out of memory
+when serializing list item 11
 
 ======================================================================
 ERROR: test_optional_frames (__main__.InMemoryPickleTests.test_optional_frames)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/pickletester.py", line 4098, in test_optional_frames
-    some_frames_pickle = remove_frames(pickled, lambda i: i % 2)
+  File "/tmp/test/pickletester.py", line 4094, in test_optional_frames
+    frameless_pickle = remove_frames(pickled)
   File "/tmp/test/pickletester.py", line 4081, in remove_frames
     newpickle += pickled[last_frame_end:]
 MemoryError: out of memory
@@ -58121,7 +58135,7 @@ Traceback (most recent call last):
   File "/pkg/store/python-0/lib/pickle.py", line 257, in write_large_bytes
     write(payload)
 MemoryError: out of memory
-when serializing list item 0
+when serializing list item 11
 
 ======================================================================
 ERROR: test_framing_large_objects (__main__.PyPicklerTests.test_framing_large_objects) (proto=5, fast=False)
@@ -58181,10 +58195,8 @@ ERROR: test_optional_frames (__main__.PyPicklerTests.test_optional_frames)
 Traceback (most recent call last):
   File "/tmp/test/pickletester.py", line 4098, in test_optional_frames
     some_frames_pickle = remove_frames(pickled, lambda i: i % 2)
-  File "/tmp/test/pickletester.py", line 4070, in remove_frames
-    for opcode, _, pos in pickletools.genops(pickled):
-  File "/pkg/store/python-0/lib/pickletools.py", line 2298, in _genops
-    data = io.BytesIO(data)
+  File "/tmp/test/pickletester.py", line 4081, in remove_frames
+    newpickle += pickled[last_frame_end:]
 MemoryError: out of memory
 
 ======================================================================
