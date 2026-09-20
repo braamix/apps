@@ -135,6 +135,13 @@ def run_unittest(*classes):
     return unittest.main()
 
 
+def load_package_tests(pkg_dir, loader, standard_tests, pattern):
+    """A package of tests loads the files beside it. Only test_email's
+    __init__ imports this, and a case here is run on its own, so nothing
+    discovers anything."""
+    return standard_tests
+
+
 def check_syntax_error(testcase, statement, errtext="", lineno=None, offset=None):
     raise unittest.SkipTest("check_syntax_error needs compile()")
 
@@ -260,6 +267,27 @@ def swap_attr(obj, attr, new_val):
         finally:
             if hasattr(obj, attr):
                 delattr(obj, attr)
+
+
+def patch(test_instance, object_to_patch, attr_name, new_value):
+    """obj.attr is new_value for the test, and what it was after it."""
+    getattr(object_to_patch, attr_name)     # AttributeError for a missing one
+    try:
+        old_value = object_to_patch.__dict__[attr_name]
+    except (AttributeError, KeyError):
+        old_value = getattr(object_to_patch, attr_name, None)
+        local = False
+    else:
+        local = True
+
+    def undo():
+        if local:
+            setattr(object_to_patch, attr_name, old_value)
+        else:
+            delattr(object_to_patch, attr_name)
+
+    test_instance.addCleanup(undo)
+    setattr(object_to_patch, attr_name, new_value)
 
 
 @_contextmanager

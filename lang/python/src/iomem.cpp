@@ -906,14 +906,16 @@ R sm_write(const CallArgs &a, Value &out)
     StringIOObj *s = self_sio(a, "write", false);
     if (!s || !meth_args(a, "write", 1, 1))
         return R::Err;
-    if (!is_str(a.args[1])) {
+    // A subclass of str is a str here, so the instance is unwrapped first.
+    Value arg = method_self(a.args[1]);
+    if (!is_str(arg)) {
         Buf<96> m;
         m.put("string argument expected, got '").put(type_name(a.args[1])).put("'");
         return err_set("TypeError", m.str());
     }
     if (s->closed)
         return sio_closed_err();
-    Root text{ a.args[1] };
+    Root text{ arg };
     i64 n = str_of(text.v)->chars;
     if (n && sio_write_str(s, str_of(text.v)->str()) != R::Ok)
         return R::Err;

@@ -111,8 +111,16 @@ Value text_of(Value v, bool want_str)
         return n && type_lookup(inst_of(v)->cls, n, found.v) == R::Ok &&
                !is_object_default(found.v);
     };
-    if (!own(want_str ? "__str__" : "__repr__") && !(want_str && own("__repr__")))
+    // str() falls back to __repr__ only where __str__ is object's, which
+    // answers with the repr. str and bytes write one of their own, so a
+    // subclass of either is shown as its text however it spells __repr__.
+    if (want_str) {
+        Value nat = inst_of(v)->native;
+        if (!own("__str__") && (is_str(nat) || is_bytes(nat) || !own("__repr__")))
+            return Value();
+    } else if (!own("__repr__")) {
         return Value();
+    }
     if (is_inst(found.v)) {
         Value out;
         return special_bind(found.v, v, inst_of(v)->cls, out) == R::Ok ? out : Value();
@@ -460,7 +468,7 @@ R print_line(const Value *args, u32 n, Str sep, Str end, Value file, Value &out)
 // what the answer has to be.
 // WANT_FOUND is hasattr's: True because the call returned at all, whatever
 // it returned. WANT_BOOL is __bool__'s, which is the value's own truth.
-enum : u32 { WANT_ANY, WANT_INT, WANT_STR, WANT_BOOL, WANT_FOUND, WANT_HASH };
+enum : u32 { WANT_ANY, WANT_INT, WANT_STR, WANT_BYTES, WANT_BOOL, WANT_FOUND, WANT_HASH };
 
 R one_step(ContObj *k, Value in)
 {
@@ -489,6 +497,10 @@ R one_step(ContObj *k, Value in)
     case WANT_STR:
         if (!is_str(in))
             return err_set2("TypeError", "a special method returned a non-string", type_name(in));
+        break;
+    case WANT_BYTES:
+        if (!is_bytes(in))
+            return err_set2("TypeError", "__bytes__ returned a non-bytes", type_name(in));
         break;
     case WANT_BOOL:
         in = value_bool(py_truth(in));
@@ -988,12 +1000,20 @@ R b_bytes(const CallArgs &a, Value &out)
 {
     if (a.nkw || a.nargs > 1)
         return encoded(a, "bytes", out);
-    if (a.nargs == 1 && parks(a, 0))
-        return iter_park(a, 0, b_bytes, out);
     if (!a.nargs || is_bytes(a.args[0])) {
         out = a.nargs ? a.args[0] : bytes_new(Str());
         return out.is_nil() ? R::Err : R::Ok;
     }
+    // A class writing __bytes__ answers with it, before the buffer, the
+    // sequence of byte values and the iteration that would drain one: a
+    // message is indexable and would otherwise be read as its own headers.
+    out = one_special(a.args[0], "__bytes__", WANT_BYTES);
+    if (!out.is_nil())
+        return R::Ok;
+    if (err_pending())
+        return R::Err;
+    if (a.nargs == 1 && parks(a, 0))
+        return iter_park(a, 0, b_bytes, out);
     Str octets;
     if (bytes_like(a.args[0], octets)) {
         out = bytes_new(octets);

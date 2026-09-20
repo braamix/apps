@@ -2254,6 +2254,22 @@ Value type_new_attr(Value found, Value owner)
     return obj_value(w);
 }
 
+// The instance the wrapper builds once the built-in's own continuation has
+// answered. `str.__new__(Sub, x)` reaches this where x is shown by a __str__
+// written in Python, which a builtin cannot call itself.
+R newwrap_step(ContObj *k, Value in)
+{
+    Root made{ in };
+    Root self{ inst_new(k->s[0]) };
+    if (self.v.is_nil())
+        return R::Err;
+    made = weak_adopt(made.v, self.v);
+    if (made.v.is_nil())
+        return R::Err;
+    inst_of(self.v)->native = made.v;
+    return cont_done(k, self.v);
+}
+
 R newwrap_call(Value wv, const CallArgs &a, Value &out)
 {
     NewObj *w = static_cast<NewObj *>(wv.obj());
@@ -2285,8 +2301,16 @@ R newwrap_call(Value wv, const CallArgs &a, Value &out)
     Root made;
     if (static_cast<NativeObj *>(ctor.v.obj())->fn(rest, made.v) != R::Ok)
         return R::Err;
-    if (is_cont(made.v))
-        return err_set("TypeError", "__new__ of a built-in cannot wait on Python here");
+    if (is_cont(made.v)) {
+        // The built-in's continuation runs first, then this one wraps it.
+        Root kv{ cont_new(newwrap_step) };
+        if (kv.v.is_nil())
+            return R::Err;
+        cont_of(kv.v)->s[0]   = rc.v;
+        cont_of(made.v)->next = kv.v;
+        out                   = made.v;
+        return R::Ok;
+    }
     Root self{ inst_new(rc.v) };
     if (self.v.is_nil())
         return R::Err;

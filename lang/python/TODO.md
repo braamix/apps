@@ -15,7 +15,17 @@ One item in the list is not planned. It is at the end, with the reason.
 
 **A number is a name, not a position.** A stage or a task that is finished is
 deleted and everything left keeps the number it had, so the list has gaps.
-Stage 4 and tasks 19 to 24 were compression.
+Stage 4 and tasks 19 to 24 were compression; task 25 was `email`.
+
+What `email` could not do is the two things this system has not got.
+**`make_msgid` imports `socket`** at the head of itself, for the host name it
+uses when no `domain` is given, so that one call waits for task 28 whether a
+domain is passed or not. And **the CJK codecs are not written**:
+`encodings` here is the single-byte pages, the UTF forms and the transforms,
+and `euc-jp`, `shift_jis`, `iso-2022-jp`, `gb2312` and `cp949` each stand on a
+C codec — `_codecs_jp` and its four siblings — that nobody has written. Nine
+of `test_email`'s methods and three of `test_contentmanager`'s are that, and
+`test_asian_codecs` is a `fail` row for it. `Manual.md` §10 says both.
 
 What compression could not do is recorded rather than left open. **lzma's high
 presets are what the process can spare**: nothing is refused in advance —
@@ -53,8 +63,10 @@ dictionary — real, and better than none, but with no entropy tables and so no
   objects leaves spans that later multi-megabyte buffers cannot use.
   `test_pickle` gets to 102 MB reserved with 11 MB in use, and its framing
   tests then raise `MemoryError`. Which subtest tips over depends on the pid,
-  so that golden is blessed under the shard `make test` runs it in --
-  `--shard=2/4` today, and it moves whenever a test file is added.
+  so that golden is blessed under the shard `make test` runs it in, and it
+  moves whenever a test file is added. Adding `email`'s fourteen cases moved
+  `test_bz2` from 102 of 103 methods to 80: nothing about bzip2 changed, only
+  what had run in that worker before it.
   `test_tarfile` is the same story and worse: alone it runs 781 methods, and
   in `--shard=4/4`, after twenty-nine cases have been through the same boot,
   its `setUpModule` cannot build a `.tar.xz` at all and the file reports
@@ -93,11 +105,6 @@ dictionary — real, and better than none, but with no entropy tables and so no
   The limit is what the native stack holds; this is the cost of it.
 
 ## Stage 5 — `email` and `xml`
-
-25. **`email`.** The whole package, pure Python. It needs `urllib.parse` and
-    `quopri`, `calendar`, `datetime` and `base64`. `socket` is
-    imported only inside `make_msgid`, so that one function waits for
-    task 28. Test: `test_email/`.
 
 26. **`xml`, without a parser.** `xml.etree.ElementTree` and `ElementPath`,
     `xml.dom.minidom`, `xml.dom.minicompat`, `xml.sax.saxutils`, `handler`

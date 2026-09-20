@@ -8,6 +8,7 @@
 // answering a virtual subclass itself.
 bool abc_install(DictObj *into, Value issubclass);
 
-// Whether the class still has an abstract method, and the name of one. This
-// is what makes instantiating an abstract class an error.
-bool abc_abstract(Value cls, Str &first);
+// Whether the class still has an abstract method, and which: every name
+// quoted and comma-separated in order, with `count` saying how many. This is
+// what makes instantiating an abstract class an error.
+bool abc_abstract(Value cls, String &names, usize &count);

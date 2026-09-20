@@ -56,9 +56,11 @@ Str slice_bytes(const StrObj *s, usize from, usize to)
     return Str(s->bytes() + a, b - a);
 }
 
-// The second operand of a two-string method, checked.
+// The second operand of a two-string method, checked. A subclass of str is a
+// str here as it is in CPython, so the instance is unwrapped first.
 StrObj *other_str(Value v, Str who)
 {
+    v = method_self(v);
     if (!is_str(v)) {
         Buf<96> b;
         b.put(who).put("() argument must be a str");
@@ -959,11 +961,12 @@ R m_join(const CallArgs &a, Value &out)
     String b;
     Vec<Value> &xs = list_of(ri.v)->items;
     for (usize i = 0; i < xs.size(); i++) {
-        if (!is_str(xs[i]))
+        Value x = method_self(xs[i]);
+        if (!is_str(x))
             return err_set2("TypeError", "sequence item: expected str", type_name(xs[i]));
         if (i && !b.append(str_of(sep.v)->str()))
             return oom_err();
-        if (!b.append(str_of(xs[i])->str()))
+        if (!b.append(str_of(x)->str()))
             return oom_err();
     }
     out = made(b);

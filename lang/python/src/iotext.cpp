@@ -2107,12 +2107,14 @@ R tm_write(const CallArgs &a, Value &out)
     TextObj *t = self_text(a, "write");
     if (!t || !meth_args(a, "write", 1, 1))
         return R::Err;
-    if (!is_str(a.args[1])) {
+    // A subclass of str is a str here, so the instance is unwrapped first.
+    Value arg = method_self(a.args[1]);
+    if (!is_str(arg)) {
         Buf<96> m;
         m.put("write() argument must be str, not ").put(type_name(a.args[1]));
         return err_set("TypeError", m.str());
     }
-    return write_now(a.args[0], t, a.args[1], out);
+    return write_now(a.args[0], t, arg, out);
 }
 
 bool size_arg(Value v, i64 &n)

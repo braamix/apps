@@ -1760,11 +1760,21 @@ bool enc_normalize(Str name, bool lower, char *out, usize cap, usize &len)
     return true;
 }
 
+bool enc_has_surrogate(Str name)
+{
+    for (usize i = 0; i + 1 < name.size(); i++)
+        if (u8(name[i]) == 0xed && u8(name[i + 1]) >= 0xa0)
+            return true;
+    return false;
+}
+
 Codec codec_shortcut(Str encoding)
 {
     char buf[11];
     usize n = 0;
-    if (!enc_normalize(encoding, true, buf, sizeof buf, n))
+    // A name normalizes to the codec it names, but one holding a lone
+    // surrogate does not name anything: the registry answers that.
+    if (enc_has_surrogate(encoding) || !enc_normalize(encoding, true, buf, sizeof buf, n))
         return Codec::None;
     Str l(buf, n);
     if (l.starts_with("utf")) {

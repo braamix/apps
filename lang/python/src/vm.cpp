@@ -438,11 +438,16 @@ R type_call(Value cls, const CallArgs &a, Value &out, bool &entered)
     }
 
     // An abstract class is one whose methods are not all there yet.
-    Str missing;
-    if (abc_abstract(rc.v, missing)) {
-        Buf<96> m;
-        m.put("Can't instantiate abstract class ").put(type_obj(rc.v)->slots.name);
-        m.put(" with abstract method ").put(missing);
+    String missing;
+    usize nmissing = 0;
+    if (abc_abstract(rc.v, missing, nmissing)) {
+        String m;
+        if (!m.append("Can't instantiate abstract class ") ||
+            !m.append(type_obj(rc.v)->slots.name) ||
+            !m.append(nmissing == 1 ? " without an implementation for abstract method "
+                                    : " without an implementation for abstract methods ") ||
+            !m.append(missing.str()))
+            return oom();
         return err_set("TypeError", m.str());
     }
 
@@ -1768,7 +1773,9 @@ bool yf_start(FrameObj *f, u32 at, u8 how, Value arg)
         if (how == GR_THROW)
             call = type_special(rs.v, "throw");
         else if (bare)
-            call = type_special(rs.v, "__next__");
+            // next_special and not type_special: a native whose __next__ may
+            // park -- a StringIO, a file -- is stepped through the VM too.
+            call = next_special(rs.v);
         else
             call = type_special(rs.v, "send");
         if (err_pending())

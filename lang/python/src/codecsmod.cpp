@@ -590,6 +590,12 @@ u32 how_of(const ContObj *k)
     return u32(k->s[5].as_int());
 }
 
+// The lookup's own surrogate test: an ASCII name cannot hold one.
+bool name_has_surrogate(Value name)
+{
+    return !(name.obj()->flags & OBJ_ASCII) && enc_has_surrogate(str_of(name)->str());
+}
+
 R lookup_step(ContObj *k, Value in)
 {
     Root kv{ obj_value(k) }, rin{ in };
@@ -603,6 +609,15 @@ R lookup_step(ContObj *k, Value in)
             // What 3.14 hands a search function: _Py_normalize_encoding's
             // form, in lower case.
             Str e = str_of(k->s[1])->str();
+            if (name_has_surrogate(k->s[1])) {
+                CodecCall cc;
+                cc.codec  = Codec::Utf8;
+                cc.encode = true;
+                cc.input  = k->s[1];
+                Root got;
+                if (codec_run(cc, got.v) != R::Ok)
+                    return R::Err;
+            }
             String n;
             usize len = 0;
             for (usize i = 0; i <= e.size(); i++)

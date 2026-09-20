@@ -483,17 +483,39 @@ bool abc_install(DictObj *into, Value issubclass)
     return true;
 }
 
-bool abc_abstract(Value cls, Str &first)
+bool abc_abstract(Value cls, String &names, usize &count)
 {
     StrObj *n = str_intern("__abstractmethods__");
-    Value names;
+    Value got;
     if (!n || !is_type(cls) || type_obj(cls)->dict.is_nil())
         return false;
-    if (dict_get(static_cast<DictObj *>(type_obj(cls)->dict.obj()), obj_value(n), names) != R::Ok)
+    if (dict_get(static_cast<DictObj *>(type_obj(cls)->dict.obj()), obj_value(n), got) != R::Ok)
         return false;
-    if (!is_list(names) || items_of(names).empty())
+    if (!is_list(got) || items_of(got).empty())
         return false;
-    Value one = items_of(names)[0];
-    first     = is_str(one) ? str_of(one)->str() : Str("?");
+    // Byte order, as CPython's message has it. The list is a handful of
+    // names, so the sort is an insertion.
+    auto before = [](Str a, Str b) {
+        usize n = a.size() < b.size() ? a.size() : b.size();
+        for (usize i = 0; i < n; i++)
+            if (a[i] != b[i])
+                return u8(a[i]) < u8(b[i]);
+        return a.size() < b.size();
+    };
+    Vec<Str> sorted;
+    for (Value v : items_of(got)) {
+        Str s   = is_str(v) ? str_of(v)->str() : Str("?");
+        usize i = sorted.size();
+        if (!sorted.push(s))
+            return oom(), false;
+        for (; i && before(s, sorted[i - 1]); i--)
+            sorted[i] = sorted[i - 1];
+        sorted[i] = s;
+    }
+    for (usize i = 0; i < sorted.size(); i++)
+        if ((i && !names.append(", ")) || !names.push('\'') || !names.append(sorted[i]) ||
+            !names.push('\''))
+            return oom(), false;
+    count = sorted.size();
     return true;
 }

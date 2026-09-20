@@ -249,7 +249,7 @@ itertools marshal math posix select sys time unicodedata zlib
 
 ### CPython's own, byte for byte
 
-257 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+286 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
@@ -263,6 +263,7 @@ it was taken from. The ones you reach for:
 | Async | `asyncio`, `concurrent.futures`, `contextvars`, `threading` |
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
 | Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
+| Mail | `email` (the whole package, `mime` included), `quopri`, `base64`, `mimetypes` |
 | Addresses | `urllib.parse`, `ipaddress`, `uuid`, `http.cookies` |
 | Crypto | `hashlib`, `hmac`, `secrets` |
 | Compression | `zlib`, `gzip`, `bz2`, `lzma`, `compression` (`zlib`, `gzip`, `bz2`, `lzma`, `zstd`), `zipfile`, `tarfile` |
@@ -442,7 +443,9 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   §7 says what `subprocess` does instead.
 - **Sockets and everything over them**: `socket`, `ssl`, `urllib`, `http`
   (but `http.cookies`),
-  `ftplib`, `smtplib`, `socketserver`, `xmlrpc`.
+  `ftplib`, `smtplib`, `socketserver`, `xmlrpc`. `email` is here and whole,
+  but `email.utils.make_msgid` imports `socket` at the head of itself, for the
+  host name it uses when no `domain` is given, and so raises either way.
 - **`ctypes`, `mmap`, `dlopen`, C extension modules.** There is no stable ABI
   to offer and nothing to load. Anything CPython writes in C is either
   written in C++ here or taken from the pure-Python version beside it.
@@ -454,7 +457,12 @@ There is no `~~~^^^` anchor line under the failing expression, and no
 
 ### Because they are not written yet
 
-- **`email`, `xml`, `symtable`**, and of `urllib` only `parse`.
+- **`xml`, `symtable`**, and of `urllib` only `parse`.
+- **The CJK codecs.** `encodings` is 89 files here — the single-byte pages,
+  the UTF forms and the transforms — and the multi-byte ones are not among
+  them: `euc-jp`, `shift_jis`, `iso-2022-jp`, `gb2312`, `big5`, `cp949` and
+  their kin each stand on a C codec that is not written. So
+  `email.charset.Charset('euc-jp')` raises rather than converting.
 - **`pdb`, `doctest`, `trace`, `cProfile`, `tracemalloc`** — and
   `sys.settrace` and `sys.setprofile`, which they need. So `breakpoint()`
   finds no `pdb` and says so with a `RuntimeWarning`, as CPython does when

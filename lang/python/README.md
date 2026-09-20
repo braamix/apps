@@ -5,7 +5,7 @@ lines that touch the OS replaced; this one is a Python implementation written
 from nothing — its own lexer, parser, compiler, bytecode and virtual machine,
 122k lines of C++ in [src/](src/).
 
-The other half is borrowed whole: **CPython's standard library**, 257 files
+The other half is borrowed whole: **CPython's standard library**, 286 files
 byte for byte as [lib/](lib/), over a floor of native modules written here. A
 Python that runs CPython's own library is a real Python, and writing that
 library again would be both enormous and worse.
@@ -229,6 +229,9 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
   and one you name is reported. `zipfile.ZIP_LZMA` names an 8 MiB dictionary
   and so cannot be used. zstd's dictionaries are content-only, `zdict.h`'s
   trainer not being in the library, so `dict_id` is 0.
+- `email` is the whole package and pure Python, so the only two things it
+  cannot do are the two this system has not got: `make_msgid` imports `socket`
+  for the host name, and a CJK charset has no codec.
 - A coroutine never awaited is reported when the collector finds it.
 - `json` is the pure-Python one, so a malformed document is reported in
   `json.decoder`'s words.

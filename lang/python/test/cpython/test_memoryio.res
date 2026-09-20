@@ -1,4 +1,4 @@
-.....Essss...F.FF........s.EEE..E...Fs..E..EEEF.EE....................................EEE...F...E..E...........F..F.......s.....E.........EEE.EE................................................
+.....Essss...F.FF........s.EEE..E...Fs..E..EEEF.EE....................................EEE...F...E..............F..F.......s.....E.........EEE.EE................................................
 ======================================================================
 ERROR: test_bytes_array (__main__.CBytesIOTest.test_bytes_array)
 ----------------------------------------------------------------------
@@ -142,14 +142,6 @@ Traceback (most recent call last):
   File "/pkg/store/python-0/lib/unittest/case.py", line 245, in handle
     callable_obj(*args, **kwargs)
 TypeError: an integer is required: IntLike
-
-======================================================================
-ERROR: test_write_str_subclass (__main__.CStringIOTest.test_write_str_subclass)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_memoryio.py", line 1128, in test_write_str_subclass
-    memio.write(s)
-TypeError: string argument expected, got 'MyStr'
 
 ======================================================================
 ERROR: test_readinto (__main__.PyBytesIOTest.test_readinto)
@@ -300,4 +292,4 @@ AssertionError: BufferError not raised by write
 ----------------------------------------------------------------------
 Ran 192 tests in Ns
 
-FAILED (failures=8, errors=22, skipped=7)
+FAILED (failures=8, errors=21, skipped=7)

@@ -199,7 +199,8 @@ const CHURN = "def churn():\n" +
         "print(sorted(Drawable.__abstractmethods__), Square.__abstractmethods__)\n");
     check("an abstract class cannot be instantiated", r.out + r.err,
           "square\n" +
-          "TypeError: Can't instantiate abstract class Drawable with abstract method draw\n" +
+          "TypeError: Can't instantiate abstract class Drawable without an implementation " +
+          "for abstract method 'draw'\n" +
           "['draw'] []\n");
 }
 

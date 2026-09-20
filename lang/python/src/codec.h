@@ -66,6 +66,12 @@ R codec_run(const CodecCall &c, Value &out);
 // dots become one '_', and the ends lose theirs. False when it would not fit.
 bool enc_normalize(Str name, bool lower, char *out, usize cap, usize &len);
 
+// A lone surrogate in a codec name, in the WTF-8 form one is held in.
+// CPython encodes the name to UTF-8 before it looks anything up, so such a
+// name is a UnicodeEncodeError rather than a miss -- and normalizing it away
+// would find `utf-8` for `utf-8\udce2`.
+bool enc_has_surrogate(Str name);
+
 // The encodings str.encode and bytes.decode answer without the registry:
 // utf-8, utf-16, utf-32, ascii and latin-1, however they are spelled.
 Codec codec_shortcut(Str encoding);
