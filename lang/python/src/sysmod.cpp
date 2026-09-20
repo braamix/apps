@@ -1110,7 +1110,7 @@ bool sys_install(DictObj *into)
         !mod_str(d, "executable", "") || !mod_str(d, "prefix", "/pkg") ||
         !mod_str(d, "exec_prefix", "/pkg") || !mod_str(d, "base_prefix", "/pkg") ||
         !mod_str(d, "base_exec_prefix", "/pkg") || !mod_str(d, "platlibdir", "lib") ||
-        !mod_str(d, "float_repr_style", "short") || !mod_put(d, "pycache_prefix", value_none()))
+        !mod_str(d, "abiflags", "") || !mod_str(d, "float_repr_style", "short") || !mod_put(d, "pycache_prefix", value_none()))
         return false;
     if (!mod_int(d, "maxsize", 2147483647) || !mod_int(d, "maxunicode", 1114111) ||
         !mod_int(d, "hexversion", 0x030E00F0))

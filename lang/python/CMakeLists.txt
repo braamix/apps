@@ -36,10 +36,10 @@ braam_add_program(NAME python
                           src/list.cpp src/mapmeth.cpp src/marshalmod.cpp src/mathmod.cpp
                           src/method.cpp src/miscmod.cpp src/module.cpp src/monitormod.cpp src/nummeth.cpp src/obj.cpp
                           src/objmeth.cpp src/opmod.cpp src/ops.cpp src/parse.cpp src/patma.cpp
-                          src/picklemod.cpp src/posixmod.cpp src/reduce.cpp src/selectmod.cpp src/socketmod.cpp src/randmod.cpp src/range.cpp src/repr.cpp
+                          src/picklemod.cpp src/posixmod.cpp src/reduce.cpp src/selectmod.cpp src/socketmod.cpp src/sysconfigmod.cpp src/randmod.cpp src/range.cpp src/repr.cpp
                           src/selftest.cpp src/sentinel.cpp src/seqmeth.cpp src/signalmod.cpp
                           src/slotmeth.cpp src/sre.cpp src/sremod.cpp src/str.cpp src/stringmod.cpp
-                          src/strmeth.cpp src/structmod.cpp src/symtab.cpp src/sysmod.cpp
+                          src/strmeth.cpp src/structmod.cpp src/symtab.cpp src/symtablemod.cpp src/sysmod.cpp
                           src/table.cpp src/templatelib.cpp src/thread.cpp src/timemod.cpp
                           src/tokenizemod.cpp src/traceback.cpp src/tuple.cpp src/type.cpp
                           src/typesmod.cpp src/typevar.cpp src/ucd.cpp src/ucddb.cpp src/unimod.cpp

@@ -116,7 +116,7 @@ pass  test_print.py                   3/9        82952e3  Lib/test/test_print.py
 pass  test_property.py                12/31      82952e3  Lib/test/test_property.py
 pass  test_protocols.py               7/7        82952e3  Lib/test/test_asyncio/test_protocols.py
 pass  test_pulldom.py                 11/11      82952e3  Lib/test/test_pulldom.py
-fail  test_pyexpat.py                 import     82952e3  Lib/test/test_pyexpat.py
+pass  test_pyexpat.py                 57/86      82952e3  Lib/test/test_pyexpat.py
 pass  test_queues.py                  59/59      82952e3  Lib/test/test_asyncio/test_queues.py
 pass  test_quopri.py                  11/11      82952e3  Lib/test/test_quopri.py
 pass  test_raise.py                   28/37      82952e3  Lib/test/test_raise.py
@@ -139,6 +139,7 @@ pass  test_strtod.py                  9/9        82952e3  Lib/test/test_strtod.p
 pass  test_subclassinit.py            14/17      82952e3  Lib/test/test_subclassinit.py
 fail  test_subprocess.py              import     82952e3  Lib/test/test_subprocess.py
 pass  test_super.py                   34/40      82952e3  Lib/test/test_super.py
+pass  test_symtable.py                30/45      82952e3  Lib/test/test_symtable.py
 pass  test_syntax.py                  64/109     82952e3  Lib/test/test_syntax.py
 pass  test_sys_setprofile.py          27/29      82952e3  Lib/test/test_sys_setprofile.py
 pass  test_sys_settrace.py            192/448    82952e3  Lib/test/test_sys_settrace.py
@@ -147,6 +148,7 @@ fail  test_tempfile.py                crash      82952e3  Lib/test/test_tempfile
 pass  test_textwrap.py                68/68      82952e3  Lib/test/test_textwrap.py
 fail  test_time.py                    import     82952e3  Lib/test/test_time.py
 pass  test_timeit.py                  44/44      82952e3  Lib/test/test_timeit.py
+pass  test_trace.py                   13/28      82952e3  Lib/test/test_trace.py
 fail  test_traceback.py               import     82952e3  Lib/test/test_traceback.py
 pass  test_transports.py              9/9        82952e3  Lib/test/test_asyncio/test_transports.py
 fail  test_tstring.py                 import     82952e3  Lib/test/test_tstring.py

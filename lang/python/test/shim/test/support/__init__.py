@@ -18,6 +18,10 @@ is_apple_mobile = False
 is_s390x = False
 is_wasm32 = True
 
+# Nothing here is built twice, so there is no profile-guided pass to guard on.
+PGO = False
+PGO_EXTENDED = False
+
 # One Web Worker: no fork and no second thread, but subprocess spawns.
 has_fork_support = False
 has_subprocess_support = True
@@ -188,6 +192,15 @@ def run_yielding_async_fn(async_fn, /, *args, **kwargs):
                 return e.value
     finally:
         coro.close()
+
+
+# Upstream's, byte for byte.
+def sortdict(dict):
+    "Like repr(dict), but in sorted order."
+    items = sorted(dict.items())
+    reprpairs = ["%r: %r" % pair for pair in items]
+    withcommas = ", ".join(reprpairs)
+    return "{%s}" % withcommas
 
 
 def impl_detail(msg=None, **guards):

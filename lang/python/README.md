@@ -8,7 +8,7 @@ from nothing — its own lexer, parser, compiler, bytecode and virtual machine,
 `pyexpat`'s callers check is expat's own error codes, messages and positions,
 and only expat's own code produces those.
 
-The other half is borrowed whole: **CPython's standard library**, 313 files
+The other half is borrowed whole: **CPython's standard library**, 322 files
 byte for byte as [lib/](lib/), over a floor of native modules written here. A
 Python that runs CPython's own library is a real Python, and writing that
 library again would be both enormous and worse.
@@ -306,7 +306,7 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 | [method.cpp](src/method.cpp), [strmeth.cpp](src/strmeth.cpp) … [slotmeth.cpp](src/slotmeth.cpp) | A static table becomes a built-in type's namespace; one file per family of methods |
 | [format.cpp](src/format.cpp), [formatgr.cpp](src/formatgr.cpp), [repr.cpp](src/repr.cpp) | The format-spec mini-language, `%` and `str.format`, and repr for every type |
 | [lex.cpp](src/lex.cpp), [parse.cpp](src/parse.cpp), [symtab.cpp](src/symtab.cpp), [compile.cpp](src/compile.cpp), [code.cpp](src/code.cpp) | Source to bytecode: the tokenizer, the grammar into an index arena, the scopes, the compiler, the code object |
-| [astmod.cpp](src/astmod.cpp), [astpos.cpp](src/astpos.cpp), [astdump.cpp](src/astdump.cpp), [dis.cpp](src/dis.cpp) | `_ast` and the exact positions CPython reports, and the `--dump-ast` and `--dis` listings |
+| [astmod.cpp](src/astmod.cpp), [astpos.cpp](src/astpos.cpp), [astdump.cpp](src/astdump.cpp), [dis.cpp](src/dis.cpp), [symtablemod.cpp](src/symtablemod.cpp) | `_ast` and the exact positions CPython reports, the `--dump-ast` and `--dis` listings, and `_symtable` over the scope pass |
 | [vm.cpp](src/vm.cpp), [frame.cpp](src/frame.cpp), [call.cpp](src/call.cpp), [gen.cpp](src/gen.cpp) | The dispatch loop, the frame, argument binding, the continuation a suspending builtin parks in, generators and coroutines |
 | [attr.cpp](src/attr.cpp), [func.cpp](src/func.cpp), [abc.cpp](src/abc.cpp), [patma.cpp](src/patma.cpp), [compare.cpp](src/compare.cpp) | Attribute lookup, functions and classes, abstract bases, `match`, and comparisons that call Python |
 | [annot.cpp](src/annot.cpp), [lazy.cpp](src/lazy.cpp), [typevar.cpp](src/typevar.cpp), [union.cpp](src/union.cpp), [genalias.cpp](src/genalias.cpp) | PEP 649 lazy annotations, PEP 810 lazy imports, and the typing machinery |

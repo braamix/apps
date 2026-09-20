@@ -109,6 +109,11 @@ constexpr Native NATIVES[] = {
     { "_posixsubprocess", posixsubprocess_install },
     { "select", select_install },
     { "_socket", socket_install },
+    { "_symtable", symtable_install },
+    { "_sysconfig", sysconfig_install },
+    // The name sysconfig.py derives from sys.abiflags, sys.platform and
+    // sys.implementation._multiarch; CPython generates a file of it.
+    { "_sysconfigdata__braam_wasm32-braam", sysconfigdata_install },
     { "_pickle", pickle_install },
     { "_io", io_install },
     { "_csv", csv_install },

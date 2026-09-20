@@ -17,7 +17,8 @@ One item in the list is not planned. It is at the end, with the reason.
 deleted and everything left keeps the number it had, so the list has gaps.
 Stage 4 and tasks 19 to 24 were compression; Stage 5 and tasks 25 to 27 were
 `email`, `xml` and `pyexpat`; tasks 28 to 31 were the `_socket` floor,
-`sys.monitoring`'s namespace, `bdb`/`pdb`/`doctest` and `sys.settrace`.
+`sys.monitoring`'s namespace, `bdb`/`pdb`/`doctest` and `sys.settrace`; task
+33 was `sysconfig` and `trace`, and task 36 was `symtable`.
 
 What `email` still cannot do is the one thing this system has not got: **the
 CJK codecs are not written**. `encodings` here is the single-byte pages, the
@@ -148,6 +149,17 @@ dictionary — real, and better than none, but with no entropy tables and so no
   so the same document can give `('hi', ' there')` here and `('hi there',)` in
   CPython. Every handler that matters concatenates, `buffer_text` hides it
   altogether, and it is what a driver costs.
+- **`sysconfig`'s scheme paths are CPython's scheme, not this library's.**
+  `get_path('stdlib')` expands to `/pkg/lib/python3.14`, because the template
+  is `{installed_base}/{platlibdir}/python{py_version_short}` and the
+  package's own library is one component shorter, at `<store>/lib`.
+  `sys._stdlib_dir` is where it really is. `pydoc` and `trace` use the first
+  to decide what is library code, so neither recognises one here.
+- **`_symtable` has no `DEF_IMPORT`.** An import binds the way an assignment
+  does in `symtab.cpp` and nothing records which it was, so
+  `Symbol.is_imported()` answers False; `DEF_BOUND` is satisfied by
+  `DEF_LOCAL` either way. `_symtable.symtable` also takes only source, not
+  an AST object, which is eight of `test_symtable`'s methods.
 - **Deep structures and the recursion limit.** `pickle.py` spends four
   frames on each level of a list, so a structure nested past about fifty
   levels raises `RecursionError`, where CPython's limit of 1000 takes 250.
@@ -167,7 +179,10 @@ dictionary — real, and better than none, but with no entropy tables and so no
 
 ## Stage 6 — debugging and profiling
 
-**Tasks 28 to 31 are done.** `sys.settrace` and `sys.setprofile` are the VM's:
+**Tasks 28 to 31, 33 and 36 are done.** `test_subprocess` imports now that
+`sysconfig` does, but it spawns so many children that the harness does not
+finish it; its row still says `import`, and what it is really waiting for is
+a run that ends. `sys.settrace` and `sys.setprofile` are the VM's:
 a tracer is a pushed frame like any other call, and what unwinding owes is
 queued and fired at the next instruction boundary, because `dispatch` is plain
 C++ and cannot call Python. Every code object now begins with a `Nop`, which is
@@ -182,14 +197,6 @@ it. `pass` costs a `Nop` too, so a debugger can stop on it.
     events and `DISABLE`. Test: `test_monitoring`, as far as its
     CPython-specific parts allow.
 
-33. **`sysconfig`, `trace`.** `trace` imports `sysconfig` at the top.
-    `sysconfig` needs a small `_sysconfig` floor (`config_vars`) and the
-    scheme paths that point into the library directory. Tests: `test_trace`,
-    and `test_pyexpat`, which imports `sysconfig` at its own top for one
-    method that looks for CPython's build directory and is a `fail import`
-    row until it can. `test/stdlib/xmls.py` is what tests `pyexpat` until
-    then.
-
 34. **`profile`, `pstats`, `cProfile`.** `profile` runs on `setprofile`.
     `cProfile` is `profiling.tracing`, which stands on `_lsprof`: write
     `_lsprof` natively on the task 31 event points, with no Python calls per
@@ -203,12 +210,6 @@ it. `pass` costs a `Nop` too, so a debugger can stop on it.
     It reads its commands from stdin, through the key ring when stdin is the
     console. `breakpoint()` now starts it. Leave `f_lineno` jumps
     until there is a reason. Tests: `test_pdb`, `test_bdb`.
-
-36. **`symtable`.** A native `_symtable` that exposes what `symtab.cpp`
-    already computes: one table per scope, with id, name, type, lineno,
-    children and a symbol-to-flags dict. The flags use CPython's `DEF_*`
-    bits and scope values, so that `symtable.py` can be shipped byte for
-    byte. Test: `test_symtable`.
 
 37. **`pydoc`, `help()`.** `pydoc` needs `sysconfig` (task 33), `pkgutil`,
     `platform` and `inspect`, which are here. It falls back to its plain

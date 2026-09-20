@@ -240,6 +240,7 @@ warning categories.
 _abc _ast _blake2 _codecs _collections _colorize _contextvars _csv
 _functools _imp _io _math_integer _md5 _operator _pickle
 _posixsubprocess _random _sha1 _sha2 _sha3 _signal _socket _sre _string
+_symtable _sysconfig
 _bz2 _lzma _zstd _struct _thread _tokenize _types _typing _warnings
 _weakref array atexit binascii builtins cmath dis errno faulthandler gc
 itertools marshal math posix pyexpat select sys time unicodedata zlib
@@ -249,7 +250,7 @@ itertools marshal math posix pyexpat select sys time unicodedata zlib
 
 ### CPython's own, byte for byte
 
-313 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+322 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
@@ -261,8 +262,8 @@ it was taken from. The ones you reach for:
 | Time | `datetime`, `calendar`, `time`, `locale`, `gettext`, `sched`, `timeit` |
 | Functions | `functools`, `itertools`, `operator`, `contextlib`, `abc` |
 | Async | `asyncio`, `concurrent.futures`, `contextvars`, `threading` |
-| Types | `typing`, `annotationlib`, `inspect`, `ast`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
-| Tools | `argparse`, `logging`, `unittest`, `doctest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
+| Types | `typing`, `annotationlib`, `inspect`, `ast`, `symtable`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
+| Tools | `argparse`, `logging`, `unittest`, `doctest`, `trace`, `sysconfig`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
 | Mail | `email` (the whole package, `mime` included), `quopri`, `base64`, `mimetypes` |
 | XML | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.dom.pulldom`, `xml.sax`, `pyexpat` — reading, building, searching and writing |
 | Addresses | `urllib.parse`, `urllib.request` (which cannot connect), `ipaddress`, `uuid`, `socket`, `http.client`, `http.cookies` |
@@ -461,14 +462,13 @@ There is no `~~~^^^` anchor line under the failing expression, and no
 
 ### Because they are not written yet
 
-- **`symtable`**.
 - **The CJK codecs.** `encodings` is 89 files here — the single-byte pages,
   the UTF forms and the transforms — and the multi-byte ones are not among
   them: `euc-jp`, `shift_jis`, `iso-2022-jp`, `gb2312`, `big5`, `cp949` and
   their kin each stand on a C codec that is not written. So
   `email.charset.Charset('euc-jp')` raises rather than converting.
-- **`trace`, `profile`, `cProfile`, `tracemalloc`**. `sys.settrace` and
-  `sys.setprofile` are here and `pdb` imports, but the debugger itself waits:
+- **`profile`, `cProfile`, `tracemalloc`**. `sys.settrace`, `sys.setprofile`
+  and `trace` are here and `pdb` imports, but the debugger itself waits:
   `breakpoint()` still finds no working `pdb`.
 - **`pydoc`**, so `help()` fails when it is called.
 - **`.pyc` files.** `sys.dont_write_bytecode` is true and nothing writes a

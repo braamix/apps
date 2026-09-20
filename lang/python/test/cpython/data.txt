@@ -13,6 +13,8 @@ tokenizedata/__init__.py          82952e3  Lib/test/tokenizedata/__init__.py
 tokenizedata/badsyntax_3131.py    82952e3  Lib/test/tokenizedata/badsyntax_3131.py
 tokenizedata/badsyntax_pep3120.py 82952e3  Lib/test/tokenizedata/badsyntax_pep3120.py
 testcodec.py                      82952e3  Lib/test/testcodec.py
+tracedmodules/__init__.py         82952e3  Lib/test/tracedmodules/__init__.py
+tracedmodules/testmod.py          82952e3  Lib/test/tracedmodules/testmod.py
 re_tests.py                       82952e3  Lib/test/re_tests.py
 support/testcase.py               82952e3  Lib/test/support/testcase.py
 support/hypothesis_helper.py      82952e3  Lib/test/support/hypothesis_helper.py

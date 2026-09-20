@@ -268,6 +268,9 @@ string/__init__.py                  _string           82952e3  Lib/string/__init
 string/templatelib.py               -                 82952e3  Lib/string/templatelib.py
 struct.py                           _struct           82952e3  Lib/struct.py
 subprocess.py                       _posixsubprocess  82952e3  Lib/subprocess.py
+symtable.py                         _symtable         82952e3  Lib/symtable.py
+sysconfig/__init__.py               _sysconfig        82952e3  Lib/sysconfig/__init__.py
+sysconfig/__main__.py               _sysconfig        82952e3  Lib/sysconfig/__main__.py
 tarfile.py                          -                 82952e3  Lib/tarfile.py
 tempfile.py                         -                 82952e3  Lib/tempfile.py
 textwrap.py                         -                 82952e3  Lib/textwrap.py
@@ -279,6 +282,7 @@ tomllib/__init__.py                 -                 82952e3  Lib/tomllib/__ini
 tomllib/_parser.py                  -                 82952e3  Lib/tomllib/_parser.py
 tomllib/_re.py                      -                 82952e3  Lib/tomllib/_re.py
 tomllib/_types.py                   -                 82952e3  Lib/tomllib/_types.py
+trace.py                            -                 82952e3  Lib/trace.py
 traceback.py                        -                 82952e3  Lib/traceback.py
 types.py                            _types            82952e3  Lib/types.py
 typing.py                           _typing           82952e3  Lib/typing.py
