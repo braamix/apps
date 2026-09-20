@@ -123,15 +123,90 @@ dictionary — real, and better than none, but with no entropy tables and so no
 
 ## Stage 5 — `email` and `xml`
 
-27. **`pyexpat`.** A native module with the surface that `ElementTree`,
-    `expatbuilder` and `expatreader` use: `ParserCreate`, the handler
-    attributes, `Parse` and `ParseFile`, `buffer_text`, `ordered_attributes`,
-    `ExpatError` with `lineno` and `offset`, and `errors` and `model`.
-    Recommendation: build libexpat's C as a separate `PORT` library rather
-    than write a new parser. The tests check expat's own error messages and
-    positions, and only expat produces those. It brings four more files of
-    `lib/` with it, all of which import expat at their top and so are not
-    shipped yet: `xml/parsers/__init__.py` and `expat.py`,
+27. **`pyexpat`, over an expat rewritten in C++.** The largest thing left in
+    this file, and the one place `lang/python` goes back to being an ordinary
+    port: the interpreter under `lib/` keeps only what can be observed, but
+    *this* keeps upstream's identifiers and structure, because what the tests
+    check is expat's own error codes, messages and positions and only expat's
+    own code produces those.
+
+    **The upstream is FreeBSD's `contrib/expat`** — libexpat 2.6.4, 16,310
+    lines under `lib/`, at FreeBSD commit `908f215e80fa`. Three units
+    compile: `xmlparse.c` (8,571 lines), `xmltok.c` (1,672) and `xmlrole.c`
+    (1,255); `xmltok_impl.c` and `xmltok_ns.c` are not units at all but
+    bodies `#include`d several times under different macros, once per
+    encoding and once per namespace mode. Record the version and the commit
+    the way `lib/manifest.txt` records a module's.
+
+    **It is a rewrite, not a `PORT` library.** Building the C was the other
+    way and was measured first: the port kit answers everything expat asks
+    for except three things — there is no `assert.h`; `fprintf` is Group B
+    and expat reaches it from the billion-laughs accounting, which is
+    compiled whenever `XML_GE` is 1 and `XML_DTD` needs it to be; and the
+    hash salt wants `arc4random`, `getrandom` or `/dev/urandom` or expat
+    refuses to build. None of those is hard — a three-line header, a private
+    `stdio.h` whose `fprintf` discards, and `arc4random()` over
+    `proc_random()` — but all three are scaffolding around code nobody here
+    can read, and the binary would carry the debug accounting's formatting
+    for paths only an environment variable reaches. Rewriting is the same
+    decision the rest of this tree makes, and it is what lets the driver
+    below be the ordinary path rather than a trick played on a library.
+
+    What the rewrite has to become, on this system's terms: `malloc`,
+    `realloc` and `free` — which expat already takes as a
+    `XML_Memory_Handling_Suite` — become `heap_new`/`heap_delete` over
+    `kernel/alloc.h`; `<string.h>` becomes `kernel/string.h`'s, since this
+    target has no port kit and will not grow one; `assert` goes; the
+    accounting keeps its *limits* and loses its *reporting*, so the
+    amplification and activation thresholds still stop a billion laughs and
+    nothing formats a float to stderr; the entropy is `proc_random()`; and
+    the two `#include`d bodies become templates over the encoding, which is
+    what they were always imitating. Watch the rules that are a link error
+    here rather than a warning: no `new`, no namespace-scope global with a
+    destructor, and no 128-bit arithmetic — `XmlBigCount` is 64-bit and wasm
+    divides that natively, so it is already fine.
+
+    **The handler problem is why the rewrite pays.** Expat calls
+    `StartElementHandler` and its two dozen siblings from deep inside the
+    parse, and a native here may not call Python at all — the rule a `Type`
+    slot lives by. Upstream already has the answer in
+    `XML_StopParser(parser, XML_TRUE)` and `XML_ResumeParser`, which suspend
+    and continue from exactly where they stopped; owning the code means that
+    stops being an escape hatch and becomes the shape of the thing. The
+    parser is a driver in `emulators/simbesm`'s sense: it runs plain C++
+    until it has an event for its caller, the VM dispatches that one event to
+    the Python handler through a `ContObj`, and then it resumes.
+
+    It has to be suspend-and-resume and not a recorded queue of events, for
+    two reasons found in the library that will use it:
+    `xml/dom/expatbuilder.py` reassigns `StartElementHandler` *during* a
+    parse, and `xml/sax/expatreader.py` reads `ErrorLineNumber` from inside a
+    handler — so the parser must really be standing where the event happened.
+    Two cases need care either way: `ExternalEntityRefHandler`, whose return
+    value steers the parse, and `XML_ERROR_SUSPEND_PE`, which is upstream
+    refusing to suspend inside an external parameter entity.
+
+    **The module on top** is `src/pyexpatmod.cpp`, with the surface
+    `ElementTree`, `expatbuilder` and `expatreader` use: `ParserCreate`, the
+    twenty-five handler attributes, `Parse` and `ParseFile`,
+    `ExternalEntityParserCreate`, `SetBase`, `SetParamEntityParsing`,
+    `GetInputContext`, `SetReparseDeferralEnabled` and its getter,
+    `buffer_text`, `ordered_attributes`, `ErrorLineNumber` and
+    `ErrorColumnNumber`, `ExpatError` with `lineno`, `offset` and `code`, and
+    the `errors` and `model` submodules. CPython's `Modules/pyexpat.c` is the
+    shape to answer, not to copy.
+
+    **Reproduce exactly**, because the tests read them: the 56 `XML_ERROR_*`
+    codes and the text `XML_ErrorString` gives each, the line and column of a
+    failure (line from 1, column from 0), `XML_GetCurrentByteIndex`, the
+    tuples `ElementDeclHandler` is handed, and `XML_ExpatVersion`.
+
+    **The order to write it**, each layer checkable before the next: the
+    encoding scanners and their tables (`xmltok`), then the prolog and DTD
+    state machine (`xmlrole`), then the parser with entities, namespaces and
+    the accounting limits (`xmlparse`), then the module. Four files of `lib/`
+    ship when it lands, all of them held back today for importing expat at
+    their top: `xml/parsers/__init__.py` and `expat.py`,
     `xml/dom/expatbuilder.py` and `xml/sax/expatreader.py`. Tests:
     `test_pyexpat`, `test_xml_etree`, `test_minidom`, `test_sax` -- the last
     of which also wants task 28, for `saxutils`.
