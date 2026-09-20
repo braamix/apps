@@ -1254,6 +1254,8 @@ i32 errno_of(Error e)
         return 40;
     case Error::Intr:
         return 4;
+    case Error::Busy:
+        return 16;
     }
     return 5;
 }

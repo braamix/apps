@@ -3,8 +3,8 @@
 
 # The SDK this tree builds against. Move it with each Braam release, here and
 # in README.md. A binary stamped for another process ABI is refused at exec.
-SDK_RELEASE := v0.9
-SDK_VERSION := 0.9.265-9648be4
+SDK_RELEASE := v0.10
+SDK_VERSION := 0.10.280-d0e8844
 SDK_URL := https://github.com/braamix/core/releases/download/$(SDK_RELEASE)/braam-sdk-$(SDK_VERSION).zip
 
 BUILD     ?= build
@@ -190,7 +190,8 @@ TEST_DIR  := $(BUILD)/test
 # stays readable with $(TEST_JOBS) of them running; $(TEST_LOG) is those logs
 # concatenated in the order of $(TESTS), whatever order they finished in. The
 # whole list runs and the failures are named at the end, rather than the run
-# stopping at the first.
+# stopping at the first. The verdict is teed into $(TEST_LOG) as well, so the
+# log says how the run ended and nothing has to be run twice to find out.
 test: all
 	@test -f $(HARNESS)/test/system/harness.mjs || \
 	    { echo "$(SDK) has no test harness"; exit 1; }
@@ -204,8 +205,9 @@ test: all
 	    < $(TEST_DIR)/list
 	@cat $(TEST_DIR)/*.log > $(TEST_LOG)
 	@! test -s $(TEST_DIR)/failed || \
-	    { echo "failed: `tr '\n' ' ' < $(TEST_DIR)/failed`"; exit 1; }
-	@echo "$(TEST_LOG): `wc -l < $(TEST_LOG) | tr -d ' '` lines"
+	    { echo "failed: `tr '\n' ' ' < $(TEST_DIR)/failed`" | tee -a $(TEST_LOG); \
+	      exit 1; }
+	@echo "passed: `wc -l < $(TEST_DIR)/list | tr -d ' '` tests" | tee -a $(TEST_LOG)
 
 # The repository to upload: the signed index and the zips it vouches for, in
 # one directory, because a package's URL is derived from the index's own N.

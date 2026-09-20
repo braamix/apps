@@ -616,10 +616,13 @@ second way costs nothing. The list is the `TESTS` variable at the head of the
 `TEST_JOBS` of them run at a time, each into a log of its own which is printed
 when it finishes; `test.log` is those logs in the order of `TESTS`, whatever
 order they finished in. The whole list runs and the failures are named at the
-end, rather than the run stopping at the first. An entry is one word, so a test
-that takes arguments writes them after a comma — `pycases.mjs,--shard=1/4` —
-which is how the two longest lists are cut into four tests each, since one long
-test otherwise sets the length of the whole run.
+end, rather than the run stopping at the first, and that last line — `passed:
+<n> tests` or `failed: <names>` — is teed into `test.log` too, so the log says
+how the run ended and nothing has to be run twice to find out. An entry is one
+word, so a test that takes arguments writes them after a comma —
+`pycases.mjs,--shard=1/4` — which is how the two longest lists are cut into
+four tests each, since one long test otherwise sets the length of the whole
+run.
 
 **`make test STRESS=1` adds the pass that is too slow to always run**: Python's
 cases a second time under a collector that collects at every allocation, which
