@@ -16,6 +16,7 @@ is_android = False
 is_apple = False
 is_apple_mobile = False
 is_s390x = False
+is_wasm32 = True
 
 # One Web Worker: no fork and no second thread, but subprocess spawns.
 has_fork_support = False
@@ -152,6 +153,15 @@ def check_impl_detail(**guards):
 
 def cpython_only(test):
     return unittest.skip("implementation detail of CPython")(test)
+
+
+# There is one user and it owns everything, so neither guard can be satisfied.
+def requires_root_user(test):
+    return unittest.skip("no root user")(test)
+
+
+def requires_non_root_user(test):
+    return unittest.skip("no user ids")(test)
 
 
 def impl_detail(msg=None, **guards):

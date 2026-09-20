@@ -193,6 +193,8 @@ html/__init__.py                    -                 82952e3  Lib/html/__init__
 html/entities.py                    -                 82952e3  Lib/html/entities.py
 html/parser.py                      -                 82952e3  Lib/html/parser.py
 http/__init__.py                    -                 82952e3  Lib/http/__init__.py
+http/client.py                      _socket           82952e3  Lib/http/client.py
+http/cookiejar.py                   _socket           82952e3  Lib/http/cookiejar.py
 http/cookies.py                     -                 82952e3  Lib/http/cookies.py
 importlib/__init__.py               _imp              82952e3  Lib/importlib/__init__.py
 importlib/_abc.py                   _imp              82952e3  Lib/importlib/_abc.py
@@ -255,6 +257,7 @@ shlex.py                            -                 82952e3  Lib/shlex.py
 shutil.py                           -                 82952e3  Lib/shutil.py
 signal.py                           _signal           82952e3  Lib/signal.py
 site.py                             posix             82952e3  Lib/site.py
+socket.py                           _socket           82952e3  Lib/socket.py
 stat.py                             -                 82952e3  Lib/stat.py
 statistics.py                       math              82952e3  Lib/statistics.py
 string/__init__.py                  _string           82952e3  Lib/string/__init__.py
@@ -288,7 +291,10 @@ unittest/signals.py                 -                 82952e3  Lib/unittest/sign
 unittest/suite.py                   -                 82952e3  Lib/unittest/suite.py
 unittest/util.py                    -                 82952e3  Lib/unittest/util.py
 urllib/__init__.py                  -                 82952e3  Lib/urllib/__init__.py
+urllib/error.py                     -                 82952e3  Lib/urllib/error.py
 urllib/parse.py                     -                 82952e3  Lib/urllib/parse.py
+urllib/request.py                   _socket           82952e3  Lib/urllib/request.py
+urllib/response.py                  -                 82952e3  Lib/urllib/response.py
 uuid.py                             -                 82952e3  Lib/uuid.py
 warnings.py                         _contextvars      82952e3  Lib/warnings.py
 weakref.py                          _weakref          82952e3  Lib/weakref.py
@@ -311,6 +317,7 @@ xml/sax/__init__.py                 -                 82952e3  Lib/xml/sax/__ini
 xml/sax/_exceptions.py              -                 82952e3  Lib/xml/sax/_exceptions.py
 xml/sax/expatreader.py              pyexpat           82952e3  Lib/xml/sax/expatreader.py
 xml/sax/handler.py                  -                 82952e3  Lib/xml/sax/handler.py
+xml/sax/saxutils.py                 _socket           82952e3  Lib/xml/sax/saxutils.py
 xml/sax/xmlreader.py                -                 82952e3  Lib/xml/sax/xmlreader.py
 xml/utils.py                        -                 82952e3  Lib/xml/utils.py
 zipfile/__init__.py                 -                 82952e3  Lib/zipfile/__init__.py

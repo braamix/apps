@@ -16,27 +16,15 @@ One item in the list is not planned. It is at the end, with the reason.
 **A number is a name, not a position.** A stage or a task that is finished is
 deleted and everything left keeps the number it had, so the list has gaps.
 Stage 4 and tasks 19 to 24 were compression; Stage 5 and tasks 25 to 27 were
-`email`, `xml` and `pyexpat`.
+`email`, `xml` and `pyexpat`; task 28 was the `_socket` floor.
 
-What `email` could not do is the two things this system has not got.
-**`make_msgid` imports `socket`** at the head of itself, for the host name it
-uses when no `domain` is given, so that one call waits for task 28 whether a
-domain is passed or not. And **the CJK codecs are not written**:
-`encodings` here is the single-byte pages, the UTF forms and the transforms,
-and `euc-jp`, `shift_jis`, `iso-2022-jp`, `gb2312` and `cp949` each stand on a
-C codec — `_codecs_jp` and its four siblings — that nobody has written. Nine
-of `test_email`'s methods and three of `test_contentmanager`'s are that, and
-`test_asian_codecs` is a `fail` row for it. `Manual.md` §10 says both.
-
-**`xml.sax.saxutils` is the one file of `xml` that is not shipped**: it
-imports `urllib.request` at the top, which stands on sockets, so it waits for
-task 28 rather than being trimmed. Everything else of the package is here.
-That one import is the whole of what SAX still waits for, because
-`xml/sax/expatreader.py` imports `saxutils` at its own top: `xml.sax.parse`
-raises `SAXReaderNotAvailable`, `test_sax` skips itself for it, and
-`test_pulldom` runs 6 of its 11 for the same reason. `xml.etree` and
-`xml.dom.minidom` do not go through SAX and are whole: `test_minidom` passes
-156 of 156.
+What `email` still cannot do is the one thing this system has not got: **the
+CJK codecs are not written**. `encodings` here is the single-byte pages, the
+UTF forms and the transforms, and `euc-jp`, `shift_jis`, `iso-2022-jp`,
+`gb2312` and `cp949` each stand on a C codec — `_codecs_jp` and its four
+siblings — that nobody has written. Six of `test_email`'s eight remaining
+methods and three of `test_contentmanager`'s are that, and
+`test_asian_codecs` is a `fail` row for it. `Manual.md` §10 says so.
 
 **`pyexpat` is expat 2.8.4 rewritten in C++**, under `src/expat/`, taken from
 CPython's own `Modules/expat` -- the version these tests were written
@@ -165,24 +153,6 @@ dictionary — real, and better than none, but with no entropy tables and so no
   The limit is what the native stack holds; this is the cost of it.
 
 ## Stage 6 — debugging and profiling
-
-28. **The `_socket` floor, importable but unable to connect.** `pdb` imports
-    `socket` at the top, and `doctest` imports `pdb`, so none of the three
-    loads without it. `_socket` provides the constants, the exception types,
-    `gethostname` (`"localhost"`) and a `socket` type whose constructor
-    raises `OSError(EAFNOSUPPORT)`. Then ship `socket.py` byte for byte.
-    `xml.sax` waits on the same floor for the same reason -- `saxutils`
-    imports `urllib.request` -- and `test_sax` and the other five of
-    `test_pulldom` come with it.
-    `select` and `selectors` are here and wait on pipes, so this floor is the
-    last thing two of their tests need: `test_selectors` imports `socket` at
-    the top and `test_subprocess` imports `socket` and `sysconfig`, so the
-    first runs once this is done and the second once task 33 is too. Both
-    rows are in `test/cpython.txt` already, as `fail import`. §10 "Because
-    Braam has no such thing" still holds for sockets and says what the floor
-    is for. `urllib.request` comes no closer, but `xml/sax/saxutils.py` and
-    `email.utils.make_msgid` are both waiting on this floor and should be
-    revisited with it.
 
 29. **The `sys.monitoring` namespace.** `bdb` reads `sys.monitoring.events`
     at import. Add the tool registry (`use_tool_id`, `get_tool`,

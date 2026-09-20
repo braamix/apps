@@ -239,7 +239,7 @@ warning categories.
 ```
 _abc _ast _blake2 _codecs _collections _colorize _contextvars _csv
 _functools _imp _io _math_integer _md5 _operator _pickle
-_posixsubprocess _random _sha1 _sha2 _sha3 _signal _sre _string
+_posixsubprocess _random _sha1 _sha2 _sha3 _signal _socket _sre _string
 _bz2 _lzma _zstd _struct _thread _tokenize _types _typing _warnings
 _weakref array atexit binascii builtins cmath dis errno faulthandler gc
 itertools marshal math posix pyexpat select sys time unicodedata zlib
@@ -249,7 +249,7 @@ itertools marshal math posix pyexpat select sys time unicodedata zlib
 
 ### CPython's own, byte for byte
 
-307 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+313 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
@@ -264,8 +264,8 @@ it was taken from. The ones you reach for:
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
 | Tools | `argparse`, `logging`, `unittest`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
 | Mail | `email` (the whole package, `mime` included), `quopri`, `base64`, `mimetypes` |
-| XML | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.dom.pulldom`, `pyexpat` — reading, building, searching and writing; `xml.sax` waits on `urllib` |
-| Addresses | `urllib.parse`, `ipaddress`, `uuid`, `http.cookies` |
+| XML | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.dom.pulldom`, `xml.sax`, `pyexpat` — reading, building, searching and writing |
+| Addresses | `urllib.parse`, `urllib.request` (which cannot connect), `ipaddress`, `uuid`, `socket`, `http.client`, `http.cookies` |
 | Crypto | `hashlib`, `hmac`, `secrets` |
 | Compression | `zlib`, `gzip`, `bz2`, `lzma`, `compression` (`zlib`, `gzip`, `bz2`, `lzma`, `zstd`), `zipfile`, `tarfile` |
 
@@ -442,11 +442,14 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   them runs — but nothing runs in parallel. Concurrency here is `asyncio`.
 - **`fork` and `exec`.** A process can start another but cannot become one;
   §7 says what `subprocess` does instead.
-- **Sockets and everything over them**: `socket`, `ssl`, `urllib`, `http`
-  (but `http.cookies`),
-  `ftplib`, `smtplib`, `socketserver`, `xmlrpc`. `email` is here and whole,
-  but `email.utils.make_msgid` imports `socket` at the head of itself, for the
-  host name it uses when no `domain` is given, and so raises either way.
+- **Sockets.** `socket`, `http.client`, `urllib.request` and the rest of the
+  package import and are CPython's own, because `pdb`, `doctest` and
+  `xml.sax` all reach them — but there is nothing under them. A `socket()`
+  raises `OSError(EAFNOSUPPORT)` and a name lookup raises `gaierror`, so
+  `urlopen` reports that it cannot resolve the host. What is real in `_socket`
+  is the constants, the exception types, `gethostname` (`"localhost"`) and the
+  byte-order and address-text calls, which are arithmetic. `ssl`, `ftplib`,
+  `smtplib`, `socketserver`, `http.server` and `xmlrpc` are not here.
 - **`ctypes`, `mmap`, `dlopen`, C extension modules.** There is no stable ABI
   to offer and nothing to load. Anything CPython writes in C is either
   written in C++ here or taken from the pure-Python version beside it.
@@ -458,13 +461,7 @@ There is no `~~~^^^` anchor line under the failing expression, and no
 
 ### Because they are not written yet
 
-- **SAX.** The rest of `xml` reads and writes — `ET.fromstring`, `ET.parse`,
-  `minidom.parseString`, `pyexpat` itself — but `xml.sax.saxutils` is not
-  shipped, because it imports `urllib.request` and that stands on sockets.
-  `xml/sax/expatreader.py` imports `saxutils` at its own top, so
-  `xml.sax.make_parser` raises `SAXReaderNotAvailable` and `xml.dom.pulldom`
-  raises it in turn. Everything else of the package is here.
-- **`symtable`**, and of `urllib` only `parse`.
+- **`symtable`**.
 - **The CJK codecs.** `encodings` is 89 files here — the single-byte pages,
   the UTF forms and the transforms — and the multi-byte ones are not among
   them: `euc-jp`, `shift_jis`, `iso-2022-jp`, `gb2312`, `big5`, `cp949` and

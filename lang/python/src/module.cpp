@@ -108,6 +108,7 @@ constexpr Native NATIVES[] = {
     { "_signal", signal_install },
     { "_posixsubprocess", posixsubprocess_install },
     { "select", select_install },
+    { "_socket", socket_install },
     { "_pickle", pickle_install },
     { "_io", io_install },
     { "_csv", csv_install },

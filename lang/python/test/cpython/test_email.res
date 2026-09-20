@@ -1,4 +1,4 @@
-...............................................................................FE......E....E.......................E.....................................E.......E................................................................s.....................................................................................................................sEEE.....................................................................................................................................................................F.............................
+...............................................................................FE......E....E.......................E.....................................E.......E................................................................s.....................................................................................................................s........................................................................................................................................................................F.............................
 ======================================================================
 ERROR: test_body_encode (__main__.TestCharset.test_body_encode)
 ----------------------------------------------------------------------
@@ -68,46 +68,6 @@ Traceback (most recent call last):
 LookupError: unknown encoding: euc-jp
 
 ======================================================================
-ERROR: test_make_msgid_default_domain (__main__.TestMiscellaneous.test_make_msgid_default_domain)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_email.py", line 3671, in test_make_msgid_default_domain
-    with patch('socket.getfqdn') as mock_getfqdn:
-  File "/pkg/store/python-0/lib/unittest/mock.py", line 1492, in __enter__
-    self.target = self.getter()
-  File "/pkg/store/python-0/lib/pkgutil.py", line 476, in resolve_name
-    mod = importlib.import_module(modname)
-  File "/pkg/store/python-0/lib/importlib/__init__.py", line 88, in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-  File "/pkg/store/python-0/lib/importlib/_bootstrap.py", line 1384, in _gcd_import
-    return _find_and_load(name, _gcd_import)
-  File "/pkg/store/python-0/lib/importlib/_bootstrap.py", line 1344, in _find_and_load
-    return _find_and_load_unlocked(
-  File "/pkg/store/python-0/lib/importlib/_bootstrap.py", line 1296, in _find_and_load_unlocked
-    raise ModuleNotFoundError(f'{_ERR_MSG_PREFIX}{name!r}', name=name)
-ModuleNotFoundError: Standard library module 'socket' was not found
-
-======================================================================
-ERROR: test_make_msgid_domain (__main__.TestMiscellaneous.test_make_msgid_domain)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_email.py", line 3661, in test_make_msgid_domain
-    email.utils.make_msgid(domain='testdomain-string')[-19:],
-  File "/pkg/store/python-0/lib/email/utils.py", line 307, in make_msgid
-    import socket
-ModuleNotFoundError: Standard library module 'socket' was not found
-
-======================================================================
-ERROR: test_make_msgid_idstring (__main__.TestMiscellaneous.test_make_msgid_idstring)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_email.py", line 3666, in test_make_msgid_idstring
-    email.utils.make_msgid(idstring='test-idstring',
-  File "/pkg/store/python-0/lib/email/utils.py", line 307, in make_msgid
-    import socket
-ModuleNotFoundError: Standard library module 'socket' was not found
-
-======================================================================
 FAIL: test_attributes (__main__.TestCharset.test_attributes)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
@@ -134,4 +94,4 @@ AssertionError: filter ('', DeprecationWarning) did not catch any warning
 ----------------------------------------------------------------------
 Ran 544 tests in Ns
 
-FAILED (failures=2, errors=9, skipped=2)
+FAILED (failures=2, errors=6, skipped=2)

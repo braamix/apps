@@ -18,19 +18,13 @@ No module named 'dbm.ndbm'
 No module named 'dbm.gnu'
 No module named 'xmlrpc'
 No module named 'xmlrpc'
-No module named 'http.client'
-No module named 'http.cookiejar'
 No module named 'http.server'
 No module named 'urllib.robotparser'
-No module named 'urllib.request'
 No module named '_dbm'
 No module named '_gdbm'
-No module named 'socket'
 No module named 'multiprocessing'
 No module named 'multiprocessing'
 No module named 'multiprocessing'
-No module named 'urllib.error'
-No module named '_socket'
 No module named 'socketserver'
 No module named 'tkinter'
 No module named 'tkinter'
@@ -51,26 +45,13 @@ No module named 'dbm.ndbm'
 No module named 'dbm.gnu'
 No module named 'xmlrpc'
 No module named 'xmlrpc'
-No module named 'http.client'
-No module named 'http.cookiejar'
 No module named 'http.server'
 No module named 'urllib.robotparser'
-No module named 'urllib.request'
 No module named '_dbm'
 No module named '_gdbm'
-No module named 'socket'
 No module named 'multiprocessing'
 No module named 'multiprocessing'
 No module named 'multiprocessing'
-No module named 'urllib.error'
-No module named 'urllib.request'
-No module named 'urllib.request'
-No module named 'urllib.request'
-No module named 'urllib.request'
-No module named 'urllib.request'
-No module named 'urllib.request'
-No module named 'urllib.error'
-No module named 'urllib.error'
 No module named 'multiprocessing'
 No module named 'multiprocessing'
 No module named 'multiprocessing'
@@ -85,7 +66,6 @@ No module named 'xmlrpc'
 No module named 'xmlrpc'
 No module named 'xmlrpc'
 No module named 'http.server'
-No module named '_socket'
 No module named 'socketserver'
 No module named 'socketserver'
 No module named 'tkinter'
@@ -126,16 +106,10 @@ No module named 'xmlrpc'
 No module named 'xmlrpc'
 No module named 'xmlrpc'
 No module named 'xmlrpc'
-No module named 'http.client'
-No module named 'http.client'
-No module named 'http.cookiejar'
-No module named 'http.cookiejar'
 No module named 'http.server'
 No module named 'http.server'
 No module named 'urllib.robotparser'
 No module named 'urllib.robotparser'
-No module named 'urllib.request'
-No module named 'urllib.request'
 No module named 'tkinter'
 No module named 'tkinter'
 No module named 'tkinter'
@@ -144,25 +118,14 @@ No module named 'xmlrpc'
 No module named 'xmlrpc'
 No module named 'http.server'
 No module named 'http.server'
-No module named 'socket'
-No module named 'multiprocessing'
-No module named 'multiprocessing'
-No module named 'multiprocessing'
-No module named 'urllib.error'
-No module named 'urllib.request'
-No module named 'urllib.request'
-No module named 'urllib.request'
-No module named 'urllib.request'
-No module named 'urllib.request'
-No module named 'urllib.request'
-No module named 'urllib.error'
-No module named 'urllib.error'
 No module named 'multiprocessing'
 No module named 'multiprocessing'
 No module named 'multiprocessing'
 No module named 'multiprocessing'
-No module named 'socket'
-............s........FFF....EEEEEEsEEEEEEEEEEEEEEEEEEEEEEEE......s.......Es.................ssssss....ssssss............ss..........sssss............................................s.s.....s....EEE.E.EEE...s....s........FFFFFFF....EEEEEEsEEEEEEEEEEEEEEEEEEEEEEEE......s.......EEs.................ssssss....ssssss............ss..........sssss.............................................FFEFF........s..........s................................sEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE...EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF...............................E.................EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE.s.E....s.......s........FFF....EEEEEEsEEEEEEEEEEEEEEEEEEEEEEEE......s.......EEEs.................ssssss....ssssss........E...ss..........sssss............................................ss...s......F........s.........FFF.......ssssss.......ssssss.....Es.....sssss......................................ssssss....ssssss.........E...ss..........sssss..........................................................s.s........s.s.....s................s....s........FFF....EEEEEEsEEEEEEEEEEEEEEEEEEEEEEEE......s.......EEEEs.................ssssss....ssssss........E...ss..........sssss.....................................................s..........s................................s.....F...........................................................s.ss
+No module named 'multiprocessing'
+No module named 'multiprocessing'
+No module named 'multiprocessing'
+............s........FFF....EEEEEEsEEEEEEEEEEEEEEEEEEEEEEEE......s.......Es.................ssssss....ssssss............ss..........sssss............................................s.s.....s....EEE.E.EEE...s....s........FFFFFFF....EEEEEEsEEEEEEEEEEEEEEEEEEEEEEEE......s.......EEs.................ssssss....ssssss............ss..........sssss.............................................FFEFF........s..........s................................sEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE...EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEF...............................E.................EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE.s.E....s.......s........FFF....EEEEEEsEEEEEEEEEEEEEEEEEEEEEEEE......s.......EEEEs.................ssssss....ssssss........E...ss..........sssss............................................ss...s......F........s.........FFF.......ssssss.......ssssss.....EEs.....sssss......................................ssssss....ssssss.........E...ss..........sssss..........................................................s.s........s.s.....s................s....s........FFF....EEEEEEsEEEEEEEEEEEEEEEEEEEEEEEE......s.......EEEEs........E........ssssss....ssssss........E...ss..........sssss.....................................................s..........s................................s.....F...........................................................s.ss
 ======================================================================
 ERROR: test_deep_nested_struct_dict (__main__.CDumpPickle_LoadPickle.test_deep_nested_struct_dict) (proto=0)
 ----------------------------------------------------------------------
@@ -44242,14 +44205,41 @@ when serializing tuple item 0
 when serializing tuple item 0
 
 ======================================================================
+ERROR: test_framing_large_objects (__main__.DumpPickle_CLoadPickle.test_framing_large_objects) (proto=4, fast=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test/pickletester.py", line 4059, in test_framing_large_objects
+    self.check_frame_opcodes(pickled)
+  File "/tmp/test/pickletester.py", line 3971, in check_frame_opcodes
+    for op, arg, pos in pickletools.genops(pickled):
+  File "/pkg/store/python-0/lib/pickletools.py", line 2298, in _genops
+    data = io.BytesIO(data)
+MemoryError: out of memory
+
+======================================================================
 ERROR: test_framing_large_objects (__main__.DumpPickle_CLoadPickle.test_framing_large_objects) (proto=4, fast=True)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/pickletester.py", line 4048, in test_framing_large_objects
-    unpickled = self.loads(pickled)
-  File "/tmp/test_pickle.py", line 96, in loads
-    f = io.BytesIO(buf)
+  File "/tmp/test/pickletester.py", line 4046, in test_framing_large_objects
+    pickler.dump(obj)
+  File "/pkg/store/python-0/lib/pickle.py", line 514, in dump
+    self.save(obj)
+  File "/pkg/store/python-0/lib/pickle.py", line 588, in save
+    f(self, obj)  # Call unbound method with explicit self
+  File "/pkg/store/python-0/lib/pickle.py", line 1025, in save_list
+    self._batch_appends(obj, obj)
+  File "/pkg/store/python-0/lib/pickle.py", line 1053, in _batch_appends
+    save(x)
+  File "/pkg/store/python-0/lib/pickle.py", line 588, in save
+    f(self, obj)  # Call unbound method with explicit self
+  File "/pkg/store/python-0/lib/pickle.py", line 882, in save_bytes
+    self._save_bytes_no_memo(obj)
+  File "/pkg/store/python-0/lib/pickle.py", line 870, in _save_bytes_no_memo
+    self._write_large_bytes(BINBYTES + pack("<I", n), obj)
+  File "/pkg/store/python-0/lib/pickle.py", line 257, in write_large_bytes
+    write(payload)
 MemoryError: out of memory
+when serializing list item 11
 
 ======================================================================
 ERROR: test_framing_large_objects (__main__.DumpPickle_CLoadPickle.test_framing_large_objects) (proto=5, fast=False)
@@ -44307,10 +44297,22 @@ when serializing list item 0
 ERROR: test_optional_frames (__main__.DumpPickle_CLoadPickle.test_optional_frames)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/pickletester.py", line 4094, in test_optional_frames
-    frameless_pickle = remove_frames(pickled)
+  File "/tmp/test/pickletester.py", line 4098, in test_optional_frames
+    some_frames_pickle = remove_frames(pickled, lambda i: i % 2)
   File "/tmp/test/pickletester.py", line 4081, in remove_frames
     newpickle += pickled[last_frame_end:]
+MemoryError: out of memory
+
+======================================================================
+ERROR: test_framing_large_objects (__main__.InMemoryPickleTests.test_framing_large_objects) (proto=4, fast=False)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test/pickletester.py", line 4059, in test_framing_large_objects
+    self.check_frame_opcodes(pickled)
+  File "/tmp/test/pickletester.py", line 3971, in check_frame_opcodes
+    for op, arg, pos in pickletools.genops(pickled):
+  File "/pkg/store/python-0/lib/pickletools.py", line 2298, in _genops
+    data = io.BytesIO(data)
 MemoryError: out of memory
 
 ======================================================================
@@ -44340,14 +44342,14 @@ Traceback (most recent call last):
   File "/pkg/store/python-0/lib/pickle.py", line 257, in write_large_bytes
     write(payload)
 MemoryError: out of memory
-when serializing list item 11
+when serializing list item 0
 
 ======================================================================
 ERROR: test_optional_frames (__main__.InMemoryPickleTests.test_optional_frames)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/pickletester.py", line 4094, in test_optional_frames
-    frameless_pickle = remove_frames(pickled)
+  File "/tmp/test/pickletester.py", line 4098, in test_optional_frames
+    some_frames_pickle = remove_frames(pickled, lambda i: i % 2)
   File "/tmp/test/pickletester.py", line 4081, in remove_frames
     newpickle += pickled[last_frame_end:]
 MemoryError: out of memory
@@ -58162,7 +58164,7 @@ Traceback (most recent call last):
   File "/pkg/store/python-0/lib/pickle.py", line 257, in write_large_bytes
     write(payload)
 MemoryError: out of memory
-when serializing list item 0
+when serializing list item 11
 
 ======================================================================
 ERROR: test_framing_large_objects (__main__.PyPicklerTests.test_framing_large_objects) (proto=5, fast=True)
@@ -58190,11 +58192,27 @@ MemoryError: out of memory
 when serializing list item 0
 
 ======================================================================
+ERROR: test_large_pickles (__main__.PyPicklerTests.test_large_pickles)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/test/pickletester.py", line 3909, in test_large_pickles
+    loaded = self.loads(dumped)
+  File "/tmp/test_pickle.py", line 98, in loads
+    return u.load()
+  File "/pkg/store/python-0/lib/pickle.py", line 1346, in load
+    dispatch[key[0]](self)
+  File "/pkg/store/python-0/lib/pickle.py", line 1373, in load_frame
+    self._unframer.load_frame(frame_size)
+  File "/pkg/store/python-0/lib/pickle.py", line 326, in load_frame
+    self.current_frame = io.BytesIO(data)
+MemoryError: out of memory
+
+======================================================================
 ERROR: test_optional_frames (__main__.PyPicklerTests.test_optional_frames)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/pickletester.py", line 4098, in test_optional_frames
-    some_frames_pickle = remove_frames(pickled, lambda i: i % 2)
+  File "/tmp/test/pickletester.py", line 4094, in test_optional_frames
+    frameless_pickle = remove_frames(pickled)
   File "/tmp/test/pickletester.py", line 4081, in remove_frames
     newpickle += pickled[last_frame_end:]
 MemoryError: out of memory
@@ -58441,4 +58459,4 @@ AssertionError: CustomError not raised
 ----------------------------------------------------------------------
 Ran 1082 tests in Ns
 
-FAILED (failures=26, errors=309, skipped=154)
+FAILED (failures=26, errors=312, skipped=154)

@@ -8,7 +8,7 @@ from nothing — its own lexer, parser, compiler, bytecode and virtual machine,
 `pyexpat`'s callers check is expat's own error codes, messages and positions,
 and only expat's own code produces those.
 
-The other half is borrowed whole: **CPython's standard library**, 307 files
+The other half is borrowed whole: **CPython's standard library**, 313 files
 byte for byte as [lib/](lib/), over a floor of native modules written here. A
 Python that runs CPython's own library is a real Python, and writing that
 library again would be both enormous and worse.
@@ -232,14 +232,18 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
   and one you name is reported. `zipfile.ZIP_LZMA` names an 8 MiB dictionary
   and so cannot be used. zstd's dictionaries are content-only, `zdict.h`'s
   trainer not being in the library, so `dict_id` is 0.
-- `email` is the whole package and pure Python, so the only two things it
-  cannot do are the two this system has not got: `make_msgid` imports `socket`
-  for the host name, and a CJK charset has no codec.
+- `email` is the whole package and pure Python, so the only thing it cannot do
+  is the one this system has not got: a CJK charset has no codec.
+- `_socket` is a floor with nothing under it. There are no sockets and will be
+  none, so a `socket()` raises `OSError(EAFNOSUPPORT)`; the constants and the
+  exception types are real, `gethostname` is `"localhost"`, and the byte-order
+  and address-text calls are arithmetic and whole. It exists to be imported:
+  `socket` carries `http.client`, `urllib.request` and so `xml.sax`, and it is
+  what `pdb` and `doctest` reach through.
 - `pyexpat` is libexpat rewritten, and it is a driver: expat suspends itself
   at a handler with `XML_StopParser` and a `ContObj` makes the Python call and
   resumes, because a native here may not call Python. `ElementTree`,
-  `minidom` and `pulldom` all read through it. `xml.sax` does not, yet:
-  `expatreader` imports `saxutils`, which imports `urllib.request`.
+  `minidom`, `pulldom` and `xml.sax` all read through it.
 - A coroutine never awaited is reported when the collector finds it.
 - `json` is the pure-Python one, so a malformed document is reported in
   `json.decoder`'s words.
@@ -301,7 +305,7 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
 | [annot.cpp](src/annot.cpp), [lazy.cpp](src/lazy.cpp), [typevar.cpp](src/typevar.cpp), [union.cpp](src/union.cpp), [genalias.cpp](src/genalias.cpp) | PEP 649 lazy annotations, PEP 810 lazy imports, and the typing machinery |
 | [import.cpp](src/import.cpp), [module.cpp](src/module.cpp), [impmod.cpp](src/impmod.cpp) | The module cache, the search path, the loader, and where importlib takes over |
 | [io.h](src/io.h), [iobase.cpp](src/iobase.cpp), [iofile.cpp](src/iofile.cpp), [iobuf.cpp](src/iobuf.cpp), [iotext.cpp](src/iotext.cpp), [iomem.cpp](src/iomem.cpp) | `_io`: the abstract layers, the raw descriptor, the buffer, the text wrapper, `BytesIO` and `StringIO` |
-| [posixmod.cpp](src/posixmod.cpp), [sysmod.cpp](src/sysmod.cpp), [timemod.cpp](src/timemod.cpp), [signalmod.cpp](src/signalmod.cpp), [selectmod.cpp](src/selectmod.cpp) | `posix` and `_posixsubprocess`, `sys`, `time`, `_signal` and `select` — the system-call turn every module takes |
+| [posixmod.cpp](src/posixmod.cpp), [sysmod.cpp](src/sysmod.cpp), [timemod.cpp](src/timemod.cpp), [signalmod.cpp](src/signalmod.cpp), [selectmod.cpp](src/selectmod.cpp), [socketmod.cpp](src/socketmod.cpp) | `posix` and `_posixsubprocess`, `sys`, `time`, `_signal`, `select` — the system-call turn every module takes — and `_socket`, which has no call to make |
 | [zlibmod.cpp](src/zlibmod.cpp), [bz2mod.cpp](src/bz2mod.cpp), [lzmamod.cpp](src/lzmamod.cpp), [zstdmod.cpp](src/zstdmod.cpp) | `zlib`, `_bz2`, `_lzma` and `_zstd` over the SDK's four compression libraries |
 | [reduce.cpp](src/reduce.cpp), [picklemod.cpp](src/picklemod.cpp) | What pickle and copy need of the native types: `__reduce__` for the builtins and iterators, and `_pickle`'s `PickleBuffer` |
 | [sre.cpp](src/sre.cpp), [sremod.cpp](src/sremod.cpp) | The regular-expression engine, Secret Labs', able to stop mid-match |
