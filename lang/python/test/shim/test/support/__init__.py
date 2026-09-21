@@ -477,6 +477,17 @@ def reap_children():
             break
 
 
+class SuppressCrashReport:
+    """Nothing to suppress: a crash here is a wasm trap in a Worker, and it
+    writes no core file and raises no dialog."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *ignore_exc):
+        return False
+
+
 class _NeverEqual:
     def __eq__(self, other):
         return False

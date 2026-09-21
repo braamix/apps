@@ -59,7 +59,7 @@ CPython's, and they mean what they mean there. Letters may be bundled:
 | `-u` | stdout and stderr are written as each write happens |
 | `-v`, `-vv` | say, on stderr, what each import loads and from where |
 | `-W <arg>` | a warnings filter, appended to `sys.warnoptions` |
-| `-X <opt>` | `dev`, `utf8`, `importtime`, `int_max_str_digits=<n>`, `warn_default_encoding`; any other is kept in `sys._xoptions` |
+| `-X <opt>` | `dev`, `utf8`, `importtime`, `int_max_str_digits=<n>`, `tracemalloc[=<n>]`, `warn_default_encoding`; any other is kept in `sys._xoptions` |
 
 `sys.flags` says what was asked for.
 
@@ -81,6 +81,7 @@ sets one for a single run.
 | `PYTHONDEVMODE` | `-X dev` |
 | `PYTHONPROFILEIMPORTTIME` | `-X importtime` |
 | `PYTHONINTMAXSTRDIGITS` | `-X int_max_str_digits` |
+| `PYTHONTRACEMALLOC` | `-X tracemalloc`; the value is the traceback depth, and `0` is off |
 | `PYTHONWARNDEFAULTENCODING` | `-X warn_default_encoding` |
 | `PYTHONBREAKPOINT` | what `breakpoint()` calls; `0` makes it do nothing |
 
@@ -240,7 +241,7 @@ warning categories.
 _abc _ast _blake2 _codecs _collections _colorize _contextvars _csv
 _functools _imp _io _math_integer _md5 _operator _pickle
 _posixsubprocess _random _sha1 _sha2 _sha3 _signal _socket _sre _string
-_lsprof _symtable _sysconfig
+_lsprof _symtable _sysconfig _tracemalloc
 _bz2 _lzma _zstd _struct _thread _tokenize _types _typing _warnings
 _weakref array atexit binascii builtins cmath dis errno faulthandler gc
 itertools marshal math posix pyexpat select sys time unicodedata zlib
@@ -250,7 +251,7 @@ itertools marshal math posix pyexpat select sys time unicodedata zlib
 
 ### CPython's own, byte for byte
 
-334 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+335 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
@@ -263,7 +264,7 @@ it was taken from. The ones you reach for:
 | Functions | `functools`, `itertools`, `operator`, `contextlib`, `abc` |
 | Async | `asyncio`, `concurrent.futures`, `contextvars`, `threading` |
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `symtable`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
-| Tools | `argparse`, `logging`, `unittest`, `doctest`, `pdb`, `bdb`, `pydoc`, `trace`, `profile`, `cProfile`, `pstats`, `sysconfig`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
+| Tools | `argparse`, `logging`, `unittest`, `doctest`, `pdb`, `bdb`, `pydoc`, `trace`, `profile`, `cProfile`, `pstats`, `tracemalloc`, `sysconfig`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
 | Mail | `email` (the whole package, `mime` included), `quopri`, `base64`, `mimetypes` |
 | XML | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.dom.pulldom`, `xml.sax`, `pyexpat` — reading, building, searching and writing |
 | Addresses | `urllib.parse`, `urllib.request` (which cannot connect), `ipaddress`, `uuid`, `socket`, `http.client`, `http.cookies` |
@@ -467,7 +468,6 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   them: `euc-jp`, `shift_jis`, `iso-2022-jp`, `gb2312`, `big5`, `cp949` and
   their kin each stand on a C codec that is not written. So
   `email.charset.Charset('euc-jp')` raises rather than converting.
-- **`tracemalloc`.**
 - **`.pyc` files.** `sys.dont_write_bytecode` is true and nothing writes a
   cache; every run compiles from source, which is fast enough that the cache
   would cost more than it saves.
@@ -505,6 +505,21 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   milliseconds, so `cProfile` tells you how often something ran far better
   than how long it took; a timer of your own is refused, since it would be a
   call per event.
+- **`tracemalloc` traces objects, not raw blocks.** CPython hooks `PyMem` and
+  records a traceback per allocation; there is no raw block under an object
+  here, so what is traced is the object -- `start`, `stop`,
+  `get_traced_memory`, `take_snapshot` and `get_object_traceback` all work,
+  `-X tracemalloc=<n>` and `PYTHONTRACEMALLOC` start it before the program
+  does, and the domain is always 0. A size is `sys.getsizeof`'s, which is the
+  size class the heap rounded the object up to, so it is a little larger than
+  what was asked for. Two differences follow from the collector: **what
+  `get_traced_memory` reports falls when the sweep runs**, not when the last
+  name goes, so `del big; tracemalloc.get_traced_memory()` still counts it
+  until a collection; and `Snapshot.statistics('filename')` does not merge
+  two files' traces, because `_group_by` keys a dict by a `Traceback` and a
+  `__hash__` written in Python is not called for a dict key. Grouping by
+  `'lineno'` at the default limit of one frame is right, since the key is
+  then the whole traceback.
 - **`sys.monitoring` fires**, and a tool is told before `sys.setprofile` and
   `sys.settrace`, which is what its lower tool id means. `DISABLE` is taken
   and nothing is turned off: a tool that returns it to go faster simply does

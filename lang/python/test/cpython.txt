@@ -104,7 +104,7 @@ pass  test_parser.py                  8/8        82952e3  Lib/test/test_email/te
 pass  test_pathlib.py                 1090/1151  82952e3  Lib/test/test_pathlib/test_pathlib.py
 fail  test_patma.py                   import     82952e3  Lib/test/test_patma.py
 pass  test_pdb.py                     99/223     82952e3  Lib/test/test_pdb.py
-pass  test_pickle.py                  1021/1084  82952e3  Lib/test/test_pickle.py
+pass  test_pickle.py                  1020/1084  82952e3  Lib/test/test_pickle.py
 pass  test_pickleable.py              12/12      82952e3  Lib/test/test_email/test_pickleable.py
 pass  test_pickletools.py             203/204    82952e3  Lib/test/test_pickletools.py
 pass  test_pkg.py                     5/8        82952e3  Lib/test/test_pkg.py
@@ -150,10 +150,11 @@ pass  test_sys_settrace.py            192/448    82952e3  Lib/test/test_sys_sett
 pass  test_tarfile.py                 697/781    82952e3  Lib/test/test_tarfile.py
 fail  test_tempfile.py                crash      82952e3  Lib/test/test_tempfile.py
 pass  test_textwrap.py                68/68      82952e3  Lib/test/test_textwrap.py
-fail  test_time.py                    import     82952e3  Lib/test/test_time.py
+pass  test_time.py                    62/65      82952e3  Lib/test/test_time.py
 pass  test_timeit.py                  44/44      82952e3  Lib/test/test_timeit.py
 pass  test_trace.py                   14/28      82952e3  Lib/test/test_trace.py
 fail  test_traceback.py               runtime    82952e3  Lib/test/test_traceback.py
+pass  test_tracemalloc.py             42/51      82952e3  Lib/test/test_tracemalloc.py
 fail  test_tracing_profiler.py        import     82952e3  Lib/test/test_profiling/test_tracing_profiler.py
 pass  test_transports.py              9/9        82952e3  Lib/test/test_asyncio/test_transports.py
 fail  test_tstring.py                 import     82952e3  Lib/test/test_tstring.py

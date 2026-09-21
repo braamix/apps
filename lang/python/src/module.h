@@ -202,3 +202,4 @@ bool marshal_install(DictObj *into);
 bool imp_install(DictObj *into);
 bool colorize_install(DictObj *into);
 bool faulthandler_install(DictObj *into);
+bool tracemalloc_install(DictObj *into);

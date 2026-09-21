@@ -41,7 +41,8 @@ braam_add_program(NAME python
                           src/slotmeth.cpp src/sre.cpp src/sremod.cpp src/str.cpp src/stringmod.cpp
                           src/strmeth.cpp src/structmod.cpp src/symtab.cpp src/symtablemod.cpp src/sysmod.cpp
                           src/table.cpp src/templatelib.cpp src/thread.cpp src/timemod.cpp
-                          src/tokenizemod.cpp src/traceback.cpp src/tuple.cpp src/type.cpp
+                          src/tokenizemod.cpp src/traceback.cpp src/tracemallocmod.cpp
+                          src/tuple.cpp src/type.cpp
                           src/typesmod.cpp src/typevar.cpp src/ucd.cpp src/ucddb.cpp src/unimod.cpp
                           src/union.cpp src/vm.cpp src/warnmod.cpp src/weak.cpp src/zlibmod.cpp
                   LIBS braam::math braam::zlib braam::bzip2 braam::lzma braam::zstd)

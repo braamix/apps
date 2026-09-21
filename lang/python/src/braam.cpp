@@ -25,6 +25,7 @@
 #include "proc/rt.h"
 #include "proc/usage.h"
 #include "selftest.h"
+#include "tracemalloc.h"
 #include "vm.h"
 
 namespace {
@@ -57,7 +58,8 @@ constexpr Str USAGE =
     "    -v         say what each import loads, -vv for more\n"
     "    -W <arg>   a warnings filter, as sys.warnoptions\n"
     "    -X <opt>   dev, utf8, importtime, int_max_str_digits=<n>,\n"
-    "               warn_default_encoding; any other is kept in sys._xoptions\n"
+    "               tracemalloc[=<n>], warn_default_encoding; any other is\n"
+    "               kept in sys._xoptions\n"
     "    python --dump-tokens <f> print the token stream of <f>\n"
     "    python --dump-ast <f>    print the parse tree of <f>\n"
     "    python --dis <f>         print the bytecode of <f>\n"
@@ -1305,6 +1307,21 @@ i64 digits_of(Str s)
     return n != 0 && (n < 640 || n > 0x7fffffff) ? -1 : n;
 }
 
+// A traceback depth as -X tracemalloc or the environment spells it; -1 for a
+// bad one, and 0 for the PYTHONTRACEMALLOC=0 that asks for nothing.
+i64 nframes_of(Str s)
+{
+    i64 n = 0;
+    if (s.empty() || s.size() > 5)
+        return -1;
+    for (usize i = 0; i < s.size(); i++) {
+        if (s[i] < '0' || s[i] > '9')
+            return -1;
+        n = n * 10 + (s[i] - '0');
+    }
+    return n > i64(TM_MAX_NFRAME) ? -1 : n;
+}
+
 // The environment over the command line's defaults, and what both settle
 // put where the interpreter reads it. Nonzero is a status to leave with.
 Task<i32> configure(Job &job)
@@ -1350,6 +1367,23 @@ Task<i32> configure(Job &job)
             co_return co_await complain(who, "invalid limit; must be >= 640 or 0 for unlimited");
         c.int_max_str_digits = i32(n);
         int_set_max_str_digits(u32(n));
+    }
+
+    // Tracing starts before the program does, so what the interpreter itself
+    // is still holding is traced too, as it is in CPython. A bare -X is one
+    // frame; PYTHONTRACEMALLOC=0 is off.
+    Str frames = env("PYTHONTRACEMALLOC");
+    Str asked  = frames.empty() ? Str() : Str("PYTHONTRACEMALLOC");
+    if (xoption("tracemalloc", v)) {
+        frames = v.empty() ? Str("1") : v;
+        asked  = "-X tracemalloc=NFRAME";
+    }
+    if (!asked.empty()) {
+        i64 n = nframes_of(frames);
+        if (n < 0)
+            co_return co_await complain(asked, "invalid number of frames");
+        if (n > 0 && !tm_start(u32(n)))
+            co_return co_await complain("out of memory", Str());
     }
 
     compile_set_optimize(c.optimize);

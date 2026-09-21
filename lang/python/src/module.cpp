@@ -134,6 +134,7 @@ constexpr Native NATIVES[] = {
     { "_imp", imp_install },
     { "_colorize", colorize_install },
     { "faulthandler", faulthandler_install },
+    { "_tracemalloc", tracemalloc_install },
 };
 
 } // namespace

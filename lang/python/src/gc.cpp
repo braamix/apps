@@ -7,6 +7,7 @@
 #include "kernel/host.h"
 #include "kernel/sysabi.h"
 #include "obj.h"
+#include "tracemalloc.h"
 
 namespace {
 
@@ -73,6 +74,8 @@ void sweep()
             // Immortals are static storage, so their size is never asked for:
             // heap_usable_size traps on anything that is not a live block.
             live_bytes -= heap_usable_size(o);
+            if (tm_on)
+                tm_untrack(o);
             if (o->type->fini)
                 o->type->fini(o);
             heap_free(o);
@@ -352,5 +355,7 @@ Obj *obj_alloc(const Type *t, usize bytes)
     live_objects++;
     live_bytes += got;
     since_gc += got;
+    if (tm_rec)
+        tm_track(o, got);
     return o;
 }

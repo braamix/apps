@@ -295,6 +295,7 @@ tomllib/_re.py                      -                 82952e3  Lib/tomllib/_re.p
 tomllib/_types.py                   -                 82952e3  Lib/tomllib/_types.py
 trace.py                            -                 82952e3  Lib/trace.py
 traceback.py                        -                 82952e3  Lib/traceback.py
+tracemalloc.py                      _tracemalloc      82952e3  Lib/tracemalloc.py
 types.py                            _types            82952e3  Lib/types.py
 typing.py                           _typing           82952e3  Lib/typing.py
 unittest/__init__.py                -                 82952e3  Lib/unittest/__init__.py
