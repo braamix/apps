@@ -13,7 +13,7 @@ braam_add_program(NAME xz
                           coder.cpp list.cpp args.cpp main.cpp
                   PORT)
 
-braam_add_package(NAME xz VERSION 5.8.4-r1
+braam_add_package(NAME xz VERSION 5.8.4-r2
                   FIELD "T=xz 5.8.4"
                   FILES $<TARGET_FILE:bin_xz>=bin/xz
                         $<TARGET_FILE:bin_xz>=bin/unxz
