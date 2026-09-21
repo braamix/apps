@@ -1,8 +1,8 @@
 #include "braam.h"
 
-#include "kernel/fmt.h"
-
 #include <limits.h>
+
+#include "kernel/fmt.h"
 
 #ifndef SSIZE_MAX
 #define SSIZE_MAX ((ssize_t)(SIZE_MAX / 2))
@@ -10,9 +10,9 @@
 #include <stdarg.h>
 
 int cflag, dflag, lflag, numflag = 6, fflag, kflag, nflag, Nflag, qflag, rflag, tflag, vflag;
-int exit_value = 0;
+int exit_value          = 0;
 const char *remove_file = NULL;
-const char *infile = NULL;
+const char *infile      = NULL;
 off_t infile_total, infile_current;
 int gzip_fatal = 0;
 
@@ -23,13 +23,12 @@ static char gzip_diag[512];
 static int gzip_diag_len;
 static int gzip_diag_pending;
 
-const char *
-gzip_progname(Str argv0)
+const char *gzip_progname(Str argv0)
 {
     if (argv0.size() == 0)
         return "gzip";
     Str leaf = path_basename(argv0);
-    usize n = leaf.size();
+    usize n  = leaf.size();
     if (n >= sizeof progname_buf)
         n = sizeof progname_buf - 1;
     memcpy(progname_buf, leaf.data(), n);
@@ -37,28 +36,24 @@ gzip_progname(Str argv0)
     return progname_buf;
 }
 
-void
-gzip_clear_fatal()
+void gzip_clear_fatal()
 {
     gzip_fatal = 0;
 }
 
-void
-gzip_set_time(time_t t)
+void gzip_set_time(time_t t)
 {
     gzip_boot_time = t;
 }
 
-time_t
-ztime(time_t *t)
+time_t ztime(time_t *t)
 {
     if (t)
         *t = gzip_boot_time;
     return gzip_boot_time;
 }
 
-Task<void>
-gzip_flush_diag()
+Task<void> gzip_flush_diag()
 {
     if (!gzip_diag_pending)
         co_return;
@@ -66,42 +61,37 @@ gzip_flush_diag()
     co_await write_all(SYS_STDERR, Str(gzip_diag, (usize)gzip_diag_len));
 }
 
-void
-infile_newdata(size_t newdata)
+void infile_newdata(size_t newdata)
 {
     infile_current += (off_t)newdata;
 }
 
-void
-infile_set(const char *newinfile, off_t total)
+void infile_set(const char *newinfile, off_t total)
 {
     if (newinfile)
         infile = newinfile;
     infile_total = total;
 }
 
-void
-infile_clear(void)
+void infile_clear(void)
 {
-    infile = NULL;
+    infile       = NULL;
     infile_total = infile_current = 0;
 }
 
-Task<void>
-gzip_on_int()
+Task<void> gzip_on_int()
 {
     if (remove_file != NULL)
         co_await b_unlink(remove_file);
 }
 
-Task<ssize_t>
-read_retry(int fd, void *buf, size_t sz)
+Task<ssize_t> read_retry(int fd, void *buf, size_t sz)
 {
     co_await gzip_flush_diag();
     if (gzip_fatal)
         co_return -1;
 
-    char *cp = (char *)buf;
+    char *cp    = (char *)buf;
     size_t left = sz;
     if (left > (size_t)SSIZE_MAX)
         left = (size_t)SSIZE_MAX;
@@ -123,15 +113,14 @@ read_retry(int fd, void *buf, size_t sz)
     co_return (ssize_t)(sz - left);
 }
 
-Task<ssize_t>
-write_retry(int fd, const void *buf, size_t sz)
+Task<ssize_t> write_retry(int fd, const void *buf, size_t sz)
 {
     co_await gzip_flush_diag();
     if (gzip_fatal)
         co_return -1;
 
     const char *cp = (const char *)buf;
-    size_t left = sz;
+    size_t left    = sz;
     if (left > (size_t)SSIZE_MAX)
         left = (size_t)SSIZE_MAX;
 
@@ -152,19 +141,17 @@ write_retry(int fd, const void *buf, size_t sz)
         cp += ret;
         left -= (size_t)ret;
     }
-    co_return (ssize_t)sz;
+    co_return (ssize_t) sz;
 }
 
-Task<ssize_t>
-gzip_pread(int fd, void *buf, size_t sz, off_t pos)
+Task<ssize_t> gzip_pread(int fd, void *buf, size_t sz, off_t pos)
 {
     if (co_await b_lseek(fd, pos, SEEK_SET) < 0)
         co_return -1;
     co_return co_await read_retry(fd, buf, sz);
 }
 
-static void
-diag_vfmt(const char *fmt, va_list ap)
+static void diag_vfmt(const char *fmt, va_list ap)
 {
     gzip_diag_len = vsnprintf(gzip_diag, sizeof gzip_diag, fmt, ap);
     if (gzip_diag_len < 0)
@@ -174,8 +161,7 @@ diag_vfmt(const char *fmt, va_list ap)
     gzip_diag_pending = 1;
 }
 
-void
-maybe_warn(const char *fmt, ...)
+void maybe_warn(const char *fmt, ...)
 {
     if (qflag == 0) {
         va_list ap;
@@ -183,8 +169,8 @@ maybe_warn(const char *fmt, ...)
         diag_vfmt(fmt, ap);
         va_end(ap);
         int n = gzip_diag_len;
-        gzip_diag_len = snprintf(gzip_diag + n, sizeof gzip_diag - (usize)n, ": %s\n",
-                                 strerror(errno));
+        gzip_diag_len =
+            snprintf(gzip_diag + n, sizeof gzip_diag - (usize)n, ": %s\n", strerror(errno));
         if (gzip_diag_len > 0)
             gzip_diag_len += n;
     }
@@ -192,8 +178,7 @@ maybe_warn(const char *fmt, ...)
         exit_value = 1;
 }
 
-void
-maybe_warnx(const char *fmt, ...)
+void maybe_warnx(const char *fmt, ...)
 {
     if (qflag == 0) {
         va_list ap;
@@ -202,7 +187,7 @@ maybe_warnx(const char *fmt, ...)
         va_end(ap);
         int n = gzip_diag_len;
         if (n < (int)sizeof gzip_diag - 1) {
-            gzip_diag[n] = '\n';
+            gzip_diag[n]  = '\n';
             gzip_diag_len = n + 1;
         }
     }
@@ -210,8 +195,7 @@ maybe_warnx(const char *fmt, ...)
         exit_value = 1;
 }
 
-void
-maybe_err(const char *fmt, ...)
+void maybe_err(const char *fmt, ...)
 {
     if (qflag == 0) {
         va_list ap;
@@ -219,8 +203,8 @@ maybe_err(const char *fmt, ...)
         diag_vfmt(fmt, ap);
         va_end(ap);
         int n = gzip_diag_len;
-        gzip_diag_len = snprintf(gzip_diag + n, sizeof gzip_diag - (usize)n, ": %s\n",
-                                 strerror(errno));
+        gzip_diag_len =
+            snprintf(gzip_diag + n, sizeof gzip_diag - (usize)n, ": %s\n", strerror(errno));
         if (gzip_diag_len > 0)
             gzip_diag_len += n;
     }
@@ -228,8 +212,7 @@ maybe_err(const char *fmt, ...)
     gzip_fatal = 1;
 }
 
-void
-maybe_errx(const char *fmt, ...)
+void maybe_errx(const char *fmt, ...)
 {
     if (qflag == 0) {
         va_list ap;
@@ -238,7 +221,7 @@ maybe_errx(const char *fmt, ...)
         va_end(ap);
         int n = gzip_diag_len;
         if (n < (int)sizeof gzip_diag - 1) {
-            gzip_diag[n] = '\n';
+            gzip_diag[n]  = '\n';
             gzip_diag_len = n + 1;
         }
     }

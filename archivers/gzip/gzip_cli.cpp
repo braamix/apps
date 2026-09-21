@@ -1,11 +1,10 @@
 // Command-line parsing and gzip_main for the FreeBSD gzip port.
-#include "braam.h"
+#include <string.h>
 
+#include "braam.h"
 #include "kernel/args.h"
 #include "kernel/vec.h"
 #include "proc/time.h"
-
-#include <string.h>
 
 extern suffixes_t suffixes[];
 extern const int gzip_num_suffixes;
@@ -144,8 +143,7 @@ static Task<i32> parse_options(Args args, Vec<Str> &paths, const char *progname)
     co_return 0;
 }
 
-Task<i32>
-gzip_main(Args args)
+Task<i32> gzip_main(Args args)
 {
     const char *progname = gzip_progname(args.size() ? args[0] : Str("gzip"));
 

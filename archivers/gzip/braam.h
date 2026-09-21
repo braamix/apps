@@ -3,9 +3,6 @@
 
 #define NO_PACK_SUPPORT
 
-#include "kernel/types.h"
-#include "fs/path.h"
-
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -17,11 +14,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "fs/path.h"
+#include "kernel/types.h"
+
 typedef unsigned char u_char;
 typedef unsigned int u_int;
 
-static inline uint32_t
-le32dec(const void *pp)
+static inline uint32_t le32dec(const void *pp)
 {
     const unsigned char *p = (const unsigned char *)pp;
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
@@ -51,8 +50,7 @@ typedef struct {
 extern suffixes_t suffixes[];
 extern const int gzip_num_suffixes;
 
-extern int cflag, dflag, lflag, numflag, fflag, kflag, nflag, Nflag, qflag, rflag, tflag,
-    vflag;
+extern int cflag, dflag, lflag, numflag, fflag, kflag, nflag, Nflag, qflag, rflag, tflag, vflag;
 extern int exit_value;
 extern const char *remove_file;
 extern const char *infile;

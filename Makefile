@@ -70,6 +70,10 @@ package: all
 # Nothing here runs for more than a few seconds. What does is in $(LONGTESTS)
 # below, which `make longtest` runs instead.
 TESTS := \
+    archivers/bzip2/test/roundtrip.mjs \
+    archivers/bzip2/test/aliases.mjs \
+    archivers/bzip2/test/tree.mjs \
+    archivers/bzip2/test/interrupt.mjs \
     archivers/gzip/test/roundtrip.mjs \
     archivers/gzip/test/formats.mjs \
     archivers/gzip/test/aliases.mjs \

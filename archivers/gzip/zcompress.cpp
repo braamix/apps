@@ -3,14 +3,14 @@
 
 #ifndef NO_COMPRESS_SUPPORT
 
-#define BITS 16
-#define HSIZE 69001
-#define BIT_MASK 0x1f
+#define BITS       16
+#define HSIZE      69001
+#define BIT_MASK   0x1f
 #define BLOCK_MASK 0x80
-#define INIT_BITS 9
-#define FIRST 257
-#define CLEAR 256
-#define BUFSIZE (64 * 1024)
+#define INIT_BITS  9
+#define FIRST      257
+#define CLEAR      256
+#define BUFSIZE    (64 * 1024)
 
 typedef long code_int;
 typedef unsigned char char_type;
@@ -58,13 +58,12 @@ static int zfill(ZState *zs, char_type *header, int need)
     return i;
 }
 
-Task<off_t>
-zuncompress_fd(int in, int out, char *pre, size_t prelen, off_t *compressed_bytes)
+Task<off_t> zuncompress_fd(int in, int out, char *pre, size_t prelen, off_t *compressed_bytes)
 {
     ZState zs{};
-    zs.fd = in;
-    compressed_prelen = prelen;
-    compressed_pre = prelen ? pre : nullptr;
+    zs.fd                  = in;
+    compressed_prelen      = prelen;
+    compressed_pre         = prelen ? pre : nullptr;
     total_compressed_bytes = 0;
 
     off_t bout = 0;
@@ -84,27 +83,27 @@ zuncompress_fd(int in, int out, char *pre, size_t prelen, off_t *compressed_byte
         maybe_warnx("not in compress format");
         co_return -1;
     }
-    zs.maxbits = header[2] & BIT_MASK;
+    zs.maxbits        = header[2] & BIT_MASK;
     zs.block_compress = header[2] & BLOCK_MASK;
     if (zs.maxbits > BITS || zs.maxbits < 12) {
         maybe_warnx("invalid compress format");
         co_return -1;
     }
     zs.maxmaxcode = 1L << zs.maxbits;
-    zs.maxcode = (1 << INIT_BITS) - 1;
-    zs.n_bits = INIT_BITS;
-    zs.free_ent = zs.block_compress ? FIRST : 256;
+    zs.maxcode    = (1 << INIT_BITS) - 1;
+    zs.n_bits     = INIT_BITS;
+    zs.free_ent   = zs.block_compress ? FIRST : 256;
     for (code_int c = 255; c >= 0; c--) {
         zs.codetab[c] = 0;
-        zs.htab[c] = (char_type)c;
+        zs.htab[c]    = (char_type)c;
     }
     zs.oldcode = -1;
-    zs.stackp = zs.stack;
-    zs.state = ZState::S_MIDDLE;
+    zs.stackp  = zs.stack;
+    zs.state   = ZState::S_MIDDLE;
 
     auto refill = [&]() -> Task<int> {
         zs.roffset = 0;
-        int i = 0;
+        int i      = 0;
         for (; i < zs.n_bits && compressed_prelen; i++, compressed_prelen--)
             zs.gbuf[i] = *compressed_pre++;
         ssize_t n = co_await read_retry(in, zs.gbuf + i, (size_t)(zs.n_bits - i));
@@ -128,8 +127,8 @@ zuncompress_fd(int in, int out, char *pre, size_t prelen, off_t *compressed_byte
                     zs.maxcode = (1 << zs.n_bits) - 1;
             }
             if (zs.clear_flg) {
-                zs.maxcode = (1 << INIT_BITS) - 1;
-                zs.n_bits = INIT_BITS;
+                zs.maxcode   = (1 << INIT_BITS) - 1;
+                zs.n_bits    = INIT_BITS;
                 zs.clear_flg = 0;
             }
             int r = co_await refill();
@@ -137,8 +136,8 @@ zuncompress_fd(int in, int out, char *pre, size_t prelen, off_t *compressed_byte
                 break;
         }
 
-        int r_off = zs.roffset;
-        int bits = zs.n_bits;
+        int r_off     = zs.roffset;
+        int bits      = zs.n_bits;
         char_type *bp = zs.gbuf + (r_off >> 3);
         r_off &= 7;
         code_int gcode = (*bp++ >> r_off);
@@ -149,7 +148,7 @@ zuncompress_fd(int in, int out, char *pre, size_t prelen, off_t *compressed_byte
             r_off += 8;
             bits -= 8;
         }
-        static char_type rmask[9] = {0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff};
+        static char_type rmask[9] = { 0x00, 0x01, 0x03, 0x07, 0x0f, 0x1f, 0x3f, 0x7f, 0xff };
         gcode |= (*bp & rmask[bits]) << r_off;
         zs.roffset += zs.n_bits;
 
@@ -158,8 +157,8 @@ zuncompress_fd(int in, int out, char *pre, size_t prelen, off_t *compressed_byte
             for (code_int c = 255; c >= 0; c--)
                 zs.codetab[c] = 0;
             zs.clear_flg = 1;
-            zs.free_ent = FIRST;
-            zs.oldcode = -1;
+            zs.free_ent  = FIRST;
+            zs.oldcode   = -1;
             continue;
         }
         if (ent < 0)
@@ -172,11 +171,11 @@ zuncompress_fd(int in, int out, char *pre, size_t prelen, off_t *compressed_byte
                 co_return -1;
             }
             *zs.stackp++ = (char_type)zs.finchar;
-            ent = zs.oldcode;
+            ent          = zs.oldcode;
         }
         while (ent >= 256) {
             *zs.stackp++ = zs.htab[ent];
-            ent = zs.codetab[ent];
+            ent          = zs.codetab[ent];
         }
         *zs.stackp++ = zs.finchar = zs.htab[ent];
 
@@ -193,8 +192,8 @@ zuncompress_fd(int in, int out, char *pre, size_t prelen, off_t *compressed_byte
 
         if ((ent = zs.free_ent) < zs.maxmaxcode && zs.oldcode != -1) {
             zs.codetab[ent] = (uint16_t)zs.oldcode;
-            zs.htab[ent] = zs.finchar;
-            zs.free_ent = ent + 1;
+            zs.htab[ent]    = zs.finchar;
+            zs.free_ent     = ent + 1;
         }
         zs.oldcode = zs.incode;
     }

@@ -7,6 +7,7 @@ that runs in a browser tab.
 
 | | |
 | --- | --- |
+| [archivers/bzip2](archivers/bzip2/) | bzip2 1.0.8 — bzip2/bunzip2/bzcat |
 | [archivers/gzip](archivers/gzip/) | FreeBSD gzip 20190107 — gzip/gunzip/zcat/gzcat |
 | [archivers/zip](archivers/zip/) | Info-ZIP zip 3.0, and zipnote, zipsplit and zipcloak with it |
 | [converters/iconv](converters/iconv/) | Citrus iconv, and the two hundred character sets it converts between |
