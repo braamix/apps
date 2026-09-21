@@ -68,7 +68,7 @@ static inline void tuklib_gettext_init(const char *pkg, const char *dir)
     (void)dir;
 }
 
-[[noreturn]] void tuklib_exit(int status, int err_status, bool show_msg);
+void tuklib_exit(int status, int err_status, bool show_msg);
 
 static inline void signals_init(void)
 {

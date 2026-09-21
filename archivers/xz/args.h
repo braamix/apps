@@ -11,11 +11,17 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 typedef struct {
-    /// Filenames from command line
-    char **arg_names;
+    /// Full command line (views into the process argv blob).
+    Args args;
 
-    /// Number of filenames from command line
-    unsigned int arg_count;
+    /// Index in \a args of the first file operand, if any.
+    usize file_index;
+
+    /// Number of file operands; zero when \a stdin_only is set.
+    unsigned int file_count;
+
+    /// No file operands were given; read from standard input.
+    bool stdin_only;
 
     /// Name of the file from which to read filenames. This is NULL
     /// if --files or --files0 was not used.
@@ -39,5 +45,5 @@ extern bool opt_ignore_check;
 
 extern const char stdin_filename[];
 
-extern void args_parse(args_info *args, int argc, char **argv);
+extern void args_parse(args_info *args, Args cmdargs);
 extern void args_free(void);

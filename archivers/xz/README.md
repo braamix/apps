@@ -18,7 +18,8 @@ Presets 7–9 are not usable here. Multi-threaded encoding is not linked; `-T` a
 | Upstream | Braam |
 | --- | --- |
 | `main` / `exit` | `xz_main` / `co_return` status |
-| `getopt_long` | Minimal `getopt.cpp` (not GNU getopt) |
+| `argc`/`argv` | Braam `Args` views; `getopt_long_args` (not a copied argv) |
+| `getopt_long` | Minimal `getopt.cpp` (env vars only; not GNU getopt) |
 | `read`/`write`/`lseek` | `co_await b_*` |
 | `fopen` for `--files` | Deferred `co_await b_fopen` in `main.cpp` |
 | `lzma_stream_encoder_mt` | Not linked; `-T` clamped to 1 |

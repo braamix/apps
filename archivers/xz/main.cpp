@@ -17,6 +17,17 @@ extern void set_exit_no_warn(void)
     no_warn = true;
 }
 
+static void copy_path(char *dst, usize cap, Str s)
+{
+    if (cap == 0)
+        return;
+    usize n = s.size();
+    if (n >= cap)
+        n = cap - 1;
+    memcpy(dst, s.data(), n);
+    dst[n] = '\0';
+}
+
 static Task<const char *> read_name(args_info *args)
 {
     static char *name  = NULL;
@@ -51,42 +62,55 @@ static Task<const char *> read_name(args_info *args)
     co_return NULL;
 }
 
+static Task<void> run_file(Str name, args_info *ainfo)
+{
+    if (name == Str("-")) {
+        if (opt_mode == MODE_COMPRESS) {
+            if (is_tty_stdout())
+                co_return;
+        } else if (is_tty_stdin()) {
+            co_return;
+        }
+        if (ainfo->files_name == stdin_filename) {
+            message_error(
+                _("Cannot read data from standard input when "
+                  "reading filenames from standard input"));
+            co_return;
+        }
+        name = Str(stdin_filename);
+    }
+
+    char path[512];
+    copy_path(path, sizeof path, name);
+    if (path[0] == '\0' && name != Str(stdin_filename)) {
+        message_error(_("Empty filename, skipping"));
+        co_return;
+    }
+
+    if (opt_mode == MODE_LIST)
+        co_await list_file(path);
+    else
+        co_await coder_run(path);
+}
+
 Task<i32> xz_main(Args args)
 {
     io_init();
     message_init();
     hardware_init();
 
-    int argc    = (int)args.size();
-    char **argv = (char **)xmalloc((size_t)(argc + 1) * sizeof(char *));
-    for (int i = 0; i < argc; ++i) {
-        Str s   = args[(usize)i];
-        argv[i] = (char *)xmalloc(s.size() + 1);
-        memcpy(argv[i], s.data(), s.size());
-        argv[i][s.size()] = '\0';
-    }
-    argv[argc] = NULL;
-    tuklib_progname_init(argv);
-
     args_info ainfo;
-    args_parse(&ainfo, argc, argv);
+    args_parse(&ainfo, args);
     if (xz_stop) {
         co_await xz_flush_diag();
-        for (int i = 0; i < argc; ++i)
-            free(argv[i]);
-        free(argv);
         if (exit_status == E_ERROR)
             co_return 1;
         if (exit_status == E_WARNING)
             co_return 2;
         co_return 0;
     }
-    if (xz_fatal) {
-        for (int i = 0; i < argc; ++i)
-            free(argv[i]);
-        free(argv);
+    if (xz_fatal)
         co_return 1;
-    }
 
     if (ainfo.files_name != NULL && ainfo.files_name != stdin_filename &&
         ainfo.files_file == NULL) {
@@ -103,37 +127,27 @@ Task<i32> xz_main(Args args)
 
     if (ainfo.files_name != NULL)
         message_set_files(0);
+    else if (ainfo.stdin_only)
+        message_set_files(1);
     else
-        message_set_files(ainfo.arg_count);
+        message_set_files(ainfo.file_count);
 
     if (opt_mode == MODE_COMPRESS) {
-        if (opt_stdout || (ainfo.arg_count == 1 && strcmp(ainfo.arg_names[0], "-") == 0)) {
+        const bool stdin_path =
+            ainfo.stdin_only ||
+            (ainfo.file_count == 1 && ainfo.args[ainfo.file_index] == Str("-"));
+        if (opt_stdout || stdin_path) {
             if (is_tty_stdout())
                 message_try_help();
         }
     }
 
-    for (unsigned i = 0; i < ainfo.arg_count && !user_abort; ++i) {
-        if (strcmp("-", ainfo.arg_names[i]) == 0) {
-            if (opt_mode == MODE_COMPRESS) {
-                if (is_tty_stdout())
-                    continue;
-            } else if (is_tty_stdin()) {
-                continue;
-            }
-            if (ainfo.files_name == stdin_filename) {
-                message_error(
-                    _("Cannot read data from standard input when "
-                      "reading filenames from standard input"));
-                continue;
-            }
-            ainfo.arg_names[i] = (char *)stdin_filename;
-        }
-
-        if (opt_mode == MODE_LIST)
-            co_await list_file(ainfo.arg_names[i]);
-        else
-            co_await coder_run(ainfo.arg_names[i]);
+    if (ainfo.stdin_only) {
+        if (!user_abort)
+            co_await run_file(Str("-"), &ainfo);
+    } else {
+        for (unsigned i = 0; i < ainfo.file_count && !user_abort; ++i)
+            co_await run_file(ainfo.args[ainfo.file_index + i], &ainfo);
     }
 
     if (ainfo.files_name != NULL) {
@@ -160,10 +174,6 @@ Task<i32> xz_main(Args args)
     enum exit_status_type es = exit_status;
     if (es == E_WARNING && no_warn)
         es = E_SUCCESS;
-
-    for (int i = 0; i < argc; ++i)
-        free(argv[i]);
-    free(argv);
 
     if (es == E_ERROR)
         co_return 1;

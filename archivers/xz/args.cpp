@@ -15,6 +15,7 @@
 #include <ctype.h>
 
 #include "getopt.h"
+#include "kernel/args.h"
 #include "private.h"
 
 bool opt_stdout        = false;
@@ -182,8 +183,31 @@ static void parse_block_list(const char *str_const)
     return;
 }
 
-static void parse_real(args_info *args, int argc, char **argv)
+static void copy_str(char *dst, usize cap, Str s)
 {
+    if (cap == 0)
+        return;
+    usize n = s.size();
+    if (n >= cap)
+        n = cap - 1;
+    memcpy(dst, s.data(), n);
+    dst[n] = '\0';
+}
+
+static Str prog_base_name(Str argv0)
+{
+    usize slash = argv0.size();
+    while (slash > 0 && argv0[slash - 1] != '/')
+        --slash;
+    return argv0.substr(slash);
+}
+
+static void parse_real(args_info *args, Args cmdargs, int env_argc, char **env_argv)
+{
+    const bool from_env = env_argv != NULL;
+    if (!from_env)
+        getopt_begin(cmdargs);
+
     enum {
         OPT_FILTERS = INT_MIN,
         OPT_FILTERS1,
@@ -307,7 +331,11 @@ static void parse_real(args_info *args, int argc, char **argv)
 
     int c;
 
-    while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1) {
+    for (;;) {
+        c = from_env ? getopt_long(env_argc, env_argv, short_opts, long_opts, NULL)
+                     : getopt_long_args(short_opts, long_opts, NULL);
+        if (c == -1)
+            break;
         switch (c) {
         // Compression preset (also for decompression if --format=raw)
         case '0':
@@ -707,19 +735,10 @@ static void parse_environment(args_info *args, char *argv0, const char *varname)
 
     // Parse the argument list we got from the environment. All non-option
     // arguments i.e. filenames are ignored.
-    parse_real(args, argc, argv);
+    parse_real(args, Args{}, argc, argv);
 
-    // Reset the state of the getopt_long() so that we can parse the
-    // command line options too. There are two incompatible ways to
-    // do it.
-#ifdef HAVE_OPTRESET
-    // BSD
     optind   = 1;
     optreset = 1;
-#else
-    // GNU, Solaris
-    optind = 0;
-#endif
 
     // We don't need the argument list from environment anymore.
     free(argv);
@@ -728,51 +747,44 @@ static void parse_environment(args_info *args, char *argv0, const char *varname)
     return;
 }
 
-extern void args_parse(args_info *args, int argc, char **argv)
+extern void args_parse(args_info *args, Args cmdargs)
 {
-    // Initialize those parts of *args that we need later.
+    args->args        = cmdargs;
+    args->file_index  = 0;
+    args->file_count  = 0;
+    args->stdin_only  = false;
     args->files_name  = NULL;
     args->files_file  = NULL;
     args->files_delim = '\0';
 
-    // Check how we were called.
-    {
-        // Remove the leading path name, if any.
-        const char *name = strrchr(argv[0], '/');
-        if (name == NULL)
-            name = argv[0];
-        else
-            ++name;
+    Str name = prog_base_name(cmdargs.size() ? cmdargs[0] : Str("xz"));
 
-        // NOTE: It's possible that name[0] is now '\0' if argv[0]
-        // is weird, but it doesn't matter here.
-
-        // Look for full command names instead of substrings like
-        // "un", "cat", and "lz" to reduce possibility of false
-        // positives when the programs have been renamed.
-        if (strstr(name, "xzcat") != NULL) {
-            opt_mode   = MODE_DECOMPRESS;
-            opt_stdout = true;
-        } else if (strstr(name, "unxz") != NULL) {
-            opt_mode = MODE_DECOMPRESS;
-        } else if (strstr(name, "lzcat") != NULL) {
-            opt_format = FORMAT_LZMA;
-            opt_mode   = MODE_DECOMPRESS;
-            opt_stdout = true;
-        } else if (strstr(name, "unlzma") != NULL) {
-            opt_format = FORMAT_LZMA;
-            opt_mode   = MODE_DECOMPRESS;
-        } else if (strstr(name, "lzma") != NULL) {
-            opt_format = FORMAT_LZMA;
-        }
+    if (name.contains(Str("xzcat"))) {
+        opt_mode   = MODE_DECOMPRESS;
+        opt_stdout = true;
+    } else if (name.contains(Str("unxz"))) {
+        opt_mode = MODE_DECOMPRESS;
+    } else if (name.contains(Str("lzcat"))) {
+        opt_format = FORMAT_LZMA;
+        opt_mode   = MODE_DECOMPRESS;
+        opt_stdout = true;
+    } else if (name.contains(Str("unlzma"))) {
+        opt_format = FORMAT_LZMA;
+        opt_mode   = MODE_DECOMPRESS;
+    } else if (name.contains(Str("lzma"))) {
+        opt_format = FORMAT_LZMA;
     }
 
-    // First the flags from the environment
-    parse_environment(args, argv[0], "XZ_DEFAULTS");
-    parse_environment(args, argv[0], "XZ_OPT");
+    char prog0[256];
+    copy_str(prog0, sizeof prog0, cmdargs.size() ? cmdargs[0] : Str("xz"));
 
-    // Then from the command line
-    parse_real(args, argc, argv);
+    parse_environment(args, prog0, "XZ_DEFAULTS");
+    parse_environment(args, prog0, "XZ_OPT");
+
+    parse_real(args, cmdargs, 0, NULL);
+
+    if (xz_stop)
+        return;
 
     // If encoder or decoder support was omitted at build time,
     // show an error now so that the rest of the code can rely on
@@ -843,8 +855,8 @@ extern void args_parse(args_info *args, int argc, char **argv)
         // If all of the filenames provided are "-" (more than one
         // "-" could be specified) or no filenames are provided,
         // then we are only going to be writing to standard out.
-        for (int i = optind; i < argc; i++) {
-            if (strcmp(argv[i], "-") != 0)
+        for (int i = optind; i < (int)cmdargs.size(); i++) {
+            if (cmdargs[(usize)i] != Str("-"))
                 message_fatal(
                     _("With --format=raw, "
                       "--suffix=.SUF is required "
@@ -860,18 +872,13 @@ extern void args_parse(args_info *args, int argc, char **argv)
     if (opt_mode == MODE_COMPRESS || (opt_format == FORMAT_RAW && opt_mode != MODE_LIST))
         coder_set_compression_settings();
 
-    // If no filenames are given, use stdin.
-    if (argv[optind] == NULL && args->files_name == NULL) {
-        // We don't modify or free() the "-" constant. The caller
-        // modifies this so don't make the struct itself const.
-        static char *names_stdin[2] = { (char *)"-", NULL };
-        args->arg_names             = names_stdin;
-        args->arg_count             = 1;
+    if (optind >= (int)cmdargs.size() && args->files_name == NULL) {
+        args->stdin_only = true;
+        args->file_count = 0;
     } else {
-        // We got at least one filename from the command line, or
-        // --files or --files0 was specified.
-        args->arg_names = argv + optind;
-        args->arg_count = (unsigned int)(argc - optind);
+        args->stdin_only = false;
+        args->file_index = (usize)optind;
+        args->file_count = (unsigned int)(cmdargs.size() - (usize)optind);
     }
 
     return;
