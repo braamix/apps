@@ -19,6 +19,7 @@ that runs in a browser tab.
 | [games/asciifluid](games/asciifluid/) | IOCCC 2012/endoh1, a fluid simulator that fits on a screen |
 | [games/asciiquarium](games/asciiquarium/) | goquarium, the ASCII aquarium — fish, sharks, whales and a castle |
 | [games/cmatrix](games/cmatrix/) | CMatrix 1.2a, Chris Allegretta's Matrix screensaver |
+| [games/asciiclock](games/asciiclock/) | Deybacsi's ASCII demo clock — nine backgrounds and a digital face |
 | [emulators/simbesm](emulators/simbesm/) | The BESM-6, the Soviet mainframe — it boots Unix |
 | [lang/mbasic](lang/mbasic/) | Microsoft BASIC 1.1 for the 6502, the one that shipped on the Apple II |
 | [lang/python](lang/python/) | Python 3.14, written from scratch for Braam, with CPython's own library |
@@ -54,6 +55,7 @@ editors, driven a keystroke at a time and asserted cell by cell;
 answers; `games/asciifluid`, whose frames are compared with the ones upstream's
 own binary paints; `games/asciiquarium`, a seeded aquarium asserted frame by
 frame and driven by its own keys; `games/cmatrix`, a seeded Matrix rain
+asserted frame by frame; `games/asciiclock`, a seeded demo clock
 asserted frame by frame; the two benchmarks, each stopped partway
 by a signal; and `lang/mbasic`, whose sessions are compared line for line and
 whose `^C` is asserted on the grid. All of them need node 22.12, and

@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Fifteen programs are ported so far**:
+**Sixteen programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -80,6 +80,12 @@ spaces included, since a sprite's width is measured from them; and
 [games/cmatrix](games/cmatrix/), CMatrix 1.2a, which is asciiquarium's shape
 on a smaller surface: a frame clock, a keyboard task, and a `ProcScreen` in
 place of ncurses, the rain itself still the column walk in `cmatrix.c`; and
+[games/asciiclock](games/asciiclock/), Deybacsi's ASCII demo clock — the same
+driver shape again, but the face reads **`clock_now()`** each frame and the
+upstream layer compositor is kept: nine backgrounds, a digital HH:MM on layer 2,
+optional cube on layer 4, `mergelayers()` then damage-tracked paint. The maze
+effect is iterative rather than recursive; snow and starfield use signed coords
+so `rand() % 3 - 1` cannot wrap unsigned; and
 [lang/mbasic](lang/mbasic/), Microsoft BASIC 1.1 for the 6502 — the first
 *language* here, and a **seventh shape**: a read-eval-print loop over a program
 it is also editing. Its hard part is that `ERROR` was a stack-pointer reset

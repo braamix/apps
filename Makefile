@@ -32,7 +32,7 @@ REPO_URL      ?= https://braamix.github.io
 # G. A client refuses an index whose version is below the one it holds, so this
 # rises at every publication. It cannot be derived: only the publisher knows
 # what was last uploaded.
-INDEX_VERSION ?= 53
+INDEX_VERSION ?= 54
 
 # E, milliseconds since the epoch: 2027-08-21. A promise to re-sign by then.
 INDEX_EXPIRY  ?= 1818806400000
@@ -94,6 +94,10 @@ TESTS := \
     games/cmatrix/test/colour.mjs \
     games/cmatrix/test/keys.mjs \
     games/cmatrix/test/interrupt.mjs \
+    games/asciiclock/test/frames.mjs \
+    games/asciiclock/test/colour.mjs \
+    games/asciiclock/test/keys.mjs \
+    games/asciiclock/test/interrupt.mjs \
     editors/uemacs/test/emkeys.mjs \
     editors/uemacs/test/emedit.mjs \
     editors/uemacs/test/emfiles.mjs \
