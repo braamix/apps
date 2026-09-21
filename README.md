@@ -9,6 +9,7 @@ that runs in a browser tab.
 | --- | --- |
 | [archivers/zip](archivers/zip/) | Info-ZIP zip 3.0, and zipnote, zipsplit and zipcloak with it |
 | [converters/iconv](converters/iconv/) | Citrus iconv, and the two hundred character sets it converts between |
+| [devel/c4](devel/c4/) | C4, C in four functions — a tiny compiler that compiles itself |
 | [editors/eh](editors/eh/) | EH 1.8.1, Edit Here — vi the good parts version, and the smallest editor here |
 | [editors/le](editors/le/) | LE 1.16.8, the block editor, with its own curses |
 | [editors/uemacs](editors/uemacs/) | uEmacs/PK 4.0.15, MicroEMACS as Linus Torvalds keeps it |
@@ -29,9 +30,9 @@ naming an upstream worth porting.
 
 ## Layout
 
-Categories, as in pkgsrc — `archivers`, `benchmarks`, `converters`, `editors`,
-`games`, `lang`, `misc` — each holding one sub-directory per program. Every
-program builds into a ZIP package that `/bin/pkg` installs.
+Categories, as in pkgsrc — `archivers`, `benchmarks`, `converters`, `devel`,
+`editors`, `games`, `lang`, `misc` — each holding one sub-directory per
+program. Every program builds into a ZIP package that `/bin/pkg` installs.
 
 ## Building
 
@@ -52,7 +53,9 @@ reads them back with Braam's own `/bin/unzip`; `games/adventure`, which plays a
 whole game of Colossal Cave and interrupts a second one with `^C`; the two
 editors, driven a keystroke at a time and asserted cell by cell;
 `converters/iconv`, which checks 137,385 mappings against GNU libiconv's own
-answers; `games/asciifluid`, whose frames are compared with the ones upstream's
+answers; `devel/c4`, which compiles hello.c, compiles itself to compile
+hello.c, and interrupts a guest loop; `games/asciifluid`, whose frames are
+compared with the ones upstream's
 own binary paints; `games/asciiquarium`, a seeded aquarium asserted frame by
 frame and driven by its own keys; `games/cmatrix`, a seeded Matrix rain
 asserted frame by frame; `games/asciiclock`, a seeded demo clock

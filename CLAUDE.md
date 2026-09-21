@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Sixteen programs are ported so far**:
+**Seventeen programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -183,14 +183,24 @@ reaches the process as `SIG_INT` instead of as a keystroke. It ships its
 library as `lib/`, and `Manual.md` and three demos as `share/` — the second
 body of code here written *in* a language this tree provides rather than
 ported into one, after mbasic's twenty `.bas` files.
+And [devel/c4](devel/c4/), Robert Swierczek's C in four functions — a tiny
+compiler plus a bytecode VM, enough C to compile itself. It is simbesm's
+shape again, on a much smaller surface: `open`, `read`, `close` and `printf`
+are reached from the instruction loop, so `c4_burst()` runs plain C++ until
+it has one of those to do and only `braam.cpp` awaits. The four functions
+themselves never block; compiler `printf` fills a buffer the driver drains,
+and `exit(-1)` is a sticky flag. `#define int long long` is kept, so the VM
+word is eight bytes as upstream's was. `share/c4.c` and `share/hello.c` are
+the original sources, and a bare name resolves through `/pkg/bin` so
+`c4 hello.c` and `c4 c4.c hello.c` work after install.
 
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
 [games/tetris](games/tetris/TODO.md), [misc/stat](misc/stat/TODO.md).
 
 Layout is `<category>/<program>/`, categories borrowed from pkgsrc (`archivers`,
-`benchmarks`, `editors`, `games`, `lang`, `misc`, …). A directory with only a
-`TODO.md` is a stated intention, not work in progress.
+`benchmarks`, `converters`, `devel`, `editors`, `games`, `lang`, `misc`, …). A
+directory with only a `TODO.md` is a stated intention, not work in progress.
 
 A port is a rewrite, and it keeps upstream's identifiers, structure and output
 text: the value of porting a historic program is that it is still the same
