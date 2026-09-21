@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Twenty programs are ported so far**:
+**Twenty-one programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -29,6 +29,24 @@ and
 [archivers/zip](archivers/zip/), the largest by far — Info-ZIP's zip 3.0, four
 commands out of one set of sources, where nearly every function became a
 coroutine because nearly every one of them reaches a stream; and
+[archivers/zstd](archivers/zstd/), Zstandard 1.6.0 — the fourth archiver and the
+one whose *encoder is the SDK's*, `braam::zstd` being libzstd itself, so what
+was ported is only upstream's `programs/`: fileio's coroutine conversion, and
+`--format=gzip`, `--format=xz` and `--format=lzma` on zlib and liblzma beside
+it. That makes fidelity assertable the way asciifluid's is, and
+[archivers/zstd/test/frames.mjs](archivers/zstd/test/frames.mjs) asserts it:
+eight encodings byte for byte against frames upstream's own binary wrote, with
+`--format=gzip` the ninth and out, because zlib's header carries an `OS_CODE`
+that is the build's. Its own two lessons are elsewhere. One is that `DISPLAY`
+is called from plain functions that cannot await a write, so the buffer behind
+it has to **grow rather than truncate**: `--help` is twelve kilobytes written
+by a hundred `DISPLAYOUT` calls with no suspension point between the first and
+the last, and a fixed 4 KB buffer silently cut it off mid-line. The other is
+that `<time.h>`'s `clock()` is `BRAAM_ABSENT` and not merely missing, so a port
+may not define it — `proc_now()` is the one clock there is, which is wall time,
+so the cpu-load figure at display level 4 reads the same clock twice and says
+100%; and
+
 [converters/iconv](converters/iconv/), Citrus iconv with two hundred character
 sets, which is the opposite shape — it reads files only while opening a
 conversion, so the coroutines stop at the door and the whole conversion path is

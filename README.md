@@ -11,6 +11,7 @@ that runs in a browser tab.
 | [archivers/gzip](archivers/gzip/) | FreeBSD gzip 20190107 — gzip/gunzip/zcat/gzcat |
 | [archivers/xz](archivers/xz/) | XZ Utils 5.8.4 — xz/unxz/xzcat/lzma/unlzma/lzcat |
 | [archivers/zip](archivers/zip/) | Info-ZIP zip 3.0, and zipnote, zipsplit and zipcloak with it |
+| [archivers/zstd](archivers/zstd/) | Zstandard 1.6.0 — zstd/unzstd/zstdcat/zstdmt, and gzip, xz and lzma with it |
 | [converters/iconv](converters/iconv/) | Citrus iconv, and the two hundred character sets it converts between |
 | [devel/c4](devel/c4/) | C4, C in four functions — a tiny compiler that compiles itself |
 | [editors/eh](editors/eh/) | EH 1.8.1, Edit Here — vi the good parts version, and the smallest editor here |
@@ -52,7 +53,9 @@ builds the packages beside them, `<program>-<version>.zip`.
     make test
 
 runs what headless tests there are — `archivers/zip`, which writes archives and
-reads them back with Braam's own `/bin/unzip`; `games/adventure`, which plays a
+reads them back with Braam's own `/bin/unzip`; `archivers/zstd`, whose frames
+are compared byte for byte with the ones upstream's own binary writes;
+`games/adventure`, which plays a
 whole game of Colossal Cave and interrupts a second one with `^C`; the two
 editors, driven a keystroke at a time and asserted cell by cell;
 `converters/iconv`, which checks 137,385 mappings against GNU libiconv's own

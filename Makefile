@@ -32,7 +32,7 @@ REPO_URL      ?= https://braamix.github.io
 # G. A client refuses an index whose version is below the one it holds, so this
 # rises at every publication. It cannot be derived: only the publisher knows
 # what was last uploaded.
-INDEX_VERSION ?= 55
+INDEX_VERSION ?= 56
 
 # E, milliseconds since the epoch: 2027-08-21. A promise to re-sign by then.
 INDEX_EXPIRY  ?= 1818806400000
@@ -49,12 +49,16 @@ REPO := $(BUILD)/repo
 
 .PHONY: all package test longtest index clean hooks
 
-# Once per clone: use .githooks/commit-msg (strips Co-authored-by trailers).
-hooks:
-	@git config core.hooksPath .githooks
+# Stated rather than left to position: a bare `make` builds everything, whatever
+# target happens to be written first.
+.DEFAULT_GOAL := all
 
 all: $(BUILD)/CMakeCache.txt
 	@cmake --build $(BUILD) -j $(JOBS)
+
+# Once per clone: use .githooks/commit-msg (strips Co-authored-by trailers).
+hooks:
+	@git config core.hooksPath .githooks
 
 # The zips /bin/pkg installs, one per program. `packages` rather than
 # `package`, which CPack claims.
@@ -93,6 +97,12 @@ TESTS := \
     archivers/zip/test/interrupt.mjs \
     archivers/zip/test/update.mjs \
     archivers/zip/test/tools.mjs \
+    archivers/zstd/test/roundtrip.mjs \
+    archivers/zstd/test/frames.mjs \
+    archivers/zstd/test/formats.mjs \
+    archivers/zstd/test/aliases.mjs \
+    archivers/zstd/test/tree.mjs \
+    archivers/zstd/test/interrupt.mjs \
     editors/eh/test/ehcases.mjs \
     editors/eh/test/ehreplace.mjs \
     editors/eh/test/ehtab.mjs \
