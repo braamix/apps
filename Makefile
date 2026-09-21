@@ -90,6 +90,10 @@ TESTS := \
     games/asciiquarium/test/keys.mjs \
     games/asciiquarium/test/resize.mjs \
     games/asciiquarium/test/interrupt.mjs \
+    games/cmatrix/test/frames.mjs \
+    games/cmatrix/test/colour.mjs \
+    games/cmatrix/test/keys.mjs \
+    games/cmatrix/test/interrupt.mjs \
     editors/uemacs/test/emkeys.mjs \
     editors/uemacs/test/emedit.mjs \
     editors/uemacs/test/emfiles.mjs \

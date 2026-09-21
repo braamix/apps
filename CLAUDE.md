@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Fourteen programs are ported so far**:
+**Fifteen programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -77,6 +77,9 @@ holding one of two shapes — becoming named fields and an enum, and five closur
 becoming plain functions. Its sprites were lifted out of the Go sources by a
 parser over `go/ast` and every literal compared against that dump, trailing
 spaces included, since a sprite's width is measured from them; and
+[games/cmatrix](games/cmatrix/), CMatrix 1.2a, which is asciiquarium's shape
+on a smaller surface: a frame clock, a keyboard task, and a `ProcScreen` in
+place of ncurses, the rain itself still the column walk in `cmatrix.c`; and
 [lang/mbasic](lang/mbasic/), Microsoft BASIC 1.1 for the 6502 — the first
 *language* here, and a **seventh shape**: a read-eval-print loop over a program
 it is also editing. Its hard part is that `ERROR` was a stack-pointer reset
