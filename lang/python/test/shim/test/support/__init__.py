@@ -6,6 +6,7 @@ than pretending to be CPython's: there is no refcount, no C docstrings and no
 subinterpreter here, so the decorators that guard on them skip.
 """
 
+import contextlib as _contextlib
 import sys
 import unittest
 
@@ -206,6 +207,17 @@ def sortdict(dict):
     reprpairs = ["%r: %r" % pair for pair in items]
     withcommas = ", ".join(reprpairs)
     return "{%s}" % withcommas
+
+
+# Upstream's, byte for byte.
+@_contextlib.contextmanager
+def patch_list(orig):
+    """Like unittest.mock.patch.dict, but for lists."""
+    try:
+        saved = orig[:]
+        yield
+    finally:
+        orig[:] = saved
 
 
 def impl_detail(msg=None, **guards):
@@ -719,6 +731,10 @@ def check_sizeof(test, o, size):
 
 # Only code objects carry debug ranges, and marshal does not write this
 # interpreter's code objects, so what needs them skips.
+def has_no_debug_ranges():
+    return True
+
+
 def requires_debug_ranges(reason="requires co_positions / debug_ranges"):
     return unittest.skip("code objects are not marshalled here")
 

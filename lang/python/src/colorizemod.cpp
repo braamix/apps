@@ -61,6 +61,16 @@ constexpr Type nocolor_type{ .name    = "_NoColor",
                              .getattr = nocolor_getattr,
                              .final   = true };
 
+// `ANSIColors()` is a class in CPython, so a program may call the name it
+// found. Here it answers itself, which is the same empty theme.
+R nocolor_call(const CallArgs &a, Value &out)
+{
+    out = method_self(a.args[0]);
+    return out.is_nil() ? err_set("TypeError", "not a theme") : R::Ok;
+}
+
+constexpr Method NOCOLOR_METHODS[] = { { "__call__", nocolor_call } };
+
 Value nocolor()
 {
     Obj *o = obj_alloc(&nocolor_type, sizeof(Obj));
@@ -131,11 +141,11 @@ bool colorize_install(DictObj *into)
 {
     Root rd{ obj_value(into) };
     DictObj *d = static_cast<DictObj *>(rd.v.obj());
-    if (!mod_defs(d, DEFS) || !mod_put(d, "COLORIZE", value_bool(false)))
+    if (!method_install(&nocolor_type, NOCOLOR_METHODS) || !mod_defs(d, DEFS) ||
+        !mod_put(d, "COLORIZE", value_bool(false)))
         return false;
     Root t{ nocolor() };
     d = static_cast<DictObj *>(rd.v.obj());
-    return !t.v.is_nil() && mod_put(d, "theme_no_color", t.v) &&
-           mod_put(d, "default_theme", t.v) && mod_put(d, "ANSIColors", t.v) &&
-           mod_put(d, "NoColors", t.v);
+    return !t.v.is_nil() && mod_put(d, "theme_no_color", t.v) && mod_put(d, "default_theme", t.v) &&
+           mod_put(d, "ANSIColors", t.v) && mod_put(d, "NoColors", t.v);
 }

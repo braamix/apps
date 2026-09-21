@@ -195,7 +195,7 @@ AttributeError: 'TypeError' object has no attribute '__notes__'. Did you mean '.
 ERROR: test_multibyte_encoding_errors (__main__.ParseTest.test_multibyte_encoding_errors) (sample=b'<x> \xa1</x>', exception=<class 'UnicodeDecodeError'>)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 438, in test_multibyte_encoding_errors
     parser.Parse(data, True)
@@ -205,7 +205,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 30
 ERROR: test_multibyte_encoding_errors (__main__.ParseTest.test_multibyte_encoding_errors) (sample=b'<x> \xa1</x', exception=<class 'UnicodeDecodeError'>)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 438, in test_multibyte_encoding_errors
     parser.Parse(data, True)
@@ -215,7 +215,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 30
 ERROR: test_non_text_encodings (__main__.ParseTest.test_non_text_encodings) (encoding='hex_codec')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 415, in test_non_text_encodings
     parser.Parse(data, True)
@@ -225,7 +225,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 30
 ERROR: test_non_text_encodings (__main__.ParseTest.test_non_text_encodings) (encoding='rot_13')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 415, in test_non_text_encodings
     parser.Parse(data, True)
@@ -235,7 +235,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 30
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-1')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -245,7 +245,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-2')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -255,7 +255,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-3')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -265,7 +265,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-4')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -275,7 +275,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-5')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -285,7 +285,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-6')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -295,7 +295,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-7')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -305,7 +305,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-8')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -315,7 +315,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-9')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -325,7 +325,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-10')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -335,7 +335,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-13')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -345,7 +345,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-14')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -355,7 +355,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-15')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -365,7 +365,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='iso8859-16')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -375,7 +375,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp437')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -385,7 +385,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp720')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -395,7 +395,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp737')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -405,7 +405,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp775')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -415,7 +415,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp850')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -425,7 +425,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp852')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -435,7 +435,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp855')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -445,7 +445,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp856')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -455,7 +455,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp857')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -465,7 +465,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp858')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -475,7 +475,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp860')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -485,7 +485,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp861')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -495,7 +495,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp862')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -505,7 +505,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp863')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -515,7 +515,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp865')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -525,7 +525,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp866')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -535,7 +535,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp869')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -545,7 +545,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp874')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -555,7 +555,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1006')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -565,7 +565,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1125')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -575,7 +575,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1250')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -585,7 +585,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1251')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -595,7 +595,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1252')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -605,7 +605,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1253')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -615,7 +615,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1254')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -625,7 +625,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1255')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -635,7 +635,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1256')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -645,7 +645,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1257')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -655,7 +655,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp1258')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -665,7 +665,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='mac-cyrillic')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -675,7 +675,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='mac-greek')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -685,7 +685,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='mac-iceland')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -695,7 +695,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='mac-latin2')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -705,7 +705,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='mac-roman')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -715,7 +715,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='mac-turkish')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -725,7 +725,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='koi8-r')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -735,7 +735,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='koi8-t')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -745,7 +745,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='koi8-u')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -755,7 +755,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='kz1048')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -765,7 +765,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='ptcp154')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -775,7 +775,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp932')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -785,7 +785,7 @@ LookupError: unknown encoding: cp932
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp949')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -795,7 +795,7 @@ LookupError: unknown encoding: cp949
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='cp950')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -805,7 +805,7 @@ LookupError: unknown encoding: cp950
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='Big5')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -815,7 +815,7 @@ LookupError: unknown encoding: Big5
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='EUC-JP')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -825,7 +825,7 @@ LookupError: unknown encoding: EUC-JP
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='GB2312')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -835,7 +835,7 @@ LookupError: unknown encoding: GB2312
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='GBK')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -845,7 +845,7 @@ LookupError: unknown encoding: GBK
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='johab')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -855,7 +855,7 @@ LookupError: unknown encoding: johab
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='Shift_JIS')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -865,7 +865,7 @@ LookupError: unknown encoding: Shift_JIS
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='UTF8')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -875,7 +875,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='utf-8-sig')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 307, in test_supported_encodings
     parser.Parse(data, True)
@@ -885,7 +885,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 1
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='Big5-HKSCS')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -895,7 +895,7 @@ LookupError: unknown encoding: Big5-HKSCS
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='EUC_JIS-2004')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -905,7 +905,7 @@ LookupError: unknown encoding: EUC_JIS-2004
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='EUC_JISX0213')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -915,7 +915,7 @@ LookupError: unknown encoding: EUC_JISX0213
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='Shift_JIS-2004')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -925,7 +925,7 @@ LookupError: unknown encoding: Shift_JIS-2004
 ERROR: test_supported_encodings (__main__.ParseTest.test_supported_encodings) (encoding='Shift_JISX0213')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 304, in test_supported_encodings
     c = 'éπя\u05d0\u060c€'.encode(encoding, 'ignore').decode(encoding)[0]
@@ -935,7 +935,7 @@ LookupError: unknown encoding: Shift_JISX0213
 ERROR: test_supported_encodings2 (__main__.ParseTest.test_supported_encodings2) (encoding='utf8')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 326, in test_supported_encodings2
     parser.Parse(data, True)
@@ -945,7 +945,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings2 (__main__.ParseTest.test_supported_encodings2) (encoding='koi8-u')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 326, in test_supported_encodings2
     parser.Parse(data, True)
@@ -955,7 +955,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings2 (__main__.ParseTest.test_supported_encodings2) (encoding='cp1125')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 326, in test_supported_encodings2
     parser.Parse(data, True)
@@ -965,7 +965,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings2 (__main__.ParseTest.test_supported_encodings2) (encoding='cp1251')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 326, in test_supported_encodings2
     parser.Parse(data, True)
@@ -975,7 +975,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings2 (__main__.ParseTest.test_supported_encodings2) (encoding='iso8859-5')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 326, in test_supported_encodings2
     parser.Parse(data, True)
@@ -985,7 +985,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 0
 ERROR: test_supported_encodings2 (__main__.ParseTest.test_supported_encodings2) (encoding='mac-cyrillic')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 326, in test_supported_encodings2
     parser.Parse(data, True)
@@ -1011,7 +1011,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 30
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='UTF-7')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 381, in test_unsupported_encodings
     parser.Parse(data, True)
@@ -1021,7 +1021,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 30
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='unicode-escape')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 381, in test_unsupported_encodings
     parser.Parse(data, True)
@@ -1031,7 +1031,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 30
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='raw-unicode-escape')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 381, in test_unsupported_encodings
     parser.Parse(data, True)
@@ -1041,7 +1041,7 @@ pyexpat.ExpatError: unknown encoding: line 1, column 30
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='EUC-KR')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 379, in test_unsupported_encodings
     '<root></root>').encode(encoding)
@@ -1051,7 +1051,7 @@ LookupError: unknown encoding: EUC-KR
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='GB18030')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 379, in test_unsupported_encodings
     '<root></root>').encode(encoding)
@@ -1061,7 +1061,7 @@ LookupError: unknown encoding: GB18030
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='HZ-GB-2312')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 379, in test_unsupported_encodings
     '<root></root>').encode(encoding)
@@ -1071,7 +1071,7 @@ LookupError: unknown encoding: HZ-GB-2312
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='ISO-2022-JP')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 379, in test_unsupported_encodings
     '<root></root>').encode(encoding)
@@ -1081,7 +1081,7 @@ LookupError: unknown encoding: ISO-2022-JP
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='ISO-2022-JP-1')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 379, in test_unsupported_encodings
     '<root></root>').encode(encoding)
@@ -1091,7 +1091,7 @@ LookupError: unknown encoding: ISO-2022-JP-1
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='ISO-2022-JP-2004')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 379, in test_unsupported_encodings
     '<root></root>').encode(encoding)
@@ -1101,7 +1101,7 @@ LookupError: unknown encoding: ISO-2022-JP-2004
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='ISO-2022-JP-2')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 379, in test_unsupported_encodings
     '<root></root>').encode(encoding)
@@ -1111,7 +1111,7 @@ LookupError: unknown encoding: ISO-2022-JP-2
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='ISO-2022-JP-3')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 379, in test_unsupported_encodings
     '<root></root>').encode(encoding)
@@ -1121,7 +1121,7 @@ LookupError: unknown encoding: ISO-2022-JP-3
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='ISO-2022-JP-EXT')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 379, in test_unsupported_encodings
     '<root></root>').encode(encoding)
@@ -1131,7 +1131,7 @@ LookupError: unknown encoding: ISO-2022-JP-EXT
 ERROR: test_unsupported_encodings (__main__.ParseTest.test_unsupported_encodings) (encoding='ISO-2022-KR')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 379, in test_unsupported_encodings
     '<root></root>').encode(encoding)
@@ -1141,7 +1141,7 @@ LookupError: unknown encoding: ISO-2022-KR
 ERROR: test_unsupported_non_bmp (__main__.ParseTest.test_unsupported_non_bmp) (encoding='Big5-HKSCS')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 362, in test_unsupported_non_bmp
     f'<root>{c}</root>').encode(encoding)
@@ -1151,7 +1151,7 @@ LookupError: unknown encoding: Big5-HKSCS
 ERROR: test_unsupported_non_bmp (__main__.ParseTest.test_unsupported_non_bmp) (encoding='EUC_JIS-2004')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 362, in test_unsupported_non_bmp
     f'<root>{c}</root>').encode(encoding)
@@ -1161,7 +1161,7 @@ LookupError: unknown encoding: EUC_JIS-2004
 ERROR: test_unsupported_non_bmp (__main__.ParseTest.test_unsupported_non_bmp) (encoding='EUC_JISX0213')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 362, in test_unsupported_non_bmp
     f'<root>{c}</root>').encode(encoding)
@@ -1171,7 +1171,7 @@ LookupError: unknown encoding: EUC_JISX0213
 ERROR: test_unsupported_non_bmp (__main__.ParseTest.test_unsupported_non_bmp) (encoding='Shift_JIS-2004')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 362, in test_unsupported_non_bmp
     f'<root>{c}</root>').encode(encoding)
@@ -1181,7 +1181,7 @@ LookupError: unknown encoding: Shift_JIS-2004
 ERROR: test_unsupported_non_bmp (__main__.ParseTest.test_unsupported_non_bmp) (encoding='Shift_JISX0213')
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 265, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_pyexpat.py", line 362, in test_unsupported_non_bmp
     f'<root>{c}</root>').encode(encoding)

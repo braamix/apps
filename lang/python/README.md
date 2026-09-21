@@ -8,7 +8,7 @@ from nothing — its own lexer, parser, compiler, bytecode and virtual machine,
 `pyexpat`'s callers check is expat's own error codes, messages and positions,
 and only expat's own code produces those.
 
-The other half is borrowed whole: **CPython's standard library**, 329 files
+The other half is borrowed whole: **CPython's standard library**, 334 files
 byte for byte as [lib/](lib/), over a floor of native modules written here. A
 Python that runs CPython's own library is a real Python, and writing that
 library again would be both enormous and worse.
@@ -244,13 +244,17 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
   at a handler with `XML_StopParser` and a `ContObj` makes the Python call and
   resumes, because a native here may not call Python. `ElementTree`,
   `minidom`, `pulldom` and `xml.sax` all read through it.
-- `sys.settrace` and `sys.setprofile` are the VM's, not a module's: a tracer
-  is a Python call made from inside the instruction loop, so it is a pushed
-  frame like any other and the loop resumes the instruction it was called
-  from. Unwinding cannot make that call at all -- `dispatch` is plain C++ --
-  so what each frame is owed is queued and fired at the next instruction
-  boundary. Every code object begins with a `Nop`, CPython's `RESUME`, so
-  that a frame that has not run has a position for a `call` event to report.
+- `sys.settrace`, `sys.setprofile` and `sys.monitoring` are the VM's, not a
+  module's: a tracer is a Python call made from inside the instruction loop,
+  so it is a pushed frame like any other and the loop resumes the instruction
+  it was called from. Unwinding cannot make that call at all -- `dispatch` is
+  plain C++ -- so what each frame is owed is queued and fired at the next
+  instruction boundary. Every code object begins with a `Nop`, CPython's
+  `RESUME`, so that a frame that has not run has a position for a `call`
+  event to report. `_lsprof`, which `cProfile` stands on, is told through a
+  function pointer instead, so a profile costs no Python call per event.
+- `pdb` runs on either backend, and `breakpoint()` stops one frame in --
+  inside `sys.breakpointhook`, which is Python here where CPython's is C.
 - A coroutine never awaited is reported when the collector finds it.
 - `json` is the pure-Python one, so a malformed document is reported in
   `json.decoder`'s words.

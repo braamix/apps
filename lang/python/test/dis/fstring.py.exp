@@ -14,47 +14,48 @@ code <module>  file /tmp/c.py  line 1
       9  'lit'
      10  'tail'
      11  ''
-    1       0  LoadConst             0 (None)
-            1  StoreName             0 (__doc__)
-            2  LoadConst             1 (1)
-            3  StoreName             1 (x)
-    2       4  LoadConst             2 (8)
-            5  StoreName             2 (w)
-    4       6  LoadConst             3 ('plain')
-            7  StoreName             3 (a)
-    5       8  LoadName              1 (x)
-            9  FormatValue           0
-           10  StoreName             4 (b)
-    6      11  LoadConst             4 ('a')
-           12  LoadName              1 (x)
-           13  FormatValue           0
-           14  LoadConst             5 ('b')
-           15  LoadName              1 (x)
-           16  FormatValue           0
-           17  LoadConst             6 ('c')
-           18  BuildString           5
-           19  StoreName             5 (c)
-    7      20  LoadName              1 (x)
-           21  LoadConst             7 ('>')
-           22  LoadName              2 (w)
-           23  FormatValue           0
-           24  BuildString           2
-           25  FormatValue         370 (r spec)
-           26  StoreName             6 (d)
-    8      27  LoadConst             8 ('x=')
-           28  LoadName              1 (x)
-           29  FormatValue         114 (r)
-           30  BuildString           2
-           31  StoreName             7 (e)
-    9      32  LoadConst             9 ('lit')
-           33  LoadName              1 (x)
-           34  FormatValue           0
-           35  LoadConst            10 ('tail')
-           36  BuildString           3
-           37  StoreName             8 (g)
-   10      38  LoadName              1 (x)
-           39  LoadConst            11 ('')
-           40  FormatValue         256 (spec)
-           41  StoreName             9 (h)
-           42  LoadConst             0 (None)
-           43  Return
+    1       0  Nop
+            1  LoadConst             0 (None)
+            2  StoreName             0 (__doc__)
+            3  LoadConst             1 (1)
+            4  StoreName             1 (x)
+    2       5  LoadConst             2 (8)
+            6  StoreName             2 (w)
+    4       7  LoadConst             3 ('plain')
+            8  StoreName             3 (a)
+    5       9  LoadName              1 (x)
+           10  FormatValue           0
+           11  StoreName             4 (b)
+    6      12  LoadConst             4 ('a')
+           13  LoadName              1 (x)
+           14  FormatValue           0
+           15  LoadConst             5 ('b')
+           16  LoadName              1 (x)
+           17  FormatValue           0
+           18  LoadConst             6 ('c')
+           19  BuildString           5
+           20  StoreName             5 (c)
+    7      21  LoadName              1 (x)
+           22  LoadConst             7 ('>')
+           23  LoadName              2 (w)
+           24  FormatValue           0
+           25  BuildString           2
+           26  FormatValue         370 (r spec)
+           27  StoreName             6 (d)
+    8      28  LoadConst             8 ('x=')
+           29  LoadName              1 (x)
+           30  FormatValue         114 (r)
+           31  BuildString           2
+           32  StoreName             7 (e)
+    9      33  LoadConst             9 ('lit')
+           34  LoadName              1 (x)
+           35  FormatValue           0
+           36  LoadConst            10 ('tail')
+           37  BuildString           3
+           38  StoreName             8 (g)
+   10      39  LoadName              1 (x)
+           40  LoadConst            11 ('')
+           41  FormatValue         256 (spec)
+           42  StoreName             9 (h)
+           43  LoadConst             0 (None)
+           44  Return

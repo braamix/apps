@@ -99,7 +99,7 @@ AttributeError: module 'test.support' has no attribute 'wait_process'
 ERROR: test_scheduler_wrong_type (__main__.TestPosixSpawn.test_scheduler_wrong_type) (scheduler=<object object at 0xX>)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 252, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_posix.py", line 2186, in test_scheduler_wrong_type
     self.spawn_func(path, args, os.environ, scheduler=scheduler)
@@ -109,7 +109,7 @@ NotImplementedError: a process group, session, id or scheduler cannot be had wit
 ERROR: test_scheduler_wrong_type (__main__.TestPosixSpawn.test_scheduler_wrong_type) (scheduler=1)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 252, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_posix.py", line 2186, in test_scheduler_wrong_type
     self.spawn_func(path, args, os.environ, scheduler=scheduler)
@@ -119,7 +119,7 @@ NotImplementedError: a process group, session, id or scheduler cannot be had wit
 ERROR: test_scheduler_wrong_type (__main__.TestPosixSpawn.test_scheduler_wrong_type) (scheduler=[1, 2])
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 252, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_posix.py", line 2186, in test_scheduler_wrong_type
     self.spawn_func(path, args, os.environ, scheduler=scheduler)
@@ -257,7 +257,7 @@ AttributeError: module 'test.support' has no attribute 'wait_process'
 ERROR: test_scheduler_wrong_type (__main__.TestPosixSpawnP.test_scheduler_wrong_type) (scheduler=<object object at 0xX>)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 252, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_posix.py", line 2186, in test_scheduler_wrong_type
     self.spawn_func(path, args, os.environ, scheduler=scheduler)
@@ -267,7 +267,7 @@ NotImplementedError: a process group, session, id or scheduler cannot be had wit
 ERROR: test_scheduler_wrong_type (__main__.TestPosixSpawnP.test_scheduler_wrong_type) (scheduler=1)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 252, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_posix.py", line 2186, in test_scheduler_wrong_type
     self.spawn_func(path, args, os.environ, scheduler=scheduler)
@@ -277,7 +277,7 @@ NotImplementedError: a process group, session, id or scheduler cannot be had wit
 ERROR: test_scheduler_wrong_type (__main__.TestPosixSpawnP.test_scheduler_wrong_type) (scheduler=[1, 2])
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test/support/__init__.py", line 252, in wrapper
+  File "/tmp/test/support/__init__.py", line 282, in wrapper
     func(self, *args, **kwargs, **subtest_kwargs)
   File "/tmp/test_posix.py", line 2186, in test_scheduler_wrong_type
     self.spawn_func(path, args, os.environ, scheduler=scheduler)

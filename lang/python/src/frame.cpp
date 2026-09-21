@@ -63,8 +63,8 @@ R frame_getattr(Value v, StrObj *name, Value &out)
     else if (n == "f_lineno")
         // Nothing has run yet at pc 0, so the line is the one the `def` or
         // the module began on -- which is what f_lasti answering -1 means.
-        out = Value::of_int(i32(f->pc ? code_line(code_of(f->code), f->pc - 1)
-                                      : code_of(f->code)->firstline));
+        out = Value::of_int(
+            i32(f->pc ? code_line(code_of(f->code), f->pc - 1) : code_of(f->code)->firstline));
     else if (n == "f_builtins")
         out = f->builtins.is_nil() ? value_none() : f->builtins;
     else if (n == "f_trace")

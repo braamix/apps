@@ -19,7 +19,8 @@ Stage 4 and tasks 19 to 24 were compression; Stage 5 and tasks 25 to 27 were
 `email`, `xml` and `pyexpat`; tasks 28 to 31 were the `_socket` floor,
 `sys.monitoring`'s namespace, `bdb`/`pdb`/`doctest` and `sys.settrace`; task
 32 was `sys.monitoring`'s events, task 33 was `sysconfig` and `trace`, task
-34 was the profilers, and task 36 was `symtable`.
+34 was the profilers, task 35 was `pdb`, task 36 was `symtable` and task 37
+was `pydoc`. Stage 6 is done; `tracemalloc` alone is left, in Stage 7.
 
 What `email` still cannot do is the one thing this system has not got: **the
 CJK codecs are not written**. `encodings` here is the single-byte pages, the
@@ -180,24 +181,28 @@ dictionary — real, and better than none, but with no entropy tables and so no
 
 ## Stage 6 — debugging and profiling
 
-**Tasks 28 to 34 and 36 are done.** `test_subprocess` imports now that
-`sysconfig` does, but it spawns so many children that the harness does not
-finish it; its row still says `import`, and what it is really waiting for is
-a run that ends. `sys.settrace` and `sys.setprofile` are the VM's:
-a tracer is a pushed frame like any other call, and what unwinding owes is
-queued and fired at the next instruction boundary, because `dispatch` is plain
-C++ and cannot call Python. Every code object now begins with a `Nop`, which is
-CPython's `RESUME`: a frame that has not run needs a position for the `call`
-event to report, and `f_lasti`, `f_lineno` and `co_lines` have to agree about
-it. `pass` costs a `Nop` too, so a debugger can stop on it.
+**Stage 6 is finished**, and what it left behind is written down here.
+
+`sys.settrace` and `sys.setprofile` are the VM's: a tracer is a pushed frame
+like any other call, and what unwinding owes is queued and fired at the next
+instruction boundary, because `dispatch` is plain C++ and cannot call Python.
+Every code object now begins with a `Nop`, which is CPython's `RESUME`: a
+frame that has not run needs a position for the `call` event to report, and
+`f_lasti`, `f_lineno` and `co_lines` have to agree about it. `pass` costs a
+`Nop` too, so a debugger can stop on it -- and a module's first statement now
+records a line of its own, without which `pdb` never stopped at the top of a
+script.
 
 `sys.monitoring`'s events fire on the same points, and are offered to each
 tool before `sys.setprofile` and `sys.settrace`, which is what their tool ids
-mean. **`DISABLE` is taken and nothing is turned off**: the answer is an
-optimisation a tool uses to stop hearing about a place it does not care
-about, and a tool that leans on it only runs slower here. `test_monitoring`
-has no main block -- regrtest discovers it -- so `test/stdlib/monitors.py` is
-what says the events arrive as PEP 669 states, against CPython's own output.
+mean. **`DISABLE` is honoured for `PY_START` and `PY_RESUME`, and taken and
+ignored everywhere else**: those two are the events a code object has exactly
+one place for, so turning them off there is what the callback meant;
+anywhere else it names one line or one instruction and this port has nowhere
+to record that, so a tool that leans on it to go faster does not.
+`test_monitoring` has no main block -- regrtest discovers it -- so
+`test/stdlib/monitors.py` is what says the events arrive as PEP 669 states,
+against CPython's own output.
 
 `_lsprof` is driven from the interpreter directly: `vm_set_native_profile`
 hands the VM a function pointer, and a call, a return and a builtin either
@@ -213,19 +218,15 @@ is written in Python here and CPython's is C, so `pdb.set_trace`'s
 `sys._getframe().f_back` is the hook's frame and not the caller's. One `r`
 reaches the caller.
 
-35. **`pdb`.** Now a working debugger: `run`, `runcall`, `post_mortem`,
-    `pm`, `set_trace` through the monitoring backend, and every command.
-    It reads its commands from stdin, through the key ring when stdin is the
-    console. `breakpoint()` now starts it. Leave `f_lineno` jumps
-    until there is a reason. Tests: `test_pdb`, `test_bdb`.
+**`help()` on a builtin says `(...)`**, because a native here carries no
+`__text_signature__` and `inspect.signature` has nothing to read. Writing one
+for each of them is a body of data, not of code, and it is the largest thing
+`test_pydoc` still fails on.
 
-37. **`pydoc`, `help()`.** `pydoc` needs `sysconfig` (task 33), `pkgutil`,
-    `platform` and `inspect`, which are here. It falls back to its plain
-    pager when `_pyrepl` is missing. Its server half (`http.server`) stays
-    out. `help()`, which `site` installs, then works, both on an object and
-    interactively. The real work is `inspect.signature` on builtins, which
-    needs a `__text_signature__` on each of them. Test: `test_pydoc/`,
-    without the server and browser cases.
+**`test_subprocess` is out of the suite.** It imports now that `sysconfig`
+does, but two hundred of its methods spawn a child apiece and the harness
+does not reach the end of it, so there is no golden to compare and the run
+stops instead. What it is waiting for is a run that ends, not a module.
 
 ## Stage 7 — the allocator
 

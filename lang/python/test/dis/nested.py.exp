@@ -7,22 +7,23 @@ code <module>  file /tmp/c.py  line 1
       2  <code r at line 10>
       3  <code w at line 16>
       4  <code gen at line 20>
-    1       0  LoadConst             0 (None)
-            1  StoreName             0 (__doc__)
-            2  LoadConst             1 (<code f at line 1>)
-            3  MakeFunction          0
-            4  StoreName             1 (f)
-   10       5  LoadConst             2 (<code r at line 10>)
-            6  MakeFunction          0
-            7  StoreName             2 (r)
-   16       8  LoadConst             3 (<code w at line 16>)
-            9  MakeFunction          0
-           10  StoreName             3 (w)
-   20      11  LoadConst             4 (<code gen at line 20>)
-           12  MakeFunction          0
-           13  StoreName             4 (gen)
-           14  LoadConst             0 (None)
-           15  Return
+    1       0  Nop
+            1  LoadConst             0 (None)
+            2  StoreName             0 (__doc__)
+            3  LoadConst             1 (<code f at line 1>)
+            4  MakeFunction          0
+            5  StoreName             1 (f)
+   10       6  LoadConst             2 (<code r at line 10>)
+            7  MakeFunction          0
+            8  StoreName             2 (r)
+   16       9  LoadConst             3 (<code w at line 16>)
+           10  MakeFunction          0
+           11  StoreName             3 (w)
+   20      12  LoadConst             4 (<code gen at line 20>)
+           13  MakeFunction          0
+           14  StoreName             4 (gen)
+           15  LoadConst             0 (None)
+           16  Return
 
 code f  file /tmp/c.py  line 1
   args 0 (posonly 0, kwonly 0)  stack 3  flags optimized newlocals

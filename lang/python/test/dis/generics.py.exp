@@ -6,22 +6,23 @@ code <module>  file /tmp/c.py  line 1
       1  <code <generic parameters of Pair> at line 1>
       2  <code <generic parameters of first> at line 4>
       3  <code <generic parameters of Box> at line 8>
-    1       0  LoadConst             0 (None)
-            1  StoreName             0 (__doc__)
-            2  LoadConst             1 (<code <generic parameters of Pair> at line 1>)
-            3  MakeFunction          0
-            4  Call                  0
-            5  StoreName             1 (Pair)
-    4       6  LoadConst             2 (<code <generic parameters of first> at line 4>)
-            7  MakeFunction          0
-            8  Call                  0
-            9  StoreName             2 (first)
-    8      10  LoadConst             3 (<code <generic parameters of Box> at line 8>)
-           11  MakeFunction          0
-           12  Call                  0
-           13  StoreName             3 (Box)
-           14  LoadConst             0 (None)
-           15  Return
+    1       0  Nop
+            1  LoadConst             0 (None)
+            2  StoreName             0 (__doc__)
+            3  LoadConst             1 (<code <generic parameters of Pair> at line 1>)
+            4  MakeFunction          0
+            5  Call                  0
+            6  StoreName             1 (Pair)
+    4       7  LoadConst             2 (<code <generic parameters of first> at line 4>)
+            8  MakeFunction          0
+            9  Call                  0
+           10  StoreName             2 (first)
+    8      11  LoadConst             3 (<code <generic parameters of Box> at line 8>)
+           12  MakeFunction          0
+           13  Call                  0
+           14  StoreName             3 (Box)
+           15  LoadConst             0 (None)
+           16  Return
 
 code <generic parameters of Pair>  file /tmp/c.py  line 1
   args 0 (posonly 0, kwonly 0)  stack 4  flags optimized newlocals

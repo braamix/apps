@@ -249,6 +249,10 @@ profiling/tracing/__init__.py       _lsprof           82952e3  Lib/profiling/tra
 profiling/tracing/__main__.py       _lsprof           82952e3  Lib/profiling/tracing/__main__.py
 profiling/tracing/_utils.py         _lsprof           82952e3  Lib/profiling/tracing/_utils.py
 pstats.py                           -                 82952e3  Lib/pstats.py
+py_compile.py                       -                 82952e3  Lib/py_compile.py
+pydoc.py                            _sysconfig        82952e3  Lib/pydoc.py
+pydoc_data/__init__.py              -                 82952e3  Lib/pydoc_data/__init__.py
+pydoc_data/topics.py                -                 82952e3  Lib/pydoc_data/topics.py
 queue.py                            _thread           82952e3  Lib/queue.py
 quopri.py                           binascii          82952e3  Lib/quopri.py
 random.py                           _random           82952e3  Lib/random.py
@@ -335,6 +339,7 @@ xml/sax/handler.py                  -                 82952e3  Lib/xml/sax/handl
 xml/sax/saxutils.py                 _socket           82952e3  Lib/xml/sax/saxutils.py
 xml/sax/xmlreader.py                -                 82952e3  Lib/xml/sax/xmlreader.py
 xml/utils.py                        -                 82952e3  Lib/xml/utils.py
+zipapp.py                           -                 82952e3  Lib/zipapp.py
 zipfile/__init__.py                 -                 82952e3  Lib/zipfile/__init__.py
 zipfile/__main__.py                 -                 82952e3  Lib/zipfile/__main__.py
 zipfile/_path/__init__.py           -                 82952e3  Lib/zipfile/_path/__init__.py

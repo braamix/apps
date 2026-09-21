@@ -32,10 +32,25 @@ R oom()
 // The events, in the order that fixes each one's bit. The last three are
 // derived from the others and cannot be asked for per code object.
 constexpr Str EVENT_NAMES[MON_EVENTS] = {
-    "PY_START",  "PY_RESUME", "PY_RETURN", "PY_YIELD",  "CALL",
-    "LINE",      "INSTRUCTION", "JUMP",    "BRANCH_LEFT", "BRANCH_RIGHT",
-    "STOP_ITERATION", "RAISE", "EXCEPTION_HANDLED", "PY_UNWIND", "PY_THROW",
-    "RERAISE",   "C_RETURN",  "C_RAISE",   "BRANCH",
+    "PY_START",
+    "PY_RESUME",
+    "PY_RETURN",
+    "PY_YIELD",
+    "CALL",
+    "LINE",
+    "INSTRUCTION",
+    "JUMP",
+    "BRANCH_LEFT",
+    "BRANCH_RIGHT",
+    "STOP_ITERATION",
+    "RAISE",
+    "EXCEPTION_HANDLED",
+    "PY_UNWIND",
+    "PY_THROW",
+    "RERAISE",
+    "C_RETURN",
+    "C_RAISE",
+    "BRANCH",
 };
 
 enum : u32 {
@@ -192,9 +207,9 @@ R m_register_callback(const CallArgs &a, Value &out)
         b.put("invalid event ").put(int_text(t, sizeof t, ev));
         return err_set("ValueError", b.str());
     }
-    Value was                = home->callbacks[id][e];
-    home->callbacks[id][e]   = is_none(a.args[2]) ? Value() : a.args[2];
-    out                      = was.is_nil() ? value_none() : was;
+    Value was              = home->callbacks[id][e];
+    home->callbacks[id][e] = is_none(a.args[2]) ? Value() : a.args[2];
+    out                    = was.is_nil() ? value_none() : was;
     return R::Ok;
 }
 
@@ -387,11 +402,21 @@ bool mon_armed()
     return false;
 }
 
+u32 mon_global_mask()
+{
+    if (!home)
+        return 0;
+    u32 all = 0;
+    for (u32 t = 0; t < MON_TOOLS; t++)
+        all |= home->events[t];
+    return all;
+}
+
 u32 mon_events_for(const CodeObj *c, u32 tool)
 {
     if (!home || tool >= MON_TOOLS)
         return 0;
-    return home->events[tool] | mon_local_events(c, tool);
+    return (home->events[tool] | mon_local_events(c, tool)) & ~mon_disabled(c, tool);
 }
 
 Value mon_disable()

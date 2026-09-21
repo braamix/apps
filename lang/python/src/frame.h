@@ -54,8 +54,8 @@ struct FrameObj : Obj {
     u32 tracepc;
     u32 prevpc;
     u32 lastline;
-    u16 fired;  // FIRED_* bits already fired at tracepc
-    u8 tflags;  // FT_*
+    u16 fired; // FIRED_* bits already fired at tracepc
+    u8 tflags; // FT_*
 
     Value *slots() { return reinterpret_cast<Value *>(this + 1); }
 

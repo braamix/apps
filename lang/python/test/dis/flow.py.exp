@@ -10,71 +10,72 @@ code <module>  file /tmp/c.py  line 1
       5  7
       6  4
       7  2
-    1       0  LoadConst             0 (None)
-            1  StoreName             0 (__doc__)
-            2  LoadConst             1 (0)
-            3  StoreName             1 (n)
-    2 >>    4  LoadName              1 (n)
-            5  LoadConst             2 (10)
-            6  CompareOp             2 (<)
-            7  PopJumpIfFalse       23
-    3       8  LoadName              1 (n)
-            9  LoadConst             3 (1)
-           10  BinaryOp              0 (+)
-           11  StoreName             1 (n)
-    4      12  LoadName              1 (n)
-           13  LoadConst             4 (3)
-           14  CompareOp             0 (==)
-           15  PopJumpIfFalse       17
-    5      16  Jump                  4
-    6 >>   17  LoadName              1 (n)
-           18  LoadConst             5 (7)
-           19  CompareOp             0 (==)
-           20  PopJumpIfFalse       22
-    7      21  Jump                 26
-    2 >>   22  Jump                  4
-    9 >>   23  LoadConst             3 (1)
-           24  UnaryOp               3 (-)
-           25  StoreName             1 (n)
-   11 >>   26  LoadName              2 (range)
-           27  LoadConst             6 (4)
-           28  Call                  1
-           29  GetIter
-      >>   30  ForIter              50
-           31  StoreName             3 (i)
-   12      32  LoadName              2 (range)
-           33  LoadConst             6 (4)
-           34  Call                  1
-           35  GetIter
-      >>   36  ForIter              45
-           37  StoreName             4 (j)
-   13      38  LoadName              3 (i)
-           39  LoadName              4 (j)
-           40  CompareOp             0 (==)
-           41  PopJumpIfFalse       44
-   14      42  PopTop
-           43  Jump                 49
-   12 >>   44  Jump                 36
-   16 >>   45  LoadName              1 (n)
-           46  LoadName              3 (i)
-           47  BinaryOp              0 (+)
-           48  StoreName             1 (n)
-   11 >>   49  Jump                 30
-   18 >>   50  LoadName              1 (n)
-           51  LoadConst             1 (0)
-           52  CompareOp             4 (>)
-           53  PopJumpIfFalse       57
-   19      54  LoadConst             3 (1)
-           55  StoreName             5 (x)
-   18      56  Jump                 66
-   20 >>   57  LoadName              1 (n)
-           58  LoadConst             1 (0)
-           59  CompareOp             2 (<)
-           60  PopJumpIfFalse       64
-   21      61  LoadConst             7 (2)
-           62  StoreName             5 (x)
-   20      63  Jump                 66
-   23 >>   64  LoadConst             4 (3)
-           65  StoreName             5 (x)
-      >>   66  LoadConst             0 (None)
-           67  Return
+    1       0  Nop
+            1  LoadConst             0 (None)
+            2  StoreName             0 (__doc__)
+            3  LoadConst             1 (0)
+            4  StoreName             1 (n)
+    2 >>    5  LoadName              1 (n)
+            6  LoadConst             2 (10)
+            7  CompareOp             2 (<)
+            8  PopJumpIfFalse       24
+    3       9  LoadName              1 (n)
+           10  LoadConst             3 (1)
+           11  BinaryOp              0 (+)
+           12  StoreName             1 (n)
+    4      13  LoadName              1 (n)
+           14  LoadConst             4 (3)
+           15  CompareOp             0 (==)
+           16  PopJumpIfFalse       18
+    5      17  Jump                  5
+    6 >>   18  LoadName              1 (n)
+           19  LoadConst             5 (7)
+           20  CompareOp             0 (==)
+           21  PopJumpIfFalse       23
+    7      22  Jump                 27
+    2 >>   23  Jump                  5
+    9 >>   24  LoadConst             3 (1)
+           25  UnaryOp               3 (-)
+           26  StoreName             1 (n)
+   11 >>   27  LoadName              2 (range)
+           28  LoadConst             6 (4)
+           29  Call                  1
+           30  GetIter
+      >>   31  ForIter              51
+           32  StoreName             3 (i)
+   12      33  LoadName              2 (range)
+           34  LoadConst             6 (4)
+           35  Call                  1
+           36  GetIter
+      >>   37  ForIter              46
+           38  StoreName             4 (j)
+   13      39  LoadName              3 (i)
+           40  LoadName              4 (j)
+           41  CompareOp             0 (==)
+           42  PopJumpIfFalse       45
+   14      43  PopTop
+           44  Jump                 50
+   12 >>   45  Jump                 37
+   16 >>   46  LoadName              1 (n)
+           47  LoadName              3 (i)
+           48  BinaryOp              0 (+)
+           49  StoreName             1 (n)
+   11 >>   50  Jump                 31
+   18 >>   51  LoadName              1 (n)
+           52  LoadConst             1 (0)
+           53  CompareOp             4 (>)
+           54  PopJumpIfFalse       58
+   19      55  LoadConst             3 (1)
+           56  StoreName             5 (x)
+   18      57  Jump                 67
+   20 >>   58  LoadName              1 (n)
+           59  LoadConst             1 (0)
+           60  CompareOp             2 (<)
+           61  PopJumpIfFalse       65
+   21      62  LoadConst             7 (2)
+           63  StoreName             5 (x)
+   20      64  Jump                 67
+   23 >>   65  LoadConst             4 (3)
+           66  StoreName             5 (x)
+      >>   67  LoadConst             0 (None)
+           68  Return

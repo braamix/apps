@@ -292,7 +292,7 @@ FAIL: test_symlink_to (__main__.PathSubclassTest.test_symlink_to)
 Traceback (most recent call last):
   File "/tmp/test_pathlib.py", line 2612, in test_symlink_to
     self.assertEqual(link.stat(), target.stat())
-AssertionError: os.st[27 chars]_ino=1682480274, st_dev=1, st_nlink=1, st_uid=[82 chars]5096) != os.st[27 chars]_ino=457006306, st_dev=1, st_nlink=1, st_uid=0[81 chars]5096)
+AssertionError: os.st[27 chars]_ino=1682480274, st_dev=1, st_nlink=1, st_uid=[82 chars]5190) != os.st[27 chars]_ino=457006306, st_dev=1, st_nlink=1, st_uid=0[81 chars]5190)
 
 ======================================================================
 FAIL: test_glob_dot (__main__.PathTest.test_glob_dot)
@@ -493,7 +493,7 @@ FAIL: test_symlink_to (__main__.PathTest.test_symlink_to)
 Traceback (most recent call last):
   File "/tmp/test_pathlib.py", line 2612, in test_symlink_to
     self.assertEqual(link.stat(), target.stat())
-AssertionError: os.st[27 chars]_ino=1682480274, st_dev=1, st_nlink=1, st_uid=[82 chars]8340) != os.st[27 chars]_ino=457006306, st_dev=1, st_nlink=1, st_uid=0[81 chars]8340)
+AssertionError: os.st[27 chars]_ino=1682480274, st_dev=1, st_nlink=1, st_uid=[82 chars]8434) != os.st[27 chars]_ino=457006306, st_dev=1, st_nlink=1, st_uid=0[81 chars]8434)
 
 ======================================================================
 FAIL: test_glob_dot (__main__.PosixPathTest.test_glob_dot)
@@ -694,7 +694,7 @@ FAIL: test_symlink_to (__main__.PosixPathTest.test_symlink_to)
 Traceback (most recent call last):
   File "/tmp/test_pathlib.py", line 2612, in test_symlink_to
     self.assertEqual(link.stat(), target.stat())
-AssertionError: os.st[27 chars]_ino=1682480274, st_dev=1, st_nlink=1, st_uid=[82 chars]1659) != os.st[27 chars]_ino=457006306, st_dev=1, st_nlink=1, st_uid=0[81 chars]1659)
+AssertionError: os.st[27 chars]_ino=1682480274, st_dev=1, st_nlink=1, st_uid=[82 chars]1753) != os.st[27 chars]_ino=457006306, st_dev=1, st_nlink=1, st_uid=0[81 chars]1753)
 
 ----------------------------------------------------------------------
 Ran 1151 tests in Ns

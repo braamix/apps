@@ -183,9 +183,9 @@ AttributeError: 'NoneType' object has no attribute 'insort_left'
 ERROR: test_vsBuiltinSort (__main__.TestInsortC.test_vsBuiltinSort)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
-  File "/tmp/test_bisect.py", line 311, in test_vsBuiltinSort
-    f = self.module.insort_right
-AttributeError: 'NoneType' object has no attribute 'insort_right'
+  File "/tmp/test_bisect.py", line 309, in test_vsBuiltinSort
+    f = self.module.insort_left
+AttributeError: 'NoneType' object has no attribute 'insort_left'
 
 ----------------------------------------------------------------------
 Ran 46 tests in Ns

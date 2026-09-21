@@ -1,4 +1,4 @@
-EF..FFFsE.E.FEEEEE..EE......
+E...FFFsE.E.FEEEEE..EE......
 ======================================================================
 ERROR: test_loop_caller_importing (__main__.TestCallers.test_loop_caller_importing)
 ----------------------------------------------------------------------
@@ -154,14 +154,6 @@ Traceback (most recent call last):
 TypeError: '<' not supported between instances of '_safe_key' and '_safe_key'
 
 ======================================================================
-FAIL: test_count_and_summary (__main__.TestCommandLine.test_count_and_summary)
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_trace.py", line 562, in test_count_and_summary
-    self.assertIn(f'6   100.0%   {modulename}   ({filename})', stdout)
-AssertionError: '6   100.0%   @test_N_tmpæ   (@test_N_tmpæ.py)' not found in 'lines   cov%   module   (path)\n    5   100.0%   @test_N_tmpæ   (@test_N_tmpæ.py)\n'
-
-======================================================================
 FAIL: test_listfuncs_flag_success (__main__.TestCommandLine.test_listfuncs_flag_success)
 ----------------------------------------------------------------------
 Traceback (most recent call last):
@@ -294,4 +286,4 @@ AttributeError: module 'dis' has no attribute 'findlinestarts'
 ----------------------------------------------------------------------
 Ran 28 tests in Ns
 
-FAILED (failures=5, errors=10, skipped=1)
+FAILED (failures=4, errors=10, skipped=1)

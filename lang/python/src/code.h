@@ -311,6 +311,10 @@ struct CodeObj : Obj {
     // monitor.h; null on a code object nobody is watching, which is all of
     // them until a debugger starts.
     u8 *monitors = nullptr;
+    // Which round of restart_events() the disabled half of that block
+    // belongs to. A debugger calls restart_events at every step, so putting
+    // back what was disabled is a counter and not a walk of the heap.
+    u32 mongen = 0;
 };
 
 extern const Type code_type;

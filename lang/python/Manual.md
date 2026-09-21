@@ -250,7 +250,7 @@ itertools marshal math posix pyexpat select sys time unicodedata zlib
 
 ### CPython's own, byte for byte
 
-329 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
+334 files ship as `lib/`, each recorded in `lib/manifest.txt` with the commit
 it was taken from. The ones you reach for:
 
 | Area | Modules |
@@ -263,7 +263,7 @@ it was taken from. The ones you reach for:
 | Functions | `functools`, `itertools`, `operator`, `contextlib`, `abc` |
 | Async | `asyncio`, `concurrent.futures`, `contextvars`, `threading` |
 | Types | `typing`, `annotationlib`, `inspect`, `ast`, `symtable`, `tokenize`, `token`, `keyword`, `dis`, `numbers`, `copyreg` |
-| Tools | `argparse`, `logging`, `unittest`, `doctest`, `trace`, `profile`, `cProfile`, `pstats`, `sysconfig`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
+| Tools | `argparse`, `logging`, `unittest`, `doctest`, `pdb`, `bdb`, `pydoc`, `trace`, `profile`, `cProfile`, `pstats`, `sysconfig`, `traceback`, `warnings`, `linecache`, `platform`, `shlex`, `pkgutil`, `importlib`, `importlib.resources`, `runpy`, `codeop`, `code`, `cmd`, `optparse`, `getopt`, `site` |
 | Mail | `email` (the whole package, `mime` included), `quopri`, `base64`, `mimetypes` |
 | XML | `xml.etree.ElementTree`, `xml.dom.minidom`, `xml.dom.pulldom`, `xml.sax`, `pyexpat` — reading, building, searching and writing |
 | Addresses | `urllib.parse`, `urllib.request` (which cannot connect), `ipaddress`, `uuid`, `socket`, `http.client`, `http.cookies` |
@@ -468,7 +468,6 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   their kin each stand on a C codec that is not written. So
   `email.charset.Charset('euc-jp')` raises rather than converting.
 - **`tracemalloc`.**
-- **`pydoc`**, so `help()` fails when it is called.
 - **`.pyc` files.** `sys.dont_write_bytecode` is true and nothing writes a
   cache; every run compiles from source, which is fast enough that the cache
   would cost more than it saves.
@@ -495,6 +494,12 @@ There is no `~~~^^^` anchor line under the failing expression, and no
   `_opcode` do not exist. Every code object begins with a `Nop`, which is
   CPython's `RESUME`: it gives a frame that has not run a position, and that
   is the line a `call` event reports.
+- **`pdb` works, and `breakpoint()` stops one frame in** -- inside
+  `sys.breakpointhook`, which is written in Python here where CPython's is C,
+  so `r` gets you to your own frame. Assigning `frame.f_lineno` to jump is
+  not implemented, so pdb's `jump` command is not either.
+- **`help()` on a builtin says `(...)`**: a native carries no
+  `__text_signature__`, so `inspect.signature` has nothing to read.
 - **The profilers count calls, not time.** `_lsprof` is driven from the
   interpreter with no Python call per event, but its timer counts whole
   milliseconds, so `cProfile` tells you how often something ran far better

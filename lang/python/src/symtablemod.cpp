@@ -137,7 +137,7 @@ constexpr Type table_type{ .name    = "symtable entry",
 // What a name's binding is worth, in CPython's numbering. A module's and a
 // class body's names are LOCAL where they are bound and GLOBAL_IMPLICIT
 // where they are only read, which is what a LoadName does.
-u32 scope_of(const Sym &y, ScopeKind kind)
+u32 scope_of(const Sym &y)
 {
     switch (y.bind) {
     case Bind::Local:
@@ -153,14 +153,13 @@ u32 scope_of(const Sym &y, ScopeKind kind)
         return GLOBAL_IMPLICIT;
     case Bind::Name:
     default:
-        (void)kind;
         return (y.flags & (SF_PARAM | SF_ASSIGN)) ? LOCAL : GLOBAL_IMPLICIT;
     }
 }
 
 // An import binds the way an assignment does here, and nothing records which
 // it was, so DEF_IMPORT is never set: Symbol.is_imported() answers False.
-u32 flags_of(const Sym &y, ScopeKind kind)
+u32 flags_of(const Sym &y)
 {
     u32 f = 0;
     if (y.flags & SF_GLOBAL)
@@ -181,7 +180,7 @@ u32 flags_of(const Sym &y, ScopeKind kind)
         f |= DEF_COMP_ITER;
     if (y.flags & SF_TPARAM)
         f |= DEF_TYPE_PARAM;
-    return f | (scope_of(y, kind) << SCOPE_OFF);
+    return f | (scope_of(y) << SCOPE_OFF);
 }
 
 // The role an annotation scope was made for, which is what says whether it
@@ -279,7 +278,7 @@ Value table_new(const Ast &ast, const Symtab &st, u32 scope)
     for (usize i = 0; i < s.syms.size(); i++) {
         const Sym &y = s.syms[i];
         if (dict_set(static_cast<DictObj *>(rs.v.obj()), obj_value(y.name),
-                     Value::of_int(i32(flags_of(y, s.kind)))) != R::Ok)
+                     Value::of_int(i32(flags_of(y)))) != R::Ok)
             return Value();
     }
     ListObj *kids = list_new();
@@ -294,11 +293,11 @@ Value table_new(const Ast &ast, const Symtab &st, u32 scope)
     t->children = rk.v;
     // CPython's id is the table's address, so it is never zero; here it is
     // the scope's place in the tree, counted from one.
-    t->id = scope + 1;
-    t->type     = type_of_scope(st, scope);
+    t->id   = scope + 1;
+    t->type = type_of_scope(st, scope);
     // The module's block has no line, as CPython's has none.
     t->lineno = s.kind == ScopeKind::Module ? 0 : ast.lex.tokens[ast.at(s.node).tok].line;
-    t->nested   = nested_in_function(st, scope);
+    t->nested = nested_in_function(st, scope);
     return obj_value(t);
 }
 

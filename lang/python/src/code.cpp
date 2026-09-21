@@ -1,11 +1,11 @@
 // The code object: allocation, tracing, the line table, and the two tables the
 // opcode list generates.
 #include "code.h"
-#include "monitor.h"
 
 #include "gc.h"
 #include "kernel/fmt.h"
 #include "method.h"
+#include "monitor.h"
 #include "ops.h"
 
 namespace {
@@ -57,7 +57,6 @@ void code_fini(Obj *o)
     if (c->monitors)
         heap_free(c->monitors);
 }
-
 
 R code_repr(Value v, String &out)
 {
@@ -332,35 +331,77 @@ constexpr Method CODE_METHODS[] = {
 
 } // namespace
 
-u32 mon_local_events(const CodeObj *c, u32 tool)
+// The block is two masks an event: MON_LOCAL_EVENTS of what each tool asked
+// for, then as many of what each tool has disabled.
+namespace {
+
+u32 mon_mask(const CodeObj *c, u32 tool, u32 half)
 {
     u32 set = 0;
     if (c->monitors)
         for (u32 e = 0; e < MON_LOCAL_EVENTS; e++)
-            if (c->monitors[e] & (1u << tool))
+            if (c->monitors[half + e] & (1u << tool))
                 set |= 1u << e;
     return set;
 }
 
+bool mon_room(CodeObj *c)
+{
+    if (c->monitors)
+        return true;
+    c->monitors = static_cast<u8 *>(heap_alloc(2 * MON_LOCAL_EVENTS));
+    if (!c->monitors)
+        return false;
+    for (u32 e = 0; e < 2 * MON_LOCAL_EVENTS; e++)
+        c->monitors[e] = 0;
+    return true;
+}
+
+} // namespace
+
+u32 mon_local_events(const CodeObj *c, u32 tool)
+{
+    return mon_mask(c, tool, 0);
+}
+
+// The round every disabled mask is measured against. A restart bumps it,
+// which is what puts back everything a callback had turned off.
+u32 restart_gen = 1;
+
+u32 mon_disabled(const CodeObj *c, u32 tool)
+{
+    return c->mongen == restart_gen ? mon_mask(c, tool, MON_LOCAL_EVENTS) : 0;
+}
+
 bool mon_set_local_events(CodeObj *c, u32 tool, u32 events)
 {
-    if (!c->monitors) {
-        if (!events)
-            return true;
-        c->monitors = static_cast<u8 *>(heap_alloc(MON_LOCAL_EVENTS));
-        if (!c->monitors)
-            return false;
-        for (u32 e = 0; e < MON_LOCAL_EVENTS; e++)
-            c->monitors[e] = 0;
-    }
+    if (!c->monitors && !events)
+        return true;
+    if (!mon_room(c))
+        return false;
     for (u32 e = 0; e < MON_LOCAL_EVENTS; e++)
         c->monitors[e] = u8((c->monitors[e] & ~(1u << tool)) | ((events >> e & 1) << tool));
     return true;
 }
 
+void mon_disable_at(CodeObj *c, u32 tool, u32 event)
+{
+    if (event >= MON_LOCAL_EVENTS || !mon_room(c))
+        return;
+    if (c->mongen != restart_gen) {
+        for (u32 e = 0; e < MON_LOCAL_EVENTS; e++)
+            c->monitors[MON_LOCAL_EVENTS + e] = 0;
+        c->mongen = restart_gen;
+    }
+    c->monitors[MON_LOCAL_EVENTS + event] =
+        u8(c->monitors[MON_LOCAL_EVENTS + event] | (1u << tool));
+}
+
 void mon_restart()
 {
-    // Nothing fires yet, so nothing has been disabled to put back.
+    // A debugger calls this at every step, so it is a counter: a disabled
+    // mask from an earlier round reads as nothing.
+    restart_gen++;
 }
 
 bool code_methods()
@@ -413,6 +454,7 @@ CodeObj *code_new(Value name, Value filename, u32 firstline)
     c->nblocks   = 0;
     c->firstline = firstline;
     c->monitors  = nullptr;
+    c->mongen    = 0;
     return c;
 }
 

@@ -196,7 +196,7 @@ void enter_call(ProfObj *p, Value key)
 // One call in flight, accounted for and taken off the stack.
 void account(ProfObj *p, Ctx c)
 {
-    i64 tt  = now_ms() - c.t0;
+    i64 tt   = now_ms() - c.t0;
     i64 it   = tt - c.child;
     Entry &e = p->entries[c.entry];
     e.recursion--;

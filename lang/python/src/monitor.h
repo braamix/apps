@@ -63,6 +63,11 @@ Value mon_callback(u32 tool, u32 event);
 // makes before it looks any closer.
 bool mon_armed();
 
+// Every event any tool has asked for globally, in one mask. A code object
+// with no local events of its own needs nothing else: this is the test the
+// instruction loop makes before walking the tools.
+u32 mon_global_mask();
+
 // What `tool` wants of this code object: what it asked for globally, and
 // what it asked for on this one.
 u32 mon_events_for(const CodeObj *c, u32 tool);
@@ -70,9 +75,18 @@ u32 mon_events_for(const CodeObj *c, u32 tool);
 // The DISABLE marker, which a callback returns to ask not to be called again.
 Value mon_disable();
 
-// The per-code half, defined in code.cpp beside the array it reads.
+// The per-code half, defined in code.cpp beside the array it reads. The
+// block holds two masks an event: what each tool asked for on this code
+// object, and what each tool has said DISABLE to.
 u32 mon_local_events(const CodeObj *c, u32 tool);
 bool mon_set_local_events(CodeObj *c, u32 tool, u32 events);
 
-// What a restart undoes. Nothing yet: no event fires, so none is disabled.
+// A callback answered DISABLE: this tool is not told of this event on this
+// code object again until restart_events(). Only PY_START and PY_RESUME are
+// taken, those being the two events with one place each in a code object;
+// anywhere else the answer is an optimisation this port does not make.
+void mon_disable_at(CodeObj *c, u32 tool, u32 event);
+u32 mon_disabled(const CodeObj *c, u32 tool);
+
+// Everything a callback said DISABLE to, put back.
 void mon_restart();

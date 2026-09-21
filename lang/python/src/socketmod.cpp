@@ -165,13 +165,15 @@ R s_getservbyport(const CallArgs &a, Value &out)
 R s_getprotobyname(const CallArgs &a, Value &out)
 {
     if (!args_only(a, "getprotobyname", 1, 1) || !is_str(a.args[0]))
-        return err_pending() ? R::Err : err_set("TypeError", "getprotobyname() argument 1 "
-                                                             "must be str");
+        return err_pending() ? R::Err
+                             : err_set("TypeError",
+                                       "getprotobyname() argument 1 "
+                                       "must be str");
     constexpr struct {
         Str name;
         i32 num;
     } PROTOS[] = {
-        { "ip", 0 },  { "icmp", 1 }, { "igmp", 2 },  { "tcp", 6 },
+        { "ip", 0 },   { "icmp", 1 },  { "igmp", 2 },    { "tcp", 6 },
         { "udp", 17 }, { "ipv6", 41 }, { "icmpv6", 58 }, { "raw", 255 },
     };
     Str want = str_of(a.args[0])->str();
@@ -358,8 +360,8 @@ bool pton6(Str s, u8 out[16])
         return false;
     }
     while (i < s.size()) {
-        u8 *at    = gap ? tail : head;
-        usize &n  = gap ? nt : nh;
+        u8 *at   = gap ? tail : head;
+        usize &n = gap ? nt : nh;
         // A dotted quad may only close the address.
         usize dot = i;
         while (dot < s.size() && s[dot] != ':')

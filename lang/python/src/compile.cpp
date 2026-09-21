@@ -3297,8 +3297,13 @@ Value py_compile(const Ast &ast, Str filename, CompileMode mode)
     mu.code  = obj_value(code_new(obj_value(nm), c.filename.v, 1));
     if (mu.code.v.is_nil())
         return err_set("MemoryError", "out of memory"), Value();
-    c.u     = &mu;
-    mu.line = 1;
+    c.u = &mu;
+    // The module's own Nop, for the reason a nested scope has one: a frame
+    // that has not run needs a position, and starting at line 0 makes the
+    // first statement record a line entry even though it is on line 1.
+    mu.line = 0;
+    if (!c.emit(Bc::Nop, 0, 0))
+        return Value();
 
     if (mode == CompileMode::Eval) {
         u32 e = lone_expression(ast);

@@ -238,8 +238,8 @@ enum : u32 {
     TE_MON,
 };
 
-constexpr Str TE_NAMES[] = { "call",   "line",     "return",   "exception",   "opcode",
-                             "call",   "return",   "c_call",   "c_return",    "c_exception" };
+constexpr Str TE_NAMES[] = { "call", "line",   "return", "exception", "opcode",
+                             "call", "return", "c_call", "c_return",  "c_exception" };
 
 // FrameObj::fired: what has already gone out at FrameObj::tracepc, so an
 // event that suspends to call Python does not fire again when the loop comes
@@ -250,12 +250,11 @@ enum : u16 {
     FIRED_RET_T  = 1 << 2,
     FIRED_RET_P  = 1 << 3,
     FIRED_CCALL  = 1 << 4,
-    FIRED_MSTART = 1 << 5, // sys.monitoring's PY_START or PY_RESUME
-    FIRED_MLINE  = 1 << 6, // its LINE
-    FIRED_MINSTR = 1 << 7, // its INSTRUCTION
-    FIRED_MRET   = 1 << 8, // its PY_RETURN or PY_YIELD
-    FIRED_MJUMP  = 1 << 9,  // its JUMP
-    FIRED_NPROF  = 1 << 10, // the native profiler has been told of a return
+    FIRED_MLINE  = 1 << 5,  // sys.monitoring's LINE
+    FIRED_MINSTR = 1 << 6,  // its INSTRUCTION
+    FIRED_MRET   = 1 << 7,  // its PY_RETURN or PY_YIELD
+    FIRED_MJUMP  = 1 << 8,  // its JUMP
+    FIRED_NPROF  = 1 << 9,  // the native profiler has been told of a return
 };
 
 bool run_cont(Value kv, Value in);
@@ -297,9 +296,14 @@ void trace_entered(FrameObj *f)
 // x[1] the frame's own pc, put back when the last tool has answered.
 R mon_step(ContObj *k, Value in)
 {
-    (void)in;
     FrameObj *f = frame_of(k->s[0]);
     CodeObj *co = code_of(f->code);
+    // What the tool that just answered said. DISABLE is taken only for the
+    // two events a code object has one place for; anywhere else it would
+    // turn off more than the callback meant.
+    if (k->i && !in.is_nil() && in == mon_disable() &&
+        (k->j == MON_PY_START || k->j == MON_PY_RESUME))
+        mon_disable_at(co, k->i - 1, k->j);
     while (k->i < MON_TOOLS) {
         u32 t = k->i++;
         if (!(mon_events_for(co, t) & (1u << k->j)))
@@ -316,14 +320,16 @@ R mon_step(ContObj *k, Value in)
 
 void mon_failed(ContObj *k)
 {
-    vm->tracing = false;
+    vm->tracing           = false;
     frame_of(k->s[0])->pc = u32(k->x[1]);
 }
 
-// Whether any tool wants `event` for this code object.
+// Whether any tool wants `event` for this code object. The two cheap tests
+// come first: this runs at every instruction, and almost every code object
+// has no local events and almost every event is one nobody asked for.
 bool mon_wanted(const CodeObj *co, u32 event)
 {
-    if (!mon_armed())
+    if (!co->monitors && !(mon_global_mask() & (1u << event)))
         return false;
     for (u32 t = 0; t < MON_TOOLS; t++)
         if ((mon_events_for(co, t) & (1u << event)) && !mon_callback(t, event).is_nil())
@@ -336,7 +342,7 @@ bool mon_wanted(const CodeObj *co, u32 event)
 bool mon_fire(FrameObj *f, u32 event, u32 at, Value a1, Value a2 = Value(), Value a3 = Value())
 {
     Root rf{ obj_value(f) }, r1{ a1 }, r2{ a2 }, r3{ a3 };
-    u32 n = a3.is_nil() ? (a2.is_nil() ? 2u : 3u) : 4u;
+    u32 n       = a3.is_nil() ? (a2.is_nil() ? 2u : 3u) : 4u;
     TupleObj *t = tuple_new(n);
     if (!t)
         return oom() == R::Ok;
@@ -351,14 +357,14 @@ bool mon_fire(FrameObj *f, u32 event, u32 at, Value a1, Value a2 = Value(), Valu
     Root kv{ cont_new(mon_step) };
     if (kv.v.is_nil())
         return false;
-    ContObj *k = cont_of(kv.v);
-    k->s[0]    = rf.v;
-    k->s[1]    = rt.v;
-    k->j       = event;
-    k->x[1]    = frame_of(rf.v)->pc;
-    k->fail    = mon_failed;
-    k->drop    = true;
-    vm->tracing = true;
+    ContObj *k         = cont_of(kv.v);
+    k->s[0]            = rf.v;
+    k->s[1]            = rt.v;
+    k->j               = event;
+    k->x[1]            = frame_of(rf.v)->pc;
+    k->fail            = mon_failed;
+    k->drop            = true;
+    vm->tracing        = true;
     frame_of(rf.v)->pc = at;
     return run_cont(kv.v, Value());
 }
@@ -452,8 +458,7 @@ void cret_failed(ContObj *k)
 // bound or not. Everything else is a Python frame and has events of its own.
 bool is_c_callable(Value v)
 {
-    return is_native(v) ||
-           (is_method(v) && is_native(static_cast<MethodObj *>(v.obj())->fn));
+    return is_native(v) || (is_method(v) && is_native(static_cast<MethodObj *>(v.obj())->fn));
 }
 
 // Whether the instruction at `pc` is where a line begins, which is what the
@@ -504,10 +509,8 @@ int trace_before(FrameObj *f)
     if (!(f->fired & FIRED_MLINE) && line_starts(co, f->pc)) {
         f->fired = u16(f->fired | FIRED_MLINE);
         if (mon_wanted(co, MON_LINE))
-            return mon_fire(f, MON_LINE, f->pc + 1,
-                            Value::of_int(i32(code_line(co, f->pc))))
-                       ? 1
-                       : -1;
+            return mon_fire(f, MON_LINE, f->pc + 1, Value::of_int(i32(code_line(co, f->pc)))) ? 1
+                                                                                              : -1;
     }
     if (!(f->fired & FIRED_MINSTR)) {
         f->fired = u16(f->fired | FIRED_MINSTR);
@@ -526,9 +529,9 @@ int trace_before(FrameObj *f)
         return 0;
     if ((f->tflags & FT_LINES) && !(f->fired & FIRED_LINE) && line_starts(co, f->pc)) {
         f->fired    = u16(f->fired | FIRED_LINE);
-        u32 line  = code_line(co, f->pc);
-        bool back = f->prevpc != ~0u && f->pc <= f->prevpc;
-        bool go   = line != f->lastline || back;
+        u32 line    = code_line(co, f->pc);
+        bool back   = f->prevpc != ~0u && f->pc <= f->prevpc;
+        bool go     = line != f->lastline || back;
         f->lastline = line;
         if (go)
             return trace_fire(f->trace, f, TE_LINE, value_none(), f->pc + 1) ? 1 : -1;
@@ -4172,8 +4175,8 @@ void interpret()
                 // alone: it does not unpack the callable before calling it,
                 // so a builtin reached that way gets no pair at all, and
                 // test_sys_setprofile says that is the behaviour.
-                bool cprof = !vm->profilefn.is_nil() && !vm->tracing &&
-                             in.op != Bc::CallEx && is_c_callable(callable);
+                bool cprof = !vm->profilefn.is_nil() && !vm->tracing && in.op != Bc::CallEx &&
+                             is_c_callable(callable);
                 // The hook is taken now: the builtin about to run may be
                 // Profiler.disable(), which puts it back to null.
                 void (*nprofhook)(u32, Value) =
@@ -4217,13 +4220,13 @@ void interpret()
                         Root kv{ cont_new(cret_step) };
                         if (kv.v.is_nil())
                             goto oops;
-                        ContObj *ck            = cont_of(kv.v);
-                        ck->s[0]               = obj_value(f);
-                        ck->s[1]               = rc.v;
-                        ck->x[0]               = f->pc;
-                        ck->fail               = cret_failed;
-                        cont_of(ro.v)->next    = kv.v;
-                        out                    = ro.v;
+                        ContObj *ck         = cont_of(kv.v);
+                        ck->s[0]            = obj_value(f);
+                        ck->s[1]            = rc.v;
+                        ck->x[0]            = f->pc;
+                        ck->fail            = cret_failed;
+                        cont_of(ro.v)->next = kv.v;
+                        out                 = ro.v;
                     } else {
                         trace_queue(f, TE_C_RETURN, rc.v, f->pc);
                     }

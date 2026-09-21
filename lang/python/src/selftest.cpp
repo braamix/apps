@@ -716,10 +716,13 @@ Str t_compile()
         return bad;
     const CodeObj *c = code_of(code.v);
 
-    // A module stores its docstring first, which is None when it has none.
-    constexpr Bc WANT[] = { Bc::LoadConst, Bc::StoreName, Bc::LoadConst, Bc::LoadConst,
-                            Bc::BinaryOp,  Bc::StoreName, Bc::LoadName,  Bc::LoadName,
-                            Bc::Call,      Bc::PopTop,    Bc::LoadConst, Bc::Return };
+    // Every code object opens with a Nop, which is where a frame that has
+    // not run stands; a module then stores its docstring, None when it has
+    // none.
+    constexpr Bc WANT[] = { Bc::Nop,       Bc::LoadConst, Bc::StoreName, Bc::LoadConst,
+                            Bc::LoadConst, Bc::BinaryOp,  Bc::StoreName, Bc::LoadName,
+                            Bc::LoadName,  Bc::Call,      Bc::PopTop,    Bc::LoadConst,
+                            Bc::Return };
     constexpr usize N   = sizeof(WANT) / sizeof(WANT[0]);
     if (c->code.size() != N)
         return why("instructions", i64(c->code.size()), i64(N));
@@ -731,7 +734,7 @@ Str t_compile()
     // __doc__, x and print; None, 1 and 2.
     if (c->names.size() != 3 || c->consts.size() != 3)
         return why("pools", i64(c->names.size() * 100 + c->consts.size()), 303);
-    if (code_line(c, 0) != 1 || code_line(c, 6) != 2)
+    if (code_line(c, 1) != 1 || code_line(c, 7) != 2)
         return "the line table does not follow the source";
     return Str();
 }

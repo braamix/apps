@@ -10,32 +10,33 @@ code <module>  file /tmp/c.py  line 1
       5  <code Meta at line 14>
       6  'Meta'
       7  ('metaclass',)
-    1       0  LoadConst             0 (None)
-            1  StoreName             0 (__doc__)
-            2  LoadBuildClass
-            3  LoadConst             1 (<code Empty at line 1>)
-            4  MakeFunction          0
-            5  LoadConst             2 ('Empty')
-            6  Call                  2
-            7  StoreName             1 (Empty)
-    4       8  LoadBuildClass
-            9  LoadConst             3 (<code Point at line 4>)
-           10  MakeFunction          0
-           11  LoadConst             4 ('Point')
-           12  LoadName              2 (object)
-           13  Call                  3
-           14  StoreName             3 (Point)
-   14      15  LoadBuildClass
-           16  LoadConst             5 (<code Meta at line 14>)
-           17  MakeFunction          0
-           18  LoadConst             6 ('Meta')
-           19  LoadName              3 (Point)
-           20  LoadName              4 (type)
-           21  LoadConst             7 (('metaclass',))
-           22  CallKw                4
-           23  StoreName             5 (Meta)
-           24  LoadConst             0 (None)
-           25  Return
+    1       0  Nop
+            1  LoadConst             0 (None)
+            2  StoreName             0 (__doc__)
+            3  LoadBuildClass
+            4  LoadConst             1 (<code Empty at line 1>)
+            5  MakeFunction          0
+            6  LoadConst             2 ('Empty')
+            7  Call                  2
+            8  StoreName             1 (Empty)
+    4       9  LoadBuildClass
+           10  LoadConst             3 (<code Point at line 4>)
+           11  MakeFunction          0
+           12  LoadConst             4 ('Point')
+           13  LoadName              2 (object)
+           14  Call                  3
+           15  StoreName             3 (Point)
+   14      16  LoadBuildClass
+           17  LoadConst             5 (<code Meta at line 14>)
+           18  MakeFunction          0
+           19  LoadConst             6 ('Meta')
+           20  LoadName              3 (Point)
+           21  LoadName              4 (type)
+           22  LoadConst             7 (('metaclass',))
+           23  CallKw                4
+           24  StoreName             5 (Meta)
+           25  LoadConst             0 (None)
+           26  Return
 
 code Empty  file /tmp/c.py  line 1
   args 0 (posonly 0, kwonly 0)  stack 1  flags -

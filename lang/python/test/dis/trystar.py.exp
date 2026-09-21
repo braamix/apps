@@ -3,71 +3,72 @@ code <module>  file /tmp/c.py  line 1
   names: __doc__, f, ValueError, e, print, TypeError, KeyError
   consts:
       0  None
-    1       0  LoadConst             0 (None)
-            1  StoreName             0 (__doc__)
-            2  SetupFinally          8
-    2       3  LoadName              1 (f)
-            4  Call                  0
-            5  PopTop
-    1       6  PopBlock
-            7  Jump                 66
-      >>    8  PushExcInfo
-            9  SetupFinally         63
-           10  BuildList             0
-           11  Copy                  2
-    3      12  LoadName              2 (ValueError)
-           13  CheckEgMatch
-           14  Copy                  1
-           15  LoadConst             0 (None)
-           16  CompareOp             8 (is)
-           17  PopJumpIfTrue        34
-           18  StoreName             3 (e)
-           19  SetupFinally         29
-    4      20  LoadName              4 (print)
-           21  LoadName              3 (e)
-           22  Call                  1
-           23  PopTop
-    3      24  PopBlock
-           25  LoadConst             0 (None)
-           26  StoreName             3 (e)
-           27  DeleteName            3 (e)
-           28  Jump                 35
-      >>   29  LoadConst             0 (None)
-           30  StoreName             3 (e)
-           31  DeleteName            3 (e)
-           32  ListAppend            2
-           33  Jump                 35
-      >>   34  PopTop
-    5 >>   35  LoadName              5 (TypeError)
-           36  LoadName              6 (KeyError)
-           37  BuildTuple            2
-           38  CheckEgMatch
-           39  Copy                  1
-           40  LoadConst             0 (None)
-           41  CompareOp             8 (is)
-           42  PopJumpIfTrue        50
-           43  PopTop
-           44  SetupFinally         48
-    6      45  Raise                 0
-    5      46  PopBlock
-           47  Jump                 51
-      >>   48  ListAppend            2
-           49  Jump                 51
-      >>   50  PopTop
-      >>   51  ListAppend            1
-    1      52  PrepReraiseStar
-           53  Copy                  1
-           54  LoadConst             0 (None)
-           55  CompareOp             9 (is not)
-           56  PopJumpIfTrue        61
-           57  PopTop
-           58  PopBlock
-           59  PopExcept
-           60  Jump                 66
-      >>   61  PopBlock
-           62  Reraise               1
-      >>   63  RotTwo
-           64  PopTop
-           65  Reraise               1
-      >>   66  LoadConst             0 (None)
-           67  Return
+    1       0  Nop
+            1  LoadConst             0 (None)
+            2  StoreName             0 (__doc__)
+            3  SetupFinally          9
+    2       4  LoadName              1 (f)
+            5  Call                  0
+            6  PopTop
+    1       7  PopBlock
+            8  Jump                 67
+      >>    9  PushExcInfo
+           10  SetupFinally         64
+           11  BuildList             0
+           12  Copy                  2
+    3      13  LoadName              2 (ValueError)
+           14  CheckEgMatch
+           15  Copy                  1
+           16  LoadConst             0 (None)
+           17  CompareOp             8 (is)
+           18  PopJumpIfTrue        35
+           19  StoreName             3 (e)
+           20  SetupFinally         30
+    4      21  LoadName              4 (print)
+           22  LoadName              3 (e)
+           23  Call                  1
+           24  PopTop
+    3      25  PopBlock
+           26  LoadConst             0 (None)
+           27  StoreName             3 (e)
+           28  DeleteName            3 (e)
+           29  Jump                 36
+      >>   30  LoadConst             0 (None)
+           31  StoreName             3 (e)
+           32  DeleteName            3 (e)
+           33  ListAppend            2
+           34  Jump                 36
+      >>   35  PopTop
+    5 >>   36  LoadName              5 (TypeError)
+           37  LoadName              6 (KeyError)
+           38  BuildTuple            2
+           39  CheckEgMatch
+           40  Copy                  1
+           41  LoadConst             0 (None)
+           42  CompareOp             8 (is)
+           43  PopJumpIfTrue        51
+           44  PopTop
+           45  SetupFinally         49
+    6      46  Raise                 0
+    5      47  PopBlock
+           48  Jump                 52
+      >>   49  ListAppend            2
+           50  Jump                 52
+      >>   51  PopTop
+      >>   52  ListAppend            1
+    1      53  PrepReraiseStar
+           54  Copy                  1
+           55  LoadConst             0 (None)
+           56  CompareOp             9 (is not)
+           57  PopJumpIfTrue        62
+           58  PopTop
+           59  PopBlock
+           60  PopExcept
+           61  Jump                 67
+      >>   62  PopBlock
+           63  Reraise               1
+      >>   64  RotTwo
+           65  PopTop
+           66  Reraise               1
+      >>   67  LoadConst             0 (None)
+           68  Return

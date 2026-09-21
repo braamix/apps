@@ -1,10 +1,10 @@
-..........FF................................EFF.FFF..F....FFF..ssss..F.FFFFFF..EEF...EEEException ignored in a finalizer:
+..........FF................................EFF.FFF..F....FFF..ssss..F.FFFFFF.....EEEException ignored in a finalizer:
 OSError: [Errno 9] Bad file descriptor
 EEException ignored in a finalizer:
 OSError: [Errno 9] Bad file descriptor
 EEException ignored in a finalizer:
 OSError: [Errno 9] Bad file descriptor
-E...EEFEFEF.EEF.Exception ignored in a finalizer:
+E...F.F.Exception ignored in a finalizer:
 OSError: [Errno 9] Bad file descriptor
 .....F..F.EEE......
 ======================================================================
@@ -23,28 +23,6 @@ Traceback (most recent call last):
   File "/pkg/store/python-0/lib/doctest.py", line 254, in _load_testfile
     with open(filename, encoding=encoding) as f:
 FileNotFoundError: [Errno 2] No such file or directory: '/tmp/../test_doctest/test_doctest.txt'
-
-======================================================================
-ERROR: test_debug (__main__) [1]
-Doctest: __main__.test_debug
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2177, in __main__.test_debug
-    >>> from test.support.pty_helper import FakeInput
-  File "<doctest __main__.test_debug[1]>", line 1, in <module>
-    from test.support.pty_helper import FakeInput
-ModuleNotFoundError: No module named 'test.support.pty_helper'. Did you mean: 'test.support.os_helper'?
-
-======================================================================
-ERROR: test_debug (__main__) [3]
-Doctest: __main__.test_debug
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2179, in __main__.test_debug
-    >>> sys.stdin = FakeInput(['next', 'print(x)', 'continue'])
-  File "<doctest __main__.test_debug[3]>", line 1, in <module>
-    sys.stdin = FakeInput(['next', 'print(x)', 'continue'])
-NameError: name 'FakeInput' is not defined
 
 ======================================================================
 ERROR: test_lineendings (__main__) [2]
@@ -70,7 +48,7 @@ Traceback (most recent call last):
     text, filename = _load_testfile(filename, package, module_relative,
   File "/pkg/store/python-0/lib/doctest.py", line 254, in _load_testfile
     with open(filename, encoding=encoding) as f:
-PermissionError: [Errno 13] Permission denied: '/tmp/tmph2u6zigq'
+PermissionError: [Errno 13] Permission denied: '/tmp/tmp2rg9lw53'
 
 ======================================================================
 ERROR: test_lineendings (__main__) [6]
@@ -96,7 +74,7 @@ Traceback (most recent call last):
     text, filename = _load_testfile(filename, package, module_relative,
   File "/pkg/store/python-0/lib/doctest.py", line 254, in _load_testfile
     with open(filename, encoding=encoding) as f:
-PermissionError: [Errno 13] Permission denied: '/tmp/tmpkngof2b5'
+PermissionError: [Errno 13] Permission denied: '/tmp/tmp65cpy_0k'
 
 ======================================================================
 ERROR: test_lineendings (__main__) [10]
@@ -122,7 +100,7 @@ Traceback (most recent call last):
     text, filename = _load_testfile(filename, package, module_relative,
   File "/pkg/store/python-0/lib/doctest.py", line 254, in _load_testfile
     with open(filename, encoding=encoding) as f:
-PermissionError: [Errno 13] Permission denied: '/tmp/tmp2m37aq3f'
+PermissionError: [Errno 13] Permission denied: '/tmp/tmpxjbl3jmr'
 
 ======================================================================
 ERROR: test_lineendings (__main__) [20]
@@ -142,73 +120,7 @@ Doctest: __main__.test_lineendings
 Traceback (most recent call last):
   File "/tmp/test_doctest.py", line 3385, in __main__.test_lineendings
     >>> with test_hook(dn):
-PermissionError: [Errno 13] Permission denied: '/tmp/tmpuecbo3p_/doctest_testpkg/doctest_testfile.txt'
-
-======================================================================
-ERROR: test_pdb_set_trace (__main__) [7]
-Doctest: __main__.test_pdb_set_trace
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2225, in __main__.test_pdb_set_trace
-    >>> from test.support.pty_helper import FakeInput
-  File "<doctest __main__.test_pdb_set_trace[7]>", line 1, in <module>
-    from test.support.pty_helper import FakeInput
-ModuleNotFoundError: No module named 'test.support.pty_helper'. Did you mean: 'test.support.os_helper'?
-
-======================================================================
-ERROR: test_pdb_set_trace (__main__) [9]
-Doctest: __main__.test_pdb_set_trace
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2227, in __main__.test_pdb_set_trace
-    >>> sys.stdin = FakeInput([
-  File "<doctest __main__.test_pdb_set_trace[9]>", line 1, in <module>
-    sys.stdin = FakeInput([
-NameError: name 'FakeInput' is not defined
-
-======================================================================
-ERROR: test_pdb_set_trace (__main__) [15]
-Doctest: __main__.test_pdb_set_trace
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2253, in __main__.test_pdb_set_trace
-    >>> sys.stdin = FakeInput([
-  File "<doctest __main__.test_pdb_set_trace[15]>", line 1, in <module>
-    sys.stdin = FakeInput([
-NameError: name 'FakeInput' is not defined
-
-======================================================================
-ERROR: test_pdb_set_trace (__main__) [20]
-Doctest: __main__.test_pdb_set_trace
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2289, in __main__.test_pdb_set_trace
-    >>> sys.stdin = FakeInput([
-  File "<doctest __main__.test_pdb_set_trace[20]>", line 1, in <module>
-    sys.stdin = FakeInput([
-NameError: name 'FakeInput' is not defined
-
-======================================================================
-ERROR: test_pdb_set_trace_nested (__main__) [6]
-Doctest: __main__.test_pdb_set_trace_nested
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2366, in __main__.test_pdb_set_trace_nested
-    >>> from test.support.pty_helper import FakeInput
-  File "<doctest __main__.test_pdb_set_trace_nested[6]>", line 1, in <module>
-    from test.support.pty_helper import FakeInput
-ModuleNotFoundError: No module named 'test.support.pty_helper'. Did you mean: 'test.support.os_helper'?
-
-======================================================================
-ERROR: test_pdb_set_trace_nested (__main__) [8]
-Doctest: __main__.test_pdb_set_trace_nested
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2368, in __main__.test_pdb_set_trace_nested
-    >>> sys.stdin = FakeInput([
-  File "<doctest __main__.test_pdb_set_trace_nested[8]>", line 1, in <module>
-    sys.stdin = FakeInput([
-NameError: name 'FakeInput' is not defined
+PermissionError: [Errno 13] Permission denied: '/tmp/tmp4zsgms5d/doctest_testpkg/doctest_testfile.txt'
 
 ======================================================================
 ERROR: test_testsource (__main__) [2]
@@ -727,64 +639,6 @@ Got:
     <BLANKLINE>
 
 ======================================================================
-FAIL: test_debug (__main__) [4]
-Doctest: __main__.test_debug
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2183, in __main__.test_debug
-    >>> try: doctest.debug_src(s)
-AssertionError: Failed example:
-    try: doctest.debug_src(s)
-    finally: sys.stdin = real_stdin
-Expected:
-    > <string>(1)<module>()
-    (Pdb) next
-    12
-    --Return--
-    > <string>(1)<module>()->None
-    (Pdb) print(x)
-    12
-    (Pdb) continue
-Got:
-    --Call--
-    > <string>(1)<module>()
-    (Pdb) 
-
-======================================================================
-FAIL: test_pdb_set_trace (__main__) [10]
-Doctest: __main__.test_pdb_set_trace
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2232, in __main__.test_pdb_set_trace
-    >>> try: runner.run(test)
-AssertionError: Failed example:
-    try: runner.run(test)
-    finally: sys.stdin = real_stdin
-Expected:
-    > <doctest foo-bar@baz[2]>(1)<module>()
-    -> import pdb; pdb.set_trace()
-    (Pdb) print(x)
-    42
-    (Pdb) continue
-    TestResults(failed=0, attempted=3)
-Got:
-    > <doctest foo-bar@baz[2]>(1)<module>()
-    -> import pdb; pdb.set_trace()
-    (Pdb) 
-    **********************************************************************
-    File "foo-bar@baz.py", line 6, in foo-bar@baz
-    Failed example:
-        import pdb; pdb.set_trace()
-    Exception raised:
-        Traceback (most recent call last):
-          File "<doctest foo-bar@baz[2]>", line 1, in <module>
-            import pdb; pdb.set_trace()
-          File "/pkg/store/python-0/lib/doctest.py", line 408, in trace_dispatch
-            return pdb.Pdb.trace_dispatch(self, *args)
-        bdb.BdbQuit
-    TestResults(failed=1, attempted=3)
-
-======================================================================
 FAIL: test_pdb_set_trace (__main__) [16]
 Doctest: __main__.test_pdb_set_trace
 ----------------------------------------------------------------------
@@ -811,89 +665,15 @@ Expected:
 Got:
     > <doctest __main__.test_pdb_set_trace[11]>(3)calls_set_trace()
     -> import pdb; pdb.set_trace()
-    (Pdb) 
-    **********************************************************************
-    File "foo-bar@baz.py", line 3, in foo-bar@baz
-    Failed example:
-        calls_set_trace()
-    Exception raised:
-        Traceback (most recent call last):
-          File "<doctest foo-bar@baz[1]>", line 1, in <module>
-            calls_set_trace()
-          File "<doctest __main__.test_pdb_set_trace[11]>", line 3, in calls_set_trace
-            import pdb; pdb.set_trace()
-          File "/pkg/store/python-0/lib/doctest.py", line 408, in trace_dispatch
-            return pdb.Pdb.trace_dispatch(self, *args)
-        bdb.BdbQuit
-    TestResults(failed=1, attempted=2)
-
-======================================================================
-FAIL: test_pdb_set_trace (__main__) [21]
-Doctest: __main__.test_pdb_set_trace
-----------------------------------------------------------------------
-Traceback (most recent call last):
-  File "/tmp/test_doctest.py", line 2298, in __main__.test_pdb_set_trace
-    >>> try: runner.run(test)
-AssertionError: Failed example:
-    try: runner.run(test)
-    finally: sys.stdin = real_stdin
-    # doctest: +NORMALIZE_WHITESPACE
-Expected:
-    > <doctest foo-bar@baz[1]>(3)g()
-    -> import pdb; pdb.set_trace()
-    (Pdb) step
-    --Return--
-    > <doctest foo-bar@baz[1]>(3)g()->None
-    -> import pdb; pdb.set_trace()
-    (Pdb) list
-      1     def g(x):
-      2         print(x+3)
-      3  ->     import pdb; pdb.set_trace()
-    [EOF]
-    (Pdb) next
-    --Return--
-    > <doctest foo-bar@baz[0]>(2)f()->None
-    -> g(x*2)
-    (Pdb) list
-      1     def f(x):
-      2  ->     g(x*2)
-    [EOF]
-    (Pdb) next
-    --Return--
-    > <doctest foo-bar@baz[2]>(1)<module>()->None
-    -> f(3)
-    (Pdb) list
-      1  -> f(3)
-    [EOF]
+    (Pdb) print(y)
+    2
+    (Pdb) up
+    > <doctest foo-bar@baz[1]>(1)<module>()
+    -> calls_set_trace()
+    (Pdb) print(x)
+    1
     (Pdb) continue
-    **********************************************************************
-    File "foo-bar@baz.py", line 7, in foo-bar@baz
-    Failed example:
-        f(3)
-    Expected nothing
-    Got:
-        9
-    TestResults(failed=1, attempted=3)
-Got:
-    > <doctest foo-bar@baz[1]>(3)g()
-    -> import pdb; pdb.set_trace()
-    (Pdb) 
-    **********************************************************************
-    File "foo-bar@baz.py", line 7, in foo-bar@baz
-    Failed example:
-        f(3)
-    Exception raised:
-        Traceback (most recent call last):
-          File "<doctest foo-bar@baz[2]>", line 1, in <module>
-            f(3)
-          File "<doctest foo-bar@baz[0]>", line 2, in f
-            g(x*2)
-          File "<doctest foo-bar@baz[1]>", line 3, in g
-            import pdb; pdb.set_trace()
-          File "/pkg/store/python-0/lib/doctest.py", line 408, in trace_dispatch
-            return pdb.Pdb.trace_dispatch(self, *args)
-        bdb.BdbQuit
-    TestResults(failed=1, attempted=3)
+    TestResults(failed=0, attempted=2)
 
 ======================================================================
 FAIL: test_pdb_set_trace_nested (__main__) [9]
@@ -914,66 +694,77 @@ Differences (ndiff with -expected +actual):
     + > <doctest __main__.test_pdb_set_trace_nested[0]>(4)calls_set_trace()
     ?              ^^^^^^
       -> import pdb; pdb.set_trace()
-    - (Pdb) step
-    ?       ----
-    + (Pdb) 
-    + **********************************************************************
-    + File "foo-bar@baz.py", line 3, in foo-bar@baz
-    + Failed example:
-    +     calls_set_trace()
-    + Exception raised:
-    +     Traceback (most recent call last):
-    +       File "<doctest foo-bar@baz[1]>", line 1, in <module>
-    +         calls_set_trace()
-    +       File "<doctest __main__.test_pdb_set_trace_nested[0]>", line 4, in calls_set_trace
-    +         import pdb; pdb.set_trace()
-    +       File "/pkg/store/python-0/lib/doctest.py", line 408, in trace_dispatch
-    +         return pdb.Pdb.trace_dispatch(self, *args)
-    +     bdb.BdbQuit
-    + TestResults(failed=1, attempted=2)
+      (Pdb) step
     - > <doctest test.test_doctest.test_doctest.test_pdb_set_trace_nested[0]>(5)calls_set_trace()
-    - -> self.f1()
-    - (Pdb) print(y)
-    - 1
-    - (Pdb) step
-    - --Call--
+    ?            --------- ------------ ^^^^^^^
+    + > <doctest __main__.test_pdb_set_trace_nested[0]>(5)calls_set_trace()
+    ?              ^^^^^^
+      -> self.f1()
+      (Pdb) print(y)
+      1
+      (Pdb) step
+      --Call--
     - > <doctest test.test_doctest.test_doctest.test_pdb_set_trace_nested[0]>(7)f1()
-    - -> def f1(self):
-    - (Pdb) step
+    ?            --------- ------------ ^^^^^^^
+    + > <doctest __main__.test_pdb_set_trace_nested[0]>(7)f1()
+    ?              ^^^^^^
+      -> def f1(self):
+      (Pdb) step
     - > <doctest test.test_doctest.test_doctest.test_pdb_set_trace_nested[0]>(8)f1()
-    - -> x = 1
-    - (Pdb) step
+    ?            --------- ------------ ^^^^^^^
+    + > <doctest __main__.test_pdb_set_trace_nested[0]>(8)f1()
+    ?              ^^^^^^
+      -> x = 1
+      (Pdb) step
     - > <doctest test.test_doctest.test_doctest.test_pdb_set_trace_nested[0]>(9)f1()
-    - -> self.f2()
-    - (Pdb) step
-    - --Call--
+    ?            --------- ------------ ^^^^^^^
+    + > <doctest __main__.test_pdb_set_trace_nested[0]>(9)f1()
+    ?              ^^^^^^
+      -> self.f2()
+      (Pdb) step
+      --Call--
     - > <doctest test.test_doctest.test_doctest.test_pdb_set_trace_nested[0]>(11)f2()
-    - -> def f2(self):
-    - (Pdb) step
+    ?            --------- ------------ ^^^^^^^
+    + > <doctest __main__.test_pdb_set_trace_nested[0]>(11)f2()
+    ?              ^^^^^^
+      -> def f2(self):
+      (Pdb) step
     - > <doctest test.test_doctest.test_doctest.test_pdb_set_trace_nested[0]>(12)f2()
-    - -> z = 1
-    - (Pdb) step
+    ?            --------- ------------ ^^^^^^^
+    + > <doctest __main__.test_pdb_set_trace_nested[0]>(12)f2()
+    ?              ^^^^^^
+      -> z = 1
+      (Pdb) step
     - > <doctest test.test_doctest.test_doctest.test_pdb_set_trace_nested[0]>(13)f2()
-    - -> z = 2
-    - (Pdb) print(z)
-    - 1
-    - (Pdb) up
+    ?            --------- ------------ ^^^^^^^
+    + > <doctest __main__.test_pdb_set_trace_nested[0]>(13)f2()
+    ?              ^^^^^^
+      -> z = 2
+      (Pdb) print(z)
+      1
+      (Pdb) up
     - > <doctest test.test_doctest.test_doctest.test_pdb_set_trace_nested[0]>(9)f1()
-    - -> self.f2()
-    - (Pdb) print(x)
-    - 1
-    - (Pdb) up
+    ?            --------- ------------ ^^^^^^^
+    + > <doctest __main__.test_pdb_set_trace_nested[0]>(9)f1()
+    ?              ^^^^^^
+      -> self.f2()
+      (Pdb) print(x)
+      1
+      (Pdb) up
     - > <doctest test.test_doctest.test_doctest.test_pdb_set_trace_nested[0]>(5)calls_set_trace()
-    - -> self.f1()
-    - (Pdb) print(y)
-    - 1
-    - (Pdb) up
-    - > <doctest foo-bar@baz[1]>(1)<module>()
-    - -> calls_set_trace()
-    - (Pdb) print(foo)
-    - *** NameError: name 'foo' is not defined
-    - (Pdb) continue
-    - TestResults(failed=0, attempted=2)
+    ?            --------- ------------ ^^^^^^^
+    + > <doctest __main__.test_pdb_set_trace_nested[0]>(5)calls_set_trace()
+    ?              ^^^^^^
+      -> self.f1()
+      (Pdb) print(y)
+      1
+      (Pdb) up
+      > <doctest foo-bar@baz[1]>(1)<module>()
+      -> calls_set_trace()
+      (Pdb) print(foo)
+      *** NameError: name 'foo' is not defined
+      (Pdb) continue
+      TestResults(failed=0, attempted=2)
 
 ======================================================================
 FAIL: test_testfile_errors (__main__) [0]
@@ -1276,4 +1067,4 @@ Got:
 ----------------------------------------------------------------------
 Ran 78 tests in Ns
 
-FAILED (failures=25, errors=20, skipped=4)
+FAILED (failures=22, errors=12, skipped=4)
