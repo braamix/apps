@@ -36,7 +36,7 @@ namespace {
 
 constexpr Str USAGE =
     " Usage: cmatrix -[abBfhlsVx] [-u delay] [-C color]\n"
-    " -a: Asynchronous scroll\n"
+    " -a: Synchronous scroll\n"
     " -b: Bold characters on\n"
     " -B: All bold characters (overrides -b)\n"
     " -f: Force the linux $TERM type to be on\n"
@@ -75,7 +75,7 @@ int *updates     = nullptr;
 int LINES = 24, COLS = 80;
 int matrix_lines = -1;
 
-int screensaver = 0, asynch = 0, bold = -1, oldstyle = 0, update = 4,
+int screensaver = 0, asynch = 1, bold = -1, oldstyle = 0, update = 4,
     mcolor = COLOR_GREEN, count = 0;
 int randnum = 93, randmin = 33, highnum = 123;
 
@@ -575,7 +575,7 @@ Task<i32> proc_main(Args args)
             screensaver = 1;
             break;
         case 'a':
-            asynch = 1;
+            asynch = 0;
             break;
         case 'b':
             if (bold != 2 && bold != 0)

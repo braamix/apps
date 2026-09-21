@@ -11,7 +11,7 @@ endif()
 # No PORT and no LIBS: the rain is integers and the screen is a ProcScreen.
 braam_add_program(NAME cmatrix SOURCES cmatrix.cpp)
 
-braam_add_package(NAME cmatrix VERSION 1.2a-r0
+braam_add_package(NAME cmatrix VERSION 1.2a-r1
                   FIELD "T=ASCII Matrix screensaver"
                   FILES $<TARGET_FILE:bin_cmatrix>=bin/cmatrix)
 

@@ -16,7 +16,7 @@ cmatrix [-abBfhlnosxV] [-u delay] [-C color]
 
 | | |
 | --- | --- |
-| `-a` | asynchronous scroll: each column has its own speed |
+| `-a` | synchronous scroll: every column steps together |
 | `-b` | bold on some characters |
 | `-B` | bold on all of them |
 | `-n` | no bold, the default |
@@ -109,6 +109,8 @@ into a heap-allocated coroutine frame.
   `A_BOLD` is the attribute bit rather than a bright colour.
 - **Default colours are black, not the terminal's.** `use_default_colors`
   painted on `-1`; here the background is `COLOR_BLACK`.
+- **Asynchronous scroll is on by default.** `-a` turns it off; `a` still
+  toggles it.
 - **The man page's `)` for black was never in the program.** `!` through
   `&` are.
 
@@ -126,7 +128,7 @@ From the top of this repository:
 
 ```
 make            # build/games/cmatrix/cmatrix.wasm
-make package    # build/games/cmatrix/cmatrix-1.2a-r0.zip
+make package    # build/games/cmatrix/cmatrix-1.2a-r1.zip
 ```
 
 No `PORT` and no `LIBS`: nothing here wants a C library, and there is no
