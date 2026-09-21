@@ -25,47 +25,29 @@ $ python -c 'import json; print(json.dumps({"n": 2**100}))'
 
 ## Building and testing
 
-`make` at the top of the tree builds it; `make test` runs the suite, several
-tests at a time. One of them:
-
-    make test TESTS=lang/python/test/pysmoke.mjs
-
-The two longest lists are cut into shards — `pycases.mjs,--shard=1/4` is one
-entry of four — so that neither sets the length of the whole run. A shard is
-every nth row rather than a block, because what a row costs varies by two
-orders of magnitude.
-
-    make test STRESS=1
-
-runs every case again under a collector that collects at **every** allocation.
-It found nine missing pins; ask for it after touching any of this C++.
-
-The tests need node 22.12; see the top README.
+`make` at the top of the tree builds it; `make test` runs the suite.
+[test/README.md](test/README.md) is the suite — how to run one driver, what
+each measures, and how to add a case.
 
 ## The two upstreams
 
 Neither upstream is committed here; what is taken from them is.
 
-**MicroPython** — HEAD `52b5fbc`, MIT. Its `tests/basics/` is 578 small,
-self-contained programs that print and compare, and it is the ruler for the
-language core. The copies are in [test/cases/](test/cases/), their provenance
-in [test/manifest.txt](test/manifest.txt).
+**MicroPython** — HEAD `52b5fbc`, MIT. Its `tests/` is small, self-contained
+programs that print and compare, and it is the ruler for the language core.
 
 **CPython** — HEAD `82952e3`, version 3.16.0a0, PSF. It is the ruler for
-everything after the core, and it is two things:
+everything after the core, and it is two things: `Lib/test/`, the real
+specification of the language and unforgiving in a way MicroPython's tests are
+not; and **`Lib/`**, the library itself.
 
-- **`Lib/test/`** — the real specification of the language, unforgiving in a
-  way MicroPython's tests are not. The copies are in
-  [test/cpython/](test/cpython/), their rows in
-  [test/cpython.txt](test/cpython.txt). Every one imports `unittest`, which is
-  CPython's own here, and most import `test.support`, which is
-  [test/shim/](test/shim/)'s — written against what this interpreter has.
-- **`Lib/`** — the library, most of it pure Python over a small C floor. `re/`
-  is 3,258 lines of Python over an `_sre` whose Python-visible surface is a
-  dozen names; `collections`, `functools`, `heapq`, `json`, `datetime` and
-  `decimal` each carry an `except ImportError` fallback for the day their C
-  accelerator is missing, which is our day. So the floor is written here and
-  the rest taken verbatim, a row each in [lib/manifest.txt](lib/manifest.txt).
+Both test corpora are [test/README.md](test/README.md)'s. The library is this
+file's: most of it is pure Python over a small C floor. `re/` is 3,258 lines of
+Python over an `_sre` whose Python-visible surface is a dozen names;
+`collections`, `functools`, `heapq`, `json`, `datetime` and `decimal` each
+carry an `except ImportError` fallback for the day their C accelerator is
+missing, which is our day. So the floor is written here and the rest taken
+verbatim, a row each in [lib/manifest.txt](lib/manifest.txt).
 
 **The library decided the syntax.** It is written in the Python of its own day:
 `dataclasses.py` has 92 f-strings and a `match` statement, `typing.py` fifteen
@@ -295,78 +277,15 @@ Deliberate, and each is a decision rather than a gap. [Manual.md](Manual.md)
   `__spec__`; a finder the program adds sends every import after it through
   `importlib._bootstrap._find_and_load`.
 
-## Files
-
-| | |
-| --- | --- |
-| [braam.cpp](src/braam.cpp), [edit.cpp](src/edit.cpp) | The platform: the command line, the prompt, its line editor, and every `co_await` in the program |
-| [value.h](src/value.h), [obj.cpp](src/obj.cpp), [type.cpp](src/type.cpp) | The value word, the object header, the type descriptor and its slots |
-| [gc.cpp](src/gc.cpp), [intern.cpp](src/intern.cpp), [weak.cpp](src/weak.cpp) | The heap: allocation, precise mark and sweep, the pins, weak references |
-| [err.cpp](src/err.cpp), [exc.cpp](src/exc.cpp), [egroup.cpp](src/egroup.cpp), [traceback.cpp](src/traceback.cpp) | The error channel — sticky, checked, not thrown — the exception hierarchy and the traceback |
-| [int.cpp](src/int.cpp), [bigint.cpp](src/bigint.cpp), [float.cpp](src/float.cpp), [complex.cpp](src/complex.cpp), [ops.cpp](src/ops.cpp) | The number tower, integers of any width, and CPython's float repr |
-| [str.cpp](src/str.cpp), [bytes.cpp](src/bytes.cpp), [ucd.cpp](src/ucd.cpp), [ucddb.cpp](src/ucddb.cpp) | Text in codepoints, octets, and the Unicode database `tools/mkucd.py` writes |
-| [codec.cpp](src/codec.cpp), [codecsmod.cpp](src/codecsmod.cpp) | The codecs and their error handlers, as a run the program can interrupt |
-| [tuple.cpp](src/tuple.cpp), [list.cpp](src/list.cpp), [table.cpp](src/table.cpp), [range.cpp](src/range.cpp), [iter.cpp](src/iter.cpp) | The containers, the insertion-ordered table behind dict and set, the iterators |
-| [method.cpp](src/method.cpp), [strmeth.cpp](src/strmeth.cpp) … [slotmeth.cpp](src/slotmeth.cpp) | A static table becomes a built-in type's namespace; one file per family of methods |
-| [format.cpp](src/format.cpp), [formatgr.cpp](src/formatgr.cpp), [repr.cpp](src/repr.cpp) | The format-spec mini-language, `%` and `str.format`, and repr for every type |
-| [lex.cpp](src/lex.cpp), [parse.cpp](src/parse.cpp), [symtab.cpp](src/symtab.cpp), [compile.cpp](src/compile.cpp), [code.cpp](src/code.cpp) | Source to bytecode: the tokenizer, the grammar into an index arena, the scopes, the compiler, the code object |
-| [astmod.cpp](src/astmod.cpp), [astpos.cpp](src/astpos.cpp), [astdump.cpp](src/astdump.cpp), [dis.cpp](src/dis.cpp), [symtablemod.cpp](src/symtablemod.cpp) | `_ast` and the exact positions CPython reports, the `--dump-ast` and `--dis` listings, and `_symtable` over the scope pass |
-| [vm.cpp](src/vm.cpp), [frame.cpp](src/frame.cpp), [call.cpp](src/call.cpp), [gen.cpp](src/gen.cpp) | The dispatch loop, the frame, argument binding, the continuation a suspending builtin parks in, generators and coroutines |
-| [attr.cpp](src/attr.cpp), [func.cpp](src/func.cpp), [abc.cpp](src/abc.cpp), [patma.cpp](src/patma.cpp), [compare.cpp](src/compare.cpp) | Attribute lookup, functions and classes, abstract bases, `match`, and comparisons that call Python |
-| [annot.cpp](src/annot.cpp), [lazy.cpp](src/lazy.cpp), [typevar.cpp](src/typevar.cpp), [union.cpp](src/union.cpp), [genalias.cpp](src/genalias.cpp) | PEP 649 lazy annotations, PEP 810 lazy imports, and the typing machinery |
-| [import.cpp](src/import.cpp), [module.cpp](src/module.cpp), [impmod.cpp](src/impmod.cpp) | The module cache, the search path, the loader, and where importlib takes over |
-| [io.h](src/io.h), [iobase.cpp](src/iobase.cpp), [iofile.cpp](src/iofile.cpp), [iobuf.cpp](src/iobuf.cpp), [iotext.cpp](src/iotext.cpp), [iomem.cpp](src/iomem.cpp) | `_io`: the abstract layers, the raw descriptor, the buffer, the text wrapper, `BytesIO` and `StringIO` |
-| [posixmod.cpp](src/posixmod.cpp), [sysmod.cpp](src/sysmod.cpp), [timemod.cpp](src/timemod.cpp), [signalmod.cpp](src/signalmod.cpp), [selectmod.cpp](src/selectmod.cpp), [socketmod.cpp](src/socketmod.cpp) | `posix` and `_posixsubprocess`, `sys`, `time`, `_signal`, `select` — the system-call turn every module takes — and `_socket`, which has no call to make |
-| [zlibmod.cpp](src/zlibmod.cpp), [bz2mod.cpp](src/bz2mod.cpp), [lzmamod.cpp](src/lzmamod.cpp), [zstdmod.cpp](src/zstdmod.cpp) | `zlib`, `_bz2`, `_lzma` and `_zstd` over the SDK's four compression libraries |
-| [lsprofmod.cpp](src/lsprofmod.cpp) | `_lsprof`, which cProfile stands on: the VM calls into it at every call and return, so no Python runs per event |
-| [tracemallocmod.cpp](src/tracemallocmod.cpp) | `_tracemalloc`: `obj_alloc` records where each object was made and the sweep drops it, so what is traced is the object and not a raw block |
-| [reduce.cpp](src/reduce.cpp), [picklemod.cpp](src/picklemod.cpp) | What pickle and copy need of the native types: `__reduce__` for the builtins and iterators, and `_pickle`'s `PickleBuffer` |
-| [sre.cpp](src/sre.cpp), [sremod.cpp](src/sremod.cpp) | The regular-expression engine, Secret Labs', able to stop mid-match |
-| [expat/](src/expat/), [pyexpatmod.cpp](src/pyexpatmod.cpp) | libexpat 2.8.4 rewritten in C++, and `pyexpat` over it: a handler suspends the parse and a `ContObj` makes the Python call |
-| [builtin.cpp](src/builtin.cpp), and the other `*mod.cpp` | The builtins namespace, and one file per native module |
-| [lib/](lib/) | CPython's library, byte for byte, with [lib/manifest.txt](lib/manifest.txt) saying where each file came from |
-| [Manual.md](Manual.md), [examples/](examples/) | The reference manual and three demos; the package ships both as `share/` |
-
-## The tests
-
-| | |
-| --- | --- |
-| [test/pylib.mjs](test/pylib.mjs) | The harness: boot, plant the binary and the library, run a command, read back what it wrote |
-| [test/runcases.mjs](test/runcases.mjs) | MicroPython's suite — [test/cases/](test/cases/) against upstream's `.exp` files |
-| [test/pycases.mjs](test/pycases.mjs) | CPython's own test files, under CPython's own `unittest` |
-| [test/pystdlib.mjs](test/pystdlib.mjs) | [test/stdlib/](test/stdlib/) — programs whose output is identical to the host CPython's, line for line |
-| [test/pylex.mjs](test/pylex.mjs), [test/pyast.mjs](test/pyast.mjs), [test/pydis.mjs](test/pydis.mjs) | The three listings, against CPython's own `tokenize` and `ast` and against goldens |
-| [test/pysmoke.mjs](test/pysmoke.mjs), [test/pyflags.mjs](test/pyflags.mjs), [test/pyrepl.mjs](test/pyrepl.mjs), [test/pyexamples.mjs](test/pyexamples.mjs) | The command line, its options and the `PYTHON*` variables, the prompt, and the demos |
-| [test/pyio.mjs](test/pyio.mjs), [test/pyselect.mjs](test/pyselect.mjs), [test/pyimport.mjs](test/pyimport.mjs), [test/pygc.mjs](test/pygc.mjs) | What needs a stream, a signal, a pipe to wait on, the import system or the collector |
-| [test/pycompress.mjs](test/pycompress.mjs) | lzma and zstd, which the reference CPython was built without, and the three places compression differs |
-| the other `test/py*.mjs` | One driver per area — types, numbers, functions, classes, generators, coroutines, formatting, Unicode, modules |
-| [test/pystress.mjs](test/pystress.mjs) | The whole manifest again under `STRESS=1` |
-
-To bring one more upstream test into the suite:
-
-    tools/mkexp.py basics/andor.py
-
-which copies it into `test/cases/`, writes the expected output beside it —
-upstream's own `.exp` when there is one, host CPython otherwise — and adds a
-row to the manifest marked `fail`. Move the row to `pass` when it passes.
-`tools/mkcpy.py` does the same for one of CPython's.
-
 ## Rules a change follows
 
-The repository's own conventions are in [CLAUDE.md](../../CLAUDE.md); these
-three are this program's.
+The repository's own conventions are in [CLAUDE.md](../../CLAUDE.md); this one
+is this program's, and [test/README.md](test/README.md) has the rest.
 
-- Every test driver gets its own line in the `TESTS` variable at the head of
-  the top [Makefile](../../Makefile).
-- A test or a library module copied from upstream is copied **byte for byte**.
-  Its provenance — the upstream path and the commit it came from — goes in the
-  manifest beside it, never in the file. A module that needs something this
-  interpreter has not got waits; it is not trimmed to fit.
-- A golden is written by the CPython [tools/pyref.py](tools/pyref.py) finds —
-  `$PYTHON`, or `python3` on `PATH` — and which one wrote it is recorded, in
-  the manifest's `exp` column or in [test/goldens.txt](test/goldens.txt).
-  Another interpreter does not overwrite it without `--regen`, so a host
-  upgrade cannot move a golden by accident.
+- Anything copied from upstream — a library module or a test — is copied
+  **byte for byte**. Its provenance, the upstream path and the commit it came
+  from, goes in the manifest beside it, never in the file. A module that needs
+  something this interpreter has not got waits; it is not trimmed to fit.
 
 ## Licence
 
