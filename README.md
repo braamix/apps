@@ -7,6 +7,7 @@ that runs in a browser tab.
 
 | | |
 | --- | --- |
+| [archivers/gzip](archivers/gzip/) | FreeBSD gzip 20190107 — gzip/gunzip/zcat/gzcat |
 | [archivers/zip](archivers/zip/) | Info-ZIP zip 3.0, and zipnote, zipsplit and zipcloak with it |
 | [converters/iconv](converters/iconv/) | Citrus iconv, and the two hundred character sets it converts between |
 | [devel/c4](devel/c4/) | C4, C in four functions — a tiny compiler that compiles itself |

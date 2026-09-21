@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Seventeen programs are ported so far**:
+**Eighteen programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -17,6 +17,9 @@ upstream that already has a porting layer, where the port is a third
 implementation of it rather than a rewrite; and
 [games/adventure](games/adventure/), which shows what a program that reads,
 writes files and carries its own data has to do here; and
+[archivers/gzip](archivers/gzip/), FreeBSD gzip 20190107 — the zip PORT shape
+on zlib, bzip2, lzma and zstd, gzip compress only, sniff-and-decompress read;
+and
 [archivers/zip](archivers/zip/), the largest by far — Info-ZIP's zip 3.0, four
 commands out of one set of sources, where nearly every function became a
 coroutine because nearly every one of them reaches a stream; and
