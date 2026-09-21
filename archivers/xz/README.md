@@ -27,6 +27,7 @@ Presets 7–9 are not usable here. Multi-threaded encoding is not linked; `-T` a
 | SIGINT + dest | `sig_catch` + unlink in-progress output |
 | `--list` | `lzma_file_info_decoder` over `io_pread` / `io_seek_src` |
 | gettext / tuklib_mbstr | English; `_()` is identity |
+| `--help` / `--long-help` | Structured usage on stderr (`-H` lists advanced options) |
 | `message_fatal` / `tuklib_exit` | Sticky exit status, no `exit()` |
 
 ## Build

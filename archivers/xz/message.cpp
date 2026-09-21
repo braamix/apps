@@ -847,15 +847,125 @@ static void detect_wrapping_errors(int error_mask)
     (void)error_mask;
 }
 
+static void help_opt(const char *opts, const char *desc)
+{
+    xz_diag_print("  %-22s  %s", opts, desc);
+}
+
 extern void message_help(bool long_help)
 {
-    (void)long_help;
-    xz_diag_print(_("Usage: %s [-zdt] [-0-9] [-cfk] [FILE]..."), progname);
-    xz_diag_print("%s", lzma_version_string());
+    xz_diag_print(_("Usage: %s [OPTION]... [FILE]..."), progname);
+    xz_diag_print("%s", _("Compress or decompress .xz and other supported formats."));
+    xz_diag_print("%s", "");
+
+    xz_diag_print("%s", _("Operation mode:"));
+    help_opt("-z, --compress", _("force compression (default)"));
+    help_opt("-d, --decompress", _("force decompression"));
+    help_opt("-t, --test", _("test compressed file integrity"));
+    help_opt("-l, --list", _("list .xz file metadata"));
+    xz_diag_print("%s", "");
+
+    xz_diag_print("%s", _("Operation modifiers:"));
+    help_opt("-k, --keep", _("keep (do not delete) input files"));
+    help_opt("-f, --force", _("overwrite output and (de)compress links"));
+    help_opt("-c, --stdout", _("write to stdout; keep input files"));
+    if (long_help) {
+        help_opt("    --no-sync", _("do not fsync output before removing input"));
+        help_opt("    --single-stream", _("decompress first stream only"));
+        help_opt("    --no-sparse", _("do not create sparse files when decompressing"));
+        help_opt("-S, --suffix=.SUF", _("compressed file suffix (default .xz)"));
+        help_opt("    --files[=FILE]", _("read filenames from FILE or stdin (newline)"));
+        help_opt("    --files0[=FILE]", _("like --files but null-terminated names"));
+    }
+    xz_diag_print("%s", "");
+
+    xz_diag_print("%s", _("Compression and format:"));
+    help_opt("-0 ... -9", _("preset 0=fast, 6=default, 9=best (uses more RAM)"));
+    help_opt("-e, --extreme", _("slower preset; try harder to compress"));
+    if (long_help) {
+        help_opt("-F, --format=FMT", _("auto, xz, lzma, lzip, or raw (default auto)"));
+        help_opt("-C, --check=NAME", _("none, crc32, crc64 (default), or sha256"));
+        help_opt("    --ignore-check", _("do not verify integrity check on decompress"));
+        help_opt("-T, --threads=NUM", _("thread limit (0=automatic; see Braam note)"));
+        help_opt("    --block-size=SIZE", _(".xz block size for threaded compression"));
+        help_opt("    --block-list=LIST", _("comma-separated block sizes / filter chains"));
+        help_opt("    --memlimit-compress=L", _("compression memory limit (bytes or %)"));
+        help_opt("    --memlimit-decompress=L", _("decompression memory limit"));
+        help_opt("    --memlimit-mt-decompress=L", _("multithreaded decompress limit"));
+        help_opt("-M, --memlimit=L", _("all of the above memory limits"));
+        help_opt("    --no-adjust", _("error if preset exceeds memlimit instead of adjusting"));
+        help_opt("    --flush-timeout=MS", _("flush pending data if read would block"));
+    }
+    xz_diag_print("%s", "");
+
+    xz_diag_print("%s", _("Reporting:"));
+    help_opt("-q, --quiet", _("suppress warnings; twice suppresses errors"));
+    help_opt("-v, --verbose", _("verbose; twice for progress on stderr"));
+    if (long_help) {
+        help_opt("-Q, --no-warn", _("warnings do not affect exit status"));
+        help_opt("    --robot", _("machine-readable messages for scripts"));
+        help_opt("    --info-memory", _("print RAM and memory limits, then exit"));
+    }
+    xz_diag_print("%s", "");
+
+    xz_diag_print("%s", _("Information:"));
+    help_opt("-h, --help", _("show this help and exit"));
+    if (long_help)
+        help_opt("-H, --long-help", _("show all options and exit"));
+    else
+        help_opt("-H, --long-help", _("show advanced options and exit"));
+    help_opt("-V, --version", _("show version and exit"));
+    xz_diag_print("%s", "");
+
+    if (long_help) {
+        xz_diag_print("%s", _("Custom filters (instead of presets):"));
+        help_opt("--filters=STR", _("liblzma filter chain for compression"));
+        help_opt("--filters1..9=STR", _("extra chains for --block-list"));
+        help_opt("--filters-help", _("filter string syntax, then exit"));
+        help_opt("--lzma1[=OPTS]", _("LZMA1 with comma-separated options"));
+        help_opt("--lzma2[=OPTS]", _("LZMA2 with comma-separated options"));
+        help_opt("--x86, --arm, ...", _("BCJ filter for executable code"));
+        help_opt("--delta[=OPTS]", _("simple delta filter"));
+        xz_diag_print("%s", "");
+    }
+
+    xz_diag_print("%s", _("With no FILE, or when FILE is -, read standard input."));
+    xz_diag_print("%s", "");
+
+    if (long_help) {
+        xz_diag_print("%s",
+                      _("Braam: each process has at most 100 MiB RAM. Compression "
+                        "memory limits leave headroom; high presets may be "
+                        "auto-adjusted. Multi-threaded compression is not "
+                        "linked; -T0 selects one thread."));
+        xz_diag_print("%s", "");
+    }
+
+    xz_diag_print("%s %s", _("Report bugs to"), PACKAGE_BUGREPORT);
+    xz_diag_print("%s <%s>", PACKAGE_NAME, PACKAGE_URL);
+
     tuklib_exit(E_SUCCESS, E_ERROR, verbosity != V_SILENT);
 }
 
-#if 0 // upstream help text (needs tuklib_wrap)
+extern void message_filters_help(void)
+{
+    xz_diag_print("%s", _("liblzma filter string syntax (for --filters and --filtersN):"));
+    xz_diag_print("%s", "");
+    xz_diag_print("%s",
+                  _("  Chain filters with '--', e.g. lzma2=8MiB or "
+                    "x86--lzma2=4MiB. Names include lzma2, lzma1, x86, arm, "
+                    "delta, and others supported by liblzma."));
+    xz_diag_print("%s", "");
+    xz_diag_print("%s",
+                  _("  Options use name=value separated by commas, e.g. "
+                    "lzma2=dict=4MiB,preset=6. See XZ Utils documentation "
+                    "for full syntax."));
+    xz_diag_print("%s", "");
+    xz_diag_print("%s", _("Preset options -0..-9 are simpler for typical use."));
+    tuklib_exit(E_SUCCESS, E_ERROR, verbosity != V_SILENT);
+}
+
+#if 0 // upstream tuklib_wrap help (reference only)
 extern void
 message_help_unused(bool long_help)
 {
@@ -1195,9 +1305,3 @@ message_help_unused(bool long_help)
 	tuklib_exit(E_SUCCESS, E_ERROR, verbosity != V_SILENT);
 }
 #endif
-
-extern void message_filters_help(void)
-{
-    xz_diag_print("%s", _("See xz documentation for --filters syntax."));
-    tuklib_exit(E_SUCCESS, E_ERROR, verbosity != V_SILENT);
-}

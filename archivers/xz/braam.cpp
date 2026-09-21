@@ -10,34 +10,57 @@ const char *xz_remove_out = NULL;
 int xz_fatal              = 0;
 int xz_stop               = 0;
 
-static char xz_diag[512];
+static char *xz_diag_buf = NULL;
+static usize xz_diag_cap = 0;
 static int xz_diag_len;
 static int xz_diag_pending;
+
+static bool xz_diag_reserve(usize need)
+{
+    if (xz_diag_cap >= need)
+        return true;
+    usize cap = xz_diag_cap ? xz_diag_cap : 512;
+    while (cap < need)
+        cap *= 2;
+    char *p = (char *)realloc(xz_diag_buf, cap);
+    if (p == NULL)
+        return false;
+    xz_diag_buf = p;
+    xz_diag_cap = cap;
+    return true;
+}
 
 Task<void> xz_flush_diag()
 {
     if (!xz_diag_pending)
         co_return;
     xz_diag_pending = 0;
-    co_await write_all(SYS_STDERR, Str(xz_diag, (usize)xz_diag_len));
+    co_await write_all(SYS_STDERR, Str(xz_diag_buf, (usize)xz_diag_len));
     xz_diag_len = 0;
 }
 
 void xz_diag_vprint(const char *fmt, va_list ap)
 {
-    if (xz_diag_len >= (int)sizeof xz_diag - 2)
+    if (!xz_diag_reserve((usize)xz_diag_len + 256))
         return;
-    int n = vsnprintf(xz_diag + xz_diag_len, sizeof xz_diag - (usize)xz_diag_len, fmt, ap);
+    va_list copy;
+    va_copy(copy, ap);
+    int n = vsnprintf(xz_diag_buf + xz_diag_len, xz_diag_cap - (usize)xz_diag_len, fmt, copy);
+    va_end(copy);
     if (n < 0)
         return;
-    if ((usize)n >= sizeof xz_diag - (usize)xz_diag_len)
-        n = (int)sizeof xz_diag - xz_diag_len - 1;
-    xz_diag_len += n;
-    if (xz_diag_len < (int)sizeof xz_diag - 1) {
-        xz_diag[xz_diag_len++] = '\n';
-        xz_diag[xz_diag_len]   = '\0';
+    if ((usize)n >= xz_diag_cap - (usize)xz_diag_len) {
+        if (!xz_diag_reserve((usize)xz_diag_len + (usize)n + 2))
+            return;
+        n = vsnprintf(xz_diag_buf + xz_diag_len, xz_diag_cap - (usize)xz_diag_len, fmt, ap);
+        if (n < 0)
+            return;
     }
-    xz_diag_pending = 1;
+    xz_diag_len += n;
+    if ((usize)xz_diag_len + 1 >= xz_diag_cap && !xz_diag_reserve((usize)xz_diag_len + 2))
+        return;
+    xz_diag_buf[xz_diag_len++] = '\n';
+    xz_diag_pending            = 1;
 }
 
 void xz_diag_print(const char *fmt, ...)
@@ -79,11 +102,13 @@ void xz_out_print(const char *fmt, ...)
 
 static void diag_vfmt(const char *fmt, va_list ap)
 {
-    xz_diag_len = vsnprintf(xz_diag, sizeof xz_diag, fmt, ap);
+    if (!xz_diag_reserve(512))
+        return;
+    xz_diag_len = vsnprintf(xz_diag_buf, xz_diag_cap, fmt, ap);
     if (xz_diag_len < 0)
         xz_diag_len = 0;
-    if ((usize)xz_diag_len >= sizeof xz_diag)
-        xz_diag_len = (int)sizeof xz_diag - 1;
+    if ((usize)xz_diag_len >= xz_diag_cap)
+        xz_diag_len = (int)xz_diag_cap - 1;
     xz_diag_pending = 1;
 }
 
@@ -93,8 +118,10 @@ void xz_maybe_err(const char *fmt, ...)
     va_start(ap, fmt);
     diag_vfmt(fmt, ap);
     va_end(ap);
-    int n       = xz_diag_len;
-    xz_diag_len = snprintf(xz_diag + n, sizeof xz_diag - (usize)n, ": %s\n", strerror(errno));
+    int n = xz_diag_len;
+    if (!xz_diag_reserve((usize)n + 64))
+        return;
+    xz_diag_len = snprintf(xz_diag_buf + n, xz_diag_cap - (usize)n, ": %s\n", strerror(errno));
     if (xz_diag_len > 0)
         xz_diag_len += n;
     xz_fatal = 1;
@@ -109,9 +136,9 @@ void xz_maybe_errx(const char *fmt, ...)
     diag_vfmt(fmt, ap);
     va_end(ap);
     int n = xz_diag_len;
-    if (n < (int)sizeof xz_diag - 1) {
-        xz_diag[n]  = '\n';
-        xz_diag_len = n + 1;
+    if ((usize)n + 1 < xz_diag_cap) {
+        xz_diag_buf[n] = '\n';
+        xz_diag_len    = n + 1;
     }
     xz_fatal = 1;
     if (exit_status == E_SUCCESS)

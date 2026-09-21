@@ -28,6 +28,34 @@ static void copy_path(char *dst, usize cap, Str s)
     dst[n] = '\0';
 }
 
+static Task<bool> fd_is_console(int fd)
+{
+    Task<Result<TtyInfo>> tk;
+    if (fd == STDIN_FILENO)
+        tk = tty_of(SYS_STDIN);
+    else if (fd == STDOUT_FILENO)
+        tk = tty_of(SYS_STDOUT);
+    else
+        co_return false;
+    if (!tk)
+        co_return false;
+    Result<TtyInfo> r = co_await tk;
+    if (r.is_err())
+        co_return false;
+    co_return r.value().console;
+}
+
+static Task<i32> help_and_exit(void)
+{
+    message_help(false);
+    co_await xz_flush_diag();
+    if (exit_status == E_ERROR)
+        co_return 1;
+    if (exit_status == E_WARNING)
+        co_return 2;
+    co_return 0;
+}
+
 static Task<const char *> read_name(args_info *args)
 {
     static char *name  = NULL;
@@ -132,14 +160,15 @@ Task<i32> xz_main(Args args)
     else
         message_set_files(ainfo.file_count);
 
+    const bool stdin_operand = ainfo.stdin_only ||
+                               (ainfo.file_count == 1 && ainfo.args[ainfo.file_index] == Str("-"));
+    if (stdin_operand && co_await fd_is_console(STDIN_FILENO))
+        co_return co_await help_and_exit();
+
     if (opt_mode == MODE_COMPRESS) {
-        const bool stdin_path =
-            ainfo.stdin_only ||
-            (ainfo.file_count == 1 && ainfo.args[ainfo.file_index] == Str("-"));
-        if (opt_stdout || stdin_path) {
-            if (is_tty_stdout())
-                message_try_help();
-        }
+        const bool stdout_path = opt_stdout || stdin_operand;
+        if (stdout_path && co_await fd_is_console(STDOUT_FILENO))
+            co_return co_await help_and_exit();
     }
 
     if (ainfo.stdin_only) {
