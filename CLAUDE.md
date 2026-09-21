@@ -214,9 +214,10 @@ writing any code here:
 [Makefile](Makefile) into `build/`, unpacks it, configures against its
 toolchain file and builds everything. `make SDK=<prefix>` uses an SDK that is
 already unpacked and skips the download; `make clean` removes `build/` and the
-next `make` fetches again. `make test` runs the headless tests, for which you
-also need node 22.12 — see Testing a program below. You need clang with the
-wasm32 target, `wasm-ld`, CMake 3.24, Python 3, `curl` and `unzip`.
+next `make` fetches again. `make test` runs the headless tests and
+`make longtest` the slow ones, for which you also need node 22.12 — see
+Testing a program below. You need clang with the wasm32 target, `wasm-ld`,
+CMake 3.24, Python 3, `curl` and `unzip`.
 
 **The tests do not use `../braam-core`: the SDK carries the harness.** Its
 `share/braam/` holds `test/system/harness.mjs` with the fakes it imports, and
@@ -631,9 +632,20 @@ end, rather than the run stopping at the first, and that last line — `passed:
 <n> tests` or `failed: <names>` — is teed into `test.log` too, so the log says
 how the run ended and nothing has to be run twice to find out. An entry is one
 word, so a test that takes arguments writes them after a comma —
-`pycases.mjs,--shard=1/4` — which is how the two longest lists are cut into
-four tests each, since one long test otherwise sets the length of the whole
-run.
+`pystdlib.mjs,--shard=1/4` — which is how a long list is cut into four tests,
+since one long test otherwise sets the length of the whole run.
+
+**`make longtest` is the slow half, and is a target rather than a flag**:
+`LONGTESTS` beside `TESTS`, the same runner, into `longtest.log` and
+`build/longtest/`. Three of Python's drivers are in it — `pycases.mjs`, which
+is nearly all of it at seven minutes, and `runcases.mjs` and `pyast.mjs`
+behind it. That split is what keeps `make test` at twenty seconds and makes it
+the thing to run per change; `make longtest` is for after the interpreter
+moves and before a release, and `make test longtest` runs both, each into its
+own log because each has a directory of its own. Anything new that runs for
+more than a few seconds belongs in `LONGTESTS`. `pycases`'s shards stay four
+whatever the imbalance, because one boot serves a shard and its goldens were
+blessed under the shard they run in.
 
 **`make test STRESS=1` adds the pass that is too slow to always run**: Python's
 cases a second time under a collector that collects at every allocation, which

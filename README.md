@@ -63,6 +63,15 @@ instead of all of them, and `make test STRESS=1` adds the pass that runs
 Python's cases again under a collector that never waits, which is minutes
 rather than seconds.
 
+    make longtest
+
+runs the slow half in the same way, into `longtest.log`: Python's two upstream
+suites and its tree dump, of which CPython's own `Lib/test/` under CPython's
+own `unittest` is nearly all — a hundred and fifty test files, and four fifths
+of what a full run costs. `make test` is twenty seconds and is the everyday
+ruler; this one is minutes, and is for after the interpreter changes and
+before a release. `make test longtest` is both, each into its own log.
+
     make index
 
 signs a repository into `build/repo/` — the packages and an index over them,

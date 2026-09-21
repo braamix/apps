@@ -1,5 +1,6 @@
 build*/
 tmp/
 test.log
+longtest.log
 .DS_Store
 __pycache__/

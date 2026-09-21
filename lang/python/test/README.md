@@ -12,6 +12,7 @@ the language, [../TODO.md](../TODO.md) what is known to be wrong.
 
     make test                                   # the whole tree
     make test TESTS=lang/python/test/pysmoke.mjs
+    make longtest                               # the three slow drivers
     make test STRESS=1                          # and the collector pass
 
     node lang/python/test/pystdlib.mjs          # one driver by hand
@@ -35,8 +36,15 @@ has a directory of them, and
 | `--kernel=`, `--rootfs=`, `--binary=` | override what is booted and planted |
 
 Each driver is its own line in the `TESTS` variable at the head of the top
-[Makefile](../../../Makefile), and the two longest are cut into four shards
-there so neither sets the length of the whole run.
+[Makefile](../../../Makefile), and the ones that shard are cut into four there
+so none of them sets the length of the whole run.
+
+Three of them are not in `TESTS` but in `LONGTESTS`, which `make longtest`
+runs: [pycases.mjs](pycases.mjs), [runcases.mjs](runcases.mjs) and
+[pyast.mjs](pyast.mjs). `pycases` is nearly all of it — seven minutes against
+everything else in the tree costing a hundred seconds put together. Its shards
+stay four whatever that costs, because a golden is blessed under the shard it
+runs in.
 
 ## How a test runs
 
@@ -212,8 +220,8 @@ passes; a copy is **never edited** to make it pass, and a case that needs
 something this interpreter has not got stays as it is and says so.
 
 A whole new driver needs three things: a file here that imports
-[pylib.mjs](pylib.mjs), a line in the Makefile's `TESTS`, and a row in the
-table above.
+[pylib.mjs](pylib.mjs), a line in the Makefile's `TESTS` — or `LONGTESTS`, if
+it runs for more than a few seconds — and a row in the table above.
 
 ## The stress pass
 
@@ -236,8 +244,8 @@ interpreter's C++, and let the plain run be the ruler the rest of the time.
   and does not touch the manifest; blessing is a separate, deliberate run.
 - An address, a pid-derived temporary name and an elapsed time are normalised
   out of a `unittest` listing before it is compared. Nothing else is.
-- `make test` writes the whole run to `test.log`, and its last line names the
-  failures.
+- `make test` writes the whole run to `test.log` and `make longtest` to
+  `longtest.log`, and the last line of each names the failures.
 
 ## Licence
 

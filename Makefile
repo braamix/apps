@@ -10,8 +10,9 @@ SDK_URL := https://github.com/braamix/core/releases/download/$(SDK_RELEASE)/braa
 BUILD     ?= build
 GENERATOR ?= Unix Makefiles
 
-# Where `make test` keeps what it printed.
+# Where `make test` and `make longtest` keep what they printed.
 TEST_LOG  ?= test.log
+LONG_LOG  ?= longtest.log
 
 # Fetched into the build directory, unless SDK names one already unpacked.
 SDK       ?= $(BUILD)/braam-sdk-$(SDK_VERSION)
@@ -46,7 +47,7 @@ MKINDEX ?= $(firstword $(wildcard $(SDK)/libexec/braam/mkindex.py))
 
 REPO := $(BUILD)/repo
 
-.PHONY: all package test index clean
+.PHONY: all package test longtest index clean
 
 all: $(BUILD)/CMakeCache.txt
 	@cmake --build $(BUILD) -j $(JOBS)
@@ -65,6 +66,9 @@ package: all
 # from setting the length of the whole run. Python's stdlib and module cases
 # are sharded for the stress pass below, where they are minutes rather than
 # seconds.
+#
+# Nothing here runs for more than a few seconds. What does is in $(LONGTESTS)
+# below, which `make longtest` runs instead.
 TESTS := \
     archivers/zip/test/roundtrip.mjs \
     archivers/zip/test/tree.mjs \
@@ -137,7 +141,6 @@ TESTS := \
     lang/python/test/pyflags.mjs \
     lang/python/test/pygc.mjs \
     lang/python/test/pylex.mjs \
-    lang/python/test/pyast.mjs \
     lang/python/test/pydis.mjs \
     lang/python/test/pyvm.mjs \
     lang/python/test/pyfun.mjs \
@@ -164,7 +167,19 @@ TESTS := \
     lang/python/test/pycompress.mjs \
     lang/python/test/pyrepl.mjs \
     lang/python/test/pyexamples.mjs \
-    lang/python/test/pyunit.mjs \
+    lang/python/test/pyunit.mjs
+
+# `make longtest`. The three drivers that run for longer than the rest of the
+# tree put together: the two upstream suites and the tree dump. `pycases` is
+# nearly all of it — CPython's own `Lib/test/` under CPython's own `unittest`,
+# a hundred and fifty test files and seven minutes of work. Run them after
+# touching the interpreter, and before a release.
+#
+# The shards are four because a pycases golden is blessed under the shard it
+# runs in: one boot serves a shard and what a case sees of the heap depends on
+# what ran before it. Changing the count invalidates the goldens.
+LONGTESTS := \
+    lang/python/test/pyast.mjs \
     lang/python/test/runcases.mjs \
     lang/python/test/pycases.mjs,--shard=1/4 \
     lang/python/test/pycases.mjs,--shard=2/4 \
@@ -187,29 +202,42 @@ STRESS_TESTS := \
 
 TEST_JOBS ?= $(JOBS)
 TEST_DIR  := $(BUILD)/test
+LONG_DIR  := $(BUILD)/longtest
 
+# The runner both targets use: $(1) the list, $(2) a directory of its own,
+# $(3) the log. A directory apiece is what lets `make test longtest` run the
+# two without the second erasing the first.
+#
 # Each test writes its own log and prints it when it finishes, so the terminal
-# stays readable with $(TEST_JOBS) of them running; $(TEST_LOG) is those logs
-# concatenated in the order of $(TESTS), whatever order they finished in. The
+# stays readable with $(TEST_JOBS) of them running; the log is those logs
+# concatenated in the order of the list, whatever order they finished in. The
 # whole list runs and the failures are named at the end, rather than the run
-# stopping at the first. The verdict is teed into $(TEST_LOG) as well, so the
-# log says how the run ended and nothing has to be run twice to find out.
-test: all
+# stopping at the first. The verdict is teed into the log as well, so the log
+# says how the run ended and nothing has to be run twice to find out.
+define run-tests
 	@test -f $(HARNESS)/test/system/harness.mjs || \
 	    { echo "$(SDK) has no test harness"; exit 1; }
-	@rm -rf $(TEST_DIR) && mkdir -p $(TEST_DIR)
-	@i=0; for t in $(TESTS) $(if $(STRESS),$(STRESS_TESTS)); do \
+	@rm -rf $(2) && mkdir -p $(2)
+	@i=0; for t in $(1); do \
 	    i=`expr $$i + 1`; printf '%03d %s\n' $$i "`echo $$t | tr , ' '`"; \
-	done > $(TEST_DIR)/list
+	done > $(2)/list
 	@BRAAM_SDK=$(abspath $(SDK)) PY_STRESS=$(STRESS) xargs -P $(TEST_JOBS) -L1 sh -c \
-	    'node "$$@" > $(TEST_DIR)/$$0.log 2>&1 || \
-	         echo "$$*" >> $(TEST_DIR)/failed; cat $(TEST_DIR)/$$0.log' \
-	    < $(TEST_DIR)/list
-	@cat $(TEST_DIR)/*.log > $(TEST_LOG)
-	@! test -s $(TEST_DIR)/failed || \
-	    { echo "failed: `tr '\n' ' ' < $(TEST_DIR)/failed`" | tee -a $(TEST_LOG); \
+	    'node "$$@" > $(2)/$$0.log 2>&1 || \
+	         echo "$$*" >> $(2)/failed; cat $(2)/$$0.log' \
+	    < $(2)/list
+	@cat $(2)/*.log > $(3)
+	@! test -s $(2)/failed || \
+	    { echo "failed: `tr '\n' ' ' < $(2)/failed`" | tee -a $(3); \
 	      exit 1; }
-	@echo "passed: `wc -l < $(TEST_DIR)/list | tr -d ' '` tests" | tee -a $(TEST_LOG)
+	@echo "passed: `wc -l < $(2)/list | tr -d ' '` tests" | tee -a $(3)
+endef
+
+test: all
+	$(call run-tests,$(TESTS) $(if $(STRESS),$(STRESS_TESTS)),$(TEST_DIR),$(TEST_LOG))
+
+# The slow half, in a log of its own.
+longtest: all
+	$(call run-tests,$(LONGTESTS),$(LONG_DIR),$(LONG_LOG))
 
 # The repository to upload: the signed index and the zips it vouches for, in
 # one directory, because a package's URL is derived from the index's own N.
@@ -228,7 +256,7 @@ index: package
 	@echo "$(REPO): index $(INDEX_VERSION), `ls $(REPO)/*.zip | wc -l | tr -d ' '` package(s)"
 
 clean:
-	@rm -rf $(BUILD) $(TEST_LOG)
+	@rm -rf $(BUILD) $(TEST_LOG) $(LONG_LOG)
 
 # The zip holds one directory, braam-sdk-<version>/. Its entries carry the pack
 # time rather than now, so the toolchain file is stamped after unpacking.
