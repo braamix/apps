@@ -18,6 +18,7 @@ that runs in a browser tab.
 | [games/adventure](games/adventure/) | Colossal Cave Adventure, the 1977 C re-coding |
 | [games/asciifluid](games/asciifluid/) | IOCCC 2012/endoh1, a fluid simulator that fits on a screen |
 | [games/asciiquarium](games/asciiquarium/) | goquarium, the ASCII aquarium — fish, sharks, whales and a castle |
+| [games/cmatrix](games/cmatrix/) | CMatrix 1.2a, Chris Allegretta's Matrix screensaver |
 | [emulators/simbesm](emulators/simbesm/) | The BESM-6, the Soviet mainframe — it boots Unix |
 | [lang/mbasic](lang/mbasic/) | Microsoft BASIC 1.1 for the 6502, the one that shipped on the Apple II |
 | [lang/python](lang/python/) | Python 3.14, written from scratch for Braam, with CPython's own library |
@@ -52,7 +53,8 @@ editors, driven a keystroke at a time and asserted cell by cell;
 `converters/iconv`, which checks 137,385 mappings against GNU libiconv's own
 answers; `games/asciifluid`, whose frames are compared with the ones upstream's
 own binary paints; `games/asciiquarium`, a seeded aquarium asserted frame by
-frame and driven by its own keys; the two benchmarks, each stopped partway
+frame and driven by its own keys; `games/cmatrix`, a seeded Matrix rain
+asserted frame by frame; the two benchmarks, each stopped partway
 by a signal; and `lang/mbasic`, whose sessions are compared line for line and
 whose `^C` is asserted on the grid. All of them need node 22.12, and
 run under the harness the SDK carries, on the kernel of the same release. They

@@ -2,3 +2,4 @@
 add_subdirectory(adventure)
 add_subdirectory(asciifluid)
 add_subdirectory(asciiquarium)
+add_subdirectory(cmatrix)

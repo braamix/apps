@@ -6,6 +6,16 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// init() logs "braam <version> — up in <n> us" through host.log, and the
+// harness prints every such line. Each case here boots, so it is noise.
+const print = console.log.bind(console);
+console.log = (...args) => {
+    if (args.length === 1 && typeof args[0] === "string" &&
+        /^braam .+ — up in \d+ us$/.test(args[0]))
+        return;
+    print(...args);
+};
+
 export const APPS = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 // The Makefile names the version, and nothing else does.
