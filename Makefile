@@ -47,7 +47,11 @@ MKINDEX ?= $(firstword $(wildcard $(SDK)/libexec/braam/mkindex.py))
 
 REPO := $(BUILD)/repo
 
-.PHONY: all package test longtest index clean
+.PHONY: all package test longtest index clean hooks
+
+# Once per clone: use .githooks/commit-msg (strips Co-authored-by trailers).
+hooks:
+	@git config core.hooksPath .githooks
 
 all: $(BUILD)/CMakeCache.txt
 	@cmake --build $(BUILD) -j $(JOBS)
@@ -79,6 +83,11 @@ TESTS := \
     archivers/gzip/test/aliases.mjs \
     archivers/gzip/test/tree.mjs \
     archivers/gzip/test/interrupt.mjs \
+    archivers/xz/test/roundtrip.mjs \
+    archivers/xz/test/formats.mjs \
+    archivers/xz/test/aliases.mjs \
+    archivers/xz/test/tree.mjs \
+    archivers/xz/test/interrupt.mjs \
     archivers/zip/test/roundtrip.mjs \
     archivers/zip/test/tree.mjs \
     archivers/zip/test/interrupt.mjs \

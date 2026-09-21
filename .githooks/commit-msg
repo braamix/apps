@@ -1,0 +1,7 @@
+#!/bin/sh
+# Drop Co-authored-by trailers (e.g. appended by the agent environment).
+file=$1
+[ -n "$file" ] && [ -f "$file" ] || exit 0
+tmp=$(mktemp "${TMPDIR:-/tmp}/commit-msg.XXXXXX") || exit 1
+sed -e '/^Co-authored-by:/Id' "$file" > "$tmp"
+mv "$tmp" "$file"

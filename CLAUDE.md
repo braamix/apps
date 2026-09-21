@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Nineteen programs are ported so far**:
+**Twenty programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -23,6 +23,9 @@ over `b_fread`/`b_fwrite`; and
 [archivers/gzip](archivers/gzip/), FreeBSD gzip 20190107 — the zip PORT shape
 on zlib, bzip2, lzma and zstd, gzip compress only, sniff-and-decompress read;
 and
+[archivers/xz](archivers/xz/), XZ Utils 5.8.4 — bzip2's PORT shape on
+`braam::lzma` alone; upstream's CLI modules kept, `lzma_stream` over
+`b_read`/`b_write`, six command names from one wasm; and
 [archivers/zip](archivers/zip/), the largest by far — Info-ZIP's zip 3.0, four
 commands out of one set of sources, where nearly every function became a
 coroutine because nearly every one of them reaches a stream; and
