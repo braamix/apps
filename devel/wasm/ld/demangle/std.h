@@ -168,7 +168,6 @@ public:
 
     constexpr const char *data() const { return p_; }
     constexpr usize size() const { return n_; }
-    constexpr usize length() const { return n_; }
     constexpr bool empty() const { return n_ == 0; }
     constexpr const char *begin() const { return p_; }
     constexpr const char *end() const { return p_ + n_; }

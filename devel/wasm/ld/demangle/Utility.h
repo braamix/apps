@@ -149,8 +149,6 @@ class ScopedOverride {
     T Original;
 
 public:
-    ScopedOverride(T &Loc_) : ScopedOverride(Loc_, Loc_) {}
-
     ScopedOverride(T &Loc_, T NewVal) : Loc(Loc_), Original(Loc_) { Loc_ = std::move(NewVal); }
     ~ScopedOverride() { Loc = std::move(Original); }
 

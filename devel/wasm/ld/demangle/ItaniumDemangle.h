@@ -54,21 +54,6 @@ public:
     PODSmallVector(const PODSmallVector &)            = delete;
     PODSmallVector &operator=(const PODSmallVector &) = delete;
 
-    PODSmallVector(PODSmallVector &&Other) : PODSmallVector()
-    {
-        if (Other.isInline()) {
-            std::copy(Other.begin(), Other.end(), First);
-            Last = First + Other.size();
-            Other.clear();
-            return;
-        }
-
-        First = Other.First;
-        Last  = Other.Last;
-        Cap   = Other.Cap;
-        Other.clearInline();
-    }
-
     PODSmallVector &operator=(PODSmallVector &&Other)
     {
         if (Other.isInline()) {
@@ -115,7 +100,6 @@ public:
 
     bool empty() const { return First == Last; }
     size_t size() const { return static_cast<size_t>(Last - First); }
-    T &back() { return *(Last - 1); }
     T &operator[](size_t Index) { return *(begin() + Index); }
     void clear() { Last = First; }
 
@@ -2013,13 +1997,10 @@ class SubobjectExpr : public Node {
     const Node *Type;
     const Node *SubExpr;
     std::string_view Offset;
-    NodeArray UnionSelectors;
 
 public:
-    SubobjectExpr(const Node *Type_, const Node *SubExpr_, std::string_view Offset_,
-                  NodeArray UnionSelectors_)
-        : Node(KSubobjectExpr), Type(Type_), SubExpr(SubExpr_), Offset(Offset_),
-          UnionSelectors(UnionSelectors_)
+    SubobjectExpr(const Node *Type_, const Node *SubExpr_, std::string_view Offset_)
+        : Node(KSubobjectExpr), Type(Type_), SubExpr(SubExpr_), Offset(Offset_)
     {
     }
 
@@ -2243,13 +2224,10 @@ public:
 class PointerToMemberConversionExpr : public Node {
     const Node *Type;
     const Node *SubExpr;
-    std::string_view Offset;
 
 public:
-    PointerToMemberConversionExpr(const Node *Type_, const Node *SubExpr_, std::string_view Offset_,
-                                  Prec Prec_)
-        : Node(KPointerToMemberConversionExpr, Prec_), Type(Type_), SubExpr(SubExpr_),
-          Offset(Offset_)
+    PointerToMemberConversionExpr(const Node *Type_, const Node *SubExpr_, Prec Prec_)
+        : Node(KPointerToMemberConversionExpr, Prec_), Type(Type_), SubExpr(SubExpr_)
     {
     }
 
@@ -4983,10 +4961,10 @@ Node *AbstractManglingParser<Derived, Alloc>::parsePointerToMemberConversionExpr
     Node *Expr = getDerived().parseExpr();
     if (!Expr)
         return nullptr;
-    std::string_view Offset = getDerived().parseNumber(true);
+    getDerived().parseNumber(true);
     if (!consumeIf('E'))
         return nullptr;
-    return make<PointerToMemberConversionExpr>(Ty, Expr, Offset, Prec);
+    return make<PointerToMemberConversionExpr>(Ty, Expr, Prec);
 }
 
 // <expression> ::= so <referent type> <expr> [<offset number>] <union-selector>* [p] E
@@ -5003,17 +4981,12 @@ Node *AbstractManglingParser<Derived, Alloc>::parseSubobjectExpr()
     if (!Expr)
         return nullptr;
     std::string_view Offset = getDerived().parseNumber(true);
-    size_t SelectorsBegin   = Names.size();
-    while (consumeIf('_')) {
-        Node *Selector = make<NameType>(parseNumber());
-        if (!Selector)
-            return nullptr;
-        Names.push_back(Selector);
-    }
+    while (consumeIf('_'))
+        parseNumber();
     consumeIf('p');
     if (!consumeIf('E'))
         return nullptr;
-    return make<SubobjectExpr>(Ty, Expr, Offset, popTrailingNodeArray(SelectorsBegin));
+    return make<SubobjectExpr>(Ty, Expr, Offset);
 }
 
 template <typename Derived, typename Alloc>
@@ -5722,9 +5695,6 @@ Node *AbstractManglingParser<Derived, Alloc>::parseEncoding(bool ParseParams)
     return make<FunctionEncoding>(ReturnType, Name, Params, Attrs, Requires, NameInfo.CVQualifiers,
                                   NameInfo.ReferenceQualifier);
 }
-
-template <class Float>
-struct FloatData;
 
 template <>
 struct FloatData<float> {

@@ -193,7 +193,6 @@ usize hex_double(char *buf, usize n, double v, char suffix)
         tmp[k++] = 'x';
         if (exp == 0 && frac == 0) {
             tmp[k++] = '0';
-            exp      = 0;
         } else {
             if (exp == 0) {
                 // Subnormal: normalized, as the BSD printf does.
