@@ -20,3 +20,7 @@ bool check_strip_config(const StripConfig &c, Out &err);
 // `file` stripped into `out`. False on a malformed module, with the message,
 // naming `name`, in `err`. If nothing was removed, `out` equals `file`.
 bool strip_module(Str name, Bytes file, const StripConfig &c, Vec<u8> &out, Out &err);
+
+// Each member stripped, into a new GNU archive as llvm-strip writes it. False
+// on a member that is not wasm, or a BSD archive.
+bool strip_archive(Str name, Bytes file, const StripConfig &c, Vec<u8> &out, Out &err);

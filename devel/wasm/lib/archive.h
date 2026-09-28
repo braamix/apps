@@ -38,7 +38,25 @@ bool read_archive(Str name, Bytes file, Vec<Member> &members, Vec<ArchiveSymbol>
 // its field is written as the widest that fits, as libarchive writes it.
 void emit_ar_header(Emit &e, Str name, u64 mtime, u32 uid, u32 gid, u32 mode, u64 size);
 
-// A member's defined non-local symbols, in the order of its linking
-// symbol table. A member that is not a wasm object has none: false,
-// and no error, as create_symtab_entry skips what is not ELF.
+// A member's symbols, as llvm-ar indexes them: an object's defined non-local
+// symbols, in linking order; a linked module's, as llvm reads its name or
+// export section. False, and no error, for what is not a wasm module.
 bool defined_symbols(Bytes file, Vec<Str> &names);
+
+// GNU or BSD, and whether a symbol table leads it.
+struct ArchiveLayout {
+    bool gnu;
+    bool symtab;
+};
+ArchiveLayout archive_layout(Bytes file);
+
+// A member to write.
+struct ArchiveEntry {
+    Str name;
+    Bytes data;
+};
+
+// A GNU archive, as llvm writes it deterministically: dates, owners and
+// groups 0, modes 644. With `symtab`, a `/` of defined_symbols leads it,
+// eight zero bytes if there are none.
+void write_archive(Span<const ArchiveEntry> members, bool symtab, Emit &e);

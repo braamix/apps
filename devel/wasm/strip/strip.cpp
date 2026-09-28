@@ -1,5 +1,6 @@
 #include "strip.h"
 
+#include "archive.h"
 #include "emit.h"
 #include "module.h"
 #include "wasm.h"
@@ -89,6 +90,46 @@ bool strip_module(Str name, Bytes file, const StripConfig &c, Vec<u8> &out, Out 
             placeholder(e);
         at = end;
     }
+    if (e.oom) {
+        err.put(name).put(": out of memory");
+        return false;
+    }
+    return true;
+}
+
+bool strip_archive(Str name, Bytes file, const StripConfig &c, Vec<u8> &out, Out &err)
+{
+    Vec<Member> members;
+    Vec<ArchiveSymbol> index;
+    if (!read_archive(name, file, members, index, err))
+        return false;
+    ArchiveLayout layout = archive_layout(file);
+    if (!layout.gnu) {
+        err.put(name).put(": a BSD archive; only GNU archives are written here");
+        return false;
+    }
+
+    // A buffer per member; the entries view them.
+    Vec<Vec<u8>> images;
+    Vec<ArchiveEntry> entries;
+    if (!images.resize(members.size()) || !entries.reserve(members.size())) {
+        err.put(name).put(": out of memory");
+        return false;
+    }
+    for (u32 k = 0; k < members.size(); k++) {
+        const Member &m = members[k];
+        String what;
+        if (!what.append(name) || !what.push('(') || !what.append(m.name) || !what.push(')')) {
+            err.put(name).put(": out of memory");
+            return false;
+        }
+        if (!strip_module(what.str(), m.data, c, images[k], err))
+            return false;
+        entries.push(ArchiveEntry{ m.name, Bytes(images[k].data(), images[k].size()) });
+    }
+
+    Emit e{ out };
+    write_archive(Span<const ArchiveEntry>(entries.data(), entries.size()), layout.symtab, e);
     if (e.oom) {
         err.put(name).put(": out of memory");
         return false;

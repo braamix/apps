@@ -4,8 +4,8 @@
 // -g-stripped objects as wasm-ld does, stripping in place is -o's result and
 // leaves nothing behind, a second strip changes nothing; and the errors.
 
-import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { boot, check_run, FLAGS, get, linkers, manifest, plant, run, sections }
@@ -82,6 +82,76 @@ for (const path of inputs) {
         else if (!same(H.store.files.get("/tmp/got"), readFileSync(want)))
             bad.push(`${basename(path)} [${mode.join(" ")}]: not llvm-strip's bytes`);
     }
+}
+
+// ------------------------------------------------------------ archives
+
+// Every SDK and fixture archive, and three made here: GNU names past 15
+// bytes, no symbol table, and objects with debug info. llvm-strip strips
+// each member and writes the archive anew.
+const ar_dir = join(tmp, "ar");
+mkdirSync(ar_dir);
+const llvm_ar = (args) => execFileSync(m.ar, args, { cwd: ar_dir });
+const LONG = "a_member_name_longer_than_sixteen.o";
+writeFileSync(join(ar_dir, LONG), readFileSync(m.fixtures.debug.objects[0]));
+writeFileSync(join(ar_dir, "short.o"), readFileSync(m.fixtures.debug.objects[1]));
+llvm_ar(["rc", "--format=gnu", "long.a", LONG, "short.o"]);
+llvm_ar(["rcS", "--format=gnu", "nosym.a", "short.o", LONG]);
+const archives = new Set([join(ar_dir, "long.a"), join(ar_dir, "nosym.a")]);
+for (const f of readdirSync(m.sdk_libs).filter((n) => n.endsWith(".a")).sort())
+    archives.add(join(m.sdk_libs, f));
+for (const fx of Object.values(m.fixtures))
+    for (const a of fx.archives)
+        archives.add(a);
+
+let archived = 0;
+for (const path of archives) {
+    plant(H, "/tmp/in", new Uint8Array(readFileSync(path)));
+    for (const mode of MODES) {
+        const want = join(tmp, "want");
+        const r = spawnSync(LLVM_STRIP, ["--keep-section=braam", ...mode, path, "-o", want],
+                            { encoding: "utf8" });
+        if (r.error || r.status !== 0)
+            die(`llvm-strip ${mode.join(" ")} ${path}: ${r.error?.message ?? r.stderr}`);
+        H.store.files.delete("/tmp/got");
+        const got = sh(`strip ${mode.join(" ")} /tmp/in -o /tmp/got`);
+        archived++;
+        if (got.status !== 0 || got.err)
+            bad.push(`${basename(path)} [${mode.join(" ")}]: status ${got.status}: ${got.err}`);
+        else if (!same(H.store.files.get("/tmp/got"), readFileSync(want)))
+            bad.push(`${basename(path)} [${mode.join(" ")}]: not llvm-strip's bytes`);
+    }
+}
+
+// ld links a -g-stripped archive as it links the archive.
+{
+    const fx = m.fixtures.archives;
+    const dir = join(tmp, "ga");
+    mkdirSync(dir);
+    const stripped = [];
+    for (const a of fx.archives) {
+        plant(H, "/tmp/in", new Uint8Array(readFileSync(a)));
+        const r = sh("strip -g /tmp/in -o /tmp/got");
+        if (r.status !== 0)
+            die(`strip -g ${a}: ${r.err}`);
+        const to = join(dir, basename(a));
+        writeFileSync(to, H.store.files.get("/tmp/got"));
+        stripped.push(to);
+    }
+    const { ld, inputs: place } = linkers(H, m);
+    const link = (archives) => {
+        H.store.files.delete("/tmp/out.wasm");
+        const r = ld([...FLAGS, ...place({ objects: fx.objects, archives, libs: fx.libs }),
+                      "-o", "out.wasm"]);
+        return r.status === 0 ? H.store.files.get("/tmp/out.wasm") : null;
+    };
+    const plain = link(fx.archives);
+    const { ld: ld2, inputs: place2 } = linkers(H, m);
+    H.store.files.delete("/tmp/out.wasm");
+    const r = ld2([...FLAGS, ...place2({ objects: fx.objects, archives: stripped, libs: fx.libs }),
+                   "-o", "out.wasm"]);
+    if (r.status !== 0 || !same(plain, H.store.files.get("/tmp/out.wasm")))
+        bad.push(`linking -g-stripped archives: ${r.status} ${r.err}`);
 }
 
 // ------------------------------------------------------------ what the bytes mean
@@ -180,7 +250,14 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
         ["strip /tmp/a /tmp/b -o /tmp/c", "multiple input files cannot be used in combination with -o"],
         ["strip -R braam /tmp/a", "removing the braam section makes the program unrunnable"],
         ["strip -R CODE /tmp/a", "removing the CODE section makes the module invalid"],
+        ["strip /tmp/text.a", "/tmp/text.a(notes.txt): not a wasm module"],
+        ["strip /tmp/bsd.a", "/tmp/bsd.a: a BSD archive; only GNU archives are written here"],
     ];
+    writeFileSync(join(ar_dir, "notes.txt"), "not an object\n");
+    llvm_ar(["rc", "--format=gnu", "text.a", "short.o", "notes.txt"]);
+    llvm_ar(["rc", "--format=bsd", "bsd.a", "short.o"]);
+    plant(H, "/tmp/text.a", new Uint8Array(readFileSync(join(ar_dir, "text.a"))));
+    plant(H, "/tmp/bsd.a", new Uint8Array(readFileSync(join(ar_dir, "bsd.a"))));
     for (const [cmd, msg] of ERRORS) {
         const r = sh(cmd);
         if (r.status !== 1 || r.err !== `strip: error: ${msg}\n`)
@@ -201,4 +278,5 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
 
 if (bad.length)
     die(`${bad.length} failures:\n  ` + bad.join("\n  "));
-console.log(`strip ok: ${cases} files as llvm-strip strips them, and what the bytes mean`);
+console.log(`strip ok: ${cases} files and ${archived} archives as llvm-strip strips them, ` +
+            "and what the bytes mean");

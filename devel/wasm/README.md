@@ -103,6 +103,12 @@ and leaves a file alone if nothing was removed.
 
     strip hello
     strip -g main.o -o main-nodebug.o
+    strip -g libfoo.a
+
+An archive has each member stripped, and is written anew as `llvm-strip`
+writes it: every date, owner and group 0, every mode 644, and a symbol
+table if it had one. A member that is not wasm is an error, and so is a
+BSD-format archive; `ar` makes the GNU format.
 
 The exit status is 0 on success, 1 on an error and 130 on `^C`. An error in
 one file is reported, and the other files are still stripped.
@@ -210,7 +216,7 @@ tool in the package. Three rules keep it shared:
 | `emit.h` | encoders into a byte vector, with a sticky out of memory |
 | `module.h` | the header and sections of any module |
 | `object.h` | a relocatable object, parsed |
-| `archive.h` | the members of an archive |
+| `archive.h` | archives, read and written |
 | `stamp.h` | the `braam` section |
 | `diag.h` | errors, as lld words them, after the tool's name |
 | `out.h` | text built up in memory |
@@ -265,8 +271,9 @@ run on Braam. `relink.mjs` links three real programs and `ld` itself with
 `ld`, and runs their own tests.
 
 It also runs [strip/test/strip.mjs](strip/test/strip.mjs). It strips every
-test program and object, and `ld` itself, with both `strip` and
-`llvm-strip`, and the results must be equal byte for byte. Then it checks
+test program, object and archive, the SDK's libraries, and `ld` itself,
+with both `strip` and `llvm-strip`, and the results must be equal byte for
+byte. Then it checks
 that a stripped program still runs, that `ld` links stripped objects as
 `wasm-ld` does, and that each error is reported as it should be.
 

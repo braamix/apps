@@ -227,18 +227,114 @@ void emit_ar_header(Emit &e, Str name, u64 mtime, u32 uid, u32 gid, u32 mode, u6
     e.byte('\n');
 }
 
+namespace {
+
+// Imported functions and globals, which come first in their index spaces.
+void import_counts(const Section *imports, u32 &funcs, u32 &globals)
+{
+    funcs = globals = 0;
+    if (!imports)
+        return;
+    Cursor c(imports->body);
+    u32 n = c.count();
+    for (u32 i = 0; i < n && c.ok(); i++) {
+        c.name();
+        c.name();
+        u8 kind = c.byte();
+        if (kind == EXT_FUNCTION) {
+            c.uleb();
+            funcs++;
+        } else if (kind == EXT_GLOBAL) {
+            c.byte();
+            c.byte();
+            globals++;
+        } else if (kind == EXT_TABLE) {
+            c.byte();
+            if (c.byte() & 1)
+                c.uleb();
+            c.uleb();
+        } else if (kind == EXT_MEMORY) {
+            if (c.byte() & 1)
+                c.uleb();
+            c.uleb();
+        } else {
+            c.byte();
+            c.uleb();
+        }
+    }
+}
+
+// A linked module's symbols, as llvm reads them. With a name section: named
+// functions defined and exported, and named globals defined, in its order.
+// Without: the exports but memories.
+bool module_symbols(const Section *imports, const Section *exports, const Section *names_sec,
+                    Vec<Str> &names)
+{
+    Vec<u32> exported;
+    if (exports) {
+        Cursor c(exports->body);
+        u32 n = c.count();
+        for (u32 i = 0; i < n && c.ok(); i++) {
+            Str name = c.name();
+            u8 kind  = c.byte();
+            u32 idx  = c.uleb();
+            if (!c.ok())
+                break;
+            if (!names_sec && kind != EXT_MEMORY && !names.push(name))
+                return false;
+            if (kind == EXT_FUNCTION && !exported.push(idx))
+                return false;
+        }
+    }
+    if (!names_sec)
+        return true;
+    u32 funcs, globals;
+    import_counts(imports, funcs, globals);
+    Cursor c(names_sec->body);
+    while (c.ok() && !c.done()) {
+        u8 id   = c.byte();
+        Bytes b = c.take(c.uleb());
+        if (id != 1 && id != 7)
+            continue;
+        Cursor s(b);
+        u32 n = s.count();
+        for (u32 i = 0; i < n && s.ok(); i++) {
+            u32 idx  = s.uleb();
+            Str name = s.name();
+            bool in  = false;
+            if (id == 7)
+                in = idx >= globals;
+            else if (idx >= funcs)
+                for (u32 e : exported)
+                    in = in || e == idx;
+            if (s.ok() && in && !names.push(name))
+                return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
 bool defined_symbols(Bytes file, Vec<Str> &names)
 {
     Vec<Section> sections;
     Out err;
     if (!read_module(Str(), file, sections, err))
         return false;
-    const Section *linking = nullptr;
-    for (const Section &s : sections)
+    const Section *linking = nullptr, *imports = nullptr, *exports = nullptr, *names_sec = nullptr;
+    for (const Section &s : sections) {
         if (s.id == SEC_CUSTOM && s.name == "linking")
             linking = &s;
+        if (s.id == SEC_CUSTOM && s.name == "name")
+            names_sec = &s;
+        if (s.id == SEC_IMPORT)
+            imports = &s;
+        if (s.id == SEC_EXPORT)
+            exports = &s;
+    }
     if (!linking)
-        return false;
+        return module_symbols(imports, exports, names_sec, names);
 
     Cursor c(linking->body);
     if (c.uleb() != LINKING_VERSION || !c.ok())
@@ -287,4 +383,129 @@ bool defined_symbols(Bytes file, Vec<Str> &names)
             return false;
     }
     return t.ok();
+}
+
+ArchiveLayout archive_layout(Bytes f)
+{
+    ArchiveLayout l{ true, false };
+    if (f.size() < 8 + 60)
+        return l;
+    Str raw(reinterpret_cast<const char *>(f.data()) + 8, 16);
+    while (!raw.empty() && raw[raw.size() - 1] == ' ')
+        raw = raw.substr(0, raw.size() - 1);
+    if (raw == "/" || raw == "/SYM64/") {
+        l.symtab = true;
+    } else if (raw.starts_with("#1/")) {
+        Str name(reinterpret_cast<const char *>(f.data()) + 68, f.size() - 68);
+        l.gnu    = false;
+        l.symtab = name.starts_with("__.SYMDEF");
+    } else if (raw.starts_with("__.SYMDEF")) {
+        l.gnu    = false;
+        l.symtab = true;
+    } else if (!raw.ends_with("/")) {
+        l.gnu = false;
+    }
+    return l;
+}
+
+namespace {
+
+void be32(Emit &e, u32 v)
+{
+    for (u32 i = 4; i-- > 0;)
+        e.byte(u8(v >> (8 * i)));
+}
+
+} // namespace
+
+void write_archive(Span<const ArchiveEntry> members, bool symtab, Emit &e)
+{
+    // Long names, "name/\n" each, padded to even.
+    Vec<u8> names;
+    Vec<u32> name_off;
+    auto ok = [&](bool pushed) {
+        if (!pushed)
+            e.oom = true;
+    };
+    for (const ArchiveEntry &m : members) {
+        ok(name_off.push(names.size()));
+        if (m.name.size() <= 15)
+            continue;
+        for (char c : m.name)
+            ok(names.push(u8(c)));
+        ok(names.push('/'));
+        ok(names.push('\n'));
+    }
+    if (names.size() & 1)
+        ok(names.push('\n'));
+
+    // Symbols, then the headers' offsets.
+    Vec<Str> syms;
+    Vec<u32> owner;
+    if (symtab)
+        for (u32 k = 0; k < members.size(); k++) {
+            u32 before = syms.size();
+            defined_symbols(members[k].data, syms);
+            for (u32 j = before; j < syms.size(); j++)
+                ok(owner.push(k));
+        }
+    usize sym_names = 0;
+    for (Str n : syms)
+        sym_names += n.size() + 1;
+    usize table = 4 + 4 * syms.size() + sym_names;
+    if (table & 1)
+        table++;
+    if (syms.empty())
+        table = 8;
+
+    Vec<u32> at;
+    usize off = 8 + (symtab ? 60 + table : 0) + (names.empty() ? 0 : 60 + names.size());
+    for (const ArchiveEntry &m : members) {
+        ok(at.push(u32(off)));
+        off += 60 + m.data.size() + (m.data.size() & 1);
+    }
+
+    e.bytes(Bytes(reinterpret_cast<const u8 *>("!<arch>\n"), 8));
+    if (e.oom)
+        return;
+    if (symtab) {
+        emit_ar_header(e, "/", 0, 0, 0, 0, table);
+        usize start = e.v.size();
+        be32(e, syms.size());
+        for (u32 o : owner)
+            be32(e, at[o]);
+        for (Str n : syms) {
+            e.bytes(Bytes(reinterpret_cast<const u8 *>(n.data()), n.size()));
+            e.byte(0);
+        }
+        while (e.v.size() - start < table)
+            e.byte(0);
+    }
+    if (!names.empty()) {
+        usize start = e.v.size();
+        emit_ar_header(e, "//", 0, 0, 0, 0, names.size());
+        if (!e.oom)
+            for (usize i = 16; i < 48; i++)
+                e.v[start + i] = ' ';
+        e.bytes(Bytes(names.data(), names.size()));
+    }
+    for (u32 k = 0; k < members.size(); k++) {
+        const ArchiveEntry &m = members[k];
+        char field[17];
+        usize n = 0;
+        if (m.name.size() <= 15) {
+            for (char c : m.name)
+                field[n++] = c;
+            field[n++] = '/';
+        } else {
+            Out o;
+            o.put('/').num(name_off[k]);
+            for (char c : o.s.str())
+                field[n++] = c;
+        }
+        emit_ar_header(e, Str(field, n), 0, 0, 0, 0644, m.data.size());
+        e.bytes(m.data);
+        if (m.data.size() & 1)
+            e.byte('\n');
+    }
 }

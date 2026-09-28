@@ -1,5 +1,6 @@
 // The Braam front end: reads each file the command line names, hands its bytes
 // to the core, and writes what comes back. Only this file awaits.
+#include "archive.h"
 #include "driver.h"
 #include "files.h"
 #include "kernel/alloc.h"
@@ -85,7 +86,9 @@ Task<void> strip_one(Front &s, Str path)
     Bytes file(reinterpret_cast<const u8 *>(f.data()), f.size());
     Out err;
     s.image.clear();
-    if (!strip_module(path, file, s.args.strip, s.image, err)) {
+    bool stripped = is_archive(file) ? strip_archive(path, file, s.args.strip, s.image, err)
+                                     : strip_module(path, file, s.args.strip, s.image, err);
+    if (!stripped) {
         s.diag.error(err.str());
         co_return;
     }

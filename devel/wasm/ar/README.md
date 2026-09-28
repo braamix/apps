@@ -41,10 +41,10 @@ of the 37 call sites were libarchive and libelf failures, and went with
 them.
 
 **The symbol table comes from wasm.** Upstream took each ELF member's
-global and weak defined symbols. Here, `defined_symbols` takes a wasm
-object's defined symbols that are not local, in the order of its
-`linking` section. That is what `llvm-ar` writes, and a member that is
-not an object adds nothing, as before.
+global and weak defined symbols. Here, `defined_symbols` takes what
+`llvm-ar` takes: an object's defined non-local symbols, in `linking`
+order, and a linked program's names or exports. A member that is not wasm
+adds nothing, as before.
 
 ## Where it differs from upstream
 

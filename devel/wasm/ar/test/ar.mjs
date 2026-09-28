@@ -1,5 +1,5 @@
 // ar, held to llvm-ar --format=gnu byte for byte: each mode on the fixtures'
-// objects, a text member, and a name past 15 characters. Every SDK archive
+// objects, programs, a text member, and a name past 15 characters. Every SDK archive
 // taken apart and put back together is the SDK's own. Then what the bytes
 // mean: ld links archives ar made as wasm-ld does. Then the text ar prints,
 // against golden files, a round trip, and the errors.
@@ -59,6 +59,10 @@ put(LONG, readFileSync(data[0]));
 put("short.o", readFileSync(data[1]));
 put("one.o", readFileSync(m.fixtures.hello.objects[0]));
 put("notes.txt", "a member that is not an object\n");
+put("prog.wasm", readFileSync(m.fixtures.export.reference));
+execFileSync(join(dirname(m.objdump), "llvm-strip"),
+             ["--keep-section=braam", "prog.wasm", "-o", join(tmp, "bare.wasm")], { cwd: tmp });
+put("bare.wasm", readFileSync(join(tmp, "bare.wasm")));
 
 // Each step runs ar on Braam and llvm-ar on the host, then compares.
 const STEPS = [
@@ -74,6 +78,8 @@ const STEPS = [
     ["qc again", "y.a", "qc y.a short.o", ["qc", "y.a", "short.o"]],
     ["S", "z.a", `rcS z.a short.o ${LONG} one.o`, ["rcS", "z.a", "short.o", LONG, "one.o"]],
     ["s", "z.a", "s z.a", ["s", "z.a"]],
+    ["programs", "p.a", "rc p.a prog.wasm bare.wasm one.o",
+     ["rc", "p.a", "prog.wasm", "bare.wasm", "one.o"]],
 ];
 let steps = 0;
 for (const [what, name, ours, theirs, before] of STEPS) {
