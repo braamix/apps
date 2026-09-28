@@ -31,15 +31,74 @@ u32 decimal(Str s)
     return v;
 }
 
+// A header field other than the size: its leading digits in `base`, as
+// libarchive reads it. A blank field is 0.
+u64 field(Str s, u32 base)
+{
+    u64 v = 0;
+    for (char c : s) {
+        if (c < '0' || c >= char('0' + base))
+            break;
+        v = v * base + u64(c - '0');
+    }
+    return v;
+}
+
+u64 big_endian(const u8 *p, u32 n)
+{
+    u64 v = 0;
+    for (u32 i = 0; i < n; i++)
+        v = v << 8 | p[i];
+    return v;
+}
+
 bool ar_fail(Out &err, Str name, usize at, Str why)
 {
     err.put(name).put(": member at 0x").hex(u32(at)).put(": ").put(why);
     return false;
 }
 
+// The GNU symbol table at `at`, its body `body`: a big-endian count of
+// `w` bytes, as many header offsets, and as many names. Each offset must be
+// one of `hdrs`, the members' header offsets in order.
+bool read_index(Str name, Bytes body, usize at, u32 w, Span<const u32> hdrs,
+                Vec<ArchiveSymbol> &index, Out &err)
+{
+    if (body.size() < w)
+        return ar_fail(err, name, at, "truncated symbol table");
+    u64 count = big_endian(body.data(), w);
+    if (count > (body.size() - w) / w)
+        return ar_fail(err, name, at, "truncated symbol table");
+    const char *names = reinterpret_cast<const char *>(body.data()) + w + count * w;
+    Str rest(names, body.size() - w - usize(count) * w);
+    if (!index.reserve(index.size() + usize(count))) {
+        err.put(name).put(": out of memory");
+        return false;
+    }
+    for (u64 i = 0; i < count; i++) {
+        u64 off = big_endian(body.data() + w + i * w, w);
+        usize lo = 0, hi = hdrs.size();
+        while (lo < hi) {
+            usize mid = (lo + hi) / 2;
+            if (hdrs[mid] < off)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        if (lo == hdrs.size() || hdrs[lo] != off)
+            return ar_fail(err, name, at, "symbol table names an offset that is not a member");
+        usize nul = rest.find('\0');
+        if (nul == Str::npos)
+            return ar_fail(err, name, at, "truncated symbol table");
+        index.push(ArchiveSymbol{ rest.substr(0, nul), u32(lo) });
+        rest = rest.substr(nul + 1);
+    }
+    return true;
+}
+
 } // namespace
 
-bool read_archive(Str name, Bytes f, Vec<Member> &members, Out &err)
+bool read_archive(Str name, Bytes f, Vec<Member> &members, Vec<ArchiveSymbol> &index, Out &err)
 {
     const char *text = reinterpret_cast<const char *>(f.data());
     if (f.size() >= 8 && Str(text, 8) == "!<thin>\n") {
@@ -51,6 +110,10 @@ bool read_archive(Str name, Bytes f, Vec<Member> &members, Out &err)
         return false;
     }
     Str longnames;
+    Bytes symtab;
+    usize symtab_at = 0;
+    u32 symtab_w    = 0;
+    Vec<u32> hdrs;
     usize at = 8;
     while (at < f.size()) {
         if (f.size() - at < 60)
@@ -72,7 +135,10 @@ bool read_archive(Str name, Bytes f, Vec<Member> &members, Out &err)
         Str mname;
         bool skip = false;
         if (raw == "/" || raw == "/SYM64/") {
-            skip = true;
+            symtab    = body;
+            symtab_at = at;
+            symtab_w  = raw == "/" ? 4 : 8;
+            skip      = true;
         } else if (raw == "//") {
             longnames = Str(text + data, size);
             skip      = true;
@@ -100,11 +166,24 @@ bool read_archive(Str name, Bytes f, Vec<Member> &members, Out &err)
         }
         if (mname.starts_with("__.SYMDEF"))
             skip = true;
-        if (!skip && !members.push(Member{ mname, body, u32(data + (size - body.size())) })) {
-            err.put(name).put(": out of memory");
-            return false;
+        if (!skip) {
+            Member m{};
+            m.name     = mname;
+            m.data     = body;
+            m.file_off = u32(data + (size - body.size()));
+            m.mtime    = field(hdr.substr(16, 12), 10);
+            m.uid      = u32(field(hdr.substr(28, 6), 10));
+            m.gid      = u32(field(hdr.substr(34, 6), 10));
+            m.mode     = u32(field(hdr.substr(40, 8), 8));
+            m.size     = size;
+            if (!members.push(m) || !hdrs.push(u32(at))) {
+                err.put(name).put(": out of memory");
+                return false;
+            }
         }
         at = data + size + (size & 1);
     }
+    if (symtab_w)
+        return read_index(name, symtab, symtab_at, symtab_w, hdrs, index, err);
     return true;
 }

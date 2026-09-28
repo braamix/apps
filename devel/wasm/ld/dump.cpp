@@ -138,7 +138,8 @@ bool dump_file(Str name, Bytes file, Out &out, Out &err)
     if (!is_archive(file))
         return dump_one(name, Str(), file, out, err);
     Vec<Member> members;
-    if (!read_archive(name, file, members, err))
+    Vec<ArchiveSymbol> index;
+    if (!read_archive(name, file, members, index, err))
         return false;
     for (const Member &m : members)
         if (!dump_one(name, m.name, m.data, out, err))

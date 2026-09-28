@@ -675,8 +675,9 @@ struct Resolver {
             return drain();
         }
         Vec<Member> members;
+        Vec<ArchiveSymbol> index;
         Out err;
-        if (!read_archive(in.name, in.bytes, members, err)) {
+        if (!read_archive(in.name, in.bytes, members, index, err)) {
             l.diag.error(err.str());
             return false;
         }

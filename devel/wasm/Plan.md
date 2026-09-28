@@ -75,26 +75,6 @@ What Braam cannot do, and what the port does instead:
   warns when setting a time fails, and extracts anyway.
 - **No modes on extraction.** A file is created with the default mode.
 
-## Step 1. Member headers and the symbol table, read
-
-Extend `lib/archive`:
-
-- `Member` gains the header fields upstream's `-t -v` prints: `mode`,
-  `uid`, `gid`, `mtime`, and the header's own `size`. `ld` ignores them.
-- `read_archive` also returns the symbol table, when the archive has one:
-
-      struct ArchiveSymbol {
-          Str name;
-          u32 member; // index into `members`
-      };
-      bool read_archive(Str name, Bytes file, Vec<Member> &members,
-                        Vec<ArchiveSymbol> &index, Out &err);
-
-  `/` is GNU's: a big-endian u32 count, the members' header offsets, and
-  the names. `/SYM64/` is the same with u64 offsets. An offset that is
-  not a member's header is malformed, and an error.
-- Check: `make test`; `sizes.mjs` shows every program unchanged.
-
 ## Step 2. The symbol table in ld
 
 `ld` now parses every member of every archive before it resolves anything
