@@ -1,12 +1,15 @@
 # wasm — WebAssembly tools for Braam
 
-The `wasm` package installs `ld`, a linker for WebAssembly. It runs on
-Braam and turns the object files clang compiles into a program Braam can
-run. More tools, such as `as` and `nm`, will join it here, one directory
-each.
+The `wasm` package installs two tools for WebAssembly. Both run on Braam.
 
-`ld` does what `wasm-ld`, LLVM's linker, does, and gives the same output.
-The tests check this byte for byte.
+- `ld`, a linker, turns the object files clang compiles into a program
+  Braam can run. It does what `wasm-ld`, LLVM's linker, does, and gives
+  the same output.
+- `strip` removes names and debug information from a program or an
+  object. It does what `llvm-strip` does, and gives the same output.
+
+The tests check both byte for byte. More tools, such as `as` and `nm`,
+will join them here, one directory each.
 
 ## Using ld
 
@@ -87,6 +90,50 @@ copies the result out. The whole tree relinks in a few seconds.
 `node devel/wasm/ld/sizes.mjs` compares, program by program, what the two
 linkers wrote.
 
+## Using strip
+
+    strip [options] file...
+
+With no options, `strip` removes every custom section but `braam`: debug
+information, function names, and the rest. It strips each file in place,
+and leaves a file alone if nothing was removed.
+
+    strip hello
+    strip -g main.o -o main-nodebug.o
+
+The exit status is 0 on success, 1 on an error and 130 on `^C`. An error in
+one file is reported, and the other files are still stripped.
+
+| Option | Meaning |
+| --- | --- |
+| `-s`, `--strip-all` | remove every custom section but `braam` (the default) |
+| `-g`, `-S`, `-d`, `--strip-debug` | remove debug information only |
+| `-R <name>`, `--remove-section=<name>` | remove that custom section too |
+| `--keep-section=<name>` | keep that custom section |
+| `-o <file>` | write here instead of in place; one input only |
+| `--help` | usage |
+
+`-R` and `--keep-section` may be given more than once, and
+`--keep-section` wins over everything else.
+
+Standard sections, such as the code and the data, are never removed. In an
+object file, a removed section leaves an empty one in its place, because
+the object's symbols and relocations count sections by number. `ld` links
+such an object. A program is simply made smaller.
+
+`strip` differs from `llvm-strip` in two ways, both because the result
+would not run:
+
+- **It keeps the `braam` section.** That section is what makes a module
+  a Braam program, and without it the system refuses to run it. So
+  `strip` does what `llvm-strip --keep-section=braam` does, and `-R braam`
+  is an error.
+- **It refuses to remove a standard section.** `llvm-strip -R CODE` writes
+  a module no browser will load.
+
+A program can also be linked stripped: `ld --strip-all` writes exactly
+what `ld` and then `strip` would, without the second pass.
+
 ## Inside
 
 [lib/](lib/) reads and writes wasm modules, objects and archives, for every
@@ -111,12 +158,15 @@ tool in the package. Three rules keep it shared:
 | `stamp.h` | the `braam` section |
 | `diag.h` | errors, as lld words them, after the tool's name |
 | `out.h` | text built up in memory |
+| `files.h` | reading and writing whole files; the one part that awaits |
 
 `object.h` still refuses what `ld` cannot link, in `ld`'s words: bitcode,
 exception tags, 64-bit limits and a module with no `linking` section.
 
-The linker core is plain C++ that works on files already read into memory.
-Only [ld/braam.cpp](ld/braam.cpp) reads and writes files.
+Each tool's core is plain C++ that works on files already read into
+memory. Only its `braam.cpp` reads and writes files.
+
+### ld
 
 | File | What it does |
 | --- | --- |
@@ -126,6 +176,13 @@ Only [ld/braam.cpp](ld/braam.cpp) reads and writes files.
 | `writer.cpp` | writes the output, fixing up addresses |
 | `driver.cpp` | parses the command line |
 | `demangle/` | LLVM's C++ name demangler, trimmed to what `ld` uses |
+
+### strip
+
+| File | What it does |
+| --- | --- |
+| `strip.cpp` | copies what is kept, and leaves placeholders in an object |
+| `driver.cpp` | parses the command line |
 
 [Wasm_Object_Format.md](Wasm_Object_Format.md) describes the file format
 `ld` reads and writes, byte by byte.
@@ -137,3 +194,9 @@ both `ld` and `wasm-ld` and compares the results: symbols, what was
 dropped, the memory map, and the output bytes. Every program must also
 run on Braam. `relink.mjs` links three real programs and `ld` itself with
 `ld`, and runs their own tests.
+
+It also runs [strip/test/strip.mjs](strip/test/strip.mjs). It strips every
+test program and object, and `ld` itself, with both `strip` and
+`llvm-strip`, and the results must be equal byte for byte. Then it checks
+that a stripped program still runs, that `ld` links stripped objects as
+`wasm-ld` does, and that each error is reported as it should be.

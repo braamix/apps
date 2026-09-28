@@ -129,14 +129,6 @@ would not run:
 Not in the first version: wildcards in `-R`, `--only-keep-debug`,
 `--strip-unneeded`, `-p`, and archives (step 14).
 
-### Step 13. Document strip
-
-In [README.md](README.md): the package now installs `ld` and `strip`, and a
-*Using strip* section with the option table, the two differences from
-`llvm-strip` and why. Mention that `ld --strip-all` at link time gives the
-same result without a second pass. The existing *Inside* table becomes
-one per tool, under the library's.
-
 ### Step 14. Archives (later)
 
 `llvm-strip lib.a` strips every member and rewrites the archive with its
