@@ -6,6 +6,12 @@
 
 set(FX_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+# The references are wasm-ld's, and stamp.py's, under `make LINKER=ld` too.
+set_property(DIRECTORY PROPERTY LINK_OPTIONS "")
+if(BRAAM_STAMP_PY)
+    set(BRAAM_STAMP ${BRAAM_STAMP_PY})
+endif()
+
 # SDK archives in the order braam_add_program links them.
 set(FX_LIBS braam::proc braam::ui)
 set(FX_PORT_LIBS braam::compat_nofloat braam::compat_proc braam::proc braam::ui
@@ -113,6 +119,7 @@ wasm_fixture(archives SOURCES ${FX_SRC}/arch_main.c ARCHIVES fxa_one fxa_two)
 wasm_fixture(layout   SOURCES ${FX_SRC}/layout_a.c ${FX_SRC}/layout_b.c)
 wasm_fixture(live     SOURCES ${FX_SRC}/live_a.c ARCHIVES fxa_live)
 wasm_fixture(port     SOURCES ${FX_SRC}/port.cpp PORT)
+wasm_fixture(taken    SOURCES ${FX_SRC}/taken_a.cpp ${FX_SRC}/taken_b.cpp ${FX_SRC}/taken_c.cpp)
 
 wasm_bad(bad_dup   ${FX_SRC}/bad_dup_a.c ${FX_SRC}/bad_dup_b.c)
 wasm_bad(bad_undef ${FX_SRC}/bad_undef_a.c ${FX_SRC}/bad_undef_b.c)

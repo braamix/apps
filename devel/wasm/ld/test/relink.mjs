@@ -96,7 +96,7 @@ for (const name of Object.keys(PROGRAMS)) {
     // The stamp is stamp.py's, less nothing.
     if (stamp(bytes) !== stamp(reference))
         bad.push(`${name}: braam section ${stamp(bytes)}, stamp.py wrote ${stamp(reference)}`);
-    sizes.push(`${name} ${bytes.length} (wasm-ld ${reference.length})`);
+    sizes.push(`${name} ${bytes.length} (built ${reference.length})`);
     const file = join(tmp, `${name}.wasm`);
     writeFileSync(file, bytes);
     for (const t of PROGRAMS[name].tests) {

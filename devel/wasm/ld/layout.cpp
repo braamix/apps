@@ -374,25 +374,179 @@ struct Layouter {
                 lay.segments[j]     = move(lay.segments[j - 1]);
                 lay.segments[j - 1] = move(t);
             }
+        // Each pool goes where its first segment would have.
         for (u32 f : l.objects) {
             InputFile &in = file(f);
             u32 n         = in.obj.segments.size();
-            if (!fill(in.segment_out, n, NONE) || !fill(in.segment_off, n, 0)) {
+            if (!fill(in.segment_out, n, NONE) || !fill(in.segment_off, n, 0) ||
+                !fill(in.piece_start, n + 1, 0)) {
                 oom = true;
                 return;
             }
             for (u32 k = 0; k < n; k++) {
+                in.piece_start[k] = in.pieces.size();
                 if (!in.live_segments[k])
                     continue;
                 const Segment &seg = in.obj.segments[k];
                 OutSegment *s      = segment(out_name(seg.name), &in.segment_out[k]);
-                s->align           = s->align > seg.align ? s->align : seg.align;
-                s->size            = u32(align_to(s->size, seg.align));
-                in.segment_off[k]  = s->size;
-                s->size += seg.content.size();
-                if (!s->inputs.push(Ref{ f, k }))
+                if (!merges(seg)) {
+                    if (!s->inputs.push(Ref{ f, k }))
+                        oom = true;
+                    continue;
+                }
+                in.segment_off[k] = NONE;
+                split(f, k);
+                u32 m = 0;
+                while (m < s->merged.size() && s->merged[m].flags != seg.seg_flags)
+                    m++;
+                if (m == s->merged.size()) {
+                    Merged pool;
+                    pool.flags = seg.seg_flags;
+                    if (!s->merged.push(move(pool)) || !s->inputs.push(Ref{ NONE, m }))
+                        oom = true;
+                }
+                if (oom || !s->merged[m].members.push(Ref{ f, k }))
                     oom = true;
             }
+            in.piece_start[n] = in.pieces.size();
+        }
+        if (oom)
+            return;
+        for (OutSegment &s : lay.segments) {
+            for (Merged &m : s.merged)
+                pool(m);
+            for (const Ref &r : s.inputs) {
+                if (r.file == NONE) {
+                    s.merged[r.index].off = s.size;
+                    s.size += s.merged[r.index].bytes.size();
+                    continue;
+                }
+                InputFile &in           = file(r.file);
+                const Segment &seg      = in.obj.segments[r.index];
+                s.align                 = s.align > seg.align ? s.align : seg.align;
+                s.size                  = u32(align_to(s.size, seg.align));
+                in.segment_off[r.index] = s.size;
+                s.size += seg.content.size();
+            }
+            for (const Merged &m : s.merged)
+                for (const Ref &r : m.members) {
+                    InputFile &in = file(r.file);
+                    for (u32 p = in.piece_start[r.index]; p < in.piece_start[r.index + 1]; p++)
+                        in.pieces[p].out += m.off;
+                }
+        }
+    }
+
+    // wasm-ld merges strings at -O1 and up, from byte-aligned STRINGS
+    // segments that are not empty.
+    bool merges(const Segment &seg) const
+    {
+        return l.cfg.optimize > 0 && (seg.seg_flags & SEG_STRINGS) && seg.align == 0 &&
+               seg.content.size();
+    }
+
+    // Segment k of file f into its NUL-terminated strings.
+    void split(u32 f, u32 k)
+    {
+        InputFile &in = file(f);
+        Bytes c       = in.obj.segments[k].content;
+        if (c[c.size() - 1] != 0) {
+            Out m;
+            m.put(l.file_name(f)).put(":(").put(in.obj.segments[k].name);
+            m.put("): string is not null terminated");
+            l.diag.error(m.str());
+            return;
+        }
+        for (u32 at = 0; at < c.size();) {
+            if (!in.pieces.push(Piece{ at, 0 })) {
+                oom = true;
+                return;
+            }
+            while (at < c.size() && c[at])
+                at++;
+            at++;
+        }
+    }
+
+    // A string of a pool: the piece it is and its bytes.
+    struct Str8 {
+        Piece *piece;
+        const u8 *p;
+        u32 n;
+    };
+
+    // wasm-ld's order: by the bytes read from the end, larger first, and a
+    // string before any suffix of it.
+    static bool before(const Str8 &a, const Str8 &b)
+    {
+        for (u32 i = 0;; i++) {
+            int x = i < a.n ? a.p[a.n - 1 - i] : -1;
+            int y = i < b.n ? b.p[b.n - 1 - i] : -1;
+            if (x != y)
+                return x > y;
+            if (x < 0)
+                return false;
+        }
+    }
+
+    // StringTableBuilder's RAW table: each string once, and a string that
+    // ends the one before it in that order shares its bytes.
+    void pool(Merged &m)
+    {
+        Vec<Str8> all;
+        for (const Ref &r : m.members) {
+            InputFile &in = file(r.file);
+            Bytes c       = in.obj.segments[r.index].content;
+            u32 end       = in.piece_start[r.index + 1];
+            for (u32 p = in.piece_start[r.index]; p < end; p++) {
+                u32 to    = p + 1 < end ? in.pieces[p + 1].in : c.size();
+                Piece *pc = &in.pieces[p];
+                if (!all.push(Str8{ pc, c.data() + pc->in, to - pc->in })) {
+                    oom = true;
+                    return;
+                }
+            }
+        }
+        // Bottom-up merge sort: no recursion, and the sort is total but for
+        // equal strings, which land alike.
+        Vec<u32> a, b;
+        if (!fill(a, all.size(), 0) || !fill(b, all.size(), 0)) {
+            oom = true;
+            return;
+        }
+        for (u32 i = 0; i < all.size(); i++)
+            a[i] = i;
+        for (u32 w = 1; w < all.size(); w *= 2) {
+            for (u32 lo = 0; lo < all.size(); lo += 2 * w) {
+                u32 mid = lo + w < all.size() ? lo + w : all.size();
+                u32 hi  = lo + 2 * w < all.size() ? lo + 2 * w : all.size();
+                u32 i = lo, j = mid, o = lo;
+                while (i < mid && j < hi)
+                    b[o++] = before(all[a[j]], all[a[i]]) ? a[j++] : a[i++];
+                while (i < mid)
+                    b[o++] = a[i++];
+                while (j < hi)
+                    b[o++] = a[j++];
+            }
+            Vec<u32> t = move(a);
+            a          = move(b);
+            b          = move(t);
+        }
+        const Str8 *prev = nullptr;
+        for (u32 i : a) {
+            const Str8 &s = all[i];
+            bool tail     = prev && prev->n >= s.n;
+            for (u32 k = 0; tail && k < s.n; k++)
+                tail = prev->p[prev->n - s.n + k] == s.p[k];
+            if (tail) {
+                s.piece->out = m.bytes.size() - s.n;
+                continue;
+            }
+            s.piece->out = m.bytes.size();
+            for (u32 k = 0; k < s.n; k++)
+                if (!m.bytes.push(s.p[k]))
+                    oom = true;
+            prev = &s;
         }
     }
 
@@ -547,6 +701,22 @@ u32 type_index_of(const Layout &lay, const FuncType *t)
         if (same_sig(lay.types[i], t))
             return i;
     return NONE;
+}
+
+u32 segment_offset(const InputFile &in, u32 seg, u32 off)
+{
+    if (in.segment_off[seg] != NONE)
+        return in.segment_off[seg] + off;
+    // The last piece at or before off.
+    u32 lo = in.piece_start[seg], hi = in.piece_start[seg + 1];
+    while (hi - lo > 1) {
+        u32 mid = lo + (hi - lo) / 2;
+        if (in.pieces[mid].in <= off)
+            lo = mid;
+        else
+            hi = mid;
+    }
+    return in.pieces[lo].out + (off - in.pieces[lo].in);
 }
 
 Str import_module(const Sym &g)
@@ -757,6 +927,12 @@ void dump_layout(const Linker &l, Out &out)
     for (const OutSegment &s : lay.segments) {
         row(out, s.addr, true, s.size, 0).put(s.name).put('\n');
         for (const Ref &r : s.inputs) {
+            if (r.file == NONE) {
+                const Merged &m = s.merged[r.index];
+                row(out, s.addr + m.off, true, m.bytes.size(), 8);
+                out.put("<internal>:(").put(s.name).put(")\n");
+                continue;
+            }
             const InputFile &in = *l.files[r.file];
             const Object &o     = in.obj;
             if (r.file != last && !bucket(l, r.file, SYM_DATA, o.segments.size(), b))

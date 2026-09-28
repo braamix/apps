@@ -36,6 +36,7 @@ struct Config {
     u32 global_base        = 1024;
     bool global_base_set   = false;
     u32 error_limit        = 20;
+    u32 optimize           = 1; // -O<n>: 1 and up merge strings
 
     // ld's own.
     bool dump         = false;    // --dump: the inputs are to be dumped, not linked

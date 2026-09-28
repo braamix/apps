@@ -1,7 +1,7 @@
 // Layout. For every fixture, ld's --dump-layout must equal what wasm-ld
 // built: its types, imports, globals, table and elements, read from its
-// output, and its memory map, read from -Map at -O0 (ld merges no strings
-// yet). wasm-ld's __wasm_init_memory is left out: ld writes active
+// output, and its memory map, read from -Map, strings merged as -O1 merges
+// them. wasm-ld's __wasm_init_memory is left out: ld writes active
 // segments and has none. The --verbose "mem:" lines must be wasm-ld's, and
 // memory that is too small must be refused in wasm-ld's words.
 
@@ -24,7 +24,7 @@ const mem = (err, who) => err.split("\n").filter((l) => l.startsWith(`${who}: me
 
 function compare(what, fx, extra = []) {
     const args = [...FLAGS, ...extra, ...inputs(fx)];
-    const want = wasm_ld([...args, "-O0", "--verbose", "-Map=map"]);
+    const want = wasm_ld([...args, "--verbose", "-Map=map"]);
     if (want.status !== 0)
         die(`wasm-ld fails on ${what}: ${want.err}`);
     const bytes = new Uint8Array(readFileSync(join(tmp, "out.wasm")));

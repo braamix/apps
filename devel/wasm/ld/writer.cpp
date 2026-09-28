@@ -168,7 +168,7 @@ struct Writer {
             return true;
         }
         const OutSegment &seg = lay.segments[in.segment_out[s.segment]];
-        v                     = seg.addr + in.segment_off[s.segment] + s.offset + u32(addend);
+        v                     = seg.addr + segment_offset(in, s.segment, s.offset) + u32(addend);
         return true;
     }
 
@@ -521,6 +521,12 @@ struct Writer {
             if (oom)
                 return;
             for (const Ref &r : s.inputs) {
+                if (r.file == NONE) {
+                    const Merged &m = s.merged[r.index];
+                    for (usize k = 0; k < m.bytes.size(); k++)
+                        out[base + m.off + k] = m.bytes[k];
+                    continue;
+                }
                 const InputFile &in = file(r.file);
                 const Segment &seg  = in.obj.segments[r.index];
                 u8 *at              = out.data() + base + in.segment_off[r.index];

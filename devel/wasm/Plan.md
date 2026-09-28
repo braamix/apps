@@ -125,7 +125,9 @@ devel/wasm/
     writer.cpp/.h    output sections, relocation patching, name, stamp
     driver.cpp/.h    options → Config; link(Config, inputs) → bytes | error
     braam.cpp        proc_main: args, @file, -L/-l search, read, write
-    host.cpp         native main() over the same driver, for the tree relink
+    host.mjs         ld.wasm under the SDK's harness, as clang's -fuse-ld
+    stamped.py       stamp.py's stand-in under make LINKER=ld: checks
+    sizes.mjs        section sizes against wasm-ld, program by program
     test/            *.mjs under the SDK harness, fixtures, goldens
 ```
 
@@ -152,10 +154,9 @@ Constraints the Braam side imposes, and how the plan meets them:
 - **Errors leave no output.** The output file is opened only after
   `link()` has succeeded.
 
-The native `host.cpp` build is there so that the whole tree can be relinked
-with `ld` at host speed (step 8). It uses only `kernel/` headers, which
-`../braam-core/test/unit` already compiles natively. If that turns out not
-to hold, step 8 falls back to driving `ld.wasm` under the harness.
+There is no native build. The kernel's headers assert wasm32, and
+`../braam-core/test/unit` runs as wasm too. So the tree is relinked by
+driving `ld.wasm` under the harness, one boot a link (`host.mjs`).
 
 ## 4. Command line
 
@@ -198,18 +199,6 @@ testing against wasm-ld.
 Each step ends with a test that runs under `make test`, and none starts
 until the previous one's test passes.
 
-### Step 8 — The whole tree
-
-- Build `host.cpp` natively. Add `make LINKER=ld`, which configures the
-  tree with `ld` as the link step through `CMAKE_CXX_LINK_EXECUTABLE`,
-  and drops `stamp.py` because `--braam` stamps.
-- `make test longtest LINKER=ld` must pass unchanged. `lang/python` is
-  the real exam here: 3.8 MB of output, 600 KB of initialised data and
-  thousands of address-taken functions.
-- Compare with wasm-ld: section sizes per program. Expect a smaller DATA
-  section, because `.bss` is omitted, and a slightly larger CODE section,
-  because wasm-ld compacts its padded LEBs and `ld` doesn't yet.
-
 ### Step 9 — Breadth, after the tree links
 
 Items are ordered by how likely a real input is to need them:
@@ -218,8 +207,8 @@ Items are ordered by how likely a real input is to need them:
    copying. This needs `CODE` offsets adjusted per body, but still no
    instruction decoding. wasm-ld's `--compress-relocations` is the
    reference.
-2. **String merging** for `WASM_SEG_FLAG_STRINGS` segments, which is on by
-   default in wasm-ld.
+2. **Demangling** of C++ names in the `name` section, which wasm-ld does
+   unless given `--no-demangle`.
 3. **Debug info:** `R_WASM_FUNCTION_OFFSET_I32`, `R_WASM_SECTION_OFFSET_I32`
    and `.debug_*` custom sections. It's dropped by default until then,
    which is what `--strip-debug` does anyway.

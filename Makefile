@@ -25,6 +25,19 @@ HARNESS   := $(SDK)/share/braam
 # not survive the cmake process in between. Pass a count explicitly instead.
 JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 
+# `make LINKER=ld` links every program with devel/wasm's ld instead of
+# wasm-ld. That ld is itself linked by wasm-ld, in $(BOOT), and clang runs it
+# through host.mjs, under the SDK's harness: the kernel's headers are wasm32's
+# alone, so there is no native build of it.
+LINKER ?=
+BOOT   := $(BUILD)/bootstrap
+ifeq ($(LINKER),ld)
+BRAAM_LD := $(abspath $(BOOT))/ld
+else ifneq ($(LINKER),)
+$(error LINKER is ld, or empty for wasm-ld)
+endif
+LD_SOURCES := $(wildcard devel/wasm/ld/*.cpp devel/wasm/ld/*.h)
+
 # Publishing. The repository the index is for, which must equal the client's
 # /etc/repositories line byte for byte, and the index's own two numbers.
 REPO_URL      ?= https://braamix.github.io
@@ -53,7 +66,10 @@ REPO := $(BUILD)/repo
 # target happens to be written first.
 .DEFAULT_GOAL := all
 
-all: $(BUILD)/CMakeCache.txt
+# BRAAM_LD is reconfigured whenever LINKER says otherwise than the cache.
+all: $(BUILD)/CMakeCache.txt $(BRAAM_LD)
+	@test "`sed -n 's/^BRAAM_LD:[A-Z]*=//p' $(BUILD)/CMakeCache.txt`" = "$(BRAAM_LD)" || \
+	    cmake -B $(BUILD) -DBRAAM_LD=$(BRAAM_LD) >/dev/null
 	@cmake --build $(BUILD) -j $(JOBS)
 
 # Once per clone: use .githooks/commit-msg (strips Co-authored-by trailers).
@@ -313,6 +329,18 @@ $(TOOLCHAIN):
 	@curl -fsSL -o $(BUILD)/braam-sdk-$(SDK_VERSION).zip $(SDK_URL)
 	@unzip -q -o -d $(BUILD) $(BUILD)/braam-sdk-$(SDK_VERSION).zip
 	@touch $@
+
+# ld, linked by wasm-ld, and the script clang runs as its linker.
+$(BOOT)/ld.wasm: $(TOOLCHAIN) $(LD_SOURCES)
+	@test -f $(BOOT)/CMakeCache.txt || cmake -B $(BOOT) -G "$(GENERATOR)" \
+	    -DCMAKE_TOOLCHAIN_FILE=$(abspath $(TOOLCHAIN)) $(CMAKE_ARGS) >/dev/null
+	@cmake --build $(BOOT) -j $(JOBS) --target bin_ld
+	@cp $(BOOT)/devel/wasm/ld/ld.wasm $@
+
+$(abspath $(BOOT))/ld: $(BOOT)/ld.wasm
+	@printf '#!/bin/sh\nBRAAM_SDK=%s exec node %s %s "$$@"\n' $(abspath $(SDK)) \
+	    $(abspath devel/wasm/ld/host.mjs) $(abspath $@).wasm > $@
+	@chmod +x $@
 
 # The toolchain file is named on this first configure and only here: CMake
 # fixes the compiler when a project is configured, and a build directory

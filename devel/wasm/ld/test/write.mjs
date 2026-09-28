@@ -1,10 +1,10 @@
 // Writing. Every fixture is linked by ld on Braam, and the module must be
 // valid, have the surface a Braam program has, and run as wasm-ld's build
-// runs. Section by section it must be wasm-ld's own at -O0 without
-// --import-memory, which writes active segments as ld does: TYPE,
-// FUNCTION, TABLE, GLOBAL, ELEM, CODE, DATA, name, producers and
-// target_features byte for byte, and the same imports and exports but the
-// memory. The data fixture runs twice, so .bss is seen to start zeroed after
+// runs. Section by section it must be wasm-ld's own without --import-memory,
+// which writes active segments as ld does: TYPE, FUNCTION, TABLE, GLOBAL,
+// ELEM, CODE, DATA, name, producers and target_features byte for byte, and
+// the same imports and exports but the memory. That holds at -O1, where
+// strings are merged, and at -O0, where they are not. The data fixture runs twice, so .bss is seen to start zeroed after
 // a process has dirtied it.
 
 import { readFileSync } from "node:fs";
@@ -38,29 +38,32 @@ function surface(bytes) {
     return JSON.stringify({ imports, exports });
 }
 
-function link(name, fx) {
+function link(name, fx, level = "-O1") {
     H.store.files.delete("/tmp/out.wasm");
-    const got = ld([...FLAGS, ...inputs(fx), "-o", "out.wasm"]);
+    const got = ld([...FLAGS, level, ...inputs(fx), "-o", "out.wasm"]);
     if (got.status !== 0 || got.err) {
-        bad.push(`${name}: ld fails: ${got.err}`);
+        bad.push(`${name} ${level}: ld fails: ${got.err}`);
         return null;
     }
     return H.store.files.get("/tmp/out.wasm");
 }
 
 let compared = 0;
-for (const [name, fx] of Object.entries(m.fixtures)) {
-    const bytes = link(name, fx);
+
+// Whether the link at `level` is wasm-ld's, section by section.
+function compare(name, fx, level) {
+    const what = `${name} ${level}`;
+    const bytes = link(name, fx, level);
     if (!bytes)
-        continue;
+        return null;
     if (!WebAssembly.validate(bytes)) {
-        bad.push(`${name}: not valid wasm`);
-        continue;
+        bad.push(`${what}: not valid wasm`);
+        return null;
     }
-    const args = [...FLAGS.filter((f) => f !== "--import-memory"), ...inputs(fx), "-O0"];
+    const args = [...FLAGS.filter((f) => f !== "--import-memory"), level, ...inputs(fx)];
     const want = wasm_ld(args);
     if (want.status !== 0)
-        die(`wasm-ld fails on ${name}: ${want.err}`);
+        die(`wasm-ld fails on ${what}: ${want.err}`);
     const ref = new Uint8Array(readFileSync(join(tmp, "out.wasm")));
     const ours = by_name(bytes), theirs = by_name(ref);
     const before = bad.length;
@@ -72,21 +75,27 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
             let at = 0;
             while (a && b && at < a.length && a[at] === b[at])
                 at++;
-            bad.push(`${name}: ${s} differs at +0x${at.toString(16)} ` +
+            bad.push(`${what}: ${s} differs at +0x${at.toString(16)} ` +
                      `(ld ${a?.length ?? "none"} bytes, wasm-ld ${b?.length ?? "none"})`);
         } else {
             compared += a.length;
         }
     }
     if (surface(bytes) !== surface(ref))
-        bad.push(`${name}: surface\n  ld:      ${surface(bytes)}\n  wasm-ld: ${surface(ref)}`);
+        bad.push(`${what}: surface\n  ld:      ${surface(bytes)}\n  wasm-ld: ${surface(ref)}`);
     const extra = [...ours.keys()].filter((s) => !EXACT.includes(s) &&
         !["IMPORT", "EXPORT", "braam"].includes(s));
     if (extra.length)
-        bad.push(`${name}: sections wasm-ld's has not: ${extra.join(" ")}`);
+        bad.push(`${what}: sections wasm-ld's has not: ${extra.join(" ")}`);
+    return bad.length === before ? bytes : null;
+}
+
+for (const [name, fx] of Object.entries(m.fixtures)) {
+    compare(name, fx, "-O0");
     // Run only what matched: a mislinked program can spin, and the harness
     // has no timeout.
-    if (bad.length === before)
+    const bytes = compare(name, fx, "-O1");
+    if (bytes)
         for (const b of [...check_surface(name, bytes), ...check_run(H, name, bytes)])
             bad.push(`${name}: ${b}`);
 }
@@ -101,5 +110,5 @@ if (data && !bad.length) {
 
 if (bad.length)
     die("\n" + bad.join("\n"));
-ok(`${Object.keys(m.fixtures).length} fixtures link on Braam and run; ` +
+ok(`${Object.keys(m.fixtures).length} fixtures link on Braam and run; at -O0 and -O1, ` +
    `${compared} bytes of sections equal wasm-ld's`);

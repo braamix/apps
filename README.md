@@ -51,6 +51,11 @@ target, `wasm-ld`, CMake 3.24, Python 3, `curl` and `unzip`.
 
 builds the packages beside them, `<program>-<version>.zip`.
 
+    make LINKER=ld
+
+links every program with [devel/wasm](devel/wasm/)'s own `ld` rather than
+`wasm-ld`, and a plain `make` goes back.
+
     make test
 
 runs what headless tests there are — `archivers/zip`, which writes archives and

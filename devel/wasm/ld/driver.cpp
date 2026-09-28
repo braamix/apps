@@ -144,7 +144,8 @@ struct Parser {
                     !num(a, v.substr(comma + 1), cfg.braam_max))
                     return fail("not <initial>,<max>: ", a);
             } else if (take(a, "-O", v)) {
-                // Strings are not merged, so every level is -O0.
+                if (!num(a, v, cfg.optimize))
+                    return false;
             } else if (take(a, "-m", v)) {
                 if (v != "wasm32")
                     return fail("unknown emulation: ", v);

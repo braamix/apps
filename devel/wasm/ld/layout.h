@@ -12,6 +12,15 @@ struct Ref {
     u32 index;
 };
 
+// The strings of STRINGS segments, pooled and each kept once: wasm-ld's
+// -O1. One per output segment and segment flags.
+struct Merged {
+    u32 flags;
+    u32 off = 0;      // in the output segment
+    Vec<Ref> members; // file, segment
+    Vec<u8> bytes;
+};
+
 // Input segments merged by name: .rodata, .data, .bss and the rest.
 struct OutSegment {
     Str name;
@@ -19,7 +28,8 @@ struct OutSegment {
     u32 size  = 0;
     u32 addr  = 0;
     bool bss  = false;
-    Vec<Ref> inputs; // file, segment
+    Vec<Ref> inputs; // file, segment; or NONE, a Merged
+    Vec<Merged> merged;
 };
 
 struct Layout {
@@ -54,6 +64,11 @@ Target target_of(const Linker &l, u32 f, u32 i);
 u32 function_index_of(const Linker &l, u32 f, u32 i);
 
 u32 type_index_of(const Layout &lay, const FuncType *t);
+
+struct InputFile;
+
+// Where offset `off` of segment `seg` went in its output segment.
+u32 segment_offset(const InputFile &in, u32 seg, u32 off);
 
 // Where an undefined symbol is imported from.
 Str import_module(const Sym &g);

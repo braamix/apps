@@ -16,6 +16,13 @@ struct Source {
     Bytes bytes;
 };
 
+// A string of a merged segment: where it was, and where it went in the output
+// segment.
+struct Piece {
+    u32 in;
+    u32 out;
+};
+
 // An object, given on the command line or a member of an archive.
 struct InputFile {
     Object obj;
@@ -32,7 +39,9 @@ struct InputFile {
     Vec<u32> global_index;
     Vec<u32> slot;        // defined function -> table slot; 0 for none
     Vec<u32> segment_out; // segment -> output segment
-    Vec<u32> segment_off; // segment -> offset in it
+    Vec<u32> segment_off; // segment -> offset in it; NONE for merged strings
+    Vec<u32> piece_start; // segment -> its first piece, and the end last
+    Vec<Piece> pieces;    // merged strings, each segment's in offset order
 };
 
 enum class State : u8 {

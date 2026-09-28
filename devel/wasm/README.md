@@ -34,11 +34,14 @@ Options are spelled as `wasm-ld` spells them:
 - `--gc-sections`, `--no-gc-sections` and `--print-gc-sections`;
 - `--stack-first`, `--no-stack-first`, `--global-base`, `-z stack-size=`,
   `--initial-memory`, `--max-memory` and `--import-memory`;
-- `--trace`, `--why-extract`, `--error-limit` and `--verbose`.
+- `--trace`, `--why-extract`, `--error-limit` and `--verbose`;
+- `-O<n>`: at 1, the default, strings are merged as `wasm-ld` merges them,
+  and at 0 they are not.
 
 Braam's `OptParse` has no long options, so `ld` parses these itself. What
-clang passes and `ld` has no use for (`-O<n>`, `-m wasm32`, `--strip-debug`,
-`--strip-all`, `--no-demangle`) is accepted and changes nothing.
+clang passes and `ld` has no use for (`-m wasm32`, `--strip-debug`,
+`--strip-all`, `--demangle`, `--no-demangle`) is accepted and changes
+nothing.
 
 Four more options are `ld`'s own:
 
@@ -75,15 +78,43 @@ than mislinked:
 
 ### Where it differs from wasm-ld
 
-- **Active data segments and no `.bss` bytes.** With `--import-memory`,
-  `wasm-ld` cannot assume the memory is zeroed. So it makes the segments
-  passive and clears `.bss` in a `__wasm_init_memory` it names in START.
-  Every Braam process gets a fresh memory, so `ld` writes neither START nor
-  `__wasm_init_memory`. That is why the DATA section is smaller.
+- **Active data segments.** With `--import-memory`, `wasm-ld` cannot assume
+  the memory is zeroed. So it makes the segments passive and clears `.bss`
+  in a `__wasm_init_memory` it names in START. Every Braam process gets a
+  fresh memory, so `ld` writes neither START nor `__wasm_init_memory`.
+  Neither linker writes `.bss` bytes.
+- **Names are not demangled.** `wasm-ld` demangles C++ names in the `name`
+  section unless given `--no-demangle`, and `ld` never does. That makes the
+  section a fifth smaller for C++, and a debugger shows mangled names.
 - **A signature mismatch is an error.** `wasm-ld` warns and links a stub that
-  traps when called. `ld` refuses the link.
-- **No string merging.** Every `-O` level is `wasm-ld -O0`'s layout.
+  traps when called. `ld` refuses the link. A function only address-taken
+  carries no signature of its own, and is not checked, as in `wasm-ld`.
 - **Debug info is dropped**, as `--strip-debug` would drop it.
+
+## Linking the tree with ld
+
+    make LINKER=ld
+
+builds every program with `ld` instead of `wasm-ld`, and `make test
+longtest LINKER=ld` then tests those binaries. A plain `make` goes back to
+`wasm-ld`. The kernel's headers are wasm32's alone, so `ld` has no native
+build:
+
+- `ld.wasm` is linked by `wasm-ld` in `build/bootstrap`;
+- clang runs `build/bootstrap/ld` through `-fuse-ld`, a script that runs
+  [ld/host.mjs](ld/host.mjs);
+- `host.mjs` boots the SDK's harness, plants `ld.wasm` and the inputs in
+  its `/tmp`, links there and copies the output back.
+
+A link costs a kernel boot, so the whole tree relinks in about five
+seconds. `ld` stamps as it links, so `stamp.py`'s step becomes
+[ld/stamped.py](ld/stamped.py), which checks the stamp is the one
+`stamp.py` would have written. A new `ld` relinks everything.
+
+`node devel/wasm/ld/sizes.mjs` links every program in `build/` with both
+linkers and prints the sizes. Given `--no-demangle`, `wasm-ld`'s output is
+larger by 12 to 14 bytes a program. It has a 16-byte `__wasm_init_memory`,
+a START and a DATACOUNT section, and it lacks the 26-byte stamp.
 
 ### Tests
 
@@ -95,7 +126,8 @@ with clang and links them twice: by `ld` under the SDK's harness, and by
 - symbol resolution against `--trace` and `--why-extract`;
 - dropped chunks against `--print-gc-sections`;
 - the layout against `-Map`;
-- the written sections, byte for byte, against `wasm-ld -O0`.
+- the written sections, byte for byte, against `wasm-ld` at `-O0` and at
+  `-O1`.
 
 Every linked fixture must also run on Braam. `link.mjs` covers the front
 end: the defaults, `-l`, and failed links.

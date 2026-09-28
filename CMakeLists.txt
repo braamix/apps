@@ -15,6 +15,15 @@ endif()
 
 find_package(braam REQUIRED)
 
+# `make LINKER=ld`: every program linked by devel/wasm's ld, which stamps as it
+# links, so stamp.py's step only checks the stamp.
+set(BRAAM_LD "" CACHE FILEPATH "a linker for clang -fuse-ld=; empty for wasm-ld")
+set(BRAAM_STAMP_PY ${BRAAM_STAMP})
+if(BRAAM_LD)
+    add_link_options(-fuse-ld=${BRAAM_LD})
+    set(BRAAM_STAMP ${CMAKE_CURRENT_SOURCE_DIR}/devel/wasm/ld/stamped.py)
+endif()
+
 # Warnings, for every language and every program below.
 add_compile_options(-Wall -Werror -Wshadow)
 
@@ -30,3 +39,22 @@ add_subdirectory(editors)
 add_subdirectory(emulators)
 add_subdirectory(games)
 add_subdirectory(lang)
+
+# Under `make LINKER=ld`, a new ld relinks every program. The wrapper at
+# BRAAM_LD runs the ld.wasm beside it.
+function(braam_ld_depends dir)
+    get_property(targets DIRECTORY ${dir} PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(t ${targets})
+        get_target_property(type ${t} TYPE)
+        if(type STREQUAL "EXECUTABLE")
+            set_property(TARGET ${t} APPEND PROPERTY LINK_DEPENDS ${BRAAM_LD}.wasm)
+        endif()
+    endforeach()
+    get_property(subdirs DIRECTORY ${dir} PROPERTY SUBDIRECTORIES)
+    foreach(d ${subdirs})
+        braam_ld_depends(${d})
+    endforeach()
+endfunction()
+if(BRAAM_LD)
+    braam_ld_depends(${CMAKE_CURRENT_SOURCE_DIR})
+endif()

@@ -265,6 +265,15 @@ struct Resolver {
             sig_mismatch(g, sig, f);
             return NONE;
         }
+        // An address alone does not fix a signature: a call replaces it.
+        if (sig && called && g.state == State::Undefined && !g.called && !same_sig(g.sig, sig)) {
+            g.flags         = s.flags;
+            g.file          = f;
+            g.index         = i;
+            g.sig           = sig;
+            g.import_module = s.import_module;
+            g.import_name   = name;
+        }
         if (g.state == State::Undefined) {
             if (!name.empty()) {
                 if (g.import_name.empty())
