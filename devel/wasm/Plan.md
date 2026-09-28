@@ -79,31 +79,6 @@ The CMake target follows the fixtures' `wasm_archive()` precedent:
 braam::flags)`, then `braam_add_program(... LIBS wasmobj)` in each tool.
 `devel/wasm/CMakeLists.txt` adds `lib` before `ld`.
 
-### Step 4. Framing, for any module
-
-Split `Reader::sections()` and the header checks at the top of
-`Reader::read()` into `lib/module.h/.cpp`:
-
-    // The file's header and its sections, in order. Checks only framing:
-    // magic, version, each size within the file, a custom section's name
-    // within its section, standard sections in order and not repeated.
-    bool read_module(Str name, Bytes file, Vec<Section> &sections, Out &err);
-
-    // What kind of module: an object has a `linking` section.
-    bool is_object(const Vec<Section> &sections);
-
-`Section` moves from `input.h` to `module.h` as it is.
-
-What stays in `ld`, worded as now: "LLVM bitcode (from -flto); ld links
-wasm objects only" is checked before `read_module`, since bitcode is not a
-wasm module at all. The TAG refusal and "no linking section" stay in
-`read_object`, which is the linker's reader and still refuses them.
-
-The library now accepts a TAG section, which `rank()` already orders, and
-leaves refusing it to the tool. `ld`'s messages must come out unchanged:
-[ld/test/dump.mjs](ld/test/dump.mjs) and `fixtures.json`'s `bad` inputs
-check them.
-
 ### Step 5. Object and archive readers
 
 Move `Object` and its parts from `input.h` to `lib/object.h`, and

@@ -6,19 +6,8 @@
 #include "kernel/str.h"
 #include "kernel/string.h"
 #include "kernel/vec.h"
+#include "module.h"
 #include "wasm.h"
-
-inline constexpr u32 NONE = ~u32(0);
-
-// One section of the file. `body` is its contents; a custom section's starts
-// after its name.
-struct Section {
-    u8 id;
-    Str name; // a custom section's name, else the standard one
-    Bytes body;
-    u32 file_off;      // where `body` starts in the file
-    u32 comdat = NONE; // a custom section's
-};
 
 struct Limits {
     u8 flags;

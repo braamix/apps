@@ -6,14 +6,6 @@ using namespace wasm;
 
 namespace {
 
-// Where a standard section may stand. TAG sits between MEMORY and GLOBAL,
-// DATACOUNT between ELEM and CODE.
-u32 rank(u8 id)
-{
-    static const u8 RANK[] = { 0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 12, 13, 11, 6 };
-    return RANK[id];
-}
-
 bool is_valtype(u8 t)
 {
     return t == I32 || t == I64 || t == F32 || t == F64 || t == V128 || t == FUNCREF ||
@@ -763,66 +755,16 @@ struct Reader {
 
     // ------------------------------------------------------------ the file
 
-    bool sections()
-    {
-        Cursor c(o.file);
-        c.take(8);
-        u32 last = 0;
-        while (c.ok() && !c.done()) {
-            usize at = c.at();
-            Section s{};
-            s.id     = c.byte();
-            u32 size = c.uleb();
-            if (c.ok() && size > c.left())
-                c.fail("runs past the end of the file", at);
-            Bytes b = c.take(size);
-            if (!c.ok())
-                break;
-            if (s.id > SEC_TAG) {
-                c.fail("unknown section id", at);
-                break;
-            }
-            if (s.id == SEC_CUSTOM) {
-                Cursor n(b);
-                s.name = n.name();
-                if (!n.ok()) {
-                    c.fail("custom section name runs past the section", at);
-                    break;
-                }
-                s.body     = b.subspan(n.at());
-                s.file_off = b.data() - o.file.data() + n.at();
-            } else {
-                if (rank(s.id) <= last) {
-                    c.fail("standard section out of order or repeated", at);
-                    break;
-                }
-                last       = rank(s.id);
-                s.name     = section_name(s.id);
-                s.body     = b;
-                s.file_off = b.data() - o.file.data();
-            }
-            if (!o.sections.push(s))
-                return fail("out of memory", at);
-        }
-        if (!c.ok()) {
-            Out m;
-            m.put("section at file offset 0x").hex(u32(c.where())).put(": ").put(c.why());
-            return fail(m.str(), 0);
-        }
-        return true;
-    }
-
     bool read()
     {
+        // What ld does not link, in its own words, before the framing.
         Bytes f = o.file;
         if (f.size() >= 4 && f[0] == 'B' && f[1] == 'C' && f[2] == 0xc0 && f[3] == 0xde)
             return fail("LLVM bitcode (from -flto); ld links wasm objects only", 0);
         if (f.size() < 8 || f[0] != MAGIC[0] || f[1] != MAGIC[1] || f[2] != MAGIC[2] ||
             f[3] != MAGIC[3])
             return fail("not a wasm object", 0);
-        if (f[4] != VERSION || f[5] || f[6] || f[7])
-            return fail("wasm version other than 1", 0);
-        if (!sections())
+        if (!read_module(o.name.str(), f, o.sections, err))
             return false;
 
         for (u32 i = 0; i < o.sections.size(); i++) {
