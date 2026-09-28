@@ -129,17 +129,6 @@ would not run:
 Not in the first version: wildcards in `-R`, `--only-keep-debug`,
 `--strip-unneeded`, `-p`, and archives (step 14).
 
-### Step 11. Build and package
-
-- `devel/wasm/strip/CMakeLists.txt`: `braam_add_program(NAME strip
-  SOURCES strip.cpp braam.cpp LIBS wasmobj)`, guarded to configure
-  standalone as `ld`'s is.
-- `devel/wasm/CMakeLists.txt`: `add_subdirectory(strip)`, and the package
-  gains `$<TARGET_FILE:bin_strip>=bin/strip`. Version `0.2-r0`;
-  `T=WebAssembly tools: ld, the linker, and strip`.
-- Verify the binary's surface (the imports, the five exports, the
-  `braam` section) with the one-liner in the top `CLAUDE.md`.
-
 ### Step 12. Tests: `devel/wasm/strip/test/strip.mjs`
 
 Built on `ld/test/wasmlib.mjs`: `boot`, `plant`, `run`, `get`,
