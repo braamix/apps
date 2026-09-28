@@ -3,25 +3,13 @@
 #pragma once
 
 #include "kernel/alloc.h"
-#include "kernel/traits.h"
 #include "kernel/types.h"
 
-using size_t    = usize;
-using uint8_t   = u8;
-using uint16_t  = u16;
-using uint32_t  = u32;
-using uint64_t  = u64;
-using int64_t   = i64;
-using uintptr_t = usize;
+using size_t   = usize;
+using uint8_t  = u8;
+using uint64_t = u64;
 
 namespace std {
-
-using ::int64_t;
-using ::size_t;
-using ::uint16_t;
-using ::uint32_t;
-using ::uint64_t;
-using ::uint8_t;
 
 template <class T>
 constexpr __remove_reference_t(T) &&move(T &&v) noexcept
@@ -31,12 +19,6 @@ constexpr __remove_reference_t(T) &&move(T &&v) noexcept
 
 template <class T>
 constexpr T &&forward(__remove_reference_t(T) &v) noexcept
-{
-    return static_cast<T &&>(v);
-}
-
-template <class T>
-constexpr T &&forward(__remove_reference_t(T) &&v) noexcept
 {
     return static_cast<T &&>(v);
 }
@@ -53,12 +35,6 @@ template <class T>
 constexpr const T &min(const T &a, const T &b)
 {
     return b < a ? b : a;
-}
-
-template <class T>
-constexpr const T &max(const T &a, const T &b)
-{
-    return a < b ? b : a;
 }
 
 template <class I, class O>
@@ -103,9 +79,6 @@ template <class T, usize N>
 struct array {
     T v[N];
     T *data() { return v; }
-    T &operator[](usize i) { return v[i]; }
-    T *begin() { return v; }
-    T *end() { return v + N; }
     constexpr usize size() const { return N; }
 };
 
@@ -117,17 +90,6 @@ struct numeric_limits<unsigned> {
     static constexpr unsigned max() { return ~0u; }
 };
 
-template <bool B, class T = void>
-struct enable_if {};
-
-template <class T>
-struct enable_if<true, T> {
-    using type = T;
-};
-
-template <bool B, class T = void>
-using enable_if_t = typename enable_if<B, T>::type;
-
 template <class T>
 struct is_trivially_copyable {
     static constexpr bool value = __is_trivially_copyable(T);
@@ -137,21 +99,6 @@ template <class T>
 struct is_trivially_default_constructible {
     static constexpr bool value = __is_trivially_constructible(T);
 };
-
-template <class T>
-struct is_signed {
-    static constexpr bool value = T(-1) < T(0);
-};
-
-template <class T>
-struct is_unsigned {
-    static constexpr bool value = T(-1) > T(0);
-};
-
-inline long long abs(long long n)
-{
-    return n < 0 ? -n : n;
-}
 
 inline int isdigit(int c)
 {
@@ -169,16 +116,6 @@ constexpr usize strlen(const char *s)
 inline void *memcpy(void *d, const void *s, usize n)
 {
     return __builtin_memcpy(d, s, n);
-}
-
-inline void *memmove(void *d, const void *s, usize n)
-{
-    return __builtin_memmove(d, s, n);
-}
-
-inline int memcmp(const void *a, const void *b, usize n)
-{
-    return __builtin_memcmp(a, b, n);
 }
 
 inline void *malloc(usize n)
@@ -224,12 +161,10 @@ class string_view {
 
 public:
     static constexpr usize npos = ~usize(0);
-    using const_iterator        = const char *;
 
     constexpr string_view() = default;
     constexpr string_view(const char *p, usize n) : p_(p), n_(n) {}
     constexpr string_view(const char *s) : p_(s), n_(strlen(s)) {}
-    constexpr string_view(const char *b, const char *e) : p_(b), n_(usize(e - b)) {}
 
     constexpr const char *data() const { return p_; }
     constexpr usize size() const { return n_; }
@@ -238,7 +173,6 @@ public:
     constexpr const char *begin() const { return p_; }
     constexpr const char *end() const { return p_ + n_; }
     constexpr char operator[](usize i) const { return p_[i]; }
-    constexpr char front() const { return p_[0]; }
     constexpr char back() const { return p_[n_ - 1]; }
     constexpr void remove_prefix(usize k) { p_ += k, n_ -= k; }
     constexpr void remove_suffix(usize k) { n_ -= k; }

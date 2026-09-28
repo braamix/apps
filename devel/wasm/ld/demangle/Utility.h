@@ -1,31 +1,32 @@
-//===--- Utility.h -------------------*- mode:c++;eval:(read-only-mode) -*-===//
-//       Do not edit! See README.txt.
+// OutputBuffer, which the demangler prints into.
+// From LLVM 23.1.2, less what llvm::demangle() does not reach.
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// Provide some utility classes for use in the demangler.
-// There are two copies of this file in the source tree.  The one in libcxxabi
-// is the original and the one in llvm is the copy.  Use cp-to-llvm.sh to update
-// the copy.  See README.txt for more details.
-//
-//===----------------------------------------------------------------------===//
+#pragma once
 
-#ifndef DEMANGLE_UTILITY_H
-#define DEMANGLE_UTILITY_H
-
-#include "DemangleConfig.h"
 #include "std.h"
 
-DEMANGLE_NAMESPACE_BEGIN
+namespace llvm::itanium_demangle {
 
 class Node;
 
+inline bool starts_with(std::string_view self, char C) noexcept
+{
+    return !self.empty() && *self.begin() == C;
+}
+
+inline bool starts_with(std::string_view haystack, std::string_view needle) noexcept
+{
+    if (needle.size() > haystack.size())
+        return false;
+    haystack.remove_suffix(haystack.size() - needle.size());
+    return haystack == needle;
+}
+
 // Stream that AST nodes write their string representation into after the AST
 // has been parsed.
-class DEMANGLE_ABI OutputBuffer {
+class OutputBuffer {
     char *Buffer           = nullptr;
     size_t CurrentPosition = 0;
     size_t BufferCapacity  = 0;
@@ -48,7 +49,7 @@ class DEMANGLE_ABI OutputBuffer {
         }
     }
 
-    OutputBuffer &writeUnsigned(uint64_t N, bool isNeg = false)
+    OutputBuffer &writeUnsigned(uint64_t N)
     {
         std::array<char, 21> Temp;
         char *TempPtr = Temp.data() + Temp.size();
@@ -59,38 +60,18 @@ class DEMANGLE_ABI OutputBuffer {
             N /= 10;
         } while (N);
 
-        // Add negative sign.
-        if (isNeg)
-            *--TempPtr = '-';
-
         return operator+=(std::string_view(TempPtr, Temp.data() + Temp.size() - TempPtr));
     }
 
 public:
-    OutputBuffer(char *StartBuf, size_t Size) : Buffer(StartBuf), BufferCapacity(Size) {}
-    OutputBuffer(char *StartBuf, size_t *SizePtr) : OutputBuffer(StartBuf, StartBuf ? *SizePtr : 0)
-    {
-    }
     OutputBuffer() = default;
     // Non-copyable
     OutputBuffer(const OutputBuffer &)            = delete;
     OutputBuffer &operator=(const OutputBuffer &) = delete;
 
-    virtual ~OutputBuffer() = default;
-
-    operator std::string_view() const { return std::string_view(Buffer, CurrentPosition); }
-
-    /// Called by the demangler when printing the demangle tree. By
-    /// default calls into \c Node::print{Left|Right} but can be overriden
-    /// by clients to track additional state when printing the demangled name.
-    virtual void printLeft(const Node &N);
-    virtual void printRight(const Node &N);
-
-    /// Called when we write to this object anywhere other than the end.
-    virtual void notifyInsertion(size_t /*Position*/, size_t /*Count*/) {}
-
-    /// Called when we make the \c CurrentPosition of this object smaller.
-    virtual void notifyDeletion(size_t /*OldPos*/, size_t /*NewPos*/) {}
+    /// Called by the demangler when printing the demangle tree.
+    void printLeft(const Node &N);
+    void printRight(const Node &N);
 
     /// If a ParameterPackExpansion (or similar type) is encountered, the offset
     /// into the pack that we're currently printing.
@@ -143,79 +124,23 @@ public:
         return *this;
     }
 
-    OutputBuffer &prepend(std::string_view R)
-    {
-        size_t Size = R.size();
-        if (!Size)
-            return *this;
-
-        grow(Size);
-        std::memmove(Buffer + Size, Buffer, CurrentPosition);
-        std::memcpy(Buffer, &*R.begin(), Size);
-        CurrentPosition += Size;
-
-        notifyInsertion(/*Position=*/0, /*Count=*/Size);
-
-        return *this;
-    }
-
     OutputBuffer &operator<<(std::string_view R) { return (*this += R); }
 
     OutputBuffer &operator<<(char C) { return (*this += C); }
 
-    OutputBuffer &operator<<(long long N)
-    {
-        return writeUnsigned(static_cast<unsigned long long>(std::abs(N)), N < 0);
-    }
-
-    OutputBuffer &operator<<(unsigned long long N) { return writeUnsigned(N, false); }
-
-    OutputBuffer &operator<<(long N) { return this->operator<<(static_cast<long long>(N)); }
-
-    OutputBuffer &operator<<(unsigned long N)
-    {
-        return this->operator<<(static_cast<unsigned long long>(N));
-    }
-
-    OutputBuffer &operator<<(int N) { return this->operator<<(static_cast<long long>(N)); }
+    OutputBuffer &operator<<(unsigned long long N) { return writeUnsigned(N); }
 
     OutputBuffer &operator<<(unsigned int N)
     {
         return this->operator<<(static_cast<unsigned long long>(N));
     }
 
-    void insert(size_t Pos, const char *S, size_t N)
-    {
-        DEMANGLE_ASSERT(Pos <= CurrentPosition, "");
-        if (N == 0)
-            return;
-
-        grow(N);
-        std::memmove(Buffer + Pos + N, Buffer + Pos, CurrentPosition - Pos);
-        std::memcpy(Buffer + Pos, S, N);
-        CurrentPosition += N;
-
-        notifyInsertion(Pos, N);
-    }
-
     size_t getCurrentPosition() const { return CurrentPosition; }
-    void setCurrentPosition(size_t NewPos)
-    {
-        notifyDeletion(CurrentPosition, NewPos);
-        CurrentPosition = NewPos;
-    }
+    void setCurrentPosition(size_t NewPos) { CurrentPosition = NewPos; }
 
-    char back() const
-    {
-        DEMANGLE_ASSERT(CurrentPosition, "");
-        return Buffer[CurrentPosition - 1];
-    }
-
-    bool empty() const { return CurrentPosition == 0; }
+    char back() const { return Buffer[CurrentPosition - 1]; }
 
     char *getBuffer() { return Buffer; }
-    char *getBufferEnd() { return Buffer + CurrentPosition - 1; }
-    size_t getBufferCapacity() const { return BufferCapacity; }
 };
 
 template <class T>
@@ -233,6 +158,4 @@ public:
     ScopedOverride &operator=(const ScopedOverride &) = delete;
 };
 
-DEMANGLE_NAMESPACE_END
-
-#endif
+} // namespace llvm::itanium_demangle

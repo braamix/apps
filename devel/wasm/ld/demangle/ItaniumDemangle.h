@@ -1,32 +1,14 @@
-//===--- ItaniumDemangle.h -----------*- mode:c++;eval:(read-only-mode) -*-===//
-//       Do not edit! See README.txt.
+// The Itanium demangler: the parser and its nodes.
+// From LLVM 23.1.2, less what llvm::demangle() does not reach.
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// Generic itanium demangler library.
-// There are two copies of this file in the source tree.  The one under
-// libcxxabi is the original and the one under llvm is the copy.  Use
-// cp-to-llvm.sh to update the copy.  See README.txt for more details.
-//
-//===----------------------------------------------------------------------===//
+#pragma once
 
-#ifndef DEMANGLE_ITANIUMDEMANGLE_H
-#define DEMANGLE_ITANIUMDEMANGLE_H
-
-#include "DemangleConfig.h"
-#include "StringViewExtras.h"
 #include "Utility.h"
 #include "std.h"
 
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-template"
-#endif
-
-DEMANGLE_NAMESPACE_BEGIN
+namespace llvm::itanium_demangle {
 
 template <class T, size_t N>
 class PODSmallVector {
@@ -124,33 +106,17 @@ public:
     }
 
     // NOLINTNEXTLINE(readability-identifier-naming)
-    void pop_back()
-    {
-        DEMANGLE_ASSERT(Last != First, "Popping empty vector!");
-        --Last;
-    }
+    void pop_back() { --Last; }
 
-    void shrinkToSize(size_t Index)
-    {
-        DEMANGLE_ASSERT(Index <= size(), "shrinkToSize() can't expand!");
-        Last = First + Index;
-    }
+    void shrinkToSize(size_t Index) { Last = First + Index; }
 
     T *begin() { return First; }
     T *end() { return Last; }
 
     bool empty() const { return First == Last; }
     size_t size() const { return static_cast<size_t>(Last - First); }
-    T &back()
-    {
-        DEMANGLE_ASSERT(Last != First, "Calling back() on empty vector!");
-        return *(Last - 1);
-    }
-    T &operator[](size_t Index)
-    {
-        DEMANGLE_ASSERT(Index < size(), "Invalid access!");
-        return *(begin() + Index);
-    }
+    T &back() { return *(Last - 1); }
+    T &operator[](size_t Index) { return *(begin() + Index); }
     void clear() { Last = First; }
 
     ~PODSmallVector()
@@ -167,8 +133,95 @@ class NodeArray;
 class Node {
 public:
     enum Kind : uint8_t {
-#define NODE(NodeKind) K##NodeKind,
-#include "ItaniumNodes.def"
+        KNodeArrayNode,
+        KDotSuffix,
+        KVendorExtQualType,
+        KQualType,
+        KConversionOperatorType,
+        KPostfixQualifiedType,
+        KElaboratedTypeSpefType,
+        KTransformedType,
+        KNameType,
+        KAbiTagAttr,
+        KEnableIfAttr,
+        KObjCProtoName,
+        KPointerType,
+        KReferenceType,
+        KPointerToMemberType,
+        KArrayType,
+        KFunctionType,
+        KNoexceptSpec,
+        KDynamicExceptionSpec,
+        KFunctionEncoding,
+        KLiteralOperator,
+        KSpecialName,
+        KCtorVtableSpecialName,
+        KQualifiedName,
+        KNestedName,
+        KMemberLikeFriendName,
+        KLocalName,
+        KModuleName,
+        KModuleEntity,
+        KVectorType,
+        KPixelVectorType,
+        KBinaryFPType,
+        KBitIntType,
+        KSyntheticTemplateParamName,
+        KTemplateParamQualifiedArg,
+        KTypeTemplateParamDecl,
+        KConstrainedTypeTemplateParamDecl,
+        KNonTypeTemplateParamDecl,
+        KTemplateTemplateParamDecl,
+        KTemplateParamPackDecl,
+        KParameterPack,
+        KTemplateArgumentPack,
+        KParameterPackExpansion,
+        KTemplateArgs,
+        KForwardTemplateReference,
+        KNameWithTemplateArgs,
+        KGlobalQualifiedName,
+        KExpandedSpecialSubstitution,
+        KSpecialSubstitution,
+        KCtorDtorName,
+        KDtorName,
+        KUnnamedTypeName,
+        KClosureTypeName,
+        KStructuredBindingName,
+        KBinaryExpr,
+        KArraySubscriptExpr,
+        KPostfixExpr,
+        KConditionalExpr,
+        KMemberExpr,
+        KSubobjectExpr,
+        KEnclosingExpr,
+        KCastExpr,
+        KSizeofParamPackExpr,
+        KCallExpr,
+        KNewExpr,
+        KDeleteExpr,
+        KPrefixExpr,
+        KFunctionParam,
+        KConversionExpr,
+        KPointerToMemberConversionExpr,
+        KInitListExpr,
+        KFoldExpr,
+        KThrowExpr,
+        KBoolExpr,
+        KStringLiteral,
+        KLambdaExpr,
+        KEnumLiteral,
+        KIntegerLiteral,
+        KFloatLiteral,
+        KDoubleLiteral,
+        KLongDoubleLiteral,
+        KBracedExpr,
+        KBracedRangeExpr,
+        KRequiresExpr,
+        KExprRequirement,
+        KTypeRequirement,
+        KNestedRequirement,
+        KExplicitObjectParameter,
+        KPackIndexing,
     };
 
     /// Three-way bool to track a cached value. Unknown is possible if this node
@@ -235,16 +288,6 @@ public:
     {
     }
 
-    /// Visit the most-derived object corresponding to this object.
-    template <typename Fn>
-    void visit(Fn F) const;
-
-    // The following function is provided by all derived classes:
-    //
-    // Call F with arguments that, when passed to the constructor of this node,
-    // would construct an equivalent node.
-    // template<typename Fn> void match(Fn F) const;
-
     bool hasRHSComponent(OutputBuffer &OB) const
     {
         if (RHSComponentCache != Cache::Unknown)
@@ -309,10 +352,6 @@ public:
 
     // Silence compiler warnings, this dtor will never be called.
     virtual ~Node() = default;
-
-#ifndef NDEBUG
-    DEMANGLE_DUMP_METHOD void dump() const;
-#endif
 
 private:
     friend class OutputBuffer;
@@ -382,12 +421,6 @@ struct NodeArrayNode : Node {
     NodeArray Array;
     NodeArrayNode(NodeArray Array_) : Node(KNodeArrayNode), Array(Array_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Array);
-    }
-
     void printLeft(OutputBuffer &OB) const override { Array.printWithComma(OB); }
 };
 
@@ -399,12 +432,6 @@ public:
     DotSuffix(const Node *Prefix_, std::string_view Suffix_)
         : Node(KDotSuffix), Prefix(Prefix_), Suffix(Suffix_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Prefix, Suffix);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -425,16 +452,6 @@ public:
     VendorExtQualType(const Node *Ty_, std::string_view Ext_, const Node *TA_)
         : Node(KVendorExtQualType), Ty(Ty_), Ext(Ext_), TA(TA_)
     {
-    }
-
-    const Node *getTy() const { return Ty; }
-    std::string_view getExt() const { return Ext; }
-    const Node *getTA() const { return TA; }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Ty, Ext, TA);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -488,15 +505,6 @@ public:
     {
     }
 
-    Qualifiers getQuals() const { return Quals; }
-    const Node *getChild() const { return Child; }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Child, Quals);
-    }
-
     bool hasRHSComponentSlow(OutputBuffer &OB) const override { return Child->hasRHSComponent(OB); }
     bool hasArraySlow(OutputBuffer &OB) const override { return Child->hasArray(OB); }
     bool hasFunctionSlow(OutputBuffer &OB) const override { return Child->hasFunction(OB); }
@@ -516,12 +524,6 @@ class ConversionOperatorType final : public Node {
 public:
     ConversionOperatorType(const Node *Ty_) : Node(KConversionOperatorType), Ty(Ty_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Ty);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += "operator ";
@@ -539,12 +541,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Ty, Postfix);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB.printLeft(*Ty);
@@ -558,12 +554,6 @@ class NameType final : public Node {
 public:
     NameType(std::string_view Name_) : Node(KNameType), Name(Name_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Name);
-    }
-
     std::string_view getName() const { return Name; }
     std::string_view getBaseName() const override { return Name; }
 
@@ -576,12 +566,6 @@ class BitIntType final : public Node {
 
 public:
     BitIntType(const Node *Size_, bool Signed_) : Node(KBitIntType), Size(Size_), Signed(Signed_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Size, Signed);
-    }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -604,12 +588,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Kind, Child);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += Kind;
@@ -626,12 +604,6 @@ public:
     TransformedType(std::string_view Transform_, Node *BaseType_)
         : Node(KTransformedType), Transform(Transform_), BaseType(BaseType_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Transform, BaseType);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -654,12 +626,6 @@ struct AbiTagAttr : Node {
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Base, Tag);
-    }
-
     std::string_view getBaseName() const override { return Base->getBaseName(); }
 
     void printLeft(OutputBuffer &OB) const override
@@ -677,12 +643,6 @@ class EnableIfAttr : public Node {
 public:
     EnableIfAttr(NodeArray Conditions_) : Node(KEnableIfAttr), Conditions(Conditions_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Conditions);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += " [enable_if:";
@@ -699,12 +659,6 @@ public:
     ObjCProtoName(const Node *Ty_, std::string_view Protocol_)
         : Node(KObjCProtoName), Ty(Ty_), Protocol(Protocol_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Ty, Protocol);
     }
 
     bool isObjCObject() const
@@ -731,14 +685,6 @@ public:
     PointerType(const Node *Pointee_)
         : Node(KPointerType, Pointee_->getRHSComponentCache()), Pointee(Pointee_)
     {
-    }
-
-    const Node *getPointee() const { return Pointee; }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Pointee);
     }
 
     bool hasRHSComponentSlow(OutputBuffer &OB) const override
@@ -826,12 +772,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Pointee, RK);
-    }
-
     bool hasRHSComponentSlow(OutputBuffer &OB) const override
     {
         return Pointee->hasRHSComponent(OB);
@@ -878,12 +818,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(ClassType, MemberType);
-    }
-
     bool hasRHSComponentSlow(OutputBuffer &OB) const override
     {
         return MemberType->hasRHSComponent(OB);
@@ -919,12 +853,6 @@ public:
                /*ArrayCache=*/Cache::Yes),
           Base(Base_), Dimension(Dimension_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Base, Dimension);
     }
 
     bool hasRHSComponentSlow(OutputBuffer &) const override { return true; }
@@ -969,12 +897,6 @@ public:
           Ret(Ret_), Params(Params_), CVQuals(CVQuals_), RefQual(RefQual_),
           ExceptionSpec(ExceptionSpec_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Ret, Params, CVQuals, RefQual, ExceptionSpec);
     }
 
     bool hasRHSComponentSlow(OutputBuffer &) const override { return true; }
@@ -1025,12 +947,6 @@ class NoexceptSpec : public Node {
 public:
     NoexceptSpec(const Node *E_) : Node(KNoexceptSpec), E(E_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(E);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += "noexcept";
@@ -1045,12 +961,6 @@ class DynamicExceptionSpec : public Node {
 
 public:
     DynamicExceptionSpec(NodeArray Types_) : Node(KDynamicExceptionSpec), Types(Types_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Types);
-    }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -1072,17 +982,7 @@ class ExplicitObjectParameter final : public Node {
     Node *Base;
 
 public:
-    ExplicitObjectParameter(Node *Base_) : Node(KExplicitObjectParameter), Base(Base_)
-    {
-        DEMANGLE_ASSERT(Base != nullptr,
-                        "Creating an ExplicitObjectParameter without a valid Base Node.");
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Base);
-    }
+    ExplicitObjectParameter(Node *Base_) : Node(KExplicitObjectParameter), Base(Base_) {}
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -1111,23 +1011,8 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Ret, Name, Params, Attrs, Requires, CVQuals, RefQual);
-    }
-
-    Qualifiers getCVQuals() const { return CVQuals; }
-    FunctionRefQual getRefQual() const { return RefQual; }
-    NodeArray getParams() const { return Params; }
-    const Node *getReturnType() const { return Ret; }
-    const Node *getAttrs() const { return Attrs; }
-    const Node *getRequires() const { return Requires; }
-
     bool hasRHSComponentSlow(OutputBuffer &) const override { return true; }
     bool hasFunctionSlow(OutputBuffer &) const override { return true; }
-
-    const Node *getName() const { return Name; }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -1177,12 +1062,6 @@ class LiteralOperator : public Node {
 public:
     LiteralOperator(const Node *OpName_) : Node(KLiteralOperator), OpName(OpName_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(OpName);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += "operator\"\" ";
@@ -1198,12 +1077,6 @@ public:
     SpecialName(std::string_view Special_, const Node *Child_)
         : Node(KSpecialName), Special(Special_), Child(Child_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Special, Child);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -1223,12 +1096,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(FirstType, SecondType);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += "construction vtable for ";
@@ -1243,12 +1110,6 @@ struct NestedName : Node {
     Node *Name;
 
     NestedName(Node *Qual_, Node *Name_) : Node(KNestedName), Qual(Qual_), Name(Name_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Qual, Name);
-    }
 
     std::string_view getBaseName() const override { return Name->getBaseName(); }
 
@@ -1267,12 +1128,6 @@ struct MemberLikeFriendName : Node {
     MemberLikeFriendName(Node *Qual_, Node *Name_)
         : Node(KMemberLikeFriendName), Qual(Qual_), Name(Name_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Qual, Name);
     }
 
     std::string_view getBaseName() const override { return Name->getBaseName(); }
@@ -1295,12 +1150,6 @@ struct ModuleName : Node {
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Parent, Name, IsPartition);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         if (Parent)
@@ -1318,12 +1167,6 @@ struct ModuleEntity : Node {
     ModuleEntity(ModuleName *Module_, Node *Name_)
         : Node(KModuleEntity), Module(Module_), Name(Name_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Module, Name);
     }
 
     std::string_view getBaseName() const override { return Name->getBaseName(); }
@@ -1345,12 +1188,6 @@ struct LocalName : Node {
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Encoding, Entity);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         Encoding->print(OB);
@@ -1368,12 +1205,6 @@ public:
     QualifiedName(const Node *Qualifier_, const Node *Name_)
         : Node(KQualifiedName), Qualifier(Qualifier_), Name(Name_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Qualifier, Name);
     }
 
     std::string_view getBaseName() const override { return Name->getBaseName(); }
@@ -1396,15 +1227,6 @@ public:
     {
     }
 
-    const Node *getBaseType() const { return BaseType; }
-    const Node *getDimension() const { return Dimension; }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(BaseType, Dimension);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         BaseType->print(OB);
@@ -1421,12 +1243,6 @@ class PixelVectorType final : public Node {
 public:
     PixelVectorType(const Node *Dimension_) : Node(KPixelVectorType), Dimension(Dimension_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Dimension);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         // FIXME: This should demangle as "vector pixel".
@@ -1441,12 +1257,6 @@ class BinaryFPType final : public Node {
 
 public:
     BinaryFPType(const Node *Dimension_) : Node(KBinaryFPType), Dimension(Dimension_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Dimension);
-    }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -1473,12 +1283,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Kind, Index);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         switch (Kind) {
@@ -1498,20 +1302,10 @@ public:
 };
 
 class TemplateParamQualifiedArg final : public Node {
-    Node *Param;
     Node *Arg;
 
 public:
-    TemplateParamQualifiedArg(Node *Param_, Node *Arg_)
-        : Node(KTemplateParamQualifiedArg), Param(Param_), Arg(Arg_)
-    {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Param, Arg);
-    }
+    TemplateParamQualifiedArg(Node *Arg_) : Node(KTemplateParamQualifiedArg), Arg(Arg_) {}
 
     Node *getArg() { return Arg; }
 
@@ -1529,12 +1323,6 @@ class TypeTemplateParamDecl final : public Node {
 public:
     TypeTemplateParamDecl(Node *Name_) : Node(KTypeTemplateParamDecl, Cache::Yes), Name(Name_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Name);
-    }
-
     void printLeft(OutputBuffer &OB) const override { OB += "typename "; }
 
     void printRight(OutputBuffer &OB) const override { Name->print(OB); }
@@ -1549,12 +1337,6 @@ public:
     ConstrainedTypeTemplateParamDecl(Node *Constraint_, Node *Name_)
         : Node(KConstrainedTypeTemplateParamDecl, Cache::Yes), Constraint(Constraint_), Name(Name_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Constraint, Name);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -1575,12 +1357,6 @@ public:
     NonTypeTemplateParamDecl(Node *Name_, Node *Type_)
         : Node(KNonTypeTemplateParamDecl, Cache::Yes), Name(Name_), Type(Type_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Name, Type);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -1611,12 +1387,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Name, Params, Requires);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         ScopedOverride<bool> LT(OB.TemplateTracker.InsideTemplate, true);
@@ -1641,12 +1411,6 @@ class TemplateParamPackDecl final : public Node {
 
 public:
     TemplateParamPackDecl(Node *Param_) : Node(KTemplateParamPackDecl, Cache::Yes), Param(Param_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Param);
-    }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -1691,12 +1455,6 @@ public:
         if (std::all_of(Data.begin(), Data.end(),
                         [](Node *P) { return P->getRHSComponentCache() == Cache::No; }))
             RHSComponentCache = Cache::No;
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Data);
     }
 
     bool hasRHSComponentSlow(OutputBuffer &OB) const override
@@ -1751,12 +1509,6 @@ class TemplateArgumentPack final : public Node {
 public:
     TemplateArgumentPack(NodeArray Elements_) : Node(KTemplateArgumentPack), Elements(Elements_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Elements);
-    }
-
     NodeArray getElements() const { return Elements; }
 
     void printLeft(OutputBuffer &OB) const override { Elements.printWithComma(OB); }
@@ -1769,14 +1521,6 @@ class ParameterPackExpansion final : public Node {
 
 public:
     ParameterPackExpansion(const Node *Child_) : Node(KParameterPackExpansion), Child(Child_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Child);
-    }
-
-    const Node *getChild() const { return Child; }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -1822,12 +1566,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Pattern, Index);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB.printOpen('(');
@@ -1842,21 +1580,9 @@ public:
 
 class TemplateArgs final : public Node {
     NodeArray Params;
-    Node *Requires;
 
 public:
-    TemplateArgs(NodeArray Params_, Node *Requires_)
-        : Node(KTemplateArgs), Params(Params_), Requires(Requires_)
-    {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Params, Requires);
-    }
-
-    NodeArray getParams() { return Params; }
+    TemplateArgs(NodeArray Params_) : Node(KTemplateArgs), Params(Params_) {}
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -1901,12 +1627,6 @@ struct ForwardTemplateReference : Node {
           Index(Index_)
     {
     }
-
-    // We don't provide a matcher for these, because the value of the node is
-    // not determined by its construction parameters, and it generally needs
-    // special handling.
-    template <typename Fn>
-    void match(Fn F) const = delete;
 
     bool hasRHSComponentSlow(OutputBuffer &OB) const override
     {
@@ -1963,12 +1683,6 @@ struct NameWithTemplateArgs : Node {
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Name, TemplateArgs);
-    }
-
     std::string_view getBaseName() const override { return Name->getBaseName(); }
 
     void printLeft(OutputBuffer &OB) const override
@@ -1983,12 +1697,6 @@ class GlobalQualifiedName final : public Node {
 
 public:
     GlobalQualifiedName(Node *Child_) : Node(KGlobalQualifiedName), Child(Child_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Child);
-    }
 
     std::string_view getBaseName() const override { return Child->getBaseName(); }
 
@@ -2022,12 +1730,6 @@ public:
     }
     inline ExpandedSpecialSubstitution(SpecialSubstitution const *);
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(SSK);
-    }
-
 protected:
     bool isInstantiation() const { return unsigned(SSK) >= unsigned(SpecialSubKind::string); }
 
@@ -2047,7 +1749,7 @@ protected:
         case SpecialSubKind::iostream:
             return { "basic_iostream" };
         }
-        DEMANGLE_UNREACHABLE;
+        __builtin_unreachable();
     }
 
 private:
@@ -2070,18 +1772,11 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(SSK);
-    }
-
     std::string_view getBaseName() const override
     {
         std::string_view SV = ExpandedSpecialSubstitution::getBaseName();
         if (isInstantiation()) {
             // The instantiations are typedefs that drop the "basic_" prefix.
-            DEMANGLE_ASSERT(starts_with(SV, "basic_"), "");
             SV.remove_prefix(sizeof("basic_") - 1);
         }
         return SV;
@@ -2098,18 +1793,11 @@ inline ExpandedSpecialSubstitution::ExpandedSpecialSubstitution(SpecialSubstitut
 class CtorDtorName final : public Node {
     const Node *Basename;
     const bool IsDtor;
-    const int Variant;
 
 public:
-    CtorDtorName(const Node *Basename_, bool IsDtor_, int Variant_)
-        : Node(KCtorDtorName), Basename(Basename_), IsDtor(IsDtor_), Variant(Variant_)
+    CtorDtorName(const Node *Basename_, bool IsDtor_)
+        : Node(KCtorDtorName), Basename(Basename_), IsDtor(IsDtor_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Basename, IsDtor, Variant);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2126,12 +1814,6 @@ class DtorName : public Node {
 public:
     DtorName(const Node *Base_) : Node(KDtorName), Base(Base_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Base);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += "~";
@@ -2144,12 +1826,6 @@ class UnnamedTypeName : public Node {
 
 public:
     UnnamedTypeName(std::string_view Count_) : Node(KUnnamedTypeName), Count(Count_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Count);
-    }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -2172,12 +1848,6 @@ public:
         : Node(KClosureTypeName), TemplateParams(TemplateParams_), Requires1(Requires1_),
           Params(Params_), Requires2(Requires2_), Count(Count_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(TemplateParams, Requires1, Params, Requires2, Count);
     }
 
     void printDeclarator(OutputBuffer &OB) const
@@ -2220,12 +1890,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Bindings);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB.printOpen('[');
@@ -2245,12 +1909,6 @@ public:
     BinaryExpr(const Node *LHS_, std::string_view InfixOperator_, const Node *RHS_, Prec Prec_)
         : Node(KBinaryExpr, Prec_), LHS(LHS_), InfixOperator(InfixOperator_), RHS(RHS_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(LHS, InfixOperator, RHS, getPrecedence());
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2285,12 +1943,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Op1, Op2, getPrecedence());
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         Op1->printAsOperand(OB, getPrecedence());
@@ -2310,12 +1962,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Child, Operator, getPrecedence());
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         Child->printAsOperand(OB, getPrecedence(), true);
@@ -2332,12 +1978,6 @@ public:
     ConditionalExpr(const Node *Cond_, const Node *Then_, const Node *Else_, Prec Prec_)
         : Node(KConditionalExpr, Prec_), Cond(Cond_), Then(Then_), Else(Else_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Cond, Then, Else, getPrecedence());
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2361,12 +2001,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(LHS, Kind, RHS, getPrecedence());
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         LHS->printAsOperand(OB, getPrecedence(), true);
@@ -2380,20 +2014,13 @@ class SubobjectExpr : public Node {
     const Node *SubExpr;
     std::string_view Offset;
     NodeArray UnionSelectors;
-    bool OnePastTheEnd;
 
 public:
     SubobjectExpr(const Node *Type_, const Node *SubExpr_, std::string_view Offset_,
-                  NodeArray UnionSelectors_, bool OnePastTheEnd_)
+                  NodeArray UnionSelectors_)
         : Node(KSubobjectExpr), Type(Type_), SubExpr(SubExpr_), Offset(Offset_),
-          UnionSelectors(UnionSelectors_), OnePastTheEnd(OnePastTheEnd_)
+          UnionSelectors(UnionSelectors_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Type, SubExpr, Offset, UnionSelectors, OnePastTheEnd);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2425,12 +2052,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Prefix, Infix, getPrecedence());
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += Prefix;
@@ -2451,12 +2072,6 @@ public:
     CastExpr(std::string_view CastKind_, const Node *To_, const Node *From_, Prec Prec_)
         : Node(KCastExpr, Prec_), CastKind(CastKind_), To(To_), From(From_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(CastKind, To, From, getPrecedence());
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2480,12 +2095,6 @@ class SizeofParamPackExpr : public Node {
 public:
     SizeofParamPackExpr(const Node *Pack_) : Node(KSizeofParamPackExpr), Pack(Pack_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Pack);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += "sizeof...";
@@ -2505,12 +2114,6 @@ public:
     CallExpr(const Node *Callee_, NodeArray Args_, bool IsParen_, Prec Prec_)
         : Node(KCallExpr, Prec_), Callee(Callee_), Args(Args_), IsParen(IsParen_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Callee, Args, IsParen, getPrecedence());
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2539,12 +2142,6 @@ public:
         : Node(KNewExpr, Prec_), ExprList(ExprList_), Type(Type_), InitList(InitList_),
           IsGlobal(IsGlobal_), IsArray(IsArray_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(ExprList, Type, InitList, IsGlobal, IsArray, getPrecedence());
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2580,12 +2177,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Op, IsGlobal, IsArray, getPrecedence());
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         if (IsGlobal)
@@ -2608,12 +2199,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Prefix, Child, getPrecedence());
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += Prefix;
@@ -2626,12 +2211,6 @@ class FunctionParam : public Node {
 
 public:
     FunctionParam(std::string_view Number_) : Node(KFunctionParam), Number(Number_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Number);
-    }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -2648,12 +2227,6 @@ public:
     ConversionExpr(const Node *Type_, NodeArray Expressions_, Prec Prec_)
         : Node(KConversionExpr, Prec_), Type(Type_), Expressions(Expressions_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Type, Expressions, getPrecedence());
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2680,12 +2253,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Type, SubExpr, Offset, getPrecedence());
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB.printOpen();
@@ -2703,12 +2270,6 @@ class InitListExpr : public Node {
 
 public:
     InitListExpr(const Node *Ty_, NodeArray Inits_) : Node(KInitListExpr), Ty(Ty_), Inits(Inits_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Ty, Inits);
-    }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -2732,12 +2293,6 @@ public:
     BracedExpr(const Node *Elem_, const Node *Init_, bool IsArray_)
         : Node(KBracedExpr), Elem(Elem_), Init(Init_), IsArray(IsArray_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Elem, Init, IsArray);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2767,12 +2322,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(First, Last, Init);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += '[';
@@ -2796,12 +2345,6 @@ public:
         : Node(KFoldExpr), Pack(Pack_), Init(Init_), OperatorName(OperatorName_),
           IsLeftFold(IsLeftFold_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(IsLeftFold, OperatorName, Pack, Init);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2843,12 +2386,6 @@ class ThrowExpr : public Node {
 public:
     ThrowExpr(const Node *Op_) : Node(KThrowExpr), Op(Op_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Op);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += "throw ";
@@ -2862,12 +2399,6 @@ class BoolExpr : public Node {
 public:
     BoolExpr(bool Value_) : Node(KBoolExpr), Value(Value_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Value);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += Value ? std::string_view("true") : std::string_view("false");
@@ -2879,12 +2410,6 @@ class StringLiteral : public Node {
 
 public:
     StringLiteral(const Node *Type_) : Node(KStringLiteral), Type(Type_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Type);
-    }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -2899,12 +2424,6 @@ class LambdaExpr : public Node {
 
 public:
     LambdaExpr(const Node *Type_) : Node(KLambdaExpr), Type(Type_) {}
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Type);
-    }
 
     void printLeft(OutputBuffer &OB) const override
     {
@@ -2924,12 +2443,6 @@ public:
     EnumLiteral(const Node *Ty_, std::string_view Integer_)
         : Node(KEnumLiteral), Ty(Ty_), Integer(Integer_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Ty, Integer);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2953,12 +2466,6 @@ public:
     IntegerLiteral(std::string_view Type_, std::string_view Value_)
         : Node(KIntegerLiteral), Type(Type_), Value(Value_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Type, Value);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -2989,12 +2496,6 @@ public:
     RequiresExpr(NodeArray Parameters_, NodeArray Requirements_)
         : Node(KRequiresExpr), Parameters(Parameters_), Requirements(Requirements_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Parameters, Requirements);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -3028,12 +2529,6 @@ public:
     {
     }
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Expr, IsNoexcept, TypeConstraint);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += " ";
@@ -3058,12 +2553,6 @@ class TypeRequirement : public Node {
 public:
     TypeRequirement(const Node *Type_) : Node(KTypeRequirement), Type(Type_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Type);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         OB += " typename ";
@@ -3078,12 +2567,6 @@ class NestedRequirement : public Node {
 public:
     NestedRequirement(const Node *Constraint_) : Node(KNestedRequirement), Constraint(Constraint_)
     {
-    }
-
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Constraint);
     }
 
     void printLeft(OutputBuffer &OB) const override
@@ -3121,12 +2604,6 @@ class FloatLiteralImpl : public Node {
 public:
     FloatLiteralImpl(std::string_view Contents_) : Node(KindForClass), Contents(Contents_) {}
 
-    template <typename Fn>
-    void match(Fn F) const
-    {
-        F(Contents);
-    }
-
     void printLeft(OutputBuffer &OB) const override
     {
         const size_t N = FloatData<Float>::mangled_size;
@@ -3146,44 +2623,13 @@ public:
                                           : static_cast<unsigned>(*t - 'a' + 10);
                 *e          = static_cast<char>((d1 << 4) + d0);
             }
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
             std::reverse(buf, e);
-#endif
             char num[FloatData<Float>::max_demangled_size] = { 0 };
             int n = snprintf(num, sizeof(num), FloatData<Float>::spec, value);
             OB += std::string_view(num, n);
         }
     }
 };
-
-using FloatLiteral      = FloatLiteralImpl<float>;
-using DoubleLiteral     = FloatLiteralImpl<double>;
-using LongDoubleLiteral = FloatLiteralImpl<long double>;
-
-/// Visit the node. Calls \c F(P), where \c P is the node cast to the
-/// appropriate derived class.
-template <typename Fn>
-void Node::visit(Fn F) const
-{
-    switch (K) {
-#define NODE(X) \
-    case K##X:  \
-        return F(static_cast<const X *>(this));
-#include "ItaniumNodes.def"
-    }
-    DEMANGLE_ASSERT(0, "unknown mangling node kind");
-}
-
-/// Determine the kind of a node from its type.
-template <typename NodeT>
-struct NodeKind;
-#define NODE(X)                                            \
-    template <>                                            \
-    struct NodeKind<X> {                                   \
-        static constexpr Node::Kind Kind = Node::K##X;     \
-        static constexpr const char *name() { return #X; } \
-    };
-#include "ItaniumNodes.def"
 
 inline bool NodeArray::printAsString(OutputBuffer &OB) const
 {
@@ -3306,7 +2752,6 @@ struct AbstractManglingParser {
         }
         ~ScopedTemplateParamList()
         {
-            DEMANGLE_ASSERT(Parser->TemplateParams.size() >= OldNumTemplateParamLists, "");
             Parser->TemplateParams.shrinkToSize(OldNumTemplateParamLists);
         }
         TemplateParamList *params() { return &Params; }
@@ -3361,21 +2806,6 @@ struct AbstractManglingParser {
 
     Derived &getDerived() { return static_cast<Derived &>(*this); }
 
-    void reset(const char *First_, const char *Last_)
-    {
-        First = First_;
-        Last  = Last_;
-        Names.clear();
-        Subs.clear();
-        TemplateParams.clear();
-        ParsingLambdaParamsAtLevel      = (size_t)-1;
-        TryToParseTemplateArgs          = true;
-        PermitForwardTemplateReferences = false;
-        for (int I = 0; I != 3; ++I)
-            NumSyntheticTemplateParameters[I] = 0;
-        ASTAllocator.reset();
-    }
-
     template <class T, class... Args>
     Node *make(Args &&...args)
     {
@@ -3394,7 +2824,6 @@ struct AbstractManglingParser {
 
     NodeArray popTrailingNodeArray(size_t FromPosition)
     {
-        DEMANGLE_ASSERT(FromPosition <= Names.size(), "");
         NodeArray res = makeNodeArray(Names.begin() + (long)FromPosition, Names.end());
         Names.shrinkToSize(FromPosition);
         return res;
@@ -3455,7 +2884,6 @@ struct AbstractManglingParser {
     template <class Float>
     Node *parseFloatingLiteral();
     Node *parseFunctionParam();
-    Node *parseConversionExpr();
     Node *parseBracedExpr();
     Node *parseFoldExpr();
     Node *parsePointerToMemberConversionExpr(Node::Prec Prec);
@@ -3566,8 +2994,6 @@ struct AbstractManglingParser {
         {
             std::string_view Res = Name;
             if (Kind < Unnameable) {
-                DEMANGLE_ASSERT(starts_with(Res, "operator"),
-                                "operator name does not start with 'operator'");
                 Res.remove_prefix(sizeof("operator") - 1);
                 if (starts_with(Res, ' '))
                     Res.remove_prefix(1);
@@ -3594,7 +3020,7 @@ struct AbstractManglingParser {
     Node *parse(bool ParseParams = true);
 };
 
-DEMANGLE_ABI const char *parse_discriminator(const char *first, const char *last);
+const char *parse_discriminator(const char *first, const char *last);
 
 // <name> ::= <nested-name> // N
 //        ::= <local-name> # See Scope Encoding below  // Z
@@ -4081,7 +3507,6 @@ Node *AbstractManglingParser<Derived, Alloc>::parseCtorDtorName(Node *&SoFar, Na
         bool IsInherited = consumeIf('I');
         if (look() != '1' && look() != '2' && look() != '3' && look() != '4' && look() != '5')
             return nullptr;
-        int Variant = look() - '0';
         ++First;
         if (State)
             State->CtorDtorConversion = true;
@@ -4089,16 +3514,15 @@ Node *AbstractManglingParser<Derived, Alloc>::parseCtorDtorName(Node *&SoFar, Na
             if (getDerived().parseName(State) == nullptr)
                 return nullptr;
         }
-        return make<CtorDtorName>(SoFar, /*IsDtor=*/false, Variant);
+        return make<CtorDtorName>(SoFar, /*IsDtor=*/false);
     }
 
     if (look() == 'D' &&
         (look(1) == '0' || look(1) == '1' || look(1) == '2' || look(1) == '4' || look(1) == '5')) {
-        int Variant = look(1) - '0';
         First += 2;
         if (State)
             State->CtorDtorConversion = true;
-        return make<CtorDtorName>(SoFar, /*IsDtor=*/true, Variant);
+        return make<CtorDtorName>(SoFar, /*IsDtor=*/true);
     }
 
     return nullptr;
@@ -4408,8 +3832,6 @@ Node *AbstractManglingParser<Derived, Alloc>::parseUnresolvedName(bool Global)
                 return nullptr;
         }
     }
-
-    DEMANGLE_ASSERT(SoFar != nullptr, "");
 
     Node *Base = getDerived().parseBaseUnresolvedName();
     if (Base == nullptr)
@@ -4774,7 +4196,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseType()
             Result = getDerived().parseFunctionType();
             break;
         }
-        DEMANGLE_FALLTHROUGH;
+        [[fallthrough]];
     }
     case 'U': {
         Result = getDerived().parseQualifiedType();
@@ -5230,7 +4652,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseType()
             }
             break;
         }
-        DEMANGLE_FALLTHROUGH;
+        [[fallthrough]];
     }
     //        ::= <class-enum-type>
     default: {
@@ -5328,41 +4750,6 @@ Node *AbstractManglingParser<Derived, Alloc>::parseFunctionParam()
     return nullptr;
 }
 
-// cv <type> <expression>                               # conversion with one argument
-// cv <type> _ <expression>* E                          # conversion with a different number of
-// arguments
-template <typename Derived, typename Alloc>
-Node *AbstractManglingParser<Derived, Alloc>::parseConversionExpr()
-{
-    if (!consumeIf("cv"))
-        return nullptr;
-    Node *Ty;
-    {
-        ScopedOverride<bool> SaveTemp(TryToParseTemplateArgs, false);
-        Ty = getDerived().parseType();
-    }
-
-    if (Ty == nullptr)
-        return nullptr;
-
-    if (consumeIf('_')) {
-        size_t ExprsBegin = Names.size();
-        while (!consumeIf('E')) {
-            Node *E = getDerived().parseExpr();
-            if (E == nullptr)
-                return E;
-            Names.push_back(E);
-        }
-        NodeArray Exprs = popTrailingNodeArray(ExprsBegin);
-        return make<ConversionExpr>(Ty, Exprs);
-    }
-
-    Node *E[1] = { getDerived().parseExpr() };
-    if (E[0] == nullptr)
-        return nullptr;
-    return make<ConversionExpr>(Ty, makeNodeArray(E, E + 1));
-}
-
 // <expr-primary> ::= L <type> <value number> E                          # integer literal
 //                ::= L <type> <value float> E                           # floating literal
 //                ::= L <string type> E                                  # string literal
@@ -5434,13 +4821,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseExprPrimary()
         return getDerived().template parseFloatingLiteral<double>();
     case 'e':
         ++First;
-#if defined(__powerpc__) || defined(__s390__)
-        // Handle cases where long doubles encoded with e have the same size
-        // and representation as doubles.
-        return getDerived().template parseFloatingLiteral<double>();
-#else
         return getDerived().template parseFloatingLiteral<long double>();
-#endif
     case '_':
         if (consumeIf("_Z")) {
             Node *R = getDerived().parseEncoding();
@@ -5629,11 +5010,10 @@ Node *AbstractManglingParser<Derived, Alloc>::parseSubobjectExpr()
             return nullptr;
         Names.push_back(Selector);
     }
-    bool OnePastTheEnd = consumeIf('p');
+    consumeIf('p');
     if (!consumeIf('E'))
         return nullptr;
-    return make<SubobjectExpr>(Ty, Expr, Offset, popTrailingNodeArray(SelectorsBegin),
-                               OnePastTheEnd);
+    return make<SubobjectExpr>(Ty, Expr, Offset, popTrailingNodeArray(SelectorsBegin));
 }
 
 template <typename Derived, typename Alloc>
@@ -5924,7 +5304,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseExpr()
             return nullptr;
         }
         }
-        DEMANGLE_UNREACHABLE;
+        __builtin_unreachable();
     }
 
     if (numLeft() < 2)
@@ -6362,17 +5742,7 @@ struct FloatData<double> {
 
 template <>
 struct FloatData<long double> {
-#if __LDBL_MANT_DIG__ == 113 || __LDBL_MANT_DIG__ == 106
     static const size_t mangled_size = 32;
-#elif __LDBL_MANT_DIG__ == 53 || defined(_MSC_VER)
-    // MSVC doesn't define __LDBL_MANT_DIG__, but it has long double equal to
-    // regular double on all current architectures.
-    static const size_t mangled_size = 16;
-#elif __LDBL_MANT_DIG__ == 64
-    static const size_t mangled_size = 20;
-#else
-#error Unknown size for __LDBL_MANT_DIG__
-#endif
     // `-0x1.ffffffffffffffffffffffffffffp+16383` + 'L' + '\0' == 42 bytes.
     // 28 'f's * 4 bits == 112 bits, which is the number of mantissa bits.
     // Negatives are one character longer than positives.
@@ -6541,7 +5911,6 @@ Node *AbstractManglingParser<Derived, Alloc>::parseTemplateParam()
         Node *ForwardRef = make<ForwardTemplateReference>(Index);
         if (!ForwardRef)
             return nullptr;
-        DEMANGLE_ASSERT(ForwardRef->getKind() == Node::KForwardTemplateReference, "");
         ForwardTemplateRefs.push_back(static_cast<ForwardTemplateReference *>(ForwardRef));
         return ForwardRef;
     }
@@ -6691,13 +6060,12 @@ Node *AbstractManglingParser<Derived, Alloc>::parseTemplateArg()
         // Either <template-param> or a <template-param-decl> <template-arg>.
         if (!getDerived().isTemplateParamDecl())
             return getDerived().parseType();
-        Node *Param = getDerived().parseTemplateParamDecl(nullptr);
-        if (!Param)
+        if (!getDerived().parseTemplateParamDecl(nullptr))
             return nullptr;
         Node *Arg = getDerived().parseTemplateArg();
         if (!Arg)
             return nullptr;
-        return make<TemplateParamQualifiedArg>(Param, Arg);
+        return make<TemplateParamQualifiedArg>(Arg);
     }
     default:
         return getDerived().parseType();
@@ -6752,7 +6120,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseTemplateArgs(bool TagTemplate
             break;
         }
     }
-    return make<TemplateArgs>(popTrailingNodeArray(ArgsBegin), Requires);
+    return make<TemplateArgs>(popTrailingNodeArray(ArgsBegin));
 }
 
 // <mangled-name> ::= _Z <encoding>
@@ -6822,10 +6190,4 @@ inline void OutputBuffer::printRight(const Node &N)
     N.printRight(*this);
 }
 
-DEMANGLE_NAMESPACE_END
-
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-
-#endif // DEMANGLE_ITANIUMDEMANGLE_H
+} // namespace llvm::itanium_demangle

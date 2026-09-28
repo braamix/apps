@@ -100,7 +100,7 @@ Only [ld/braam.cpp](ld/braam.cpp) reads and writes files.
 | `layout.cpp` | numbers functions and places data in memory |
 | `writer.cpp` | writes the output, fixing up addresses |
 | `driver.cpp` | parses the command line |
-| `demangle/` | LLVM's C++ name demangler, unchanged but for its library |
+| `demangle/` | LLVM's C++ name demangler, trimmed to what `ld` uses |
 
 [Wasm_Object_Format.md](Wasm_Object_Format.md) describes the file format
 `ld` reads and writes, byte by byte.

@@ -6,13 +6,12 @@
 
 #include "ItaniumDemangle.h"
 
-using namespace llvm;
 using namespace llvm::itanium_demangle;
 
 // <discriminator> := _ <non-negative number>      # when number < 10
 //                 := __ <non-negative number> _   # when number >= 10
 //  extension      := decimal-digit+               # at the end of string
-const char *itanium_demangle::parse_discriminator(const char *first, const char *last)
+const char *llvm::itanium_demangle::parse_discriminator(const char *first, const char *last)
 {
     // parse but ignore discriminator
     if (first != last) {
@@ -105,8 +104,6 @@ class DefaultAllocator {
     BumpPointerAllocator Alloc;
 
 public:
-    void reset() { Alloc.reset(); }
-
     template <typename T, typename... Args>
     T *makeNode(Args &&...args)
     {
@@ -117,32 +114,6 @@ public:
 };
 
 using Demangler = ManglingParser<DefaultAllocator>;
-
-// llvm::itaniumDemangle, the parser on the heap: it is some kilobytes.
-char *itanium_demangle_name(std::string_view MangledName, bool ParseParams)
-{
-    if (MangledName.empty())
-        return nullptr;
-    Demangler *Parser =
-        heap_new<Demangler>(MangledName.data(), MangledName.data() + MangledName.length());
-    if (!Parser)
-        return nullptr;
-    Node *AST    = Parser->parse(ParseParams);
-    char *Result = nullptr;
-    if (AST) {
-        OutputBuffer OB;
-        AST->print(OB);
-        OB += '\0';
-        Result = OB.getBuffer();
-    }
-    heap_delete(Parser);
-    return Result;
-}
-
-bool starts_with(std::string_view s, std::string_view p)
-{
-    return s.size() >= p.size() && s.substr(0, p.size()) == p;
-}
 
 bool isItaniumEncoding(std::string_view S)
 {
@@ -160,22 +131,27 @@ bool isItaniumEncoding(std::string_view S)
     return Pos > 0 && Pos <= 4 && Pos != std::string_view::npos && S[Pos] == 'Z';
 }
 
-// llvm::nonMicrosoftDemangle, for Itanium names alone.
+// llvm::nonMicrosoftDemangle, for Itanium names alone; the parser is some
+// kilobytes, so it goes on the heap.
 bool nonMicrosoftDemangle(std::string_view MangledName, String &Result, bool CanHaveLeadingDot)
 {
     // Do not consider the dot prefix as part of the demangled symbol name.
-    if (CanHaveLeadingDot && MangledName.size() > 0 && MangledName[0] == '.') {
+    if (CanHaveLeadingDot && !MangledName.empty() && MangledName[0] == '.') {
         MangledName.remove_prefix(1);
         Result.assign(Str(".", 1));
     }
-    char *Demangled = nullptr;
-    if (isItaniumEncoding(MangledName))
-        Demangled = itanium_demangle_name(MangledName, true);
-    if (!Demangled)
+    if (!isItaniumEncoding(MangledName))
         return false;
-    Result.append(Str(Demangled, std::strlen(Demangled)));
-    std::free(Demangled);
-    return true;
+    Demangler *Parser = heap_new<Demangler>(MangledName.begin(), MangledName.end());
+    Node *AST         = Parser->parse();
+    if (AST) {
+        OutputBuffer OB;
+        AST->print(OB);
+        Result.append(Str(OB.getBuffer(), OB.getCurrentPosition()));
+        std::free(OB.getBuffer());
+    }
+    heap_delete(Parser);
+    return AST != nullptr;
 }
 
 } // namespace
