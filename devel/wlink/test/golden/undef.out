@@ -1,0 +1,4 @@
+absent_fn absent
+absent_var absent
+present_fn 42
+present_var 17
