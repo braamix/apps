@@ -1,14 +1,17 @@
 # wasm — WebAssembly tools for Braam
 
-The `wasm` package installs two tools for WebAssembly. Both run on Braam.
+The `wasm` package installs three tools for WebAssembly. All run on Braam.
 
 - `ld`, a linker, turns the object files clang compiles into a program
   Braam can run. It does what `wasm-ld`, LLVM's linker, does, and gives
   the same output.
 - `strip` removes names and debug information from a program or an
   object. It does what `llvm-strip` does, and gives the same output.
+- `ar` makes and changes libraries of object files: archives, which `ld`
+  links as `lib<name>.a`. It is FreeBSD's `ar`, and writes the same bytes
+  as `llvm-ar --format=gnu`.
 
-The tests check both byte for byte. More tools, such as `as` and `nm`,
+The tests check all three byte for byte. More tools, such as `as` and `nm`,
 will join them here, one directory each.
 
 ## Using ld
@@ -134,6 +137,59 @@ would not run:
 A program can also be linked stripped: `ld --strip-all` writes exactly
 what `ld` and then `strip` would, without the second pass.
 
+## Using ar
+
+    ar -d [-Tjsvz] archive file ...
+    ar -m [-Tjsvz] [-a position-after | -b position-before] archive file ...
+    ar -p [-Tv] archive [file ...]
+    ar -q [-TcDjsUvz] archive file ...
+    ar -r [-TcDjsUuvz] [-a position-after | -b position-before] archive file ...
+    ar -s [-jz] archive
+    ar -t [-Tv] archive [file ...]
+    ar -x [-CTouv] archive [file ...]
+
+The first letter says what to do; the rest change how:
+
+| Mode | Meaning |
+| --- | --- |
+| `-r` | add files, replacing members of the same name in their place |
+| `-q` | append files, without looking for members of the same name |
+| `-d` | delete members |
+| `-m` | move members, to the end or to `-a`/`-b`'s position |
+| `-s` | write the symbol table |
+| `-t` | list members; with `-v`, as `ls -l` would |
+| `-p` | print members to stdout |
+| `-x` | extract members into the current directory |
+
+The dash may be left out, so the usual way to make a library is
+
+    ar rc libfoo.a one.o two.o
+
+`-c` creates the archive without a warning. `-v` says what was done to each
+member. `-u` replaces or extracts only what is newer, and `-C` extracts
+nothing that is already there.
+
+The archive is written deterministically: every date, owner and group is
+0 and every mode 644, so the same files always make the same bytes. `-U`
+keeps each file's date instead. A symbol table, `/`, is written whenever a
+member defines a symbol; `-S` leaves it out. `ld` does not read it, as
+`wasm-ld` does not, but other linkers do.
+
+The exit status is 0 on success and 1 on an error.
+
+What differs from FreeBSD's `ar`:
+
+- **The archive is replaced safely.** It is written to `<archive>.ar`
+  first and then renamed over the old one, so a failure leaves the old
+  archive whole. If `<archive>.ar` already exists, that is an error.
+- **Files have no mode, owner or group on Braam.** A member added with
+  `-U` has mode 644, and owner and group 0. An extracted file gets the
+  default mode.
+- **A file's date cannot be set.** `-x -o` warns once that it cannot
+  restore the dates, and extracts anyway.
+- **There is no `-M`**, the MRI script mode, and no `ranlib`. `ar -s` does
+  what `ranlib` did.
+
 ## Inside
 
 [lib/](lib/) reads and writes wasm modules, objects and archives, for every
@@ -184,6 +240,19 @@ memory. Only its `braam.cpp` reads and writes files.
 | `strip.cpp` | copies what is kept, and leaves placeholders in an object |
 | `driver.cpp` | parses the command line |
 
+### ar
+
+[ar/](ar/) is a port: FreeBSD's sources, with its names, comments and
+messages. [ar/README.md](ar/README.md) says what had to change.
+
+| File | What it does |
+| --- | --- |
+| `ar.cpp` | the command line and the modes |
+| `read.cpp` | `-t`, `-p` and `-x` |
+| `write.cpp` | every mode that writes, and the symbol table |
+| `util.cpp` | warnings and errors, and the output |
+| `getopt.cpp` | the options, as FreeBSD's `getopt_long` reads them |
+
 [Wasm_Object_Format.md](Wasm_Object_Format.md) describes the file format
 `ld` reads and writes, byte by byte.
 
@@ -200,3 +269,10 @@ test program and object, and `ld` itself, with both `strip` and
 `llvm-strip`, and the results must be equal byte for byte. Then it checks
 that a stripped program still runs, that `ld` links stripped objects as
 `wasm-ld` does, and that each error is reported as it should be.
+
+And it runs [ar/test/ar.mjs](ar/test/ar.mjs). Each mode is run by both
+`ar` and `llvm-ar --format=gnu`, and the archives must be equal byte for
+byte. Every SDK library is taken apart with `ar x` and put back with
+`ar rc`, and must come out as the SDK's own file. Then `ld` links archives
+`ar` made as `wasm-ld` does, `ar`'s listings are checked against golden
+files, and each error is reported as upstream reports it.
