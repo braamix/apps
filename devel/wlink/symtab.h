@@ -19,10 +19,13 @@ struct Source {
 struct InputFile {
     Object obj;
     bool lazy   = false; // an archive member not (yet) loaded
+    bool member = false; // came out of an archive
     bool loaded = false;
-    Vec<u32> symbols; // object symbol -> global symbol; NONE for a local one
-    Vec<u8> called;   // object symbol is the target of a direct call
-    Vec<u8> kept;     // comdat was this file's to keep
+    bool live   = false; // something it defines is live
+    Vec<u32> symbols;    // object symbol -> global symbol; NONE for a local one
+    Vec<u8> called;      // object symbol is the target of a direct call
+    Vec<u8> kept;        // comdat was this file's to keep
+    Vec<u8> live_functions, live_segments, live_globals, live_tables;
 };
 
 enum class State : u8 {
@@ -41,8 +44,10 @@ struct Sym {
     u32 index; // the file's symbol number
     const FuncType *sig = nullptr;
     bool called         = false; // an undefined function called directly
-    Str import_module;           // undefined: where it would be imported from
-    Str import_name;             // undefined: set only by an explicit name
+    bool stub           = false; // weak undefined function: a body that traps
+    bool live           = false;
+    Str import_module; // undefined: where it would be imported from
+    Str import_name;   // undefined: set only by an explicit name
 
     bool weak() const { return flags & wasm::SYM_WEAK; }
 
@@ -72,7 +77,8 @@ struct Linker {
 // the Diag.
 bool resolve(Linker &l, Span<const Source> inputs);
 
-// Undefined symbols that nothing makes allowable, reported per relocation.
+// Undefined symbols that nothing makes allowable, reported per relocation
+// from live chunks.
 bool check_undefined(Linker &l);
 
 void dump_symtab(const Linker &l, Out &out);

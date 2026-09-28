@@ -55,6 +55,7 @@ struct Function {
     u32 body_off; // its locals, just past the size field
     u32 body_size;
     u32 comdat = NONE;
+    Str name; // its first symbol's
 };
 
 struct Global {
@@ -63,11 +64,13 @@ struct Global {
     Expr init;
     u32 off; // into the GLOBAL section's contents
     u32 size;
+    Str name;
 };
 
 struct Table {
     u8 reftype;
     Limits limits;
+    Str name;
 };
 
 struct Export {

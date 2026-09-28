@@ -1,69 +1,21 @@
-// Step 2: symbol resolution. For every fixture, wlink on Braam and wasm-ld on
-// the host are given the same inputs and flags, and must load the same files
+// Symbol resolution. For every fixture, wlink on Braam and wasm-ld on the
+// host are given the same inputs and flags, and must load the same files
 // in the same order (--trace) for the same reasons (--why-extract). Links that
 // must fail must fail with wasm-ld's words. Then --dump-symtab is held to what
 // the fixtures' sources say each name resolves to.
 
-import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
-import { boot, die, get, manifest, ok, plant, run } from "./wlinklib.mjs";
+import { boot, die, FLAGS, linkers, manifest, ok } from "./wlinklib.mjs";
 
 const m = manifest();
-const WASM_LD = m.wasm_ld;
 
-const FLAGS = ["--no-demangle", "--import-memory", "--initial-memory=1048576", "--no-entry",
-               "--gc-sections", "--stack-first", "-z", "stack-size=131072"];
-
-// Every input by its base name, in one directory on each side.
-const tmp = mkdtempSync(join(tmpdir(), "wlink-resolve-"));
-process.on("exit", () => rmSync(tmp, { recursive: true, force: true }));
 const H = await boot();
-plant(H, "/bin/wlink", new Uint8Array(readFileSync(m.wlink)));
-const where = new Map();
-function place(path) {
-    const b = basename(path);
-    if (where.has(b) && where.get(b) !== path)
-        die(`two inputs are named ${b}`);
-    if (!where.has(b)) {
-        where.set(b, path);
-        copyFileSync(path, join(tmp, b));
-        plant(H, `/tmp/${b}`, new Uint8Array(readFileSync(path)));
-    }
-    return b;
-}
-
-function wasm_ld(args) {
-    const r = spawnSync(WASM_LD, [...args, "-o", "out.wasm"], { cwd: tmp, encoding: "utf8" });
-    if (r.error)
-        die(`cannot run ${WASM_LD}: ${r.error.message}`);
-    let why = "";
-    try {
-        why = readFileSync(join(tmp, "why"), "utf8");
-    } catch {}
-    rmSync(join(tmp, "why"), { force: true });
-    return { out: r.stdout, err: r.stderr, status: r.status, why };
-}
-
-function wlink(args) {
-    for (const k of ["/tmp/o", "/tmp/e", "/tmp/s", "/tmp/why"])
-        H.store.files.delete(k);
-    plant(H, "/tmp/rsp", args.join("\n") + "\n");
-    run(H, "cd /tmp; wlink @rsp >o 2>e; echo $? >s");
-    return { out: get(H, "/tmp/o") ?? "", err: get(H, "/tmp/e") ?? "",
-             status: Number(get(H, "/tmp/s")), why: get(H, "/tmp/why") ?? "" };
-}
+const { inputs, wasm_ld, wlink } = linkers(H, m);
 
 const bad = [];
 const same = (what, a, b) => {
     if (a !== b)
         bad.push(`${what}:\n  wlink:   ${JSON.stringify(a)}\n  wasm-ld: ${JSON.stringify(b)}`);
 };
-
-function inputs(fx) {
-    return [...fx.objects, ...(fx.archives ?? []), ...fx.libs].map(place);
-}
 
 // ---------------------------------------------------------------- loading
 

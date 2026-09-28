@@ -1,9 +1,10 @@
 // The Braam front end: reads what the command line names, hands the bytes to
 // the core, and writes what comes back. Only this file awaits.
 //
-// Linking stops after symbol resolution for now: nothing is written to -o.
+// Linking stops after liveness for now: nothing is written to -o.
 #include "driver.h"
 #include "dump.h"
+#include "gc.h"
 #include "kernel/alloc.h"
 #include "proc/io.h"
 #include "symtab.h"
@@ -176,7 +177,10 @@ Task<i32> link(Front &s)
         s.diag.error("out of memory");
         co_return co_await finish(s, false);
     }
-    bool ok = resolve(*l, s.inputs) && check_undefined(*l);
+    bool ok = resolve(*l, s.inputs) && mark_live(*l);
+    if (ok && s.cfg.print_gc_sections)
+        print_gc_sections(*l, l->out);
+    ok = ok && check_undefined(*l);
     if (ok && s.cfg.dump_symtab)
         dump_symtab(*l, l->out);
     if (l->out.oom || l->why.oom)

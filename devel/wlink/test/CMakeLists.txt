@@ -97,6 +97,7 @@ endfunction()
 
 wlink_archive(fxa_one ${FX_SRC}/one_a.c ${FX_SRC}/one_c.c ${FX_SRC}/one_unused.c)
 wlink_archive(fxa_two ${FX_SRC}/two_b.c)
+wlink_archive(fxa_live ${FX_SRC}/live_m.c ${FX_SRC}/live_n.c)
 
 wlink_fixture(hello    SOURCES ${FX_SRC}/hello.c)
 wlink_fixture(ctors    SOURCES ${FX_SRC}/ctors.c ${FX_SRC}/ctors.cpp)
@@ -109,6 +110,7 @@ wlink_fixture(strings  SOURCES ${FX_SRC}/strings_a.c ${FX_SRC}/strings_b.c)
 wlink_fixture(export   SOURCES ${FX_SRC}/export.c)
 wlink_fixture(imports  SOURCES ${FX_SRC}/imports.c)
 wlink_fixture(archives SOURCES ${FX_SRC}/arch_main.c ARCHIVES fxa_one fxa_two)
+wlink_fixture(live     SOURCES ${FX_SRC}/live_a.c ARCHIVES fxa_live)
 wlink_fixture(port     SOURCES ${FX_SRC}/port.cpp PORT)
 
 wlink_bad(bad_dup   ${FX_SRC}/bad_dup_a.c ${FX_SRC}/bad_dup_b.c)

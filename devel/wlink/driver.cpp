@@ -79,6 +79,10 @@ struct Parser {
                 cfg.gc_sections = true;
             } else if (a == "--no-gc-sections") {
                 cfg.gc_sections = false;
+            } else if (a == "--print-gc-sections") {
+                cfg.print_gc_sections = true;
+            } else if (a == "--no-print-gc-sections") {
+                cfg.print_gc_sections = false;
             } else if (a == "--stack-first") {
                 cfg.stack_first = true;
             } else if (a == "--import-memory") {

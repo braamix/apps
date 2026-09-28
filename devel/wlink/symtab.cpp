@@ -522,7 +522,8 @@ struct Resolver {
         for (const Member &m : members) {
             if (!add_file(in.name, m.name, m.data))
                 return false;
-            l.files.back()->lazy = true;
+            l.files.back()->lazy   = true;
+            l.files.back()->member = true;
         }
         Frame fr{};
         fr.file = first;
@@ -576,6 +577,11 @@ struct Resolver {
             optional(name, SYM_DATA);
         if (l.diag.failed())
             return false;
+
+        // A weak undefined function gets a stub; one still lazy does not.
+        for (Sym &g : l.syms)
+            if (g.state == State::Undefined && g.weak() && g.kind == SYM_FUNCTION && g.sig)
+                g.stub = true;
 
         // What is still lazy was only ever wanted weakly, or not at all.
         for (Sym &g : l.syms)
@@ -635,13 +641,11 @@ bool check_undefined(Linker &l)
         const Object &o     = in.obj;
         for (const RelocSection &rs : o.relocs) {
             u8 target = o.sections[rs.target].id;
+            if (target != SEC_CODE && target != SEC_DATA)
+                continue;
+            const Vec<u8> &live = target == SEC_CODE ? in.live_functions : in.live_segments;
             for (const Reloc &r : rs.relocs) {
-                if (reloc_symbol_kind(r.type) == SYM_NONE)
-                    continue;
-                u32 comdat = target == SEC_CODE   ? o.functions[r.chunk].comdat
-                             : target == SEC_DATA ? o.segments[r.chunk].comdat
-                                                  : NONE;
-                if (comdat != NONE && !in.kept[comdat])
+                if (reloc_symbol_kind(r.type) == SYM_NONE || !live[r.chunk])
                     continue;
                 u32 id = in.symbols[r.index];
                 if (id == NONE)

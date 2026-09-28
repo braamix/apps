@@ -115,7 +115,7 @@ devel/wlink/
   dump.cpp/.h      --dump, in llvm-objdump -t -r's layout
   diag.h           errors, worded and limited as lld's are
   symtab.cpp/.h    resolution: strong/weak/lazy/undefined, comdats, imports
-  gc.cpp           liveness from roots through relocations (worklist)
+  gc.cpp/.h        liveness from roots through relocations (worklist)
   layout.cpp       index spaces, types, table, memory map, synthetic symbols
   writer.cpp       output sections, relocation patching, name, stamp
   driver.cpp/.h    options → Config; link(Config, inputs) → bytes | error
@@ -188,26 +188,6 @@ testing against wasm-ld.
 
 Each step ends with a test that runs under `make test`, and none starts
 until the previous one's test passes.
-
-### Step 3 — Liveness (`--gc-sections`)
-
-- **Roots:**
-  - exported symbols, meaning `WASM_SYM_EXPORTED`, `--export` and
-    `--entry`;
-  - `WASM_SYM_NO_STRIP`;
-  - the init functions, but only if `__wasm_call_ctors` is live. That's
-    lld's rule, and here `_start` makes it live.
-- Marking walks a chunk's relocations to the chunks they name, using a
-  worklist.
-- Undefined symbols are then reported only from live chunks, as wasm-ld
-  reports them. Until this step they are reported from every loaded chunk.
-- A chunk is one function body or one data segment. Custom sections other
-  than `producers`, `target_features` and `name` are dropped. Debug
-  sections come in step 9.
-- `--print-gc-sections` lists what was dropped.
-- **Test:** for every fixture, the set of live function names equals the
-  set in the wasm-ld output's `name` section. For c4, compare the counts:
-  function count, and data size within the difference `.bss` makes.
 
 ### Step 4 — Layout
 

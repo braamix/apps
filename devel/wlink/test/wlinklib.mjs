@@ -2,9 +2,11 @@
 // oracle a linked fixture is held to — its module surface and its output.
 // The oracle takes bytes, so wasm-ld's links and wlink's are judged alike.
 
-import { dirname, join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync, readFileSync } from "node:fs";
 import { HARNESS, KERNEL, ROOTFS } from "../../../test/sdk.mjs";
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
@@ -78,6 +80,60 @@ export function execute(H, bytes) {
     H.store.files.delete("/tmp/o");
     run(H, "fx >/tmp/o; echo $? >/tmp/s");
     return { out: get(H, "/tmp/o"), status: Number(get(H, "/tmp/s")) };
+}
+
+// ---------------------------------------------------------------- two linkers
+
+// What braam_add_program passes, less what the linker does not do yet.
+export const FLAGS = ["--no-demangle", "--import-memory", "--initial-memory=1048576",
+    "--no-entry", "--gc-sections", "--stack-first", "-z", "stack-size=131072"];
+
+// wlink on Braam and wasm-ld on the host, given the same inputs, each by its
+// base name in one directory. Each returns { out, err, status, why }.
+export function linkers(H, m) {
+    const tmp = mkdtempSync(join(tmpdir(), "wlink-"));
+    process.on("exit", () => rmSync(tmp, { recursive: true, force: true }));
+    plant(H, "/bin/wlink", new Uint8Array(readFileSync(m.wlink)));
+    const where = new Map();
+
+    function place(path) {
+        const b = basename(path);
+        if (where.has(b) && where.get(b) !== path)
+            die(`two inputs are named ${b}`);
+        if (!where.has(b)) {
+            where.set(b, path);
+            copyFileSync(path, join(tmp, b));
+            plant(H, `/tmp/${b}`, new Uint8Array(readFileSync(path)));
+        }
+        return b;
+    }
+
+    function inputs(fx) {
+        return [...fx.objects, ...(fx.archives ?? []), ...fx.libs].map(place);
+    }
+
+    function wasm_ld(args) {
+        const r = spawnSync(m.wasm_ld, [...args, "-o", "out.wasm"], { cwd: tmp, encoding: "utf8" });
+        if (r.error)
+            die(`cannot run ${m.wasm_ld}: ${r.error.message}`);
+        let why = "";
+        try {
+            why = readFileSync(join(tmp, "why"), "utf8");
+        } catch {}
+        rmSync(join(tmp, "why"), { force: true });
+        return { out: r.stdout, err: r.stderr, status: r.status, why };
+    }
+
+    function wlink(args) {
+        for (const k of ["/tmp/o", "/tmp/e", "/tmp/s", "/tmp/why"])
+            H.store.files.delete(k);
+        plant(H, "/tmp/rsp", args.join("\n") + "\n");
+        run(H, "cd /tmp; wlink @rsp >o 2>e; echo $? >s");
+        return { out: get(H, "/tmp/o") ?? "", err: get(H, "/tmp/e") ?? "",
+                 status: Number(get(H, "/tmp/s")), why: get(H, "/tmp/why") ?? "" };
+    }
+
+    return { tmp, inputs, wasm_ld, wlink };
 }
 
 // ---------------------------------------------------------------- reading wasm

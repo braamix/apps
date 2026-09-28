@@ -561,9 +561,25 @@ struct Reader {
                 c.fail("unknown symbol kind", at);
                 break;
             }
+            if (c.ok() && defined)
+                name_element(s);
             o.symbols.push(s);
         }
         return c.ok();
+    }
+
+    // A defined function, global or table is named by its first symbol.
+    void name_element(const Symbol &s)
+    {
+        Str *name = nullptr;
+        if (s.kind == SYM_FUNCTION)
+            name = &o.functions[s.index - o.imported_functions].name;
+        else if (s.kind == SYM_GLOBAL)
+            name = &o.globals[s.index - o.imported_globals].name;
+        else if (s.kind == SYM_TABLE)
+            name = &o.tables[s.index - o.imported_tables].name;
+        if (name && name->empty())
+            *name = s.name;
     }
 
     // A function, global or table symbol: an index, and a name unless an
