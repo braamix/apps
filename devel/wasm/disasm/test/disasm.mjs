@@ -1,9 +1,13 @@
-// disasm, held to llvm-objdump byte for byte where it disassembles code:
+// disasm, held to llvm-objdump line for line where it disassembles code:
 // every fixture's objects, archives and reference program, each program
 // stripped, the SDK's libraries, ld.wasm, and modules made here holding every
-// opcode llvm decodes, under -d, -dr, -dC and --no-show-raw-insn. Then the
-// data: its rows must give back each segment's bytes, at its address, and a
-// golden file shows what an object looks like whole. Then the errors.
+// opcode llvm decodes, under -d, -dr, -dC and --no-show-raw-insn. Its layout,
+// addresses, bytes and relocations are llvm's; its instructions are llvm's
+// once llvm's spelling is brought to disasm's. Its comments are checked on
+// their own: branches against a model of the blocks, names against the
+// relocations and the functions' labels. Then the data: its rows must give
+// back each segment's bytes, at its address, and a golden file shows what an
+// object looks like whole. Then the errors.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync }
@@ -66,6 +70,372 @@ function differ(a, b) {
         if (x[i] !== y[i])
             return `line ${i + 1}: ${JSON.stringify(x[i])}, llvm-objdump ${JSON.stringify(y[i])}`;
     return "";
+}
+
+// ------------------------------------------------------------ llvm's spelling
+
+const INSN = /^( *[0-9a-f]+:[^\t]*\t)(.*)$/;
+const isInsn = (line) => !line.startsWith("\t") && !line.includes("\tfile format wasm") && INSN.test(line);
+const isNote = (line) => /^ {20,}# /.test(line);
+
+// The bytes of an instruction line, where they are shown.
+const rawBytes = (prefix) => (prefix.slice(prefix.indexOf(":") + 1).match(/[0-9a-f]{2}/g) ?? []).map((h) => parseInt(h, 16));
+
+function uleb(b, p) {
+    let v = 0n, s = 0n, x;
+    do {
+        x = b[p.at++];
+        v |= BigInt(x & 0x7f) << s;
+        s += 7n;
+    } while (x & 0x80);
+    return v;
+}
+
+// An operand llvm printed as an int64_t that is unsigned.
+const unsigned = (t) => t.replace(/-\d+/g, (n) => String(BigInt.asUintN(64, BigInt(n))));
+
+// A hex float as llvm prints it, as a number.
+function hexFloat(t) {
+    const m = /^(-?)0x([0-9a-f])(?:\.([0-9a-f]+))?p(-?\d+)$/.exec(t);
+    if (!m)
+        return NaN;
+    let v = parseInt(m[2], 16);
+    const frac = m[3] ?? "";
+    for (let i = 0; i < frac.length; i++)
+        v += parseInt(frac[i], 16) / 16 ** (i + 1);
+    return (m[1] ? -1 : 1) * v * 2 ** Number(m[4]);
+}
+
+// The float constant at the end of the bytes, as disasm prints it but for
+// the digits of a finite one, which are checked by value.
+function floatText(bytes, width) {
+    const b = new Uint8Array(bytes.slice(bytes.length - width));
+    const dv = new DataView(b.buffer);
+    const bits = width === 4 ? BigInt(dv.getUint32(0, true)) : dv.getBigUint64(0, true);
+    const mb = width === 4 ? 23n : 52n, eb = width === 4 ? 8n : 11n;
+    const man = bits & ((1n << mb) - 1n), exp = (bits >> mb) & ((1n << eb) - 1n);
+    const sign = bits >> (mb + eb) ? "-" : "";
+    if (exp !== (1n << eb) - 1n)
+        return { value: width === 4 ? dv.getFloat32(0, true) : dv.getFloat64(0, true) };
+    if (!man)
+        return { text: sign + "inf" };
+    return { text: sign + (man === 1n << (mb - 1n) ? "nan" : "nan:0x" + man.toString(16)) };
+}
+
+const MEMARG = /(\.load|\.store|\.atomic\.|^memory\.atomic\.)/;
+const SIGNED = /^(i32\.const|i64\.const|memory\.init|data\.drop|memory\.copy|memory\.fill)$/;
+const BLOCKS = /^(block|loop|if|try|try_table)$/;
+
+// llvm's text of an instruction, spelled as disasm spells it; or a check,
+// for what is compared otherwise. `prefix` has the bytes, where shown.
+function respell(text, prefix, raw) {
+    if (text === "<unknown>")
+        return text;
+    // Most names end at a tab, ref.func's, ref.test's and ref.cast's at a space.
+    const m0 = /^([^\t ]+)[\t ]*(.*)$/.exec(text);
+    let name = m0[1];
+    let ops = m0[2].trim().replace(/ +/g, " ");
+    if (name === "f32.select")
+        name = "select";
+    // Not value types, which llvm names all the same.
+    if (name === "select" || BLOCKS.test(name))
+        ops = ops.replace(/\b(void|func)\b/g, "invalid_type");
+    if (name.startsWith("ref.null_")) {
+        ops = name.slice(9);
+        name = "ref.null";
+    }
+    if (MEMARG.test(name) && name !== "atomic.fence") {
+        const m = /^(acqrel )?(-?\d+)(?::p2align=(\d+))?(?:, (\d+))?$/.exec(ops);
+        const parts = [];
+        if (m[1])
+            parts.push("acqrel");
+        const off = BigInt.asUintN(64, BigInt(m[2]));
+        if (off)
+            parts.push(`offset=${off}`);
+        if (m[3] !== undefined)
+            parts.push(Number(m[3]) < 64 ? `align=${2n ** BigInt(m[3])}` : `align=2**${m[3]}`);
+        if (m[4] !== undefined)
+            parts.push(m[4]);
+        ops = parts.join(" ");
+    } else if (name === "call_indirect" || name === "return_call_indirect") {
+        if (!raw)
+            return { name, ops: new RegExp(`^type=${unsigned(ops)} table=\\d+$`) };
+        const b = rawBytes(prefix), p = { at: 1 };
+        const type = uleb(b, p), table = uleb(b, p);
+        ops = `type=${type} table=${table}`;
+    } else if (name === "f32.const" || name === "f64.const") {
+        if (!raw && /inf|nan/.test(ops)) {
+            // An f32's NaN payload was widened, its quiet bit set.
+            const m = /^(-?)(infinity|nan)(?::0x([0-9a-f]+))?$/.exec(ops);
+            if (m[2] === "infinity")
+                return `${name}\t${m[1]}inf`;
+            if (!m[3] || name === "f64.const")
+                return `${name}\t${ops}`;
+            const p = BigInt("0x" + m[3]) >> 29n, q = p & ~(1n << 22n);
+            const alt = [p, q].map((v) => v === 1n << 22n ? "nan" : "nan:0x" + v.toString(16));
+            return { name, ops: new RegExp(`^${m[1]}(${alt.join("|")})$`) };
+        }
+        if (!raw)
+            return { name, float: hexFloat(ops), f32: name === "f32.const", llvm: ops };
+        const f = floatText(rawBytes(prefix), name === "f32.const" ? 4 : 8);
+        if (f.text !== undefined)
+            ops = f.text;
+        else
+            return { name, float: f.value, f32: name === "f32.const", llvm: ops };
+    } else if (BLOCKS.test(name) && ops.startsWith("unknown_type")) {
+        return { name, rest: ops.slice(12).trim() };
+    } else if (!SIGNED.test(name)) {
+        ops = unsigned(ops);
+    }
+    return ops ? `${name}\t${ops}` : name;
+}
+
+// Whether disasm's text of an instruction is llvm's, respelled.
+function agrees(ours, want, notes) {
+    if (typeof want === "string")
+        return ours === want;
+    const tab = ours.indexOf("\t");
+    const name = tab < 0 ? ours : ours.slice(0, tab), ops = tab < 0 ? "" : ours.slice(tab + 1);
+    if (name !== want.name)
+        return false;
+    if (want.ops)
+        return want.ops.test(ops);
+    if (want.rest !== undefined) {
+        const k = ops.search(/ \((catch|\d)/);
+        const type = k < 0 ? ops : ops.slice(0, k), clauses = k < 0 ? "" : ops.slice(k + 1);
+        return /->|^type=\d+$/.test(type) && clauses === want.rest;
+    }
+    // A float: its value, the fewest digits, and llvm's hex in the comment.
+    const v = Number(ops);
+    const same = want.f32 ? Math.fround(v) === want.float : v === want.float;
+    const hex = want.float === 0 ? notes.length === 0 : notes[0] === want.llvm;
+    return same && hex && (Object.is(v, -0) === Object.is(want.float, -0)) && /^-?[0-9.e+-]+$/.test(ops);
+}
+
+// Where disasm's code parts from llvm-objdump's, beside what it adds.
+function against(got, want, raw) {
+    const x = [], xn = [];
+    for (const line of got.split("\n")) {
+        if (isNote(line)) {
+            xn[x.length - 1].push(line.trim().slice(2));
+            continue;
+        }
+        const k = line.indexOf(" # ");
+        if (isInsn(line) && k >= 0) {
+            x.push(line.slice(0, k).trimEnd());
+            xn.push([line.slice(k + 3)]);
+        } else {
+            x.push(line);
+            xn.push([]);
+        }
+    }
+    const y = want.split("\n").filter((l) => !isNote(l));
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+        const a = x[i] ?? "", b = isInsn(y[i] ?? "") ? y[i].replace(/ +# .*$/, "") : y[i] ?? "";
+        if (!isInsn(b) || !isInsn(a)) {
+            if (a !== b)
+                return `line ${i + 1}: ${JSON.stringify(a)}, llvm-objdump ${JSON.stringify(b)}`;
+            continue;
+        }
+        const [, pa, ta] = INSN.exec(a), [, pb, tb] = INSN.exec(b);
+        const notes = xn[i].filter((n) => /^-?0x[0-9a-f.]+p-?\d+$/.test(n));
+        if (pa !== pb || !agrees(ta, respell(tb.trimEnd(), pb, raw), notes))
+            return `line ${i + 1}: ${JSON.stringify(a)}, llvm-objdump ${JSON.stringify(b)}`;
+    }
+    return "";
+}
+
+// ------------------------------------------------------------ the comments
+
+// Every branch comment of a listing, against a model of the blocks: each
+// function's labels count from 0, a block's lands at its end and a loop's
+// at its start.
+function flow(out, what) {
+    let stack = [], counter = 0, inCode = false;
+    const lines = out.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.startsWith("Disassembly of section "))
+            inCode = line === "Disassembly of section CODE:";
+        if (/^[0-9a-f]{8,16} </.test(line)) {
+            stack = [];
+            counter = 0;
+            continue;
+        }
+        if (!inCode || !isInsn(line))
+            continue;
+        const k = line.indexOf(" # ");
+        const have = [];
+        if (k >= 0)
+            have.push(line.slice(k + 3));
+        while (i + 1 < lines.length && isNote(lines[i + 1]))
+            have.push(lines[++i].trim().slice(2));
+        const text = INSN.exec(k >= 0 ? line.slice(0, k).trimEnd() : line)[2];
+        const tab = text.indexOf("\t");
+        const name = tab < 0 ? text : text.slice(0, tab), ops = tab < 0 ? "" : text.slice(tab + 1);
+        const want = [];
+        const seen = new Set();
+        const frame = (d) => stack[stack.length - 1 - d];
+        const branch = (d) => {
+            if (seen.has(d))
+                return;
+            seen.add(d);
+            const f = frame(d);
+            want.push(f ? `${d}: ${f.kind === "loop" ? "up" : "down"} to label${f.label}`
+                        : d === stack.length ? `${d}: return` : `${d}: invalid depth`);
+        };
+        switch (name) {
+        case "block": case "loop": case "if": case "try":
+            if (name === "loop")
+                want.push(`label${counter}:`);
+            stack.push({ label: counter++, kind: name, eh: "" });
+            break;
+        case "try_table":
+            for (const m of ops.matchAll(/\((?:catch(?:_ref)? \d+ |catch_all(?:_ref)? )?(\d+)\)/g))
+                branch(Number(m[1]));
+            stack.push({ label: counter++, kind: name, eh: "" });
+            break;
+        case "end": {
+            const f = stack.pop();
+            if (f && f.kind !== "loop")
+                want.push(`label${f.label}:`);
+            break;
+        }
+        case "br": case "br_if":
+            branch(Number(ops));
+            break;
+        case "br_table":
+            for (const d of ops.slice(1, -1).split(", "))
+                branch(Number(d));
+            break;
+        case "catch": case "catch_all": {
+            const f = stack[stack.length - 1];
+            if (!f || f.kind !== "try")
+                want.push("catch without try");
+            else if (f.eh === "all")
+                want.push("catch after catch_all");
+            else {
+                f.eh = name === "catch" ? "one" : "all";
+                want.push(`catch${f.label}:`);
+            }
+            break;
+        }
+        case "rethrow": {
+            const d = Number(ops), f = frame(d);
+            want.push(f && f.kind === "try" && f.eh ? `${d}: from catch${f.label}`
+                                                     : `${d}: ${f ? "not a catch" : "invalid depth"}`);
+            break;
+        }
+        case "delegate": {
+            const top = stack[stack.length - 1];
+            if (!top || top.kind !== "try") {
+                want.push("delegate without try");
+                break;
+            }
+            stack.pop();
+            want.push(`label${top.label}:`);
+            const d = Number(ops), f = frame(d);
+            want.push(f ? `${d}: ${f.kind === "try" ? "to catch" : "out of label"}${f.label}`
+                        : d === stack.length ? `${d}: to caller` : `${d}: invalid depth`);
+            break;
+        }
+        }
+        const FLOW = /^(\d+: (up to|down to|return|invalid depth|from catch|not a catch|to catch|out of label|to caller)|label\d+:$|catch\d+:$|catch without try$|catch after catch_all$|delegate without try$)/;
+        const got = have.filter((n) => FLOW.test(n));
+        if (got.join("|") !== want.join("|")) {
+            bad.push(`${what}: line ${i + 1}: ${JSON.stringify(line)}: ${JSON.stringify(got)}, model ${JSON.stringify(want)}`);
+            return;
+        }
+    }
+}
+
+// Each call's and global's name, against the relocation beneath it.
+function names(out, what) {
+    const lines = out.split("\n");
+    let checked = 0;
+    for (let i = 0; i + 1 < lines.length; i++) {
+        const m = /\t(call|return_call|global\.get|global\.set)\t\d+ +# (.*)$/.exec(lines[i]);
+        const r = /^\t+[0-9a-f]+:  R_WASM_(FUNCTION|GLOBAL)_INDEX_LEB\t(.*)\+0$/.exec(lines[i + 1]);
+        if (!r)
+            continue;
+        checked++;
+        if (!m || m[2] !== r[2]) {
+            bad.push(`${what}: line ${i + 1}: ${JSON.stringify(lines[i])}, relocation ${r[2]}`);
+            return 0;
+        }
+    }
+    return checked;
+}
+
+// A program's calls, against the label of the function called: its
+// defined functions are its chunks, in order, when all are named.
+function calls(out, what, imports) {
+    const labels = [], lines = out.split("\n");
+    for (const l of lines) {
+        const m = /^[0-9a-f]{8} <(.*)>:$/.exec(l);
+        if (m && m[1] !== "CODE")
+            labels.push(m[1]);
+    }
+    let checked = 0;
+    for (const l of lines) {
+        const m = /\tcall\t(\d+) +# (.*)$/.exec(l);
+        if (!m || Number(m[1]) < imports)
+            continue;
+        checked++;
+        if (labels[Number(m[1]) - imports] !== m[2]) {
+            bad.push(`${what}: ${JSON.stringify(l)}: function ${m[1]} is ${labels[Number(m[1]) - imports]}`);
+            return 0;
+        }
+    }
+    return checked;
+}
+
+// The functions a module imports.
+function imported(bytes) {
+    const b = new Uint8Array(bytes);
+    let p = 8, n = 0;
+    const u = () => {
+        let v = 0, s = 0, x;
+        do {
+            x = b[p++];
+            v += (x & 0x7f) * 2 ** s;
+            s += 7;
+        } while (x & 0x80);
+        return v;
+    };
+    while (p < b.length) {
+        const id = b[p++], size = u(), end = p + size;
+        if (id === 2)
+            for (let k = u(); k--;) {
+                for (let j = 0; j < 2; j++) {
+                    const len = u();
+                    p += len;
+                }
+                const kind = b[p++];
+                if (kind === 0) {
+                    n++;
+                    u();
+                } else if (kind === 1) {
+                    p++;
+                    const f = b[p++];
+                    u();
+                    if (f & 1)
+                        u();
+                } else if (kind === 2) {
+                    const f = b[p++];
+                    u();
+                    if (f & 1)
+                        u();
+                } else if (kind === 3) {
+                    p += 2;
+                } else {
+                    p++;
+                    u();
+                }
+            }
+        p = end;
+    }
+    return n;
 }
 
 // ------------------------------------------------------------ modules by hand
@@ -218,21 +588,35 @@ for (const f of readdirSync(m.sdk_libs).filter((n) => n.endsWith(".a")).sort())
 
 // ------------------------------------------------------------ the code
 
-let lines = 0;
+let lines = 0, named = 0;
 const MODES = [["-d"], ["-dr"], ["-d", "-C"], ["-dr", "-C"], ["-d", "--no-show-raw-insn"]];
 for (const mode of MODES) {
+    const raw = !mode.includes("--no-show-raw-insn");
     for (const files of [inputs, corpus]) {
         const want = llvm([...mode, ...files]);
         if (want.status !== 0 || want.err)
             die(`llvm-objdump ${mode.join(" ")}: status ${want.status}: ${want.err}`);
         const got = sh(`disasm ${mode.join(" ")} ${files.join(" ")}`);
-        if (got.status !== 0 || got.err)
-            bad.push(`[${mode.join(" ")}]: status ${got.status}: ${got.err.slice(0, 500)}`);
-        else if (got.out !== want.out)
-            bad.push(`[${mode.join(" ")}]: ${differ(got.out, want.out)}`);
+        const what = `[${mode.join(" ")}]`;
+        if (got.status !== 0 || got.err) {
+            bad.push(`${what}: status ${got.status}: ${got.err.slice(0, 500)}`);
+            continue;
+        }
+        const d = against(got.out, want.out, raw);
+        if (d)
+            bad.push(`${what}: ${d}`);
+        flow(got.out, what);
+        if (mode.join(" ") === "-dr")
+            named += names(got.out, what);
         lines += want.out.split("\n").length;
     }
 }
+for (const f of Object.keys(m.fixtures).map((k) => `fx_${k}.wasm`)) {
+    const got = sh(`disasm ${f}`);
+    named += calls(got.out, f, imported(readFileSync(join(dir, f))));
+}
+if (!named)
+    bad.push("no call was named");
 
 // ------------------------------------------------------------ the data
 
@@ -348,7 +732,7 @@ let bytes = 0;
 
 // An object, whole: its code, its relocations, its data and theirs.
 {
-    const o = add("golden.o", readFileSync(m.fixtures.fnptr.objects[0]));
+    const o = add("golden.o", readFileSync(m.fixtures.fnptr.objects[1]));
     const got = sh(`disasm -Dr ${o}`);
     const golden = join(HERE, "golden.txt");
     if (process.env.BLESS)
@@ -386,16 +770,18 @@ for (const [cmd, err] of ERRORS) {
     if (got.status !== 1 || got.err !== err)
         bad.push(`${cmd}: status ${got.status}: ${JSON.stringify(got.err)}, expected ${JSON.stringify(err)}`);
 }
-// What is printed beside an error is still llvm-objdump's: the good modules.
+// What is printed beside an error is still the good modules.
 {
     const got = sh("disasm -d h.o nosuch h.o");
     const want = llvm(["-d", "h.o", "h.o"]);
-    if (got.out !== want.out)
-        bad.push(`beside an error: ${differ(got.out, want.out)}`);
+    const d = against(got.out, want.out, true);
+    if (d)
+        bad.push(`beside an error: ${d}`);
     const ar = sh("disasm -d bad.a");
     const one = llvm(["-d", "h.o"]).out.replace("h.o:", "bad.a(hello.o):");
-    if (ar.out !== one)
-        bad.push(`bad.a: ${differ(ar.out, one)}`);
+    const e = against(ar.out, one, true);
+    if (e)
+        bad.push(`bad.a: ${e}`);
 }
 
 // Standard input, and a.out when no file is named.
@@ -404,11 +790,12 @@ for (const [cmd, err] of ERRORS) {
     plant(H, "/tmp/in", new Uint8Array(prog));
     const want = llvm(["-d", "fx_hello.wasm"]).out;
     const got = sh("disasm -d - </tmp/in");
-    if (got.status !== 0 || got.out !== want.replace("fx_hello.wasm:", "<stdin>:"))
-        bad.push(`stdin: ${got.status} ${got.err} ${differ(got.out, want)}`);
+    const d = against(got.out, want.replace("fx_hello.wasm:", "<stdin>:"), true);
+    if (got.status !== 0 || d)
+        bad.push(`stdin: ${got.status} ${got.err} ${d}`);
     add("a.out", prog);
     const a = sh("disasm");
-    if (a.status !== 0 || a.out !== want.replace("fx_hello.wasm:", "a.out:"))
+    if (a.status !== 0 || against(a.out, want.replace("fx_hello.wasm:", "a.out:"), true))
         bad.push(`a.out: ${a.status} ${a.err}`);
     rmSync(join(dir, "a.out"));
     H.store.files.delete("/tmp/w/a.out");
@@ -422,5 +809,5 @@ for (const [cmd, err] of ERRORS) {
 
 if (bad.length)
     die(`${bad.length} failures:\n  ` + bad.slice(0, 40).join("\n  "));
-console.log(`disasm ok: ${inputs.length + corpus.length} files in ${MODES.length} modes as ` +
-            `llvm-objdump prints them (${lines} lines), ${bytes} bytes of data, ${ERRORS.length} errors`);
+console.log(`disasm ok: ${inputs.length + corpus.length} files in ${MODES.length} modes against ` +
+            `llvm-objdump (${lines} lines), ${named} names, ${bytes} bytes of data, ${ERRORS.length} errors`);

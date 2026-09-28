@@ -4,48 +4,120 @@ golden.o:	file format wasm
 Disassembly of section CODE:
 
 00000000 <CODE>:
-        # 3 functions in section.
+        # 1 functions in section.
 
-00000001 <fn_add>:
-
-       3: 20 01        	local.get	1
-       5: 20 00        	local.get	0
-       7: 6a           	i32.add 
-       8: 0b           	end
-
-00000009 <fn_sub>:
-
-       b: 20 00        	local.get	0
-       d: 20 01        	local.get	1
-       f: 6b           	i32.sub 
-      10: 0b           	end
-
-00000011 <fn_mul>:
-
-      13: 20 01        	local.get	1
-      15: 20 00        	local.get	0
-      17: 6c           	i32.mul 
-      18: 0b           	end
+00000001 <fx_main>:
+        .local i32
+       6: 41 74        	i32.const	-12
+       8: 21 00        	local.set	0
+       a: 03 40        	loop                            # label0:
+       c: 41 80 80 80 80 00    	i32.const	0
+			0000000d:  R_WASM_MEMORY_ADDR_SLEB	fn_names+0
+      12: 20 00        	local.get	0
+      14: 6a           	i32.add
+      15: 41 0c        	i32.const	12
+      17: 6a           	i32.add
+      18: 28 02 00     	i32.load
+      1b: 10 80 80 80 80 00    	call	0               # fx_puts
+			0000001c:  R_WASM_FUNCTION_INDEX_LEB	fx_puts+0
+      21: 41 84 80 80 80 00    	i32.const	4
+			00000022:  R_WASM_MEMORY_ADDR_SLEB	.L.str+0
+      27: 10 80 80 80 80 00    	call	0               # fx_puts
+			00000028:  R_WASM_FUNCTION_INDEX_LEB	fx_puts+0
+      2d: 41 07        	i32.const	7
+      2f: 41 03        	i32.const	3
+      31: 41 80 80 80 80 00    	i32.const	0
+			00000032:  R_WASM_MEMORY_ADDR_SLEB	fn_ops+0
+      37: 20 00        	local.get	0
+      39: 6a           	i32.add
+      3a: 41 0c        	i32.const	12
+      3c: 6a           	i32.add
+      3d: 28 02 00     	i32.load
+      40: 11 82 80 80 80 00 80 80 80 80 00     	call_indirect	type=2 table=0 # (i32, i32) -> i32
+			00000041:  R_WASM_TYPE_INDEX_LEB	2+0
+			00000046:  R_WASM_TABLE_NUMBER_LEB	__indirect_function_table+0
+      4b: 10 81 80 80 80 00    	call	1               # fx_putn
+			0000004c:  R_WASM_FUNCTION_INDEX_LEB	fx_putn+0
+      51: 41 86 80 80 80 00    	i32.const	6
+			00000052:  R_WASM_MEMORY_ADDR_SLEB	.L.str.1+0
+      57: 10 80 80 80 80 00    	call	0               # fx_puts
+			00000058:  R_WASM_FUNCTION_INDEX_LEB	fx_puts+0
+      5d: 20 00        	local.get	0
+      5f: 41 04        	i32.const	4
+      61: 6a           	i32.add
+      62: 22 00        	local.tee	0
+      64: 0d 00        	br_if	0                       # 0: up to label0
+      66: 0b           	end
+      67: 41 88 80 80 80 00    	i32.const	8
+			00000068:  R_WASM_MEMORY_ADDR_SLEB	.L.str.2+0
+      6d: 10 80 80 80 80 00    	call	0               # fx_puts
+			0000006e:  R_WASM_FUNCTION_INDEX_LEB	fx_puts+0
+      73: 41 06        	i32.const	6
+      75: 41 07        	i32.const	7
+      77: 41 00        	i32.const	0
+      79: 28 02 80 80 80 80 00 	i32.load
+			0000007b:  R_WASM_MEMORY_ADDR_LEB	fn_current+0
+      80: 11 82 80 80 80 00 80 80 80 80 00     	call_indirect	type=2 table=0 # (i32, i32) -> i32
+			00000081:  R_WASM_TYPE_INDEX_LEB	2+0
+			00000086:  R_WASM_TABLE_NUMBER_LEB	__indirect_function_table+0
+      8b: 10 81 80 80 80 00    	call	1               # fx_putn
+			0000008c:  R_WASM_FUNCTION_INDEX_LEB	fx_putn+0
+      91: 41 86 80 80 80 00    	i32.const	6
+			00000092:  R_WASM_MEMORY_ADDR_SLEB	.L.str.1+0
+      97: 10 80 80 80 80 00    	call	0               # fx_puts
+			00000098:  R_WASM_FUNCTION_INDEX_LEB	fx_puts+0
+      9d: 41 91 80 80 80 00    	i32.const	17
+			0000009e:  R_WASM_MEMORY_ADDR_SLEB	.L.str.3+0
+      a3: 41 9f 80 80 80 00    	i32.const	31
+			000000a4:  R_WASM_MEMORY_ADDR_SLEB	.L.str.4+0
+      a9: 41 00        	i32.const	0
+      ab: 28 02 80 80 80 80 00 	i32.load
+			000000ad:  R_WASM_MEMORY_ADDR_LEB	fn_ops+0
+      b2: 22 00        	local.tee	0
+      b4: 41 81 80 80 80 00    	i32.const	1
+			000000b5:  R_WASM_TABLE_INDEX_SLEB	fn_add+0
+      ba: 46           	i32.eq
+      bb: 1b           	select
+      bc: 10 80 80 80 80 00    	call	0               # fx_puts
+			000000bd:  R_WASM_FUNCTION_INDEX_LEB	fx_puts+0
+      c2: 41 bc 80 80 80 00    	i32.const	60
+			000000c3:  R_WASM_MEMORY_ADDR_SLEB	.L.str.6+0
+      c8: 41 b2 80 80 80 00    	i32.const	50
+			000000c9:  R_WASM_MEMORY_ADDR_SLEB	.L.str.5+0
+      ce: 20 00        	local.get	0
+      d0: 41 08        	i32.const	8
+      d2: 28 02 80 80 80 80 00 	i32.load
+			000000d4:  R_WASM_MEMORY_ADDR_LEB	fn_ops+0
+      d9: 46           	i32.eq
+      da: 1b           	select
+      db: 10 80 80 80 80 00    	call	0               # fx_puts
+			000000dc:  R_WASM_FUNCTION_INDEX_LEB	fx_puts+0
+      e1: 0b           	end
 
 Disassembly of section DATA:
 
-00000000 <fn_ops>:
-       0: 01 00 00 00 02 00 00 00 03 00 00 00              ............
-			00000000:  R_WASM_TABLE_INDEX_I32	fn_add+0
-			00000004:  R_WASM_TABLE_INDEX_I32	fn_sub+0
-			00000008:  R_WASM_TABLE_INDEX_I32	fn_mul+0
+00000000 <fn_current>:
+       0: 02 00 00 00                                      ....
+			00000000:  R_WASM_TABLE_INDEX_I32	fn_mul+0
 
-0000000c <.L.str>:
-       c: 61 64 64 00                                      add.
+00000004 <.L.str>:
+       4: 20 00                                             .
 
-00000010 <.L.str.1>:
-      10: 73 75 62 00                                      sub.
+00000006 <.L.str.1>:
+       6: 0a 00                                            ..
 
-00000014 <.L.str.2>:
-      14: 6d 75 6c 00                                      mul.
+00000008 <.L.str.2>:
+       8: 63 75 72 72 65 6e 74 20 00                       current .
 
-00000018 <fn_names>:
-      18: 0c 00 00 00 10 00 00 00 14 00 00 00              ............
-			00000018:  R_WASM_MEMORY_ADDR_I32	.L.str+0
-			0000001c:  R_WASM_MEMORY_ADDR_I32	.L.str.1+0
-			00000020:  R_WASM_MEMORY_ADDR_I32	.L.str.2+0
+00000011 <.L.str.3>:
+      11: 73 61 6d 65 20 61 64 64 72 65 73 73 0a 00        same address..
+
+0000001f <.L.str.4>:
+      1f: 64 69 66 66 65 72 65 6e 74 20 61 64 64 72 65 73  different addres
+      2f: 73 0a 00                                         s..
+
+00000032 <.L.str.5>:
+      32: 64 69 73 74 69 6e 63 74 0a 00                    distinct..
+
+0000003c <.L.str.6>:
+      3c: 6e 6f 74 20 64 69 73 74 69 6e 63 74 0a 00        not distinct..

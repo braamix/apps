@@ -13,4 +13,4 @@ endif()
 
 braam_add_program(NAME disasm
                   SOURCES opcodes.cpp code.cpp disasm.cpp driver.cpp braam.cpp
-                  LIBS wasmobj)
+                  LIBS wasmobj braam::math)

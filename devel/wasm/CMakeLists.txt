@@ -17,7 +17,7 @@ add_subdirectory(size)
 add_subdirectory(nm)
 add_subdirectory(disasm)
 
-braam_add_package(NAME wasm VERSION 0.6-r0
+braam_add_package(NAME wasm VERSION 0.7-r0
                   FIELD "T=WebAssembly tools: ld, strip, ar, size, nm and disasm"
                   FILES $<TARGET_FILE:bin_ld>=bin/ld
                         $<TARGET_FILE:bin_strip>=bin/strip

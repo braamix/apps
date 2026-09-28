@@ -207,23 +207,121 @@ bool oom(Out &err, Str what)
     return false;
 }
 
-// In a linked module llvm gives every function a symbol with no name, beside
-// those its name or export section gives it, so each starts a chunk.
-bool unnamed(Module &m, Str what, Out &err)
+// Where each function starts, into the code.
+bool bodies(Module &m, Str what, Out &err)
 {
     Cursor c(m.code);
     u32 n = c.count();
     for (u32 i = 0; i < n && c.ok(); i++) {
-        ModuleSymbol s{};
-        s.kind = SYM_FUNCTION;
-        s.addr = m.code_addr + c.at();
+        u32 at = c.at();
         c.take(c.uleb());
-        if (c.ok() && !m.syms.push(s))
+        if (c.ok() && !m.bodies.push(at))
             return oom(err, what);
     }
     if (!c.ok()) {
         err.put(what).put(": CODE +0x").hex(u32(c.where())).put(": ").put(c.why());
         return false;
+    }
+    return true;
+}
+
+// In a linked module llvm gives every function a symbol with no name, beside
+// those its name or export section gives it, so each starts a chunk.
+bool unnamed(Module &m, Str what, Out &err)
+{
+    for (u32 at : m.bodies) {
+        ModuleSymbol s{};
+        s.kind = SYM_FUNCTION;
+        s.addr = m.code_addr + at;
+        if (!m.syms.push(s))
+            return oom(err, what);
+    }
+    return true;
+}
+
+// Names `names[index]`, unless it has one.
+void give(Vec<Str> &names, u32 index, Str name)
+{
+    if (index < names.size() && names[index].empty())
+        names[index] = name;
+}
+
+// A program's names: from its name section, then its exports, then its
+// imports.
+void program_names(Ctx &x, const Object &o)
+{
+    for (const Section &s : o.sections) {
+        if (s.id != SEC_CUSTOM || s.name != "name")
+            continue;
+        Cursor c(s.body);
+        while (c.ok() && !c.done()) {
+            u8 type  = c.byte();
+            u32 size = c.uleb();
+            Cursor sub(c.take(size));
+            Vec<Str> *names = type == 1    ? &x.funcs
+                              : type == 5  ? &x.tables
+                              : type == 7  ? &x.globals
+                              : type == 11 ? &x.tags
+                                           : nullptr;
+            if (!c.ok() || !names)
+                continue;
+            u32 n = sub.count();
+            for (u32 i = 0; i < n && sub.ok(); i++) {
+                u32 index = sub.uleb();
+                Str name  = sub.name();
+                if (sub.ok())
+                    give(*names, index, name);
+            }
+        }
+    }
+    for (const Export &e : o.exports) {
+        Vec<Str> *names = e.kind == EXT_FUNCTION ? &x.funcs
+                          : e.kind == EXT_GLOBAL ? &x.globals
+                          : e.kind == EXT_TABLE  ? &x.tables
+                          : e.kind == EXT_TAG    ? &x.tags
+                                                 : nullptr;
+        if (names)
+            give(*names, e.index, e.name);
+    }
+    u32 k[5] = {};
+    for (const Import &im : o.imports) {
+        Vec<Str> *names = im.kind == EXT_FUNCTION ? &x.funcs
+                          : im.kind == EXT_GLOBAL ? &x.globals
+                          : im.kind == EXT_TABLE  ? &x.tables
+                          : im.kind == EXT_TAG    ? &x.tags
+                                                  : nullptr;
+        if (im.kind < 5 && names)
+            give(*names, k[im.kind], im.field);
+        if (im.kind < 5)
+            k[im.kind]++;
+    }
+}
+
+// What the code refers to by index: names and types.
+bool context(Module &m, const Object &o, bool obj, Str what, Out &err)
+{
+    Ctx &x = m.ctx;
+    if (!x.funcs.resize(o.total_functions()) || !x.globals.resize(o.total_globals()) ||
+        !x.tables.resize(o.total_tables()) || !x.tags.resize(o.total_tags()))
+        return oom(err, what);
+    for (const FuncType &t : o.types)
+        if (!x.types.push(t))
+            return oom(err, what);
+    if (!obj) {
+        program_names(x, o);
+        return true;
+    }
+    for (const Symbol &s : o.symbols) {
+        if (s.index == NONE || s.name.empty())
+            continue;
+        if (s.kind == SYM_FUNCTION)
+            give(x.funcs, s.index, s.name);
+        else if (s.kind == SYM_GLOBAL)
+            give(x.globals, s.index, s.name);
+        else if (s.kind == SYM_TABLE)
+            give(x.tables, s.index, s.name);
+        else if (s.kind == SYM_TAG)
+            give(x.tags, s.index, s.name);
     }
     return true;
 }
@@ -363,18 +461,22 @@ Module *open_module(const Disasm &d, Str what, Bytes file, Out &err)
         if (s.id == SEC_CUSTOM && (s.name == "dylink" || s.name == "dylink.0"))
             placed = false;
     Object o;
-    if (ok && obj) {
-        ok     = o.name.assign(what) || oom(err, what);
-        o.file = file;
-        o.link = false;
-        ok     = ok && read_object(o, err);
-    }
+    ok     = ok && (o.name.assign(what) || oom(err, what));
+    o.file = file;
+    o.link = false;
+    // A program's names and types are a help, and it is shown without them.
+    Out ignored;
+    bool known      = ok && read_object(o, obj ? err : ignored);
+    ok              = ok && (known || !obj);
+    m->ctx.demangle = d.c.demangle;
+    ok              = ok && (!known || context(*m, o, obj, what, err));
     for (u32 i = 0; ok && i < sections.size(); i++) {
         const Section &s = sections[i];
         if (s.id == SEC_CODE) {
             m->code      = s.body;
             m->code_addr = placed ? s.start : 0;
-            if (!obj)
+            ok           = bodies(*m, what, err);
+            if (ok && !obj)
                 ok = unnamed(*m, what, err);
             ok = ok && code_chunks(*m, what, err);
             if (ok && obj && d.c.relocs)
@@ -531,10 +633,14 @@ void code_chunk(Disasm &d, Module &m, const Chunk &c)
             at += n;
             continue;
         }
+        while (m.body < m.bodies.size() && m.bodies[m.body] <= at) {
+            m.ctx.flow.reset();
+            m.body++;
+        }
         text.clear();
         notes.clear();
         bool ok;
-        usize n = decode(m.code.subspan(at), m.flow, text, notes, ok);
+        usize n = decode(m.code.subspan(at), m.ctx, text, notes, ok);
         if (n == 0)
             n = 1;
         // The address, the bytes, and the instruction a tab stop on.

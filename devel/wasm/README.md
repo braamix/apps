@@ -16,11 +16,11 @@ The `wasm` package installs six tools for WebAssembly. All run on Braam.
 - `nm` lists the symbols of a program, an object or each member of an
   archive. It prints what `llvm-nm` prints.
 - `disasm` shows the code of a program, an object or each member of an
-  archive as instructions, and its data as bytes. The code is what
-  `llvm-objdump -d` prints.
+  archive as instructions, and its data as bytes. The code is laid out as
+  `llvm-objdump -d` lays it out, with better comments.
 
-The tests check all six byte for byte. More tools, such as `as`, will
-join them here, one directory each.
+The tests check the first five byte for byte, and `disasm` line for line.
+More tools, such as `as`, will join them here, one directory each.
 
 ## Using ld
 
@@ -331,8 +331,8 @@ wasm64 and GC types.
     disasm [options] [file...]
 
 With no file, `disasm` reads `a.out`, and `-` reads standard input. It
-shows the code, one instruction to a line, exactly as `llvm-objdump -d`
-does. With `-D` it also shows the data, sixteen bytes to a line: the two
+shows the code, one instruction to a line, as `llvm-objdump -d` does.
+With `-D` it also shows the data, sixteen bytes to a line: the two
 sections a module loads into memory.
 
     $ disasm -D hello.o
@@ -347,7 +347,7 @@ sections a module loads into memory.
     00000001 <fx_main>:
 
            3: 41 80 80 80 80 00    	i32.const	0
-           9: 10 80 80 80 80 00    	call	0
+           9: 10 80 80 80 80 00    	call	0               # fx_puts
            f: 0b           	end
 
     Disassembly of section DATA:
@@ -370,11 +370,10 @@ names; a passive segment starts at 0. A run of zero bytes is shown as
 | `--no-show-raw-insn` | no instruction bytes |
 | `-h`, `--help` | usage |
 
-A branch is annotated with the label it goes to, as llvm annotates it.
-llvm numbers every block and loop of the module in one sequence, and
-closes none of them at an `end`, so a depth is counted among all blocks
-opened so far rather than those still open. `disasm` keeps that, so its
-code is `llvm-objdump`'s line for line.
+The comments say what llvm's do not. A branch is annotated with the
+block it goes to, and the place it lands is marked; labels are numbered
+in each function. A call, a global or a tag is annotated with its name, an
+indirect call with its signature, and a float with its exact value in hex.
 [Wasm_Bytecode.md](Wasm_Bytecode.md) explains every instruction it prints.
 
 The exit status is 0 on success, 1 on an error and 130 on `^C`. An error
@@ -384,6 +383,15 @@ in one file is reported, and the other files are still shown.
 
 - **Data is shown as bytes.** `llvm-objdump -D` decodes every section as
   code, the data and the type section too, and crashes on some.
+- **Branch comments are right.** llvm closes no block at an `end` and
+  opens none at an `if`, so after the first inner `end` its depths are
+  counted among blocks long closed.
+- **Operands are spelled as WebAssembly's text format spells them.**
+  `select`, not `f32.select`; `ref.null func`; `i32.load offset=8
+  align=1`, not `i32.load 8:p2align=0`; `call_indirect type=2 table=0`,
+  where llvm leaves the table out; a block's signature, where llvm says
+  `unknown_type`; a float in decimal, where llvm prints hex; and no
+  padding after a name.
 - **Only code and data are shown.** The other sections are not loaded,
   and `nm` and `size` say what is in them.
 - **Its messages** are worded as `strip`'s are, and it does not read LLVM
@@ -466,15 +474,14 @@ memory. Only its `braam.cpp` reads and writes files.
 
 | File | What it does |
 | --- | --- |
-| `opcodes.cpp` | every opcode llvm decodes, its text and its operands |
-| `code.cpp` | decodes and prints one instruction, and the labels |
-| `disasm.cpp` | splits the code and data at symbols, and prints each part |
+| `opcodes.cpp` | every opcode llvm decodes, its name and its operands |
+| `code.cpp` | decodes and prints one instruction, and its comments |
+| `disasm.cpp` | splits the code and data at symbols, names what the code refers to, and prints each part |
 | `driver.cpp` | parses the command line |
 
 The opcode table was made from `llvm-objdump`'s own output for every
-opcode, so it keeps llvm's spelling: `i32.add ` with its space, and
-`f32.select` for a plain `select`. A large program is written out a part
-at a time, so its text is never all in memory.
+opcode, so it keeps llvm's names, but for `select`. A large program is
+written out a part at a time, so its text is never all in memory.
 
 ### ar
 
@@ -532,6 +539,10 @@ And it runs [disasm/test/disasm.mjs](disasm/test/disasm.mjs). The same
 files, the same modules of what `ld` refuses, and modules made by the
 test holding every opcode with many operand values, are shown by both
 `disasm -d` and `llvm-objdump -d`, also with `-r`, `-C` and
-`--no-show-raw-insn`. The output must be equal byte
-for byte. The data rows must give back every segment's bytes at its
-address, and one object is checked whole against a golden file.
+`--no-show-raw-insn`. The output must be equal line for line: the
+layout, addresses, bytes and relocations exactly, and each instruction
+once llvm's spelling is brought to `disasm`'s, a float by its value. The
+branch comments are checked against a model of the blocks, and the names
+against the relocations and the functions called. The data rows must give
+back every segment's bytes at its address, and one object is checked
+whole against a golden file.

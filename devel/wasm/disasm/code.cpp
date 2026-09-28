@@ -1,10 +1,11 @@
 #include "code.h"
 
+#include "cursor.h"
+#include "demangle/demangle.h"
+#include "math/ftoa.h"
 #include "opcodes.h"
 
 namespace {
-
-enum Eh : u8 { EH_TRY, EH_CATCH, EH_CATCH_ALL };
 
 // Reads as llvm's disassembler reads: a field that fails leaves `at` where
 // it was, so what was taken before it is the instruction's size.
@@ -83,7 +84,6 @@ struct Reader {
     }
 };
 
-// WebAssembly::anyTypeToString.
 Str type_name(u64 t)
 {
     switch (t) {
@@ -103,29 +103,103 @@ Str type_name(u64 t)
         return "externref";
     case 0x69:
         return "exnref";
-    case 0x60:
-        return "func";
-    case 0x40:
-        return "void";
     default:
         return "invalid_type";
     }
 }
 
+// A heap type: an abbreviation, or a type index.
+void put_heap(Out &o, i64 h)
+{
+    if (h >= 0) {
+        put_i64(o, h);
+        return;
+    }
+    switch (h & 0x7f) {
+    case 0x70:
+        o.put("func");
+        break;
+    case 0x6f:
+        o.put("extern");
+        break;
+    case 0x69:
+        o.put("exn");
+        break;
+    case 0x6e:
+        o.put("any");
+        break;
+    case 0x6d:
+        o.put("eq");
+        break;
+    case 0x6c:
+        o.put("i31");
+        break;
+    case 0x6b:
+        o.put("struct");
+        break;
+    case 0x6a:
+        o.put("array");
+        break;
+    case 0x71:
+        o.put("none");
+        break;
+    case 0x72:
+        o.put("noextern");
+        break;
+    case 0x73:
+        o.put("nofunc");
+        break;
+    case 0x74:
+        o.put("noexn");
+        break;
+    default:
+        o.put("invalid_type");
+        break;
+    }
+}
+
+// A function type's signature: "(i32, i32) -> i32".
+void put_signature(Out &o, const FuncType &t)
+{
+    auto list = [&](Bytes b, bool parens) {
+        Cursor c(b);
+        u32 n = 0;
+        Out s;
+        while (!c.done() && c.ok()) {
+            if (n++)
+                s.put(", ");
+            put_valtype(s, c);
+        }
+        if (parens || n != 1)
+            o.put('(').put(s.str()).put(')');
+        else
+            o.put(s.str());
+    };
+    list(t.params, true);
+    o.put(" -> ");
+    list(t.results, false);
+}
+
 // A block type: a value type in one byte, none (0x40, printed as nothing),
-// or a type index, which the disassembler cannot resolve.
-bool block_type(Reader &r, Out &o)
+// or a type index, printed as its signature.
+bool block_type(Reader &r, Out &o, const Ctx &ctx)
 {
     usize at = r.at;
     i64 v;
     if (!r.sleb(v))
         return false;
-    if (v >= 0)
-        o.put("unknown_type");
-    else if (r.at != at + 1)
+    if (v >= 0) {
+        if (u64(v) < ctx.types.size()) {
+            put_signature(o, ctx.types[v]);
+        } else {
+            o.put("type=");
+            put_i64(o, v);
+        }
+    } else if (r.at != at + 1) {
         o.put("invalid_type");
-    else if ((v & 0x7f) != 0x40)
+    } else if ((v & 0x7f) != 0x40) {
         o.put(type_name(u64(v & 0x7f)));
+    }
     return true;
 }
 
@@ -133,30 +207,10 @@ bool block_type(Reader &r, Out &o)
 // hex digits up to its last one set, and a decimal binary exponent.
 void put_double(Out &o, u64 bits)
 {
-    bool neg = bits >> 63;
-    u32 exp  = (bits >> 52) & 0x7ff;
-    u64 man  = bits & ((u64(1) << 52) - 1);
-    // A NaN with a payload of its own.
-    if (exp == 0x7ff && man && man != u64(1) << 51) {
-        if (neg)
-            o.put('-');
-        o.put("nan:0x");
-        char d[16];
-        usize k = 0;
-        do {
-            d[k++] = "0123456789abcdef"[man & 0xf];
-            man >>= 4;
-        } while (man);
-        while (k)
-            o.put(d[--k]);
-        return;
-    }
-    if (neg)
+    u32 exp = (bits >> 52) & 0x7ff;
+    u64 man = bits & ((u64(1) << 52) - 1);
+    if (bits >> 63)
         o.put('-');
-    if (exp == 0x7ff) {
-        o.put(man ? "nan"_s : "infinity"_s);
-        return;
-    }
     if (exp == 0 && man == 0) {
         o.put("0x0p0");
         return;
@@ -176,15 +230,12 @@ void put_double(Out &o, u64 bits)
     put_i64(o, e);
 }
 
-// A float widened to a double, as the disassembler widens it: exactly, a
-// subnormal normalised, a NaN quieted.
+// A float widened to a double: exactly, a subnormal normalised.
 u64 widen(u32 f)
 {
     u64 sign = u64(f >> 31) << 63;
     u32 exp  = (f >> 23) & 0xff;
     u64 man  = f & 0x7fffff;
-    if (exp == 0xff)
-        return sign | u64(0x7ff) << 52 | (man ? man << 29 | u64(1) << 51 : 0);
     if (exp == 0) {
         if (!man)
             return sign;
@@ -198,14 +249,84 @@ u64 widen(u32 f)
     return sign | u64(exp - 127 + 1023) << 52 | man << 29;
 }
 
+// A float constant: the shortest decimal that reads back to it, and its
+// exact value in hex among the notes. `man_bits` is 23 or 52.
+void put_float(Out &o, Out &notes, u64 bits, u32 man_bits)
+{
+    u32 exp_bits = man_bits == 23 ? 8 : 11;
+    u64 man      = bits & ((u64(1) << man_bits) - 1);
+    u64 exp      = (bits >> man_bits) & ((u64(1) << exp_bits) - 1);
+    bool neg     = bits >> (man_bits + exp_bits);
+    if (neg)
+        o.put('-');
+    if (exp == (u64(1) << exp_bits) - 1) {
+        if (!man) {
+            o.put("inf");
+        } else if (man == u64(1) << (man_bits - 1)) {
+            o.put("nan");
+        } else {
+            o.put("nan:0x");
+            put_hex(o, man, 0);
+        }
+        return;
+    }
+    char t[64];
+    Str s;
+    if (man_bits == 52) {
+        s = fmt_f64_shortest(t, sizeof t, __builtin_bit_cast(f64, bits & ~(u64(1) << 63)));
+    } else {
+        f32 v = __builtin_bit_cast(f32, u32(bits & 0x7fffffff));
+        for (i32 prec = 1; prec <= 9; prec++) {
+            s = fmt_f64(t, sizeof t, f64(v), prec, 'g');
+            usize used;
+            Option<f32> back = scan_f32(s, used);
+            if (back.has_value() && __builtin_bit_cast(u32, back.value()) == u32(bits & 0x7fffffff))
+                break;
+        }
+    }
+    o.put(s);
+    if (exp || man) {
+        put_double(notes, man_bits == 52 ? bits : widen(u32(bits)));
+        notes.put('\n');
+    }
+}
+
 struct Decoder {
     Reader r;
+    Ctx &ctx;
     Flow &flow;
-    Out &text;
+    Out &ops;
     Out &notes;
     Vec<u64> printed; // depths already annotated
 
     void note(Str s) { notes.put(s).put('\n'); }
+
+    void name(const Vec<Str> &names, u64 i)
+    {
+        if (i >= names.size() || names[i].empty())
+            return;
+        Str n = names[i];
+        if (ctx.demangle) {
+            demangle(n, ctx.scratch);
+            n = ctx.scratch.str();
+        }
+        note(n);
+    }
+
+    void signature(u64 t)
+    {
+        if (t >= ctx.types.size())
+            return;
+        put_signature(notes, ctx.types[t]);
+        notes.put('\n');
+    }
+
+    const Flow::Frame *frame(u64 depth) const
+    {
+        if (depth >= flow.stack.size())
+            return nullptr;
+        return &flow.stack[flow.stack.size() - 1 - depth];
+    }
 
     // "<depth>: down to label<n>", once for each depth.
     void branch(u64 depth)
@@ -214,75 +335,98 @@ struct Decoder {
             if (d == depth)
                 return;
         printed.push(depth);
-        if (depth >= flow.stack.size()) {
-            note("Invalid depth argument!");
-            return;
-        }
-        const Flow::Frame &f = flow.stack[flow.stack.size() - 1 - depth];
         put_u64(notes, depth);
-        notes.put(": ").put(f.loop ? "up"_s : "down"_s).put(" to label");
-        put_u64(notes, f.label);
+        if (const Flow::Frame *f = frame(depth)) {
+            notes.put(f->kind == Flow::LOOP ? ": up to label"_s : ": down to label"_s);
+            put_u64(notes, f->label);
+        } else if (depth == flow.stack.size()) {
+            notes.put(": return");
+        } else {
+            notes.put(": invalid depth");
+        }
         notes.put('\n');
     }
 
-    void push(bool loop)
+    void label(Str what, u32 n)
     {
-        if (loop) {
-            notes.put("label");
-            put_u64(notes, flow.counter);
-            notes.put(":\n");
-        }
-        flow.stack.push({ flow.counter++, loop });
+        notes.put(what);
+        put_u64(notes, n);
+        notes.put(":\n");
+    }
+
+    bool push(Flow::Kind kind)
+    {
+        if (kind == Flow::LOOP)
+            label("label", flow.counter);
+        return flow.stack.push({ flow.counter++, kind, Flow::NONE });
+    }
+
+    // Where a branch to the block lands, but for a loop's, which is its start.
+    void end()
+    {
+        if (flow.stack.empty())
+            return;
+        Flow::Frame f = flow.stack.back();
+        flow.stack.pop();
+        if (f.kind != Flow::LOOP)
+            label("label", f.label);
     }
 
     void catches(bool all)
     {
-        if (flow.eh.empty()) {
-            note("try-catch mismatch!");
-        } else if (flow.eh.back() == EH_CATCH_ALL) {
-            note("catch/catch_all cannot occur after catch_all");
-        } else if (flow.eh.back() == EH_TRY) {
-            if (flow.tries.empty()) {
-                note("try-catch mismatch!");
-            } else {
-                notes.put("catch");
-                put_u64(notes, flow.tries.back());
-                notes.put(":\n");
-                flow.tries.pop();
-            }
-            flow.eh.pop();
-            flow.eh.push(all ? EH_CATCH_ALL : EH_CATCH);
+        if (flow.stack.empty() || flow.stack.back().kind != Flow::TRY) {
+            note("catch without try");
+            return;
         }
+        Flow::Frame &f = flow.stack.back();
+        if (f.eh == Flow::CATCH_ALL) {
+            note("catch after catch_all");
+            return;
+        }
+        f.eh = all ? Flow::CATCH_ALL : Flow::CATCH;
+        label("catch", f.label);
+    }
+
+    void rethrow(u64 depth)
+    {
+        const Flow::Frame *f = frame(depth);
+        put_u64(notes, depth);
+        if (f && f->kind == Flow::TRY && f->eh != Flow::NONE) {
+            notes.put(": from catch");
+            put_u64(notes, f->label);
+        } else {
+            notes.put(f ? ": not a catch"_s : ": invalid depth"_s);
+        }
+        notes.put('\n');
     }
 
     void delegate(u64 depth)
     {
-        if (flow.stack.empty() || flow.tries.empty() || flow.eh.empty()) {
-            note("try-delegate mismatch!");
+        if (flow.stack.empty() || flow.stack.back().kind != Flow::TRY) {
+            note("delegate without try");
             return;
         }
-        Out label;
-        label.put("label/catch");
-        put_u64(label, flow.stack.back().label);
-        label.put(": ");
-        flow.stack.pop();
-        flow.tries.pop();
-        flow.eh.pop();
-        if (depth >= flow.stack.size()) {
-            label.put("to caller");
+        end();
+        put_u64(notes, depth);
+        if (const Flow::Frame *f = frame(depth)) {
+            notes.put(f->kind == Flow::TRY ? ": to catch"_s : ": out of label"_s);
+            put_u64(notes, f->label);
+        } else if (depth == flow.stack.size()) {
+            notes.put(": to caller");
         } else {
-            const Flow::Frame &f = flow.stack[flow.stack.size() - 1 - depth];
-            if (f.loop) {
-                note("delegate cannot target a loop");
-            } else {
-                label.put("down to catch");
-                put_u64(label, f.label);
-            }
+            notes.put(": invalid depth");
         }
-        note(label.str());
+        notes.put('\n');
     }
 
-    // Alignment, printed only where it is not the natural one, and offset.
+    void sep()
+    {
+        if (ops.s.size())
+            ops.put(' ');
+    }
+
+    // The ordering, the offset where not 0, the alignment where not the
+    // natural one, and the lane.
     bool memarg(const OpInfo &op, bool atomic, bool lane)
     {
         u64 align, off;
@@ -299,16 +443,26 @@ struct Decoder {
         u8 l = 0;
         if (lane && !r.byte(l))
             return false;
-        if (atomic)
-            text.put(order == 1 ? "acqrel"_s : ""_s).put(' ');
-        put_i64(text, i64(off));
+        if (order == 1)
+            ops.put("acqrel");
+        if (off) {
+            sep();
+            ops.put("offset=");
+            put_u64(ops, off);
+        }
         if (align != op.align) {
-            text.put(":p2align=");
-            put_i64(text, i64(align));
+            sep();
+            if (align < 64) {
+                ops.put("align=");
+                put_u64(ops, u64(1) << align);
+            } else {
+                ops.put("align=2**");
+                put_u64(ops, align);
+            }
         }
         if (lane) {
-            text.put(", ");
-            put_u64(text, l);
+            sep();
+            put_u64(ops, l);
         }
         return true;
     }
@@ -318,60 +472,58 @@ struct Decoder {
         u64 n, t;
         if (!r.uleb(n))
             return false;
-        // The targets, then the default. The first is not annotated: it is
-        // the fixed operand, whose type is the list's.
-        Vec<u64> targets;
+        // The targets, then the default.
+        ops.put('{');
         for (u64 i = 0; i <= n; i++) {
             if (!r.uleb(t))
                 return false;
-            targets.push(t);
-        }
-        text.put('{');
-        for (usize i = 0; i < targets.size(); i++) {
             if (i)
-                text.put(", ");
-            put_i64(text, i64(targets[i]));
+                ops.put(", ");
+            put_u64(ops, t);
+            branch(t);
         }
-        text.put('}');
-        for (usize i = 1; i < targets.size(); i++)
-            branch(targets[i]);
+        ops.put('}');
         return true;
     }
 
     bool try_table()
     {
-        Out sig;
         u64 n;
-        if (!block_type(r, sig) || !r.uleb(n))
+        if (!block_type(r, ops, ctx) || !r.uleb(n))
             return false;
-        text.put(sig.str()).put(' ');
-        Vec<u64> labels;
         for (u64 i = 0; i < n; i++) {
             u8 kind;
-            u64 tag = 0, label;
+            u64 tag = 0, depth;
             if (!r.byte(kind))
                 return false;
             if (kind <= 1 && !r.uleb(tag))
                 return false;
-            if (!r.uleb(label))
+            if (!r.uleb(depth))
                 return false;
             static const Str KINDS[] = { "catch", "catch_ref", "catch_all", "catch_all_ref" };
-            if (i)
-                text.put(' ');
-            text.put('(');
+            sep();
+            ops.put('(');
             if (kind <= 3)
-                text.put(KINDS[kind]).put(' ');
+                ops.put(KINDS[kind]).put(' ');
             if (kind <= 1) {
-                put_i64(text, i64(tag));
-                text.put(' ');
+                put_u64(ops, tag);
+                ops.put(' ');
             }
-            put_i64(text, i64(label));
-            text.put(')');
-            labels.push(label);
+            put_u64(ops, depth);
+            ops.put(')');
+            branch(depth);
         }
-        for (u64 l : labels)
-            branch(l);
-        push(false);
+        return push(Flow::TRY_TABLE);
+    }
+
+    bool index(const Vec<Str> *names)
+    {
+        u64 a;
+        if (!r.uleb(a))
+            return false;
+        put_u64(ops, a);
+        if (names)
+            name(*names, a);
         return true;
     }
 
@@ -383,40 +535,59 @@ struct Decoder {
         switch (op.kind) {
         case OpKind::NONE:
             return true;
+        case OpKind::END:
+            end();
+            return true;
         case OpKind::ULEB:
+            return index(nullptr);
+        case OpKind::FUNC:
+            return index(&ctx.funcs);
+        case OpKind::GLOBAL:
+            return index(&ctx.globals);
+        case OpKind::TABLE:
+            return index(&ctx.tables);
+        case OpKind::TAG:
+            return index(&ctx.tags);
+        case OpKind::TYPE:
             if (!r.uleb(a))
                 return false;
-            put_i64(text, i64(a));
+            put_u64(ops, a);
+            signature(a);
             return true;
         case OpKind::ULEB2:
+        case OpKind::TABLE2:
             if (!r.uleb(a) || !r.uleb(b))
                 return false;
-            put_i64(text, i64(a));
-            text.put(", ");
-            put_i64(text, i64(b));
+            put_u64(ops, a);
+            ops.put(", ");
+            put_u64(ops, b);
+            if (op.kind == OpKind::TABLE2) {
+                name(ctx.tables, a);
+                name(ctx.tables, b);
+            }
             return true;
         case OpKind::SLEB2:
             if (!r.sleb(s))
                 return false;
-            put_i64(text, s);
-            text.put(", ");
+            put_i64(ops, s);
+            ops.put(", ");
             [[fallthrough]];
         case OpKind::SLEB:
         case OpKind::I32:
         case OpKind::I64:
             if (!r.sleb(s))
                 return false;
-            put_i64(text, s);
+            put_i64(ops, s);
             return true;
         case OpKind::F32:
             if (!r.fixed(4, a))
                 return false;
-            put_double(text, widen(u32(a)));
+            put_float(ops, notes, a, 23);
             return true;
         case OpKind::F64:
             if (!r.fixed(8, a))
                 return false;
-            put_double(text, a);
+            put_float(ops, notes, a, 52);
             return true;
         case OpKind::MEM:
             return memarg(op, false, false);
@@ -427,15 +598,15 @@ struct Decoder {
         case OpKind::LANE:
             if (!r.byte(v))
                 return false;
-            put_u64(text, v);
+            put_u64(ops, v);
             return true;
         case OpKind::V128:
             for (u32 i = 0; i < 4; i++) {
                 if (!r.fixed(4, a))
                     return false;
                 if (i)
-                    text.put(", ");
-                put_u64(text, a);
+                    ops.put(", ");
+                put_u64(ops, a);
             }
             return true;
         case OpKind::SHUFFLE:
@@ -443,49 +614,49 @@ struct Decoder {
                 if (!r.byte(v))
                     return false;
                 if (i)
-                    text.put(", ");
-                put_u64(text, v);
+                    ops.put(", ");
+                put_u64(ops, v);
             }
             return true;
         case OpKind::FENCE:
             if (!r.byte(v))
                 return false;
-            text.put(v == 1 ? "acqrel"_s : ""_s);
+            if (v == 1)
+                ops.put("acqrel");
             return true;
-        case OpKind::SIG:
-            return block_type(r, text);
+        case OpKind::IF:
         case OpKind::BLOCK:
         case OpKind::LOOP:
-            if (!block_type(r, text))
-                return false;
-            push(op.kind == OpKind::LOOP);
-            return true;
         case OpKind::TRY:
-            if (!block_type(r, text))
+            if (!block_type(r, ops, ctx))
                 return false;
-            flow.tries.push(flow.counter);
-            flow.eh.push(EH_TRY);
-            push(false);
-            return true;
+            return push(op.kind == OpKind::IF     ? Flow::IF
+                        : op.kind == OpKind::LOOP ? Flow::LOOP
+                        : op.kind == OpKind::TRY  ? Flow::TRY
+                                                  : Flow::BLOCK);
         case OpKind::BR:
             if (!r.uleb(a))
                 return false;
-            put_i64(text, i64(a));
+            put_u64(ops, a);
             branch(a);
             return true;
         case OpKind::BR_TABLE:
             return br_table();
         case OpKind::CALL_INDIRECT:
-            // The table goes unprinted.
             if (!r.uleb(a) || !r.uleb(b))
                 return false;
-            put_i64(text, i64(a));
+            ops.put("type=");
+            put_u64(ops, a);
+            ops.put(" table=");
+            put_u64(ops, b);
+            signature(a);
             return true;
         case OpKind::CATCH:
             if (!r.uleb(a))
                 return false;
-            put_i64(text, i64(a));
+            put_u64(ops, a);
             catches(false);
+            name(ctx.tags, a);
             return true;
         case OpKind::CATCH_ALL:
             catches(true);
@@ -493,19 +664,13 @@ struct Decoder {
         case OpKind::RETHROW:
             if (!r.uleb(a))
                 return false;
-            put_i64(text, i64(a));
-            if (flow.tries.empty()) {
-                note("to caller");
-            } else {
-                notes.put("down to catch");
-                put_u64(notes, flow.tries.back());
-                notes.put('\n');
-            }
+            put_u64(ops, a);
+            rethrow(a);
             return true;
         case OpKind::DELEGATE:
             if (!r.uleb(a))
                 return false;
-            put_i64(text, i64(a));
+            put_u64(ops, a);
             delegate(a);
             return true;
         case OpKind::SELECT_T:
@@ -515,22 +680,16 @@ struct Decoder {
                 if (!r.byte(v))
                     return false;
                 if (i)
-                    text.put(' ');
-                text.put(type_name(v));
+                    ops.put(' ');
+                ops.put(type_name(v));
             }
             return true;
         case OpKind::REF_NULL:
-            // The heap type is in the mnemonic.
             if (!r.uleb(a))
                 return false;
-            if (a == 0x70)
-                text.put("_func");
-            else if (a == 0x6f)
-                text.put("_extern");
-            else if (a == 0x69)
-                text.put("_exn");
-            else
+            if (a != 0x70 && a != 0x6f && a != 0x69)
                 return false;
+            put_heap(ops, i64(a) - 0x80);
             return true;
         case OpKind::TRY_TABLE:
             return try_table();
@@ -538,7 +697,6 @@ struct Decoder {
         return false;
     }
 };
-
 } // namespace
 
 void put_u64(Out &o, u64 v)
@@ -603,9 +761,25 @@ void pad_to(Out &o, usize at, usize to)
         o.put(' ');
 }
 
-usize decode(Bytes b, Flow &flow, Out &text, Out &notes, bool &ok)
+bool put_valtype(Out &o, Cursor &c)
 {
-    Decoder d{ Reader{ b }, flow, text, notes, Vec<u64>() };
+    u8 t = c.byte();
+    if (t == 0x63 || t == 0x64) {
+        i64 h = c.sleb64();
+        o.put(t == 0x63 ? "(ref null "_s : "(ref "_s);
+        put_heap(o, h);
+        o.put(')');
+    } else {
+        o.put(type_name(t));
+    }
+    return c.ok() && type_name(t) != "invalid_type"_s;
+}
+
+usize decode(Bytes b, Ctx &ctx, Out &text, Out &notes, bool &ok)
+{
+    Out &ops = ctx.ops;
+    ops.s.clear();
+    Decoder d{ Reader{ b }, ctx, ctx.flow, ops, notes, Vec<u64>() };
     ok = false;
     u8 op;
     if (!d.r.byte(op))
@@ -621,15 +795,15 @@ usize decode(Bytes b, Flow &flow, Out &text, Out &notes, bool &ok)
         }
     }
     const OpInfo *info = find_op(prefix, u32(sub));
-    text.put('\t');
-    if (info) {
-        text.put(info->text);
+    if (info)
         ok = d.operands(*info);
-    }
     if (!ok) {
-        text.clear();
         notes.clear();
         text.put("\t<unknown>");
+        return d.r.at;
     }
+    text.put('\t').put(info->name);
+    if (ops.s.size())
+        text.put('\t').put(ops.str());
     return d.r.at;
 }

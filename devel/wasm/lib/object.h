@@ -158,7 +158,7 @@ struct Producer {
 struct Object {
     String name; // "a.o", or "lib.a(a.o)"
     Bytes file;
-    bool link = true; // refuse what ld does not link
+    bool link = true; // refuse what ld does not link; read a program too when false
 
     Vec<Section> sections;
     Vec<FuncType> types;

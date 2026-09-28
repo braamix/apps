@@ -2,8 +2,7 @@
 
 A reader's guide to the code in a `disasm` listing. No prior knowledge of
 WebAssembly is assumed. Every instruction `disasm` decodes is here, in
-groups, with the spelling it prints. The listings come from clang 23 and
-are what `disasm` and `llvm-objdump -d` both print.
+groups, with the spelling it prints. The listings come from clang 23.
 
 ## 1. The machine
 
@@ -44,16 +43,16 @@ loops nest, and a branch leaves a block or restarts a loop (§4).
         .local i32
       63: 41 7f        	i32.const	-1
       65: 21 01        	local.set	1
-      67: 02 40        	block   	
+      67: 02 40        	block
       69: 20 00        	local.get	0
       6b: 41 03        	i32.const	3
       6d: 4b           	i32.gt_u
-      6e: 0d 00        	br_if   	0                       # 0: down to label3
+      6e: 0d 00        	br_if	0                       # 0: down to label0
       70: 20 00        	local.get	0
-      72: 2d 00 90 80 80 80 00 	i32.load8_u	16
+      72: 2d 00 90 80 80 80 00 	i32.load8_u	offset=16
 			00000074:  R_WASM_MEMORY_ADDR_LEB	.Lswitch.table.pick+0
       79: 21 01        	local.set	1
-      7b: 0b           	end
+      7b: 0b           	end                             # label0:
       7c: 20 01        	local.get	1
       7e: 0b           	end
 ```
@@ -66,7 +65,9 @@ loops nest, and a branch leaves a block or restarts a loop (§4).
   function with none has an empty line.
 - Each line is an offset (in the file for a program, in the section for
   an object), the instruction's bytes, its name and its operands.
-- `# ...` is a comment `disasm` adds: where a branch goes (§4).
+- `# ...` is a comment `disasm` adds: where a branch goes (§4), the name
+  of what an index refers to (§5, §6), a function's signature, or a
+  float's exact value (§7).
 - A line under an instruction, indented, is a **relocation** (with `-r`,
   objects only): the linker will patch the bytes at that offset with the
   named symbol's final value. Until then the operand is a placeholder,
@@ -79,9 +80,10 @@ Names are `type.operation`: `i32.add` adds two `i32`s, `f64.load` loads
 an `f64`. A conversion is named by its result and its source:
 `f64.convert_i32_s` makes an `f64` from a signed `i32`.
 
-Operands are printed in decimal. An index is a number, not a name: `call
-3` calls function 3, whatever it is called. In an object, `-r` shows the
-name in the relocation beneath.
+Operands are printed in decimal. An index is a number, and its name is in
+the comment: `call 3  # printf`. The names come from an object's symbol
+table, or a program's name section, exports and imports; a stripped
+program has none. `-C` demangles them.
 
 ## 3. Basic instructions
 
@@ -90,8 +92,8 @@ name in the relocation beneath.
 | `nop` | nothing |
 | `unreachable` | traps: stops the program with an error. clang puts it where C says control never goes, as after `abort()` |
 | `drop` | pops a value and forgets it |
-| `f32.select` | pops a condition and two values; pushes the first if the condition is not 0, else the second. Works for any type; llvm names it `f32.select` whatever the type |
-| `select T` | the same, with the type written out |
+| `select` | pops a condition and two values; pushes the first if the condition is not 0, else the second. Works for any number type |
+| `select T` | the same, with the type written out, as it must be for a reference |
 
 ## 4. Control flow
 
@@ -108,8 +110,8 @@ name in the relocation beneath.
 | `return` | returns from the function |
 
 `T` is the block's result type: empty for none, or `i32`, `f64` and so on
-for a block that leaves one value on the stack. `unknown_type` is a
-signature from the type section, which `disasm` does not look up.
+for a block that leaves one value on the stack. A block that takes values
+or leaves several has a signature instead, `(i32) -> (i32, i32)`.
 
 A branch names a **depth**, not an address: `br 0` is the innermost
 enclosing block, `br 1` the one around it. A loop does not repeat by
@@ -117,60 +119,57 @@ itself; it runs once unless a branch goes back to it. This counts the
 spaces in a string, `while (*s) { if (*s == ' ') n++; s++; }`:
 
 ```
-       9: 03 7f        	loop    	i32                     # label0:
-       b: 02 40        	block   	
-       d: 02 40        	block   	
+       9: 03 7f        	loop	i32                     # label0:
+       b: 02 40        	block
+       d: 02 40        	block
        f: 20 00        	local.get	0
-      11: 2d 00 00     	i32.load8_u	0
+      11: 2d 00 00     	i32.load8_u
       14: 22 02        	local.tee	2
       16: 41 20        	i32.const	32
-      18: 46           	i32.eq  
-      19: 0d 00        	br_if   	0                       # 0: down to label2
+      18: 46           	i32.eq
+      19: 0d 00        	br_if	0                       # 0: down to label2
       1b: 20 02        	local.get	2
-      1d: 0d 01        	br_if   	1                       # 1: down to label1
+      1d: 0d 01        	br_if	1                       # 1: down to label1
       1f: 20 01        	local.get	1
       21: 0f           	return
-      22: 0b           	end
+      22: 0b           	end                             # label2:
       23: 20 01        	local.get	1
       25: 41 01        	i32.const	1
-      27: 6a           	i32.add 
+      27: 6a           	i32.add
       28: 21 01        	local.set	1
-      2a: 0b           	end
+      2a: 0b           	end                             # label1:
       2b: 20 00        	local.get	0
       2d: 41 01        	i32.const	1
-      2f: 6a           	i32.add 
+      2f: 6a           	i32.add
       30: 21 00        	local.set	0
-      32: 0c 00        	br      	0                       # 0: down to label2
+      32: 0c 00        	br	0                       # 0: up to label0
       34: 0b           	end
 ```
 
 A space jumps to `23` and counts it; another non-zero byte jumps to `2b`;
 a zero byte returns `n`. The `br 0` at `32` goes back to the loop.
 
-The comments help to follow this. `disasm` numbers every `block`, `loop`,
-`try` and `try_table` in the order they appear, from the start of the
-section, and prints `labelN:` at the start of each loop. A branch gets
-`# D: down to labelN` (forward, out of a block) or `# D: up to labelN`
-(back, to a loop).
-
-**The comments are llvm's and have its flaw**: an `end` does not close a
-label, and an `if` does not open one. So after an inner `end`, or inside
-an `if`, the depth is counted wrongly. Above, the `br 0` at `32` is said
-to go down to label2, a block that has ended; it goes up to label0. Trust
-a comment near the start of a block; elsewhere count the depth yourself,
-from the `block`, `loop`, `if` and `end` lines. `Invalid depth argument!`
-means the depth reaches past every label.
+The comments help to follow this. `disasm` numbers the `block`, `loop`,
+`if`, `try` and `try_table` of each function from 0, in the order they
+open, and marks where a branch to each lands: `# labelN:` at the start of
+a loop, and at the `end` of anything else. A branch gets `# D: down to
+labelN` (forward, out of a block), `# D: up to labelN` (back, to a loop)
+or `# D: return`, where the depth is the function's own. `invalid depth`
+means it reaches past even that.
 
 ## 5. Calls
 
 | Instruction | Does |
 | --- | --- |
 | `call F` | calls function F. Arguments are popped, results pushed |
-| `call_indirect T` | pops a table index and calls that function, which must have type T. A C call through a pointer. The table number is not printed |
+| `call_indirect type=T table=K` | pops an index into table K and calls that function, which must have type T. A C call through a pointer |
 | `return_call F` | a tail call: returns what F returns, without a frame of its own |
-| `return_call_indirect T` | the same, through the table |
+| `return_call_indirect type=T table=K` | the same, through the table |
 | `call_ref T` | calls a function reference popped from the stack |
 | `return_call_ref T` | the same, as a tail call |
+
+A call's comment names the function. An indirect call's shows the type's
+signature, `# (i32, i32) -> i32`: two `i32` arguments, one `i32` result.
 
 ## 6. Variables
 
@@ -181,6 +180,8 @@ means the depth reaches past every label.
 | `local.tee N` | stores into local N and keeps the value on the stack |
 | `global.get N` | pushes global N |
 | `global.set N` | pops into global N |
+
+A global's comment names it, as a call's does. Locals have no names.
 
 ## 7. Constants
 
@@ -194,10 +195,12 @@ means the depth reaches past every label.
 Integers are printed signed: `-1`, not `4294967295`. In an object an
 `i32.const` is often an address the linker fills in (see `-r`).
 
-Floats are printed **exactly**, in hexadecimal: `0x1.8p3` is 1.5 × 2³ =
-12, `0x1p-1` is 0.5, `0x0p0` is 0. The digits after `0x` are a hex
-fraction, the number after `p` a power of two in decimal. `infinity` and
-`nan` are spelled out; `nan:0x...` is a NaN with a payload.
+A float is printed in decimal, with the fewest digits that give back the
+same number: `0.1`, `1e+300`. Most decimals are not exact in binary, so
+the comment has the exact value, in hexadecimal: `0.1  # 0x1.999999999999ap-4`.
+The digits after `0x` are a hex fraction, the number after `p` a power of
+two in decimal; `0x1.8p3` is 1.5 × 2³ = 12. `inf` and `nan` are spelled
+out; `nan:0x...` is a NaN with a payload.
 
 ## 8. Memory
 
@@ -215,10 +218,11 @@ value and an address and writes it.
 | `i64.store8`, `i64.store16`, `i64.store32` | the low 1, 2 or 4 bytes of an `i64` |
 | `f32.load_f16`, `f32.store_f16` | a 16-bit float, widened to `f32` or narrowed from it |
 
-The operand is an **offset**, added to the popped address: `i32.load 8`
-reads at address + 8, the way C reads `p->field`. `:p2align=N` after it
-means the access is aligned to 2ᴺ bytes, less than its size; it is shown
-only then. It is a hint, not a rule: memory can be read at any address.
+`offset=N` is added to the popped address: `i32.load offset=8` reads at
+address + 8, the way C reads `p->field`. It is not shown when 0.
+`align=N` says the access is aligned to N bytes, less than its size; it
+is shown only then. It is a hint, not a rule: memory can be read at any
+address.
 
 | Instruction | Does |
 | --- | --- |
@@ -309,7 +313,7 @@ in a table, never in memory.
 
 | Instruction | Does |
 | --- | --- |
-| `ref.null_func`, `ref.null_extern`, `ref.null_exn` | pushes a null reference of that kind |
+| `ref.null func`, `ref.null extern`, `ref.null exn` | pushes a null reference of that kind |
 | `ref.is_null` | pops a reference; 1 if it is null |
 | `ref.func F` | pushes a reference to function F |
 | `table.get T` | pops an index, pushes the entry of table T |
@@ -352,17 +356,16 @@ The older form, which clang still writes with `-wasm-use-legacy-eh`:
 | `try T` | starts a block whose exceptions go to its `catch` |
 | `catch X` | starts the handler for tag X; comment `# catchN:` |
 | `catch_all` | starts the handler for anything else |
-| `rethrow N` | throws again what the handler N levels out caught; comment `# down to catchN`, or `to caller` |
-| `delegate N` | ends a `try` and hands its exceptions to the handler N levels out; comment `# label/catchN: down to catchM`, or `to caller` |
+| `rethrow N` | throws again what the handler N levels out caught; comment `# N: from catchL` |
+| `delegate N` | ends a `try` and hands its exceptions to the one N levels out; comment `# N: to catchL`, or `to caller` |
 
-`try-catch mismatch!` and similar comments mean a `catch` has no `try`.
+`catch without try` and similar comments mean the code is malformed.
 
 ## 15. Atomics
 
 For threads and shared memory. Every access is **atomic**: no other thread
-sees half of it. The operand is an offset, as in §8. A space comes before
-it, or `acqrel` for an acquire-release rather than a sequentially
-consistent access.
+sees half of it. The operands are as in §8, and `acqrel` first marks an
+acquire-release rather than a sequentially consistent access.
 
 | Instruction | Does |
 | --- | --- |
@@ -411,8 +414,8 @@ works on all of them at once. The prefix names the lanes:
 | --- | --- |
 | `v128.load8_splat` ... `v128.load64_splat` | loads one value into every lane |
 | `v128.load32_zero`, `v128.load64_zero` | loads into lane 0; the rest are 0 |
-| `v128.load8_lane O, L` ... `v128.load64_lane` | loads into lane L only |
-| `v128.store8_lane O, L` ... `v128.store64_lane` | stores lane L only |
+| `v128.load8_lane L` ... `v128.load64_lane` | loads into lane L only; `offset=` and `align=` come before L |
+| `v128.store8_lane L` ... `v128.store64_lane` | stores lane L only |
 | `i16x8.load8x8_s`, `i16x8.load8x8_u` | loads 8 bytes, each widened to 16 bits |
 | `i32x4.load16x4_s`, `_u`; `i64x2.load32x2_s`, `_u` | the same, 16 to 32, 32 to 64 |
 

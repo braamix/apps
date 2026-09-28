@@ -1,24 +1,46 @@
-// One instruction, decoded and printed as llvm-objdump prints it. Plain C++
-// over bytes already in memory.
+// One instruction, decoded and printed. Plain C++ over bytes already in
+// memory.
 #pragma once
 
+#include "cursor.h"
 #include "kernel/span.h"
+#include "kernel/string.h"
 #include "kernel/vec.h"
+#include "object.h"
 #include "out.h"
 
-// What llvm's WebAssembly printer remembers between instructions, for as
-// long as one module is disassembled: its label counter and its control
-// stacks. `end` pops nothing, because 0x0b decodes to an end the printer
-// does not follow, so the stacks only grow, but for `catch` and `delegate`.
+// The blocks open in the function being decoded. Labels are numbered from 0
+// in each function, in the order the blocks open.
 struct Flow {
+    enum Kind : u8 { BLOCK, LOOP, IF, TRY, TRY_TABLE };
+    enum Eh : u8 { NONE, CATCH, CATCH_ALL }; // what a try has seen
     struct Frame {
         u32 label;
-        bool loop;
+        Kind kind;
+        Eh eh;
     };
     Vec<Frame> stack;
-    Vec<u32> tries; // labels of the open trys
-    Vec<u8> eh;     // what each try has seen: a try, a catch or a catch_all
     u32 counter = 0;
+
+    void reset()
+    {
+        stack.clear();
+        counter = 0;
+    }
+};
+
+// What decoding knows of the module: the names of what an index can refer to,
+// empty where there is none, and the types.
+struct Ctx {
+    Flow flow;
+    Vec<Str> funcs;
+    Vec<Str> globals;
+    Vec<Str> tables;
+    Vec<Str> tags;
+    Vec<FuncType> types;
+    bool demangle = false;
+    String scratch;
+    Out ops; // the operands of the instruction in hand
 };
 
 // Decodes the instruction at the start of `b`, which runs to the end of its
@@ -26,9 +48,12 @@ struct Flow {
 // `notes` the comment lines, each ending in '\n'. Returns the bytes taken,
 // which for an instruction that cannot be decoded are those read before it
 // failed; `ok` is false then, and `text` is "\t<unknown>".
-usize decode(Bytes b, Flow &flow, Out &text, Out &notes, bool &ok);
+usize decode(Bytes b, Ctx &ctx, Out &text, Out &notes, bool &ok);
 
-// Decimals as llvm prints an int64_t or a uint64_t.
+// A value type in `b`, as a name; false where it is not one.
+bool put_valtype(Out &o, Cursor &c);
+
+// Decimals of an int64_t or a uint64_t.
 void put_i64(Out &o, i64 v);
 void put_u64(Out &o, u64 v);
 

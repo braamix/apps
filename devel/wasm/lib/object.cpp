@@ -974,6 +974,9 @@ struct Reader {
             return fail("functions declared but no CODE section", 0);
         if (o.data_section == NONE && o.data_count != NONE && o.data_count != 0)
             return fail("DATACOUNT but no DATA section", 0);
+        // Not linking, a program is read for its sections alone.
+        if (linking == NONE && !o.link)
+            return true;
         if (linking == NONE)
             return fail("no linking section, so not a relocatable object (clang -c makes one)", 0);
         if (!linking_section(linking))

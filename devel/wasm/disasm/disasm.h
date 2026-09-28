@@ -1,6 +1,6 @@
-// disasm's core: a module's code as llvm-objdump -d prints it, and its data
-// as rows of bytes. Plain C++ over bytes already in memory; only braam.cpp
-// awaits.
+// disasm's core: a module's code, laid out as llvm-objdump -d lays it out,
+// and its data as rows of bytes. Plain C++ over bytes already in memory;
+// only braam.cpp awaits.
 #pragma once
 
 #include "code.h"
@@ -56,7 +56,9 @@ struct Module {
     Vec<Chunk> data_chunks;
     Vec<RelocLine> data_relocs;
     Vec<ModuleSymbol> syms;
-    Flow flow;
+    Vec<u32> bodies; // where each function starts, into the code
+    usize body = 0;  // the next to start
+    Ctx ctx;
     usize next     = 0; // the chunk to print
     usize reloc    = 0;
     bool in_data   = false;
