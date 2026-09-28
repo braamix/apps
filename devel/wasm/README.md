@@ -1,6 +1,6 @@
 # wasm — WebAssembly tools for Braam
 
-The `wasm` package installs five tools for WebAssembly. All run on Braam.
+The `wasm` package installs six tools for WebAssembly. All run on Braam.
 
 - `ld`, a linker, turns the object files clang compiles into a program
   Braam can run. It does what `wasm-ld`, LLVM's linker, does, and gives
@@ -15,8 +15,11 @@ The `wasm` package installs five tools for WebAssembly. All run on Braam.
   prints.
 - `nm` lists the symbols of a program, an object or each member of an
   archive. It prints what `llvm-nm` prints.
+- `disasm` shows the code of a program, an object or each member of an
+  archive as instructions, and its data as bytes. The code is what
+  `llvm-objdump -d` prints.
 
-The tests check all five byte for byte. More tools, such as `as`, will
+The tests check all six byte for byte. More tools, such as `as`, will
 join them here, one directory each.
 
 ## Using ld
@@ -322,6 +325,68 @@ an error too, but the files are listed anyway, as `llvm-nm` does.
   thread-local storage or exceptions, is an error here too, in `ld`'s
   words.
 
+## Using disasm
+
+    disasm [options] [file...]
+
+With no file, `disasm` reads `a.out`, and `-` reads standard input. It
+shows the code, one instruction to a line, exactly as `llvm-objdump -d`
+does. With `-D` it also shows the data, sixteen bytes to a line: the two
+sections a module loads into memory.
+
+    $ disasm -D hello.o
+
+    hello.o:	file format wasm
+
+    Disassembly of section CODE:
+
+    00000000 <CODE>:
+            # 1 functions in section.
+
+    00000001 <fx_main>:
+
+           3: 41 80 80 80 80 00    	i32.const	0
+           9: 10 80 80 80 80 00    	call	0
+           f: 0b           	end
+
+    Disassembly of section DATA:
+
+    00000000 <.L.str>:
+           0: 68 65 6c 6c 6f 2c 20 77 6f 72 6c 64 0a 00        hello, world..
+
+Each function starts with its name and its locals. An address in the code
+is an offset: in the file for a program, in the section for an object.
+Data is at its address in memory, which is what an `i32.const` in the code
+names; a passive segment starts at 0. A run of zero bytes is shown as
+`...`.
+
+| Option | Meaning |
+| --- | --- |
+| `-d`, `--disassemble` | the code (the default) |
+| `-D`, `--disassemble-all` | the code and the data |
+| `-r`, `--reloc` | an object's relocations, under what they patch |
+| `-C`, `--demangle` | show C++ names demangled; `--no-demangle` undoes it |
+| `--no-show-raw-insn` | no instruction bytes |
+| `-h`, `--help` | usage |
+
+A branch is annotated with the label it goes to, as llvm annotates it.
+llvm numbers every block and loop of the module in one sequence, and
+closes none of them at an `end`, so a depth is counted among all blocks
+opened so far rather than those still open. `disasm` keeps that, so its
+code is `llvm-objdump`'s line for line.
+
+The exit status is 0 on success, 1 on an error and 130 on `^C`. An error
+in one file is reported, and the other files are still shown.
+
+`disasm` differs from `llvm-objdump -D` in these ways:
+
+- **Data is shown as bytes.** `llvm-objdump -D` decodes every section as
+  code, the data and the type section too, and crashes on some.
+- **Only code and data are shown.** The other sections are not loaded,
+  and `nm` and `size` say what is in them.
+- **Its messages** are worded as `strip`'s are, and it does not read LLVM
+  bitcode.
+
 ## Inside
 
 [lib/](lib/) reads and writes wasm modules, objects and archives, for every
@@ -389,6 +454,21 @@ memory. Only its `braam.cpp` reads and writes files.
 
 `-C` uses `ld`'s copy of LLVM's demangler, [ld/demangle/](ld/demangle/).
 
+### disasm
+
+| File | What it does |
+| --- | --- |
+| `opcodes.cpp` | every opcode llvm decodes, its text and its operands |
+| `code.cpp` | decodes and prints one instruction, and the labels |
+| `disasm.cpp` | splits the code and data at symbols, and prints each part |
+| `driver.cpp` | parses the command line |
+
+The opcode table was made from `llvm-objdump`'s own output for every
+opcode, so it keeps llvm's spelling: `i32.add ` with its space, and
+`f32.select` for a plain `select`. Symbols are read by `nm`'s
+`symbols.cpp`. A large program is written out a part at a time, so its
+text is never all in memory.
+
 ### ar
 
 [ar/](ar/) is a port: FreeBSD's sources, with its names, comments and
@@ -438,3 +518,10 @@ program stripped too, and two modules made by the test are listed by
 both `nm` and `llvm-nm`, in every format, order, radix and filter. The
 output must be equal byte for byte. Then each error is checked, as for
 `size`.
+
+And it runs [disasm/test/disasm.mjs](disasm/test/disasm.mjs). The same
+files, and modules made by the test holding every opcode with many
+operand values, are shown by both `disasm -d` and `llvm-objdump -d`, also
+with `-r`, `-C` and `--no-show-raw-insn`. The output must be equal byte
+for byte. The data rows must give back every segment's bytes at its
+address, and one object is checked whole against a golden file.

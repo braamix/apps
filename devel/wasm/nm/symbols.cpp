@@ -25,6 +25,7 @@ NmSymbol make(Str name, u8 kind, u32 flags, u64 addr, u64 size)
 {
     NmSymbol s{};
     s.name      = name;
+    s.kind      = kind;
     s.undefined = flags & SYM_UNDEFINED;
     s.weak      = (flags & SYM_BINDING_MASK) == SYM_WEAK;
     s.global    = (flags & SYM_BINDING_MASK) != SYM_LOCAL;

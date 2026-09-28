@@ -13,6 +13,7 @@ struct NmSymbol {
     u64 addr = 0;
     u64 size = 0;
     char type; // U, w, W, t, T, d or D
+    u8 kind;   // wasm::SYM_FUNCTION, SYM_DATA, ...
     bool undefined;
     bool global;
     bool weak;
