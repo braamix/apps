@@ -375,6 +375,7 @@ llvm numbers every block and loop of the module in one sequence, and
 closes none of them at an `end`, so a depth is counted among all blocks
 opened so far rather than those still open. `disasm` keeps that, so its
 code is `llvm-objdump`'s line for line.
+[Wasm_Bytecode.md](Wasm_Bytecode.md) explains every instruction it prints.
 
 The exit status is 0 on success, 1 on an error and 130 on `^C`. An error
 in one file is reported, and the other files are still shown.
@@ -489,7 +490,8 @@ messages. [ar/README.md](ar/README.md) says what had to change.
 | `getopt.cpp` | the options, as FreeBSD's `getopt_long` reads them |
 
 [Wasm_Object_Format.md](Wasm_Object_Format.md) describes the file format
-`ld` reads and writes, byte by byte.
+`ld` reads and writes, byte by byte, and
+[Wasm_Bytecode.md](Wasm_Bytecode.md) the instructions `disasm` prints.
 
 ## Tests
 
