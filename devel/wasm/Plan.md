@@ -79,19 +79,6 @@ The CMake target follows the fixtures' `wasm_archive()` precedent:
 braam::flags)`, then `braam_add_program(... LIBS wasmobj)` in each tool.
 `devel/wasm/CMakeLists.txt` adds `lib` before `ld`.
 
-### Step 6. The braam section
-
-Add `lib/stamp.h/.cpp`:
-
-    inline constexpr u32 BRAAM_MAGIC = 0x6d617262;
-    struct Stamp { u32 magic, abi, flags, initial_pages, max_pages; };
-    // The braam section's contents, if the module has a well-formed one.
-    bool find_stamp(const Vec<Section> &sections, Stamp &s);
-    void emit_stamp(Emit &e, const Stamp &s);
-
-`writer.cpp` writes its stamp with `emit_stamp`. `strip` uses
-`find_stamp` to know a module is a Braam program. `size` will print it.
-
 ### Step 7. Diag for any tool
 
 Move `diag.h` to `lib/`, with the prefix a field (`Str tool = "ld"`) in

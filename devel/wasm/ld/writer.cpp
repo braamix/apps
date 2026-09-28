@@ -2,13 +2,12 @@
 
 #include "emit.h"
 #include "kernel/alloc.h"
+#include "stamp.h"
 #include "symtab.h"
 
 using namespace wasm;
 
 namespace {
-
-constexpr u32 BRAAM_MAGIC = 0x6d617262;
 
 enum ExternKind : u8 { EXT_FUNCTION = 0, EXT_TABLE = 1, EXT_MEMORY = 2, EXT_GLOBAL = 3 };
 
@@ -986,12 +985,8 @@ struct Writer {
     void stamp()
     {
         const Config &c = l.cfg;
-        es.u32le(BRAAM_MAGIC);
-        es.u32le(c.braam_abi);
-        es.u32le(0);
-        es.u32le(c.braam_initial ? c.braam_initial : lay.pages);
-        es.u32le(c.braam_max);
-        custom("braam");
+        emit_stamp(eo, Stamp{ BRAAM_MAGIC, c.braam_abi, 0,
+                              c.braam_initial ? c.braam_initial : lay.pages, c.braam_max });
     }
 
     bool run()
