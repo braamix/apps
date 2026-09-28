@@ -1,8 +1,8 @@
 #include "symtab.h"
 
+#include "archive.h"
 #include "demangle/demangle.h"
 #include "kernel/alloc.h"
-#include "reader.h"
 #include "xxh3.h"
 
 using namespace wasm;

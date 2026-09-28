@@ -1,5 +1,11 @@
-// An input object as the reader leaves it. Every Str and Bytes is a view into
-// the file's own bytes, which the caller keeps alive.
+// A relocatable object, as read_object leaves it. Every Str and Bytes is a
+// view into the file's own bytes, which the caller keeps alive.
+//
+// Every read is bounds-checked; a failure leaves one message naming the file,
+// the section and the offset. The refusals of bitcode, of TAG, of wasm64
+// limits and of a module with no linking section are ld's, worded for it,
+// but they are also the only shapes the rest of this model supports.
+// Revisit when another tool needs to read such an object.
 #pragma once
 
 #include "kernel/span.h"
@@ -7,6 +13,7 @@
 #include "kernel/string.h"
 #include "kernel/vec.h"
 #include "module.h"
+#include "out.h"
 #include "wasm.h"
 
 struct Limits {
@@ -183,9 +190,6 @@ struct Object {
     u32 total_tables() const { return imported_tables + tables.size(); }
 };
 
-// An archive member: its name, and its bytes inside the archive's.
-struct Member {
-    Str name;
-    Bytes data;
-    u32 file_off;
-};
+// Parses `o.file` into `o`, whose `name` is already set. False on failure,
+// with the message in `err`.
+bool read_object(Object &o, Out &err);

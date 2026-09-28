@@ -2,7 +2,7 @@
 // byte for byte, so that it can be held against it.
 #pragma once
 
-#include "input.h"
+#include "object.h"
 #include "out.h"
 
 void dump_object(const Object &o, Out &out);

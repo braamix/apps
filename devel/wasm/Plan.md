@@ -79,21 +79,6 @@ The CMake target follows the fixtures' `wasm_archive()` precedent:
 braam::flags)`, then `braam_add_program(... LIBS wasmobj)` in each tool.
 `devel/wasm/CMakeLists.txt` adds `lib` before `ld`.
 
-### Step 5. Object and archive readers
-
-Move `Object` and its parts from `input.h` to `lib/object.h`, and
-`read_object` from `reader.cpp` to `lib/object.cpp`, built on
-`read_module`. Move `is_archive` and `read_archive` to `lib/archive.cpp`.
-
-- `Function::name` and `Global::name` are written by `ld`'s symtab, not
-  by the reader. They stay in the struct, commented as the linker's.
-  Moving them into a side table is not worth it yet.
-- `read_object`'s refusals of wasm64 limits and TAG are linker policy, but
-  they are also the only object shapes the rest of the model supports.
-  Keep them here, worded as now, and note it in `object.h`. Revisit when
-  `as` or `nm` needs to read such an object.
-- `ld/reader.h` and `ld/input.h` shrink to includes and then go.
-
 ### Step 6. The braam section
 
 Add `lib/stamp.h/.cpp`:

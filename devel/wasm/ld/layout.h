@@ -2,7 +2,7 @@
 // the order wasm-ld assigns them.
 #pragma once
 
-#include "input.h"
+#include "object.h"
 #include "out.h"
 
 // A function or global: an input's (file, its index among the file's own

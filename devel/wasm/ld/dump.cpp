@@ -1,7 +1,7 @@
 #include "dump.h"
 
+#include "archive.h"
 #include "kernel/alloc.h"
-#include "reader.h"
 
 using namespace wasm;
 

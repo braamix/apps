@@ -6,7 +6,7 @@
 
 #include "diag.h"
 #include "driver.h"
-#include "input.h"
+#include "object.h"
 #include "kernel/hash.h"
 #include "layout.h"
 
