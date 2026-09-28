@@ -44,6 +44,7 @@ bool read_module(Str name, Bytes f, Vec<Section> &sections, Out &err)
         Bytes b = c.take(size);
         if (!c.ok())
             break;
+        s.start = b.data() - f.data();
         if (s.id > SEC_TAG) {
             c.fail("unknown section id", at);
             break;

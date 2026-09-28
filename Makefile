@@ -192,6 +192,7 @@ TESTS := \
     devel/wasm/ld/test/relink.mjs \
     devel/wasm/strip/test/strip.mjs \
     devel/wasm/ar/test/ar.mjs \
+    devel/wasm/size/test/size.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
     emulators/simbesm/test/boot.mjs \

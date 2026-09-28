@@ -16,6 +16,7 @@ struct Section {
     Str name; // a custom section's name, else the standard one
     Bytes body;
     u32 file_off;      // where `body` starts in the file
+    u32 start;         // where the contents start, a custom section's name included
     u32 comdat = NONE; // a custom section's
 };
 

@@ -1,6 +1,6 @@
 # wasm — WebAssembly tools for Braam
 
-The `wasm` package installs three tools for WebAssembly. All run on Braam.
+The `wasm` package installs four tools for WebAssembly. All run on Braam.
 
 - `ld`, a linker, turns the object files clang compiles into a program
   Braam can run. It does what `wasm-ld`, LLVM's linker, does, and gives
@@ -10,8 +10,11 @@ The `wasm` package installs three tools for WebAssembly. All run on Braam.
 - `ar` makes and changes libraries of object files: archives, which `ld`
   links as `lib<name>.a`. It is FreeBSD's `ar`, and writes the same bytes
   as `llvm-ar --format=gnu`.
+- `size` prints how big a program, an object or each member of an archive
+  is: its code and data, or every section. It prints what `llvm-size`
+  prints.
 
-The tests check all three byte for byte. More tools, such as `as` and `nm`,
+The tests check all four byte for byte. More tools, such as `as` and `nm`,
 will join them here, one directory each.
 
 ## Using ld
@@ -196,6 +199,42 @@ What differs from FreeBSD's `ar`:
 - **There is no `-M`**, the MRI script mode, and no `ranlib`. `ar -s` does
   what `ranlib` did.
 
+## Using size
+
+    size [options] [file...]
+
+With no file, `size` reads `a.out`, and `-` reads standard input. An
+archive has each member sized in turn, and a member that is not wasm is
+skipped.
+
+    $ size hello
+       text	   data	    bss	    dec	    hex	filename
+       5514	    289	      0	   5803	   16ab	hello
+
+Text is the code section, data the data section. Bss is always 0: memory
+the data does not fill is zero already, and takes no room in the file.
+
+`-A` lists every section instead, with its size and its offset in the
+file. An object's sections are all at 0, as `llvm-size` has them.
+
+| Option | Meaning |
+| --- | --- |
+| `-B`, `--format=berkeley` | text, data and bss, a line per module (the default) |
+| `-A`, `--format=sysv` | every section, its size and address |
+| `-m`, `--format=darwin` | as `-B`, since a wasm module is not Mach-O |
+| `-d`, `-o`, `-x`, `--radix=10\|8\|16` | numbers in decimal, octal or hex |
+| `-t`, `--totals` | a last line adding up every module; `-B` only |
+| `--common` | accepted; wasm has no common symbols |
+| `-h`, `--help` | usage |
+
+The exit status is 0 on success and 1 on an error. An error in one file
+is reported, and the other files are still sized. A `--format` or
+`--radix` that is not known is an error too, but the default stands and
+the files are sized anyway, as `llvm-size` does.
+
+`size` differs from `llvm-size` only in its messages, which are worded as
+`strip`'s are. It has none of the Mach-O options.
+
 ## Inside
 
 [lib/](lib/) reads and writes wasm modules, objects and archives, for every
@@ -246,6 +285,13 @@ memory. Only its `braam.cpp` reads and writes files.
 | `strip.cpp` | copies what is kept, and leaves placeholders in an object |
 | `driver.cpp` | parses the command line |
 
+### size
+
+| File | What it does |
+| --- | --- |
+| `size.cpp` | adds up the sections and prints them, in either format |
+| `driver.cpp` | parses the command line |
+
 ### ar
 
 [ar/](ar/) is a port: FreeBSD's sources, with its names, comments and
@@ -283,3 +329,9 @@ byte. Every SDK library is taken apart with `ar x` and put back with
 `ar rc`, and must come out as the SDK's own file. Then `ld` links archives
 `ar` made as `wasm-ld` does, `ar`'s listings are checked against golden
 files, and each error is reported as upstream reports it.
+
+And it runs [size/test/size.mjs](size/test/size.mjs). Every test program,
+object and archive, the SDK's libraries and `ld` itself are sized by both
+`size` and `llvm-size`, in every format and radix, and the output must be
+equal byte for byte. Then each error is checked: its message, and that
+what is printed beside it is still `llvm-size`'s.
