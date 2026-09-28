@@ -78,12 +78,6 @@ What Braam cannot do, and what the port does instead:
   warns when setting a time fails, and extracts anyway.
 - **No modes on extraction.** A file is created with the default mode.
 
-## Step 5. Build and package
-
-- The package gains `$<TARGET_FILE:bin_ar>=bin/ar`. Version `0.3-r0`;
-  `T=WebAssembly tools: ld, strip and ar`.
-- Verify the binary's surface with the one-liner in the top `CLAUDE.md`.
-
 ## Step 6. Tests: `devel/wasm/ar/test/ar.mjs`
 
 On `ld/test/wasmlib.mjs`, as `strip.mjs` is. `llvm-ar` is the
@@ -125,7 +119,7 @@ Add it to `TESTS` in the top [Makefile](../../Makefile).
 
 | Steps | Change | Risk |
 | --- | --- | --- |
-| 5–7 | `ar` | a port, held to `llvm-ar` and the SDK's archives |
+| 6–7 | `ar` | a port, held to `llvm-ar` and the SDK's archives |
 
 `ld`'s own tests keep passing with no change to a golden file.
 

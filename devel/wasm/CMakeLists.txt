@@ -14,10 +14,11 @@ add_subdirectory(ld)
 add_subdirectory(strip)
 add_subdirectory(ar)
 
-braam_add_package(NAME wasm VERSION 0.2-r0
-                  FIELD "T=WebAssembly tools: ld, the linker, and strip"
+braam_add_package(NAME wasm VERSION 0.3-r0
+                  FIELD "T=WebAssembly tools: ld, strip and ar"
                   FILES $<TARGET_FILE:bin_ld>=bin/ld
-                        $<TARGET_FILE:bin_strip>=bin/strip)
+                        $<TARGET_FILE:bin_strip>=bin/strip
+                        $<TARGET_FILE:bin_ar>=bin/ar)
 
 if(TARGET packages)
     add_dependencies(packages pkg_wasm)
