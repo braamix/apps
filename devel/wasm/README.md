@@ -97,5 +97,12 @@ with clang and links them twice: by `ld` under the SDK's harness, and by
 - the layout against `-Map`;
 - the written sections, byte for byte, against `wasm-ld -O0`.
 
-Every linked fixture must also run on Braam. The last test, `link.mjs`,
-covers the front end: the defaults, `-l`, and failed links.
+Every linked fixture must also run on Braam. `link.mjs` covers the front
+end: the defaults, `-l`, and failed links.
+
+`relink.mjs` links real programs on Braam: `c4`, `asciifluid` and
+`dhrystone`, from the objects and SDK archives their build linked and with
+the flags their `link.txt` passes. The stamp must be `stamp.py`'s, and each
+program's own tests must pass against the relinked binary. Then `ld` links
+itself. The `ld` that results links `c4` to the same bytes, and links itself
+to the same bytes again.

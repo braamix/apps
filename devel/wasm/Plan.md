@@ -198,17 +198,6 @@ testing against wasm-ld.
 Each step ends with a test that runs under `make test`, and none starts
 until the previous one's test passes.
 
-### Step 7 — Real programs on Braam
-
-- Plant the SDK's `libbraam_*.a` and the objects of `devel/c4`,
-  `games/asciifluid` and `benchmarks/dhrystone` into the harness store.
-  Link them with `ld` on Braam and run each program's existing test
-  against the relinked binary.
-- **Self-hosting:** link `ld`'s own objects with `ld` on Braam, then
-  use that output to link c4 again. Both c4 outputs must be byte-identical.
-- **Test:** `ld/test/relink.mjs` in `LONGTESTS`, if it takes more than a few
-  seconds.
-
 ### Step 8 — The whole tree
 
 - Build `host.cpp` natively. Add `make LINKER=ld`, which configures the

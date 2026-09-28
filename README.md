@@ -62,9 +62,9 @@ editors, driven a keystroke at a time and asserted cell by cell;
 `converters/iconv`, which checks 137,385 mappings against GNU libiconv's own
 answers; `devel/c4`, which compiles hello.c, compiles itself to compile
 hello.c, and interrupts a guest loop; `devel/wasm`, whose `ld` is held to
-`wasm-ld` over a set of fixtures, byte for byte; `games/asciifluid`, whose
-frames are compared with the ones upstream's
-own binary paints; `games/asciiquarium`, a seeded aquarium asserted frame by
+`wasm-ld` over a set of fixtures, byte for byte, and relinks three programs
+and itself on Braam; `games/asciifluid`, whose frames are compared with the
+ones upstream's own binary paints; `games/asciiquarium`, a seeded aquarium asserted frame by
 frame and driven by its own keys; `games/cmatrix`, a seeded Matrix rain
 asserted frame by frame; `games/asciiclock`, a seeded demo clock
 asserted frame by frame; the two benchmarks, each stopped partway
