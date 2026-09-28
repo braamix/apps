@@ -8,6 +8,7 @@ if(NOT TARGET braam::proc)
     find_package(braam REQUIRED)
 endif()
 
-# The linker itself comes with step 1 of Plan.md. For now, the fixtures its
-# tests link, and wasm-ld's links of them to compare against.
+braam_add_program(NAME wlink SOURCES wasm.cpp reader.cpp dump.cpp braam.cpp)
+
+# The fixtures the tests link, and wasm-ld's links of them to compare against.
 add_subdirectory(test)

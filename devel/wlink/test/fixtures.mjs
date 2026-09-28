@@ -1,4 +1,4 @@
-// Step 0: the fixtures and the oracle, before there is a linker. Every input is
+// The fixtures and the oracle, independent of the linker. Every input is
 // what it claims to be, and wasm-ld's link of every fixture passes the checks
 // wlink's links will be held to — which proves the checks, not wasm-ld.
 

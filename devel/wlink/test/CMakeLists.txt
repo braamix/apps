@@ -91,7 +91,21 @@ wlink_fixture(imports  SOURCES ${FX_SRC}/imports.c)
 wlink_fixture(archives SOURCES ${FX_SRC}/arch_main.c ARCHIVES fxa_one fxa_two)
 wlink_fixture(port     SOURCES ${FX_SRC}/port.cpp PORT)
 
+# llvm-objdump is --dump's oracle, and llvm-ar makes the archive formats the
+# SDK's own do not use. Both come from the clang the toolchain found.
+get_filename_component(FX_LLVM_BIN ${BRAAM_AR} DIRECTORY)
+find_program(WLINK_OBJDUMP NAMES llvm-objdump HINTS ${FX_LLVM_BIN} REQUIRED)
+
 # The trailing "{}" entry keeps the JSON valid after the last comma.
 get_property(fixtures GLOBAL PROPERTY WLINK_FIXTURES)
 file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fixtures.json
-     CONTENT "{\n${fixtures}  \"\": {}\n}\n")
+     CONTENT "{
+  \"wlink\": \"$<TARGET_FILE:bin_wlink>\",
+  \"objdump\": \"${WLINK_OBJDUMP}\",
+  \"ar\": \"${BRAAM_AR}\",
+  \"sdk_libs\": \"$<TARGET_FILE_DIR:braam::proc>\",
+  \"fixtures\": {
+${fixtures}  \"\": {}
+  }
+}
+")

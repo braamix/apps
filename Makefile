@@ -163,6 +163,7 @@ TESTS := \
     devel/c4/test/selfhost.mjs \
     devel/c4/test/interrupt.mjs \
     devel/wlink/test/fixtures.mjs \
+    devel/wlink/test/dump.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
     emulators/simbesm/test/boot.mjs \

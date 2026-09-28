@@ -21,13 +21,18 @@ export function ok(msg) {
     console.log(msg ? "wlink ok: " + msg : "wlink ok");
 }
 
-// name -> { objects, archives, libs, reference }, every path absolute.
-export function fixtures() {
+// { wlink, objdump, ar, sdk_libs, fixtures }, every path absolute.
+export function manifest() {
     if (!existsSync(MANIFEST))
         die(`no manifest at ${MANIFEST} — run make`);
-    const all = JSON.parse(readFileSync(MANIFEST, "utf8"));
-    delete all[""];
-    return all;
+    const m = JSON.parse(readFileSync(MANIFEST, "utf8"));
+    delete m.fixtures[""];
+    return m;
+}
+
+// name -> { objects, archives, libs, reference }.
+export function fixtures() {
+    return manifest().fixtures;
 }
 
 export async function boot() {

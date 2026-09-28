@@ -108,9 +108,11 @@ devel/wlink/
   Plan.md          this file
   README.md        what it does, what it refuses, how it differs from wasm-ld
   CMakeLists.txt   braam_add_program(NAME wlink ...), braam_add_package
-  wasm.h           opcodes, section ids, reloc and symbol enums, LEB helpers
+  wasm.h/.cpp      opcodes, section ids, reloc and symbol enums
+  out.h            text built in a String: messages and --dump
   reader.cpp/.h    bounds-checked cursor; object parser; archive parser
-  input.h          InputFile, Chunk (function / data segment / custom), Symbol
+  input.h          Object, Function, Segment, Symbol, Reloc
+  dump.cpp/.h      --dump, in llvm-objdump -t -r's layout
   symtab.cpp/.h    resolution: strong/weak/lazy/undefined, comdats, imports
   gc.cpp           liveness from roots through relocations (worklist)
   layout.cpp       index spaces, types, table, memory map, synthetic symbols
@@ -133,8 +135,8 @@ Constraints the Braam side imposes, and how the plan meets them:
   them. Output size is computed before the output buffer is allocated, so
   there's one allocation with no doubling. Relocations are applied while
   copying into the output, never to a second copy of the input.
-- **No exceptions.** Every parser function returns `Result<T>`. Errors carry
-  the file, archive member, section and offset:
+- **No exceptions.** A parser function returns false and leaves one message.
+  Errors carry the file, archive member, section and offset:
   `wlink: libbraam_proc.a(io.cpp.obj): reloc.CODE +0x1a4: symbol 812 out of
   range`.
 - **Coroutine frames stay under 512 bytes.** State lives in one heap
@@ -184,73 +186,11 @@ testing against wasm-ld.
 Each step ends with a test that runs under `make test`, and none starts
 until the previous one's test passes.
 
-### Step 0 — Fixtures and oracle
-
-- Add `test/src/`, a set of small C and C++ sources, each exercising one
-  thing:
-  - hello;
-  - a static constructor and constructor priorities;
-  - a function pointer table;
-  - a weak definition overridden by a strong one;
-  - a weak undefined symbol;
-  - an inline function in two objects (comdat);
-  - `.rodata`, `.data` and `.bss`;
-  - a large `.bss`;
-  - a string literal;
-  - an `export_name` symbol;
-  - a `kernel` import;
-  - an archive member that is only reachable through another archive
-    member.
-- CMake compiles them to `.o` and packs some into `.a` with `llvm-ar`. It
-  also links each one with wasm-ld and the Braam flags, to give the
-  reference binaries.
-- Write the test runner in the shape of `games/adventure/test/play.mjs`:
-  1. boot the harness;
-  2. plant `wlink.wasm` and the fixtures in the store;
-  3. link on Braam;
-  4. read the output back;
-  5. run the result and compare its stdout with the wasm-ld build's.
-
-  This step plants and runs only the wasm-ld builds, which proves the
-  runner itself.
-
-### Step 1 — Reading
-
-- Build a bounds-checked cursor with `u8`, `u32le`, `uleb32`, `sleb32` and
-  `name`, plus a check that every LEB has at most 5 bytes.
-- Parse every standard section of an object:
-  - TYPE, IMPORT, FUNCTION, TABLE, MEMORY, GLOBAL, EXPORT, START, ELEM,
-    DATACOUNT, CODE and DATA;
-  - CODE splits into per-function bodies with their offsets inside the
-    section;
-  - DATA splits into segments with their offsets.
-  - Refuse TAG sections, since there are no exceptions.
-- Parse `linking` v2:
-  - `WASM_SYMBOL_TABLE`, covering all six kinds: function, data, global,
-    section, tag and table;
-  - `WASM_SEGMENT_INFO`, which gives names, alignment and the `STRINGS` and
-    `TLS` flags;
-  - `WASM_INIT_FUNCS` and `WASM_COMDAT_INFO`.
-- Parse `reloc.<section>`:
-  - Check that entries are ascending and inside the target section.
-  - Map each one to the chunk it lands in: the function body or data
-    segment containing it, with an offset relative to that chunk.
-  - Unknown relocation types are an error that names the type. Known but
-    unsupported ones, such as PIC, TLS and wasm64, get a sentence saying
-    why.
-- Parse the archive format:
-  - GNU `ar` with the `/` index and `//` long names; BSD `#1/<n>` names too,
-    because macOS `ar` writes them.
-  - Build the index from each member's symbol table rather than trusting the
-    `/` index, as lld does, so an unindexed archive still links.
-- Implement `--dump`.
-- **Test:** `--dump` on every fixture and on every `libbraam_*.a` member
-  matches a golden made from `llvm-objdump -t -r` output after
-  normalisation. The goldens are generated once and committed.
-
 ### Step 2 — Symbol resolution
 
 - Build one global symbol table keyed by name. Local symbols stay per file.
+- Index each archive from its members' symbol tables rather than trusting
+  the `/` index, as lld does, so an unindexed archive still links.
 - Resolution rules follow lld:
   - defined beats undefined;
   - strong beats weak, and two strong definitions are an error naming both
