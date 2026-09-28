@@ -89,12 +89,37 @@ linkers wrote.
 
 ## Inside
 
+[lib/](lib/) reads and writes wasm modules, objects and archives, for every
+tool in the package. Three rules keep it shared:
+
+- **Pure.** It never awaits and never opens a file. It takes bytes already
+  in memory and fills byte vectors and text.
+- **No policy.** It reads anything well-formed and says what it found.
+  What a tool refuses, the tool decides and words. Malformed framing is
+  the one error in every tool.
+- **Views.** Every name and byte range it returns points into the caller's
+  file, which the caller keeps alive.
+
+| File | What it does |
+| --- | --- |
+| `wasm.h` | the format's numbers: section ids, opcodes, symbols, relocations |
+| `cursor.h` | bounds-checked reads, with a sticky failure |
+| `emit.h` | encoders into a byte vector, with a sticky out of memory |
+| `module.h` | the header and sections of any module |
+| `object.h` | a relocatable object, parsed |
+| `archive.h` | the members of an archive |
+| `stamp.h` | the `braam` section |
+| `diag.h` | errors, as lld words them, after the tool's name |
+| `out.h` | text built up in memory |
+
+`object.h` still refuses what `ld` cannot link, in `ld`'s words: bitcode,
+exception tags, 64-bit limits and a module with no `linking` section.
+
 The linker core is plain C++ that works on files already read into memory.
 Only [ld/braam.cpp](ld/braam.cpp) reads and writes files.
 
 | File | What it does |
 | --- | --- |
-| `reader.cpp` | parses object files and archives |
 | `symtab.cpp` | matches each name to its definition |
 | `gc.cpp` | finds what is used |
 | `layout.cpp` | numbers functions and places data in memory |

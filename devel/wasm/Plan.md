@@ -79,17 +79,6 @@ The CMake target follows the fixtures' `wasm_archive()` precedent:
 braam::flags)`, then `braam_add_program(... LIBS wasmobj)` in each tool.
 `devel/wasm/CMakeLists.txt` adds `lib` before `ld`.
 
-### Step 8. Document the library
-
-- A short section in [README.md](README.md)'s *Inside*: the files of
-  `lib/` and the rules above: pure, no policy, views.
-- The table of `ld`'s files loses `reader.cpp`.
-- [Wasm_Object_Format.md](Wasm_Object_Format.md) is unchanged; say there
-  that `lib/` is what reads it.
-
-`dump.cpp` and `demangle/` stay in `ld` for now. `nm` is where they move
-to `lib/`, together, since `nm` is the second tool to need them.
-
 ## Part 2: strip
 
 ### What it does

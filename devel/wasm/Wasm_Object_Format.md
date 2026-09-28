@@ -5,6 +5,10 @@ WebAssembly is assumed. Sources: the WebAssembly core spec (binary format)
 and tool-conventions `Linking.md` (object files). Every hex dump here comes
 from a real file compiled by clang 23.
 
+In this package, [lib/](lib/) is what reads it: `module.cpp` the sections
+of any module (§3), `object.cpp` an object (§7 to §9), `archive.cpp` an
+archive (§10) and `stamp.cpp` the `braam` section (§11).
+
 ## 1. The big picture
 
 A C or C++ source is compiled to an **object file** (`.o`). An object file is
