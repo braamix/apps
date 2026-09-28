@@ -276,8 +276,11 @@ void print_gc_sections(const Linker &l, Out &out)
                 line(name, o.tables[k].name);
     }
     for (const Sym &g : l.syms)
-        if (!g.live && (g.stub || (g.synthetic() && g.kind == SYM_FUNCTION)))
+        if (!g.live && !g.stub && g.synthetic() && g.kind == SYM_FUNCTION)
             line("<internal>", g.name);
+    for (u32 id : l.stubs)
+        if (!l.syms[id].live)
+            line("<internal>", l.syms[id].name);
     for (const Sym &g : l.syms)
         if (!g.live && g.synthetic() && g.state == State::Defined && g.kind == SYM_GLOBAL)
             line("<internal>", g.name);

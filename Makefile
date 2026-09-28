@@ -185,6 +185,8 @@ TESTS := \
     devel/wasm/ld/test/layout.mjs \
     devel/wasm/ld/test/write.mjs \
     devel/wasm/ld/test/link.mjs \
+    devel/wasm/ld/test/map.mjs \
+    devel/wasm/ld/test/demangle.mjs \
     devel/wasm/ld/test/relink.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \

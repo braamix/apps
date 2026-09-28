@@ -158,6 +158,10 @@ Str reloc_refusal(u8 type);
 
 bool reloc_has_addend(u8 type);
 
+// How the 32-bit relocations are written: a word, or a signed LEB.
+bool reloc_is_i32(u8 type);
+bool reloc_is_sleb(u8 type);
+
 // Bytes the patched field occupies.
 u32 reloc_width(u8 type);
 

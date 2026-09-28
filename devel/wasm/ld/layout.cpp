@@ -23,6 +23,20 @@ bool fill(Vec<u32> &v, usize n, u32 x)
     return true;
 }
 
+// wasm-ld's order: by the bytes read from the end, larger first, and a
+// string before any suffix of it.
+bool before(const PoolString &a, const PoolString &b)
+{
+    for (u32 i = 0;; i++) {
+        int x = i < a.n ? a.p[a.n - 1 - i] : -1;
+        int y = i < b.n ? b.p[b.n - 1 - i] : -1;
+        if (x != y)
+            return x > y;
+        if (x < 0)
+            return false;
+    }
+}
+
 // The output segment an input segment goes to.
 Str out_name(Str n)
 {
@@ -149,8 +163,8 @@ struct Layouter {
             ctors->out_index = next++;
             add_function(Ref{ NONE, *l.names.find("__wasm_call_ctors") });
         }
-        for (u32 id = 0; id < l.syms.size(); id++)
-            if (l.syms[id].stub && l.syms[id].live) {
+        for (u32 id : l.stubs)
+            if (l.syms[id].live) {
                 l.syms[id].out_index = next++;
                 add_function(Ref{ NONE, id });
             }
@@ -457,97 +471,23 @@ struct Layouter {
             l.diag.error(m.str());
             return;
         }
-        for (u32 at = 0; at < c.size();) {
-            if (!in.pieces.push(Piece{ at, 0 })) {
-                oom = true;
-                return;
-            }
-            while (at < c.size() && c[at])
-                at++;
-            at++;
-        }
+        if (!split_strings(c, in.pieces))
+            oom = true;
     }
 
-    // A string of a pool: the piece it is and its bytes.
-    struct Str8 {
-        Piece *piece;
-        const u8 *p;
-        u32 n;
-    };
-
-    // wasm-ld's order: by the bytes read from the end, larger first, and a
-    // string before any suffix of it.
-    static bool before(const Str8 &a, const Str8 &b)
-    {
-        for (u32 i = 0;; i++) {
-            int x = i < a.n ? a.p[a.n - 1 - i] : -1;
-            int y = i < b.n ? b.p[b.n - 1 - i] : -1;
-            if (x != y)
-                return x > y;
-            if (x < 0)
-                return false;
-        }
-    }
-
-    // StringTableBuilder's RAW table: each string once, and a string that
-    // ends the one before it in that order shares its bytes.
     void pool(Merged &m)
     {
-        Vec<Str8> all;
+        Vec<PoolString> all;
         for (const Ref &r : m.members) {
             InputFile &in = file(r.file);
             Bytes c       = in.obj.segments[r.index].content;
-            u32 end       = in.piece_start[r.index + 1];
-            for (u32 p = in.piece_start[r.index]; p < end; p++) {
-                u32 to    = p + 1 < end ? in.pieces[p + 1].in : c.size();
-                Piece *pc = &in.pieces[p];
-                if (!all.push(Str8{ pc, c.data() + pc->in, to - pc->in })) {
-                    oom = true;
-                    return;
-                }
+            if (!gather(c, in.pieces, in.piece_start[r.index], in.piece_start[r.index + 1], all)) {
+                oom = true;
+                return;
             }
         }
-        // Bottom-up merge sort: no recursion, and the sort is total but for
-        // equal strings, which land alike.
-        Vec<u32> a, b;
-        if (!fill(a, all.size(), 0) || !fill(b, all.size(), 0)) {
+        if (!pool_strings(all, m.bytes))
             oom = true;
-            return;
-        }
-        for (u32 i = 0; i < all.size(); i++)
-            a[i] = i;
-        for (u32 w = 1; w < all.size(); w *= 2) {
-            for (u32 lo = 0; lo < all.size(); lo += 2 * w) {
-                u32 mid = lo + w < all.size() ? lo + w : all.size();
-                u32 hi  = lo + 2 * w < all.size() ? lo + 2 * w : all.size();
-                u32 i = lo, j = mid, o = lo;
-                while (i < mid && j < hi)
-                    b[o++] = before(all[a[j]], all[a[i]]) ? a[j++] : a[i++];
-                while (i < mid)
-                    b[o++] = a[i++];
-                while (j < hi)
-                    b[o++] = a[j++];
-            }
-            Vec<u32> t = move(a);
-            a          = move(b);
-            b          = move(t);
-        }
-        const Str8 *prev = nullptr;
-        for (u32 i : a) {
-            const Str8 &s = all[i];
-            bool tail     = prev && prev->n >= s.n;
-            for (u32 k = 0; tail && k < s.n; k++)
-                tail = prev->p[prev->n - s.n + k] == s.p[k];
-            if (tail) {
-                s.piece->out = m.bytes.size() - s.n;
-                continue;
-            }
-            s.piece->out = m.bytes.size();
-            for (u32 k = 0; k < s.n; k++)
-                if (!m.bytes.push(s.p[k]))
-                    oom = true;
-            prev = &s;
-        }
     }
 
     void log(Str what, u64 v)
@@ -809,26 +749,124 @@ Str function_name(const Linker &l, u32 index, Out &tmp)
         return "?"_s;
     }
     const Ref &r = lay.functions[index - lay.imported_functions];
-    if (r.file != NONE)
-        return l.files[r.file]->obj.functions[r.index].name;
-    const Sym &g = l.syms[r.index];
-    if (!g.stub)
-        return g.name;
+    String dm;
     tmp.clear();
-    tmp.put("undefined_weak:").put(g.name);
-    return tmp.str();
+    if (r.file != NONE)
+        return tmp.put(shown(l.cfg, l.files[r.file]->obj.functions[r.index].name, dm)).str();
+    const Sym &g = l.syms[r.index];
+    if (g.stub)
+        tmp.put(g.mismatch ? "signature_mismatch:" : "undefined_weak:");
+    return tmp.put(shown(l.cfg, g.name, dm)).str();
 }
 
-Out &row(Out &out, u32 addr, bool has_addr, u32 size, u32 indent)
+// A line's first columns: the address, or "-" for none; with -Map's file
+// offset when `off` is given; the size; then the indent.
+Out &row(Out &out, u32 addr, bool has_addr, u32 size, u32 indent, const u32 *off = nullptr)
 {
     if (has_addr)
         out.rhex(addr, 8);
     else
         out.put("       -");
+    if (off)
+        out.put(' ').rhex(*off, 8);
     out.put(' ').rhex(size, 8).put(' ');
     for (u32 i = 0; i < indent; i++)
         out.put(' ');
     return out;
+}
+
+void global_rows(const Linker &l, Out &out, bool map)
+{
+    const Layout &lay = l.layout;
+    u32 zero          = 0;
+    for (u32 i = 0; i < lay.globals.size(); i++) {
+        const Ref &r = lay.globals[i];
+        row(out, lay.imported_globals + i, true, 0, 8, map ? &zero : nullptr);
+        out.put(r.file == NONE ? l.syms[r.index].name : l.files[r.file]->obj.globals[r.index].name);
+        out.put('\n');
+    }
+}
+
+// Functions and their symbols. -Map counts a function's offset from the
+// CODE section's start plus its place in the body, the header not counted.
+void code_rows(const Linker &l, Out &out, bool map)
+{
+    String dm;
+    const Layout &lay = l.layout;
+    const Map &m      = lay.map;
+    Buckets b;
+    u32 last = NONE;
+    for (u32 i = 0; i < lay.functions.size(); i++) {
+        const Ref &r = lay.functions[i];
+        u32 off      = map ? m.code + m.code_off[i] : 0;
+        const u32 *o = map ? &off : nullptr;
+        u32 size;
+        if (map)
+            size = m.code_off[i + 1] - m.code_off[i];
+        else if (r.file == NONE)
+            size = l.syms[r.index].stub ? 4 : lay.ctors.size();
+        else {
+            const Function &f = l.files[r.file]->obj.functions[r.index];
+            size              = f.body_off - f.code_off + f.body_size;
+        }
+        if (r.file == NONE) {
+            row(out, 0, false, size, 8, o).put("<internal>:(").put(l.syms[r.index].name).put(")\n");
+            continue;
+        }
+        const InputFile &in = *l.files[r.file];
+        const Object &obj   = in.obj;
+        if (r.file != last && !bucket(l, r.file, SYM_FUNCTION, obj.functions.size(), b))
+            out.oom = true;
+        last = r.file;
+        row(out, 0, false, size, 8, o).put(obj.name.str()).put(":(");
+        out.put(obj.functions[r.index].name).put(")\n");
+        for (u32 k = b.start[r.index]; k < b.start[r.index + 1]; k++)
+            row(out, 0, false, size, 16, o)
+                .put(shown(l.cfg, obj.symbols[b.list[k]].name, dm))
+                .put('\n');
+    }
+}
+
+// Segments, their inputs and their symbols. An unwritten segment's inputs
+// have no file offset, and their symbols count from 0.
+void data_rows(const Linker &l, Out &out, bool map)
+{
+    String dm;
+    const Layout &lay = l.layout;
+    const Map &m      = lay.map;
+    Buckets b;
+    u32 last = NONE;
+    for (u32 i = 0; i < lay.segments.size(); i++) {
+        const OutSegment &s = lay.segments[i];
+        bool written        = map && m.seg_data[i];
+        u32 off             = map ? m.data + m.seg_off[i] : 0;
+        row(out, s.addr, true, s.size, 0, map ? &off : nullptr).put(s.name).put('\n');
+        for (const Ref &r : s.inputs) {
+            if (r.file == NONE) {
+                const Merged &mg = s.merged[r.index];
+                u32 at           = written ? m.data + m.seg_data[i] + mg.off : 0;
+                row(out, s.addr + mg.off, true, mg.bytes.size(), 8, map ? &at : nullptr);
+                out.put("<internal>:(").put(s.name).put(")\n");
+                continue;
+            }
+            const InputFile &in = *l.files[r.file];
+            const Object &o     = in.obj;
+            if (r.file != last && !bucket(l, r.file, SYM_DATA, o.segments.size(), b))
+                out.oom = true;
+            last               = r.file;
+            const Segment &seg = o.segments[r.index];
+            u32 addr           = s.addr + in.segment_off[r.index];
+            u32 at             = written ? m.data + m.seg_data[i] + in.segment_off[r.index] : 0;
+            row(out, addr, true, seg.content.size(), 8, map ? &at : nullptr);
+            out.put(o.name.str()).put(":(").put(seg.name).put(")\n");
+            for (u32 k = b.start[r.index]; k < b.start[r.index + 1]; k++) {
+                const Symbol &sym = o.symbols[b.list[k]];
+                u32 sat           = at + sym.offset;
+                row(out, addr + sym.offset, true, sym.size, 16, map ? &sat : nullptr);
+                out.put(shown(l.cfg, sym.name, dm)).put('\n');
+            }
+        }
+    }
 }
 
 } // namespace
@@ -889,63 +927,99 @@ void dump_layout(const Linker &l, Out &out)
 
     if (!lay.globals.empty()) {
         out.put("GLOBAL\n");
-        for (u32 i = 0; i < lay.globals.size(); i++) {
-            const Ref &r = lay.globals[i];
-            row(out, lay.imported_globals + i, true, 0, 8);
-            out.put(r.file == NONE ? l.syms[r.index].name
-                                   : l.files[r.file]->obj.globals[r.index].name);
-            out.put('\n');
-        }
+        global_rows(l, out, false);
     }
-
-    Buckets b;
     out.put("CODE\n");
-    u32 last = NONE;
-    for (const Ref &r : lay.functions) {
-        if (r.file == NONE) {
-            const Sym &g = l.syms[r.index];
-            row(out, 0, false, g.stub ? 4 : lay.ctors.size(), 8);
-            out.put("<internal>:(").put(g.name).put(")\n");
-            continue;
-        }
-        const InputFile &in = *l.files[r.file];
-        const Object &o     = in.obj;
-        if (r.file != last && !bucket(l, r.file, SYM_FUNCTION, o.functions.size(), b))
-            out.oom = true;
-        last              = r.file;
-        const Function &f = o.functions[r.index];
-        u32 size          = f.body_off - f.code_off + f.body_size;
-        row(out, 0, false, size, 8).put(o.name.str()).put(":(").put(f.name).put(")\n");
-        for (u32 k = b.start[r.index]; k < b.start[r.index + 1]; k++)
-            row(out, 0, false, size, 16).put(o.symbols[b.list[k]].name).put('\n');
-    }
-
+    code_rows(l, out, false);
     if (lay.segments.empty())
         return;
     out.put("DATA\n");
-    last = NONE;
-    for (const OutSegment &s : lay.segments) {
-        row(out, s.addr, true, s.size, 0).put(s.name).put('\n');
-        for (const Ref &r : s.inputs) {
-            if (r.file == NONE) {
-                const Merged &m = s.merged[r.index];
-                row(out, s.addr + m.off, true, m.bytes.size(), 8);
-                out.put("<internal>:(").put(s.name).put(")\n");
-                continue;
-            }
-            const InputFile &in = *l.files[r.file];
-            const Object &o     = in.obj;
-            if (r.file != last && !bucket(l, r.file, SYM_DATA, o.segments.size(), b))
-                out.oom = true;
-            last               = r.file;
-            const Segment &seg = o.segments[r.index];
-            u32 addr           = s.addr + in.segment_off[r.index];
-            row(out, addr, true, seg.content.size(), 8);
-            out.put(o.name.str()).put(":(").put(seg.name).put(")\n");
-            for (u32 k = b.start[r.index]; k < b.start[r.index + 1]; k++) {
-                const Symbol &sym = o.symbols[b.list[k]];
-                row(out, addr + sym.offset, true, sym.size, 16).put(sym.name).put('\n');
-            }
-        }
+    data_rows(l, out, false);
+}
+
+void write_map(const Linker &l, Out &out)
+{
+    static const Str NAMES[] = { "CUSTOM", "TYPE",   "IMPORT",   "FUNCTION", "TABLE",
+                                 "MEMORY", "GLOBAL", "EXPORT",   "START",    "ELEM",
+                                 "CODE",   "DATA",   "DATACOUNT" };
+    out.put("    Addr      Off     Size Out     In      Symbol\n");
+    for (const MapSection &s : l.layout.map.sections) {
+        u32 off = s.off;
+        row(out, 0, false, s.size, 0, &off).put(NAMES[s.id]);
+        if (s.id == SEC_CUSTOM)
+            out.put('(').put(s.name).put(')');
+        out.put('\n');
+        if (s.id == SEC_GLOBAL)
+            global_rows(l, out, true);
+        else if (s.id == SEC_CODE)
+            code_rows(l, out, true);
+        else if (s.id == SEC_DATA)
+            data_rows(l, out, true);
     }
+}
+
+bool split_strings(Bytes c, Vec<Piece> &out)
+{
+    for (u32 at = 0; at < c.size();) {
+        if (!out.push(Piece{ at, 0 }))
+            return false;
+        while (at < c.size() && c[at])
+            at++;
+        at++;
+    }
+    return true;
+}
+
+bool gather(Bytes c, Vec<Piece> &pieces, u32 from, u32 to, Vec<PoolString> &all)
+{
+    for (u32 p = from; p < to; p++) {
+        u32 end = p + 1 < to ? pieces[p + 1].in : c.size();
+        if (!all.push(PoolString{ &pieces[p], c.data() + pieces[p].in, end - pieces[p].in }))
+            return false;
+    }
+    return true;
+}
+
+bool pool_strings(const Vec<PoolString> &all, Vec<u8> &bytes)
+{
+    // Bottom-up merge sort: no recursion, and the sort is total but for
+    // equal strings, which land alike.
+    Vec<u32> a, b;
+    if (!fill(a, all.size(), 0) || !fill(b, all.size(), 0))
+        return false;
+    for (u32 i = 0; i < all.size(); i++)
+        a[i] = i;
+    for (u32 w = 1; w < all.size(); w *= 2) {
+        for (u32 lo = 0; lo < all.size(); lo += 2 * w) {
+            u32 mid = lo + w < all.size() ? lo + w : all.size();
+            u32 hi  = lo + 2 * w < all.size() ? lo + 2 * w : all.size();
+            u32 i = lo, j = mid, o = lo;
+            while (i < mid && j < hi)
+                b[o++] = before(all[a[j]], all[a[i]]) ? a[j++] : a[i++];
+            while (i < mid)
+                b[o++] = a[i++];
+            while (j < hi)
+                b[o++] = a[j++];
+        }
+        Vec<u32> t = move(a);
+        a          = move(b);
+        b          = move(t);
+    }
+    const PoolString *prev = nullptr;
+    for (u32 i : a) {
+        const PoolString &s = all[i];
+        bool tail           = prev && prev->n >= s.n;
+        for (u32 k = 0; tail && k < s.n; k++)
+            tail = prev->p[prev->n - s.n + k] == s.p[k];
+        if (tail) {
+            s.piece->out = bytes.size() - s.n;
+            continue;
+        }
+        s.piece->out = bytes.size();
+        for (u32 k = 0; k < s.n; k++)
+            if (!bytes.push(s.p[k]))
+                return false;
+        prev = &s;
+    }
+    return true;
 }

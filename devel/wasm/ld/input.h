@@ -16,7 +16,8 @@ struct Section {
     u8 id;
     Str name; // a custom section's name, else the standard one
     Bytes body;
-    u32 file_off; // where `body` starts in the file
+    u32 file_off;      // where `body` starts in the file
+    u32 comdat = NONE; // a custom section's
 };
 
 struct Limits {

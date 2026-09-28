@@ -1,9 +1,9 @@
 // Section sizes, ld against wasm-ld, for every program in the tree:
 // `node devel/wasm/ld/sizes.mjs [<build>]`. Each program is linked twice from
 // the objects, archives and flags its link.txt names, once by each linker,
-// into a directory of its own; the build is only read. wasm-ld is given
-// --no-demangle, since ld never demangles, and "other" includes the 26-byte
-// braam section, which ld writes and stamp.py adds to wasm-ld's.
+// into a directory of its own; the build is only read. "other" includes the
+// 26-byte braam section, which ld writes and stamp.py adds to wasm-ld's, and
+// "names" compares the function names of the name section, demangled by both.
 
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -75,6 +75,49 @@ function sizes(file) {
     return out;
 }
 
+// The function names of the name section, less wasm-ld's __wasm_init_memory.
+function names(file) {
+    const b = readFileSync(file);
+    const leb = (at) => {
+        let n = 0, s = 0, c;
+        do {
+            c = b[at++];
+            n |= (c & 0x7f) << s;
+            s += 7;
+        } while (c & 0x80);
+        return [n >>> 0, at];
+    };
+    let at = 8;
+    while (at < b.length) {
+        const id = b[at];
+        let [n, p] = leb(at + 1);
+        const end = p + n;
+        if (id === 0) {
+            const [k, q] = leb(p);
+            if (b.subarray(q, q + k).toString() === "name") {
+                for (p = q + k; p < end;) {
+                    const sub = b[p];
+                    const [size, r] = leb(p + 1);
+                    if (sub === 1) {
+                        const out = [];
+                        let [count, t] = leb(r);
+                        while (count--) {
+                            [, t] = leb(t);
+                            const [len, u] = leb(t);
+                            out.push(b.subarray(u, u + len).toString());
+                            t = u + len;
+                        }
+                        return out.filter((x) => x !== "__wasm_init_memory").join("\n");
+                    }
+                    p = r + size;
+                }
+            }
+        }
+        at = end;
+    }
+    return "";
+}
+
 function run(cmd, argv, cwd) {
     const r = spawnSync(cmd, argv, { cwd, encoding: "utf8" });
     if (r.status !== 0) {
@@ -83,21 +126,22 @@ function run(cmd, argv, cwd) {
     }
 }
 
-const rows = [["program", "wasm-ld", "ld", "CODE", "DATA", "other"]];
+const rows = [["program", "wasm-ld", "ld", "CODE", "DATA", "other", "names"]];
 const sum = { a: 0, b: 0 };
 for (const p of links(BUILD).sort((x, y) => x.name.localeCompare(y.name))) {
     const a = join(tmp, "wasm-ld", `${p.name}.wasm`), b = join(tmp, "ld", `${p.name}.wasm`);
     const argv = args(p.txt);
-    run("wasm-ld", [...argv, "--no-demangle", "-o", a], p.cwd);
+    run("wasm-ld", [...argv, "-o", a], p.cwd);
     run(process.execPath, [join(APPS, "devel/wasm/ld/host.mjs"), LD, ...argv, "-o", b], p.cwd);
     const x = sizes(a), y = sizes(b);
     const d = (k) => (y[k] ?? 0) - (x[k] ?? 0);
     const other = y.total - x.total - d("CODE") - d("DATA");
-    rows.push([p.name, x.total, y.total, d("CODE"), d("DATA"), other]);
+    rows.push([p.name, x.total, y.total, d("CODE"), d("DATA"), other,
+               names(a) === names(b) ? "same" : "differ"]);
     sum.a += x.total;
     sum.b += y.total;
 }
-rows.push(["all", sum.a, sum.b, "", "", ""]);
+rows.push(["all", sum.a, sum.b, "", "", "", ""]);
 const w = rows[0].map((_, i) => Math.max(...rows.map((r) => String(r[i]).length)));
 for (const r of rows)
     console.log(r.map((c, i) => i ? String(c).padStart(w[i]) : String(c).padEnd(w[i])).join("  "));

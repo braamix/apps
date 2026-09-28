@@ -1,5 +1,6 @@
 // The Braam front end: reads what the command line names, hands the bytes to
 // the core, and writes what comes back. Only this file awaits.
+#include "demangle/demangle.h"
 #include "driver.h"
 #include "dump.h"
 #include "gc.h"
@@ -20,6 +21,7 @@ struct Front {
     Out out;
     String path;
     Vec<u8> image; // the output module
+    Out map;       // -Map
     bool cancelled = false;
 };
 
@@ -121,6 +123,22 @@ Task<Result<String>> read_input(Front &s, const InputArg &a, Error &why)
     co_return Err(Error::NotFound);
 }
 
+// --dump-demangle: each line of `text` as wasm-ld would show the name.
+bool demangle_lines(Str text, Out &out)
+{
+    String tmp;
+    usize at = 0;
+    while (at < text.size()) {
+        usize end = at;
+        while (end < text.size() && text[end] != '\n')
+            end++;
+        demangle(text.substr(at, end - at), tmp);
+        out.put(tmp.str()).put('\n');
+        at = end + 1;
+    }
+    return !out.oom;
+}
+
 Task<i32> dump(Front &s)
 {
     for (const InputArg &a : s.cfg.inputs) {
@@ -134,7 +152,8 @@ Task<i32> dump(Front &s)
         Bytes bytes(reinterpret_cast<const u8 *>(file.data()), file.size());
         Out err;
         s.out.clear();
-        bool ok = dump_file(a.name, bytes, s.out, err);
+        bool ok = s.cfg.dump_demangle ? demangle_lines(file.str(), s.out)
+                                      : dump_file(a.name, bytes, s.out, err);
         if (s.out.oom)
             s.diag.error("out of memory");
         Result<void> w = co_await say(SYS_STDOUT, s.out.str());
@@ -195,6 +214,8 @@ Task<i32> link(Front &s)
     if (ok && s.cfg.dump_layout)
         dump_layout(*l, l->out);
     ok = ok && write_module(*l, s.image);
+    if (ok && !s.cfg.map_file.empty())
+        write_map(*l, s.map);
     if (ok && s.cfg.dump_symtab)
         dump_symtab(*l, l->out);
     if (l->out.oom || l->why.oom)
@@ -217,6 +238,12 @@ Task<i32> link(Front &s)
         Result<void> w = co_await spill(to, bytes);
         if (w.is_err())
             cannot_open(s, to, w.error());
+        if (!s.cfg.map_file.empty()) {
+            if (s.map.oom)
+                s.diag.error("out of memory");
+            else if (Result<void> mw = co_await spill(s.cfg.map_file, s.map.str()); mw.is_err())
+                cannot_open(s, s.cfg.map_file, mw.error());
+        }
     }
     co_return co_await finish(s, ok);
 }
@@ -245,7 +272,7 @@ Task<i32> run(Front &s, Args args)
         s.diag.error("no input files");
         co_return co_await finish(s, false);
     }
-    if (s.cfg.dump)
+    if (s.cfg.dump || s.cfg.dump_demangle)
         co_return co_await dump(s);
     co_return co_await link(s);
 }

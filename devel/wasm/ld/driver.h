@@ -23,28 +23,34 @@ struct Config {
     Vec<Str> exports;   // --export
     Vec<Str> undefined; // -u
     Str why_extract;    // --why-extract=<file>; "-" is stdout
-    bool trace             = false;
-    bool allow_undefined   = false;
-    bool gc_sections       = true;
-    bool print_gc_sections = false;
-    bool stack_first       = true;
-    bool verbose           = false;
-    bool import_memory     = true;
-    u32 stack_size         = 131072;
-    u32 initial_memory     = 0;
-    u32 max_memory         = 0;
-    u32 global_base        = 1024;
-    bool global_base_set   = false;
-    u32 error_limit        = 20;
-    u32 optimize           = 1; // -O<n>: 1 and up merge strings
+    Str map_file;       // -Map=<file>
+    bool trace                = false;
+    bool allow_undefined      = false;
+    bool gc_sections          = true;
+    bool print_gc_sections    = false;
+    bool stack_first          = true;
+    bool verbose              = false;
+    bool import_memory        = true;
+    u32 stack_size            = 131072;
+    u32 initial_memory        = 0;
+    u32 max_memory            = 0;
+    u32 global_base           = 1024;
+    bool global_base_set      = false;
+    u32 error_limit           = 20;
+    u32 optimize              = 1; // -O<n>: 1 and up merge strings
+    bool compress_relocations = false;
+    bool strip_debug          = false;
+    bool strip_all            = false;
+    bool demangle             = true;
 
     // ld's own.
-    bool dump         = false;    // --dump: the inputs are to be dumped, not linked
-    bool dump_symtab  = false;    // --dump-symtab: print the resolved symbols
-    bool dump_layout  = false;    // --dump-layout: print indices and addresses
-    u32 braam_abi     = PROC_ABI; // --braam-abi
-    u32 braam_initial = 0;        // --braam-pages; 0: the link's initial memory
-    u32 braam_max     = 1600;
+    bool dump          = false;    // --dump: the inputs are to be dumped, not linked
+    bool dump_demangle = false;    // --dump-demangle: the inputs are names, a line each
+    bool dump_symtab   = false;    // --dump-symtab: print the resolved symbols
+    bool dump_layout   = false;    // --dump-layout: print indices and addresses
+    u32 braam_abi      = PROC_ABI; // --braam-abi
+    u32 braam_initial  = 0;        // --braam-pages; 0: the link's initial memory
+    u32 braam_max      = 1600;
 };
 
 // False with a message in `diag` for an argument that is not understood.

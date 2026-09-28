@@ -123,6 +123,8 @@ devel/wasm/
     gc.cpp/.h        liveness from roots through relocations (worklist)
     layout.cpp/.h    index spaces, types, table, memory map, synthetic symbols
     writer.cpp/.h    output sections, relocation patching, name, stamp
+    xxh3.cpp/.h      LLVM's hash, for the order of lld's variant table
+    demangle/        LLVM's Itanium demangler, over a std.h of our own
     driver.cpp/.h    options → Config; link(Config, inputs) → bytes | error
     braam.cpp        proc_main: args, @file, -L/-l search, read, write
     host.mjs         ld.wasm under the SDK's harness, as clang's -fuse-ld
@@ -194,38 +196,11 @@ driving `ld.wasm` under the harness, one boot a link (`host.mjs`).
 stamped binary. The generic wasm-ld flags exist for the tree's CMake and for
 testing against wasm-ld.
 
-## 5. Steps
-
-Each step ends with a test that runs under `make test`, and none starts
-until the previous one's test passes.
-
-### Step 9 — Breadth, after the tree links
-
-Items are ordered by how likely a real input is to need them:
-
-1. **LEB compaction:** re-encode padded LEBs at their minimal length while
-   copying. This needs `CODE` offsets adjusted per body, but still no
-   instruction decoding. wasm-ld's `--compress-relocations` is the
-   reference.
-2. **Demangling** of C++ names in the `name` section, which wasm-ld does
-   unless given `--no-demangle`.
-3. **Debug info:** `R_WASM_FUNCTION_OFFSET_I32`, `R_WASM_SECTION_OFFSET_I32`
-   and `.debug_*` custom sections. It's dropped by default until then,
-   which is what `--strip-debug` does anyway.
-4. **Signature-mismatch stubs**, and `-Map`.
-5. **Explicitly out of scope:**
-   - `-shared`, `-pie` and `dylink.0`;
-   - TLS and shared memory;
-   - wasm64 and multi-memory;
-   - exception tags, GC types and LTO.
-
-   Each is refused with a message rather than mislinked.
-
-## 6. Risks worth watching
+## 5. Risks worth watching
 
 - **Padded LEBs and body sizes.** A function body's size prefix covers the
   padded relocation fields. Copying bodies verbatim keeps that true.
-  Compaction in step 9 has to rewrite the size prefix too.
+  Compaction (--compress-relocations) rewrites the size prefix too.
 - **Relocation addends.** `MEMORY_ADDR_*` relocations carry an addend
   (`&arr[3]`). `TABLE_INDEX` relocations don't. Getting this wrong makes
   pointers that point near the right place, so the fixtures include an

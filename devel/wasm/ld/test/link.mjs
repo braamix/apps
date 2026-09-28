@@ -24,7 +24,7 @@ function same(what, a, b) {
 function link(name, args, to = "p") {
     H.store.files.delete(`/tmp/${to}`);
     const got = ld([...args, "-o", to]);
-    if (got.status !== 0 || got.err) {
+    if (got.status !== 0 || got.err.includes("error:")) {
         bad.push(`${name}: ld ${args.slice(0, 2).join(" ")}... fails: ${got.err}`);
         return null;
     }
@@ -73,6 +73,12 @@ same("-lnope: status", got.status, 1);
 same("-lnope: stderr", got.err, ref.err.replaceAll("wasm-ld: ", "ld: "));
 if (H.store.files.has("/tmp/p"))
     bad.push("-lnope: left an output file");
+
+// Packed LEBs and debug info do not mix.
+const packed = [...FLAGS, "--compress-relocations", ...objs];
+const pk = ld([...packed, "-o", "p"]), pw = wasm_ld(packed);
+same("--compress-relocations: status", pk.status, 1);
+same("--compress-relocations: stderr", pk.err, pw.err.replaceAll("wasm-ld: ", "ld: "));
 
 // A link that fails writes nothing.
 for (const [name, fx] of Object.entries(m.bad)) {

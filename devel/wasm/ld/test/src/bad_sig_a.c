@@ -1,4 +1,4 @@
-// A direct call with one signature to a function defined with another.
+// A direct call with one signature to a function nothing defines.
 #include "fixture.h"
 
 int sig_fn(int a);

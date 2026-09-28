@@ -54,6 +54,29 @@ Str reloc_refusal(u8 type)
     }
 }
 
+bool reloc_is_i32(u8 type)
+{
+    switch (type) {
+    case R_TABLE_INDEX_I32:
+    case R_MEMORY_ADDR_I32:
+    case R_FUNCTION_OFFSET_I32:
+    case R_SECTION_OFFSET_I32:
+    case R_GLOBAL_INDEX_I32:
+    case R_MEMORY_ADDR_LOCREL_I32:
+    case R_FUNCTION_INDEX_I32:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool reloc_is_sleb(u8 type)
+{
+    return type == R_TABLE_INDEX_SLEB || type == R_MEMORY_ADDR_SLEB ||
+           type == R_MEMORY_ADDR_REL_SLEB || type == R_TABLE_INDEX_REL_SLEB ||
+           type == R_MEMORY_ADDR_TLS_SLEB;
+}
+
 bool reloc_has_addend(u8 type)
 {
     switch (type) {

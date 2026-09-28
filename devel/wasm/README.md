@@ -34,22 +34,28 @@ Options are spelled as `wasm-ld` spells them:
 - `--gc-sections`, `--no-gc-sections` and `--print-gc-sections`;
 - `--stack-first`, `--no-stack-first`, `--global-base`, `-z stack-size=`,
   `--initial-memory`, `--max-memory` and `--import-memory`;
-- `--trace`, `--why-extract`, `--error-limit` and `--verbose`;
+- `--trace`, `--why-extract`, `--error-limit`, `--verbose` and `-Map=<file>`;
 - `-O<n>`: at 1, the default, strings are merged as `wasm-ld` merges them,
-  and at 0 they are not.
+  `.debug_str` among them, and at 0 they are not;
+- `--compress-relocations`, which writes every relocated LEB at its
+  shortest and, as in `wasm-ld`, wants `--strip-debug` or `--strip-all`;
+- `--strip-debug` (`-S`), `--strip-all` (`-s`), `--demangle` and
+  `--no-demangle`.
 
 Braam's `OptParse` has no long options, so `ld` parses these itself. What
-clang passes and `ld` has no use for (`-m wasm32`, `--strip-debug`,
-`--strip-all`, `--demangle`, `--no-demangle`) is accepted and changes
+clang passes and `ld` has no use for (`-m wasm32`) is accepted and changes
 nothing.
 
-Four more options are `ld`'s own:
+More options are `ld`'s own:
 
 - `--braam-abi=<n>` and `--braam-pages=<initial>,<max>` set the stamp;
+- `--no-import-memory` defines the memory in the module, as `wasm-ld` does
+  by default;
 - `--dump` prints an object's or archive's symbols and relocations in
   `llvm-objdump -t -r`'s layout;
 - `--dump-symtab` and `--dump-layout` print the resolved symbols, the index
-  spaces and the memory map.
+  spaces and the memory map;
+- `--dump-demangle` prints each line of its inputs as a name is shown.
 
 The exit status is 0 on success, 1 on an error and 130 on `^C`. A link that
 fails writes no output.
@@ -62,6 +68,21 @@ constructors, weak symbols and GNU `ar` archives. Symbols resolve, archive
 members load and unused chunks are dropped in `wasm-ld`'s order. So the
 index spaces, the memory map and the diagnostics are `wasm-ld`'s, and so
 is every section except the ones listed below.
+
+`ld` also copies custom sections, debug info among them. It applies their
+relocations, and gives code or data that was dropped `wasm-ld`'s
+tombstones. A call whose signature differs from the definition gets
+`wasm-ld`'s warning and a stub that traps. With several such names, the
+warnings and stubs come in the order of `wasm-ld`'s hash table, whose hash
+[ld/xxh3.cpp](ld/xxh3.cpp) reproduces.
+
+C++ names are demangled wherever `wasm-ld` demangles them: in the `name`
+section, the map, `--why-extract` and the messages. The demangler in
+[ld/demangle/](ld/demangle/) is LLVM 23.1.2's own `ItaniumDemangle.h`,
+under LLVM's Apache-2.0 licence with its exception. Only its C++ library
+changed: [ld/demangle/std.h](ld/demangle/std.h) stands in for it, over the
+kernel's heap. Rust and D names are not demangled; a float in a template
+argument prints only as a `double`.
 
 ### What it refuses
 
@@ -83,13 +104,9 @@ than mislinked:
   in a `__wasm_init_memory` it names in START. Every Braam process gets a
   fresh memory, so `ld` writes neither START nor `__wasm_init_memory`.
   Neither linker writes `.bss` bytes.
-- **Names are not demangled.** `wasm-ld` demangles C++ names in the `name`
-  section unless given `--no-demangle`, and `ld` never does. That makes the
-  section a fifth smaller for C++, and a debugger shows mangled names.
-- **A signature mismatch is an error.** `wasm-ld` warns and links a stub that
-  traps when called. `ld` refuses the link. A function only address-taken
-  carries no signature of its own, and is not checked, as in `wasm-ld`.
-- **Debug info is dropped**, as `--strip-debug` would drop it.
+- **The memory is imported by default**, as `braam_add_program` asks. With
+  `--no-import-memory` too, the whole module is `wasm-ld`'s byte for byte,
+  but for the stamp.
 
 ## Linking the tree with ld
 
@@ -112,9 +129,10 @@ seconds. `ld` stamps as it links, so `stamp.py`'s step becomes
 `stamp.py` would have written. A new `ld` relinks everything.
 
 `node devel/wasm/ld/sizes.mjs` links every program in `build/` with both
-linkers and prints the sizes. Given `--no-demangle`, `wasm-ld`'s output is
-larger by 12 to 14 bytes a program. It has a 16-byte `__wasm_init_memory`,
-a START and a DATACOUNT section, and it lacks the 26-byte stamp.
+linkers and prints the sizes. `wasm-ld`'s output is larger by 12 to 14
+bytes a program. It has a 16-byte `__wasm_init_memory`, a START and a
+DATACOUNT section, and it lacks the 26-byte stamp. The names in the `name`
+section are the same in both.
 
 ### Tests
 
@@ -126,8 +144,11 @@ with clang and links them twice: by `ld` under the SDK's harness, and by
 - symbol resolution against `--trace` and `--why-extract`;
 - dropped chunks against `--print-gc-sections`;
 - the layout against `-Map`;
-- the written sections, byte for byte, against `wasm-ld` at `-O0` and at
-  `-O1`.
+- the written sections, byte for byte, against `wasm-ld` at `-O0`, at `-O1`
+  and with `--compress-relocations`;
+- with the memory defined, the whole module and `-Map`, plain, packed and
+  with `--strip-all`;
+- every symbol name, demangled, against `llvm-cxxfilt`.
 
 Every linked fixture must also run on Braam. `link.mjs` covers the front
 end: the defaults, `-l`, and failed links.

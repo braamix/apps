@@ -684,6 +684,8 @@ struct Reader {
                 case COMDAT_SECTION:
                     if (e.index >= o.sections.size())
                         c.fail("comdat names no section", pos);
+                    else
+                        owner = &o.sections[e.index].comdat;
                     break;
                 default:
                     c.fail("unknown comdat entry kind", pos);

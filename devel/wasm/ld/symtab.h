@@ -37,11 +37,14 @@ struct InputFile {
     Vec<u32> type_map;       // object type -> output type; NONE if unused
     Vec<u32> function_index; // defined function -> output index; NONE if dead
     Vec<u32> global_index;
-    Vec<u32> slot;        // defined function -> table slot; 0 for none
-    Vec<u32> segment_out; // segment -> output segment
-    Vec<u32> segment_off; // segment -> offset in it; NONE for merged strings
-    Vec<u32> piece_start; // segment -> its first piece, and the end last
-    Vec<Piece> pieces;    // merged strings, each segment's in offset order
+    Vec<u32> slot;               // defined function -> table slot; 0 for none
+    Vec<u32> segment_out;        // segment -> output segment
+    Vec<u32> segment_off;        // segment -> offset in it; NONE for merged strings
+    Vec<u32> piece_start;        // segment -> its first piece, and the end last
+    Vec<Piece> pieces;           // merged strings, each segment's in offset order
+    Vec<u32> custom_off;         // custom section -> offset in its output; NONE if not there
+    Vec<u32> custom_piece_start; // custom section -> first piece, as piece_start
+    Vec<Piece> custom_pieces;    // merged debug strings, pooled apart
 };
 
 enum class State : u8 {
@@ -61,6 +64,7 @@ struct Sym {
     const FuncType *sig = nullptr;
     bool called         = false; // an undefined function called directly
     bool stub           = false; // weak undefined function: a body that traps
+    bool mismatch       = false; // the stub stands for a signature that differs
     bool live           = false;
     u32 out_index       = NONE; // linker's function or global, or an import
     u32 slot            = 0;    // table slot of an imported function
@@ -84,6 +88,7 @@ struct Linker {
     Vec<u32> objects;          // files in lld's order: each after the members it pulled
     HashMap<Str, u32> comdats; // name -> the file that keeps it
     Vec<Str> comdat_order;
+    Vec<u32> stubs; // syms whose bodies trap, in wasm-ld's order
     Layout layout;
 
     Linker(const Config &c, Diag &d) : cfg(c), diag(d) {}
@@ -109,6 +114,10 @@ bool imported(const Linker &l, const Sym &g);
 bool same_sig(const FuncType *a, const FuncType *b);
 
 Str valtype_name(u8 t);
+
+// A symbol's name as wasm-ld shows it: __main_argc_argv as main, and
+// demangled unless --no-demangle. `tmp` holds what is returned.
+Str shown(const Config &c, Str name, String &tmp);
 
 // "(i32, i32) -> i32", as lld writes a signature.
 void put_sig(Out &m, const FuncType *t);

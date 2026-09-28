@@ -18,11 +18,6 @@ bool number(Str s, u32 &v)
     return true;
 }
 
-// Options clang passes, and ones ld has no use for, that change nothing.
-const Str IGNORED[] = {
-    "--no-demangle", "--demangle", "--strip-debug", "--strip-all", "-s", "-S",
-};
-
 struct Parser {
     Span<const Str> w;
     usize i = 0;
@@ -77,6 +72,8 @@ struct Parser {
                 cfg.inputs.push(InputArg{ a, false });
             } else if (a == "--braam") {
                 braam();
+            } else if (a == "--dump-demangle") {
+                cfg.dump_demangle = true;
             } else if (a == "--dump") {
                 cfg.dump = true;
             } else if (a == "--dump-symtab") {
@@ -103,6 +100,25 @@ struct Parser {
                 cfg.verbose = true;
             } else if (a == "--dump-layout") {
                 cfg.dump_layout = true;
+            } else if (a == "--compress-relocations") {
+                cfg.compress_relocations = true;
+            } else if (a == "--strip-debug" || a == "-S") {
+                cfg.strip_debug = true;
+            } else if (a == "--strip-all" || a == "-s") {
+                cfg.strip_all = true;
+            } else if (a == "--demangle") {
+                cfg.demangle = true;
+            } else if (a == "--no-demangle") {
+                cfg.demangle = false;
+            } else if (a == "--no-import-memory") {
+                cfg.import_memory = false;
+            } else if (a == "-Map" || a == "--Map") {
+                if (i + 1 < w.size())
+                    cfg.map_file = w[++i];
+                else
+                    missing = a;
+            } else if (a.starts_with("-Map=") || a.starts_with("--Map=")) {
+                cfg.map_file = a.substr(a.starts_with("-Map=") ? 5 : 6);
             } else if (a == "--import-memory") {
                 cfg.import_memory = true;
             } else if (take(a, "--output", v) || take(a, "-o", v)) {
@@ -155,15 +171,16 @@ struct Parser {
                 if (!num(a, v.substr(11), cfg.stack_size))
                     return false;
             } else {
-                bool ignored = false;
-                for (Str s : IGNORED)
-                    ignored = ignored || a == s;
-                if (!ignored)
-                    return fail("unknown argument: ", a);
+                return fail("unknown argument: ", a);
             }
         }
         if (!missing.empty())
             return fail("no value for ", missing);
+        if (cfg.compress_relocations && !cfg.strip_debug && !cfg.strip_all)
+            return fail(
+                "--compress-relocations is incompatible with output debug information. "
+                "Please pass --strip-debug or --strip-all",
+                "");
         return true;
     }
 };

@@ -27,7 +27,7 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
         die(`wasm-ld fails on ${name}: ${want.err}`);
     const got = ld(args);
     same(`${name}: status`, got.status, 0);
-    same(`${name}: stderr`, got.err, "");
+    same(`${name}: stderr`, got.err, want.err.replaceAll("wasm-ld: ", "ld: "));
     same(`${name}: --trace`, got.out, want.out);
     same(`${name}: --why-extract`, got.why, want.why);
     loaded += want.out.split("\n").length - 1;
@@ -35,9 +35,8 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
 
 // ---------------------------------------------------------------- refusals
 
-// wasm-ld's words, as ld says them. A signature mismatch is wasm-ld's
-// warning and ld's error.
-const as_ld = (s) => s.replaceAll("wasm-ld: ", "ld: ").replaceAll("warning: ", "error: ");
+// wasm-ld's words, as ld says them.
+const as_ld = (s) => s.replaceAll("wasm-ld: ", "ld: ");
 
 function refuse(what, args) {
     const want = wasm_ld(args);

@@ -1,7 +1,9 @@
 #include "symtab.h"
 
+#include "demangle/demangle.h"
 #include "kernel/alloc.h"
 #include "reader.h"
+#include "xxh3.h"
 
 using namespace wasm;
 
@@ -93,6 +95,11 @@ struct Resolver {
     Vec<Frame> stack;
     Str why; // who wants the member add_*() just asked for
 
+    // lld's function variants: a name's symbol for each signature it was
+    // met with. The first is the name's first symbol, wherever it now is.
+    Vec<Vec<u32>> variants;
+    HashMap<Str, u32> variants_of;
+
     InputFile &file(u32 f) { return *l.files[f]; }
 
     u32 insert(Str name, bool &fresh)
@@ -119,7 +126,8 @@ struct Resolver {
     void duplicate(const Sym &g, u32 f)
     {
         Out m;
-        m.put("duplicate symbol: ").put(g.name);
+        String tmp;
+        m.put("duplicate symbol: ").put(shown(l.cfg, g.name, tmp));
         m.put("\n>>> defined in ").put(l.file_name(g.file));
         m.put("\n>>> defined in ").put(l.file_name(f));
         l.diag.error(m.str());
@@ -128,30 +136,154 @@ struct Resolver {
     void type_mismatch(const Sym &g, u8 kind, u32 f)
     {
         Out m;
-        m.put("symbol type mismatch: ").put(g.name);
+        String tmp;
+        m.put("symbol type mismatch: ").put(shown(l.cfg, g.name, tmp));
         m.put("\n>>> defined as ").put(kind_name(g.kind)).put(" in ").put(l.file_name(g.file));
         m.put("\n>>> defined as ").put(kind_name(kind)).put(" in ").put(l.file_name(f));
         l.diag.error(m.str());
     }
 
-    // wasm-ld warns and makes a stub that traps; ld refuses.
-    void sig_mismatch(const Sym &g, const FuncType *sig, u32 f)
+    void sig_mismatch(const Sym &a, const Sym &b, bool error)
     {
         Out m;
-        m.put("function signature mismatch: ").put(g.name);
+        m.put("function signature mismatch: ").put(a.name);
         m.put("\n>>> defined as ");
-        put_sig(m, g.sig);
-        m.put(" in ").put(l.file_name(g.file));
+        put_sig(m, a.sig);
+        m.put(" in ").put(l.file_name(a.file));
         m.put("\n>>> defined as ");
-        put_sig(m, sig);
-        m.put(" in ").put(l.file_name(f));
-        l.diag.error(m.str());
+        put_sig(m, b.sig);
+        m.put(" in ").put(l.file_name(b.file));
+        if (error)
+            l.diag.error(m.str());
+        else
+            l.diag.warn(m.str());
+    }
+
+    // ------------------------------------------------------------ variants
+
+    // lld's getFunctionVariant: the symbol of `id`'s name with signature
+    // `sig`, made if there was none. Returns whether it was made.
+    bool variant(u32 id, const FuncType *sig, u32 &out)
+    {
+        Str name = l.syms[id].name;
+        u32 set;
+        if (u32 *p = variants_of.find(name)) {
+            set = *p;
+        } else {
+            set = variants.size();
+            Vec<u32> first;
+            if (!first.push(id) || !variants.push(move(first)) || !variants_of.insert(name, set))
+                return oom(out);
+        }
+        for (u32 v : variants[set])
+            if (same_sig(l.syms[v].sig, sig)) {
+                out = v;
+                return false;
+            }
+        out = l.syms.size();
+        Sym s{};
+        s.name  = name;
+        s.state = State::Undefined;
+        s.kind  = SYM_FUNCTION;
+        s.file  = NONE;
+        s.index = NONE;
+        s.sig   = sig;
+        if (!l.syms.push(s) || !variants[set].push(out))
+            return oom(out);
+        return true;
+    }
+
+    bool oom(u32 &out)
+    {
+        l.diag.error("out of memory");
+        l.diag.stopped = true;
+        out            = NONE;
+        return false;
+    }
+
+    // lld's replace(): variant `v` takes the place of the name's symbol, and
+    // the one it displaces becomes a variant.
+    void promote(u32 id, u32 v)
+    {
+        if (id == v)
+            return;
+        Sym t      = l.syms[id];
+        l.syms[id] = l.syms[v];
+        l.syms[v]  = t;
+        auto swap  = [&](u32 &x) { x = x == id ? v : x == v ? id : x; };
+        for (InputFile *f : l.files)
+            for (u32 &x : f->symbols)
+                swap(x);
+        for (Vec<u32> &set : variants)
+            for (u32 &x : set)
+                swap(x);
+    }
+
+    // lld's handleSymbolVariants, in its hash table's order: every variant
+    // but the definition becomes a stub that traps, with a warning; with no
+    // definition, the first two are an error.
+    bool settle_variants()
+    {
+        Vec<u32> hashes, order;
+        for (const Vec<u32> &set : variants)
+            if (!hashes.push(lld_hash(l.syms[set[0]].name))) {
+                u32 x;
+                return oom(x);
+            }
+        if (!dense_map_order(Span<const u32>(hashes.data(), hashes.size()), order)) {
+            u32 x;
+            return oom(x);
+        }
+        for (u32 k : order) {
+            const Vec<u32> &set = variants[k];
+            u32 defined         = NONE;
+            for (u32 v : set)
+                if (l.syms[v].state == State::Defined) {
+                    defined = v;
+                    break;
+                }
+            if (defined == NONE) {
+                sig_mismatch(l.syms[set[0]], l.syms[set[1]], true);
+                return false;
+            }
+            for (u32 v : set) {
+                if (v == defined)
+                    continue;
+                Sym &g = l.syms[v];
+                sig_mismatch(g, l.syms[defined], false);
+                g.state    = State::Defined;
+                g.file     = NONE;
+                g.index    = NONE;
+                g.flags    = SYM_LOCAL;
+                g.stub     = true;
+                g.mismatch = true;
+                if (!l.stubs.push(v)) {
+                    u32 x;
+                    return oom(x);
+                }
+            }
+        }
+        return true;
+    }
+
+    // lld's shouldReplace, with its duplicate error.
+    void settle(Sym &g, u32 f, u32 i)
+    {
+        const Symbol &s = file(f).obj.symbols[i];
+        if (g.state != State::Defined)
+            return define(g, f, i);
+        if (s.weak())
+            return;
+        if (!g.weak())
+            duplicate(g, f);
+        define(g, f, i);
     }
 
     void import_mismatch(const Sym &g, Str what, Str had, Str now, u32 f)
     {
         Out m;
-        m.put("import ").put(what).put(" mismatch for symbol: ").put(g.name);
+        String tmp;
+        m.put("import ").put(what).put(" mismatch for symbol: ").put(shown(l.cfg, g.name, tmp));
         m.put("\n>>> defined as ").put(had).put(" in ").put(l.file_name(g.file));
         m.put("\n>>> defined as ").put(now).put(" in ").put(l.file_name(f));
         l.diag.error(m.str());
@@ -207,15 +339,18 @@ struct Resolver {
             return define(g, f, i);
         if (g.kind != s.kind)
             return type_mismatch(g, s.kind, f);
-        if (sig && g.sig && (g.state == State::Defined || g.called) && !same_sig(g.sig, sig))
-            return sig_mismatch(g, sig, f);
-        if (g.state != State::Defined)
-            return define(g, f, i);
-        if (s.weak())
-            return;
-        if (!g.weak())
-            duplicate(g, f);
-        define(g, f, i);
+        if (sig && g.sig && (g.state == State::Defined || g.called) && !same_sig(g.sig, sig)) {
+            u32 v;
+            if (variant(id, sig, v))
+                define(l.syms[v], f, i);
+            else if (v != NONE)
+                settle(l.syms[v], f, i);
+            if (v == NONE)
+                return;
+            file(f).symbols[i] = v;
+            return promote(id, v);
+        }
+        settle(g, f, i);
     }
 
     // A reference, or a definition its comdat discarded. Returns the member
@@ -261,12 +396,25 @@ struct Resolver {
         }
         if (sig && !g.sig)
             g.sig = sig;
-        if (sig && called && g.state == State::Defined && !same_sig(g.sig, sig)) {
-            sig_mismatch(g, sig, f);
-            return NONE;
-        }
-        // An address alone does not fix a signature: a call replaces it.
-        if (sig && called && g.state == State::Undefined && !g.called && !same_sig(g.sig, sig)) {
+        // A call that disagrees with a definition or another call is a
+        // variant; an address alone does not fix a signature, and a call
+        // replaces it.
+        if (sig && called && g.sig && !same_sig(g.sig, sig) &&
+            (g.state == State::Defined || g.called)) {
+            u32 v;
+            if (variant(id, sig, v)) {
+                Sym &gv          = l.syms[v];
+                gv.flags         = s.flags;
+                gv.file          = f;
+                gv.index         = i;
+                gv.called        = true;
+                gv.import_module = s.import_module;
+                gv.import_name   = name;
+            }
+            if (v != NONE)
+                file(f).symbols[i] = v;
+        } else if (sig && called && g.state == State::Undefined && !g.called &&
+                   !same_sig(g.sig, sig)) {
             g.flags         = s.flags;
             g.file          = f;
             g.index         = i;
@@ -274,23 +422,25 @@ struct Resolver {
             g.import_module = s.import_module;
             g.import_name   = name;
         }
-        if (g.state == State::Undefined) {
+        // The name's own symbol; a variant may have moved l.syms.
+        Sym &h = l.syms[id];
+        if (h.state == State::Undefined) {
             if (!name.empty()) {
-                if (g.import_name.empty())
-                    g.import_name = name;
-                else if (g.import_name != name)
-                    import_mismatch(g, "name", g.import_name, name, f);
+                if (h.import_name.empty())
+                    h.import_name = name;
+                else if (h.import_name != name)
+                    import_mismatch(h, "name", h.import_name, name, f);
             }
             if (!s.import_module.empty()) {
-                if (g.import_module.empty())
-                    g.import_module = s.import_module;
-                else if (g.import_module != s.import_module)
-                    import_mismatch(g, "module", g.import_module, s.import_module, f);
+                if (h.import_module.empty())
+                    h.import_module = s.import_module;
+                else if (h.import_module != s.import_module)
+                    import_mismatch(h, "module", h.import_module, s.import_module, f);
             }
             if (called)
-                g.called = true;
-            if (g.weak() && !weak)
-                g.flags &= ~SYM_BINDING_MASK;
+                h.called = true;
+            if (h.weak() && !weak)
+                h.flags &= ~SYM_BINDING_MASK;
         }
         return NONE;
     }
@@ -371,7 +521,9 @@ struct Resolver {
         if (fr.why.empty() || l.cfg.why_extract.empty())
             return;
         const Sym &g = l.syms[fr.sym];
-        l.why.put(fr.why).put('\t').put(l.file_name(g.file)).put('\t').put(g.name).put('\n');
+        String tmp;
+        l.why.put(fr.why).put('\t').put(l.file_name(g.file)).put('\t');
+        l.why.put(shown(l.cfg, g.name, tmp)).put('\n');
     }
 
     // One step of the top frame: a symbol added, or a member pushed.
@@ -589,10 +741,20 @@ struct Resolver {
         if (l.diag.failed())
             return false;
 
+        if (!settle_variants())
+            return false;
+
         // A weak undefined function gets a stub; one still lazy does not.
-        for (Sym &g : l.syms)
-            if (g.state == State::Undefined && g.weak() && g.kind == SYM_FUNCTION && g.sig)
+        for (u32 id = 0; id < l.syms.size(); id++) {
+            Sym &g = l.syms[id];
+            if (g.state == State::Undefined && g.weak() && g.kind == SYM_FUNCTION && g.sig) {
                 g.stub = true;
+                if (!l.stubs.push(id)) {
+                    l.diag.error("out of memory");
+                    return false;
+                }
+            }
+        }
 
         // What is still lazy was only ever wanted weakly, or not at all.
         for (Sym &g : l.syms)
@@ -639,6 +801,16 @@ bool allowed(const Linker &l, const Sym &g)
 
 } // namespace
 
+Str shown(const Config &c, Str name, String &tmp)
+{
+    if (name == "__main_argc_argv")
+        return "main"_s;
+    if (!c.demangle)
+        return name;
+    demangle(name, tmp);
+    return tmp.str();
+}
+
 bool imported(const Linker &l, const Sym &g)
 {
     return g.kind != SYM_DATA && !g.weak() && allowed(l, g);
@@ -664,7 +836,8 @@ bool check_undefined(Linker &l)
                 if (g.state != State::Undefined || g.weak() || allowed(l, g))
                     continue;
                 Out m;
-                m.put(o.name.str()).put(": undefined symbol: ").put(g.name);
+                String tmp;
+                m.put(o.name.str()).put(": undefined symbol: ").put(shown(l.cfg, g.name, tmp));
                 l.diag.error(m.str());
                 if (l.diag.stopped)
                     return false;

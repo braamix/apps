@@ -34,12 +34,15 @@ function(fx_json_list out list)
     set(${out} "[\"$<JOIN:${list},\"$<COMMA> \">\"]" PARENT_SCOPE)
 endfunction()
 
-# wasm_fixture(<name> SOURCES <src>... [ARCHIVES <target>...] [PORT])
+# wasm_fixture(<name> SOURCES <src>... [ARCHIVES <target>...] [PORT] [DEBUG])
 function(wasm_fixture name)
-    cmake_parse_arguments(F "PORT" "" "SOURCES;ARCHIVES" ${ARGN})
+    cmake_parse_arguments(F "PORT;DEBUG" "" "SOURCES;ARCHIVES" ${ARGN})
 
     add_library(fxo_${name} OBJECT ${F_SOURCES})
     target_link_libraries(fxo_${name} PRIVATE braam::flags)
+    if(F_DEBUG)
+        target_compile_options(fxo_${name} PRIVATE -g)
+    endif()
     target_include_directories(fxo_${name} PRIVATE ${FX_SRC})
     set(port "")
     set(libs ${FX_LIBS})
@@ -120,11 +123,14 @@ wasm_fixture(layout   SOURCES ${FX_SRC}/layout_a.c ${FX_SRC}/layout_b.c)
 wasm_fixture(live     SOURCES ${FX_SRC}/live_a.c ARCHIVES fxa_live)
 wasm_fixture(port     SOURCES ${FX_SRC}/port.cpp PORT)
 wasm_fixture(taken    SOURCES ${FX_SRC}/taken_a.cpp ${FX_SRC}/taken_b.cpp ${FX_SRC}/taken_c.cpp)
+wasm_fixture(sigs     SOURCES ${FX_SRC}/sigs_a.c ${FX_SRC}/sigs_b.c)
+wasm_fixture(debug    SOURCES ${FX_SRC}/debug_a.cpp ${FX_SRC}/debug_b.cpp DEBUG)
 
 wasm_bad(bad_dup   ${FX_SRC}/bad_dup_a.c ${FX_SRC}/bad_dup_b.c)
 wasm_bad(bad_undef ${FX_SRC}/bad_undef_a.c ${FX_SRC}/bad_undef_b.c)
 wasm_bad(bad_type  ${FX_SRC}/bad_type_a.c ${FX_SRC}/bad_type_b.c)
 wasm_bad(bad_sig   ${FX_SRC}/bad_sig_a.c ${FX_SRC}/bad_sig_b.c)
+wasm_bad(bad_cxx   ${FX_SRC}/bad_cxx_a.cpp ${FX_SRC}/bad_cxx_b.cpp)
 
 # llvm-objdump is --dump's oracle, and llvm-ar makes the archive formats the
 # SDK's own do not use. Both come from the clang the toolchain found.

@@ -16,15 +16,22 @@ struct Diag {
         if (stopped)
             return;
         if (limit && errors >= limit) {
-            emit("too many errors emitted, stopping now (use -error-limit=0 to see all errors)");
+            emit("error",
+                 "too many errors emitted, stopping now (use -error-limit=0 to see all errors)");
             stopped = true;
             return;
         }
-        emit(msg);
+        emit("error", msg);
         errors++;
     }
 
     bool failed() const { return errors != 0; }
+
+    void warn(Str msg)
+    {
+        if (!stopped)
+            emit("warning", msg);
+    }
 
     // --verbose: a line among the errors, where wasm-ld logs it.
     void log(Str msg) { text.put("ld: ").put(msg).put('\n'); }
@@ -32,11 +39,11 @@ struct Diag {
 private:
     bool sep_ = false;
 
-    void emit(Str msg)
+    void emit(Str kind, Str msg)
     {
         if (sep_)
             text.put('\n');
-        text.put("ld: error: ").put(msg).put('\n');
+        text.put("ld: ").put(kind).put(": ").put(msg).put('\n');
         sep_ = msg.contains("\n");
     }
 };

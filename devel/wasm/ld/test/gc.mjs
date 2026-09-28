@@ -23,7 +23,7 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
         die(`wasm-ld fails on ${name}: ${want.err}`);
     const got = ld(args);
     same(`${name}: status`, got.status, 0);
-    same(`${name}: stderr`, got.err, "");
+    same(`${name}: stderr`, got.err, want.err.replaceAll("wasm-ld: ", "ld: "));
     same(`${name}: --print-gc-sections`, got.out, want.out);
     dropped += want.out.split("\n").length - 1;
 }

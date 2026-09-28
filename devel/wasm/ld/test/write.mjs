@@ -4,7 +4,8 @@
 // which writes active segments as ld does: TYPE, FUNCTION, TABLE, GLOBAL,
 // ELEM, CODE, DATA, name, producers and target_features byte for byte, and
 // the same imports and exports but the memory. That holds at -O1, where
-// strings are merged, and at -O0, where they are not. The data fixture runs twice, so .bss is seen to start zeroed after
+// strings are merged, at -O0, where they are not, and with
+// --compress-relocations, which runs as well. The data fixture runs twice, so .bss is seen to start zeroed after
 // a process has dirtied it.
 
 import { readFileSync } from "node:fs";
@@ -22,6 +23,8 @@ const EXACT = ["TYPE", "FUNCTION", "TABLE", "GLOBAL", "ELEM", "CODE", "DATA", "n
 const IDS = { 1: "TYPE", 2: "IMPORT", 3: "FUNCTION", 4: "TABLE", 5: "MEMORY", 6: "GLOBAL",
               7: "EXPORT", 8: "START", 9: "ELEM", 10: "CODE", 11: "DATA", 12: "DATACOUNT" };
 
+const IDS_BY_NAME = Object.fromEntries(Object.values(IDS).map((n) => [n, true]));
+
 function by_name(bytes) {
     const out = new Map();
     for (const s of sections(bytes))
@@ -38,11 +41,15 @@ function surface(bytes) {
     return JSON.stringify({ imports, exports });
 }
 
-function link(name, fx, level = "-O1") {
+// Its warnings, which wasm-ld's must equal.
+let warned = "";
+
+function link(name, fx, level = ["-O1"]) {
     H.store.files.delete("/tmp/out.wasm");
-    const got = ld([...FLAGS, level, ...inputs(fx), "-o", "out.wasm"]);
-    if (got.status !== 0 || got.err) {
-        bad.push(`${name} ${level}: ld fails: ${got.err}`);
+    const got = ld([...FLAGS, ...level, ...inputs(fx), "-o", "out.wasm"]);
+    warned = got.err;
+    if (got.status !== 0 || got.err.includes("error:")) {
+        bad.push(`${name} ${level.join(" ")}: ld fails: ${got.err}`);
         return null;
     }
     return H.store.files.get("/tmp/out.wasm");
@@ -50,9 +57,9 @@ function link(name, fx, level = "-O1") {
 
 let compared = 0;
 
-// Whether the link at `level` is wasm-ld's, section by section.
+// Whether the link with `level`'s flags is wasm-ld's, section by section.
 function compare(name, fx, level) {
-    const what = `${name} ${level}`;
+    const what = `${name} ${level.join(" ")}`;
     const bytes = link(name, fx, level);
     if (!bytes)
         return null;
@@ -60,14 +67,18 @@ function compare(name, fx, level) {
         bad.push(`${what}: not valid wasm`);
         return null;
     }
-    const args = [...FLAGS.filter((f) => f !== "--import-memory"), level, ...inputs(fx)];
+    const args = [...FLAGS.filter((f) => f !== "--import-memory"), ...level, ...inputs(fx)];
     const want = wasm_ld(args);
     if (want.status !== 0)
         die(`wasm-ld fails on ${what}: ${want.err}`);
+    if (warned !== want.err.replaceAll("wasm-ld: ", "ld: "))
+        bad.push(`${what}: stderr ${JSON.stringify(warned)}, wasm-ld's ${JSON.stringify(want.err)}`);
     const ref = new Uint8Array(readFileSync(join(tmp, "out.wasm")));
     const ours = by_name(bytes), theirs = by_name(ref);
     const before = bad.length;
-    for (const s of EXACT) {
+    // Copied custom sections, debug info among them, are compared as well.
+    const copied = [...theirs.keys()].filter((s) => !(s in IDS_BY_NAME) && !EXACT.includes(s));
+    for (const s of [...EXACT, ...copied]) {
         const a = ours.get(s), b = theirs.get(s);
         if (!a && !b)
             continue;
@@ -83,7 +94,7 @@ function compare(name, fx, level) {
     }
     if (surface(bytes) !== surface(ref))
         bad.push(`${what}: surface\n  ld:      ${surface(bytes)}\n  wasm-ld: ${surface(ref)}`);
-    const extra = [...ours.keys()].filter((s) => !EXACT.includes(s) &&
+    const extra = [...ours.keys()].filter((s) => !EXACT.includes(s) && !copied.includes(s) &&
         !["IMPORT", "EXPORT", "braam"].includes(s));
     if (extra.length)
         bad.push(`${what}: sections wasm-ld's has not: ${extra.join(" ")}`);
@@ -91,10 +102,14 @@ function compare(name, fx, level) {
 }
 
 for (const [name, fx] of Object.entries(m.fixtures)) {
-    compare(name, fx, "-O0");
+    compare(name, fx, ["-O0"]);
     // Run only what matched: a mislinked program can spin, and the harness
     // has no timeout.
-    const bytes = compare(name, fx, "-O1");
+    const packed = compare(name, fx, ["--compress-relocations", "--strip-debug"]);
+    if (packed)
+        for (const b of check_run(H, name, packed))
+            bad.push(`${name} packed: ${b}`);
+    const bytes = compare(name, fx, ["-O1"]);
     if (bytes)
         for (const b of [...check_surface(name, bytes), ...check_run(H, name, bytes)])
             bad.push(`${name}: ${b}`);
@@ -110,5 +125,5 @@ if (data && !bad.length) {
 
 if (bad.length)
     die("\n" + bad.join("\n"));
-ok(`${Object.keys(m.fixtures).length} fixtures link on Braam and run; at -O0 and -O1, ` +
+ok(`${Object.keys(m.fixtures).length} fixtures link on Braam and run; at -O0, -O1 and packed, ` +
    `${compared} bytes of sections equal wasm-ld's`);

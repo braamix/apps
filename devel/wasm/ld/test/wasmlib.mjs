@@ -85,7 +85,7 @@ export function execute(H, bytes) {
 // ---------------------------------------------------------------- two linkers
 
 // What braam_add_program passes, less what the linker does not do yet.
-export const FLAGS = ["--no-demangle", "--import-memory", "--initial-memory=1048576",
+export const FLAGS = ["--import-memory", "--initial-memory=1048576",
     "--no-entry", "--gc-sections", "--stack-first", "-z", "stack-size=131072"];
 
 // ld on Braam and wasm-ld on the host, given the same inputs, each by its
