@@ -78,45 +78,8 @@ What Braam cannot do, and what the port does instead:
   warns when setting a time fails, and extracts anyway.
 - **No modes on extraction.** A file is created with the default mode.
 
-## Step 4. The port: `devel/wasm/ar/`
-
-`ar.cpp`, `read.cpp`, `write.cpp`, `util.cpp` and `ar.h`, upstream's
-identifiers, structure, comments and messages kept, clang-formatted.
-`braam_add_program(... PORT LIBS wasmobj)`.
-
-- **The shape is `ld`'s.** The core is plain C++ over bytes in memory, and
-  only `braam.cpp` awaits. Every file `ar` touches is named on the
-  command line, so the front end reads the archive and the named files
-  before `ar_write_archive` or `ar_read_archive` runs. Upstream's
-  `create_obj_from_file` looks its file up rather than opening and
-  mapping it. `-x` and `-p` leave a list of writes the front end then
-  performs. `-u` compares the mtimes the front end collected.
-- **libarchive goes.** `read_objs`, `read.c`'s loop and the pathname tests
-  work over `read_archive`'s members. `write_objs` keeps its own symbol
-  and name tables, and writes each header with `emit_ar_header` into one
-  `Vec<u8>`.
-- **libelf goes.** `create_symtab_entry` calls `defined_symbols`, and
-  `add_to_ar_sym_table` is unchanged.
-- **The archive is replaced safely,** as `strip` replaces a file: written
-  to `<archive>.ar` with `SYS_O_EXCL`, then renamed over it. Upstream's
-  `archive_write_open_filename` truncates the original first. This is a
-  difference, and the README says so.
-- **`bsdar_errc` exits from any depth**, at 37 sites. Most are
-  libarchive, libelf and `malloc` failures, and they go with them. The
-  rest record the message and return a frame at a time, as `vi`'s
-  `error()` does. `bsdar_warnc` is unchanged.
-- **`getopt_long` is not in the port kit.** Use a small one of the
-  port's own, as `archivers/xz/getopt.cpp` does.
-- **`-M` goes:** `acpyacc.y`, `acplex.l`, the `M` mode and its usage line.
-- **The program's name** comes from `args[0]`. Upstream's `ranlib` mode
-  stays in the code, but nothing installs the binary under that name.
-- **Messages** keep upstream's text. `strerror` becomes
-  `error_name(error_of(errno))`, as `vi` and `le` do.
-
 ## Step 5. Build and package
 
-- `devel/wasm/ar/CMakeLists.txt`, guarded to configure standalone as
-  `ld`'s and `strip`'s are.
 - The package gains `$<TARGET_FILE:bin_ar>=bin/ar`. Version `0.3-r0`;
   `T=WebAssembly tools: ld, strip and ar`.
 - Verify the binary's surface with the one-liner in the top `CLAUDE.md`.
@@ -162,7 +125,7 @@ Add it to `TESTS` in the top [Makefile](../../Makefile).
 
 | Steps | Change | Risk |
 | --- | --- | --- |
-| 4–7 | `ar` | a port, held to `llvm-ar` and the SDK's archives |
+| 5–7 | `ar` | a port, held to `llvm-ar` and the SDK's archives |
 
 `ld`'s own tests keep passing with no change to a golden file.
 

@@ -12,6 +12,7 @@ endif()
 add_subdirectory(lib)
 add_subdirectory(ld)
 add_subdirectory(strip)
+add_subdirectory(ar)
 
 braam_add_package(NAME wasm VERSION 0.2-r0
                   FIELD "T=WebAssembly tools: ld, the linker, and strip"
