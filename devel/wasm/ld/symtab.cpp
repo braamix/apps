@@ -473,14 +473,26 @@ struct Resolver {
         return pull(g);
     }
 
-    // The member behind a lazy symbol, unless it is loaded already: then its
-    // definition was discarded, and the name stays undefined.
+    // The member behind a lazy symbol, unless it is loaded already: then it
+    // is loading, or its definition was discarded, and the name is undefined
+    // until it is defined. lld still says why it was wanted.
     u32 pull(Sym &g)
     {
         if (!file(g.file).loaded)
             return g.file;
+        record(why, g);
         g.state = State::Undefined;
         return NONE;
+    }
+
+    // A line of --why-extract: `who` wanted `g`, which its member defines.
+    void record(Str who, const Sym &g)
+    {
+        if (who.empty() || l.cfg.why_extract.empty())
+            return;
+        String tmp;
+        l.why.put(who).put('\t').put(l.file_name(g.file)).put('\t');
+        l.why.put(shown(l.cfg, g.name, tmp)).put('\n');
     }
 
     // ------------------------------------------------------------ the stack
@@ -518,12 +530,8 @@ struct Resolver {
     {
         if (!l.objects.push(fr.file))
             l.diag.error("out of memory");
-        if (fr.why.empty() || l.cfg.why_extract.empty())
-            return;
-        const Sym &g = l.syms[fr.sym];
-        String tmp;
-        l.why.put(fr.why).put('\t').put(l.file_name(g.file)).put('\t');
-        l.why.put(shown(l.cfg, g.name, tmp)).put('\n');
+        if (!fr.why.empty())
+            record(fr.why, l.syms[fr.sym]);
     }
 
     // One step of the top frame: a symbol added, or a member pushed.
@@ -595,6 +603,7 @@ struct Resolver {
         u32 *id = l.names.find(name);
         if (!id || l.syms[*id].state != State::Lazy)
             return;
+        why   = option;
         u32 m = pull(l.syms[*id]);
         if (m != NONE)
             push_load(m, option, *id);
@@ -674,6 +683,7 @@ struct Resolver {
             push_load(f, Str(), NONE);
             return drain();
         }
+        // The symbol table is ignored, as wasm-ld ignores it.
         Vec<Member> members;
         Vec<ArchiveSymbol> index;
         Out err;

@@ -1,7 +1,11 @@
-# Plan: ar, ranlib, and the symbol table in ld
+# Plan: ar
 
-Port FreeBSD's `ar`, with `ranlib`, onto the library in `lib/`:
-`devel/wasm/ar/`. Teach `ld` to use the archive symbol table they write.
+Port FreeBSD's `ar` onto the library in `lib/`: `devel/wasm/ar/`.
+
+`ld` ignores the archive symbol table, as `wasm-ld` does: trusting it
+bought no measurable speed, and a stale one would be a failure `wasm-ld`
+does not have. So no `ranlib` is shipped; `ar -s` still writes the table,
+for other linkers.
 
 `lib/` and `strip` are done; [README.md](README.md)'s *Inside* gives the
 library's rules, which hold here too: pure, no policy, views.
@@ -59,7 +63,6 @@ Facts checked on the host, which the steps rely on:
     ar -s [-jz] archive
     ar -t [-Tv] archive [file ...]
     ar -x [-CTouv] archive [file ...]
-    ranlib [-DtU] archive ...
 
 As upstream's `ar(1)`, less `-M`. The dash before the first option may be
 left out, as upstream allows. `-j`, `-z`, `-l` and `-T` are accepted and
@@ -74,34 +77,6 @@ What Braam cannot do, and what the port does instead:
   so `-x -o` cannot restore a member's date. It warns once, as upstream
   warns when setting a time fails, and extracts anyway.
 - **No modes on extraction.** A file is created with the default mode.
-
-## Step 2. The symbol table in ld
-
-`ld` now parses every member of every archive before it resolves anything
-(`add_input` in `symtab.cpp`). With an index it need not. It registers
-each index entry as a lazy symbol of its member, in index order, and
-parses a member only when it is extracted. The index and the members
-agree, name for name and in the same order, in every archive `llvm-ar`
-or `ar` writes, so the link is the same. With no index, `ld` does what it
-does now.
-
-Where this differs from `wasm-ld`, which ignores the index:
-
-- **A stale index.** When a member is extracted for a name it does not
-  define, `ld` reports `<archive>(<member>): symbol table is out of date;
-  run ranlib` and fails. A member the index leaves out entirely is not
-  seen at all, as with GNU ld.
-- **A malformed member that is never extracted** is no longer reported.
-
-Checks:
-
-- Every `ld` test passes with no golden file changed. `sizes.mjs` shows
-  every program unchanged.
-- The whole tree relinks faster: `make LINKER=ld` over a clean set of
-  outputs, timed before and after. The SDK's `libbraam_proc.a` is parsed
-  in every link today.
-- New cases in [ld/test/](ld/test/): a stale index gives the message and
-  status 1; an archive without an index links as before.
 
 ## Step 3. Writing archives: headers and symbols
 
@@ -154,8 +129,8 @@ identifiers, structure, comments and messages kept, clang-formatted.
 - **`getopt_long` is not in the port kit.** Use a small one of the
   port's own, as `archivers/xz/getopt.cpp` does.
 - **`-M` goes:** `acpyacc.y`, `acplex.l`, the `M` mode and its usage line.
-- **The program's name** comes from `args[0]`, so the same binary installed
-  as `ranlib` acts as `ranlib`.
+- **The program's name** comes from `args[0]`. Upstream's `ranlib` mode
+  stays in the code, but nothing installs the binary under that name.
 - **Messages** keep upstream's text. `strerror` becomes
   `error_name(error_of(errno))`, as `vi` and `le` do.
 
@@ -163,23 +138,21 @@ identifiers, structure, comments and messages kept, clang-formatted.
 
 - `devel/wasm/ar/CMakeLists.txt`, guarded to configure standalone as
   `ld`'s and `strip`'s are.
-- The package gains `$<TARGET_FILE:bin_ar>=bin/ar` and
-  `$<TARGET_FILE:bin_ar>=bin/ranlib`, as `xz` ships six names from one
-  binary. Version `0.3-r0`; `T=WebAssembly tools: ld, strip, ar and
-  ranlib`.
+- The package gains `$<TARGET_FILE:bin_ar>=bin/ar`. Version `0.3-r0`;
+  `T=WebAssembly tools: ld, strip and ar`.
 - Verify the binary's surface with the one-liner in the top `CLAUDE.md`.
 
 ## Step 6. Tests: `devel/wasm/ar/test/ar.mjs`
 
-On `ld/test/wasmlib.mjs`, as `strip.mjs` is. `llvm-ar` and `llvm-ranlib`
-are beside the manifest's `llvm-objdump`.
+On `ld/test/wasmlib.mjs`, as `strip.mjs` is. `llvm-ar` is the
+manifest's `ar`.
 
 - **Byte for byte against `llvm-ar --format=gnu`:** `rc`, `qc`, `r` of a
   member already there, `d`, `m` with `-a` and `-b`, `S` (no symbol
   table), and member names past 15 characters, so `//` is written. Inputs
   are the fixtures' objects.
-- **`ranlib` against `llvm-ranlib`,** on an archive written without a
-  symbol table.
+- **`-s` against `llvm-ar s`,** on an archive written without a symbol
+  table.
 - **Every SDK archive rebuilt:** `ar x` it, `ar rc` the members back in
   their order, and the result must be the SDK's own archive byte for byte.
   This is the strongest check of the symbol table: 12 archives, 1,492
@@ -191,17 +164,17 @@ are beside the manifest's `llvm-objdump`.
 - **Round trip:** `-x` then `-q` gives the archive back.
 - **Errors,** each with upstream's message and status 1: a missing
   archive; a file that is not an archive; `-a` without a position; `-a`
-  with `-b`; `ranlib` with no operand.
+  with `-b`.
 
 Add it to `TESTS` in the top [Makefile](../../Makefile).
 
-## Step 7. Document ar and ranlib
+## Step 7. Document ar
 
-- In [README.md](README.md): the package installs four commands. A
+- In [README.md](README.md): the package installs three commands. A
   *Using ar* section: the synopsis, what Braam cannot do (modes, owners,
-  times on extraction), the safe replacement, and no `-M`. In `ld`'s
-  *How it differs from wasm-ld*: the symbol table, and what a stale one
-  does.
+  times on extraction), the safe replacement, no `-M` and no `ranlib`.
+  In `ld`'s *How it differs from wasm-ld*: nothing; it ignores the symbol
+  table as `wasm-ld` does.
 - `devel/wasm/ar/README.md`: what had to change and why, as every port
   here has.
 - The top [README.md](../../README.md): the `devel/wasm` row names `ar`.
@@ -210,10 +183,10 @@ Add it to `TESTS` in the top [Makefile](../../Makefile).
 
 | Steps | Change | Risk |
 | --- | --- | --- |
-| 1–2 | the symbol table, read and used by `ld` | `ld`'s output; a stale index |
-| 3–7 | `ar` and `ranlib` | a port, held to `llvm-ar` and the SDK's archives |
+| 3 | writing archives, in `lib/` | none to `ld`: new code |
+| 4–7 | `ar` | a port, held to `llvm-ar` and the SDK's archives |
 
-`ld`'s own tests are the safety net for steps 1 to 3. Each step keeps
+`ld`'s own tests are the safety net for step 3. Each step keeps
 them passing with no change to a golden file. A golden file that has to
 change means the step changed behaviour, and the step is wrong.
 
@@ -225,10 +198,6 @@ change means the step changed behaviour, and the step is wrong.
   or `braam_add_program` could link with `--strip-all`, for release
   builds. That would lose function names in browser stack traces. It is
   the SDK's decision, not this package's.
-- **A stale symbol table.** Step 2 makes `ld` trust the index, as GNU ld
-  and older lld do, where `wasm-ld` ignores it. The alternative is an
-  option to ignore the index, or to check each extracted member against
-  it at a cost. Decide when step 2 is measured.
 - **`strip` on archives.** `llvm-strip lib.a` strips every member and
   rewrites the symbol table. With step 3 in the library, `strip` can do
   the same. That is not in these steps.

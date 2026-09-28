@@ -182,6 +182,7 @@ TESTS := \
     devel/wasm/ld/test/fixtures.mjs \
     devel/wasm/ld/test/dump.mjs \
     devel/wasm/ld/test/resolve.mjs \
+    devel/wasm/ld/test/symdef.mjs \
     devel/wasm/ld/test/gc.mjs \
     devel/wasm/ld/test/layout.mjs \
     devel/wasm/ld/test/write.mjs \
