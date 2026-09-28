@@ -1,5 +1,6 @@
 #include "layout.h"
 
+#include "emit.h"
 #include "symtab.h"
 
 using namespace wasm;
@@ -63,16 +64,6 @@ u32 rank(Str n)
     if (n.starts_with(".bss"))
         return 4;
     return 3;
-}
-
-void uleb(Vec<u8> &v, u32 x, bool &oom)
-{
-    do {
-        u8 b = x & 0x7f;
-        x >>= 7;
-        if (!v.push(u8(b | (x ? 0x80 : 0))))
-            oom = true;
-    } while (x);
 }
 
 struct InitEntry {
@@ -335,21 +326,20 @@ struct Layouter {
                     oom = true;
             }
         Vec<u8> body;
-        uleb(body, 0, oom); // no locals
+        Emit b{ body };
+        b.uleb(0); // no locals
         for (const InitEntry &e : init) {
-            if (!body.push(OP_CALL))
-                oom = true;
-            uleb(body, e.function, oom);
+            b.byte(OP_CALL);
+            b.uleb(e.function);
             for (u32 k = 0; k < e.results; k++)
-                if (!body.push(OP_DROP))
-                    oom = true;
+                b.byte(OP_DROP);
         }
-        if (!body.push(OP_END))
+        b.byte(OP_END);
+        Emit c{ lay.ctors };
+        c.uleb(body.size());
+        c.bytes(Bytes(body.data(), body.size()));
+        if (b.oom || c.oom)
             oom = true;
-        uleb(lay.ctors, body.size(), oom);
-        for (u8 b : body)
-            if (!lay.ctors.push(b))
-                oom = true;
     }
 
     // ------------------------------------------------------------ memory

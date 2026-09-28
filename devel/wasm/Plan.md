@@ -79,37 +79,6 @@ The CMake target follows the fixtures' `wasm_archive()` precedent:
 braam::flags)`, then `braam_add_program(... LIBS wasmobj)` in each tool.
 `devel/wasm/CMakeLists.txt` adds `lib` before `ld`.
 
-### Step 3. Emit: one set of encoders
-
-Add `lib/emit.h/.cpp`:
-
-    struct Emit {
-        Vec<u8> &v;
-        bool oom = false;       // sticky, checked once at the end
-        void byte(u8);
-        void u32le(u32);
-        void uleb(u32);
-        void sleb(i32);
-        void sleb64(i64);
-        void bytes(Bytes);
-        void name(Str);         // uleb length, then the bytes
-    };
-    u32 uleb_size(u32);
-    // A section: id, size, body. A custom one: its name goes first.
-    void emit_section(Emit &e, u8 id, Bytes body);
-    void emit_custom(Emit &e, Str name, Bytes body);
-
-Replace `Writer`'s private `byte`, `uleb`, `sleb`, `sleb64`, `u32le`,
-`bytes`, `name`, `section` and `custom`, the file-local `uleb_size` in
-`writer.cpp` and `uleb` in `layout.cpp` with it. `Writer` keeps its own
-`oom` by folding in `Emit::oom`.
-
-- `writer.cpp` is `ld`'s hottest file. Check that the link of the whole
-  tree takes no longer: `make LINKER=ld` in a clean `build/`, timed before
-  and after.
-- Check `ld.wasm`'s size too. An encoder that stops being inlined costs
-  code; if it matters, the header defines the small ones inline.
-
 ### Step 4. Framing, for any module
 
 Split `Reader::sections()` and the header checks at the top of

@@ -1,5 +1,6 @@
 #include "writer.h"
 
+#include "emit.h"
 #include "kernel/alloc.h"
 #include "symtab.h"
 
@@ -21,20 +22,19 @@ bool before(Str a, Str b)
     return a.size() < b.size();
 }
 
-u32 uleb_size(u32 v)
-{
-    u32 n = 1;
-    while (v >>= 7)
-        n++;
-    return n;
-}
-
 struct Writer {
     Linker &l;
     const Layout &lay;
     Vec<u8> &out;
     Vec<u8> sec; // the section being built
+    Emit eo{ out };
+    Emit es{ sec };
     bool oom = false;
+
+    // A local encoder's failure, kept as the writer's.
+    void fold(const Emit &e) { oom = oom || e.oom; }
+
+    bool out_of_memory() const { return oom || eo.oom || es.oom; }
 
     const InputFile &file(u32 f) { return *l.files[f]; }
 
@@ -43,67 +43,6 @@ struct Writer {
         Out m;
         m.put(what).put(name);
         l.diag.error(m.str());
-    }
-
-    // ------------------------------------------------------------ encoding
-
-    void byte(Vec<u8> &v, u8 b)
-    {
-        if (!v.push(b))
-            oom = true;
-    }
-
-    void uleb(Vec<u8> &v, u32 x)
-    {
-        do {
-            u8 b = x & 0x7f;
-            x >>= 7;
-            byte(v, u8(b | (x ? 0x80 : 0)));
-        } while (x);
-    }
-
-    void sleb64(Vec<u8> &v, i64 x)
-    {
-        for (;;) {
-            u8 b = x & 0x7f;
-            x >>= 7;
-            bool done = (x == 0 && !(b & 0x40)) || (x == -1 && (b & 0x40));
-            byte(v, u8(b | (done ? 0 : 0x80)));
-            if (done)
-                return;
-        }
-    }
-
-    void sleb(Vec<u8> &v, i32 x)
-    {
-        for (;;) {
-            u8 b = x & 0x7f;
-            x >>= 7;
-            bool done = (x == 0 && !(b & 0x40)) || (x == -1 && (b & 0x40));
-            byte(v, u8(b | (done ? 0 : 0x80)));
-            if (done)
-                return;
-        }
-    }
-
-    void u32le(Vec<u8> &v, u32 x)
-    {
-        for (u32 k = 0; k < 4; k++)
-            byte(v, u8(x >> (8 * k)));
-    }
-
-    void bytes(Vec<u8> &v, Bytes b)
-    {
-        if (!v.reserve(v.size() + b.size()))
-            oom = true;
-        for (u8 c : b)
-            byte(v, c);
-    }
-
-    void name(Vec<u8> &v, Str s)
-    {
-        uleb(v, s.size());
-        bytes(v, Bytes(reinterpret_cast<const u8 *>(s.data()), s.size()));
     }
 
     Map &map() { return l.layout.map; }
@@ -120,20 +59,14 @@ struct Writer {
     // The section built in `sec`, behind its id and size.
     void section(u8 id)
     {
-        byte(out, id);
-        uleb(out, sec.size());
-        bytes(out, Bytes(sec.data(), sec.size()));
+        emit_section(eo, id, Bytes(sec.data(), sec.size()));
         sec.clear();
     }
 
     void custom(Str title)
     {
-        Vec<u8> body;
-        name(body, title);
-        bytes(body, Bytes(sec.data(), sec.size()));
+        emit_custom(eo, title, Bytes(sec.data(), sec.size()));
         sec.clear();
-        bytes(sec, Bytes(body.data(), body.size()));
-        section(SEC_CUSTOM);
     }
 
     // ------------------------------------------------------------ values
@@ -303,13 +236,13 @@ struct Writer {
 
     void types()
     {
-        uleb(sec, lay.types.size());
+        es.uleb(lay.types.size());
         for (const FuncType *t : lay.types) {
-            byte(sec, FUNC_TYPE);
-            uleb(sec, t->params.size());
-            bytes(sec, t->params);
-            uleb(sec, t->results.size());
-            bytes(sec, t->results);
+            es.byte(FUNC_TYPE);
+            es.uleb(t->params.size());
+            es.bytes(t->params);
+            es.uleb(t->results.size());
+            es.bytes(t->results);
         }
         section(SEC_TYPE);
     }
@@ -319,26 +252,26 @@ struct Writer {
         u32 n = lay.imports.size() + (l.cfg.import_memory ? 1 : 0);
         if (!n)
             return;
-        uleb(sec, n);
+        es.uleb(n);
         if (l.cfg.import_memory) {
-            name(sec, "env");
-            name(sec, "memory");
-            byte(sec, EXT_MEMORY);
+            es.name("env");
+            es.name("memory");
+            es.byte(EXT_MEMORY);
             limits(lay.pages, lay.max_pages);
         }
         for (u32 id : lay.imports) {
             const Sym &g = l.syms[id];
-            name(sec, import_module(g));
-            name(sec, import_field(g));
+            es.name(import_module(g));
+            es.name(import_field(g));
             if (g.kind == SYM_FUNCTION) {
-                byte(sec, EXT_FUNCTION);
-                uleb(sec, type_of(g.sig));
+                es.byte(EXT_FUNCTION);
+                es.uleb(type_of(g.sig));
             } else {
                 const Object &o  = file(g.file).obj;
                 const Import &im = o.imports[o.symbols[g.index].import];
-                byte(sec, EXT_GLOBAL);
-                byte(sec, im.valtype);
-                byte(sec, im.mut ? 1 : 0);
+                es.byte(EXT_GLOBAL);
+                es.byte(im.valtype);
+                es.byte(im.mut ? 1 : 0);
             }
         }
         section(SEC_IMPORT);
@@ -346,17 +279,17 @@ struct Writer {
 
     void limits(u32 min, u32 max)
     {
-        byte(sec, max ? 1 : 0);
-        uleb(sec, min);
+        es.byte(max ? 1 : 0);
+        es.uleb(min);
         if (max)
-            uleb(sec, max);
+            es.uleb(max);
     }
 
     void functions()
     {
-        uleb(sec, lay.functions.size());
+        es.uleb(lay.functions.size());
         for (const Ref &r : lay.functions)
-            uleb(sec, type_of(sig_of(r)));
+            es.uleb(type_of(sig_of(r)));
         section(SEC_FUNCTION);
     }
 
@@ -365,11 +298,11 @@ struct Writer {
         if (!lay.table)
             return;
         u32 n = lay.elems.size() + 1;
-        uleb(sec, 1);
-        byte(sec, FUNCREF);
-        byte(sec, 1);
-        uleb(sec, n);
-        uleb(sec, n);
+        es.uleb(1);
+        es.byte(FUNCREF);
+        es.byte(1);
+        es.uleb(n);
+        es.uleb(n);
         section(SEC_TABLE);
     }
 
@@ -377,7 +310,7 @@ struct Writer {
     {
         if (l.cfg.import_memory)
             return;
-        uleb(sec, 1);
+        es.uleb(1);
         limits(lay.pages, lay.max_pages);
         section(SEC_MEMORY);
     }
@@ -386,20 +319,20 @@ struct Writer {
     {
         if (lay.globals.empty())
             return;
-        uleb(sec, lay.globals.size());
+        es.uleb(lay.globals.size());
         for (const Ref &r : lay.globals) {
             if (r.file == NONE) {
-                byte(sec, I32);
-                byte(sec, 1);
-                byte(sec, OP_I32_CONST);
-                sleb(sec, i32(lay.stack_pointer));
-                byte(sec, OP_END);
+                es.byte(I32);
+                es.byte(1);
+                es.byte(OP_I32_CONST);
+                es.sleb(i32(lay.stack_pointer));
+                es.byte(OP_END);
                 continue;
             }
             const Global &g = file(r.file).obj.globals[r.index];
-            byte(sec, g.valtype);
-            byte(sec, g.mut ? 1 : 0);
-            bytes(sec, g.init.code);
+            es.byte(g.valtype);
+            es.byte(g.mut ? 1 : 0);
+            es.bytes(g.init.code);
         }
         section(SEC_GLOBAL);
     }
@@ -428,35 +361,36 @@ struct Writer {
     void exports()
     {
         Vec<u8> list;
+        Emit el{ list };
         u32 n = 0;
         if (!l.cfg.import_memory) {
-            name(list, "memory");
-            byte(list, EXT_MEMORY);
-            uleb(list, 0);
+            el.name("memory");
+            el.byte(EXT_MEMORY);
+            el.uleb(0);
             n++;
         }
         for (const Sym &g : l.syms) {
             if (g.state != State::Defined || !((g.flags & SYM_EXPORTED) || forced(g.name)))
                 continue;
             if (g.kind == SYM_FUNCTION) {
-                name(list, export_name(g));
-                byte(list, EXT_FUNCTION);
+                el.name(export_name(g));
+                el.byte(EXT_FUNCTION);
                 if (g.synthetic()) {
-                    uleb(list, g.out_index);
+                    el.uleb(g.out_index);
                 } else {
                     const InputFile &in = file(g.file);
                     u32 k               = in.obj.symbols[g.index].index - in.obj.imported_functions;
-                    uleb(list, in.function_index[k]);
+                    el.uleb(in.function_index[k]);
                 }
             } else if (g.kind == SYM_GLOBAL) {
-                name(list, g.name);
-                byte(list, EXT_GLOBAL);
+                el.name(g.name);
+                el.byte(EXT_GLOBAL);
                 if (g.synthetic()) {
-                    uleb(list, g.out_index);
+                    el.uleb(g.out_index);
                 } else {
                     const InputFile &in = file(g.file);
-                    uleb(list,
-                         in.global_index[in.obj.symbols[g.index].index - in.obj.imported_globals]);
+                    el.uleb(
+                        in.global_index[in.obj.symbols[g.index].index - in.obj.imported_globals]);
                 }
             } else {
                 error("only functions and globals are exported here: ", g.name);
@@ -464,10 +398,11 @@ struct Writer {
             }
             n++;
         }
+        fold(el);
         if (!n)
             return;
-        uleb(sec, n);
-        bytes(sec, Bytes(list.data(), list.size()));
+        es.uleb(n);
+        es.bytes(Bytes(list.data(), list.size()));
         section(SEC_EXPORT);
     }
 
@@ -475,14 +410,14 @@ struct Writer {
     {
         if (lay.elems.empty())
             return;
-        uleb(sec, 1);
-        uleb(sec, 0); // active, table 0
-        byte(sec, OP_I32_CONST);
-        sleb(sec, 1);
-        byte(sec, OP_END);
-        uleb(sec, lay.elems.size());
+        es.uleb(1);
+        es.uleb(0); // active, table 0
+        es.byte(OP_I32_CONST);
+        es.sleb(1);
+        es.byte(OP_END);
+        es.uleb(lay.elems.size());
         for (u32 f : lay.elems)
-            uleb(sec, f);
+            es.uleb(f);
         section(SEC_ELEM);
     }
 
@@ -495,6 +430,8 @@ struct Writer {
         Bytes body             = o.sections[o.code_section].body.subspan(f.body_off, f.body_size);
         const RelocSection *rs = relocs_for(o, o.code_section);
         Vec<u8> packed;
+        Emit ep{ packed };
+        Emit et{ to };
         u32 last = 0;
         usize k  = 0;
         if (rs) {
@@ -509,7 +446,7 @@ struct Writer {
         }
         for (; rs && k < rs->relocs.size() && rs->relocs[k].chunk == r.index; k++) {
             const Reloc &x = rs->relocs[k];
-            bytes(packed, body.subspan(last, x.at - last));
+            ep.bytes(body.subspan(last, x.at - last));
             u32 v;
             Form form;
             if (!value(r.file, x, v, form))
@@ -519,14 +456,16 @@ struct Writer {
                 return;
             }
             if (form == Form::ULEB)
-                uleb(packed, v);
+                ep.uleb(v);
             else
-                sleb64(packed, i64(v));
+                ep.sleb64(i64(v));
             last = x.at + 5;
         }
-        bytes(packed, body.subspan(last, body.size() - last));
-        uleb(to, packed.size());
-        bytes(to, Bytes(packed.data(), packed.size()));
+        ep.bytes(body.subspan(last, body.size() - last));
+        et.uleb(packed.size());
+        et.bytes(Bytes(packed.data(), packed.size()));
+        fold(ep);
+        fold(et);
     }
 
     u32 chunk_size(const Ref &r)
@@ -552,44 +491,44 @@ struct Writer {
                 }
         if (!packed_at.push(packed.size()))
             oom = true;
-        if (oom || l.diag.failed())
+        if (out_of_memory() || l.diag.failed())
             return;
         u32 size = uleb_size(lay.functions.size());
         for (const Ref &r : lay.functions)
             size += l.cfg.compress_relocations && r.file != NONE ? 0 : chunk_size(r);
         size += packed.size();
         map().code = out.size();
-        byte(out, SEC_CODE);
-        uleb(out, size);
+        eo.byte(SEC_CODE);
+        eo.uleb(size);
         if (!out.reserve(out.size() + size)) {
             oom = true;
             return;
         }
         usize start = out.size();
-        uleb(out, lay.functions.size());
+        eo.uleb(lay.functions.size());
         static const u8 STUB[] = { 3, 0, OP_UNREACHABLE, OP_END };
         u32 n                  = 0;
         for (const Ref &r : lay.functions) {
             if (!map().code_off.push(out.size() - start))
                 oom = true;
             if (l.cfg.compress_relocations && r.file != NONE) {
-                bytes(out, Bytes(packed.data() + packed_at[n], packed_at[n + 1] - packed_at[n]));
+                eo.bytes(Bytes(packed.data() + packed_at[n], packed_at[n + 1] - packed_at[n]));
                 n++;
                 continue;
             }
             if (r.file == NONE) {
                 if (l.syms[r.index].stub)
-                    bytes(out, Bytes(STUB, sizeof STUB));
+                    eo.bytes(Bytes(STUB, sizeof STUB));
                 else
-                    bytes(out, Bytes(lay.ctors.data(), lay.ctors.size()));
+                    eo.bytes(Bytes(lay.ctors.data(), lay.ctors.size()));
                 continue;
             }
             const Object &o   = file(r.file).obj;
             const Function &f = o.functions[r.index];
             Bytes body        = o.sections[o.code_section].body;
             usize at          = out.size();
-            bytes(out, body.subspan(f.code_off, chunk_size(r)));
-            if (oom)
+            eo.bytes(body.subspan(f.code_off, chunk_size(r)));
+            if (out_of_memory())
                 return;
             relocate(r.file, relocs_for(o, o.code_section), r.index,
                      out.data() + at + (f.body_off - f.code_off));
@@ -610,21 +549,23 @@ struct Writer {
                 count++;
                 // flags, i32.const, address, end, size, bytes
                 Vec<u8> head;
-                sleb(head, i32(s.addr));
+                Emit eh{ head };
+                eh.sleb(i32(s.addr));
+                fold(eh);
                 size += 1 + 1 + head.size() + 1 + uleb_size(s.size) + s.size;
             }
         if (!count)
             return;
         size += uleb_size(count);
         map().data = out.size();
-        byte(out, SEC_DATA);
-        uleb(out, size);
+        eo.byte(SEC_DATA);
+        eo.uleb(size);
         if (!out.reserve(out.size() + size)) {
             oom = true;
             return;
         }
         usize start = out.size();
-        uleb(out, count);
+        eo.uleb(count);
         for (const OutSegment &s : lay.segments) {
             if (!map().seg_off.push(written(s) ? out.size() - start : 0))
                 oom = true;
@@ -633,17 +574,17 @@ struct Writer {
                     oom = true;
                 continue;
             }
-            uleb(out, 0);
-            byte(out, OP_I32_CONST);
-            sleb(out, i32(s.addr));
-            byte(out, OP_END);
-            uleb(out, s.size);
+            eo.uleb(0);
+            eo.byte(OP_I32_CONST);
+            eo.sleb(i32(s.addr));
+            eo.byte(OP_END);
+            eo.uleb(s.size);
             usize base = out.size();
             if (!map().seg_data.push(base - start))
                 oom = true;
             for (u32 k = 0; k < s.size; k++)
-                byte(out, 0);
-            if (oom)
+                eo.byte(0);
+            if (out_of_memory())
                 return;
             for (const Ref &r : s.inputs) {
                 if (r.file == NONE) {
@@ -857,21 +798,21 @@ struct Writer {
     void copy_customs()
     {
         plan_customs();
-        if (oom || l.diag.failed())
+        if (out_of_memory() || l.diag.failed())
             return;
         for (Custom &x : customs) {
             u32 tomb = tombstone_of(x.name);
             for (u32 i = 0; i <= x.chunks.size(); i++) {
                 if (i == x.pool_at)
-                    bytes(sec, Bytes(x.pool.data(), x.pool.size()));
+                    es.bytes(Bytes(x.pool.data(), x.pool.size()));
                 if (i == x.chunks.size())
                     break;
                 const Ref &r    = x.chunks[i];
                 const Object &o = file(r.file).obj;
                 usize base      = sec.size();
-                bytes(sec, o.sections[r.index].body);
+                es.bytes(o.sections[r.index].body);
                 const RelocSection *rs = relocs_for(o, r.index);
-                for (usize k = 0; rs && !oom && k < rs->relocs.size(); k++) {
+                for (usize k = 0; rs && !out_of_memory() && k < rs->relocs.size(); k++) {
                     const Reloc &rel = rs->relocs[k];
                     u32 v;
                     Form form;
@@ -901,67 +842,67 @@ struct Writer {
         return tmp.str();
     }
 
-    void subsection(Vec<u8> &body, u8 id, Vec<u8> &part)
+    void subsection(u8 id, Vec<u8> &part)
     {
-        byte(body, id);
-        uleb(body, part.size());
-        bytes(body, Bytes(part.data(), part.size()));
+        emit_section(es, id, Bytes(part.data(), part.size()));
         part.clear();
     }
 
     void names()
     {
         Vec<u8> part;
+        Emit ep{ part };
         Out tmp;
         // The module is named for the file it is written to, as wasm-ld names it.
         Str module  = l.cfg.output.empty() ? "a.out"_s : l.cfg.output;
         usize slash = module.size();
         while (slash > 0 && module[slash - 1] != '/')
             slash--;
-        name(part, module.substr(slash));
-        subsection(sec, 0, part);
+        ep.name(module.substr(slash));
+        subsection(0, part);
 
-        uleb(part, lay.imported_functions + lay.functions.size());
+        ep.uleb(lay.imported_functions + lay.functions.size());
         for (u32 id : lay.imports)
             if (l.syms[id].kind == SYM_FUNCTION) {
-                uleb(part, l.syms[id].out_index);
-                name(part, shown_name(l.syms[id].name));
+                ep.uleb(l.syms[id].out_index);
+                ep.name(shown_name(l.syms[id].name));
             }
         for (u32 i = 0; i < lay.functions.size(); i++) {
-            uleb(part, lay.imported_functions + i);
-            name(part, function_name(lay.functions[i], tmp));
+            ep.uleb(lay.imported_functions + i);
+            ep.name(function_name(lay.functions[i], tmp));
         }
-        subsection(sec, 1, part);
+        subsection(1, part);
 
         if (lay.imported_globals + lay.globals.size()) {
-            uleb(part, lay.imported_globals + lay.globals.size());
+            ep.uleb(lay.imported_globals + lay.globals.size());
             for (u32 id : lay.imports)
                 if (l.syms[id].kind == SYM_GLOBAL) {
-                    uleb(part, l.syms[id].out_index);
-                    name(part, shown_name(l.syms[id].name));
+                    ep.uleb(l.syms[id].out_index);
+                    ep.name(shown_name(l.syms[id].name));
                 }
             for (u32 i = 0; i < lay.globals.size(); i++) {
                 const Ref &r = lay.globals[i];
-                uleb(part, lay.imported_globals + i);
-                name(part, shown_name(r.file == NONE ? l.syms[r.index].name
-                                                     : file(r.file).obj.globals[r.index].name));
+                ep.uleb(lay.imported_globals + i);
+                ep.name(shown_name(r.file == NONE ? l.syms[r.index].name
+                                                  : file(r.file).obj.globals[r.index].name));
             }
-            subsection(sec, 7, part);
+            subsection(7, part);
         }
 
         u32 n = 0;
         for (const OutSegment &s : lay.segments)
             n += written(s);
         if (n) {
-            uleb(part, n);
+            ep.uleb(n);
             u32 i = 0;
             for (const OutSegment &s : lay.segments)
                 if (written(s)) {
-                    uleb(part, i++);
-                    name(part, s.name);
+                    ep.uleb(i++);
+                    ep.name(s.name);
                 }
-            subsection(sec, 9, part);
+            subsection(9, part);
         }
+        fold(ep);
         custom("name");
     }
 
@@ -971,6 +912,7 @@ struct Writer {
         static const Str FIELDS[] = { "language", "processed-by", "sdk" };
         u32 fields                = 0;
         Vec<u8> body;
+        Emit eb{ body };
         for (Str field : FIELDS) {
             Vec<const Producer *> seen;
             for (u32 f : l.objects)
@@ -986,17 +928,18 @@ struct Writer {
             if (seen.empty())
                 continue;
             fields++;
-            name(body, field);
-            uleb(body, seen.size());
+            eb.name(field);
+            eb.uleb(seen.size());
             for (const Producer *p : seen) {
-                name(body, p->name);
-                name(body, p->version);
+                eb.name(p->name);
+                eb.name(p->version);
             }
         }
+        fold(eb);
         if (!fields)
             return;
-        uleb(sec, fields);
-        bytes(sec, Bytes(body.data(), body.size()));
+        es.uleb(fields);
+        es.bytes(Bytes(body.data(), body.size()));
         custom("producers");
     }
 
@@ -1032,10 +975,10 @@ struct Writer {
             }
         if (used.empty())
             return;
-        uleb(sec, used.size());
+        es.uleb(used.size());
         for (Str s : used) {
-            byte(sec, '+');
-            name(sec, s);
+            es.byte('+');
+            es.name(s);
         }
         custom("target_features");
     }
@@ -1043,11 +986,11 @@ struct Writer {
     void stamp()
     {
         const Config &c = l.cfg;
-        u32le(sec, BRAAM_MAGIC);
-        u32le(sec, c.braam_abi);
-        u32le(sec, 0);
-        u32le(sec, c.braam_initial ? c.braam_initial : lay.pages);
-        u32le(sec, c.braam_max);
+        es.u32le(BRAAM_MAGIC);
+        es.u32le(c.braam_abi);
+        es.u32le(0);
+        es.u32le(c.braam_initial ? c.braam_initial : lay.pages);
+        es.u32le(c.braam_max);
         custom("braam");
     }
 
@@ -1061,7 +1004,7 @@ struct Writer {
             estimate += written(s) ? s.size : 0;
         if (!out.reserve(estimate))
             oom = true;
-        bytes(out, Bytes(HEADER, sizeof HEADER));
+        eo.bytes(Bytes(HEADER, sizeof HEADER));
         void (Writer::*const STANDARD[])() = {
             &Writer::types,   &Writer::imports, &Writer::functions, &Writer::table, &Writer::memory,
             &Writer::globals, &Writer::exports, &Writer::elems,     &Writer::code,  &Writer::data,
@@ -1087,7 +1030,7 @@ struct Writer {
         }
         stamp();
         note(at, "braam");
-        if (oom)
+        if (out_of_memory())
             l.diag.error("out of memory");
         return !l.diag.failed();
     }
