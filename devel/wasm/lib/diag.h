@@ -6,7 +6,8 @@
 #include "out.h"
 
 struct Diag {
-    Out text; // for stderr
+    Str tool = "ld"; // what each line starts with
+    Out text;        // for stderr
     u32 errors   = 0;
     u32 limit    = 20; // 0: no limit
     bool stopped = false;
@@ -34,7 +35,7 @@ struct Diag {
     }
 
     // --verbose: a line among the errors, where wasm-ld logs it.
-    void log(Str msg) { text.put("ld: ").put(msg).put('\n'); }
+    void log(Str msg) { text.put(tool).put(": ").put(msg).put('\n'); }
 
 private:
     bool sep_ = false;
@@ -43,7 +44,7 @@ private:
     {
         if (sep_)
             text.put('\n');
-        text.put("ld: ").put(kind).put(": ").put(msg).put('\n');
+        text.put(tool).put(": ").put(kind).put(": ").put(msg).put('\n');
         sep_ = msg.contains("\n");
     }
 };

@@ -79,12 +79,6 @@ The CMake target follows the fixtures' `wasm_archive()` precedent:
 braam::flags)`, then `braam_add_program(... LIBS wasmobj)` in each tool.
 `devel/wasm/CMakeLists.txt` adds `lib` before `ld`.
 
-### Step 7. Diag for any tool
-
-Move `diag.h` to `lib/`, with the prefix a field (`Str tool = "ld"`) in
-place of the literal `"ld: "`. The error limit and the lld wording of
-"too many errors" stay; `strip` never reaches twenty errors.
-
 ### Step 8. Document the library
 
 - A short section in [README.md](README.md)'s *Inside*: the files of
