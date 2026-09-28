@@ -36,7 +36,8 @@ BRAAM_LD := $(abspath $(BOOT))/ld
 else ifneq ($(LINKER),)
 $(error LINKER is ld, or empty for wasm-ld)
 endif
-LD_SOURCES := $(wildcard devel/wasm/ld/*.cpp devel/wasm/ld/*.h)
+LD_SOURCES := $(wildcard devel/wasm/ld/*.cpp devel/wasm/ld/*.h \
+                          devel/wasm/lib/*.cpp devel/wasm/lib/*.h)
 
 # Publishing. The repository the index is for, which must equal the client's
 # /etc/repositories line byte for byte, and the index's own two numbers.

@@ -8,7 +8,8 @@ if(NOT TARGET braam::proc)
     find_package(braam REQUIRED)
 endif()
 
-# One line per tool in the package.
+# The library first, then one line per tool in the package.
+add_subdirectory(lib)
 add_subdirectory(ld)
 
 braam_add_package(NAME wasm VERSION 0.1-r0

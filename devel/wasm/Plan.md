@@ -79,19 +79,6 @@ The CMake target follows the fixtures' `wasm_archive()` precedent:
 braam::flags)`, then `braam_add_program(... LIBS wasmobj)` in each tool.
 `devel/wasm/CMakeLists.txt` adds `lib` before `ld`.
 
-### Step 1. Create the library with the modules that have no policy
-
-Move `wasm.h`, `wasm.cpp` and `out.h` to `lib/` unchanged. Add
-`lib/CMakeLists.txt` and link `ld` against `wasmobj`. Put `lib/` on `ld`'s
-include path so `#include "wasm.h"` still resolves.
-
-- Update `LD_SOURCES` in the top [Makefile](../../Makefile) to include
-  `devel/wasm/lib/*.cpp devel/wasm/lib/*.h`. Otherwise `make LINKER=ld`
-  goes on running a stale bootstrap `ld` after a library change.
-- Check: `make test`, then `make LINKER=ld` and `make test LINKER=ld`, and
-  `node devel/wasm/ld/sizes.mjs` shows every program the same size as
-  before the step.
-
 ### Step 2. Cursor
 
 Move `Cursor` from `reader.h/.cpp` into `lib/cursor.h/.cpp` unchanged.
