@@ -1,13 +1,12 @@
 // The Braam front end: reads what the command line names, hands the bytes to
 // the core, and writes what comes back. Only this file awaits.
-//
-// Linking stops after layout for now: nothing is written to -o.
 #include "driver.h"
 #include "dump.h"
 #include "gc.h"
 #include "kernel/alloc.h"
 #include "proc/io.h"
 #include "symtab.h"
+#include "writer.h"
 
 namespace {
 
@@ -20,6 +19,7 @@ struct Front {
     Diag diag;
     Out out;
     String path;
+    Vec<u8> image; // the output module
 };
 
 Task<Result<void>> say(u32 fd, Str s)
@@ -183,6 +183,7 @@ Task<i32> link(Front &s)
     ok = ok && check_undefined(*l) && layout(*l);
     if (ok && s.cfg.dump_layout)
         dump_layout(*l, l->out);
+    ok = ok && write_module(*l, s.image);
     if (ok && s.cfg.dump_symtab)
         dump_symtab(*l, l->out);
     if (l->out.oom || l->why.oom)
@@ -196,6 +197,14 @@ Task<i32> link(Front &s)
             cannot_open(s, s.cfg.why_extract, w.error());
     }
     heap_delete(l);
+    // Only a link that succeeded leaves a file.
+    if (ok) {
+        Str to = s.cfg.output.empty() ? "a.out"_s : s.cfg.output;
+        Str bytes(reinterpret_cast<const char *>(s.image.data()), s.image.size());
+        Result<void> w = co_await spill(to, bytes);
+        if (w.is_err())
+            cannot_open(s, to, w.error());
+    }
     co_return co_await finish(s, ok);
 }
 

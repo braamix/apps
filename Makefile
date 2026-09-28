@@ -167,6 +167,7 @@ TESTS := \
     devel/wlink/test/resolve.mjs \
     devel/wlink/test/gc.mjs \
     devel/wlink/test/layout.mjs \
+    devel/wlink/test/write.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
     emulators/simbesm/test/boot.mjs \

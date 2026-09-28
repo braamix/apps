@@ -117,7 +117,7 @@ devel/wlink/
   symtab.cpp/.h    resolution: strong/weak/lazy/undefined, comdats, imports
   gc.cpp/.h        liveness from roots through relocations (worklist)
   layout.cpp/.h    index spaces, types, table, memory map, synthetic symbols
-  writer.cpp       output sections, relocation patching, name, stamp
+  writer.cpp/.h    output sections, relocation patching, name, stamp
   driver.cpp/.h    options → Config; link(Config, inputs) → bytes | error
   braam.cpp        proc_main: args, @file, -L/-l search, read, write
   host.cpp         native main() over the same driver, for the tree relink
@@ -192,42 +192,6 @@ testing against wasm-ld.
 
 Each step ends with a test that runs under `make test`, and none starts
 until the previous one's test passes.
-
-### Step 5 — Writing and relocation
-
-- **Section order:** TYPE, IMPORT, FUNCTION, TABLE, GLOBAL, EXPORT, ELEM,
-  DATACOUNT, CODE, DATA, `name`, `producers`, `target_features`, `braam`.
-  There is no MEMORY section, because the memory is imported (`env.memory`,
-  min = initial pages, no max). There is no START.
-- **Relocation:** each function body is copied verbatim with its
-  relocations patched in place:
-  - LEB relocations are rewritten as padded 5-byte LEBs, so no body changes
-    length and no offset moves. No instruction decoding is needed anywhere
-    in the linker.
-  - `I32` relocations are 4-byte little-endian values.
-  - The SLEB forms are for `i32.const` addresses.
-- **Data:** one active segment per non-empty merged output segment, with
-  relocations patched in place. `.bss` is omitted, because a Braam process
-  starts on fresh zeroed memory.
-- **`__wasm_call_ctors`:** a synthesised body that calls each live init
-  function, ordered by priority and then by input order.
-- **Other sections:**
-  - `name` holds function, global and data segment names.
-  - `producers` is the union of the inputs' entries.
-  - `target_features` is the union of `+` features. It's an error if any
-    input disallows a feature another uses, or requires one that another
-    lacks.
-- **`braam` section:** five `u32`s — magic `0x6D617262`, ABI, flags,
-  initial pages, max pages.
-- **Test:**
-  - Every fixture links under Braam and runs, and its output equals the
-    wasm-ld build's output.
-  - Node's `WebAssembly.validate` accepts each output.
-  - The module surface matches exactly: the same imports, the same five
-    exports, and the `braam` section.
-  - The `.bss` fixture proves that omitting zero bytes is safe on Braam.
-    It fills and checks a large array after a sibling process has run in
-    the same worker.
 
 ### Step 6 — The Braam front end and the package
 

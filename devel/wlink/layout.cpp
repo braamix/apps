@@ -61,13 +61,6 @@ void uleb(Vec<u8> &v, u32 x, bool &oom)
     } while (x);
 }
 
-// What symbol i of a file names: a definition in some file (file, symbol),
-// or else (NONE, Sym).
-struct Target {
-    u32 file;
-    u32 index;
-};
-
 struct InitEntry {
     u32 priority;
     u32 function;
@@ -94,43 +87,18 @@ struct Layouter {
         l.diag.error(m.str());
     }
 
-    Target target(u32 f, u32 i)
-    {
-        u32 id = file(f).symbols[i];
-        if (id == NONE)
-            return Target{ f, i };
-        const Sym &g = l.syms[id];
-        if (g.state == State::Defined && !g.synthetic())
-            return Target{ g.file, g.index };
-        return Target{ NONE, id };
-    }
+    Target target(u32 f, u32 i) { return target_of(l, f, i); }
 
-    // The output index of the function symbol i of file f names; NONE for
-    // none.
-    u32 function_index(u32 f, u32 i)
-    {
-        Target t = target(f, i);
-        if (t.file == NONE)
-            return l.syms[t.index].out_index;
-        const Object &o = file(t.file).obj;
-        return file(t.file).function_index[o.symbols[t.index].index - o.imported_functions];
-    }
+    u32 function_index(u32 f, u32 i) { return function_index_of(l, f, i); }
 
     // ------------------------------------------------------------ indices
-
-    static Str module_of(const Sym &g)
-    {
-        return g.import_module.empty() ? "env"_s : g.import_module;
-    }
-
-    static Str field_of(const Sym &g) { return g.import_name.empty() ? g.name : g.import_name; }
 
     u32 shared_import(const Sym &g)
     {
         for (u32 id : lay.imports) {
             const Sym &h = l.syms[id];
-            if (h.kind == SYM_FUNCTION && module_of(h) == module_of(g) &&
-                field_of(h) == field_of(g) && same_sig(h.sig, g.sig))
+            if (h.kind == SYM_FUNCTION && import_module(h) == import_module(g) &&
+                import_field(h) == import_field(g) && same_sig(h.sig, g.sig))
                 return h.out_index;
         }
         return NONE;
@@ -553,6 +521,44 @@ struct Layouter {
 
 } // namespace
 
+Target target_of(const Linker &l, u32 f, u32 i)
+{
+    u32 id = l.files[f]->symbols[i];
+    if (id == NONE)
+        return Target{ f, i };
+    const Sym &g = l.syms[id];
+    if (g.state == State::Defined && !g.synthetic())
+        return Target{ g.file, g.index };
+    return Target{ NONE, id };
+}
+
+u32 function_index_of(const Linker &l, u32 f, u32 i)
+{
+    Target t = target_of(l, f, i);
+    if (t.file == NONE)
+        return l.syms[t.index].out_index;
+    const InputFile &in = *l.files[t.file];
+    return in.function_index[in.obj.symbols[t.index].index - in.obj.imported_functions];
+}
+
+u32 type_index_of(const Layout &lay, const FuncType *t)
+{
+    for (u32 i = 0; i < lay.types.size(); i++)
+        if (same_sig(lay.types[i], t))
+            return i;
+    return NONE;
+}
+
+Str import_module(const Sym &g)
+{
+    return g.import_module.empty() ? "env"_s : g.import_module;
+}
+
+Str import_field(const Sym &g)
+{
+    return g.import_name.empty() ? g.name : g.import_name;
+}
+
 bool layout(Linker &l)
 {
     Layouter *p = heap_new<Layouter>(l, l.layout);
@@ -669,8 +675,7 @@ void dump_layout(const Linker &l, Out &out)
         out.put("import env.memory memory\n");
     for (u32 id : lay.imports) {
         const Sym &g = l.syms[id];
-        out.put("import ").put(g.import_module.empty() ? Str("env") : g.import_module).put('.');
-        out.put(g.import_name.empty() ? g.name : g.import_name);
+        out.put("import ").put(import_module(g)).put('.').put(import_field(g));
         out.put(g.kind == SYM_FUNCTION ? " function\n" : " global\n");
     }
     for (u32 i = 0; i < lay.globals.size(); i++) {

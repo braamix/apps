@@ -4,6 +4,7 @@
 
 #include "diag.h"
 #include "kernel/span.h"
+#include "kernel/sysabi.h"
 #include "kernel/vec.h"
 
 // An input as named on the command line: a path, or -l's library name.
@@ -35,9 +36,12 @@ struct Config {
     u32 error_limit        = 20;
 
     // wlink's own.
-    bool dump        = false; // --dump: the inputs are to be dumped, not linked
-    bool dump_symtab = false; // --dump-symtab: print the resolved symbols
-    bool dump_layout = false; // --dump-layout: print indices and addresses
+    bool dump         = false;    // --dump: the inputs are to be dumped, not linked
+    bool dump_symtab  = false;    // --dump-symtab: print the resolved symbols
+    bool dump_layout  = false;    // --dump-layout: print indices and addresses
+    u32 braam_abi     = PROC_ABI; // --braam-abi
+    u32 braam_initial = 0;        // --braam-pages; 0: the link's initial memory
+    u32 braam_max     = 1600;
 };
 
 // False with a message in `diag` for an argument that is not understood.

@@ -121,6 +121,16 @@ struct Parser {
                 if (!num(a, v, cfg.global_base))
                     return false;
                 cfg.global_base_set = true;
+            } else if (take(a, "--braam-abi", v)) {
+                if (!num(a, v, cfg.braam_abi))
+                    return false;
+            } else if (take(a, "--braam-pages", v)) {
+                usize comma = 0;
+                while (comma < v.size() && v[comma] != ',')
+                    comma++;
+                if (comma == v.size() || !num(a, v.substr(0, comma), cfg.braam_initial) ||
+                    !num(a, v.substr(comma + 1), cfg.braam_max))
+                    return fail("not <initial>,<max>: ", a);
             } else if (take(a, "-O", v)) {
                 // Strings are not merged, so every level is -O0.
             } else if (take(a, "-m", v)) {

@@ -39,6 +39,25 @@ struct Layout {
 };
 
 struct Linker;
+struct Sym;
+
+// What symbol i of a file names: a definition (file, symbol), or else the
+// linker's own or an undefined one (NONE, Sym).
+struct Target {
+    u32 file;
+    u32 index;
+};
+
+Target target_of(const Linker &l, u32 f, u32 i);
+
+// The output index of the function symbol i of file f names; NONE for none.
+u32 function_index_of(const Linker &l, u32 f, u32 i);
+
+u32 type_index_of(const Layout &lay, const FuncType *t);
+
+// Where an undefined symbol is imported from.
+Str import_module(const Sym &g);
+Str import_field(const Sym &g);
 
 // Assigns every index and address. False on an error, which is in the Diag.
 bool layout(Linker &l);
