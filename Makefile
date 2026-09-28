@@ -162,12 +162,12 @@ TESTS := \
     devel/c4/test/run.mjs \
     devel/c4/test/selfhost.mjs \
     devel/c4/test/interrupt.mjs \
-    devel/wasm/test/fixtures.mjs \
-    devel/wasm/test/dump.mjs \
-    devel/wasm/test/resolve.mjs \
-    devel/wasm/test/gc.mjs \
-    devel/wasm/test/layout.mjs \
-    devel/wasm/test/write.mjs \
+    devel/wasm/ld/test/fixtures.mjs \
+    devel/wasm/ld/test/dump.mjs \
+    devel/wasm/ld/test/resolve.mjs \
+    devel/wasm/ld/test/gc.mjs \
+    devel/wasm/ld/test/layout.mjs \
+    devel/wasm/ld/test/write.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
     emulators/simbesm/test/boot.mjs \

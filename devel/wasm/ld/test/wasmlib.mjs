@@ -7,11 +7,11 @@ import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "nod
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { HARNESS, KERNEL, ROOTFS } from "../../../test/sdk.mjs";
+import { HARNESS, KERNEL, ROOTFS } from "../../../../test/sdk.mjs";
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
-export const APPS = resolve(HERE, "../../..");
-export const MANIFEST = join(APPS, "build/devel/wasm/test/fixtures.json");
+export const APPS = resolve(HERE, "../../../..");
+export const MANIFEST = join(APPS, "build/devel/wasm/ld/test/fixtures.json");
 export const GOLDEN = join(HERE, "golden");
 
 export function die(msg) {

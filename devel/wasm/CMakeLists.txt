@@ -8,7 +8,5 @@ if(NOT TARGET braam::proc)
     find_package(braam REQUIRED)
 endif()
 
-braam_add_program(NAME ld SOURCES wasm.cpp reader.cpp dump.cpp driver.cpp symtab.cpp gc.cpp layout.cpp writer.cpp braam.cpp)
-
-# The fixtures the tests link, and wasm-ld's links of them to compare against.
-add_subdirectory(test)
+# One line per tool in the package.
+add_subdirectory(ld)

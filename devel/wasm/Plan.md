@@ -98,7 +98,7 @@ Nine types cover everything. There is no PIC, no TLS and no debug info.
   makes the segments passive and fills `.bss` at start. On Braam every
   process gets a fresh `WebAssembly.Memory` (`web/proc.js`), so this isn't
   needed. `ld` emits active segments and no `.bss` bytes. That's smaller
-  and simpler, and it rests on one assumption, which `test/write.mjs` tests.
+  and simpler, and it rests on one assumption, which `ld/test/write.mjs` tests.
 
 ## 3. Shape of the program
 
@@ -109,21 +109,24 @@ already in memory, and it never blocks. Only the front end awaits.
 devel/wasm/
   Plan.md          this file
   README.md        what it does, what it refuses, how it differs from wasm-ld
-  CMakeLists.txt   braam_add_program(NAME ld ...), braam_add_package
-  wasm.h/.cpp      opcodes, section ids, reloc and symbol enums
-  out.h            text built in a String: messages and --dump
-  reader.cpp/.h    bounds-checked cursor; object parser; archive parser
-  input.h          Object, Function, Segment, Symbol, Reloc
-  dump.cpp/.h      --dump, in llvm-objdump -t -r's layout
-  diag.h           errors, worded and limited as lld's are
-  symtab.cpp/.h    resolution: strong/weak/lazy/undefined, comdats, imports
-  gc.cpp/.h        liveness from roots through relocations (worklist)
-  layout.cpp/.h    index spaces, types, table, memory map, synthetic symbols
-  writer.cpp/.h    output sections, relocation patching, name, stamp
-  driver.cpp/.h    options → Config; link(Config, inputs) → bytes | error
-  braam.cpp        proc_main: args, @file, -L/-l search, read, write
-  host.cpp         native main() over the same driver, for the tree relink
-  test/            *.mjs under the SDK harness, fixtures, goldens
+  CMakeLists.txt   add_subdirectory per tool, braam_add_package
+  Wasm_Object_Format.md  what a linker reads and writes, byte by byte
+  ld/
+    CMakeLists.txt   braam_add_program(NAME ld ...)
+    wasm.h/.cpp      opcodes, section ids, reloc and symbol enums
+    out.h            text built in a String: messages and --dump
+    reader.cpp/.h    bounds-checked cursor; object parser; archive parser
+    input.h          Object, Function, Segment, Symbol, Reloc
+    dump.cpp/.h      --dump, in llvm-objdump -t -r's layout
+    diag.h           errors, worded and limited as lld's are
+    symtab.cpp/.h    resolution: strong/weak/lazy/undefined, comdats, imports
+    gc.cpp/.h        liveness from roots through relocations (worklist)
+    layout.cpp/.h    index spaces, types, table, memory map, synthetic symbols
+    writer.cpp/.h    output sections, relocation patching, name, stamp
+    driver.cpp/.h    options → Config; link(Config, inputs) → bytes | error
+    braam.cpp        proc_main: args, @file, -L/-l search, read, write
+    host.cpp         native main() over the same driver, for the tree relink
+    test/            *.mjs under the SDK harness, fixtures, goldens
 ```
 
 Constraints the Braam side imposes, and how the plan meets them:
@@ -209,7 +212,7 @@ until the previous one's test passes.
   - what it refuses and why;
   - where it differs from wasm-ld: active segments, no `.bss`, no START,
     and an error rather than a stub on signature mismatch.
-- **Test:** `test/link.mjs` in `TESTS`:
+- **Test:** `ld/test/link.mjs` in `TESTS`:
   1. the `write.mjs` cases;
   2. a link driven by a response file;
   3. a link with a missing library, which checks the message;
@@ -223,7 +226,7 @@ until the previous one's test passes.
   against the relinked binary.
 - **Self-hosting:** link `ld`'s own objects with `ld` on Braam, then
   use that output to link c4 again. Both c4 outputs must be byte-identical.
-- **Test:** `test/relink.mjs` in `LONGTESTS`, if it takes more than a few
+- **Test:** `ld/test/relink.mjs` in `LONGTESTS`, if it takes more than a few
   seconds.
 
 ### Step 8 — The whole tree
