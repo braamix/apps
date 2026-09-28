@@ -92,8 +92,9 @@ struct Symbol {
     u8 kind;
     u32 flags;
     Str name;
-    u32 index = NONE;  // function, global, table: element; section: section
-    Str import_module; // undefined function, global, table
+    u32 index  = NONE; // function, global, table: element; section: section
+    u32 import = NONE; // undefined function, global, table: its import
+    Str import_module;
     Str import_field;
     u32 segment = NONE; // defined data
     u32 offset  = 0;

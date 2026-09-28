@@ -75,13 +75,33 @@ function(wlink_fixture name)
     set_property(GLOBAL APPEND_STRING PROPERTY WLINK_FIXTURES "${entry}")
 endfunction()
 
+# wlink_bad(<name> <src>...): objects that must not link. No reference is
+# made; the tests hold wlink's refusal against wasm-ld's.
+function(wlink_bad name)
+    add_library(fxo_${name} OBJECT ${ARGN})
+    target_link_libraries(fxo_${name} PRIVATE braam::flags)
+    target_include_directories(fxo_${name} PRIVATE ${FX_SRC})
+    fx_json_list(objects "$<TARGET_OBJECTS:fxo_${name}>;$<TARGET_OBJECTS:fx_driver>")
+    set(files "")
+    foreach(l ${FX_LIBS})
+        list(APPEND files "$<TARGET_FILE:${l}>")
+    endforeach()
+    fx_json_list(sdk "${files}")
+    string(CONCAT entry
+        "  \"${name}\": {\n"
+        "    \"objects\": ${objects},\n"
+        "    \"libs\": ${sdk}\n"
+        "  },\n")
+    set_property(GLOBAL APPEND_STRING PROPERTY WLINK_BAD "${entry}")
+endfunction()
+
 wlink_archive(fxa_one ${FX_SRC}/one_a.c ${FX_SRC}/one_c.c ${FX_SRC}/one_unused.c)
 wlink_archive(fxa_two ${FX_SRC}/two_b.c)
 
 wlink_fixture(hello    SOURCES ${FX_SRC}/hello.c)
 wlink_fixture(ctors    SOURCES ${FX_SRC}/ctors.c ${FX_SRC}/ctors.cpp)
 wlink_fixture(fnptr    SOURCES ${FX_SRC}/fnptr_a.c ${FX_SRC}/fnptr_b.c)
-wlink_fixture(weak     SOURCES ${FX_SRC}/weak_a.c ${FX_SRC}/weak_b.c)
+wlink_fixture(weak     SOURCES ${FX_SRC}/weak_a.c ${FX_SRC}/weak_b.c ${FX_SRC}/weak_c.c)
 wlink_fixture(undef    SOURCES ${FX_SRC}/undef_a.c ${FX_SRC}/undef_b.c)
 wlink_fixture(comdat   SOURCES ${FX_SRC}/comdat_a.cpp ${FX_SRC}/comdat_b.cpp)
 wlink_fixture(data     SOURCES ${FX_SRC}/data_a.c ${FX_SRC}/data_b.c)
@@ -91,6 +111,11 @@ wlink_fixture(imports  SOURCES ${FX_SRC}/imports.c)
 wlink_fixture(archives SOURCES ${FX_SRC}/arch_main.c ARCHIVES fxa_one fxa_two)
 wlink_fixture(port     SOURCES ${FX_SRC}/port.cpp PORT)
 
+wlink_bad(bad_dup   ${FX_SRC}/bad_dup_a.c ${FX_SRC}/bad_dup_b.c)
+wlink_bad(bad_undef ${FX_SRC}/bad_undef_a.c ${FX_SRC}/bad_undef_b.c)
+wlink_bad(bad_type  ${FX_SRC}/bad_type_a.c ${FX_SRC}/bad_type_b.c)
+wlink_bad(bad_sig   ${FX_SRC}/bad_sig_a.c ${FX_SRC}/bad_sig_b.c)
+
 # llvm-objdump is --dump's oracle, and llvm-ar makes the archive formats the
 # SDK's own do not use. Both come from the clang the toolchain found.
 get_filename_component(FX_LLVM_BIN ${BRAAM_AR} DIRECTORY)
@@ -98,14 +123,19 @@ find_program(WLINK_OBJDUMP NAMES llvm-objdump HINTS ${FX_LLVM_BIN} REQUIRED)
 
 # The trailing "{}" entry keeps the JSON valid after the last comma.
 get_property(fixtures GLOBAL PROPERTY WLINK_FIXTURES)
+get_property(bad GLOBAL PROPERTY WLINK_BAD)
 file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/fixtures.json
      CONTENT "{
   \"wlink\": \"$<TARGET_FILE:bin_wlink>\",
   \"objdump\": \"${WLINK_OBJDUMP}\",
   \"ar\": \"${BRAAM_AR}\",
+  \"wasm_ld\": \"${BRAAM_WASM_LD}\",
   \"sdk_libs\": \"$<TARGET_FILE_DIR:braam::proc>\",
   \"fixtures\": {
 ${fixtures}  \"\": {}
+  },
+  \"bad\": {
+${bad}  \"\": {}
   }
 }
 ")

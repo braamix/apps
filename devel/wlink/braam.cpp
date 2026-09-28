@@ -1,19 +1,24 @@
 // The Braam front end: reads what the command line names, hands the bytes to
 // the core, and writes what comes back. Only this file awaits.
 //
-// So far: wlink --dump <object or archive>..., with @file naming more.
+// Linking stops after symbol resolution for now: nothing is written to -o.
+#include "driver.h"
 #include "dump.h"
 #include "kernel/alloc.h"
 #include "proc/io.h"
+#include "symtab.h"
 
 namespace {
 
 // Everything the front end holds, off the coroutine frame.
-struct State {
-    Vec<String> files; // response files and inputs, kept alive
+struct Front {
+    Vec<String> texts; // response files and inputs, kept alive
     Vec<Str> words;
+    Vec<Source> inputs;
+    Config cfg;
+    Diag diag;
     Out out;
-    Out err;
+    String path;
 };
 
 Task<Result<void>> say(u32 fd, Str s)
@@ -32,6 +37,21 @@ Task<Result<String>> slurp(Str path)
     if (!t)
         co_return Err(Error::NoMemory);
     co_return co_await t;
+}
+
+// Writes `s` to a file, replacing it.
+Task<Result<void>> spill(Str path, Str s)
+{
+    Task<Result<i32>> o = open_at(path, SYS_O_WRITE | SYS_O_CREATE | SYS_O_TRUNC);
+    if (!o)
+        co_return Err(Error::NoMemory);
+    Result<i32> fd = co_await o;
+    if (fd.is_err())
+        co_return Err(fd.error());
+    Result<void> w = co_await say(u32(fd.value()), s);
+    if (Task<void> c = close_fd(u32(fd.value())))
+        co_await c;
+    co_return w;
 }
 
 bool space(char c)
@@ -55,14 +75,125 @@ bool split(Str text, Vec<Str> &words)
     return true;
 }
 
-Task<i32> fail(State &s, Str what, Error why)
+void cannot_open(Front &s, Str path, Error why)
 {
-    s.err.put("wlink: ").put(what).put(": ").put(error_name(why)).put('\n');
-    co_await say(SYS_STDERR, s.err.str());
-    co_return why == Error::Cancelled ? 130 : 1;
+    Out m;
+    m.put("cannot open ").put(path).put(": ").put(error_name(why));
+    s.diag.error(m.str());
 }
 
-Task<i32> run(State &s, Args args)
+// Stderr, then the status: 130 for ^C, 1 for any other failure.
+Task<i32> finish(Front &s, bool ok)
+{
+    co_await say(SYS_STDERR, s.diag.text.str());
+    co_return ok && !s.diag.failed() ? 0 : 1;
+}
+
+Task<Result<String>> read_input(Front &s, const InputArg &a, Error &why)
+{
+    if (!a.lib) {
+        Result<String> r = co_await slurp(a.name);
+        if (r.is_err())
+            why = r.error();
+        co_return r;
+    }
+    for (Str dir : s.cfg.lib_dirs) {
+        s.path.assign(dir);
+        s.path.append("/lib");
+        s.path.append(a.name);
+        s.path.append(".a");
+        Result<String> r = co_await slurp(s.path.str());
+        if (r.is_ok() || r.error() != Error::NotFound) {
+            if (r.is_err())
+                why = r.error();
+            co_return r;
+        }
+    }
+    why = Error::NotFound;
+    co_return Err(Error::NotFound);
+}
+
+Task<i32> dump(Front &s)
+{
+    for (const InputArg &a : s.cfg.inputs) {
+        Error why        = Error::Io;
+        Result<String> r = co_await read_input(s, a, why);
+        if (r.is_err()) {
+            cannot_open(s, a.name, why);
+            co_return co_await finish(s, false);
+        }
+        String &file = r.value();
+        Bytes bytes(reinterpret_cast<const u8 *>(file.data()), file.size());
+        Out err;
+        s.out.clear();
+        bool ok = dump_file(a.name, bytes, s.out, err);
+        if (s.out.oom)
+            s.diag.error("out of memory");
+        Result<void> w = co_await say(SYS_STDOUT, s.out.str());
+        if (w.is_err())
+            co_return w.error() == Error::Cancelled ? 130 : 1;
+        if (!ok) {
+            s.diag.error(err.str());
+            co_return co_await finish(s, false);
+        }
+    }
+    co_return co_await finish(s, true);
+}
+
+Task<i32> link(Front &s)
+{
+    for (const InputArg &a : s.cfg.inputs) {
+        Error why        = Error::Io;
+        Result<String> r = co_await read_input(s, a, why);
+        if (r.is_err()) {
+            if (a.lib) {
+                Out m;
+                m.put("unable to find library -l").put(a.name);
+                s.diag.error(m.str());
+            } else {
+                cannot_open(s, a.name, why);
+            }
+            continue;
+        }
+        // A library is named by the path it was found at.
+        Str name = a.name;
+        if (a.lib) {
+            String p;
+            if (!p.append(s.path.str()) || !s.texts.push(move(p)))
+                s.diag.error("out of memory");
+            name = s.texts.back().str();
+        }
+        if (!s.texts.push(move(r.value())))
+            s.diag.error("out of memory");
+        const String &t = s.texts.back();
+        s.inputs.push(Source{ name, Bytes(reinterpret_cast<const u8 *>(t.data()), t.size()) });
+    }
+    if (s.diag.failed())
+        co_return co_await finish(s, false);
+
+    Linker *l = heap_new<Linker>(s.cfg, s.diag);
+    if (!l) {
+        s.diag.error("out of memory");
+        co_return co_await finish(s, false);
+    }
+    bool ok = resolve(*l, s.inputs) && check_undefined(*l);
+    if (ok && s.cfg.dump_symtab)
+        dump_symtab(*l, l->out);
+    if (l->out.oom || l->why.oom)
+        s.diag.error("out of memory");
+    co_await say(SYS_STDOUT, l->out.str());
+    if (!s.cfg.why_extract.empty()) {
+        l->why.s.insert(0, "reference\textracted\tsymbol\n");
+        Result<void> w = s.cfg.why_extract == "-" ? co_await say(SYS_STDOUT, l->why.str())
+                                                  : co_await spill(s.cfg.why_extract, l->why.str());
+        if (w.is_err())
+            cannot_open(s, s.cfg.why_extract, w.error());
+    }
+    heap_delete(l);
+    co_return co_await finish(s, ok);
+}
+
+Task<i32> run(Front &s, Args args)
 {
     for (usize i = 1; i < args.size(); i++) {
         Str a = args[i];
@@ -71,47 +202,31 @@ Task<i32> run(State &s, Args args)
             continue;
         }
         Result<String> r = co_await slurp(a.substr(1));
-        if (r.is_err())
-            co_return co_await fail(s, a.substr(1), r.error());
-        if (!s.files.push(move(r.value())) || !split(s.files.back().str(), s.words))
-            co_return co_await fail(s, a, Error::NoMemory);
-    }
-
-    if (s.words.size() < 2 || s.words[0] != "--dump") {
-        co_await say(SYS_STDERR, "usage: wlink --dump <object or archive>...\n");
-        co_return 1;
-    }
-
-    for (usize i = 1; i < s.words.size(); i++) {
-        Str path         = s.words[i];
-        Result<String> r = co_await slurp(path);
-        if (r.is_err())
-            co_return co_await fail(s, path, r.error());
-        String &file = r.value();
-        Bytes bytes(reinterpret_cast<const u8 *>(file.data()), file.size());
-        s.out.clear();
-        bool ok = dump_file(path, bytes, s.out, s.err);
-        if (s.out.oom || s.err.oom)
-            co_return co_await fail(s, path, Error::NoMemory);
-        Result<void> w = co_await say(SYS_STDOUT, s.out.str());
-        if (w.is_err())
-            co_return w.error() == Error::Cancelled ? 130 : 1;
-        if (!ok) {
-            s.err.put('\n');
-            s.out.clear();
-            s.out.put("wlink: ").put(s.err.str());
-            co_await say(SYS_STDERR, s.out.str());
-            co_return 1;
+        if (r.is_err()) {
+            cannot_open(s, a.substr(1), r.error());
+            co_return co_await finish(s, false);
+        }
+        if (!s.texts.push(move(r.value())) || !split(s.texts.back().str(), s.words)) {
+            s.diag.error("out of memory");
+            co_return co_await finish(s, false);
         }
     }
-    co_return 0;
+    if (!parse_args(s.words, s.cfg, s.diag))
+        co_return co_await finish(s, false);
+    if (s.cfg.inputs.empty()) {
+        s.diag.error("no input files");
+        co_return co_await finish(s, false);
+    }
+    if (s.cfg.dump)
+        co_return co_await dump(s);
+    co_return co_await link(s);
 }
 
 } // namespace
 
 Task<i32> proc_main(Args args)
 {
-    State *s = heap_new<State>();
+    Front *s = heap_new<Front>();
     if (!s)
         co_return 1;
     i32 status = co_await run(*s, args);

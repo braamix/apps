@@ -589,7 +589,8 @@ struct Reader {
         if (defined || (s.flags & SYM_EXPLICIT_NAME))
             s.name = c.name();
         if (!defined) {
-            const Import &im = o.imports[imports[s.index]];
+            s.import         = imports[s.index];
+            const Import &im = o.imports[s.import];
             s.import_module  = im.module;
             s.import_field   = im.field;
             if (!(s.flags & SYM_EXPLICIT_NAME))

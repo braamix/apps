@@ -113,6 +113,7 @@ devel/wlink/
   reader.cpp/.h    bounds-checked cursor; object parser; archive parser
   input.h          Object, Function, Segment, Symbol, Reloc
   dump.cpp/.h      --dump, in llvm-objdump -t -r's layout
+  diag.h           errors, worded and limited as lld's are
   symtab.cpp/.h    resolution: strong/weak/lazy/undefined, comdats, imports
   gc.cpp           liveness from roots through relocations (worklist)
   layout.cpp       index spaces, types, table, memory map, synthetic symbols
@@ -163,6 +164,8 @@ to hold, step 8 falls back to driving `wlink.wasm` under the harness.
 - `--stack-first`, `-z stack-size=<n>`, `--initial-memory=<n>`,
   `--import-memory`.
 - `--strip-debug` and `--strip-all`.
+- `--trace`, `--why-extract=<file>` and `--error-limit=<n>`, printing what
+  wasm-ld prints.
 - `-m wasm32`, `--no-default-config` noise and similar, accepted and ignored
   where clang passes them.
 - **`wlink` additions:**
@@ -171,9 +174,9 @@ to hold, step 8 falls back to driving `wlink.wasm` under the harness.
   - `--braam-pages=<init>,<max>` and `--braam-abi=<n>` set the stamp. The
     ABI defaults to the `PROC_ABI` of the SDK that `wlink` was built
     against.
-  - `--dump <obj|archive>` prints symbols, segments and relocations in
-    `llvm-objdump -t -r`'s layout. It's a debugging aid, and step 1's test
-    oracle.
+  - `--dump <obj|archive>` prints symbols and relocations in
+    `llvm-objdump -t -r`'s layout, and `--dump-symtab` the resolved symbol
+    table. They're debugging aids, and test oracles.
   - `-Map=<file>` writes a map of addresses and indices. It's optional and
     comes late.
 
@@ -186,45 +189,6 @@ testing against wasm-ld.
 Each step ends with a test that runs under `make test`, and none starts
 until the previous one's test passes.
 
-### Step 2 — Symbol resolution
-
-- Build one global symbol table keyed by name. Local symbols stay per file.
-- Index each archive from its members' symbol tables rather than trusting
-  the `/` index, as lld does, so an unindexed archive still links.
-- Resolution rules follow lld:
-  - defined beats undefined;
-  - strong beats weak, and two strong definitions are an error naming both
-    files;
-  - the first weak definition wins over later ones;
-  - lazy archive symbols are pulled when something references them, in any
-    order, so there is no `--start-group`. Pulling repeats until nothing
-    changes.
-- **Comdats:** the first group with a given name wins. Its members stay, and
-  every later group's functions and segments are discarded, together with
-  their relocations.
-- **Undefined symbols:**
-  - An undefined function with an import module and name (explicit, or
-    `env` by default) becomes an import only under `--allow-undefined`, or
-    when it names `import_module` explicitly. That's how `kernel.sys`
-    arrives.
-  - Anything else undefined is an error that lists the referencing files,
-    capped at 20 lines.
-  - A weak undefined symbol resolves to 0 (data), to a null table slot
-    (a function whose address is taken), or to a stub that traps (a direct
-    call), as wasm-ld does.
-- **Signatures:** a function defined with one signature and referenced
-  with another is an error. wasm-ld builds a trapping stub and warns
-  instead. That behaviour can be added later if a real input needs it.
-- **Synthetic symbols** are created before resolution, so the objects bind
-  to them: `__stack_pointer`, `__indirect_function_table`,
-  `__wasm_call_ctors`, `__heap_base`, `__data_end`, `__dso_handle`,
-  `__global_base`, `__heap_end` and `__memory_base`, the last as 0 because
-  the output is not PIC.
-- **Test:** resolution is reported through `--dump-symtab` for the
-  weak/strong, comdat, archive-chain and undefined fixtures, and checked
-  against goldens. The undefined and duplicate cases check exit status 1
-  and the exact message.
-
 ### Step 3 — Liveness (`--gc-sections`)
 
 - **Roots:**
@@ -235,6 +199,8 @@ until the previous one's test passes.
     lld's rule, and here `_start` makes it live.
 - Marking walks a chunk's relocations to the chunks they name, using a
   worklist.
+- Undefined symbols are then reported only from live chunks, as wasm-ld
+  reports them. Until this step they are reported from every loaded chunk.
 - A chunk is one function body or one data segment. Custom sections other
   than `producers`, `target_features` and `name` are dropped. Debug
   sections come in step 9.

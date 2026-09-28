@@ -34,9 +34,9 @@ Str reloc_refusal(u8 type)
     case R_MEMORY_ADDR_REL_SLEB:
     case R_TABLE_INDEX_REL_SLEB:
     case R_MEMORY_ADDR_LOCREL_I32:
-        return "position-independent code (-fPIC) is not linked here";
+        return "position-independent code (-fPIC) is not linked here"_s;
     case R_MEMORY_ADDR_TLS_SLEB:
-        return "thread-local storage is not linked here";
+        return "thread-local storage is not linked here"_s;
     case R_MEMORY_ADDR_LEB64:
     case R_MEMORY_ADDR_SLEB64:
     case R_MEMORY_ADDR_I64:
@@ -46,9 +46,9 @@ Str reloc_refusal(u8 type)
     case R_FUNCTION_OFFSET_I64:
     case R_TABLE_INDEX_REL_SLEB64:
     case R_MEMORY_ADDR_TLS_SLEB64:
-        return "wasm64 is not linked here";
+        return "wasm64 is not linked here"_s;
     case R_TAG_INDEX_LEB:
-        return "exception tags are not linked here; Braam has no exceptions";
+        return "exception tags are not linked here; Braam has no exceptions"_s;
     default:
         return Str();
     }
@@ -138,31 +138,31 @@ Str section_name(u8 id)
 {
     switch (id) {
     case SEC_TYPE:
-        return "TYPE";
+        return "TYPE"_s;
     case SEC_IMPORT:
-        return "IMPORT";
+        return "IMPORT"_s;
     case SEC_FUNCTION:
-        return "FUNCTION";
+        return "FUNCTION"_s;
     case SEC_TABLE:
-        return "TABLE";
+        return "TABLE"_s;
     case SEC_MEMORY:
-        return "MEMORY";
+        return "MEMORY"_s;
     case SEC_GLOBAL:
-        return "GLOBAL";
+        return "GLOBAL"_s;
     case SEC_EXPORT:
-        return "EXPORT";
+        return "EXPORT"_s;
     case SEC_START:
-        return "START";
+        return "START"_s;
     case SEC_ELEM:
-        return "ELEM";
+        return "ELEM"_s;
     case SEC_CODE:
-        return "CODE";
+        return "CODE"_s;
     case SEC_DATA:
-        return "DATA";
+        return "DATA"_s;
     case SEC_DATACOUNT:
-        return "DATACOUNT";
+        return "DATACOUNT"_s;
     case SEC_TAG:
-        return "TAG";
+        return "TAG"_s;
     default:
         return Str();
     }

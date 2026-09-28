@@ -27,6 +27,7 @@ export function manifest() {
         die(`no manifest at ${MANIFEST} — run make`);
     const m = JSON.parse(readFileSync(MANIFEST, "utf8"));
     delete m.fixtures[""];
+    delete m.bad[""];
     return m;
 }
 

@@ -53,20 +53,20 @@ u32 size(const Object &o, const Symbol &s)
 Str section_of(const Object &o, const Symbol &s)
 {
     if (s.undefined())
-        return "*UND*";
+        return "*UND*"_s;
     switch (s.kind) {
     case SYM_FUNCTION:
-        return "CODE";
+        return "CODE"_s;
     case SYM_DATA:
-        return "DATA";
+        return "DATA"_s;
     case SYM_GLOBAL:
-        return "GLOBAL";
+        return "GLOBAL"_s;
     case SYM_TABLE:
-        return "TABLE";
+        return "TABLE"_s;
     case SYM_SECTION:
         return o.sections[s.index].name;
     default:
-        return "TAG";
+        return "TAG"_s;
     }
 }
 

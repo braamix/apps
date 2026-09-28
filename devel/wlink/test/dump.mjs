@@ -101,16 +101,16 @@ function refuse(what, bytes, message) {
 }
 
 refuse("bitcode", new Uint8Array([0x42, 0x43, 0xc0, 0xde, 0x35, 0x14, 0, 0]),
-    "wlink: bad.o: LLVM bitcode (from -flto); wlink links wasm objects only");
+    "wlink: error: bad.o: LLVM bitcode (from -flto); wlink links wasm objects only");
 
 refuse("a linked module", new Uint8Array(readFileSync(m.fixtures.hello.reference)),
-    "wlink: bad.o: no linking section, so not a relocatable object (clang -c makes one)");
+    "wlink: error: bad.o: no linking section, so not a relocatable object (clang -c makes one)");
 
 {
     const b = hello();
     b[section(b, "linking")] = 1;
     refuse("linking version 1", b,
-        "wlink: bad.o: linking +0x0: version 1; wlink reads version 2");
+        "wlink: error: bad.o: linking +0x0: version 1; wlink reads version 2");
 }
 {
     // The first entry's type byte: after the target index and the count.
@@ -118,10 +118,10 @@ refuse("a linked module", new Uint8Array(readFileSync(m.fixtures.hello.reference
     const at = section(b, "reloc.CODE") + 2;
     b[at] = 99;
     refuse("an unknown relocation", b,
-        "wlink: bad.o: reloc.CODE +0x2: unknown relocation type 99");
+        "wlink: error: bad.o: reloc.CODE +0x2: unknown relocation type 99");
     b[at] = 11;
     refuse("a PIC relocation", b,
-        "wlink: bad.o: reloc.CODE +0x2: R_WASM_MEMORY_ADDR_REL_SLEB: " +
+        "wlink: error: bad.o: reloc.CODE +0x2: R_WASM_MEMORY_ADDR_REL_SLEB: " +
         "position-independent code (-fPIC) is not linked here");
 }
 {
@@ -139,13 +139,13 @@ refuse("a linked module", new Uint8Array(readFileSync(m.fixtures.hello.reference
         at += size;
     }
     refuse("a truncated object", b.subarray(0, b.length - 3),
-        `wlink: bad.o: section at file offset 0x${head.toString(16)}: ` +
+        `wlink: error: bad.o: section at file offset 0x${head.toString(16)}: ` +
         "runs past the end of the file");
 }
 {
     const b = new TextEncoder().encode("!<arch>\nshort.o/        0           0     0     644     99        `\n");
     refuse("a truncated archive", b,
-        "wlink: bad.o: member at 0x8: member runs past the end of the archive");
+        "wlink: error: bad.o: member at 0x8: member runs past the end of the archive");
 }
 
 if (bad.length)
