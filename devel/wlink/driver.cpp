@@ -85,6 +85,12 @@ struct Parser {
                 cfg.print_gc_sections = false;
             } else if (a == "--stack-first") {
                 cfg.stack_first = true;
+            } else if (a == "--no-stack-first") {
+                cfg.stack_first = false;
+            } else if (a == "--verbose") {
+                cfg.verbose = true;
+            } else if (a == "--dump-layout") {
+                cfg.dump_layout = true;
             } else if (a == "--import-memory") {
                 cfg.import_memory = true;
             } else if (take(a, "--output", v) || take(a, "-o", v)) {
@@ -111,6 +117,12 @@ struct Parser {
             } else if (take(a, "--max-memory", v)) {
                 if (!num(a, v, cfg.max_memory))
                     return false;
+            } else if (take(a, "--global-base", v)) {
+                if (!num(a, v, cfg.global_base))
+                    return false;
+                cfg.global_base_set = true;
+            } else if (take(a, "-O", v)) {
+                // Strings are not merged, so every level is -O0.
             } else if (take(a, "-m", v)) {
                 if (v != "wasm32")
                     return fail("unknown emulation: ", v);

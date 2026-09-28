@@ -110,6 +110,7 @@ wlink_fixture(strings  SOURCES ${FX_SRC}/strings_a.c ${FX_SRC}/strings_b.c)
 wlink_fixture(export   SOURCES ${FX_SRC}/export.c)
 wlink_fixture(imports  SOURCES ${FX_SRC}/imports.c)
 wlink_fixture(archives SOURCES ${FX_SRC}/arch_main.c ARCHIVES fxa_one fxa_two)
+wlink_fixture(layout   SOURCES ${FX_SRC}/layout_a.c ${FX_SRC}/layout_b.c)
 wlink_fixture(live     SOURCES ${FX_SRC}/live_a.c ARCHIVES fxa_live)
 wlink_fixture(port     SOURCES ${FX_SRC}/port.cpp PORT)
 

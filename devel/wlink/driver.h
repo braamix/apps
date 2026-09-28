@@ -24,16 +24,20 @@ struct Config {
     bool allow_undefined   = false;
     bool gc_sections       = true;
     bool print_gc_sections = false;
-    bool stack_first       = false;
+    bool stack_first       = true;
+    bool verbose           = false;
     bool import_memory     = false;
     u32 stack_size         = 65536;
     u32 initial_memory     = 0;
     u32 max_memory         = 0;
+    u32 global_base        = 1024;
+    bool global_base_set   = false;
     u32 error_limit        = 20;
 
     // wlink's own.
     bool dump        = false; // --dump: the inputs are to be dumped, not linked
     bool dump_symtab = false; // --dump-symtab: print the resolved symbols
+    bool dump_layout = false; // --dump-layout: print indices and addresses
 };
 
 // False with a message in `diag` for an argument that is not understood.

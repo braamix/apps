@@ -56,20 +56,23 @@ inline constexpr u8 LIMITS_64     = 0x04;
 
 // Opcodes a constant expression may hold.
 enum Op : u8 {
-    OP_END        = 0x0b,
-    OP_GLOBAL_GET = 0x23,
-    OP_I32_CONST  = 0x41,
-    OP_I64_CONST  = 0x42,
-    OP_F32_CONST  = 0x43,
-    OP_F64_CONST  = 0x44,
-    OP_I32_ADD    = 0x6a,
-    OP_I32_SUB    = 0x6b,
-    OP_I32_MUL    = 0x6c,
-    OP_I64_ADD    = 0x7c,
-    OP_I64_SUB    = 0x7d,
-    OP_I64_MUL    = 0x7e,
-    OP_REF_NULL   = 0xd0,
-    OP_REF_FUNC   = 0xd2,
+    OP_UNREACHABLE = 0x00,
+    OP_END         = 0x0b,
+    OP_CALL        = 0x10,
+    OP_DROP        = 0x1a,
+    OP_GLOBAL_GET  = 0x23,
+    OP_I32_CONST   = 0x41,
+    OP_I64_CONST   = 0x42,
+    OP_F32_CONST   = 0x43,
+    OP_F64_CONST   = 0x44,
+    OP_I32_ADD     = 0x6a,
+    OP_I32_SUB     = 0x6b,
+    OP_I32_MUL     = 0x6c,
+    OP_I64_ADD     = 0x7c,
+    OP_I64_SUB     = 0x7d,
+    OP_I64_MUL     = 0x7e,
+    OP_REF_NULL    = 0xd0,
+    OP_REF_FUNC    = 0xd2,
 };
 
 // `linking` subsections.

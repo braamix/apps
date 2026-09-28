@@ -175,8 +175,9 @@ export function sections(b) {
     return out;
 }
 
-// Function names from the `name` section, index -> name.
-export function function_names(b) {
+// Names from the `name` section's subsection `sub` (1 functions, 7 globals),
+// index -> name.
+export function names_of(b, sub) {
     const sec = (sections(b) || []).find((s) => s.id === 0 && s.name === "name");
     const names = new Map();
     if (!sec)
@@ -185,7 +186,7 @@ export function function_names(b) {
     for (let at = 0; at < body.length;) {
         const id = body[at];
         const [size, p] = leb(body, at + 1);
-        if (id === 1) {
+        if (id === sub) {
             let [count, q] = leb(body, p);
             for (let i = 0; i < count; i++) {
                 let idx, s;
@@ -197,6 +198,143 @@ export function function_names(b) {
         at = p + size;
     }
     return names;
+}
+
+export function function_names(b) {
+    return names_of(b, 1);
+}
+
+function sleb(b, at) {
+    let v = 0, shift = 0, x;
+    do {
+        x = b[at++];
+        v += (x & 0x7f) * 2 ** shift;
+        shift += 7;
+    } while (x & 0x80);
+    if (x & 0x40)
+        v -= 2 ** shift;
+    return [v, at];
+}
+
+const VALTYPES = { 0x7f: "i32", 0x7e: "i64", 0x7d: "f32", 0x7c: "f64", 0x7b: "v128",
+                   0x70: "funcref", 0x6f: "externref" };
+
+// A constant expression's value when it is `i32.const v`, else "-"; and
+// where it ends.
+function expr(b, at) {
+    let v = "-";
+    if (b[at] === 0x41)
+        [v, at] = sleb(b, at + 1);
+    while (b[at] !== 0x0b)
+        at++;
+    return [v, at + 1];
+}
+
+// A linked module's index spaces, as `wlink --dump-layout` prints them.
+export function index_spaces(bytes) {
+    const secs = sections(bytes);
+    const body = (id) => secs.find((s) => s.id === id)?.body;
+    const out = [];
+    const vec = (b, at, each) => {
+        let [n, p] = leb(b, at);
+        for (let i = 0; i < n; i++)
+            p = each(i, p);
+        return p;
+    };
+    const types = body(1);
+    if (types)
+        vec(types, 0, (i, p) => {
+            const list = [];
+            p = vec(types, p + 1, (j, q) => (list.push(VALTYPES[types[q]]), q + 1));
+            const res = [];
+            p = vec(types, p, (j, q) => (res.push(VALTYPES[types[q]]), q + 1));
+            out.push(`type (${list.join(", ")}) -> ${res[0] ?? "void"}`);
+            return p;
+        });
+    const m = new WebAssembly.Module(bytes);
+    for (const i of WebAssembly.Module.imports(m))
+        out.push(`import ${i.module}.${i.name} ${i.kind}`);
+    const imported = WebAssembly.Module.imports(m).filter((i) => i.kind === "global").length;
+    const gnames = names_of(bytes, 7);
+    const globals = body(6);
+    if (globals)
+        vec(globals, 0, (i, p) => {
+            const type = VALTYPES[globals[p]];
+            const mut = globals[p + 1] ? "mut" : "const";
+            let v;
+            [v, p] = expr(globals, p + 2);
+            out.push(`global ${imported + i} ${type} ${mut} ${v} ${gnames.get(imported + i)}`);
+            return p;
+        });
+    const table = body(4);
+    if (table) {
+        const [, at] = leb(table, 0);
+        const flags = table[at + 1];
+        const [min, p] = leb(table, at + 2);
+        const [max] = flags & 1 ? leb(table, p) : ["-"];
+        out.push(`table ${min} ${max}`);
+    }
+    const fnames = function_names(bytes);
+    const elem = body(9);
+    if (elem)
+        vec(elem, 0, (i, p) => {
+            if (elem[p] !== 0)
+                die(`element segment of kind ${elem[p]}`);
+            let base;
+            [base, p] = expr(elem, p + 1);
+            return vec(elem, p, (j, q) => {
+                let f;
+                [f, q] = leb(elem, q);
+                out.push(`elem ${base + j} ${fnames.get(f)}`);
+                return q;
+            });
+        });
+    const code = body(10);
+    const ctors = [...fnames].find(([, n]) => n === "__wasm_call_ctors");
+    if (code && ctors) {
+        const imported = WebAssembly.Module.imports(m).filter((i) => i.kind === "function").length;
+        let [, p] = leb(code, 0);
+        for (let i = imported; i < ctors[0]; i++) {
+            const [size, q] = leb(code, p);
+            p = q + size;
+        }
+        [, p] = leb(code, p);
+        for (p++; code[p] === 0x10;) {
+            let f;
+            [f, p] = leb(code, p + 1);
+            out.push(`ctor ${fnames.get(f)}`);
+            while (code[p] === 0x1a)
+                p++;
+        }
+    }
+    return out;
+}
+
+// wasm-ld's -Map, as `wlink --dump-layout` prints its memory map: GLOBAL,
+// CODE and DATA, without file offsets, and without the chunks in `skip`.
+export function map_layout(map, skip = []) {
+    const out = [];
+    let keep = false, skipping = false;
+    for (const line of map.split("\n").slice(1)) {
+        if (!line)
+            continue;
+        const vma = line.slice(0, 8), size = line.slice(18, 26), rest = line.slice(27);
+        if (vma.trim() === "-" && !rest.startsWith(" ")) {
+            keep = ["GLOBAL", "CODE", "DATA"].includes(rest);
+            if (keep)
+                out.push(rest);
+            continue;
+        }
+        if (!keep)
+            continue;
+        if (!rest.startsWith(" "))
+            skipping = false;
+        else if (!rest.startsWith("                "))
+            skipping = skip.includes(rest.trim());
+        if (!skipping)
+            out.push(`${vma} ${size} ${rest}`);
+    }
+    return out;
 }
 
 // A relocatable object: a module with a `linking` section of version 2.

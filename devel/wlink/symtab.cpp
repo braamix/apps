@@ -11,19 +11,6 @@ Linker::~Linker()
         heap_delete(f);
 }
 
-namespace {
-
-// One level of lld's recursion.
-struct Frame {
-    bool load; // loading a file; else registering an archive's members
-    u32 file;  // load: the file; register: the first member
-    u32 end;   // register: one past the last member
-    u32 next;  // load: next symbol; register: next member
-    u32 sub;   // register: next symbol of that member
-    Str why;   // load: who wanted it, for --why-extract; empty if nobody
-    u32 sym;   // load: the global symbol that pulled it
-};
-
 bool same_sig(const FuncType *a, const FuncType *b)
 {
     auto eq = [](Bytes x, Bytes y) {
@@ -71,6 +58,19 @@ void put_sig(Out &m, const FuncType *t)
     m.put(") -> ");
     m.put(t->results.empty() ? Str("void") : valtype_name(t->results[0]));
 }
+
+namespace {
+
+// One level of lld's recursion.
+struct Frame {
+    bool load; // loading a file; else registering an archive's members
+    u32 file;  // load: the file; register: the first member
+    u32 end;   // register: one past the last member
+    u32 next;  // load: next symbol; register: next member
+    u32 sub;   // register: next symbol of that member
+    Str why;   // load: who wanted it, for --why-extract; empty if nobody
+    u32 sym;   // load: the global symbol that pulled it
+};
 
 Str kind_name(u8 kind)
 {
@@ -341,8 +341,6 @@ struct Resolver {
         InputFile &in = file(f);
         in.loaded     = true;
         in.lazy       = false;
-        if (!l.order.push(f))
-            l.diag.error("out of memory");
         if (l.cfg.trace)
             l.out.put(in.obj.name.str()).put('\n');
         for (u32 c = 0; c < in.obj.comdats.size(); c++) {
@@ -356,8 +354,11 @@ struct Resolver {
         }
     }
 
+    // A file is an object once its load is done, after the members it pulled.
     void finish(const Frame &fr)
     {
+        if (!l.objects.push(fr.file))
+            l.diag.error("out of memory");
         if (fr.why.empty() || l.cfg.why_extract.empty())
             return;
         const Sym &g = l.syms[fr.sym];
@@ -460,7 +461,7 @@ struct Resolver {
         Sym &g  = l.syms[*id];
         g.state = State::Defined;
         g.kind  = kind;
-        g.flags = SYM_HIDDEN | (kind == SYM_DATA ? SYM_ABSOLUTE : 0);
+        g.flags = SYM_HIDDEN | (kind == SYM_DATA ? SYM_ABSOLUTE : 0) | (g.flags & SYM_NO_STRIP);
         g.file  = NONE;
         g.index = NONE;
     }
@@ -570,9 +571,10 @@ struct Resolver {
             }
         }
 
+        // __memory_base and __table_base are PIC's, and wasm-ld crashes on them.
         static const Str OPTIONAL[] = { "__dso_handle", "__data_end",    "__stack_low",
                                         "__stack_high", "__global_base", "__heap_base",
-                                        "__heap_end",   "__memory_base", "__table_base" };
+                                        "__heap_end" };
         for (Str name : OPTIONAL)
             optional(name, SYM_DATA);
         if (l.diag.failed())
@@ -626,17 +628,16 @@ bool allowed(const Linker &l, const Sym &g)
     return !g.import_name.empty() || l.cfg.allow_undefined;
 }
 
-// Whether an undefined symbol becomes an import; data never does.
+} // namespace
+
 bool imported(const Linker &l, const Sym &g)
 {
     return g.kind != SYM_DATA && !g.weak() && allowed(l, g);
 }
 
-} // namespace
-
 bool check_undefined(Linker &l)
 {
-    for (u32 f : l.order) {
+    for (u32 f : l.objects) {
         const InputFile &in = *l.files[f];
         const Object &o     = in.obj;
         for (const RelocSection &rs : o.relocs) {

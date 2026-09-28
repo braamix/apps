@@ -1,7 +1,7 @@
 // The Braam front end: reads what the command line names, hands the bytes to
 // the core, and writes what comes back. Only this file awaits.
 //
-// Linking stops after liveness for now: nothing is written to -o.
+// Linking stops after layout for now: nothing is written to -o.
 #include "driver.h"
 #include "dump.h"
 #include "gc.h"
@@ -180,7 +180,9 @@ Task<i32> link(Front &s)
     bool ok = resolve(*l, s.inputs) && mark_live(*l);
     if (ok && s.cfg.print_gc_sections)
         print_gc_sections(*l, l->out);
-    ok = ok && check_undefined(*l);
+    ok = ok && check_undefined(*l) && layout(*l);
+    if (ok && s.cfg.dump_layout)
+        dump_layout(*l, l->out);
     if (ok && s.cfg.dump_symtab)
         dump_symtab(*l, l->out);
     if (l->out.oom || l->why.oom)

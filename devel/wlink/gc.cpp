@@ -180,7 +180,7 @@ struct Marker {
 
     bool run()
     {
-        for (u32 f : l.order)
+        for (u32 f : l.objects)
             file(f).live = !file(f).member;
 
         if (!l.cfg.entry.empty())
@@ -194,7 +194,7 @@ struct Marker {
         for (Str name : l.cfg.exports)
             if (u32 *id = l.names.find(name))
                 enqueue_sym(*id);
-        for (u32 f : l.order)
+        for (u32 f : l.objects)
             if (file(f).live)
                 implicit_deps(f);
 
@@ -205,7 +205,7 @@ struct Marker {
         }
 
         // __wasm_call_ctors calls whatever init function is live.
-        for (u32 f : l.order)
+        for (u32 f : l.objects)
             for (const InitFunc &fn : file(f).obj.init_funcs)
                 if (sym_live(f, fn.symbol))
                     enqueue_sym(*l.names.find("__wasm_call_ctors"));
@@ -227,7 +227,7 @@ bool fill(Vec<u8> &v, usize n, u8 x)
 bool mark_live(Linker &l)
 {
     u8 all = !l.cfg.gc_sections;
-    for (u32 f : l.order) {
+    for (u32 f : l.objects) {
         InputFile &in   = *l.files[f];
         const Object &o = in.obj;
         if (!fill(in.live_functions, o.functions.size(), all) ||
@@ -239,7 +239,7 @@ bool mark_live(Linker &l)
         }
     }
     if (all) {
-        for (u32 f : l.order)
+        for (u32 f : l.objects)
             l.files[f]->live = true;
         for (Sym &g : l.syms)
             g.live = true;
@@ -258,7 +258,7 @@ void print_gc_sections(const Linker &l, Out &out)
     auto line = [&](Str file, Str name) {
         out.put("removing unused section ").put(file).put(":(").put(name).put(")\n");
     };
-    for (u32 f : l.order) {
+    for (u32 f : l.objects) {
         const InputFile &in = *l.files[f];
         const Object &o     = in.obj;
         Str name            = o.name.str();

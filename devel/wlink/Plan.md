@@ -116,7 +116,7 @@ devel/wlink/
   diag.h           errors, worded and limited as lld's are
   symtab.cpp/.h    resolution: strong/weak/lazy/undefined, comdats, imports
   gc.cpp/.h        liveness from roots through relocations (worklist)
-  layout.cpp       index spaces, types, table, memory map, synthetic symbols
+  layout.cpp/.h    index spaces, types, table, memory map, synthetic symbols
   writer.cpp       output sections, relocation patching, name, stamp
   driver.cpp/.h    options → Config; link(Config, inputs) → bytes | error
   braam.cpp        proc_main: args, @file, -L/-l search, read, write
@@ -161,8 +161,11 @@ to hold, step 8 falls back to driving `wlink.wasm` under the harness.
   matters because a harness-typed command line has to fit in 60 characters.
 - `--no-entry`, `--entry=<sym>`, `--export=<sym>`, `--allow-undefined`.
 - `--gc-sections` and `--no-gc-sections`, plus `--print-gc-sections`.
-- `--stack-first`, `-z stack-size=<n>`, `--initial-memory=<n>`,
+- `--stack-first` (the default) and `--no-stack-first`, `--global-base=<n>`,
+  `-z stack-size=<n>`, `--initial-memory=<n>`, `--max-memory=<n>`,
   `--import-memory`.
+- `--verbose`, which prints wasm-ld's `mem:` lines, and `-O<n>`, which is
+  accepted and changes nothing until strings are merged.
 - `--strip-debug` and `--strip-all`.
 - `--trace`, `--why-extract=<file>` and `--error-limit=<n>`, printing what
   wasm-ld prints.
@@ -175,8 +178,9 @@ to hold, step 8 falls back to driving `wlink.wasm` under the harness.
     ABI defaults to the `PROC_ABI` of the SDK that `wlink` was built
     against.
   - `--dump <obj|archive>` prints symbols and relocations in
-    `llvm-objdump -t -r`'s layout, and `--dump-symtab` the resolved symbol
-    table. They're debugging aids, and test oracles.
+    `llvm-objdump -t -r`'s layout, `--dump-symtab` the resolved symbol
+    table, and `--dump-layout` the index spaces and the memory map. They're
+    debugging aids, and test oracles.
   - `-Map=<file>` writes a map of addresses and indices. It's optional and
     comes late.
 
@@ -188,36 +192,6 @@ testing against wasm-ld.
 
 Each step ends with a test that runs under `make test`, and none starts
 until the previous one's test passes.
-
-### Step 4 — Layout
-
-- **Types:** deduplicate function signatures, in order of first use by a
-  live function or import.
-- **Functions:** imports first, then synthetic functions
-  (`__wasm_call_ctors`), then live input functions in input order.
-- **Globals:** `__stack_pointer` first, then live input globals. Mutable
-  global imports are refused, since Braam imports none.
-- **Table:**
-  - Slot 0 is null.
-  - Every function that is the target of a `TABLE_INDEX_*` relocation gets
-    one slot, in first-seen order.
-  - The table's min and max both equal the element count plus one, as in
-    `c4.wasm`.
-  - `TABLE_NUMBER_LEB` resolves to the one table. More than one table is an
-    error until something needs it.
-- **Memory:**
-  - With `--stack-first`, the stack occupies `[0, stack-size)` and
-    `__stack_pointer` starts at its top.
-  - After the stack come the merged output segments in order `.rodata`,
-    `.data`, `.bss`. Input segments go into their output segment by name
-    prefix, each at its own alignment.
-  - Then `__data_end`, and `__heap_base` aligned to 16.
-  - If `--initial-memory` is smaller than `__heap_base`, that's an error
-    that names both. This matches the reason `lang/python` asks for 16
-    pages.
-- **Test:** the memory map of the `.rodata`/`.data`/`.bss` fixture equals
-  wasm-ld's, read from its `__data_end` and `__heap_base` and the segments'
-  names. It doesn't have to be byte-identical, but the totals must match.
 
 ### Step 5 — Writing and relocation
 

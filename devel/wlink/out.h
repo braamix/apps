@@ -67,6 +67,29 @@ struct Out {
         return *this;
     }
 
+    // Lower-case hex, right-aligned in a field of `w`.
+    Out &rhex(u32 v, usize w)
+    {
+        u32 k = 0;
+        for (u32 x = v; k == 0 || x; x >>= 4)
+            k++;
+        for (usize i = k; i < w; i++)
+            put(' ');
+        return hex(v);
+    }
+
+    // Decimal, left-aligned in a field of `w`.
+    Out &lnum(u32 v, usize w)
+    {
+        usize k = 0;
+        for (u32 x = v; k == 0 || x; x /= 10)
+            k++;
+        num(v);
+        for (usize i = k; i < w; i++)
+            put(' ');
+        return *this;
+    }
+
     Str str() const { return s.str(); }
 
     void clear()

@@ -8,6 +8,7 @@
 #include "driver.h"
 #include "input.h"
 #include "kernel/hash.h"
+#include "layout.h"
 
 // A file as the front end read it.
 struct Source {
@@ -26,6 +27,12 @@ struct InputFile {
     Vec<u8> called;      // object symbol is the target of a direct call
     Vec<u8> kept;        // comdat was this file's to keep
     Vec<u8> live_functions, live_segments, live_globals, live_tables;
+    Vec<u32> type_map;       // object type -> output type; NONE if unused
+    Vec<u32> function_index; // defined function -> output index; NONE if dead
+    Vec<u32> global_index;
+    Vec<u32> slot;        // defined function -> table slot; 0 for none
+    Vec<u32> segment_out; // segment -> output segment
+    Vec<u32> segment_off; // segment -> offset in it
 };
 
 enum class State : u8 {
@@ -46,8 +53,11 @@ struct Sym {
     bool called         = false; // an undefined function called directly
     bool stub           = false; // weak undefined function: a body that traps
     bool live           = false;
-    Str import_module; // undefined: where it would be imported from
-    Str import_name;   // undefined: set only by an explicit name
+    u32 out_index       = NONE; // linker's function or global, or an import
+    u32 slot            = 0;    // table slot of an imported function
+    u32 va              = 0;    // linker's data symbol
+    Str import_module;          // undefined: where it would be imported from
+    Str import_name;            // undefined: set only by an explicit name
 
     bool weak() const { return flags & wasm::SYM_WEAK; }
 
@@ -62,9 +72,10 @@ struct Linker {
     Vec<InputFile *> files;
     Vec<Sym> syms;
     HashMap<Str, u32> names;
-    Vec<u32> order;            // files in the order they were loaded
+    Vec<u32> objects;          // files in lld's order: each after the members it pulled
     HashMap<Str, u32> comdats; // name -> the file that keeps it
     Vec<Str> comdat_order;
+    Layout layout;
 
     Linker(const Config &c, Diag &d) : cfg(c), diag(d) {}
 
@@ -82,3 +93,13 @@ bool resolve(Linker &l, Span<const Source> inputs);
 bool check_undefined(Linker &l);
 
 void dump_symtab(const Linker &l, Out &out);
+
+// Whether an undefined symbol becomes an import; data never does.
+bool imported(const Linker &l, const Sym &g);
+
+bool same_sig(const FuncType *a, const FuncType *b);
+
+Str valtype_name(u8 t);
+
+// "(i32, i32) -> i32", as lld writes a signature.
+void put_sig(Out &m, const FuncType *t);
