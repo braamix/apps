@@ -56,6 +56,16 @@ struct Parser {
         return eq || glued;
     }
 
+    // braam_add_program's link, as the defaults are.
+    void braam()
+    {
+        cfg.entry         = Str();
+        cfg.gc_sections   = true;
+        cfg.stack_first   = true;
+        cfg.import_memory = true;
+        cfg.stack_size    = 131072;
+    }
+
     bool num(Str arg, Str v, u32 &out) { return number(v, out) || fail("not a number: ", arg); }
 
     bool run()
@@ -65,6 +75,8 @@ struct Parser {
             Str v;
             if (!a.starts_with("-") || a == "-") {
                 cfg.inputs.push(InputArg{ a, false });
+            } else if (a == "--braam") {
+                braam();
             } else if (a == "--dump") {
                 cfg.dump = true;
             } else if (a == "--dump-symtab") {

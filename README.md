@@ -14,6 +14,7 @@ that runs in a browser tab.
 | [archivers/zstd](archivers/zstd/) | Zstandard 1.6.0 — zstd/unzstd/zstdcat/zstdmt, and gzip, xz and lzma with it |
 | [converters/iconv](converters/iconv/) | Citrus iconv, and the two hundred character sets it converts between |
 | [devel/c4](devel/c4/) | C4, C in four functions — a tiny compiler that compiles itself |
+| [devel/wasm](devel/wasm/) | WebAssembly tools: `ld`, a linker that links Braam programs on Braam |
 | [editors/eh](editors/eh/) | EH 1.8.1, Edit Here — vi the good parts version, and the smallest editor here |
 | [editors/le](editors/le/) | LE 1.16.8, the block editor, with its own curses |
 | [editors/uemacs](editors/uemacs/) | uEmacs/PK 4.0.15, MicroEMACS as Linus Torvalds keeps it |
@@ -60,8 +61,9 @@ whole game of Colossal Cave and interrupts a second one with `^C`; the two
 editors, driven a keystroke at a time and asserted cell by cell;
 `converters/iconv`, which checks 137,385 mappings against GNU libiconv's own
 answers; `devel/c4`, which compiles hello.c, compiles itself to compile
-hello.c, and interrupts a guest loop; `games/asciifluid`, whose frames are
-compared with the ones upstream's
+hello.c, and interrupts a guest loop; `devel/wasm`, whose `ld` is held to
+`wasm-ld` over a set of fixtures, byte for byte; `games/asciifluid`, whose
+frames are compared with the ones upstream's
 own binary paints; `games/asciiquarium`, a seeded aquarium asserted frame by
 frame and driven by its own keys; `games/cmatrix`, a seeded Matrix rain
 asserted frame by frame; `games/asciiclock`, a seeded demo clock

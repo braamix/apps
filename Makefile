@@ -168,6 +168,7 @@ TESTS := \
     devel/wasm/ld/test/gc.mjs \
     devel/wasm/ld/test/layout.mjs \
     devel/wasm/ld/test/write.mjs \
+    devel/wasm/ld/test/link.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
     emulators/simbesm/test/boot.mjs \

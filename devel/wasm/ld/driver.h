@@ -13,11 +13,13 @@ struct InputArg {
     bool lib; // -l<name>
 };
 
+// The defaults are braam_add_program's link: no entry, the memory imported, a
+// 128 KB stack first, unused chunks dropped.
 struct Config {
     Vec<InputArg> inputs;
     Vec<Str> lib_dirs; // -L
     Str output;
-    Str entry = "_start";
+    Str entry;          // empty: --no-entry
     Vec<Str> exports;   // --export
     Vec<Str> undefined; // -u
     Str why_extract;    // --why-extract=<file>; "-" is stdout
@@ -27,8 +29,8 @@ struct Config {
     bool print_gc_sections = false;
     bool stack_first       = true;
     bool verbose           = false;
-    bool import_memory     = false;
-    u32 stack_size         = 65536;
+    bool import_memory     = true;
+    u32 stack_size         = 131072;
     u32 initial_memory     = 0;
     u32 max_memory         = 0;
     u32 global_base        = 1024;

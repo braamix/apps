@@ -198,26 +198,6 @@ testing against wasm-ld.
 Each step ends with a test that runs under `make test`, and none starts
 until the previous one's test passes.
 
-### Step 6 — The Braam front end and the package
-
-- `braam.cpp`:
-  - `OptParse` for the flags, plus `@file` expansion;
-  - `-l` searches each `-L` for `lib<name>.a`;
-  - reads inputs, calls `link()` and writes the output in one pass;
-  - exits 0 on success, 1 on an error, and 130 on `^C`.
-- `braam_add_package(NAME wasm ...)` with `bin_ld` as `bin/ld`, so the
-  installed command is `ld`.
-- Add `README.md`, covering:
-  - what it links;
-  - what it refuses and why;
-  - where it differs from wasm-ld: active segments, no `.bss`, no START,
-    and an error rather than a stub on signature mismatch.
-- **Test:** `ld/test/link.mjs` in `TESTS`:
-  1. the `write.mjs` cases;
-  2. a link driven by a response file;
-  3. a link with a missing library, which checks the message;
-  4. a check that a failed link leaves no output file.
-
 ### Step 7 — Real programs on Braam
 
 - Plant the SDK's `libbraam_*.a` and the objects of `devel/c4`,

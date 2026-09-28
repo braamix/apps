@@ -20,6 +20,7 @@ struct Front {
     Out out;
     String path;
     Vec<u8> image; // the output module
+    bool cancelled = false;
 };
 
 Task<Result<void>> say(u32 fd, Str s)
@@ -78,6 +79,10 @@ bool split(Str text, Vec<Str> &words)
 
 void cannot_open(Front &s, Str path, Error why)
 {
+    if (why == Error::Cancelled) {
+        s.cancelled = true;
+        return;
+    }
     Out m;
     m.put("cannot open ").put(path).put(": ").put(error_name(why));
     s.diag.error(m.str());
@@ -87,6 +92,8 @@ void cannot_open(Front &s, Str path, Error why)
 Task<i32> finish(Front &s, bool ok)
 {
     co_await say(SYS_STDERR, s.diag.text.str());
+    if (s.cancelled)
+        co_return 130;
     co_return ok && !s.diag.failed() ? 0 : 1;
 }
 
@@ -147,6 +154,10 @@ Task<i32> link(Front &s)
         Error why        = Error::Io;
         Result<String> r = co_await read_input(s, a, why);
         if (r.is_err()) {
+            if (why == Error::Cancelled) {
+                s.cancelled = true;
+                co_return co_await finish(s, false);
+            }
             if (a.lib) {
                 Out m;
                 m.put("unable to find library -l").put(a.name);
@@ -188,7 +199,9 @@ Task<i32> link(Front &s)
         dump_symtab(*l, l->out);
     if (l->out.oom || l->why.oom)
         s.diag.error("out of memory");
-    co_await say(SYS_STDOUT, l->out.str());
+    Result<void> said = co_await say(SYS_STDOUT, l->out.str());
+    if (said.is_err() && said.error() == Error::Cancelled)
+        s.cancelled = true;
     if (!s.cfg.why_extract.empty()) {
         l->why.s.insert(0, "reference\textracted\tsymbol\n");
         Result<void> w = s.cfg.why_extract == "-" ? co_await say(SYS_STDOUT, l->why.str())
@@ -198,7 +211,7 @@ Task<i32> link(Front &s)
     }
     heap_delete(l);
     // Only a link that succeeded leaves a file.
-    if (ok) {
+    if (ok && !s.cancelled) {
         Str to = s.cfg.output.empty() ? "a.out"_s : s.cfg.output;
         Str bytes(reinterpret_cast<const char *>(s.image.data()), s.image.size());
         Result<void> w = co_await spill(to, bytes);
