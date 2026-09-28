@@ -1,6 +1,10 @@
 #include "archive.h"
 
+#include "cursor.h"
 #include "module.h"
+#include "wasm.h"
+
+using namespace wasm;
 
 bool is_archive(Bytes f)
 {
@@ -76,7 +80,7 @@ bool read_index(Str name, Bytes body, usize at, u32 w, Span<const u32> hdrs,
         return false;
     }
     for (u64 i = 0; i < count; i++) {
-        u64 off = big_endian(body.data() + w + i * w, w);
+        u64 off  = big_endian(body.data() + w + i * w, w);
         usize lo = 0, hi = hdrs.size();
         while (lo < hi) {
             usize mid = (lo + hi) / 2;
@@ -186,4 +190,101 @@ bool read_archive(Str name, Bytes f, Vec<Member> &members, Vec<ArchiveSymbol> &i
     if (symtab_w)
         return read_index(name, symtab, symtab_at, symtab_w, hdrs, index, err);
     return true;
+}
+
+namespace {
+
+// A header field: `v` in `base`, left-justified and space-padded to `width`.
+void ar_field(Emit &e, u64 v, u32 base, u32 width)
+{
+    u64 max = 1;
+    for (u32 i = 0; i < width; i++)
+        max *= base;
+    if (v >= max)
+        v = max - 1;
+    char t[20];
+    u32 k = 0;
+    do {
+        t[k++] = char('0' + v % base);
+        v /= base;
+    } while (v);
+    for (u32 i = 0; i < width; i++)
+        e.byte(u8(i < k ? t[k - 1 - i] : ' '));
+}
+
+} // namespace
+
+void emit_ar_header(Emit &e, Str name, u64 mtime, u32 uid, u32 gid, u32 mode, u64 size)
+{
+    for (u32 i = 0; i < 16; i++)
+        e.byte(u8(i < name.size() ? name[i] : ' '));
+    ar_field(e, mtime, 10, 12);
+    ar_field(e, uid, 10, 6);
+    ar_field(e, gid, 10, 6);
+    ar_field(e, mode, 8, 8);
+    ar_field(e, size, 10, 10);
+    e.byte('`');
+    e.byte('\n');
+}
+
+bool defined_symbols(Bytes file, Vec<Str> &names)
+{
+    Vec<Section> sections;
+    Out err;
+    if (!read_module(Str(), file, sections, err))
+        return false;
+    const Section *linking = nullptr;
+    for (const Section &s : sections)
+        if (s.id == SEC_CUSTOM && s.name == "linking")
+            linking = &s;
+    if (!linking)
+        return false;
+
+    Cursor c(linking->body);
+    if (c.uleb() != LINKING_VERSION || !c.ok())
+        return false;
+    Bytes table;
+    while (c.ok() && !c.done()) {
+        u8 type = c.byte();
+        Bytes b = c.take(c.uleb());
+        if (type == SUB_SYMBOL_TABLE)
+            table = b;
+    }
+    if (!c.ok())
+        return false;
+
+    Cursor t(table);
+    u32 n = t.count();
+    for (u32 i = 0; i < n && t.ok(); i++) {
+        u8 kind      = t.byte();
+        u32 flags    = t.uleb();
+        bool defined = !(flags & SYM_UNDEFINED);
+        Str name;
+        switch (kind) {
+        case SYM_FUNCTION:
+        case SYM_GLOBAL:
+        case SYM_TAG:
+        case SYM_TABLE:
+            t.uleb();
+            if (defined || (flags & SYM_EXPLICIT_NAME))
+                name = t.name();
+            break;
+        case SYM_DATA:
+            name = t.name();
+            if (defined) {
+                t.uleb();
+                t.uleb();
+                t.uleb();
+            }
+            break;
+        case SYM_SECTION:
+            t.uleb();
+            break;
+        default:
+            return false;
+        }
+        if (t.ok() && defined && kind != SYM_SECTION && !(flags & SYM_LOCAL) && !names.push(name))
+            return false;
+    }
+    return t.ok();
 }

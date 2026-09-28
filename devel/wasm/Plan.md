@@ -78,27 +78,6 @@ What Braam cannot do, and what the port does instead:
   warns when setting a time fails, and extracts anyway.
 - **No modes on extraction.** A file is created with the default mode.
 
-## Step 3. Writing archives: headers and symbols
-
-What `write_objs` asks of libarchive, and what `create_symtab_entry` asks
-of libelf, goes into `lib/archive`:
-
-    // A member's 60-byte header, GNU style: `name` is already the field,
-    // "name/" or "/<offset into //>".
-    void emit_ar_header(Emit &e, Str name, u64 mtime, u32 uid, u32 gid,
-                        u32 mode, u64 size);
-
-    // A member's defined non-local symbols, in the order of its linking
-    // symbol table. A member that is not a wasm object has none: false,
-    // and no error, as create_symtab_entry skips what is not ELF.
-    bool defined_symbols(Bytes file, Vec<Str> &names);
-
-`defined_symbols` walks the `linking` section's symbol table after
-`read_module`, and nothing else. It does not go through `read_object`, so
-it takes none of `ld`'s refusals.
-
-- Check: `make test`. The bytes are checked in step 6.
-
 ## Step 4. The port: `devel/wasm/ar/`
 
 `ar.cpp`, `read.cpp`, `write.cpp`, `util.cpp` and `ar.h`, upstream's
@@ -183,12 +162,9 @@ Add it to `TESTS` in the top [Makefile](../../Makefile).
 
 | Steps | Change | Risk |
 | --- | --- | --- |
-| 3 | writing archives, in `lib/` | none to `ld`: new code |
 | 4–7 | `ar` | a port, held to `llvm-ar` and the SDK's archives |
 
-`ld`'s own tests are the safety net for step 3. Each step keeps
-them passing with no change to a golden file. A golden file that has to
-change means the step changed behaviour, and the step is wrong.
+`ld`'s own tests keep passing with no change to a golden file.
 
 ## Open questions
 
