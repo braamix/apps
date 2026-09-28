@@ -416,6 +416,7 @@ tool in the package. Three rules keep it shared:
 | `diag.h` | errors, as lld words them, after the tool's name |
 | `out.h` | text built up in memory |
 | `files.h` | reading and writing whole files; the one part that awaits |
+| `demangle/` | LLVM's C++ name demangler, trimmed to what the tools use |
 
 `object.h` refuses what `ld` cannot link, in `ld`'s words: thread-local
 storage, shared memory, exception tags, `-fPIC`, wasm64 and GC types.
@@ -435,7 +436,6 @@ memory. Only its `braam.cpp` reads and writes files.
 | `layout.cpp` | numbers functions and places data in memory |
 | `writer.cpp` | writes the output, fixing up addresses |
 | `driver.cpp` | parses the command line |
-| `demangle/` | LLVM's C++ name demangler, trimmed to what `ld` uses |
 
 ### strip
 
@@ -459,7 +459,7 @@ memory. Only its `braam.cpp` reads and writes files.
 | `nm.cpp` | filters, sorts and prints them, in each format |
 | `driver.cpp` | parses the command line |
 
-`-C` uses `ld`'s copy of LLVM's demangler, [ld/demangle/](ld/demangle/).
+`-C` uses LLVM's demangler in [lib/demangle/](lib/demangle/).
 
 ### disasm
 
