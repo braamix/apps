@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { boot, get, manifest, plant, run } from "../../ld/test/wasmlib.mjs";
+import { foreign } from "../../nm/test/foreign.mjs";
 
 function die(msg) {
     console.error("disasm: " + msg);
@@ -205,6 +206,12 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
             corpus.push(add(basename(a), readFileSync(a)));
         }
 }
+{
+    const fdir = join(tmp, "foreign");
+    mkdirSync(fdir);
+    for (const f of foreign(m, fdir))
+        standalone.push(add(f, readFileSync(join(fdir, f))));
+}
 corpus.push(...standalone);
 for (const f of readdirSync(m.sdk_libs).filter((n) => n.endsWith(".a")).sort())
     corpus.push(add(f, readFileSync(join(m.sdk_libs, f))));
@@ -261,7 +268,7 @@ function segments(bytes) {
                     } while (x & 0x80);
                     if (s < 32 && (x & 0x40))
                         v |= -1 << s;
-                    base = op === 0x41 && b[p] === 0x0b ? v >>> 0 : 0;
+                    base = (op === 0x41 || op === 0x42) && b[p] === 0x0b ? v >>> 0 : 0;
                     while (b[p++] !== 0x0b)
                         ;
                 }
@@ -287,7 +294,7 @@ function rows(out) {
             inData = false;
         } else if (line.startsWith("Disassembly of section ")) {
             inData = line === "Disassembly of section DATA:";
-        } else if (inData && /^[0-9a-f]{8} </.test(line)) {
+        } else if (inData && /^[0-9a-f]{8}(?:[0-9a-f]{8})? </.test(line)) {
             at = parseInt(line, 16);
         } else if (inData && line === "\t\t...") {
             cur.skip = true;

@@ -2,10 +2,13 @@
 // view into the file's own bytes, which the caller keeps alive.
 //
 // Every read is bounds-checked; a failure leaves one message naming the file,
-// the section and the offset. The refusals of bitcode, of TAG, of wasm64
-// limits and of a module with no linking section are ld's, worded for it,
-// but they are also the only shapes the rest of this model supports.
-// Revisit when another tool needs to read such an object.
+// the section and the offset. By default the reader also refuses what ld
+// does not link, in ld's words: thread-local storage, shared memory,
+// exception tags, -fPIC, wasm64 and GC types. With `link` false it reads
+// them, for a tool that only shows an object, and the fields that model
+// what ld links stay as they are for the rest; a GC type's `params` and
+// `results` are then its encoded bytes, and a wasm64 limit is cut to 32
+// bits.
 #pragma once
 
 #include "kernel/span.h"
@@ -28,6 +31,8 @@ struct Expr {
     Bytes code;
     bool is_i32;
     i32 value;
+    bool is_i64; // exactly `i64.const v`, in `wide`
+    i64 wide;
 };
 
 struct FuncType {
@@ -153,6 +158,7 @@ struct Producer {
 struct Object {
     String name; // "a.o", or "lib.a(a.o)"
     Bytes file;
+    bool link = true; // refuse what ld does not link
 
     Vec<Section> sections;
     Vec<FuncType> types;
@@ -161,6 +167,8 @@ struct Object {
     u32 imported_globals   = 0;
     u32 imported_tables    = 0;
     u32 imported_memories  = 0;
+    u32 imported_tags      = 0;
+    u32 tags               = 0; // defined
     Vec<Function> functions;
     Vec<Table> tables;
     Vec<Limits> memories;
@@ -188,6 +196,8 @@ struct Object {
     u32 total_globals() const { return imported_globals + globals.size(); }
 
     u32 total_tables() const { return imported_tables + tables.size(); }
+
+    u32 total_tags() const { return imported_tags + tags; }
 };
 
 // Parses `o.file` into `o`, whose `name` is already set. False on failure,

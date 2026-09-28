@@ -73,23 +73,24 @@ bool sort(Vec<T> &v, Less less)
     return true;
 }
 
-// Past a constant expression; its value when it is a lone i32.const.
+// Past a constant expression; its value when it is a lone i32.const or
+// i64.const.
 void expr(Cursor &c, u64 &value)
 {
-    u32 ops  = 0;
-    bool i32 = false;
-    value    = 0;
+    u32 ops    = 0;
+    bool known = false;
+    value      = 0;
     for (;;) {
         u8 op = c.byte();
         if (!c.ok() || op == OP_END)
             break;
-        i32 = ops++ == 0 && op == OP_I32_CONST;
+        known = ops++ == 0 && (op == OP_I32_CONST || op == OP_I64_CONST);
         switch (op) {
         case OP_I32_CONST:
             value = u64(u32(c.sleb()));
             break;
         case OP_I64_CONST:
-            c.sleb64();
+            value = u64(c.sleb64());
             break;
         case OP_GLOBAL_GET:
             c.uleb();
@@ -106,7 +107,7 @@ void expr(Cursor &c, u64 &value)
             break;
         }
     }
-    if (ops != 1 || !i32)
+    if (ops != 1 || !known)
         value = 0;
 }
 
@@ -137,6 +138,67 @@ bool read_data(const Section &s, Vec<DataSeg> &segs, Out &err, Str what)
         return false;
     }
     return true;
+}
+
+// Limits, and whether they are a 64-bit memory's.
+bool limits64(Cursor &c)
+{
+    u8 flags = c.byte();
+    c.uleb64();
+    if (flags & LIMITS_MAX)
+        c.uleb64();
+    if (flags & 8)
+        c.uleb();
+    return flags & LIMITS_64;
+}
+
+void valtype(Cursor &c)
+{
+    u8 t = c.byte();
+    if (t == 0x63 || t == 0x64)
+        c.sleb64();
+}
+
+// Whether the module has a 64-bit memory, which llvm prints addresses of
+// sixteen digits for.
+bool memory64(const Vec<Section> &sections)
+{
+    bool wide = false;
+    for (const Section &s : sections) {
+        Cursor c(s.body);
+        if (s.id == SEC_MEMORY) {
+            for (u32 n = c.count(); n-- && c.ok();)
+                wide |= limits64(c);
+        } else if (s.id == SEC_IMPORT) {
+            for (u32 n = c.count(); n-- && c.ok();) {
+                c.name();
+                c.name();
+                switch (c.byte()) {
+                case EXT_FUNCTION:
+                    c.uleb();
+                    break;
+                case EXT_TABLE:
+                    valtype(c);
+                    limits64(c);
+                    break;
+                case EXT_MEMORY:
+                    wide |= limits64(c);
+                    break;
+                case EXT_GLOBAL:
+                    valtype(c);
+                    c.byte();
+                    break;
+                case EXT_TAG:
+                    c.byte();
+                    c.uleb();
+                    break;
+                default:
+                    return wide;
+                }
+            }
+        }
+    }
+    return wide;
 }
 
 bool oom(Out &err, Str what)
@@ -208,19 +270,31 @@ bool code_chunks(Module &m, Str what, Out &err)
 }
 
 // The data's chunks: from each segment's start, and each data symbol in it.
+// A symbol is in the segment it names; one from an export, in the segment
+// its address falls in, since passive segments all start at 0.
 bool data_chunks(Module &m, Str what, Out &err)
 {
-    Vec<const NmSymbol *> ds;
-    for (const NmSymbol &s : m.syms)
-        if (s.kind == SYM_DATA && !s.undefined && !ds.push(&s))
-            return oom(err, what);
-    if (!sort(ds, before))
+    Vec<Vec<const NmSymbol *>> in;
+    if (!in.resize(m.segs.size()))
         return oom(err, what);
+    for (const NmSymbol &s : m.syms) {
+        if (s.kind != SYM_DATA || s.undefined)
+            continue;
+        u32 k = s.segment;
+        for (u32 j = 0; k == ~u32(0) && j < m.segs.size(); j++)
+            if (s.addr >= m.segs[j].base && s.addr < m.segs[j].base + m.segs[j].content.size())
+                k = j;
+        if (k < in.size() && !in[k].push(&s))
+            return oom(err, what);
+    }
     for (u32 k = 0; k < m.segs.size(); k++) {
         const DataSeg &g = m.segs[k];
         u64 lo = g.base, hi = g.base + g.content.size();
+        Vec<const NmSymbol *> &ds = in[k];
         if (lo == hi)
             continue;
+        if (!sort(ds, before))
+            return oom(err, what);
         usize first = m.data_chunks.size();
         usize i     = 0;
         while (i < ds.size() && ds[i]->addr < lo)
@@ -282,6 +356,7 @@ Module *open_module(const Disasm &d, Str what, Bytes file, Out &err)
         oom(err, what);
         return nullptr;
     }
+    m->wide  = memory64(sections);
     bool ok  = read_symbols(what, file, m->syms, err);
     bool obj = is_object(sections), placed = !obj;
     for (const Section &s : sections)
@@ -291,6 +366,7 @@ Module *open_module(const Disasm &d, Str what, Bytes file, Out &err)
     if (ok && obj) {
         ok     = o.name.assign(what) || oom(err, what);
         o.file = file;
+        o.link = false;
         ok     = ok && read_object(o, err);
     }
     for (u32 i = 0; ok && i < sections.size(); i++) {
@@ -338,14 +414,18 @@ void put_name(Disasm &d, Str name)
 
 void put_label(Disasm &d, const Chunk &c)
 {
-    d.out.put('\n').hex(u32(c.start), 8).put(" <");
+    d.out.put('\n');
+    put_hex(d.out, c.start, d.m->wide ? 16 : 8);
+    d.out.put(" <");
     put_name(d, c.name);
     d.out.put(">:\n");
 }
 
 void put_reloc(Disasm &d, const RelocLine &l, u64 addr)
 {
-    d.out.put("\t\t\t").hex(u32(addr), 8).put(":  ").put(reloc_name(l.type)).put('\t');
+    d.out.put(d.m->wide ? "\t\t"_s : "\t\t\t"_s);
+    put_hex(d.out, addr, d.m->wide ? 16 : 8);
+    d.out.put(":  ").put(reloc_name(l.type)).put('\t');
     if (l.named)
         d.out.put(l.symbol);
     else
@@ -459,7 +539,8 @@ void code_chunk(Disasm &d, Module &m, const Chunk &c)
             n = 1;
         // The address, the bytes, and the instruction a tab stop on.
         line.clear();
-        line.rhex(u32(m.code_addr + at), 8).put(':');
+        put_rhex(line, m.code_addr + at, 8);
+        line.put(':');
         if (d.c.raw)
             for (usize i = 0; i < n; i++)
                 line.put(' ').hex(m.code[at + i], 2);
@@ -510,7 +591,8 @@ void data_chunk(Disasm &d, Module &m, const Chunk &c)
             continue;
         }
         usize n = b.size() < 16 ? b.size() : 16;
-        o.rhex(u32(at), 8).put(':');
+        put_rhex(o, at, 8);
+        o.put(':');
         for (usize i = 0; i < 16; i++)
             if (i < n)
                 o.put(' ').hex(b[i], 2);

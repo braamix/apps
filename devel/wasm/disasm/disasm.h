@@ -61,6 +61,7 @@ struct Module {
     usize reloc    = 0;
     bool in_data   = false;
     bool data_head = false;
+    bool wide      = false; // wasm64: addresses of 16 digits
 };
 
 struct Disasm {

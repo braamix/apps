@@ -563,6 +563,30 @@ void put_i64(Out &o, i64 v)
     }
 }
 
+void put_hex(Out &o, u64 v, usize digits)
+{
+    char d[16];
+    usize k = 0;
+    do {
+        d[k++] = "0123456789abcdef"[v & 0xf];
+        v >>= 4;
+    } while (v);
+    for (usize i = k; i < digits; i++)
+        o.put('0');
+    while (k)
+        o.put(d[--k]);
+}
+
+void put_rhex(Out &o, u64 v, usize width)
+{
+    usize k = 0;
+    for (u64 x = v; k == 0 || x; x >>= 4)
+        k++;
+    for (usize i = k; i < width; i++)
+        o.put(' ');
+    put_hex(o, v, 0);
+}
+
 usize column(Str s)
 {
     usize c = 0;

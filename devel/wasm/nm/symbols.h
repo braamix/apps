@@ -12,8 +12,9 @@ struct NmSymbol {
     Str name; // a view into the file
     u64 addr = 0;
     u64 size = 0;
-    char type; // U, w, W, t, T, d or D
-    u8 kind;   // wasm::SYM_FUNCTION, SYM_DATA, ...
+    char type;             // U, w, W, t, T, d or D
+    u8 kind;               // wasm::SYM_FUNCTION, SYM_DATA, ...
+    u32 segment = ~u32(0); // a data symbol's, where known
     bool undefined;
     bool global;
     bool weak;

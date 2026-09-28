@@ -47,6 +47,7 @@ bool object_symbols(Str what, Bytes file, Vec<NmSymbol> &syms, Out &err)
         return false;
     }
     o.file = file;
+    o.link = false;
     if (!read_object(o, err))
         return false;
     for (const Symbol &s : o.symbols) {
@@ -66,14 +67,19 @@ bool object_symbols(Str what, Bytes file, Vec<NmSymbol> &syms, Out &err)
                     const Segment &seg = o.segments[s.segment];
                     if (seg.flags != 1 && seg.offset.is_i32)
                         base = seg.offset.value;
+                    else if (seg.flags != 1 && seg.offset.is_i64)
+                        base = seg.offset.wide;
                 }
                 addr = u64(base) + s.offset;
                 size = s.size;
-            } else if (s.kind == SYM_TABLE) {
+            } else if (s.kind == SYM_TABLE || s.kind == SYM_TAG) {
                 addr = s.index;
             }
         }
-        if (!syms.push(make(s.name, s.kind, s.flags, addr, size))) {
+        NmSymbol n = make(s.name, s.kind, s.flags, addr, size);
+        if (s.kind == SYM_DATA && !s.undefined() && !(s.flags & SYM_ABSOLUTE))
+            n.segment = s.segment;
+        if (!syms.push(n)) {
             err.put(what).put(": out of memory");
             return false;
         }
@@ -454,6 +460,7 @@ struct Program {
                         break;
                     }
                     s = make(name, SYM_DATA, SYM_LOCAL, u64(segs[index].base), segs[index].size);
+                    s.segment = index;
                 }
                 if (!syms.push(s))
                     return oom();

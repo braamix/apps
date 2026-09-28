@@ -81,6 +81,29 @@ i32 Cursor::sleb()
     return 0;
 }
 
+u64 Cursor::uleb64()
+{
+    usize start = at_;
+    u64 v       = 0;
+    for (u32 i = 0; i < 10; i++) {
+        if (at_ >= b_.size()) {
+            fail("unexpected end of section", start);
+            return 0;
+        }
+        u8 x = b_[at_++];
+        v |= u64(x & 0x7f) << (7 * i);
+        if (!(x & 0x80)) {
+            if (i == 9 && x > 1) {
+                fail("LEB does not fit 64 bits", start);
+                return 0;
+            }
+            return v;
+        }
+    }
+    fail("LEB longer than 10 bytes", start);
+    return 0;
+}
+
 i64 Cursor::sleb64()
 {
     usize start = at_;

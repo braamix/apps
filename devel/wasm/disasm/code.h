@@ -32,6 +32,10 @@ usize decode(Bytes b, Flow &flow, Out &text, Out &notes, bool &ok);
 void put_i64(Out &o, i64 v);
 void put_u64(Out &o, u64 v);
 
+// Lower-case hex, zero-padded to `digits`, or right-aligned in `width`.
+void put_hex(Out &o, u64 v, usize digits);
+void put_rhex(Out &o, u64 v, usize width);
+
 // The column `s` ends at, a tab advancing to a multiple of 8.
 usize column(Str s);
 

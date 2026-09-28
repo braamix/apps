@@ -321,9 +321,10 @@ an error too, but the files are listed anyway, as `llvm-nm` does.
 - **It has no `-l`**, which needs debug information read, and none of the
   Mach-O or XCOFF options. `-a`, `--special-syms`, `--no-llvm-bc`,
   `--without-aliases` and `-X` are accepted, and change nothing for wasm.
-- **An object is read as `ld` reads it**, so an object `ld` refuses, for
-  thread-local storage or exceptions, is an error here too, in `ld`'s
-  words.
+
+`nm` reads any well-formed module, also what `ld` does not link:
+thread-local storage, shared memory, exceptions and their tags, `-fPIC`,
+wasm64 and GC types.
 
 ## Using disasm
 
@@ -387,6 +388,9 @@ in one file is reported, and the other files are still shown.
 - **Its messages** are worded as `strip`'s are, and it does not read LLVM
   bitcode.
 
+Like `nm`, it reads any well-formed module, also what `ld` does not link.
+A wasm64 module's addresses have sixteen digits, as llvm prints them.
+
 ## Inside
 
 [lib/](lib/) reads and writes wasm modules, objects and archives, for every
@@ -413,8 +417,11 @@ tool in the package. Three rules keep it shared:
 | `out.h` | text built up in memory |
 | `files.h` | reading and writing whole files; the one part that awaits |
 
-`object.h` still refuses what `ld` cannot link, in `ld`'s words: bitcode,
-exception tags, 64-bit limits and a module with no `linking` section.
+`object.h` refuses what `ld` cannot link, in `ld`'s words: thread-local
+storage, shared memory, exception tags, `-fPIC`, wasm64 and GC types.
+That is a policy, and `Object::link` turns it off for the tools that only
+show an object. Bitcode and a module with no `linking` section are not
+objects at all, and are refused either way.
 
 Each tool's core is plain C++ that works on files already read into
 memory. Only its `braam.cpp` reads and writes files.
@@ -514,14 +521,16 @@ equal byte for byte. Then each error is checked: its message, and that
 what is printed beside it is still `llvm-size`'s.
 
 And it runs [nm/test/nm.mjs](nm/test/nm.mjs). The same files, each test
-program stripped too, and two modules made by the test are listed by
-both `nm` and `llvm-nm`, in every format, order, radix and filter. The
-output must be equal byte for byte. Then each error is checked, as for
-`size`.
+program stripped too, two modules made by the test, and those
+[nm/test/foreign.mjs](nm/test/foreign.mjs) builds of what `ld` refuses
+are listed by both `nm` and `llvm-nm`, in every format, order, radix and
+filter. The output must be equal byte for byte. Then each error is
+checked, as for `size`.
 
 And it runs [disasm/test/disasm.mjs](disasm/test/disasm.mjs). The same
-files, and modules made by the test holding every opcode with many
-operand values, are shown by both `disasm -d` and `llvm-objdump -d`, also
-with `-r`, `-C` and `--no-show-raw-insn`. The output must be equal byte
+files, the same modules of what `ld` refuses, and modules made by the
+test holding every opcode with many operand values, are shown by both
+`disasm -d` and `llvm-objdump -d`, also with `-r`, `-C` and
+`--no-show-raw-insn`. The output must be equal byte
 for byte. The data rows must give back every segment's bytes at its
 address, and one object is checked whole against a golden file.

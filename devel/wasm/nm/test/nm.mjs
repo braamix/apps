@@ -10,6 +10,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { boot, get, manifest, plant, run } from "../../ld/test/wasmlib.mjs";
+import { foreign } from "./foreign.mjs";
 
 function die(msg) {
     console.error("nm: " + msg);
@@ -130,6 +131,12 @@ strip(m.ld, join(tmp, "s.wasm"));
 inputs.push(add("ld.stripped", readFileSync(join(tmp, "s.wasm"))));
 for (const f of readdirSync(m.sdk_libs).filter((n) => n.endsWith(".a")).sort())
     inputs.push(add(f, readFileSync(join(m.sdk_libs, f))));
+{
+    const fdir = join(tmp, "foreign");
+    mkdirSync(fdir);
+    for (const f of foreign(m, fdir))
+        inputs.push(add(f, readFileSync(join(fdir, f))));
+}
 
 let lines = 0;
 const MODES = [[], ["-A"], ["-P"], ["-P", "-A"], ["-P", "-td"], ["-f", "sysv"], ["-fsysv", "-A"],

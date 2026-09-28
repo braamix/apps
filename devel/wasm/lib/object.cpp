@@ -27,6 +27,7 @@ struct Reader {
     Vec<u32> func_imports;
     Vec<u32> global_imports;
     Vec<u32> table_imports;
+    Vec<u32> tag_imports;
 
     // `linking` and its subsections, gathered before any is parsed.
     u32 linking = NONE;
@@ -44,6 +45,54 @@ struct Reader {
 
     bool fail(const Cursor &c) { return fail(c.why(), c.where()); }
 
+    // What ld does not link: refused for it, read for the other tools.
+    bool refuse(Cursor &c, Str why, usize at)
+    {
+        if (o.link)
+            c.fail(why, at);
+        return o.link;
+    }
+
+    // A value type: a byte, or a reference type with its heap type. Only
+    // ld's are known when linking.
+    void valtype(Cursor &c, usize at)
+    {
+        u8 t = c.byte();
+        if (!c.ok() || is_valtype(t))
+            return;
+        if (o.link)
+            c.fail("unknown value type", at);
+        else if (t == 0x63 || t == 0x64)
+            c.sleb64();
+        else if (t < 0x69 || t > 0x74)
+            c.fail("unknown value type", at);
+    }
+
+    // A struct's or an array's field: a value type or a packed one, and
+    // whether it is mutable.
+    void field(Cursor &c, usize at)
+    {
+        u8 t = peek(c);
+        if (t == 0x78 || t == 0x77)
+            c.byte();
+        else
+            valtype(c, at);
+        c.byte();
+    }
+
+    // A vector of value types, as its bytes in the section.
+    Bytes values(Cursor &c, usize at)
+    {
+        u32 n       = c.count();
+        usize first = c.at();
+        for (u32 i = 0; i < n && c.ok(); i++)
+            valtype(c, at);
+        return sec->body.subspan(first, c.at() - first);
+    }
+
+    // The next byte of a cursor over the whole section, not taken.
+    u8 peek(const Cursor &c) { return c.left() ? sec->body[c.at()] : 0; }
+
     bool fail(const Cursor &c, const Out &why) { return fail(why.str(), c.where()); }
 
     // Checks a cursor that should have finished its section exactly.
@@ -56,17 +105,20 @@ struct Reader {
 
     bool limits(Cursor &c, Limits &l)
     {
-        l.flags = c.byte();
-        if (l.flags & LIMITS_64) {
-            c.fail("64-bit limits: wasm64 is not linked here");
+        usize at = c.at();
+        l.flags  = c.byte();
+        if ((l.flags & LIMITS_64) && refuse(c, "64-bit limits: wasm64 is not linked here", at))
             return false;
-        }
-        if (l.flags & ~(LIMITS_MAX | LIMITS_SHARED)) {
+        // 0x08 is a custom page size, which follows the maximum.
+        u8 known = o.link ? LIMITS_MAX | LIMITS_SHARED : LIMITS_MAX | LIMITS_SHARED | LIMITS_64 | 8;
+        if (l.flags & ~known) {
             c.fail("unknown limits flags");
             return false;
         }
-        l.min = c.uleb();
-        l.max = l.flags & LIMITS_MAX ? c.uleb() : NONE;
+        l.min = u32(c.uleb64());
+        l.max = l.flags & LIMITS_MAX ? u32(c.uleb64()) : NONE;
+        if (l.flags & 8)
+            c.uleb();
         return c.ok();
     }
 
@@ -77,6 +129,7 @@ struct Reader {
         u32 ops     = 0;
         u8 first    = 0;
         e.value     = 0;
+        e.wide      = 0;
         for (;;) {
             usize at = c.at();
             u8 op    = c.byte();
@@ -91,7 +144,7 @@ struct Reader {
                 e.value = c.sleb();
                 break;
             case OP_I64_CONST:
-                c.sleb64();
+                e.wide = c.sleb64();
                 break;
             case OP_F32_CONST:
                 c.take(4);
@@ -104,7 +157,7 @@ struct Reader {
                 c.uleb();
                 break;
             case OP_REF_NULL:
-                c.byte();
+                c.sleb64();
                 break;
             case OP_I32_ADD:
             case OP_I32_SUB:
@@ -120,6 +173,7 @@ struct Reader {
         }
         e.code   = body.subspan(start, c.at() - start);
         e.is_i32 = ops == 1 && first == OP_I32_CONST;
+        e.is_i64 = ops == 1 && first == OP_I64_CONST;
         return c.ok();
     }
 
@@ -130,6 +184,10 @@ struct Reader {
             return fail("out of memory", c.at());
         for (u32 i = 0; i < n && c.ok(); i++) {
             usize at = c.at();
+            if (!o.link) {
+                gc_types(c, at);
+                continue;
+            }
             if (c.byte() != FUNC_TYPE) {
                 c.fail("not a function type; GC types are not linked here", at);
                 break;
@@ -146,6 +204,44 @@ struct Reader {
             o.types.push(t);
         }
         return end(c);
+    }
+
+    // A recursion group, a subtype or a composite type: one or more types
+    // of the index space. A function's parameters and results are kept.
+    void gc_types(Cursor &c, usize at)
+    {
+        u8 form = c.byte();
+        u32 n   = 1;
+        if (c.ok() && form == 0x4e) {
+            n = c.count();
+            if (n)
+                form = c.byte();
+        }
+        for (u32 i = 0; i < n && c.ok(); i++) {
+            if (i)
+                form = c.byte();
+            if (form == 0x50 || form == 0x4f) {
+                u32 k = c.count();
+                for (u32 j = 0; j < k && c.ok(); j++)
+                    c.uleb();
+                form = c.byte();
+            }
+            FuncType t{};
+            if (form == FUNC_TYPE) {
+                t.params  = values(c, at);
+                t.results = values(c, at);
+            } else if (form == 0x5f) {
+                u32 k = c.count();
+                for (u32 j = 0; j < k && c.ok(); j++)
+                    field(c, at);
+            } else if (form == 0x5e) {
+                field(c, at);
+            } else if (c.ok()) {
+                c.fail("unknown type form", at);
+            }
+            if (c.ok() && !o.types.push(t))
+                c.fail("out of memory", at);
+        }
     }
 
     bool import_section(Cursor &c)
@@ -169,9 +265,7 @@ struct Reader {
                 o.imported_functions++;
                 break;
             case EXT_TABLE:
-                im.valtype = c.byte();
-                if (c.ok() && !is_reftype(im.valtype))
-                    c.fail("unknown reference type", at);
+                im.valtype = reftype(c, at);
                 limits(c, im.limits);
                 table_imports.push(index);
                 o.imported_tables++;
@@ -179,19 +273,23 @@ struct Reader {
             case EXT_MEMORY:
                 limits(c, im.limits);
                 if (c.ok() && (im.limits.flags & LIMITS_SHARED))
-                    c.fail("shared memory is not linked here", at);
+                    refuse(c, "shared memory is not linked here", at);
                 o.imported_memories++;
                 break;
             case EXT_GLOBAL:
-                im.valtype = c.byte();
-                im.mut     = c.byte();
-                if (c.ok() && !is_valtype(im.valtype))
-                    c.fail("unknown value type", at);
+                im.valtype = peek(c);
+                valtype(c, at);
+                im.mut = c.byte();
                 global_imports.push(index);
                 o.imported_globals++;
                 break;
             case EXT_TAG:
-                c.fail("exception tags are not linked here; Braam has no exceptions", at);
+                if (refuse(c, "exception tags are not linked here; Braam has no exceptions", at))
+                    break;
+                c.byte();
+                im.type = c.uleb();
+                tag_imports.push(index);
+                o.imported_tags++;
                 break;
             default:
                 c.fail("unknown import kind", at);
@@ -200,6 +298,33 @@ struct Reader {
             o.imports.push(im);
         }
         return end(c);
+    }
+
+    bool tag_section(Cursor &c)
+    {
+        u32 n = c.count();
+        for (u32 i = 0; i < n && c.ok(); i++) {
+            usize at = c.at();
+            c.byte();
+            if (c.uleb() >= o.types.size() && c.ok())
+                c.fail("type index out of range", at);
+        }
+        o.tags = n;
+        return end(c);
+    }
+
+    // A table's reference type: its first byte is kept.
+    u8 reftype(Cursor &c, usize at)
+    {
+        u8 t = peek(c);
+        if (o.link) {
+            c.byte();
+            if (c.ok() && !is_reftype(t))
+                c.fail("unknown reference type", at);
+        } else {
+            valtype(c, at);
+        }
+        return t;
     }
 
     bool function_section(Cursor &c)
@@ -225,10 +350,18 @@ struct Reader {
         for (u32 i = 0; i < n && c.ok(); i++) {
             usize at = c.at();
             Table t{};
-            t.reftype = c.byte();
-            if (c.ok() && !is_reftype(t.reftype))
-                c.fail("unknown reference type", at);
+            // 0x40 0x00: a table with an initial value after its limits.
+            bool init = false;
+            if (!o.link && c.left() >= 2 && peek(c) == 0x40 && sec->body[c.at() + 1] == 0) {
+                c.take(2);
+                init = true;
+            }
+            t.reftype = reftype(c, at);
             limits(c, t.limits);
+            if (init) {
+                Expr e{};
+                expr_in(c, sec->body, e);
+            }
             o.tables.push(t);
         }
         return end(c);
@@ -242,7 +375,7 @@ struct Reader {
             Limits l{};
             limits(c, l);
             if (c.ok() && (l.flags & LIMITS_SHARED))
-                c.fail("shared memory is not linked here", at);
+                refuse(c, "shared memory is not linked here", at);
             o.memories.push(l);
         }
         return end(c);
@@ -256,10 +389,9 @@ struct Reader {
         for (u32 i = 0; i < n && c.ok(); i++) {
             Global g{};
             g.off     = c.at();
-            g.valtype = c.byte();
-            g.mut     = c.byte();
-            if (c.ok() && !is_valtype(g.valtype))
-                c.fail("unknown value type", g.off);
+            g.valtype = peek(c);
+            valtype(c, g.off);
+            g.mut = c.byte();
             expr_in(c, body, g.init);
             g.size = c.at() - g.off;
             o.globals.push(g);
@@ -296,7 +428,9 @@ struct Reader {
                     c.uleb();
                 expr_in(c, body, e);
             }
-            if (flags & 3)
+            if ((flags & 3) && (flags & 4) && !o.link)
+                valtype(c, at);
+            else if (flags & 3)
                 c.byte();
             u32 k = c.count();
             for (u32 j = 0; j < k && c.ok(); j++)
@@ -371,10 +505,8 @@ struct Reader {
             s.index      = NONE;
             s.segment    = NONE;
             bool defined = !(s.flags & SYM_UNDEFINED);
-            if (s.flags & SYM_TLS) {
-                c.fail("thread-local storage is not linked here", at);
+            if ((s.flags & SYM_TLS) && refuse(c, "thread-local storage is not linked here", at))
                 break;
-            }
             switch (s.kind) {
             case SYM_FUNCTION:
                 element(c, s, at, o.imported_functions, o.total_functions(), func_imports);
@@ -409,7 +541,8 @@ struct Reader {
                     s.name = o.sections[s.index].name;
                 break;
             case SYM_TAG:
-                c.fail("exception tags are not linked here; Braam has no exceptions", at);
+                if (!refuse(c, "exception tags are not linked here; Braam has no exceptions", at))
+                    element(c, s, at, o.imported_tags, o.total_tags(), tag_imports);
                 break;
             default:
                 c.fail("unknown symbol kind", at);
@@ -483,7 +616,7 @@ struct Reader {
             if (c.ok() && s.align >= 32)
                 c.fail("segment alignment out of range", at);
             if (c.ok() && (s.seg_flags & SEG_TLS))
-                c.fail("thread-local storage is not linked here", at);
+                refuse(c, "thread-local storage is not linked here", at);
         }
         return c.ok();
     }
@@ -652,7 +785,7 @@ struct Reader {
                 m.put("unknown relocation type ").num(r.type);
                 return fail(m.str(), at);
             }
-            Str refusal = reloc_refusal(r.type);
+            Str refusal = o.link ? reloc_refusal(r.type) : Str();
             if (!refusal.empty()) {
                 Out m;
                 m.put(reloc_name(r.type)).put(": ").put(refusal);
@@ -816,7 +949,10 @@ struct Reader {
                 ok             = data_section(c, sec->body);
                 break;
             case SEC_TAG:
-                return fail("exception tags are not linked here; Braam has no exceptions", 0);
+                if (o.link)
+                    return fail("exception tags are not linked here; Braam has no exceptions", 0);
+                ok = tag_section(c);
+                break;
             default:
                 if (sec->name == "linking") {
                     if (linking != NONE)

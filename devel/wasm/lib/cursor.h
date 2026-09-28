@@ -33,6 +33,7 @@ struct Cursor {
     u32 uleb();
     i32 sleb();
     i64 sleb64();
+    u64 uleb64();
     Bytes take(usize n);
     Str name();
 
