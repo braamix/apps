@@ -79,11 +79,6 @@ The CMake target follows the fixtures' `wasm_archive()` precedent:
 braam::flags)`, then `braam_add_program(... LIBS wasmobj)` in each tool.
 `devel/wasm/CMakeLists.txt` adds `lib` before `ld`.
 
-### Step 2. Cursor
-
-Move `Cursor` from `reader.h/.cpp` into `lib/cursor.h/.cpp` unchanged.
-`reader.h` includes it. Nothing else changes.
-
 ### Step 3. Emit: one set of encoders
 
 Add `lib/emit.h/.cpp`:
