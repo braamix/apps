@@ -1,6 +1,6 @@
 # wasm — WebAssembly tools for Braam
 
-The `wasm` package installs four tools for WebAssembly. All run on Braam.
+The `wasm` package installs five tools for WebAssembly. All run on Braam.
 
 - `ld`, a linker, turns the object files clang compiles into a program
   Braam can run. It does what `wasm-ld`, LLVM's linker, does, and gives
@@ -13,9 +13,11 @@ The `wasm` package installs four tools for WebAssembly. All run on Braam.
 - `size` prints how big a program, an object or each member of an archive
   is: its code and data, or every section. It prints what `llvm-size`
   prints.
+- `nm` lists the symbols of a program, an object or each member of an
+  archive. It prints what `llvm-nm` prints.
 
-The tests check all four byte for byte. More tools, such as `as` and `nm`,
-will join them here, one directory each.
+The tests check all five byte for byte. More tools, such as `as`, will
+join them here, one directory each.
 
 ## Using ld
 
@@ -235,6 +237,91 @@ the files are sized anyway, as `llvm-size` does.
 `size` differs from `llvm-size` only in its messages, which are worded as
 `strip`'s are. It has none of the Mach-O options.
 
+## Using nm
+
+    nm [options] [file...]
+
+With no file, `nm` reads `a.out`, and `-` reads standard input. Each
+symbol is a line: its address, a letter for its kind, and its name,
+sorted by name.
+
+    $ nm hello.o
+    00000000 d .L.str
+    00000001 T fx_main
+             U fx_puts
+
+| Letter | Meaning |
+| --- | --- |
+| `T`, `t` | a function |
+| `D`, `d` | data, a global, a table, or a section |
+| `W` | a weak definition |
+| `U` | undefined |
+| `w` | undefined and weak |
+
+A capital letter is a symbol other files can see; a small one is local.
+
+An object's symbols are those of its symbol table, and an address counts
+from the start of the symbol's section: a function's from the start of
+the code, a global's from the start of the globals. Data is at its
+address in memory.
+
+A program has no symbol table. Its symbols come from its `name` section:
+every function, global and data segment named there. A function is
+global if it is exported. Where the `name` section has been stripped,
+the exports are the symbols instead. An address in a program is an
+offset in the file, but data is still at its address in memory.
+
+An archive's members are listed one by one, each under its own name. A
+member that is not wasm is skipped.
+
+| Option | Meaning |
+| --- | --- |
+| `-A`, `-o`, `--print-file-name` | name the file on every line |
+| `-B`, `--format=bsd` | address, letter and name (the default) |
+| `-P`, `--portability`, `--format=posix` | name, letter, address and size |
+| `-f sysv`, `--format=sysv` | a table with every column |
+| `-j`, `--format=just-symbols` | names only |
+| `-m`, `--format=darwin` | as `-B`, since a wasm module is not Mach-O |
+| `-C`, `--demangle` | show C++ names demangled; `--no-demangle` undoes it |
+| `-g`, `--extern-only` | only symbols that are not local |
+| `-u`, `--undefined-only` | only undefined symbols |
+| `-U`, `--defined-only` | only defined symbols |
+| `-W`, `--no-weak` | no weak symbols |
+| `-n`, `-v`, `--numeric-sort` | sort by address, undefined symbols first |
+| `--size-sort` | sort by size, and print sizes rather than addresses |
+| `-p`, `--no-sort` | keep the file's order |
+| `-r`, `--reverse-sort` | sort backwards |
+| `-S`, `--print-size` | print each symbol's size too |
+| `-t <radix>`, `--radix=<radix>` | `o`, `d` or `x` (the default) |
+| `-M`, `--print-armap` | print an archive's symbol table first |
+| `--export-symbols` | every defined global name of every file, sorted, once each |
+| `--quiet` | no `no symbols` note |
+| `-h`, `--help` | usage |
+| `-V`, `--version` | version |
+
+Letters can be run together, as in `nm -gS`. `-f`, `-t` and `-X` take
+their value in the same word or the next.
+
+A module with no symbols at all is noted on stderr as `<file>: no
+symbols`, and that is no error. The exit status is 0 on success and 1 on
+an error. An error in one file is reported, and the other files are
+still listed. A `--format`, `--radix` or `-X` value that is not known is
+an error too, but the files are listed anyway, as `llvm-nm` does.
+
+`nm` differs from `llvm-nm` in these ways:
+
+- **Its messages** are worded as `strip`'s are.
+- **It does not read LLVM bitcode**, from `-flto`, and says so. `llvm-nm`
+  lists a bitcode file's symbols.
+- **`-D` is always an error**, as it is in `llvm-nm` for wasm: a wasm
+  module has no dynamic symbol table.
+- **It has no `-l`**, which needs debug information read, and none of the
+  Mach-O or XCOFF options. `-a`, `--special-syms`, `--no-llvm-bc`,
+  `--without-aliases` and `-X` are accepted, and change nothing for wasm.
+- **An object is read as `ld` reads it**, so an object `ld` refuses, for
+  thread-local storage or exceptions, is an error here too, in `ld`'s
+  words.
+
 ## Inside
 
 [lib/](lib/) reads and writes wasm modules, objects and archives, for every
@@ -292,6 +379,16 @@ memory. Only its `braam.cpp` reads and writes files.
 | `size.cpp` | adds up the sections and prints them, in either format |
 | `driver.cpp` | parses the command line |
 
+### nm
+
+| File | What it does |
+| --- | --- |
+| `symbols.cpp` | reads a module's symbols, as llvm reads them |
+| `nm.cpp` | filters, sorts and prints them, in each format |
+| `driver.cpp` | parses the command line |
+
+`-C` uses `ld`'s copy of LLVM's demangler, [ld/demangle/](ld/demangle/).
+
 ### ar
 
 [ar/](ar/) is a port: FreeBSD's sources, with its names, comments and
@@ -335,3 +432,9 @@ object and archive, the SDK's libraries and `ld` itself are sized by both
 `size` and `llvm-size`, in every format and radix, and the output must be
 equal byte for byte. Then each error is checked: its message, and that
 what is printed beside it is still `llvm-size`'s.
+
+And it runs [nm/test/nm.mjs](nm/test/nm.mjs). The same files, each test
+program stripped too, and two modules made by the test are listed by
+both `nm` and `llvm-nm`, in every format, order, radix and filter. The
+output must be equal byte for byte. Then each error is checked, as for
+`size`.
