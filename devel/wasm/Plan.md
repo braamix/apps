@@ -129,50 +129,6 @@ would not run:
 Not in the first version: wildcards in `-R`, `--only-keep-debug`,
 `--strip-unneeded`, `-p`, and archives (step 14).
 
-### Step 12. Tests: `devel/wasm/strip/test/strip.mjs`
-
-Built on `ld/test/wasmlib.mjs`: `boot`, `plant`, `run`, `get`,
-`manifest`. The manifest already names every fixture's objects, the SDK
-archives, the reference programs and the LLVM tools' directory, where
-`llvm-strip` is. No new CMake is needed for inputs.
-
-Inputs:
-
-- every fixture's reference program (wasm-ld's link, stamped);
-- every fixture's objects, including the `debug` fixture's, which carry
-  `.debug_*` and `reloc..debug_*`;
-- `ld.wasm` itself, a large program with a `name` section.
-
-For each input, and for each of `(none)`, `-g`, `-R producers`, `-g -R
-producers` and `--keep-section=name`:
-
-1. `llvm-strip --keep-section=braam <opts> in -o want` on the host.
-2. `strip <opts> in -o got` on Braam.
-3. `got` must equal `want` byte for byte.
-
-Then check what the bytes mean:
-
-- A stripped program still runs: `check_run` gives the same result as the
-  unstripped one, for every fixture.
-- **`ld` links `-g`-stripped objects.** Link the `debug` fixture's objects,
-  stripped with `-g`, with both linkers through `linkers()`. The outputs
-  must be equal, as in `write.mjs`. This is the first time `ld` sees
-  `.objcopy.removed` placeholders and section symbols naming them. If it
-  refuses them, fix `ld` in this step.
-- In-place stripping: `strip f` leaves `f` equal to `strip f -o g`'s `g`,
-  and leaves no `f.strip` behind.
-- A second `strip` of a stripped file changes nothing.
-
-Errors, each with its message and status 1:
-
-- a file that is not wasm; truncated wasm; bitcode;
-- a missing file; `-o` with two inputs;
-- `-R braam`; `-R CODE`;
-- one bad file among good ones: the good ones are still stripped.
-
-Add the test to `TESTS` in the top [Makefile](../../Makefile). It should
-run in seconds; if not, it belongs in `LONGTESTS`.
-
 ### Step 13. Document strip
 
 In [README.md](README.md): the package now installs `ld` and `strip`, and a
