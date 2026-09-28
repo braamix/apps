@@ -707,7 +707,7 @@ struct Reader {
         u32 version = c.uleb();
         if (c.ok() && version != LINKING_VERSION) {
             Out m;
-            m.put("version ").num(version).put("; wlink reads version 2");
+            m.put("version ").num(version).put("; ld reads version 2");
             return fail(m.str(), 0);
         }
         while (c.ok() && !c.done()) {
@@ -953,7 +953,7 @@ struct Reader {
     {
         Bytes f = o.file;
         if (f.size() >= 4 && f[0] == 'B' && f[1] == 'C' && f[2] == 0xc0 && f[3] == 0xde)
-            return fail("LLVM bitcode (from -flto); wlink links wasm objects only", 0);
+            return fail("LLVM bitcode (from -flto); ld links wasm objects only", 0);
         if (f.size() < 8 || f[0] != MAGIC[0] || f[1] != MAGIC[1] || f[2] != MAGIC[2] ||
             f[3] != MAGIC[3])
             return fail("not a wasm object", 0);

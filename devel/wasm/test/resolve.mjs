@@ -1,20 +1,20 @@
-// Symbol resolution. For every fixture, wlink on Braam and wasm-ld on the
+// Symbol resolution. For every fixture, ld on Braam and wasm-ld on the
 // host are given the same inputs and flags, and must load the same files
 // in the same order (--trace) for the same reasons (--why-extract). Links that
 // must fail must fail with wasm-ld's words. Then --dump-symtab is held to what
 // the fixtures' sources say each name resolves to.
 
-import { boot, die, FLAGS, linkers, manifest, ok } from "./wlinklib.mjs";
+import { boot, die, FLAGS, linkers, manifest, ok } from "./wasmlib.mjs";
 
 const m = manifest();
 
 const H = await boot();
-const { inputs, wasm_ld, wlink } = linkers(H, m);
+const { inputs, wasm_ld, ld } = linkers(H, m);
 
 const bad = [];
 const same = (what, a, b) => {
     if (a !== b)
-        bad.push(`${what}:\n  wlink:   ${JSON.stringify(a)}\n  wasm-ld: ${JSON.stringify(b)}`);
+        bad.push(`${what}:\n  ld:      ${JSON.stringify(a)}\n  wasm-ld: ${JSON.stringify(b)}`);
 };
 
 // ---------------------------------------------------------------- loading
@@ -25,7 +25,7 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
     const want = wasm_ld(args);
     if (want.status !== 0)
         die(`wasm-ld fails on ${name}: ${want.err}`);
-    const got = wlink(args);
+    const got = ld(args);
     same(`${name}: status`, got.status, 0);
     same(`${name}: stderr`, got.err, "");
     same(`${name}: --trace`, got.out, want.out);
@@ -35,15 +35,15 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
 
 // ---------------------------------------------------------------- refusals
 
-// wasm-ld's words, as wlink says them. A signature mismatch is wasm-ld's
-// warning and wlink's error.
-const as_wlink = (s) => s.replaceAll("wasm-ld: ", "wlink: ").replaceAll("warning: ", "error: ");
+// wasm-ld's words, as ld says them. A signature mismatch is wasm-ld's
+// warning and ld's error.
+const as_ld = (s) => s.replaceAll("wasm-ld: ", "ld: ").replaceAll("warning: ", "error: ");
 
 function refuse(what, args) {
     const want = wasm_ld(args);
-    const got = wlink(args);
+    const got = ld(args);
     same(`${what}: status`, got.status, 1);
-    same(`${what}: stderr`, got.err, as_wlink(want.err));
+    same(`${what}: stderr`, got.err, as_ld(want.err));
 }
 
 for (const [name, fx] of Object.entries(m.bad))
@@ -58,7 +58,7 @@ refuse("--entry", [...FLAGS.filter((f) => f !== "--no-entry"),
 
 // name -> [state, kind, file, import], from --dump-symtab.
 function symtab(fx, extra = []) {
-    const got = wlink([...FLAGS, "--dump-symtab", ...extra, ...inputs(fx)]);
+    const got = ld([...FLAGS, "--dump-symtab", ...extra, ...inputs(fx)]);
     if (got.status !== 0)
         die(`--dump-symtab failed: ${got.err}`);
     const t = new Map();

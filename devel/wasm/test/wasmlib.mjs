@@ -1,6 +1,6 @@
-// Shared by wlink's cases: the fixture manifest, a booted kernel, and the
+// Shared by ld's cases: the fixture manifest, a booted kernel, and the
 // oracle a linked fixture is held to — its module surface and its output.
-// The oracle takes bytes, so wasm-ld's links and wlink's are judged alike.
+// The oracle takes bytes, so wasm-ld's links and ld's are judged alike.
 
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -11,19 +11,19 @@ import { HARNESS, KERNEL, ROOTFS } from "../../../test/sdk.mjs";
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
 export const APPS = resolve(HERE, "../../..");
-export const MANIFEST = join(APPS, "build/devel/wlink/test/fixtures.json");
+export const MANIFEST = join(APPS, "build/devel/wasm/test/fixtures.json");
 export const GOLDEN = join(HERE, "golden");
 
 export function die(msg) {
-    console.error("wlink: " + msg);
+    console.error("ld: " + msg);
     process.exit(1);
 }
 
 export function ok(msg) {
-    console.log(msg ? "wlink ok: " + msg : "wlink ok");
+    console.log(msg ? "ld ok: " + msg : "ld ok");
 }
 
-// { wlink, objdump, ar, sdk_libs, fixtures }, every path absolute.
+// { ld, objdump, ar, sdk_libs, fixtures }, every path absolute.
 export function manifest() {
     if (!existsSync(MANIFEST))
         die(`no manifest at ${MANIFEST} — run make`);
@@ -88,12 +88,12 @@ export function execute(H, bytes) {
 export const FLAGS = ["--no-demangle", "--import-memory", "--initial-memory=1048576",
     "--no-entry", "--gc-sections", "--stack-first", "-z", "stack-size=131072"];
 
-// wlink on Braam and wasm-ld on the host, given the same inputs, each by its
+// ld on Braam and wasm-ld on the host, given the same inputs, each by its
 // base name in one directory. Each returns { out, err, status, why }.
 export function linkers(H, m) {
-    const tmp = mkdtempSync(join(tmpdir(), "wlink-"));
+    const tmp = mkdtempSync(join(tmpdir(), "ld-"));
     process.on("exit", () => rmSync(tmp, { recursive: true, force: true }));
-    plant(H, "/bin/wlink", new Uint8Array(readFileSync(m.wlink)));
+    plant(H, "/bin/ld", new Uint8Array(readFileSync(m.ld)));
     const where = new Map();
 
     function place(path) {
@@ -124,16 +124,16 @@ export function linkers(H, m) {
         return { out: r.stdout, err: r.stderr, status: r.status, why };
     }
 
-    function wlink(args) {
+    function ld(args) {
         for (const k of ["/tmp/o", "/tmp/e", "/tmp/s", "/tmp/why"])
             H.store.files.delete(k);
         plant(H, "/tmp/rsp", args.join("\n") + "\n");
-        run(H, "cd /tmp; wlink @rsp >o 2>e; echo $? >s");
+        run(H, "cd /tmp; ld @rsp >o 2>e; echo $? >s");
         return { out: get(H, "/tmp/o") ?? "", err: get(H, "/tmp/e") ?? "",
                  status: Number(get(H, "/tmp/s")), why: get(H, "/tmp/why") ?? "" };
     }
 
-    return { tmp, inputs, wasm_ld, wlink };
+    return { tmp, inputs, wasm_ld, ld };
 }
 
 // ---------------------------------------------------------------- reading wasm
@@ -230,7 +230,7 @@ function expr(b, at) {
     return [v, at + 1];
 }
 
-// A linked module's index spaces, as `wlink --dump-layout` prints them.
+// A linked module's index spaces, as `ld --dump-layout` prints them.
 export function index_spaces(bytes) {
     const secs = sections(bytes);
     const body = (id) => secs.find((s) => s.id === id)?.body;
@@ -310,7 +310,7 @@ export function index_spaces(bytes) {
     return out;
 }
 
-// wasm-ld's -Map, as `wlink --dump-layout` prints its memory map: GLOBAL,
+// wasm-ld's -Map, as `ld --dump-layout` prints its memory map: GLOBAL,
 // CODE and DATA, without file offsets, and without the chunks in `skip`.
 export function map_layout(map, skip = []) {
     const out = [];

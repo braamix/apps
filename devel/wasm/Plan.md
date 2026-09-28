@@ -1,16 +1,18 @@
-# wlink — a wasm32 linker for Braam
+# ld — a wasm32 linker for Braam
 
 A plan, not a design document: what to build, in what order, and how each
 step is proved before the next one starts.
 
 ## 1. What it is
 
-`wlink` is a static linker for wasm32 relocatable object files and `ar`
+`ld` is a static linker for wasm32 relocatable object files and `ar`
 archives of them. It produces the one kind of binary Braam runs: a process
 image that imports `env.memory`, `kernel.sys` and `kernel.sys_async`, exports
 `_alloc`, `_free`, `_sig`, `_start` and `_resume`, and carries a `braam`
-custom section. It is a Braam program in its own right (`devel/wlink`,
-`bin/wlink`), so a system with a compiler on it could link on it.
+custom section. It is a Braam program in its own right, `ld.wasm`, installed
+as `bin/ld` by the `wasm` package (`devel/wasm`), so a system with a compiler
+on it could link on it. The package will carry the other wasm tools too:
+`as`, `nm` and the rest.
 
 Like `lang/python`, it is not a port. There is no upstream source to keep.
 Its reference is:
@@ -21,7 +23,7 @@ Its reference is:
   is a test against it.
 
 **About "GNU compiler for wasm".** Mainline GCC has no wasm32 back end, so no
-GCC-built wasm objects exist to test against. `wlink` accepts any producer
+GCC-built wasm objects exist to test against. `ld` accepts any producer
 that emits the tool-conventions format and names that format as its contract.
 It rejects anything else with a message that says why: an object without a
 `linking` section, a `linking` version other than 2, LLVM bitcode (`BC\xC0\xDE`,
@@ -95,8 +97,8 @@ Nine types cover everything. There is no PIC, no TLS and no debug info.
   Because the memory is imported, wasm-ld cannot assume it is zeroed, so it
   makes the segments passive and fills `.bss` at start. On Braam every
   process gets a fresh `WebAssembly.Memory` (`web/proc.js`), so this isn't
-  needed. `wlink` emits active segments and no `.bss` bytes. That's smaller
-  and simpler, and it rests on one assumption, which step 5 tests.
+  needed. `ld` emits active segments and no `.bss` bytes. That's smaller
+  and simpler, and it rests on one assumption, which `test/write.mjs` tests.
 
 ## 3. Shape of the program
 
@@ -104,10 +106,10 @@ The same split as `simbesm` and `c4`: the linker is plain C++ over bytes
 already in memory, and it never blocks. Only the front end awaits.
 
 ```
-devel/wlink/
+devel/wasm/
   Plan.md          this file
   README.md        what it does, what it refuses, how it differs from wasm-ld
-  CMakeLists.txt   braam_add_program(NAME wlink ...), braam_add_package
+  CMakeLists.txt   braam_add_program(NAME ld ...), braam_add_package
   wasm.h/.cpp      opcodes, section ids, reloc and symbol enums
   out.h            text built in a String: messages and --dump
   reader.cpp/.h    bounds-checked cursor; object parser; archive parser
@@ -138,7 +140,7 @@ Constraints the Braam side imposes, and how the plan meets them:
   copying into the output, never to a second copy of the input.
 - **No exceptions.** A parser function returns false and leaves one message.
   Errors carry the file, archive member, section and offset:
-  `wlink: libbraam_proc.a(io.cpp.obj): reloc.CODE +0x1a4: symbol 812 out of
+  `ld: libbraam_proc.a(io.cpp.obj): reloc.CODE +0x1a4: symbol 812 out of
   range`.
 - **Coroutine frames stay under 512 bytes.** State lives in one heap
   `Linker` object that the frames point at.
@@ -148,14 +150,14 @@ Constraints the Braam side imposes, and how the plan meets them:
   `link()` has succeeded.
 
 The native `host.cpp` build is there so that the whole tree can be relinked
-with `wlink` at host speed (step 8). It uses only `kernel/` headers, which
+with `ld` at host speed (step 8). It uses only `kernel/` headers, which
 `../braam-core/test/unit` already compiles natively. If that turns out not
-to hold, step 8 falls back to driving `wlink.wasm` under the harness.
+to hold, step 8 falls back to driving `ld.wasm` under the harness.
 
 ## 4. Command line
 
-`wlink` takes wasm-ld's spelling for the subset it implements, so
-`clang --ld-path=wlink` and the tree's CMake can drive it unchanged:
+`ld` takes wasm-ld's spelling for the subset it implements, so
+`clang --ld-path=<path>/ld` and the tree's CMake can drive it unchanged:
 
 - `-o <file>`, `-L <dir>`, `-l <name>`, and `@<rspfile>`. The response file
   matters because a harness-typed command line has to fit in 60 characters.
@@ -171,11 +173,11 @@ to hold, step 8 falls back to driving `wlink.wasm` under the harness.
   wasm-ld prints.
 - `-m wasm32`, `--no-default-config` noise and similar, accepted and ignored
   where clang passes them.
-- **`wlink` additions:**
+- **`ld` additions:**
   - `--braam` is the whole `braam_add_program` set in one flag, with the
     stamp included.
   - `--braam-pages=<init>,<max>` and `--braam-abi=<n>` set the stamp. The
-    ABI defaults to the `PROC_ABI` of the SDK that `wlink` was built
+    ABI defaults to the `PROC_ABI` of the SDK that `ld` was built
     against.
   - `--dump <obj|archive>` prints symbols and relocations in
     `llvm-objdump -t -r`'s layout, `--dump-symtab` the resolved symbol
@@ -184,7 +186,7 @@ to hold, step 8 falls back to driving `wlink.wasm` under the harness.
   - `-Map=<file>` writes a map of addresses and indices. It's optional and
     comes late.
 
-**Braam is the default.** A plain `wlink a.o b.o -o p` produces a runnable
+**Braam is the default.** A plain `ld a.o b.o -o p` produces a runnable
 stamped binary. The generic wasm-ld flags exist for the tree's CMake and for
 testing against wasm-ld.
 
@@ -200,15 +202,15 @@ until the previous one's test passes.
   - `-l` searches each `-L` for `lib<name>.a`;
   - reads inputs, calls `link()` and writes the output in one pass;
   - exits 0 on success, 1 on an error, and 130 on `^C`.
-- `braam_add_package(NAME wlink ...)`, and a line in
-  `devel/CMakeLists.txt`.
+- `braam_add_package(NAME wasm ...)` with `bin_ld` as `bin/ld`, so the
+  installed command is `ld`.
 - Add `README.md`, covering:
   - what it links;
   - what it refuses and why;
   - where it differs from wasm-ld: active segments, no `.bss`, no START,
     and an error rather than a stub on signature mismatch.
 - **Test:** `test/link.mjs` in `TESTS`:
-  1. the step-5 cases;
+  1. the `write.mjs` cases;
   2. a link driven by a response file;
   3. a link with a missing library, which checks the message;
   4. a check that a failed link leaves no output file.
@@ -217,24 +219,24 @@ until the previous one's test passes.
 
 - Plant the SDK's `libbraam_*.a` and the objects of `devel/c4`,
   `games/asciifluid` and `benchmarks/dhrystone` into the harness store.
-  Link them with `wlink` on Braam and run each program's existing test
+  Link them with `ld` on Braam and run each program's existing test
   against the relinked binary.
-- **Self-hosting:** link `wlink`'s own objects with `wlink` on Braam, then
+- **Self-hosting:** link `ld`'s own objects with `ld` on Braam, then
   use that output to link c4 again. Both c4 outputs must be byte-identical.
 - **Test:** `test/relink.mjs` in `LONGTESTS`, if it takes more than a few
   seconds.
 
 ### Step 8 — The whole tree
 
-- Build `host.cpp` natively. Add `make LINKER=wlink`, which configures the
-  tree with `wlink` as the link step through `CMAKE_CXX_LINK_EXECUTABLE`,
+- Build `host.cpp` natively. Add `make LINKER=ld`, which configures the
+  tree with `ld` as the link step through `CMAKE_CXX_LINK_EXECUTABLE`,
   and drops `stamp.py` because `--braam` stamps.
-- `make test longtest LINKER=wlink` must pass unchanged. `lang/python` is
+- `make test longtest LINKER=ld` must pass unchanged. `lang/python` is
   the real exam here: 3.8 MB of output, 600 KB of initialised data and
   thousands of address-taken functions.
 - Compare with wasm-ld: section sizes per program. Expect a smaller DATA
   section, because `.bss` is omitted, and a slightly larger CODE section,
-  because wasm-ld compacts its padded LEBs and `wlink` doesn't yet.
+  because wasm-ld compacts its padded LEBs and `ld` doesn't yet.
 
 ### Step 9 — Breadth, after the tree links
 

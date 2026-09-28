@@ -35,7 +35,7 @@ struct Config {
     bool global_base_set   = false;
     u32 error_limit        = 20;
 
-    // wlink's own.
+    // ld's own.
     bool dump         = false;    // --dump: the inputs are to be dumped, not linked
     bool dump_symtab  = false;    // --dump-symtab: print the resolved symbols
     bool dump_layout  = false;    // --dump-layout: print indices and addresses

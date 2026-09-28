@@ -1,13 +1,13 @@
-// Step 1: reading. `wlink --dump` on every fixture object and archive, every
+// Step 1: reading. `ld --dump` on every fixture object and archive, every
 // member of every SDK archive, and archives in the formats the SDK does not
 // use, must print what `llvm-objdump -t -r` prints for them, byte for byte.
-// Then inputs wlink must refuse, and the message it refuses them with.
+// Then inputs ld must refuse, and the message it refuses them with.
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, copyFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
-import { boot, die, get, manifest, ok, plant, run, sections } from "./wlinklib.mjs";
+import { boot, die, get, manifest, ok, plant, run, sections } from "./wasmlib.mjs";
 
 const m = manifest();
 
@@ -21,7 +21,7 @@ for (const f of readdirSync(m.sdk_libs).sort())
         inputs.add(join(m.sdk_libs, f));
 
 // GNU long names and BSD names, which llvm-ar writes on request.
-const tmp = mkdtempSync(join(tmpdir(), "wlink-dump-"));
+const tmp = mkdtempSync(join(tmpdir(), "ld-dump-"));
 process.on("exit", () => rmSync(tmp, { recursive: true, force: true }));
 const some = m.fixtures.data.objects;
 copyFileSync(some[0], join(tmp, "a_member_name_longer_than_sixteen.o"));
@@ -47,12 +47,12 @@ const objdump = (p) =>
 const want = [...inputs].map(objdump).join("");
 
 const H = await boot();
-plant(H, "/bin/wlink", new Uint8Array(readFileSync(m.wlink)));
+plant(H, "/bin/ld", new Uint8Array(readFileSync(m.ld)));
 
-function wlink(args) {
+function ld(args) {
     for (const k of ["/tmp/o", "/tmp/e", "/tmp/s"])
         H.store.files.delete(k);
-    run(H, `cd /tmp; wlink --dump ${args} >o 2>e; echo $? >s`);
+    run(H, `cd /tmp; ld --dump ${args} >o 2>e; echo $? >s`);
     return { out: get(H, "/tmp/o") ?? "", err: get(H, "/tmp/e") ?? "",
              status: Number(get(H, "/tmp/s")) };
 }
@@ -61,7 +61,7 @@ for (const [b, p] of names)
     plant(H, `/tmp/${b}`, new Uint8Array(readFileSync(p)));
 plant(H, "/tmp/list", [...names.keys()].join("\n") + "\n");
 
-const got = wlink("@list");
+const got = ld("@list");
 if (got.status !== 0)
     die(`--dump exited ${got.status}: ${got.err}`);
 if (got.out !== want) {
@@ -74,7 +74,7 @@ if (got.out !== want) {
         if (/\tfile format wasm$/.test(b[j] ?? ""))
             file = b[j];
     die(`--dump differs from llvm-objdump at line ${i + 1}, in ${file}\n` +
-        `  wlink:   ${JSON.stringify(a[i])}\n  objdump: ${JSON.stringify(b[i])}`);
+        `  ld:      ${JSON.stringify(a[i])}\n  objdump: ${JSON.stringify(b[i])}`);
 }
 const members = want.split("\n").filter((l) => /\tfile format wasm$/.test(l)).length;
 
@@ -93,7 +93,7 @@ const bad = [];
 
 function refuse(what, bytes, message) {
     plant(H, "/tmp/bad.o", bytes);
-    const r = wlink("bad.o");
+    const r = ld("bad.o");
     if (r.status !== 1)
         bad.push(`${what}: exit status ${r.status}`);
     if (r.err !== message + "\n")
@@ -101,16 +101,16 @@ function refuse(what, bytes, message) {
 }
 
 refuse("bitcode", new Uint8Array([0x42, 0x43, 0xc0, 0xde, 0x35, 0x14, 0, 0]),
-    "wlink: error: bad.o: LLVM bitcode (from -flto); wlink links wasm objects only");
+    "ld: error: bad.o: LLVM bitcode (from -flto); ld links wasm objects only");
 
 refuse("a linked module", new Uint8Array(readFileSync(m.fixtures.hello.reference)),
-    "wlink: error: bad.o: no linking section, so not a relocatable object (clang -c makes one)");
+    "ld: error: bad.o: no linking section, so not a relocatable object (clang -c makes one)");
 
 {
     const b = hello();
     b[section(b, "linking")] = 1;
     refuse("linking version 1", b,
-        "wlink: error: bad.o: linking +0x0: version 1; wlink reads version 2");
+        "ld: error: bad.o: linking +0x0: version 1; ld reads version 2");
 }
 {
     // The first entry's type byte: after the target index and the count.
@@ -118,10 +118,10 @@ refuse("a linked module", new Uint8Array(readFileSync(m.fixtures.hello.reference
     const at = section(b, "reloc.CODE") + 2;
     b[at] = 99;
     refuse("an unknown relocation", b,
-        "wlink: error: bad.o: reloc.CODE +0x2: unknown relocation type 99");
+        "ld: error: bad.o: reloc.CODE +0x2: unknown relocation type 99");
     b[at] = 11;
     refuse("a PIC relocation", b,
-        "wlink: error: bad.o: reloc.CODE +0x2: R_WASM_MEMORY_ADDR_REL_SLEB: " +
+        "ld: error: bad.o: reloc.CODE +0x2: R_WASM_MEMORY_ADDR_REL_SLEB: " +
         "position-independent code (-fPIC) is not linked here");
 }
 {
@@ -139,13 +139,13 @@ refuse("a linked module", new Uint8Array(readFileSync(m.fixtures.hello.reference
         at += size;
     }
     refuse("a truncated object", b.subarray(0, b.length - 3),
-        `wlink: error: bad.o: section at file offset 0x${head.toString(16)}: ` +
+        `ld: error: bad.o: section at file offset 0x${head.toString(16)}: ` +
         "runs past the end of the file");
 }
 {
     const b = new TextEncoder().encode("!<arch>\nshort.o/        0           0     0     644     99        `\n");
     refuse("a truncated archive", b,
-        "wlink: error: bad.o: member at 0x8: member runs past the end of the archive");
+        "ld: error: bad.o: member at 0x8: member runs past the end of the archive");
 }
 
 if (bad.length)

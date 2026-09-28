@@ -1,5 +1,5 @@
 // The numbers of the wasm binary format and of the tool-conventions object
-// format (Linking.md) that wlink reads and writes.
+// format (Linking.md) that ld reads and writes.
 #pragma once
 
 #include "kernel/str.h"
@@ -153,7 +153,7 @@ enum RelocType : u8 {
 // "R_WASM_..." as llvm-objdump prints it.
 Str reloc_name(u8 type);
 
-// Why a known type is refused; empty when wlink reads it.
+// Why a known type is refused; empty when ld reads it.
 Str reloc_refusal(u8 type);
 
 bool reloc_has_addend(u8 type);

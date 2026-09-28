@@ -18,7 +18,7 @@ bool number(Str s, u32 &v)
     return true;
 }
 
-// Options clang passes, and ones wlink has no use for, that change nothing.
+// Options clang passes, and ones ld has no use for, that change nothing.
 const Str IGNORED[] = {
     "--no-demangle", "--demangle", "--strip-debug", "--strip-all", "-s", "-S",
 };

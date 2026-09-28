@@ -134,7 +134,7 @@ struct Resolver {
         l.diag.error(m.str());
     }
 
-    // wasm-ld warns and makes a stub that traps; wlink refuses.
+    // wasm-ld warns and makes a stub that traps; ld refuses.
     void sig_mismatch(const Sym &g, const FuncType *sig, u32 f)
     {
         Out m;

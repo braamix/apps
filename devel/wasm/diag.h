@@ -27,7 +27,7 @@ struct Diag {
     bool failed() const { return errors != 0; }
 
     // --verbose: a line among the errors, where wasm-ld logs it.
-    void log(Str msg) { text.put("wlink: ").put(msg).put('\n'); }
+    void log(Str msg) { text.put("ld: ").put(msg).put('\n'); }
 
 private:
     bool sep_ = false;
@@ -36,7 +36,7 @@ private:
     {
         if (sep_)
             text.put('\n');
-        text.put("wlink: error: ").put(msg).put('\n');
+        text.put("ld: error: ").put(msg).put('\n');
         sep_ = msg.contains("\n");
     }
 };

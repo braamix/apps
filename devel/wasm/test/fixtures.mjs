@@ -1,10 +1,10 @@
 // The fixtures and the oracle, independent of the linker. Every input is
 // what it claims to be, and wasm-ld's link of every fixture passes the checks
-// wlink's links will be held to — which proves the checks, not wasm-ld.
+// ld's links will be held to — which proves the checks, not wasm-ld.
 
 import { readFileSync } from "node:fs";
 import { boot, check_archive, check_object, check_run, check_surface, die, fixtures, ok }
-    from "./wlinklib.mjs";
+    from "./wasmlib.mjs";
 
 const all = fixtures();
 const H = await boot();

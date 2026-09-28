@@ -1,7 +1,7 @@
-// Writing. Every fixture is linked by wlink on Braam, and the module must be
+// Writing. Every fixture is linked by ld on Braam, and the module must be
 // valid, have the surface a Braam program has, and run as wasm-ld's build
 // runs. Section by section it must be wasm-ld's own at -O0 without
-// --import-memory, which writes active segments as wlink does: TYPE,
+// --import-memory, which writes active segments as ld does: TYPE,
 // FUNCTION, TABLE, GLOBAL, ELEM, CODE, DATA, name, producers and
 // target_features byte for byte, and the same imports and exports but the
 // memory. The data fixture runs twice, so .bss is seen to start zeroed after
@@ -10,11 +10,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { boot, check_run, check_surface, die, execute, FLAGS, linkers, manifest, ok, sections }
-    from "./wlinklib.mjs";
+    from "./wasmlib.mjs";
 
 const m = manifest();
 const H = await boot();
-const { tmp, inputs, wasm_ld, wlink } = linkers(H, m);
+const { tmp, inputs, wasm_ld, ld } = linkers(H, m);
 
 const bad = [];
 const EXACT = ["TYPE", "FUNCTION", "TABLE", "GLOBAL", "ELEM", "CODE", "DATA", "name", "producers",
@@ -40,9 +40,9 @@ function surface(bytes) {
 
 function link(name, fx) {
     H.store.files.delete("/tmp/out.wasm");
-    const got = wlink([...FLAGS, ...inputs(fx), "-o", "out.wasm"]);
+    const got = ld([...FLAGS, ...inputs(fx), "-o", "out.wasm"]);
     if (got.status !== 0 || got.err) {
-        bad.push(`${name}: wlink fails: ${got.err}`);
+        bad.push(`${name}: ld fails: ${got.err}`);
         return null;
     }
     return H.store.files.get("/tmp/out.wasm");
@@ -73,13 +73,13 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
             while (a && b && at < a.length && a[at] === b[at])
                 at++;
             bad.push(`${name}: ${s} differs at +0x${at.toString(16)} ` +
-                     `(wlink ${a?.length ?? "none"} bytes, wasm-ld ${b?.length ?? "none"})`);
+                     `(ld ${a?.length ?? "none"} bytes, wasm-ld ${b?.length ?? "none"})`);
         } else {
             compared += a.length;
         }
     }
     if (surface(bytes) !== surface(ref))
-        bad.push(`${name}: surface\n  wlink:   ${surface(bytes)}\n  wasm-ld: ${surface(ref)}`);
+        bad.push(`${name}: surface\n  ld:      ${surface(bytes)}\n  wasm-ld: ${surface(ref)}`);
     const extra = [...ours.keys()].filter((s) => !EXACT.includes(s) &&
         !["IMPORT", "EXPORT", "braam"].includes(s));
     if (extra.length)

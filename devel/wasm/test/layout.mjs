@@ -1,22 +1,22 @@
-// Layout. For every fixture, wlink's --dump-layout must equal what wasm-ld
+// Layout. For every fixture, ld's --dump-layout must equal what wasm-ld
 // built: its types, imports, globals, table and elements, read from its
-// output, and its memory map, read from -Map at -O0 (wlink merges no strings
-// yet). wasm-ld's __wasm_init_memory is left out: wlink writes active
+// output, and its memory map, read from -Map at -O0 (ld merges no strings
+// yet). wasm-ld's __wasm_init_memory is left out: ld writes active
 // segments and has none. The --verbose "mem:" lines must be wasm-ld's, and
 // memory that is too small must be refused in wasm-ld's words.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { boot, die, FLAGS, index_spaces, linkers, manifest, map_layout, ok } from "./wlinklib.mjs";
+import { boot, die, FLAGS, index_spaces, linkers, manifest, map_layout, ok } from "./wasmlib.mjs";
 
 const m = manifest();
 const H = await boot();
-const { tmp, inputs, wasm_ld, wlink } = linkers(H, m);
+const { tmp, inputs, wasm_ld, ld } = linkers(H, m);
 
 const bad = [];
 const same = (what, a, b) => {
     if (a !== b)
-        bad.push(`${what}:\n  wlink:   ${JSON.stringify(a)}\n  wasm-ld: ${JSON.stringify(b)}`);
+        bad.push(`${what}:\n  ld:      ${JSON.stringify(a)}\n  wasm-ld: ${JSON.stringify(b)}`);
 };
 const INIT_MEMORY = "<internal>:(__wasm_init_memory)";
 const mem = (err, who) => err.split("\n").filter((l) => l.startsWith(`${who}: mem: `))
@@ -30,9 +30,9 @@ function compare(what, fx, extra = []) {
     const bytes = new Uint8Array(readFileSync(join(tmp, "out.wasm")));
     const expected = [...index_spaces(bytes),
         ...map_layout(readFileSync(join(tmp, "map"), "utf8"), [INIT_MEMORY])];
-    const got = wlink([...args, "--verbose", "--dump-layout"]);
+    const got = ld([...args, "--verbose", "--dump-layout"]);
     same(`${what}: status`, got.status, 0);
-    same(`${what}: mem`, mem(got.err, "wlink"), mem(want.err, "wasm-ld"));
+    same(`${what}: mem`, mem(got.err, "ld"), mem(want.err, "wasm-ld"));
     const lines = got.out.split("\n").filter(Boolean);
     for (let i = 0; i < Math.max(lines.length, expected.length); i++)
         if (lines[i] !== expected[i]) {
@@ -54,13 +54,13 @@ const layout_a = m.fixtures.layout.objects.filter((o) => o.endsWith("layout_a.c.
 compare("heap alignment", { objects: layout_a, libs: [] },
         ["--allow-undefined", "--export=fx_main", "--export=__wasm_call_ctors"]);
 
-const as_wlink = (s) => s.replaceAll("wasm-ld: ", "wlink: ");
+const as_ld = (s) => s.replaceAll("wasm-ld: ", "ld: ");
 function refuse(what, fx, extra) {
     const args = [...FLAGS.filter((f) => !f.startsWith("--initial-memory")), ...extra, ...inputs(fx)];
     const want = wasm_ld(args);
-    const got = wlink(args);
+    const got = ld(args);
     same(`${what}: status`, got.status, 1);
-    same(`${what}: stderr`, got.err, as_wlink(want.err));
+    same(`${what}: stderr`, got.err, as_ld(want.err));
 }
 refuse("initial memory", m.fixtures.data, ["--initial-memory=131072"]);
 refuse("initial alignment", m.fixtures.data, ["--initial-memory=1000000"]);
