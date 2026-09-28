@@ -1,0 +1,6 @@
+status 0
+--- stdout
+a_member_name_longer_than_sixteen.o
+short.o
+notes.txt
+--- stderr

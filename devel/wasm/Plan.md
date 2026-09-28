@@ -78,32 +78,6 @@ What Braam cannot do, and what the port does instead:
   warns when setting a time fails, and extracts anyway.
 - **No modes on extraction.** A file is created with the default mode.
 
-## Step 6. Tests: `devel/wasm/ar/test/ar.mjs`
-
-On `ld/test/wasmlib.mjs`, as `strip.mjs` is. `llvm-ar` is the
-manifest's `ar`.
-
-- **Byte for byte against `llvm-ar --format=gnu`:** `rc`, `qc`, `r` of a
-  member already there, `d`, `m` with `-a` and `-b`, `S` (no symbol
-  table), and member names past 15 characters, so `//` is written. Inputs
-  are the fixtures' objects.
-- **`-s` against `llvm-ar s`,** on an archive written without a symbol
-  table.
-- **Every SDK archive rebuilt:** `ar x` it, `ar rc` the members back in
-  their order, and the result must be the SDK's own archive byte for byte.
-  This is the strongest check of the symbol table: 12 archives, 1,492
-  symbols.
-- **What the bytes mean:** `ld` and `wasm-ld` link archives `ar` made, and
-  the outputs are equal, as in `write.mjs`.
-- **Text:** `-t`, `-t -v` and `-p` against golden files, in upstream's
-  format, which `llvm-ar` does not share.
-- **Round trip:** `-x` then `-q` gives the archive back.
-- **Errors,** each with upstream's message and status 1: a missing
-  archive; a file that is not an archive; `-a` without a position; `-a`
-  with `-b`.
-
-Add it to `TESTS` in the top [Makefile](../../Makefile).
-
 ## Step 7. Document ar
 
 - In [README.md](README.md): the package installs three commands. A
@@ -119,7 +93,7 @@ Add it to `TESTS` in the top [Makefile](../../Makefile).
 
 | Steps | Change | Risk |
 | --- | --- | --- |
-| 6–7 | `ar` | a port, held to `llvm-ar` and the SDK's archives |
+| 7 | `ar` | a port, held to `llvm-ar` and the SDK's archives |
 
 `ld`'s own tests keep passing with no change to a golden file.
 

@@ -1,0 +1,7 @@
+status 0
+--- stdout
+
+<notes.txt>
+
+a member that is not an object
+--- stderr

@@ -363,13 +363,23 @@ int ar_write_archive(struct bsdar *bsdar, int mode)
             if (bsdar->options & AR_V)
                 bsdar_printf(bsdar, 1, "%c - %s\n", mode, *av);
 
+            /*
+             * Braam: "Replacing existing members will not change
+             * the order of members within the archive", as ar(1)
+             * says and llvm-ar does; upstream moved it to the tail.
+             */
+            if (mode == 'r' && pos == NULL) {
+                TAILQ_INSERT_BEFORE(obj, nobj, objs);
+                nobj = NULL;
+            }
+
             TAILQ_REMOVE(&bsdar->v_obj, obj, objs);
             if (mode == 'd' || mode == 'r')
                 free_obj(bsdar, obj);
 
             if (mode == 'm')
                 insert_obj(bsdar, obj, pos);
-            if (mode == 'r')
+            if (mode == 'r' && nobj != NULL)
                 insert_obj(bsdar, nobj, pos);
 
         skip_obj:

@@ -1,0 +1,6 @@
+status 0
+--- stdout
+rw-r--r--       0/0         66287 Jan  1 00:00 1970 a_member_name_longer_than_sixteen.o
+rw-r--r--       0/0           792 Jan  1 00:00 1970 short.o
+rw-r--r--       0/0            31 Jan  1 00:00 1970 notes.txt
+--- stderr

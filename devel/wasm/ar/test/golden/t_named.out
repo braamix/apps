@@ -1,0 +1,6 @@
+status 1
+--- stdout
+a_member_name_longer_than_sixteen.o
+notes.txt
+--- stderr
+ar: warning: nosuch.o: not found in archive
