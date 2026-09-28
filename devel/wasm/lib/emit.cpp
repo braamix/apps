@@ -17,6 +17,12 @@ void Emit::uleb(u32 x)
     } while (x);
 }
 
+void Emit::uleb5(u32 x)
+{
+    for (u32 k = 0; k < 5; k++)
+        byte(u8(((x >> (7 * k)) & 0x7f) | (k < 4 ? 0x80 : 0)));
+}
+
 void Emit::sleb(i32 x)
 {
     for (;;) {

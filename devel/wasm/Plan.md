@@ -104,12 +104,15 @@ These rules were checked against that version:
 - **An object keeps its section numbers.** `linking`'s section symbols and
   every `reloc.*`'s target count sections by index. So in a module with a
   `linking` section, a removed section is replaced by an empty custom
-  section named `.objcopy.removed`, not dropped. `--strip-debug` also
-  removes the `reloc..debug_*` sections, so no reloc points at a
-  placeholder. wasm-ld links such an object.
+  section named `.objcopy.removed`, not dropped. Its size field is padded
+  to five bytes whatever the original's was. `--strip-debug` also
+  removes the `reloc..debug*` sections, by name and not by target: with
+  `--keep-section=.debug_info`, `reloc..debug_info` still goes. wasm-ld
+  links such an object.
 - **A linked program is compacted:** removed sections simply go.
 - `-R` with no `-g` still strips everything, as `llvm-strip` does: its
   default mode stays on.
+- `--keep-section` wins over everything, `-R` included.
 
 Where `strip` differs from `llvm-strip`, both times because the result
 would not run:
@@ -124,39 +127,6 @@ would not run:
 
 Not in the first version: wildcards in `-R`, `--only-keep-debug`,
 `--strip-unneeded`, `-p`, and archives (step 14).
-
-### Step 9. The core: `strip.h/.cpp`
-
-A pure function, like `ld`'s core:
-
-    struct StripConfig {
-        bool debug_only = false;       // -g
-        Vec<Str> remove;               // -R
-        Vec<Str> keep;                 // --keep-section, plus "braam"
-    };
-    // `file` stripped into `out`. False on a malformed module, with the
-    // message in `err`.
-    bool strip_module(Str name, Bytes file, const StripConfig &c,
-                      Vec<u8> &out, Out &err);
-
-1. `read_module` frames the file. Bitcode and non-wasm input are refused
-   here, with the file's name.
-2. `is_object` decides whether removed sections become placeholders.
-3. Walk the sections in order. Standard sections and those in `keep` are
-   always kept. Any other custom section is removed if one of these holds:
-   the mode is `--strip-all`; the mode is `-g` and the name starts with
-   `.debug`; it is a `reloc.` section whose target is removed; its name is
-   in `remove`. A kept section is copied byte for byte, id and size field
-   included. The size field is not re-encoded, because an object's size
-   fields may be padded LEBs and they must stay as they are.
-4. A removed section in an object is written as `emit_custom(e,
-   ".objcopy.removed", {})`.
-5. If nothing was removed, `out` equals `file`. The front end then skips
-   the write.
-
-Finding a reloc section's target needs only the first uleb of its body.
-`strip` never parses `linking`, symbols or code, so it is linear in the
-file and does not depend on `read_object`'s policy.
 
 ### Step 10. The front end: `braam.cpp` and `driver`
 
