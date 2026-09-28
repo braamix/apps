@@ -8,7 +8,7 @@
 #include "kernel/vec.h"
 #include "out.h"
 
-struct NmSymbol {
+struct ModuleSymbol {
     Str name; // a view into the file
     u64 addr = 0;
     u64 size = 0;
@@ -22,4 +22,4 @@ struct NmSymbol {
 
 // The symbols of the module in `file`, in its order. False on a malformed
 // module, with the message, naming `what`, in `err`.
-bool read_symbols(Str what, Bytes file, Vec<NmSymbol> &syms, Out &err);
+bool read_symbols(Str what, Bytes file, Vec<ModuleSymbol> &syms, Out &err);

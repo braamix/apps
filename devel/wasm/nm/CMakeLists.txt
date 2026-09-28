@@ -11,5 +11,5 @@ if(NOT TARGET wasmobj)
     add_subdirectory(../lib lib)
 endif()
 
-braam_add_program(NAME nm SOURCES symbols.cpp nm.cpp driver.cpp braam.cpp
+braam_add_program(NAME nm SOURCES nm.cpp driver.cpp braam.cpp
                   LIBS wasmobj)

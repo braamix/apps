@@ -411,6 +411,7 @@ tool in the package. Three rules keep it shared:
 | `emit.h` | encoders into a byte vector, with a sticky out of memory |
 | `module.h` | the header and sections of any module |
 | `object.h` | a relocatable object, parsed |
+| `symbols.h` | a module's symbols, as llvm lists them |
 | `archive.h` | archives, read and written |
 | `stamp.h` | the `braam` section |
 | `diag.h` | errors, as lld words them, after the tool's name |
@@ -455,8 +456,7 @@ memory. Only its `braam.cpp` reads and writes files.
 
 | File | What it does |
 | --- | --- |
-| `symbols.cpp` | reads a module's symbols, as llvm reads them |
-| `nm.cpp` | filters, sorts and prints them, in each format |
+| `nm.cpp` | filters, sorts and prints a module's symbols, in each format |
 | `driver.cpp` | parses the command line |
 
 `-C` uses LLVM's demangler in [lib/demangle/](lib/demangle/).
@@ -472,9 +472,8 @@ memory. Only its `braam.cpp` reads and writes files.
 
 The opcode table was made from `llvm-objdump`'s own output for every
 opcode, so it keeps llvm's spelling: `i32.add ` with its space, and
-`f32.select` for a plain `select`. Symbols are read by `nm`'s
-`symbols.cpp`. A large program is written out a part at a time, so its
-text is never all in memory.
+`f32.select` for a plain `select`. A large program is written out a part
+at a time, so its text is never all in memory.
 
 ### ar
 

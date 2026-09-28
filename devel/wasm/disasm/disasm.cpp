@@ -34,7 +34,7 @@ int compare(Str a, Str b)
 }
 
 // llvm-objdump's order of the symbols in a section: by address, then name.
-bool before(const NmSymbol *a, const NmSymbol *b)
+bool before(const ModuleSymbol *a, const ModuleSymbol *b)
 {
     if (a->addr != b->addr)
         return a->addr < b->addr;
@@ -214,7 +214,7 @@ bool unnamed(Module &m, Str what, Out &err)
     Cursor c(m.code);
     u32 n = c.count();
     for (u32 i = 0; i < n && c.ok(); i++) {
-        NmSymbol s{};
+        ModuleSymbol s{};
         s.kind = SYM_FUNCTION;
         s.addr = m.code_addr + c.at();
         c.take(c.uleb());
@@ -233,8 +233,8 @@ bool unnamed(Module &m, Str what, Out &err)
 // the last in order is printed.
 bool code_chunks(Module &m, Str what, Out &err)
 {
-    Vec<const NmSymbol *> fs;
-    for (const NmSymbol &s : m.syms)
+    Vec<const ModuleSymbol *> fs;
+    for (const ModuleSymbol &s : m.syms)
         if (s.kind == SYM_FUNCTION && !s.undefined && !fs.push(&s))
             return oom(err, what);
     if (!sort(fs, before))
@@ -274,10 +274,10 @@ bool code_chunks(Module &m, Str what, Out &err)
 // its address falls in, since passive segments all start at 0.
 bool data_chunks(Module &m, Str what, Out &err)
 {
-    Vec<Vec<const NmSymbol *>> in;
+    Vec<Vec<const ModuleSymbol *>> in;
     if (!in.resize(m.segs.size()))
         return oom(err, what);
-    for (const NmSymbol &s : m.syms) {
+    for (const ModuleSymbol &s : m.syms) {
         if (s.kind != SYM_DATA || s.undefined)
             continue;
         u32 k = s.segment;
@@ -290,7 +290,7 @@ bool data_chunks(Module &m, Str what, Out &err)
     for (u32 k = 0; k < m.segs.size(); k++) {
         const DataSeg &g = m.segs[k];
         u64 lo = g.base, hi = g.base + g.content.size();
-        Vec<const NmSymbol *> &ds = in[k];
+        Vec<const ModuleSymbol *> &ds = in[k];
         if (lo == hi)
             continue;
         if (!sort(ds, before))

@@ -34,7 +34,7 @@ int compare(u64 a, u64 b)
 
 // llvm-nm's order: by address with undefined symbols first (-n), by size,
 // or by name; the other keys break ties.
-int compare(const NmConfig &c, const NmSymbol &a, const NmSymbol &b)
+int compare(const NmConfig &c, const ModuleSymbol &a, const ModuleSymbol &b)
 {
     int r;
     if (c.numeric_sort) {
@@ -56,14 +56,14 @@ int compare(const NmConfig &c, const NmSymbol &a, const NmSymbol &b)
 }
 
 // A bottom-up merge sort: stable, and no recursion.
-bool sort(const NmConfig &c, Vec<NmSymbol> &v)
+bool sort(const NmConfig &c, Vec<ModuleSymbol> &v)
 {
     if (c.no_sort || v.size() < 2)
         return true;
-    Vec<NmSymbol> t;
+    Vec<ModuleSymbol> t;
     if (!t.resize(v.size()))
         return false;
-    Vec<NmSymbol> *a = &v, *b = &t;
+    Vec<ModuleSymbol> *a = &v, *b = &t;
     for (usize w = 1; w < v.size(); w *= 2) {
         for (usize lo = 0; lo < v.size(); lo += 2 * w) {
             usize mid = lo + w < v.size() ? lo + w : v.size();
@@ -79,9 +79,9 @@ bool sort(const NmConfig &c, Vec<NmSymbol> &v)
             while (j < hi)
                 (*b)[o++] = (*a)[j++];
         }
-        Vec<NmSymbol> *x = a;
-        a                = b;
-        b                = x;
+        Vec<ModuleSymbol> *x = a;
+        a                    = b;
+        b                    = x;
     }
     if (a != &v)
         for (usize i = 0; i < v.size(); i++)
@@ -89,13 +89,13 @@ bool sort(const NmConfig &c, Vec<NmSymbol> &v)
     return true;
 }
 
-bool should_print(const NmConfig &c, const NmSymbol &s)
+bool should_print(const NmConfig &c, const ModuleSymbol &s)
 {
     return !((!s.undefined && c.undefined_only) || (s.undefined && c.defined_only) ||
              (!s.global && c.extern_only) || (s.weak && c.no_weak));
 }
 
-bool is_defined(const NmSymbol &s)
+bool is_defined(const ModuleSymbol &s)
 {
     return s.type != 'U' && s.type != 'w' && s.type != 'v';
 }
@@ -127,7 +127,7 @@ void file_name(Out &o, const NmConfig &c, Str archive, Str object)
     o.put(object).put(": ");
 }
 
-void print(Nm &n, const Vec<NmSymbol> &syms, bool print_name, Str archive, Str object)
+void print(Nm &n, const Vec<ModuleSymbol> &syms, bool print_name, Str archive, Str object)
 {
     const NmConfig &c = n.c;
     Out &o            = n.out;
@@ -143,7 +143,7 @@ void print(Nm &n, const Vec<NmSymbol> &syms, bool print_name, Str archive, Str o
         }
     }
     Out addr, size;
-    for (const NmSymbol &s : syms) {
+    for (const ModuleSymbol &s : syms) {
         if (!should_print(c, s))
             continue;
         Str name = s.name;
@@ -193,7 +193,7 @@ void module(Nm &n, Str archive, Str object, Str what, Bytes file, Diag &diag)
         diag.error(err.str());
         return;
     }
-    Vec<NmSymbol> syms;
+    Vec<ModuleSymbol> syms;
     if (!read_symbols(what, file, syms, err)) {
         diag.error(err.str());
         return;
@@ -207,7 +207,7 @@ void module(Nm &n, Str archive, Str object, Str what, Bytes file, Diag &diag)
         return;
     }
     if (n.c.export_symbols) {
-        for (const NmSymbol &s : syms)
+        for (const ModuleSymbol &s : syms)
             if (!n.exports.push(s)) {
                 diag.error("out of memory");
                 return;
@@ -274,8 +274,8 @@ void nm_exports(Nm &n)
 {
     if (!n.c.export_symbols)
         return;
-    Vec<NmSymbol> kept;
-    for (const NmSymbol &s : n.exports)
+    Vec<ModuleSymbol> kept;
+    for (const ModuleSymbol &s : n.exports)
         if (should_print(n.c, s) && !kept.push(s))
             n.out.oom = true;
     if (!sort(n.c, kept))

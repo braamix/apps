@@ -21,9 +21,9 @@ char type_of(u8 kind, bool undefined, bool weak, bool global)
     return global ? char(t - 'a' + 'A') : t;
 }
 
-NmSymbol make(Str name, u8 kind, u32 flags, u64 addr, u64 size)
+ModuleSymbol make(Str name, u8 kind, u32 flags, u64 addr, u64 size)
 {
-    NmSymbol s{};
+    ModuleSymbol s{};
     s.name      = name;
     s.kind      = kind;
     s.undefined = flags & SYM_UNDEFINED;
@@ -39,7 +39,7 @@ NmSymbol make(Str name, u8 kind, u32 flags, u64 addr, u64 size)
 
 // A relocatable object, through read_object: every address counts from its
 // section's start, as the sections of an object are at 0.
-bool object_symbols(Str what, Bytes file, Vec<NmSymbol> &syms, Out &err)
+bool object_symbols(Str what, Bytes file, Vec<ModuleSymbol> &syms, Out &err)
 {
     Object o;
     if (!o.name.assign(what)) {
@@ -76,7 +76,7 @@ bool object_symbols(Str what, Bytes file, Vec<NmSymbol> &syms, Out &err)
                 addr = s.index;
             }
         }
-        NmSymbol n = make(s.name, s.kind, s.flags, addr, size);
+        ModuleSymbol n = make(s.name, s.kind, s.flags, addr, size);
         if (s.kind == SYM_DATA && !s.undefined() && !(s.flags & SYM_ABSOLUTE))
             n.segment = s.segment;
         if (!syms.push(n)) {
@@ -385,10 +385,10 @@ struct Program {
     // Symbols of the exports, as llvm makes them with no name section: a
     // global's is a data symbol at its value, counted from the first
     // segment, and a memory has none.
-    bool from_exports(Vec<NmSymbol> &syms)
+    bool from_exports(Vec<ModuleSymbol> &syms)
     {
         for (const Exp &e : exports) {
-            NmSymbol s{};
+            ModuleSymbol s{};
             switch (e.kind) {
             case EXT_FUNCTION:
                 s = make(e.name, SYM_FUNCTION, 0, func_addr(e.index), func_size(e.index));
@@ -414,7 +414,7 @@ struct Program {
     }
 
     // Symbols of the name section's function, global and data segment names.
-    bool from_names(Vec<NmSymbol> &syms)
+    bool from_names(Vec<ModuleSymbol> &syms)
     {
         sec = names;
         Cursor c(names->body);
@@ -432,7 +432,7 @@ struct Program {
                 Str name  = sub.name();
                 if (!sub.ok())
                     break;
-                NmSymbol s{};
+                ModuleSymbol s{};
                 if (type == 1) {
                     if (index >= funcs_imported + funcs.size() || name.empty()) {
                         sub.fail("invalid function name entry", at);
@@ -478,7 +478,7 @@ struct Program {
 
 } // namespace
 
-bool read_symbols(Str what, Bytes file, Vec<NmSymbol> &syms, Out &err)
+bool read_symbols(Str what, Bytes file, Vec<ModuleSymbol> &syms, Out &err)
 {
     Vec<Section> sections;
     if (!read_module(what, file, sections, err))

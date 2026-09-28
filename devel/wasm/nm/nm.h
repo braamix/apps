@@ -44,7 +44,7 @@ struct Nm {
     NmConfig c;
     bool multiple = false; // more than one file named
     Out out;               // for stdout
-    Vec<NmSymbol> exports;
+    Vec<ModuleSymbol> exports;
     String scratch; // a demangled name
 };
 

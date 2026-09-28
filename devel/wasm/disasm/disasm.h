@@ -3,7 +3,6 @@
 // awaits.
 #pragma once
 
-#include "../nm/symbols.h"
 #include "code.h"
 #include "diag.h"
 #include "kernel/span.h"
@@ -11,6 +10,7 @@
 #include "kernel/string.h"
 #include "kernel/vec.h"
 #include "out.h"
+#include "symbols.h"
 
 struct DisasmConfig {
     bool data     = false; // -D adds it
@@ -55,7 +55,7 @@ struct Module {
     Vec<DataSeg> segs;
     Vec<Chunk> data_chunks;
     Vec<RelocLine> data_relocs;
-    Vec<NmSymbol> syms;
+    Vec<ModuleSymbol> syms;
     Flow flow;
     usize next     = 0; // the chunk to print
     usize reloc    = 0;
