@@ -88,7 +88,7 @@ braam::flags)`, then `braam_add_program(... LIBS wasmobj)` in each tool.
 | Option | Meaning |
 | --- | --- |
 | `-s`, `--strip-all` | drop every custom section but `braam` (the default) |
-| `-g`, `-S`, `--strip-debug` | drop `.debug_*` sections only |
+| `-g`, `-S`, `-d`, `--strip-debug` | drop `.debug_*` sections only |
 | `-R <name>`, `--remove-section=<name>` | drop that section too; repeatable |
 | `--keep-section=<name>` | keep that custom section; repeatable |
 | `-o <file>` | write here instead of in place; one input only |
@@ -100,7 +100,8 @@ It follows `llvm-strip` 23.1.2, the reference the tests hold it to.
 These rules were checked against that version:
 
 - **Standard sections are never removed.** `--strip-all` removes every
-  custom section. `--strip-debug` removes custom sections named `.debug*`.
+  custom section but `metadata.code.*`, as its `--help` says.
+  `--strip-debug` removes custom sections named `.debug*`.
 - **An object keeps its section numbers.** `linking`'s section symbols and
   every `reloc.*`'s target count sections by index. So in a module with a
   `linking` section, a removed section is replaced by an empty custom
@@ -127,27 +128,6 @@ would not run:
 
 Not in the first version: wildcards in `-R`, `--only-keep-debug`,
 `--strip-unneeded`, `-p`, and archives (step 14).
-
-### Step 10. The front end: `braam.cpp` and `driver`
-
-Model it on `ld/braam.cpp`: one `Front` struct off the coroutine frame,
-`slurp`, `say` and `finish` as there.
-
-- **Options:** a small hand parser like `ld/driver.cpp`, since the
-  spellings are llvm-strip's (`-R name`, `-Rname`, `--remove-section=name`).
-- **In place, safely.** Write `<file>.strip` with `SYS_O_CREATE |
-  SYS_O_EXCL`, then `rename_path` it over the original. Remove it on any
-  failure. A `^C` between the two leaves the original whole. If the
-  temporary name is taken, fail with that name rather than overwrite it.
-- **Several files:** each is independent. An error on one is reported and
-  the rest are still stripped; the status is 1 if any failed, as with
-  `llvm-strip`.
-- `-o` with more than one input is an error before anything is read.
-
-If `ld`'s `slurp`, `say` and `spill` would then exist twice, move them to
-`lib/files.h/.cpp` as the library's only awaiting part, kept apart so the
-pure core never includes it. Decide at this step, when there are two
-copies to compare, not before.
 
 ### Step 11. Build and package
 

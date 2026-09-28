@@ -18,13 +18,15 @@ bool listed(const Vec<Str> &names, Str name)
 
 // llvm-strip's rules: a standard section is never removed; --keep-section
 // wins over everything; -R removes; --strip-all takes every other custom
-// section, and -g only debug info and its relocations.
+// section but code metadata, and -g only debug info and its relocations.
 bool removed(const StripConfig &c, const Section &s)
 {
     if (s.id != SEC_CUSTOM || listed(c.keep, s.name))
         return false;
-    if (listed(c.remove, s.name) || !c.debug_only)
+    if (listed(c.remove, s.name))
         return true;
+    if (!c.debug_only)
+        return !s.name.starts_with("metadata.code.");
     return s.name.starts_with(".debug") || s.name.starts_with("reloc..debug");
 }
 
