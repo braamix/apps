@@ -7,7 +7,7 @@ relocatable object, [Wasm_Object_Format.md](../Wasm_Object_Format.md), that
 module instead. The syntax tree between the two halves is
 [wat.asdl](wat.asdl).
 
-The work is in eleven steps. Each ends with a test in `make test`, and none
+The work is in steps, A1 done and removed. Each ends with a test in `make test`, and none
 starts before the one it builds on passes.
 
 ## Decisions to take first
@@ -91,6 +91,7 @@ memory and never awaits, and one `braam.cpp` that reads and writes files.
 
 | File | What it does |
 | --- | --- |
+| `as.cpp` | the core's entry: a source in, an object or module out |
 | `lexer.cpp` | tokens with their locations (§3 of the language) |
 | `number.cpp` | integer and float literals to bits, exactly (§4) |
 | `ast.h`, `ast.cpp` | the tree of [wat.asdl](wat.asdl), its arena, and a printer |
@@ -123,16 +124,6 @@ Limits to keep in mind throughout:
   `lib/diag.h`.
 
 ## Steps
-
-### A1. Scaffolding
-
-`as/CMakeLists.txt`, `bin_as`, the package entry, `braam.cpp` and
-`driver.cpp`. `as` reads a file, and writes the 8-byte empty module for any
-input. A host runner in the manner of [ld/host.mjs](../ld/host.mjs) boots
-the harness once and runs `as` on many files.
-
-*Done when* `test/empty.mjs` assembles `(module)` into
-`00 61 73 6d 01 00 00 00` and V8 loads it.
 
 ### A2. The lexer
 

@@ -555,3 +555,7 @@ And it runs [as/test/asdl.mjs](as/test/asdl.mjs), which checks
 type must be defined, no constructor may be defined twice, and every type
 must be reachable from `Module`. Broken copies of it must each be
 refused. It needs `python3` with the `pyasdl` package.
+[as/test/empty.mjs](as/test/empty.mjs) runs the assembler as it stands,
+through [as/host.mjs](as/host.mjs), which boots the harness once for many
+runs: every source is the empty module for now, which V8 must load, and
+the command line's outputs and errors are checked.
