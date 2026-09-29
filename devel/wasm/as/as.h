@@ -5,11 +5,17 @@
 #include "diag.h"
 #include "kernel/str.h"
 #include "kernel/vec.h"
+#include "out.h"
 
 struct AsConfig {
     bool module = false; // a plain module, not a relocatable object
+    bool tokens = false; // print the tokens, write nothing
 };
 
 // One source into `out`. False with a message in `diag` when it cannot be
 // assembled, and `out` is then not to be written.
 bool assemble(Str name, Str source, const AsConfig &c, Vec<u8> &out, Diag &diag);
+
+// Every token of a source onto `out`, a line each: where, what, and its
+// text; a string's and an id's decoded. False at the first error.
+bool dump_tokens(Str name, Str source, Out &out, Diag &diag);

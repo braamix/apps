@@ -559,3 +559,8 @@ refused. It needs `python3` with the `pyasdl` package.
 through [as/host.mjs](as/host.mjs), which boots the harness once for many
 runs: every source is the empty module for now, which V8 must load, and
 the command line's outputs and errors are checked.
+[as/test/lexer.mjs](as/test/lexer.mjs) holds `as --tokens` of a crafted
+file to a golden one, and checks crafted errors with their places. Then it
+lexes every module of the WebAssembly test suite, vendored in
+[as/test/suite/](as/test/suite/): what is not malformed must lex, and a
+malformed module that is refused must be refused with the expected message.

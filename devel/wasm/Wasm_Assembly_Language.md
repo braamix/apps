@@ -72,7 +72,7 @@ a string; everything else is ASCII. A line ends with LF, CR, or CR LF.
 ```
 token    ::= keyword | uN | sN | fN | string | id | '(' | ')' | reserved
 keyword  ::= ('a' … 'z') idchar*
-reserved ::= (idchar | string | ',' | ';' | '[' | ']' | '{' | '}')+
+reserved ::= (idchar | string)+ | ',' | ';' | '[' | ']' | '{' | '}'
 idchar   ::= '0' … '9' | 'A' … 'Z' | 'a' … 'z'
            | '!' | '#' | '$' | '%' | '&' | ''' | '*' | '+' | '-' | '.'
            | '/' | ':' | '<' | '=' | '>' | '?' | '@' | '\' | '^' | '_'
@@ -83,7 +83,7 @@ The text is cut into tokens from left to right, each the **longest**
 run of characters that forms one. A run that is no other token is
 reserved, and a reserved token is an error. So tokens other than
 parentheses must be separated by white space: `i32.const0`, `0$x`,
-`br 0drop`, `"a""b"` and `(data"a")` are each one reserved token and an
+`br 0drop`, `"a""b"` and `data"a"` are each one reserved token and an
 error.
 
 The keywords are exactly the words the grammar spells, such as `module`,

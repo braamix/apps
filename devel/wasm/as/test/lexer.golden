@@ -1,0 +1,107 @@
+3:1 (
+3:2 keyword module
+3:9 id $"m"
+4:3 (
+4:4 keyword func
+4:9 id $"f"
+4:12 (
+4:13 keyword param
+4:19 id $"x"
+4:22 keyword i32
+4:25 )
+4:27 (
+4:28 keyword result
+4:35 keyword i32
+4:38 )
+5:5 keyword local.get
+5:15 id $"x"
+5:18 keyword i32.const
+5:28 nat 1
+5:30 keyword i32.add
+5:37 )
+6:3 (
+6:4 keyword memory
+6:11 nat 1
+6:12 )
+6:14 (
+6:15 keyword i32.load8_u
+6:27 keyword offset=0x10
+6:39 keyword align=1
+6:46 )
+6:48 (
+6:49 keyword x
+6:50 )
+6:51 (
+6:52 keyword y
+6:53 )
+6:54 (
+6:55 )
+7:1 )
+9:1 nat 0
+9:3 nat 7
+9:5 nat 1_000
+9:11 nat 0x0
+9:15 nat 0xff_FF
+9:23 nat 0xDEAD_beef
+10:1 int +0
+10:4 int -7
+10:7 int +1_0
+10:12 int -0x1
+10:17 int +0xa_b
+11:1 float 1.
+11:4 float 1.5
+11:8 float 1.5e10
+11:15 float 1e-3
+11:20 float 1E+3
+11:25 float 1.e3
+11:30 float 1_0.2_5e1_0
+11:42 float +1.5
+11:47 float -0.
+12:1 float 0x1.
+12:6 float 0x1.8
+12:12 float 0x1p-3
+12:19 float 0x1.8P+1
+12:28 float 0xA.bp4
+12:36 float -0x1_0.0_1p1_0
+13:1 float inf
+13:5 float +inf
+13:10 float -inf
+13:15 float nan
+13:19 float -nan
+13:24 float nan:0x1
+13:32 float +nan:0x7f_ffff
+15:1 keyword a
+15:3 keyword nan:canonical
+15:17 keyword i32.const0
+15:28 keyword inf_
+15:33 keyword nan:0x
+15:40 keyword offset=1_0
+15:51 keyword z!#%&'*+-./:<=>?@\^_`|~
+17:1 string ""
+17:4 string "abc"
+17:10 string "\09\0a\0d\5c'\22"
+17:25 string "\00\7f\80\ff\ab"
+18:1 string "\00\7f\c2\80\df\bf\e0\a0\80\ed\9f\bf\ee\80\80\ef\bf\bf\f0\90\80\80\f4\8f\bf\bf\f0\9f\98\80"
+19:1 string "caf\c3\a9 \f0\9f\98\80"
+19:14 string "; ;; (; ;) (@x"
+21:1 id $"x"
+21:4 id $"x"
+21:9 id $"0"
+21:12 id $"$"
+21:15 id $"x.y:z"
+21:22 id $"!#%&'*+-./:<=>?@\5c^_`|~"
+21:46 id $"a b"
+21:53 id $"\c3\a9"
+21:63 id $"caf\c3\a9"
+24:48 keyword after
+25:1 annot @"a" "(@a)"
+25:6 annot @"name" "(@name \22n\22)"
+25:18 annot @"q u" "(@\22q u\22 x)"
+25:29 annot @"x" "(@x (y (z \22)\22 (; ) ;) $a $\22b\22)) ;; )\0a  )"
+26:5 annot @"x" "(@x (@y z) (@\22w\22) ( @ ) (@) @@ , ; [ ] { } \22\5cu{1}\22 \22\c3\a9\22)"
+26:62 annot @"b" "(@b\0a\09)"
+27:4 keyword end
+29:1 keyword cr
+30:1 keyword crlf
+31:2 keyword tab
+31:13 eof

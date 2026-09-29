@@ -198,6 +198,7 @@ TESTS := \
     devel/wasm/disasm/test/disasm.mjs \
     devel/wasm/as/test/asdl.mjs \
     devel/wasm/as/test/empty.mjs \
+    devel/wasm/as/test/lexer.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
     emulators/simbesm/test/boot.mjs \

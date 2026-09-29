@@ -10,6 +10,7 @@ const char USAGE[] =
     "usage: as [options] file...\n"
     "  --module                 write a module, file.wasm, not an object\n"
     "  -o <file>                write there instead; one input only\n"
+    "  --tokens                 print the tokens, write nothing\n"
     "Each file.wat is written to file.o in the current directory.\n";
 
 // Everything the front end holds, off the coroutine frame.
@@ -17,6 +18,7 @@ struct Front {
     AsArgs args;
     Diag diag;
     Vec<u8> image; // the assembled output
+    Out out;       // for stdout
     String output; // where it goes
     bool cancelled = false;
 };
@@ -49,11 +51,19 @@ Task<i32> finish(Front &s)
 // is still assembled.
 Task<void> assemble_one(Front &s, Str path)
 {
-    if (!output_name(s.args, path, s.output, s.diag))
+    if (!s.args.as.tokens && !output_name(s.args, path, s.output, s.diag))
         co_return;
     Result<String> r = co_await slurp(path);
     if (r.is_err()) {
         failed(s, "cannot open", path, r.error());
+        co_return;
+    }
+    if (s.args.as.tokens) {
+        s.out.clear();
+        dump_tokens(path, r.value().str(), s.out, s.diag);
+        if (s.out.oom)
+            s.diag.error("out of memory");
+        co_await say(SYS_STDOUT, s.out.str());
         co_return;
     }
     s.image.clear();

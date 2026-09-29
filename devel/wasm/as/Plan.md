@@ -7,7 +7,7 @@ relocatable object, [Wasm_Object_Format.md](../Wasm_Object_Format.md), that
 module instead. The syntax tree between the two halves is
 [wat.asdl](wat.asdl).
 
-The work is in steps, A1 done and removed. Each ends with a test in `make test`, and none
+The work is in steps; those done are removed. Each ends with a test in `make test`, and none
 starts before the one it builds on passes.
 
 ## Decisions to take first
@@ -124,18 +124,6 @@ Limits to keep in mind throughout:
   `lib/diag.h`.
 
 ## Steps
-
-### A2. The lexer
-
-Tokens (§3.2), white space, nested block comments, annotations kept as
-token ranges for later, strings to bytes, ids, keywords; the longest-match
-rule, so a reserved token is one error and not two tokens. Each token
-carries its line and column.
-
-*Done when* `test/lexer.mjs` holds a token dump of crafted inputs to a
-golden file, and the suite's lexical `assert_malformed` cases (`token`,
-`comments`, `string` escapes in `const`, `names`, `utf8-*`) are each
-refused with the expected message.
 
 ### A3. Numbers
 

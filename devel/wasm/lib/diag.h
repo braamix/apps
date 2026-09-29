@@ -12,17 +12,21 @@ struct Diag {
     u32 limit    = 20; // 0: no limit
     bool stopped = false;
 
-    void error(Str msg)
+    void error(Str msg) { error_at(tool, msg); }
+
+    // An error that names its own place, such as file:line:col, where
+    // error() names the tool.
+    void error_at(Str where, Str msg)
     {
         if (stopped)
             return;
         if (limit && errors >= limit) {
-            emit("error",
+            emit(tool, "error",
                  "too many errors emitted, stopping now (use -error-limit=0 to see all errors)");
             stopped = true;
             return;
         }
-        emit("error", msg);
+        emit(where, "error", msg);
         errors++;
     }
 
@@ -31,7 +35,7 @@ struct Diag {
     void warn(Str msg)
     {
         if (!stopped)
-            emit("warning", msg);
+            emit(tool, "warning", msg);
     }
 
     // --verbose: a line among the errors, where wasm-ld logs it.
@@ -40,11 +44,11 @@ struct Diag {
 private:
     bool sep_ = false;
 
-    void emit(Str kind, Str msg)
+    void emit(Str where, Str kind, Str msg)
     {
         if (sep_)
             text.put('\n');
-        text.put(tool).put(": ").put(kind).put(": ").put(msg).put('\n');
+        text.put(where).put(": ").put(kind).put(": ").put(msg).put('\n');
         sep_ = msg.contains("\n");
     }
 };
