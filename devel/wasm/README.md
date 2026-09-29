@@ -22,6 +22,9 @@ The `wasm` package installs seven tools for WebAssembly. All run on Braam.
   `ld`, or a module. It does what wabt's `wat2wasm` does, and gives the
   same output.
 
+It also ships [example programs](#examples) written in the text format,
+which these tools build on Braam.
+
 The tests check the first five and `as` byte for byte, and `disasm` line
 for line.
 
@@ -415,6 +418,85 @@ options, the symbols of its objects, the annotations for data that C
 reads and writes, where it differs from `wat2wasm`, how it works and how
 it is tested.
 
+## Examples
+
+The package ships programs written in WebAssembly's text format, in its
+`share/` directory. There is no C library on Braam to link them with, so
+each one talks to the kernel itself. Copy them out and build them:
+
+    $ cp /pkg/store/wasm-*/share/* .
+    $ sh build.sh
+    $ ./hello
+    hello, world
+
+| File | What it is |
+| --- | --- |
+| `hello.s` | the smallest program: one write, and exit |
+| `echo.s` | writes its arguments, which it finds in the block `_start` is given |
+| `cat.s` | copies stdin to stdout: a loop of reads and writes, turned inside out |
+| `crt.s` | the start of a program that computes, prints and exits |
+| `fmt.s` | output into a buffer, and numbers in decimal; in `libw.a` |
+| `args.s` | the arguments, one by one; in `libw.a` |
+| `fib.s` | the Fibonacci numbers, in `i64` and by recursion, on `crt.s` and `libw.a` |
+| `primes.s` | the sieve of Eratosthenes, on `crt.s` and `libw.a` |
+| `build.sh` | the commands that build them all |
+
+The first three stand alone:
+
+    as hello.s
+    ld --allow-undefined hello.o -o hello
+
+The last two define only `main`. `crt.s` calls it, and writes what it
+printed once it returns. `crt.o` is linked by name, since a library's
+member is linked only for a symbol that something needs, and nothing needs
+`_start`:
+
+    as crt.s fmt.s args.s fib.s
+    ar rc libw.a fmt.o args.o
+    ld --allow-undefined crt.o fib.o -L. -lw -o fib
+
+`--allow-undefined` is for the kernel's two functions. `as` names an
+imported symbol by its field, `sys`, which nothing defines, so without the
+flag `ld` refuses it, as `wasm-ld` does. With it, the symbol stays an
+import from the module named in the source, `kernel`. The flag also passes
+a function that is really missing, which becomes an import that the kernel
+refuses when the program runs.
+
+`ld` stamps the program for the SDK's process ABI. So do not write a
+`braam` section by hand with `as --module`: it breaks when the ABI moves.
+
+A program is a module that imports `env.memory`, `kernel.sys` and
+`kernel.sys_async`, and exports these five functions and nothing else:
+
+| Export | What it is for |
+| --- | --- |
+| `_start(ptr, len) → i32` | the first step |
+| `_resume(token, ptr, len) → i32` | each later step, with one reply |
+| `_alloc(n) → ptr` | a block for the arguments or a reply; 0 fails the step |
+| `_free(ptr, n)` | never called by the kernel |
+| `_sig(sig)` | a signal the program asked for |
+
+A step returns 1 while a call is outstanding, and 0 when the program is
+done. The program cannot wait inside a step. It asks for something, returns,
+and is resumed with the answer.
+
+- **`sys(op, a0, a1, a2) → i32`** is answered at once. `sys(1, status, 0, 0)`
+  is Exit: it records the status, and the step then returns 0. Without it,
+  the status is 1.
+- **`sys_async(op, token, ptr, len)`** is answered later, by
+  `_resume(token, reply, len)`. The kernel copies the bytes at once, so the
+  program can reuse the block as soon as the call returns. The op's low
+  byte is the call and the rest is its argument:
+  - Write, `16 | fd << 8`: 272 writes to stdout and 528 to stderr.
+  - Read, `17 | fd << 8`: 17 reads up to 512 bytes of stdin.
+- **A reply** is an `i32` status, then any data. For a write, the status
+  is the count written, and a write may be short. For a read, it is the
+  count read, followed by the bytes, and 0 is the end of the input. A
+  negative status is an error.
+- **The arguments** are one block. It holds a `u32` count, then each
+  argument as a `u32` length and its bytes. `argv[0]` is the command's
+  name, and the environment follows in the same form.
+
 ## Inside
 
 [lib/](lib/) reads and writes wasm modules, objects and archives, for every
@@ -570,3 +652,12 @@ whole against a golden file.
 
 And it runs the tests of `as`, and `make longtest` the one that is slow;
 [as/README.md](as/README.md#tests) describes them.
+
+And it runs [examples/test/examples.mjs](examples/test/examples.mjs). The
+examples are built on Braam by their own `build.sh`, with `as`, `ar` and
+`ld`. Each program must import and export exactly what a Braam program
+does. `wasm-ld` must link the same objects to the same bytes, apart from
+the `braam` section. Each program is then run, and what it prints and its
+exit status are held to [a golden transcript](examples/test/examples.golden).
+`cat` must copy 3000 bytes that are not text exactly, over several reads,
+and `primes` must print 5 MB.

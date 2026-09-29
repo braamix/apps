@@ -1,0 +1,114 @@
+$ hello
+hello, world
+status 0
+$ echo
+
+status 0
+$ echo a bc 'd e' '' f
+a bc d e  f
+status 0
+$ echo 'héllo, мир'
+héllo, мир
+status 0
+$ echo some text | cat
+some text
+status 0
+$ cat </dev/null
+status 0
+$ fib
+fib(0) = 0
+fib(1) = 1
+fib(2) = 1
+fib(3) = 2
+fib(4) = 3
+fib(5) = 5
+fib(6) = 8
+fib(7) = 13
+fib(8) = 21
+fib(9) = 34
+fib(10) = 55
+fib(11) = 89
+fib(12) = 144
+fib(13) = 233
+fib(14) = 377
+fib(15) = 610
+fib(16) = 987
+fib(17) = 1597
+fib(18) = 2584
+fib(19) = 4181
+fib(20) = 6765
+fib(21) = 10946
+fib(22) = 17711
+fib(23) = 28657
+fib(24) = 46368
+fib(25) = 75025
+fib(26) = 121393
+fib(27) = 196418
+fib(28) = 317811
+fib(29) = 514229
+fib(30) = 832040
+fib(25) = 75025 by recursion
+status 0
+$ fib 10
+fib(0) = 0
+fib(1) = 1
+fib(2) = 1
+fib(3) = 2
+fib(4) = 3
+fib(5) = 5
+fib(6) = 8
+fib(7) = 13
+fib(8) = 21
+fib(9) = 34
+fib(10) = 55
+fib(10) = 55 by recursion
+status 0
+$ fib 0
+fib(0) = 0
+fib(0) = 0 by recursion
+status 0
+$ fib 93 | tail -n 2
+fib(93) = 12200160415121876738
+fib(25) = 75025 by recursion
+status 0
+$ fib 94
+stderr: usage: fib [n], with n at most 93
+status 1
+$ fib x
+stderr: usage: fib [n], with n at most 93
+status 1
+$ fib 1 2
+stderr: usage: fib [n], with n at most 93
+status 1
+$ primes
+2 3 5 7 11 13 17 19 23 29
+31 37 41 43 47 53 59 61 67 71
+73 79 83 89 97
+status 0
+$ primes 1000
+2 3 5 7 11 13 17 19 23 29
+31 37 41 43 47 53 59 61 67 71
+73 79 83 89 97 101 103 107 109 113
+127 131 137 139 149 151 157 163 167 173
+179 181 191 193 197 199 211 223 227 229
+233 239 241 251 257 263 269 271 277 281
+283 293 307 311 313 317 331 337 347 349
+353 359 367 373 379 383 389 397 401 409
+419 421 431 433 439 443 449 457 461 463
+467 479 487 491 499 503 509 521 523 541
+547 557 563 569 571 577 587 593 599 601
+607 613 617 619 631 641 643 647 653 659
+661 673 677 683 691 701 709 719 727 733
+739 743 751 757 761 769 773 787 797 809
+811 821 823 827 829 839 853 857 859 863
+877 881 883 887 907 911 919 929 937 941
+947 953 967 971 977 983 991 997
+status 0
+$ primes 2
+2
+status 0
+$ primes 1
+status 0
+$ primes 10000001
+stderr: usage: primes [n], with n at most 10000000
+status 1

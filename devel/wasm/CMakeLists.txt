@@ -18,9 +18,19 @@ add_subdirectory(nm)
 add_subdirectory(disasm)
 add_subdirectory(as)
 
-braam_add_package(NAME wasm VERSION 0.8-r0
+# The examples, as share/: programs in WebAssembly text and their build.sh.
+file(GLOB WASM_EXAMPLES_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.s
+                                              ${CMAKE_CURRENT_SOURCE_DIR}/examples/build.sh)
+set(WASM_EXAMPLES "")
+foreach(f ${WASM_EXAMPLES_SRC})
+    get_filename_component(n ${f} NAME)
+    list(APPEND WASM_EXAMPLES ${f}=share/${n})
+endforeach()
+
+braam_add_package(NAME wasm VERSION 0.9-r0
                   FIELD "T=WebAssembly tools: ld, strip, ar, size, nm, disasm and as"
-                  FILES $<TARGET_FILE:bin_ld>=bin/ld
+                  FILES ${WASM_EXAMPLES}
+                        $<TARGET_FILE:bin_ld>=bin/ld
                         $<TARGET_FILE:bin_strip>=bin/strip
                         $<TARGET_FILE:bin_ar>=bin/ar
                         $<TARGET_FILE:bin_size>=bin/size
