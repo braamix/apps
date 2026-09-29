@@ -1,0 +1,252 @@
+#
+# The syntax tree `as` builds from a WebAssembly text module, as
+# ../Wasm_Assembly_Language.md defines the language (the § numbers below
+# are that document's).
+#
+# The parser builds the tree in one pass, without looking ahead past the
+# module field it is in. So it does what needs nothing else:
+#
+#  * Folded instructions are unfolded (§7.2): a block holds its body as a
+#    flat sequence, and no node says how the text was written.
+#  * Grouped declarations are split (§5.2): `(param i32 i64)` is two
+#    params, and alike for results, locals and fields.
+#  * A type without `sub` is final with no supertype; a type outside `rec`
+#    is a group of one.
+#  * An `if` with no `else` has an empty else body.
+#  * An index left out is written as Num(0): table, memory,
+#    call_indirect's table. `table.init e` is `table.init 0 e`.
+#  * A memory access has its offset and alignment, the defaults filled
+#    in.
+#  * A table without an init expression gets `ref.null ht`.
+#  * An inline import becomes an Import (§8.5), keeping the inline
+#    exports.
+#  * `(elem offset x*)` gets its table 0 and its `func`.
+#  * A memory with inline data, or a table with inline elements, gets its
+#    limits from their size.
+#
+# What needs the whole module is left for the pass after:
+#
+#  * Identifiers stay as written, in Idx; nothing is numbered yet (§6).
+#    Label ids too: what depth one means is counted at its use.
+#  * A type use keeps its params and results, and its type index only
+#    where the text gave one; the implicit types of §5.4 are not made yet.
+#  * Inline exports stay on their definition, as `exports`, since a
+#    definition with no id has no name to export it by.
+#  * An inline data or elem segment stays in its memory or table, so that
+#    it is numbered where it is written.
+#
+# Primitive types, beyond ASDL's own:
+#
+#  identifier  an $id, without the `$`, as the bytes of its name
+#  name        a string that is valid UTF-8 (§4.3)
+#  bytes       a string: any bytes (§4.3)
+#  u8, u32     an unsigned integer that fits
+#  u64         an unsigned integer that fits, or an iN already wrapped to
+#              its unsigned value (§4.1)
+#  opcode      an instruction's keyword, as an entry of the opcode table
+#  location    file, line and column, for messages
+#
+# A float is its bits: f32 in a u32, f64 in a u64, so that a NaN payload
+# and the sign of zero survive.
+#
+module Wat {
+
+    # Module (§8)
+    Module = Module(Bind bind, Decl* decls)
+
+    # The id and the (@name "…") of anything that can have them (§6, §9)
+    Bind = (identifier? id, name? name)
+
+    # A reference by number or by id (§6)
+    Idx = Num(u32 value)
+        | Id(identifier id)
+        attributes(location loc)
+
+    Decl = Type(TypeDef* group)                             # a rec group
+         | Import(name module, name item, Extern desc, name* exports)
+         | Func(Bind bind, name* exports, TypeUse type, Local* locals,
+                Instr* body)
+         | Table(Bind bind, name* exports, TableType type, Instr* init,
+                 ElemList? elems)                           # elems: inline, at 0
+         | Memory(Bind bind, name* exports, MemType type,
+                  bytes? data)                              # data: inline, at 0
+         | Global(Bind bind, name* exports, GlobalType type, Instr* init)
+         | Tag(Bind bind, name* exports, TypeUse type)
+         | Export(name name, ExternKind kind, Idx index)
+         | Start(Idx func)
+         | Elem(Bind bind, ElemMode mode, ElemList elems)
+         | Data(Bind bind, DataMode mode, bytes init)
+         | Custom(name name, Place place, bytes content)    # (@custom …)
+         attributes(location loc)
+
+    Extern = FuncImport(Bind bind, TypeUse type)
+           | TableImport(Bind bind, TableType type)
+           | MemoryImport(Bind bind, MemType type)
+           | GlobalImport(Bind bind, GlobalType type)
+           | TagImport(Bind bind, TypeUse type)
+
+    ExternKind = FuncKind | TableKind | MemoryKind | GlobalKind | TagKind
+
+    Local = (Bind bind, ValType type)
+
+    # Segments (§8.4)
+    ElemMode = ElemPassive
+             | ElemActive(Idx table, Instr* offset)
+             | ElemDeclare
+
+    ElemList = Funcs(Idx* funcs)                            # func x*
+             | Exprs(RefType type, Expr* items)             # reftype (item …)*
+
+    Expr = (Instr* instrs)
+
+    DataMode = DataPassive
+             | DataActive(Idx memory, Instr* offset)
+
+    # Placement of a custom section (§9)
+    Place = BeforeFirst
+          | AfterLast                                       # the default
+          | Before(Section section)
+          | After(Section section)
+
+    Section = TypeSec | ImportSec | FuncSec | TableSec | MemorySec | TagSec
+            | GlobalSec | ExportSec | StartSec | ElemSec | CodeSec | DataSec
+            | DataCountSec
+
+    # Value types (§5.1)
+    ValType = I32 | I64 | F32 | F64 | V128
+            | Ref(RefType type)
+
+    RefType = (bool nullable, HeapType heap)                # anyref: nullable, HAny
+
+    HeapType = Abstract(AbsHeapType type)
+             | Concrete(Idx type)
+
+    AbsHeapType = HAny | HEq | HI31 | HStruct | HArray | HNone
+                | HFunc | HNoFunc | HExn | HNoExn | HExtern | HNoExtern
+
+    # Type definitions (§5.2)
+    TypeDef = (Bind bind, SubType type)
+
+    SubType = (bool final, Idx* supers, CompType body)
+
+    CompType = FuncType(Param* params, ValType* results)
+             | StructType(Field* fields)
+             | ArrayType(FieldType field)
+
+    Param = (Bind bind, ValType type)
+
+    Field = (Bind bind, FieldType type)
+
+    FieldType = (StorageType storage, bool mutable)
+
+    StorageType = Value(ValType type)
+                | I8
+                | I16
+
+    # Types of imports and definitions (§5.3, §10)
+    AddrType = Addr32 | Addr64
+
+    Limits = (u64 min, u64? max)
+
+    MemType = (AddrType addr, Limits limits, bool shared, u64? page_size)
+
+    TableType = (AddrType addr, Limits limits, RefType elem)
+
+    GlobalType = (ValType type, bool mutable)
+
+    # A function type, by index or written out, or both (§5.4)
+    TypeUse = (Idx? type, Param* params, ValType* results)
+
+    BlockType = NoResult                                    # nothing
+              | Result(ValType type)                        # one (result t)
+              | Use(TypeUse type)                           # anything else
+
+    # Instructions (§7). The constructor is the shape of the immediates;
+    # the opcode says which instruction it is.
+    Instr = Plain(opcode op)
+          # No immediates: nop, drop, return, i32.add, v128.not,
+          # ref.is_null, array.len, throw_ref, atomic.fence, …
+
+          | Select(bool typed, ValType* results)
+          # typed: a (result …) was written, maybe empty
+
+          | Block(opcode op, Bind label, BlockType type, Instr* body)
+          # block, loop
+
+          | If(Bind label, BlockType type, Instr* then_body,
+               bool has_else, Instr* else_body, BranchHint? hint)
+
+          | TryTable(Bind label, BlockType type, Catch* catches,
+                     Instr* body)
+
+          | Try(Bind label, BlockType type, Instr* body,
+                LegacyCatch* catches)                       # §10.2
+          | TryDelegate(Bind label, BlockType type, Instr* body,
+                        Idx label_out)                      # §10.2
+
+          | Br(opcode op, Idx label, BranchHint? hint)
+          # br, br_if, br_on_null, br_on_non_null, rethrow;
+          # a hint only on br_if
+
+          | BrTable(Idx* labels, Idx default)
+
+          | BrOnCast(opcode op, Idx label, RefType from, RefType to)
+          # br_on_cast, br_on_cast_fail
+
+          | Index(opcode op, Idx x)
+          # One index: call, return_call, call_ref, return_call_ref,
+          # throw, local.*, global.*, table.get/set/size/grow/fill,
+          # elem.drop, memory.size/grow/fill, data.drop, ref.func,
+          # struct.new, struct.new_default, array.new,
+          # array.new_default, array.get, array.get_s, array.get_u,
+          # array.set, array.fill
+
+          | Index2(opcode op, Idx x, Idx y)
+          # Two: table.copy, table.init, memory.copy, memory.init,
+          # array.copy, array.new_data, array.new_elem,
+          # array.init_data, array.init_elem;
+          # struct.get, struct.get_s, struct.get_u, struct.set, whose y
+          # is a field of type x
+
+          | ArrayNewFixed(Idx type, u32 count)
+
+          | CallIndirect(opcode op, Idx table, TypeUse type)
+          # call_indirect, return_call_indirect
+
+          | MemArg(opcode op, Idx memory, u64 offset, u64 align)
+          # Loads, stores, v128 loads and stores, atomics;
+          # align in bytes
+
+          | MemArgLane(opcode op, Idx memory, u64 offset, u64 align,
+                       u8 lane)
+          # v128.loadN_lane, v128.storeN_lane
+
+          | I32Const(u32 value)
+          | I64Const(u64 value)
+          | F32Const(u32 bits)
+          | F64Const(u64 bits)
+          | V128Const(bytes value)                          # 16 bytes, low first
+
+          | Lane(opcode op, u8 lane)
+          # extract_lane, replace_lane
+
+          | Shuffle(u8* lanes)                              # i8x16.shuffle, 16
+
+          | RefNull(HeapType type)
+
+          | RefTypeOp(opcode op, RefType type)
+          # ref.test, ref.cast
+
+          attributes(location loc)
+
+    Catch = Catch(Idx tag, Idx label)
+          | CatchRef(Idx tag, Idx label)
+          | CatchAll(Idx label)
+          | CatchAllRef(Idx label)
+
+    LegacyCatch = LegacyCatch(Idx tag, Instr* body)
+                | LegacyCatchAll(Instr* body)
+
+    BranchHint = Unlikely                                   # "\00"
+               | Likely                                     # "\01"
+}

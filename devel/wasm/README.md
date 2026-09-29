@@ -548,3 +548,10 @@ branch comments are checked against a model of the blocks, and the names
 against the relocations and the functions called. The data rows must give
 back every segment's bytes at its address, and one object is checked
 whole against a golden file.
+
+And it runs [as/test/asdl.mjs](as/test/asdl.mjs), which checks
+[as/wat.asdl](as/wat.asdl), the syntax tree the assembler will build, with
+[as/validate_asdl.py](as/validate_asdl.py): it must parse, every field's
+type must be defined, no constructor may be defined twice, and every type
+must be reachable from `Module`. Broken copies of it must each be
+refused. It needs `python3` with the `pyasdl` package.
