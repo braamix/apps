@@ -3,17 +3,21 @@
 #include "driver.h"
 #include "files.h"
 #include "kernel/alloc.h"
+#include "proc/opt.h"
+#include "proc/usage.h"
 
 namespace {
 
-const char USAGE[] =
-    "usage: disasm [options] [file...]\n"
-    "  -d, --disassemble        the code (the default)\n"
-    "  -D, --disassemble-all    the code, and the data as bytes\n"
-    "  -r, --reloc              an object's relocations, where they apply\n"
-    "  -C, --demangle           demangle C++ names; --no-demangle undoes it\n"
-    "  --no-show-raw-insn       no instruction bytes\n"
-    "With no file, a.out is read; - is standard input.\n";
+constexpr Str USAGE =
+    "Usage:\n"
+    "    disasm [<options>] <file>...\n"
+    "Options:\n"
+    "    -d, --disassemble          the code; the default\n"
+    "    -D, --disassemble-all      the code, and the data as bytes\n"
+    "    -r, --reloc                an object's relocations, where they apply\n"
+    "    -C, --demangle             demangle C++ names; --no-demangle undoes it\n"
+    "    --no-show-raw-insn         no instruction bytes\n"
+    "A file is a program, an object or an archive; - is standard input.\n";
 
 // Everything the front end holds, off the coroutine frame.
 struct Front {
@@ -121,6 +125,8 @@ Task<i32> run(Front &s, Args args)
 
 Task<i32> proc_main(Args args)
 {
+    if (args.size() == 1 || help_asked(args))
+        co_return co_await usage_asked(USAGE);
     Front *s = heap_new<Front>();
     if (!s)
         co_return 1;

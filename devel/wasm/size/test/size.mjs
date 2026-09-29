@@ -105,7 +105,7 @@ for (const mode of MODES) {
         bad.push(`[${mode.join(" ")}]: ${differ(got.out, want.out)}`);
 }
 
-// Standard input, and a.out when no file is named.
+// Standard input.
 {
     const prog = readFileSync(m.fixtures.hello.reference);
     plant(H, "/tmp/in", new Uint8Array(prog));
@@ -115,13 +115,6 @@ for (const mode of MODES) {
         if (got.status !== 0 || got.out !== want.out)
             bad.push(`stdin [${mode.join(" ")}]: ${got.status} ${got.err} ${differ(got.out, want.out)}`);
     }
-    add("a.out", prog);
-    const want = llvm([]);
-    const got = sh("size");
-    if (got.status !== 0 || got.out !== want.out)
-        bad.push(`a.out: ${got.status} ${got.err} ${differ(got.out, want.out)}`);
-    rmSync(join(dir, "a.out"));
-    H.store.files.delete("/tmp/w/a.out");
 }
 
 // ------------------------------------------------------------ errors
@@ -176,10 +169,16 @@ for (const [cmd, args, msgs] of ERRORS) {
         bad.push(`${cmd}: ${differ(got.out, want.out)}`);
 }
 
+// No file: the usage, bare or asked for; with an option, an error.
+for (const cmd of ["size", "size -h", "size --help"]) {
+    const r = sh(cmd);
+    if (r.status !== 0 || r.err || !r.out.startsWith("Usage:\n    size "))
+        bad.push(`${cmd}: status ${r.status}: ${r.out}${r.err}`);
+}
 {
-    const r = sh("size --help");
-    if (r.status !== 0 || !r.out.startsWith("usage: size"))
-        bad.push(`--help: status ${r.status}: ${r.out}${r.err}`);
+    const r = sh("size -A");
+    if (r.status !== 1 || r.err !== "size: error: no input file specified\n")
+        bad.push(`size -A: status ${r.status}: ${JSON.stringify(r.err)}`);
 }
 
 if (bad.length)

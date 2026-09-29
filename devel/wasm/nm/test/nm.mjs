@@ -157,8 +157,7 @@ for (const mode of MODES) {
     lines += want.out.split("\n").length;
 }
 
-// One file on its own, so no label; standard input; a.out when no file is
-// named.
+// One file on its own, so no label; and standard input.
 {
     const prog = readFileSync(m.fixtures.hello.reference);
     for (const mode of [[], ["-A"], ["-f", "sysv"]]) {
@@ -174,13 +173,6 @@ for (const mode of MODES) {
         if (got.status !== 0 || got.out !== want.out)
             bad.push(`stdin [${mode.join(" ")}]: ${got.status} ${got.err} ${differ(got.out, want.out)}`);
     }
-    add("a.out", prog);
-    const want = llvm([]);
-    const got = sh("nm");
-    if (got.status !== 0 || got.out !== want.out)
-        bad.push(`a.out: ${got.status} ${got.err} ${differ(got.out, want.out)}`);
-    rmSync(join(dir, "a.out"));
-    H.store.files.delete("/tmp/w/a.out");
 }
 
 // ------------------------------------------------------------ errors
@@ -242,10 +234,16 @@ for (const [cmd, args] of [["nm empty", ["empty"]], ["nm -A empty h.o", ["-A", "
                  `${JSON.stringify(want.err)} ${differ(got.out, want.out)}`);
 }
 
+// No file: the usage, bare or asked for; with an option, an error.
+for (const cmd of ["nm", "nm -h", "nm --help"]) {
+    const r = sh(cmd);
+    if (r.status !== 0 || r.err || !r.out.startsWith("Usage:\n    nm "))
+        bad.push(`${cmd}: status ${r.status}: ${r.out}${r.err}`);
+}
 {
-    const r = sh("nm --help");
-    if (r.status !== 0 || !r.out.startsWith("usage: nm"))
-        bad.push(`--help: status ${r.status}: ${r.out}${r.err}`);
+    const r = sh("nm -B");
+    if (r.status !== 1 || r.err !== "nm: error: no input file specified\n")
+        bad.push(`nm -B: status ${r.status}: ${JSON.stringify(r.err)}`);
 }
 
 // llvm-nm reads bitcode; nm refuses it.

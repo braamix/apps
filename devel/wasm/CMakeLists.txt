@@ -20,17 +20,20 @@ add_subdirectory(as)
 add_subdirectory(examples)
 
 # The examples, as share/: programs in WebAssembly text and their build.sh.
-file(GLOB WASM_EXAMPLES_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.s
+file(GLOB WASM_SHARE_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.s
                                               ${CMAKE_CURRENT_SOURCE_DIR}/examples/build.sh)
-set(WASM_EXAMPLES "")
-foreach(f ${WASM_EXAMPLES_SRC})
+# And the documents: the tools', the tutorial, and the formats'.
+file(GLOB WASM_DOCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.md)
+set(WASM_SHARE "")
+foreach(f ${WASM_SHARE_SRC} ${WASM_DOCS})
     get_filename_component(n ${f} NAME)
-    list(APPEND WASM_EXAMPLES ${f}=share/${n})
+    list(APPEND WASM_SHARE ${f}=share/${n})
 endforeach()
 
-braam_add_package(NAME wasm VERSION 0.9-r0
+braam_add_package(NAME wasm VERSION 0.2-r0
                   FIELD "T=WebAssembly tools: ld, strip, ar, size, nm, disasm and as"
-                  FILES ${WASM_EXAMPLES}
+                  FILES ${WASM_SHARE}
+                        ${CMAKE_CURRENT_SOURCE_DIR}/as/README.md=share/Assembler.md
                         ${CMAKE_CURRENT_BINARY_DIR}/examples/crt.o=lib/crt.o
                         ${CMAKE_CURRENT_BINARY_DIR}/examples/libw.a=lib/libw.a
                         $<TARGET_FILE:bin_ld>=bin/ld

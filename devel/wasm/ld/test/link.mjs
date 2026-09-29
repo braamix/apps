@@ -90,6 +90,16 @@ for (const [name, fx] of Object.entries(m.bad)) {
         bad.push(`${name}: left an output file`);
 }
 
+// The usage, bare or asked for; with an option but no file, an error.
+for (const cmd of ["ld", "ld -h", "ld --help"]) {
+    run(H, `${cmd} >/tmp/o 2>/tmp/e; echo $? >/tmp/s`);
+    if (get(H, "/tmp/s") !== "0\n" || get(H, "/tmp/e") || !get(H, "/tmp/o").startsWith("Usage:\n    ld "))
+        bad.push(`${cmd}: status ${get(H, "/tmp/s")}: ${get(H, "/tmp/o")}${get(H, "/tmp/e")}`);
+}
+run(H, "ld -o p >/tmp/o 2>/tmp/e; echo $? >/tmp/s");
+if (get(H, "/tmp/s") !== "1\n" || get(H, "/tmp/e") !== "ld: error: no input files\n")
+    bad.push(`ld -o p: status ${get(H, "/tmp/s")}: ${JSON.stringify(get(H, "/tmp/e"))}`);
+
 if (bad.length)
     die("\n" + bad.join("\n"));
 ok(`${Object.keys(m.fixtures).length} fixtures link and run with no flags; -l; ` +

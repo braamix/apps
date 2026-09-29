@@ -3,18 +3,22 @@
 #include "driver.h"
 #include "files.h"
 #include "kernel/alloc.h"
+#include "proc/opt.h"
+#include "proc/usage.h"
 
 namespace {
 
-const char USAGE[] =
-    "usage: as [options] file...\n"
-    "  --module                 write a module, file.wasm, not an object\n"
-    "  -o <file>                write there instead; one input only\n"
-    "  --debug-names            name what has an id, in the name section\n"
-    "  --tokens                 print the tokens, write nothing\n"
-    "  --numbers                print typed literals' bits, write nothing\n"
-    "  --tree                   print the syntax tree, write nothing\n"
-    "  --resolved               print it after resolution, write nothing\n"
+constexpr Str USAGE =
+    "Usage:\n"
+    "    as [<options>] <file.s>...\n"
+    "Options:\n"
+    "    --module                   write a module, file.wasm, not an object\n"
+    "    -o <file>                  write there instead; one file only\n"
+    "    --debug-names              name what has an id, in the name section\n"
+    "    --tokens                   print the tokens, write nothing\n"
+    "    --numbers                  print typed literals' bits, write nothing\n"
+    "    --tree                     print the syntax tree, write nothing\n"
+    "    --resolved                 print it after resolution, write nothing\n"
     "Each file.s is written to file.o in the current directory.\n";
 
 // Everything the front end holds, off the coroutine frame.
@@ -113,6 +117,8 @@ Task<i32> run(Front &s, Args args)
 
 Task<i32> proc_main(Args args)
 {
+    if (args.size() == 1 || help_asked(args))
+        co_return co_await usage_asked(USAGE);
     Front *s = heap_new<Front>();
     if (!s)
         co_return 1;

@@ -3,30 +3,36 @@
 #include "driver.h"
 #include "files.h"
 #include "kernel/alloc.h"
+#include "proc/opt.h"
+#include "proc/usage.h"
 
 namespace {
 
-const char USAGE[] =
-    "usage: nm [options] [file...]\n"
-    "  -A, -o, --print-file-name  name the file on every line\n"
-    "  -B, -P, -j, -m, -f <format>, --format=<format>\n"
-    "                           bsd (the default), posix, just-symbols, darwin, sysv\n"
-    "  -C, --demangle           demangle C++ names; --no-demangle undoes it\n"
-    "  -g, --extern-only        only symbols not local\n"
-    "  -u, --undefined-only     only undefined symbols\n"
-    "  -U, --defined-only       only defined symbols\n"
-    "  -W, --no-weak            no weak symbols\n"
-    "  -n, -v, --numeric-sort   sort by address\n"
-    "  --size-sort              sort by size\n"
-    "  -p, --no-sort            in the file's order\n"
-    "  -r, --reverse-sort       sort backwards\n"
-    "  -S, --print-size         print each symbol's size\n"
-    "  -t <radix>, --radix=<radix>\n"
-    "                           o, d or x (the default)\n"
-    "  -M, --print-armap        print an archive's symbol table\n"
-    "  --export-symbols         every file's defined external names, once each\n"
-    "  --quiet                  no note of a module with no symbols\n"
-    "With no file, a.out is read; - is standard input.\n";
+constexpr Str USAGE =
+    "Usage:\n"
+    "    nm [<options>] <file>...\n"
+    "Options:\n"
+    "    -A, -o, --print-file-name  name the file on every line\n"
+    "    -f <format>, --format=<format>\n"
+    "                               bsd (the default), posix, just-symbols, darwin\n"
+    "                               or sysv\n"
+    "    -B, -P, -j, -m             bsd, posix, just-symbols, darwin\n"
+    "    -C, --demangle             demangle C++ names; --no-demangle undoes it\n"
+    "    -g, --extern-only          only symbols that are not local\n"
+    "    -u, --undefined-only       only undefined symbols\n"
+    "    -U, --defined-only         only defined symbols\n"
+    "    -W, --no-weak              no weak symbols\n"
+    "    -n, -v, --numeric-sort     sort by address\n"
+    "    --size-sort                sort by size\n"
+    "    -p, --no-sort              in the file's order\n"
+    "    -r, --reverse-sort         sort backwards\n"
+    "    -S, --print-size           print each symbol's size\n"
+    "    -t <radix>, --radix=<radix>\n"
+    "                               o, d or x (the default)\n"
+    "    -M, --print-armap          print an archive's symbol table\n"
+    "    --export-symbols           every file's defined external names, once each\n"
+    "    --quiet                    no note of a file with no symbols\n"
+    "A file is a program, an object or an archive; - is standard input.\n";
 
 // Everything the front end holds, off the coroutine frame.
 struct Front {
@@ -146,6 +152,8 @@ Task<i32> run(Front &s, Args args)
 
 Task<i32> proc_main(Args args)
 {
+    if (args.size() == 1 || help_asked(args))
+        co_return co_await usage_asked(USAGE);
     Front *s = heap_new<Front>();
     if (!s)
         co_return 1;

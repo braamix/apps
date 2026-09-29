@@ -250,8 +250,8 @@ struct Parser {
             if (!ok)
                 return false;
         }
-        if (a.inputs.empty() && !a.inputs.push("a.out"))
-            return fail("out of memory");
+        if (a.inputs.empty() && !a.help && !a.version)
+            return fail("no input file specified");
         format(format_v);
         radix(radix_v);
         bits(bits_v);

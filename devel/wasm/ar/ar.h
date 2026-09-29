@@ -155,6 +155,9 @@ struct bsdar {
  * front end reads the files it names, and ar_run does the rest. Each
  * returns the exit status; ar_options returns -1 to go on.
  */
+/* Braam: the usage, in braam.cpp; bsdar_usage prints it too. */
+extern const char AR_USAGE[];
+
 int ar_options(struct bsdar *bsdar, int argc, char **argv);
 int ar_run(struct bsdar *bsdar);
 struct ar_file *ar_lookup(struct bsdar *bsdar, const char *path);

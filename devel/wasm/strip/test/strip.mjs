@@ -276,6 +276,18 @@ for (const [name, fx] of Object.entries(m.fixtures)) {
         bad.push("a bad file among good: the bad one was touched");
 }
 
+// No file: the usage, bare or asked for; with an option, an error.
+for (const cmd of ["strip", "strip -h", "strip --help"]) {
+    const r = sh(cmd);
+    if (r.status !== 0 || r.err || !r.out.startsWith("Usage:\n    strip "))
+        bad.push(`${cmd}: status ${r.status}: ${r.out}${r.err}`);
+}
+{
+    const r = sh("strip -g");
+    if (r.status !== 1 || r.err !== "strip: error: no input file specified\n")
+        bad.push(`strip -g: status ${r.status}: ${JSON.stringify(r.err)}`);
+}
+
 if (bad.length)
     die(`${bad.length} failures:\n  ` + bad.join("\n  "));
 console.log(`strip ok: ${cases} files and ${archived} archives as llvm-strip strips them, ` +

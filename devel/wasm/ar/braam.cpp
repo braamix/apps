@@ -8,6 +8,39 @@
 #include "compat/cerr.h"
 #include "files.h"
 #include "kernel/alloc.h"
+#include "proc/opt.h"
+#include "proc/usage.h"
+
+extern const char AR_USAGE[] =
+    "Usage:\n"
+    "    ar -r [-cuvsSU] [-a <member> | -b <member>] <archive> <file>...\n"
+    "    ar -q [-cvsSU] <archive> <file>...\n"
+    "    ar -d [-vsS] <archive> <member>...\n"
+    "    ar -m [-vsS] [-a <member> | -b <member>] <archive> <member>...\n"
+    "    ar -t [-v] <archive> [<member>...]\n"
+    "    ar -p [-v] <archive> [<member>...]\n"
+    "    ar -x [-uvCo] <archive> [<member>...]\n"
+    "    ar -s <archive>\n"
+    "The first letter is what to do, and its dash may be left out: ar rc libx.a *.o\n"
+    "    -r    add files, replacing members of the same name in their place\n"
+    "    -q    append files, without looking for members of the same name\n"
+    "    -d    delete members\n"
+    "    -m    move members, to the end or to -a's or -b's place\n"
+    "    -t    list members\n"
+    "    -p    print members to standard output\n"
+    "    -x    extract members into the current directory; all, if none named\n"
+    "    -s    write the symbol table\n"
+    "Options:\n"
+    "    -a <member>    put the files after that member\n"
+    "    -b <member>    put the files before that member\n"
+    "    -c    create the archive without a warning\n"
+    "    -u    only what is newer: a file than its member, or a member than its file\n"
+    "    -v    say what is done to each member; with -t, list as ls -l does\n"
+    "    -C    extract nothing that is already there\n"
+    "    -o    keep the members' dates; files have none here, so it warns\n"
+    "    -s    write the symbol table; the default\n"
+    "    -S    leave the symbol table out\n"
+    "    -U    keep each file's date; members are dated 0 without it\n";
 
 namespace {
 
@@ -161,6 +194,8 @@ Task<i32> run(Front &s, Args args)
 
 Task<i32> proc_main(Args args)
 {
+    if (args.size() == 1 || help_asked(args))
+        co_return co_await usage_asked(AR_USAGE);
     Front *s = heap_new<Front>();
     if (!s)
         co_return 1;

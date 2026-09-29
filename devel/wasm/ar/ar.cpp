@@ -417,17 +417,8 @@ static void only_mode(struct bsdar *bsdar, const char *opt, const char *valid_mo
 
 static void bsdar_usage(struct bsdar *bsdar)
 {
-    bsdar_printf(bsdar, 2, "usage:  ar -d [-Tjsvz] archive file ...\n");
-    bsdar_printf(bsdar, 2, "\tar -m [-Tjsvz] archive file ...\n");
-    bsdar_printf(bsdar, 2, "\tar -m [-Tabijsvz] position archive file ...\n");
-    bsdar_printf(bsdar, 2, "\tar -p [-Tv] archive [file ...]\n");
-    bsdar_printf(bsdar, 2, "\tar -q [-TcDjsUvz] archive file ...\n");
-    bsdar_printf(bsdar, 2, "\tar -r [-TcDjsUuvz] archive file ...\n");
-    bsdar_printf(bsdar, 2, "\tar -r [-TabcDijsUuvz] position archive file ...\n");
-    bsdar_printf(bsdar, 2, "\tar -s [-jz] archive\n");
-    bsdar_printf(bsdar, 2, "\tar -t [-Tv] archive [file ...]\n");
-    bsdar_printf(bsdar, 2, "\tar -x [-CTouv] archive [file ...]\n");
-    bsdar_printf(bsdar, 2, "\tar -V\n");
+    /* Braam: the usage block every command here prints. */
+    bsdar_printf(bsdar, 2, "%s", AR_USAGE);
     bsdar_exit(bsdar, EXIT_FAILURE);
 }
 

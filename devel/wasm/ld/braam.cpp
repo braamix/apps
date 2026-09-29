@@ -8,10 +8,49 @@
 #include "gc.h"
 #include "kernel/alloc.h"
 #include "proc/io.h"
+#include "proc/opt.h"
+#include "proc/usage.h"
 #include "symtab.h"
 #include "writer.h"
 
 namespace {
+
+constexpr Str USAGE =
+    "Usage:\n"
+    "    ld [<options>] <file>... [-l <name>]...\n"
+    "Options:\n"
+    "    -o <file>                  the program to write; a.out without it\n"
+    "    -L <dir>                   look for libraries in <dir>, before lib/\n"
+    "    -l <name>                  link lib<name>.a\n"
+    "    @<file>                    read more arguments from <file>\n"
+    "    -e <sym>, --entry=<sym>    the entry point; none by default\n"
+    "    --export=<sym>             export <sym>\n"
+    "    -u <sym>, --undefined=<sym>\n"
+    "                               link what defines <sym>\n"
+    "    --allow-undefined          let undefined functions become imports\n"
+    "    --no-gc-sections           keep unused code and data\n"
+    "    --print-gc-sections        list the unused code and data dropped\n"
+    "    -z stack-size=<n>          stack size in bytes; 131072 by default\n"
+    "    --no-stack-first           put the stack after the data, not before\n"
+    "    --initial-memory=<n>       memory at start, in bytes\n"
+    "    --max-memory=<n>           most memory, in bytes\n"
+    "    --global-base=<n>          where the data starts\n"
+    "    --no-import-memory         define the memory, not import it\n"
+    "    -O0, -O1                   whether to merge equal strings; 1 by default\n"
+    "    -S, --strip-debug          no debug information\n"
+    "    -s, --strip-all            no names either\n"
+    "    --compress-relocations     smaller code; needs -S or -s\n"
+    "    -Map=<file>                write a map of where everything went\n"
+    "    --why-extract=<file>       say why each archive member was linked\n"
+    "    -t, --trace                name each file as it is linked\n"
+    "    --verbose                  print the memory layout\n"
+    "    --no-demangle              show C++ names as they are mangled\n"
+    "    --error-limit=<n>          stop after <n> errors, 20 by default; 0 never\n"
+    "    --braam-pages=<init>,<max> pages of memory the program asks for\n"
+    "    --braam-abi=<n>            process ABI to stamp; the SDK's by default\n"
+    "    --dump <file>              print an object's symbols and relocations\n"
+    "Libraries, and objects named without a directory that are not here,\n"
+    "are also looked for in the package's lib/, which holds crt.o and libw.a.\n";
 
 // Everything the front end holds, off the coroutine frame.
 struct Front {
@@ -292,6 +331,8 @@ Task<i32> run(Front &s, Args args)
 
 Task<i32> proc_main(Args args)
 {
+    if (args.size() == 1 || help_asked(args))
+        co_return co_await usage_asked(USAGE);
     Front *s = heap_new<Front>();
     if (!s)
         co_return 1;

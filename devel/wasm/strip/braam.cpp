@@ -4,17 +4,22 @@
 #include "driver.h"
 #include "files.h"
 #include "kernel/alloc.h"
+#include "proc/opt.h"
+#include "proc/usage.h"
 
 namespace {
 
-const char USAGE[] =
-    "usage: strip [options] file...\n"
-    "  -s, --strip-all          remove all custom sections but braam (the default)\n"
-    "  -g, -S, --strip-debug    remove debug sections only\n"
-    "  -R <name>, --remove-section=<name>\n"
-    "                           remove that custom section too\n"
-    "  --keep-section=<name>    keep that custom section\n"
-    "  -o <file>                write there instead of in place; one input only\n";
+constexpr Str USAGE =
+    "Usage:\n"
+    "    strip [<options>] <file>...\n"
+    "Options:\n"
+    "    -s, --strip-all            remove every custom section but braam; the default\n"
+    "    -g, -S, --strip-debug      remove only the debug sections\n"
+    "    -R <name>, --remove-section=<name>\n"
+    "                               remove that custom section too\n"
+    "    --keep-section=<name>      keep that custom section\n"
+    "    -o <file>                  write there, not in place; one file only\n"
+    "A file is a program, an object or an archive.\n";
 
 // Everything the front end holds, off the coroutine frame.
 struct Front {
@@ -134,6 +139,8 @@ Task<i32> run(Front &s, Args args)
 
 Task<i32> proc_main(Args args)
 {
+    if (args.size() == 1 || help_asked(args))
+        co_return co_await usage_asked(USAGE);
     Front *s = heap_new<Front>();
     if (!s)
         co_return 1;

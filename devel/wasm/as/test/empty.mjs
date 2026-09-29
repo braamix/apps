@@ -56,7 +56,7 @@ for (const [args, names, want] of RUNS) {
 
 // [arguments, inputs, the messages]
 const ERRORS = [
-    [[], [], ["no input file specified"]],
+    [["--module"], [], ["no input file specified"]],
     [["--foo", "a.s"], ["a.s"], ["unknown argument: --foo"]],
     [["a.s", "-o"], ["a.s"], ["no value for -o"]],
     [["-o", "x", "a.s", "b.s"], ["a.s", "b.s"],
@@ -79,10 +79,11 @@ for (const [args, names, msgs] of ERRORS) {
         bad.push("nosuch.s a.s: a.o not written");
 }
 
-{
-    const r = as.run(["--help"]);
-    if (r.status !== 0 || !r.out.startsWith("usage: as"))
-        bad.push(`--help: status ${r.status}: ${r.out}${r.err}`);
+// The usage, bare or asked for.
+for (const args of [[], ["-h"], ["--help"]]) {
+    const r = as.run(args);
+    if (r.status !== 0 || r.err || !r.out.startsWith("Usage:\n    as "))
+        bad.push(`as ${args.join(" ")}: status ${r.status}: ${r.out}${r.err}`);
 }
 
 if (bad.length)

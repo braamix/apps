@@ -9,7 +9,7 @@
 
 struct NmArgs {
     NmConfig nm;
-    Vec<Str> inputs; // a.out if none; - is stdin
+    Vec<Str> inputs; // - is stdin
     bool help    = false;
     bool version = false;
 };

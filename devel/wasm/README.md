@@ -27,6 +27,9 @@ which these tools build on Braam, and `crt.o` and `libw.a` in `lib/`,
 which they link with. [Tutorial.md](Tutorial.md) explains two of them
 line by line, for a beginner.
 
+Each tool run with no arguments, or with `-h` or `--help` alone, prints
+its usage: what it does, and its options.
+
 The tests check the first five and `as` byte for byte, and `disasm` line
 for line.
 
@@ -220,11 +223,11 @@ What differs from FreeBSD's `ar`:
 
 ## Using size
 
-    size [options] [file...]
+    size [options] file...
 
-With no file, `size` reads `a.out`, and `-` reads standard input. An
-archive has each member sized in turn, and a member that is not wasm is
-skipped.
+A file must be named: unlike `llvm-size`, `size` does not read `a.out`
+without one. `-` is standard input. An archive has each member sized in
+turn, and a member that is not wasm is skipped.
 
     $ size hello
        text	   data	    bss	    dec	    hex	filename
@@ -256,11 +259,11 @@ the files are sized anyway, as `llvm-size` does.
 
 ## Using nm
 
-    nm [options] [file...]
+    nm [options] file...
 
-With no file, `nm` reads `a.out`, and `-` reads standard input. Each
-symbol is a line: its address, a letter for its kind, and its name,
-sorted by name.
+A file must be named: unlike `llvm-nm`, `nm` does not read `a.out` without
+one. `-` is standard input. Each symbol is a line: its address, a letter
+for its kind, and its name, sorted by name.
 
     $ nm hello.o
     00000000 d .L.str
@@ -342,12 +345,13 @@ wasm64 and GC types.
 
 ## Using disasm
 
-    disasm [options] [file...]
+    disasm [options] file...
 
-With no file, `disasm` reads `a.out`, and `-` reads standard input. It
-shows the code, one instruction to a line, as `llvm-objdump -d` does.
-With `-D` it also shows the data, sixteen bytes to a line: the two
-sections a module loads into memory.
+A file must be named: unlike `llvm-objdump`, `disasm` does not read
+`a.out` without one. `-` is standard input. It shows the code, one
+instruction to a line, as `llvm-objdump -d` does. With `-D` it also shows
+the data, sixteen bytes to a line: the two sections a module loads into
+memory.
 
     $ disasm -D hello.o
 

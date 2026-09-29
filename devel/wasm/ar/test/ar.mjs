@@ -214,7 +214,7 @@ for (const [name, cmd] of TEXT) {
     ];
     for (const [cmd, msg] of ERRORS) {
         const r = sh(cmd);
-        const ok = msg === null ? r.err.startsWith("usage:  ar -d") : r.err === msg;
+        const ok = msg === null ? r.err.startsWith("Usage:\n    ar -r ") : r.err === msg;
         if (r.status !== 1 || !ok)
             bad.push(`${cmd}: status ${r.status}: ${JSON.stringify(r.err)}, expected ` +
                      (msg === null ? "the usage" : JSON.stringify(msg)));

@@ -75,7 +75,7 @@ bool parse_args(Span<const Str> words, DisasmArgs &a, Diag &diag)
         if (!ok)
             return false;
     }
-    if (a.inputs.empty() && !a.inputs.push("a.out"))
-        return fail(diag, "out of memory", Str(), Str());
+    if (a.inputs.empty() && !a.help)
+        return fail(diag, "no input file specified", Str(), Str());
     return true;
 }

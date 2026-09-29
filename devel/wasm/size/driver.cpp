@@ -122,8 +122,8 @@ struct Parser {
             if (!ok)
                 return false;
         }
-        if (a.inputs.empty() && !a.inputs.push("a.out"))
-            return fail("out of memory", "");
+        if (a.inputs.empty() && !a.help)
+            return fail("no input file specified", "");
         return true;
     }
 };

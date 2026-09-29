@@ -784,7 +784,7 @@ for (const [cmd, err] of ERRORS) {
         bad.push(`bad.a: ${e}`);
 }
 
-// Standard input, and a.out when no file is named.
+// Standard input.
 {
     const prog = readFileSync(m.fixtures.hello.reference);
     plant(H, "/tmp/in", new Uint8Array(prog));
@@ -793,18 +793,18 @@ for (const [cmd, err] of ERRORS) {
     const d = against(got.out, want.replace("fx_hello.wasm:", "<stdin>:"), true);
     if (got.status !== 0 || d)
         bad.push(`stdin: ${got.status} ${got.err} ${d}`);
-    add("a.out", prog);
-    const a = sh("disasm");
-    if (a.status !== 0 || against(a.out, want.replace("fx_hello.wasm:", "a.out:"), true))
-        bad.push(`a.out: ${a.status} ${a.err}`);
-    rmSync(join(dir, "a.out"));
-    H.store.files.delete("/tmp/w/a.out");
 }
 
+// No file: the usage, bare or asked for; with an option, an error.
+for (const cmd of ["disasm", "disasm -h", "disasm --help"]) {
+    const r = sh(cmd);
+    if (r.status !== 0 || r.err || !r.out.startsWith("Usage:\n    disasm "))
+        bad.push(`${cmd}: status ${r.status}: ${r.out}${r.err}`);
+}
 {
-    const r = sh("disasm --help");
-    if (r.status !== 0 || !r.out.startsWith("usage: disasm"))
-        bad.push(`--help: status ${r.status}: ${r.out}${r.err}`);
+    const r = sh("disasm -d");
+    if (r.status !== 1 || r.err !== "disasm: error: no input file specified\n")
+        bad.push(`disasm -d: status ${r.status}: ${JSON.stringify(r.err)}`);
 }
 
 if (bad.length)

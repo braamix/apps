@@ -3,18 +3,23 @@
 #include "driver.h"
 #include "files.h"
 #include "kernel/alloc.h"
+#include "proc/opt.h"
+#include "proc/usage.h"
 
 namespace {
 
-const char USAGE[] =
-    "usage: size [options] [file...]\n"
-    "  -B, --format=berkeley    text, data and bss per module (the default)\n"
-    "  -A, --format=sysv        every section, its size and address\n"
-    "  -m, --format=darwin      as -B, for wasm\n"
-    "  -d, -o, -x, --radix=10|8|16\n"
-    "                           print sizes in decimal, octal or hex\n"
-    "  -t, --totals             add up every module; -B only\n"
-    "With no file, a.out is read; - is standard input.\n";
+constexpr Str USAGE =
+    "Usage:\n"
+    "    size [<options>] <file>...\n"
+    "Options:\n"
+    "    -B, --format=berkeley      text, data and bss of each file; the default\n"
+    "    -A, --format=sysv          every section, its size and address\n"
+    "    -m, --format=darwin        as -B\n"
+    "    -d, --radix=10             sizes in decimal; the default\n"
+    "    -o, --radix=8              sizes in octal\n"
+    "    -x, --radix=16             sizes in hex\n"
+    "    -t, --totals               add up every file; with -B only\n"
+    "A file is a program, an object or an archive; - is standard input.\n";
 
 // Everything the front end holds, off the coroutine frame.
 struct Front {
@@ -126,6 +131,8 @@ Task<i32> run(Front &s, Args args)
 
 Task<i32> proc_main(Args args)
 {
+    if (args.size() == 1 || help_asked(args))
+        co_return co_await usage_asked(USAGE);
     Front *s = heap_new<Front>();
     if (!s)
         co_return 1;
