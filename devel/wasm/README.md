@@ -564,3 +564,8 @@ file to a golden one, and checks crafted errors with their places. Then it
 lexes every module of the WebAssembly test suite, vendored in
 [as/test/suite/](as/test/suite/): what is not malformed must lex, and a
 malformed module that is refused must be refused with the expected message.
+[as/test/number.mjs](as/test/number.mjs) holds `as --numbers` to
+`wat2wasm` on nine thousand literals: every one in the suite, and generated
+ones at each width's limits and around halfway points between floats.
+Hex floats are held to an exact computation instead, since `wat2wasm`
+rounds some of them wrongly, and f64 decimals to JS's `Number()` as well.

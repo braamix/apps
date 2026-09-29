@@ -2,6 +2,7 @@
 
 #include "emit.h"
 #include "lexer.h"
+#include "number.h"
 
 namespace {
 
@@ -81,6 +82,75 @@ bool dump_tokens(Str name, Str source, Out &out, Diag &diag)
         if (t.kind == Tok::Eof)
             return true;
     }
+}
+
+bool dump_numbers(Str name, Str source, Out &out, Diag &diag)
+{
+    u32 line = 0;
+    while (!source.empty()) {
+        Str text = source.split('\n', source);
+        line++;
+        Lexer x(text);
+        Token t = x.next();
+        if (t.kind == Tok::Eof)
+            continue;
+        Str type    = x.text(t);
+        u32 width   = 0;
+        bool is_int = false, is_uint = false;
+        if (t.kind == Tok::Keyword && type.size() > 1 &&
+            (type[0] == 'i' || type[0] == 'u' || type[0] == 'f')) {
+            Str w   = type.substr(1);
+            width   = w == "8" ? 8 : w == "16" ? 16 : w == "32" ? 32 : w == "64" ? 64 : 0;
+            is_int  = type[0] == 'i';
+            is_uint = type[0] == 'u';
+            if (type[0] == 'f' && width < 32)
+                width = 0;
+        }
+        Token n  = x.next();
+        Token n2 = n.kind == Tok::Error ? n : x.next();
+        if (!width || n.kind == Tok::Eof || (n.kind != Tok::Error && n2.kind != Tok::Eof)) {
+            Out m;
+            m.put(name).put(':').num(line).put(':').num(t.col);
+            diag.error_at(m.str(),
+                          "expected a type, i8 to i64, u8 to u64, f32 or f64, and a "
+                          "literal");
+            return false;
+        }
+        Str lit = text.substr(t.at + t.len);
+        while (!lit.empty() && (lit[0] == ' ' || lit[0] == '\t'))
+            lit = lit.substr(1);
+        while (!lit.empty() && (lit[lit.size() - 1] == ' ' || lit[lit.size() - 1] == '\r'))
+            lit = lit.substr(0, lit.size() - 1);
+        out.put(type).put(' ').put(lit).put(' ');
+        bool number = n.kind == Tok::Nat || n.kind == Tok::Int || n.kind == Tok::Float;
+        u64 v       = 0;
+        u32 v32     = 0;
+        bool ok     = false;
+        if (!number)
+            ;
+        else if (is_int)
+            ok = parse_int(lit, width, v);
+        else if (is_uint)
+            ok = parse_uint(lit, width, v);
+        else if (width == 32 && (ok = parse_f32(lit, v32)))
+            v = v32;
+        else if (width == 64)
+            ok = parse_f64(lit, v);
+        if (n.kind == Tok::Error) {
+            out.put(x.msg);
+            if (!x.what.empty())
+                out.put(' ').put(x.what);
+        } else if (!number)
+            out.put("not a number");
+        else if (!ok)
+            out.put("out of range");
+        else if (width == 64)
+            out.put("0x").hex(u32(v >> 32), 8).hex(u32(v), 8);
+        else
+            out.put("0x").hex(u32(v), width / 4);
+        out.put('\n');
+    }
+    return true;
 }
 
 bool assemble(Str name, Str source, const AsConfig &c, Vec<u8> &out, Diag &diag)

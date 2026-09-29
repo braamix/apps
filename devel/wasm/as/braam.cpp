@@ -11,6 +11,7 @@ const char USAGE[] =
     "  --module                 write a module, file.wasm, not an object\n"
     "  -o <file>                write there instead; one input only\n"
     "  --tokens                 print the tokens, write nothing\n"
+    "  --numbers                print typed literals' bits, write nothing\n"
     "Each file.wat is written to file.o in the current directory.\n";
 
 // Everything the front end holds, off the coroutine frame.
@@ -51,16 +52,20 @@ Task<i32> finish(Front &s)
 // is still assembled.
 Task<void> assemble_one(Front &s, Str path)
 {
-    if (!s.args.as.tokens && !output_name(s.args, path, s.output, s.diag))
+    bool dump = s.args.as.tokens || s.args.as.numbers;
+    if (!dump && !output_name(s.args, path, s.output, s.diag))
         co_return;
     Result<String> r = co_await slurp(path);
     if (r.is_err()) {
         failed(s, "cannot open", path, r.error());
         co_return;
     }
-    if (s.args.as.tokens) {
+    if (dump) {
         s.out.clear();
-        dump_tokens(path, r.value().str(), s.out, s.diag);
+        if (s.args.as.tokens)
+            dump_tokens(path, r.value().str(), s.out, s.diag);
+        else
+            dump_numbers(path, r.value().str(), s.out, s.diag);
         if (s.out.oom)
             s.diag.error("out of memory");
         co_await say(SYS_STDOUT, s.out.str());

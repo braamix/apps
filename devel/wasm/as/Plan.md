@@ -57,7 +57,10 @@ These shape several steps; each has a recommendation.
    `as --module` writes what `wat2wasm` writes, and `as` what
    `wat2wasm --relocatable` writes, wherever wabt's rule covers the
    module. Where wabt is not canonical (its output is a choice, not the
-   spec's), follow it anyway, and say so in the README. The tests need
+   spec's), follow it anyway, and say so in the README. Where wabt is
+   wrong, do not: `wat2wasm` 1.0.42 rounds some hex floats a little above
+   a halfway point down instead of up, and `as` is exact. No module of the
+   suite has such a literal; two assertions in `simd_lane` do. The tests need
    wabt on the host, as they need `llvm-objdump` now: `wat2wasm`,
    `wast2json`, `wasm-objdump`, version 1.0.42 from Homebrew, checked by
    the tests.
@@ -124,18 +127,6 @@ Limits to keep in mind throughout:
   `lib/diag.h`.
 
 ## Steps
-
-### A3. Numbers
-
-`uN`, `sN`, `iN` with their ranges; floats to `f32` and `f64` bits,
-**correctly rounded** from the decimal or hex text, directly to each width:
-rounding to `f64` and then to `f32` is wrong on the halfway cases, which
-`const.wast` tests on purpose. An exact big-integer conversion, as wabt's
-`literal.cc` does, with no libm. `nan:0x…` payloads and their ranges.
-
-*Done when* `test/number.mjs` passes every literal of `const.wast`,
-`float_literals.wast` and `int_literals.wast` with its expected bits, and
-refuses every out-of-range one.
 
 ### A4. The tree
 
