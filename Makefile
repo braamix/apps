@@ -197,6 +197,7 @@ TESTS := \
     devel/wasm/nm/test/nm.mjs \
     devel/wasm/disasm/test/disasm.mjs \
     devel/wasm/as/test/asdl.mjs \
+    devel/wasm/as/test/optable.mjs \
     devel/wasm/as/test/empty.mjs \
     devel/wasm/as/test/lexer.mjs \
     devel/wasm/as/test/number.mjs \

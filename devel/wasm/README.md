@@ -573,3 +573,7 @@ malformed module that is refused must be refused with the expected message.
 ones at each width's limits and around halfway points between floats.
 Hex floats are held to an exact computation instead, since `wat2wasm`
 rounds some of them wrongly, and f64 decimals to JS's `Number()` as well.
+[as/test/optable.mjs](as/test/optable.mjs) checks the instruction table,
+[lib/optable.cpp](lib/optable.cpp): its names are exactly those the
+language lists, its alignments those the language gives, and its encodings
+those of disasm's table wherever both have the instruction.

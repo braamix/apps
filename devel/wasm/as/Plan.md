@@ -99,7 +99,7 @@ memory and never awaits, and one `braam.cpp` that reads and writes files.
 | `number.cpp` | integer and float literals to bits, exactly (§4) |
 | `ast.h`, `ast.cpp` | the tree of [wat.asdl](wat.asdl), its arena, and a printer |
 | `parser.cpp` | tokens to the tree, the parse-time abbreviations done |
-| `opcodes.cpp` | every instruction by its text name: encoding and immediate shape |
+| `lib/optable.cpp` | every instruction by its text name: encoding and immediate shape |
 | `resolve.cpp` | ids to indices, implicit types, exports, segment order |
 | `encode.cpp` | the tree to sections, and the code's bytes |
 | `linking.cpp` | symbols, relocations and the `linking` section |
@@ -127,18 +127,6 @@ Limits to keep in mind throughout:
   `lib/diag.h`.
 
 ## Steps
-
-### A5. The instruction table
-
-Every instruction of §7.5 and §10 by its text name: prefix, sub-opcode,
-the constructor of `Instr` it builds, and its natural alignment. disasm's
-table is llvm's spelling and lacks GC; this one is the language's.
-Recommended: put it in `lib/`, and have disasm take its encodings from it
-later, so there is one table.
-
-*Done when* a test checks the table against the list in
-Wasm_Assembly_Language.md (every name, nothing more), and every encoding
-against disasm's table where both have the instruction.
 
 ### A6. The parser
 

@@ -33,7 +33,7 @@ struct Loc {
     u32 col  = 0;
 };
 
-// An entry of the instruction table.
+// An instruction: its place in lib/optable.h's table.
 using Opcode = u16;
 
 template <class T>
