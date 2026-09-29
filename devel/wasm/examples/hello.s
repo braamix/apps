@@ -14,8 +14,8 @@
   (import "kernel" "sys_async" (func $sys_async (param i32 i32 i32 i32)))
 
   ;; The kernel asks _alloc for a block for each reply, and _free gives
-  ;; one back. They are in libw.a, with _sig: proc.s.
-  (import "env" "_alloc" (func $_alloc (param i32) (result i32)))
+  ;; one back. They are in libw.a, with _sig: proc.s. This program calls
+  ;; only _free, and that links them all.
   (import "env" "_free" (func $_free (param i32 i32)))
 
   ;; The linker makes this the process's memory, env.memory.

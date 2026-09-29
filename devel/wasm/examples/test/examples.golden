@@ -1,6 +1,9 @@
 $ hello
 hello, world
 status 0
+$ hello2
+hello, world
+status 0
 $ echo
 
 status 0

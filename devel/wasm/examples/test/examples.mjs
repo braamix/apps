@@ -15,9 +15,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = join(HERE, "..");
 const BUILD = join(HERE, "../../../../build/devel/wasm");
 const GOLDEN = join(HERE, "examples.golden");
-const PROGRAMS = ["hello", "echo", "cat", "fib", "primes"];
+const PROGRAMS = ["hello", "echo", "cat", "hello2", "fib", "primes"];
 const CASES = [
     "hello",
+    "hello2",
     "echo",
     "echo a bc 'd e' '' f",
     "echo 'héllo, мир'",

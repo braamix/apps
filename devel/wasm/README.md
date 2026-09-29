@@ -24,7 +24,8 @@ The `wasm` package installs seven tools for WebAssembly. All run on Braam.
 
 It also ships [example programs](#examples) written in the text format,
 which these tools build on Braam, and `crt.o` and `libw.a` in `lib/`,
-which they link with.
+which they link with. [Tutorial.md](Tutorial.md) explains two of them
+line by line, for a beginner.
 
 The tests check the first five and `as` byte for byte, and `disasm` line
 for line.
@@ -441,13 +442,14 @@ each one talks to the kernel itself. Copy them out and build them:
 | `hello.s` | the smallest program: one write, and exit |
 | `echo.s` | writes its arguments, which it finds in the block `_start` is given |
 | `cat.s` | copies stdin to stdout: a loop of reads and writes, turned inside out |
+| `hello2.s` | `hello.s` again, on `crt.o`: only a `main` |
 | `fib.s` | the Fibonacci numbers, in `i64` and by recursion, on `crt.o` |
 | `primes.s` | the sieve of Eratosthenes, on `crt.o` |
 | `crt.s` | the start of a program that computes, prints and exits: `crt.o` |
 | `proc.s` | `_alloc`, `_free` and `_sig`, which every program needs; in `libw.a` |
 | `fmt.s` | output into a buffer, and numbers in decimal; in `libw.a` |
 | `args.s` | the arguments, one by one; in `libw.a` |
-| `build.sh` | the commands that build the five programs |
+| `build.sh` | the commands that build the six programs |
 
 `crt.o` and `libw.a` are also in the package's `lib/`, built, where `ld`
 finds them. The first three programs link with `libw.a` for `proc.s`:
@@ -455,7 +457,7 @@ finds them. The first three programs link with `libw.a` for `proc.s`:
     as hello.s
     ld hello.o -lw -o hello
 
-The last two define only `main`. `crt.o` calls it, and writes what it
+The last three define only `main`. `crt.o` calls it, and writes what it
 printed once it returns. It is linked by name, since a library's member is
 linked only for a symbol that something needs, and nothing needs
 `_start`:
