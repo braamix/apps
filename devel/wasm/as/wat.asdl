@@ -49,6 +49,11 @@
 # A float is its bits: f32 in a u32, f64 in a u64, so that a NaN payload
 # and the sign of zero survive.
 #
+# ast.h is this file in C++, and test/asdl.mjs holds the two to each
+# other. It lays out most sums as one struct with every constructor's
+# fields side by side. So within a sum, a field name has one type in every
+# constructor, and no field is named `kind`, which is the tag.
+#
 module Wat {
 
     # Module (§8)
@@ -72,7 +77,7 @@ module Wat {
                   bytes? data)                              # data: inline, at 0
          | Global(Bind bind, name* exports, GlobalType type, Instr* init)
          | Tag(Bind bind, name* exports, TypeUse type)
-         | Export(name name, ExternKind kind, Idx index)
+         | Export(name name, ExternKind sort, Idx index)
          | Start(Idx func)
          | Elem(Bind bind, ElemMode mode, ElemList elems)
          | Data(Bind bind, DataMode mode, bytes init)
@@ -80,9 +85,9 @@ module Wat {
          attributes(location loc)
 
     Extern = FuncImport(Bind bind, TypeUse type)
-           | TableImport(Bind bind, TableType type)
-           | MemoryImport(Bind bind, MemType type)
-           | GlobalImport(Bind bind, GlobalType type)
+           | TableImport(Bind bind, TableType table)
+           | MemoryImport(Bind bind, MemType memory)
+           | GlobalImport(Bind bind, GlobalType global)
            | TagImport(Bind bind, TypeUse type)
 
     ExternKind = FuncKind | TableKind | MemoryKind | GlobalKind | TagKind
@@ -118,8 +123,8 @@ module Wat {
 
     RefType = (bool nullable, HeapType heap)                # anyref: nullable, HAny
 
-    HeapType = Abstract(AbsHeapType type)
-             | Concrete(Idx type)
+    HeapType = Abstract(AbsHeapType abs)
+             | Concrete(Idx index)
 
     AbsHeapType = HAny | HEq | HI31 | HStruct | HArray | HNone
                 | HFunc | HNoFunc | HExn | HNoExn | HExtern | HNoExtern
@@ -158,8 +163,8 @@ module Wat {
     TypeUse = (Idx? type, Param* params, ValType* results)
 
     BlockType = NoResult                                    # nothing
-              | Result(ValType type)                        # one (result t)
-              | Use(TypeUse type)                           # anything else
+              | Result(ValType result)                      # one (result t)
+              | Use(TypeUse use)                            # anything else
 
     # Instructions (§7). The constructor is the shape of the immediates;
     # the opcode says which instruction it is.

@@ -128,16 +128,6 @@ Limits to keep in mind throughout:
 
 ## Steps
 
-### A4. The tree
-
-`ast.h` written by hand from [wat.asdl](wat.asdl): one struct per product,
-a tag and a union-free layout per sum, sequences as `Vec`, all in an arena
-freed at once. `ast.cpp` prints a tree as S-expressions in one canonical
-form, which is what the parser's tests compare.
-
-*Done when* `test/asdl.mjs` also checks that `ast.h` has every type and
-constructor of `wat.asdl`, and nothing else.
-
 ### A5. The instruction table
 
 Every instruction of §7.5 and §10 by its text name: prefix, sub-opcode,

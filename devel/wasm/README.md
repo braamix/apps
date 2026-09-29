@@ -554,7 +554,11 @@ And it runs [as/test/asdl.mjs](as/test/asdl.mjs), which checks
 [as/validate_asdl.py](as/validate_asdl.py): it must parse, every field's
 type must be defined, no constructor may be defined twice, and every type
 must be reachable from `Module`. Broken copies of it must each be
-refused. It needs `python3` with the `pyasdl` package.
+refused. It needs `python3` with the `pyasdl` package. The same test holds
+[as/ast.h](as/ast.h), the tree in C++, to it: every type and constructor,
+each field with its C++ type by the mapping `ast.h` states, and nothing
+else; and every constructor must be named by the printer in
+[as/ast.cpp](as/ast.cpp). Broken copies of `ast.h` must be refused too.
 [as/test/empty.mjs](as/test/empty.mjs) runs the assembler as it stands,
 through [as/host.mjs](as/host.mjs), which boots the harness once for many
 runs: every source is the empty module for now, which V8 must load, and
