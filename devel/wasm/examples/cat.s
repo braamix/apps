@@ -1,7 +1,7 @@
 ;; cat.s: copies its standard input to its standard output.
 ;;
 ;;   as cat.s
-;;   ld --allow-undefined cat.o -o cat
+;;   ld cat.o -o cat
 ;;
 ;; A program cannot wait here: it asks, returns from the step, and is
 ;; resumed with the answer. So cat is a loop turned inside out. Each

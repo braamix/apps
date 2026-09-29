@@ -50,7 +50,10 @@ the rule `wat2wasm --relocatable` follows:
 - Every function, table, global and tag is a symbol, in that order.
 - One defined with an id is global, named by the id without its `$`; one
   without an id is local and hidden.
-- An import is undefined, and named by its import.
+- An import is undefined, and named by its import. One from a module other
+  than `env` also has an explicit name, as clang gives what
+  `import_module` declares: it is the host's, and the linkers leave it an
+  import, where an import from `env` must be defined by another object.
 - An exported definition is also hidden, `EXPORTED` and `NO_STRIP`.
 
 Every index to one of them is a padded LEB with a relocation: in code, in
@@ -166,7 +169,9 @@ type. Where it differs:
   `reloc.metadata.code.branch_hint`, not `reloc.Custom`. Tags have symbols
   and relocations, and so do the function indices of an element segment;
   a concrete `ref.null` is not relocated as a function. Two exports
-  without an id are not a duplicate symbol.
+  without an id are not a duplicate symbol. An import from a module other
+  than `env` has an explicit name, so that `ld` and `wasm-ld` link it
+  without `--allow-undefined`.
 
 ## Inside
 
@@ -274,7 +279,8 @@ text syntax.
   should.
 - `make longtest` runs [test/object.mjs](test/object.mjs), which assembles
   every valid module of the suite as an object. Each must equal what
-  `wast2json -r` writes, but for the relocation sections' names; where
+  `wast2json -r` writes, but for the relocation sections' names and the
+  explicit names of imports from modules other than `env`; where
   the rule goes beyond wabt's, the objects are counted. Each is then read
   by `llvm-nm`, `llvm-objdump -r`, `wasm-objdump -x`, `nm` and
   `disasm -r`, which must agree. Where llvm cannot read an object, its

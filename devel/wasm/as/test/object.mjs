@@ -1,7 +1,8 @@
 // as's objects. Every valid module of the 233 scripts wast2json reads is
 // assembled as an object, and its bytes must be those `wast2json -r` wrote
 // for it, but for the relocation sections' names, which as spells as clang
-// does: reloc.CODE, not reloc.Code. Where the rule of README.md goes beyond
+// does: reloc.CODE, not reloc.Code; and for the explicit names of imports
+// from modules other than env, which wabt does not give. Where the rule of README.md goes beyond
 // wabt, tags and element segments, the bytes differ and are counted. Then
 // every valid module's object is read by llvm-nm, llvm-objdump -r,
 // wasm-objdump -x, and our nm and disasm -r: nm must print what llvm-nm
@@ -45,7 +46,8 @@ const bad = [];
 const hex = (b, at) => [...b.subarray(Math.max(0, at - 4), at + 8)]
     .map((x) => x.toString(16).padStart(2, "0")).join(" ");
 
-// The sections of a module: [{ id, name, start, end }], `start` its contents'.
+// The sections of a module: [{ id, name, head, start, end }], `head` where
+// the section begins, `start` where its contents do.
 function sections(b) {
     const out = [];
     let i = 8;
@@ -59,23 +61,24 @@ function sections(b) {
         return v;
     };
     while (i < b.length) {
-        const id = b[i++], size = uleb(), start = i;
+        const head = i, id = b[i++], size = uleb(), start = i;
         let name = null;
         if (id === 0) {
             const n = uleb();
             name = new TextDecoder().decode(b.subarray(i, i + n));
         }
-        out.push({ id, name, start, end: start + size });
+        out.push({ id, name, head, start, end: start + size });
         i = start + size;
     }
     return out;
 }
 
-// Whether a module imports a tag.
-function tagImport(b) {
+// A module's imports, in order: [{ module, field, kind }].
+function imports(b) {
     const s = sections(b).find((s) => s.id === 2);
+    const out = [];
     if (!s)
-        return false;
+        return out;
     let i = s.start;
     const uleb = () => {
         let v = 0, k = 0, c;
@@ -99,24 +102,115 @@ function tagImport(b) {
         if (t === 0x63 || t === 0x64)
             uleb();
     };
+    const name = () => {
+        const n = uleb();
+        i += n;
+        return new TextDecoder().decode(b.subarray(i - n, i));
+    };
     for (let n = uleb(); n > 0; n--) {
-        for (let k = 0; k < 2; k++) {
-            const n = uleb();
-            i += n;
-        }
-        const kind = b[i++];
-        if (kind === 4)
-            return true;
+        const module = name(), field = name(), kind = b[i++];
+        out.push({ module, field, kind });
         if (kind === 0)
             uleb();
         else if (kind === 1)
             valtype(), limits(false);
         else if (kind === 2)
             limits(true);
-        else
+        else if (kind === 3)
             valtype(), i++;
+        else
+            i++, uleb();
     }
-    return false;
+    return out;
+}
+
+const tagImport = (b) => imports(b).some((im) => im.kind === 4);
+
+// wabt's object with the rule of README.md's Objects applied: an import
+// from another module than env is undefined with an explicit name, its
+// field, as as writes it. The symbol table is rewritten; nothing else
+// refers to its bytes. The count of symbols changed is in `explicit`.
+let explicit = 0;
+function explicitNames(b) {
+    // Symbol kind to import kind: function, global, tag, table.
+    const IMPORT = { 0: 0, 2: 3, 4: 4, 5: 1 };
+    const byKind = {};
+    for (const im of imports(b))
+        (byKind[im.kind] ??= []).push(im);
+    const link = sections(b).find((s) => s.name === "linking");
+    if (!link)
+        return b;
+    const enc = (v) => {
+        const out = [];
+        do {
+            let c = v & 0x7f;
+            v = Math.floor(v / 128);
+            out.push(v ? c | 0x80 : c);
+        } while (v);
+        return out;
+    };
+    let i = link.start;
+    const uleb = () => {
+        let v = 0, s = 0, c;
+        do {
+            c = b[i++];
+            v += (c & 0x7f) * 2 ** s;
+            s += 7;
+        } while (c & 0x80);
+        return v;
+    };
+    uleb();
+    i += "linking".length;
+    const body = [...b.subarray(i, i + 1)];
+    i++;
+    let changed = 0;
+    while (i < link.end) {
+        const type = b[i++], size = uleb(), start = i, end = start + size;
+        if (type !== 8) {
+            body.push(type, ...enc(size), ...b.subarray(start, end));
+            i = end;
+            continue;
+        }
+        const out = [];
+        const count = uleb();
+        out.push(...enc(count));
+        for (let n = 0; n < count; n++) {
+            const kind = b[i++], at = i;
+            let flags = uleb();
+            if (kind === 1) {
+                const nl = uleb();
+                i += nl;
+                if (!(flags & 0x10))
+                    uleb(), uleb(), uleb();
+                out.push(kind, ...b.subarray(at, i));
+                continue;
+            }
+            const index = uleb();
+            let name = null;
+            if (!(flags & 0x10) || flags & 0x40) {
+                const nl = uleb();
+                i += nl;
+                name = b.subarray(i - nl, i);
+            }
+            const im = flags & 0x10 && kind in IMPORT ? byKind[IMPORT[kind]]?.[index] : null;
+            if (im && im.module !== "env" && !(flags & 0x40)) {
+                flags |= 0x40;
+                name = new TextEncoder().encode(im.field);
+                changed++;
+            }
+            out.push(kind, ...enc(flags), ...enc(index));
+            if (name)
+                out.push(...enc(name.length), ...name);
+        }
+        body.push(type, ...enc(out.length), ...out);
+        i = end;
+    }
+    if (!changed)
+        return b;
+    explicit++;
+    const payload = [...enc("linking".length), ...new TextEncoder().encode("linking"), ...body];
+    return new Uint8Array([...b.subarray(0, link.head + 1), ...enc(payload.length), ...payload,
+                           ...b.subarray(link.end)]);
 }
 
 // wabt's object with its relocation sections named as clang names them.
@@ -196,7 +290,7 @@ for (let at = 0; at < cases.length; at += 500) {
             return;
         if (c.wabt === "text")
             return text++;
-        const want = clangNames(c.wabt);
+        const want = explicitNames(clangNames(c.wabt));
         const i = got.findIndex((b, j) => b !== want[j]);
         if (i < 0 && got.length === want.length)
             return same++;
@@ -350,6 +444,7 @@ for (let at = 0; at < valid.length; at += 500) {
 
 if (bad.length)
     die(`${bad.length} failures:\n  ` + bad.slice(0, 60).join("\n  "));
-console.log(`object ok: ${same} objects of ${read} scripts equal wabt's, ${beyond} go beyond its rule, ` +
+console.log(`object ok: ${same} objects of ${read} scripts equal wabt's, ${explicit} of them once ` +
+            `their imports are named explicitly, ${beyond} go beyond its rule, ` +
             `${text} have no binary, ${refused} wabt refuses; ${agreed} read alike by llvm, wabt, ` +
             `nm and disasm, ${limited} beyond llvm (${limits.size} kinds)`);

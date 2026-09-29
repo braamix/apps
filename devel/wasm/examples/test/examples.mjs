@@ -89,7 +89,7 @@ const tail = Buffer.from([0, 26, 5, ...Buffer.from("braam")]);
 for (const p of PROGRAMS) {
     const lib = PROGRAMS.indexOf(p) < 3 ? [] : ["crt.o"];
     const inputs = [...lib, `${p}.o`, ...(lib.length ? ["libw.a"] : [])];
-    const base = [...FLAGS.filter((f) => f !== "--import-memory"), "--allow-undefined", ...inputs];
+    const base = [...FLAGS.filter((f) => f !== "--import-memory"), ...inputs];
     for (const i of inputs)
         plant(H, `/tmp/${i}`, file(i));
     const w = L.wasm_ld(base);

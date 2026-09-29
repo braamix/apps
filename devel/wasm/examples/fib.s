@@ -2,7 +2,7 @@
 ;;
 ;;   as fib.s crt.s fmt.s args.s
 ;;   ar rc libw.a fmt.o args.o
-;;   ld --allow-undefined crt.o fib.o -L. -lw -o fib
+;;   ld crt.o fib.o -L. -lw -o fib
 ;;   fib 10
 ;;
 ;; A table, added up in i64, then the last of it again by recursion,

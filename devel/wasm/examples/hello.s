@@ -1,7 +1,7 @@
 ;; hello.s: the smallest Braam program, written by hand.
 ;;
 ;;   as hello.s
-;;   ld --allow-undefined hello.o -o hello
+;;   ld hello.o -o hello
 ;;
 ;; A process is a module the kernel steps. It calls _start once, then
 ;; _resume once for each reply to a call made with sys_async. Each step

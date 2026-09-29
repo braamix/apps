@@ -2,7 +2,7 @@
 ;;
 ;;   as primes.s crt.s fmt.s args.s
 ;;   ar rc libw.a fmt.o args.o
-;;   ld --allow-undefined crt.o primes.o -L. -lw -o primes
+;;   ld crt.o primes.o -L. -lw -o primes
 ;;   primes 1000
 ;;
 ;; The sieve of Eratosthenes, a byte for each number, in a block from

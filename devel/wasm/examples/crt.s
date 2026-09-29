@@ -1,7 +1,7 @@
 ;; crt.s: the start of a program that computes, prints and exits.
 ;;
 ;;   as crt.s
-;;   ld --allow-undefined crt.o prog.o -L. -lw -o prog
+;;   ld crt.o prog.o -L. -lw -o prog
 ;;
 ;; _start calls main(argv, len), which returns the exit status. What
 ;; main printed with fmt.s is then written in one go: to stdout if the

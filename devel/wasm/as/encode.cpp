@@ -1352,6 +1352,13 @@ struct Encoder {
             s.index       = at[k]++;
             if (i) {
                 s.flags = wasm::SYM_UNDEFINED;
+                // An import from another module than env is the host's, and
+                // no object defines it: named explicitly, as clang names
+                // what import_module declares, so the linker allows it.
+                if (i->module != "env") {
+                    s.flags |= wasm::SYM_EXPLICIT_NAME;
+                    s.name = i->item;
+                }
             } else {
                 if (!b.id.has)
                     s.flags |= wasm::SYM_LOCAL | wasm::SYM_HIDDEN;
@@ -1401,7 +1408,7 @@ struct Encoder {
                     continue;
                 }
                 e.uleb(s.index);
-                if (!(s.flags & wasm::SYM_UNDEFINED))
+                if (!(s.flags & wasm::SYM_UNDEFINED) || (s.flags & wasm::SYM_EXPLICIT_NAME))
                     e.name(s.name);
             }
             size(sub);

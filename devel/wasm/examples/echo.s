@@ -1,7 +1,7 @@
 ;; echo.s: writes its arguments, separated by spaces, and a newline.
 ;;
 ;;   as echo.s
-;;   ld --allow-undefined echo.o -o echo
+;;   ld echo.o -o echo
 ;;
 ;; The arguments come to _start as one block: a u32 count, then each
 ;; argument as a u32 length and its bytes. The environment follows in

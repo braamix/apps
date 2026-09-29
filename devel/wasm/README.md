@@ -444,7 +444,7 @@ each one talks to the kernel itself. Copy them out and build them:
 The first three stand alone:
 
     as hello.s
-    ld --allow-undefined hello.o -o hello
+    ld hello.o -o hello
 
 The last two define only `main`. `crt.s` calls it, and writes what it
 printed once it returns. `crt.o` is linked by name, since a library's
@@ -453,14 +453,12 @@ member is linked only for a symbol that something needs, and nothing needs
 
     as crt.s fmt.s args.s fib.s
     ar rc libw.a fmt.o args.o
-    ld --allow-undefined crt.o fib.o -L. -lw -o fib
+    ld crt.o fib.o -L. -lw -o fib
 
-`--allow-undefined` is for the kernel's two functions. `as` names an
-imported symbol by its field, `sys`, which nothing defines, so without the
-flag `ld` refuses it, as `wasm-ld` does. With it, the symbol stays an
-import from the module named in the source, `kernel`. The flag also passes
-a function that is really missing, which becomes an import that the kernel
-refuses when the program runs.
+The kernel's two functions are imports from `kernel`, and `as` marks an
+import from any module but `env` as the host's, so `ld` leaves it an
+import. An import from `env` is a symbol that another object defines, and
+`ld` refuses it if none does, as it refuses a missing C function.
 
 `ld` stamps the program for the SDK's process ABI. So do not write a
 `braam` section by hand with `as --module`: it breaks when the ABI moves.
