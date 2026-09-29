@@ -497,8 +497,10 @@ messages. [ar/README.md](ar/README.md) says what had to change.
 | `getopt.cpp` | the options, as FreeBSD's `getopt_long` reads them |
 
 [Wasm_Object_Format.md](Wasm_Object_Format.md) describes the file format
-`ld` reads and writes, byte by byte, and
-[Wasm_Bytecode.md](Wasm_Bytecode.md) the instructions `disasm` prints.
+`ld` reads and writes, byte by byte,
+[Wasm_Bytecode.md](Wasm_Bytecode.md) the instructions `disasm` prints, and
+[Wasm_Assembly_Language.md](Wasm_Assembly_Language.md) the text format
+`as` will read.
 
 ## Tests
 
