@@ -145,6 +145,14 @@ struct Program {
     // Past a LEB128 of up to 64 bits.
     static void leb(Cursor &c) { c.sleb64(); }
 
+    // Past a value type: (ref null? ht) is two.
+    static void val_type(Cursor &c)
+    {
+        u8 t = c.byte();
+        if (t == 0x63 || t == 0x64)
+            leb(c);
+    }
+
     // A constant expression, through its end.
     static void expr(Cursor &c, i64 &value, u8 &first)
     {
@@ -191,6 +199,27 @@ struct Program {
                 else
                     c.fail("not a constant instruction", at);
                 break;
+            case 0xfb: // GC's
+                switch (c.uleb()) {
+                case 0x00: // struct.new
+                case 0x01: // struct.new_default
+                case 0x06: // array.new
+                case 0x07: // array.new_default
+                    c.uleb();
+                    break;
+                case 0x08: // array.new_fixed
+                    c.uleb();
+                    c.uleb();
+                    break;
+                case 0x1a: // any.convert_extern
+                case 0x1b: // extern.convert_any
+                case 0x1c: // ref.i31
+                    break;
+                default:
+                    c.fail("not a constant instruction", at);
+                    break;
+                }
+                break;
             default:
                 c.fail("not a constant instruction", at);
                 break;
@@ -224,14 +253,14 @@ struct Program {
                 funcs_imported++;
                 break;
             case EXT_TABLE:
-                leb(c);
+                val_type(c);
                 limits(c);
                 break;
             case EXT_MEMORY:
                 limits(c);
                 break;
             case EXT_GLOBAL:
-                leb(c);
+                val_type(c);
                 c.byte();
                 globals_imported++;
                 break;
@@ -253,7 +282,7 @@ struct Program {
         for (u32 i = 0; i < n && c.ok(); i++) {
             Glob g{};
             g.off = c.at();
-            leb(c);
+            val_type(c);
             c.byte();
             u8 first;
             expr(c, g.value, first);
@@ -275,8 +304,7 @@ struct Program {
             e.index  = c.uleb();
             if (c.ok() && e.kind > EXT_TAG)
                 c.fail("unexpected export kind", at);
-            if (c.ok() && e.kind == EXT_FUNCTION &&
-                (e.index < funcs_imported || e.index >= funcs_imported + funcs_declared))
+            if (c.ok() && e.kind == EXT_FUNCTION && e.index >= funcs_imported + funcs_declared)
                 c.fail("invalid function export", at);
             if (c.ok() && !exports.push(e))
                 return oom();
@@ -384,13 +412,16 @@ struct Program {
 
     // Symbols of the exports, as llvm makes them with no name section: a
     // global's is a data symbol at its value, counted from the first
-    // segment, and a memory has none.
+    // segment, and a memory has none. Nor has an import exported again,
+    // which crashes llvm.
     bool from_exports(Vec<ModuleSymbol> &syms)
     {
         for (const Exp &e : exports) {
             ModuleSymbol s{};
             switch (e.kind) {
             case EXT_FUNCTION:
+                if (!defined_func(e.index))
+                    continue;
                 s = make(e.name, SYM_FUNCTION, 0, func_addr(e.index), func_size(e.index));
                 break;
             case EXT_GLOBAL: {

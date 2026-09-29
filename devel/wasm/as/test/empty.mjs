@@ -1,5 +1,5 @@
-// as at step A1: every source is the empty module, which V8 must load. Then
-// the command line: where each output goes, and what is refused.
+// as's command line: (module) is the empty module, which V8 must load; where
+// each output goes, and what is refused.
 
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";

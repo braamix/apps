@@ -18,14 +18,15 @@ add_subdirectory(nm)
 add_subdirectory(disasm)
 add_subdirectory(as)
 
-braam_add_package(NAME wasm VERSION 0.7-r0
-                  FIELD "T=WebAssembly tools: ld, strip, ar, size, nm and disasm"
+braam_add_package(NAME wasm VERSION 0.8-r0
+                  FIELD "T=WebAssembly tools: ld, strip, ar, size, nm, disasm and as"
                   FILES $<TARGET_FILE:bin_ld>=bin/ld
                         $<TARGET_FILE:bin_strip>=bin/strip
                         $<TARGET_FILE:bin_ar>=bin/ar
                         $<TARGET_FILE:bin_size>=bin/size
                         $<TARGET_FILE:bin_nm>=bin/nm
-                        $<TARGET_FILE:bin_disasm>=bin/disasm)
+                        $<TARGET_FILE:bin_disasm>=bin/disasm
+                        $<TARGET_FILE:bin_as>=bin/as)
 
 if(TARGET packages)
     add_dependencies(packages pkg_wasm)

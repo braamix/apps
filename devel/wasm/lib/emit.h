@@ -19,6 +19,7 @@ struct Emit {
 
     void u32le(u32 x);
     void uleb(u32 x);
+    void uleb64(u64 x);
     void uleb5(u32 x); // padded to five bytes, as an object's sizes are
     void sleb(i32 x);
     void sleb64(i64 x);

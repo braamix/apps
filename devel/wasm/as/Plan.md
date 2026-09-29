@@ -67,7 +67,10 @@ These shape several steps; each has a recommendation.
 
    `wast2json --enable-all` is the oracle for the suite: it writes every
    module of a script as a `.wasm`, numbered in order, which is what `as`
-   is compared with. It reads 233 of the suite's 258 scripts. The other
+   is compared with. But not compact imports, which `--enable-all` also
+   turns on: they group the import section into an encoding outside the
+   language, which V8 does not load, so the tests name every other
+   feature instead. It reads 233 of the suite's 258 scripts. The other
    25 use GC's text syntax, which wabt does not parse (`rec`, `struct`,
    `array`, `anyref` and the abstract heap types, `(ref exn)`): all of
    `gc/`, `type-rec`, `type-canon`, `type-equivalence`,
@@ -128,33 +131,6 @@ Limits to keep in mind throughout:
 
 ## Steps
 
-### A8. The module
-
-`encode.cpp`: sections in their order, each once, empty ones left out;
-types, imports, functions, tables, memories, tags, globals, exports,
-start, elements (each segment in the smallest of its eight forms, as wabt
-chooses), data count (when wabt writes one), code (locals grouped by
-type), data. LEBs minimal. `--module` writes this.
-
-*Done when*:
-
-- `test/module.mjs` assembles every module of the 233 scripts with
-  `as --module`, and the bytes equal those `wast2json --enable-all` wrote
-  for it; for the other 25, V8 must load each valid module and `disasm`
-  must read it back;
-- `test/spec.mjs`, a runner of `.wast` scripts in node, runs the suite: it
-  splits a script into its commands, has `as` assemble each module (text
-  and `quote`; `binary` ones it builds itself), instantiates them in V8
-  with the `spectest` imports, and checks every `assert_return`,
-  `assert_trap`, `assert_exhaustion` and `assert_exception`.
-  `assert_malformed` must be refused by `as`, `assert_invalid` by `as` or
-  V8. What V8 does not implement (custom page sizes, wide arithmetic) is
-  checked for bytes only. The suite's own count of what passed is written
-  to the log.
-
-This is the step that proves the language: after it, `as --module` is a
-complete assembler.
-
 ### A9. The object
 
 `linking.cpp`, by decision 1: the symbol table, padded LEBs with
@@ -198,7 +174,6 @@ itself.
 
 ## Beyond the steps
 
-- The README gets `as`'s section, and the package its `bin/as`, at step A8.
 - A big test once the rest pass: every program in this tree, through
   `wasm2wat` and back through `as --module`, must equal `wat2wasm`'s
   bytes. It belongs in `make longtest`.

@@ -4,7 +4,9 @@
 //
 // As a module: `const as = await assembler(wasm)`, then
 // `as.run(args, { "a.wat": text })` gives { out, err, status, files }, where
-// files are what the run left beside its inputs, by name.
+// files are what the run left beside its inputs, by name. Other tools,
+// `assembler(wasm, { disasm: path })`, are run by `as.run(args, inputs,
+// null, "disasm")`.
 //
 // As a command: `node host.mjs <as.wasm> <as's arguments>...` plants every
 // input under its base name, runs as, and copies the outputs into the
@@ -15,7 +17,7 @@ import { basename, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HARNESS, KERNEL, ROOTFS } from "../../../test/sdk.mjs";
 
-export async function assembler(wasm) {
+export async function assembler(wasm, tools = {}) {
     const H = await import(HARNESS);
     await H.init(KERNEL, ROOTFS);
     H.kernel().init(0);
@@ -24,12 +26,14 @@ export async function assembler(wasm) {
         throw new Error("the harness's shell did not start");
     H.regrid(80, 24, "resize returned no screen descriptor");
     H.store.files.set("/bin/as", new Uint8Array(readFileSync(wasm)));
+    for (const [name, path] of Object.entries(tools))
+        H.store.files.set(`/bin/${name}`, new Uint8Array(readFileSync(path)));
     const bytes = (b) => typeof b === "string" ? new TextEncoder().encode(b) : new Uint8Array(b);
     const text = (at) => new TextDecoder().decode(H.store.files.get(at) ?? new Uint8Array());
     let n = 0;
 
     // Each run in a directory of its own, removed after.
-    function run(args, inputs = {}, stdin = null) {
+    function run(args, inputs = {}, stdin = null, tool = "as") {
         const dir = `/tmp/as${n++}`;
         H.store.dirs.add(dir);
         for (const [name, b] of Object.entries(inputs))
@@ -38,13 +42,13 @@ export async function assembler(wasm) {
         const redirect = stdin === null ? "" : ` </tmp/i`;
         if (stdin !== null)
             H.store.files.set("/tmp/i", bytes(stdin));
-        H.store.files.set("/tmp/c", bytes(`cd ${dir}; as ${args.map(quote).join(" ")}` +
+        H.store.files.set("/tmp/c", bytes(`cd ${dir}; ${tool} ${args.map(quote).join(" ")}` +
                                           `${redirect} >/tmp/o 2>/tmp/e; echo $? >/tmp/s\n`));
         for (const k of ["/tmp/o", "/tmp/e", "/tmp/s"])
             H.store.files.delete(k);
         H.submit("sh /tmp/c", now++);
         if (H.run(now++) !== -1)
-            throw new Error("the harness did not settle after: as " + args.join(" "));
+            throw new Error(`the harness did not settle after: ${tool} ` + args.join(" "));
         const files = {};
         for (const [at, b] of [...H.store.files])
             if (at.startsWith(dir + "/")) {

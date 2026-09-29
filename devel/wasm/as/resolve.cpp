@@ -738,6 +738,32 @@ struct Resolver {
         return l;
     }
 
+    // `func x*` as the table's type and `(ref.func x)*`.
+    void ref_funcs(ElemList &l, const RefType &type)
+    {
+        Opcode op = 0;
+        find_op("ref.func", op);
+        Vec<Expr> items;
+        for (const Idx &x : l.funcs) {
+            auto *r = node<Instr::Index>(x.loc);
+            if (!r)
+                return;
+            r->op = op;
+            r->x  = x;
+            Vec<Instr *> v;
+            add(v, static_cast<Instr *>(r));
+            Expr e;
+            e.instrs = arena.list(v);
+            add(items, e);
+        }
+        l.kind  = ElemList::Kind::Exprs;
+        l.type  = type;
+        l.funcs = List<Idx>();
+        l.items = arena.list(items);
+        if (arena.failed())
+            oom();
+    }
+
     void elem_list(ElemList &l)
     {
         if (l.kind == ElemList::Kind::Funcs) {
@@ -818,6 +844,8 @@ struct Resolver {
                 e->mode.offset = zero(t->type.addr, d->loc);
                 e->elems       = t->elems.value;
                 t->elems       = Opt<ElemList>();
+                if (e->elems.kind == ElemList::Kind::Funcs)
+                    ref_funcs(e->elems, t->type.elem);
                 elem_list(e->elems);
                 add(out, static_cast<Decl *>(e));
             }

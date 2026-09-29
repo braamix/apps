@@ -167,8 +167,7 @@
   table.get 1 table.copy 2 3 memory.size $m memory.copy $a $b)
 ---
 (Module _ [
-  (Table _ [] (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc))) [
-    (RefNull (Abstract HFunc))] _)
+  (Table _ [] (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc))) [] _)
   (Memory _ [] (MemType Addr32 (Limits 1 _) false _) _)
   (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])
   (Func _ [] (TypeUse _ [] []) [] [
@@ -422,8 +421,7 @@
 (table 0 externref ref.null extern) (table 1 (ref func) (ref.func $f))
 ---
 (Module _ [
-  (Table _ [] (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc))) [
-    (RefNull (Abstract HFunc))] _)
+  (Table _ [] (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc))) [] _)
   (Table $t [] (TableType Addr64 (Limits 2 10) (RefType true (Abstract HFunc))) [
     (RefNull (Abstract HFunc))] _)
   (Table _ [] (TableType Addr32 (Limits 0 _) (RefType true (Abstract HExtern))) [
@@ -436,12 +434,9 @@
 (table (ref null func) (elem (ref.func $f) (item ref.null func) (item)))
 ---
 (Module _ [
-  (Table $t [] (TableType Addr32 (Limits 3 3) (RefType true (Abstract HFunc))) [
-    (RefNull (Abstract HFunc))] (Funcs [$f $g 1]))
-  (Table _ [] (TableType Addr64 (Limits 0 0) (RefType true (Abstract HExtern))) [
-    (RefNull (Abstract HExtern))] (Funcs []))
-  (Table _ [] (TableType Addr32 (Limits 3 3) (RefType true (Abstract HFunc))) [
-    (RefNull (Abstract HFunc))] (Exprs (RefType true (Abstract HFunc)) [(Expr [
+  (Table $t [] (TableType Addr32 (Limits 3 3) (RefType true (Abstract HFunc))) [] (Funcs [$f $g 1]))
+  (Table _ [] (TableType Addr64 (Limits 0 0) (RefType true (Abstract HExtern))) [] (Funcs []))
+  (Table _ [] (TableType Addr32 (Limits 3 3) (RefType true (Abstract HFunc))) [] (Exprs (RefType true (Abstract HFunc)) [(Expr [
     (Index ref.func $f)]) (Expr [
     (RefNull (Abstract HFunc))]) (Expr [])]))])
 
@@ -472,8 +467,7 @@
   (Func $f ["a" "b"] (TypeUse _ [] []) [] [])
   (Global _ ["g"] (GlobalType I32 false) [
     (I32Const 0)])
-  (Table _ ["t"] (TableType Addr32 (Limits 0 _) (RefType true (Abstract HFunc))) [
-    (RefNull (Abstract HFunc))] _)
+  (Table _ ["t"] (TableType Addr32 (Limits 0 _) (RefType true (Abstract HFunc))) [] _)
   (Memory _ ["m"] (MemType Addr32 (Limits 0 _) false _) _)
   (Tag _ ["e"] (TypeUse _ [] []))])
 

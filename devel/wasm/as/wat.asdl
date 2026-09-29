@@ -17,7 +17,6 @@
 #    call_indirect's table. `table.init e` is `table.init 0 e`.
 #  * A memory access has its offset and alignment, the defaults filled
 #    in.
-#  * A table without an init expression gets `ref.null ht`.
 #  * An inline import becomes an Import (§8.5), keeping the inline
 #    exports.
 #  * `(elem offset x*)` gets its table 0 and its `func`.
@@ -46,7 +45,7 @@
 #    and `exports` is empty.
 #  * An inline segment is an Elem or Data right after its table or memory,
 #    with offset 0, and the table's `elems` and the memory's `data` are
-#    empty.
+#    empty. An inline `func x*` is the table's type and `(ref.func x)*`.
 #
 # Primitive types, beyond ASDL's own:
 #
@@ -86,7 +85,8 @@ module Wat {
          | Import(name module, name item, Extern desc, name* exports)
          | Func(Bind bind, name* exports, TypeUse type, Local* locals,
                 Instr* body)
-         | Table(Bind bind, name* exports, TableType type, Instr* init,
+         | Table(Bind bind, name* exports, TableType type,
+                 Instr* init,                               # none: ref.null
                  ElemList? elems)                           # elems: inline, at 0
          | Memory(Bind bind, name* exports, MemType type,
                   bytes? data)                              # data: inline, at 0

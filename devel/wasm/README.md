@@ -1,6 +1,6 @@
 # wasm — WebAssembly tools for Braam
 
-The `wasm` package installs six tools for WebAssembly. All run on Braam.
+The `wasm` package installs seven tools for WebAssembly. All run on Braam.
 
 - `ld`, a linker, turns the object files clang compiles into a program
   Braam can run. It does what `wasm-ld`, LLVM's linker, does, and gives
@@ -18,9 +18,11 @@ The `wasm` package installs six tools for WebAssembly. All run on Braam.
 - `disasm` shows the code of a program, an object or each member of an
   archive as instructions, and its data as bytes. The code is laid out as
   `llvm-objdump -d` lays it out, with better comments.
+- `as`, an assembler, turns WebAssembly's text format into a module. It
+  does what wabt's `wat2wasm` does, and gives the same output.
 
-The tests check the first five byte for byte, and `disasm` line for line.
-More tools, such as `as`, will join them here, one directory each.
+The tests check the first five and `as` byte for byte, and `disasm` line
+for line.
 
 ## Using ld
 
@@ -400,6 +402,56 @@ in one file is reported, and the other files are still shown.
 Like `nm`, it reads any well-formed module, also what `ld` does not link.
 A wasm64 module's addresses have sixteen digits, as llvm prints them.
 
+## Using as
+
+    as [options] file.wat ...
+
+`as` reads modules in WebAssembly's text format, the language
+[Wasm_Assembly_Language.md](Wasm_Assembly_Language.md) describes, and
+writes each one to a file of its own:
+
+    $ as --module hello.wat
+    $ ls
+    hello.wasm  hello.wat
+
+`hello.wat` is written to `hello.wasm` with `--module`, and to `hello.o`
+without it, in the current directory; `-o` names the output of a single
+input. A relocatable object, for `ld` to link, is still to come: for now
+`as` writes the same module either way.
+
+| Option | Meaning |
+| --- | --- |
+| `--module` | write a module, `file.wasm` |
+| `-o <file>` | write there instead; one input only |
+| `--tokens` | print the tokens, write nothing |
+| `--numbers` | print typed literals' bits, write nothing |
+| `--tree` | print the syntax tree, write nothing |
+| `--resolved` | print it after resolution, write nothing |
+| `-h`, `--help` | usage |
+
+An error is reported as `file:line:col: error: message`, worded as the
+reference interpreter words it, which is what the WebAssembly test suite
+expects: `unknown operator`, `unexpected token`, `unknown function $f`.
+The first error in a file ends that file; the other files are still
+assembled. The exit status is 0 on success, 1 on an error and 130 on
+`^C`.
+
+`as` differs from `wat2wasm` in these ways:
+
+- **It reads GC's text syntax**: `rec`, `sub`, `struct`, `array`, and the
+  abstract heap types, which `wat2wasm` does not.
+- **It does not type-check code.** It refuses what the text format rules
+  out, and what resolution needs: unknown or duplicate ids, imports after
+  definitions, a second start, a type use that does not match its type.
+  A module that is well-formed but invalid is written, and the engine
+  refuses it.
+- **It is exact where wabt is not.** Some hex floats a little above a
+  halfway point are rounded up, as they should be, and `align=2**63` is
+  written as 63, where `wat2wasm` truncates it to 32 bits.
+- **It writes a plain import section**, where `wat2wasm --enable-all`
+  groups imports by module into the compact encoding, which is not in the
+  language.
+
 ## Inside
 
 [lib/](lib/) reads and writes wasm modules, objects and archives, for every
@@ -483,6 +535,25 @@ The opcode table was made from `llvm-objdump`'s own output for every
 opcode, so it keeps llvm's names, but for `select`. A large program is
 written out a part at a time, so its text is never all in memory.
 
+### as
+
+| File | What it does |
+| --- | --- |
+| `lexer.cpp` | tokens with their locations |
+| `number.cpp` | integer and float literals to bits, exactly |
+| `ast.h`, `ast.cpp` | the tree of [as/wat.asdl](as/wat.asdl), its arena, and a printer |
+| `parser.cpp` | tokens to the tree, the text format's abbreviations undone |
+| `resolve.cpp` | ids to indices, implicit types, inline exports and segments |
+| `encode.cpp` | the tree to a module's bytes |
+| [lib/optable.cpp](lib/optable.cpp) | every instruction by its text name: encoding and immediates |
+| `driver.cpp` | parses the command line |
+
+Blocks and folded instructions nest without bound, and the native stack is
+small, so the parser, the resolver and the encoder each keep a stack of
+their own. Where the binary format leaves a choice, such as an element
+segment's form or whether a data count section is written, `as` makes the
+one `wat2wasm` makes.
+
 ### ar
 
 [ar/](ar/) is a port: FreeBSD's sources, with its names, comments and
@@ -500,7 +571,7 @@ messages. [ar/README.md](ar/README.md) says what had to change.
 `ld` reads and writes, byte by byte,
 [Wasm_Bytecode.md](Wasm_Bytecode.md) the instructions `disasm` prints, and
 [Wasm_Assembly_Language.md](Wasm_Assembly_Language.md) the text format
-`as` will read.
+`as` reads.
 
 ## Tests
 
@@ -559,10 +630,10 @@ refused. It needs `python3` with the `pyasdl` package. The same test holds
 each field with its C++ type by the mapping `ast.h` states, and nothing
 else; and every constructor must be named by the printer in
 [as/ast.cpp](as/ast.cpp). Broken copies of `ast.h` must be refused too.
-[as/test/empty.mjs](as/test/empty.mjs) runs the assembler as it stands,
-through [as/host.mjs](as/host.mjs), which boots the harness once for many
-runs: every source is the empty module for now, which V8 must load, and
-the command line's outputs and errors are checked.
+[as/test/empty.mjs](as/test/empty.mjs) runs the assembler through
+[as/host.mjs](as/host.mjs), which boots the harness once for many runs:
+`(module)` must be the empty module, which V8 must load, and the command
+line's outputs and errors are checked.
 [as/test/lexer.mjs](as/test/lexer.mjs) holds `as --tokens` of a crafted
 file to a golden one, and checks crafted errors with their places.
 [as/test/parser.mjs](as/test/parser.mjs) holds `as --tree` of crafted
@@ -584,3 +655,19 @@ rounds some of them wrongly, and f64 decimals to JS's `Number()` as well.
 [lib/optable.cpp](lib/optable.cpp): its names are exactly those the
 language lists, its alignments those the language gives, and its encodings
 those of disasm's table wherever both have the instruction.
+[as/test/module.mjs](as/test/module.mjs) assembles every module of the
+suite with `as --module`. For the 233 scripts `wast2json` reads, each
+module's bytes must be those `wast2json` wrote for it, with every feature
+but compact imports; one differs where wabt is wrong, and is listed. The
+other 25 use GC's text syntax: each valid module must load in V8, `disasm`
+must read them back, and their encodings are held to bytes checked by hand.
+It needs wabt 1.0.42 on the host.
+[as/test/spec.mjs](as/test/spec.mjs) runs the suite: every script's
+commands in order, each text module assembled by `as` and instantiated in
+V8, with the `spectest` module for imports. Every `assert_return`,
+`assert_trap`, `assert_exhaustion` and `assert_exception` must hold, a
+malformed module must be refused by `as`, an invalid one by `as` or V8,
+and an unlinkable or uninstantiable one by V8 when instantiated. JS cannot
+carry a v128 or a signalling NaN, so a function whose type is all numbers
+is called from a module `as` makes for it, which compares the results'
+bits in wasm. It prints how many of each command passed.

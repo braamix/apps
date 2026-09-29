@@ -3,7 +3,8 @@
 // assembles, the text a `quote` spells, or the bytes of a `binary`.
 
 // A node: { list, start, end, items } or { atom, start, end } or
-// { string: bytes, start, end }. `start` and `end` are byte offsets.
+// { string: bytes, start, end }. `start` and `end` are byte offsets. An
+// annotation, (@id …), is left out; a module's text still has it.
 export function read(src) {
     let i = 0;
     const top = { list: true, start: 0, end: src.length, items: [] };
@@ -39,7 +40,10 @@ export function read(src) {
         } else if (c === 0x29) {
             if (stack.length === 1)
                 fail("unbalanced )");
-            stack.pop().end = ++i;
+            const n = stack.pop();
+            n.end = ++i;
+            if (n.items[0]?.atom?.startsWith("@")) // an annotation: not the script's
+                stack.at(-1).items.pop();
         } else if (c === 0x22) {
             const start = i;
             const bytes = string(src, i, fail);
@@ -138,18 +142,27 @@ export function module(src, n) {
     return { kind: "text", bytes };
 }
 
-// Every module of a script: { command, kind, bytes, message, line }, where
-// `command` is `module` or the assertion it stands in, and `message` the
-// assertion's expected text.
+// Every module of a script: { command, kind, bytes, message, line, at },
+// where `command` is `module` or the assertion it stands in, `message` the
+// assertion's expected text, `line` the command's and `at` the module's:
+// the line of its keyword, as wast2json counts it.
 export function modules(src) {
     const out = [];
-    for (const cmd of read(src)) {
+    const cmds = read(src);
+    // A script of module fields alone is one module.
+    const COMMANDS = /^(module|register|invoke|get|assert_\w+|input|output|thread|wait|either)$/;
+    if (cmds.length && !cmds.some((c) => c.list && COMMANDS.test(c.items[0]?.atom ?? ""))) {
+        const at = line(src, cmds[0].start);
+        return [{ command: "module", kind: "text", bytes: src.slice(), message: null, line: at, at }];
+    }
+    for (const cmd of cmds) {
         if (!cmd.list)
             continue;
         const head = cmd.items[0]?.atom;
         const m = module(src, cmd);
         if (m) {
-            out.push({ command: "module", ...m, message: null, line: line(src, cmd.start) });
+            const at = line(src, cmd.items[0].start);
+            out.push({ command: "module", ...m, message: null, line: at, at });
             continue;
         }
         if (!head?.startsWith("assert_"))
@@ -159,7 +172,8 @@ export function modules(src) {
             continue;
         const last = cmd.items.at(-1);
         const message = last.string ? new TextDecoder().decode(last.string) : null;
-        out.push({ command: head, ...inner, message, line: line(src, cmd.start) });
+        out.push({ command: head, ...inner, message, line: line(src, cmd.start),
+                   at: line(src, cmd.items[1].items[0].start) });
     }
     return out;
 }

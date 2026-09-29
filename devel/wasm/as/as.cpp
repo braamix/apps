@@ -1,6 +1,6 @@
 #include "as.h"
 
-#include "emit.h"
+#include "encode.h"
 #include "lexer.h"
 #include "number.h"
 #include "optable.h"
@@ -170,18 +170,10 @@ bool dump_tree(Str name, Str source, bool resolved, Out &out, Diag &diag)
 
 bool assemble(Str name, Str source, const AsConfig &c, Vec<u8> &out, Diag &diag)
 {
+    // An object is step A9's: until then both are the module.
     (void)c;
-    // Nothing is encoded yet: a source that resolves is the empty module.
     wat::Arena arena;
     wat::Module m;
-    if (!parse(name, source, arena, m, diag) || !resolve(name, arena, m, diag))
-        return false;
-    Emit e{ out };
-    e.u32le(0x6d736100); // \0asm
-    e.u32le(1);          // version
-    if (e.oom) {
-        diag.error("out of memory");
-        return false;
-    }
-    return true;
+    return parse(name, source, arena, m, diag) && resolve(name, arena, m, diag) &&
+           encode(m, out, diag);
 }

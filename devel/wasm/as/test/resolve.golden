@@ -10,8 +10,7 @@
 (Module _ [
   (Type [(TypeDef $t (SubType true [] (FuncType [] [])))])
   (Func $f [] (TypeUse 0 [] []) [] [])
-  (Table $tb [] (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc))) [
-    (RefNull (Abstract HFunc))] _)
+  (Table $tb [] (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc))) [] _)
   (Memory $m [] (MemType Addr32 (Limits 1 _) false _) _)
   (Global $g [] (GlobalType I32 true) [
     (I32Const 0)])
@@ -276,8 +275,7 @@
     (Index struct.new 0)
     (ArrayNewFixed 1 2)
     (Plain unreachable)])
-  (Table _ [] (TableType Addr32 (Limits 1 _) (RefType true (Concrete 0))) [
-    (RefNull (Concrete 0))] _)
+  (Table _ [] (TableType Addr32 (Limits 1 _) (RefType true (Concrete 0))) [] _)
   (Type [(TypeDef _ (SubType true [] (FuncType [(Param _ (Ref (RefType false (Concrete 0))))] [(Ref (RefType true (Concrete 1)))])))])])
 
 === inline exports
@@ -291,8 +289,7 @@
   (Export "b" FuncKind 0)
   (Export "c" FuncKind 0)
   (Export "d" FuncKind 0)
-  (Table _ [] (TableType Addr32 (Limits 0 _) (RefType true (Abstract HFunc))) [
-    (RefNull (Abstract HFunc))] _)
+  (Table _ [] (TableType Addr32 (Limits 0 _) (RefType true (Abstract HFunc))) [] _)
   (Export "t" TableKind 0)
   (Memory _ [] (MemType Addr32 (Limits 0 _) false _) _)
   (Export "m" MemoryKind 0)
@@ -327,18 +324,17 @@
 ---
 (Module _ [
   (Elem $e0 ElemPassive (Funcs []))
-  (Table $t [] (TableType Addr32 (Limits 1 1) (RefType true (Abstract HFunc))) [
-    (RefNull (Abstract HFunc))] _)
+  (Table $t [] (TableType Addr32 (Limits 1 1) (RefType true (Abstract HFunc))) [] _)
   (Elem _ (ElemActive 0 [
-    (I32Const 0)]) (Funcs [0]))
+    (I32Const 0)]) (Exprs (RefType true (Abstract HFunc)) [(Expr [
+    (Index ref.func 0)])]))
   (Elem $e2 ElemPassive (Funcs []))
   (Data $d0 DataPassive "")
   (Memory $m [] (MemType Addr64 (Limits 1 1) false _) _)
   (Data _ (DataActive 0 [
     (I64Const 0)]) "ab")
   (Data $d2 DataPassive "")
-  (Table _ [] (TableType Addr64 (Limits 1 1) (RefType true (Abstract HFunc))) [
-    (RefNull (Abstract HFunc))] _)
+  (Table _ [] (TableType Addr64 (Limits 1 1) (RefType true (Abstract HFunc))) [] _)
   (Elem _ (ElemActive 1 [
     (I64Const 0)]) (Exprs (RefType true (Abstract HFunc)) [(Expr [
     (Index ref.func 0)])]))

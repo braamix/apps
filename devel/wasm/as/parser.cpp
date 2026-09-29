@@ -1772,16 +1772,6 @@ struct Parser {
         decl(f);
     }
 
-    // ref.null of a table's heap type: its init when it has none.
-    List<Instr *> ref_null(const RefType &rt, const Token &kw)
-    {
-        auto *n = node<Instr::RefNull>(loc(kw));
-        n->type = rt.heap;
-        Vec<Instr *> v;
-        add(v, static_cast<Instr *>(n));
-        return list(v);
-    }
-
     void table_field(const Token &kw)
     {
         Bind b       = bind();
@@ -1804,8 +1794,6 @@ struct Parser {
             t->type.limits = limits();
             t->type.elem   = ref_type();
             t->init        = expr_list(false);
-            if (t->init.empty())
-                t->init = ref_null(t->type.elem, kw);
         } else {
             // (table at? reftype (elem …)): its limits are the count.
             t->type.elem = ref_type();
@@ -1835,7 +1823,6 @@ struct Parser {
             close();
             t->type.limits.min = n;
             t->type.limits.max = { true, n };
-            t->init            = ref_null(t->type.elem, kw);
         }
         close();
         note(K_TABLE);
