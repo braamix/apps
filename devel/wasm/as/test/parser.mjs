@@ -151,7 +151,7 @@ const TREES = [
 
 {
     const golden = join(HERE, "parser.golden");
-    const inputs = Object.fromEntries(TREES.map(([, src], k) => [`t${k}.wat`, src]));
+    const inputs = Object.fromEntries(TREES.map(([, src], k) => [`t${k}.s`, src]));
     const r = as.run(["--tree", ...Object.keys(inputs)], inputs);
     if (r.status !== 0 || r.err)
         bad.push(`--tree: status ${r.status}: ${r.err}`);
@@ -245,13 +245,13 @@ const ERRORS = [
     ["(func $\"\\ff\")", "1:7: malformed UTF-8 encoding"],
 ];
 {
-    const inputs = Object.fromEntries(ERRORS.map(([src], k) => [`e${k}.wat`, src]));
+    const inputs = Object.fromEntries(ERRORS.map(([src], k) => [`e${k}.s`, src]));
     const r = as.run(Object.keys(inputs), inputs);
     const said = new Map();
     for (const l of r.err.split("\n").filter((l) => l))
         said.set(l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 1));
     ERRORS.forEach(([src, want], k) => {
-        const got = said.get(`e${k}.wat`);
+        const got = said.get(`e${k}.s`);
         const expect = want.replace(/^(\d+:\d+): /, "$1: error: ");
         if (got !== expect)
             bad.push(`${JSON.stringify(src)}: ${got ?? "accepted"}, expected ${expect}`);
@@ -264,10 +264,10 @@ const ERRORS = [
 // grows as the square of the depth.
 for (const [n, args] of [[10000, []], [1000, ["--tree"]]]) {
     const deep = {
-        "flat.wat": `(func ${"block ".repeat(n)}${"end ".repeat(n)})`,
-        "folded.wat": `(func ${"(block ".repeat(n)}${")".repeat(n)})`,
-        "operands.wat": `(func (drop ${"(i32.add (i32.const 1) ".repeat(n)}(i32.const 0)${")".repeat(n)}))`,
-        "if.wat": `(func ${"(if (i32.const 0) (then ".repeat(n)}${"))".repeat(n)})`,
+        "flat.s": `(func ${"block ".repeat(n)}${"end ".repeat(n)})`,
+        "folded.s": `(func ${"(block ".repeat(n)}${")".repeat(n)})`,
+        "operands.s": `(func (drop ${"(i32.add (i32.const 1) ".repeat(n)}(i32.const 0)${")".repeat(n)}))`,
+        "if.s": `(func ${"(if (i32.const 0) (then ".repeat(n)}${"))".repeat(n)})`,
     };
     const r = as.run([...args, ...Object.keys(deep)], deep);
     const lines = r.out.split("\n").length;

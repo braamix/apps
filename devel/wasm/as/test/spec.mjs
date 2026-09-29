@@ -1,7 +1,8 @@
 // The test suite run: every .wast script's commands, in order, with `as`
 // assembling each text module and V8 running it. A module must assemble and
-// instantiate; assert_malformed must be refused by `as` (or by V8, for a
-// binary one), assert_invalid by `as` or V8, assert_unlinkable and
+// instantiate; assert_malformed and assert_invalid must be refused by `as`
+// (or by V8, for a binary one), an invalid module with the message the
+// reference interpreter gives, and assert_unlinkable and
 // assert_uninstantiable by V8 at instantiation. Every assert_return,
 // assert_trap, assert_exhaustion and assert_exception must hold.
 //
@@ -45,11 +46,11 @@ function assemble(sources) {
     const out = [];
     for (let at = 0; at < sources.length; at += 500) {
         const batch = sources.slice(at, at + 500);
-        const inputs = Object.fromEntries(batch.map((s, k) => [`m${k}.wat`, s]));
+        const inputs = Object.fromEntries(batch.map((s, k) => [`m${k}.s`, s]));
         const r = as.run(["--module", ...Object.keys(inputs)], inputs);
         const said = new Map();
         for (const l of r.err.split("\n").filter((l) => l)) {
-            const m = /^(m\d+)\.wat:(.*)$/.exec(l);
+            const m = /^(m\d+)\.s:(.*)$/.exec(l);
             if (!m)
                 die(`as said: ${l}`);
             said.set(m[1], m[2]);
@@ -616,10 +617,15 @@ for (const plan of plans) {
                             stage = "start";
                     }
                 }
-                const want = { assert_malformed: m.kind === "binary" ? ["compile"] : ["as"],
-                               assert_invalid: ["as", "compile"], assert_unlinkable: ["link"],
+                const own  = m.kind === "binary" ? ["compile"] : ["as"];
+                const want = { assert_malformed: own, assert_invalid: own, assert_unlinkable: ["link"],
                                assert_uninstantiable: ["start"] }[step.head];
-                tally(step.head, want.includes(stage), where,
+                // An invalid module's message begins with the reference's.
+                const last = step.node.items.at(-1);
+                const said = stage === "as" ? why.replace(/^\d+:\d+: error: /, "") : null;
+                const worded = step.head !== "assert_invalid" || stage !== "as" || !last.string ||
+                               said.startsWith(new TextDecoder().decode(last.string));
+                tally(step.head, want.includes(stage) && worded, where,
                       stage === "ran" ? "accepted" : `refused by ${stage}: ${why}`);
                 break;
             }

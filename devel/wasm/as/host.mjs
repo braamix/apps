@@ -3,7 +3,7 @@
 // often as asked, which is what the tests need for thousands of modules.
 //
 // As a module: `const as = await assembler(wasm)`, then
-// `as.run(args, { "a.wat": text })` gives { out, err, status, files }, where
+// `as.run(args, { "a.s": text })` gives { out, err, status, files }, where
 // files are what the run left beside its inputs, by name. Other tools,
 // `assembler(wasm, { disasm: path })`, are run by `as.run(args, inputs,
 // null, "disasm")`.

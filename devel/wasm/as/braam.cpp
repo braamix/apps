@@ -15,7 +15,7 @@ const char USAGE[] =
     "  --numbers                print typed literals' bits, write nothing\n"
     "  --tree                   print the syntax tree, write nothing\n"
     "  --resolved               print it after resolution, write nothing\n"
-    "Each file.wat is written to file.o in the current directory.\n";
+    "Each file.s is written to file.o in the current directory.\n";
 
 // Everything the front end holds, off the coroutine frame.
 struct Front {

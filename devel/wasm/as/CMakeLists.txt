@@ -11,7 +11,7 @@ if(NOT TARGET wasmobj)
     add_subdirectory(../lib lib)
 endif()
 
-braam_add_program(NAME as SOURCES lexer.cpp number.cpp ast.cpp parser.cpp resolve.cpp encode.cpp as.cpp driver.cpp braam.cpp
+braam_add_program(NAME as SOURCES lexer.cpp number.cpp ast.cpp parser.cpp resolve.cpp valid.cpp encode.cpp as.cpp driver.cpp braam.cpp
                   LIBS wasmobj)
 
 # test/link.mjs links WAT with C; its C half needs ld's fixture driver.

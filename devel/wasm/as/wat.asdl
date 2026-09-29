@@ -132,7 +132,7 @@ module Wat {
     DataMode = DataPassive
              | DataActive(Idx memory, Instr* offset)
 
-    # Data annotations (Plan.md, decision 2). A segment with a Sym is a data
+    # Data annotations (README.md, Data). A segment with a Sym is a data
     # symbol of an object, in a section named by its kind and its id.
     Sym = (SymSection section, u64 align)                   # align in bytes
 

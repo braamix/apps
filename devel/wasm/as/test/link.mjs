@@ -1,6 +1,6 @@
-// as's objects linked with clang's. test/link/defines.wat defines functions
-// C calls, calls.wat calls C and keeps a global of its own, and data.wat
-// has data C reads and writes, by the annotations of decision 2; link.c is
+// as's objects linked with clang's. test/link/defines.s defines functions
+// C calls, calls.s calls C and keeps a global of its own, and data.s
+// has data C reads and writes, by the annotations of README.md's Data; link.c is
 // the C half. as assembles both on Braam, ld and wasm-ld link them with the C
 // object, the fixtures' driver and the SDK, the two outputs must be equal
 // byte for byte, and the program must run and print what it should.
@@ -32,8 +32,8 @@ const bad = [];
 // as, on Braam.
 plant(H, "/bin/as", new Uint8Array(readFileSync(AS)));
 for (const w of WAT)
-    plant(H, `/tmp/${w}.wat`, readFileSync(join(HERE, `link/${w}.wat`)));
-run(H, `cd /tmp; as ${WAT.map((w) => w + ".wat").join(" ")} 2>e`);
+    plant(H, `/tmp/${w}.s`, readFileSync(join(HERE, `link/${w}.s`)));
+run(H, `cd /tmp; as ${WAT.map((w) => w + ".s").join(" ")} 2>e`);
 if (get(H, "/tmp/e"))
     die(`as: ${get(H, "/tmp/e")}`);
 const tmp = mkdtempSync(join(tmpdir(), "as-link-"));

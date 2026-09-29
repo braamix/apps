@@ -1264,8 +1264,8 @@ struct Encoder {
         linear = object && syms;
     }
 
-    // Decision 1 of Plan.md: wabt's rule, which gives every function, table
-    // and global a symbol, and tags one too; and decision 2's data symbols
+    // wabt's rule, which gives every function, table and global a symbol,
+    // and tags one too; and the data symbols of @sym
     // after them.
     void symbolize(const Module &m)
     {

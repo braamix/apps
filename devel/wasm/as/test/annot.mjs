@@ -1,10 +1,11 @@
-// Annotations, step A10 of Plan.md. The suite once more with --debug-names,
-// against wast2json's names. The spec's test/custom scripts: their modules
+// Annotations, as README.md describes them. The suite once more with
+// --debug-names, against wast2json's names. The spec's test/custom
+// scripts: their modules
 // held to the layout their sections must have, since wabt has no @name and
 // puts every @custom last, and their assertions to the reference's
 // messages. Branch hints, @custom and names against wat2wasm, module and
-// object, where it writes the same. And the data annotations of decision
-// 2: bytes that run in V8, and an object llvm-objdump reads as clang's.
+// object, where it writes the same. And the data annotations: bytes that
+// run in V8, and an object llvm-objdump reads as clang's.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -128,14 +129,15 @@ let same = 0, read = 0;
             return;
         read++;
         modules(readFileSync(join(CORE, f))).forEach((m, k) => {
-            if (m.kind !== "binary" && m.command !== "assert_malformed" && w[k] !== "text" &&
+            if (m.kind !== "binary" && m.command !== "assert_malformed" &&
+                m.command !== "assert_invalid" && w[k] !== "text" &&
                 !KNOWN[`${f}:${m.line}`])
                 cases.push({ ...m, script: f, wabt: w[k] });
         });
     });
     for (let at = 0; at < cases.length; at += 500) {
         const batch = cases.slice(at, at + 500);
-        const inputs = Object.fromEntries(batch.map((c, k) => [`m${k}.wat`, c.bytes]));
+        const inputs = Object.fromEntries(batch.map((c, k) => [`m${k}.s`, c.bytes]));
         const r = as.run(["--module", "--debug-names", ...Object.keys(inputs)], inputs);
         batch.forEach((c, k) => {
             const got = r.files[`m${k}.wasm`];
@@ -221,7 +223,7 @@ function hinted(b) {
 let customs = 0, refused = 0;
 for (const f of readdirSync(CUSTOM, { recursive: true }).filter((f) => f.endsWith(".wast")).sort()) {
     const ms = modules(readFileSync(join(CUSTOM, f)));
-    const inputs = Object.fromEntries(ms.map((m, k) => [`c${k}.wat`, m.bytes]));
+    const inputs = Object.fromEntries(ms.map((m, k) => [`c${k}.s`, m.bytes]));
     const r = as.run(["--module", ...Object.keys(inputs)], inputs);
     const said = new Map();
     for (const l of r.err.split("\n").filter((l) => l))
@@ -231,7 +233,7 @@ for (const f of readdirSync(CUSTOM, { recursive: true }).filter((f) => f.endsWit
         const got = r.files[`c${k}.wasm`];
         if (m.command === "module") {
             if (!got)
-                return bad.push(`${where}: refused: ${said.get(`c${k}.wat`)}`);
+                return bad.push(`${where}: refused: ${said.get(`c${k}.s`)}`);
             const want = LAYOUT[where];
             if (typeof want === "function") {
                 const why = want(got);
@@ -244,7 +246,7 @@ for (const f of readdirSync(CUSTOM, { recursive: true }).filter((f) => f.endsWit
             }
             return customs++;
         }
-        const msg = said.get(`c${k}.wat`);
+        const msg = said.get(`c${k}.s`);
         if (got || !msg?.startsWith(m.message))
             return bad.push(`${where}: ${m.command}: ${msg ?? "accepted"}, expected ${m.message}`);
         refused++;
@@ -282,7 +284,7 @@ for (const [what, src, only] of WABT) {
             continue;
         }
         const want = object ? clangNames(readFileSync(join(tmp, "w.out"))) : readFileSync(join(tmp, "w.out"));
-        const r = as.run([...(object ? [] : ["--module"]), "--debug-names", "w.wat"], { "w.wat": src });
+        const r = as.run([...(object ? [] : ["--module"]), "--debug-names", "w.s"], { "w.s": src });
         const got = r.files[object ? "w.o" : "w.wasm"];
         if (!got)
             bad.push(`${what}: ${r.err}`);
@@ -307,7 +309,7 @@ const DATA = `(module (memory 1)
     i32.const (@reloc $ptr) i32.load i32.load i32.add
     i32.const (@reloc $msg 1) i32.load8_u i32.add))`;
 {
-    const r = as.run(["--module", "d.wat"], { "d.wat": DATA });
+    const r = as.run(["--module", "d.s"], { "d.s": DATA });
     const m = r.files["d.wasm"];
     const want = bytes(`01 05 01 60 00 01 7f 03 02 01 00 05 03 01 00 01 07 07 01 03 67 65 74 00 00
         0a 1e 01 1c 00 41 00 28 02 00 41 00 28 02 14 6a 41 08 28 02 00 28 02 00 6a 41 05 2d 00 00
@@ -321,7 +323,7 @@ const DATA = `(module (memory 1)
         bad.push("data module: get() is wrong");
 }
 {
-    const r = as.run(["d.wat"], { "d.wat": DATA });
+    const r = as.run(["d.s"], { "d.s": DATA });
     const o = r.files["d.o"];
     if (!o) {
         bad.push(`data object: ${r.err}`);

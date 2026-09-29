@@ -405,122 +405,15 @@ A wasm64 module's addresses have sixteen digits, as llvm prints them.
 
 ## Using as
 
-    as [options] file.wat ...
+    as [options] file.s ...
 
-`as` reads modules in WebAssembly's text format, the language
-[Wasm_Assembly_Language.md](Wasm_Assembly_Language.md) describes, and
-writes each one to a file of its own:
-
-    $ as --module hello.wat
-    $ ls
-    hello.wasm  hello.wat
-
-`hello.wat` is written to `hello.o`, a relocatable object for `ld` to link
-with what clang compiles, or with `--module` to `hello.wasm`, a module that
-runs as it is; both in the current directory, and `-o` names the output of
-a single input.
-
-An object's symbols come from the module, as `wat2wasm --relocatable`
-makes them. Every function, table, global and tag is a symbol. One defined
-with an id is global, named by the id without its `$`; one without an id
-is local and hidden. An import is undefined, and named by its import. An
-export is also hidden and kept. Every index to one of them in code, in an
-element segment or in an initializer is a padded LEB with a relocation, as
-is the type index of a `call_indirect`, a `call_ref` or a block. So WAT can define functions C calls, and call
-C:
-
-    $ cat add.wat
-    (module
-      (func $add (param i32 i32) (result i32)
-        (i32.add (local.get 0) (local.get 1))))
-    $ as add.wat
-    $ nm add.o
-    00000001 T add
-
-Data needs two annotations of `as`'s own, since the text format has no
-data symbols. `(@sym)` after a data segment's id makes it a data symbol,
-named by the id, in a section `.data.<id>`; `(@sym rodata)` and
-`(@sym bss)` name `.rodata.` and `.bss.` instead, and `align=n` gives its
-alignment, 1 by default. A segment written without an offset is placed
-after the one before it, as its alignment allows. `(@reloc $x k)` is the
-address of `$x` plus `k`, a relocation where it stands: the value of an
-`i32.const` or `i64.const`, a load's or store's offset in place of
-`offset=`, or four bytes among a segment's strings. An object with data
-symbols imports memory 0 as `env.__linear_memory`, as clang's do; a module
-has the addresses written in instead.
-
-    $ cat counter.wat
-    (module
-      (memory 1)
-      (data $count (@sym align=4) "\00\00\00\00")
-      (data $count_ptr (@sym align=4) (@reloc $count))
-      (func $bump (result i32)
-        (i32.store (i32.const (@reloc $count))
-          (i32.add (i32.load (@reloc $count) (i32.const 0)) (i32.const 1)))
-        (i32.load (i32.const (@reloc $count)))))
-    $ as counter.wat
-    $ nm counter.o
-    00000001 T bump
-    00000000 D count
-    00000004 D count_ptr
-
-C declares them `extern int count; extern int *count_ptr;` and reads and
-writes them as its own.
-
-The other annotations are the language's. `(@name "…")` after an id, or
-in its place, names what it stands on in the `name` section; with
-`--debug-names` an id alone does too, as `wat2wasm --debug-names` has it.
-`(@custom "name" (before code) "bytes" …)` between module fields is a custom
-section, placed as it says, or last. And `(@metadata.code.branch_hint "\01")`
-before an `if` or a `br_if` is a hint, likely with 1 and unlikely with 0, in
-the `metadata.code.branch_hint` section.
-
-| Option | Meaning |
-| --- | --- |
-| `--module` | write a module, `file.wasm` |
-| `--debug-names` | name what has an id, in the `name` section |
-| `-o <file>` | write there instead; one input only |
-| `--tokens` | print the tokens, write nothing |
-| `--numbers` | print typed literals' bits, write nothing |
-| `--tree` | print the syntax tree, write nothing |
-| `--resolved` | print it after resolution, write nothing |
-| `-h`, `--help` | usage |
-
-An error is reported as `file:line:col: error: message`, worded as the
-reference interpreter words it, which is what the WebAssembly test suite
-expects: `unknown operator`, `unexpected token`, `unknown function $f`.
-The first error in a file ends that file; the other files are still
-assembled. The exit status is 0 on success, 1 on an error and 130 on
-`^C`.
-
-`as` differs from `wat2wasm` in these ways:
-
-- **It reads GC's text syntax**: `rec`, `sub`, `struct`, `array`, and the
-  abstract heap types, which `wat2wasm` does not.
-- **It does not type-check code.** It refuses what the text format rules
-  out, and what resolution needs: unknown or duplicate ids, imports after
-  definitions, a second start, a type use that does not match its type.
-  A module that is well-formed but invalid is written, and the engine
-  refuses it.
-- **It is exact where wabt is not.** Some hex floats a little above a
-  halfway point are rounded up, as they should be, and `align=2**63` is
-  written as 63, where `wat2wasm` truncates it to 32 bits.
-- **It writes a plain import section**, where `wat2wasm --enable-all`
-  groups imports by module into the compact encoding, which is not in the
-  language.
-- **It places a custom section where `@custom` says**, as the reference
-  interpreter does; `wat2wasm` writes each one last.
-- **A branch hint is on its instruction.** On a folded `if` or `br_if`,
-  `wat2wasm` puts it on the first of its operands instead. A hint on any
-  other instruction is refused, as the reference refuses it.
-- **It has `@name`**, and the data annotations of its own.
-- **Its objects are clang's where wabt's are not.** A relocation section is
-  named `reloc.CODE`, not `reloc.Code`, and the branch hints' is
-  `reloc.metadata.code.branch_hint`, not `reloc.Custom`. Tags have symbols
-  and relocations,
-  and so do the function indices of an element segment, where wabt leaves
-  them unrelocated; a concrete `ref.null` is not relocated as a function.
-  Two exports without an id are not a duplicate symbol.
+`as` reads modules in WebAssembly's text format and writes each one as an
+object for `ld`, `file.o`, or with `--module` as a module, `file.wasm`. It
+writes what `wat2wasm` writes, and its messages are the reference
+interpreter's. [as/README.md](as/README.md) says how to use it: its
+options, the symbols of its objects, the annotations for data that C
+reads and writes, where it differs from `wat2wasm`, how it works and how
+it is tested.
 
 ## Inside
 
@@ -607,22 +500,7 @@ written out a part at a time, so its text is never all in memory.
 
 ### as
 
-| File | What it does |
-| --- | --- |
-| `lexer.cpp` | tokens with their locations |
-| `number.cpp` | integer and float literals to bits, exactly |
-| `ast.h`, `ast.cpp` | the tree of [as/wat.asdl](as/wat.asdl), its arena, and a printer |
-| `parser.cpp` | tokens to the tree, the text format's abbreviations undone |
-| `resolve.cpp` | ids to indices, implicit types, inline exports and segments, data addresses |
-| `encode.cpp` | the tree to a module's or an object's bytes, custom sections and names included |
-| [lib/optable.cpp](lib/optable.cpp) | every instruction by its text name: encoding and immediates |
-| `driver.cpp` | parses the command line |
-
-Blocks and folded instructions nest without bound, and the native stack is
-small, so the parser, the resolver and the encoder each keep a stack of
-their own. Where the binary format leaves a choice, such as an element
-segment's form or whether a data count section is written, `as` makes the
-one `wat2wasm` makes.
+[as/README.md](as/README.md) describes its passes and files.
 
 ### ar
 
@@ -690,77 +568,5 @@ against the relocations and the functions called. The data rows must give
 back every segment's bytes at its address, and one object is checked
 whole against a golden file.
 
-And it runs [as/test/asdl.mjs](as/test/asdl.mjs), which checks
-[as/wat.asdl](as/wat.asdl), the syntax tree the assembler will build, with
-[as/validate_asdl.py](as/validate_asdl.py): it must parse, every field's
-type must be defined, no constructor may be defined twice, and every type
-must be reachable from `Module`. Broken copies of it must each be
-refused. It needs `python3` with the `pyasdl` package. The same test holds
-[as/ast.h](as/ast.h), the tree in C++, to it: every type and constructor,
-each field with its C++ type by the mapping `ast.h` states, and nothing
-else; and every constructor must be named by the printer in
-[as/ast.cpp](as/ast.cpp). Broken copies of `ast.h` must be refused too.
-[as/test/empty.mjs](as/test/empty.mjs) runs the assembler through
-[as/host.mjs](as/host.mjs), which boots the harness once for many runs:
-`(module)` must be the empty module, which V8 must load, and the command
-line's outputs and errors are checked.
-[as/test/lexer.mjs](as/test/lexer.mjs) holds `as --tokens` of a crafted
-file to a golden one, and checks crafted errors with their places.
-[as/test/parser.mjs](as/test/parser.mjs) holds `as --tree` of crafted
-modules to a golden file, one for each abbreviation the parser expands and
-each ambiguity it settles, checks crafted errors with their places, and
-parses blocks and folded instructions nested 10000 deep.
-[as/test/resolve.mjs](as/test/resolve.mjs) does the same for `as --resolved`:
-crafted modules for each rule of numbering and implicit types, crafted
-errors, and labels 10000 deep. Then it assembles every module of the
-WebAssembly test suite, vendored in [as/test/suite/](as/test/suite/): what
-is not malformed must be accepted, and a malformed module must be refused
-with the expected message.
-[as/test/number.mjs](as/test/number.mjs) holds `as --numbers` to
-`wat2wasm` on nine thousand literals: every one in the suite, and generated
-ones at each width's limits and around halfway points between floats.
-Hex floats are held to an exact computation instead, since `wat2wasm`
-rounds some of them wrongly, and f64 decimals to JS's `Number()` as well.
-[as/test/optable.mjs](as/test/optable.mjs) checks the instruction table,
-[lib/optable.cpp](lib/optable.cpp): its names are exactly those the
-language lists, its alignments those the language gives, and its encodings
-those of disasm's table wherever both have the instruction.
-[as/test/module.mjs](as/test/module.mjs) assembles every module of the
-suite with `as --module`. For the 233 scripts `wast2json` reads, each
-module's bytes must be those `wast2json` wrote for it, with every feature
-but compact imports; one differs where wabt is wrong, and is listed. The
-other 25 use GC's text syntax: each valid module must load in V8, `disasm`
-must read them back, and their encodings are held to bytes checked by hand.
-It needs wabt 1.0.42 on the host.
-[as/test/spec.mjs](as/test/spec.mjs) runs the suite: every script's
-commands in order, each text module assembled by `as` and instantiated in
-V8, with the `spectest` module for imports. Every `assert_return`,
-`assert_trap`, `assert_exhaustion` and `assert_exception` must hold, a
-malformed module must be refused by `as`, an invalid one by `as` or V8,
-and an unlinkable or uninstantiable one by V8 when instantiated. JS cannot
-carry a v128 or a signalling NaN, so a function whose type is all numbers
-is called from a module `as` makes for it, which compares the results'
-bits in wasm. It prints how many of each command passed.
-[as/test/link.mjs](as/test/link.mjs) assembles three WAT objects on
-Braam, one defining functions C calls, one calling C, and one with data C
-reads and writes, and links them with a C object by both `ld` and
-`wasm-ld`: the outputs must be equal, and the program must run and print
-what it should.
-[as/test/annot.mjs](as/test/annot.mjs) assembles the suite again with
-`--debug-names`, and each module's names must be those `wast2json
---debug-names` writes. It runs the spec's own tests of annotations,
-vendored beside the suite: each module is held to the sections it must
-have, and each malformed one refused with the reference's message. Branch
-hints, custom sections and names are held to `wat2wasm`'s bytes, module
-and object, where it writes the same; and an object with data to the
-symbols and relocations `llvm-objdump` reads in clang's own.
-`make longtest` runs [as/test/object.mjs](as/test/object.mjs), which
-assembles every module of the suite as an object. Each must equal what
-`wast2json -r` writes, but for the relocation sections' names, where wabt
-writes one; where the rule goes beyond wabt's, tags and element segments,
-they are counted. Then every valid module's object is read by `llvm-nm`,
-`llvm-objdump -r` and `wasm-objdump -x`, and by our `nm` and `disasm -r`:
-`nm` must print what `llvm-nm` prints, and `disasm` the relocations
-`llvm-objdump` lists for the code. Where llvm cannot read an object, its
-refusal must be one the test lists, with the reason: GC types, a table's
-init expression and a few more that llvm does not know.
+And it runs the tests of `as`, and `make longtest` the one that is slow;
+[as/README.md](as/README.md#tests) describes them.

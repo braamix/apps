@@ -8,7 +8,7 @@
 #include "diag.h"
 
 // `m`, resolved, onto `out`: a relocatable object when `object`, by
-// decisions 1 and 2 of Plan.md, and a module otherwise; with a name
+// README.md's Objects and Data, and a module otherwise; with a name
 // section of its ids too when `names`. False with a message in `diag` when
 // out of memory.
 bool encode(const wat::Module &m, bool object, bool names, Vec<u8> &out, Diag &diag);

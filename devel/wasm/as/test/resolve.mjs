@@ -2,8 +2,9 @@
 // rule of §6 and §5.4 and each tree rewrite wat.asdl lists, held to a
 // golden file (BLESS=1 writes it). Then crafted errors, each with its
 // message and place, and labels 10000 deep. Then the test suite: every
-// module that is not malformed must resolve, and every assert_malformed
-// module must be refused with its message.
+// module that is neither malformed nor invalid must be assembled, every
+// assert_malformed module must be refused with its message, and an
+// assert_invalid one may be refused only with its own.
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -153,7 +154,7 @@ const ERRORS = [
 
 {
     const golden = join(HERE, "resolve.golden");
-    const inputs = Object.fromEntries(TREES.map(([, src], k) => [`t${k}.wat`, src]));
+    const inputs = Object.fromEntries(TREES.map(([, src], k) => [`t${k}.s`, src]));
     const r = as.run(["--resolved", ...Object.keys(inputs)], inputs);
     if (r.status !== 0 || r.err)
         bad.push(`--resolved: status ${r.status}: ${r.err}`);
@@ -171,13 +172,13 @@ const ERRORS = [
 }
 
 {
-    const inputs = Object.fromEntries(ERRORS.map(([src], k) => [`e${k}.wat`, src]));
+    const inputs = Object.fromEntries(ERRORS.map(([src], k) => [`e${k}.s`, src]));
     const r = as.run(Object.keys(inputs), inputs);
     const said = new Map();
     for (const l of r.err.split("\n").filter((l) => l))
         said.set(l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 1));
     ERRORS.forEach(([src, want], k) => {
-        const got = said.get(`e${k}.wat`);
+        const got = said.get(`e${k}.s`);
         const expect = want.replace(/^(\d+:\d+): /, "$1: error: ");
         if (got !== expect)
             bad.push(`${JSON.stringify(src)}: ${got ?? "accepted"}, expected ${expect}`);
@@ -190,8 +191,8 @@ const ERRORS = [
 // 1000 deep.
 for (const [n, args] of [[10000, []], [1000, ["--resolved"]]]) {
     const deep = {
-        "flat.wat": `(func block $o ${"block ".repeat(n)}br $o ${"end ".repeat(n)}end)`,
-        "folded.wat": `(func (block $o ${"(block ".repeat(n)}(br $o)${")".repeat(n)}))`,
+        "flat.s": `(func block $o ${"block ".repeat(n)}br $o ${"end ".repeat(n)}end)`,
+        "folded.s": `(func (block $o ${"(block ".repeat(n)}(br $o)${")".repeat(n)}))`,
     };
     const r = as.run([...args, ...Object.keys(deep)], deep);
     const br = (r.out.match(new RegExp(`\\(Br br ${n} _\\)`, "g")) ?? []).length;
@@ -211,19 +212,23 @@ for (const f of scripts)
 let refused = 0;
 for (let at = 0; at < cases.length; at += 500) {
     const batch = cases.slice(at, at + 500);
-    const inputs = Object.fromEntries(batch.map((c, k) => [`m${k}.wat`, c.bytes]));
+    const inputs = Object.fromEntries(batch.map((c, k) => [`m${k}.s`, c.bytes]));
     const r = as.run(Object.keys(inputs), inputs);
     const said = new Map();
     for (const l of r.err.split("\n").filter((l) => l)) {
-        const m = /^(m\d+\.wat):\d+:\d+: error: (.*)$/.exec(l);
+        const m = /^(m\d+\.s):\d+:\d+: error: (.*)$/.exec(l);
         if (!m)
             die(`as said: ${l}`);
         said.set(m[1], m[2]);
     }
     batch.forEach((c, k) => {
-        const got = said.get(`m${k}.wat`);
+        const got = said.get(`m${k}.s`);
         const where = `${c.script}:${c.line}`;
-        if (c.command !== "assert_malformed") {
+        if (c.command === "assert_invalid") {
+            // Resolved, then refused by validation, with its message.
+            if (got && !got.startsWith(c.message))
+                bad.push(`${where}: refused with "${got}", expected "${c.message}"`);
+        } else if (c.command !== "assert_malformed") {
             if (got)
                 bad.push(`${where}: ${c.command}: refused: ${got}`);
         } else if (!got) {

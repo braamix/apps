@@ -1,7 +1,8 @@
 // as --module against wabt. Every module of the 233 scripts wast2json reads
 // is assembled, and its bytes must be those wast2json wrote for it. The
 // other 25 use GC's text syntax, which wabt does not have: there V8 must
-// load each valid module, and disasm must read back all but the invalid.
+// load each module, and disasm must read them back. Invalid modules `as`
+// refuses, which spec.mjs checks.
 // Their encodings are held to bytes read against the binary format by
 // hand, in GOLDEN.
 //
@@ -96,7 +97,7 @@ const GOLDEN = [
      "0a 14 02 05 00 d0 c0 00 0b 0c 00 41 00 42 00 02 c2 00 1a 1a 0b 0b"],
 ];
 {
-    const inputs = Object.fromEntries(GOLDEN.map(([, src], k) => [`g${k}.wat`, src]));
+    const inputs = Object.fromEntries(GOLDEN.map(([, src], k) => [`g${k}.s`, src]));
     const r = as.run(["--module", ...Object.keys(inputs)], inputs);
     GOLDEN.forEach(([what, , want], k) => {
         const b = r.files[`g${k}.wasm`];
@@ -128,7 +129,7 @@ scripts.forEach((f, n) => {
     ms.forEach((m, k) => {
         if (w && w[k].line && w[k].line !== m.at)
             bad.push(`${f}:${m.line}: wast2json's module ${k} is at line ${w[k].line}`);
-        if (m.kind !== "binary" && m.command !== "assert_malformed")
+        if (m.kind !== "binary" && m.command !== "assert_malformed" && m.command !== "assert_invalid")
             cases.push({ ...m, script: f, wabt: w && w[k].bytes });
     });
 });
@@ -136,7 +137,7 @@ scripts.forEach((f, n) => {
 let same = 0, loaded = 0, other = 0, text = 0, known = 0;
 for (let at = 0; at < cases.length; at += 500) {
     const batch = cases.slice(at, at + 500);
-    const inputs = Object.fromEntries(batch.map((c, k) => [`m${k}.wat`, c.bytes]));
+    const inputs = Object.fromEntries(batch.map((c, k) => [`m${k}.s`, c.bytes]));
     const r = as.run(["--module", ...Object.keys(inputs)], inputs);
     if (r.err)
         bad.push(`as: ${r.err.slice(0, 300)}`);
@@ -164,8 +165,7 @@ for (let at = 0; at < cases.length; at += 500) {
             return;
         }
         other++;
-        if (c.command !== "assert_invalid")
-            gc.push(k);
+        gc.push(k);
         if (c.command === "module") {
             try {
                 new WebAssembly.Module(got);

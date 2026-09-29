@@ -1,11 +1,11 @@
 # WebAssembly assembly language
 
-The language `as` reads: the WebAssembly text format, `.wat`, as
-WebAssembly 3.0 defines it, and four extensions (§10). A source file
-describes one module. This is the whole grammar: tokens, values, types,
-instructions and modules, and what each abbreviation stands for. What a
-module means, and how it is checked, is the core specification's; the
-bytes each instruction encodes to are the binary format's, and
+The language `as` reads: the WebAssembly text format, `.wat` elsewhere, as
+WebAssembly 3.0 defines it, and four extensions (§10). A source file, named `.s`
+on Braam, describes one module. This is the whole grammar: tokens, values,
+types, instructions and modules, and what each abbreviation stands for. What a
+module means, and how it is checked, is the core specification's; the bytes each
+instruction encodes to are the binary format's, and
 [Wasm_Bytecode.md](Wasm_Bytecode.md) explains the instructions.
 
 ## 1. A first look

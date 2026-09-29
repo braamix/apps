@@ -26,15 +26,15 @@ const hex = (b) => [...b].map((x) => x.toString(16).padStart(2, "0")).join(" ");
 
 // [arguments, inputs, the outputs expected]
 const RUNS = [
-    [["a.wat"], ["a.wat"], ["a.o"]],
-    [["--module", "a.wat"], ["a.wat"], ["a.wasm"]],
-    [["a.wat", "b.wat"], ["a.wat", "b.wat"], ["a.o", "b.o"]],
-    [["-o", "x.bin", "a.wat"], ["a.wat"], ["x.bin"]],
-    [["-oy", "a.wat"], ["a.wat"], ["y"]],
+    [["a.s"], ["a.s"], ["a.o"]],
+    [["--module", "a.s"], ["a.s"], ["a.wasm"]],
+    [["a.s", "b.s"], ["a.s", "b.s"], ["a.o", "b.o"]],
+    [["-o", "x.bin", "a.s"], ["a.s"], ["x.bin"]],
+    [["-oy", "a.s"], ["a.s"], ["y"]],
     [["noext"], ["noext"], ["noext.o"]],
-    [["a.b.wat"], ["a.b.wat"], ["a.b.o"]],
-    [[".wat"], [".wat"], [".wat.o"]],
-    [["--", "-a.wat"], ["-a.wat"], ["-a.o"]],
+    [["a.b.s"], ["a.b.s"], ["a.b.o"]],
+    [[".s"], [".s"], [".s.o"]],
+    [["--", "-a.s"], ["-a.s"], ["-a.o"]],
 ];
 for (const [args, names, want] of RUNS) {
     const r = as.run(args, Object.fromEntries(names.map((n) => [n, "(module)\n"])));
@@ -57,13 +57,13 @@ for (const [args, names, want] of RUNS) {
 // [arguments, inputs, the messages]
 const ERRORS = [
     [[], [], ["no input file specified"]],
-    [["--foo", "a.wat"], ["a.wat"], ["unknown argument: --foo"]],
-    [["a.wat", "-o"], ["a.wat"], ["no value for -o"]],
-    [["-o", "x", "a.wat", "b.wat"], ["a.wat", "b.wat"],
+    [["--foo", "a.s"], ["a.s"], ["unknown argument: --foo"]],
+    [["a.s", "-o"], ["a.s"], ["no value for -o"]],
+    [["-o", "x", "a.s", "b.s"], ["a.s", "b.s"],
      ["multiple input files cannot be used in combination with -o"]],
-    [["nosuch.wat", "a.wat"], ["a.wat"], ["cannot open nosuch.wat: not found"]],
+    [["nosuch.s", "a.s"], ["a.s"], ["cannot open nosuch.s: not found"]],
     [["--module", "a.wasm"], ["a.wasm"], ["output would overwrite the input: a.wasm"]],
-    [["-o", "a.wat", "a.wat"], ["a.wat"], ["output would overwrite the input: a.wat"]],
+    [["-o", "a.s", "a.s"], ["a.s"], ["output would overwrite the input: a.s"]],
 ];
 for (const [args, names, msgs] of ERRORS) {
     const r = as.run(args, Object.fromEntries(names.map((n) => [n, "(module)\n"])));
@@ -74,9 +74,9 @@ for (const [args, names, msgs] of ERRORS) {
 }
 // The next file is still assembled after one that fails.
 {
-    const r = as.run(["nosuch.wat", "a.wat"], { "a.wat": "(module)" });
+    const r = as.run(["nosuch.s", "a.s"], { "a.s": "(module)" });
     if (!r.files["a.o"])
-        bad.push("nosuch.wat a.wat: a.o not written");
+        bad.push("nosuch.s a.s: a.o not written");
 }
 
 {

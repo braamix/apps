@@ -1,7 +1,7 @@
-// as's objects. Every module of the 233 scripts wast2json reads is
+// as's objects. Every valid module of the 233 scripts wast2json reads is
 // assembled as an object, and its bytes must be those `wast2json -r` wrote
 // for it, but for the relocation sections' names, which as spells as clang
-// does: reloc.CODE, not reloc.Code. Where decision 1 of Plan.md goes beyond
+// does: reloc.CODE, not reloc.Code. Where the rule of README.md goes beyond
 // wabt, tags and element segments, the bytes differ and are counted. Then
 // every valid module's object is read by llvm-nm, llvm-objdump -r,
 // wasm-objdump -x, and our nm and disasm -r: nm must print what llvm-nm
@@ -168,18 +168,18 @@ scripts.forEach((f, n) => {
     if (w && w.length !== ms.length)
         return bad.push(`${f}: ${ms.length} modules, wast2json wrote ${w.length}`);
     ms.forEach((m, k) => {
-        if (m.kind !== "binary" && m.command !== "assert_malformed")
+        if (m.kind !== "binary" && m.command !== "assert_malformed" && m.command !== "assert_invalid")
             cases.push({ ...m, script: f, wabt: w && (w[k].bytes ?? "refused") });
     });
 });
 
 // ------------------------------------------------------------ against wabt
 
-let same = 0, beyond = 0, invalid = 0, text = 0;
+let same = 0, beyond = 0, text = 0;
 const valid = [];
 for (let at = 0; at < cases.length; at += 500) {
     const batch = cases.slice(at, at + 500);
-    const inputs = Object.fromEntries(batch.map((c, k) => [`m${k}.wat`, c.bytes]));
+    const inputs = Object.fromEntries(batch.map((c, k) => [`m${k}.s`, c.bytes]));
     const r = as.run(Object.keys(inputs), inputs);
     if (r.err)
         bad.push(`as: ${r.err.slice(0, 300)}`);
@@ -200,13 +200,9 @@ for (let at = 0; at < cases.length; at += 500) {
         const i = got.findIndex((b, j) => b !== want[j]);
         if (i < 0 && got.length === want.length)
             return same++;
-        // Tags and element segments, where the rule goes beyond wabt's; and
-        // invalid modules, which name what is not there, or ref.null a type,
-        // whose index wabt relocates as a function's.
+        // Tags and element segments, where the rule goes beyond wabt's.
         if (sections(got).some((s) => s.id === 13 || s.id === 9) || tagImport(got))
             return beyond++;
-        if (c.command === "assert_invalid")
-            return invalid++;
         const d = i >= 0 ? i : Math.min(got.length, want.length);
         bad.push(`${where}: at ${d}: ${hex(got, d)}, wabt ${hex(want, d)}`);
     });
@@ -355,5 +351,5 @@ for (let at = 0; at < valid.length; at += 500) {
 if (bad.length)
     die(`${bad.length} failures:\n  ` + bad.slice(0, 60).join("\n  "));
 console.log(`object ok: ${same} objects of ${read} scripts equal wabt's, ${beyond} go beyond its rule, ` +
-            `${invalid} invalid differ, ${text} have no binary, ${refused} wabt refuses; ${agreed} read alike by llvm, wabt, ` +
+            `${text} have no binary, ${refused} wabt refuses; ${agreed} read alike by llvm, wabt, ` +
             `nm and disasm, ${limited} beyond llvm (${limits.size} kinds)`);

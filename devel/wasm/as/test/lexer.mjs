@@ -24,15 +24,15 @@ const bad = [];
 
 {
     const golden = join(HERE, "lexer.golden");
-    const r = as.run(["--tokens", "lexer.wat"], { "lexer.wat": readFileSync(join(HERE, "lexer.wat")) });
+    const r = as.run(["--tokens", "lexer.s"], { "lexer.s": readFileSync(join(HERE, "lexer.s")) });
     if (r.status !== 0 || r.err)
-        bad.push(`--tokens lexer.wat: status ${r.status}: ${r.err}`);
+        bad.push(`--tokens lexer.s: status ${r.status}: ${r.err}`);
     else if (process.env.BLESS)
         writeFileSync(golden, r.out);
     else if (r.out !== readFileSync(golden, "utf8")) {
         const x = r.out.split("\n"), y = readFileSync(golden, "utf8").split("\n");
         const i = x.findIndex((l, k) => l !== y[k]);
-        bad.push(`--tokens lexer.wat: line ${i + 1} is ${JSON.stringify(x[i])}, ` +
+        bad.push(`--tokens lexer.s: line ${i + 1} is ${JSON.stringify(x[i])}, ` +
                  `golden ${JSON.stringify(y[i])}`);
     }
 }
@@ -113,14 +113,14 @@ const ERRORS = [
 {
     const inputs = {};
     ERRORS.forEach(([src], k) => {
-        inputs[`e${k}.wat`] = typeof src === "string" ? src : new Uint8Array(src);
+        inputs[`e${k}.s`] = typeof src === "string" ? src : new Uint8Array(src);
     });
     const r = as.run(["--tokens", ...Object.keys(inputs)], inputs);
     const said = new Map();
     for (const l of r.err.split("\n").filter((l) => l))
         said.set(l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 1));
     ERRORS.forEach(([src, want], k) => {
-        const got = said.get(`e${k}.wat`);
+        const got = said.get(`e${k}.s`);
         const expect = want.replace(/^(\d+:\d+): /, "$1: error: ");
         if (got !== expect)
             bad.push(`${JSON.stringify(src)}: ${got ?? "accepted"}, expected ${expect}`);
