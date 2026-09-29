@@ -1,7 +1,7 @@
 ;; cat.s: copies its standard input to its standard output.
 ;;
 ;;   as cat.s
-;;   ld cat.o -o cat
+;;   ld cat.o -lw -o cat
 ;;
 ;; A program cannot wait here: it asks, returns from the step, and is
 ;; resumed with the answer. So cat is a loop turned inside out. Each
@@ -10,6 +10,7 @@
 (module
   (import "kernel" "sys" (func $sys (param i32 i32 i32 i32) (result i32)))
   (import "kernel" "sys_async" (func $sys_async (param i32 i32 i32 i32)))
+  (import "env" "_free" (func $_free (param i32 i32)))
   (memory 1)
 
   ;; A read's reply: the block, its length, and the bytes not yet written.
@@ -33,35 +34,6 @@
   (func $exit (param $status i32) (result i32)
     (drop (call $sys (i32.const 1) (local.get $status) (i32.const 0) (i32.const 0)))
     (i32.const 0))
-
-  (global $brk (mut i32) (i32.const 0))
-
-  (func $_alloc (export "_alloc") (param $n i32) (result i32)
-    (local $p i32) (local $end i32) (local $top i32)
-    (local.set $top (i32.shl (memory.size) (i32.const 16)))
-    (if (i32.eqz (global.get $brk))
-      (then (global.set $brk (local.get $top))))
-    (local.set $p (global.get $brk))
-    (local.set $end (call $round (i32.add (local.get $p) (local.get $n))))
-    (if (i32.gt_u (local.get $end) (local.get $top))
-      (then
-        (if (i32.eq (memory.grow (call $pages (i32.sub (local.get $end) (local.get $top))))
-                    (i32.const -1))
-          (then (return (i32.const 0))))))
-    (global.set $brk (local.get $end))
-    (local.get $p))
-
-  (func $_free (export "_free") (param $p i32) (param $n i32)
-    (if (i32.eq (global.get $brk) (call $round (i32.add (local.get $p) (local.get $n))))
-      (then (global.set $brk (local.get $p)))))
-
-  (func $round (param $n i32) (result i32)
-    (i32.and (i32.add (local.get $n) (i32.const 7)) (i32.const -8)))
-
-  (func $pages (param $n i32) (result i32)
-    (i32.shr_u (i32.add (local.get $n) (i32.const 0xffff)) (i32.const 16)))
-
-  (func $_sig (export "_sig") (param $sig i32))
 
   (func $_start (export "_start") (param $argv i32) (param $len i32) (result i32)
     (call $read)

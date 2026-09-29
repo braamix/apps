@@ -4,6 +4,7 @@
 #include "driver.h"
 #include "dump.h"
 #include "files.h"
+#include "fs/path.h"
 #include "gc.h"
 #include "kernel/alloc.h"
 #include "proc/io.h"
@@ -20,7 +21,8 @@ struct Front {
     Config cfg;
     Diag diag;
     Out out;
-    String path;
+    String path;   // where the last input was read from
+    String libdir; // the package's lib/, or empty
     Vec<u8> image; // the output module
     Out map;       // -Map
     bool cancelled = false;
@@ -67,20 +69,60 @@ Task<i32> finish(Front &s, bool ok)
     co_return ok && !s.diag.failed() ? 0 : 1;
 }
 
+// The package's lib/, beside the bin/ that /pkg/bin/ld leads to, or in the
+// first wasm package in the store. It holds crt.o and libw.a.
+Task<void> find_libdir(Front &s)
+{
+    Result<String> link = co_await read_link("/pkg/bin/ld");
+    if (link.is_ok()) {
+        s.libdir.assign(path_dirname(path_dirname(link.value().str())));
+        s.libdir.append("/lib");
+        co_return;
+    }
+    Result<Vec<DirEntry>> ents = co_await list_dir("/pkg/store");
+    if (ents.is_ok())
+        for (const DirEntry &e : ents.value())
+            if (e.name.str().starts_with("wasm-")) {
+                s.libdir.assign("/pkg/store/");
+                s.libdir.append(e.name.str());
+                s.libdir.append("/lib");
+                co_return;
+            }
+}
+
+// Reads dir/prefix+name+suffix into s.path's file; NotFound if it is not there.
+Task<Result<String>> read_in(Front &s, Str dir, Str prefix, Str name, Str suffix)
+{
+    s.path.assign(dir);
+    s.path.append("/");
+    s.path.append(prefix);
+    s.path.append(name);
+    s.path.append(suffix);
+    co_return co_await slurp(s.path.str());
+}
+
+// An input, which s.path then names. A library is looked for in each -L
+// directory, then in the package's lib/; an object named without a
+// directory, in the working directory, then in lib/.
 Task<Result<String>> read_input(Front &s, const InputArg &a, Error &why)
 {
     if (!a.lib) {
+        s.path.assign(a.name);
         Result<String> r = co_await slurp(a.name);
-        if (r.is_err())
+        if (r.is_err() && r.error() == Error::NotFound && !s.libdir.empty() &&
+            a.name.find('/') == Str::npos)
+            r = co_await read_in(s, s.libdir.str(), "", a.name, "");
+        if (r.is_err()) {
+            s.path.assign(a.name);
             why = r.error();
+        }
         co_return r;
     }
-    for (Str dir : s.cfg.lib_dirs) {
-        s.path.assign(dir);
-        s.path.append("/lib");
-        s.path.append(a.name);
-        s.path.append(".a");
-        Result<String> r = co_await slurp(s.path.str());
+    for (usize i = 0; i <= s.cfg.lib_dirs.size(); i++) {
+        Str dir = i < s.cfg.lib_dirs.size() ? s.cfg.lib_dirs[i] : s.libdir.str();
+        if (dir.empty())
+            continue;
+        Result<String> r = co_await read_in(s, dir, "lib", a.name, ".a");
         if (r.is_ok() || r.error() != Error::NotFound) {
             if (r.is_err())
                 why = r.error();
@@ -154,9 +196,9 @@ Task<i32> link(Front &s)
             }
             continue;
         }
-        // A library is named by the path it was found at.
+        // A library, or an object found in lib/, is named by its path.
         Str name = a.name;
-        if (a.lib) {
+        if (s.path.str() != a.name) {
             String p;
             if (!p.append(s.path.str()) || !s.texts.push(move(p)))
                 s.diag.error("out of memory");
@@ -240,6 +282,7 @@ Task<i32> run(Front &s, Args args)
         s.diag.error("no input files");
         co_return co_await finish(s, false);
     }
+    co_await find_libdir(s);
     if (s.cfg.dump || s.cfg.dump_demangle)
         co_return co_await dump(s);
     co_return co_await link(s);

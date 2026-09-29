@@ -17,6 +17,7 @@ add_subdirectory(size)
 add_subdirectory(nm)
 add_subdirectory(disasm)
 add_subdirectory(as)
+add_subdirectory(examples)
 
 # The examples, as share/: programs in WebAssembly text and their build.sh.
 file(GLOB WASM_EXAMPLES_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.s
@@ -30,6 +31,8 @@ endforeach()
 braam_add_package(NAME wasm VERSION 0.9-r0
                   FIELD "T=WebAssembly tools: ld, strip, ar, size, nm, disasm and as"
                   FILES ${WASM_EXAMPLES}
+                        ${CMAKE_CURRENT_BINARY_DIR}/examples/crt.o=lib/crt.o
+                        ${CMAKE_CURRENT_BINARY_DIR}/examples/libw.a=lib/libw.a
                         $<TARGET_FILE:bin_ld>=bin/ld
                         $<TARGET_FILE:bin_strip>=bin/strip
                         $<TARGET_FILE:bin_ar>=bin/ar
@@ -41,3 +44,4 @@ braam_add_package(NAME wasm VERSION 0.9-r0
 if(TARGET packages)
     add_dependencies(packages pkg_wasm)
 endif()
+add_dependencies(pkg_wasm wasm_lib)

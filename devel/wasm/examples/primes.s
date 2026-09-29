@@ -1,12 +1,11 @@
 ;; primes.s: the primes up to n, 100 by default, ten to a line.
 ;;
-;;   as primes.s crt.s fmt.s args.s
-;;   ar rc libw.a fmt.o args.o
-;;   ld crt.o primes.o -L. -lw -o primes
+;;   as primes.s
+;;   ld crt.o primes.o -lw -o primes
 ;;   primes 1000
 ;;
 ;; The sieve of Eratosthenes, a byte for each number, in a block from
-;; crt.s's _alloc. n is at most ten million.
+;; proc.s's _alloc. n is at most ten million.
 (module
   (import "env" "_alloc" (func $alloc (param i32) (result i32)))
   (import "env" "argc" (func $argc (param i32) (result i32)))

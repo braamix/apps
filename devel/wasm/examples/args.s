@@ -1,7 +1,7 @@
 ;; args.s: the arguments crt.s passes to main.
 ;;
 ;;   as args.s
-;;   ar rc libw.a fmt.o args.o
+;;   ar rc libw.a proc.o fmt.o args.o
 ;;
 ;; They are one block: a u32 count, then each argument as a u32 length
 ;; and its bytes. argv[0] is the command's name.

@@ -23,7 +23,8 @@ The `wasm` package installs seven tools for WebAssembly. All run on Braam.
   same output.
 
 It also ships [example programs](#examples) written in the text format,
-which these tools build on Braam.
+which these tools build on Braam, and `crt.o` and `libw.a` in `lib/`,
+which they link with.
 
 The tests check the first five and `as` byte for byte, and `disasm` line
 for line.
@@ -35,6 +36,12 @@ for line.
 With no options, `ld` makes a Braam program, as `braam_add_program` does:
 
     ld main.o -L/lib -lbraam_proc -o hello
+
+A library `-lname` is looked for in each `-L` directory in turn, then in
+the package's `lib/`, which holds the examples' `crt.o` and `libw.a`
+([Examples](#examples)). So is an object named without a directory that
+is not in the current directory: `ld crt.o fib.o -lw` finds both. The
+package's `lib/` is the one `/pkg/bin/ld` leads to.
 
 The output is `a.out` if no `-o` is given. A link that fails writes nothing.
 The exit status is 0 on success, 1 on an error and 130 on `^C`.
@@ -434,25 +441,33 @@ each one talks to the kernel itself. Copy them out and build them:
 | `hello.s` | the smallest program: one write, and exit |
 | `echo.s` | writes its arguments, which it finds in the block `_start` is given |
 | `cat.s` | copies stdin to stdout: a loop of reads and writes, turned inside out |
-| `crt.s` | the start of a program that computes, prints and exits |
+| `fib.s` | the Fibonacci numbers, in `i64` and by recursion, on `crt.o` |
+| `primes.s` | the sieve of Eratosthenes, on `crt.o` |
+| `crt.s` | the start of a program that computes, prints and exits: `crt.o` |
+| `proc.s` | `_alloc`, `_free` and `_sig`, which every program needs; in `libw.a` |
 | `fmt.s` | output into a buffer, and numbers in decimal; in `libw.a` |
 | `args.s` | the arguments, one by one; in `libw.a` |
-| `fib.s` | the Fibonacci numbers, in `i64` and by recursion, on `crt.s` and `libw.a` |
-| `primes.s` | the sieve of Eratosthenes, on `crt.s` and `libw.a` |
-| `build.sh` | the commands that build them all |
+| `build.sh` | the commands that build the five programs |
 
-The first three stand alone:
+`crt.o` and `libw.a` are also in the package's `lib/`, built, where `ld`
+finds them. The first three programs link with `libw.a` for `proc.s`:
 
     as hello.s
-    ld hello.o -o hello
+    ld hello.o -lw -o hello
 
-The last two define only `main`. `crt.s` calls it, and writes what it
-printed once it returns. `crt.o` is linked by name, since a library's
-member is linked only for a symbol that something needs, and nothing needs
+The last two define only `main`. `crt.o` calls it, and writes what it
+printed once it returns. It is linked by name, since a library's member is
+linked only for a symbol that something needs, and nothing needs
 `_start`:
 
-    as crt.s fmt.s args.s fib.s
-    ar rc libw.a fmt.o args.o
+    as fib.s
+    ld crt.o fib.o -lw -o fib
+
+To change the library, build it in the current directory, and name that
+directory to `ld` first:
+
+    as crt.s proc.s fmt.s args.s
+    ar rc libw.a proc.o fmt.o args.o
     ld crt.o fib.o -L. -lw -o fib
 
 The kernel's two functions are imports from `kernel`, and `as` marks an
@@ -652,8 +667,11 @@ And it runs the tests of `as`, and `make longtest` the one that is slow;
 [as/README.md](as/README.md#tests) describes them.
 
 And it runs [examples/test/examples.mjs](examples/test/examples.mjs). The
-examples are built on Braam by their own `build.sh`, with `as`, `ar` and
-`ld`. Each program must import and export exactly what a Braam program
+examples are built on Braam by their own `build.sh`, with `as` and `ld`,
+which finds `crt.o` and `libw.a` in the package's `lib/`. The library is
+then built there from its sources with `as` and `ar`, and must be the
+package's byte for byte. `ld` must refuse a program that needs `libw.a`
+and is linked without it. Each program must import and export exactly what a Braam program
 does. `wasm-ld` must link the same objects to the same bytes, apart from
 the `braam` section. Each program is then run, and what it prints and its
 exit status are held to [a golden transcript](examples/test/examples.golden).

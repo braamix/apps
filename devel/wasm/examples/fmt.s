@@ -1,9 +1,9 @@
 ;; fmt.s: output into a buffer, which crt.s writes at exit; and numbers.
 ;;
 ;;   as fmt.s
-;;   ar rc libw.a fmt.o args.o
+;;   ar rc libw.a proc.o fmt.o args.o
 ;;
-;; The buffer is allocated with crt.s's _alloc, and doubles when full.
+;; The buffer is allocated with proc.s's _alloc, and doubles when full.
 ;; If memory runs out, the program traps.
 (module
   (import "env" "_alloc" (func $alloc (param i32) (result i32)))

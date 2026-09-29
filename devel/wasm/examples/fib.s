@@ -1,8 +1,7 @@
 ;; fib.s: the Fibonacci numbers up to fib(n), 30 by default.
 ;;
-;;   as fib.s crt.s fmt.s args.s
-;;   ar rc libw.a fmt.o args.o
-;;   ld crt.o fib.o -L. -lw -o fib
+;;   as fib.s
+;;   ld crt.o fib.o -lw -o fib
 ;;   fib 10
 ;;
 ;; A table, added up in i64, then the last of it again by recursion,
