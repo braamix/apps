@@ -21,7 +21,10 @@ struct Emit {
     void uleb(u32 x);
     void uleb64(u64 x);
     void uleb5(u32 x); // padded to five bytes, as an object's sizes are
+    void uleb10(u64 x);
     void sleb(i32 x);
+    void sleb5(i32 x);
+    void sleb10(i64 x);
     void sleb64(i64 x);
     void bytes(Bytes b);
     void name(Str s); // uleb length, then the bytes

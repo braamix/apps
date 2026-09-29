@@ -34,7 +34,7 @@ These shape several steps; each has a recommendation.
 2. **Data addresses.** A C object's data is relocatable: its variables are
    data symbols and `i32.const &x` is a relocation. The text format cannot
    say either, and wabt makes no data symbols at all. Recommended: two
-   annotations of our own, in step A10.
+   annotations of our own, §9.1 of the language.
    - `(data $x (@sym) …)` makes the segment a data symbol, with segment
      info named `.data.x` (`.rodata.`, `.bss.` by an option of the
      annotation), and the memory imported as `env.__linear_memory`.
@@ -42,9 +42,6 @@ These shape several steps; each has a recommendation.
      `MEMORY_ADDR_SLEB` relocation. The same annotation in a load's or
      store's `offset=` position, and in a data segment's bytes, gives
      `MEMORY_ADDR_LEB` and `MEMORY_ADDR_I32`.
-
-   Until step A10 an object has no data symbols. A module whose code uses
-   data addresses gets the addresses written, and links only on its own.
 
    This is not hypothetical. `wat2wasm -r` on a module with
    `(data (i32.const 16) "hi\00")` and code that reads address 16 links
@@ -103,10 +100,8 @@ memory and never awaits, and one `braam.cpp` that reads and writes files.
 | `ast.h`, `ast.cpp` | the tree of [wat.asdl](wat.asdl), its arena, and a printer |
 | `parser.cpp` | tokens to the tree, the parse-time abbreviations done |
 | `lib/optable.cpp` | every instruction by its text name: encoding and immediate shape |
-| `resolve.cpp` | ids to indices, implicit types, exports, segment order |
-| `encode.cpp` | the tree to sections, and the code's bytes |
-| `linking.cpp` | symbols, relocations and the `linking` section |
-| `custom.cpp` | `name`, `@custom` and branch-hint sections |
+| `resolve.cpp` | ids to indices, implicit types, exports, segment order, data addresses |
+| `encode.cpp` | the tree to sections and the code's bytes; symbols, relocations, `linking`; `name`, `@custom` and branch hints |
 | `driver.cpp` | the command line |
 | `braam.cpp` | reads the source, writes the output |
 
@@ -131,19 +126,6 @@ Limits to keep in mind throughout:
 
 ## Steps
 
-### A10. Annotations
-
-`@name` into the `name` section (with `--debug-names`, as `wat2wasm` has
-it; ids alone give names only with that option too); `@custom` sections in
-their place; branch hints into `metadata.code.branch_hint`; and the data
-annotations of decision 2, with their relocations.
-
-*Done when* the suite's `annotations` tests and the spec repository's
-`test/custom/` cases pass: bytes against `wat2wasm` where it implements
-the annotation, and against the section's own layout where it does not.
-And a WAT object with data, linked with a C program that reads it and
-writes it, runs on Braam under both linkers.
-
 ### A11. Type checking (optional)
 
 The validation algorithm of the core spec over the resolved tree, so `as`
@@ -158,5 +140,3 @@ itself.
 - A big test once the rest pass: every program in this tree, through
   `wasm2wat` and back through `as --module`, must equal `wat2wasm`'s
   bytes. It belongs in `make longtest`.
-- `Wasm_Assembly_Language.md` gains a section for the data annotations
-  when decision 2 is settled.

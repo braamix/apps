@@ -220,9 +220,10 @@ struct Parser {
 
     Vec<Token> ahead; // lexed and not taken, annotations among them
     u32 head    = 0;
-    bool hinted = false; // a branch hint stood right before the last token taken
+    bool hinted = false; // a branch hint before the last token taken, not yet used
     Token hint;
-    Vec<u8> bytes; // scratch
+    bool in_func = false; // in a function field
+    Vec<u8> bytes;        // scratch
     Vec<Frame> stack;
     bool one_done = false;
     Vec<Decl *> decls;
@@ -330,18 +331,31 @@ struct Parser {
     }
 
     // The next token that is not an annotation. The annotations before it
-    // are white space, but a branch hint is kept for an if or a br_if.
+    // are white space, but a branch hint is kept for an if or a br_if, and
+    // ours stand only where they are taken.
     Token take()
     {
         Token t = peek();
         if (failed)
             return t;
-        hinted = false;
-        for (; ahead[head].kind == Tok::Annot; head++)
-            if (annot_id(ahead[head]) == "metadata.code.branch_hint") {
+        if (hinted)
+            stray_hint();
+        for (; !failed && ahead[head].kind == Tok::Annot; head++) {
+            Str id = annot_id(ahead[head]);
+            if (id == "metadata.code.branch_hint") {
+                if (hinted)
+                    fail(ahead[head],
+                         "@metadata.code.branch_hint annotation: duplicate annotation");
                 hinted = true;
                 hint   = ahead[head];
+            } else if (id == "name" || id == "custom" || id == "sym" || id == "reloc") {
+                Out m;
+                m.put("misplaced @").put(id).put(" annotation");
+                fail(ahead[head], m.str());
             }
+        }
+        if (failed)
+            return t;
         head++;
         if (head == ahead.size()) {
             ahead.clear();
@@ -391,6 +405,32 @@ struct Parser {
 
     // ---------------------------------------------------- annotations
 
+    // The branch hint before the token last taken, taken for it.
+    bool take_hint(Token &at)
+    {
+        bool h = hinted;
+        at     = hint;
+        hinted = false;
+        return h;
+    }
+
+    // A branch hint not before an if or a br_if.
+    void stray_hint()
+    {
+        hinted = false;
+        fail(hint, in_func ? "@metadata.code.branch_hint annotation: invalid target"_s
+                           : "@metadata.code.branch_hint annotation: not in a function"_s);
+    }
+
+    // A hint for `op`, which only if and br_if take.
+    void check_hint(bool has, const Token &at, const OpDef &d)
+    {
+        if (has && d.imm != Imm::IF && d.name != "br_if") {
+            hint = at;
+            stray_hint();
+        }
+    }
+
     Str annot_id(const Token &a)
     {
         bytes.clear();
@@ -430,22 +470,36 @@ struct Parser {
         }
     }
 
-    // (@name "…") right ahead, into `b`.
-    void annot_name(Bind &b)
+    // (@name "…") right ahead, into `b`: the name of a `what`.
+    void annot_name(Bind &b, Str what)
     {
         Token a;
-        if (!annot("name", a))
-            return;
-        Vec<Token> items;
-        annot_items(a, items);
-        if (items.size() != 1 || items[0].kind != Tok::String) {
-            fail(a, "malformed @name annotation");
-            return;
+        while (!failed && annot("name", a)) {
+            if (b.name.has) {
+                Out m;
+                m.put("@name annotation: multiple ");
+                if (!what.empty())
+                    m.put(what).put(' ');
+                m.put("names");
+                fail(a, m.str());
+                return;
+            }
+            Vec<Token> items;
+            annot_items(a, items);
+            if (items.empty() || items[0].kind != Tok::String) {
+                fail(items.empty() ? a : items[0], "@name annotation: string expected");
+                return;
+            }
+            if (items.size() > 1) {
+                fail(items[1], "@name annotation: unexpected token");
+                return;
+            }
+            b.name.has   = true;
+            b.name.value = name(items[0]);
         }
-        b.name.has   = true;
-        b.name.value = name(items[0]);
     }
 
+    // A hint's strings, which make one byte: 0 or 1.
     Opt<BranchHint> branch_hint(bool has, const Token &a)
     {
         Opt<BranchHint> h;
@@ -453,53 +507,76 @@ struct Parser {
             return h;
         Vec<Token> items;
         annot_items(a, items);
-        Str s;
-        if (items.size() == 1 && items[0].kind == Tok::String)
-            s = string(items[0]);
-        if (s.size() != 1 || u8(s[0]) > 1) {
-            fail(a, "malformed branch hint");
+        Vec<u8> b;
+        for (const Token &t : items) {
+            if (t.kind != Tok::String) {
+                fail(t, "@metadata.code.branch_hint annotation: unexpected token");
+                return h;
+            }
+            for (char c : string(t))
+                add(b, u8(c));
+        }
+        if (b.size() != 1 || b[0] > 1) {
+            fail(a, "@metadata.code.branch_hint annotation: invalid hint value");
             return h;
         }
         h.has   = true;
-        h.value = s[0] ? BranchHint::Likely : BranchHint::Unlikely;
+        h.value = b[0] ? BranchHint::Likely : BranchHint::Unlikely;
         return h;
     }
 
-    // (@custom name place? string*)
+    // (@custom name ((before|after) section)? string*), worded as the
+    // reference words it.
     void custom(const Token &a)
     {
         Vec<Token> t;
         annot_items(a, t);
         auto *c = node<Decl::Custom>(loc(a));
         u32 i   = 0;
-        if (t.size() < 1 || t[0].kind != Tok::String) {
-            fail(a, "malformed @custom annotation");
+        if (t.empty() || t[0].kind != Tok::String) {
+            fail(a, "@custom annotation: missing section name");
             return;
         }
-        c->name = name(t[i++]);
+        c->name = string(t[i++]);
+        if (!is_utf8(c->name)) {
+            fail(t[0], "@custom annotation: malformed UTF-8 encoding");
+            return;
+        }
         if (i < t.size() && t[i].kind == Tok::LParen) {
-            bool ok   = i + 3 < t.size() && t[i + 1].kind == Tok::Keyword &&
-                        t[i + 2].kind == Tok::Keyword && t[i + 3].kind == Tok::RParen;
-            Str where = ok ? text(t[i + 1]) : Str();
-            Str what  = ok ? text(t[i + 2]) : Str();
-            i32 s     = ok ? keyword_in(SECTIONS, t[i + 2]) : -1;
-            if (where == "before" && what == "first")
-                c->place.kind = Place::Kind::BeforeFirst;
-            else if (where == "after" && what == "last")
-                c->place.kind = Place::Kind::AfterLast;
-            else if ((where == "before" || where == "after") && s >= 0) {
+            Token group = t[i++];
+            Str where   = i < t.size() && t[i].kind == Tok::Keyword ? text(t[i]) : Str();
+            if (where != "before" && where != "after") {
+                fail(group, "@custom annotation: malformed placement");
+                return;
+            }
+            i++;
+            Str what = i < t.size() && t[i].kind == Tok::Keyword ? text(t[i]) : Str();
+            i32 s    = i < t.size() ? keyword_in(SECTIONS, t[i]) : -1;
+            if (what == "first" || what == "last") {
+                // first is type and last is data, before or after.
+                bool before      = where == "before";
+                c->place.kind    = what == "first"
+                                       ? (before ? Place::Kind::BeforeFirst : Place::Kind::After)
+                                       : (before ? Place::Kind::Before : Place::Kind::AfterLast);
+                c->place.section = what == "first" ? Section::TypeSec : Section::DataSec;
+            } else if (s >= 0) {
                 c->place.kind    = where == "before" ? Place::Kind::Before : Place::Kind::After;
                 c->place.section = Section(s);
             } else {
-                fail(a, "malformed @custom annotation");
+                fail(group, "@custom annotation: malformed section kind");
                 return;
             }
-            i += 4;
+            i++;
+            if (i >= t.size() || t[i].kind != Tok::RParen) {
+                fail(i < t.size() ? t[i] : group, "@custom annotation: unexpected token");
+                return;
+            }
+            i++;
         }
         Vec<u8> content;
         for (; i < t.size(); i++) {
             if (t[i].kind != Tok::String) {
-                fail(a, "malformed @custom annotation");
+                fail(t[i], "@custom annotation: unexpected token");
                 return;
             }
             Str s = string(t[i]);
@@ -508,6 +585,82 @@ struct Parser {
         }
         c->content = arena.str(Str(reinterpret_cast<const char *>(content.data()), content.size()));
         add(decls, static_cast<Decl *>(c));
+    }
+
+    // (@reloc $x k?) right ahead, into `a`.
+    bool annot_reloc(Opt<Addr> &a)
+    {
+        Token r;
+        if (!annot("reloc", r))
+            return false;
+        if (!in_func) {
+            fail(r, "misplaced @reloc annotation");
+            return false;
+        }
+        a.has = true;
+        return reloc_items(r, a.value);
+    }
+
+    // $x k?, the items of @reloc `r`.
+    bool reloc_items(const Token &r, Addr &a)
+    {
+        Vec<Token> t;
+        annot_items(r, t);
+        if (t.empty() || t[0].kind != Tok::Id) {
+            fail(t.empty() ? r : t[0], "@reloc annotation: data id expected");
+            return false;
+        }
+        a.data.kind = Idx::Kind::Id;
+        a.data.id   = ident(t[0]);
+        a.data.loc  = loc(t[0]);
+        if (t.size() > 1 && (t[1].kind == Tok::Nat || t[1].kind == Tok::Int)) {
+            if (!parse_int(text(t[1]), 64, a.addend)) {
+                fail(t[1], "@reloc annotation: addend out of range");
+                return false;
+            }
+        } else if (t.size() > 1) {
+            fail(t[1], "@reloc annotation: unexpected token");
+            return false;
+        }
+        if (t.size() > 2) {
+            fail(t[2], "@reloc annotation: unexpected token");
+            return false;
+        }
+        return true;
+    }
+
+    // (@sym section? align=n?) right ahead.
+    Opt<Sym> annot_sym()
+    {
+        Opt<Sym> s;
+        Token a;
+        if (!annot("sym", a))
+            return s;
+        s.has = true;
+        Vec<Token> t;
+        annot_items(a, t);
+        u32 i = 0;
+        if (i < t.size() && t[i].kind == Tok::Keyword) {
+            Str w = text(t[i]);
+            if (w == "data" || w == "rodata" || w == "bss") {
+                s.value.section = w == "data"     ? SymSection::SData
+                                  : w == "rodata" ? SymSection::SRodata
+                                                  : SymSection::SBss;
+                i++;
+            }
+        }
+        if (i < t.size() && t[i].kind == Tok::Keyword && text(t[i]).starts_with("align=")) {
+            u64 n = 0;
+            if (!parse_uint(text(t[i]).substr(6), 32, n) || !n || (n & (n - 1))) {
+                fail(t[i], "@sym annotation: alignment must be a power of two");
+                return s;
+            }
+            s.value.align = n;
+            i++;
+        }
+        if (i < t.size())
+            fail(t[i], "@sym annotation: unexpected token");
+        return s;
     }
 
     void customs()
@@ -545,6 +698,35 @@ struct Parser {
         if (!is_utf8(s))
             fail(t, "malformed UTF-8 encoding");
         return s;
+    }
+
+    // A segment's strings, one after another, and (@reloc …) among them
+    // four bytes each.
+    void data_init(Decl::Data &d)
+    {
+        Vec<u8> all;
+        Vec<DataAddr> addrs;
+        for (;;) {
+            Token r;
+            if (annot("reloc", r)) {
+                DataAddr a;
+                a.at = u32(all.size());
+                if (!reloc_items(r, a.addr))
+                    return;
+                add(addrs, a);
+                for (u32 k = 0; k < 4; k++)
+                    add(all, u8(0));
+                continue;
+            }
+            if (failed || !is(Tok::String))
+                break;
+            for (char c : string(take()))
+                add(all, u8(c));
+        }
+        d.init  = arena.str(Str(reinterpret_cast<const char *>(all.data()), all.size()));
+        d.addrs = list(addrs);
+        if (arena.failed())
+            oom();
     }
 
     // string*, one after another.
@@ -624,16 +806,18 @@ struct Parser {
         return x;
     }
 
-    // id? and (@name …)?
-    Bind bind()
+    // id? and (@name …)?, either first.
+    Bind bind(Str what = "")
     {
         Bind b;
         b.loc = loc(peek());
+        annot_name(b, what);
         if (is(Tok::Id)) {
+            b.loc      = loc(peek());
             b.id.has   = true;
             b.id.value = ident(take());
         }
-        annot_name(b);
+        annot_name(b, what);
         return b;
     }
 
@@ -936,13 +1120,15 @@ struct Parser {
 
     // ---------------------------------------------------- immediates
 
-    // offset=? align=?, the alignment natural when left out.
-    void mem_arg(const OpDef &d, u64 &offset, u64 &align)
+    // offset=? align=?, the alignment natural when left out. An @reloc
+    // stands for the offset, where `addr` can take it.
+    void mem_arg(const OpDef &d, u64 &offset, u64 &align, Opt<Addr> *addr = nullptr)
     {
         offset  = 0;
         align   = u64(1) << d.align;
         Token t = peek();
-        if (t.kind == Tok::Keyword && text(t).starts_with("offset=")) {
+        if (addr && annot_reloc(*addr)) {
+        } else if (t.kind == Tok::Keyword && text(t).starts_with("offset=")) {
             take();
             if (!parse_uint(text(t).substr(7), 64, offset))
                 fail(t, "i64 constant out of range");
@@ -1122,7 +1308,7 @@ struct Parser {
         case Imm::MEM: {
             auto *n   = make<Instr::MemArg>(op, kw);
             n->memory = is_idx() ? idx() : zero(at);
-            mem_arg(d, n->offset, n->align);
+            mem_arg(d, n->offset, n->align, &n->addr);
             return n;
         }
         case Imm::MEM_LANE: {
@@ -1176,6 +1362,18 @@ struct Parser {
 
     Instr *constant(u16 op, const Token &kw)
     {
+        Imm imm = op_def(op).imm;
+        Opt<Addr> addr;
+        if ((imm == Imm::I32 || imm == Imm::I64) && annot_reloc(addr)) {
+            if (imm == Imm::I32) {
+                auto *c = make<Instr::I32Const>(op, kw);
+                c->addr = addr;
+                return c;
+            }
+            auto *c = make<Instr::I64Const>(op, kw);
+            c->addr = addr;
+            return c;
+        }
         Token t = take();
         if (t.kind != Tok::Nat && t.kind != Tok::Int && t.kind != Tok::Float) {
             unexpected(t);
@@ -1471,10 +1669,11 @@ struct Parser {
             return;
         }
         take();
-        bool has_hint  = hinted;
-        Token hint_at  = hint;
+        Token hint_at;
+        bool has_hint  = take_hint(hint_at);
         Token kw       = take();
         const OpDef &d = op_def(op);
+        check_hint(has_hint, hint_at, d);
         Frame n;
         n.at = kw;
         if (d.imm == Imm::BLOCK || d.imm == Imm::IF || d.imm == Imm::TRY_TABLE ||
@@ -1548,10 +1747,11 @@ struct Parser {
         }
         take();
         const OpDef &d = op_def(op);
+        Token hint_at;
+        bool has_hint = take_hint(hint_at);
+        check_hint(has_hint, hint_at, d);
         if (d.imm == Imm::BLOCK || d.imm == Imm::IF || d.imm == Imm::TRY_TABLE ||
             d.imm == Imm::TRY) {
-            bool has_hint = hinted;
-            Token hint_at = hint;
             Frame n;
             n.kind = F::Flat;
             block_head(n, op, t);
@@ -1561,9 +1761,7 @@ struct Parser {
             push(move(n));
             return true;
         }
-        bool has_hint = hinted;
-        Token hint_at = hint;
-        Instr *in     = immediates(op, t, has_hint, hint_at);
+        Instr *in = immediates(op, t, has_hint, hint_at);
         add(top().seq, in);
         return true;
     }
@@ -1733,6 +1931,13 @@ struct Parser {
     }
 
     void func_field(const Token &kw)
+    {
+        in_func = true;
+        func(kw);
+        in_func = false;
+    }
+
+    void func(const Token &kw)
     {
         Bind b       = bind();
         List<Str> ex = exports();
@@ -2013,6 +2218,7 @@ struct Parser {
     {
         auto *d = node<Decl::Data>(loc(kw));
         d->bind = bind();
+        d->sym  = annot_sym();
         if (open_kw("memory")) {
             enter();
             d->mode.kind   = DataMode::Kind::DataActive;
@@ -2024,7 +2230,7 @@ struct Parser {
             d->mode.memory = zero(loc(kw));
             d->mode.offset = offset();
         }
-        d->init = strings();
+        data_init(*d);
         close();
         decl(d);
     }
@@ -2107,7 +2313,7 @@ struct Parser {
         customs();
         if (is(Tok::LParen) && is_kw("module", 1)) {
             enter();
-            m.bind = bind();
+            m.bind = bind("module");
             fields();
             close();
         } else {

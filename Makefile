@@ -206,6 +206,7 @@ TESTS := \
     devel/wasm/as/test/module.mjs \
     devel/wasm/as/test/spec.mjs \
     devel/wasm/as/test/link.mjs \
+    devel/wasm/as/test/annot.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
     emulators/simbesm/test/boot.mjs \

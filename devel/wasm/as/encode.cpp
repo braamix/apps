@@ -54,24 +54,58 @@ struct Frame {
 // section.
 struct Reloc {
     u8 type;
-    u8 id;       // the section's
+    u8 id;       // the section's; 0 for the branch hints
     u32 section; // its index
     usize at;
     u32 index; // a symbol, or a type
+    i64 addend;
 };
 
-// A symbol of the object: a function, table, global or tag.
+// A symbol of the object: a function, table, global, tag or data.
 struct Symbol {
     u8 kind;
     u32 flags;
     u32 index;
     Str name;
+    u32 size; // data's
 };
+
+// A branch hint: the function, the offset in its body, the hint.
+struct Hint {
+    u32 func;
+    u32 at;
+    u8 value;
+};
+
+// One index space's names, and a name map of each of its members for the
+// indirect ones: locals of functions, fields of types.
+struct Names {
+    Vec<u32> index;
+    Vec<Str> name;
+};
+
+// The name the name section gives `b`: its @name, or its id with
+// --debug-names.
+bool name_of(const Bind &b, bool ids, Str &n)
+{
+    if (b.name.has)
+        n = b.name.value;
+    else if (ids && b.id.has)
+        n = b.id.value;
+    else
+        return false;
+    return true;
+}
+
+constexpr Str BRANCH_HINTS = "metadata.code.branch_hint";
+
+constexpr u32 NONE = ~0u;
 
 struct Encoder {
     Vec<u8> &v;
     Emit e;
     bool object;
+    bool ids; // --debug-names
     Vec<Frame> stack;
     Opcode fence = 0, ref_fn = 0, call_ref = 0, return_call_ref = 0;
     bool data_used = false; // code names a data segment
@@ -83,9 +117,24 @@ struct Encoder {
     u32 sections      = 0; // written so far
     u32 count_section = 0; // the data count's
     Vec<Symbol> symbols;
-    u32 first[4] = {};
+    u32 first[5] = {};
+    Vec<u32> data_sym;                         // each data segment's symbol, or NONE
+    bool linear                       = false; // data symbols: memory 0 is env.__linear_memory
+    bool defined0                     = false; // and the module defines it
+    const Decl::Memory *linear_memory = nullptr;
+    Vec<const Sym *> sym_of; // each data segment's Sym, or null
+    Vec<bool> mem64;         // each memory's address type is i64
 
-    Encoder(Vec<u8> &out, bool obj) : v(out), e{ out }, object(obj)
+    // Branch hints, and the function whose body is under way.
+    Vec<Hint> hints;
+    u32 cur_func  = 0;
+    usize body_at = 0;
+
+    // Custom sections, by place, and how many are written.
+    Vec<const Decl::Custom *> customs;
+    u32 customs_done = 0;
+
+    Encoder(Vec<u8> &out, bool obj, bool names) : v(out), e{ out }, object(obj), ids(names)
     {
         find_op("atomic.fence", fence);
         find_op("ref.func", ref_fn);
@@ -102,7 +151,7 @@ struct Encoder {
             e.uleb(value);
             return;
         }
-        if (!relocs.push({ type, 0, 0, v.size(), index }))
+        if (!relocs.push({ type, 0, 0, v.size(), index, 0 }))
             e.oom = true;
         e.uleb5(value);
     }
@@ -116,6 +165,28 @@ struct Encoder {
     void tag_index(u32 x) { reloc(wasm::R_TAG_INDEX_LEB, x, first[3] + x); }
 
     void type_index(u32 x) { reloc(wasm::R_TYPE_INDEX_LEB, x, x); }
+
+    // An address an object relocates, `a` of data, padded to `width`
+    // bytes in `type`'s encoding.
+    void address(u8 type, u64 value, const Addr &a)
+    {
+        if (!relocs.push({ type, 0, 0, v.size(), data_sym[a.data.value], i64(a.addend) }))
+            e.oom = true;
+        switch (type) {
+        case wasm::R_MEMORY_ADDR_SLEB:
+            e.sleb5(i32(value));
+            break;
+        case wasm::R_MEMORY_ADDR_SLEB64:
+            e.sleb10(i64(value));
+            break;
+        case wasm::R_MEMORY_ADDR_LEB:
+            e.uleb5(u32(value));
+            break;
+        default:
+            e.uleb10(value);
+            break;
+        }
+    }
 
     // ---------------------------------------------------- framing
 
@@ -381,6 +452,7 @@ struct Encoder {
             // An empty else is left out.
             auto *b = in->as<Instr::If>();
             if (k == 0) {
+                hint(b->hint);
                 e.byte(0x04);
                 block_type(b->type);
                 body = b->then_body;
@@ -451,6 +523,13 @@ struct Encoder {
         return false;
     }
 
+    // The hint of the instruction about to be written.
+    void hint(const Opt<BranchHint> &h)
+    {
+        if (h.has && !hints.push({ cur_func, u32(v.size() - body_at), u8(h.value) }))
+            e.oom = true;
+    }
+
     // Index `x` of space `s`, the operand of `o`.
     void index(Opcode o, Space s, u32 x)
     {
@@ -481,7 +560,8 @@ struct Encoder {
         }
     }
 
-    void mem_arg(Opcode o, const Idx &memory, u64 offset, u64 align)
+    void mem_arg(Opcode o, const Idx &memory, u64 offset, u64 align,
+                 const Opt<Addr> &addr = Opt<Addr>())
     {
         op(o);
         if (memory.value) {
@@ -489,6 +569,11 @@ struct Encoder {
             e.uleb(memory.value);
         } else {
             e.uleb(log2(align));
+        }
+        if (object && addr.has) {
+            bool wide = memory.value < mem64.size() && mem64[memory.value];
+            address(wide ? wasm::R_MEMORY_ADDR_LEB64 : wasm::R_MEMORY_ADDR_LEB, offset, addr.value);
+            return;
         }
         e.uleb64(offset);
     }
@@ -515,6 +600,7 @@ struct Encoder {
         }
         case Instr::Kind::Br: {
             auto *b = in->as<Instr::Br>();
+            hint(b->hint);
             op(b->op);
             e.uleb(b->label.value);
             break;
@@ -574,7 +660,7 @@ struct Encoder {
         }
         case Instr::Kind::MemArg: {
             auto *m = in->as<Instr::MemArg>();
-            mem_arg(m->op, m->memory, m->offset, m->align);
+            mem_arg(m->op, m->memory, m->offset, m->align, m->addr);
             break;
         }
         case Instr::Kind::MemArgLane: {
@@ -583,14 +669,24 @@ struct Encoder {
             e.byte(m->lane);
             break;
         }
-        case Instr::Kind::I32Const:
+        case Instr::Kind::I32Const: {
+            auto *c = in->as<Instr::I32Const>();
             e.byte(0x41);
-            e.sleb(i32(in->as<Instr::I32Const>()->value));
+            if (object && c->addr.has)
+                address(wasm::R_MEMORY_ADDR_SLEB, c->value, c->addr.value);
+            else
+                e.sleb(i32(c->value));
             break;
-        case Instr::Kind::I64Const:
+        }
+        case Instr::Kind::I64Const: {
+            auto *c = in->as<Instr::I64Const>();
             e.byte(0x42);
-            e.sleb64(i64(in->as<Instr::I64Const>()->value));
+            if (object && c->addr.has)
+                address(wasm::R_MEMORY_ADDR_SLEB64, c->value, c->addr.value);
+            else
+                e.sleb64(i64(c->value));
             break;
+        }
         case Instr::Kind::F32Const:
             e.byte(0x43);
             e.u32le(in->as<Instr::F32Const>()->bits);
@@ -742,13 +838,19 @@ struct Encoder {
             e.byte(0);
             expr(d.mode.offset);
         }
-        e.name(d.init);
+        e.uleb(d.init.size());
+        if (object)
+            for (const DataAddr &a : d.addrs)
+                if (!relocs.push({ wasm::R_MEMORY_ADDR_I32, 0, 0, v.size() + a.at,
+                                   data_sym[a.addr.data.value], i64(a.addr.addend) }))
+                    e.oom = true;
+        e.bytes(Bytes(reinterpret_cast<const u8 *>(d.init.data()), d.init.size()));
     }
 
-    void import(const Decl::Import &i)
+    void import(const Decl::Import &i, bool memory0)
     {
-        e.name(i.module);
-        e.name(i.item);
+        e.name(memory0 && linear ? "env"_s : i.module);
+        e.name(memory0 && linear ? "__linear_memory"_s : i.item);
         const Extern &x = i.desc;
         e.byte(u8(x.kind));
         switch (x.kind) {
@@ -812,19 +914,32 @@ struct Encoder {
                 n[DATA_SEC]++;
                 break;
             case Decl::Kind::Custom:
+                place(d->as<Decl::Custom>());
                 break;
             }
 
         e.u32le(0x6d736100); // \0asm
         e.u32le(1);
+        memories(m);
         if (object)
             symbolize(m);
+        if (linear && defined0) {
+            n[IMPORT_SEC]++;
+            n[MEMORY_SEC]--;
+        }
+        for (const Decl *d : m.decls)
+            if (auto *i = d->as<Decl::Import>(); i && i->desc.kind == Extern::Kind::FuncImport)
+                cur_func++;
 
+        // In the reference's order, where the places of custom sections
+        // count: before the first is 2, after the last 27.
         constexpr u8 ORDER[] = { TYPE_SEC,       IMPORT_SEC, FUNC_SEC,   TABLE_SEC, MEMORY_SEC,
                                  TAG_SEC,        GLOBAL_SEC, EXPORT_SEC, START_SEC, ELEM_SEC,
                                  DATA_COUNT_SEC, CODE_SEC,   DATA_SEC };
         usize count_at = 0, count_end = 0;
-        for (u8 id : ORDER) {
+        for (u32 k = 0; k < sizeof ORDER; k++) {
+            u8 id = ORDER[k];
+            write_customs(2 * (k + 1));
             if (id == DATA_COUNT_SEC) {
                 // Written only when code names a data segment, which the code
                 // after it says.
@@ -841,18 +956,276 @@ struct Encoder {
             u32 count = id == CODE_SEC ? n[FUNC_SEC] : n[id];
             if (!count)
                 continue;
-            usize at = begin(id);
+            usize code_at    = v.size();
+            u32 code_section = sections;
+            usize at         = begin(id);
             if (id != START_SEC)
                 e.uleb(count);
             section(m, id);
             end(id, at);
-            if (id == CODE_SEC && n[DATA_SEC] && !data_used)
+            if (id == CODE_SEC && n[DATA_SEC] && !data_used) {
                 drop_count(count_at, count_end);
+                if (count_end <= code_at) {
+                    code_at -= count_end - count_at;
+                    code_section--;
+                }
+            }
+            if (id == CODE_SEC && !hints.empty())
+                branch_hints(code_at, code_section);
         }
         if (n[DATA_SEC] && !n[FUNC_SEC] && !data_used)
             drop_count(count_at, count_end);
+        write_customs(~0u);
+        names(m);
         if (object)
             linking();
+    }
+
+    // ---------------------------------------------------- custom sections
+
+    // Where `c` goes: before section k of ORDER is 2k + 2, after it 2k + 3.
+    static u32 rank(const Decl::Custom *c)
+    {
+        // Section's order, which puts the data count last, into ORDER's.
+        constexpr u8 AT[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 10 };
+        switch (c->place.kind) {
+        case Place::Kind::BeforeFirst:
+            return 2;
+        case Place::Kind::AfterLast:
+            return 27;
+        case Place::Kind::Before:
+            return 2 * AT[u8(c->place.section)] + 2;
+        default:
+            return 2 * AT[u8(c->place.section)] + 3;
+        }
+    }
+
+    // `c` among the others, after those of its place.
+    void place(const Decl::Custom *c)
+    {
+        usize i = customs.size();
+        while (i > 0 && rank(customs[i - 1]) > rank(c))
+            i--;
+        if (!customs.push(c))
+            e.oom = true;
+        for (usize k = customs.size() - 1; k > i; k--)
+            customs[k] = customs[k - 1];
+        customs[i] = c;
+    }
+
+    // The custom sections whose place is `limit` or before it.
+    void write_customs(u32 limit)
+    {
+        for (; customs_done < customs.size() && rank(customs[customs_done]) <= limit;
+             customs_done++) {
+            const Decl::Custom *c = customs[customs_done];
+            usize at              = begin(0);
+            e.name(c->name);
+            e.bytes(Bytes(reinterpret_cast<const u8 *>(c->content.data()), c->content.size()));
+            end(0, at);
+        }
+    }
+
+    // `b` into the output at `at`.
+    void splice(usize at, const Vec<u8> &b)
+    {
+        usize n = v.size();
+        if (!v.resize(n + b.size())) {
+            e.oom = true;
+            return;
+        }
+        for (usize i = n; i-- > at;)
+            v[i + b.size()] = v[i];
+        for (usize i = 0; i < b.size(); i++)
+            v[at + i] = b[i];
+    }
+
+    // metadata.code.branch_hint, before the code section, which begins at
+    // `at` and is section `index`. As wabt writes it: in an object, each
+    // function's index a padded LEB with its relocation.
+    void branch_hints(usize at, u32 index)
+    {
+        Vec<u8> body;
+        Emit b{ body };
+        b.name(BRANCH_HINTS);
+        u32 funcs = 0;
+        for (u32 i = 0; i < hints.size(); i++)
+            funcs += i == 0 || hints[i].func != hints[i - 1].func;
+        b.uleb(funcs);
+        for (u32 i = 0; i < hints.size();) {
+            u32 j = i;
+            while (j < hints.size() && hints[j].func == hints[i].func)
+                j++;
+            if (object) {
+                if (!relocs.push({ wasm::R_FUNCTION_INDEX_LEB, 0, index, body.size(),
+                                   first[0] + hints[i].func, 0 }))
+                    e.oom = true;
+                b.uleb5(hints[i].func);
+            } else {
+                b.uleb(hints[i].func);
+            }
+            b.uleb(j - i);
+            for (u32 k = i; k < j; k++) {
+                b.uleb(hints[k].at);
+                b.uleb(1);
+                b.byte(hints[k].value);
+            }
+            i = j;
+        }
+        Vec<u8> section;
+        Emit h{ section };
+        h.byte(0);
+        h.uleb(body.size());
+        h.bytes(Bytes(body.data(), body.size()));
+        e.oom = e.oom || b.oom || h.oom;
+        splice(at, section);
+        for (Reloc &r : relocs)
+            if (r.id != 0 && r.section >= index)
+                r.section++;
+        sections++;
+    }
+
+    // ---------------------------------------------------- the name section
+
+    // Names of space `n`, subsection `id`, when there are any.
+    void name_map(u8 id, const Names &n)
+    {
+        if (n.index.empty())
+            return;
+        e.byte(id);
+        usize at = v.size();
+        e.uleb(n.index.size());
+        for (u32 i = 0; i < n.index.size(); i++) {
+            e.uleb(n.index[i]);
+            e.name(n.name[i]);
+        }
+        size(at);
+    }
+
+    // An indirect map: `outer` gives each member's index, and how many of
+    // `inner`'s names are its; with `all`, members without names too.
+    void indirect(u8 id, const Names &outer, const Vec<u32> &count, const Names &inner, bool all)
+    {
+        u32 listed = 0;
+        for (u32 c : count)
+            listed += all || c;
+        if (!listed && !all)
+            return;
+        e.byte(id);
+        usize at = v.size();
+        e.uleb(listed);
+        for (u32 i = 0, k = 0; i < count.size(); i++) {
+            if (!all && !count[i])
+                continue;
+            e.uleb(outer.index[i]);
+            e.uleb(count[i]);
+            for (u32 j = 0; j < count[i]; j++, k++) {
+                e.uleb(inner.index[k]);
+                e.name(inner.name[k]);
+            }
+        }
+        size(at);
+    }
+
+    void named(Names &n, u32 index, const Bind &b)
+    {
+        Str s;
+        if (name_of(b, ids, s) && (!n.index.push(index) || !n.name.push(s)))
+            e.oom = true;
+    }
+
+    // The name section: with --debug-names, as wabt writes it, from ids and
+    // @names; else of the @names alone, when there are any, as the
+    // reference writes it.
+    void names(const Module &m)
+    {
+        enum { FUNCS, TYPES, TABLES, MEMORIES, GLOBALS, ELEMS, DATAS, TAGS, SPACES };
+        Names space[SPACES], locals, fields;
+        Names funcs_all, types_all; // every function, every type with fields
+        Vec<u32> local_count, field_count;
+        u32 at[SPACES] = {};
+        auto member    = [&](u32 k, const Bind &b) { named(space[k], at[k]++, b); };
+        auto count     = [&](Names &all, Vec<u32> &c, u32 index, u32 before, const Names &in) {
+            if (!all.index.push(index) || !all.name.push(Str()) ||
+                !c.push(in.index.size() - before))
+                e.oom = true;
+        };
+        for (const Decl *d : m.decls) {
+            switch (d->kind) {
+            case Decl::Kind::Type:
+                for (const TypeDef &t : d->as<Decl::Type>()->group) {
+                    u32 before = fields.index.size(), i = 0;
+                    for (const Field &f : t.type.body.fields)
+                        named(fields, i++, f.bind);
+                    if (fields.index.size() > before)
+                        count(types_all, field_count, at[TYPES], before, fields);
+                    member(TYPES, t.bind);
+                }
+                break;
+            case Decl::Kind::Import: {
+                const Extern &x   = d->as<Decl::Import>()->desc;
+                constexpr u32 K[] = { FUNCS, TABLES, MEMORIES, GLOBALS, TAGS };
+                if (x.kind == Extern::Kind::FuncImport)
+                    count(funcs_all, local_count, at[FUNCS], locals.index.size(), locals);
+                member(K[u8(x.kind)], x.bind);
+                break;
+            }
+            case Decl::Kind::Func: {
+                auto *f    = d->as<Decl::Func>();
+                u32 before = locals.index.size(), i = 0;
+                for (const Param &p : f->type.params)
+                    named(locals, i++, p.bind);
+                for (const Local &l : f->locals)
+                    named(locals, i++, l.bind);
+                count(funcs_all, local_count, at[FUNCS], before, locals);
+                member(FUNCS, f->bind);
+                break;
+            }
+            case Decl::Kind::Table:
+                member(TABLES, d->as<Decl::Table>()->bind);
+                break;
+            case Decl::Kind::Memory:
+                member(MEMORIES, d->as<Decl::Memory>()->bind);
+                break;
+            case Decl::Kind::Global:
+                member(GLOBALS, d->as<Decl::Global>()->bind);
+                break;
+            case Decl::Kind::Tag:
+                member(TAGS, d->as<Decl::Tag>()->bind);
+                break;
+            case Decl::Kind::Elem:
+                member(ELEMS, d->as<Decl::Elem>()->bind);
+                break;
+            case Decl::Kind::Data:
+                member(DATAS, d->as<Decl::Data>()->bind);
+                break;
+            default:
+                break;
+            }
+        }
+        Str module;
+        bool any =
+            ids || name_of(m.bind, ids, module) || !locals.index.empty() || !fields.index.empty();
+        for (const Names &n : space)
+            any = any || !n.index.empty();
+        if (!any)
+            return;
+        usize sec = begin(0);
+        e.name("name");
+        if (name_of(m.bind, ids, module)) {
+            e.byte(0);
+            usize a = v.size();
+            e.name(module);
+            size(a);
+        }
+        name_map(1, space[FUNCS]);
+        indirect(2, funcs_all, local_count, locals, ids);
+        constexpr u8 ID[] = { 1, 4, 5, 6, 7, 8, 9, 11 };
+        for (u32 k = TYPES; k < TAGS; k++)
+            name_map(ID[k], space[k]);
+        indirect(10, types_all, field_count, fields, false);
+        name_map(11, space[TAGS]);
+        end(0, sec);
     }
 
     // The data count section, which no code needed: the sections after it
@@ -868,11 +1241,35 @@ struct Encoder {
 
     // ---------------------------------------------------- the object
 
+    // Each memory's address type; whether memory 0 is defined, and is to
+    // be env.__linear_memory.
+    void memories(const Module &m)
+    {
+        bool syms = false;
+        for (const Decl *d : m.decls) {
+            auto *i = d->as<Decl::Import>();
+            if (i && i->desc.kind == Extern::Kind::MemoryImport) {
+                if (!mem64.push(i->desc.memory.addr == AddrType::Addr64))
+                    e.oom = true;
+            } else if (auto *x = d->as<Decl::Memory>()) {
+                defined0 = defined0 || mem64.empty();
+                if (!mem64.push(x->type.addr == AddrType::Addr64))
+                    e.oom = true;
+            } else if (auto *a = d->as<Decl::Data>()) {
+                syms = syms || a->sym.has;
+                if (!sym_of.push(a->sym.has ? &a->sym.value : nullptr))
+                    e.oom = true;
+            }
+        }
+        linear = object && syms;
+    }
+
     // Decision 1 of Plan.md: wabt's rule, which gives every function, table
-    // and global a symbol, and tags one too.
+    // and global a symbol, and tags one too; and decision 2's data symbols
+    // after them.
     void symbolize(const Module &m)
     {
-        u32 count[4] = {};
+        u32 count[5] = {};
         auto kind_of = [](const Decl *d) -> i32 {
             if (auto *i = d->as<Decl::Import>()) {
                 switch (i->desc.kind) {
@@ -897,17 +1294,24 @@ struct Encoder {
                 return 2;
             case Decl::Kind::Tag:
                 return 3;
+            case Decl::Kind::Data:
+                return d->as<Decl::Data>()->sym.has ? 4 : -1;
             default:
                 return -1;
             }
         };
-        for (const Decl *d : m.decls)
+        u32 segments = 0;
+        for (const Decl *d : m.decls) {
             if (i32 k = kind_of(d); k >= 0)
                 count[k]++;
-        for (u32 k = 1; k < 4; k++)
+            segments += d->kind == Decl::Kind::Data;
+        }
+        for (u32 k = 1; k < 5; k++)
             first[k] = first[k - 1] + count[k - 1];
-        if (!symbols.resize(first[3] + count[3]))
+        if (!symbols.resize(first[4] + count[4]) || !data_sym.resize(segments))
             e.oom = true;
+        for (u32 &x : data_sym)
+            x = NONE;
         Vec<bool> exported;
         if (!exported.resize(symbols.size()))
             e.oom = true;
@@ -921,10 +1325,23 @@ struct Encoder {
                     exported[first[k] + x->index.value] = true;
             }
         constexpr u8 KIND[] = { wasm::SYM_FUNCTION, wasm::SYM_TABLE, wasm::SYM_GLOBAL,
-                                wasm::SYM_TAG };
-        u32 at[4]           = {};
+                                wasm::SYM_TAG, wasm::SYM_DATA };
+        u32 at[5]           = {};
+        u32 segment         = 0;
         for (const Decl *d : m.decls) {
             i32 k = kind_of(d);
+            if (auto *a = d->as<Decl::Data>()) {
+                u32 x = segment++;
+                if (k < 0)
+                    continue;
+                data_sym[x] = first[4] + at[4];
+                Symbol &s   = symbols[first[4] + at[4]++];
+                s.kind      = wasm::SYM_DATA;
+                s.index     = x;
+                s.name      = a->bind.id.value;
+                s.size      = a->init.size();
+                continue;
+            }
             if (k < 0)
                 continue;
             auto *i       = d->as<Decl::Import>();
@@ -976,18 +1393,27 @@ struct Encoder {
             for (const Symbol &s : symbols) {
                 e.byte(s.kind);
                 e.uleb(s.flags);
+                if (s.kind == wasm::SYM_DATA) {
+                    e.name(s.name);
+                    e.uleb(s.index);
+                    e.uleb(0);
+                    e.uleb(s.size);
+                    continue;
+                }
                 e.uleb(s.index);
                 if (!(s.flags & wasm::SYM_UNDEFINED))
                     e.name(s.name);
             }
             size(sub);
         }
+        if (linear)
+            segment_info();
         end(0, at);
         for (usize i = 0; i < relocs.size();) {
             usize j = i;
             while (j < relocs.size() && relocs[j].section == relocs[i].section)
                 j++;
-            Str name = wasm::section_name(relocs[i].id);
+            Str name = relocs[i].id ? wasm::section_name(relocs[i].id) : BRANCH_HINTS;
             at       = begin(0);
             e.uleb(6 + name.size());
             e.bytes(Bytes(reinterpret_cast<const u8 *>("reloc."), 6));
@@ -998,14 +1424,44 @@ struct Encoder {
                 e.uleb(relocs[k].type);
                 e.uleb(u32(relocs[k].at));
                 e.uleb(relocs[k].index);
+                if (wasm::reloc_has_addend(relocs[k].type))
+                    e.sleb64(relocs[k].addend);
             }
             end(0, at);
             i = j;
         }
     }
 
+    // Every data segment's name and alignment, as clang's: .data.x for a
+    // symbol x, and .data for a segment without one.
+    void segment_info()
+    {
+        e.byte(wasm::SUB_SEGMENT_INFO);
+        usize sub = v.size();
+        e.uleb(data_sym.size());
+        for (u32 s : data_sym) {
+            if (s == NONE) {
+                e.name(".data");
+                e.uleb(0);
+                e.uleb(0);
+                continue;
+            }
+            const Symbol &y        = symbols[s];
+            const Sym &k           = *sym_of[y.index];
+            constexpr Str PREFIX[] = { ".data.", ".rodata.", ".bss." };
+            Str p                  = PREFIX[u8(k.section)];
+            e.uleb(p.size() + y.name.size());
+            e.bytes(Bytes(reinterpret_cast<const u8 *>(p.data()), p.size()));
+            e.bytes(Bytes(reinterpret_cast<const u8 *>(y.name.data()), y.name.size()));
+            e.uleb(log2(k.align));
+            e.uleb(0);
+        }
+        size(sub);
+    }
+
     void section(const Module &m, u8 id)
     {
+        bool first_memory = true;
         for (const Decl *d : m.decls) {
             if (e.oom)
                 return;
@@ -1014,20 +1470,26 @@ struct Encoder {
                 if (id == TYPE_SEC)
                     group(d->as<Decl::Type>()->group);
                 break;
-            case Decl::Kind::Import:
+            case Decl::Kind::Import: {
+                auto *i  = d->as<Decl::Import>();
+                bool mem = i->desc.kind == Extern::Kind::MemoryImport;
                 if (id == IMPORT_SEC)
-                    import(*d->as<Decl::Import>());
+                    import(*i, mem && first_memory);
+                first_memory = first_memory && !mem;
                 break;
+            }
             case Decl::Kind::Func: {
                 auto *f = d->as<Decl::Func>();
                 if (id == FUNC_SEC) {
                     e.uleb(f->type.type.value.value);
                 } else if (id == CODE_SEC) {
                     usize at = v.size();
+                    body_at  = at;
                     locals(f->locals);
                     seq(f->body);
                     e.byte(END);
                     size(at);
+                    cur_func++;
                 }
                 break;
             }
@@ -1045,10 +1507,16 @@ struct Encoder {
                 }
                 break;
             }
-            case Decl::Kind::Memory:
-                if (id == MEMORY_SEC)
+            case Decl::Kind::Memory: {
+                // Memory 0 an object imports, when it has data symbols.
+                bool moved   = linear && first_memory;
+                first_memory = false;
+                if (id == MEMORY_SEC && !moved)
                     mem_type(d->as<Decl::Memory>()->type);
+                if (id == IMPORT_SEC && moved)
+                    linear_memory = d->as<Decl::Memory>();
                 break;
+            }
             case Decl::Kind::Global:
                 if (id == GLOBAL_SEC) {
                     auto *g = d->as<Decl::Global>();
@@ -1086,14 +1554,20 @@ struct Encoder {
                 break;
             }
         }
+        if (id == IMPORT_SEC && linear_memory) {
+            e.name("env");
+            e.name("__linear_memory");
+            e.byte(u8(Extern::Kind::MemoryImport));
+            mem_type(linear_memory->type);
+        }
     }
 };
 
 } // namespace
 
-bool encode(const Module &m, bool object, Vec<u8> &out, Diag &diag)
+bool encode(const Module &m, bool object, bool names, Vec<u8> &out, Diag &diag)
 {
-    Encoder c(out, object);
+    Encoder c(out, object, names);
     c.module(m);
     if (c.e.oom) {
         diag.error("out of memory");

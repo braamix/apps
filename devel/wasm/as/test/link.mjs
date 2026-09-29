@@ -1,6 +1,7 @@
 // as's objects linked with clang's. test/link/defines.wat defines functions
-// C calls, and calls.wat calls C and keeps a global of its own; link.c is the
-// C half. as assembles both on Braam, ld and wasm-ld link them with the C
+// C calls, calls.wat calls C and keeps a global of its own, and data.wat
+// has data C reads and writes, by the annotations of decision 2; link.c is
+// the C half. as assembles both on Braam, ld and wasm-ld link them with the C
 // object, the fixtures' driver and the SDK, the two outputs must be equal
 // byte for byte, and the program must run and print what it should.
 
@@ -14,8 +15,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BUILD = join(HERE, "../../../../build/devel/wasm");
 const AS = join(BUILD, "as/as.wasm");
 const C = JSON.parse(readFileSync(join(BUILD, "as/test/link/link.json"), "utf8"));
-const WAT = ["defines", "calls"];
-const WANT = "fib(10) = 55\nsum = 7\n421422";
+const WAT = ["defines", "calls", "data"];
+const WANT = "fib(10) = 55\nsum = 7\n421422\nhello from wat\n5 451 41 410\n";
 
 function die(msg) {
     console.error("link: " + msg);

@@ -36,6 +36,10 @@ const TREES = [
 (export "f" (func $f)) (export "t" (table $tb)) (export "m" (memory $m))
 (export "g" (global $g)) (export "e" (tag $e)) (start $f)`],
     ["forward", `(start $f) (export "g" (global $g)) (func call $f global.get $g) (func $f) (global $g i32 (i32.const 0))`],
+    ["data annotations", `(memory 1) (data $a (@sym rodata) "abc") (data $b (@sym align=8) (@reloc $a 1))
+(data $c (@sym) (i32.const 100) "c") (data $d (@sym align=4) "\\00") (data $e "e")
+(func i32.const (@reloc $d -4) i32.load (@reloc $c) i64.const (@reloc $b) drop drop)`],
+    ["data annotations, memory64", `(memory i64 1) (data $a (@sym) "abc") (func i64.const (@reloc $a 2) drop)`],
     ["imports first", `(import "m" "f" (func $i)) (import "m" "g" (global $h i32))
 (func $f call $f call $i) (global $g i32 global.get $h) (export "f" (func $f)) (export "g" (global $g))`],
     ["locals", `(type $t (func (param i32 i64)))
@@ -137,6 +141,14 @@ const ERRORS = [
     ["(type (struct)) (func (type 0) (param i32))", "1:29: non-function type 0"],
     ["(func (type 3) (local $x i32))", "1:13: unknown type 3"],
     ["(type (array i8)) (func (type 0) (local $x i32))", "1:31: non-function type 0"],
+    ["(memory 1) (data (@sym) \"x\")", "1:13: @sym annotation: data segment without an id"],
+    ["(data $d (@sym) \"x\")", "1:2: @sym annotation: no memory"],
+    ["(memory 1) (data $d (@sym bss) \"x\")", "1:13: @sym annotation: bss data not zero"],
+    ["(memory 1) (global i32 (i32.const 0)) (data $d (@sym) (global.get 0) \"x\")", "1:40: @sym annotation: offset not a constant"],
+    ["(memory 1) (memory 1) (data $d (@sym) (memory 1) (i32.const 0) \"x\")", "1:24: @sym annotation: not in memory 0"],
+    ["(memory 1) (data $d \"x\") (func i32.const (@reloc $d) drop)", "1:50: @reloc annotation: no @sym on data segment $d"],
+    ["(memory 1) (func i32.load (@reloc $e) drop)", "1:35: unknown data segment $e"],
+    ["(memory i64 1) (data $d (@sym) \"x\") (data $p (@sym) (@reloc $d))", "1:38: @reloc annotation: a 64-bit address in data"],
 ];
 
 {

@@ -140,6 +140,10 @@ const TREES = [
     local.get 0 (@metadata.code.branch_hint "\\00") br_if 0
     local.get 0 (@metadata.code.branch_hint "\\00") if end)
   (@custom "c2" (after code)) (@custom "c3" (after last) "x") (@custom "c4" (before datacount)))`],
+    ["data annotations", `(memory 1) (data $a (@sym rodata align=4) "hi" (@reloc $a 2) "\\00")
+  (data $b (@sym) (i32.const 64) "x") (data $c (@sym bss) "\\00")
+  (func i32.const (@reloc $a) i32.load (@reloc $b -1) align=1 drop
+    (drop (i64.const (@reloc $b 0x10))))`],
     ["extensions", `(memory 1 1 shared) (func atomic.fence i32.atomic.load i64.atomic.rmw.add offset=8
   memory.atomic.notify i64.add128 i64.sub128 i64.mul_wide_s i64.mul_wide_u
   i8x16.relaxed_swizzle f32x4.relaxed_madd i32x4.relaxed_dot_i8x16_i7x16_add_s)`],
@@ -219,10 +223,25 @@ const ERRORS = [
     ["(func ref.null)", "1:15: unexpected token"],
     ["(func br_table)", "1:15: unexpected token"],
     ["(func i32.const +1 br +1)", "1:23: unexpected token"],
-    ["(@custom \"x\" (before foo))", "1:1: malformed @custom annotation"],
-    ["(@custom 1)", "1:1: malformed @custom annotation"],
-    ["(func (@name 1))", "1:7: malformed @name annotation"],
-    ["(func (@metadata.code.branch_hint \"\\02\") if end)", "1:7: malformed branch hint"],
+    ["(@custom \"x\" (before foo))", "1:14: @custom annotation: malformed section kind"],
+    ["(@custom 1)", "1:1: @custom annotation: missing section name"],
+    ["(func (@name 1))", "1:14: @name annotation: string expected"],
+    ["(func (@name \"a\" \"b\"))", "1:18: @name annotation: unexpected token"],
+    ["(module (@name \"a\") $m (@name \"b\"))", "1:24: @name annotation: multiple module names"],
+    ["(func (@metadata.code.branch_hint \"\\02\") if end)", "1:7: @metadata.code.branch_hint annotation: invalid hint value"],
+    ["(func (@metadata.code.branch_hint \"\\01\") nop)", "1:7: @metadata.code.branch_hint annotation: invalid target"],
+    ["(func (@metadata.code.branch_hint \"\\01\") (nop))", "1:7: @metadata.code.branch_hint annotation: invalid target"],
+    ["(global i32 (@metadata.code.branch_hint \"\\01\") (i32.const 0))", "1:13: @metadata.code.branch_hint annotation: not in a function"],
+    ["(func (@metadata.code.branch_hint \"\\01\") (@metadata.code.branch_hint \"\\01\") if end)", "1:42: @metadata.code.branch_hint annotation: duplicate annotation"],
+    ["(func (block (@custom \"x\")))", "1:14: misplaced @custom annotation"],
+    ["(start $f (@name \"M\")) (func $f)", "1:11: misplaced @name annotation"],
+    ["(data $d (@sym bss align=3))", "1:20: @sym annotation: alignment must be a power of two"],
+    ["(data $d (@sym text))", "1:16: @sym annotation: unexpected token"],
+    ["(data $d \"a\" (@sym))", "1:14: misplaced @sym annotation"],
+    ["(data $d (@reloc 1))", "1:18: @reloc annotation: data id expected"],
+    ["(data $d (@reloc $e x))", "1:21: @reloc annotation: unexpected token"],
+    ["(global i32 (i32.const (@reloc $d)))", "1:24: misplaced @reloc annotation"],
+    ["(func f32.const (@reloc $d) 0 drop)", "1:17: misplaced @reloc annotation"],
     ["(func $\"\\ff\")", "1:7: malformed UTF-8 encoding"],
 ];
 {

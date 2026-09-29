@@ -83,6 +83,8 @@ constexpr Str ADDR_TYPE[] = { "Addr32", "Addr64" };
 
 constexpr Str BRANCH_HINT[] = { "Unlikely", "Likely" };
 
+constexpr Str SYM_SECTION[] = { "SData", "SRodata", "SBss" };
+
 constexpr Str VAL_TYPE[] = { "I32", "I64", "F32", "F64", "V128", "Ref" };
 
 constexpr Str STORAGE_TYPE[] = { "Value", "I8", "I16" };
@@ -284,6 +286,8 @@ struct Printer {
 
     void emit(BranchHint h) { put(BRANCH_HINT[u32(h)]); }
 
+    void emit(SymSection s) { put(SYM_SECTION[u32(s)]); }
+
     // ---------------------------------------------------- names and types
 
     void emit(const Bind &b)
@@ -433,6 +437,12 @@ struct Printer {
         else
             put(DATA_MODE[u32(m.kind)]);
     }
+
+    void emit(const Sym &s) { node("Sym", s.section, s.align); }
+
+    void emit(const Addr &a) { node("Addr", a.data, a.addend); }
+
+    void emit(const DataAddr &a) { node("DataAddr", a.at, a.addr); }
 
     void emit(const Place &p)
     {
@@ -623,7 +633,7 @@ struct Printer {
         }
         case Instr::Kind::MemArg: {
             auto *m = in->as<Instr::MemArg>();
-            fields(m->op, m->memory, m->offset, m->align);
+            fields(m->op, m->memory, m->offset, m->align, m->addr);
             break;
         }
         case Instr::Kind::MemArgLane: {
@@ -631,12 +641,16 @@ struct Printer {
             fields(m->op, m->memory, m->offset, m->align, m->lane);
             break;
         }
-        case Instr::Kind::I32Const:
-            fields(in->as<Instr::I32Const>()->value);
+        case Instr::Kind::I32Const: {
+            auto *c = in->as<Instr::I32Const>();
+            fields(c->value, c->addr);
             break;
-        case Instr::Kind::I64Const:
-            fields(in->as<Instr::I64Const>()->value);
+        }
+        case Instr::Kind::I64Const: {
+            auto *c = in->as<Instr::I64Const>();
+            fields(c->value, c->addr);
             break;
+        }
         case Instr::Kind::F32Const:
             fields(Bits{ in->as<Instr::F32Const>()->bits });
             break;
@@ -721,7 +735,7 @@ struct Printer {
         }
         case Decl::Kind::Data: {
             auto *a = d->as<Decl::Data>();
-            fields(a->bind, a->mode, a->init);
+            fields(a->bind, a->mode, a->init, a->sym, a->addrs);
             break;
         }
         case Decl::Kind::Custom: {

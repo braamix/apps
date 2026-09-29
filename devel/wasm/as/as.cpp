@@ -173,5 +173,5 @@ bool assemble(Str name, Str source, const AsConfig &c, Vec<u8> &out, Diag &diag)
     wat::Arena arena;
     wat::Module m;
     return parse(name, source, arena, m, diag) && resolve(name, arena, m, diag) &&
-           encode(m, !c.module, out, diag);
+           encode(m, !c.module, c.debug_names, out, diag);
 }

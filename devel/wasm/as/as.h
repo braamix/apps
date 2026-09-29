@@ -8,11 +8,12 @@
 #include "out.h"
 
 struct AsConfig {
-    bool module   = false; // a plain module, not a relocatable object
-    bool tokens   = false; // print the tokens, write nothing
-    bool numbers  = false; // print the bits of typed literals, write nothing
-    bool tree     = false; // print the syntax tree, write nothing
-    bool resolved = false; // print it resolved, write nothing
+    bool module      = false; // a plain module, not a relocatable object
+    bool debug_names = false; // names from ids too, in the name section
+    bool tokens      = false; // print the tokens, write nothing
+    bool numbers     = false; // print the bits of typed literals, write nothing
+    bool tree        = false; // print the syntax tree, write nothing
+    bool resolved    = false; // print it resolved, write nothing
 };
 
 // One source into `out`. False with a message in `diag` when it cannot be

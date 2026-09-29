@@ -73,6 +73,9 @@ struct Resolver {
     Vec<Opt<Str>> labels; // innermost last
     Vec<Frame> stack;
 
+    Vec<Decl::Data *> segments; // every data segment, null where inline
+    Vec<u64> address;           // of each, where it has a Sym
+
     Vec<Decl *> out;
     Vec<Decl *> implicit;
     u32 defined[5] = {}; // functions, tables, memories, globals, tags so far
@@ -621,9 +624,26 @@ struct Resolver {
             type_use(c->type, in->loc);
             break;
         }
-        case Instr::Kind::MemArg:
-            index(in->as<Instr::MemArg>()->memory, memories);
+        case Instr::Kind::MemArg: {
+            auto *m = in->as<Instr::MemArg>();
+            index(m->memory, memories);
+            if (m->addr.has)
+                address_of(m->addr.value, m->offset);
             break;
+        }
+        case Instr::Kind::I32Const: {
+            auto *c = in->as<Instr::I32Const>();
+            u64 v   = 0;
+            if (c->addr.has && address_of(c->addr.value, v))
+                c->value = u32(v);
+            break;
+        }
+        case Instr::Kind::I64Const: {
+            auto *c = in->as<Instr::I64Const>();
+            if (c->addr.has)
+                address_of(c->addr.value, c->value);
+            break;
+        }
         case Instr::Kind::MemArgLane:
             index(in->as<Instr::MemArgLane>()->memory, memories);
             break;
@@ -635,6 +655,126 @@ struct Resolver {
             break;
         default:
             break;
+        }
+    }
+
+    // ---------------------------------------------------- data annotations
+
+    // What `a` stands for: its segment's address plus its addend.
+    bool address_of(Addr &a, u64 &v)
+    {
+        Idx x = a.data;
+        index(a.data, datas);
+        if (failed)
+            return false;
+        u32 k = a.data.value;
+        if (k >= segments.size() || !segments[k] || !segments[k]->sym.has) {
+            named(x.loc, "@reloc annotation: no @sym on data segment", x.id);
+            return false;
+        }
+        v = address[k] + a.addend;
+        return true;
+    }
+
+    // Memory 0's address type; false with none.
+    bool memory0(List<Decl *> decls, AddrType &a)
+    {
+        for (Decl *d : decls) {
+            if (auto *i = d->as<Decl::Import>(); i && i->desc.kind == Extern::Kind::MemoryImport) {
+                a = i->desc.memory.addr;
+                return true;
+            }
+            if (auto *m = d->as<Decl::Memory>()) {
+                a = m->type.addr;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Every segment with a Sym active in memory 0, where the text put it or
+    // at the next address its alignment allows; then the addresses in the
+    // segments' bytes.
+    void layout(List<Decl *> decls)
+    {
+        if (!address.resize(segments.size())) {
+            oom();
+            return;
+        }
+        AddrType at = AddrType::Addr32;
+        bool memory = false;
+        u64 next    = 0;
+        for (u32 k = 0; k < segments.size() && !failed; k++) {
+            Decl::Data *d = segments[k];
+            if (!d || !d->sym.has)
+                continue;
+            if (!memory && !memory0(decls, at)) {
+                fail(d->loc, "@sym annotation: no memory");
+                return;
+            }
+            memory = true;
+            if (!d->bind.id.has) {
+                fail(d->loc, "@sym annotation: data segment without an id");
+                return;
+            }
+            if (d->sym.value.section == SymSection::SBss)
+                for (char c : d->init)
+                    if (c) {
+                        fail(d->loc, "@sym annotation: bss data not zero");
+                        return;
+                    }
+            DataMode &m = d->mode;
+            if (m.kind == DataMode::Kind::DataPassive) {
+                u64 align  = d->sym.value.align;
+                next       = (next + align - 1) & ~(align - 1);
+                m.kind     = DataMode::Kind::DataActive;
+                m.memory   = num(0, d->loc);
+                m.offset   = zero(at, d->loc);
+                address[k] = next;
+                Instr *c   = m.offset[0];
+                if (auto *c32 = c->as<Instr::I32Const>())
+                    c32->value = u32(next);
+                else
+                    c->as<Instr::I64Const>()->value = next;
+            } else {
+                index(m.memory, memories);
+                auto *c32 = m.offset.size() == 1 ? m.offset[0]->as<Instr::I32Const>() : nullptr;
+                auto *c64 = m.offset.size() == 1 ? m.offset[0]->as<Instr::I64Const>() : nullptr;
+                if (failed)
+                    return;
+                if (m.memory.value) {
+                    fail(d->loc, "@sym annotation: not in memory 0");
+                    return;
+                }
+                if ((!c32 || c32->addr.has) && (!c64 || c64->addr.has)) {
+                    fail(d->loc, "@sym annotation: offset not a constant");
+                    return;
+                }
+                address[k] = c32 ? c32->value : c64->value;
+            }
+            next = address[k] + d->init.size();
+        }
+        for (Decl::Data *d : segments) {
+            if (!d || d->addrs.empty() || failed)
+                continue;
+            if (at == AddrType::Addr64) {
+                fail(d->loc, "@reloc annotation: a 64-bit address in data");
+                return;
+            }
+            Str copy = arena.str(d->init);
+            if (arena.failed()) {
+                oom();
+                return;
+            }
+            char *b = const_cast<char *>(copy.data());
+            for (DataAddr &a : d->addrs) {
+                u64 v = 0;
+                if (!address_of(a.addr, v))
+                    return;
+                for (u32 i = 0; i < 4; i++)
+                    b[a.at + i] = char(v >> (8 * i));
+            }
+            d->init = copy;
         }
     }
 
@@ -679,6 +819,8 @@ struct Resolver {
                 auto *m = d->as<Decl::Memory>();
                 bind(m->bind, memories);
                 datas.count += m->data.has;
+                if (m->data.has)
+                    add(segments, static_cast<Decl::Data *>(nullptr));
                 break;
             }
             case Decl::Kind::Global:
@@ -692,6 +834,7 @@ struct Resolver {
                 break;
             case Decl::Kind::Data:
                 bind(d->as<Decl::Data>()->bind, datas);
+                add(segments, d->as<Decl::Data>());
                 break;
             default:
                 break;
@@ -928,6 +1071,8 @@ struct Resolver {
                 break;
             type_def(*t);
         }
+        if (!failed)
+            layout(m.decls);
         for (Decl *d : m.decls) {
             if (failed)
                 break;

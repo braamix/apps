@@ -10,6 +10,7 @@ const char USAGE[] =
     "usage: as [options] file...\n"
     "  --module                 write a module, file.wasm, not an object\n"
     "  -o <file>                write there instead; one input only\n"
+    "  --debug-names            name what has an id, in the name section\n"
     "  --tokens                 print the tokens, write nothing\n"
     "  --numbers                print typed literals' bits, write nothing\n"
     "  --tree                   print the syntax tree, write nothing\n"

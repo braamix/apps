@@ -26,6 +26,8 @@ bool parse_args(Span<const Str> w, AsArgs &a, Diag &diag)
             a.help = true;
         } else if (arg == "--module") {
             a.as.module = true;
+        } else if (arg == "--debug-names") {
+            a.as.debug_names = true;
         } else if (arg == "--tokens") {
             a.as.tokens = true;
         } else if (arg == "--numbers") {

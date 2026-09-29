@@ -21,11 +21,11 @@
   (Import "env" "puts" (FuncImport $puts (TypeUse _ [(Param _ I32)] [])) [])
   (Memory _ ["memory"] (MemType Addr32 (Limits 1 _) false _) _)
   (Data _ (DataActive 0 [
-    (I32Const 16)]) "hello\00")
+    (I32Const 16 _)]) "hello\00" _ [])
   (Func $main ["main"] (TypeUse _ [] [I32]) [(Local $i I32)] [
-    (I32Const 16)
+    (I32Const 16 _)
     (Index call $puts)
-    (I32Const 3)
+    (I32Const 3 _)
     (Index local.set $i)
     (Block block $done NoResult [
       (Block loop $again NoResult [
@@ -33,11 +33,11 @@
         (Plain i32.eqz)
         (Br br_if $done _)
         (Index local.get $i)
-        (I32Const 1)
+        (I32Const 1 _)
         (Plain i32.sub)
         (Index local.set $i)
         (Br br $again _)])])
-    (I32Const 0)])])
+    (I32Const 0 _)])])
 
 === bare fields
 (func) (memory 0)
@@ -62,9 +62,9 @@
 (Module _ [
   (Func _ [] (TypeUse _ [] []) [] [
     (Index local.get 0)
-    (I32Const 2)
+    (I32Const 2 _)
     (Plain i32.add)
-    (I32Const 3)
+    (I32Const 3 _)
     (Plain i32.mul)
     (Plain drop)])])
 
@@ -111,21 +111,21 @@
 ---
 (Module _ [
   (Func _ [] (TypeUse _ [] []) [] [
-    (I32Const 0)
+    (I32Const 0 _)
     (If _ NoResult [
       (Plain nop)] false [] _)
-    (I32Const 1)
+    (I32Const 1 _)
     (If _ NoResult [
       (Plain nop)] false [] _)
-    (I32Const 2)
+    (I32Const 2 _)
     (If $l (Result I32) [
-      (I32Const 3)] true [
-      (I32Const 4)] _)
+      (I32Const 3 _)] true [
+      (I32Const 4 _)] _)
     (Plain drop)
-    (I32Const 5)
+    (I32Const 5 _)
     (If _ (Result I32) [
-      (I32Const 6)] true [
-      (I32Const 7)] _)
+      (I32Const 6 _)] true [
+      (I32Const 7 _)] _)
     (Plain drop)])])
 
 === block types
@@ -209,16 +209,16 @@
 ---
 (Module _ [
   (Func _ [] (TypeUse _ [] []) [] [
-    (MemArg i32.load 0 0 4)
-    (MemArg i64.load 0 8 8)
-    (MemArg i32.load 0 0 1)
-    (MemArg i32.load8_u 0 16 1)
-    (MemArg v128.load 0 0 16)
-    (MemArg i32.load 1 0 4)
-    (MemArg i64.store $m 4 8)
-    (MemArg f64.load 0 1 8)
-    (MemArg i64.atomic.rmw32.cmpxchg_u 0 4 4)
-    (MemArg memory.atomic.wait64 0 0 8)])])
+    (MemArg i32.load 0 0 4 _)
+    (MemArg i64.load 0 8 8 _)
+    (MemArg i32.load 0 0 1 _)
+    (MemArg i32.load8_u 0 16 1 _)
+    (MemArg v128.load 0 0 16 _)
+    (MemArg i32.load 1 0 4 _)
+    (MemArg i64.store $m 4 8 _)
+    (MemArg f64.load 0 1 8 _)
+    (MemArg i64.atomic.rmw32.cmpxchg_u 0 4 4 _)
+    (MemArg memory.atomic.wait64 0 0 8 _)])])
 
 === lane accesses
 (func v128.load8_lane 1 v128.load8_lane 1 2 v128.load16_lane $m 3
@@ -267,8 +267,8 @@
     (Index local.get 0)
     (Index local.get 1)
     (CallIndirect call_indirect $t (TypeUse $f [(Param _ I32)] [I32]))
-    (I64Const 1)
-    (I32Const 0)
+    (I64Const 1 _)
+    (I32Const 0 _)
     (CallIndirect call_indirect 0 (TypeUse _ [(Param _ I64)] []))
     (CallIndirect return_call_indirect 2 (TypeUse 1 [] []))])])
 
@@ -282,9 +282,9 @@
 ---
 (Module _ [
   (Func _ [] (TypeUse _ [] []) [] [
-    (I32Const 4294967295)
-    (I32Const 4294967295)
-    (I64Const 9223372036854775808)
+    (I32Const 4294967295 _)
+    (I32Const 4294967295 _)
+    (I64Const 9223372036854775808 _)
     (F32Const 0x7f800001)
     (F32Const 0x80000000)
     (F64Const 0x1)
@@ -366,9 +366,9 @@
 ---
 (Module _ [
   (Global $g [] (GlobalType I32 true) [
-    (I32Const 0)])
+    (I32Const 0 _)])
   (Global _ [] (GlobalType I64 false) [
-    (I64Const 1)])
+    (I64Const 1 _)])
   (Func _ [] (TypeUse _ [(Param $p I32)] []) [] [
     (Index local.get $p)
     (Index local.set 0)
@@ -387,7 +387,7 @@
     (Block block $h (Result (Ref (RefType true (Abstract HExn)))) [
       (TryTable _ NoResult [(Catch $e 0) (CatchRef 0 0) (CatchAll 0) (CatchAllRef $h)] [])
       (TryTable $t (Result I32) [(Catch $e 0)] [
-        (I32Const 1)])
+        (I32Const 1 _)])
       (Plain unreachable)])
     (Plain drop)])])
 
@@ -409,9 +409,9 @@
       (Plain nop)] [(LegacyCatchAll [])])
     (TryDelegate _ NoResult [] 0)
     (Try _ (Result I32) [
-      (I32Const 1)] [(LegacyCatch $e [
-      (I32Const 2)]) (LegacyCatchAll [
-      (I32Const 3)])])
+      (I32Const 1 _)] [(LegacyCatch $e [
+      (I32Const 2 _)]) (LegacyCatchAll [
+      (I32Const 3 _)])])
     (Plain drop)
     (TryDelegate _ NoResult [] 0)
     (Try _ NoResult [] [])])])
@@ -466,7 +466,7 @@
 (Module _ [
   (Func $f ["a" "b"] (TypeUse _ [] []) [] [])
   (Global _ ["g"] (GlobalType I32 false) [
-    (I32Const 0)])
+    (I32Const 0 _)])
   (Table _ ["t"] (TableType Addr32 (Limits 0 _) (RefType true (Abstract HFunc))) [] _)
   (Memory _ ["m"] (MemType Addr32 (Limits 0 _) false _) _)
   (Tag _ ["e"] (TypeUse _ [] []))])
@@ -517,34 +517,34 @@
 ---
 (Module _ [
   (Elem _ (ElemActive 0 [
-    (I32Const 0)]) (Funcs [$f $g]))
+    (I32Const 0 _)]) (Funcs [$f $g]))
   (Elem _ (ElemActive 0 [
-    (I32Const 1)]) (Funcs []))
+    (I32Const 1 _)]) (Funcs []))
   (Elem $e (ElemActive $t [
-    (I32Const 2)]) (Funcs [0]))
+    (I32Const 2 _)]) (Funcs [0]))
   (Elem _ (ElemActive 0 [
-    (I32Const 3)]) (Exprs (RefType true (Abstract HFunc)) [(Expr [
+    (I32Const 3 _)]) (Exprs (RefType true (Abstract HFunc)) [(Expr [
     (Index ref.func 0)]) (Expr [
     (RefNull (Abstract HFunc))])]))
   (Elem _ ElemPassive (Funcs [$f]))
   (Elem _ ElemPassive (Exprs (RefType true (Abstract HExtern)) []))
   (Elem _ ElemDeclare (Funcs [$f 1]))
   (Elem _ (ElemActive 0 [
-    (I32Const 4)]) (Funcs []))])
+    (I32Const 4 _)]) (Funcs []))])
 
 === data segments
 (data "a" "b") (data $d (i32.const 0) "c") (data (memory $m) (offset i32.const 1))
 (data (memory 1) (i64.const 2) "d") (data $e)
 ---
 (Module _ [
-  (Data _ DataPassive "ab")
+  (Data _ DataPassive "ab" _ [])
   (Data $d (DataActive 0 [
-    (I32Const 0)]) "c")
+    (I32Const 0 _)]) "c" _ [])
   (Data _ (DataActive $m [
-    (I32Const 1)]) "")
+    (I32Const 1 _)]) "" _ [])
   (Data _ (DataActive 1 [
-    (I64Const 2)]) "d")
-  (Data $e DataPassive "")])
+    (I64Const 2 _)]) "d" _ [])
+  (Data $e DataPassive "" _ [])])
 
 === quoted ids
 (func $"a b" (param $"\u{3bb}" i32) block $"x y" br $"x y" end call $"a b")
@@ -577,6 +577,25 @@
   (Custom "c3" AfterLast "x")
   (Custom "c4" (Before DataCountSec) "")])
 
+=== data annotations
+(memory 1) (data $a (@sym rodata align=4) "hi" (@reloc $a 2) "\00")
+  (data $b (@sym) (i32.const 64) "x") (data $c (@sym bss) "\00")
+  (func i32.const (@reloc $a) i32.load (@reloc $b -1) align=1 drop
+    (drop (i64.const (@reloc $b 0x10))))
+---
+(Module _ [
+  (Memory _ [] (MemType Addr32 (Limits 1 _) false _) _)
+  (Data $a DataPassive "hi\00\00\00\00\00" (Sym SRodata 4) [(DataAddr 2 (Addr $a 2))])
+  (Data $b (DataActive 0 [
+    (I32Const 64 _)]) "x" (Sym SData 1) [])
+  (Data $c DataPassive "\00" (Sym SBss 1) [])
+  (Func _ [] (TypeUse _ [] []) [] [
+    (I32Const 0 (Addr $a 0))
+    (MemArg i32.load 0 0 1 (Addr $b 18446744073709551615))
+    (Plain drop)
+    (I64Const 0 (Addr $b 16))
+    (Plain drop)])])
+
 === extensions
 (memory 1 1 shared) (func atomic.fence i32.atomic.load i64.atomic.rmw.add offset=8
   memory.atomic.notify i64.add128 i64.sub128 i64.mul_wide_s i64.mul_wide_u
@@ -586,9 +605,9 @@
   (Memory _ [] (MemType Addr32 (Limits 1 1) true _) _)
   (Func _ [] (TypeUse _ [] []) [] [
     (Plain atomic.fence)
-    (MemArg i32.atomic.load 0 0 4)
-    (MemArg i64.atomic.rmw.add 0 8 8)
-    (MemArg memory.atomic.notify 0 0 4)
+    (MemArg i32.atomic.load 0 0 4 _)
+    (MemArg i64.atomic.rmw.add 0 8 8 _)
+    (MemArg memory.atomic.notify 0 0 4 _)
     (Plain i64.add128)
     (Plain i64.sub128)
     (Plain i64.mul_wide_s)

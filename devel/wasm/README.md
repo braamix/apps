@@ -437,12 +437,48 @@ C:
     $ nm add.o
     00000001 T add
 
-An object has no data symbols yet: a module whose code uses data
-addresses gets them written as they are, and links only on its own.
+Data needs two annotations of `as`'s own, since the text format has no
+data symbols. `(@sym)` after a data segment's id makes it a data symbol,
+named by the id, in a section `.data.<id>`; `(@sym rodata)` and
+`(@sym bss)` name `.rodata.` and `.bss.` instead, and `align=n` gives its
+alignment, 1 by default. A segment written without an offset is placed
+after the one before it, as its alignment allows. `(@reloc $x k)` is the
+address of `$x` plus `k`, a relocation where it stands: the value of an
+`i32.const` or `i64.const`, a load's or store's offset in place of
+`offset=`, or four bytes among a segment's strings. An object with data
+symbols imports memory 0 as `env.__linear_memory`, as clang's do; a module
+has the addresses written in instead.
+
+    $ cat counter.wat
+    (module
+      (memory 1)
+      (data $count (@sym align=4) "\00\00\00\00")
+      (data $count_ptr (@sym align=4) (@reloc $count))
+      (func $bump (result i32)
+        (i32.store (i32.const (@reloc $count))
+          (i32.add (i32.load (@reloc $count) (i32.const 0)) (i32.const 1)))
+        (i32.load (i32.const (@reloc $count)))))
+    $ as counter.wat
+    $ nm counter.o
+    00000001 T bump
+    00000000 D count
+    00000004 D count_ptr
+
+C declares them `extern int count; extern int *count_ptr;` and reads and
+writes them as its own.
+
+The other annotations are the language's. `(@name "…")` after an id, or
+in its place, names what it stands on in the `name` section; with
+`--debug-names` an id alone does too, as `wat2wasm --debug-names` has it.
+`(@custom "name" (before code) "bytes" …)` between module fields is a custom
+section, placed as it says, or last. And `(@metadata.code.branch_hint "\01")`
+before an `if` or a `br_if` is a hint, likely with 1 and unlikely with 0, in
+the `metadata.code.branch_hint` section.
 
 | Option | Meaning |
 | --- | --- |
 | `--module` | write a module, `file.wasm` |
+| `--debug-names` | name what has an id, in the `name` section |
 | `-o <file>` | write there instead; one input only |
 | `--tokens` | print the tokens, write nothing |
 | `--numbers` | print typed literals' bits, write nothing |
@@ -472,8 +508,16 @@ assembled. The exit status is 0 on success, 1 on an error and 130 on
 - **It writes a plain import section**, where `wat2wasm --enable-all`
   groups imports by module into the compact encoding, which is not in the
   language.
+- **It places a custom section where `@custom` says**, as the reference
+  interpreter does; `wat2wasm` writes each one last.
+- **A branch hint is on its instruction.** On a folded `if` or `br_if`,
+  `wat2wasm` puts it on the first of its operands instead. A hint on any
+  other instruction is refused, as the reference refuses it.
+- **It has `@name`**, and the data annotations of its own.
 - **Its objects are clang's where wabt's are not.** A relocation section is
-  named `reloc.CODE`, not `reloc.Code`. Tags have symbols and relocations,
+  named `reloc.CODE`, not `reloc.Code`, and the branch hints' is
+  `reloc.metadata.code.branch_hint`, not `reloc.Custom`. Tags have symbols
+  and relocations,
   and so do the function indices of an element segment, where wabt leaves
   them unrelocated; a concrete `ref.null` is not relocated as a function.
   Two exports without an id are not a duplicate symbol.
@@ -569,8 +613,8 @@ written out a part at a time, so its text is never all in memory.
 | `number.cpp` | integer and float literals to bits, exactly |
 | `ast.h`, `ast.cpp` | the tree of [as/wat.asdl](as/wat.asdl), its arena, and a printer |
 | `parser.cpp` | tokens to the tree, the text format's abbreviations undone |
-| `resolve.cpp` | ids to indices, implicit types, inline exports and segments |
-| `encode.cpp` | the tree to a module's or an object's bytes |
+| `resolve.cpp` | ids to indices, implicit types, inline exports and segments, data addresses |
+| `encode.cpp` | the tree to a module's or an object's bytes, custom sections and names included |
 | [lib/optable.cpp](lib/optable.cpp) | every instruction by its text name: encoding and immediates |
 | `driver.cpp` | parses the command line |
 
@@ -697,10 +741,19 @@ and an unlinkable or uninstantiable one by V8 when instantiated. JS cannot
 carry a v128 or a signalling NaN, so a function whose type is all numbers
 is called from a module `as` makes for it, which compares the results'
 bits in wasm. It prints how many of each command passed.
-[as/test/link.mjs](as/test/link.mjs) assembles two WAT objects on Braam,
-one defining functions C calls and one calling C, and links them with a C
-object by both `ld` and `wasm-ld`: the outputs must be equal, and the
-program must run and print what it should.
+[as/test/link.mjs](as/test/link.mjs) assembles three WAT objects on
+Braam, one defining functions C calls, one calling C, and one with data C
+reads and writes, and links them with a C object by both `ld` and
+`wasm-ld`: the outputs must be equal, and the program must run and print
+what it should.
+[as/test/annot.mjs](as/test/annot.mjs) assembles the suite again with
+`--debug-names`, and each module's names must be those `wast2json
+--debug-names` writes. It runs the spec's own tests of annotations,
+vendored beside the suite: each module is held to the sections it must
+have, and each malformed one refused with the reference's message. Branch
+hints, custom sections and names are held to `wat2wasm`'s bytes, module
+and object, where it writes the same; and an object with data to the
+symbols and relocations `llvm-objdump` reads in clang's own.
 `make longtest` runs [as/test/object.mjs](as/test/object.mjs), which
 assembles every module of the suite as an object. Each must equal what
 `wast2json -r` writes, but for the relocation sections' names, where wabt

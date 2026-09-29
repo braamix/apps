@@ -747,17 +747,17 @@ or defines before.
 
 ## 9. Annotations the assembler knows
 
-**`(@name string)`** follows the id, or the keyword where there is no
-id, of a module, function, local, param, global, table, memory, tag,
-element or data segment. It is the name the `name` section gives the
-thing, in place of its id:
+**`(@name string)`** stands right before or after the id, or where the id
+would be, of a module, function, local, param, type, field, global,
+table, memory, tag, element or data segment. It is the name the `name`
+section gives the thing, in place of its id:
 
 ```
 (module (@name "Modül")
   (func $lambda (@name "λ") (param $x (@name "α") i32) …))
 ```
 
-At most one per thing.
+At most one per thing, and nowhere else.
 
 **`(@custom name place? string*)`**, among the module fields, is a
 custom section: the name, then the bytes of the strings. `place` says
@@ -765,19 +765,56 @@ where it goes in the binary:
 
 ```
 place   ::= '(' 'before' section ')' | '(' 'after' section ')'
-          | '(' 'before' 'first' ')' | '(' 'after' 'last' ')'
 section ::= 'type' | 'import' | 'func' | 'table' | 'memory' | 'tag'
-          | 'global' | 'export' | 'start' | 'elem' | 'code' | 'data'
-          | 'datacount'
+          | 'global' | 'export' | 'start' | 'elem' | 'datacount'
+          | 'code' | 'data' | 'first' | 'last'
 ```
 
-It is `(after last)` when left out. A section named must be one the
-module has. A `@custom` inside another field is ignored.
+`first` is `type` and `last` is `data`; it is `(after last)` when left
+out. A section the module does not have still has its place, in the order
+of this list. Custom sections of one place keep their order. `@custom`
+inside another field is an error.
 
-**`(@metadata.code.branch_hint string)`** stands right before an `if`
-or a `br_if`, flat or folded. The string is `"\00"`, likely not taken,
-or `"\01"`, likely taken. The hints go into the
-`metadata.code.branch_hint` section.
+**`(@metadata.code.branch_hint string*)`** stands right before an `if`
+or a `br_if`, flat or folded, in a function. Its strings make one byte:
+`"\00"`, likely not taken, or `"\01"`, likely taken. The hints go into
+the `metadata.code.branch_hint` section. One before any other
+instruction, or two before one, is an error.
+
+### 9.1 Data annotations
+
+The text format cannot say that a data segment is a variable an object
+exports, or that a constant is its address. Two annotations of this
+assembler's own say it:
+
+```
+sym   ::= '(@sym' ('data' | 'rodata' | 'bss')? ('align=' u32)? ')'
+reloc ::= '(@reloc' id iN? ')'
+```
+
+**`sym`** follows a data segment's id; the segment must have one. In an
+object it is a data symbol named by the id, in a section `.data.`,
+`.rodata.` or `.bss.` and the id, `data` by default; a `bss` segment is
+all zeros. `align=` is its alignment, a power of two, 1 by default. The
+segment goes into memory 0: at its offset, a constant, or where none is
+written, at the next address after the `sym` segment before it that its
+alignment allows, from 0.
+
+**`reloc`** is the address of a `sym` segment, plus the number, 0 by
+default. It stands in a function:
+
+- after `i32.const` or `i64.const`, in place of the number;
+- after a load's or store's memory index, in place of `offset=`;
+
+and among a data segment's strings, as the four bytes of an i32. In an
+object each is a relocation; in a module, the address.
+
+```
+(memory 1)
+(data $count (@sym align=4) "\00\00\00\00")
+(data $count_ptr (@sym align=4) (@reloc $count))
+(func (result i32) (i32.load (i32.const (@reloc $count))))
+```
 
 Any other annotation is white space.
 

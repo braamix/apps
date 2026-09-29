@@ -167,6 +167,8 @@ enum class AddrType : u8 { Addr32, Addr64 };
 
 enum class BranchHint : u8 { Unlikely, Likely };
 
+enum class SymSection : u8 { SData, SRodata, SBss };
+
 // ------------------------------------------------------------ names
 
 struct Bind {
@@ -323,6 +325,21 @@ struct DataMode {
     List<Instr *> offset;
 };
 
+struct Sym {
+    SymSection section = SymSection::SData;
+    u64 align          = 1;
+};
+
+struct Addr {
+    Idx data;
+    u64 addend = 0;
+};
+
+struct DataAddr {
+    u32 at = 0;
+    Addr addr;
+};
+
 struct Place {
     enum class Kind : u8 { BeforeFirst, AfterLast, Before, After };
     Kind kind       = Kind::AfterLast;
@@ -468,6 +485,8 @@ struct Decl::Data : Decl {
     Bind bind;
     DataMode mode;
     Str init;
+    Opt<Sym> sym;
+    List<DataAddr> addrs;
 };
 
 struct Decl::Custom : Decl {
@@ -654,6 +673,7 @@ struct Instr::MemArg : Instr {
     Idx memory;
     u64 offset = 0;
     u64 align  = 0;
+    Opt<Addr> addr;
 };
 
 struct Instr::MemArgLane : Instr {
@@ -668,11 +688,13 @@ struct Instr::MemArgLane : Instr {
 struct Instr::I32Const : Instr {
     static constexpr Kind KIND = Kind::I32Const;
     u32 value                  = 0;
+    Opt<Addr> addr;
 };
 
 struct Instr::I64Const : Instr {
     static constexpr Kind KIND = Kind::I64Const;
     u64 value                  = 0;
+    Opt<Addr> addr;
 };
 
 struct Instr::F32Const : Instr {

@@ -22,6 +22,9 @@
 #  * `(elem offset x*)` gets its table 0 and its `func`.
 #  * A memory with inline data, or a table with inline elements, gets its
 #    limits from their size.
+#  * An (@reloc …) is an Addr, and what it stands for is 0: the value of an
+#    i32.const or i64.const, a memory access's offset, four bytes of a
+#    segment's.
 #
 # What needs the whole module is left for the pass after:
 #
@@ -46,6 +49,11 @@
 #  * An inline segment is an Elem or Data right after its table or memory,
 #    with offset 0, and the table's `elems` and the memory's `data` are
 #    empty. An inline `func x*` is the table's type and `(ref.func x)*`.
+#  * A segment with a Sym is active, in memory 0: at the next address its
+#    alignment allows after the Sym segment before it, when the text gave
+#    none.
+#  * What an Addr stands for is the address it names: its segment's offset
+#    plus its addend.
 #
 # Primitive types, beyond ASDL's own:
 #
@@ -95,7 +103,9 @@ module Wat {
          | Export(name name, ExternKind sort, Idx index)
          | Start(Idx func)
          | Elem(Bind bind, ElemMode mode, ElemList elems)
-         | Data(Bind bind, DataMode mode, bytes init)
+         | Data(Bind bind, DataMode mode, bytes init,
+                Sym? sym,                                   # (@sym …)
+                DataAddr* addrs)                            # (@reloc …) in init
          | Custom(name name, Place place, bytes content)    # (@custom …)
          attributes(location loc)
 
@@ -121,6 +131,18 @@ module Wat {
 
     DataMode = DataPassive
              | DataActive(Idx memory, Instr* offset)
+
+    # Data annotations (Plan.md, decision 2). A segment with a Sym is a data
+    # symbol of an object, in a section named by its kind and its id.
+    Sym = (SymSection section, u64 align)                   # align in bytes
+
+    SymSection = SData | SRodata | SBss                     # .data .rodata .bss
+
+    # The address of a data symbol, plus an addend: (@reloc $x k)
+    Addr = (Idx data, u64 addend)                           # addend wrapped
+
+    # An Addr as the four bytes of a segment's init from `at`
+    DataAddr = (u32 at, Addr addr)
 
     # Placement of a custom section (§9)
     Place = BeforeFirst
@@ -233,16 +255,17 @@ module Wat {
           | CallIndirect(opcode op, Idx table, TypeUse type)
           # call_indirect, return_call_indirect
 
-          | MemArg(opcode op, Idx memory, u64 offset, u64 align)
+          | MemArg(opcode op, Idx memory, u64 offset, u64 align,
+                   Addr? addr)
           # Loads, stores, v128 loads and stores, atomics;
-          # align in bytes
+          # align in bytes; addr: the offset is an address
 
           | MemArgLane(opcode op, Idx memory, u64 offset, u64 align,
                        u8 lane)
           # v128.loadN_lane, v128.storeN_lane
 
-          | I32Const(u32 value)
-          | I64Const(u64 value)
+          | I32Const(u32 value, Addr? addr)
+          | I64Const(u64 value, Addr? addr)
           | F32Const(u32 bits)
           | F64Const(u64 bits)
           | V128Const(bytes value)                          # 16 bytes, low first
