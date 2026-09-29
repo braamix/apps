@@ -166,6 +166,34 @@ struct Reader {
             case OP_I64_SUB:
             case OP_I64_MUL:
                 break;
+            case 0xfd: // v128.const
+                if (c.uleb() != 12) {
+                    c.fail("not a constant instruction", at);
+                    return false;
+                }
+                c.take(16);
+                break;
+            case 0xfb: // GC's
+                switch (c.uleb()) {
+                case 0x00: // struct.new
+                case 0x01: // struct.new_default
+                case 0x06: // array.new
+                case 0x07: // array.new_default
+                    c.uleb();
+                    break;
+                case 0x08: // array.new_fixed
+                    c.uleb();
+                    c.uleb();
+                    break;
+                case 0x1a: // any.convert_extern
+                case 0x1b: // extern.convert_any
+                case 0x1c: // ref.i31
+                    break;
+                default:
+                    c.fail("not a constant instruction", at);
+                    return false;
+                }
+                break;
             default:
                 c.fail("not a constant instruction", at);
                 return false;
@@ -756,8 +784,11 @@ struct Reader {
             c.fail("target section out of range", head);
             return fail(c);
         }
+        // Not linking, relocations elsewhere are read and set aside, as
+        // llvm reads them: wabt writes them for init expressions.
         const Section &t = o.sections[target];
-        if (t.id != SEC_CODE && t.id != SEC_DATA && t.id != SEC_CUSTOM) {
+        bool aside       = t.id != SEC_CODE && t.id != SEC_DATA && t.id != SEC_CUSTOM;
+        if (aside && o.link) {
             c.fail("relocations for a section that takes none", head);
             return fail(c);
         }
@@ -837,8 +868,11 @@ struct Reader {
                     chunk++;
                 if (chunk == o.segments.size() || r.offset < o.segments[chunk].content_off ||
                     r.offset + width >
-                        o.segments[chunk].content_off + o.segments[chunk].content.size())
+                        o.segments[chunk].content_off + o.segments[chunk].content.size()) {
+                    if (!o.link)
+                        continue;
                     return fail("relocation outside every data segment", at);
+                }
                 r.chunk = chunk;
                 r.at    = r.offset - o.segments[chunk].content_off;
             } else {
@@ -849,7 +883,8 @@ struct Reader {
         }
         if (!end(c))
             return false;
-        o.relocs.push(move(rs));
+        if (!aside)
+            o.relocs.push(move(rs));
         return true;
     }
 

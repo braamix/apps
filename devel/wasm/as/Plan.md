@@ -131,25 +131,6 @@ Limits to keep in mind throughout:
 
 ## Steps
 
-### A9. The object
-
-`linking.cpp`, by decision 1: the symbol table, padded LEBs with
-relocations for every function, global, table, tag and type index in code
-and in element segments, `reloc.CODE` and `reloc.ELEM`, and the `linking`
-section, version 2. This is `as`'s default output.
-
-*Done when*:
-
-- `test/object.mjs` compares `as` with `wat2wasm --relocatable` on the
-  suite's modules that its rule covers, byte for byte but for the
-  relocation section's name;
-- `llvm-nm`, `llvm-objdump -r`, `wasm-objdump -x` and our `nm`,
-  `disasm -r` read every object, and agree on its symbols and
-  relocations;
-- a WAT object that defines functions and one that calls a C function are
-  each linked with clang's objects by both `ld` and `wasm-ld`, the outputs
-  are equal, and the program runs on Braam.
-
 ### A10. Annotations
 
 `@name` into the `name` section (with `--debug-names`, as `wat2wasm` has

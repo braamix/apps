@@ -2,6 +2,7 @@
 
 #include "emit.h"
 #include "optable.h"
+#include "wasm.h"
 
 using namespace wat;
 
@@ -49,24 +50,78 @@ struct Frame {
     u32 next;
 };
 
+// A relocation: where it patches, first in the output and then in its
+// section.
+struct Reloc {
+    u8 type;
+    u8 id;       // the section's
+    u32 section; // its index
+    usize at;
+    u32 index; // a symbol, or a type
+};
+
+// A symbol of the object: a function, table, global or tag.
+struct Symbol {
+    u8 kind;
+    u32 flags;
+    u32 index;
+    Str name;
+};
+
 struct Encoder {
     Vec<u8> &v;
     Emit e;
+    bool object;
     Vec<Frame> stack;
-    Opcode fence   = 0;
-    Opcode ref_fn  = 0;
+    Opcode fence = 0, ref_fn = 0, call_ref = 0, return_call_ref = 0;
     bool data_used = false; // code names a data segment
 
-    explicit Encoder(Vec<u8> &out) : v(out), e{ out }
+    // An object's relocations, and its symbols: functions, tables, globals
+    // and tags, each kind in index order, from `first`.
+    Vec<Reloc> relocs;
+    usize sec_relocs  = 0; // the first of the section under way
+    u32 sections      = 0; // written so far
+    u32 count_section = 0; // the data count's
+    Vec<Symbol> symbols;
+    u32 first[4] = {};
+
+    Encoder(Vec<u8> &out, bool obj) : v(out), e{ out }, object(obj)
     {
         find_op("atomic.fence", fence);
         find_op("ref.func", ref_fn);
+        find_op("call_ref", call_ref);
+        find_op("return_call_ref", return_call_ref);
     }
+
+    // ---------------------------------------------------- relocations
+
+    // An index an object relocates: a padded LEB, and its relocation.
+    void reloc(u8 type, u32 value, u32 index)
+    {
+        if (!object) {
+            e.uleb(value);
+            return;
+        }
+        if (!relocs.push({ type, 0, 0, v.size(), index }))
+            e.oom = true;
+        e.uleb5(value);
+    }
+
+    void func_index(u32 x) { reloc(wasm::R_FUNCTION_INDEX_LEB, x, first[0] + x); }
+
+    void table_index(u32 x) { reloc(wasm::R_TABLE_NUMBER_LEB, x, first[1] + x); }
+
+    void global_index(u32 x) { reloc(wasm::R_GLOBAL_INDEX_LEB, x, first[2] + x); }
+
+    void tag_index(u32 x) { reloc(wasm::R_TAG_INDEX_LEB, x, first[3] + x); }
+
+    void type_index(u32 x) { reloc(wasm::R_TYPE_INDEX_LEB, x, x); }
 
     // ---------------------------------------------------- framing
 
-    // The uleb of the size of what follows `start`, put before it.
-    void size(usize start)
+    // The uleb of the size of what follows `start`, put before it; how
+    // many bytes that took.
+    u32 size(usize start)
     {
         u32 n = u32(v.size() - start);
         u8 b[5];
@@ -78,15 +133,34 @@ struct Encoder {
                 b[k] |= 0x80;
             k++;
         } while (n);
+        u32 n_bytes = k;
         while (k--)
             if (!v.insert(start, b[k]))
                 e.oom = true;
+        for (usize i = sec_relocs; i < relocs.size(); i++)
+            if (relocs[i].at >= start)
+                relocs[i].at += n_bytes;
+        return n_bytes;
     }
 
     usize begin(u8 id)
     {
         e.byte(id);
+        sec_relocs = relocs.size();
         return v.size();
+    }
+
+    // The section begun at `at` done: its size, and its relocations counted
+    // from its contents.
+    void end(u8 id, usize at)
+    {
+        usize payload = at + size(at);
+        for (usize i = sec_relocs; i < relocs.size(); i++) {
+            relocs[i].at -= payload;
+            relocs[i].id      = id;
+            relocs[i].section = sections;
+        }
+        sections++;
     }
 
     // ---------------------------------------------------- types
@@ -224,7 +298,10 @@ struct Encoder {
         if (b.kind == BlockType::Kind::Use) {
             const TypeUse &u = b.use;
             if (!u.params.empty() || u.results.size() > 1) {
-                e.sleb64(i64(u.type.value.value));
+                if (object)
+                    type_index(u.type.value.value);
+                else
+                    e.sleb64(i64(u.type.value.value));
                 return;
             }
             if (u.results.size() == 1) {
@@ -325,7 +402,7 @@ struct Encoder {
                 for (const Catch &c : b->catches) {
                     e.byte(u8(c.kind));
                     if (c.kind == Catch::Kind::Catch || c.kind == Catch::Kind::CatchRef)
-                        e.uleb(c.tag.value);
+                        tag_index(c.tag.value);
                     e.uleb(c.label.value);
                 }
                 body = b->body;
@@ -345,7 +422,7 @@ struct Encoder {
                 const LegacyCatch &c = b->catches[k - 1];
                 if (c.kind == LegacyCatch::Kind::LegacyCatch) {
                     e.byte(CATCH);
-                    e.uleb(c.tag.value);
+                    tag_index(c.tag.value);
                 } else {
                     e.byte(CATCH_ALL);
                 }
@@ -374,11 +451,34 @@ struct Encoder {
         return false;
     }
 
-    void index(Opcode o, u32 x)
+    // Index `x` of space `s`, the operand of `o`.
+    void index(Opcode o, Space s, u32 x)
     {
         const OpDef &d = op_def(o);
         data_used      = data_used || d.x == Space::DATA || d.y == Space::DATA;
-        e.uleb(x);
+        switch (s) {
+        case Space::FUNC:
+            func_index(x);
+            break;
+        case Space::TABLE:
+            table_index(x);
+            break;
+        case Space::GLOBAL:
+            global_index(x);
+            break;
+        case Space::TAG:
+            tag_index(x);
+            break;
+        case Space::TYPE:
+            if (o == call_ref || o == return_call_ref)
+                type_index(x);
+            else
+                e.uleb(x);
+            break;
+        default:
+            e.uleb(x);
+            break;
+        }
     }
 
     void mem_arg(Opcode o, const Idx &memory, u64 offset, u64 align)
@@ -440,19 +540,20 @@ struct Encoder {
         case Instr::Kind::Index: {
             auto *x = in->as<Instr::Index>();
             op(x->op);
-            index(x->op, x->x.value);
+            index(x->op, op_def(x->op).x, x->x.value);
             break;
         }
         case Instr::Kind::Index2: {
             // table.init and memory.init put the segment first.
-            auto *x = in->as<Instr::Index2>();
+            auto *x        = in->as<Instr::Index2>();
+            const OpDef &d = op_def(x->op);
             op(x->op);
-            if (op_def(x->op).imm == Imm::IDX_OPT_IDX) {
-                index(x->op, x->y.value);
-                e.uleb(x->x.value);
+            if (d.imm == Imm::IDX_OPT_IDX) {
+                index(x->op, d.y, x->y.value);
+                index(x->op, d.x, x->x.value);
             } else {
-                index(x->op, x->x.value);
-                e.uleb(x->y.value);
+                index(x->op, d.x, x->x.value);
+                index(x->op, d.y, x->y.value);
             }
             break;
         }
@@ -467,8 +568,8 @@ struct Encoder {
         case Instr::Kind::CallIndirect: {
             auto *c = in->as<Instr::CallIndirect>();
             op(c->op);
-            e.uleb(c->type.type.value.value);
-            e.uleb(c->table.value);
+            type_index(c->type.type.value.value);
+            table_index(c->table.value);
             break;
         }
         case Instr::Kind::MemArg: {
@@ -617,11 +718,11 @@ struct Encoder {
         if (l.kind == ElemList::Kind::Funcs) {
             e.uleb(l.funcs.size());
             for (const Idx &x : l.funcs)
-                e.uleb(x.value);
+                func_index(x.value);
         } else if (funcs) {
             e.uleb(l.items.size());
             for (const Expr &x : l.items)
-                e.uleb(x.instrs[0]->as<Instr::Index>()->x.value);
+                func_index(x.instrs[0]->as<Instr::Index>()->x.value);
         } else {
             e.uleb(l.items.size());
             for (const Expr &x : l.items)
@@ -716,6 +817,8 @@ struct Encoder {
 
         e.u32le(0x6d736100); // \0asm
         e.u32le(1);
+        if (object)
+            symbolize(m);
 
         constexpr u8 ORDER[] = { TYPE_SEC,       IMPORT_SEC, FUNC_SEC,   TABLE_SEC, MEMORY_SEC,
                                  TAG_SEC,        GLOBAL_SEC, EXPORT_SEC, START_SEC, ELEM_SEC,
@@ -727,10 +830,11 @@ struct Encoder {
                 // after it says.
                 if (!n[DATA_SEC])
                     continue;
-                count_at = v.size();
-                usize at = begin(id);
+                count_at      = v.size();
+                count_section = sections;
+                usize at      = begin(id);
                 e.uleb(n[DATA_SEC]);
-                size(at);
+                end(id, at);
                 count_end = v.size();
                 continue;
             }
@@ -741,12 +845,163 @@ struct Encoder {
             if (id != START_SEC)
                 e.uleb(count);
             section(m, id);
-            size(at);
+            end(id, at);
             if (id == CODE_SEC && n[DATA_SEC] && !data_used)
-                v.erase(count_at, count_end - count_at);
+                drop_count(count_at, count_end);
         }
         if (n[DATA_SEC] && !n[FUNC_SEC] && !data_used)
-            v.erase(count_at, count_end - count_at);
+            drop_count(count_at, count_end);
+        if (object)
+            linking();
+    }
+
+    // The data count section, which no code needed: the sections after it
+    // move up a place.
+    void drop_count(usize at, usize end)
+    {
+        v.erase(at, end - at);
+        sections--;
+        for (Reloc &r : relocs)
+            if (r.section > count_section)
+                r.section--;
+    }
+
+    // ---------------------------------------------------- the object
+
+    // Decision 1 of Plan.md: wabt's rule, which gives every function, table
+    // and global a symbol, and tags one too.
+    void symbolize(const Module &m)
+    {
+        u32 count[4] = {};
+        auto kind_of = [](const Decl *d) -> i32 {
+            if (auto *i = d->as<Decl::Import>()) {
+                switch (i->desc.kind) {
+                case Extern::Kind::FuncImport:
+                    return 0;
+                case Extern::Kind::TableImport:
+                    return 1;
+                case Extern::Kind::GlobalImport:
+                    return 2;
+                case Extern::Kind::TagImport:
+                    return 3;
+                default:
+                    return -1;
+                }
+            }
+            switch (d->kind) {
+            case Decl::Kind::Func:
+                return 0;
+            case Decl::Kind::Table:
+                return 1;
+            case Decl::Kind::Global:
+                return 2;
+            case Decl::Kind::Tag:
+                return 3;
+            default:
+                return -1;
+            }
+        };
+        for (const Decl *d : m.decls)
+            if (i32 k = kind_of(d); k >= 0)
+                count[k]++;
+        for (u32 k = 1; k < 4; k++)
+            first[k] = first[k - 1] + count[k - 1];
+        if (!symbols.resize(first[3] + count[3]))
+            e.oom = true;
+        Vec<bool> exported;
+        if (!exported.resize(symbols.size()))
+            e.oom = true;
+        if (e.oom)
+            return;
+        constexpr i32 SORT[] = { 0, 1, -1, 2, 3 };
+        for (const Decl *d : m.decls)
+            if (auto *x = d->as<Decl::Export>()) {
+                i32 k = SORT[u8(x->sort)];
+                if (k >= 0 && x->index.value < count[k])
+                    exported[first[k] + x->index.value] = true;
+            }
+        constexpr u8 KIND[] = { wasm::SYM_FUNCTION, wasm::SYM_TABLE, wasm::SYM_GLOBAL,
+                                wasm::SYM_TAG };
+        u32 at[4]           = {};
+        for (const Decl *d : m.decls) {
+            i32 k = kind_of(d);
+            if (k < 0)
+                continue;
+            auto *i       = d->as<Decl::Import>();
+            const Bind &b = i ? i->desc.bind : bind(d);
+            u32 n         = first[k] + at[k];
+            Symbol &s     = symbols[n];
+            s.kind        = KIND[k];
+            s.index       = at[k]++;
+            if (i) {
+                s.flags = wasm::SYM_UNDEFINED;
+            } else {
+                if (!b.id.has)
+                    s.flags |= wasm::SYM_LOCAL | wasm::SYM_HIDDEN;
+                else
+                    s.name = b.id.value;
+                if (exported[n])
+                    s.flags |= wasm::SYM_HIDDEN | wasm::SYM_NO_STRIP;
+            }
+            if (exported[n])
+                s.flags |= wasm::SYM_EXPORTED;
+        }
+    }
+
+    static const Bind &bind(const Decl *d)
+    {
+        switch (d->kind) {
+        case Decl::Kind::Func:
+            return d->as<Decl::Func>()->bind;
+        case Decl::Kind::Table:
+            return d->as<Decl::Table>()->bind;
+        case Decl::Kind::Global:
+            return d->as<Decl::Global>()->bind;
+        default:
+            return d->as<Decl::Tag>()->bind;
+        }
+    }
+
+    // The `linking` section, and a `reloc.` section for each section with
+    // relocations.
+    void linking()
+    {
+        usize at = begin(0);
+        e.name("linking");
+        e.uleb(2);
+        if (!symbols.empty()) {
+            e.byte(wasm::SUB_SYMBOL_TABLE);
+            usize sub = v.size();
+            e.uleb(symbols.size());
+            for (const Symbol &s : symbols) {
+                e.byte(s.kind);
+                e.uleb(s.flags);
+                e.uleb(s.index);
+                if (!(s.flags & wasm::SYM_UNDEFINED))
+                    e.name(s.name);
+            }
+            size(sub);
+        }
+        end(0, at);
+        for (usize i = 0; i < relocs.size();) {
+            usize j = i;
+            while (j < relocs.size() && relocs[j].section == relocs[i].section)
+                j++;
+            Str name = wasm::section_name(relocs[i].id);
+            at       = begin(0);
+            e.uleb(6 + name.size());
+            e.bytes(Bytes(reinterpret_cast<const u8 *>("reloc."), 6));
+            e.bytes(Bytes(reinterpret_cast<const u8 *>(name.data()), name.size()));
+            e.uleb(relocs[i].section);
+            e.uleb(j - i);
+            for (usize k = i; k < j; k++) {
+                e.uleb(relocs[k].type);
+                e.uleb(u32(relocs[k].at));
+                e.uleb(relocs[k].index);
+            }
+            end(0, at);
+            i = j;
+        }
     }
 
     void section(const Module &m, u8 id)
@@ -836,9 +1091,9 @@ struct Encoder {
 
 } // namespace
 
-bool encode(const Module &m, Vec<u8> &out, Diag &diag)
+bool encode(const Module &m, bool object, Vec<u8> &out, Diag &diag)
 {
-    Encoder c(out);
+    Encoder c(out, object);
     c.module(m);
     if (c.e.oom) {
         diag.error("out of memory");

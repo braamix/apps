@@ -205,6 +205,7 @@ TESTS := \
     devel/wasm/as/test/resolve.mjs \
     devel/wasm/as/test/module.mjs \
     devel/wasm/as/test/spec.mjs \
+    devel/wasm/as/test/link.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
     emulators/simbesm/test/boot.mjs \
@@ -266,7 +267,8 @@ LONGTESTS := \
     lang/python/test/pycases.mjs,--shard=1/4 \
     lang/python/test/pycases.mjs,--shard=2/4 \
     lang/python/test/pycases.mjs,--shard=3/4 \
-    lang/python/test/pycases.mjs,--shard=4/4
+    lang/python/test/pycases.mjs,--shard=4/4 \
+    devel/wasm/as/test/object.mjs
 
 # `make test STRESS=1`. Python's cases are run a second time collecting at
 # every allocation, which is what says a C++ hand holding an object across an

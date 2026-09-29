@@ -7,6 +7,7 @@
 #include "ast.h"
 #include "diag.h"
 
-// `m`, resolved, onto `out`. False with a message in `diag` when out of
-// memory.
-bool encode(const wat::Module &m, Vec<u8> &out, Diag &diag);
+// `m`, resolved, onto `out`: a relocatable object when `object`, by
+// decision 1 of Plan.md, and a module otherwise. False with a message in
+// `diag` when out of memory.
+bool encode(const wat::Module &m, bool object, Vec<u8> &out, Diag &diag);

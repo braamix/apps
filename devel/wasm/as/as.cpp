@@ -170,10 +170,8 @@ bool dump_tree(Str name, Str source, bool resolved, Out &out, Diag &diag)
 
 bool assemble(Str name, Str source, const AsConfig &c, Vec<u8> &out, Diag &diag)
 {
-    // An object is step A9's: until then both are the module.
-    (void)c;
     wat::Arena arena;
     wat::Module m;
     return parse(name, source, arena, m, diag) && resolve(name, arena, m, diag) &&
-           encode(m, out, diag);
+           encode(m, !c.module, out, diag);
 }

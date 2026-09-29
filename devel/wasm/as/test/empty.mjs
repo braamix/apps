@@ -1,5 +1,6 @@
-// as's command line: (module) is the empty module, which V8 must load; where
-// each output goes, and what is refused.
+// as's command line: (module) is the empty module, or with no --module the
+// empty object, which V8 must load; where each output goes, and what is
+// refused.
 
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -9,6 +10,8 @@ import { assembler } from "../host.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const AS = join(HERE, "../../../../build/devel/wasm/as/as.wasm");
 const EMPTY = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+// A linking section, version 2, and no symbols.
+const OBJECT = [...EMPTY, 0x00, 0x09, 0x07, ...Buffer.from("linking"), 0x02];
 
 function die(msg) {
     console.error("as: " + msg);
@@ -41,7 +44,7 @@ for (const [args, names, want] of RUNS) {
     else if (got.join(" ") !== want.join(" "))
         bad.push(`${args.join(" ")}: wrote ${got.join(" ")}, expected ${want.join(" ")}`);
     for (const [name, b] of Object.entries(r.files)) {
-        if (hex(b) !== hex(EMPTY))
+        if (hex(b) !== hex(args.includes("--module") ? EMPTY : OBJECT))
             bad.push(`${args.join(" ")}: ${name} is ${hex(b)}`);
         try {
             new WebAssembly.Module(b);
@@ -84,4 +87,4 @@ for (const [args, names, msgs] of ERRORS) {
 
 if (bad.length)
     die(`${bad.length} failures:\n  ` + bad.join("\n  "));
-console.log(`as ok: ${RUNS.length} runs wrote the empty module, and ${ERRORS.length} errors`);
+console.log(`as ok: ${RUNS.length} runs wrote the empty module or object, and ${ERRORS.length} errors`);

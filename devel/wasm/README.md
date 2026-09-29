@@ -18,8 +18,9 @@ The `wasm` package installs seven tools for WebAssembly. All run on Braam.
 - `disasm` shows the code of a program, an object or each member of an
   archive as instructions, and its data as bytes. The code is laid out as
   `llvm-objdump -d` lays it out, with better comments.
-- `as`, an assembler, turns WebAssembly's text format into a module. It
-  does what wabt's `wat2wasm` does, and gives the same output.
+- `as`, an assembler, turns WebAssembly's text format into an object for
+  `ld`, or a module. It does what wabt's `wat2wasm` does, and gives the
+  same output.
 
 The tests check the first five and `as` byte for byte, and `disasm` line
 for line.
@@ -414,10 +415,30 @@ writes each one to a file of its own:
     $ ls
     hello.wasm  hello.wat
 
-`hello.wat` is written to `hello.wasm` with `--module`, and to `hello.o`
-without it, in the current directory; `-o` names the output of a single
-input. A relocatable object, for `ld` to link, is still to come: for now
-`as` writes the same module either way.
+`hello.wat` is written to `hello.o`, a relocatable object for `ld` to link
+with what clang compiles, or with `--module` to `hello.wasm`, a module that
+runs as it is; both in the current directory, and `-o` names the output of
+a single input.
+
+An object's symbols come from the module, as `wat2wasm --relocatable`
+makes them. Every function, table, global and tag is a symbol. One defined
+with an id is global, named by the id without its `$`; one without an id
+is local and hidden. An import is undefined, and named by its import. An
+export is also hidden and kept. Every index to one of them in code, in an
+element segment or in an initializer is a padded LEB with a relocation, as
+is the type index of a `call_indirect`, a `call_ref` or a block. So WAT can define functions C calls, and call
+C:
+
+    $ cat add.wat
+    (module
+      (func $add (param i32 i32) (result i32)
+        (i32.add (local.get 0) (local.get 1))))
+    $ as add.wat
+    $ nm add.o
+    00000001 T add
+
+An object has no data symbols yet: a module whose code uses data
+addresses gets them written as they are, and links only on its own.
 
 | Option | Meaning |
 | --- | --- |
@@ -451,6 +472,11 @@ assembled. The exit status is 0 on success, 1 on an error and 130 on
 - **It writes a plain import section**, where `wat2wasm --enable-all`
   groups imports by module into the compact encoding, which is not in the
   language.
+- **Its objects are clang's where wabt's are not.** A relocation section is
+  named `reloc.CODE`, not `reloc.Code`. Tags have symbols and relocations,
+  and so do the function indices of an element segment, where wabt leaves
+  them unrelocated; a concrete `ref.null` is not relocated as a function.
+  Two exports without an id are not a duplicate symbol.
 
 ## Inside
 
@@ -544,7 +570,7 @@ written out a part at a time, so its text is never all in memory.
 | `ast.h`, `ast.cpp` | the tree of [as/wat.asdl](as/wat.asdl), its arena, and a printer |
 | `parser.cpp` | tokens to the tree, the text format's abbreviations undone |
 | `resolve.cpp` | ids to indices, implicit types, inline exports and segments |
-| `encode.cpp` | the tree to a module's bytes |
+| `encode.cpp` | the tree to a module's or an object's bytes |
 | [lib/optable.cpp](lib/optable.cpp) | every instruction by its text name: encoding and immediates |
 | `driver.cpp` | parses the command line |
 
@@ -671,3 +697,17 @@ and an unlinkable or uninstantiable one by V8 when instantiated. JS cannot
 carry a v128 or a signalling NaN, so a function whose type is all numbers
 is called from a module `as` makes for it, which compares the results'
 bits in wasm. It prints how many of each command passed.
+[as/test/link.mjs](as/test/link.mjs) assembles two WAT objects on Braam,
+one defining functions C calls and one calling C, and links them with a C
+object by both `ld` and `wasm-ld`: the outputs must be equal, and the
+program must run and print what it should.
+`make longtest` runs [as/test/object.mjs](as/test/object.mjs), which
+assembles every module of the suite as an object. Each must equal what
+`wast2json -r` writes, but for the relocation sections' names, where wabt
+writes one; where the rule goes beyond wabt's, tags and element segments,
+they are counted. Then every valid module's object is read by `llvm-nm`,
+`llvm-objdump -r` and `wasm-objdump -x`, and by our `nm` and `disasm -r`:
+`nm` must print what `llvm-nm` prints, and `disasm` the relocations
+`llvm-objdump` lists for the code. Where llvm cannot read an object, its
+refusal must be one the test lists, with the reason: GC types, a table's
+init expression and a few more that llvm does not know.
