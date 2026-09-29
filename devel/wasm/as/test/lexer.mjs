@@ -1,18 +1,14 @@
-// as's lexer. First `as --tokens` of a crafted file, held to a golden file
-// (BLESS=1 writes it). Then crafted errors, each with its message and place.
-// Then the test suite: every module that is not malformed must lex, and an
-// assert_malformed module refused must be refused with the expected
-// message — which every one whose message is a lexer's must be.
+// as's lexer, through `as --tokens`. First a crafted file, held to a golden
+// file (BLESS=1 writes it). Then crafted errors, each with its message and
+// place. test/parser.mjs runs the suite through the lexer and the parser.
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assembler } from "../host.mjs";
-import { modules } from "./wast.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const AS = join(HERE, "../../../../build/devel/wasm/as/as.wasm");
-const SUITE = join(HERE, "suite/core");
 
 function die(msg) {
     console.error("lexer: " + msg);
@@ -119,7 +115,7 @@ const ERRORS = [
     ERRORS.forEach(([src], k) => {
         inputs[`e${k}.wat`] = typeof src === "string" ? src : new Uint8Array(src);
     });
-    const r = as.run(Object.keys(inputs), inputs);
+    const r = as.run(["--tokens", ...Object.keys(inputs)], inputs);
     const said = new Map();
     for (const l of r.err.split("\n").filter((l) => l))
         said.set(l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 1));
@@ -131,51 +127,6 @@ const ERRORS = [
     });
 }
 
-// ------------------------------------------------------------ the suite
-
-// Messages only a lexer gives: a module expecting one must be refused here.
-const LEXICAL = ["illegal character", "empty identifier", "empty annotation id",
-                 "unclosed annotation", "unclosed string", "illegal escape", "unclosed comment",
-                 "illegal control character", "misplaced"];
-
-const scripts = readdirSync(SUITE, { recursive: true }).filter((f) => f.endsWith(".wast")).sort();
-const cases = [];
-for (const f of scripts)
-    for (const m of modules(readFileSync(join(SUITE, f))))
-        if (m.kind !== "binary")
-            cases.push({ ...m, script: f });
-
-let refused = 0, left = 0;
-for (let at = 0; at < cases.length; at += 500) {
-    const batch = cases.slice(at, at + 500);
-    const inputs = Object.fromEntries(batch.map((c, k) => [`m${k}.wat`, c.bytes]));
-    const r = as.run(Object.keys(inputs), inputs);
-    const said = new Map();
-    for (const l of r.err.split("\n").filter((l) => l)) {
-        const m = /^(m\d+\.wat):\d+:\d+: error: (.*)$/.exec(l);
-        if (!m)
-            die(`as said: ${l}`);
-        said.set(m[1], m[2]);
-    }
-    batch.forEach((c, k) => {
-        const got = said.get(`m${k}.wat`);
-        const where = `${c.script}:${c.line}`;
-        if (c.command !== "assert_malformed") {
-            if (got)
-                bad.push(`${where}: ${c.command}: refused: ${got}`);
-        } else if (got) {
-            refused++;
-            if (!got.startsWith(c.message))
-                bad.push(`${where}: refused with "${got}", expected "${c.message}"`);
-        } else {
-            left++;
-            if (LEXICAL.some((m) => c.message.startsWith(m)))
-                bad.push(`${where}: accepted, expected "${c.message}"`);
-        }
-    });
-}
-
 if (bad.length)
     die(`${bad.length} failures:\n  ` + bad.slice(0, 50).join("\n  "));
-console.log(`lexer ok: the golden dump, ${ERRORS.length} errors, ${cases.length} modules of ` +
-            `${scripts.length} scripts: ${refused} malformed refused, ${left} left to the parser`);
+console.log(`lexer ok: the golden dump, ${ERRORS.length} errors`);

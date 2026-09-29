@@ -201,6 +201,7 @@ TESTS := \
     devel/wasm/as/test/empty.mjs \
     devel/wasm/as/test/lexer.mjs \
     devel/wasm/as/test/number.mjs \
+    devel/wasm/as/test/parser.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
     emulators/simbesm/test/boot.mjs \

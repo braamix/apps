@@ -54,3 +54,10 @@ bool token_bytes(Str src, const Token &t, Vec<u8> &out);
 
 // The length of the valid UTF-8 character at s[i], or 0.
 u32 utf8_len(Str s, usize i);
+
+// Bytes that are valid UTF-8.
+bool is_utf8(Str s);
+
+// uN's form, §4.1: digits with single underscores between them, or 0x and
+// hex digits alike.
+bool is_nat(Str s);

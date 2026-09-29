@@ -30,6 +30,8 @@ bool parse_args(Span<const Str> w, AsArgs &a, Diag &diag)
             a.as.tokens = true;
         } else if (arg == "--numbers") {
             a.as.numbers = true;
+        } else if (arg == "--tree") {
+            a.as.tree = true;
         } else if (arg == "-o") {
             if (i + 1 == w.size())
                 return fail(diag, "no value for ", arg);

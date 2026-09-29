@@ -49,13 +49,6 @@ bool digits(Str s, usize &i, bool hex)
     }
 }
 
-bool is_nat(Str s)
-{
-    bool hex = s.starts_with("0x");
-    usize i  = hex ? 2 : 0;
-    return digits(s, i, hex) && i == s.size();
-}
-
 bool is_int(Str s)
 {
     return s.size() > 1 && (s[0] == '+' || s[0] == '-') && is_nat(s.substr(1));
@@ -95,6 +88,24 @@ bool is_float(Str s)
 }
 
 } // namespace
+
+bool is_nat(Str s)
+{
+    bool hex = s.starts_with("0x");
+    usize i  = hex ? 2 : 0;
+    return digits(s, i, hex) && i == s.size();
+}
+
+bool is_utf8(Str s)
+{
+    for (usize i = 0; i < s.size();) {
+        u32 n = utf8_len(s, i);
+        if (!n)
+            return false;
+        i += n;
+    }
+    return true;
+}
 
 u32 utf8_len(Str s, usize i)
 {
@@ -218,18 +229,6 @@ Run scan_run(Str s, usize i)
     }
     r.end = i;
     return r;
-}
-
-// A name's bytes: valid UTF-8, or false.
-bool is_utf8(Str s)
-{
-    for (usize i = 0; i < s.size();) {
-        u32 n = utf8_len(s, i);
-        if (!n)
-            return false;
-        i += n;
-    }
-    return true;
 }
 
 // A validated string literal's bytes.

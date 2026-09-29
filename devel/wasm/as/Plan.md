@@ -128,24 +128,9 @@ Limits to keep in mind throughout:
 
 ## Steps
 
-### A6. The parser
-
-Tokens to the tree, doing the parse-time abbreviations the header of
-`wat.asdl` lists. Recursive descent over module fields and types; an
-explicit stack for blocks. The order in which the grammar's ambiguities
-are settled: a lane access takes its last number as the lane; `select`'s
-and `call_indirect`'s parenthesised immediates before folded operands;
-`memory.init x? y`, `table.init x? y`.
-
-*Done when* `test/parser.mjs` holds the printed tree of crafted inputs, one
-per abbreviation and each ambiguity, to golden files; every module of the
-suite parses; and every `assert_malformed` module is refused with its
-message.
-
 ### A7. Resolution
 
-Numbering every index space, imports first (§6); the rule that no import
-follows a definition; ids to numbers, labels to depths, field ids per
+Numbering every index space, imports first (§6); ids to numbers, labels to depths, field ids per
 type; the implicit types of §5.4, appended in order of use; inline exports
 into the export list at their place; inline segments numbered where they
 stand; a type use's params checked against its type. The result is the
@@ -153,7 +138,8 @@ same tree with every `Idx` a number and every `TypeUse` an index.
 
 *Done when* `test/resolve.mjs` holds printed resolved trees to golden
 files, and the suite's resolution errors (unknown and duplicate ids,
-import after definition, mismatched type uses) are refused.
+mismatched type uses) are refused: the 43 `assert_malformed` modules that
+`test/parser.mjs` leaves to resolution.
 
 ### A8. The module
 

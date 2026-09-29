@@ -1,0 +1,604 @@
+=== first look
+(module
+  (import "env" "puts" (func $puts (param i32)))
+  (memory (export "memory") 1)
+  (data (i32.const 16) "hello\00")
+  (func $main (export "main") (result i32)
+    (local $i i32)
+    (call $puts (i32.const 16))
+    (local.set $i (i32.const 3))
+    (block $done
+      (loop $again
+        (br_if $done (i32.eqz (local.get $i)))
+        local.get $i
+        i32.const 1
+        i32.sub
+        local.set $i
+        br $again))
+    i32.const 0))
+---
+(Module _ [
+  (Import "env" "puts" (FuncImport $puts (TypeUse _ [(Param _ I32)] [])) [])
+  (Memory _ ["memory"] (MemType Addr32 (Limits 1 _) false _) _)
+  (Data _ (DataActive 0 [
+    (I32Const 16)]) "hello\00")
+  (Func $main ["main"] (TypeUse _ [] [I32]) [(Local $i I32)] [
+    (I32Const 16)
+    (Index call $puts)
+    (I32Const 3)
+    (Index local.set $i)
+    (Block block $done NoResult [
+      (Block loop $again NoResult [
+        (Index local.get $i)
+        (Plain i32.eqz)
+        (Br br_if $done _)
+        (Index local.get $i)
+        (I32Const 1)
+        (Plain i32.sub)
+        (Index local.set $i)
+        (Br br $again _)])])
+    (I32Const 0)])])
+
+=== bare fields
+(func) (memory 0)
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [])
+  (Memory _ [] (MemType Addr32 (Limits 0 _) false _) _)])
+
+=== empty
+
+---
+(Module _ [])
+
+=== module id and name
+(module $m (@name "Modül"))
+---
+(Module $m@"Mod\c3\bcl" [])
+
+=== folded unfolded
+(func (i32.mul (i32.add (local.get 0) (i32.const 2)) (i32.const 3)) drop)
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (Index local.get 0)
+    (I32Const 2)
+    (Plain i32.add)
+    (I32Const 3)
+    (Plain i32.mul)
+    (Plain drop)])])
+
+=== grouped split
+(type (func (param i32 i64) (param) (param $x f32) (result i32 i64) (result)))
+(type (struct (field i32 (mut i64)) (field $f i8) (field)))
+(func (param i32 i32) (local f32 f64) (local $l v128) (local))
+---
+(Module _ [
+  (Type [(TypeDef _ (SubType true [] (FuncType [(Param _ I32) (Param _ I64) (Param $x F32)] [I32 I64])))])
+  (Type [(TypeDef _ (SubType true [] (StructType [(Field _ (FieldType (Value I32) false)) (Field _ (FieldType (Value I64) true)) (Field $f (FieldType I8 false))])))])
+  (Func _ [] (TypeUse _ [(Param _ I32) (Param _ I32)] []) [(Local _ F32) (Local _ F64) (Local $l V128)] [])])
+
+=== type without sub
+(type $a (func)) (type $b (sub (func))) (type $c (sub final $b (func)))
+(type (array (mut i16)))
+---
+(Module _ [
+  (Type [(TypeDef $a (SubType true [] (FuncType [] [])))])
+  (Type [(TypeDef $b (SubType false [] (FuncType [] [])))])
+  (Type [(TypeDef $c (SubType true [$b] (FuncType [] [])))])
+  (Type [(TypeDef _ (SubType true [] (ArrayType (FieldType I16 true))))])])
+
+=== rec
+(rec (type $a (struct (field (ref null $b)))) (type $b (array (ref $a)))) (rec)
+---
+(Module _ [
+  (Type [(TypeDef $a (SubType true [] (StructType [(Field _ (FieldType (Value (Ref (RefType true (Concrete $b)))) false))]))) (TypeDef $b (SubType true [] (ArrayType (FieldType (Value (Ref (RefType false (Concrete $a)))) false))))])
+  (Type [])])
+
+=== ref types
+(func (param anyref eqref i31ref structref arrayref nullref funcref nullfuncref)
+  (param exnref nullexnref externref nullexternref (ref 0) (ref null $t) (ref func) (ref null extern)))
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [(Param _ (Ref (RefType true (Abstract HAny)))) (Param _ (Ref (RefType true (Abstract HEq)))) (Param _ (Ref (RefType true (Abstract HI31)))) (Param _ (Ref (RefType true (Abstract HStruct)))) (Param _ (Ref (RefType true (Abstract HArray)))) (Param _ (Ref (RefType true (Abstract HNone)))) (Param _ (Ref (RefType true (Abstract HFunc)))) (Param _ (Ref (RefType true (Abstract HNoFunc)))) (Param _ (Ref (RefType true (Abstract HExn)))) (Param _ (Ref (RefType true (Abstract HNoExn)))) (Param _ (Ref (RefType true (Abstract HExtern)))) (Param _ (Ref (RefType true (Abstract HNoExtern)))) (Param _ (Ref (RefType false (Concrete 0)))) (Param _ (Ref (RefType true (Concrete $t)))) (Param _ (Ref (RefType false (Abstract HFunc)))) (Param _ (Ref (RefType true (Abstract HExtern))))] []) [] [])])
+
+=== if without else
+(func
+  i32.const 0 if nop end
+  (if (i32.const 1) (then nop))
+  i32.const 2 if $l (result i32) i32.const 3 else $l i32.const 4 end $l drop
+  (if (result i32) (i32.const 5) (then (i32.const 6)) (else (i32.const 7))) drop)
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (I32Const 0)
+    (If _ NoResult [
+      (Plain nop)] false [] _)
+    (I32Const 1)
+    (If _ NoResult [
+      (Plain nop)] false [] _)
+    (I32Const 2)
+    (If $l (Result I32) [
+      (I32Const 3)] true [
+      (I32Const 4)] _)
+    (Plain drop)
+    (I32Const 5)
+    (If _ (Result I32) [
+      (I32Const 6)] true [
+      (I32Const 7)] _)
+    (Plain drop)])])
+
+=== block types
+(func block end block (result i32) unreachable end
+  block (param i32) drop end block (result i32 i64) unreachable end
+  block (type 0) end block (type 0) (param i32) (result i32) end
+  (loop $l (result f32) unreachable) (block (param i32) (result i32)))
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (Block block _ NoResult [])
+    (Block block _ (Result I32) [
+      (Plain unreachable)])
+    (Block block _ (Use (TypeUse _ [(Param _ I32)] [])) [
+      (Plain drop)])
+    (Block block _ (Use (TypeUse _ [] [I32 I64])) [
+      (Plain unreachable)])
+    (Block block _ (Use (TypeUse 0 [] [])) [])
+    (Block block _ (Use (TypeUse 0 [(Param _ I32)] [I32])) [])
+    (Block loop $l (Result F32) [
+      (Plain unreachable)])
+    (Block block _ (Use (TypeUse _ [(Param _ I32)] [I32])) [])])])
+
+=== labels
+(func block $a block $b br $a br 1 end $b end $a)
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (Block block $a NoResult [
+      (Block block $b NoResult [
+        (Br br $a _)
+        (Br br 1 _)])])])])
+
+=== indices left out
+(table 1 funcref) (memory 1) (type (func))
+(func table.get table.set table.size table.grow table.fill table.copy
+  memory.size memory.grow memory.fill memory.copy
+  call_indirect (type 0) return_call_indirect (type 0)
+  table.get 1 table.copy 2 3 memory.size $m memory.copy $a $b)
+---
+(Module _ [
+  (Table _ [] (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc))) [
+    (RefNull (Abstract HFunc))] _)
+  (Memory _ [] (MemType Addr32 (Limits 1 _) false _) _)
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])
+  (Func _ [] (TypeUse _ [] []) [] [
+    (Index table.get 0)
+    (Index table.set 0)
+    (Index table.size 0)
+    (Index table.grow 0)
+    (Index table.fill 0)
+    (Index2 table.copy 0 0)
+    (Index memory.size 0)
+    (Index memory.grow 0)
+    (Index memory.fill 0)
+    (Index2 memory.copy 0 0)
+    (CallIndirect call_indirect 0 (TypeUse 0 [] []))
+    (CallIndirect return_call_indirect 0 (TypeUse 0 [] []))
+    (Index table.get 1)
+    (Index2 table.copy 2 3)
+    (Index memory.size $m)
+    (Index2 memory.copy $a $b)])])
+
+=== init x? y
+(func table.init 1 table.init 2 3 memory.init 4 memory.init $m $d
+  table.init $e elem.drop 5 data.drop $d)
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (Index2 table.init 0 1)
+    (Index2 table.init 2 3)
+    (Index2 memory.init 0 4)
+    (Index2 memory.init $m $d)
+    (Index2 table.init 0 $e)
+    (Index elem.drop 5)
+    (Index data.drop $d)])])
+
+=== memory operands
+(func i32.load i64.load offset=8 i32.load align=1 i32.load8_u offset=0x10 align=1
+  v128.load i32.load 1 i64.store $m offset=4 align=8 f64.load 0 offset=1
+  i64.atomic.rmw32.cmpxchg_u offset=4 memory.atomic.wait64)
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (MemArg i32.load 0 0 4)
+    (MemArg i64.load 0 8 8)
+    (MemArg i32.load 0 0 1)
+    (MemArg i32.load8_u 0 16 1)
+    (MemArg v128.load 0 0 16)
+    (MemArg i32.load 1 0 4)
+    (MemArg i64.store $m 4 8)
+    (MemArg f64.load 0 1 8)
+    (MemArg i64.atomic.rmw32.cmpxchg_u 0 4 4)
+    (MemArg memory.atomic.wait64 0 0 8)])])
+
+=== lane accesses
+(func v128.load8_lane 1 v128.load8_lane 1 2 v128.load16_lane $m 3
+  v128.load32_lane offset=4 5 v128.store64_lane align=8 1 v128.load8_lane 0 offset=1 align=1 15
+  i8x16.extract_lane_s 15 f64x2.replace_lane 1)
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (MemArgLane v128.load8_lane 0 0 1 1)
+    (MemArgLane v128.load8_lane 1 0 1 2)
+    (MemArgLane v128.load16_lane $m 0 2 3)
+    (MemArgLane v128.load32_lane 0 4 4 5)
+    (MemArgLane v128.store64_lane 0 0 8 1)
+    (MemArgLane v128.load8_lane 0 1 1 15)
+    (Lane i8x16.extract_lane_s 15)
+    (Lane f64x2.replace_lane 1)])])
+
+=== select
+(func select (select (local.get 0) (local.get 1) (local.get 2))
+  select (result i32) (select (result i32) (result) (local.get 0) (local.get 1) (local.get 2))
+  select (result))
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (Select false [])
+    (Index local.get 0)
+    (Index local.get 1)
+    (Index local.get 2)
+    (Select false [])
+    (Select true [I32])
+    (Index local.get 0)
+    (Index local.get 1)
+    (Index local.get 2)
+    (Select true [I32])
+    (Select true [])])])
+
+=== call_indirect
+(func call_indirect $t (type 0) (param i32) (result i32)
+  (call_indirect $t (type $f) (param i32) (result i32) (local.get 0) (local.get 1))
+  (call_indirect (param i64) (i64.const 1) (i32.const 0))
+  (return_call_indirect 2 (type 1)))
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (CallIndirect call_indirect $t (TypeUse 0 [(Param _ I32)] [I32]))
+    (Index local.get 0)
+    (Index local.get 1)
+    (CallIndirect call_indirect $t (TypeUse $f [(Param _ I32)] [I32]))
+    (I64Const 1)
+    (I32Const 0)
+    (CallIndirect call_indirect 0 (TypeUse _ [(Param _ I64)] []))
+    (CallIndirect return_call_indirect 2 (TypeUse 1 [] []))])])
+
+=== constants
+(func i32.const -1 i32.const 0xffff_ffff i64.const -9223372036854775808
+  f32.const nan:0x1 f32.const -0 f64.const 0x1p-1074 f64.const -inf f32.const 1e38
+  v128.const i8x16 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 -1
+  v128.const i16x8 0 1 2 3 4 5 6 -1 v128.const i32x4 1 2 3 -1
+  v128.const i64x2 1 -1 v128.const f32x4 1 -0 nan inf v128.const f64x2 0.5 -inf
+  i8x16.shuffle 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 31)
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (I32Const 4294967295)
+    (I32Const 4294967295)
+    (I64Const 9223372036854775808)
+    (F32Const 0x7f800001)
+    (F32Const 0x80000000)
+    (F64Const 0x1)
+    (F64Const 0xfff0000000000000)
+    (F32Const 0x7e967699)
+    (V128Const "\00\01\02\03\04\05\06\07\08\09\0a\0b\0c\0d\0e\ff")
+    (V128Const "\00\00\01\00\02\00\03\00\04\00\05\00\06\00\ff\ff")
+    (V128Const "\01\00\00\00\02\00\00\00\03\00\00\00\ff\ff\ff\ff")
+    (V128Const "\01\00\00\00\00\00\00\00\ff\ff\ff\ff\ff\ff\ff\ff")
+    (V128Const "\00\00\80?\00\00\00\80\00\00\c0\7f\00\00\80\7f")
+    (V128Const "\00\00\00\00\00\00\e0?\00\00\00\00\00\00\f0\ff")
+    (Shuffle [0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 31])])])
+
+=== branches
+(func block br_table 0 0 0 br_table 0 br_on_null 0 br_on_non_null 0
+  br_on_cast 0 anyref (ref eq) br_on_cast_fail 0 (ref null any) (ref $t) end
+  return call 0 return_call $f call_ref $t return_call_ref 0 throw $e throw_ref)
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (Block block _ NoResult [
+      (BrTable [0 0] 0)
+      (BrTable [] 0)
+      (Br br_on_null 0 _)
+      (Br br_on_non_null 0 _)
+      (BrOnCast br_on_cast 0 (RefType true (Abstract HAny)) (RefType false (Abstract HEq)))
+      (BrOnCast br_on_cast_fail 0 (RefType true (Abstract HAny)) (RefType false (Concrete $t)))])
+    (Plain return)
+    (Index call 0)
+    (Index return_call $f)
+    (Index call_ref $t)
+    (Index return_call_ref 0)
+    (Index throw $e)
+    (Plain throw_ref)])])
+
+=== references and aggregates
+(func ref.null func ref.null $t ref.null none ref.func $f
+  ref.is_null ref.as_non_null ref.eq ref.test (ref $t) ref.cast (ref null i31) ref.i31
+  i31.get_s struct.new $s struct.new_default 0 struct.get $s $f struct.get_s 0 1
+  struct.set $s 0 array.new $a array.new_fixed $a 3 array.new_data $a $d
+  array.new_elem 0 1 array.get $a array.set 0 array.len array.copy $a $b array.fill $a
+  array.init_data $a 0 array.init_elem $a $e any.convert_extern extern.convert_any)
+---
+(Module _ [
+  (Func _ [] (TypeUse _ [] []) [] [
+    (RefNull (Abstract HFunc))
+    (RefNull (Concrete $t))
+    (RefNull (Abstract HNone))
+    (Index ref.func $f)
+    (Plain ref.is_null)
+    (Plain ref.as_non_null)
+    (Plain ref.eq)
+    (RefTypeOp ref.test (RefType false (Concrete $t)))
+    (RefTypeOp ref.cast (RefType true (Abstract HI31)))
+    (Plain ref.i31)
+    (Plain i31.get_s)
+    (Index struct.new $s)
+    (Index struct.new_default 0)
+    (Index2 struct.get $s $f)
+    (Index2 struct.get_s 0 1)
+    (Index2 struct.set $s 0)
+    (Index array.new $a)
+    (ArrayNewFixed $a 3)
+    (Index2 array.new_data $a $d)
+    (Index2 array.new_elem 0 1)
+    (Index array.get $a)
+    (Index array.set 0)
+    (Plain array.len)
+    (Index2 array.copy $a $b)
+    (Index array.fill $a)
+    (Index2 array.init_data $a 0)
+    (Index2 array.init_elem $a $e)
+    (Plain any.convert_extern)
+    (Plain extern.convert_any)])])
+
+=== variables
+(global $g (mut i32) (i32.const 0)) (global i64 i64.const 1)
+(func (param $p i32) local.get $p local.set 0 local.tee $p global.get $g global.set 0)
+---
+(Module _ [
+  (Global $g [] (GlobalType I32 true) [
+    (I32Const 0)])
+  (Global _ [] (GlobalType I64 false) [
+    (I64Const 1)])
+  (Func _ [] (TypeUse _ [(Param $p I32)] []) [] [
+    (Index local.get $p)
+    (Index local.set 0)
+    (Index local.tee $p)
+    (Index global.get $g)
+    (Index global.set 0)])])
+
+=== try_table
+(tag $e (param i32)) (func
+  block $h (result exnref) try_table (catch $e 0) (catch_ref 0 0) (catch_all 0) (catch_all_ref $h) end
+  (try_table $t (result i32) (catch $e 0) (i32.const 1)) unreachable end drop)
+---
+(Module _ [
+  (Tag $e [] (TypeUse _ [(Param _ I32)] []))
+  (Func _ [] (TypeUse _ [] []) [] [
+    (Block block $h (Result (Ref (RefType true (Abstract HExn)))) [
+      (TryTable _ NoResult [(Catch $e 0) (CatchRef 0 0) (CatchAll 0) (CatchAllRef $h)] [])
+      (TryTable $t (Result I32) [(Catch $e 0)] [
+        (I32Const 1)])
+      (Plain unreachable)])
+    (Plain drop)])])
+
+=== legacy try
+(tag $e) (func
+  try $t catch $e rethrow $t catch_all nop end $t
+  try nop catch_all end
+  try delegate 0
+  (try (result i32) (do (i32.const 1)) (catch $e (i32.const 2)) (catch_all (i32.const 3))) drop
+  (try (do) (delegate 0)) (try (do)))
+---
+(Module _ [
+  (Tag $e [] (TypeUse _ [] []))
+  (Func _ [] (TypeUse _ [] []) [] [
+    (Try $t NoResult [] [(LegacyCatch $e [
+      (Br rethrow $t _)]) (LegacyCatchAll [
+      (Plain nop)])])
+    (Try _ NoResult [
+      (Plain nop)] [(LegacyCatchAll [])])
+    (TryDelegate _ NoResult [] 0)
+    (Try _ (Result I32) [
+      (I32Const 1)] [(LegacyCatch $e [
+      (I32Const 2)]) (LegacyCatchAll [
+      (I32Const 3)])])
+    (Plain drop)
+    (TryDelegate _ NoResult [] 0)
+    (Try _ NoResult [] [])])])
+
+=== tables
+(table 1 funcref) (table $t i64 2 10 (ref null func) (ref.null func))
+(table 0 externref ref.null extern) (table 1 (ref func) (ref.func $f))
+---
+(Module _ [
+  (Table _ [] (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc))) [
+    (RefNull (Abstract HFunc))] _)
+  (Table $t [] (TableType Addr64 (Limits 2 10) (RefType true (Abstract HFunc))) [
+    (RefNull (Abstract HFunc))] _)
+  (Table _ [] (TableType Addr32 (Limits 0 _) (RefType true (Abstract HExtern))) [
+    (RefNull (Abstract HExtern))] _)
+  (Table _ [] (TableType Addr32 (Limits 1 _) (RefType false (Abstract HFunc))) [
+    (Index ref.func $f)] _)])
+
+=== table inline elements
+(table $t funcref (elem $f $g 1)) (table i64 externref (elem))
+(table (ref null func) (elem (ref.func $f) (item ref.null func) (item)))
+---
+(Module _ [
+  (Table $t [] (TableType Addr32 (Limits 3 3) (RefType true (Abstract HFunc))) [
+    (RefNull (Abstract HFunc))] (Funcs [$f $g 1]))
+  (Table _ [] (TableType Addr64 (Limits 0 0) (RefType true (Abstract HExtern))) [
+    (RefNull (Abstract HExtern))] (Funcs []))
+  (Table _ [] (TableType Addr32 (Limits 3 3) (RefType true (Abstract HFunc))) [
+    (RefNull (Abstract HFunc))] (Exprs (RefType true (Abstract HFunc)) [(Expr [
+    (Index ref.func $f)]) (Expr [
+    (RefNull (Abstract HFunc))]) (Expr [])]))])
+
+=== memories
+(memory 1) (memory $m i64 2 3) (memory 1 2 shared) (memory 0 (pagesize 1))
+---
+(Module _ [
+  (Memory _ [] (MemType Addr32 (Limits 1 _) false _) _)
+  (Memory $m [] (MemType Addr64 (Limits 2 3) false _) _)
+  (Memory _ [] (MemType Addr32 (Limits 1 2) true _) _)
+  (Memory _ [] (MemType Addr32 (Limits 0 _) false 1) _)])
+
+=== memory inline data
+(memory $m (data "hi" "there")) (memory i64 (data))
+(memory (pagesize 1) (data "xyz")) (memory (data "\00\01\02"))
+---
+(Module _ [
+  (Memory $m [] (MemType Addr32 (Limits 1 1) false _) "hithere")
+  (Memory _ [] (MemType Addr64 (Limits 0 0) false _) "")
+  (Memory _ [] (MemType Addr32 (Limits 3 3) false 1) "xyz")
+  (Memory _ [] (MemType Addr32 (Limits 1 1) false _) "\00\01\02")])
+
+=== inline exports
+(func $f (export "a") (export "b")) (global (export "g") i32 (i32.const 0))
+(table (export "t") 0 funcref) (memory (export "m") 0) (tag (export "e"))
+---
+(Module _ [
+  (Func $f ["a" "b"] (TypeUse _ [] []) [] [])
+  (Global _ ["g"] (GlobalType I32 false) [
+    (I32Const 0)])
+  (Table _ ["t"] (TableType Addr32 (Limits 0 _) (RefType true (Abstract HFunc))) [
+    (RefNull (Abstract HFunc))] _)
+  (Memory _ ["m"] (MemType Addr32 (Limits 0 _) false _) _)
+  (Tag _ ["e"] (TypeUse _ [] []))])
+
+=== inline imports
+(func $f (export "e") (import "m" "f") (param i32) (result i32))
+(table (import "m" "t") 1 funcref) (memory $m (import "m" "mem") i64 1 2)
+(global $g (export "x") (export "y") (import "m" "g") (mut f32)) (tag (import "m" "e") (param i32))
+(func (import "m" "f2") (type 0))
+---
+(Module _ [
+  (Import "m" "f" (FuncImport $f (TypeUse _ [(Param _ I32)] [I32])) ["e"])
+  (Import "m" "t" (TableImport _ (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc)))) [])
+  (Import "m" "mem" (MemoryImport $m (MemType Addr64 (Limits 1 2) false _)) [])
+  (Import "m" "g" (GlobalImport $g (GlobalType F32 true)) ["x" "y"])
+  (Import "m" "e" (TagImport _ (TypeUse _ [(Param _ I32)] [])) [])
+  (Import "m" "f2" (FuncImport _ (TypeUse 0 [] [])) [])])
+
+=== imports
+(import "m" "f" (func $f (param i32))) (import "m" "t" (table 1 funcref))
+(import "m" "mem" (memory 1 shared)) (import "m" "g" (global i32))
+(import "m" "e" (tag $e (type 0))) (import "\u{1F600}" "" (func (type $t) (param i32)))
+---
+(Module _ [
+  (Import "m" "f" (FuncImport $f (TypeUse _ [(Param _ I32)] [])) [])
+  (Import "m" "t" (TableImport _ (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc)))) [])
+  (Import "m" "mem" (MemoryImport _ (MemType Addr32 (Limits 1 _) true _)) [])
+  (Import "m" "g" (GlobalImport _ (GlobalType I32 false)) [])
+  (Import "m" "e" (TagImport $e (TypeUse 0 [] [])) [])
+  (Import "\f0\9f\98\80" "" (FuncImport _ (TypeUse $t [(Param _ I32)] [])) [])])
+
+=== exports and start
+(export "f" (func 0)) (export "t" (table $t)) (export "m" (memory 0))
+(export "g" (global $g)) (export "e" (tag 0)) (start $main)
+---
+(Module _ [
+  (Export "f" FuncKind 0)
+  (Export "t" TableKind $t)
+  (Export "m" MemoryKind 0)
+  (Export "g" GlobalKind $g)
+  (Export "e" TagKind 0)
+  (Start $main)])
+
+=== elem segments
+(elem (i32.const 0) $f $g) (elem (i32.const 1)) (elem $e (table $t) (offset i32.const 2) func 0)
+(elem (offset (i32.const 3)) funcref (ref.func 0) (item ref.null func))
+(elem func $f) (elem externref) (elem declare func $f 1) (elem (i32.const 4) func)
+---
+(Module _ [
+  (Elem _ (ElemActive 0 [
+    (I32Const 0)]) (Funcs [$f $g]))
+  (Elem _ (ElemActive 0 [
+    (I32Const 1)]) (Funcs []))
+  (Elem $e (ElemActive $t [
+    (I32Const 2)]) (Funcs [0]))
+  (Elem _ (ElemActive 0 [
+    (I32Const 3)]) (Exprs (RefType true (Abstract HFunc)) [(Expr [
+    (Index ref.func 0)]) (Expr [
+    (RefNull (Abstract HFunc))])]))
+  (Elem _ ElemPassive (Funcs [$f]))
+  (Elem _ ElemPassive (Exprs (RefType true (Abstract HExtern)) []))
+  (Elem _ ElemDeclare (Funcs [$f 1]))
+  (Elem _ (ElemActive 0 [
+    (I32Const 4)]) (Funcs []))])
+
+=== data segments
+(data "a" "b") (data $d (i32.const 0) "c") (data (memory $m) (offset i32.const 1))
+(data (memory 1) (i64.const 2) "d") (data $e)
+---
+(Module _ [
+  (Data _ DataPassive "ab")
+  (Data $d (DataActive 0 [
+    (I32Const 0)]) "c")
+  (Data _ (DataActive $m [
+    (I32Const 1)]) "")
+  (Data _ (DataActive 1 [
+    (I64Const 2)]) "d")
+  (Data $e DataPassive "")])
+
+=== quoted ids
+(func $"a b" (param $"\u{3bb}" i32) block $"x y" br $"x y" end call $"a b")
+---
+(Module _ [
+  (Func $"a b" [] (TypeUse _ [(Param $"\ce\bb" I32)] []) [] [
+    (Block block $"x y" NoResult [
+      (Br br $"x y" _)])
+    (Index call $"a b")])])
+
+=== annotations
+(@custom "c0") (module (@name "M") (@unknown x (y) "z")
+  (@custom "c1" (before first) "a" "b") (func $f (@name "λ") (param $x (@name "α") i32) (local (@name "l") i32)
+    (@metadata.code.branch_hint "\01") (if (local.get 0) (then))
+    local.get 0 (@metadata.code.branch_hint "\00") br_if 0
+    local.get 0 (@metadata.code.branch_hint "\00") if end)
+  (@custom "c2" (after code)) (@custom "c3" (after last) "x") (@custom "c4" (before datacount)))
+---
+(Module @"M" [
+  (Custom "c0" AfterLast "")
+  (Custom "c1" BeforeFirst "ab")
+  (Func $f@"\ce\bb" [] (TypeUse _ [(Param $x@"\ce\b1" I32)] []) [(Local @"l" I32)] [
+    (Index local.get 0)
+    (If _ NoResult [] false [] Likely)
+    (Index local.get 0)
+    (Br br_if 0 Unlikely)
+    (Index local.get 0)
+    (If _ NoResult [] false [] Unlikely)])
+  (Custom "c2" (After CodeSec) "")
+  (Custom "c3" AfterLast "x")
+  (Custom "c4" (Before DataCountSec) "")])
+
+=== extensions
+(memory 1 1 shared) (func atomic.fence i32.atomic.load i64.atomic.rmw.add offset=8
+  memory.atomic.notify i64.add128 i64.sub128 i64.mul_wide_s i64.mul_wide_u
+  i8x16.relaxed_swizzle f32x4.relaxed_madd i32x4.relaxed_dot_i8x16_i7x16_add_s)
+---
+(Module _ [
+  (Memory _ [] (MemType Addr32 (Limits 1 1) true _) _)
+  (Func _ [] (TypeUse _ [] []) [] [
+    (Plain atomic.fence)
+    (MemArg i32.atomic.load 0 0 4)
+    (MemArg i64.atomic.rmw.add 0 8 8)
+    (MemArg memory.atomic.notify 0 0 4)
+    (Plain i64.add128)
+    (Plain i64.sub128)
+    (Plain i64.mul_wide_s)
+    (Plain i64.mul_wide_u)
+    (Plain i8x16.relaxed_swizzle)
+    (Plain f32x4.relaxed_madd)
+    (Plain i32x4.relaxed_dot_i8x16_i7x16_add_s)])])

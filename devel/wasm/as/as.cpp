@@ -3,6 +3,8 @@
 #include "emit.h"
 #include "lexer.h"
 #include "number.h"
+#include "optable.h"
+#include "parser.h"
 
 namespace {
 
@@ -153,20 +155,24 @@ bool dump_numbers(Str name, Str source, Out &out, Diag &diag)
     return true;
 }
 
+bool dump_tree(Str name, Str source, Out &out, Diag &diag)
+{
+    wat::Arena arena;
+    wat::Module m;
+    if (!parse(name, source, arena, m, diag))
+        return false;
+    wat::print(out, m, op_name, false);
+    return true;
+}
+
 bool assemble(Str name, Str source, const AsConfig &c, Vec<u8> &out, Diag &diag)
 {
     (void)c;
-    // Nothing is parsed yet: a source that lexes is the empty module.
-    Lexer x(source);
-    for (;;) {
-        Token t = x.next();
-        if (t.kind == Tok::Error) {
-            lex_error(diag, name, x);
-            return false;
-        }
-        if (t.kind == Tok::Eof)
-            break;
-    }
+    // Nothing is encoded yet: a source that parses is the empty module.
+    wat::Arena arena;
+    wat::Module m;
+    if (!parse(name, source, arena, m, diag))
+        return false;
     Emit e{ out };
     e.u32le(0x6d736100); // \0asm
     e.u32le(1);          // version

@@ -564,10 +564,15 @@ through [as/host.mjs](as/host.mjs), which boots the harness once for many
 runs: every source is the empty module for now, which V8 must load, and
 the command line's outputs and errors are checked.
 [as/test/lexer.mjs](as/test/lexer.mjs) holds `as --tokens` of a crafted
-file to a golden one, and checks crafted errors with their places. Then it
-lexes every module of the WebAssembly test suite, vendored in
-[as/test/suite/](as/test/suite/): what is not malformed must lex, and a
-malformed module that is refused must be refused with the expected message.
+file to a golden one, and checks crafted errors with their places.
+[as/test/parser.mjs](as/test/parser.mjs) holds `as --tree` of crafted
+modules to a golden file, one for each abbreviation the parser expands and
+each ambiguity it settles, checks crafted errors with their places, and
+parses blocks and folded instructions nested 10000 deep. Then it parses
+every module of the WebAssembly test suite, vendored in
+[as/test/suite/](as/test/suite/): what is not malformed must parse, and a
+malformed module must be refused with the expected message, but for the
+few whose message is resolution's.
 [as/test/number.mjs](as/test/number.mjs) holds `as --numbers` to
 `wat2wasm` on nine thousand literals: every one in the suite, and generated
 ones at each width's limits and around halfway points between floats.
