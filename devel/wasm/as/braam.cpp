@@ -13,6 +13,7 @@ const char USAGE[] =
     "  --tokens                 print the tokens, write nothing\n"
     "  --numbers                print typed literals' bits, write nothing\n"
     "  --tree                   print the syntax tree, write nothing\n"
+    "  --resolved               print it after resolution, write nothing\n"
     "Each file.wat is written to file.o in the current directory.\n";
 
 // Everything the front end holds, off the coroutine frame.
@@ -53,7 +54,7 @@ Task<i32> finish(Front &s)
 // is still assembled.
 Task<void> assemble_one(Front &s, Str path)
 {
-    bool dump = s.args.as.tokens || s.args.as.numbers || s.args.as.tree;
+    bool dump = s.args.as.tokens || s.args.as.numbers || s.args.as.tree || s.args.as.resolved;
     if (!dump && !output_name(s.args, path, s.output, s.diag))
         co_return;
     Result<String> r = co_await slurp(path);
@@ -65,8 +66,8 @@ Task<void> assemble_one(Front &s, Str path)
         s.out.clear();
         if (s.args.as.tokens)
             dump_tokens(path, r.value().str(), s.out, s.diag);
-        else if (s.args.as.tree)
-            dump_tree(path, r.value().str(), s.out, s.diag);
+        else if (s.args.as.tree || s.args.as.resolved)
+            dump_tree(path, r.value().str(), s.args.as.resolved, s.out, s.diag);
         else
             dump_numbers(path, r.value().str(), s.out, s.diag);
         if (s.out.oom)

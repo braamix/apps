@@ -191,7 +191,7 @@ function checkHeader(schema, text, cpp) {
         if (fields) {
             if (s.kind)
                 errs.push(`${name} is a product, and has a Kind`);
-            exactly(name, s.members, fields);
+            exactly(name, s.members, [...fields, ...(t.attributes ?? [])]);
             continue;
         }
         const ctors = Object.keys(t.constructors);

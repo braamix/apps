@@ -5,6 +5,7 @@
 #include "number.h"
 #include "optable.h"
 #include "parser.h"
+#include "resolve.h"
 
 namespace {
 
@@ -155,11 +156,13 @@ bool dump_numbers(Str name, Str source, Out &out, Diag &diag)
     return true;
 }
 
-bool dump_tree(Str name, Str source, Out &out, Diag &diag)
+bool dump_tree(Str name, Str source, bool resolved, Out &out, Diag &diag)
 {
     wat::Arena arena;
     wat::Module m;
     if (!parse(name, source, arena, m, diag))
+        return false;
+    if (resolved && !resolve(name, arena, m, diag))
         return false;
     wat::print(out, m, op_name, false);
     return true;
@@ -168,10 +171,10 @@ bool dump_tree(Str name, Str source, Out &out, Diag &diag)
 bool assemble(Str name, Str source, const AsConfig &c, Vec<u8> &out, Diag &diag)
 {
     (void)c;
-    // Nothing is encoded yet: a source that parses is the empty module.
+    // Nothing is encoded yet: a source that resolves is the empty module.
     wat::Arena arena;
     wat::Module m;
-    if (!parse(name, source, arena, m, diag))
+    if (!parse(name, source, arena, m, diag) || !resolve(name, arena, m, diag))
         return false;
     Emit e{ out };
     e.u32le(0x6d736100); // \0asm

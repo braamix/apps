@@ -1,0 +1,375 @@
+=== every space
+(type $t (func)) (func $f (type $t)) (table $tb 1 funcref) (memory $m 1)
+(global $g (mut i32) (i32.const 0)) (tag $e) (elem $es func $f) (data $d "")
+(func call $f ref.func $f table.size $tb memory.size $m global.set $g throw $e
+  elem.drop $es data.drop $d table.init $tb $es memory.init $m $d call_ref $t
+  i32.load $m table.copy $tb $tb memory.copy $m $m)
+(export "f" (func $f)) (export "t" (table $tb)) (export "m" (memory $m))
+(export "g" (global $g)) (export "e" (tag $e)) (start $f)
+---
+(Module _ [
+  (Type [(TypeDef $t (SubType true [] (FuncType [] [])))])
+  (Func $f [] (TypeUse 0 [] []) [] [])
+  (Table $tb [] (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc))) [
+    (RefNull (Abstract HFunc))] _)
+  (Memory $m [] (MemType Addr32 (Limits 1 _) false _) _)
+  (Global $g [] (GlobalType I32 true) [
+    (I32Const 0)])
+  (Tag $e [] (TypeUse 0 [] []))
+  (Elem $es ElemPassive (Funcs [0]))
+  (Data $d DataPassive "")
+  (Func _ [] (TypeUse 0 [] []) [] [
+    (Index call 0)
+    (Index ref.func 0)
+    (Index table.size 0)
+    (Index memory.size 0)
+    (Index global.set 0)
+    (Index throw 0)
+    (Index elem.drop 0)
+    (Index data.drop 0)
+    (Index2 table.init 0 0)
+    (Index2 memory.init 0 0)
+    (Index call_ref 0)
+    (MemArg i32.load 0 0 4)
+    (Index2 table.copy 0 0)
+    (Index2 memory.copy 0 0)])
+  (Export "f" FuncKind 0)
+  (Export "t" TableKind 0)
+  (Export "m" MemoryKind 0)
+  (Export "g" GlobalKind 0)
+  (Export "e" TagKind 0)
+  (Start 0)])
+
+=== forward
+(start $f) (export "g" (global $g)) (func call $f global.get $g) (func $f) (global $g i32 (i32.const 0))
+---
+(Module _ [
+  (Start 1)
+  (Export "g" GlobalKind 0)
+  (Func _ [] (TypeUse 0 [] []) [] [
+    (Index call 1)
+    (Index global.get 0)])
+  (Func $f [] (TypeUse 0 [] []) [] [])
+  (Global $g [] (GlobalType I32 false) [
+    (I32Const 0)])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])
+
+=== imports first
+(import "m" "f" (func $i)) (import "m" "g" (global $h i32))
+(func $f call $f call $i) (global $g i32 global.get $h) (export "f" (func $f)) (export "g" (global $g))
+---
+(Module _ [
+  (Import "m" "f" (FuncImport $i (TypeUse 0 [] [])) [])
+  (Import "m" "g" (GlobalImport $h (GlobalType I32 false)) [])
+  (Func $f [] (TypeUse 0 [] []) [] [
+    (Index call 1)
+    (Index call 0)])
+  (Global $g [] (GlobalType I32 false) [
+    (Index global.get 0)])
+  (Export "f" FuncKind 1)
+  (Export "g" GlobalKind 1)
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])
+
+=== locals
+(type $t (func (param i32 i64)))
+(func (param $a i32) (param i64) (param $c f32) (local $d f64) (local v128) (local $f i32)
+  local.get $a local.get 1 local.get $c local.get $d local.set $f local.tee 4)
+(func (type $t) (local $x i32) local.get $x local.get 0)
+(func (type $t) (param $p i32) (param $q i64) local.get $q)
+---
+(Module _ [
+  (Type [(TypeDef $t (SubType true [] (FuncType [(Param _ I32) (Param _ I64)] [])))])
+  (Func _ [] (TypeUse 1 [(Param $a I32) (Param _ I64) (Param $c F32)] []) [(Local $d F64) (Local _ V128) (Local $f I32)] [
+    (Index local.get 0)
+    (Index local.get 1)
+    (Index local.get 2)
+    (Index local.get 3)
+    (Index local.set 5)
+    (Index local.tee 4)])
+  (Func _ [] (TypeUse 0 [(Param _ I32) (Param _ I64)] []) [(Local $x I32)] [
+    (Index local.get 2)
+    (Index local.get 0)])
+  (Func _ [] (TypeUse 0 [(Param $p I32) (Param $q I64)] []) [] [
+    (Index local.get 1)])
+  (Type [(TypeDef _ (SubType true [] (FuncType [(Param _ I32) (Param _ I64) (Param _ F32)] [])))])])
+
+=== labels
+(func block $a loop $b br $a br $b br 0 br_if $a br_table $a $b 0 $a end end
+  block $a block $a br $a end end
+  (if $i (i32.const 0) (then br $i) (else br $i))
+  block $x (block (br $x)) end)
+---
+(Module _ [
+  (Func _ [] (TypeUse 0 [] []) [] [
+    (Block block $a NoResult [
+      (Block loop $b NoResult [
+        (Br br 1 _)
+        (Br br 0 _)
+        (Br br 0 _)
+        (Br br_if 1 _)
+        (BrTable [1 0 0] 1)])])
+    (Block block $a NoResult [
+      (Block block $a NoResult [
+        (Br br 0 _)])])
+    (I32Const 0)
+    (If $i NoResult [
+      (Br br 0 _)] true [
+      (Br br 0 _)] _)
+    (Block block $x NoResult [
+      (Block block _ NoResult [
+        (Br br 1 _)])])])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])
+
+=== legacy try
+(tag $e) (func
+  try $t catch $e rethrow $t catch_all try $u delegate $t rethrow $t end
+  block $o try $v delegate $o end)
+---
+(Module _ [
+  (Tag $e [] (TypeUse 0 [] []))
+  (Func _ [] (TypeUse 0 [] []) [] [
+    (Try $t NoResult [] [(LegacyCatch 0 [
+      (Br rethrow 0 _)]) (LegacyCatchAll [
+      (TryDelegate $u NoResult [] 0)
+      (Br rethrow 0 _)])])
+    (Block block $o NoResult [
+      (TryDelegate $v NoResult [] 0)])])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])
+
+=== try_table
+(tag $e) (func block $h (result exnref)
+  try_table $t (catch $e $h) (catch_all_ref $h) br $t end unreachable end drop)
+---
+(Module _ [
+  (Tag $e [] (TypeUse 0 [] []))
+  (Func _ [] (TypeUse 0 [] []) [] [
+    (Block block $h (Result (Ref (RefType true (Abstract HExn)))) [
+      (TryTable $t NoResult [(Catch 0 0) (CatchAllRef 0)] [
+        (Br br 0 _)])
+      (Plain unreachable)])
+    (Plain drop)])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])
+
+=== fields
+(type $s (struct (field $a i32) (field i64) (field $c (mut f32))))
+(type $p (struct (field $a f64)))
+(func struct.get $s $a struct.get $s 1 struct.set $s $c struct.get $p $a struct.get 0 $c
+  struct.get_s $s $c)
+---
+(Module _ [
+  (Type [(TypeDef $s (SubType true [] (StructType [(Field $a (FieldType (Value I32) false)) (Field _ (FieldType (Value I64) false)) (Field $c (FieldType (Value F32) true))])))])
+  (Type [(TypeDef $p (SubType true [] (StructType [(Field $a (FieldType (Value F64) false))])))])
+  (Func _ [] (TypeUse 2 [] []) [] [
+    (Index2 struct.get 0 0)
+    (Index2 struct.get 0 1)
+    (Index2 struct.set 0 2)
+    (Index2 struct.get 1 0)
+    (Index2 struct.get 0 2)
+    (Index2 struct.get_s 0 2)])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])
+
+=== implicit types in order of use
+(func (param i32) (result i32) block (result i32 i32) unreachable end
+  call_indirect (param i64) block (param f32) drop end block (result f64) unreachable end drop unreachable)
+(tag (param f32)) (func (param i32) (result i32) unreachable)
+(func (type 2) block (param i32) (result i32) end)
+---
+(Module _ [
+  (Func _ [] (TypeUse 0 [(Param _ I32)] [I32]) [] [
+    (Block block _ (Use (TypeUse 1 [] [I32 I32])) [
+      (Plain unreachable)])
+    (CallIndirect call_indirect 0 (TypeUse 2 [(Param _ I64)] []))
+    (Block block _ (Use (TypeUse 3 [(Param _ F32)] [])) [
+      (Plain drop)])
+    (Block block _ (Result F64) [
+      (Plain unreachable)])
+    (Plain drop)
+    (Plain unreachable)])
+  (Tag _ [] (TypeUse 3 [(Param _ F32)] []))
+  (Func _ [] (TypeUse 0 [(Param _ I32)] [I32]) [] [
+    (Plain unreachable)])
+  (Func _ [] (TypeUse 2 [(Param _ I64)] []) [] [
+    (Block block _ (Use (TypeUse 0 [(Param _ I32)] [I32])) [])])
+  (Type [(TypeDef _ (SubType true [] (FuncType [(Param _ I32)] [I32])))])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [I32 I32])))])
+  (Type [(TypeDef _ (SubType true [] (FuncType [(Param _ I64)] [])))])
+  (Type [(TypeDef _ (SubType true [] (FuncType [(Param _ F32)] [])))])])
+
+=== imports make types
+(import "m" "f" (func (param i64))) (import "m" "e" (tag (param i32)))
+(import "m" "g" (func (param i64))) (func (param i32))
+---
+(Module _ [
+  (Import "m" "f" (FuncImport _ (TypeUse 0 [(Param _ I64)] [])) [])
+  (Import "m" "e" (TagImport _ (TypeUse 1 [(Param _ I32)] [])) [])
+  (Import "m" "g" (FuncImport _ (TypeUse 0 [(Param _ I64)] [])) [])
+  (Func _ [] (TypeUse 1 [(Param _ I32)] []) [] [])
+  (Type [(TypeDef _ (SubType true [] (FuncType [(Param _ I64)] [])))])
+  (Type [(TypeDef _ (SubType true [] (FuncType [(Param _ I32)] [])))])])
+
+=== explicit types matched
+(func (param i32)) (type (func (param i64))) (type $t (func (param i32)))
+(func (param i64)) (type (sub (func (result i32)))) (func (result i32))
+(rec (type (func (result f32)))) (rec (type (func (result f64))) (type (func)))
+(func (result f32)) (func (result f64)) (func)
+---
+(Module _ [
+  (Func _ [] (TypeUse 1 [(Param _ I32)] []) [] [])
+  (Type [(TypeDef _ (SubType true [] (FuncType [(Param _ I64)] [])))])
+  (Type [(TypeDef $t (SubType true [] (FuncType [(Param _ I32)] [])))])
+  (Func _ [] (TypeUse 0 [(Param _ I64)] []) [] [])
+  (Type [(TypeDef _ (SubType false [] (FuncType [] [I32])))])
+  (Func _ [] (TypeUse 6 [] [I32]) [] [])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [F32])))])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [F64]))) (TypeDef _ (SubType true [] (FuncType [] [])))])
+  (Func _ [] (TypeUse 3 [] [F32]) [] [])
+  (Func _ [] (TypeUse 7 [] [F64]) [] [])
+  (Func _ [] (TypeUse 8 [] []) [] [])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [I32])))])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [F64])))])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])
+
+=== type use filled
+(import "m" "f" (func (type $t))) (type $t (func (param i32) (result i64))) (type $u (func (result i32)))
+(func (type $t) block (type $t) unreachable end block (type $u) unreachable end
+  block (type 0) (param i32) (result i64) unreachable end drop
+  call_indirect (type $t) call_indirect (type $t) (param i32) (result i64) drop)
+(tag (type $u))
+---
+(Module _ [
+  (Import "m" "f" (FuncImport _ (TypeUse 0 [(Param _ I32)] [I64])) [])
+  (Type [(TypeDef $t (SubType true [] (FuncType [(Param _ I32)] [I64])))])
+  (Type [(TypeDef $u (SubType true [] (FuncType [] [I32])))])
+  (Func _ [] (TypeUse 0 [(Param _ I32)] [I64]) [] [
+    (Block block _ (Use (TypeUse 0 [(Param _ I32)] [I64])) [
+      (Plain unreachable)])
+    (Block block _ (Use (TypeUse 1 [] [I32])) [
+      (Plain unreachable)])
+    (Block block _ (Use (TypeUse 0 [(Param _ I32)] [I64])) [
+      (Plain unreachable)])
+    (Plain drop)
+    (CallIndirect call_indirect 0 (TypeUse 0 [(Param _ I32)] [I64]))
+    (CallIndirect call_indirect 0 (TypeUse 0 [(Param _ I32)] [I64]))
+    (Plain drop)])
+  (Tag _ [] (TypeUse 1 [] [I32]))])
+
+=== reference types
+(rec (type $a (struct (field (ref $b)))) (type $b (sub (array (ref null $a)))))
+(type $c (sub final $b (array (ref null $a))))
+(global $g (ref null $a) (ref.null $a))
+(func (param (ref $a)) (result (ref null $b)) (local (ref $c))
+  ref.null $b ref.test (ref $a) ref.cast (ref null $b) br_on_cast 0 (ref null $a) (ref $a)
+  select (result (ref null $a)) struct.new $a array.new_fixed $b 2 unreachable)
+(table 1 (ref null $a))
+---
+(Module _ [
+  (Type [(TypeDef $a (SubType true [] (StructType [(Field _ (FieldType (Value (Ref (RefType false (Concrete 1)))) false))]))) (TypeDef $b (SubType false [] (ArrayType (FieldType (Value (Ref (RefType true (Concrete 0)))) false))))])
+  (Type [(TypeDef $c (SubType true [1] (ArrayType (FieldType (Value (Ref (RefType true (Concrete 0)))) false))))])
+  (Global $g [] (GlobalType (Ref (RefType true (Concrete 0))) false) [
+    (RefNull (Concrete 0))])
+  (Func _ [] (TypeUse 3 [(Param _ (Ref (RefType false (Concrete 0))))] [(Ref (RefType true (Concrete 1)))]) [(Local _ (Ref (RefType false (Concrete 2))))] [
+    (RefNull (Concrete 1))
+    (RefTypeOp ref.test (RefType false (Concrete 0)))
+    (RefTypeOp ref.cast (RefType true (Concrete 1)))
+    (BrOnCast br_on_cast 0 (RefType true (Concrete 0)) (RefType false (Concrete 0)))
+    (Select true [(Ref (RefType true (Concrete 0)))])
+    (Index struct.new 0)
+    (ArrayNewFixed 1 2)
+    (Plain unreachable)])
+  (Table _ [] (TableType Addr32 (Limits 1 _) (RefType true (Concrete 0))) [
+    (RefNull (Concrete 0))] _)
+  (Type [(TypeDef _ (SubType true [] (FuncType [(Param _ (Ref (RefType false (Concrete 0))))] [(Ref (RefType true (Concrete 1)))])))])])
+
+=== inline exports
+(export "a" (func 0)) (func $f (export "b") (export "c")) (export "d" (func $f))
+(table (export "t") 0 funcref) (memory (export "m") 0) (global (export "g") i32 (i32.const 0))
+(tag (export "e"))
+---
+(Module _ [
+  (Export "a" FuncKind 0)
+  (Func $f [] (TypeUse 0 [] []) [] [])
+  (Export "b" FuncKind 0)
+  (Export "c" FuncKind 0)
+  (Export "d" FuncKind 0)
+  (Table _ [] (TableType Addr32 (Limits 0 _) (RefType true (Abstract HFunc))) [
+    (RefNull (Abstract HFunc))] _)
+  (Export "t" TableKind 0)
+  (Memory _ [] (MemType Addr32 (Limits 0 _) false _) _)
+  (Export "m" MemoryKind 0)
+  (Global _ [] (GlobalType I32 false) [
+    (I32Const 0)])
+  (Export "g" GlobalKind 0)
+  (Tag _ [] (TypeUse 0 [] []))
+  (Export "e" TagKind 0)
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])
+
+=== import exports
+(func (export "a") (import "m" "f")) (global $g (export "b") (export "c") (import "m" "g") i32)
+(memory (export "m") (import "m" "m") 1) (func (export "d"))
+---
+(Module _ [
+  (Import "m" "f" (FuncImport _ (TypeUse 0 [] [])) [])
+  (Export "a" FuncKind 0)
+  (Import "m" "g" (GlobalImport $g (GlobalType I32 false)) [])
+  (Export "b" GlobalKind 0)
+  (Export "c" GlobalKind 0)
+  (Import "m" "m" (MemoryImport _ (MemType Addr32 (Limits 1 _) false _)) [])
+  (Export "m" MemoryKind 0)
+  (Func _ [] (TypeUse 0 [] []) [] [])
+  (Export "d" FuncKind 1)
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])
+
+=== inline segments
+(elem $e0 func) (table $t funcref (elem $f)) (elem $e2 func)
+(data $d0 "") (memory $m i64 (data "ab")) (data $d2 "")
+(table i64 funcref (elem (item ref.func $f)))
+(func $f elem.drop $e0 elem.drop $e2 data.drop $d0 data.drop $d2 table.init $t $e2)
+---
+(Module _ [
+  (Elem $e0 ElemPassive (Funcs []))
+  (Table $t [] (TableType Addr32 (Limits 1 1) (RefType true (Abstract HFunc))) [
+    (RefNull (Abstract HFunc))] _)
+  (Elem _ (ElemActive 0 [
+    (I32Const 0)]) (Funcs [0]))
+  (Elem $e2 ElemPassive (Funcs []))
+  (Data $d0 DataPassive "")
+  (Memory $m [] (MemType Addr64 (Limits 1 1) false _) _)
+  (Data _ (DataActive 0 [
+    (I64Const 0)]) "ab")
+  (Data $d2 DataPassive "")
+  (Table _ [] (TableType Addr64 (Limits 1 1) (RefType true (Abstract HFunc))) [
+    (RefNull (Abstract HFunc))] _)
+  (Elem _ (ElemActive 1 [
+    (I64Const 0)]) (Exprs (RefType true (Abstract HFunc)) [(Expr [
+    (Index ref.func 0)])]))
+  (Func $f [] (TypeUse 0 [] []) [] [
+    (Index elem.drop 0)
+    (Index elem.drop 2)
+    (Index data.drop 0)
+    (Index data.drop 2)
+    (Index2 table.init 0 2)])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])
+
+=== constant expressions
+(global $a i32 (i32.const 1)) (global $b i32 (global.get $a))
+(table $t 1 funcref (ref.func $f)) (elem (table $t) (offset (global.get $a)) funcref (ref.func $f) (item global.get $c))
+(global $c funcref (ref.func $f)) (data (memory $m) (offset global.get $a) "x") (memory $m 1) (func $f)
+---
+(Module _ [
+  (Global $a [] (GlobalType I32 false) [
+    (I32Const 1)])
+  (Global $b [] (GlobalType I32 false) [
+    (Index global.get 0)])
+  (Table $t [] (TableType Addr32 (Limits 1 _) (RefType true (Abstract HFunc))) [
+    (Index ref.func 0)] _)
+  (Elem _ (ElemActive 0 [
+    (Index global.get 0)]) (Exprs (RefType true (Abstract HFunc)) [(Expr [
+    (Index ref.func 0)]) (Expr [
+    (Index global.get 2)])]))
+  (Global $c [] (GlobalType (Ref (RefType true (Abstract HFunc))) false) [
+    (Index ref.func 0)])
+  (Data _ (DataActive 0 [
+    (Index global.get 0)]) "x")
+  (Memory $m [] (MemType Addr32 (Limits 1 _) false _) _)
+  (Func $f [] (TypeUse 0 [] []) [] [])
+  (Type [(TypeDef _ (SubType true [] (FuncType [] [])))])])

@@ -128,19 +128,6 @@ Limits to keep in mind throughout:
 
 ## Steps
 
-### A7. Resolution
-
-Numbering every index space, imports first (§6); ids to numbers, labels to depths, field ids per
-type; the implicit types of §5.4, appended in order of use; inline exports
-into the export list at their place; inline segments numbered where they
-stand; a type use's params checked against its type. The result is the
-same tree with every `Idx` a number and every `TypeUse` an index.
-
-*Done when* `test/resolve.mjs` holds printed resolved trees to golden
-files, and the suite's resolution errors (unknown and duplicate ids,
-mismatched type uses) are refused: the 43 `assert_malformed` modules that
-`test/parser.mjs` leaves to resolution.
-
 ### A8. The module
 
 `encode.cpp`: sections in their order, each once, empty ones left out;

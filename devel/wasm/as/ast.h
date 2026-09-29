@@ -1,7 +1,7 @@
 // The syntax tree of wat.asdl, by hand; test/asdl.mjs checks that the two
 // agree. The mapping:
 //
-//  * A product is a struct of its fields.
+//  * A product is a struct of its fields and attributes.
 //  * A sum of constructors without fields is an enum class.
 //  * Any other sum is a struct with a tag, `Kind kind`, and every
 //    constructor's fields side by side, held by value.
@@ -54,9 +54,15 @@ struct List {
 
     const T &operator[](u32 i) const { return p[i]; }
 
+    T &operator[](u32 i) { return p[i]; }
+
     const T *begin() const { return p; }
 
     const T *end() const { return p + n; }
+
+    T *begin() { return p; }
+
+    T *end() { return p + n; }
 };
 
 // Blocks freed at once. A failed allocation returns null and is sticky.
@@ -166,6 +172,7 @@ enum class BranchHint : u8 { Unlikely, Likely };
 struct Bind {
     Opt<Str> id;
     Opt<Str> name;
+    Loc loc;
 };
 
 struct Idx {
@@ -375,6 +382,12 @@ struct Decl {
     {
         return kind == T::KIND ? static_cast<const T *>(this) : nullptr;
     }
+
+    template <class T>
+    T *as()
+    {
+        return kind == T::KIND ? static_cast<T *>(this) : nullptr;
+    }
 };
 
 struct Decl::Type : Decl {
@@ -526,6 +539,12 @@ struct Instr {
     const T *as() const
     {
         return kind == T::KIND ? static_cast<const T *>(this) : nullptr;
+    }
+
+    template <class T>
+    T *as()
+    {
+        return kind == T::KIND ? static_cast<T *>(this) : nullptr;
     }
 };
 

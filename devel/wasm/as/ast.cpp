@@ -290,8 +290,10 @@ struct Printer {
     {
         if (!b.id.has && !b.name.has)
             put('_');
-        if (b.id.has)
+        if (b.id.has) {
             ident(b.id.value);
+            loc(b.loc);
+        }
         if (b.name.has) {
             put('@');
             emit(b.name.value);

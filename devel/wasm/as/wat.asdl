@@ -35,6 +35,19 @@
 #  * An inline data or elem segment stays in its memory or table, so that
 #    it is numbered where it is written.
 #
+# Resolution (resolve.cpp) then leaves the same tree, but:
+#
+#  * Every Idx is a Num: a label's is its depth, a field's its place in
+#    its struct.
+#  * Every TypeUse has its type index, and the params and results of that
+#    type; an implicit type is a Type of its own, appended to the decls in
+#    order of first use.
+#  * An inline export is an Export right after its definition or import,
+#    and `exports` is empty.
+#  * An inline segment is an Elem or Data right after its table or memory,
+#    with offset 0, and the table's `elems` and the memory's `data` are
+#    empty.
+#
 # Primitive types, beyond ASDL's own:
 #
 #  identifier  an $id, without the `$`, as the bytes of its name
@@ -59,8 +72,10 @@ module Wat {
     # Module (§8)
     Module = Module(Bind bind, Decl* decls)
 
-    # The id and the (@name "…") of anything that can have them (§6, §9)
+    # The id and the (@name "…") of anything that can have them (§6, §9);
+    # loc is the id's
     Bind = (identifier? id, name? name)
+         attributes(location loc)
 
     # A reference by number or by id (§6)
     Idx = Num(u32 value)

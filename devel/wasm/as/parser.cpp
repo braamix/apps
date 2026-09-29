@@ -628,6 +628,7 @@ struct Parser {
     Bind bind()
     {
         Bind b;
+        b.loc = loc(peek());
         if (is(Tok::Id)) {
             b.id.has   = true;
             b.id.value = ident(take());

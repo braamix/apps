@@ -568,11 +568,13 @@ file to a golden one, and checks crafted errors with their places.
 [as/test/parser.mjs](as/test/parser.mjs) holds `as --tree` of crafted
 modules to a golden file, one for each abbreviation the parser expands and
 each ambiguity it settles, checks crafted errors with their places, and
-parses blocks and folded instructions nested 10000 deep. Then it parses
-every module of the WebAssembly test suite, vendored in
-[as/test/suite/](as/test/suite/): what is not malformed must parse, and a
-malformed module must be refused with the expected message, but for the
-few whose message is resolution's.
+parses blocks and folded instructions nested 10000 deep.
+[as/test/resolve.mjs](as/test/resolve.mjs) does the same for `as --resolved`:
+crafted modules for each rule of numbering and implicit types, crafted
+errors, and labels 10000 deep. Then it assembles every module of the
+WebAssembly test suite, vendored in [as/test/suite/](as/test/suite/): what
+is not malformed must be accepted, and a malformed module must be refused
+with the expected message.
 [as/test/number.mjs](as/test/number.mjs) holds `as --numbers` to
 `wat2wasm` on nine thousand literals: every one in the suite, and generated
 ones at each width's limits and around halfway points between floats.
