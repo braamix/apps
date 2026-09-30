@@ -1,4 +1,4 @@
-;; args.s: the arguments crt.s passes to main.
+;; args.s: the arguments, which _start is given.
 ;;
 ;;   as args.s
 ;;   ar rc libw.a proc.o fmt.o args.o

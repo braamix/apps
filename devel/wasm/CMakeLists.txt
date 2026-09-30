@@ -30,11 +30,10 @@ foreach(f ${WASM_SHARE_SRC} ${WASM_DOCS})
     list(APPEND WASM_SHARE ${f}=share/${n})
 endforeach()
 
-braam_add_package(NAME wasm VERSION 0.2-r0
+braam_add_package(NAME wasm VERSION 0.3-r0
                   FIELD "T=WebAssembly tools: ld, strip, ar, size, nm, disasm and as"
                   FILES ${WASM_SHARE}
                         ${CMAKE_CURRENT_SOURCE_DIR}/as/README.md=share/Assembler.md
-                        ${CMAKE_CURRENT_BINARY_DIR}/examples/crt.o=lib/crt.o
                         ${CMAKE_CURRENT_BINARY_DIR}/examples/libw.a=lib/libw.a
                         $<TARGET_FILE:bin_ld>=bin/ld
                         $<TARGET_FILE:bin_strip>=bin/strip

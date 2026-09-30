@@ -1,6 +1,6 @@
 // The examples, built on Braam by their own build.sh with as and ld, and
-// run. ld finds crt.o and libw.a in the package's lib/, planted as pkg
-// installs it. The library is then built from its sources on Braam too,
+// run. ld finds libw.a in the package's lib/, planted as pkg installs
+// it. The library is then built from its sources on Braam too,
 // and must be the package's. Each program must have the surface of a
 // Braam program, be what wasm-ld links from the same objects, and print
 // what the golden transcript says (BLESS=1 writes it). cat must copy bytes
@@ -65,11 +65,8 @@ function sh(script) {
 const PKG = "/pkg/store/wasm-9.9-r9";
 for (const d of ["/pkg", "/pkg/store", PKG, `${PKG}/lib`])
     H.store.dirs.add(d);
-const shipped = {};
-for (const f of ["crt.o", "libw.a"]) {
-    shipped[f] = new Uint8Array(readFileSync(join(BUILD, "examples", f)));
-    plant(H, `${PKG}/lib/${f}`, shipped[f]);
-}
+const shipped = new Uint8Array(readFileSync(join(BUILD, "examples/libw.a")));
+plant(H, `${PKG}/lib/libw.a`, shipped);
 
 // build.sh.
 H.store.dirs.add("/tmp/ex");
@@ -84,12 +81,11 @@ for (const p of PROGRAMS)
     file(p);
 
 // The library, as build.sh says to build it here: the package's bytes.
-const lib = sh("as crt.s proc.s fmt.s args.s && ar rc libw.a proc.o fmt.o args.o");
+const lib = sh("as proc.s fmt.s args.s && ar rc libw.a proc.o fmt.o args.o");
 if (lib.status !== 0 || lib.err)
     die(`the library: status ${lib.status}\n${lib.err}`);
-for (const f of ["crt.o", "libw.a"])
-    if (Buffer.compare(Buffer.from(file(f)), Buffer.from(shipped[f])) !== 0)
-        bad.push(`${f} built here is not the package's`);
+if (Buffer.compare(Buffer.from(file("libw.a")), Buffer.from(shipped)) !== 0)
+    bad.push("libw.a built here is not the package's");
 
 // An import from env must be defined: without -lw, _free is not.
 const bare = sh("ld cat.o -o nolib");
@@ -111,11 +107,11 @@ for (const p of PROGRAMS) {
 
 // wasm-ld links the same objects to the same module, with the memory
 // defined, as as/test/link.mjs explains, and but for ld's braam section.
-for (const f of ["crt.o", "libw.a", ...PROGRAMS.map((p) => `${p}.o`)])
+for (const f of ["libw.a", ...PROGRAMS.map((p) => `${p}.o`)])
     writeFileSync(join(L.tmp, f), file(f));
 const tail = Buffer.from([0, 26, 5, ...Buffer.from("braam")]);
 for (const p of PROGRAMS) {
-    const inputs = [...(PROGRAMS.indexOf(p) < 3 ? [] : ["crt.o"]), `${p}.o`, "libw.a"];
+    const inputs = [`${p}.o`, ...(p === "hello" ? [] : ["libw.a"])];
     const base = [...FLAGS.filter((f) => f !== "--import-memory"), ...inputs];
     for (const i of inputs)
         plant(H, `/tmp/${i}`, file(i));
@@ -156,7 +152,7 @@ const copy = H.store.files.get("/tmp/ex/copy");
 if (c.status !== 0 || !copy || Buffer.compare(Buffer.from(copy), Buffer.from(bytes)) !== 0)
     bad.push(`cat: status ${c.status}, and ${copy?.length ?? 0} bytes not the 3000 given`);
 
-// 5 MB of primes through crt.s's buffer, doubled as it fills.
+// 5 MB of primes through fmt.s's buffer, doubled as it fills.
 const p = sh("./primes 10000000 | wc");
 if (p.out.trim().split(/\s+/).join(" ") !== "66458 664579 5227116")
     bad.push(`primes 10000000 | wc: ${p.out}`);

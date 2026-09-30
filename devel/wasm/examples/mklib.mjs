@@ -1,4 +1,4 @@
-// Builds crt.o and libw.a, which the package ships as lib/: as assembles
+// Builds libw.a, which the package ships as lib/: as assembles
 // the sources and ar archives them, both run under the SDK's harness.
 //
 //   node mklib.mjs <as.wasm> <ar.wasm> <output directory>
@@ -15,13 +15,12 @@ if (!out) {
     process.exit(1);
 }
 
-const inputs = { "mk.sh": "set -e\nas crt.s proc.s fmt.s args.s\nar rc libw.a proc.o fmt.o args.o\n" };
-for (const f of ["crt.s", "proc.s", "fmt.s", "args.s"])
+const inputs = { "mk.sh": "set -e\nas proc.s fmt.s args.s\nar rc libw.a proc.o fmt.o args.o\n" };
+for (const f of ["proc.s", "fmt.s", "args.s"])
     inputs[f] = readFileSync(join(HERE, f));
 const r = (await assembler(as, { ar })).run(["mk.sh"], inputs, null, "sh");
-if (r.status !== 0 || r.err || !r.files["crt.o"] || !r.files["libw.a"]) {
+if (r.status !== 0 || r.err || !r.files["libw.a"]) {
     process.stderr.write(`mklib: status ${r.status}\n${r.out}${r.err}`);
     process.exit(1);
 }
-for (const f of ["crt.o", "libw.a"])
-    writeFileSync(join(out, f), r.files[f]);
+writeFileSync(join(out, "libw.a"), r.files["libw.a"]);

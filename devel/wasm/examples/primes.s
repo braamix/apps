@@ -1,12 +1,16 @@
 ;; primes.s: the primes up to n, 100 by default, ten to a line.
 ;;
 ;;   as primes.s
-;;   ld crt.o primes.o -lw -o primes
+;;   ld primes.o -lw -o primes
 ;;   primes 1000
 ;;
 ;; The sieve of Eratosthenes, a byte for each number, in a block from
 ;; proc.s's _alloc. n is at most ten million.
 (module
+  (import "kernel" "sys" (func $sys (param i32 i32 i32 i32) (result i32)))
+  (import "env" "_free" (func $_free (param i32 i32)))
+  (import "env" "out_flush" (func $out_flush (param i32) (result i32)))
+  (import "env" "out_wrote" (func $out_wrote (param i32) (result i32)))
   (import "env" "_alloc" (func $alloc (param i32) (result i32)))
   (import "env" "argc" (func $argc (param i32) (result i32)))
   (import "env" "arg" (func $arg (param i32 i32) (result i32 i32)))
@@ -68,4 +72,28 @@
         (br $next)))
     (if (i32.rem_u (local.get $count) (i32.const 10))
       (then (call $out_nl)))
-    (i32.const 0)))
+    (i32.const 0))
+
+  ;; main's status: 0, or 1 and the output goes to stderr.
+  (global $status (mut i32) (i32.const 0))
+
+  (func $exit (param $status i32) (result i32)
+    (drop (call $sys (i32.const 1) (local.get $status) (i32.const 0) (i32.const 0)))
+    (i32.const 0))
+
+  (func $_start (export "_start") (param $argv i32) (param $len i32) (result i32)
+    (global.set $status (call $main (local.get $argv) (local.get $len)))
+    (if (call $out_flush (select (i32.const 2) (i32.const 1) (global.get $status)))
+      (then (return (i32.const 1))))
+    (call $exit (global.get $status)))
+
+  ;; Each answer is a write's; a failed write is status 1.
+  (func $_resume (export "_resume") (param $token i32) (param $reply i32) (param $len i32)
+                                    (result i32)
+    (local $more i32)
+    (local.set $more (call $out_wrote (local.get $reply)))
+    (call $_free (local.get $reply) (local.get $len))
+    (if (i32.gt_s (local.get $more) (i32.const 0))
+      (then (return (i32.const 1))))
+    (call $exit (select (i32.const 1) (global.get $status)
+                        (i32.lt_s (local.get $more) (i32.const 0))))))

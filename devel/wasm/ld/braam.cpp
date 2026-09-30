@@ -50,7 +50,7 @@ constexpr Str USAGE =
     "    --braam-abi=<n>            process ABI to stamp; the SDK's by default\n"
     "    --dump <file>              print an object's symbols and relocations\n"
     "Libraries, and objects named without a directory that are not here,\n"
-    "are also looked for in the package's lib/, which holds crt.o and libw.a.\n";
+    "are also looked for in the package's lib/, which holds libw.a.\n";
 
 // Everything the front end holds, off the coroutine frame.
 struct Front {
@@ -109,7 +109,7 @@ Task<i32> finish(Front &s, bool ok)
 }
 
 // The package's lib/, beside the bin/ that /pkg/bin/ld leads to, or in the
-// first wasm package in the store. It holds crt.o and libw.a.
+// first wasm package in the store. It holds libw.a.
 Task<void> find_libdir(Front &s)
 {
     Result<String> link = co_await read_link("/pkg/bin/ld");
