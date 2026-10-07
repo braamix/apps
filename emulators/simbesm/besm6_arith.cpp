@@ -243,42 +243,105 @@ status_t besm6_add(value_t val, int negate_acc, int negate_val)
     return normalize_and_round(acc, mr, rnd_rq);
 }
 
-// non-restoring division
-#define ABS(x)   ((x) < 0 ? -x : x)
-#define INT64(x) ((x) & BIT41 ? (0xFFFFFFFFFFFFFFFFLL << 40) | (x) : x)
-static alureg_t nrdiv(alureg_t n, alureg_t d)
+// Mantissa division as the arithmetic unit performs it (TO IY1 700 000 TO-3,
+// part IV, section 4.16, sheets 86-102). Non-restoring division, but the
+// remainder is kept in carry-save form (sums and carries) and the carries are
+// not resolved; only the high bits 41-39 are (RSUD, RPUD, RUD). From them and
+// from the previous action (ZU+ChVR) the next action is chosen: subtract the
+// divisor, add it, or shift only (table 4.4). The quotient is accumulated as
+// two components of 42 bits each (41 plus an extra bit): a positive one (ROM)
+// and a negative one (VRU). At the end the quotient is ROM - VRU with a
+// special rounding (sheet 102), under which an exact division is always exact.
+//
+// Mantissas are 42-bit two's complement (two sign bits), the divisor is
+// normalized. Result: the quotient mantissa on the same grid, |q| <= 2,
+// normalization is up to the caller. Reference model: tools/b6div.py
+// in simh-besm6.
+#define DBIT(x, n) ((int)((x) >> ((n) - 1)) & 1)
+static uint64_t au_divide(uint64_t x, uint64_t y)
 {
-    int64_t nn, dd, q, res;
-    alureg_t quot;
+    const uint64_t lo   = BITS40 >> 2; // carry-save part: bits 38..1
+    const uint64_t lo39 = BITS40 >> 1; // bits 39..1
+    int yneg            = DBIT(y, 41);
+    uint64_t s2, c2, yv, sm, cr, pos, neg, lo_s, lo_c;
+    int sud, pud, rud, zu_plus, act, i, a, b, t39, t40;
+    int pe, ne, p1, n1, dpr, r1;
 
-    // to compensate for potential normalization to the right
-    nn  = INT64(n.mantissa) * 2;
-    dd  = INT64(d.mantissa) * 2;
-    res = 0, q = BIT41;
+    // Remainder R0 = X/2: high bits 41-39 go to RSUD, low bits in
+    // single-row code to SM. s2/c2 is the carry-save remainder, already
+    // shifted left (bits 39-1); on the first cycle it is X itself.
+    s2      = x & lo39;
+    c2      = 0;
+    sud     = DBIT(x, 42) << 2 | DBIT(x, 41) << 1 | DBIT(x, 40);
+    pud     = 0;
+    rud     = DBIT(x, 41) << 1 | DBIT(x, 40); // remainder bits 40,39
+    zu_plus = !DBIT(x, 41) && yneg;           // sheet 100
+    pos = neg = 0;
 
-    if (ABS(nn) >= ABS(dd)) {
-        // normalization to the right
-        nn /= 2;
-        n.exponent++;
-    }
-    while (q > 1) {
-        if (nn == 0)
-            break;
+    for (i = 0; i < 42; i++) {
+        // Table 4.4: when the first sign is 0 the action repeats the
+        // previous one; otherwise the remainder sign is taken from the
+        // carry out of the resolved bits 40,39; code I,II means the sign
+        // is unknown, shift only.
+        if (!(sud & 4))
+            act = zu_plus ? '+' : '-';
+        else if ((sud & 3) + pud == 3)
+            act = 's';
+        else
+            act = (((sud & 3) + pud >= 4) != yneg) ? '-' : '+';
+        zu_plus = (act == '+');
+        pos     = pos << 1 | (act == '-');
+        neg     = neg << 1 | (act == '+');
 
-        if (ABS(nn) < BIT40)
-            nn *= 2; // magic shortcut
-        else if ((nn > 0) ^ (dd > 0)) {
-            res -= q;
-            nn = 2 * nn + dd;
+        if (act == 's') {
+            // Shift only: RSUD bits 41,40 = 1, bit 39 of the carry-save
+            // code is added without the divisor, its carry goes to RPUD40
+            // (sheet 98). Bit 38 (carry to RPUD39, as in the circuit of
+            // sheet 99) is not mentioned on sheet 98: it was fitted to
+            // Dispak's constant E'E-10'.
+            a   = DBIT(s2, 39);
+            b   = DBIT(c2, 39);
+            sud = 6 | (a ^ b);
+            pud = (a & b) << 1;
+            a   = DBIT(s2, 38);
+            b   = DBIT(c2, 38);
+            pud |= a & b;
+            lo_s = (s2 & (lo >> 1)) | (uint64_t)(a ^ b) << 37;
+            lo_c = c2 & (lo >> 1);
         } else {
-            res += q;
-            nn = 2 * nn - dd;
+            // +ChVR is the divisor in direct code, -ChVR is its inverse
+            // with a 1 into bit 1
+            yv = (act == '+') ? y : ~y & BITS42;
+            sm = s2 ^ c2 ^ (yv & lo39);
+            cr = ((s2 & c2) | (s2 & yv & lo39) | (c2 & yv & lo39)) << 1;
+            if (act == '-')
+                cr |= 1;
+            // Bit 39 of the sum goes to RSUD, the carries out of 39 and 38
+            // to RPUD; bits 41,40 are the shifted RUD plus the divisor.
+            t39  = rud & 1;
+            t40  = rud >> 1;
+            sud  = (t40 ^ DBIT(yv, 41) ^ (t39 & DBIT(yv, 40))) << 2 | (t39 ^ DBIT(yv, 40)) << 1 |
+                   DBIT(sm, 39);
+            pud  = DBIT(cr, 40) << 1 | DBIT(cr, 39);
+            lo_s = sm & lo;
+            lo_c = cr & lo;
         }
-        q /= 2;
+        // RUD is the resolved bits 40,39 of the new remainder
+        rud = ((sud & 3) + pud) & 3;
+        s2  = lo_s << 1;
+        c2  = lo_c << 1;
     }
-    quot.mantissa = res / 2;
-    quot.exponent = n.exponent - d.exponent + 64;
-    return quot;
+
+    // Quotient = ROM + inverse code of VRU + DPR, plus a rounding 1 in 1rRS2
+    pe = pos & 1;
+    ne = neg & 1;
+    pos >>= 1;
+    neg >>= 1;
+    p1  = pos & 1;
+    n1  = neg & 1;
+    dpr = pe || (!ne && !pe) || (!p1 && ne && !n1);
+    r1  = pe && (n1 || p1);
+    return (pos + (~neg & BITS42) + dpr + r1) & BITS42;
 }
 
 // Division.
@@ -296,7 +359,13 @@ status_t besm6_divide(value_t val)
     dividend = toalu(ACC);
     divisor  = toalu(val);
 
-    acc = nrdiv(dividend, divisor);
+    acc.mantissa = au_divide(dividend.mantissa, divisor.mantissa);
+    acc.exponent = dividend.exponent - divisor.exponent + 64;
+    if (((acc.mantissa >> 1) ^ acc.mantissa) & BIT41) {
+        // Normalization to the right
+        acc.mantissa = acc.mantissa >> 1 | (acc.mantissa & BIT42);
+        ++acc.exponent;
+    }
 
     return normalize_and_round(acc, 0, 0);
 }
