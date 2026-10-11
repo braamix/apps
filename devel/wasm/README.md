@@ -1,6 +1,6 @@
 # wasm — WebAssembly tools for Braam
 
-The `wasm` package installs seven tools for WebAssembly. All run on Braam.
+The `wasm` package installs eight tools for WebAssembly. All run on Braam.
 
 - `ld`, a linker, turns the object files clang compiles into a program
   Braam can run. It does what `wasm-ld`, LLVM's linker, does, and gives
@@ -9,7 +9,7 @@ The `wasm` package installs seven tools for WebAssembly. All run on Braam.
   object. It does what `llvm-strip` does, and gives the same output.
 - `ar` makes and changes libraries of object files: archives, which `ld`
   links as `lib<name>.a`. It is FreeBSD's `ar`, and writes the same bytes
-  wat `llvm-ar --format=gnu`.
+  as `llvm-ar --format=gnu`.
 - `size` prints how big a program, an object or each member of an archive
   is: its code and data, or every section. It prints what `llvm-size`
   prints.
@@ -21,6 +21,9 @@ The `wasm` package installs seven tools for WebAssembly. All run on Braam.
 - `wat`, an assembler, turns WebAssembly's text format into an object for
   `ld`, or a module. It does what wabt's `wat2wasm` does, and gives the
   same output.
+- `as`, an assembler, turns LLVM's WebAssembly assembly, what `clang -S`
+  and vcc write, into an object for `ld`. It does what `llvm-mc` does, and
+  gives the same output.
 
 It also ships [example programs](#examples) written in the text format,
 which these tools build on Braam, and `libw.a` in `lib/`, which they
@@ -30,8 +33,8 @@ line by line, for a beginner.
 Each tool run with no arguments, or with `-h` or `--help` alone, prints
 its usage: what it does, and its options.
 
-The tests check the first five and `wat` byte for byte, and `disasm` line
-for line.
+The tests check the first five, `wat` and `as` byte for byte, and
+`disasm` line for line.
 
 ## Using ld
 
@@ -430,6 +433,17 @@ options, the symbols of its objects, the annotations for data that C
 reads and writes, where it differs from `wat2wasm`, how it works and how
 it is tested.
 
+## Using as
+
+    as [options] file.s ...
+
+`as` reads LLVM's WebAssembly assembly and writes each source as an
+object for `ld`, `file.o`. It writes what `llvm-mc` writes, and its
+messages are llvm's. It reads the part of the language vcc writes for
+Braam. [as/README.md](as/README.md) says what that is, how objects are
+laid out, where `as` differs from `llvm-mc`, how it works and how it is
+tested.
+
 ## Examples
 
 The package ships programs written in WebAssembly's text format, in its
@@ -597,9 +611,13 @@ The opcode table was made from `llvm-objdump`'s own output for every
 opcode, so it keeps llvm's names, but for `select`. A large program is
 written out a part at a time, so its text is never all in memory.
 
-### as
+### wat
 
 [wat/README.md](wat/README.md) describes its passes and files.
+
+### as
+
+[as/README.md](as/README.md) describes its files.
 
 ### ar
 
@@ -669,6 +687,10 @@ whole against a golden file.
 
 And it runs the tests of `wat`, and `make longtest` the one that is slow;
 [wat/README.md](wat/README.md#tests) describes them.
+
+And it runs the tests of `as`, which hold it to `llvm-mc` byte for byte
+and message for message;
+[as/README.md](as/README.md#tests) describes them.
 
 And it runs [examples/test/examples.mjs](examples/test/examples.mjs). The
 examples are built on Braam by their own `build.sh`, with `wat` and `ld`,

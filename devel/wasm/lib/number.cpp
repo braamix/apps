@@ -139,6 +139,9 @@ i32 cmp(const Big &a, const Big &b)
 
 Big g_num, g_den, g_a, g_b, g_t;
 
+// Whether the last float parsed was its literal's value exactly.
+bool g_exact;
+
 // ------------------------------------------------------------ floats
 
 struct Format {
@@ -261,8 +264,10 @@ Got round(const Big &num, const Big &den, i64 b2, const Format &f, u64 &out)
     i64 e = lg + b2;
     if (e > f.emax)
         return Got::Range;
-    if (e < f.emin - i64(f.p) - 1)
+    if (e < f.emin - i64(f.p) - 1) {
+        g_exact = false;
         return Got::Zero; // below half the least subnormal
+    }
     // q, the value in units of the last place, and what is left over.
     i64 u = (e > f.emin ? e : f.emin) - (f.p - 1);
     i64 s = b2 - u;
@@ -279,6 +284,8 @@ Got round(const Big &num, const Big &den, i64 b2, const Format &f, u64 &out)
             q |= u64(1) << i;
         }
     }
+    if (g_a.bits())
+        g_exact = false;
     g_t.shl(g_a, 1);
     i32 c = cmp(g_t, g_b);
     if (c > 0 || (c == 0 && (q & 1)))
@@ -302,6 +309,7 @@ Got round(const Big &num, const Big &den, i64 b2, const Format &f, u64 &out)
 
 bool parse_float(Str s, const Format &f, u64 &bits)
 {
+    g_exact  = true;
     bool neg = s.starts_with("-");
     if (neg || s.starts_with("+"))
         s = s.substr(1);
@@ -327,6 +335,8 @@ bool parse_float(Str s, const Format &f, u64 &bits)
     g         = Digits();
     bool hex;
     Got got = split(s, hex, g);
+    if (g.sticky)
+        g_exact = false;
     u64 mag = 0;
     if (got == Got::Value) {
         g_num.set(0);
@@ -339,12 +349,15 @@ bool parse_float(Str s, const Format &f, u64 &bits)
             i64 a = g_num.bits();
             if (a + b2 - 1 > f.emax)
                 got = Got::Range;
-            else if (a + b2 < -1200)
-                got = Got::Zero;
+            else if (a + b2 < -1200) {
+                got     = Got::Zero;
+                g_exact = false;
+            }
         } else if (i64(g.n) + g.scale - 1 >= 310) {
             got = Got::Range; // at least 10^309
         } else if (i64(g.n) + g.scale <= -330) {
-            got = Got::Zero; // below 10^-330
+            got     = Got::Zero; // below 10^-330
+            g_exact = false;
         } else {
             Big &by = g.scale >= 0 ? g_num : g_den;
             for (i64 k = g.scale >= 0 ? g.scale : -g.scale; k > 0; k--)
@@ -390,7 +403,10 @@ bool parse_f32(Str s, u32 &bits)
     return true;
 }
 
-bool parse_f64(Str s, u64 &bits)
+bool parse_f64(Str s, u64 &bits, bool *exact)
 {
-    return parse_float(s, F64, bits);
+    bool ok = parse_float(s, F64, bits);
+    if (exact)
+        *exact = g_exact;
+    return ok;
 }

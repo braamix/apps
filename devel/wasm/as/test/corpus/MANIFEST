@@ -1,0 +1,4 @@
+vcc 937a00c4
+crt0.s: libc/wasm32/braam/exports.s
+doprnt.s: build/libc/wasm32/doprnt.s, vcc -t wasm32
+notes.s: docs/examples/notes.c, vcc -t wasm32-braam -S

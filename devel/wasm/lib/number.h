@@ -16,4 +16,6 @@ bool parse_int(Str s, u32 bits, u64 &v);
 
 // fN, integers included: 1, -0x10, 1.5e3, inf, -nan, nan:0x1.
 bool parse_f32(Str s, u32 &bits);
-bool parse_f64(Str s, u64 &bits);
+// `exact`, when asked, says whether the value is the literal's own, not
+// rounded to it.
+bool parse_f64(Str s, u64 &bits, bool *exact = nullptr);

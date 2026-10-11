@@ -93,7 +93,7 @@ this, §9.1 of the language.
   object each is a relocation: `MEMORY_ADDR_SLEB` (or `_SLEB64`),
   `MEMORY_ADDR_LEB` (or `_LEB64`) and `MEMORY_ADDR_I32`.
 - An object with data symbols imports memory 0 as `env.__linear_memory`,
-  wat clang's do, and has segment info. A module has the addresses written
+  as clang's do, and has segment info. A module has the addresses written
   in instead.
 
 For the same variables, the object has the segments, offsets, symbols and
@@ -179,7 +179,7 @@ A source goes through five passes, each over the whole module:
 | File | What it does |
 | --- | --- |
 | `lexer.cpp` | tokens with their locations (§3) |
-| `number.cpp` | integer and float literals to bits, exactly (§4) |
+| [../lib/number.cpp](../lib/number.cpp) | integer and float literals to bits, exactly (§4) |
 | `parser.cpp` | tokens to the tree, the text format's abbreviations undone |
 | `resolve.cpp` | ids to indices, implicit types, inline exports and segments, data addresses |
 | `valid.cpp` | validation, the reference interpreter's algorithm and messages |

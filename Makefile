@@ -47,7 +47,7 @@ REPO_URL      ?= https://braamix.github.io
 # G. A client refuses an index whose version is below the one it holds, so this
 # rises at every publication. It cannot be derived: only the publisher knows
 # what was last uploaded.
-INDEX_VERSION ?= 63
+INDEX_VERSION ?= 64
 
 # E, milliseconds since the epoch: 2027-08-21. A promise to re-sign by then.
 INDEX_EXPIRY  ?= 1818806400000
@@ -208,6 +208,9 @@ TESTS := \
     devel/wasm/wat/test/link.mjs \
     devel/wasm/wat/test/annot.mjs \
     devel/wasm/wat/test/valid.mjs \
+    devel/wasm/as/test/empty.mjs \
+    devel/wasm/as/test/objects.mjs \
+    devel/wasm/as/test/errors.mjs \
     devel/wasm/examples/test/examples.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
