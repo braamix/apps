@@ -47,7 +47,7 @@ REPO_URL      ?= https://braamix.github.io
 # G. A client refuses an index whose version is below the one it holds, so this
 # rises at every publication. It cannot be derived: only the publisher knows
 # what was last uploaded.
-INDEX_VERSION ?= 62
+INDEX_VERSION ?= 63
 
 # E, milliseconds since the epoch: 2027-08-21. A promise to re-sign by then.
 INDEX_EXPIRY  ?= 1818806400000
@@ -196,18 +196,18 @@ TESTS := \
     devel/wasm/size/test/size.mjs \
     devel/wasm/nm/test/nm.mjs \
     devel/wasm/disasm/test/disasm.mjs \
-    devel/wasm/as/test/asdl.mjs \
-    devel/wasm/as/test/optable.mjs \
-    devel/wasm/as/test/empty.mjs \
-    devel/wasm/as/test/lexer.mjs \
-    devel/wasm/as/test/number.mjs \
-    devel/wasm/as/test/parser.mjs \
-    devel/wasm/as/test/resolve.mjs \
-    devel/wasm/as/test/module.mjs \
-    devel/wasm/as/test/spec.mjs \
-    devel/wasm/as/test/link.mjs \
-    devel/wasm/as/test/annot.mjs \
-    devel/wasm/as/test/valid.mjs \
+    devel/wasm/wat/test/asdl.mjs \
+    devel/wasm/wat/test/optable.mjs \
+    devel/wasm/wat/test/empty.mjs \
+    devel/wasm/wat/test/lexer.mjs \
+    devel/wasm/wat/test/number.mjs \
+    devel/wasm/wat/test/parser.mjs \
+    devel/wasm/wat/test/resolve.mjs \
+    devel/wasm/wat/test/module.mjs \
+    devel/wasm/wat/test/spec.mjs \
+    devel/wasm/wat/test/link.mjs \
+    devel/wasm/wat/test/annot.mjs \
+    devel/wasm/wat/test/valid.mjs \
     devel/wasm/examples/test/examples.mjs \
     benchmarks/dhrystone/test/interrupt.mjs \
     benchmarks/duremark/test/interrupt.mjs \
@@ -271,7 +271,7 @@ LONGTESTS := \
     lang/python/test/pycases.mjs,--shard=2/4 \
     lang/python/test/pycases.mjs,--shard=3/4 \
     lang/python/test/pycases.mjs,--shard=4/4 \
-    devel/wasm/as/test/object.mjs
+    devel/wasm/wat/test/object.mjs
 
 # `make test STRESS=1`. Python's cases are run a second time collecting at
 # every allocation, which is what says a C++ hand holding an object across an

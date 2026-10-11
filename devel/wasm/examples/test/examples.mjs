@@ -1,4 +1,4 @@
-// The examples, built on Braam by their own build.sh with as and ld, and
+// The examples, built on Braam by their own build.sh with wat and ld, and
 // run. ld finds libw.a in the package's lib/, planted as pkg installs
 // it. The library is then built from its sources on Braam too,
 // and must be the package's. Each program must have the surface of a
@@ -46,7 +46,7 @@ function die(msg) {
 const m = manifest();
 const H = await boot();
 const L = linkers(H, m);
-for (const t of ["as", "ar"])
+for (const t of ["wat", "ar"])
     plant(H, `/bin/${t}`, new Uint8Array(readFileSync(join(BUILD, `${t}/${t}.wasm`))));
 const bad = [];
 
@@ -70,7 +70,7 @@ plant(H, `${PKG}/lib/libw.a`, shipped);
 
 // build.sh.
 H.store.dirs.add("/tmp/ex");
-const sources = readdirSync(SRC).filter((f) => f.endsWith(".s") || f === "build.sh");
+const sources = readdirSync(SRC).filter((f) => f.endsWith(".wat") || f === "build.sh");
 for (const f of sources)
     plant(H, `/tmp/ex/${f}`, new Uint8Array(readFileSync(join(SRC, f))));
 const b = sh("sh build.sh");
@@ -81,7 +81,7 @@ for (const p of PROGRAMS)
     file(p);
 
 // The library, as build.sh says to build it here: the package's bytes.
-const lib = sh("as proc.s fmt.s args.s && ar rc libw.a proc.o fmt.o args.o");
+const lib = sh("wat proc.wat fmt.wat args.wat && ar rc libw.a proc.o fmt.o args.o");
 if (lib.status !== 0 || lib.err)
     die(`the library: status ${lib.status}\n${lib.err}`);
 if (Buffer.compare(Buffer.from(file("libw.a")), Buffer.from(shipped)) !== 0)
@@ -106,7 +106,7 @@ for (const p of PROGRAMS) {
 }
 
 // wasm-ld links the same objects to the same module, with the memory
-// defined, as as/test/link.mjs explains, and but for ld's braam section.
+// defined, as wat/test/link.mjs explains, and but for ld's braam section.
 for (const f of ["libw.a", ...PROGRAMS.map((p) => `${p}.o`)])
     writeFileSync(join(L.tmp, f), file(f));
 const tail = Buffer.from([0, 26, 5, ...Buffer.from("braam")]);
@@ -152,7 +152,7 @@ const copy = H.store.files.get("/tmp/ex/copy");
 if (c.status !== 0 || !copy || Buffer.compare(Buffer.from(copy), Buffer.from(bytes)) !== 0)
     bad.push(`cat: status ${c.status}, and ${copy?.length ?? 0} bytes not the 3000 given`);
 
-// 5 MB of primes through fmt.s's buffer, doubled as it fills.
+// 5 MB of primes through fmt.wat's buffer, doubled as it fills.
 const p = sh("./primes 10000000 | wc");
 if (p.out.trim().split(/\s+/).join(" ") !== "66458 664579 5227116")
     bad.push(`primes 10000000 | wc: ${p.out}`);

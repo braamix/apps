@@ -1,5 +1,5 @@
 // Every instruction of the text format by its name, as
-// Wasm_Assembly_Language.md §7.5 and §10 list them: its encoding, the
+// Wasm_Text_Format.md §7.5 and §10 list them: its encoding, the
 // shape of its immediates, and its natural alignment. `else`, `end`,
 // `catch`, `catch_all` and `delegate` are syntax, not instructions.
 #pragma once

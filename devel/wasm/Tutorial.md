@@ -1,38 +1,38 @@
 # Programming Braam in assembly
 
 This tutorial explains two small programs, line by line. Both print
-`hello, world`. [examples/hello.s](examples/hello.s) does everything
+`hello, world`. [examples/hello.wat](examples/hello.wat) does everything
 itself, and shows how a Braam program really works.
-[examples/hello2.s](examples/hello2.s) is the same program with a
+[examples/hello2.wat](examples/hello2.wat) is the same program with a
 library, `libw.a`, doing the writing.
 
 You need the `wasm` package. Install it, and copy the examples out:
 
     $ pkg install wasm
-    $ cp /pkg/store/wasm-*/share/hello*.s .
+    $ cp /pkg/store/wasm-*/share/hello*.wat .
 
-Then assemble each program with `as`, and link it with `ld`:
+Then assemble each program with `wat`, and link it with `ld`:
 
-    $ as hello.s
+    $ wat hello.wat
     $ ld hello.o -o hello
     $ ./hello
     hello, world
-    $ as hello2.s
+    $ wat hello2.wat
     $ ld hello2.o -lw -o hello2
     $ ./hello2
     hello, world
 
-`as hello.s` writes the object `hello.o`, and `ld` makes it the program
+`wat hello.wat` writes the object `hello.o`, and `ld` makes it the program
 `hello`. `hello2` is linked with the library `libw.a` too, which `-lw`
 names. `ld` finds it in the package.
 
 ## 1. What you are writing
 
 A Braam program is a **WebAssembly module**, and the kernel runs it. You
-write it in WebAssembly's *text format*, in a file ending in `.s`. Two
+write it in WebAssembly's *text format*, in a file ending in `.wat`. Two
 tools turn it into a program:
 
-- `as` assembles `hello.s` into an **object**, `hello.o`;
+- `wat` assembles `hello.wat` into an **object**, `hello.o`;
 - `ld` links objects and libraries into a **program**, `hello`.
 
 WebAssembly is a **stack machine**. An instruction takes its operands
@@ -59,9 +59,9 @@ A few more words you will see:
 - **`_s` and `_u`**: signed and unsigned. `i32.lt_u` compares as
   unsigned, `i32.le_s` as signed.
 
-## 2. hello.s: the whole story
+## 2. hello.wat: the whole story
 
-`hello.s` talks to the kernel itself. First, how the kernel runs a
+`hello.wat` talks to the kernel itself. First, how the kernel runs a
 program.
 
 ### How the kernel runs a program
@@ -173,7 +173,7 @@ arguments, which Exit does not use, so they are 0.
 
 `sys` returns a number, and we do not need it. `drop` throws it away. A
 function must end with exactly its result on the stack, so a number left
-over is an error, and `as` refuses it.
+over is an error, and `wat` refuses it.
 
 Exit does not stop the program. It only records the status. The program
 stops when its step returns 0, so `$exit` returns 0, for the caller to
@@ -247,7 +247,7 @@ calls `_sig` for a signal the program asked for, and `hello` asks for
 none. A function with no body just returns.
 
 `libw.a` has an `_alloc` that gives blocks back:
-[examples/proc.s](examples/proc.s). The other examples use it.
+[examples/proc.wat](examples/proc.wat). The other examples use it.
 
 ### _start: the first step
 
@@ -309,13 +309,13 @@ more.
 Everything is written. Set exit status 0, and return 0: the program is
 finished.
 
-## 3. hello2.s: with a library
+## 3. hello2.wat: with a library
 
-`hello2.s` has a `_start` and a `_resume` shaped as `hello.s`'s, but it
+`hello2.wat` has a `_start` and a `_resume` shaped as `hello.wat`'s, but it
 leaves the memory and the writing to `libw.a`. Only what is new is
 explained here.
 
-    ;;   as hello2.s
+    ;;   wat hello2.wat
     ;;   ld hello2.o -lw -o hello2
 
 `-lw` links the library `libw.a`. `ld` finds it in the package's `lib/`.
@@ -338,7 +338,7 @@ module name `"env"` means "another object linked with this one":
   ask for the rest after a short write, 0 if all is written, and -1 if
   the write failed.
 
-`hello2.s` exports no `_alloc`, `_free` or `_sig`. They come from
+`hello2.wat` exports no `_alloc`, `_free` or `_sig`. They come from
 `libw.a`: `ld` takes the part of the library that defines `_free`, and
 the other two are in the same part.
 
@@ -346,7 +346,7 @@ the other two are in the same part.
       (drop (call $sys (i32.const 1) (local.get $status) (i32.const 0) (i32.const 0)))
       (i32.const 0))
 
-The same as in `hello.s`.
+The same as in `hello.wat`.
 
     (func $_start (export "_start") (param $argv i32) (param $len i32) (result i32)
       (call $out_str (i32.const (@reloc $msg)) (i32.const 13))
@@ -390,15 +390,15 @@ a failed write, and 0 if not: exactly the exit status we want.
 `libw.a` is a **library**: several objects in one file, which `ar` made.
 `ld` takes from it only the objects that define a name the program uses.
 
-- [examples/proc.s](examples/proc.s): `_alloc`, `_free` and `_sig`. Its
+- [examples/proc.wat](examples/proc.wat): `_alloc`, `_free` and `_sig`. Its
   `_alloc` gives blocks back too, if they are freed in the reverse order.
-- [examples/fmt.s](examples/fmt.s): the output, kept in memory and then
+- [examples/fmt.wat](examples/fmt.wat): the output, kept in memory and then
   written, and numbers in decimal: `out_str`, `out_byte`, `out_u64`,
   `out_nl`, `out_flush`, `out_wrote`, `parse_u64`.
-- [examples/args.s](examples/args.s): the arguments, one at a time:
+- [examples/args.wat](examples/args.wat): the arguments, one at a time:
   `argc` and `arg`.
 
-`out_flush` and `out_wrote` are `hello.s`'s `$write` and the second half
+`out_flush` and `out_wrote` are `hello.wat`'s `$write` and the second half
 of its `_resume`, moved into the library.
 
 ## 5. Which way to choose
@@ -406,24 +406,24 @@ of its `_resume`, moved into the library.
 Every program has its own `_start` and `_resume`: the kernel calls them,
 and only the program knows what it is waiting for.
 
-A program that computes, prints and exits looks like `hello2.s`:
-[examples/fib.s](examples/fib.s) and [examples/primes.s](examples/primes.s)
+A program that computes, prints and exits looks like `hello2.wat`:
+[examples/fib.wat](examples/fib.wat) and [examples/primes.wat](examples/primes.wat)
 compute in a function `$main`, then write what it printed.
 
 A program that must wait more than once keeps track of what it asked
-for. [examples/cat.s](examples/cat.s) reads its input piece by piece,
+for. [examples/cat.wat](examples/cat.wat) reads its input piece by piece,
 and writes each piece before it reads the next. Its `_resume` uses the
 token to tell a read's answer from a write's.
 
 ## Where to go next
 
-- [examples/echo.s](examples/echo.s): how the arguments are laid out.
-- [examples/cat.s](examples/cat.s): reading, and a program that waits
+- [examples/echo.wat](examples/echo.wat): how the arguments are laid out.
+- [examples/cat.wat](examples/cat.wat): reading, and a program that waits
   many times.
 - [README.md](README.md#examples): every call and answer, in one list.
-- [Wasm_Assembly_Language.md](Wasm_Assembly_Language.md): the whole
-  language `as` reads.
+- [Wasm_Text_Format.md](Wasm_Text_Format.md): the whole
+  language `wat` reads.
 - [Wasm_Bytecode.md](Wasm_Bytecode.md): every instruction.
 
-To see what `as` made of your code, run `disasm hello`. To see its
+To see what `wat` made of your code, run `disasm hello`. To see its
 symbols, run `nm hello.o`.

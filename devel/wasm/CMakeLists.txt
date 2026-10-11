@@ -16,11 +16,11 @@ add_subdirectory(ar)
 add_subdirectory(size)
 add_subdirectory(nm)
 add_subdirectory(disasm)
-add_subdirectory(as)
+add_subdirectory(wat)
 add_subdirectory(examples)
 
 # The examples, as share/: programs in WebAssembly text and their build.sh.
-file(GLOB WASM_SHARE_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.s
+file(GLOB WASM_SHARE_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/examples/*.wat
                                               ${CMAKE_CURRENT_SOURCE_DIR}/examples/build.sh)
 # And the documents: the tools', the tutorial, and the formats'.
 file(GLOB WASM_DOCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/*.md)
@@ -30,10 +30,10 @@ foreach(f ${WASM_SHARE_SRC} ${WASM_DOCS})
     list(APPEND WASM_SHARE ${f}=share/${n})
 endforeach()
 
-braam_add_package(NAME wasm VERSION 0.3-r0
-                  FIELD "T=WebAssembly tools: ld, strip, ar, size, nm, disasm and as"
+braam_add_package(NAME wasm VERSION 0.4-r0
+                  FIELD "T=WebAssembly tools: ld, strip, ar, size, nm, disasm and wat"
                   FILES ${WASM_SHARE}
-                        ${CMAKE_CURRENT_SOURCE_DIR}/as/README.md=share/Assembler.md
+                        ${CMAKE_CURRENT_SOURCE_DIR}/wat/README.md=share/Wat.md
                         ${CMAKE_CURRENT_BINARY_DIR}/examples/libw.a=lib/libw.a
                         $<TARGET_FILE:bin_ld>=bin/ld
                         $<TARGET_FILE:bin_strip>=bin/strip
@@ -41,7 +41,7 @@ braam_add_package(NAME wasm VERSION 0.3-r0
                         $<TARGET_FILE:bin_size>=bin/size
                         $<TARGET_FILE:bin_nm>=bin/nm
                         $<TARGET_FILE:bin_disasm>=bin/disasm
-                        $<TARGET_FILE:bin_as>=bin/as)
+                        $<TARGET_FILE:bin_wat>=bin/wat)
 
 if(TARGET packages)
     add_dependencies(packages pkg_wasm)

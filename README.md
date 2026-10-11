@@ -14,7 +14,7 @@ that runs in a browser tab.
 | [archivers/zstd](archivers/zstd/) | Zstandard 1.6.0 — zstd/unzstd/zstdcat/zstdmt, and gzip, xz and lzma with it |
 | [converters/iconv](converters/iconv/) | Citrus iconv, and the two hundred character sets it converts between |
 | [devel/c4](devel/c4/) | C4, C in four functions — a tiny compiler that compiles itself |
-| [devel/wasm](devel/wasm/) | WebAssembly tools: `ld`, a linker that links Braam programs on Braam, `strip` and `ar` |
+| [devel/wasm](devel/wasm/) | WebAssembly tools: `ld`, a linker that links Braam programs on Braam, `strip`, `ar`, `size`, `nm`, `disasm` and `wat`, an assembler for the text format |
 | [editors/eh](editors/eh/) | EH 1.8.1, Edit Here — vi the good parts version, and the smallest editor here |
 | [editors/le](editors/le/) | LE 1.16.8, the block editor, with its own curses |
 | [editors/uemacs](editors/uemacs/) | uEmacs/PK 4.0.15, MicroEMACS as Linus Torvalds keeps it |

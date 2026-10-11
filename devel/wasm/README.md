@@ -9,7 +9,7 @@ The `wasm` package installs seven tools for WebAssembly. All run on Braam.
   object. It does what `llvm-strip` does, and gives the same output.
 - `ar` makes and changes libraries of object files: archives, which `ld`
   links as `lib<name>.a`. It is FreeBSD's `ar`, and writes the same bytes
-  as `llvm-ar --format=gnu`.
+  wat `llvm-ar --format=gnu`.
 - `size` prints how big a program, an object or each member of an archive
   is: its code and data, or every section. It prints what `llvm-size`
   prints.
@@ -18,7 +18,7 @@ The `wasm` package installs seven tools for WebAssembly. All run on Braam.
 - `disasm` shows the code of a program, an object or each member of an
   archive as instructions, and its data as bytes. The code is laid out as
   `llvm-objdump -d` lays it out, with better comments.
-- `as`, an assembler, turns WebAssembly's text format into an object for
+- `wat`, an assembler, turns WebAssembly's text format into an object for
   `ld`, or a module. It does what wabt's `wat2wasm` does, and gives the
   same output.
 
@@ -30,7 +30,7 @@ line by line, for a beginner.
 Each tool run with no arguments, or with `-h` or `--help` alone, prints
 its usage: what it does, and its options.
 
-The tests check the first five and `as` byte for byte, and `disasm` line
+The tests check the first five and `wat` byte for byte, and `disasm` line
 for line.
 
 ## Using ld
@@ -418,14 +418,14 @@ in one file is reported, and the other files are still shown.
 Like `nm`, it reads any well-formed module, also what `ld` does not link.
 A wasm64 module's addresses have sixteen digits, as llvm prints them.
 
-## Using as
+## Using wat
 
-    as [options] file.s ...
+    wat [options] file.wat ...
 
-`as` reads modules in WebAssembly's text format and writes each one as an
+`wat` reads modules in WebAssembly's text format and writes each one as an
 object for `ld`, `file.o`, or with `--module` as a module, `file.wasm`. It
 writes what `wat2wasm` writes, and its messages are the reference
-interpreter's. [as/README.md](as/README.md) says how to use it: its
+interpreter's. [wat/README.md](wat/README.md) says how to use it: its
 options, the symbols of its objects, the annotations for data that C
 reads and writes, where it differs from `wat2wasm`, how it works and how
 it is tested.
@@ -443,44 +443,44 @@ each one talks to the kernel itself. Copy them out and build them:
 
 | File | What it is |
 | --- | --- |
-| `hello.s` | the smallest program: one write, and exit |
-| `echo.s` | writes its arguments, which it finds in the block `_start` is given |
-| `cat.s` | copies stdin to stdout: a loop of reads and writes, turned inside out |
-| `hello2.s` | `hello.s` again, with `libw.a` doing the writing |
-| `fib.s` | the Fibonacci numbers, in `i64` and by recursion |
-| `primes.s` | the sieve of Eratosthenes |
-| `proc.s` | `_alloc`, `_free` and `_sig`, which every program needs; in `libw.a` |
-| `fmt.s` | output into a buffer, the writes that empty it, and numbers in decimal; in `libw.a` |
-| `args.s` | the arguments, one by one; in `libw.a` |
+| `hello.wat` | the smallest program: one write, and exit |
+| `echo.wat` | writes its arguments, which it finds in the block `_start` is given |
+| `cat.wat` | copies stdin to stdout: a loop of reads and writes, turned inside out |
+| `hello2.wat` | `hello.wat` again, with `libw.a` doing the writing |
+| `fib.wat` | the Fibonacci numbers, in `i64` and by recursion |
+| `primes.wat` | the sieve of Eratosthenes |
+| `proc.wat` | `_alloc`, `_free` and `_sig`, which every program needs; in `libw.a` |
+| `fmt.wat` | output into a buffer, the writes that empty it, and numbers in decimal; in `libw.a` |
+| `args.wat` | the arguments, one by one; in `libw.a` |
 | `build.sh` | the commands that build the six programs |
 
 Every program has its own `_start` and `_resume`. `libw.a` is also in the
 package's `lib/`, built, where `ld` finds it. `hello` needs no library,
 and has an `_alloc` of its own; the others link with `libw.a`:
 
-    as hello.s
+    wat hello.wat
     ld hello.o -o hello
-    as fib.s
+    wat fib.wat
     ld fib.o -lw -o fib
 
-`hello2`, `fib` and `primes` print into `fmt.s`'s buffer, then write it:
+`hello2`, `fib` and `primes` print into `fmt.wat`'s buffer, then write it:
 `_start` calls `out_flush`, and `_resume` gives each answer to
 `out_wrote`, which asks for the rest after a short write.
 
 To change the library, build it in the current directory, and name that
 directory to `ld` first:
 
-    as proc.s fmt.s args.s
+    wat proc.wat fmt.wat args.wat
     ar rc libw.a proc.o fmt.o args.o
     ld fib.o -L. -lw -o fib
 
-The kernel's two functions are imports from `kernel`, and `as` marks an
+The kernel's two functions are imports from `kernel`, and `wat` marks an
 import from any module but `env` as the host's, so `ld` leaves it an
 import. An import from `env` is a symbol that another object defines, and
 `ld` refuses it if none does, as it refuses a missing C function.
 
 `ld` stamps the program for the SDK's process ABI. So do not write a
-`braam` section by hand with `as --module`: it breaks when the ABI moves.
+`braam` section by hand with `wat --module`: it breaks when the ABI moves.
 
 A program is a module that imports `env.memory`, `kernel.sys` and
 `kernel.sys_async`, and exports these five functions and nothing else:
@@ -599,7 +599,7 @@ written out a part at a time, so its text is never all in memory.
 
 ### as
 
-[as/README.md](as/README.md) describes its passes and files.
+[wat/README.md](wat/README.md) describes its passes and files.
 
 ### ar
 
@@ -617,8 +617,8 @@ messages. [ar/README.md](ar/README.md) says what had to change.
 [Wasm_Object_Format.md](Wasm_Object_Format.md) describes the file format
 `ld` reads and writes, byte by byte,
 [Wasm_Bytecode.md](Wasm_Bytecode.md) the instructions `disasm` prints, and
-[Wasm_Assembly_Language.md](Wasm_Assembly_Language.md) the text format
-`as` reads.
+[Wasm_Text_Format.md](Wasm_Text_Format.md) the text format
+`wat` reads.
 
 ## Tests
 
@@ -667,13 +667,13 @@ against the relocations and the functions called. The data rows must give
 back every segment's bytes at its address, and one object is checked
 whole against a golden file.
 
-And it runs the tests of `as`, and `make longtest` the one that is slow;
-[as/README.md](as/README.md#tests) describes them.
+And it runs the tests of `wat`, and `make longtest` the one that is slow;
+[wat/README.md](wat/README.md#tests) describes them.
 
 And it runs [examples/test/examples.mjs](examples/test/examples.mjs). The
-examples are built on Braam by their own `build.sh`, with `as` and `ld`,
+examples are built on Braam by their own `build.sh`, with `wat` and `ld`,
 which finds `libw.a` in the package's `lib/`. The library is then built
-there from its sources with `as` and `ar`, and must be the package's byte
+there from its sources with `wat` and `ar`, and must be the package's byte
 for byte. `ld` must refuse a program that needs `libw.a` and is linked
 without it. Each program must import and export exactly what a Braam
 program does. `wasm-ld` must link the same objects to the same bytes,
