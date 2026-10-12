@@ -203,6 +203,13 @@ void   f$init(char *fp, A a, B b)      stores the arguments in the frame
 size_t f$co[2] = { size, align }       the frame's size and alignment
 ```
 
+A variadic coroutine's `f$init` takes `...` too, and after the variable arguments'
+address their size (the TAC function type's `va_sized`; `Wasm_Backend.md`). Its body
+has one more parameter, `.va`, which `va_start` reads and `f$init` stores as
+`__coro_va_save(fp, __va_start(), __va_size())`: a copy of the buffer pushed on the
+task's arena right above the frame, so the frame's release gives it back too. The
+caller's buffer is in its calls' area, gone when `f$init` returns.
+
 A coroutine taking `(void)` or `(void *)` has a four-word `f$co`, `{ size, align,
 init, resume }` (§6), and for `(void)` a thunk `f$initp`; its words are `size_t`s. The
 frame starts with a header that is ABI (the tutorial's §10 has it): two `unsigned`
@@ -353,7 +360,8 @@ pass** finishes the job: LLVM's CoroSplit, scaled to this compiler.
    1% on the files with the most suspension points. State 0 falls into the body's
    first instruction.
 5. **Parameters** are dropped from `f$resume`'s list. `f$init(%.fp, %a, %b)` is made
-   as a function storing each at its offset (an aggregate in chunks), and `f$co` as a
+   as a function storing each at its offset (an aggregate in chunks), `.va` as the copy
+   `__coro_va_save` makes, and `f$co` as a
    static variable; both follow `f$resume` in the chain `translate()` returns. Nothing
    new reaches the backend but `JUMP_TABLE`.
 6. **The verifier** sees ordinary TAC: `fp` is a `char *`, and the frame accesses are

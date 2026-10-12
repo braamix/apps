@@ -154,7 +154,8 @@ static Tac_Type *ptr_init_type(void)
     return ft;
 }
 
-// The type of f$init: void (char *, params...), for coroutine type `fn`.
+// The type of f$init: void (char *, params...), for coroutine type `fn`; with `...`
+// for a variadic one, whose f$init takes the size of the variable arguments too.
 static Tac_Type *init_type(const Type *fn)
 {
     Tac_Type *ft  = tac_kind(TAC_TYPE_FUN_TYPE);
@@ -166,6 +167,7 @@ static Tac_Type *init_type(const Type *fn)
         pt  = &(*pt)->next;
     }
     ft->u.fun_type.ret_type = tac_kind(TAC_TYPE_VOID);
+    ft->u.fun_type.variadic = ft->u.fun_type.va_sized = unalias(fn)->u.function.variadic;
     return ft;
 }
 
@@ -563,6 +565,30 @@ Tac_Val *gen_alloca(TacCtx *ctx, Expr *e)
     Tac_Val *args[]    = { gen_expr(ctx, e->u.call.args) };
     Tac_Type *params[] = { size_type() };
     return emit_call(ctx, stack_builtin("alloca"), void_ptr(), 1, args, params);
+}
+
+// The runtime's __coro_va_save, which a variadic coroutine's f$init calls:
+// char *(char *fp, char *va, size_t size).
+static Tac_Type *va_save_type(void)
+{
+    Tac_Type *ft                           = tac_kind(TAC_TYPE_FUN_TYPE);
+    ft->u.fun_type.param_types             = char_ptr();
+    ft->u.fun_type.param_types->next       = char_ptr();
+    ft->u.fun_type.param_types->next->next = size_type();
+    ft->u.fun_type.ret_type                = char_ptr();
+    return ft;
+}
+
+void coro_note_variadic(TacCtx *ctx)
+{
+    tac_record_extern_tac(ctx, "__coro_va_save", va_save_type());
+}
+
+// va_start(ap) in a coroutine, __va_start(&ap): ap = its hidden parameter CORO_VA.
+Tac_Val *gen_coro_va_start(TacCtx *ctx, Expr *e)
+{
+    emit_store(ctx, val_var(CORO_VA), gen_expr(ctx, e->u.call.args));
+    return val_int(0);
 }
 
 static Tac_Val *start_frame(TacCtx *ctx, Expr *e)
@@ -1549,18 +1575,30 @@ Tac_TopLevel *coro_split(Tac_TopLevel *fn, const CoroSplit *info)
     }
     fn->u.function.body = s.head;
 
-    // f$init(fp, params...): store each parameter in its home.
+    // f$init(fp, params...): store each parameter in its home.  A variadic coroutine's
+    // takes `...` and their size instead of CORO_VA, and stores a copy of them.
     Tac_TopLevel *init      = tac_new_toplevel(TAC_TOPLEVEL_FUNCTION);
     init->u.function.name   = suffixed(info->name, "$init");
     init->u.function.global = info->global;
     init->u.function.params = fn->u.function.params;
-    init->u.function.type   = tac_new_type(TAC_TYPE_FUN_TYPE);
-    Tac_Type **pt           = &init->u.function.type->u.fun_type.param_types;
+    Tac_Param *va           = NULL;
+    if (info->variadic) {
+        Tac_Param **pp = &init->u.function.params;
+        while ((*pp)->next)
+            pp = &(*pp)->next;
+        va                        = *pp;
+        *pp                       = NULL;
+        init->u.function.variadic = true;
+    }
+    init->u.function.type = tac_new_type(TAC_TYPE_FUN_TYPE);
+    Tac_Type **pt         = &init->u.function.type->u.fun_type.param_types;
     for (const Tac_Param *p = init->u.function.params; p; p = p->next) {
         *pt = tac_clone_type(p->type);
         pt  = &(*pt)->next;
     }
     init->u.function.type->u.fun_type.ret_type = tac_new_type(TAC_TYPE_VOID);
+    init->u.function.type->u.fun_type.variadic = info->variadic;
+    init->u.function.type->u.fun_type.va_sized = info->variadic;
     {
         Split is  = { 0 };
         is.fn     = init;
@@ -1590,6 +1628,37 @@ Tac_TopLevel *coro_split(Tac_TopLevel *fn, const CoroSplit *info)
                 put_store(&is, val_var(p->name), a);
                 xfree(a);
             }
+        }
+        if (va) {
+            // CORO_VA's home = __coro_va_save(fp, __va_start(), __va_size()).
+            const char *b[] = { "__va_start", "__va_size" };
+            Tac_Type *bt[]  = { char_ptr(), size_type() };
+            char *v[2];
+            for (int j = 0; j < 2; j++) {
+                v[j]                    = split_temp(&is, tac_clone_type(bt[j]));
+                Tac_Instruction *in     = tac_new_instruction(TAC_INSTRUCTION_FUN_CALL);
+                in->u.fun_call.fun_name = xstrdup(b[j]);
+                in->u.fun_call.fun_type = tac_kind(TAC_TYPE_FUN_TYPE);
+                in->u.fun_call.fun_type->u.fun_type.ret_type = bt[j];
+                in->u.fun_call.dst                           = val_var(v[j]);
+                put(&is, in);
+            }
+            char *saved                     = split_temp(&is, char_ptr());
+            Tac_Instruction *in             = tac_new_instruction(TAC_INSTRUCTION_FUN_CALL);
+            in->u.fun_call.fun_name         = xstrdup("__coro_va_save");
+            in->u.fun_call.fun_type         = va_save_type();
+            in->u.fun_call.args             = val_var(s.fp);
+            in->u.fun_call.args->next       = val_var(v[0]);
+            in->u.fun_call.args->next->next = val_var(v[1]);
+            in->u.fun_call.dst              = val_var(saved);
+            put(&is, in);
+            char *a = put_offset(&is, s.homes[i].off, va->type);
+            put_store(&is, val_var(saved), a);
+            xfree(a);
+            xfree(saved);
+            xfree(v[0]);
+            xfree(v[1]);
+            tac_free_param(va);
         }
         Tac_Instruction *ret = tac_new_instruction(TAC_INSTRUCTION_RETURN);
         put(&is, ret);

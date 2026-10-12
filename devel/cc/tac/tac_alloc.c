@@ -58,6 +58,7 @@ Tac_Type *tac_clone_type(const Tac_Type *type)
         t->u.fun_type.param_types = tac_clone_type(type->u.fun_type.param_types);
         t->u.fun_type.ret_type    = tac_clone_type(type->u.fun_type.ret_type);
         t->u.fun_type.variadic    = type->u.fun_type.variadic;
+        t->u.fun_type.va_sized    = type->u.fun_type.va_sized;
         break;
     case TAC_TYPE_POINTER:
         t->u.pointer.target_type = tac_clone_type(type->u.pointer.target_type);

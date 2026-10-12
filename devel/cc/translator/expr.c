@@ -1794,6 +1794,9 @@ static Tac_Val *gen_expr_at(TacCtx *ctx, Expr *e)
         if (e->u.call.func->kind == EXPR_VAR &&
             strcmp(e->u.call.func->u.var, "__builtin_alloca") == 0)
             return gen_alloca(ctx, e);
+        if (ctx->coro && e->u.call.func->kind == EXPR_VAR &&
+            strcmp(e->u.call.func->u.var, "__va_start") == 0)
+            return gen_coro_va_start(ctx, e);
         Tac_Val *args_head  = NULL;
         Tac_Val **args_tail = &args_head;
         for (Expr *arg = e->u.call.args; arg; arg = arg->next) {

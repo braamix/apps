@@ -116,6 +116,8 @@ void check_frame_type(const Type *t)
 
 bool coroutine_has_coro_ptr(const Type *fn_type)
 {
+    if (unalias(fn_type)->u.function.variadic)
+        return false;
     const Param *p = unalias(fn_type)->u.function.params;
     if (!p)
         return true; // (void), its sentinel stripped: a coroutine always has a prototype
@@ -183,8 +185,6 @@ const Type *check_coroutine_decl(const char *name, const DeclSpec *spec, const T
             fatal_error("coroutine '%s' cannot be '_Noreturn'", name);
     }
     fn_type = unalias(fn_type);
-    if (fn_type->u.function.variadic)
-        fatal_error("coroutine '%s' cannot be variadic", name);
     if (!fn_type->u.function.params)
         fatal_error("coroutine '%s' needs a prototype: write (void) for no parameters", name);
     cs->yield_type = resolve_typedef_names(cs->yield_type);
@@ -345,6 +345,23 @@ Expr *typecheck_yield(Expr *e)
     return e;
 }
 
+// The variable arguments of a run of coroutine `name` of type `fn`, from `args`: the
+// frame keeps a copy of their buffer, which cannot hold the copy of a structure or a
+// union a variable argument passes by reference.
+static void check_variadic_args(const Type *fn, const Expr *args, const char *name)
+{
+    fn = unalias(fn);
+    if (!fn->u.function.variadic)
+        return;
+    for (const Param *p = fn->u.function.params; p && args; p = p->next)
+        args = args->next;
+    for (; args; args = args->next) {
+        const Type *t = unalias(args->type);
+        if (t->kind == TYPE_STRUCT || t->kind == TYPE_UNION)
+            fatal_error("a structure cannot be a variable argument of coroutine '%s'", name);
+    }
+}
+
 Expr *typecheck_await(Expr *e)
 {
     check_suspension("await");
@@ -360,6 +377,7 @@ Expr *typecheck_await(Expr *e)
             op                = typecheck_and_decay(op);
             arena_call        = outer;
             e->u.await_expr   = op;
+            check_variadic_args(sym->type, op->u.call.args, sym->name);
             free_type(e->type);
             e->type = clone_type(op->type, __func__, __FILE__, __LINE__);
             return e;
@@ -457,8 +475,9 @@ static void typecheck_start(Expr *e, const Type **yield, const Type **result)
     } else {
         const Symbol *sym = symtab_get(name->u.var);
         tail->next        = typecheck_call_args(unalias(sym->type), rest, name->u.var);
-        *yield            = sym->u.func.yield_type;
-        *result           = result_of(sym);
+        check_variadic_args(sym->type, tail->next, name->u.var);
+        *yield  = sym->u.func.yield_type;
+        *result = result_of(sym);
     }
     e->u.co_op.args = args;
 }

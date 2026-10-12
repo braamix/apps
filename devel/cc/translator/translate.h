@@ -277,6 +277,11 @@ void gen_coro_return(TacCtx *ctx, Tac_Val *value, const Type *type); // value ma
 void gen_co_release(TacCtx *ctx, const ExitAction *a);
 Tac_Val *gen_alloca(TacCtx *ctx, Expr *e);         // a call of __builtin_alloca
 void gen_finish_code(TacCtx *ctx, unsigned state); // a coroutine's state set, and return 1
+Tac_Val *gen_coro_va_start(TacCtx *ctx, Expr *e);  // va_start in a coroutine
+void coro_note_variadic(TacCtx *ctx);              // declares what a variadic one's f$init calls
+// A variadic coroutine's hidden last parameter: its variable arguments, which f$init
+// copies into the task's arena.
+#define CORO_VA ".va"
 
 // A coroutine after the optimizer: the split pass (stage 2) makes f$resume a state
 // machine over the frame, the user's parameters and every name live across a
@@ -287,6 +292,7 @@ typedef struct {
     int frame_start; // the end of the value and the result: where the rest goes
     int frame_align;
     bool with_ptr; // takes (void) or (void *): f$co holds init and resume too
+    bool variadic; // its last parameter is CORO_VA, which f$init does not take
 } CoroSplit;
 Tac_TopLevel *coro_split(Tac_TopLevel *fn, const CoroSplit *info);
 extern int coro_table_min; // suspension points from which the dispatch is a jump table,

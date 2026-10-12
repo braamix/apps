@@ -306,7 +306,7 @@ static void export_type(WFILE *out, const Tac_Type *t)
     case TAC_TYPE_FUN_TYPE:
         export_type(out, t->u.fun_type.param_types);
         export_type(out, t->u.fun_type.ret_type);
-        wputw(t->u.fun_type.variadic ? 1 : 0, out);
+        wputw((t->u.fun_type.variadic ? 1 : 0) | (t->u.fun_type.va_sized ? 2 : 0), out);
         break;
     case TAC_TYPE_POINTER:
         export_type(out, t->u.pointer.target_type);

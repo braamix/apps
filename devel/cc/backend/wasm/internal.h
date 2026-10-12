@@ -38,6 +38,7 @@ typedef struct {
     StringMap refs;              // name → the local holding its address + 1 (by reference)
     StringMap pindex;            // parameter → its first wasm parameter + 1
     int va_param;                // the parameter holding the variable arguments' address
+    int va_size_param;           // and their size, in a coroutine's f$init; or -1
     int call_area;               // the offset of the calls' area in the frame
     int scratch;                 // an i32 local for an address used twice + 1, or 0
     struct {

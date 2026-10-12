@@ -407,6 +407,11 @@ slot of at least 4 bytes, aligned to its type (a `double` 8, a `long double` 16)
 structure that is not a scalar takes a 4-byte slot holding the address of a copy; an
 empty one takes none. A call with no variable arguments passes 0.
 
+A function type marked `va_sized`, which only a variadic coroutine's `f$init` has, takes
+one more `i32` after the address: the bytes of the buffer's slots, the copies of
+structures not counted. `dst = __va_start()` and `dst = __va_size()`, with no
+argument, read the two parameters, in place as `__va_start(&ap)` is.
+
 `va_list` is a `char *` that walks the buffer. `va_start(ap, last)` is
 `__va_start(&ap)`, which the backend expands in place: it stores the hidden parameter
 into `ap`. No `.functype` is emitted for it. `va_arg` is a macro, which asks

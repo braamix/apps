@@ -124,8 +124,11 @@ void wasm_signature(const Tac_Type *fun_type, Wasm_Sig *sig)
             break;
         }
     }
-    // The variable arguments come in a buffer, by its address.
+    // The variable arguments come in a buffer, by its address, and for a coroutine's
+    // f$init its size.
     if (fun_type->u.fun_type.variadic)
+        add_param(sig, WASM_I32);
+    if (fun_type->u.fun_type.variadic && fun_type->u.fun_type.va_sized)
         add_param(sig, WASM_I32);
 }
 
@@ -219,8 +222,12 @@ void gen_init(Gen *g, const Tac_TopLevel *program, const Tac_TopLevel *tl)
             break;
         }
     }
-    if (tl->u.function.variadic)
+    g->va_size_param = -1;
+    if (tl->u.function.variadic) {
         g->va_param = index;
+        if (tl->u.function.type->u.fun_type.va_sized)
+            g->va_size_param = index + 1;
+    }
 
     // Every other frame-resident name: an automatic local or a temporary.
     for (const Tac_Param *p = tl->u.function.locals; p; p = p->next) {

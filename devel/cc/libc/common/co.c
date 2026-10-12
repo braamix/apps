@@ -130,3 +130,16 @@ void __coro_pop(void *fp, void *p)
 {
     ((struct co_header *)fp)->task->top = p;
 }
+
+/* A variadic coroutine's f$init: a copy of the `size` bytes of its variable arguments
+   at `va`, off the arena of the task frame `fp` belongs to, right above the frame, so
+   that the frame's release gives it back too; or NULL when there are none. */
+char *__coro_va_save(void *fp, const char *va, size_t size)
+{
+    if (!size)
+        return 0;
+    char *p = __coro_push(fp, size, 16, "variable arguments");
+    for (size_t i = 0; i < size; i++)
+        p[i] = va[i];
+    return p;
+}

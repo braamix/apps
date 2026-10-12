@@ -19,7 +19,8 @@
 
 static bool is_va_start(const Tac_Instruction *in)
 {
-    return !in->u.fun_call.indirect && strcmp(in->u.fun_call.fun_name, "__va_start") == 0;
+    return !in->u.fun_call.indirect && (strcmp(in->u.fun_call.fun_name, "__va_start") == 0 ||
+                                        strcmp(in->u.fun_call.fun_name, "__va_size") == 0);
 }
 
 // The shadow-stack builtins of co_alloca (translator/coro.c), expanded in place.
@@ -88,6 +89,7 @@ typedef struct {
     int *copy;  // per argument: the offset of its copy, or -1
     int *slot;  // per argument: the offset of its slot in the buffer, or -1
     int nvar;   // the variable arguments: their buffer is at offset 0
+    int vsize;  // and its bytes
     int result; // the offset of the result when it has nowhere to go, or -1
     int size;
 } Layout;
@@ -151,6 +153,8 @@ static void layout(const Gen *g, const Tac_Instruction *in, Layout *L)
         }
         }
     }
+
+    L->vsize = size;
 
     // Then the copies of the arguments passed by reference.
     p = ft->u.fun_type.param_types;
@@ -235,11 +239,24 @@ static void push_arg(Gen *g, const Tac_Val *a, const Tac_Type *t, int copy)
 }
 
 // va_start(ap), a call of __va_start(&ap): ap = the address of the variable arguments.
+// A coroutine's f$init (translator/coro.c) has them as dst = __va_start() and, their
+// size, dst = __va_size().
 static void gen_va_start(Gen *g, const Tac_Instruction *in)
 {
+    const char *name = in->u.fun_call.fun_name;
+    bool size        = strcmp(name, "__va_size") == 0;
     if (!g->tl->u.function.variadic)
         internal_error("wasm: %s: va_start in a function without ...", g->fn->name);
-    if (!in->u.fun_call.args || in->u.fun_call.args->next)
+    if (size && g->va_size_param < 0)
+        internal_error("wasm: %s: __va_size in a function without the size", g->fn->name);
+    const Tac_Val *dst = in->u.fun_call.dst;
+    if (!in->u.fun_call.args && dst) {
+        begin_dst(g, dst);
+        emit_imm(g, WASM_LOCAL_GET, size ? g->va_size_param : g->va_param);
+        end_dst(g, dst);
+        return;
+    }
+    if (size || !in->u.fun_call.args || in->u.fun_call.args->next)
         internal_error("wasm: %s: __va_start takes one argument", g->fn->name);
     push_val(g, in->u.fun_call.args, WASM_I32);
     emit_imm(g, WASM_LOCAL_GET, g->va_param);
@@ -322,6 +339,8 @@ static void call_with(Gen *g, const Tac_Instruction *in, bool noreturn, bool kee
             push_area(g, 0);
         else
             emit_imm(g, WASM_I32_CONST, 0);
+        if (ft->u.fun_type.va_sized)
+            emit_imm(g, WASM_I32_CONST, L.vsize);
     }
 
     // The call.

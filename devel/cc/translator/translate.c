@@ -927,9 +927,29 @@ static Tac_TopLevel *translate_fn(const ExternalDecl *ast, int *label_seq)
         ft->u.fun_type.param_types = fpt;
         tac_free_type(ft->u.fun_type.ret_type);
         ft->u.fun_type.ret_type = tac_new_type(TAC_TYPE_INT);
-        coro_pending_fn         = tl;
-        coro_pending =
-            (CoroSplit){ name, sym->u.func.global, end, align, coroutine_has_coro_ptr(sym->type) };
+        bool variadic           = tl->u.function.variadic;
+        if (variadic) {
+            // The variable arguments' address, a parameter like the others.
+            Tac_Param **pp = &tl->u.function.params;
+            while (*pp)
+                pp = &(*pp)->next;
+            *pp           = tac_new_param();
+            (*pp)->name   = xstrdup(CORO_VA);
+            (*pp)->type   = tac_type_ptr(tac_type_char());
+            Tac_Type **pt = &ft->u.fun_type.param_types;
+            while (*pt)
+                pt = &(*pt)->next;
+            *pt                     = tac_type_ptr(tac_type_char());
+            ft->u.fun_type.variadic = false;
+            tl->u.function.variadic = false;
+        }
+        coro_pending_fn = tl;
+        coro_pending    = (CoroSplit){ .name        = name,
+                                       .global      = sym->u.func.global,
+                                       .frame_start = end,
+                                       .frame_align = align,
+                                       .with_ptr    = coroutine_has_coro_ptr(sym->type),
+                                       .variadic    = variadic };
     }
 
     // A struct return too wide to return by value (type_is_byval_sret) uses the
@@ -956,6 +976,8 @@ static Tac_TopLevel *translate_fn(const ExternalDecl *ast, int *label_seq)
         ctx.sret_name = sret_name;
         ctx.body      = ast->u.function.body;
         ctx.coro      = sym->u.func.coro ? &coro : NULL;
+        if (sym->u.func.coro && coro_pending.variadic)
+            coro_note_variadic(&ctx);
         map_init(&ctx.user_labels);
         gen_stmt(&ctx, ast->u.function.body);
         // The end of a coroutine's body: done.  (A non-void one cannot reach it.)

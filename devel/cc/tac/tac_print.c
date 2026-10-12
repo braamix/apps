@@ -221,7 +221,10 @@ void tac_print_type(FILE *fd, const Tac_Type *type, int depth)
     }
     if (type->kind == TAC_TYPE_FUN_TYPE) {
         print_indent(fd, depth + 1);
-        fprintf(fd, "Params:%s\n", type->u.fun_type.variadic ? " (variadic)" : "");
+        fprintf(fd, "Params:%s\n",
+                type->u.fun_type.va_sized   ? " (variadic, sized)"
+                : type->u.fun_type.variadic ? " (variadic)"
+                                            : "");
         tac_print_type(fd, type->u.fun_type.param_types, depth + 2);
         print_indent(fd, depth + 1);
         fprintf(fd, "Return:\n");

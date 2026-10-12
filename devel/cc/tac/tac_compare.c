@@ -94,7 +94,8 @@ bool tac_compare_type(const Tac_Type *a, const Tac_Type *b)
             return false;
         if (!tac_compare_type(a->u.fun_type.ret_type, b->u.fun_type.ret_type))
             return false;
-        if (a->u.fun_type.variadic != b->u.fun_type.variadic)
+        if (a->u.fun_type.variadic != b->u.fun_type.variadic ||
+            a->u.fun_type.va_sized != b->u.fun_type.va_sized)
             return false;
         break;
     case TAC_TYPE_POINTER:

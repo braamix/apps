@@ -87,7 +87,7 @@ module TAC {
 
     Type = SChar | UChar | Short | UShort | Int | Long | LongLong | UInt | ULong | ULongLong
          | Float | Double | LongDouble | Void
-         | FunType(Type* params, Type ret, bool variadic)
+         | FunType(Type* params, Type ret, bool variadic, bool va_sized)
          | Pointer(Type referenced)
          | Array(Type element, int size)
          | Structure(identifier tag, int size, int alignment, bool is_union, Member* members)

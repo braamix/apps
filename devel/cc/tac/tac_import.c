@@ -137,7 +137,9 @@ static Tac_Type *import_type(WFILE *in)
     case TAC_TYPE_FUN_TYPE:
         t->u.fun_type.param_types = import_type(in);
         t->u.fun_type.ret_type    = import_type(in);
-        t->u.fun_type.variadic    = (bool)wgetw(in);
+        int flags                 = wgetw(in);
+        t->u.fun_type.variadic    = flags & 1;
+        t->u.fun_type.va_sized    = (flags >> 1) & 1;
         check_input(in, "fun_type variadic");
         break;
     case TAC_TYPE_POINTER:

@@ -492,6 +492,7 @@ typedef struct Tac_Type {
             Tac_Type *param_types; // Linked list of types
             Tac_Type *ret_type;
             bool variadic;
+            bool va_sized; // the variable arguments' size follows their address
         } fun_type;
         struct {
             Tac_Type *target_type;

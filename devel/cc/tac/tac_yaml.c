@@ -184,6 +184,10 @@ static void export_yaml_type(FILE *fd, const Tac_Type *type, int level)
             print_indent(fd, level);
             fprintf(fd, "variadic: true\n");
         }
+        if (type->u.fun_type.va_sized) {
+            print_indent(fd, level);
+            fprintf(fd, "va_sized: true\n");
+        }
         break;
     case TAC_TYPE_POINTER:
         fprintf(fd, "pointer\n");

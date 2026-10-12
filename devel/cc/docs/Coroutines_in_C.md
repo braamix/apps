@@ -318,10 +318,16 @@ function must in vcc: the compiler reports one that may run off its end.
 
 Any function except:
 
-- a variadic one (`...`);
 - an `inline` or `_Noreturn` one;
 - one without a prototype: write `coro(int) void f(void)`, not `f()`;
 - `main`.
+
+A variadic coroutine (`...`) reads its variable arguments with `va_start` and
+`va_arg` as any function does, and may suspend between two of them: the frame keeps a
+copy of them in the spare room (section 5), right above itself. So a run of one
+started by `co_alloca` or `co_init` needs room for its variable arguments as for an
+`await`, about 8 bytes for each (16 for a `long double`). A structure or a union cannot
+be one of them, and a variadic coroutine has no `coro_ptr`.
 
 A coroutine is not an ordinary function. You cannot call it as `count_to(3)`, and
 you cannot take its address as a function pointer. You use its name only in
@@ -802,7 +808,7 @@ end without stopping.
 - `await` of a coroutine whose yield type is not exactly yours.
 - `co_value` on a `coro(void)` frame; `co_result` on a frame whose return type is
   `void`.
-- A coroutine that is variadic, `inline` or `_Noreturn`, that has no prototype, or that
+- A coroutine that is `inline` or `_Noreturn`, that has no prototype, or that
   is `main`; `coro(Y)` on anything but a function; a yield type that is an array or a
   function.
 - A coroutine whose return type is not `void` that may run off its end.
@@ -812,6 +818,7 @@ end without stopping.
   `coro_ptr`.
 - A `coro_ptr` called other than after `await`, or with more than one argument; a
   `coro_ptr` given a coroutine of another `Y` or `T`.
+- A structure or a union as a variable argument of a variadic coroutine.
 - A jump into a block past one of its `defer`s or `co_alloca`s, including a `case`
   label.
 - A `co_alloca` in the head of a loop (the condition of a `while` or `do`, or a clause
@@ -1088,6 +1095,11 @@ for a global `f` and local for a `static` one:
 |---|---|---|
 | `f$resume` | `int (char *fp)` | the body, resumed: runs to the next suspension and returns `CO_SUSPENDED` (0), or to the end and returns `CO_DONE` (1) |
 | `f$init` | `void (char *fp, A a, B b)` | stores the arguments in a frame `__coro_setup` prepared |
+
+A variadic coroutine's `f$init` is `void (char *fp, A a, B b, ...)` with one more
+hidden parameter after the variable arguments' address: their size in bytes. It copies
+them with `__coro_va_save` into the arena, right above the frame, and the body's
+`va_start` reads that copy.
 | `f$co` | `size_t[2]` | the descriptor: the frame's size (a multiple of its alignment) and its alignment (up to 16) |
 
 A coroutine that takes `(void)` or `(void *)` has a four-word descriptor instead: the
@@ -1143,6 +1155,7 @@ void *__coro_value(void *frame, unsigned offset);   /* checks the state, returns
 void *__coro_result(void *frame, unsigned offset);
 void *__coro_push(void *frame, size_t bytes, size_t align, const char *name);
 void  __coro_pop(void *frame, void *p);
+char *__coro_va_save(void *frame, const char *va, size_t size); /* a variadic f$init's copy */
 ```
 
 - `co_init(mem, size, f, a, b)` is `__coro_setup(mem, size, f$co, f$resume, 0)`, then
