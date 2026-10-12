@@ -1,0 +1,40 @@
+digraph Types_Cluster {
+    rankdir=TB;
+    node [shape=plaintext, style=filled, fillcolor=lightblue];
+    edge [color=navy];
+
+    label="Type Structures";
+    style=filled;
+    fillcolor=lightgrey;
+
+    Type [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Type</TD></TR></TABLE>>];
+    TypeQualifier [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>TypeQualifier</TD></TR></TABLE>>];
+    Field [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Field</TD></TR></TABLE>>];
+    Enumerator [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Enumerator</TD></TR></TABLE>>];
+    Param [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Param</TD></TR></TABLE>>];
+    Expr [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Expr (External)</TD></TR></TABLE>>, style="filled,dashed", fillcolor=lightgray];
+
+    // Type relationships
+    Type -> Type [label="u.integer.base (complex)"];
+    Type -> Type [label="u.pointer.target"];
+    Type -> Type [label="u.array.element"];
+    Type -> Type [label="u.function.return_type"];
+    Type -> Type [label="u.atomic.base"];
+    Type -> TypeQualifier [label="qualifiers"];
+    Type -> Field [label="u.struct_t.fields"];
+    Type -> Type [label="u.struct_t.frame_yield"];
+    Type -> Type [label="u.struct_t.frame_result"];
+    Type -> Enumerator [label="u.enum_t.enumerators"];
+    Type -> Param [label="u.function.params"];
+
+    // Linked-list relationships
+    TypeQualifier -> TypeQualifier [label="next"];
+    Field -> Field [label="next"];
+    Enumerator -> Enumerator [label="next"];
+    Param -> Param [label="next"];
+
+    // Field relationships
+    Field -> Type [label="type"];
+    Field -> Expr [label="bitfield"];
+    Param -> Type [label="type"];
+}

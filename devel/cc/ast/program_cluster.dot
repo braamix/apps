@@ -1,0 +1,25 @@
+digraph Program_Cluster {
+    rankdir=TB;
+    node [shape=plaintext, style=filled, fillcolor=lightblue];
+    edge [color=navy];
+
+    label="Program Structure";
+    style=filled;
+    fillcolor=lightcyan;
+
+    Program [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Program</TD></TR></TABLE>>];
+    ExternalDecl [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>ExternalDecl</TD></TR></TABLE>>];
+    Type [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Type (External)</TD></TR></TABLE>>, style="filled,dashed", fillcolor=lightgray];
+    DeclSpec [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>DeclSpec (External)</TD></TR></TABLE>>, style="filled,dashed", fillcolor=lightgray];
+    Declaration [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Declaration (External)</TD></TR></TABLE>>, style="filled,dashed", fillcolor=lightgray];
+    Stmt [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Stmt (External)</TD></TR></TABLE>>, style="filled,dashed", fillcolor=lightgray];
+
+    // Program relationships
+    Program -> ExternalDecl [label="decls"];
+    ExternalDecl -> ExternalDecl [label="next"];
+    ExternalDecl -> Type [label="u.function.type"];
+    ExternalDecl -> DeclSpec [label="u.function.specifiers"];
+    ExternalDecl -> Declaration [label="u.function.param_decls"];
+    ExternalDecl -> Stmt [label="u.function.body"];
+    ExternalDecl -> Declaration [label="u.declaration"];
+}

@@ -1,0 +1,133 @@
+digraph TAC_Structure {
+    // Graph styling
+    rankdir=TB;
+    node [shape=box, style=filled, fillcolor=lightblue];
+    edge [color=navy];
+    compound=true;
+
+    // Tac_Program
+    subgraph cluster_program {
+        label="Tac_Program";
+        fillcolor=lightyellow;
+        style=filled;
+        prog_decls [label="decls", shape=ellipse];
+    }
+
+    // Tac_TopLevel
+    subgraph cluster_toplevel {
+        label="Tac_TopLevel";
+        fillcolor=lightyellow;
+        style=filled;
+        tl_next [label="next", shape=ellipse];
+        subgraph cluster_function {
+            label="function";
+            fillcolor=palegreen;
+            style=filled;
+            tl_func_name [label="name", shape=box];
+            tl_func_global [label="global", shape=box];
+            tl_func_params [label="params", shape=ellipse];
+            tl_func_body [label="body", shape=ellipse];
+        }
+        subgraph cluster_static_var {
+            label="static_variable";
+            fillcolor=palegreen;
+            style=filled;
+            tl_var_name [label="name", shape=box];
+            tl_var_global [label="global", shape=box];
+            tl_var_type [label="type", shape=ellipse];
+            tl_var_init_list [label="init_list", shape=ellipse];
+        }
+        subgraph cluster_static_const {
+            label="static_constant";
+            fillcolor=palegreen;
+            style=filled;
+            tl_const_name [label="name", shape=box];
+            tl_const_type [label="type", shape=ellipse];
+            tl_const_init [label="init", shape=ellipse];
+        }
+    }
+
+    // Tac_Param
+    subgraph cluster_param {
+        label="Tac_Param";
+        fillcolor=lightyellow;
+        style=filled;
+        param_next [label="next", shape=ellipse];
+        param_name [label="name", shape=box];
+    }
+
+    // Tac_Instruction
+    subgraph cluster_instruction {
+        label="Tac_Instruction";
+        fillcolor=lightyellow;
+        style=filled;
+        instr_next [label="next", shape=ellipse];
+        subgraph cluster_instr_examples {
+            label="Examples (e.g., binary, fun_call)";
+            fillcolor=palegreen;
+            style=filled;
+            instr_binary [label="binary: {op, src1, src2, dst}", shape=box];
+            instr_funcall [label="fun_call: {fun_name, args, dst}", shape=box];
+        }
+    }
+
+    // Tac_Val
+    subgraph cluster_val {
+        label="Tac_Val";
+        fillcolor=lightyellow;
+        style=filled;
+        val_next [label="next", shape=ellipse];
+        val_const [label="constant", shape=ellipse];
+        val_var [label="var_name", shape=box];
+    }
+
+    // Tac_Const
+    subgraph cluster_const {
+        label="Tac_Const";
+        fillcolor=lightyellow;
+        style=filled;
+        const_value [label="value (e.g., int_val, double_val)", shape=box];
+    }
+
+    // Tac_Type
+    subgraph cluster_type {
+        label="Tac_Type";
+        fillcolor=lightyellow;
+        style=filled;
+        type_next [label="next", shape=ellipse];
+        subgraph cluster_type_examples {
+            label="Examples (e.g., fun_type, pointer)";
+            fillcolor=palegreen;
+            style=filled;
+            type_fun [label="fun_type: {params, ret}", shape=box];
+            type_ptr [label="pointer: {referenced}", shape=box];
+        }
+    }
+
+    // Tac_StaticInit
+    subgraph cluster_staticinit {
+        label="Tac_StaticInit";
+        fillcolor=lightyellow;
+        style=filled;
+        si_next [label="next", shape=ellipse];
+        si_value [label="value (e.g., int_val, string)", shape=box];
+    }
+
+    // Relationships
+    prog_decls -> tl_next [lhead=cluster_toplevel, label="decls"];
+    tl_next -> tl_next [label="next"];
+    tl_func_params -> param_next [lhead=cluster_param, label="params"];
+    tl_func_body -> instr_next [lhead=cluster_instruction, label="body"];
+    tl_var_type -> type_next [lhead=cluster_type, label="type"];
+    tl_var_init_list -> si_next [lhead=cluster_staticinit, label="init_list"];
+    tl_const_type -> type_next [lhead=cluster_type, label="type"];
+    tl_const_init -> si_next [lhead=cluster_staticinit, label="init"];
+    param_next -> param_next [label="next"];
+    instr_next -> instr_next [label="next"];
+    instr_binary -> val_next [lhead=cluster_val, label="src1, src2, dst"];
+    instr_funcall -> val_next [lhead=cluster_val, label="args, dst"];
+    val_next -> val_next [label="next"];
+    val_const -> const_value [lhead=cluster_const, label="constant"];
+    type_next -> type_next [label="next"];
+    si_next -> si_next [label="next"];
+}

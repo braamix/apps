@@ -1,0 +1,109 @@
+module TAC {
+    Program = (TopLevel* decls)
+
+    TopLevel = Function(identifier name, bool global, bool variadic, bool noret, Type? typ,
+                        Symbol* params, Symbol* locals,
+                        StaticLocal* static_locals, Instruction* body)
+             | StaticVariable(identifier name, bool global, Type typ, StaticInit* init_list,
+                              int alignment)
+             | StaticConstant(identifier name, Type typ, StaticInit init)
+             | Extern(identifier name, Type typ) -- referenced here, defined elsewhere
+
+    -- A frame-resident name and its type.  params and locals (automatic locals and
+    -- temporaries) together cover every frame-resident name of the body.
+    Symbol = (identifier name, Type? typ)
+
+    -- A block-scope static variable, emitted inside its owning function's module.
+    StaticLocal = (identifier name, Type typ, StaticInit* init_list, int alignment)
+
+    -- The integer-width conversions carry the destination's ConstKind (or -1 when not
+    -- supplied) so the constant folder labels a folded result with the conversion's true
+    -- result type (a promotion `unsigned char → int` and a cast `unsigned char → unsigned
+    -- int` lower to the same ZeroExtend; only dst_kind distinguishes them). Not
+    -- serialized: set during lowering and consumed by const-fold before TAC is written.
+    Instruction = Return(Val? src)
+                | SignExtend(Val src, Val dst, int dst_kind)
+                | Truncate(Val src, Val dst, int dst_kind)
+                | ZeroExtend(Val src, Val dst, int dst_kind)
+                | DoubleToInt(Val src, Val dst)
+                | DoubleToUInt(Val src, Val dst)
+                | IntToDouble(Val src, Val dst)
+                | UIntToDouble(Val src, Val dst)
+                | FloatToDouble(Val src, Val dst)
+                | DoubleToFloat(Val src, Val dst)
+                | IntToFloat(Val src, Val dst)
+                | UIntToFloat(Val src, Val dst)
+                | FloatToInt(Val src, Val dst)
+                | FloatToUInt(Val src, Val dst)
+                | LongDoubleToInt(Val src, Val dst)
+                | LongDoubleToUInt(Val src, Val dst)
+                | IntToLongDouble(Val src, Val dst)
+                | UIntToLongDouble(Val src, Val dst)
+                | LongDoubleToDouble(Val src, Val dst)
+                | DoubleToLongDouble(Val src, Val dst)
+                | LongDoubleToFloat(Val src, Val dst)
+                | FloatToLongDouble(Val src, Val dst)
+                | PtrToCharPtr(Val src, Val dst)
+                | CharPtrToPtr(Val src, Val dst)
+                | Unary(UnaryOperator op, Val src, Val dst)
+                | Binary(BinaryOperator op, Val src1, Val src2, Val dst)
+                | Copy(Val src, Val dst)
+                | GetAddress(Val src, Val dst)
+                | GetAddressByte(Val src, Val dst)   -- &char object → char*/void* fat pointer (offset_enc 0)
+                | GetAddressDecay(Val src, Val dst)  -- char-array/string decay → fat pointer (offset_enc 5)
+                | Load(Val src_ptr, Val dst)
+                | LoadByte(Val src_ptr, Val dst)     -- dereference a single byte through a fat pointer
+                | Store(Val src, Val dst_ptr)
+                | StoreByte(Val src, Val dst_ptr)    -- store a single byte through a fat pointer
+                | AddPtr(Val ptr, Val index, int scale, Val dst)
+                | CopyToOffset(Val src, identifier dst, int offset)
+                | CopyByteToOffset(Val src, identifier dst, int offset)   -- sub-word packed char member (byte RMW)
+                | CopyFromOffset(identifier src, int offset, Val dst)
+                | CopyByteFromOffset(identifier src, int offset, Val dst) -- sub-word packed char member (byte extract)
+                | Jump(identifier target)
+                | JumpIfZero(Val condition, identifier target)
+                | JumpIfNotZero(Val condition, identifier target)
+                | Label(identifier name)
+                | FunCall(identifier fun_name, bool indirect, Val* args, Val? dst, Type? fun_type) -- indirect: fun_name is an object holding the callee's address
+                | FunCallNoreturn(identifier fun_name, Val* args, Val? dst, Type? fun_type) -- call to a _Noreturn function; always direct
+                | AllocateLocal(identifier name, int size, int alignment) -- size/alignment in target bytes
+                | JumpTable(Val index, identifier* targets, identifier default_target) -- index i < count to targets[i], else the default
+
+    Val = Constant(Const val)
+        | Var(identifier name)
+
+    UnaryOperator = Complement | Negate | Not | NegateUnsigned | NegateDouble
+                  | ComplementUnsigned | SqrtDouble
+
+    BinaryOperator = Add | Subtract | Multiply | Divide | Remainder | Equal | NotEqual
+                   | LessThan | LessOrEqual | GreaterThan | GreaterOrEqual
+                   | BitwiseAnd | BitwiseOr | BitwiseXor | LeftShift | RightShift
+                   | DivideUnsigned | RemainderUnsigned
+                   | LessThanUnsigned | LessOrEqualUnsigned
+                   | GreaterThanUnsigned | GreaterOrEqualUnsigned
+                   | RightShiftLogical
+                   | AddUnsigned | SubtractUnsigned | MultiplyUnsigned
+                   | AddDouble | SubtractDouble | MultiplyDouble | DivideDouble
+
+    Type = SChar | UChar | Short | UShort | Int | Long | LongLong | UInt | ULong | ULongLong
+         | Float | Double | LongDouble | Void
+         | FunType(Type* params, Type ret, bool variadic)
+         | Pointer(Type referenced)
+         | Array(Type element, int size)
+         | Structure(identifier tag, int size, int alignment, bool is_union, Member* members)
+
+    -- members are listed for a struct held by value, not behind a pointer
+    Member = (identifier name, int offset, Type typ)
+
+    StaticInit = CharInit(int val) | UCharInit(int val)
+               | ShortInit(int val) | UShortInit(int val)
+               | IntInit(int val) | UIntInit(int val)
+               | LongInit(long val) | ULongInit(long val)
+               | FloatInit(float val) | DoubleInit(double val) | LongDoubleInit(long double val) | ZeroInit(int bytes)
+               | StringInit(string val, bool null_terminated)
+               | PointerInit(string name)
+
+    Const = ConstInt(int val) | ConstLong(long val) | ConstLongLong(long long val)
+          | ConstUInt(int val) | ConstULong(long val) | ConstULongLong(unsigned long long val)
+          | ConstFloat(float val) | ConstDouble(double val) | ConstLongDouble(long double val) | ConstSChar(int val) | ConstUChar(int val)
+}

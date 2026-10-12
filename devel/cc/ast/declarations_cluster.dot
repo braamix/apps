@@ -1,0 +1,46 @@
+digraph Declarations_Cluster {
+    rankdir=TB;
+    node [shape=plaintext, style=filled, fillcolor=lightblue];
+    edge [color=navy];
+
+    label="Declaration Structures";
+    style=filled;
+    fillcolor=palegreen;
+
+    Declaration [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Declaration</TD></TR></TABLE>>];
+    DeclSpec [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>DeclSpec</TD></TR></TABLE>>];
+    StorageClass [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>StorageClass</TD></TR></TABLE>>];
+    FunctionSpec [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>FunctionSpec</TD></TR></TABLE>>];
+    AlignmentSpec [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>AlignmentSpec</TD></TR></TABLE>>];
+    InitDeclarator [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>InitDeclarator</TD></TR></TABLE>>];
+    Initializer [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Initializer</TD></TR></TABLE>>];
+    InitItem [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>InitItem</TD></TR></TABLE>>];
+    Designator [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Designator</TD></TR></TABLE>>];
+    Type [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Type (External)</TD></TR></TABLE>>, style="filled,dashed", fillcolor=lightgray];
+    Expr [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>Expr (External)</TD></TR></TABLE>>, style="filled,dashed", fillcolor=lightgray];
+    TypeQualifier [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0"><TR><TD>TypeQualifier (External)</TD></TR></TABLE>>, style="filled,dashed", fillcolor=lightgray];
+
+    // Declaration relationships
+    Declaration -> Declaration [label="next"];
+    Declaration -> DeclSpec [label="u.var.specifiers"];
+    Declaration -> InitDeclarator [label="u.var.declarators"];
+    Declaration -> Expr [label="u.static_assrt.condition"];
+    Declaration -> Type [label="u.empty.type"];
+    DeclSpec -> TypeQualifier [label="qualifiers"];
+    DeclSpec -> StorageClass [label="storage"];
+    DeclSpec -> FunctionSpec [label="func_specs"];
+    FunctionSpec -> Type [label="yield_type"];
+    DeclSpec -> AlignmentSpec [label="align_spec"];
+    AlignmentSpec -> Type [label="u.type"];
+    AlignmentSpec -> Expr [label="u.expr"];
+    InitDeclarator -> InitDeclarator [label="next"];
+    InitDeclarator -> Type [label="type"];
+    InitDeclarator -> Initializer [label="init"];
+    Initializer -> Expr [label="u.expr"];
+    Initializer -> InitItem [label="u.items"];
+    InitItem -> InitItem [label="next"];
+    InitItem -> Designator [label="designators"];
+    InitItem -> Initializer [label="init"];
+    Designator -> Designator [label="next"];
+    Designator -> Expr [label="u.expr"];
+}

@@ -1,0 +1,150 @@
+module AST {
+    -- Where a node starts in the source, for diagnostics: the file (from the line
+    -- markers), line and column; an operator node at its operator, a declarator at
+    -- its name. Carried by ExternalDecl, Declaration, InitDeclarator, Initializer,
+    -- Param, Expr and Stmt.
+    SrcLoc = (string? file, int line, int col)
+
+    Program = (ExternalDecl* decls)
+
+    ExternalDecl = Function(Type type, identifier name, DeclSpec specifiers, Declaration* param_decls, Stmt? body)
+                 | Declaration(Declaration decl)
+                 attributes(SrcLoc loc)
+
+    Declaration = Var(DeclSpec specifiers, InitDeclarator* declarators)
+                | StaticAssert(Expr condition, string? message)
+                | Empty(DeclSpec specifiers, Type type)
+                attributes(SrcLoc loc)
+
+    DeclSpec = (TypeQualifier* qualifiers, StorageClass? storage, FunctionSpec* func_specs, AlignmentSpec? align_spec)
+
+    StorageClass = Typedef | Extern | Static | ThreadLocal | Auto | Register
+
+    FunctionSpec = Inline | NoReturn
+                 | Coro(Type yield_type)   -- vcc extension: _Coro(Y)
+
+    AlignmentSpec = AlignType(Type type) | AlignExpr(Expr expr)
+
+    InitDeclarator = (Type type, identifier name, Initializer? init, SrcLoc loc)
+
+    Initializer = Single(Expr expr)
+                | Compound(InitItem* items)
+                attributes(SrcLoc loc)
+
+    InitItem = (Designator* designators, Initializer init)
+
+    Designator = Array(Expr expr)
+               | Field(identifier name)
+
+    Type = Void
+         | Bool
+         | Char(Signedness signedness)
+         | Short(Signedness signedness)
+         | Int(Signedness signedness)
+         | Long(Signedness signedness)
+         | LongLong(Signedness signedness)
+         | Float
+         | Double
+         | LongDouble
+         | Complex(Type base)
+         | Imaginary(Type base)
+         | Pointer(Type target, TypeQualifier* qualifiers)
+         | Array(Type element, Expr? size, TypeQualifier* qualifiers, bool is_static)
+         | Function(Type return_type, Param* params, bool variadic)
+         -- frame_yield and frame_result are set on _Coro_frame(Y, T) alone (vcc
+         -- extension): a struct tagged __co_frame, never defined
+         | Struct(identifier? name, Field* fields, Type? frame_yield, Type? frame_result)
+         | Union(identifier? name, Field* fields)
+         | Enum(identifier? name, Enumerator* enumerators)
+         | TypedefName(identifier name)
+         | Atomic(Type base)
+         attributes(TypeQualifier* qualifiers)
+
+    Signedness = Signed | Unsigned
+
+    TypeQualifier = Const | Restrict | Volatile | Atomic
+
+    Field = Member(Type type, identifier? name, Expr? bitfield)
+          | StaticAssert(Expr condition, string? message)
+
+    Enumerator = (identifier name, Expr? value)
+
+    Param = (identifier? name, Type type, SrcLoc loc)
+
+    Expr = Literal(Literal lit)
+         | Var(identifier var)
+         | UnaryOp(UnaryOp op, Expr expr)
+         | BinaryOp(BinaryOp op, Expr left, Expr right)
+         | Assign(AssignOp op, Expr target, Expr value)
+         | Cond(Expr condition, Expr then_expr, Expr else_expr)
+         | Cast(Type type, Expr expr)
+         | Call(Expr func, Expr* args)
+         | Compound(Type type, InitItem* init)
+         | FieldAccess(Expr expr, identifier field)
+         | PtrAccess(Expr expr, identifier field)
+         | PostInc(Expr expr)
+         | PostDec(Expr expr)
+         | SizeofExpr(Expr expr)
+         | SizeofType(Type type)
+         | Alignof(Type type)
+         | Generic(Expr controlling_expr, GenericAssoc* associations)
+         -- __builtin_va_class(type): the target's argument class of `type`, an integer
+         -- constant (AArch64: tac_aapcs64_class), for <stdarg.h>'s va_arg
+         | VaClass(Type type)
+         -- vcc extension, coroutines: _Yield [expr], _Await expr, and __co_init ...
+         -- __co_alignof, where a coroutine is named by a Var
+         | Yield(Expr? expr)
+         | Await(Expr expr)
+         | CoOp(CoOp op, Expr* args)
+         attributes(Type? type, SrcLoc loc)
+
+    CoOp = Init | Alloca | Resume | Cancel | Destroy | Done | Value | Result | Sizeof | Alignof
+
+    -- The integer kinds also carry `spelling`: radix and suffixes, from which the
+    -- semantic pass types the constant for the target (C11 §6.4.4.1).
+    Literal = Int(int val)
+            | Long(long val)
+            | LongLong(long long val)
+            | ULong(unsigned long val)
+            | ULongLong(unsigned long long val)
+            | Float(float val)
+            | Double(double val)
+            | Char(char val)
+            | String(string val)
+            | Enum(identifier enum_const)
+
+    UnaryOp = Address | Deref | Plus | Neg | BitNot | LogNot | PreInc | PreDec
+
+    BinaryOp = Mul | Div | Mod | Add | Sub | LeftShift | RightShift
+             | Lt | Gt | Le | Ge | Eq | Ne
+             | BitAnd | BitXor | BitOr | LogAnd | LogOr | Comma
+
+    AssignOp = Simple | MulAssign | DivAssign | ModAssign | AddAssign | SubAssign
+             | LeftAssign | RightAssign | AndAssign | XorAssign | OrAssign
+
+    GenericAssoc = TypeAssoc(Type type, Expr expr)
+                 | DefaultAssoc(Expr expr)
+
+    Stmt = ExprStmt(Expr? expr)
+         | Compound(DeclOrStmt* compound)
+         | If(Expr condition, Stmt then_stmt, Stmt? else_stmt)
+         | Switch(Expr expr, Stmt body)
+         | While(Expr condition, Stmt body)
+         | DoWhile(Stmt body, Expr condition)
+         | For(ForInit init, Expr? condition, Expr? update, Stmt body)
+         | Goto(identifier label)
+         | Continue
+         | Break
+         | Return(Expr? expr)
+         | Labeled(identifier label, Stmt stmt)
+         | Case(Expr expr, Stmt stmt)
+         | Default(Stmt stmt)
+         | Defer(Stmt stmt)        -- vcc extension: run stmt when the block is left
+         attributes(SrcLoc loc)
+
+    DeclOrStmt = Decl(Declaration decl)
+               | Stmt(Stmt stmt)
+
+    ForInit = ExprInit(Expr expr)
+            | DeclInit(Declaration decl)
+}
