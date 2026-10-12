@@ -184,6 +184,34 @@ vcc_add_program(NAME cpp SOURCES ${VCC_CPP_SOURCES} FLAGS ${VCC_PASS_FLAGS} STAC
                 PAGES 48)
 vcc_add_program(NAME vcc SOURCES ${VCC_CC_SOURCES} FLAGS ${VCC_PASS_FLAGS})
 
+# The package: the driver as cc, its passes in libexec/, the runtime where the
+# driver looks for it, ../share/vcc/wasm32-braam/, and in share/ the examples
+# and the documents.
+set(VCC_PKG_FILES ${CMAKE_CURRENT_BINARY_DIR}/vcc.wasm=bin/cc
+                  ${CMAKE_CURRENT_BINARY_DIR}/cpp.wasm=libexec/vcpp
+                  ${CMAKE_CURRENT_BINARY_DIR}/parse.wasm=libexec/vparse
+                  ${CMAKE_CURRENT_BINARY_DIR}/lower.wasm=libexec/vlower
+                  ${CMAKE_CURRENT_BINARY_DIR}/genwasm.wasm=libexec/vgenwasm
+                  ${VCC_LIB}/crt0.o=share/vcc/wasm32-braam/lib/crt0.o
+                  ${VCC_LIB}/libc.a=share/vcc/wasm32-braam/lib/libc.a)
+foreach(h ${VCC_HEADERS})
+    file(RELATIVE_PATH rel ${VCC_HOST}/share ${h})
+    list(APPEND VCC_PKG_FILES ${h}=share/${rel})
+endforeach()
+foreach(f docs/examples/hello.c docs/examples/notes.c Manual.md README.md
+          docs/Coroutines_in_C.md)
+    get_filename_component(n ${f} NAME)
+    list(APPEND VCC_PKG_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${f}=share/${n})
+endforeach()
+braam_add_package(NAME cc VERSION 0.1-r0
+                  FIELD "T=vcc, a C11 compiler with coroutines, for Braam"
+                  FIELD D=wasm
+                  FILES ${VCC_PKG_FILES})
+if(TARGET packages)
+    add_dependencies(packages pkg_cc)
+endif()
+add_dependencies(pkg_cc vcc_libc bin_vcc bin_cpp bin_parse bin_lower bin_genwasm)
+
 vcc_add_program(NAME hello SOURCES test/hello.c)
 vcc_add_program(NAME libctest SOURCES test/libc.c)
 vcc_add_program(NAME systest SOURCES test/sys.c)

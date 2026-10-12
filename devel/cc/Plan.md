@@ -109,6 +109,13 @@ question; measure the unpacked size anyway.
 Done when: in the harness, with the real anchor and a local index, `pkg
 install cc` pulls in `wasm`, and `cc hello.c && ./a.out` prints.
 
+**Done**, as [README.md](README.md) "The package" says, with two
+departures. The runtime is in `share/vcc/wasm32-braam/`, where the driver
+already looks, not in a top-level `include/` and `lib/`. And the anchor is
+the test's own, over keys made for the run, so `make test` needs no
+publisher's key; the index and the install are the real ones. 428 KB
+packed, 1.3 MB unpacked.
+
 ### Step 6 — tests
 
 Headless, in `TESTS`, each one boot with the package planted:

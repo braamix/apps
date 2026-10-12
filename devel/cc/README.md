@@ -1,9 +1,9 @@
 # cc — vcc, the C compiler with coroutines, for Braam
 
 This is vcc, Serge Vakulenko's C11 compiler with `defer` and coroutines, cut
-down to its `wasm32-braam` target. It runs on Braam, and is on its way to
-compiling itself there. [Plan.md](Plan.md) is the plan; this file says
-where it stands.
+down to its `wasm32-braam` target. It runs on Braam as the package `cc`,
+and is on its way to compiling itself there. [Plan.md](Plan.md) is the
+plan; this file says where it stands.
 
 ## Upstream
 
@@ -129,10 +129,31 @@ once per declaration so `^C` reaches a long run.
   compiler's own sources name things `yield` and `defer`; they are built
   with `_CORO_NO_DEFER_YIELD`, which keeps `<coro.h>` from defining those two.
 
-[test/toolchain.mjs](test/toolchain.mjs) installs the compiler in the
-harness, builds `hello.c` there and runs it, compiles six programs to the
-assembly the host's compiler makes of them, and checks a compile error. It
-skips, and says so, on a kernel whose `exit()` loses its output.
+## The package
+
+`make package` packs `cc`, which needs `wasm` for `as` and `ld`:
+
+| Entry | What it is |
+| --- | --- |
+| `bin/cc` | the driver, the one command |
+| `libexec/vcpp`, `vparse`, `vlower`, `vgenwasm` | the passes, not on `PATH` |
+| `share/vcc/wasm32-braam/include/`, `lib/` | the headers, `crt0.o` and `libc.a`, where the driver looks for them |
+| `share/Manual.md` | the user's guide |
+| `share/Coroutines_in_C.md`, `share/README.md` | the language extension, and this file |
+| `share/hello.c`, `share/notes.c` | two examples |
+
+The runtime stays where upstream's installation keeps it rather than in a
+top-level `include/` and `lib/`, so the driver finds it as it always has:
+through `/pkg/bin/cc`, its links resolved, and `../share/vcc/wasm32-braam`.
+It is 428 KB packed and 1.3 MB unpacked.
+
+[test/toolchain.mjs](test/toolchain.mjs) is the install as a user makes it:
+a repository signed for the run, with an anchor of its own, serves `cc` and
+`wasm`, and `pkg install cc` pulls in both. Then, in the harness, `cc
+hello.c && ./a.out` with the package's example, a program built and run
+with arguments and a status, six programs compiled to the assembly the
+host's compiler makes of them, and a compile error. On a kernel whose
+`exit()` loses its output it checks the install alone, and says so.
 
 ## The C library
 
