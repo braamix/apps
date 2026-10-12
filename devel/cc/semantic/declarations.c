@@ -571,7 +571,7 @@ static void place_bitfield(FieldDef *m, int size, int alignment)
     m->offset       = base;
     m->bf.unit_size = unit;
     m->bf.bytewise  = !fits;
-    m->bf.pos       = target_config && target_config->big_endian ? unit * 8 - bit - width : bit;
+    m->bf.pos       = bit;
 }
 
 // Register a struct/union type definition in the struct table.

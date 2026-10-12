@@ -584,10 +584,10 @@ enum { CHAIN_MIN = 12, CHAIN_MIN_DESTROY = 6, RELEASE_SIZE = 12 };
 
 bool translate_shared_cleanup = true;
 
-// May an exit share its cleanup here?  Never on BESM-6, whose code must not change.
+// May an exit share its cleanup here?
 static bool may_share(void)
 {
-    return translate_shared_cleanup && !target_config->no_loop_opt;
+    return translate_shared_cleanup;
 }
 
 static int stmt_size(const Stmt *s)

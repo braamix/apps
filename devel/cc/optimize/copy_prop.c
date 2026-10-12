@@ -564,13 +564,11 @@ void propagate_copies(OptCfg *cfg, const Tac_TopLevel *fn)
     // Whether a block's out-set has been computed yet. One that has not stands for
     // every copy, the top of the lattice, so a copy made ahead of a loop reaches into
     // it: the back edge's out-set is not yet known when the header is first met.
-    // Pessimistic (empty) where the target opts out of the loop optimizations.
-    bool *done      = xalloc(n * sizeof(bool), __func__, __FILE__, __LINE__);
-    bool optimistic = !target_config->no_loop_opt;
+    bool *done = xalloc(n * sizeof(bool), __func__, __FILE__, __LINE__);
     for (int i = 0; i < n; i++) {
         map_init(&in_sets[i]);
         map_init(&out_sets[i]);
-        done[i] = !optimistic;
+        done[i] = false;
     }
 
     // Fixpoint iteration: recompute each block's in/out until nothing changes.
@@ -585,7 +583,7 @@ void propagate_copies(OptCfg *cfg, const Tac_TopLevel *fn)
         for (int i = 0; i < n; i++) {
             const OptBlock *b = cfg->blocks[i];
             // An empty block passes its in-set on (its successors wait for it).
-            if (!b->reachable || (!b->first && !optimistic))
+            if (!b->reachable)
                 continue;
 
             // in[b] = meet (intersection) of out[pred] over all predecessors.
@@ -601,7 +599,7 @@ void propagate_copies(OptCfg *cfg, const Tac_TopLevel *fn)
                 bool first = true;
                 for (int k = 0; k < npreds[i]; k++) {
                     int p = preds[i][k];
-                    if (!done[p] || (optimistic && !cfg->blocks[p]->reachable))
+                    if (!done[p] || !cfg->blocks[p]->reachable)
                         continue;
                     if (first)
                         copy_set_copy(&new_in, &out_sets[p]);

@@ -1018,11 +1018,6 @@ static bool eval_const(const Expr *e, ConstVal *out)
                 bits = lbits << count;
             } else if (kind_is_unsigned(lk)) {
                 bits = lbits >> count; // canonical unsigned bits are already masked
-            } else if (target_config && target_config->right_shift_is_logical) {
-                // The target (BESM-6) shifts right logically even for signed operands:
-                // zero-fill the operand's target-width bit pattern, matching the shift
-                // the backend emits.  Mirrors optimize/const_fold.c.
-                bits = unsigned_narrow(lbits, kind_value_bits(lk)) >> count;
             } else {
                 bits = (uint64_t)((int64_t)lbits >> count); // arithmetic, sign-preserving
             }

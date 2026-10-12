@@ -352,47 +352,6 @@ static Expr *typecheck_literal(Expr *e)
     return e;
 }
 
-//
-// Evaluate an immediate first argument of a target intrinsic (Target.immediate_args), diagnose
-// a non-constant or out-of-range one, and replace it with the folded literal.
-//
-// THE FOLD HAS TO HAPPEN HERE, not at instruction selection.  eval_const() is the language's
-// own constant-expression evaluator and is fully recursive, so it sees through an arbitrarily
-// nested constant expression — `(PSW_MMAP_DISABLE | PSW_PROT_DISABLE) | PSW_INTR_DISABLE`, the
-// way a kernel actually spells a mode-word mask.  The TAC-level folding the back end used to
-// rely on is neither: it collapsed one level and left anything deeper as a live OR node, so a
-// three-term mask reached the back end unfolded and was rejected as "not a constant" — with a
-// diagnostic pointing at the one thing that was not wrong.  Folding in the front end also makes
-// the contract independent of the optimizer flags.
-//
-// Returns the new argument list head; `args` must be non-NULL (arity is checked by the
-// prototype in the target's header before this runs).
-//
-static Expr *fold_immediate_arg0(Expr *args, const char *name)
-{
-    const ImmediateArg *imm = target_config->immediate_args;
-    while (imm && imm->name && strcmp(name, imm->name) != 0)
-        imm++;
-    if (!imm || !imm->name)
-        return args; // not one of them
-
-    long val = 0;
-    if (!try_eval_const_int(args, &val))
-        fatal_error("intrinsic '%s': the %s must be a constant", name, imm->what);
-    if (val < imm->lo || val > imm->hi)
-        fatal_error("intrinsic '%s': %s 0%lo %s", name, imm->what, val, imm->range);
-
-    Expr *lit                 = new_expression(EXPR_LITERAL);
-    lit->u.literal            = new_literal(LITERAL_INT);
-    lit->u.literal->u.int_val = (int)val;
-    lit                       = typecheck_literal(lit);
-
-    lit->next  = args->next;
-    args->next = NULL; // free_expression walks the ->next chain
-    free_expression(args);
-    return lit;
-}
-
 // Type-check an expression.
 // C11 §6.5.2.2: default argument promotions for variadic trailing arguments.
 static Expr *promote_variadic_arg(Expr *e)
@@ -957,11 +916,6 @@ static Expr *typecheck_expr_at(Expr *e)
                                  ? func->u.var
                                  : NULL;
         Expr *new_args     = typecheck_call_args(fn_type, e->u.call.args, callee);
-        // The intrinsics whose first argument the front end must constant-fold: an extracode's
-        // opcode, a mode-word mask and a halt code are immediate fields of the instruction
-        // word, not values.
-        if (func->kind == EXPR_VAR && new_args)
-            new_args = fold_immediate_arg0(new_args, func->u.var);
 
         free_type(e->type);
         e->type        = clone_type(fn_type->u.function.return_type, __func__, __FILE__, __LINE__);

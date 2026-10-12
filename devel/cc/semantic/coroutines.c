@@ -36,12 +36,6 @@ int coro_loop_head_depth;
 // The call an arena await is checking: the one call of a coroutine allowed.
 static const Expr *arena_call;
 
-static void require_target(void)
-{
-    if (target_config->no_coroutines)
-        fatal_error("coroutines are not supported on target '%s'", target_config->name);
-}
-
 // A short name for the messages: co_init for __co_init.
 static const char *op_name(CoOp op)
 {
@@ -180,7 +174,6 @@ const Type *check_coroutine_decl(const char *name, const DeclSpec *spec, const T
             fatal_error("on Braam, main is coro(braam_call *) int main(int, char **)");
         return NULL;
     }
-    require_target();
     if (main && !target_config->braam)
         fatal_error("main cannot be a coroutine");
     for (const FunctionSpec *fs = spec->func_specs; fs; fs = fs->next) {
@@ -321,7 +314,6 @@ static const Type *named_or_pointer(Expr **e, const char *what)
 
 static void check_suspension(const char *what)
 {
-    require_target();
     if (!in_coro)
         fatal_error("'%s' outside a coroutine", what);
     if (coro_defer_depth > 0)
@@ -473,7 +465,6 @@ static void typecheck_start(Expr *e, const Type **yield, const Type **result)
 
 Expr *typecheck_co_op(Expr *e)
 {
-    require_target();
     CoOp op = e->u.co_op.op;
     Type *type;
     switch (op) {

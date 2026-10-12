@@ -747,14 +747,6 @@ static Tac_Val *fold_binary_const(Tac_BinaryOperator op, const Tac_Const *c1, co
         int amt = const_shift_count(c1->kind, u2);
         if (amt < 0) {
             result = 0;
-        } else if (target_config && target_config->right_shift_is_logical) {
-            // Target (BESM-6) shifts right logically even for signed operands: zero-fill
-            // the operand's target-width bit pattern, matching the backend's shift unit.
-            // u1 is sign-extended to 64 bits, so mask it back to the signed value width
-            // first (e.g. 41 bits on BESM-6) before the logical shift.
-            int w        = target_signed_bits(c1->kind);
-            uint64_t pat = unsigned_narrow(u1, w);
-            result       = pat >> (unsigned)amt;
         } else {
             // Arithmetic right shift: operate on the signed view so the sign bit
             // is replicated (sign-preserving), matching signed >> in C.
@@ -1243,10 +1235,8 @@ Tac_Instruction *constant_fold_typed(Tac_Instruction *body, const Tac_TopLevel *
         }
 
         // A comparison of a constant with a variable → the mirrored comparison, the
-        // constant second, where the code generators take an immediate. A rotated loop's
-        // guard compares the initial value with the bound, so this is one of the loop
-        // optimizations, off where they are.
-        if (cur->kind == TAC_INSTRUCTION_BINARY && !target_config->no_loop_opt &&
+        // constant second, where the code generators take an immediate.
+        if (cur->kind == TAC_INSTRUCTION_BINARY &&
             cur->u.binary.src1->kind == TAC_VAL_CONSTANT &&
             cur->u.binary.src2->kind != TAC_VAL_CONSTANT) {
             Tac_BinaryOperator m = mirror_comparison(cur->u.binary.op);

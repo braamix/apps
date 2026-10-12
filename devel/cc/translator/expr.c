@@ -764,11 +764,10 @@ Tac_Val *gen_cond_val(TacCtx *ctx, Expr *cond)
 
 bool translate_cond_jumps = true;
 
-// Whether a condition's `&&`, `||` and `!` are jumps: not on BESM-6, whose code must not
-// change.
+// Whether a condition's `&&`, `||` and `!` are jumps.
 bool cond_jumps(void)
 {
-    return translate_cond_jumps && !target_config->no_loop_opt;
+    return translate_cond_jumps;
 }
 
 // Jump to `target` when `cond` is true (`if_true`) or false, else fall through.  `&&`,
@@ -1241,10 +1240,10 @@ static void bf_store_part(TacCtx *ctx, const BfPlace *p, int offset, const Type 
     tac_append(ctx, in);
 }
 
-// The shift that places byte `i` of an `n`-byte unit in its value.
-static int bf_byte_shift(int i, int n)
+// The shift that places byte `i` of a unit in its value.
+static int bf_byte_shift(int i)
 {
-    return 8 * (target_config->big_endian ? n - 1 - i : i);
+    return 8 * i;
 }
 
 // Load `p`'s storage unit, as its work type.
@@ -1257,8 +1256,8 @@ static Tac_Val *bf_load_unit(TacCtx *ctx, const BfPlace *p)
     Tac_Val *acc            = NULL;
     for (int i = 0; i < n; i++) {
         Tac_Val *v = emit_cast(ctx, bf_load_part(ctx, p, p->offset + i, &uchar), &uchar, &p->work);
-        if (bf_byte_shift(i, n))
-            v = bf_binary(ctx, TAC_BINARY_LEFT_SHIFT, v, val_int(bf_byte_shift(i, n)), &p->work);
+        if (bf_byte_shift(i))
+            v = bf_binary(ctx, TAC_BINARY_LEFT_SHIFT, v, val_int(bf_byte_shift(i)), &p->work);
         acc = acc ? bf_binary(ctx, TAC_BINARY_BITWISE_OR, acc, v, &p->work) : v;
     }
     return acc;
@@ -1275,8 +1274,8 @@ static void bf_store_unit(TacCtx *ctx, const BfPlace *p, Tac_Val *u)
     int n                   = p->bf->unit_size;
     for (int i = 0; i < n; i++) {
         Tac_Val *v = dup_val(u);
-        if (bf_byte_shift(i, n))
-            v = bf_binary(ctx, TAC_BINARY_RIGHT_SHIFT_LOGICAL, v, val_int(bf_byte_shift(i, n)),
+        if (bf_byte_shift(i))
+            v = bf_binary(ctx, TAC_BINARY_RIGHT_SHIFT_LOGICAL, v, val_int(bf_byte_shift(i)),
                           &p->work);
         bf_store_part(ctx, p, p->offset + i, &uchar, emit_cast(ctx, v, &p->work, &uchar));
     }
@@ -1290,7 +1289,7 @@ static Tac_Val *bf_extract(TacCtx *ctx, Tac_Val *u, const Type *ut, int pos, int
 {
     int ubits = (int)get_size(ut) * 8;
     bool sign = is_signed(t);
-    if (sign && !target_config->right_shift_is_logical) {
+    if (sign) {
         // Shift the field to the top of the unit, then arithmetically down to the bottom.
         Type st = { .kind = signed_kind_of(unalias(ut)->kind) };
         if (ubits - pos - width)

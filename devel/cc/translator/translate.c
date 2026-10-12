@@ -1496,7 +1496,7 @@ static void verify_function(const Tac_TopLevel *chain, const Tac_TopLevel *fn)
 //
 Tac_TopLevel *translate(const ExternalDecl *ast, OptFlags flags, int *label_seq)
 {
-    translate_rotate_loops = flags.loop_rotate && !target_config->no_loop_opt;
+    translate_rotate_loops = flags.loop_rotate;
     Tac_TopLevel *tac      = translate_external_decl(ast, label_seq);
     if (unit_active) {
         // One EXTERN per name in a unit, and none for a name it defines.

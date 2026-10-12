@@ -168,9 +168,8 @@ Tac_Instruction *optimize_function(Tac_Instruction *body, OptFlags flags, Tac_To
         // At the fixed point of the scalar passes, the loop optimizations run on code
         // they have simplified as far as it goes: a loop bound, say, is invariant only
         // once CSE and copy propagation have found its one computation. When they
-        // change something, the scalar passes run again. They are off where the target
-        // opts out of them (BESM-6).
-        if (unchanged && flags.ivsr && !target_config->no_loop_opt) {
+        // change something, the scalar passes run again.
+        if (unchanged && flags.ivsr) {
             OPT_TRACE("[optimize] running pass: ivsr\n");
             OptCfg *lcfg = cfg_build(new_body);
             unchanged    = !reduce_induction_variables(lcfg, fn);

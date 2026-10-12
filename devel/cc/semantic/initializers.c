@@ -368,12 +368,10 @@ static void put_bitfield(BitImage *img, int size, const FieldDef *f, uint64_t v)
         img->bytes = xalloc((size_t)size + 1, __func__, __FILE__, __LINE__);
         memset(img->bytes, 0, (size_t)size + 1);
     }
-    int unit_bits = f->bf.unit_size * 8;
-    bool big      = target_config && target_config->big_endian;
     for (int k = 0; k < f->bf.width; k++) {
         int bit = f->bf.pos + k; // in the unit's value, from its least significant bit
         // The byte of the unit holding it, and the bit in that byte.
-        int byte = big ? (unit_bits - 1 - bit) / 8 : bit / 8;
+        int byte = bit / 8;
         int at   = f->offset + byte;
         if ((v >> k) & 1)
             img->bytes[at] |= (unsigned char)(1u << (bit % 8));
