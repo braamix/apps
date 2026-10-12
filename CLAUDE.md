@@ -68,6 +68,18 @@ native stack until the process traps; see its README; and
 [editors/le](editors/le/), LE 1.16.8, the block editor — the largest surface of
 all of them, since it brings its own curses, its own regex and its own wide
 half; and
+[editors/eh](editors/eh/), EH 1.8.1, Edit Here — Anthony Howe's "vi, the good
+parts", the smallest editor here, because its whole OS surface sits in one
+place: no stdio, no `stat`, no `termios` and no floating point at all. Its
+hard part is that the one blocking read is reached from a quarter of the
+program through a dispatcher that calls itself, so `cmds[]` has **two handler
+columns**, a plain function and a `Task`, exactly one of them set: 48 of its
+71 commands stay plain and 23 block, where a single `Task` column would put a
+heap frame behind every `l`. Painting sends nothing — the painters write
+cells into a `Grid` and the one flush is in `getch()`, just before the
+process parks — which is what lets `display()` stay an ordinary function.
+Its regex engine moved into the SDK as `braam::regex` when `/bin/grep`
+wanted one, and eh now links it from there; and
 [emulators/simbesm](emulators/simbesm/), the BESM-6 simulator, which boots
 Unix — a fourth shape, where the hard part is that **the program is a machine**
 and cannot stop to wait. A `co_await` cannot appear in an instruction loop, so
@@ -220,6 +232,20 @@ and `exit(-1)` is a sticky flag. `#define int long long` is kept, so the VM
 word is eight bytes as upstream's was. `share/c4.c` and `share/hello.c` are
 the original sources, and a bare name resolves through `/pkg/bin` so
 `c4 hello.c` and `c4 c4.c hello.c` work after install.
+And [devel/wasm](devel/wasm/), the WebAssembly toolchain — `ld`, `as`, `wat`,
+`ar`, `strip`, `size`, `nm` and `disasm` — which is not a port but a
+**reimplementation held to LLVM's output**: each tool is tested against its
+llvm or wabt counterpart byte for byte (`disasm` line for line), and only
+`ar` is ported, from FreeBSD. It is simbesm's rule as a library: `lib/` is
+**pure**, never awaiting and never opening a file, with views into bytes the
+caller read, and each tool's core is plain C++ over memory with only its
+`braam.cpp` touching files. `ld` differs from `wasm-ld` in exactly two ways,
+both because a Braam process gets fresh zeroed memory — the memory is
+imported, and data is placed directly with no start function to copy it in.
+It runs only on Braam, so the host runs it under the SDK's harness
+(`ld/host.mjs`), and `make LINKER=ld` relinks the whole tree with it in a few
+seconds. It is what `cc` links with on Braam, and `cc` depends on the
+package.
 And [devel/cc](devel/cc/), vcc — a C11 compiler with `defer` and coroutines,
 cut down to its `wasm32-braam` target, and a **ninth shape**: the one port
 that is *not* C++, and whose programs are not either. A Braam program built
