@@ -112,6 +112,12 @@ still builds.
 
 Done when: the trimmed host build produces the reference corpus exactly.
 
+**Done.** The corpus grew to every C snippet of vcc's tests, 4,199 sources,
+and the driver got a transcript of its own; [README.md](README.md) says how
+both are checked. Two decisions moved: the passes keep `wasm32` beside
+`wasm32-braam`, being one descriptor, and the three-address code keeps every
+instruction, BESM-6's included, as the format between the passes.
+
 ### Step 2 — the build in this tree
 
 1. **Stage 0, native.** The top `Makefile` configures `devel/cc` natively

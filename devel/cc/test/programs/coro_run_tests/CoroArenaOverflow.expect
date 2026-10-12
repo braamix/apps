@@ -1,0 +1,4 @@
+depth 0
+depth 1
+depth 2
+coroutine trap: CO_TRAP_NO_SPACE: deep
