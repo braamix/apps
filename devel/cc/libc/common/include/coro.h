@@ -8,10 +8,14 @@
 #ifndef _CORO_H
 #define _CORO_H
 
+/* A program whose own names include defer or yield, as vcc's own sources do, defines
+   _CORO_NO_DEFER_YIELD before its first include and spells them _Defer and _Yield. */
+#ifndef _CORO_NO_DEFER_YIELD
 #define defer _Defer
+#define yield _Yield
+#endif
 
 #define coro(Y)        _Coro(Y)
-#define yield          _Yield
 #define await          _Await
 #define co_frame(Y, T) _Coro_frame(Y, T)
 #define coro_ptr(Y, T) _Coro_ptr(Y, T)

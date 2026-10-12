@@ -9,7 +9,8 @@
 #include "srcloc.h"
 
 // Global variables
-static FILE *input_file;
+static const char *input_text; // the whole input, which the scanner reads from memory
+static size_t input_len, input_pos;
 static char yytext[1024]; // Buffer for current lexeme
 static int yyleng = 0;    // Length of current lexeme
 static int next_char;     // Lookahead character
@@ -45,16 +46,25 @@ void scanner_set_input_name(const char *name)
 }
 
 // Initialize scanner with input file
-void init_scanner(FILE *input)
+// The next byte of the input, or EOF.
+static int read_byte(void)
 {
-    input_file        = input;
+    return input_pos < input_len ? (unsigned char)input_text[input_pos++] : EOF;
+}
+
+// Initialize scanner with the input's text
+void init_scanner(const char *text, size_t len)
+{
+    input_text        = text;
+    input_len         = text ? len : 0;
+    input_pos         = 0;
     yyleng            = 0;
     yytext[0]         = '\0';
     scanner_lineno    = 1;
     scanner_col       = 1;
     scanner_filename  = input_name;
     scanner_token_loc = (SrcLoc){ input_name, 1, 1 };
-    next_char         = input_file ? fgetc(input_file) : EOF;
+    next_char         = read_byte();
 
     if (next_char == '#') {
         consume_char();
@@ -127,9 +137,9 @@ again:
         // no integer part (e.g. '.5', '.01e+2').  scan_number's decimal path
         // already handles a leading '.', so just route to it; otherwise the '.'
         // is the member-access operator or part of '...'.
-        int after = fgetc(input_file);
+        int after = read_byte();
         if (after != EOF) {
-            ungetc(after, input_file);
+            input_pos--;
         }
         if (isdigit(after)) {
             token = scan_number();
@@ -162,7 +172,7 @@ static void consume_char(void)
     } else if (next_char != EOF) {
         scanner_col++;
     }
-    next_char = fgetc(input_file);
+    next_char = read_byte();
 }
 
 // Push back the current character: the one consumed before it, never a newline,
@@ -171,7 +181,7 @@ static void unget_char(void)
 {
     scanner_col--;
     if (next_char != EOF) {
-        ungetc(next_char, input_file);
+        input_pos--; // the lookahead, the last byte read
         if (yyleng > 0) {
             yyleng--;
             yytext[yyleng] = '\0';

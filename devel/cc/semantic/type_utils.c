@@ -41,7 +41,7 @@ Type *resolve_typedef_names(Type *t)
         // constant expression) to a LITERAL_INT so get_size() sees a real length.
         if (t->u.array.size && !(t->u.array.size->kind == EXPR_LITERAL &&
                                  t->u.array.size->u.literal->kind == LITERAL_INT)) {
-            long n;
+            long long n;
             if (try_eval_const_int(t->u.array.size, &n)) {
                 free_expression(t->u.array.size);
                 t->u.array.size = NULL; // set_array_size assigns without freeing

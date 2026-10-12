@@ -43,27 +43,27 @@ static Tac_Const *import_const(WFILE *in)
     Tac_Const *c = tac_new_const((Tac_ConstKind)(tag - TAG_TAC_CONST));
     switch (c->kind) {
     case TAC_CONST_INT:
-        c->u.int_val = (int64_t)wgetw(in);
+        c->u.int_val = (int64_t)wgetll(in);
         check_input(in, "const int");
         break;
     case TAC_CONST_LONG:
-        c->u.long_val = (long)wgetw(in);
+        c->u.long_val = (long)wgetll(in);
         check_input(in, "const long");
         break;
     case TAC_CONST_LONG_LONG:
-        c->u.long_long_val = (long long)wgetw(in);
+        c->u.long_long_val = (long long)wgetll(in);
         check_input(in, "const long long");
         break;
     case TAC_CONST_UINT:
-        c->u.uint_val = (uint64_t)wgetw(in);
+        c->u.uint_val = (uint64_t)wgetll(in);
         check_input(in, "const uint");
         break;
     case TAC_CONST_ULONG:
-        c->u.ulong_val = (unsigned long)wgetw(in);
+        c->u.ulong_val = (unsigned long)wgetll(in);
         check_input(in, "const ulong");
         break;
     case TAC_CONST_ULONG_LONG:
-        c->u.ulong_long_val = (unsigned long long)wgetw(in);
+        c->u.ulong_long_val = (unsigned long long)wgetll(in);
         check_input(in, "const ulong_long");
         break;
     case TAC_CONST_FLOAT:
@@ -200,7 +200,7 @@ static Tac_StaticInit *import_static_init(WFILE *in)
         check_input(in, "static_init i32");
         break;
     case TAC_STATIC_INIT_I64:
-        si->u.long_val = (int64_t)wgetw(in);
+        si->u.long_val = (int64_t)wgetll(in);
         check_input(in, "static_init i64");
         break;
     case TAC_STATIC_INIT_U8:
@@ -216,7 +216,7 @@ static Tac_StaticInit *import_static_init(WFILE *in)
         check_input(in, "static_init u32");
         break;
     case TAC_STATIC_INIT_U64:
-        si->u.ulong_val = (uint64_t)wgetw(in);
+        si->u.ulong_val = (uint64_t)wgetll(in);
         check_input(in, "static_init u64");
         break;
     case TAC_STATIC_INIT_FLOAT:

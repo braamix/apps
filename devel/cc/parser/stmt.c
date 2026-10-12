@@ -128,6 +128,7 @@ Stmt *parse_compound_statement()
     jmp_buf *outer            = diag_recover;
     DeclOrStmt *volatile head = NULL;
     DeclOrStmt *volatile last = NULL;
+#ifndef __braam__ // no setjmp, and no outer recovery point either
     jmp_buf here;
     if (outer) {
         if (setjmp(here)) {
@@ -137,6 +138,9 @@ Stmt *parse_compound_statement()
         }
         diag_recover = &here;
     }
+#else
+    (void)depth;
+#endif
     while (current_token_is_not(TOKEN_RBRACE)) {
         DeclOrStmt *item = parse_block_item();
         if (last)

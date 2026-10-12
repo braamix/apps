@@ -1,9 +1,11 @@
 /*
  * <stdlib.h> for Braam: libc/common's, but malloc is a real allocator (free gives the
- * block back) and exit ends the process at once: it tells the kernel the status and
- * traps, which the kernel reports as a crash.  There is no unwinding, so neither the
- * defers of the coroutines on the way nor the stdio buffers run: a program ends by
- * returning from main, after which the runtime flushes stdout and stderr.
+ * block back) and exit ends the process at once, from anywhere: it runs the atexit
+ * functions, posts every stream's buffer as writes nobody waits for, tells the kernel
+ * the status and traps, and the kernel performs the writes before the process goes
+ * (braam-core's System_Calls.md §5).  Nothing unwinds, so the defers of the
+ * coroutines on the way do not run.  _Exit posts nothing; abort posts and ends with
+ * status 134.
  */
 #ifndef _STDLIB_H
 #define _STDLIB_H
@@ -37,7 +39,7 @@ float strtof(const char *s, char **end);
 _Noreturn void exit(int status);
 _Noreturn void _Exit(int status);
 _Noreturn void abort(void);
-/* Run, last first, when main returns: exit() runs nothing. */
+/* Run, last first, when main returns or exit() is called. */
 int atexit(void (*func)(void));
 
 void qsort(void *base, size_t nmemb, size_t size, int (*compar)(const void *, const void *));

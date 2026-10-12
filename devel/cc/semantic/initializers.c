@@ -212,7 +212,7 @@ static bool eval_lvalue_addr(const Expr *e, const char **name, long *off, const 
         // (its value is a separate object) is not an address constant.
         if (base_type->kind != TYPE_ARRAY)
             return false;
-        long index;
+        long long index;
         if (!try_eval_const_int(e->u.subscript.right, &index))
             fatal_error("array subscript in an initializer is not a constant expression");
         const Type *element = unalias(base_type->u.array.element);
@@ -266,7 +266,7 @@ static bool eval_addr_const(const Expr *e, const char **name, long *off, const T
             if (!eval_addr_const(addr_side, name, off, pointee))
                 return false;
         }
-        long delta;
+        long long delta;
         if (!try_eval_const_int(int_side, &delta))
             return false;
         *off += (op == BINARY_SUB ? -delta : delta) * (long)get_size(*pointee);
@@ -534,7 +534,7 @@ static Tac_StaticInit *static_init_at(Type *var_type, const Initializer *init)
 
     // Handle pointer initialized with an integer constant expression (e.g. cast from integer).
     if (var_type->kind == TYPE_POINTER && init->kind == INITIALIZER_SINGLE) {
-        long val;
+        long long val;
         if (try_eval_const_int(init->u.expr, &val)) {
             if (val == 0) {
                 Tac_StaticInit *zero_init = tac_new_static_init(TAC_STATIC_INIT_ZERO);
@@ -589,14 +589,14 @@ static Tac_StaticInit *static_init_at(Type *var_type, const Initializer *init)
     // Handle integer scalar initialized with a constant expression (e.g. -1, ~0, sizeof(T)).
     if (init->kind == INITIALIZER_SINGLE && is_integer(var_type)) {
         const Expr *expr = typecheck_and_decay(init->u.expr);
-        long val;
+        long long val;
         if (try_eval_const_int(expr, &val)) {
             Literal lit;
             if (get_size(var_type) == 8 && is_signed(var_type)) {
                 lit = (Literal){ .kind = LITERAL_LONG_LONG, .u.long_long_val = (long long)val };
             } else if (get_size(var_type) == 8) {
                 lit = (Literal){ .kind             = LITERAL_ULONG_LONG,
-                                 .u.ulong_long_val = (unsigned long long)(unsigned long)val };
+                                 .u.ulong_long_val = (unsigned long long)val };
             } else {
                 lit = (Literal){ .kind = LITERAL_INT, .u.int_val = (int64_t)val };
             }

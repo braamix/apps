@@ -160,7 +160,7 @@ static Stmt *typecheck_statement_at(const Type *ret_type, Stmt *s)
         if (!is_integer(ce->type)) {
             fatal_error("'case' value must be an integer, not '%s'", type_to_c(ce->type));
         }
-        long val;
+        long long val;
         if (!try_eval_const_int(ce, &val)) {
             fatal_error("'case' value is not a constant expression");
         }
@@ -168,9 +168,9 @@ static Stmt *typecheck_statement_at(const Type *ret_type, Stmt *s)
            so 0 and 65536 are duplicates where int has 16 bits. */
         val = narrow_const_int(val, current_switch->type);
         char key[32];
-        snprintf(key, sizeof(key), "%ld", val);
+        snprintf(key, sizeof(key), "%lld", val);
         if (map_get(&current_switch->seen_cases, key, NULL)) {
-            fatal_error("duplicate case value %ld", val);
+            fatal_error("duplicate case value %lld", val);
         }
         map_insert(&current_switch->seen_cases, key, 0, 0);
         s->u.case_stmt.expr = ce;

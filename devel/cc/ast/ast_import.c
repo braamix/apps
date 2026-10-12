@@ -75,12 +75,12 @@ static SrcLoc import_loc(WFILE *input)
     return loc;
 }
 
-void ast_import_open(WFILE *input, int fildes)
+coro(braam_call *) void ast_import_open(WFILE *input, int fildes)
 {
-    if (wdopen(input, fildes, "r") < 0) {
+    await lseek(fildes, 0L, SEEK_SET); // before wdopen, which reads the rest
+    if (await wdopen(input, fildes, "r") < 0) {
         bad_input("cannot open file descriptor %d", fildes);
     }
-    lseek(fildes, 0L, SEEK_SET);
     size_t tag = wgetw(input);
     check_input(input, "program tag");
     if (tag != TAG_PROGRAM) {
@@ -89,13 +89,13 @@ void ast_import_open(WFILE *input, int fildes)
     last_file = NULL;
 }
 
-Program *import_ast(int fildes)
+coro(braam_call *) Program *import_ast(int fildes)
 {
     if (import_debug) {
         printf("--- %s()\n", __func__);
     }
     WFILE input;
-    ast_import_open(&input, fildes);
+    await ast_import_open(&input, fildes);
     Program *program         = new_program();
     ExternalDecl **next_decl = &program->decls;
     for (;;) {
@@ -104,7 +104,7 @@ Program *import_ast(int fildes)
             break;
         next_decl = &(*next_decl)->next;
     }
-    wclose(&input);
+    await wclose(&input);
     return program;
 }
 
@@ -672,27 +672,27 @@ Literal *import_literal(WFILE *input)
     }
     switch (kind) {
     case LITERAL_INT:
-        lit->u.int_val = (int64_t)wgetw(input);
+        lit->u.int_val = (int64_t)wgetll(input);
         check_input(input, "literal int");
         break;
     case LITERAL_LONG:
-        lit->u.long_val = (long)wgetw(input);
+        lit->u.long_val = (int64_t)wgetll(input);
         check_input(input, "literal long");
         break;
     case LITERAL_LONG_LONG:
-        lit->u.long_long_val = (long long)wgetw(input);
+        lit->u.long_long_val = (long long)wgetll(input);
         check_input(input, "literal long long");
         break;
     case LITERAL_UINT:
-        lit->u.uint_val = (uint64_t)wgetw(input);
+        lit->u.uint_val = (uint64_t)wgetll(input);
         check_input(input, "literal uint");
         break;
     case LITERAL_ULONG:
-        lit->u.ulong_val = (unsigned long)wgetw(input);
+        lit->u.ulong_val = (uint64_t)wgetll(input);
         check_input(input, "literal ulong");
         break;
     case LITERAL_ULONG_LONG:
-        lit->u.ulong_long_val = (unsigned long long)wgetw(input);
+        lit->u.ulong_long_val = (unsigned long long)wgetll(input);
         check_input(input, "literal ulong long");
         break;
     case LITERAL_FLOAT:

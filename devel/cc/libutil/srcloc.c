@@ -31,6 +31,8 @@ SrcLoc diag_enter(SrcLoc loc)
 //
 typedef struct Name {
     struct Name *next;
+    const char *source; // the file's text, from srcloc_set_text(), or NULL
+    size_t source_len;
     char text[1]; // dynamically sized
 } Name;
 
@@ -52,24 +54,41 @@ const char *srcloc_intern(const char *name)
         abort();
     }
     memcpy(n->text, name, len + 1);
-    n->next = names;
-    names   = n;
+    n->source = NULL;
+    n->next   = names;
+    names     = n;
     return n->text;
+}
+
+void srcloc_set_text(const char *name, const char *text, size_t len)
+{
+    const char *interned = srcloc_intern(name);
+    for (Name *n = names; n; n = n->next) {
+        if (n->text == interned) {
+            n->source     = text;
+            n->source_len = len;
+            return;
+        }
+    }
+}
+
+static int tty = -1; // the auto decision, made once by diag_init_color()
+
+coro(braam_call *) void diag_init_color(void)
+{
+    const char *no_color = getenv("NO_COLOR");
+    const char *term     = getenv("TERM");
+    tty                  = await isatty(fileno(stderr)) && !(no_color && no_color[0]) &&
+                           !(term && strcmp(term, "dumb") == 0);
 }
 
 int diag_use_color(FILE *f)
 {
-    static int tty = -1; // the auto decision, made once
+    (void)f;
     if (diag_color >= 0) {
         return diag_color;
     }
-    if (tty < 0) {
-        const char *no_color = getenv("NO_COLOR");
-        const char *term     = getenv("TERM");
-        tty =
-            isatty(fileno(f)) && !(no_color && no_color[0]) && !(term && strcmp(term, "dumb") == 0);
-    }
-    return tty;
+    return tty > 0;
 }
 
 int diag_set_color(const char *when)
@@ -136,11 +155,52 @@ void diag_print_prefix(FILE *f, SrcLoc loc, const char *kind)
 // line repeats each tab before the column, so the caret lines up whatever the tab
 // width. A column past the end of the line leaves the caret out.
 //
+//
+// The same from a text in memory.
+//
+static void print_source_text(FILE *f, SrcLoc loc, const char *text, size_t size)
+{
+    size_t at = 0;
+    for (int line = 1; line < loc.line; line++) {
+        while (at < size && text[at] != '\n')
+            at++;
+        if (at == size) {
+            return;
+        }
+        at++;
+    }
+    size_t start = at;
+    int len      = 0;
+    fprintf(f, "%5d | ", loc.line);
+    for (; at < size && text[at] != '\n'; at++) {
+        if (text[at] != '\r') {
+            fputc(text[at], f);
+        }
+        len++;
+    }
+    fputc('\n', f);
+    if (loc.col > 0 && loc.col <= len + 1) {
+        fprintf(f, "      | ");
+        for (int col = 1; col < loc.col; col++) {
+            size_t k = start + col - 1;
+            fputc(k < size && text[k] == '\t' ? '\t' : ' ', f);
+        }
+        fputs(diag_use_color(f) ? "\033[1;32m^\033[0m\n" : "^\n", f);
+    }
+}
+
 void diag_print_source(FILE *f, SrcLoc loc)
 {
     if (!diag_show_source || loc.line <= 0 || !loc.file || !loc.file[0]) {
         return;
     }
+    for (const Name *n = names; n; n = n->next) {
+        if (n->text == loc.file && n->source) {
+            print_source_text(f, loc, n->source, n->source_len);
+            return;
+        }
+    }
+#ifndef __braam__ // where a plain function cannot open a file
     FILE *src = fopen(loc.file, "r");
     if (!src) {
         return;
@@ -172,6 +232,7 @@ void diag_print_source(FILE *f, SrcLoc loc)
         fputs(diag_use_color(f) ? "\033[1;32m^\033[0m\n" : "^\n", f);
     }
     fclose(src);
+#endif
 }
 
 void diag_vreport(SrcLoc loc, const char *kind, const char *fmt, va_list ap)
@@ -222,7 +283,11 @@ void diag_unwind(void)
         exit(1);
     }
     diag_count_error();
+#ifndef __braam__ // which never sets diag_recover
     longjmp(*diag_recover, 1);
+#else
+    exit(1);
+#endif
 }
 
 void diag_abandon(void)
@@ -230,7 +295,11 @@ void diag_abandon(void)
     if (!diag_recover) {
         exit(1);
     }
+#ifndef __braam__
     longjmp(*diag_recover, 1);
+#else
+    exit(1);
+#endif
 }
 
 void diag_fatal_v(const char *fmt, va_list ap)

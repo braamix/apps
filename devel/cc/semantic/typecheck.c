@@ -521,15 +521,15 @@ static bool kind_is_unsigned(TypeKind k)
     }
 }
 
-long narrow_const_int(long val, const Type *t)
+long long narrow_const_int(long long val, const Type *t)
 {
     TypeKind k = unalias(t)->kind;
     int width  = kind_value_bits(k);
     if (width <= 0)
         return val;
     if (kind_is_unsigned(k))
-        return (long)unsigned_narrow((uint64_t)val, width);
-    return (long)sign_narrow((uint64_t)val, width);
+        return (long long)unsigned_narrow((uint64_t)val, width);
+    return (long long)sign_narrow((uint64_t)val, width);
 }
 
 // Integer promotion (C11 §6.3.1.1p2) on a type kind: every sub-int kind promotes to int,
@@ -1084,14 +1084,14 @@ static bool eval_const(const Expr *e, ConstVal *out)
 // Evaluate a constant integer expression; return false if not constant.  A folded real
 // value is not an integer constant expression (C11 §6.6p6) — "int a[1.5];" stays an
 // error; only an explicit cast, "(int)1.5", makes it integral.
-bool try_eval_const_int(const Expr *e, long *out)
+bool try_eval_const_int(const Expr *e, long long *out)
 {
     ConstVal v;
     if (!eval_const(e, &v) || v.is_real)
         return false;
-    // The canonical bit pattern converts to the caller's long; an unsigned value at the
-    // host's full width comes out sign-flipped, exactly as the C conversion would do it.
-    *out = (long)v.u;
+    // The canonical bit pattern converts to the caller's long long; an unsigned value at
+    // its full width comes out sign-flipped, exactly as the C conversion would do it.
+    *out = (long long)v.u;
     return true;
 }
 

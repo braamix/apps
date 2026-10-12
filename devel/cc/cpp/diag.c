@@ -15,6 +15,8 @@
 // passes: by --color, else when stderr is a terminal, NO_COLOR is unset or empty and
 // TERM is not "dumb".  The test is made once.
 //
+int cpp_stderr_tty;
+
 static int use_color(void)
 {
     static int tty = -1;
@@ -24,7 +26,7 @@ static int use_color(void)
     if (tty < 0) {
         const char *no_color = getenv("NO_COLOR");
         const char *term     = getenv("TERM");
-        tty = isatty(2) && !(no_color && no_color[0]) && !(term && strcmp(term, "dumb") == 0);
+        tty = cpp_stderr_tty && !(no_color && no_color[0]) && !(term && strcmp(term, "dumb") == 0);
     }
     return tty;
 }

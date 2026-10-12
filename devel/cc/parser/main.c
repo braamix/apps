@@ -181,9 +181,56 @@ int parse_args(int argc, char *argv[], Args *args)
 }
 
 //
+// The text of the input and of every file its line markers name, for the caret
+// under a diagnostic (srcloc_set_text): a plain function cannot open a file on Braam.
+// A file that cannot be read is left out.
+//
+static coro(braam_call *) void load_sources(const char *name, const char *text, size_t len)
+{
+    srcloc_set_text(name, text, len);
+    const char *loaded[64];
+    int nloaded = 0;
+    for (size_t at = 0; at < len; at++) {
+        // A line '# <digits> "<name>"', at the start of a line.
+        if ((at > 0 && text[at - 1] != '\n') || text[at] != '#')
+            continue;
+        size_t p = at + 1;
+        while (p < len && text[p] == ' ')
+            p++;
+        if (p == len || text[p] < '0' || text[p] > '9')
+            continue;
+        while (p < len && text[p] >= '0' && text[p] <= '9')
+            p++;
+        while (p < len && text[p] == ' ')
+            p++;
+        if (p == len || text[p] != '"')
+            continue;
+        size_t q = ++p;
+        while (q < len && text[q] != '"' && text[q] != '\n' && text[q] != '\\')
+            q++;
+        if (q == len || text[q] != '"' || q - p >= 512)
+            continue;
+        char path[512];
+        memcpy(path, text + p, q - p);
+        path[q - p]          = 0;
+        const char *interned = srcloc_intern(path);
+        int seen             = interned == srcloc_intern(name);
+        for (int k = 0; k < nloaded && !seen; k++)
+            seen = loaded[k] == interned;
+        if (seen || nloaded == 64)
+            continue;
+        loaded[nloaded++] = interned;
+        size_t n;
+        char *src = await read_file(path, &n);
+        if (src)
+            srcloc_set_text(path, src, n);
+    }
+}
+
+//
 // Main processing function
 //
-void process_file(const Args *args)
+coro(braam_call *) void process_file(const Args *args)
 {
     if (args->verbose) {
         printf("Processing %s in verbose mode\n", args->input_file);
@@ -196,18 +243,19 @@ void process_file(const Args *args)
         export_debug = 1;
         wio_debug    = 1;
     }
-    FILE *input_file = fopen(args->input_file, "r");
-    if (!input_file) {
+    size_t input_len;
+    char *input_text = await read_file(args->input_file, &input_len);
+    if (!input_text) {
         diag_error(no_loc, "cannot open '%s': %s", args->input_file, strerror(errno));
         exit(1);
     }
     scanner_set_input_name(args->input_file);
-    Program *program = parse(input_file);
-    fclose(input_file);
+    await load_sources(args->input_file, input_text, input_len);
+    Program *program = parse(input_text, input_len);
 
     FILE *output_file = stdout;
     if (args->output_file[0] != '-') {
-        output_file = fopen(args->output_file, "w");
+        output_file = await fopen(args->output_file, "w");
         if (!output_file) {
             diag_error(no_loc, "cannot create '%s': %s", args->output_file, strerror(errno));
             exit(1);
@@ -223,7 +271,7 @@ void process_file(const Args *args)
         if (args->debug) {
             print_program(stdout, program);
         }
-        export_ast(fileno(output_file), program);
+        await export_ast(fileno(output_file), program);
         break;
     case FORMAT_YAML:
         if (args->verbose) {
@@ -234,7 +282,7 @@ void process_file(const Args *args)
     }
 
     if (output_file != stdout) {
-        fclose(output_file);
+        await fclose(output_file);
     }
     free_program(program);
     nametab_destroy();
@@ -256,10 +304,11 @@ void _Noreturn fatal_error(const char *message, ...)
     diag_unwind();
 }
 
-int main(int argc, char *argv[])
+coro(braam_call *) int main(int argc, char *argv[])
 {
     Args args;
     init_args(&args);
+    await diag_init_color();
     diag_progname   = argv[0];
     parser_recovery = true;
     diag_max_errors = 20;
@@ -275,7 +324,7 @@ int main(int argc, char *argv[])
     }
 
     // Pass args to backend for processing
-    process_file(&args);
+    await process_file(&args);
 
     return 0;
 }

@@ -183,7 +183,7 @@ static void build_scan_tables(void)
 // input file (first) or output file (second).  A bare "-" holds either place for
 // the standard stream.
 //
-static void parse_args(int argc, char *argv[])
+static coro(braam_call *) void parse_args(int argc, char *argv[])
 {
     int i, nfiles = 0;
 
@@ -284,7 +284,10 @@ static void parse_args(int argc, char *argv[])
             }
         default:
             if (nfiles++ == 0) {
-                cpp.in_fd = open(argv[i], READ);
+                if (await cpp_load(argv[i]) < 0)
+                    cpp.in_fd = -1;
+                else
+                    cpp.in_fd = cpp_open(argv[i]);
                 if (cpp.in_fd < 0) {
                     pperror("cannot open '%s': %s", argv[i], strerror(errno));
                     exit(1);
@@ -299,18 +302,18 @@ static void parse_args(int argc, char *argv[])
                 //
             } else if (nfiles == 2) {
                 static char sobuf[BUFSIZ];
-                cpp.out_file = fopen(argv[i], "w");
+                cpp.out_file = await fopen(argv[i], "w");
                 if (!cpp.out_file) {
                     pperror("cannot create '%s': %s", argv[i], strerror(errno));
                     exit(1);
                 }
-                fclose(stdout);
+                await fclose(stdout);
                 setbuffer(cpp.out_file, sobuf, sizeof(sobuf));
             } else
                 pperror("unexpected argument '%s'", argv[i]);
         }
     }
-    if (isatty(cpp.in_fd)) {
+    if (cpp.in_fd == STDIN && await isatty(cpp.in_fd)) {
         usage();
         exit(1);
     }
@@ -320,7 +323,7 @@ static void parse_args(int argc, char *argv[])
 // Finish the include search path, then register the built-in directives and the
 // predefined macros -- including the -D and -U options staged by parse_args().
 //
-static void register_builtins(void)
+static coro(braam_call *) void register_builtins(void)
 {
     int i;
     char *tf, **cp2;
@@ -383,7 +386,7 @@ static void register_builtins(void)
     define_symbol("__STDC_NO_VLA__=1");
     cpp.last_sym->predefined = 1;
     {
-        time_t now          = time((time_t *)0);
+        time_t now          = await time((time_t *)0);
         const struct tm *tm = localtime(&now);
         char dtbuf[64];
         // "Mmm dd yyyy": %e is space-padded so days < 10 keep the 11-char shape.
@@ -418,7 +421,7 @@ static void register_builtins(void)
 // process_directives, which runs until end of input.  The process exit status is
 // the number of errors reported.
 //
-int main(int argc, char *argv[])
+coro(braam_call *) int main(int argc, char *argv[])
 {
     // Fields that used to have static initializers referencing other fields;
     // set them up before anything runs (the instance is otherwise zeroed).
@@ -439,14 +442,16 @@ int main(int argc, char *argv[])
     target       = &targets[1]; // wasm32-braam
 
     build_scan_tables();
+    cpp_stderr_tty = await isatty(STDERR);
 
-    parse_args(argc, argv);
+    await parse_args(argc, argv);
 
     // No reset of cpp.exit_code here: an error parse_args() reported (an
     // extraneous file name, a full -D table) must count toward the exit status.
     cpp.inc_fd[cpp.inc_level] = cpp.in_fd;
 
-    register_builtins();
+    await register_builtins();
+    await cpp_preload();
 
     cpp.buf_start = arena + 8;
     cpp.buf_mid   = cpp.buf_start + BUFSIZ;

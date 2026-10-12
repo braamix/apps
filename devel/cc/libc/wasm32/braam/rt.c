@@ -19,7 +19,7 @@ void __braam_sys_async(unsigned op, unsigned token, const void *ptr, unsigned le
    64 KiB (taskbytes.c), or the program's own definition. */
 extern const unsigned __braam_task_bytes;
 
-/* What atexit registered, run in reverse when main returns. */
+/* What atexit registered, run in reverse when main returns or exit() is called. */
 static void (*at_exit[32])(void);
 static int n_at_exit;
 
@@ -203,4 +203,37 @@ void __braam_forget(braam_call *c)
             tasks[k].call  = NULL;
             tasks[k].frame = NULL;
         }
+}
+
+/* Posts a call nobody waits for: its payload is copied at once, and the kernel
+   performs a Write posted in a process's last step before it goes. */
+void __braam_post(unsigned op, const void *ptr, unsigned len)
+{
+    __braam_sys_async(op, ++token, ptr, len);
+}
+
+void __braam_exit(int status); /* exports.s */
+void __stdio_post(void);       /* stdio.c */
+
+/* An exit from anywhere, plain code included: nothing unwinds, so the atexit
+   functions run and the stdio buffers are posted, and the process ends in this
+   step. */
+_Noreturn void exit(int status)
+{
+    while (n_at_exit > 0)
+        at_exit[--n_at_exit]();
+    __stdio_post();
+    __braam_exit(status);
+}
+
+_Noreturn void _Exit(int status)
+{
+    __braam_exit(status);
+}
+
+/* Status 134 (128 + SIGABRT), as a shell reports it; what was written still goes. */
+_Noreturn void abort(void)
+{
+    __stdio_post();
+    __braam_exit(134);
 }

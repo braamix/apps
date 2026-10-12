@@ -101,28 +101,19 @@ __braam_sys_async:
 	call	__braam_kernel_sys_async
 	end_function
 
-# _Noreturn void exit(int status): Sys::Exit, then a trap: nothing unwinds.
-	.section	.text.exit,"",@
-	.globl	exit
-	.type	exit,@function
-exit:
-	.functype	exit (i32) -> ()
+# _Noreturn void __braam_exit(int status): Sys::Exit, then a trap: nothing unwinds,
+# and the kernel takes a trap after Sys::Exit for that exit.  exit() and abort() are
+# rt.c's, which post the stdio buffers first.
+	.section	.text.__braam_exit,"",@
+	.globl	__braam_exit
+	.type	__braam_exit,@function
+__braam_exit:
+	.functype	__braam_exit (i32) -> ()
 	i32.const	1		# BRAAM_SYS_EXIT
 	local.get	0
 	i32.const	0
 	i32.const	0
 	call	__braam_kernel_sys
 	drop
-	unreachable
-	end_function
-
-# _Noreturn void abort(void): exit status 134 (128 + SIGABRT), as a shell reports it.
-	.section	.text.abort,"",@
-	.globl	abort
-	.type	abort,@function
-abort:
-	.functype	abort () -> ()
-	i32.const	134
-	call	exit
 	unreachable
 	end_function

@@ -49,13 +49,13 @@ static void export_loc(WFILE *fd, SrcLoc loc)
     }
 }
 
-void export_ast(int fildes, Program *program)
+coro(braam_call *) void export_ast(int fildes, Program *program)
 {
     if (export_debug) {
         printf("--- %s()\n", __func__);
     }
     WFILE fd;
-    if (wdopen(&fd, fildes, "a") < 0) {
+    if (await wdopen(&fd, fildes, "a") < 0) {
         fprintf(stderr, "Error exporting AST: cannot open file descriptor #%d\n", fildes);
         exit(1);
     }
@@ -67,7 +67,7 @@ void export_ast(int fildes, Program *program)
         }
     }
     wputw(TAG_EOL, &fd);
-    wclose(&fd);
+    await wclose(&fd);
 }
 
 void export_type(WFILE *fd, Type *type)
@@ -513,22 +513,22 @@ void export_literal(WFILE *fd, const Literal *lit)
         wputd(lit->single_val, fd);
     switch (lit->kind) {
     case LITERAL_INT:
-        wputw((size_t)lit->u.int_val, fd);
+        wputll((unsigned long long)lit->u.int_val, fd);
         break;
     case LITERAL_LONG:
-        wputw((size_t)(unsigned long)lit->u.long_val, fd);
+        wputll((uint64_t)lit->u.long_val, fd);
         break;
     case LITERAL_LONG_LONG:
-        wputw((size_t)(unsigned long long)lit->u.long_long_val, fd);
+        wputll((unsigned long long)lit->u.long_long_val, fd);
         break;
     case LITERAL_UINT:
-        wputw((size_t)lit->u.uint_val, fd);
+        wputll((unsigned long long)lit->u.uint_val, fd);
         break;
     case LITERAL_ULONG:
-        wputw((size_t)lit->u.ulong_val, fd);
+        wputll((unsigned long long)lit->u.ulong_val, fd);
         break;
     case LITERAL_ULONG_LONG:
-        wputw((size_t)lit->u.ulong_long_val, fd);
+        wputll((unsigned long long)lit->u.ulong_long_val, fd);
         break;
     case LITERAL_FLOAT:
     case LITERAL_DOUBLE:

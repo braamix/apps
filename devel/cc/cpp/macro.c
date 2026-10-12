@@ -624,7 +624,7 @@ char *expand_text(const char *a0, const char *a1, char *out, int cap)
     scan_token(start);
     --cpp.arg_depth;
     flush_output(); // push [out_ptr,tok_ptr) (the expanded text) into the memory stream
-    fclose(mf);
+    memstream_close(mf);
 
     // Restore engine state.
     cpp.buf_start              = s_buf_start;

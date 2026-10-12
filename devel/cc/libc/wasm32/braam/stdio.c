@@ -134,6 +134,31 @@ coro(braam_call *) int fflush(FILE *f)
     return 0;
 }
 
+void __braam_post(unsigned op, const void *ptr, unsigned len); /* rt.c */
+
+/* A stream's buffer as Writes nobody waits for, a chunk each. */
+static void post(FILE *f)
+{
+    if (f->flags & __F_MEM)
+        return;
+    for (size_t at = 0; at < f->len;) {
+        unsigned n = f->len - at > BRAAM_READ_MAX ? BRAAM_READ_MAX : (unsigned)(f->len - at);
+        __braam_post(BRAAM_SYS_OP(BRAAM_SYS_WRITE, f->fd), f->buf + at, n);
+        at += n;
+    }
+    f->len = 0;
+}
+
+/* Every stream's buffer, for an exit that cannot wait: the kernel performs them
+   before the process goes. */
+void __stdio_post(void)
+{
+    for (FILE *g = opened; g; g = g->next)
+        post(g);
+    post(stdout);
+    post(stderr);
+}
+
 /* The next chunk into the input buffer: 1, or 0 at the end or on an error.  One byte
    is kept free below the chunk for ungetc. */
 static coro(braam_call *) int refill(FILE *f)

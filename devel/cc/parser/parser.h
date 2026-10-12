@@ -24,7 +24,7 @@ extern int wio_debug;
 //
 // Parse
 //
-Program *parse(FILE *input);
+Program *parse(const char *text, size_t len);
 Declarator *parse_declarator(void);
 int parser_get_token(void);
 const char *parser_get_lexeme(void);

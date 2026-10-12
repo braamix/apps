@@ -128,7 +128,7 @@ enum {
     TOKEN_ENUMERATION_CONSTANT, // previously defined enumerator constant
 };
 
-void init_scanner(FILE *input);
+void init_scanner(const char *text, size_t len);
 int yylex(void);
 
 // Get current lexeme

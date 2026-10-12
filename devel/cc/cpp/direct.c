@@ -27,7 +27,7 @@ static int is_once_file(int fd)
     struct stat st;
     int i;
 
-    if (fstat(fd, &st) < 0)
+    if (cpp_fstat(fd, &st) < 0)
         return 0;
     for (i = 0; i < once_count; i++)
         if (once_files[i].dev == st.st_dev && once_files[i].ino == st.st_ino)
@@ -40,7 +40,7 @@ static void add_once_file(int fd)
 {
     struct stat st;
 
-    if (is_once_file(fd) || fstat(fd, &st) < 0)
+    if (is_once_file(fd) || cpp_fstat(fd, &st) < 0)
         return;
     if (once_count >= MAXONCE) {
         pperror("too many '#pragma once' files");
@@ -151,9 +151,9 @@ static char *do_include(char *p)
             strcat(nfil, "/");
             strcat(nfil, filname);
         }
-        if (0 < (cpp.inc_fd[cpp.inc_level + 1] = open(nfil, READ))) {
+        if (0 < (cpp.inc_fd[cpp.inc_level + 1] = cpp_open(nfil))) {
             if (is_once_file(cpp.inc_fd[cpp.inc_level + 1])) {
-                close(cpp.inc_fd[cpp.inc_level + 1]); // #pragma once: already in
+                cpp_close(cpp.inc_fd[cpp.inc_level + 1]); // #pragma once: already in
                 return (p);
             }
             filok     = 1;

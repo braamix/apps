@@ -1,7 +1,7 @@
 //
 // Word-oriented buffered I/O interface.
-// This implementation uses a buffer to handle word-sized I/O operations,
-// built on top of standard file descriptors for underlying I/O.
+// This implementation holds the whole file in a buffer of words: read when the
+// stream is opened, written when it is closed (wio.h).
 // A `WFILE` structure includes a buffer, file descriptor, and state flags,
 // with functions mirroring `stdio.h` but operating on `size_t` words in native byte order.
 //
@@ -23,10 +23,70 @@
 int wio_debug; // Enable manually for debug
 
 //
+// Read what is left of the descriptor into the buffer, whole.
+//
+static coro(braam_call *) int load(WFILE *stream)
+{
+    size_t cap = BUFFER_SIZE * sizeof(size_t), len = 0;
+    char *data = malloc(cap);
+    if (!data)
+        return -1;
+    for (;;) {
+        if (len == cap) {
+            char *more = realloc(data, cap * 2);
+            if (!more) {
+                free(data);
+                return -1;
+            }
+            data = more;
+            cap *= 2;
+        }
+        ssize_t n = await read(stream->fd, data + len, cap - len);
+        if (n < 0) {
+            free(data);
+            return -1;
+        }
+        if (n == 0)
+            break;
+        len += n;
+    }
+    stream->buffer       = (size_t *)data;
+    stream->buffer_count = len / sizeof(size_t);
+    stream->buffer_cap   = cap / sizeof(size_t);
+    stream->partial      = len % sizeof(size_t) != 0;
+    return 0;
+}
+
+//
+// A stream on the descriptor fd: what it holds, for reading, or an empty buffer
+// for writing.
+//
+static coro(braam_call *) int attach(WFILE *stream, int fd, char m)
+{
+    stream->fd            = fd;
+    stream->buffer        = NULL;
+    stream->buffer_pos    = 0;
+    stream->buffer_count  = 0;
+    stream->buffer_cap    = 0;
+    stream->is_eof        = false;
+    stream->is_error      = false;
+    stream->partial       = false;
+    stream->mode          = m;
+    stream->must_close_fd = false;
+    if (m == 'r')
+        return await load(stream);
+    stream->buffer = malloc(BUFFER_SIZE * sizeof(size_t));
+    if (!stream->buffer)
+        return -1;
+    stream->buffer_cap = BUFFER_SIZE;
+    return 0;
+}
+
+//
 // Open a file with appropriate flags based on mode (`r`, `w`, `a`),
 // allocate a `WFILE` structure and buffer.
 //
-int wopen(WFILE *stream, const char *path, const char *mode)
+coro(braam_call *) int wopen(WFILE *stream, const char *path, const char *mode)
 {
     if (!stream) {
         return -1;
@@ -44,22 +104,14 @@ int wopen(WFILE *stream, const char *path, const char *mode)
         return -1;
     }
 
-    int fd = open(path, flags, 0666);
+    int fd = await open(path, flags, 0666);
     if (fd == -1)
         return -1;
 
-    stream->buffer = malloc(BUFFER_SIZE * sizeof(size_t));
-    if (!stream->buffer) {
-        close(fd);
+    if (await attach(stream, fd, m) < 0) {
+        await close(fd);
         return -1;
     }
-
-    stream->fd            = fd;
-    stream->buffer_pos    = 0;
-    stream->buffer_count  = 0;
-    stream->is_eof        = false;
-    stream->is_error      = false;
-    stream->mode          = m;
     stream->must_close_fd = true;
     return 0;
 }
@@ -67,27 +119,19 @@ int wopen(WFILE *stream, const char *path, const char *mode)
 //
 // Close the existing stream (flushing if needed), then reopen with new parameters.
 //
-int wreopen(WFILE *stream, const char *path, const char *mode)
+coro(braam_call *) int wreopen(WFILE *stream, const char *path, const char *mode)
 {
     if (!stream) {
         return -1;
     }
-    if (stream->mode == 'w' || stream->mode == 'a') {
-        wflush(stream);
-    }
-    if (stream->must_close_fd) {
-        close(stream->fd);
-        stream->must_close_fd = false;
-    }
-    free(stream->buffer);
-
-    return wopen(stream, path, mode);
+    await wclose(stream);
+    return await wopen(stream, path, mode);
 }
 
 //
 // Create a `WFILE` from an existing file descriptor.
 //
-int wdopen(WFILE *stream, int fildes, const char *mode)
+coro(braam_call *) int wdopen(WFILE *stream, int fildes, const char *mode)
 {
     if (!stream) {
         return -1;
@@ -97,24 +141,11 @@ int wdopen(WFILE *stream, int fildes, const char *mode)
         errno = EINVAL;
         return -1;
     }
-
-    stream->buffer = malloc(BUFFER_SIZE * sizeof(size_t));
-    if (!stream->buffer) {
-        return -1;
-    }
-
-    stream->fd            = fildes;
-    stream->buffer_pos    = 0;
-    stream->buffer_count  = 0;
-    stream->is_eof        = false;
-    stream->is_error      = false;
-    stream->mode          = m;
-    stream->must_close_fd = false;
-    return 0;
+    return await attach(stream, fildes, m);
 }
 
 //
-// Write buffered data to the file for write/append modes.
+// Everything is written at wclose(): a write stream keeps its words until then.
 //
 int wflush(WFILE *stream)
 {
@@ -122,40 +153,36 @@ int wflush(WFILE *stream)
         errno = EINVAL;
         return -1;
     }
-
-    if (stream->buffer_pos > 0) {
-        ssize_t bytes_to_write = stream->buffer_pos * sizeof(size_t);
-        ssize_t bytes_written  = write(stream->fd, stream->buffer, bytes_to_write);
-        if (bytes_written != bytes_to_write) {
-            stream->is_error = true;
-            return -1;
-        }
-        stream->buffer_pos = 0;
-    }
     return 0;
 }
 
 //
-// Flush (if needed) and free resources.
+// Write what was buffered, and free resources.
 //
-void wclose(WFILE *stream)
+coro(braam_call *) void wclose(WFILE *stream)
 {
     if (!stream)
         return;
 
-    if (stream->mode == 'w' || stream->mode == 'a') {
-        wflush(stream);
+    if ((stream->mode == 'w' || stream->mode == 'a') && stream->buffer_pos > 0) {
+        ssize_t bytes_to_write = stream->buffer_pos * sizeof(size_t);
+        ssize_t bytes_written  = await write(stream->fd, stream->buffer, bytes_to_write);
+        if (bytes_written != bytes_to_write) {
+            stream->is_error = true;
+        }
+        stream->buffer_pos = 0;
     }
 
     if (stream->must_close_fd) {
-        close(stream->fd);
+        await close(stream->fd);
         stream->must_close_fd = false;
     }
     free(stream->buffer);
+    stream->buffer = NULL;
 }
 
 //
-// Adjust file position in word units, flush buffer if writing.
+// Adjust the position in word units: in the words read, or in those written.
 //
 int wseek(WFILE *stream, long offset, int whence)
 {
@@ -164,24 +191,22 @@ int wseek(WFILE *stream, long offset, int whence)
         return -1;
     }
 
-    if (stream->mode == 'w' || stream->mode == 'a') {
-        wflush(stream);
-    }
-
-    off_t new_offset = lseek(stream->fd, offset * sizeof(size_t), whence);
-    if (new_offset == -1) {
+    size_t end   = stream->mode == 'r' ? stream->buffer_count : stream->buffer_pos;
+    long new_pos = whence == SEEK_SET   ? offset
+                   : whence == SEEK_CUR ? (long)stream->buffer_pos + offset
+                                        : (long)end + offset;
+    if (new_pos < 0 || (size_t)new_pos > end) {
         stream->is_error = true;
         return -1;
     }
 
-    stream->buffer_pos   = 0;
-    stream->buffer_count = 0;
-    stream->is_eof       = false;
+    stream->buffer_pos = new_pos;
+    stream->is_eof     = false;
     return 0;
 }
 
 //
-// Return current position in words, accounting for buffered data.
+// Return the current position in words.
 //
 long wtell(WFILE *stream)
 {
@@ -189,21 +214,7 @@ long wtell(WFILE *stream)
         errno = EINVAL;
         return -1;
     }
-
-    off_t pos = lseek(stream->fd, 0, SEEK_CUR);
-    if (pos == -1) {
-        stream->is_error = true;
-        return -1;
-    }
-
-    if (stream->mode == 'r') {
-        pos -= stream->buffer_count * sizeof(size_t);
-        pos += stream->buffer_pos * sizeof(size_t);
-    } else {
-        pos += stream->buffer_pos * sizeof(size_t);
-    }
-
-    return pos / sizeof(size_t);
+    return (long)stream->buffer_pos;
 }
 
 //
@@ -217,7 +228,7 @@ void wrewind(WFILE *stream)
 }
 
 //
-// Read the next word, refilling the buffer if empty. Return `(size_t)-1` on EOF or error.
+// Read the next word. Return `(size_t)-1` at the end or on an error.
 //
 size_t wgetw(WFILE *stream)
 {
@@ -227,24 +238,12 @@ size_t wgetw(WFILE *stream)
     }
 
     if (stream->buffer_pos >= stream->buffer_count) {
-        stream->buffer_pos   = 0;
-        stream->buffer_count = 0;
-
-        ssize_t bytes_read = read(stream->fd, stream->buffer, BUFFER_SIZE * sizeof(size_t));
-        if (bytes_read <= 0) {
-            if (bytes_read == 0) {
-                stream->is_eof = true;
-            } else {
-                stream->is_error = true;
-            }
-            return (size_t)-1;
-        }
-
-        stream->buffer_count = bytes_read / sizeof(size_t);
-        if (bytes_read % sizeof(size_t) != 0) {
+        if (stream->partial) {
             stream->is_error = true;
-            return (size_t)-1;
+        } else {
+            stream->is_eof = true;
         }
+        return (size_t)-1;
     }
 
     size_t w = stream->buffer[stream->buffer_pos++];
@@ -255,7 +254,7 @@ size_t wgetw(WFILE *stream)
 }
 
 //
-// Buffer a word, flushing when the buffer is full.
+// Buffer a word, growing the buffer when it is full.
 //
 int wputw(size_t w, WFILE *stream)
 {
@@ -264,10 +263,14 @@ int wputw(size_t w, WFILE *stream)
         return -1;
     }
 
-    if (stream->buffer_pos >= BUFFER_SIZE) {
-        if (wflush(stream) != 0) {
+    if (stream->buffer_pos >= stream->buffer_cap) {
+        size_t *more = realloc(stream->buffer, 2 * stream->buffer_cap * sizeof(size_t));
+        if (!more) {
+            stream->is_error = true;
             return -1;
         }
+        stream->buffer = more;
+        stream->buffer_cap *= 2;
     }
 
     if (wio_debug) {
@@ -461,7 +464,7 @@ double wgetd(WFILE *stream)
             double f;
         } u;
         u.w = wgetw(stream);
-        if (u.w == (size_t)-1)
+        if (stream->is_eof || stream->is_error) // all ones is a value too
             return nan("");
         return u.f;
     }
@@ -472,10 +475,8 @@ double wgetd(WFILE *stream)
             double f;
         } u;
         u.w[0] = wgetw(stream);
-        if (u.w[0] == (size_t)-1)
-            return nan("");
         u.w[1] = wgetw(stream);
-        if (u.w[1] == (size_t)-1)
+        if (stream->is_eof || stream->is_error) // all ones is a value too
             return nan("");
         return u.f;
     }
@@ -514,17 +515,34 @@ int wputd(double f, WFILE *stream)
     return -1;
 }
 
+unsigned long long wgetll(WFILE *stream)
+{
+    if (sizeof(size_t) >= sizeof(unsigned long long))
+        return wgetw(stream);
+    unsigned long long lo = wgetw(stream);
+    return lo | (unsigned long long)wgetw(stream) << 4 * sizeof(size_t) << 4 * sizeof(size_t);
+}
+
+int wputll(unsigned long long v, WFILE *stream)
+{
+    if (sizeof(size_t) >= sizeof(unsigned long long))
+        return wputw((size_t)v, stream);
+    if (wputw((size_t)v, stream) < 0)
+        return -1;
+    return wputw((size_t)(v >> 4 * sizeof(size_t) >> 4 * sizeof(size_t)), stream);
+}
+
 Float128 wgetf128(WFILE *stream)
 {
     Float128 f;
-    f.lo = (uint64_t)wgetw(stream);
-    f.hi = (uint64_t)wgetw(stream);
+    f.lo = (uint64_t)wgetll(stream);
+    f.hi = (uint64_t)wgetll(stream);
     return f;
 }
 
 int wputf128(Float128 f, WFILE *stream)
 {
-    if (wputw((size_t)f.lo, stream) < 0)
+    if (wputll(f.lo, stream) < 0)
         return -1;
-    return wputw((size_t)f.hi, stream);
+    return wputll(f.hi, stream);
 }

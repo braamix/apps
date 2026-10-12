@@ -42,8 +42,8 @@ static const char *output_ext(void)
     return ".s";
 }
 
-int main(int argc, char *argv[])
+coro(braam_call *) int main(int argc, char *argv[])
 {
     static const Backend wasm = { flags, flag, output_ext, wasm_codegen };
-    return backend_main(argc, argv, &wasm);
+    return await backend_main(argc, argv, &wasm);
 }

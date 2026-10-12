@@ -204,7 +204,7 @@ char *refill_buffer(char *p)
                 // '?' held from the previous read of this file (a trigraph split
                 // across the read boundary) is prepended before translating.
                 int hold   = cpp.trig_nhold[cpp.inc_level];
-                int ninbuf = read(cpp.in_fd, cpp.buf_mid + hold, BUFSIZ - hold);
+                int ninbuf = cpp_read(cpp.in_fd, cpp.buf_mid + hold, BUFSIZ - hold);
                 if (ninbuf > 0 || hold > 0) {
                     if (ninbuf < 0)
                         ninbuf = 0;
@@ -225,7 +225,7 @@ char *refill_buffer(char *p)
                 }
                 // ninbuf == 0 && hold == 0: real EOF, fall through to EOF handling.
             } else {
-                int ninbuf = read(cpp.in_fd, cpp.buf_mid, BUFSIZ);
+                int ninbuf = cpp_read(cpp.in_fd, cpp.buf_mid, BUFSIZ);
                 if (0 < ninbuf) {
                     cpp.buf_end  = cpp.buf_mid + ninbuf;
                     *cpp.buf_end = '\0';
@@ -272,7 +272,7 @@ char *refill_buffer(char *p)
                 flush_output();
                 exit_cpp();
             }
-            close(cpp.in_fd);
+            cpp_close(cpp.in_fd);
             cpp.in_fd          = cpp.inc_fd[--cpp.inc_level];
             cpp.search_dirs[0] = cpp.inc_dir[cpp.inc_level];
             emit_line_marker();

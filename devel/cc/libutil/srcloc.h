@@ -13,6 +13,8 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "host.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -45,6 +47,13 @@ SrcLoc diag_enter(SrcLoc loc);
 const char *srcloc_intern(const char *name);
 
 //
+// The text of a source file, for the caret under a diagnostic: a pass that has the
+// file's bytes in memory gives them here, and diag_print_source() draws from them
+// rather than opening the file. The text is kept, not copied.
+//
+void srcloc_set_text(const char *name, const char *text, size_t len);
+
+//
 // The name of the running program, for a diagnostic with no location; a main sets it
 // from argv[0]. NULL leaves the name out.
 //
@@ -53,10 +62,12 @@ extern const char *diag_progname;
 //
 // Color in diagnostics, as GCC paints them: the location bold, the kind red, magenta
 // or cyan, the caret green. diag_color is 1 for always, 0 for never, -1 (the default)
-// for when f is a terminal, NO_COLOR is unset or empty and TERM is not "dumb";
-// that test is made once. diag_use_color() says whether to color what goes to f.
+// for when stderr is a terminal, NO_COLOR is unset or empty and TERM is not "dumb";
+// diag_init_color() makes that test, once, before the first diagnostic. Until it
+// has, "auto" is no color. diag_use_color() says whether to color what goes to f.
 //
 extern int diag_color;
+coro(braam_call *) void diag_init_color(void);
 int diag_use_color(FILE *f);
 
 //
@@ -87,7 +98,8 @@ void diag_vreport(SrcLoc loc, const char *kind, const char *fmt, va_list ap);
 //            |       ^
 //
 // Nothing is shown when diag_show_source is 0 (1 by default) or the file can't be
-// read.
+// read. A text given to srcloc_set_text() is read first; on Braam, where a plain
+// function cannot open a file, it is the only one.
 //
 extern int diag_show_source;
 void diag_print_source(FILE *f, SrcLoc loc);

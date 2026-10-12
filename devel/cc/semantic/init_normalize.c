@@ -106,7 +106,7 @@ static void place(const Type *t, Initializer **slot, InitItem **cur, InitMode mo
 static InitItem **designate_index(const Type *t, Initializer *node, Designator *d)
 {
     d->u.expr = typecheck_and_decay(d->u.expr);
-    long index;
+    long long index;
     if (!is_integer(d->u.expr->type) || !try_eval_const_int(d->u.expr, &index))
         fatal_error("array designator index is not an integer constant expression");
     if (index < 0)

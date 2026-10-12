@@ -90,7 +90,7 @@ static char *snapshot(const Tac_Instruction *body)
     if (!f)
         internal_error("optimizer: open_memstream failed");
     tac_export_yaml_instruction_list(f, body, 0);
-    fclose(f);
+    memstream_close(f);
     char *copy = xstrdup(buf);
     free(buf);
     return copy;

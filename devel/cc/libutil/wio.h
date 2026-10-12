@@ -7,6 +7,7 @@
 #include <stddef.h>
 
 #include "float128.h"
+#include "host.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,28 +18,38 @@ extern "C" {
 // for `size_t` words, buffer position and count, EOF and error flags,
 // and mode (`r`, `w`, or `a`).
 //
+// The whole file is in the buffer: a stream for reading reads it all when it is
+// opened, and one for writing keeps every word until wclose() writes them out. So
+// opening and closing are the only calls that wait, coroutines on Braam, and the
+// rest are plain functions over memory.
+//
 struct _wfile {
     int fd;              /* Underlying file descriptor */
     size_t *buffer;      /* Buffer for read/write operations */
     size_t buffer_pos;   /* Current position in buffer */
     size_t buffer_count; /* Number of words in buffer */
+    size_t buffer_cap;   /* Words the buffer has room for */
     bool is_eof;         /* End-of-file flag */
     bool is_error;       /* Error flag */
+    bool partial;        /* The file ended inside a word */
     bool must_close_fd;  /* after wopen */
     char mode;           /* 'r' for read, 'w' for write, 'a' for append */
 };
 typedef struct _wfile WFILE;
 
-int wopen(WFILE *stream, const char *path, const char *mode);
-int wreopen(WFILE *stream, const char *path, const char *mode);
-int wdopen(WFILE *stream, int fildes, const char *mode);
-void wclose(WFILE *stream);
+coro(braam_call *) int wopen(WFILE *stream, const char *path, const char *mode);
+coro(braam_call *) int wreopen(WFILE *stream, const char *path, const char *mode);
+coro(braam_call *) int wdopen(WFILE *stream, int fildes, const char *mode);
+coro(braam_call *) void wclose(WFILE *stream);
 int wflush(WFILE *stream);
 int wseek(WFILE *stream, long offset, int whence);
 long wtell(WFILE *stream);
 void wrewind(WFILE *stream);
 size_t wgetw(WFILE *stream);
 int wputw(size_t w, WFILE *stream);
+// A 64-bit value: one word where size_t holds it, two (low, high) where it does not.
+unsigned long long wgetll(WFILE *stream);
+int wputll(unsigned long long v, WFILE *stream);
 double wgetd(WFILE *stream);
 int wputd(double w, WFILE *stream);
 // A binary128 value, as two words: low, then high.

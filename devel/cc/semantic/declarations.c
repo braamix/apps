@@ -142,7 +142,7 @@ static const char *auto_local_name(const char *source, const Type *type)
     return a->name;
 }
 
-static bool valid_alignment(long a)
+static bool valid_alignment(long long a)
 {
     size_t max            = target_config->ldouble_align;
     const size_t aligns[] = { target_config->int_align, target_config->long_align,
@@ -151,7 +151,7 @@ static bool valid_alignment(long a)
     for (size_t i = 0; i < sizeof(aligns) / sizeof(aligns[0]); i++)
         if (aligns[i] > max)
             max = aligns[i];
-    return a > 0 && ((a & (a - 1)) == 0 || a % (long)max == 0);
+    return a > 0 && ((a & (a - 1)) == 0 || a % (long long)max == 0);
 }
 
 // The value of an _Alignas, in bytes: 0 for none or _Alignas(0).  The specifier is
@@ -161,19 +161,19 @@ static int alignment_spec_value(AlignmentSpec *as)
 {
     if (!as)
         return 0;
-    long a;
+    long long a;
     if (as->kind == ALIGN_SPEC_EXPR && as->u.expr->kind == EXPR_LITERAL &&
         as->u.expr->u.literal->kind == LITERAL_INT) {
-        a = (long)as->u.expr->u.literal->u.int_val;
+        a = (long long)as->u.expr->u.literal->u.int_val;
         if (a != 0 && !valid_alignment(a))
-            fatal_error("invalid alignment %ld in '_Alignas'", a);
+            fatal_error("invalid alignment %lld in '_Alignas'", a);
         return (int)a;
     } else if (as->kind == ALIGN_SPEC_TYPE) {
         as->u.type = resolve_typedef_names(as->u.type);
         validate_type(as->u.type);
         if (!is_complete(as->u.type) || unalias(as->u.type)->kind == TYPE_FUNCTION)
             fatal_error("'_Alignas' of incomplete or function type '%s'", type_to_c(as->u.type));
-        a = (long)get_alignment(as->u.type);
+        a = (long long)get_alignment(as->u.type);
         free_type(as->u.type);
     } else {
         as->u.expr = typecheck_and_decay(as->u.expr);
@@ -182,7 +182,7 @@ static int alignment_spec_value(AlignmentSpec *as)
         free_expression(as->u.expr);
     }
     if (a != 0 && !valid_alignment(a))
-        fatal_error("invalid alignment %ld in '_Alignas'", a);
+        fatal_error("invalid alignment %lld in '_Alignas'", a);
     as->kind                         = ALIGN_SPEC_EXPR;
     as->u.expr                       = new_expression(EXPR_LITERAL);
     as->u.expr->u.literal            = new_literal(LITERAL_INT);
@@ -339,7 +339,7 @@ static void register_function_declaration(InitDeclarator *decl, const DeclSpec *
 // Fail the compilation unless a _Static_assert condition folds to a nonzero constant.
 static void check_static_assert(const Expr *condition, const char *message)
 {
-    long val;
+    long long val;
     if (!try_eval_const_int(condition, &val))
         fatal_error("'_Static_assert' condition is not a constant expression");
     if (!val) {
@@ -398,9 +398,9 @@ static void validate_struct_definition(const char *tag, const Field *members)
 // Register enum constants for an enum type definition.
 static void register_enum_constants(const Type *enum_type)
 {
-    long next_val = 0;
+    long long next_val = 0;
     for (const Enumerator *e = enum_type->u.enum_t.enumerators; e; e = e->next) {
-        long val;
+        long long val;
         if (e->value) {
             if (!try_eval_const_int(e->value, &val))
                 fatal_error("value of enumerator '%s' is not a constant expression", e->name);
@@ -412,8 +412,8 @@ static void register_enum_constants(const Type *enum_type)
         // unsigned int wraps, as gcc and clang accept it.
         int bits      = target_config->int_bits;
         uint64_t umax = unsigned_narrow(~(uint64_t)0, (int)target_config->int_size * 8);
-        if (bits < 64 && (val < 0 ? val < -(1L << (bits - 1)) : (uint64_t)val > umax))
-            fatal_error("value %ld of enumerator '%s' does not fit in 'int'", val, e->name);
+        if (bits < 64 && (val < 0 ? val < -(1LL << (bits - 1)) : (uint64_t)val > umax))
+            fatal_error("value %lld of enumerator '%s' does not fit in 'int'", val, e->name);
         symtab_add_enum_const(e->name, (int)sign_narrow((uint64_t)val, bits), scope_level);
     }
 }
@@ -438,7 +438,7 @@ static int bitfield_width(const Field *f)
     const Type *t = unalias(f->u.member.type);
     if (!is_integer(t))
         fatal_error("%s has non-integer type '%s'", bitfield_desc(f), type_to_c(t));
-    long width;
+    long long width;
     if (!try_eval_const_int(f->u.member.bitfield, &width))
         fatal_error("width of %s is not an integer constant expression", bitfield_desc(f));
     if (width < 0)
@@ -846,14 +846,14 @@ static void typecheck_local_var_decl(const Declaration *d)
 // i.e. an always-true guard such as `while (1)`.
 static bool is_const_true(const Expr *cond)
 {
-    long v;
+    long long v;
     return cond && try_eval_const_int(cond, &v) && v != 0;
 }
 
 // True if `cond` is a compile-time integer constant that evaluates to zero.
 static bool is_const_false(const Expr *cond)
 {
-    long v;
+    long long v;
     return cond && try_eval_const_int(cond, &v) && v == 0;
 }
 

@@ -272,7 +272,7 @@ void type_int_literal(Literal *lit)
         lit->u.int_val = (int64_t)v;
         break;
     case LITERAL_LONG:
-        lit->u.long_val = (long)v;
+        lit->u.long_val = (int64_t)v;
         break;
     case LITERAL_LONG_LONG:
         lit->u.long_long_val = (long long)v;
@@ -281,7 +281,7 @@ void type_int_literal(Literal *lit)
         lit->u.uint_val = v;
         break;
     case LITERAL_ULONG:
-        lit->u.ulong_val = (unsigned long)v;
+        lit->u.ulong_val = (uint64_t)v;
         break;
     default:
         lit->u.ulong_long_val = v;

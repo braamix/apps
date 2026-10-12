@@ -45,11 +45,11 @@ bool compatible_type(const Type *target, const Type *src);
 Expr *coerce_for_assignment(Expr *e, const Type *target_type, const char *context);
 
 // Const evaluation — typecheck.c
-bool try_eval_const_int(const Expr *e, long *out);
+bool try_eval_const_int(const Expr *e, long long *out);
 
 // An integer constant converted to the integer type `t` of the active target: wrapped
 // to its value width, as C11 §6.3.1.3 converts it.
-long narrow_const_int(long val, const Type *t);
+long long narrow_const_int(long long val, const Type *t);
 bool try_eval_const_real(const Expr *e, double *out);
 bool try_eval_const_ld(const Expr *e, Float128 *out);
 

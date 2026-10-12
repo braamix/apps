@@ -4,6 +4,7 @@
 // only need defs.h.
 //
 #include "defs.h"
+#include "host.h"
 
 #define STATIC // marks a function that is logically private but left global for now
 
@@ -105,7 +106,17 @@ char *expand_macro(char *p, struct symtab *sp);              // expand a macro c
 char *expand_text(const char *a0, const char *a1, char *out,
                   int cap); // fully expand [a0,a1) into out
 
+// files.c -- the files cpp reads: on Braam from memory, loaded before it starts
+struct stat;
+coro(braam_call *) int cpp_load(const char *path); // read path whole (Braam), or nothing
+coro(braam_call *) void cpp_preload(void);         // and every file it might include
+int cpp_open(const char *path);                    // open(path, READ)
+int cpp_read(int fd, char *buf, int n);            // read
+void cpp_close(int fd);                            // close
+int cpp_fstat(int fd, struct stat *st);            // fstat
+
 // diag.c -- diagnostics and small string helpers
+extern int cpp_stderr_tty;               // stderr is a terminal: set once, in main
 char *dir_of(char *s);                   // reduce a path to its directory part
 STATIC char *save_string(const char *s); // copy a string into the side buffer, return it
 char *find_char(char *s, int c);         // like strchr: find character c in string s

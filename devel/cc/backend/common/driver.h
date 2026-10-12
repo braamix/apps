@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 
+#include "host.h"
 #include "tac.h"
 
 #ifdef __cplusplus
@@ -31,7 +32,7 @@ typedef struct {
     void (*codegen)(const Tac_TopLevel *program, const Tac_TopLevel *tl, FILE *out);
 } Backend;
 
-int backend_main(int argc, char *argv[], const Backend *backend);
+coro(braam_call *) int backend_main(int argc, char *argv[], const Backend *backend);
 
 #ifdef __cplusplus
 }

@@ -206,6 +206,7 @@ Program *parse_translation_unit()
         printf("--- %s()\n", __func__);
     }
     Program *program = new_program();
+#ifndef __braam__ // no setjmp: the first error ends the pass
     jmp_buf here;
     if (parser_recovery) {
         if (setjmp(here)) {
@@ -217,6 +218,7 @@ Program *parse_translation_unit()
         }
         diag_recover = &here;
     }
+#endif
     while (current_token != TOKEN_EOF) {
         ExternalDecl *decl = parse_external_declaration();
         append_list(&program->decls, decl);
@@ -326,12 +328,12 @@ Declaration *parse_declaration_list()
 }
 
 /* Main parsing function */
-Program *parse(FILE *input)
+Program *parse(const char *text, size_t len)
 {
     if (parser_debug) {
         printf("--- %s()\n", __func__);
     }
-    init_scanner(input);
+    init_scanner(text, len);
     peek_token  = 0;
     scope_level = 0;
     brace_depth = 0;

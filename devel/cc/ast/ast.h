@@ -481,10 +481,10 @@ struct Literal {
                        // target whose double is single: valid when spelling is set
     union {
         int64_t int_val;
-        long long_val;
+        int64_t long_val; // 64 bits whatever the host's long: semantic narrows it
         long long long_long_val;
         uint64_t uint_val;
-        unsigned long ulong_val;
+        uint64_t ulong_val;
         unsigned long long ulong_long_val;
         double real_val;
         Float128 long_double_val; // binary128 bits, exact on any host
@@ -710,12 +710,12 @@ bool compare_program(const Program *a, const Program *b);
 //
 // Import, export
 //
-Program *import_ast(int fildes);
-void export_ast(int fildes, Program *program);
+coro(braam_call *) Program *import_ast(int fildes);
+coro(braam_call *) void export_ast(int fildes, Program *program);
 void export_yaml(FILE *fd, Program *program);
 
 typedef struct _wfile WFILE;
-void ast_import_open(WFILE *input, int fildes);
+coro(braam_call *) void ast_import_open(WFILE *input, int fildes);
 ExternalDecl *import_external_decl(WFILE *input);
 
 //

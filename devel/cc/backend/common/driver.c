@@ -164,28 +164,28 @@ done:
 
 _Noreturn void fatal_error(const char *message, ...);
 
-static void open_output(const Args *args)
+static coro(braam_call *) void open_output(const Args *args)
 {
     output_file = stdout;
     if (args->output_file[0] != '-') {
-        output_file = fopen(args->output_file, "w");
+        output_file = await fopen(args->output_file, "w");
         if (!output_file) {
             fatal_error("cannot create '%s': %s", args->output_file, strerror(errno));
         }
     }
 }
 
-static void close_output(void)
+static coro(braam_call *) void close_output(void)
 {
     if (output_file != stdout) {
-        fclose(output_file);
+        await fclose(output_file);
     }
 }
 
 //
 // Main processing function
 //
-static void process_file(const Args *args, const Backend *backend)
+static coro(braam_call *) void process_file(const Args *args, const Backend *backend)
 {
     if (args->verbose) {
         printf("Processing %s in verbose mode\n", args->input_file);
@@ -193,10 +193,10 @@ static void process_file(const Args *args, const Backend *backend)
     if (args->debug) {
         printf("Debug: Input = %s, Output = %s\n", args->input_file, args->output_file);
     }
-    open_output(args);
+    await open_output(args);
 
     WFILE input;
-    if (wopen(&input, args->input_file, "r") < 0) {
+    if (await wopen(&input, args->input_file, "r") < 0) {
         fatal_error("cannot open '%s': %s", args->input_file, strerror(errno));
     }
     if (!tac_import_begin_stream(&input)) {
@@ -212,16 +212,17 @@ static void process_file(const Args *args, const Backend *backend)
         *tail_ptr = tac;
         tail_ptr  = &tac->next;
     }
-    wclose(&input);
+    await wclose(&input);
 
     // Phase 2: codegen each toplevel with the full program chain as context.
     for (const Tac_TopLevel *tl = head; tl; tl = tl->next) {
+        await braam_yield(); // so ^C reaches a long unit
         if (args->debug)
             tac_print_toplevel(stdout, tl, 0);
         backend->codegen(head, tl, output_file);
     }
     tac_free_toplevel(head);
-    close_output();
+    await close_output();
 
     if (args->debug) {
         xreport_lost_memory();
@@ -241,10 +242,11 @@ void _Noreturn fatal_error(const char *message, ...)
     exit(1);
 }
 
-int backend_main(int argc, char *argv[], const Backend *backend)
+coro(braam_call *) int backend_main(int argc, char *argv[], const Backend *backend)
 {
     Args args = { 0 };
 
+    await diag_init_color();
     diag_progname = argv[0];
     if (parse_args(argc, argv, &args, backend) != 0) {
         print_usage(argv[0], backend);
@@ -256,6 +258,6 @@ int backend_main(int argc, char *argv[], const Backend *backend)
         return 0;
     }
 
-    process_file(&args, backend);
+    await process_file(&args, backend);
     return 0;
 }

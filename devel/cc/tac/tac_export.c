@@ -18,22 +18,22 @@ static void export_const(WFILE *out, const Tac_Const *c)
     wputw(TAG_TAC_CONST + c->kind, out);
     switch (c->kind) {
     case TAC_CONST_INT:
-        wputw((size_t)(uint64_t)c->u.int_val, out);
+        wputll((uint64_t)c->u.int_val, out);
         break;
     case TAC_CONST_LONG:
-        wputw((size_t)c->u.long_val, out);
+        wputll((unsigned long long)c->u.long_val, out);
         break;
     case TAC_CONST_LONG_LONG:
-        wputw((size_t)(unsigned long long)c->u.long_long_val, out);
+        wputll((unsigned long long)c->u.long_long_val, out);
         break;
     case TAC_CONST_UINT:
-        wputw((size_t)c->u.uint_val, out);
+        wputll((unsigned long long)c->u.uint_val, out);
         break;
     case TAC_CONST_ULONG:
-        wputw((size_t)c->u.ulong_val, out);
+        wputll((unsigned long long)c->u.ulong_val, out);
         break;
     case TAC_CONST_ULONG_LONG:
-        wputw((size_t)c->u.ulong_long_val, out);
+        wputll((unsigned long long)c->u.ulong_long_val, out);
         break;
     case TAC_CONST_FLOAT:
         wputd(c->u.float_val, out);
@@ -352,7 +352,7 @@ static void export_static_init(WFILE *out, const Tac_StaticInit *si)
         wputw((size_t)(unsigned int)si->u.int_val, out);
         break;
     case TAC_STATIC_INIT_I64:
-        wputw((size_t)(unsigned long long)si->u.long_val, out);
+        wputll((unsigned long long)si->u.long_val, out);
         break;
     case TAC_STATIC_INIT_U8:
         wputw((size_t)si->u.uchar_val, out);
@@ -364,7 +364,7 @@ static void export_static_init(WFILE *out, const Tac_StaticInit *si)
         wputw((size_t)si->u.uint_val, out);
         break;
     case TAC_STATIC_INIT_U64:
-        wputw((size_t)si->u.ulong_val, out);
+        wputll(si->u.ulong_val, out);
         break;
     case TAC_STATIC_INIT_FLOAT:
         wputd(si->u.float_val, out);

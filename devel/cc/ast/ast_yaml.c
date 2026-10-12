@@ -556,7 +556,7 @@ static void export_literal(FILE *fd, const Literal *lit, int level)
         fprintf(fd, "%" PRId64 "\n", lit->u.int_val);
         break;
     case LITERAL_LONG:
-        fprintf(fd, "%ld\n", lit->u.long_val);
+        fprintf(fd, "%" PRId64 "\n", lit->u.long_val);
         break;
     case LITERAL_LONG_LONG:
         fprintf(fd, "%lld\n", lit->u.long_long_val);
@@ -565,7 +565,7 @@ static void export_literal(FILE *fd, const Literal *lit, int level)
         fprintf(fd, "%" PRIu64 "\n", lit->u.uint_val);
         break;
     case LITERAL_ULONG:
-        fprintf(fd, "%lu\n", lit->u.ulong_val);
+        fprintf(fd, "%" PRIu64 "\n", lit->u.ulong_val);
         break;
     case LITERAL_ULONG_LONG:
         fprintf(fd, "%llu\n", lit->u.ulong_long_val);

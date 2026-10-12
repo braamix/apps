@@ -362,13 +362,13 @@ Expr *parse_constant()
                     expr->u.literal->u.ulong_long_val = v;
                 } else if (long_count == 1) {
                     expr->u.literal->kind        = LITERAL_ULONG;
-                    expr->u.literal->u.ulong_val = (unsigned long)v;
+                    expr->u.literal->u.ulong_val = (uint64_t)v;
                 } else if (v <= (unsigned long long)UINT_MAX) {
                     expr->u.literal->kind       = LITERAL_UINT;
                     expr->u.literal->u.uint_val = (unsigned int)v;
-                } else if (v <= (unsigned long long)ULONG_MAX) {
+                } else if (v <= (unsigned long long)UINT64_MAX) {
                     expr->u.literal->kind        = LITERAL_ULONG;
-                    expr->u.literal->u.ulong_val = (unsigned long)v;
+                    expr->u.literal->u.ulong_val = (uint64_t)v;
                 } else {
                     expr->u.literal->kind             = LITERAL_ULONG_LONG;
                     expr->u.literal->u.ulong_long_val = v;
@@ -379,13 +379,13 @@ Expr *parse_constant()
                     expr->u.literal->u.long_long_val = (long long)v;
                 } else if (long_count == 1) {
                     expr->u.literal->kind       = LITERAL_LONG;
-                    expr->u.literal->u.long_val = (long)v;
+                    expr->u.literal->u.long_val = (int64_t)v;
                 } else if (v <= (unsigned long long)INT_MAX) {
                     expr->u.literal->kind      = LITERAL_INT;
                     expr->u.literal->u.int_val = (int)v;
-                } else if (v <= (unsigned long long)LONG_MAX) {
+                } else if (v <= (unsigned long long)INT64_MAX) {
                     expr->u.literal->kind       = LITERAL_LONG;
-                    expr->u.literal->u.long_val = (long)v;
+                    expr->u.literal->u.long_val = (int64_t)v;
                 } else {
                     expr->u.literal->kind            = LITERAL_LONG_LONG;
                     expr->u.literal->u.long_long_val = (long long)v;

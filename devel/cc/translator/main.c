@@ -275,7 +275,7 @@ static int parse_args(int argc, char *argv[], Args *args)
     return 0;
 }
 
-static void open_input_output(const Args *args)
+static coro(braam_call *) void open_input_output(const Args *args)
 {
     if (args->verbose) {
         switch (args->format) {
@@ -287,29 +287,30 @@ static void open_input_output(const Args *args)
             break;
         }
     }
-    input_fd = open(args->input_file, O_RDONLY);
+    input_fd = await open(args->input_file, O_RDONLY);
     if (input_fd < 0) {
         fatal_error("cannot open '%s': %s", args->input_file, strerror(errno));
     }
     output_file = stdout;
     if (args->output_file[0] != '-') {
-        output_file = fopen(args->output_file, "w");
+        output_file = await fopen(args->output_file, "w");
         if (!output_file) {
             fatal_error("cannot create '%s': %s", args->output_file, strerror(errno));
         }
     }
 }
 
-static void close_output(const Args *args)
+static coro(braam_call *) void close_output(const Args *args)
 {
     (void)args;
-    close(input_fd);
+    await close(input_fd);
     if (output_file != stdout) {
-        fclose(output_file);
+        await fclose(output_file);
     }
 }
 
-static void emit_tac_toplevel(const Args *args, WFILE *tac_out, const Tac_TopLevel *tac)
+static coro(braam_call *) void emit_tac_toplevel(const Args *args, WFILE *tac_out,
+                                                 const Tac_TopLevel *tac)
 {
     switch (args->format) {
     default:
@@ -318,7 +319,7 @@ static void emit_tac_toplevel(const Args *args, WFILE *tac_out, const Tac_TopLev
         break;
     case FORMAT_YAML:
         tac_export_yaml(output_file, tac);
-        fflush(output_file);
+        await fflush(output_file);
         break;
     }
 }
@@ -326,7 +327,7 @@ static void emit_tac_toplevel(const Args *args, WFILE *tac_out, const Tac_TopLev
 //
 // Main processing function
 //
-void process_file(const Args *args)
+coro(braam_call *) void process_file(const Args *args)
 {
     target_config = target_lookup(args->target_name);
     if (!target_config) {
@@ -365,16 +366,16 @@ void process_file(const Args *args)
         // wio_debug        = 1;
         // xalloc_debug     = 1;
     }
-    open_input_output(args);
+    await open_input_output(args);
 
     WFILE input;
-    ast_import_open(&input, input_fd);
+    await ast_import_open(&input, input_fd);
 
     WFILE tac_out;
     int tac_out_ready = 0;
     if (args->format == FORMAT_TAC) {
-        if (wdopen(&tac_out, output_file == stdout ? STDOUT_FILENO : fileno(output_file), "w") <
-            0) {
+        if (await wdopen(&tac_out, output_file == stdout ? STDOUT_FILENO : fileno(output_file),
+                         "w") < 0) {
             fatal_error("cannot write the output: %s", strerror(errno));
         }
         tac_out_ready = 1;
@@ -390,13 +391,16 @@ void process_file(const Args *args)
     translate_unit_begin();
 
     // On an error in a declaration, drop it and check the rest; emit no more TAC.
-    jmp_buf here;
     ExternalDecl *volatile current = NULL;
+#ifndef __braam__ // no setjmp: the first error ends the pass
+    jmp_buf here;
     if (setjmp(here)) {
         semantic_recover(current);
     }
     diag_recover = &here;
+#endif
     for (;;) {
+        await braam_yield(); // so ^C reaches a long unit
         ExternalDecl *ast = import_external_decl(&input);
         if (!ast)
             break;
@@ -427,18 +431,18 @@ void process_file(const Args *args)
                 if (args->debug) {
                     tac_print_toplevel(stdout, t, 0);
                 }
-                emit_tac_toplevel(args, tac_out_ready ? &tac_out : NULL, t);
+                await emit_tac_toplevel(args, tac_out_ready ? &tac_out : NULL, t);
             }
             tac_free_toplevel(tac);
         }
     }
     diag_recover = NULL;
-    wclose(&input);
+    await wclose(&input);
     if (diag_errors) {
         // All reported; leave no partial output behind.
         if (output_file != stdout) {
-            fclose(output_file);
-            remove(args->output_file);
+            await fclose(output_file);
+            await remove(args->output_file);
         }
         exit(1);
     }
@@ -448,15 +452,15 @@ void process_file(const Args *args)
     for (const Tac_TopLevel *t = externs; t; t = t->next) {
         if (args->debug)
             tac_print_toplevel(stdout, t, 0);
-        emit_tac_toplevel(args, tac_out_ready ? &tac_out : NULL, t);
+        await emit_tac_toplevel(args, tac_out_ready ? &tac_out : NULL, t);
     }
     tac_free_toplevel(externs);
 
     if (tac_out_ready) {
         tac_export_end_stream(&tac_out);
-        wclose(&tac_out);
+        await wclose(&tac_out);
     }
-    close_output(args);
+    await close_output(args);
 
     symtab_destroy();
     structtab_destroy();
@@ -478,10 +482,11 @@ void _Noreturn fatal_error(const char *message, ...)
     diag_unwind();
 }
 
-int main(int argc, char *argv[])
+coro(braam_call *) int main(int argc, char *argv[])
 {
     Args args;
     init_args(&args);
+    await diag_init_color();
     diag_progname   = argv[0];
     diag_max_errors = 20;
 
@@ -496,7 +501,7 @@ int main(int argc, char *argv[])
     }
 
     // Pass args to backend for processing
-    process_file(&args);
+    await process_file(&args);
 
     return 0;
 }
