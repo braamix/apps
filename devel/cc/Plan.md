@@ -4,9 +4,9 @@
 `~/Project/Claude/vcc`, cut down to its `wasm32-braam` target and rewritten
 in vcc's own C-with-coroutines, so that it runs on Braam and can compile
 itself there. This file is the plan: what is taken, what changes, and the
-order of the steps, each with what proves it done. The import, the trim and
-the build in this tree are done, and [README.md](README.md) says how they
-were checked.
+order of the steps, each with what proves it done. The import, the trim,
+the build in this tree and the C library are done, and
+[README.md](README.md) says how they were checked.
 
 ## 1. Where this starts
 
@@ -95,29 +95,6 @@ Not vendored: the GoogleTest suites (their programs are, see step 6),
 
 Each step ends green: `make test` passes and the package, once it exists,
 still builds.
-
-### Step 3 — libc gaps
-
-Compile every vendored source with `-t wasm32-braam` and link, and let the
-undefined symbols name the work. Expected:
-
-- **Processes**: `posix_spawn`-shaped `await spawn(...)` over Sys::Spawn,
-  and `await waitpid(...)` over Sys::Wait, in `libc/braam/`.
-- **`open_memstream`** (cpp's `macro.c`), over the growing stream buffer
-  Braam's `stdio.c` already has.
-- **`isatty`** (colour diagnostics), `getenv`, temporary names (`/tmp/` +
-  pid + counter in place of `mkstemp`), `strtod` and the rest
-  `libutil/float128.c` and the scanner use.
-- **`printf("%a")`** — `genwasm` prints every float constant this way
-  (`backend/wasm/emit.c`), so vcc's libc must spell it exactly as the
-  host's does, or the corpus differs. A test of its own.
-- **`__DATE__`/`__TIME__`**: cpp calls `localtime`/`strftime`. Braam has
-  `braam_now()` and no calendar; take it from `SOURCE_DATE_EPOCH` or a
-  fixed date, and say so.
-- **The fatal exit** — see step 4.1.
-
-Each addition is tested on Braam under the harness, and offered upstream to
-vcc's `libc/wasm32/braam/`.
 
 ### Step 4 — the coroutine rewrite, pass by pass
 
