@@ -8,31 +8,25 @@
 //     vparse     parse           .i   -> .ast
 //     vlower     lower + opt     .ast -> .tac
 //     vgen<T>    code gen        .tac -> .s
-//     as         assemble        .s   -> .o     (b6as | clang | msp430-elf-as | mmix-...-as)
-//     ld         link            .o   -> a.out  (b6ld | ld.lld | wasm-ld | msp430-elf-ld |
-//                                               mmix-...-ld)
+//     as         assemble        .s   -> .o     (clang)
+//     ld         link            .o   -> a.out  (wasm-ld)
 //
-// The target is chosen with -t: x86_64-linux, aarch64-linux and riscv64-linux are hosted,
-// linked by the system C compiler against glibc, and aarch64-darwin against macOS's libSystem; riscv64,
-// riscv32, aarch64, arm32, x86_64, avr, msp430, mmix and besm6 are bare metal, wasm32
-// a WebAssembly module, run under node, and wasm32-braam a process of Braam.  By default it is the
-// host, where that is one of the hosted targets, else riscv64. Input files are dispatched by
-// suffix: .c runs the full pipeline, .S is preprocessed assembly (cpp -> as), .s is assembled
+// The one target is wasm32-braam, a process of Braam; -t names it.  Input files are
+// dispatched by suffix: .c runs the full pipeline, .S is preprocessed assembly (cpp -> as), .s is assembled
 // directly, and .o is passed straight to the linker, as is a .a archive.
 //
 // Selection of the last stage to run is controlled by -E (stop after cpp),
 // -S (stop after codegen, emit assembly) and -c (stop after as, emit object).
 // With none of those, the objects are linked into an executable; the objects
-// compiled from sources are then temporaries, as with gcc.  On the BESM-6,
-// -Sbemsh and -Smadlen behave like -S but also select the assembly dialect.
+// compiled from sources are then temporaries, as with gcc.
 //
 // THE INSTALLATION IS RELOCATABLE.  Our own passes are looked up in the directory
-// vcc itself runs from, and each target's headers and libraries under
+// vcc itself runs from, and the target's headers and libraries under
 // <that>/../share/vcc/<target>, so a copied tree keeps working.  The assembler and
 // linker belong to other projects and are found on PATH.  Every sub-tool can be
 // overridden with an environment variable (VCC_CPP, VCC_AS, ...); that is how the
 // tests run the driver against the build tree.  VCC_AS and VCC_LD may carry
-// arguments of their own, e.g. "clang --target=msp430 -c".
+// arguments of their own, e.g. "clang --target=wasm32 -c".
 //
 // Ported from the v7besm project's b6cc (cmd/cc), itself a modern rewrite of the
 // Unix v7 cc(1) driver.
@@ -52,84 +46,6 @@
 #include <mach-o/dyld.h>
 #endif
 
-#ifndef RISCV64_AS
-#define RISCV64_AS ""
-#endif
-#ifndef RISCV64_LD
-#define RISCV64_LD ""
-#endif
-#ifndef RISCV32_AS
-#define RISCV32_AS ""
-#endif
-#ifndef RISCV32_LD
-#define RISCV32_LD ""
-#endif
-#ifndef AARCH64_AS
-#define AARCH64_AS ""
-#endif
-#ifndef AARCH64_LD
-#define AARCH64_LD ""
-#endif
-#ifndef ARM32_AS
-#define ARM32_AS ""
-#endif
-#ifndef ARM32_LD
-#define ARM32_LD ""
-#endif
-#ifndef X86_64_AS
-#define X86_64_AS ""
-#endif
-#ifndef X86_64_LD
-#define X86_64_LD ""
-#endif
-#ifndef AVR_AS
-#define AVR_AS ""
-#endif
-#ifndef AVR_LD
-#define AVR_LD ""
-#endif
-#ifndef MSP430_AS
-#define MSP430_AS ""
-#endif
-#ifndef MSP430_LD
-#define MSP430_LD ""
-#endif
-#ifndef MMIX_AS
-#define MMIX_AS ""
-#endif
-#ifndef MMIX_LD
-#define MMIX_LD ""
-#endif
-#ifndef RISCV64_LDFLAGS
-#define RISCV64_LDFLAGS ""
-#endif
-#ifndef RISCV32_LDFLAGS
-#define RISCV32_LDFLAGS ""
-#endif
-#ifndef AARCH64_LDFLAGS
-#define AARCH64_LDFLAGS ""
-#endif
-#ifndef ARM32_LDFLAGS
-#define ARM32_LDFLAGS ""
-#endif
-#ifndef X86_64_LDFLAGS
-#define X86_64_LDFLAGS ""
-#endif
-#ifndef AVR_LDFLAGS
-#define AVR_LDFLAGS ""
-#endif
-#ifndef MSP430_LDFLAGS
-#define MSP430_LDFLAGS ""
-#endif
-#ifndef MMIX_LDFLAGS
-#define MMIX_LDFLAGS ""
-#endif
-#ifndef MSP430_LIBGCC
-#define MSP430_LIBGCC ""
-#endif
-#ifndef MMIX_LIBGCC
-#define MMIX_LIBGCC ""
-#endif
 #ifndef WASM32_AS
 #define WASM32_AS ""
 #endif
@@ -141,165 +57,38 @@
 #define WASM32_FEATURES \
     "-mreference-types -mbulk-memory -msign-ext -mmutable-globals -mnontrapping-fptoint"
 #endif
-#ifndef X86_64_LINUX_CC
-#define X86_64_LINUX_CC ""
-#endif
-#ifndef AARCH64_LINUX_CC
-#define AARCH64_LINUX_CC ""
-#endif
-#ifndef RISCV64_LINUX_CC
-#define RISCV64_LINUX_CC ""
-#endif
-#ifndef AARCH64_DARWIN_CC
-#define AARCH64_DARWIN_CC ""
-#endif
-
-// The hosted target of the machine vcc runs on, if there is one: the default target,
-// and the one whose C compiler is plain `cc`.
-#if defined(__linux__) && defined(__x86_64__)
-#define HOST_TARGET "x86_64-linux"
-#elif defined(__linux__) && defined(__aarch64__)
-#define HOST_TARGET "aarch64-linux"
-#elif defined(__linux__) && defined(__riscv) && __riscv_xlen == 64
-#define HOST_TARGET "riscv64-linux"
-#elif defined(__APPLE__) && defined(__aarch64__)
-#define HOST_TARGET "aarch64-darwin"
-#else
-#define HOST_TARGET ""
-#endif
-
 static char *progname = "vcc"; // diagnostic prefix: basename of argv[0]
 
 //
 // A target: its code generator, and how to assemble and link for it.  The
 // assembler and linker are given as an environment override, the path found when
-// vcc was configured (may be empty), and the names to look up on PATH: GNU
-// binutils by each prefix in turn, then clang and ld.lld where the target has a
-// clang triple.  Which of the two a tool is decides its flags (is_llvm).  The
-// targets other than the BESM-6, the MSP430 and MMIX are linked with a linker
-// script for qemu `virt` (`microvm` for x86-64, `arduino-mega` for AVR).  The
-// MSP430 is linked for mspsim, and its link drops the sections nothing reaches
-// (vgenmsp430 gives every function and variable one) and ends with GCC's libgcc.a
-// when it was found, so that objects compiled by GCC link too.  MMIX is the same
-// with the GNU MMIX binutils, for Knuth's mmix: as GCC runs them, the assembler
-// with -x (it expands an out-of-range branch and allocates the base registers) and
-// the linker with no script, text from 0x100, its output Knuth's .mmo.  wasm32 has no
-// binutils: clang assembles and wasm-ld links, with no script, a module for node.
+// vcc was configured (may be empty), else clang and wasm-ld on PATH.  Which kind a
+// tool is decides its flags (is_llvm).  wasm32 has no binutils: clang assembles and
+// wasm-ld links, with no script.
 //
-// A hosted target (ARCH_HOSTED) both assembles and links with a C compiler: the one
-// found when vcc was configured, else <prefix>-gcc, else `cc` on the host itself, else
-// clang.  It supplies the startup files and the C library; we add libvcc.a, but on
-// macOS, which needs no runtime of ours, and links position independent.
-//
-enum arch { ARCH_BESM6, ARCH_CROSS, ARCH_HOSTED };
-
 struct target {
     const char *name;
-    enum arch arch;
-    const char *codegen;          // our code generator, next to vcc
-    const char *as_default;       // configure-time assembler path, or ""
-    const char *ld_default;       // configure-time linker path, or ""
-    const char *ld_default_flags; // its flags, when it is GNU ld: those of ld_flags, and
-                                  // --no-warn-rwx-segments where it has the option
-    const char *prefixes;         // GNU binutils prefixes, blank-separated (BESM-6: b6as, b6ld)
-    const char *as_flags;         // GNU as flags, blank-separated, or NULL
-    const char *ld_flags;         // GNU ld flags, blank-separated, or NULL
-    const char *triple;           // clang --target, or NULL: no clang
-    const char *clang_flags;      // more clang flags, blank-separated, or NULL
-    const char *ld_flag;          // linker flag for either linker, or NULL
-    const char *libgcc;           // configure-time libgcc.a, linked last when present, or NULL
-    bool no_script;               // the linker's default script, unless -T names one
-    const char *gen_flag;         // code generator flag, or NULL
-    bool pie;                     // hosted: a position-independent executable, no -no-pie
-    const char *llvm_ld;          // the LLVM linker, when not ld.lld
-    const char *llvm_ld_flags;    // its flags, blank-separated, or NULL
-    bool braam;                   // a Braam process: --initial-memory, then the braam section
+    const char *codegen;       // our code generator, next to vcc
+    const char *as_default;    // configure-time assembler path, or ""
+    const char *ld_default;    // configure-time linker path, or ""
+    const char *triple;        // clang --target
+    const char *clang_flags;   // more clang flags, blank-separated, or NULL
+    const char *llvm_ld;       // the LLVM linker
+    const char *llvm_ld_flags; // its flags, blank-separated, or NULL
 };
 
-#define RISCV_PREFIXES "riscv64-unknown-elf riscv64-elf riscv64-linux-gnu"
-
 static const struct target targets[] = {
-    { "besm6", ARCH_BESM6, "vgenbesm6", "", "", "" },
-    { "riscv64", ARCH_CROSS, "vgenriscv64", RISCV64_AS, RISCV64_LD, RISCV64_LDFLAGS, RISCV_PREFIXES,
-      "-march=rv64imfd -mabi=lp64d", NULL, "riscv64", "-march=rv64imfd -mabi=lp64d" },
-    { "riscv32", ARCH_CROSS, "vgenriscv32", RISCV32_AS, RISCV32_LD, RISCV32_LDFLAGS, RISCV_PREFIXES,
-      "-march=rv32imfd -mabi=ilp32d", "-m elf32lriscv", "riscv32", "-march=rv32imfd -mabi=ilp32d" },
-    { "aarch64", ARCH_CROSS, "vgenaarch64", AARCH64_AS, AARCH64_LD, AARCH64_LDFLAGS,
-      "aarch64-none-elf aarch64-elf aarch64-linux-gnu", NULL, NULL, "aarch64-none-elf", NULL },
-    { "arm32", ARCH_CROSS, "vgenarm32", ARM32_AS, ARM32_LD, ARM32_LDFLAGS, "arm-none-eabi",
-      "-mcpu=cortex-a15 -mfpu=vfpv3-d16 -mfloat-abi=hard", NULL, "armv7a-none-eabihf",
-      "-mcpu=cortex-a15 -mfpu=vfpv3-d16" },
-    { "x86_64", ARCH_CROSS, "vgenx86", X86_64_AS, X86_64_LD, X86_64_LDFLAGS,
-      "x86_64-elf x86_64-linux-gnu", "--64", NULL, "x86_64-none-elf", NULL },
-    { "avr", ARCH_CROSS, "vgenavr", AVR_AS, AVR_LD, AVR_LDFLAGS, "avr", "-mmcu=atmega1280",
-      "-m avr51", "avr", "-mmcu=atmega1280" },
-    { "msp430", ARCH_CROSS, "vgenmsp430", MSP430_AS, MSP430_LD, MSP430_LDFLAGS,
-      "msp430-elf msp430-unknown-elf", "-mcpu=msp430", NULL, NULL, NULL, "--gc-sections",
-      MSP430_LIBGCC },
-    { "mmix", ARCH_CROSS, "vgenmmix", MMIX_AS, MMIX_LD, MMIX_LDFLAGS, "mmix-knuth-mmixware",
-      "-x -no-predefined-syms", NULL, NULL, NULL, "--defsym=__.MMIX.start..text=0x100", MMIX_LIBGCC,
-      true },
-    { .name             = "wasm32",
-      .arch             = ARCH_CROSS,
-      .codegen          = "vgenwasm",
-      .as_default       = WASM32_AS,
-      .ld_default       = WASM32_LD,
-      .ld_default_flags = "",
-      .prefixes         = "",
-      .triple           = "wasm32",
-      .clang_flags      = "--no-default-config " WASM32_FEATURES,
-      .no_script        = true,
-      .llvm_ld          = "wasm-ld",
-      .llvm_ld_flags    = "--stack-first -z stack-size=1048576" },
     // Braam's process ABI (docs/Braam.md §7.1): the memory imported, no entry (the
     // exports are crt0.o's), the stack Braam's own programs have.
-    { .name             = "wasm32-braam",
-      .arch             = ARCH_CROSS,
-      .codegen          = "vgenwasm",
-      .as_default       = WASM32_AS,
-      .ld_default       = WASM32_LD,
-      .ld_default_flags = "",
-      .prefixes         = "",
-      .triple           = "wasm32",
-      .clang_flags      = "--no-default-config " WASM32_FEATURES,
-      .no_script        = true,
-      .llvm_ld          = "wasm-ld",
+    { .name        = "wasm32-braam",
+      .codegen     = "vgenwasm",
+      .as_default  = WASM32_AS,
+      .ld_default  = WASM32_LD,
+      .triple      = "wasm32",
+      .clang_flags = "--no-default-config " WASM32_FEATURES,
+      .llvm_ld     = "wasm-ld",
       .llvm_ld_flags =
-          "--no-entry --import-memory --stack-first -z stack-size=131072 --gc-sections",
-      .braam = true },
-    { .name       = "x86_64-linux",
-      .arch       = ARCH_HOSTED,
-      .codegen    = "vgenx86",
-      .as_default = X86_64_LINUX_CC,
-      .ld_default = X86_64_LINUX_CC,
-      .prefixes   = "x86_64-linux-gnu",
-      .triple     = "x86_64-linux-gnu",
-      .gen_flag   = "--linux" },
-    { .name       = "aarch64-linux",
-      .arch       = ARCH_HOSTED,
-      .codegen    = "vgenaarch64",
-      .as_default = AARCH64_LINUX_CC,
-      .ld_default = AARCH64_LINUX_CC,
-      .prefixes   = "aarch64-linux-gnu",
-      .triple     = "aarch64-linux-gnu",
-      .gen_flag   = "--linux" },
-    { .name       = "riscv64-linux",
-      .arch       = ARCH_HOSTED,
-      .codegen    = "vgenriscv64",
-      .as_default = RISCV64_LINUX_CC,
-      .ld_default = RISCV64_LINUX_CC,
-      .prefixes   = "riscv64-linux-gnu",
-      .triple     = "riscv64-linux-gnu",
-      .gen_flag   = "--linux" },
-    { .name       = "aarch64-darwin",
-      .arch       = ARCH_HOSTED,
-      .codegen    = "vgenaarch64",
-      .as_default = AARCH64_DARWIN_CC,
-      .ld_default = AARCH64_DARWIN_CC,
-      .prefixes   = "aarch64-apple-darwin",
-      .triple     = "arm64-apple-macos",
-      .gen_flag   = "--darwin",
-      .pie        = true },
+          "--no-entry --import-memory --stack-first -z stack-size=131072 --gc-sections" },
 };
 
 static const struct target *target; // set by -t, else the default
@@ -354,12 +143,11 @@ static unsigned long braam_pages = 4; // --initial-pages: a Braam process's init
                                       // BRAAM_BIN_INITIAL_PAGES in braam-core's BraamProgram.cmake
 static bool opt_nostdinc;             // -nostdinc: skip the target's standard include dir
 static char *outfile;                 // -o NAME: explicit output name
-static char *linkscript;      // -T FILE: linker script (not besm6), instead of the standard one
+static char *linkscript;      // -T FILE: linker script
 static char *max_errors_flag; // --max-errors=N for parse and lower, from -fmax-errors=N
 static int no_show_source;    // -fno-diagnostics-show-caret: no source line in diagnostics
 static int color = -1;        // -fdiagnostics-color: 1 always, 0 never, -1 when stderr is a tty
 static char *color_flag;      // --color=always|never for every pass, or NULL for auto
-static char *codegen_dialect; // -Sbemsh/-Smadlen: dialect flag for the BESM-6 codegen, or NULL
 
 static struct vec sources;  // input .c/.s files to compile
 static struct vec objects;  // .o (and produced) files to link
@@ -658,24 +446,7 @@ static void push_words(struct vec *av, const char *words)
 }
 
 //
-// True if an executable `name` is found on PATH.
-//
-static bool on_path(const char *name)
-{
-    const char *path = getenv("PATH");
-    if (!path)
-        return false;
-    char *dirs = own(strdup(path)), *save;
-    for (const char *d = strtok_r(dirs, ":", &save); d; d = strtok_r(NULL, ":", &save)) {
-        char *file = concat(concat(d, "/"), name);
-        if (access(file, X_OK) == 0)
-            return true;
-    }
-    return false;
-}
-
-//
-// True if the tool `path` is clang, ld.lld or wasm-ld rather than GNU binutils.
+// True if the tool `path` is clang, ld.lld or wasm-ld rather than another one.
 //
 static bool is_llvm(const char *path)
 {
@@ -689,20 +460,13 @@ static bool is_llvm(const char *path)
 // Locate a tool from another project, `tool` "as" or "ld", and push it onto the
 // argument vector `av`.  Resolution order:
 //   1. the environment override, if set (VCC_AS, VCC_LD), split into words at
-//      blanks, so that it may carry arguments ("ld.lld -n");
+//      blanks, so that it may carry arguments ("clang --target=wasm32 -c");
 //   2. the path found when vcc was configured, if any;
-//   3. the GNU binutils <prefix>-<tool> on PATH, by each prefix in turn;
-//   4. clang or ld.lld (or the target's own LLVM linker), where the target has a clang
-//      triple;
-//   5. the first prefix's name, which run() then reports missing.
-// Returns true if the tool is clang or ld.lld; sets *chosen_configured when it is the
-// configured one (if `chosen_configured` is not NULL).
+//   3. clang, or the target's LLVM linker.
+// Returns true if the tool is clang or an LLVM linker.
 //
-static bool push_tool(struct vec *av, const char *envvar, const char *configured, const char *tool,
-                      bool *chosen_configured)
+static bool push_tool(struct vec *av, const char *envvar, const char *configured, const char *tool)
 {
-    if (chosen_configured)
-        *chosen_configured = false;
     const char *override = getenv(envvar);
     if (override && strspn(override, " \t") < strlen(override)) {
         size_t first = av->len;
@@ -711,48 +475,10 @@ static bool push_tool(struct vec *av, const char *envvar, const char *configured
     }
     if (configured && *configured) {
         vec_push(av, (char *)configured);
-        if (chosen_configured)
-            *chosen_configured = true;
         return is_llvm(configured);
     }
-    if (target->arch == ARCH_BESM6) {
-        vec_push(av, strcmp(tool, "as") == 0 ? "b6as" : "b6ld");
-        return false;
-    }
-    if (target->arch == ARCH_HOSTED) {
-        // One C compiler does both: <prefix>-gcc, the host's own, else clang.
-        char *gcc = concat(target->prefixes, "-gcc");
-        if (on_path(gcc)) {
-            vec_push(av, gcc);
-            return false;
-        }
-        if (strcmp(target->name, HOST_TARGET) == 0 && on_path("cc")) {
-            vec_push(av, "cc");
-            return false;
-        }
-        vec_push(av, "clang");
-        return true;
-    }
-    char *prefixes = own(strdup(target->prefixes)), *save;
-    char *first    = NULL;
-    for (const char *p = strtok_r(prefixes, " ", &save); p; p = strtok_r(NULL, " ", &save)) {
-        char *name = concat(concat(p, "-"), tool);
-        if (!first)
-            first = name;
-        if (on_path(name)) {
-            vec_push(av, name);
-            return false;
-        }
-    }
-    if (target->triple) {
-        if (strcmp(tool, "as") == 0)
-            vec_push(av, "clang");
-        else
-            vec_push(av, target->llvm_ld ? (char *)target->llvm_ld : "ld.lld");
-        return true;
-    }
-    vec_push(av, first);
-    return false;
+    vec_push(av, strcmp(tool, "as") == 0 ? "clang" : (char *)target->llvm_ld);
+    return true;
 }
 
 //
@@ -909,9 +635,7 @@ static int run_lower(const char *in, const char *out)
 }
 
 //
-// Run the code generator: vgen<target> [--bemsh|--madlen] in out.  The dialect
-// flag is selected by -Sbemsh/-Smadlen (BESM-6 only); for a plain -S it is
-// omitted so the code generator uses its own default.  Returns 0 on success.
+// Run the code generator: vgen<target> in out.  Returns 0 on success.
 //
 static int run_codegen(const char *in, const char *out)
 {
@@ -920,10 +644,6 @@ static int run_codegen(const char *in, const char *out)
         return 1;
     struct vec av = { 0 };
     vec_push(&av, tool);
-    if (codegen_dialect)
-        vec_push(&av, codegen_dialect);
-    if (target->gen_flag)
-        vec_push(&av, (char *)target->gen_flag);
     if (color_flag)
         vec_push(&av, color_flag);
     vec_push(&av, (char *)in);
@@ -936,37 +656,14 @@ static int run_codegen(const char *in, const char *out)
 
 //
 // Run the assembler, in -> out:
-//     besm6:   b6as -X -o out in
-//     riscv64: riscv64-unknown-elf-as -march=rv64imfd -mabi=lp64d -o out in
-//     riscv32: riscv64-unknown-elf-as -march=rv32imfd -mabi=ilp32d -o out in
-//     aarch64: aarch64-none-elf-as -o out in
-//     arm32:   arm-none-eabi-as -mcpu=cortex-a15 -mfpu=vfpv3-d16 -mfloat-abi=hard -o out in
-//     x86_64:  x86_64-elf-as --64 -o out in
-//     avr:     avr-as -mmcu=atmega1280 -o out in
-//     msp430:  msp430-elf-as -mcpu=msp430 -o out in
-//     mmix:    mmix-knuth-mmixware-as -x -no-predefined-syms -o out in
-// or with clang: clang --target=<triple> [flags] -c -o out in, e.g.
-//     riscv64: clang --target=riscv64 -march=rv64imfd -mabi=lp64d -c -o out in
-//     wasm32:  clang --target=wasm32 --no-default-config <features> -c -o out in
-// (a clang given by VCC_AS for a target with no triple carries its own flags).
-// A hosted target assembles with its C compiler:
-//     x86_64-linux: cc -c -o out in
-// Returns 0 on success.
+//     clang --target=wasm32 --no-default-config <features> -c -o out in
+// (a VCC_AS that is not clang carries its own flags).  Returns 0 on success.
 //
 static int run_as(const char *in, const char *out)
 {
     struct vec av = { 0 };
 
-    bool llvm = push_tool(&av, "VCC_AS", target->as_default, "as", NULL);
-    if (target->arch == ARCH_BESM6) {
-        vec_push(&av, "-X");
-    } else if (target->arch == ARCH_HOSTED) {
-        if (llvm)
-            vec_push(&av, concat("--target=", target->triple));
-        vec_push(&av, "-c");
-    } else if (!llvm) {
-        push_words(&av, target->as_flags);
-    } else if (target->triple) {
+    if (push_tool(&av, "VCC_AS", target->as_default, "as")) {
         vec_push(&av, concat("--target=", target->triple));
         push_words(&av, target->clang_flags);
         vec_push(&av, "-c");
@@ -1068,14 +765,9 @@ static int compile_one(const char *src)
     if (run_lower(astfile, tacfile) != 0)
         return 1;
 
-    // Code generation: .tac -> .s (or .mad/.bemsh for the -Smadlen/-Sbemsh
-    // dialects, so the derived name reflects the assembly dialect emitted --
-    // the same extensions vgenbesm6 itself picks).
-    const char *asmsuf = !codegen_dialect                           ? "s"
-                         : strcmp(codegen_dialect, "--madlen") == 0 ? "mad"
-                                                                    : "bemsh";
+    // Code generation: .tac -> .s
     const char *asmfile =
-        opt_S ? own(outfile ? strdup(outfile) : replace_suffix(src, asmsuf)) : make_temp("s");
+        opt_S ? own(outfile ? strdup(outfile) : replace_suffix(src, "s")) : make_temp("s");
     if (run_codegen(tacfile, asmfile) != 0)
         return 1;
     if (opt_S)
@@ -1090,69 +782,13 @@ static int compile_one(const char *src)
 
 //
 // Link all collected objects into an executable:
-//     besm6:   b6ld -X -e _start -o out -L<lib> <lib>/crt0.o objs ldflags -lc -lruntime
-//     msp430:  msp430-elf-ld --gc-sections -T <script> -o out -L<lib> <lib>/crt0.o objs
-//              ldflags -lc [libgcc.a]
-//     mmix:    mmix-knuth-mmixware-ld --defsym=__.MMIX.start..text=0x100 -o out -L<lib>
-//              <lib>/crt0.o objs ldflags -lc [libgcc.a]
-//     wasm32:  wasm-ld --stack-first -z stack-size=1048576 -o out -L<lib> <lib>/crt0.o objs
-//              ldflags -lc
-//     wasm32-braam: wasm-ld --no-entry --import-memory --stack-first -z stack-size=131072
-//              --gc-sections --initial-memory=<pages * 65536> -o out -L<lib> <lib>/crt0.o
-//              objs ldflags -lc, then the braam section (braam_stamp)
-//     others:  <prefix>-ld [flags] -T <script> -o out -L<lib> <lib>/crt0.o objs ldflags -lc,
-//              e.g. riscv64-unknown-elf-ld -m elf32lriscv for riscv32, avr-ld -m avr51;
-//              or ld.lld with no flags
-// where <lib> is <share>/lib.  -nostdlib drops the -L, crt0.o and the implicit
-// archives; the linker script (the qemu `virt` memory map) stays, unless
-// -T names another.  MMIX takes the linker's default script.  A missing crt0.o is a fatal error.
-// See README.md, "Linking".  Returns 0 on success.
+//     wasm-ld --no-entry --import-memory --stack-first -z stack-size=131072
+//             --gc-sections --initial-memory=<pages * 65536> -o out -L<lib> <lib>/crt0.o
+//             objs ldflags -lc
+// then the braam section (braam_stamp), where <lib> is <share>/lib.  -nostdlib drops
+// the -L, crt0.o and the implicit archive.  A missing crt0.o is a fatal error.
+// Returns 0 on success.
 //
-//
-// Link for a hosted target, with its C compiler:
-//     cc [--target=<triple>] -no-pie -o out objs ldflags -L<lib> -lvcc
-// The compiler adds the startup files, the C library and libgcc.  Not position
-// independent on Linux: our code takes a function's address PC-relative, which a PIE
-// cannot do for one in a shared library.  -nostdlib is passed on, and drops libvcc.a.
-// On macOS, where every arm64 executable is a PIE, the code reaches what it does not
-// define through the GOT.
-//
-static int link_hosted(const char *libdir)
-{
-    struct vec av = { 0 };
-    if (push_tool(&av, "VCC_LD", target->ld_default, "ld", NULL))
-        vec_push(&av, concat("--target=", target->triple));
-    if (!target->pie)
-        vec_push(&av, "-no-pie");
-    if (opt_nostdlib)
-        vec_push(&av, "-nostdlib");
-    if (linkscript) {
-        vec_push(&av, "-T");
-        vec_push(&av, linkscript);
-    }
-    vec_push(&av, "-o");
-    vec_push(&av, outfile ? outfile : (char *)"a.out");
-    for (size_t i = 0; i < objects.len; i++)
-        vec_push(&av, objects.data[i]);
-    for (size_t i = 0; i < ldflags.len; i++)
-        vec_push(&av, ldflags.data[i]);
-    if (!opt_nostdlib) {
-        char *lib = concat(libdir, "/libvcc.a");
-        if (access(lib, R_OK) != 0) {
-            error("'%s' not found; install the runtime, or use '-nostdlib'", lib);
-            vec_free(&av);
-            return 1;
-        }
-        vec_push(&av, concat("-L", libdir));
-        vec_push(&av, "-lvcc");
-    }
-    vec_push(&av, NULL);
-
-    int rc = run(av.data[0], av.data);
-    vec_free(&av);
-    return rc;
-}
-
 //
 // The metadata Braam's exec reads, appended to a linked process: a custom section
 // "braam" of five little-endian u32, magic, PROC_ABI, flags, the initial pages (those
@@ -1230,59 +866,30 @@ static int braam_stamp(const char *path)
 static int link_objects(void)
 {
     char *libdir = concat(share_dir, "/lib");
-    if (target->arch == ARCH_HOSTED)
-        return link_hosted(libdir);
 
     struct vec av = { 0 };
-    bool configured;
-    bool llvm = push_tool(&av, "VCC_LD", target->ld_default, "ld", &configured);
-    switch (target->arch) {
-    case ARCH_BESM6:
-        vec_push(&av, "-X");
-        vec_push(&av, "-e");
-        vec_push(&av, "_start");
-        break;
-    case ARCH_CROSS: {
-        if (!llvm)
-            push_words(&av, configured ? target->ld_default_flags : target->ld_flags);
-        else
-            push_words(&av, target->llvm_ld_flags);
-        if (target->ld_flag)
-            vec_push(&av, (char *)target->ld_flag);
-        if (target->braam) {
-            char pages[48];
-            snprintf(pages, sizeof pages, "--initial-memory=%lu", braam_pages * 65536UL);
-            vec_push(&av, concat(pages, ""));
-        }
-        if (target->no_script && !linkscript)
-            break;
-        char *script = linkscript ? linkscript : concat(libdir, "/link.ld");
-        if (access(script, R_OK) != 0) {
-            error("linker script '%s' not found; use '-T'", script);
+    if (push_tool(&av, "VCC_LD", target->ld_default, "ld"))
+        push_words(&av, target->llvm_ld_flags);
+    char pages[48];
+    snprintf(pages, sizeof pages, "--initial-memory=%lu", braam_pages * 65536UL);
+    vec_push(&av, concat(pages, ""));
+    if (linkscript) {
+        if (access(linkscript, R_OK) != 0) {
+            error("linker script '%s' not found; use '-T'", linkscript);
             vec_free(&av);
             return 1;
         }
         vec_push(&av, "-T");
-        vec_push(&av, script);
-        break;
-    }
-    case ARCH_HOSTED:
-        break; // link_hosted
+        vec_push(&av, linkscript);
     }
     vec_push(&av, "-o");
     vec_push(&av, outfile ? outfile : (char *)"a.out");
     // The standard library dir and the crt0 startup object come before the
-    // objects, crt0 first so its _start leads the text; -nostdlib skips both.
+    // objects, crt0 first; -nostdlib skips both.
     if (!opt_nostdlib) {
         char *crt0 = concat(libdir, "/crt0.o");
         if (access(crt0, R_OK) != 0) {
-            if (target->arch == ARCH_BESM6)
-                error(
-                    "'%s' not found: the BESM-6 crt0.o and libc.a come from v7besm and "
-                    "must be installed into %s; or use '-nostdlib'",
-                    crt0, libdir);
-            else
-                error("'%s' not found; install the runtime, or use '-nostdlib'", crt0);
+            error("'%s' not found; install the runtime, or use '-nostdlib'", crt0);
             vec_free(&av);
             return 1;
         }
@@ -1295,24 +902,14 @@ static int link_objects(void)
     // references (conventional link order).
     for (size_t i = 0; i < ldflags.len; i++)
         vec_push(&av, ldflags.data[i]);
-    // The implicit C library, then (BESM-6) the compiler's helper archive.
-    // libruntime.a is LAST, and the order is not cosmetic: b6ld scans an archive
-    // once, in order, and libc calls the b$* helpers while no helper calls back
-    // into libc.
-    // On the MSP430 and MMIX, GCC's libgcc.a follows our libc.a for the helpers only GCC's
-    // code calls; without it, objects of our own compiler still link.
-    if (!opt_nostdlib) {
+    // The implicit C library.
+    if (!opt_nostdlib)
         vec_push(&av, "-lc");
-        if (target->arch == ARCH_BESM6)
-            vec_push(&av, "-lruntime");
-        if (target->libgcc && *target->libgcc && access(target->libgcc, R_OK) == 0)
-            vec_push(&av, (char *)target->libgcc);
-    }
     vec_push(&av, NULL);
 
     int rc = run(av.data[0], av.data);
     vec_free(&av);
-    if (rc == 0 && target->braam)
+    if (rc == 0)
         rc = braam_stamp(outfile ? outfile : "a.out");
     return rc;
 }
@@ -1348,15 +945,9 @@ static void usage(int status)
     printf("Usage:\n");
     printf("    %s [options] file...\n", progname);
     printf("Options:\n");
-    printf("    -t, --target NAME  Target: x86_64-linux, aarch64-linux, riscv64-linux,\n");
-    printf("                       aarch64-darwin (hosted), riscv64, riscv32, aarch64, arm32, x86_64, avr,\n");
-    printf("                       msp430, mmix, besm6 (bare metal), wasm32 or wasm32-braam\n");
-    printf("                       (a process of Braam); default %s\n",
-           *HOST_TARGET ? HOST_TARGET : "riscv64");
+    printf("    -t, --target NAME  Target: wasm32-braam, a process of Braam (the default)\n");
     printf("    -c              Compile and assemble, but do not link\n");
     printf("    -S              Compile only; emit assembly (.s)\n");
-    printf("    -Sbemsh         Like -S, but emit Bemsh-dialect assembly (besm6)\n");
-    printf("    -Smadlen        Like -S, but emit Madlen-dialect assembly (besm6)\n");
     printf("    -E              Preprocess only; write to output or standard output\n");
     printf("    -P              With -E, no line markers\n");
     printf("    -x LANG         Input language: c, assembler-with-cpp, assembler or none\n");
@@ -1369,12 +960,12 @@ static void usage(int status)
     printf("    -Ipath          Add a header search directory\n");
     printf("    -Lpath          Add a library search directory (for the linker)\n");
     printf("    -lname          Link against library libname (for the linker)\n");
-    printf("    -T file         Linker script instead of the standard one (not besm6)\n");
+    printf("    -T file         Linker script\n");
     printf(
         "    -nostdlib       Do not use the standard library dir, crt0.o or the implicit "
         "libraries\n");
     printf("    -nostdinc       Do not add the standard include directory\n");
-    printf("    --initial-pages=N  wasm32-braam: the process's initial memory, in 64 KiB pages\n");
+    printf("    --initial-pages=N  The process's initial memory, in 64 KiB pages\n");
     printf("                    (default 4)\n");
     printf("    -fmax-errors=N  Stop after N errors (0: no limit; default 20)\n");
     printf("    -fno-diagnostics-show-caret  Don't show the source line under a diagnostic\n");
@@ -1398,7 +989,7 @@ int main(int argc, char *argv[])
     }
 
     atexit(cleanup);
-    target = find_target(*HOST_TARGET ? HOST_TARGET : "riscv64");
+    target = &targets[0];
 
     for (int i = 1; i < argc; i++) {
         char *arg = argv[i];
@@ -1520,13 +1111,7 @@ int main(int argc, char *argv[])
             break;
         case 'S':
             opt_S = true;
-            if (arg[2] == '\0')
-                break; // plain -S: codegen default dialect
-            if (strcmp(arg + 2, "bemsh") == 0)
-                codegen_dialect = "--bemsh";
-            else if (strcmp(arg + 2, "madlen") == 0)
-                codegen_dialect = "--madlen";
-            else {
+            if (arg[2] != '\0') {
                 error("unknown option '%s'", arg);
                 exit(1);
             }
@@ -1603,14 +1188,6 @@ int main(int argc, char *argv[])
     }
     if ((opt_E || opt_S || opt_c) && outfile && sources.len > 1) {
         error("cannot specify '-o' with '-c', '-S' or '-E' and multiple input files");
-        return 1;
-    }
-    if (codegen_dialect && target->arch != ARCH_BESM6) {
-        error("'-S%s' requires target 'besm6'", codegen_dialect + 2);
-        return 1;
-    }
-    if (linkscript && target->arch == ARCH_BESM6) {
-        error("'-T' is not supported on target 'besm6'");
         return 1;
     }
 
