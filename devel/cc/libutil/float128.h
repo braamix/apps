@@ -53,16 +53,6 @@ Float128 f128_from_string(const char *s, const char **end);
 #define F128_BUFSIZE 48
 char *f128_format(Float128 x, char *buf);
 
-// x rounded to nearest even to a significand of `mant_dig` bits (2..113), the
-// exponent range unchanged: a narrower long double carried in binary128.  64 gives
-// the x87 extended format's values, subnormals on its coarser grid included.
-Float128 f128_round(Float128 x, int mant_dig);
-
-// To and from the 10 bytes of an x87 extended-precision value, little-endian: the
-// 64-bit significand with its explicit integer bit, then sign and 15-bit exponent.
-// To rounds as f128_round(x, 64); from is exact, an unnormal reading as a NaN.
-void f128_to_x87(Float128 x, uint8_t out[10]);
-Float128 f128_from_x87(const uint8_t in[10]);
 #endif
 
 #endif // LIBUTIL_FLOAT128_H
