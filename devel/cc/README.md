@@ -248,8 +248,8 @@ corpus:
 | [wasm.mjs](test/wasm.mjs) | 97 run tests of the wasm32 backend, the same way |
 | [braam.mjs](test/braam.mjs) | `braam_tests.cpp`'s programs: streams, files, standard input, tasks, poll, `^C` caught and not, and `notes.c`'s session |
 | [interrupt.mjs](test/interrupt.mjs) | `kill -INT` ends a long `vlower` run, with nothing written |
-| [selfhost.mjs](test/selfhost.mjs) | in `LONGTESTS`, 3½ minutes: self-compilation (below) |
-| [corpus.mjs](test/corpus.mjs) | in `LONGTESTS`, 3½ minutes: `vcpp` makes the host's `.i` of the tree's 669 sources, and the other passes the host's `.s` of the 660 that compile |
+| [selfhost.mjs](test/selfhost.mjs) | in `LONGTESTS`, 6 minutes: self-compilation (below) |
+| [corpus.mjs](test/corpus.mjs) | in `LONGTESTS`, 4 minutes: `vcpp` makes the host's `.i` of the tree's 669 sources, and the other passes the host's `.s` of the 660 that compile |
 
 The run tests are plain wasm32 programs upstream, and on Braam `main` is a
 coroutine, so [suites.mjs](test/suites.mjs) compiles each with

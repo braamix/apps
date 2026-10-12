@@ -1159,6 +1159,9 @@ void *__coro_result(void *frame, unsigned offset);
 void *__coro_push(void *frame, size_t bytes, size_t align, const char *name);
 void  __coro_pop(void *frame, void *p);
 char *__coro_va_save(void *frame, const char *va, size_t size); /* a variadic f$init's copy */
+void *__coro_start(void *frame, const size_t *desc, int (*resume)(void *), const char *name);
+int   __coro_step(void *sub, int signal, void *frame, unsigned value_off, unsigned size);
+void  __coro_drop(void *frame, void *sub, int arena);
 ```
 
 - `co_init(mem, size, f, a, b)` is `__coro_setup(mem, size, f$co, f$resume, 0)`, then
@@ -1172,9 +1175,11 @@ char *__coro_va_save(void *frame, const char *va, size_t size); /* a variadic f$
   It checks the state and the running bit, sets the flags, calls the frame's
   `resume`, and clears the flags. A destroy of a frame that never started only marks
   it destroyed.
-- `await g(args)` takes `g`'s frame with `__coro_push` (exactly `size` bytes), sets it
-  up with the awaiting frame as `parent`, so it joins the same task, and gives it back
-  with `__coro_pop` when `g` has finished or been destroyed.
+- `await g(args)` takes `g`'s frame with `__coro_start` (`__coro_push` of exactly
+  `size` bytes, then `__coro_setup` with the awaiting frame as `parent`, so it joins
+  the same task), resumes it with `__coro_step`, which passes a suspension's value up,
+  and gives it back with `__coro_pop` when `g` has finished, or with `__coro_drop`
+  when the awaiter is destroyed.
 - A trap prints `coroutine trap: CO_TRAP_…` and ends the program with status 255.
 
 To run a coroutine from code of its own, a scheduler needs only `f$co`, `f$resume`,

@@ -308,17 +308,21 @@ pass** finishes the job: LLVM's CoroSplit, scaled to this compiler.
 - `return e` stores `e` at `result_off` first, then runs the exit actions, then sets
   the state DONE and returns 1 (`CO_DONE`). The end of a `void` body is the same
   without the store.
-- `await` (`gen_await`) is the loop of the tutorial's §5, in TAC. The arena form:
-  `%sub = __coro_push(fp, g$co[0], g$co[1], "g")`, `__coro_setup(%sub, g$co[0], g$co,
-  g$resume, fp)` (the sub-frame joins the awaiter's task), `g$init(%sub, args)`. The
-  explicit form copies the operand into `%sub`, evaluated once. Then: `%sig = 0; L:
-  %st = resume(%sub, %sig); if %st goto done; copy sub->value to fp->value; %s =
-  __coro_suspend(fp); if (%s == 2) { destroy %sub; pop; <every block's exit actions>;
-  state = DESTROYED; RETURN 1 } %sig = %s; goto L; done: the result from sub->result;
-  pop`. The pops are in the arena form only: an explicit frame is the program's, and
-  destroying the awaiter leaves it suspended, as the equivalence says. Forwarding a
-  cancel is `%sig` itself. `%sub` and `%sig` live across the suspension, so the split
-  puts them in the frame.
+- `await` (`gen_await`) is the loop of the tutorial's §5, in TAC, with as much as
+  can be in the runtime: a coroutine that prints awaits hundreds of times, and each
+  instruction here is hundreds in its body. The arena form: `%sub =
+  __coro_start(fp, g$co, g$resume, "g")` (a push and a setup: the sub-frame joins the
+  awaiter's task), `g$init(%sub, args)`. The explicit form copies the operand into
+  `%sub`, evaluated once. Then: `%sig = 0; L: if __coro_step(%sub, %sig, fp,
+  value_off, size) goto done; %s = __coro_suspend(fp); if (%s == 2) {
+  __coro_drop(fp, %sub, arena); <every block's exit actions>; state = DESTROYED;
+  RETURN 1 } %sig = %s; goto L; done: the result from sub->result; pop`.
+  `__coro_step` is `__coro_resume`, then, suspended, the copy of the value it yielded
+  to the awaiter's frame, at the same offset since the yield types are one.
+  `__coro_drop` destroys the sub-frame and pops it in the arena form only: an
+  explicit frame is the program's, and destroying the awaiter leaves it suspended, as
+  the equivalence says. Forwarding a cancel is `%sig` itself. `%sub` and `%sig` live
+  across the suspension, so the split puts them in the frame.
 - The `co_*` operations are calls of the runtime (§5.1). `co_sizeof(g)` loads
   `g$co[0]` and `co_alignof(g)` `g$co[1]`. A unit names `g$co`, `g$init` and
   `g$resume` through EXTERNs with TAC types (`tac_record_extern_tac`), since they have
@@ -521,6 +525,15 @@ Its state is per block level and freed at scope exit and at the end of a functio
   small if wanted.
 - **Deep chains.** An `await` depth of *n* costs *n* resume calls per suspension, as
   in Braam's C++. Braam has no tail calls, so nothing here relies on them.
+- **Giant coroutines.** Each `await` is a loop of about seven blocks, and CSE's cost
+  grows with blocks times available expressions; a coroutine of hundreds of
+  `await`s, as the passes' YAML and print dumps are, took it minutes on Braam. So a
+  coroutine with more than `CORO_CSE_MAX_SUSPENSIONS` (32) suspension points gets no
+  CSE in either round (`translate.c`), and the wasm backend coalesces no locals in a
+  function whose liveness would take more than 16 MB (`locals.c`). Liveness itself
+  is on bit vectors (`optimize/liveness.c`), and the TAC lists are exported,
+  imported and freed in loops, since a body of tens of thousands of instructions
+  overflowed the native stack.
 - **The second optimizer round** on code with many frame loads: CSE kills every load
   at a `STORE` through a pointer, so two frame members in one block cost a reload
   each. A "same base, different constant offset, cannot alias" rule in `alias.c` would
