@@ -32,24 +32,10 @@ static const Target targets[] = {
       4, 4,   // pointer
       16, 32, 32, 64, // signed bits
       1,   // plain char signed (clang wasm32)
-      0,   // signed >> arithmetic
-      1,   // aggregate_align (1)
       SIZE_MAX, // struct_return_max: never lowered by the front end; the backend
                 // passes a struct holding one scalar as that scalar, any other
                 // result through a hidden pointer
-      0,        // struct_args_split
-      NULL,     // immediate_args
-      tac_wasm32_class, // va_class: by value in the caller's buffer, or by reference
-      0,        // ldouble_mant_dig: binary128
-      1,        // hw_sqrt: f64.sqrt
-      0,        // double_mant_dig: binary64
-      0,        // no_loop_opt
-      0,        // little-endian
-      BITFIELD_SYSV,
-      0,        // bitfield_access_bits
-      1,        // bitfield_unit_per_field: clang's single-element rule counts bit-fields
-      1,        // jump_tables: br_table
-      0 },      // no_coroutines
+      tac_wasm32_class }, // va_class: by value in the caller's buffer, or by reference
 };
 // clang-format on
 
@@ -96,40 +82,6 @@ void target_list(void)
     }
     for (size_t i = 0; i < sizeof(aliases) / sizeof(aliases[0]); i++)
         fprintf(stderr, "  %s\n", aliases[i].name);
-}
-
-int target_word_addressed(void)
-{
-    return target_config->aggregate_align > 1;
-}
-
-Float128 target_ld_round(Float128 q)
-{
-    int mant = target_config ? target_config->ldouble_mant_dig : 0;
-    if (mant == 24)
-        return f128_from_double(f128_to_float(q)); // IEEE single: its exponent range too
-    return mant ? f128_round(q, mant) : q;
-}
-
-int target_double_is_single(void)
-{
-    return target_config && target_config->double_mant_dig == 24;
-}
-
-double target_double_round(double d)
-{
-    // cppcheck-suppress suspiciousFloatingPointCast ; rounding to single is the point
-    return target_double_is_single() ? (double)(float)d : d;
-}
-
-double target_double_from_i64(int64_t v)
-{
-    return target_double_is_single() ? (double)(float)v : (double)v;
-}
-
-double target_double_from_u64(uint64_t v)
-{
-    return target_double_is_single() ? (double)(float)v : (double)v;
 }
 
 int64_t sign_narrow(uint64_t bits, int w)

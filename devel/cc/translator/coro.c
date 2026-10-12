@@ -1486,7 +1486,7 @@ Tac_TopLevel *coro_split(Tac_TopLevel *fn, const CoroSplit *info)
     for (const Tac_Instruction *in = body; in; in = in->next)
         if (is_suspend(in))
             k++;
-    if (target_config->jump_tables && k >= coro_table_min) {
+    if (k >= coro_table_min) {
         // A jump table on the state: 0 and anything else into the body's start.
         char *a  = put_offset(&s, CO_STATE, &(Tac_Type){ .kind = TAC_TYPE_UINT });
         char *st = split_temp(&s, tac_new_type(TAC_TYPE_UINT));

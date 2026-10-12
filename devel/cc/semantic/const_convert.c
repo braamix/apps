@@ -16,9 +16,7 @@
 //
 static double literal_real(const Literal *lit)
 {
-    if (lit->kind == LITERAL_DOUBLE && lit->spelling && target_double_is_single())
-        return lit->single_val;
-    return lit->kind == LITERAL_DOUBLE ? target_double_round(lit->u.real_val) : lit->u.real_val;
+    return lit->u.real_val;
 }
 
 int64_t literal_to_int64(const Literal *lit)
@@ -95,23 +93,22 @@ double literal_to_double(const Literal *lit)
     case LITERAL_CHAR:
         return (double)lit->u.char_val;
     case LITERAL_INT:
-        return target_double_from_i64(lit->u.int_val);
+        return (double)lit->u.int_val;
     case LITERAL_LONG:
-        return target_double_from_i64(lit->u.long_val);
+        return (double)lit->u.long_val;
     case LITERAL_LONG_LONG:
-        return target_double_from_i64(lit->u.long_long_val);
+        return (double)lit->u.long_long_val;
     case LITERAL_UINT:
-        return target_double_from_u64(lit->u.uint_val);
+        return (double)lit->u.uint_val;
     case LITERAL_ULONG:
-        return target_double_from_u64(lit->u.ulong_val);
+        return (double)lit->u.ulong_val;
     case LITERAL_ULONG_LONG:
-        return target_double_from_u64(lit->u.ulong_long_val);
+        return (double)lit->u.ulong_long_val;
     case LITERAL_FLOAT:
     case LITERAL_DOUBLE:
         return literal_real(lit);
     case LITERAL_LONG_DOUBLE:
-        return target_double_is_single() ? (double)f128_to_float(lit->u.long_double_val)
-                                         : f128_to_double(lit->u.long_double_val);
+        return f128_to_double(lit->u.long_double_val);
     case LITERAL_STRING:
         internal_error("literal_to_double: Cannot convert string %s", lit->u.string_val);
     case LITERAL_ENUM:

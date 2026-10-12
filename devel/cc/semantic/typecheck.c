@@ -652,7 +652,7 @@ static void cv_set_real(ConstVal *out, double d)
 {
     out->is_real = true;
     out->is_ld   = false;
-    out->d       = target_double_round(d);
+    out->d       = d;
 }
 
 // Whether long double is wider than double on the target, and so folds in binary128.
@@ -664,10 +664,9 @@ static bool wide_ld(void)
 static void cv_set_ld(ConstVal *out, Float128 q)
 {
     if (!wide_ld()) {
-        cv_set_real(out, f128_to_double(target_ld_round(q)));
+        cv_set_real(out, f128_to_double(q));
         return;
     }
-    q            = target_ld_round(q);
     out->is_real = true;
     out->is_ld   = true;
     out->q       = q;
@@ -695,8 +694,8 @@ static double const_as_real(const ConstVal *v)
 {
     if (v->is_real)
         return v->d;
-    return kind_is_unsigned(v->kind) ? target_double_from_u64(v->u)
-                                     : target_double_from_i64(cv_int64(v));
+    return kind_is_unsigned(v->kind) ? (double)v->u
+                                     : (double)cv_int64(v);
 }
 
 // Round a folded real of float type to float precision where float is narrower than
