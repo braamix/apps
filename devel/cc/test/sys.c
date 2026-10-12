@@ -4,8 +4,10 @@
 // /tmp/l -> d/up/d are links.
 //
 //     sys [child status]
+//     sys exit
 //
-// With arguments it is the child: it prints them and exits with the status.
+// With arguments it is the child: it prints them and exits with the status.  With
+// "exit" it prints a line and calls exit(3) from a plain function.
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -28,8 +30,17 @@ static void bye2(void)
     printf("atexit 2\n");
 }
 
+static void leave(void)
+{
+    printf("before exit\n");
+    fprintf(stderr, "on stderr\n");
+    exit(3);
+}
+
 coro(braam_call *) int main(int argc, char **argv)
 {
+    if (argc > 1 && strcmp(argv[1], "exit") == 0)
+        leave();
     if (argc > 1) {
         printf("child %s %s %s\n", argv[0], argv[1], getenv("SYS_TEST") ? getenv("SYS_TEST") : "-");
         return atoi(argv[1]);

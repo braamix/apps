@@ -166,6 +166,23 @@ for every option vcc's link passes (`--stack-first`, `-z stack-size`,
 Done when: every pass and the driver run on Braam, and compile the
 reference corpus there to the same `.s` as the host.
 
+**Done**, as [README.md](README.md) "On Braam" says, with three departures:
+
+- 4.1: a write issued in the step that exits was dropped, so the answer was
+  the kernel change — braam-core's stepper now performs those writes, and a
+  trap after `Sys::Exit` is that exit, not a crash — and no sticky flag.
+  Until an SDK carries it, `test/toolchain.mjs` skips.
+- 4.6: no `#include` request. `cpp` reads only from memory, and before it
+  starts every file an `#include` could name is loaded.
+- New: a compiler running in 32 bits. 64-bit values now cross the word
+  streams in two words, and the syntax tree and the semantic layer no
+  longer keep constants in the host's `long`.
+
+On Braam, `cpp` makes the host's `.i` for the 666 sources of this tree,
+and `parse`, `lower` and `genwasm` make the host's `.s` for the 3,043 of the
+corpus that compile — this tree's, the compiler's own among them, and vcc's
+test snippets — and refuse the 942 the host refuses.
+
 ### Step 5 — the package
 
 `braam_add_package(NAME cc ...)` with `D=wasm`: `bin/cc`,

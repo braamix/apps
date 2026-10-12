@@ -1,7 +1,7 @@
 # cc — vcc, the C compiler with coroutines, for Braam
 
 This is vcc, Serge Vakulenko's C11 compiler with `defer` and coroutines, cut
-down to its `wasm32-braam` target, on its way to running on Braam and
+down to its `wasm32-braam` target. It runs on Braam, and is on its way to
 compiling itself there. [Plan.md](Plan.md) is the plan; this file says
 where it stands.
 
@@ -71,20 +71,68 @@ Then, in the tree's own wasm32 configure, [braam.cmake](braam.cmake) uses
 it (`VCC_HOST`, which defaults to that stage):
 
 - **The runtime.** `crt0.o` is `libc/wasm32/braam/exports.s`; `libc.a` is
-  upstream's `wasm32-braam` set — the common and ILP32 sources compiled for
-  `wasm32` by the passes, `memory.s` and `sqrt.s`, and `braam/`'s sources
-  compiled by the driver. Both go in `build/devel/cc/lib/`.
+  upstream's `wasm32-braam` set — the common sources compiled for `wasm32`
+  by the passes, `memory.s`, and `braam/`'s sources compiled by the driver —
+  with musl's libm beside them (below). Both go in `build/devel/cc/lib/`.
 - **`vcc_add_program(NAME n SOURCES ...)`**, the counterpart of
   `braam_add_program` for C with coroutines: `vcc -S` on each source, the
   SDK's clang to assemble, `wasm-ld` (or `ld` under `make LINKER=ld`) with
   the driver's flags, `crt0.o` and `libc.a`, then the SDK's `stamp.py`, so
-  the ABI is the SDK's.
+  the ABI is the SDK's. `FLAGS`, `STACK`, `PAGES` and `TASK_BYTES` set the
+  driver's options, the stack, the initial memory and the root task's arena.
+- **The compiler itself**: `vcc`, `cpp`, `parse`, `lower` and `genwasm` as
+  Braam programs, from the same sources as the host's
+  ([sources.cmake](sources.cmake)), with a 1 MiB stack.
 - **A check**: [check_braam_abi.py](scripts/check_braam_abi.py) holds
   `braam.h` and `errno.h` to the SDK's `sysabi.h` and `result.h`, and a
   disagreement fails the build.
 
 [test/hello.c](test/hello.c) is built that way, and
 [test/hello.mjs](test/hello.mjs) runs it under the SDK's harness.
+
+## On Braam
+
+The compiler is C with coroutines, and the host compiles the same sources:
+[libutil/host.h](libutil/host.h) makes `coro(Y)` and `await` nothing there,
+and a call that waits is then C's own. Coroutines stop at the door: a pass
+reads its input whole (`read_file`, or `wopen`/`wdopen` for the word streams),
+works in plain C over memory, and writes its output whole when it closes it.
+Only `main`, the opens and the closes wait, and `lower` and `genwasm` park
+once per declaration so `^C` reaches a long run.
+
+- **A fatal error is `exit()`**, from wherever it is found. Braam's `exit()`
+  posts every stream's buffer as a write nobody waits for and ends the
+  process in that step, and the kernel performs those writes before it reaps
+  it. That needs braam-core after 0.10.280 (`System_Calls.md` §5); on an older
+  kernel such an exit is reported as a crash. The host recovers after an
+  error and reports more; on Braam, which has no `setjmp`, the first ends the
+  pass.
+- **`cpp` reads from memory.** It reads from deep inside its scanner, so
+  before it starts, [cpp/files.c](cpp/files.c) loads the input and every file
+  an `#include` line of it, or of a file found that way, could name under any
+  directory of the search path, conditionals ignored. A computed `#include`
+  cannot be foreseen and is not found on Braam.
+- **The caret** under a diagnostic is drawn from text in memory:
+  `parse` registers the `.i` and every file its line markers name. `lower`
+  and `genwasm` have no text, and print no caret on Braam.
+- **The driver** spawns its passes with `posix_spawnp` and waits with
+  `waitpid`, finds them in `libexec/` beside its `bin/`, assembles with
+  devel/wasm's `as` and links with its `ld`. It removes its temporary files
+  when `main` returns; an `exit()` leaves them in `/tmp`.
+- **A 32-bit compiler.** `size_t` and `long` are 32 bits on Braam. The word
+  streams carry a 64-bit value in two words where `size_t` has 32
+  (`wputll`), the syntax tree's `long` constants are `int64_t`, and the
+  semantic layer's constants are `long long` rather than the host's `long`.
+  One upstream bug only this showed: `wgetd` took a word of all ones for the
+  end of the stream, which is the low half of `DBL_MAX`.
+- **Names.** vcc does not let a local name shadow a function, and the
+  compiler's own sources name things `yield` and `defer`; they are built
+  with `_CORO_NO_DEFER_YIELD`, which keeps `<coro.h>` from defining those two.
+
+[test/toolchain.mjs](test/toolchain.mjs) installs the compiler in the
+harness, builds `hello.c` there and runs it, compiles six programs to the
+assembly the host's compiler makes of them, and checks a compile error. It
+skips, and says so, on a kernel whose `exit()` loses its output.
 
 ## The C library
 
@@ -115,7 +163,9 @@ be offered back:
   upstream's `fabs`, `frexp`, `ldexp`, `modf`, `fma`, `fmin`, `fmax` and
   `sqrt.s` are left out of the build. `nan` alone is vcc's (`nan.c`),
   because vcc names a function `nan` as `nan.vcc`.
-- `PATH_MAX` is 512 under `__braam__`, as in Braam's compat layer.
+- `PATH_MAX` is 512 under `__braam__`, as in Braam's compat layer, and
+  `open` takes POSIX's optional mode and drops it, since a coroutine cannot
+  be variadic.
 
 [test/libc.c](test/libc.c) prints the pure half (ctype, integer and float
 conversions both ways, `printf`'s float formats and flags, sorting,

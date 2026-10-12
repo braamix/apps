@@ -45,6 +45,7 @@ set(VCC_GENWASM_SOURCES backend/wasm/main.c ${VCC_WASM} ${VCC_BACKEND_COMMON} ${
     ${VCC_LIBUTIL})
 
 set(VCC_CPP_SOURCES ${VCC_CPP} ${VCC_LIBUTIL})
+set(VCC_CC_SOURCES cc/cc.c ${VCC_LIBUTIL})
 
 # Every directory a part's headers are in.
 set(VCC_INCLUDE_DIRS libutil ast scanner parser tac semantic optimize translator

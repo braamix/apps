@@ -182,6 +182,7 @@ vcc_add_program(NAME genwasm SOURCES ${VCC_GENWASM_SOURCES} FLAGS ${VCC_PASS_FLA
                 STACK 1048576 PAGES 32)
 vcc_add_program(NAME cpp SOURCES ${VCC_CPP_SOURCES} FLAGS ${VCC_PASS_FLAGS} STACK 1048576
                 PAGES 48)
+vcc_add_program(NAME vcc SOURCES ${VCC_CC_SOURCES} FLAGS ${VCC_PASS_FLAGS})
 
 vcc_add_program(NAME hello SOURCES test/hello.c)
 vcc_add_program(NAME libctest SOURCES test/libc.c)

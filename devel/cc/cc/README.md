@@ -87,6 +87,10 @@ takes everything relative to it:
 | standard headers | `../share/vcc/<target>/include` |
 | `crt0.o`, `libc.a`, and the host `run.mjs` | `../share/vcc/<target>/lib` |
 
+On Braam itself the passes are in `../libexec/` rather than beside `vcc`, as a
+package's `bin/` holds commands only; the assembler is `as` and the linker `ld`,
+devel/wasm's, found on `PATH`; and the passes are spawned with `posix_spawnp`.
+
 `vcc` passes `-nostdinc -I<share>/include` to `vcpp`, so `vcpp`'s own compiled-in include
 directory plays no part. The assembler and linker belong to other projects. They are the
 ones found when the build was configured, or else `clang` and `wasm-ld` on `PATH`. Which

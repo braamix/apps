@@ -77,6 +77,7 @@ add_executable(genwasm backend/wasm/main.c)
 target_link_libraries(genwasm wasm backend_common)
 
 add_executable(cc cc/cc.c)
+target_link_libraries(cc libutil)
 
 # test/libc.c on the host's C library, which Braam's is held to (test/libc.mjs).
 add_executable(libctest test/libc.c)

@@ -193,6 +193,7 @@ TESTS := \
     devel/c4/test/interrupt.mjs \
     devel/cc/test/hello.mjs \
     devel/cc/test/libc.mjs \
+    devel/cc/test/toolchain.mjs \
     devel/wasm/ld/test/fixtures.mjs \
     devel/wasm/ld/test/dump.mjs \
     devel/wasm/ld/test/resolve.mjs \

@@ -42,6 +42,11 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#ifdef __braam__
+#include <spawn.h>
+#endif
+
+#include "host.h"
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
@@ -195,12 +200,14 @@ static char *concat(const char *a, const char *b)
 // (libutil/srcloc.c): when -fdiagnostics-color says so, or by default when stderr
 // is a terminal, NO_COLOR is unset or empty and TERM is not "dumb".
 //
+static int stderr_tty; // set once, first thing in main
+
 static void diag_prefix(const char *kind)
 {
     if (color < 0) {
         const char *no_color = getenv("NO_COLOR");
         const char *term     = getenv("TERM");
-        color = isatty(2) && !(no_color && no_color[0]) && !(term && strcmp(term, "dumb") == 0);
+        color = stderr_tty && !(no_color && no_color[0]) && !(term && strcmp(term, "dumb") == 0);
     }
     if (color)
         fprintf(stderr, "\033[1m%s:\033[0m %s%s:\033[0m ", progname,
@@ -227,12 +234,13 @@ static void error(const char *fmt, ...)
 
 //
 // Remove every temp file we created.  Registered with atexit(), so it also
-// runs on error paths that call exit().
+// runs on error paths that call exit(); on Braam, where it waits and atexit
+// cannot, main awaits it instead, and an exit() leaves the temps in /tmp.
 //
-static void cleanup(void)
+static coro(braam_call *) void cleanup(void)
 {
     for (size_t i = 0; i < tmpfiles.len; i++)
-        unlink(tmpfiles.data[i]);
+        await unlink(tmpfiles.data[i]);
     for (size_t i = 0; i < owned.len; i++)
         free(owned.data[i]);
     vec_free(&tmpfiles);
@@ -289,10 +297,10 @@ static char *replace_suffix(const char *name, const char *suf)
 // derived .s output resolves to the same file.  Returns false if either path
 // cannot be stat()ed -- there is nothing to clobber yet.
 //
-static bool same_file(const char *a, const char *b)
+static coro(braam_call *) bool same_file(const char *a, const char *b)
 {
     struct stat sa, sb;
-    if (stat(a, &sa) != 0 || stat(b, &sb) != 0)
+    if (await stat(a, &sa) != 0 || await stat(b, &sb) != 0)
         return false;
     return sa.st_dev == sb.st_dev && sa.st_ino == sb.st_ino;
 }
@@ -305,7 +313,7 @@ static bool same_file(const char *a, const char *b)
 // it).  The returned fd is closed immediately since the sub-tool reopens the
 // path by name.
 //
-static char *make_temp(const char *suf)
+static coro(braam_call *) char *make_temp(const char *suf)
 {
     const char *dir = getenv("TMPDIR");
     if (!dir || !*dir)
@@ -319,12 +327,12 @@ static char *make_temp(const char *suf)
     }
     snprintf(path, n, "%s/vccXXXXXX.%s", dir, suf);
 
-    int fd = mkstemps(path, (int)strlen(suf) + 1);
+    int fd = await mkstemps(path, (int)strlen(suf) + 1);
     if (fd < 0) {
         error("cannot create temporary file: %s", strerror(errno));
         exit(1);
     }
-    close(fd);
+    await close(fd);
     vec_push(&tmpfiles, path);
     return own(path);
 }
@@ -334,7 +342,7 @@ static char *make_temp(const char *suf)
 // elsewhere fall back to argv[0], searched on PATH when it has no '/'.  Returns
 // a pointer into `buf` (PATH_MAX bytes) or to argv0, or NULL.
 //
-static const char *exe_path(const char *argv0, char *buf)
+static coro(braam_call *) const char *exe_path(const char *argv0, char *buf)
 {
 #if defined(__APPLE__)
     uint32_t size = PATH_MAX;
@@ -355,7 +363,7 @@ static const char *exe_path(const char *argv0, char *buf)
         const char *colon = strchr(path, ':');
         size_t len        = colon ? (size_t)(colon - path) : strlen(path);
         snprintf(buf, PATH_MAX, "%.*s/%s", (int)len, len ? path : ".", argv0);
-        if (access(buf, X_OK) == 0)
+        if (await access(buf, X_OK) == 0)
             return buf;
         path = colon ? colon + 1 : NULL;
     }
@@ -367,12 +375,12 @@ static const char *exe_path(const char *argv0, char *buf)
 // resolved: a ~/bin/vcc linked to an installation still finds its passes.
 // Left NULL when it cannot be determined; find_pass() reports that.
 //
-static void locate_self(const char *argv0)
+static coro(braam_call *) void locate_self(const char *argv0)
 {
     char buf[PATH_MAX], real[PATH_MAX];
-    const char *path = exe_path(argv0, buf);
+    const char *path = await exe_path(argv0, buf);
 
-    if (!path || !realpath(path, real))
+    if (!path || !await realpath(path, real))
         return;
     char *slash = strrchr(real, '/');
     if (slash == real)
@@ -413,7 +421,7 @@ static void locate_share(void)
 //   2. <exe_dir>/<name>.
 // Returns an owned path, or NULL (with an error reported) if not found.
 //
-static char *find_pass(const char *envvar, const char *name)
+static coro(braam_call *) char *find_pass(const char *envvar, const char *name)
 {
     const char *override = getenv(envvar);
     if (override && *override)
@@ -424,9 +432,14 @@ static char *find_pass(const char *envvar, const char *name)
               envvar);
         return NULL;
     }
+#ifdef __braam__
+    // An installed package's passes are not commands: they are in libexec/, beside bin/.
+    char *path = concat(exe_dir, "/../libexec/");
+#else
     char *path = concat(exe_dir, "/");
-    path       = concat(path, name);
-    if (access(path, X_OK) != 0) {
+#endif
+    path = concat(path, name);
+    if (await access(path, X_OK) != 0) {
         error("cannot find '%s'; set %s to its path", path, envvar);
         return NULL;
     }
@@ -477,8 +490,19 @@ static bool push_tool(struct vec *av, const char *envvar, const char *configured
         vec_push(av, (char *)configured);
         return is_llvm(configured);
     }
+#ifdef __braam__
+    // On Braam the assembler is devel/wasm's as, which takes no clang options, and
+    // the linker its ld, which takes wasm-ld's.
+    if (strcmp(tool, "as") == 0) {
+        vec_push(av, "as");
+        return false;
+    }
+    vec_push(av, "ld");
+    return true;
+#else
     vec_push(av, strcmp(tool, "as") == 0 ? "clang" : (char *)target->llvm_ld);
     return true;
+#endif
 }
 
 //
@@ -487,7 +511,7 @@ static bool push_tool(struct vec *av, const char *envvar, const char *configured
 // status: 0 on success, nonzero on failure.  With -v, the command line is echoed
 // first.
 //
-static int run(const char *tool, char *const argv[])
+static coro(braam_call *) int run(const char *tool, char *const argv[])
 {
     if (opt_v) {
         for (char *const *p = argv; *p; p++)
@@ -496,8 +520,17 @@ static int run(const char *tool, char *const argv[])
     }
     // stdout is buffered: without the flush the child would inherit a copy of
     // whatever -v had put in the buffer.
-    fflush(stdout);
+    await fflush(stdout);
 
+#ifdef __braam__
+    // No fork: the kernel spawns, looking a name without a '/' up on PATH.
+    pid_t pid;
+    int err = await posix_spawnp(&pid, tool, NULL, NULL, argv, environ);
+    if (err != 0) {
+        error("cannot run '%s': %s", tool, strerror(err));
+        return 127;
+    }
+#else
     pid_t pid = fork();
     if (pid < 0) {
         error("cannot run '%s': %s", tool, strerror(errno));
@@ -513,9 +546,10 @@ static int run(const char *tool, char *const argv[])
         fflush(stderr);
         _exit(127);
     }
+#endif
 
     int status = 0;
-    while (waitpid(pid, &status, 0) < 0) {
+    while (await waitpid(pid, &status, 0) < 0) {
         if (errno != EINTR) {
             error("wait failed: %s", strerror(errno));
             return 1;
@@ -552,9 +586,9 @@ static int run(const char *tool, char *const argv[])
 // comments or line markers).
 // Returns 0 on success.
 //
-static int run_cpp(const char *in, const char *out, bool assembler)
+static coro(braam_call *) int run_cpp(const char *in, const char *out, bool assembler)
 {
-    char *tool = find_pass("VCC_CPP", "vcpp");
+    char *tool = await find_pass("VCC_CPP", "vcpp");
     if (!tool)
         return 1;
 
@@ -578,7 +612,7 @@ static int run_cpp(const char *in, const char *out, bool assembler)
         vec_push(&av, (char *)out);
     vec_push(&av, NULL);
 
-    int rc = run(tool, av.data);
+    int rc = await run(tool, av.data);
     vec_free(&av);
     return rc;
 }
@@ -586,9 +620,9 @@ static int run_cpp(const char *in, const char *out, bool assembler)
 //
 // Parse: vparse in out.  Returns 0 on success.
 //
-static int run_parse(const char *in, const char *out)
+static coro(braam_call *) int run_parse(const char *in, const char *out)
 {
-    char *tool = find_pass("VCC_PARSE", "vparse");
+    char *tool = await find_pass("VCC_PARSE", "vparse");
     if (!tool)
         return 1;
     struct vec av = { 0 };
@@ -602,7 +636,7 @@ static int run_parse(const char *in, const char *out)
     vec_push(&av, (char *)in);
     vec_push(&av, (char *)out);
     vec_push(&av, NULL);
-    int rc = run(tool, av.data);
+    int rc = await run(tool, av.data);
     vec_free(&av);
     return rc;
 }
@@ -611,9 +645,9 @@ static int run_parse(const char *in, const char *out)
 // Check and lower for the target: vlower -t <target> in out.  Returns 0 on
 // success.
 //
-static int run_lower(const char *in, const char *out)
+static coro(braam_call *) int run_lower(const char *in, const char *out)
 {
-    char *tool = find_pass("VCC_LOWER", "vlower");
+    char *tool = await find_pass("VCC_LOWER", "vlower");
     if (!tool)
         return 1;
     struct vec av = { 0 };
@@ -629,7 +663,7 @@ static int run_lower(const char *in, const char *out)
     vec_push(&av, (char *)in);
     vec_push(&av, (char *)out);
     vec_push(&av, NULL);
-    int rc = run(tool, av.data);
+    int rc = await run(tool, av.data);
     vec_free(&av);
     return rc;
 }
@@ -637,9 +671,9 @@ static int run_lower(const char *in, const char *out)
 //
 // Run the code generator: vgen<target> in out.  Returns 0 on success.
 //
-static int run_codegen(const char *in, const char *out)
+static coro(braam_call *) int run_codegen(const char *in, const char *out)
 {
-    char *tool = find_pass("VCC_GEN", target->codegen);
+    char *tool = await find_pass("VCC_GEN", target->codegen);
     if (!tool)
         return 1;
     struct vec av = { 0 };
@@ -649,7 +683,7 @@ static int run_codegen(const char *in, const char *out)
     vec_push(&av, (char *)in);
     vec_push(&av, (char *)out);
     vec_push(&av, NULL);
-    int rc = run(tool, av.data);
+    int rc = await run(tool, av.data);
     vec_free(&av);
     return rc;
 }
@@ -659,7 +693,7 @@ static int run_codegen(const char *in, const char *out)
 //     clang --target=wasm32 --no-default-config <features> -c -o out in
 // (a VCC_AS that is not clang carries its own flags).  Returns 0 on success.
 //
-static int run_as(const char *in, const char *out)
+static coro(braam_call *) int run_as(const char *in, const char *out)
 {
     struct vec av = { 0 };
 
@@ -672,7 +706,7 @@ static int run_as(const char *in, const char *out)
     vec_push(&av, (char *)out);
     vec_push(&av, (char *)in);
     vec_push(&av, NULL);
-    int rc = run(av.data[0], av.data);
+    int rc = await run(av.data[0], av.data);
     vec_free(&av);
     return rc;
 }
@@ -681,10 +715,10 @@ static int run_as(const char *in, const char *out)
 // The object file for `src`: with -c, the -o name or foo.o in the current
 // directory; when linking, a temporary, removed on exit (as gcc does).
 //
-static char *object_name(const char *src)
+static coro(braam_call *) char *object_name(const char *src)
 {
     if (!opt_c)
-        return make_temp("o");
+        return await make_temp("o");
     return own(outfile ? strdup(outfile) : replace_suffix(src, "o"));
 }
 
@@ -695,7 +729,7 @@ static char *object_name(const char *src)
 // is appended to `objects` so a later link step can pick it up.  Returns 0 on
 // success.
 //
-static int compile_one(const char *src)
+static coro(braam_call *) int compile_one(const char *src)
 {
     char suf = opt_x ? opt_x : suffix_of(src);
 
@@ -703,8 +737,8 @@ static int compile_one(const char *src)
     if (suf == 's') {
         if (opt_E || opt_S)
             return 0;
-        char *obj = object_name(src);
-        int rc    = run_as(src, obj);
+        char *obj = await object_name(src);
+        int rc    = await run_as(src, obj);
         vec_push(&objects, obj);
         return rc;
     }
@@ -720,23 +754,23 @@ static int compile_one(const char *src)
         else if (opt_S)
             sfile = own(outfile ? strdup(outfile) : replace_suffix(src, "s"));
         else
-            sfile = make_temp("s");
+            sfile = await make_temp("s");
 
         // Guard against overwriting the source on a case-insensitive filesystem,
         // where replace_suffix("foo.S", "s") == "foo.s" names the same file.
-        if ((opt_E || opt_S) && sfile && same_file(src, sfile)) {
+        if ((opt_E || opt_S) && sfile && await same_file(src, sfile)) {
             error("'%s': refusing to overwrite the input; use '-o'", src);
             return 1;
         }
 
-        if (run_cpp(src, sfile, true) != 0)
+        if (await run_cpp(src, sfile, true) != 0)
             return 1;
         if (opt_E || opt_S)
             return 0;
 
         // Assemble the preprocessed output: .s -> .o
-        char *obj = object_name(src);
-        int rc    = run_as(sfile, obj);
+        char *obj = await object_name(src);
+        int rc    = await run_as(sfile, obj);
         vec_push(&objects, obj);
         return rc;
     }
@@ -751,31 +785,31 @@ static int compile_one(const char *src)
     if (opt_E)
         ifile = outfile; // NULL: standard output
     else
-        ifile = make_temp("i");
-    if (run_cpp(src, ifile, false) != 0)
+        ifile = await make_temp("i");
+    if (await run_cpp(src, ifile, false) != 0)
         return 1;
     if (opt_E)
         return 0;
 
     // Parse and lower: .i -> .ast -> .tac
-    const char *astfile = make_temp("ast");
-    if (run_parse(ifile, astfile) != 0)
+    const char *astfile = await make_temp("ast");
+    if (await run_parse(ifile, astfile) != 0)
         return 1;
-    const char *tacfile = make_temp("tac");
-    if (run_lower(astfile, tacfile) != 0)
+    const char *tacfile = await make_temp("tac");
+    if (await run_lower(astfile, tacfile) != 0)
         return 1;
 
     // Code generation: .tac -> .s
     const char *asmfile =
-        opt_S ? own(outfile ? strdup(outfile) : replace_suffix(src, "s")) : make_temp("s");
-    if (run_codegen(tacfile, asmfile) != 0)
+        opt_S ? own(outfile ? strdup(outfile) : replace_suffix(src, "s")) : await make_temp("s");
+    if (await run_codegen(tacfile, asmfile) != 0)
         return 1;
     if (opt_S)
         return 0;
 
     // Assemble: .s -> .o
-    char *obj = object_name(src);
-    int rc    = run_as(asmfile, obj);
+    char *obj = await object_name(src);
+    int rc    = await run_as(asmfile, obj);
     vec_push(&objects, obj);
     return rc;
 }
@@ -796,27 +830,27 @@ static int compile_one(const char *src)
 // does the same for its own programs.  An earlier "braam" section is dropped first.
 // The numbers are libc/wasm32/braam/include/braam.h's.  Returns 0 on success.
 //
-static int braam_stamp(const char *path)
+static coro(braam_call *) int braam_stamp(const char *path)
 {
-    FILE *f = fopen(path, "rb");
+    FILE *f = await fopen(path, "rb");
     if (!f) {
         error("cannot read '%s': %s", path, strerror(errno));
         return 1;
     }
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
+    await fseek(f, 0, SEEK_END);
+    long size = await ftell(f);
+    await fseek(f, 0, SEEK_SET);
     unsigned char *data = malloc(size > 0 ? (size_t)size : 1);
     unsigned char *out  = malloc((size_t)size + 64);
-    if (!data || !out || fread(data, 1, (size_t)size, f) != (size_t)size || size < 8 ||
+    if (!data || !out || await fread(data, 1, (size_t)size, f) != (size_t)size || size < 8 ||
         memcmp(data, "\0asm", 4) != 0) {
-        fclose(f);
+        await fclose(f);
         free(data);
         free(out);
         error("'%s' is not a wasm module", path);
         return 1;
     }
-    fclose(f);
+    await fclose(f);
 
     // Every section but a "braam" one.
     size_t n = 8, at = 8;
@@ -852,9 +886,9 @@ static int braam_stamp(const char *path)
         for (int k = 0; k < 4; k++)
             out[n++] = (unsigned char)(meta[i] >> (8 * k));
 
-    f       = fopen(path, "wb");
+    f       = await fopen(path, "wb");
     bool ok = f && fwrite(out, 1, n, f) == n;
-    if (f && fclose(f) != 0)
+    if (f && await fclose(f) != 0)
         ok = false;
     free(data);
     free(out);
@@ -863,7 +897,7 @@ static int braam_stamp(const char *path)
     return ok ? 0 : 1;
 }
 
-static int link_objects(void)
+static coro(braam_call *) int link_objects(void)
 {
     char *libdir = concat(share_dir, "/lib");
 
@@ -874,7 +908,7 @@ static int link_objects(void)
     snprintf(pages, sizeof pages, "--initial-memory=%lu", braam_pages * 65536UL);
     vec_push(&av, concat(pages, ""));
     if (linkscript) {
-        if (access(linkscript, R_OK) != 0) {
+        if (await access(linkscript, R_OK) != 0) {
             error("linker script '%s' not found; use '-T'", linkscript);
             vec_free(&av);
             return 1;
@@ -888,7 +922,7 @@ static int link_objects(void)
     // objects, crt0 first; -nostdlib skips both.
     if (!opt_nostdlib) {
         char *crt0 = concat(libdir, "/crt0.o");
-        if (access(crt0, R_OK) != 0) {
+        if (await access(crt0, R_OK) != 0) {
             error("'%s' not found; install the runtime, or use '-nostdlib'", crt0);
             vec_free(&av);
             return 1;
@@ -907,10 +941,10 @@ static int link_objects(void)
         vec_push(&av, "-lc");
     vec_push(&av, NULL);
 
-    int rc = run(av.data[0], av.data);
+    int rc = await run(av.data[0], av.data);
     vec_free(&av);
     if (rc == 0)
-        rc = braam_stamp(outfile ? outfile : "a.out");
+        rc = await braam_stamp(outfile ? outfile : "a.out");
     return rc;
 }
 
@@ -980,7 +1014,7 @@ static void usage(int status)
     exit(status);
 }
 
-int main(int argc, char *argv[])
+coro(braam_call *) int main(int argc, char *argv[])
 {
     // Derive the diagnostic prefix from argv[0]'s basename (fallback "vcc").
     if (argc > 0 && argv[0] && argv[0][0]) {
@@ -988,8 +1022,11 @@ int main(int argc, char *argv[])
         progname    = slash ? slash + 1 : argv[0];
     }
 
+#ifndef __braam__
     atexit(cleanup);
-    target = &targets[0];
+#endif
+    stderr_tty = await isatty(2);
+    target     = &targets[0];
 
     for (int i = 1; i < argc; i++) {
         char *arg = argv[i];
@@ -1191,7 +1228,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    locate_self(argv[0]);
+    await locate_self(argv[0]);
     locate_share();
 
     // Compile each source; a failure on one file skips the link step but does
@@ -1202,17 +1239,18 @@ int main(int argc, char *argv[])
             vec_push(&objects, sources.data[i]);
             continue;
         }
-        if (compile_one(sources.data[i]) != 0)
+        if (await compile_one(sources.data[i]) != 0)
             compiled_ok = false;
     }
 
     // Link unless we stopped early or a compile failed.
     if (compiled_ok && !opt_c && !opt_S && !opt_E && objects.len > 0)
-        link_objects();
+        await link_objects();
 
     vec_free(&sources);
     vec_free(&objects);
     vec_free(&cppflags);
     vec_free(&ldflags);
+    await cleanup();
     return errflag ? 1 : 0;
 }
