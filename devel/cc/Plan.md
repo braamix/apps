@@ -5,8 +5,8 @@
 in vcc's own C-with-coroutines, so that it runs on Braam and can compile
 itself there. This file is the plan: what is taken, what changes, and the
 order of the steps, each with what proves it done. The import, the trim,
-the build in this tree, the C library and the rewrite for Braam are done,
-and [README.md](README.md) says how they were checked.
+the build in this tree, the C library, the rewrite for Braam and the
+package are done, and [README.md](README.md) says how they were checked.
 
 ## 1. Where this starts
 
@@ -96,25 +96,6 @@ Not vendored: the GoogleTest suites (their programs are, see step 6),
 
 Each step ends green: `make test` passes and the package, once it exists,
 still builds.
-
-### Step 5 — the package
-
-`braam_add_package(NAME cc ...)` with `D=wasm`: `bin/cc`,
-`libexec/{cpp,parse,lower,genwasm}`, `include/`, `lib/crt0.o`,
-`lib/libc.a`, and `share/` with a few example programs. `README.md` says
-what changed from vcc and why; `Manual.md` is the user's guide (§3 and §4
-of `docs/Braam.md`, and the coroutine tutorial). Under 50 MiB is not in
-question; measure the unpacked size anyway.
-
-Done when: in the harness, with the real anchor and a local index, `pkg
-install cc` pulls in `wasm`, and `cc hello.c && ./a.out` prints.
-
-**Done**, as [README.md](README.md) "The package" says, with two
-departures. The runtime is in `share/vcc/wasm32-braam/`, where the driver
-already looks, not in a top-level `include/` and `lib/`. And the anchor is
-the test's own, over keys made for the run, so `make test` needs no
-publisher's key; the index and the install are the real ones. 428 KB
-packed, 1.3 MB unpacked.
 
 ### Step 6 — tests
 

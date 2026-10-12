@@ -103,7 +103,7 @@ once per declaration so `^C` reaches a long run.
 - **A fatal error is `exit()`**, from wherever it is found. Braam's `exit()`
   posts every stream's buffer as a write nobody waits for and ends the
   process in that step, and the kernel performs those writes before it reaps
-  it. That needs braam-core after 0.10.280 (`System_Calls.md` §5); on an older
+  it. That needs Braam 0.10.1 or later (`System_Calls.md` §5); on an older
   kernel such an exit is reported as a crash. The host recovers after an
   error and reports more; on Braam, which has no `setjmp`, the first ends the
   pass.
