@@ -8,8 +8,7 @@ The engine descends from John F. Reiser's Unix v7 `cpp` (1978). It was modernize
 **C11 (N1570)** in the [v7besm](https://github.com/besm6/v7besm) project, where it is
 `b6cpp` (`cmd/cpp/`); these are the same sources, plus target selection (`-t`) and the
 `-nostdinc` option. The v7besm copy also builds natively for the BESM-6 under a
-reduced size profile (`#ifdef besm6` in [`defs.h`](defs.h)); that build and its
-documentation stay in v7besm. Here it is a host tool only.
+reduced size profile; that build and its documentation stay in v7besm.
 
 ## Usage
 
@@ -23,8 +22,8 @@ standard stream). **The exit status is the number of errors reported** (0 on suc
 
 | Option | Meaning |
 | --- | --- |
-| `-t NAME`, `-tNAME`, `--target NAME` | Target: `riscv64` (default, like `lower`), `riscv32`, `aarch64`, `arm32`, `x86_64`, `avr`, `msp430`, `mmix`, `wasm32`, `wasm32-braam` (wasm32's macros and `__braam__`), `besm6`, or the hosted `x86_64-linux`, `aarch64-linux` and `riscv64-linux` (the architecture's macros, for RISC-V also `__riscv_flen=64`, `__CHAR_UNSIGNED__` and `__ELF__`, plus `__linux__`, `__linux`, `__gnu_linux__`, `__unix__` and `__unix`) and `aarch64-darwin` (AArch64's, `__arm64__`, `__APPLE__` and `__MACH__`, without `__CHAR_UNSIGNED__` and `__ELF__`). Selects the predefined macros and the standard include directory. |
-| `-Ipath` | Add a directory to the header search list (up to 64; 8 in the BESM-6 build). |
+| `-t NAME`, `-tNAME`, `--target NAME` | Target: `wasm32-braam` (default, like `lower`; wasm32's macros and `__braam__`) or `wasm32`. Selects the predefined macros and the standard include directory. |
+| `-Ipath` | Add a directory to the header search list (up to 64). |
 | `-nostdinc` | Do not search the target's standard include directory. |
 | `-Dname[=value]` | Predefine a macro; bare `-Dname` defines it as `1`. Up to 20. |
 | `-Uname` | Undefine a macro at startup. Up to 20. |
@@ -41,39 +40,29 @@ standard stream). **The exit status is the number of errors reported** (0 on suc
 A full compilation:
 
 ```sh
-vcpp -t riscv64 hello.c hello.i       # searches ~/.local/share/vcc/riscv64/include
+vcpp hello.c hello.i       # searches <prefix>/share/vcc/wasm32-braam/include
 vparse hello.i hello.ast
-vlower -t riscv64 hello.ast hello.tac
-vgenriscv64 hello.tac hello.s
+vlower hello.ast hello.tac
+vgenwasm hello.tac hello.s
 ```
 
 In the build tree, point it at the source headers instead:
 
 ```sh
-build/cpp/cpp -t besm6 -nostdinc -Ilibc/besm6/include -Ilibc/common/include prog.c prog.i
+build/host-cc/cpp -nostdinc -Ilibc/wasm32/braam/include -Ilibc/wasm32/include \
+    -Ilibc/ilp32/include -Ilibc/common/include prog.c prog.i
 ```
 
 ## Targets
 
 | Target | Predefined macros | Standard include directory |
 | --- | --- | --- |
-| `riscv64` | `__riscv`, `__riscv_xlen` = 64, `__LP64__`, `_LP64`, `__riscv_float_abi_double`, `__riscv_mul`, `__riscv_div` | `<prefix>/share/vcc/riscv64/include` |
-| `riscv32` | `__riscv`, `__riscv_xlen` = 32, `__ILP32__`, `_ILP32`, `__riscv_float_abi_double`, `__riscv_mul`, `__riscv_div` | `<prefix>/share/vcc/riscv32/include` |
-| `aarch64` | `__aarch64__`, `__ARM_ARCH` = 8, `__ARM_64BIT_STATE`, `__LP64__`, `_LP64`, `__CHAR_UNSIGNED__`, `__ELF__` | `<prefix>/share/vcc/aarch64/include` |
-| `arm32` | `__arm__`, `__ARM_ARCH` = 7, `__ARM_ARCH_7A__`, `__ARM_ARCH_PROFILE` = `'A'`, `__ARM_32BIT_STATE`, `__ARM_EABI__`, `__ARMEL__`, `__ARM_PCS_VFP`, `__VFP_FP__`, `__ARM_FP` = `0xe`, `__ARM_FEATURE_IDIV`, `__ILP32__`, `_ILP32`, `__CHAR_UNSIGNED__`, `__WCHAR_UNSIGNED__`, `__ELF__` | `<prefix>/share/vcc/arm32/include` |
-| `x86_64` | `__x86_64__`, `__x86_64`, `__amd64__`, `__amd64`, `__LP64__`, `_LP64`, `__SSE__`, `__SSE2__`, `__SSE_MATH__`, `__SSE2_MATH__`, `__code_model_small__`, `__ELF__` | `<prefix>/share/vcc/x86_64/include` |
-| `avr` | `__AVR`, `__AVR__`, `__AVR_ARCH__` = 51, `__AVR_ATmega1280__`, `__AVR_HAVE_MUL__`, `__AVR_HAVE_MOVW__`, `__AVR_HAVE_LPMX__`, `__AVR_HAVE_ELPM__`, `__AVR_HAVE_ELPMX__`, `__AVR_HAVE_JMP_CALL__`, `__AVR_2_BYTE_PC__`, `__ELF__` | `<prefix>/share/vcc/avr/include` |
-| `msp430` | `__MSP430__`, `__CHAR_UNSIGNED__`, `__ELF__` | `<prefix>/share/vcc/msp430/include` |
-| `mmix` | `__mmix__`, `__MMIX__`, `__MMIX_ABI_MMIXWARE__`, `__LP64__`, `_LP64` (GCC's; no `__ELF__`) | `<prefix>/share/vcc/mmix/include` |
 | `wasm32` | `__wasm__`, `__wasm`, `__wasm32__`, `__wasm32`, `__ILP32__`, `_ILP32`, and the feature macros `__wasm_bulk_memory__`, `__wasm_bulk_memory_opt__`, `__wasm_multivalue__`, `__wasm_mutable_globals__`, `__wasm_nontrapping_fptoint__`, `__wasm_reference_types__`, `__wasm_sign_ext__` (clang's with Braam's features; no `__ELF__`), and `__vcc_coroutines__` (vcc's coroutines, [docs/Coroutines_in_C.md](../docs/Coroutines_in_C.md)) | `<prefix>/share/vcc/wasm32/include` |
 | `wasm32-braam` | wasm32's, and `__braam__` (a process of Braam, [docs/Braam.md](../docs/Braam.md)) | `<prefix>/share/vcc/wasm32-braam/include` |
-| `besm6` | `besm6`, `__besm6__` | `<prefix>/share/vcc/besm6/include` |
 
-The RISC-V set is a subset of clang's, so a header written for clang takes the same
-branches. `<prefix>` is the install prefix the build was configured with (`~/.local` by
-default), compiled in as `VCC_SHARE_DIR`. The standard directory is searched after every
-`-I` directory. For BESM-6 only the freestanding headers and `besm6.h` are installed there;
-the hosted headers come with v7besm's libc, so pass `-I` for them.
+The wasm32 set is clang's, so a header written for clang takes the same branches.
+`<prefix>` is the install prefix the build was configured with, compiled in as
+`VCC_SHARE_DIR`. The standard directory is searched after every `-I` directory.
 
 The target macros are ordinary macros and can be `#undef`'d.
 
@@ -123,8 +112,8 @@ From [`defs.h`](defs.h); all meet the C11 §5.2.4.1 minimums.
 | Macro parameters | 127 |
 | `#include` nesting | 10 |
 | `#if` nesting | 64 |
-| `-D` / `-U` options | 200 each (20 in the BESM-6 build) |
-| Macro pushback buffers in flight | 64 (14 in the BESM-6 build) |
+| `-D` / `-U` options | 200 each |
+| Macro pushback buffers in flight | 64 |
 
 ## Source layout
 
@@ -139,20 +128,3 @@ From [`defs.h`](defs.h); all meet the C11 §5.2.4.1 minimums.
 | `diag.c` | Diagnostics and small string helpers. |
 | `defs.h` | The state struct, the symbol-table entry, the size limits. |
 | `intern.h` | Scan-table macros, marker bytes, the macro-name filter. |
-
-## Testing
-
-`cpp-tests` ([`test/`](test)) is a C11 conformance suite, one file per clause of the
-standard, plus the target options. Every suite derives from the `PreprocessorTest`
-fixture ([`test/test_support.h`](test/test_support.h)), which runs the built `cpp` in a
-temporary directory and compares normalized output (`EXPECT_TOKENS`, `EXPECT_PP_OK`,
-`EXPECT_PP_DIAGNOSES`).
-
-The `besm-headers-cpp` and `riscv-headers-cpp` ctests preprocess every shipped header with
-this `cpp` and parse the result, alongside the `besm-headers`/`riscv-headers` checks that
-use the system `cc -E`.
-
-```sh
-./build/cpp/test/cpp-tests
-ctest --test-dir build -R headers
-```

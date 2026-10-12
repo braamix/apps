@@ -65,7 +65,7 @@ target_include_directories(translator PUBLIC translator)
 target_link_libraries(translator optimize semantic tac ast libutil)
 
 add_library(backend_common STATIC
-    backend/common/driver.c backend/common/flow.c backend/common/regalloc.c)
+    backend/common/driver.c backend/common/flow.c)
 target_include_directories(backend_common PUBLIC backend/common)
 target_link_libraries(backend_common tac libutil)
 
