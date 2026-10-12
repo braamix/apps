@@ -42,41 +42,21 @@ static void add_member(Tac_Type *ts, const char *name, int offset, Tac_Type *typ
 // A bit-field's storage unit is a member of its own, an unsigned integer, once for each
 // place and size: the unit is what the code loads and stores, and a backend sizes a
 // constant stored into a structure by the member it finds there.  It also makes the ABI
-// classifiers see bit-fields as integers.  With `per_field` it is listed once per
-// bit-field it holds, for a classifier that counts them (Target.bitfield_unit_per_field).
-static void add_unit_member(Tac_Type *ts, int offset, int size, bool per_field)
+// classifiers see bit-fields as integers.  It is listed once per bit-field it holds, for
+// the classifier counts them (tac_wasm32_class).
+static void add_unit_member(Tac_Type *ts, int offset, int size)
 {
-    Tac_Type *type;
-    TypeKind k = unsigned_kind_of_size(size);
-    if (k != TYPE_VOID) {
-        Type ut = { .kind = k };
-        type    = convert_type(&ut, true);
-    } else {
-        // An access unit of an odd size (clang's i24, i40...): its bytes.
-        type                    = tac_new_type(TAC_TYPE_ARRAY);
-        type->u.array.elem_type = tac_new_type(TAC_TYPE_UCHAR);
-        type->u.array.size      = size;
-    }
-    for (const Tac_Member *m = ts->u.structure.members; m && !per_field; m = m->next) {
-        if (!m->name && m->offset == offset && tac_compare_type(m->type, type)) {
-            tac_free_type(type);
-            return;
-        }
-    }
-    add_member(ts, NULL, offset, type);
+    Type ut = { .kind = unsigned_kind_of_size(size) };
+    add_member(ts, NULL, offset, convert_type(&ut, true));
 }
 
-// An unnamed bit-field, for an ABI that sees it: its part of clang's access unit
-// (Target.bitfield_access_bits), else its own storage unit, and for a `:0` a marker, an
-// unnamed array of no bytes (Target.bitfield_unit_per_field).
-static void add_unnamed(Tac_Type *ts, const FieldDef *u, bool access)
+// An unnamed bit-field, which the ABI sees: its own storage unit, and for a `:0` a marker,
+// an unnamed array of no bytes.
+static void add_unnamed(Tac_Type *ts, const FieldDef *u)
 {
-    if (access) {
-        if (u->bf.width)
-            add_unit_member(ts, u->access_offset, u->access_size, false);
-    } else if (u->bf.width) {
+    if (u->bf.width) {
         if (!u->bf.bytewise)
-            add_unit_member(ts, u->offset, u->bf.unit_size, true);
+            add_unit_member(ts, u->offset, u->bf.unit_size);
     } else {
         Tac_Type *marker          = tac_new_type(TAC_TYPE_ARRAY);
         marker->u.array.elem_type = tac_new_type(TAC_TYPE_UCHAR);
@@ -173,20 +153,16 @@ static Tac_Type *convert_type(const Type *t, bool deep)
         ts->u.structure.alignment = d ? d->alignment : t->u.struct_t.cached_align;
         ts->u.structure.is_union  = t->kind == TYPE_UNION;
         if (deep && d) {
-            bool access       = target_config && target_config->bitfield_access_bits;
-            bool per_field    = target_config && target_config->bitfield_unit_per_field;
             const FieldDef *u = d->unnamed; // merged in declaration order
             for (const FieldDef *f = d->members;; f = f->next) {
                 for (; u && (!f || u->index < f->index); u = u->next)
-                    add_unnamed(ts, u, access);
+                    add_unnamed(ts, u);
                 if (!f)
                     break;
                 if (!f->bf.width)
                     add_member(ts, f->name, f->offset, convert_type(f->type, true));
-                else if (access)
-                    add_unit_member(ts, f->access_offset, f->access_size, false);
                 else if (!f->bf.bytewise)
-                    add_unit_member(ts, f->offset, f->bf.unit_size, per_field);
+                    add_unit_member(ts, f->offset, f->bf.unit_size);
             }
         }
         return ts;

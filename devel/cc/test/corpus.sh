@@ -58,7 +58,7 @@ self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
 
 rm -f "$out"/*.s "$out"/*.err
 cd "$tree"
-ls test/programs/*/*.c libc/*/*.c libc/wasm32/braam/*.c docs/examples/*.c \
+ls test/programs/*/*.c test/snippets/*.c libc/*/*.c libc/wasm32/braam/*.c docs/examples/*.c \
     */*.c backend/*/*.c 2>/dev/null | sort -u |
     xargs -n 1 -P 8 sh "$self" --one "$bin" "$out"
 echo "$(ls "$out" | grep -c '\.s$') compiled, $(ls "$out" | grep -c '\.err$') refused"

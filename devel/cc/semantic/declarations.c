@@ -450,88 +450,27 @@ static int bitfield_width(const Field *f)
     return (int)width;
 }
 
-// Place bit-field `f` at or after bit `start` by the target's rule (Target.bitfield_layout),
-// raising `*alignment`, the struct's, as that rule says.  Returns the bit it starts at; a
-// zero-width one only moves the start to its boundary.
+// Place bit-field `f` at or after bit `start` by GCC's and clang's rule: a bit-field never
+// straddles a boundary of its declared type's alignment beyond the type's size, a named one
+// aligns the struct to its type, an unnamed one does not, and `:0` moves to the next such
+// boundary.  Raises `*alignment`, the struct's.  Returns the bit it starts at; a zero-width
+// one only moves the start to its boundary.
 static int layout_bitfield(const Field *f, int start, int *alignment)
 {
-    BitfieldLayout rule = target_config ? target_config->bitfield_layout : BITFIELD_SYSV;
-    int width           = bitfield_width(f);
-    int type_align      = (int)get_alignment(f->u.member.type);
-    int type_bits       = (int)get_size(f->u.member.type) * 8;
-    int raise           = 0; // the alignment the struct takes from this field
-    if (rule == BITFIELD_PACKED) {
-        if (width == 0) {
-            start = round_away_from_zero(64, start);
-            raise = 8;
-        }
-    } else {
-        if (width == 0 || (start % (type_align * 8)) + width > type_bits)
-            start = round_away_from_zero(type_align * 8, start);
-        if (f->u.member.name || rule == BITFIELD_AAPCS)
-            raise = type_align;
-    }
-    if (raise > *alignment)
-        *alignment = raise;
+    int width      = bitfield_width(f);
+    int type_align = (int)get_alignment(f->u.member.type);
+    int type_bits  = (int)get_size(f->u.member.type) * 8;
+    if (width == 0 || (start % (type_align * 8)) + width > type_bits)
+        start = round_away_from_zero(type_align * 8, start);
+    if (f->u.member.name && type_align > *alignment)
+        *alignment = type_align;
     return start;
-}
-
-// Group the bit-fields of `members` and `unnamed` (each in declaration order, by `index`),
-// whose offsets still hold the bit each starts at, into clang's access units
-// (Target.bitfield_access_bits): a run of bit-fields, named or not, ends at another
-// member or a `:0`; a field that starts inside a byte joins the unit before it, one on a
-// byte boundary only while the unit stays within `max_bits`.
-static void access_units(FieldDef *members, FieldDef *unnamed, int max_bits)
-{
-    int count = 0;
-    for (const FieldDef *m = members; m; m = m->next)
-        count++;
-    for (const FieldDef *m = unnamed; m; m = m->next)
-        count++;
-    FieldDef **field = xalloc((count + 1) * sizeof(*field), __func__, __FILE__, __LINE__);
-    FieldDef *a = members, *b = unnamed;
-    for (int i = 0; i < count; i++) {
-        if (a && (!b || a->index < b->index)) {
-            field[i] = a;
-            a        = a->next;
-        } else {
-            field[i] = b;
-            b        = b->next;
-        }
-    }
-    int first = -1;     // of the current unit
-    int lo = 0, hi = 0; // its bytes
-    for (int i = 0;; i++) {
-        FieldDef *m = i < count ? field[i] : NULL;
-        bool join   = false;
-        if (m && m->bf.width && first >= 0) {
-            int end = (m->offset + m->bf.width + 7) / 8;
-            join    = m->offset % 8 != 0 || (end - lo) * 8 <= max_bits;
-        }
-        if (!join && first >= 0) {
-            for (int j = first; j < i; j++) {
-                field[j]->access_offset = lo;
-                field[j]->access_size   = hi - lo;
-            }
-            first = -1;
-        }
-        if (!m)
-            break;
-        if (!m->bf.width)
-            continue;
-        if (first < 0) {
-            first = i;
-            lo    = m->offset / 8;
-        }
-        hi = (m->offset + m->bf.width + 7) / 8;
-    }
-    xfree(field);
 }
 
 // Choose the storage unit of bit-field `m`, whose offset still holds the bit it starts at,
 // in a struct of `size` bytes aligned to `alignment`: the smallest unsigned integer that
 // covers its bits, lies inside the struct and is aligned there, else its bytes one by
-// one.  A word-addressed target loads whole words.
+// one.
 static void place_bitfield(FieldDef *m, int size, int alignment)
 {
     int start = m->offset;
@@ -541,14 +480,6 @@ static void place_bitfield(FieldDef *m, int size, int alignment)
     int base  = first;
     int unit  = end - first;
     bool fits = false;
-    if (target_word_addressed()) {
-        int word = (int)target_config->int_size;
-        base     = first / word * word;
-        unit     = word;
-        if (end > base + word)
-            fatal_error("bit-field '%s' straddles a word", m->name);
-        fits = true;
-    }
     for (int sz = 1; !fits && sz <= 8; sz *= 2) {
         TypeKind k = unsigned_kind_of_size(sz);
         if (sz < end - first || k == TYPE_VOID)
@@ -621,19 +552,11 @@ static void register_struct_type(const Type *t)
     // The layout advances in bits, for the bit-fields; every other member starts on a
     // byte, at the next multiple of its alignment.
     int current_bits = 0;
-    // The unnamed bit-fields, for a target whose ABI sees them (Target.bitfield_unit_per_field,
-    // Target.bitfield_access_bits).
-    bool keep_unnamed       = target_config && (target_config->bitfield_unit_per_field ||
-                                                target_config->bitfield_access_bits);
+    // The unnamed bit-fields, which the ABI sees.
     FieldDef *unnamed       = NULL;
     FieldDef **unnamed_tail = &unnamed;
     int declared            = 0; // fields declared so far
-    // On a word-addressed target every aggregate is padded to at least one machine word
-    // (Target.aggregate_align) so array element strides stay word multiples and &arr[i]
-    // never lands mid-word; byte-addressed targets use natural C packing (align 1).
-    int current_alignment = target_config ? (int)target_config->aggregate_align : 1;
-    if (current_alignment < 1)
-        current_alignment = 1;
+    int current_alignment = 1;
     for (const Field *f = t->u.struct_t.fields; f; f = f->next) {
         if (f->kind == FIELD_STATIC_ASSERT)
             continue; /* already evaluated in validate_struct_definition */
@@ -659,7 +582,7 @@ static void register_struct_type(const Type *t)
                 (*tail)->bf.width = width;
                 (*tail)->index    = declared;
                 tail              = &(*tail)->next;
-            } else if (keep_unnamed) {
+            } else {
                 *unnamed_tail =
                     new_member(NULL, clone_type(f->u.member.type, __func__, __FILE__, __LINE__),
                                width ? start : start / 8);
@@ -687,8 +610,6 @@ static void register_struct_type(const Type *t)
             current_bits = member_end;
     }
     int size = round_away_from_zero(current_alignment, (current_bits + 7) / 8);
-    if (target_config && target_config->bitfield_access_bits)
-        access_units(members, unnamed, target_config->bitfield_access_bits);
     for (FieldDef *m = members; m; m = m->next) {
         if (m->bf.width)
             place_bitfield(m, size, current_alignment);

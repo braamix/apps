@@ -17,9 +17,6 @@ typedef struct FieldDef {
     Type *type;            // Member type (Type* from ast.h)
     int offset;            // Offset within the struct (in bytes); a bit-field's storage unit
     BitField bf;           // A bit-field's place in its unit; width 0 for any other member
-    // With Target.bitfield_access_bits, the bytes of clang's access unit holding this
-    // bit-field, which the ABI passes as one piece.
-    int access_offset, access_size;
     int index; // the field's place among the struct's declarations, from 0
 } FieldDef;
 
@@ -35,8 +32,7 @@ typedef struct StructDef {
     int alignment;                  // Alignment requirement (in bytes)
     int size;                       // Total size of the struct (in bytes)
     FieldDef *members;              // List of members, sorted by offset
-    // With Target.bitfield_unit_per_field or bitfield_access_bits, the unnamed bit-fields,
-    // which are not members:
+    // The unnamed bit-fields, which the ABI sees and which are not members:
     // NULL-named, by `index`; a `:0` has width 0 and the offset of the byte it moved to.
     FieldDef *unnamed;
 } StructDef;
