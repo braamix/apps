@@ -29,7 +29,13 @@ coro(braam_call *) int main(int argc, char **argv)
 // main's result is printed; skip: {program: why} for those that cannot run here.
 export async function run_suites(name, suites, status, skip) {
     const { die, boot } = fixture(name);
-    const { put, text, sh } = await boot();
+    const session = await boot();
+    console.log(check_suites(session, die, name, suites, status, skip));
+}
+
+// The same in a session already booted: what it ran, or die() saying what
+// differs.
+export function check_suites({ put, text, sh }, die, name, suites, status, skip) {
     put("/tmp/main.c", MAIN);
     let r = sh(`cc -c -DSTATUS=${status ? 1 : 0} main.c`);
     if (r.status !== 0)
@@ -76,6 +82,6 @@ export async function run_suites(name, suites, status, skip) {
     }
     if (bad.length)
         die(`${bad.length} of ${programs.length} differ:\n` + bad.join("\n"));
-    console.log(`${name} ok: ${programs.length} programs as upstream expects, ` +
-                `${Object.keys(skip).length} skipped, ${unchecked} with no expectation`);
+    return `${name} ok: ${programs.length} programs as upstream expects, ` +
+           `${Object.keys(skip).length} skipped, ${unchecked} with no expectation`;
 }

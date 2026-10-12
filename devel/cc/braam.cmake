@@ -26,8 +26,14 @@ file(GLOB_RECURSE VCC_HEADERS CONFIGURE_DEPENDS ${VCC_HOST}/share/vcc/wasm32-bra
 separate_arguments(VCC_FEATURES UNIX_COMMAND "${BRAAM_WASM_FEATURES}")
 set(VCC_AS ${BRAAM_CC} --target=wasm32 --no-default-config ${VCC_FEATURES} -c)
 
-# The linker, and its flags: the driver's for wasm32-braam (cc/cc.c).
-if(BRAAM_LD)
+# The linker, and its flags: the driver's for wasm32-braam (cc/cc.c). The top
+# Makefile names devel/wasm's ld, run on the host, so that the programs are
+# what cc links on Braam, where ld stamps them; wasm-ld would add a start
+# function zeroing .bss, which Braam's fresh memory makes needless.
+set(VCC_LD "" CACHE FILEPATH "devel/wasm's ld on the host; empty for wasm-ld and stamp.py")
+if(VCC_LD)
+    set(VCC_LD_DEPENDS ${VCC_LD}.wasm)
+elseif(BRAAM_LD)
     set(VCC_LD ${BRAAM_LD})
     set(VCC_LD_DEPENDS ${BRAAM_LD}.wasm)
 else()
@@ -39,16 +45,37 @@ set(VCC_LD_FLAGS --no-entry --import-memory --stack-first --gc-sections)
 set(VCC_LIB ${CMAKE_CURRENT_BINARY_DIR}/lib)
 file(MAKE_DIRECTORY ${VCC_LIB})
 
+# Every compile runs in this directory and names its source relative to it, so
+# what __FILE__ puts in an object does not depend on where the tree is.
+set(VCC_TREE ${CMAKE_CURRENT_SOURCE_DIR})
+
+# The same build as commands for Braam's shell, selfhost.sh, which
+# test/selfhost.mjs runs there: in this directory, with the outputs under $O
+# where this build has them under its binary directory, and the SDK's math
+# archive at $MATH; $T is this directory.
+set_property(GLOBAL PROPERTY VCC_SELFHOST "")
+function(vcc_selfhost line)
+    string(REPLACE "${CMAKE_CURRENT_BINARY_DIR}" "$O" line "${line}")
+    set_property(GLOBAL APPEND_STRING PROPERTY VCC_SELFHOST "${line}\n")
+endfunction()
+
 # <src> to <out>/<name>.o through the driver, with the driver's <flags>, and
 # the object onto the list named by <list>.
 function(vcc_compile list out src name flags)
     get_filename_component(src ${src} ABSOLUTE)
+    file(RELATIVE_PATH rel ${VCC_TREE} ${src})
+    if(rel MATCHES "^\\.\\.")
+        set(rel ${src}) # generated in the binary directory
+    endif()
     add_custom_command(OUTPUT ${out}/${name}.o
-        COMMAND ${VCC} ${flags} -S -o ${out}/${name}.s ${src}
+        COMMAND ${VCC} ${flags} -S -o ${out}/${name}.s ${rel}
         COMMAND ${VCC_AS} -o ${out}/${name}.o ${out}/${name}.s
         DEPENDS ${src} ${VCC_PASSES} ${VCC_HEADERS}
+        WORKING_DIRECTORY ${VCC_TREE}
         COMMENT "Compiling ${name}.c (wasm32-braam)"
         VERBATIM)
+    string(JOIN " " f ${flags})
+    vcc_selfhost("cc ${f} -S -o ${out}/${name}.s ${rel} && as -o ${out}/${name}.o ${out}/${name}.s")
     set(${list} ${${list}} ${out}/${name}.o PARENT_SCOPE)
 endfunction()
 
@@ -60,35 +87,46 @@ endfunction()
 set(src ${CMAKE_CURRENT_SOURCE_DIR}/libc)
 set(out ${CMAKE_CURRENT_BINARY_DIR}/libc)
 file(MAKE_DIRECTORY ${out})
-set(VCC_WASM32_INCLUDE -I${src}/wasm32/include -I${src}/ilp32/include -I${src}/common/include)
+vcc_selfhost("mkdir -p ${VCC_LIB} ${out}")
+set(VCC_WASM32_INCLUDE -Ilibc/wasm32/include -Ilibc/ilp32/include -Ilibc/common/include)
 file(GLOB VCC_WASM32_HEADERS ${src}/wasm32/include/*.h ${src}/ilp32/include/*.h
      ${src}/common/include/*.h)
 
 add_custom_command(OUTPUT ${VCC_LIB}/crt0.o
-    COMMAND ${VCC_AS} -o ${VCC_LIB}/crt0.o ${src}/wasm32/braam/exports.s
+    COMMAND ${VCC_AS} -o ${VCC_LIB}/crt0.o libc/wasm32/braam/exports.s
     DEPENDS ${src}/wasm32/braam/exports.s
+    WORKING_DIRECTORY ${VCC_TREE}
     VERBATIM)
+vcc_selfhost("as -o ${VCC_LIB}/crt0.o libc/wasm32/braam/exports.s")
 
 set(VCC_LIBC_OBJS "")
 foreach(name memory)
     add_custom_command(OUTPUT ${out}/${name}.o
-        COMMAND ${VCC_AS} -o ${out}/${name}.o ${src}/wasm32/${name}.s
+        COMMAND ${VCC_AS} -o ${out}/${name}.o libc/wasm32/${name}.s
         DEPENDS ${src}/wasm32/${name}.s
+        WORKING_DIRECTORY ${VCC_TREE}
         VERBATIM)
+    vcc_selfhost("as -o ${out}/${name}.o libc/wasm32/${name}.s")
     list(APPEND VCC_LIBC_OBJS ${out}/${name}.o)
 endforeach()
 
 macro(vcc_compile_wasm32 dir name)
     add_custom_command(OUTPUT ${out}/${name}.o
         COMMAND ${VCC_HOST}/bin/vcpp -t wasm32 -nostdinc ${VCC_WASM32_INCLUDE}
-                ${src}/${dir}/${name}.c ${out}/${name}.i
+                libc/${dir}/${name}.c ${out}/${name}.i
         COMMAND ${VCC_HOST}/bin/vparse ${out}/${name}.i ${out}/${name}.ast
         COMMAND ${VCC_HOST}/bin/vlower -t wasm32 ${out}/${name}.ast ${out}/${name}.tac
         COMMAND ${VCC_HOST}/bin/vgenwasm ${out}/${name}.tac ${out}/${name}.s
         COMMAND ${VCC_AS} -o ${out}/${name}.o ${out}/${name}.s
         DEPENDS ${src}/${dir}/${name}.c ${VCC_PASSES} ${VCC_WASM32_HEADERS}
+        WORKING_DIRECTORY ${VCC_TREE}
         COMMENT "Compiling ${name}.c (wasm32)"
         VERBATIM)
+    string(JOIN " " inc ${VCC_WASM32_INCLUDE})
+    vcc_selfhost("vcpp -t wasm32 -nostdinc ${inc} libc/${dir}/${name}.c ${out}/${name}.i && \
+vparse ${out}/${name}.i ${out}/${name}.ast && \
+vlower -t wasm32 ${out}/${name}.ast ${out}/${name}.tac && \
+vgenwasm ${out}/${name}.tac ${out}/${name}.s && as -o ${out}/${name}.o ${out}/${name}.s")
     list(APPEND VCC_LIBC_OBJS ${out}/${name}.o)
 endmacro()
 
@@ -112,6 +150,10 @@ add_custom_command(OUTPUT ${VCC_LIB}/libc.a
     COMMAND ${CMAKE_AR} qcsL ${VCC_LIB}/libc.a ${VCC_MATH}
     DEPENDS ${VCC_LIBC_OBJS} ${VCC_MATH}
     VERBATIM)
+# Braam's ar has no L: the math archive's members are taken out and added.
+string(JOIN " " objs ${VCC_LIBC_OBJS})
+vcc_selfhost("ar qc ${VCC_LIB}/libc.a ${objs}")
+vcc_selfhost("mkdir -p $O/math && cd $O/math && ar x $MATH && ar qcs ${VCC_LIB}/libc.a \`ar t $MATH\`; cd $T")
 
 # braam.h's and errno.h's numbers against the SDK's kernel.
 get_filename_component(VCC_KERNEL_INCLUDE ${BRAAM_SYSABI} DIRECTORY)
@@ -141,6 +183,7 @@ function(vcc_add_program)
     math(EXPR bytes "${P_PAGES} * 65536")
     set(out ${CMAKE_CURRENT_BINARY_DIR}/${P_NAME}.dir)
     file(MAKE_DIRECTORY ${out})
+    vcc_selfhost("mkdir -p ${out}")
     set(objs "")
     foreach(s ${P_SOURCES})
         string(REGEX REPLACE "\\.c$" "" name ${s})
@@ -152,17 +195,28 @@ function(vcc_add_program)
         vcc_compile(objs ${out} ${out}/taskbytes.c taskbytes "")
     endif()
     set(wasm ${CMAKE_CURRENT_BINARY_DIR}/${P_NAME}.wasm)
+    # devel/wasm's ld stamps the section itself; after wasm-ld, stamp.py does.
+    if(VCC_LD_DEPENDS)
+        set(stamp --braam-pages=${P_PAGES},${BRAAM_BIN_MAX_PAGES})
+        set(restamp "")
+    else()
+        set(stamp "")
+        set(restamp COMMAND ${Python3_EXECUTABLE} ${BRAAM_STAMP} ${wasm}
+                    --sysabi ${BRAAM_SYSABI} --initial-pages ${P_PAGES}
+                    --max-pages ${BRAAM_BIN_MAX_PAGES})
+    endif()
     add_custom_command(OUTPUT ${wasm}
         COMMAND ${VCC_LD} ${VCC_LD_FLAGS} -z stack-size=${P_STACK} --initial-memory=${bytes}
-                -o ${wasm}
+                ${stamp} -o ${wasm}
                 ${VCC_LIB}/crt0.o ${objs} ${VCC_LIB}/libc.a
-        COMMAND ${Python3_EXECUTABLE} ${BRAAM_STAMP} ${wasm}
-                --sysabi ${BRAAM_SYSABI}
-                --initial-pages ${P_PAGES}
-                --max-pages ${BRAAM_BIN_MAX_PAGES}
+        ${restamp}
         DEPENDS ${objs} ${VCC_LIB}/crt0.o ${VCC_LIB}/libc.a ${VCC_LD_DEPENDS}
         COMMENT "Linking ${P_NAME}.wasm"
         VERBATIM)
+    string(JOIN " " o ${objs})
+    string(JOIN " " f ${VCC_LD_FLAGS})
+    vcc_selfhost("ld ${f} -z stack-size=${P_STACK} --initial-memory=${bytes} \
+--braam-pages=${P_PAGES},${BRAAM_BIN_MAX_PAGES} -o ${wasm} ${VCC_LIB}/crt0.o ${o} ${VCC_LIB}/libc.a")
     add_custom_target(bin_${P_NAME} ALL DEPENDS ${wasm})
     add_dependencies(bin_${P_NAME} vcc_libc)
 endfunction()
@@ -172,7 +226,7 @@ endfunction()
 include(${CMAKE_CURRENT_SOURCE_DIR}/sources.cmake)
 set(VCC_PASS_FLAGS -D_CORO_NO_DEFER_YIELD)
 foreach(dir ${VCC_INCLUDE_DIRS})
-    list(APPEND VCC_PASS_FLAGS -I${CMAKE_CURRENT_SOURCE_DIR}/${dir})
+    list(APPEND VCC_PASS_FLAGS -I${dir})
 endforeach()
 vcc_add_program(NAME parse SOURCES ${VCC_PARSE_SOURCES} FLAGS ${VCC_PASS_FLAGS} STACK 1048576
                 PAGES 32)
@@ -183,6 +237,10 @@ vcc_add_program(NAME genwasm SOURCES ${VCC_GENWASM_SOURCES} FLAGS ${VCC_PASS_FLA
 vcc_add_program(NAME cpp SOURCES ${VCC_CPP_SOURCES} FLAGS ${VCC_PASS_FLAGS} STACK 1048576
                 PAGES 48)
 vcc_add_program(NAME vcc SOURCES ${VCC_CC_SOURCES} FLAGS ${VCC_PASS_FLAGS})
+
+get_property(VCC_SELFHOST GLOBAL PROPERTY VCC_SELFHOST)
+file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/selfhost.sh
+     CONTENT "# The build of the compiler and its runtime, for Braam (braam.cmake).\n${VCC_SELFHOST}")
 
 # The package: the driver as cc, its passes in libexec/, the runtime where the
 # driver looks for it, ../share/vcc/wasm32-braam/, and in share/ the examples

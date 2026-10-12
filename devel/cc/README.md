@@ -75,11 +75,15 @@ it (`VCC_HOST`, which defaults to that stage):
   by the passes, `memory.s`, and `braam/`'s sources compiled by the driver —
   with musl's libm beside them (below). Both go in `build/devel/cc/lib/`.
 - **`vcc_add_program(NAME n SOURCES ...)`**, the counterpart of
-  `braam_add_program` for C with coroutines: `vcc -S` on each source, the
-  SDK's clang to assemble, `wasm-ld` (or `ld` under `make LINKER=ld`) with
-  the driver's flags, `crt0.o` and `libc.a`, then the SDK's `stamp.py`, so
-  the ABI is the SDK's. `FLAGS`, `STACK`, `PAGES` and `TASK_BYTES` set the
-  driver's options, the stack, the initial memory and the root task's arena.
+  `braam_add_program` for C with coroutines: `vcc -S` on each source, run
+  from this directory with its path relative to it, the SDK's clang to
+  assemble, and devel/wasm's `ld` with the driver's flags, `crt0.o` and
+  `libc.a`, which stamps the program for the SDK's ABI. `ld` runs on the
+  host under the SDK's harness, built by the Makefile in `build/bootstrap/`
+  whatever `LINKER` says: it is the linker `cc` uses on Braam, and `wasm-ld`
+  would add a start function that zeroes `.bss`. `FLAGS`, `STACK`, `PAGES`
+  and `TASK_BYTES` set the driver's options, the stack, the initial memory
+  and the root task's arena.
 - **The compiler itself**: `vcc`, `cpp`, `parse`, `lower` and `genwasm` as
   Braam programs, from the same sources as the host's
   ([sources.cmake](sources.cmake)), with a 1 MiB stack.
@@ -89,6 +93,9 @@ it (`VCC_HOST`, which defaults to that stage):
 
 [test/hello.c](test/hello.c) is built that way, and
 [test/hello.mjs](test/hello.mjs) runs it under the SDK's harness.
+
+The same build is written out as `build/devel/cc/selfhost.sh`, a script for
+Braam's shell, which is what self-compilation runs (below).
 
 ## On Braam
 
@@ -222,6 +229,7 @@ corpus:
 | [wasm.mjs](test/wasm.mjs) | 97 run tests of the wasm32 backend, the same way |
 | [braam.mjs](test/braam.mjs) | `braam_tests.cpp`'s programs: streams, files, standard input, tasks, poll, `^C` caught and not, and `notes.c`'s session |
 | [interrupt.mjs](test/interrupt.mjs) | `kill -INT` ends a long `vlower` run, with nothing written |
+| [selfhost.mjs](test/selfhost.mjs) | in `LONGTESTS`, 3½ minutes: self-compilation (below) |
 | [corpus.mjs](test/corpus.mjs) | in `LONGTESTS`, 3½ minutes: `vcpp` makes the host's `.i` of the tree's 669 sources, and the other passes the host's `.s` of the 660 that compile |
 
 The run tests are plain wasm32 programs upstream, and on Braam `main` is a
@@ -238,6 +246,26 @@ kernel, and says where it does not: `exit()` keeps its output; the
 harness's clock stands still; `POLLIN` on standard output is refused; and a
 sleep of `(unsigned)-10` ms is long. The fixture moves the clock to the
 next timer whenever the kernel waits for one, so sleeps end.
+
+## Self-compilation
+
+[test/selfhost.mjs](test/selfhost.mjs) runs `selfhost.sh` on Braam with the
+installed `cc`, its passes, and `as`, `ld` and `ar` from `wasm`: the
+runtime's 49 objects, `libc.a` with musl's members taken out of the SDK's
+archive and added, and the five programs' 144 objects and links. All 199
+outputs are the host build's, byte for byte. Then the self-built compiler
+replaces the package's and compiles and runs the book's 354 programs.
+
+Three things had to change for that, none of them in the compiler:
+
+- **Paths.** `assert` puts `__FILE__` in an object, and the host build
+  named its sources by absolute path. It now compiles from this directory
+  with relative paths, which also makes the package the same wherever the
+  tree is checked out.
+- **The linker**, as above: the package is linked by `ld`, not `wasm-ld`.
+- **The SDK's libraries.** The top Makefile now names `braam_DIR` when it
+  configures. `find_package` had cached the old SDK's, so after the move
+  to 0.10.1 every program here still linked 0.10.280's libraries.
 
 ## Holding the trimmed compiler to upstream
 

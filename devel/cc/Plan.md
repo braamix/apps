@@ -5,8 +5,9 @@
 in vcc's own C-with-coroutines, so that it runs on Braam and can compile
 itself there. This file is the plan: what is taken, what changes, and the
 order of the steps, each with what proves it done. The import, the trim,
-the build in this tree, the C library, the rewrite for Braam and the
-package are done, and [README.md](README.md) says how they were checked.
+the build in this tree, the C library, the rewrite for Braam, the package,
+its tests and self-compilation are done, and [README.md](README.md) says
+how they were checked.
 
 ## 1. Where this starts
 
@@ -48,8 +49,9 @@ What Braam already has, in this tree:
    POSIX C. So the **host build of `devel/cc` is the cross compiler** that
    builds the package, and the code generator that builds the package is the
    one inside it. That is what lets self-compilation on Braam be checked
-   byte for byte against the host (step 7) without a third stage. The only
-   `#ifdef __braam__` expected is the driver's process spawning.
+   byte for byte against the host (`test/selfhost.mjs`) without a third
+   stage. The only `#ifdef __braam__` expected is the driver's process
+   spawning.
 2. **Coroutines stop at the door.** Each pass reads its whole input into
    memory, works in plain C, and writes into a growing buffer that is
    written out once at the end — iconv's shape, and `devel/wasm/lib`'s
@@ -89,57 +91,13 @@ What Braam already has, in this tree:
 | `*.asdl` specs | beside their headers | — |
 | `docs/Coroutines_in_C.md`, `Braam.md`, `Wasm_Backend.md` | `Manual.md` and `doc/` | other targets' sections |
 
-Not vendored: the GoogleTest suites (their programs are, see step 6),
+Not vendored: the GoogleTest suites (their programs are, in `test/programs/`),
 `scripts/` but for `check_braam_abi.py`.
 
 ## 4. Steps
 
 Each step ends green: `make test` passes and the package, once it exists,
 still builds.
-
-### Step 6 — tests
-
-Headless, in `TESTS`, each one boot with the package planted:
-
-- `hello.mjs`: build and run, exit status, a compile error's message and
-  status.
-- `book.mjs`: vcc's book programs compiled **on Braam** and run, their
-  output and status held to what upstream's own tests expect.
-- `coro.mjs`: the coroutine programs, the same way; `braam.mjs`: the
-  streams, files, signals, tasks and `poll` programs of vcc's
-  `braam_tests.cpp`, compiled on Braam.
-- `corpus.mjs`: each pass alone on the corpus, outputs equal to the host
-  build's.
-- `interrupt.mjs`: `^C` in a long `lower` run ends it with 130.
-
-Slow ones go in `LONGTESTS`.
-
-**Done**, as [README.md](README.md) "Tests on Braam" says. `hello.mjs`'s
-part is `toolchain.mjs`, the host's `hello.mjs` keeping its name; the run
-tests that are not the book's are `wasm.mjs`. `corpus.mjs` runs `vcpp`
-alone and the other three as a chain from the host's `.i`, since `.ast` and
-`.tac` are words of the build's `size_t`; it is in `LONGTESTS`. One bug
-found: upstream's `fflush` lost what another task printed while it wrote.
-
-### Step 7 — self-compilation
-
-1. On Braam, `cc -c` every source of `devel/cc` and of its libc, then link
-   the five programs, with `ar` for `libc.a`. Every object must equal the
-   host-built one byte for byte, and every program the package's —
-   decision 1 is what makes that a single comparison.
-2. The self-built `cc` compiles `hello.c` and the book programs, and passes
-   `book.mjs`.
-3. `test/selfhost.mjs` in `LONGTESTS`, after `devel/c4`'s.
-
-Expect differences to hunt here: anything keyed on pointer values (hash
-order in `string_map.c`), `size_t` being 4 bytes rather than 8 in `wio`'s
-word streams (harmless while a stream never crosses builds), and float
-formatting. Each is fixed in the compiler, not papered over in the test.
-
-Also measured here, in a browser since the harness clock is frozen: the
-time to compile the largest sources (`translator/expr.c`, the optimizer)
-and the peak memory against the 100 MB cap. `__braam_task_bytes` and
-`--braam-pages` are set from what is seen.
 
 ### Step 8 — after the first release
 
@@ -151,13 +109,14 @@ and the peak memory against the 100 MB cap. `__braam_task_bytes` and
   lists — as programs want them.
 - Whether `cpp` and `parse` should be one process, if spawning shows in
   the times.
+- Measured in a browser, since the harness clock is frozen: the time to
+  compile the largest sources (`translator/expr.c`, the optimizer) and the
+  peak memory against the 100 MB cap, and `__braam_task_bytes` and
+  `--braam-pages` set from what is seen.
 
 ## 5. Risks
 
 - **Memory**: vcc's `xalloc` and the optimizer were written for a host;
   the 100 MB cap may bind on the largest files.
-- **Byte-for-byte self-compilation** depends on vcc being deterministic
-  across a 64-bit host and 32-bit wasm. The corpus on the host and step 7's
-  on Braam are what find out.
 - **Drift from upstream.** vcc moves fast; the recorded commit and the
   README's list of changes are what keep a re-sync possible.

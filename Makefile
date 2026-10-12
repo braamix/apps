@@ -31,6 +31,9 @@ JOBS ?= $(shell sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4)
 # alone, so there is no native build of it.
 LINKER ?=
 BOOT   := $(BUILD)/bootstrap
+# devel/cc's programs are linked by that ld whatever LINKER says, so the package
+# is what cc links on Braam (devel/cc/test/selfhost.mjs).
+VCC_LD := $(abspath $(BOOT))/ld
 ifeq ($(LINKER),ld)
 BRAAM_LD := $(abspath $(BOOT))/ld
 else ifneq ($(LINKER),)
@@ -74,9 +77,11 @@ REPO := $(BUILD)/repo
 .DEFAULT_GOAL := all
 
 # BRAAM_LD is reconfigured whenever LINKER says otherwise than the cache.
-all: host-cc $(BUILD)/CMakeCache.txt $(BRAAM_LD)
+all: host-cc $(BUILD)/CMakeCache.txt $(BRAAM_LD) $(VCC_LD)
 	@test "`sed -n 's/^BRAAM_LD:[A-Z]*=//p' $(BUILD)/CMakeCache.txt`" = "$(BRAAM_LD)" || \
 	    cmake -B $(BUILD) -DBRAAM_LD=$(BRAAM_LD) >/dev/null
+	@test "`sed -n 's/^VCC_LD:[A-Z]*=//p' $(BUILD)/CMakeCache.txt`" = "$(VCC_LD)" || \
+	    cmake -B $(BUILD) -DVCC_LD=$(VCC_LD) >/dev/null
 	@cmake --build $(BUILD) -j $(JOBS)
 
 host-cc:
@@ -294,7 +299,8 @@ LONGTESTS := \
     lang/python/test/pycases.mjs,--shard=3/4 \
     lang/python/test/pycases.mjs,--shard=4/4 \
     devel/wasm/wat/test/object.mjs \
-    devel/cc/test/corpus.mjs
+    devel/cc/test/corpus.mjs \
+    devel/cc/test/selfhost.mjs
 
 # `make test STRESS=1`. Python's cases are run a second time collecting at
 # every allocation, which is what says a C++ hand holding an object across an
@@ -383,9 +389,14 @@ $(TOOLCHAIN):
 	@touch $@
 
 # ld, linked by wasm-ld, and the script clang runs as its linker.
-$(BOOT)/ld.wasm: $(TOOLCHAIN) $(LD_SOURCES)
+# devel/cc configures there too, so it is shown the host compiler.
+$(BOOT)/ld.wasm: $(TOOLCHAIN) $(LD_SOURCES) | host-cc
 	@test -f $(BOOT)/CMakeCache.txt || cmake -B $(BOOT) -G "$(GENERATOR)" \
-	    -DCMAKE_TOOLCHAIN_FILE=$(abspath $(TOOLCHAIN)) $(CMAKE_ARGS) >/dev/null
+	    -DCMAKE_TOOLCHAIN_FILE=$(abspath $(TOOLCHAIN)) \
+	    -Dbraam_DIR=$(abspath $(SDK))/lib/cmake/braam $(CMAKE_ARGS) >/dev/null
+	@grep -q '^VCC_HOST:PATH=$(abspath $(HOST_CC))/stage$$' $(BOOT)/CMakeCache.txt || \
+	    cmake -B $(BOOT) -DVCC_HOST=$(abspath $(HOST_CC))/stage \
+	    -Dbraam_DIR=$(abspath $(SDK))/lib/cmake/braam >/dev/null
 	@cmake --build $(BOOT) -j $(JOBS) --target bin_ld
 	@cp $(BOOT)/devel/wasm/ld/ld.wasm $@
 
@@ -396,7 +407,10 @@ $(abspath $(BOOT))/ld: $(BOOT)/ld.wasm
 
 # The toolchain file is named on this first configure and only here: CMake
 # fixes the compiler when a project is configured, and a build directory
-# configured without it cannot be repaired by adding the flag.
+# configured without it cannot be repaired by adding the flag. braam_DIR is
+# named too, since find_package caches it: a new SDK would otherwise be
+# configured against the libraries of the old one.
 $(BUILD)/CMakeCache.txt: $(TOOLCHAIN) | host-cc
 	@cmake -B $(BUILD) -G "$(GENERATOR)" \
-	    -DCMAKE_TOOLCHAIN_FILE=$(abspath $(TOOLCHAIN)) $(CMAKE_ARGS)
+	    -DCMAKE_TOOLCHAIN_FILE=$(abspath $(TOOLCHAIN)) \
+	    -Dbraam_DIR=$(abspath $(SDK))/lib/cmake/braam $(CMAKE_ARGS)
