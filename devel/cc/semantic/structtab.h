@@ -17,7 +17,7 @@ typedef struct FieldDef {
     Type *type;            // Member type (Type* from ast.h)
     int offset;            // Offset within the struct (in bytes); a bit-field's storage unit
     BitField bf;           // A bit-field's place in its unit; width 0 for any other member
-    int index; // the field's place among the struct's declarations, from 0
+    int index;             // the field's place among the struct's declarations, from 0
 } FieldDef;
 
 // Structure for a struct type entry.  A definition outlives its scope: on purge or

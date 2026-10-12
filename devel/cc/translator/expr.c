@@ -665,8 +665,8 @@ static Tac_Val *gen_logical_or(TacCtx *ctx, Expr *l, Expr *r)
 static bool is_hw_sqrt(const Expr *e)
 {
     const Expr *func = e->u.call.func, *arg = e->u.call.args;
-    if (func->kind != EXPR_VAR || strcmp(func->u.var, "sqrt") != 0 ||
-        !func->type || unalias(func->type)->kind != TYPE_FUNCTION)
+    if (func->kind != EXPR_VAR || strcmp(func->u.var, "sqrt") != 0 || !func->type ||
+        unalias(func->type)->kind != TYPE_FUNCTION)
         return false;
     if (!arg || arg->next || !arg->type || unalias(arg->type)->kind != TYPE_DOUBLE ||
         unalias(e->type)->kind != TYPE_DOUBLE)

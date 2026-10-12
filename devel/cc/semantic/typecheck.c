@@ -694,8 +694,7 @@ static double const_as_real(const ConstVal *v)
 {
     if (v->is_real)
         return v->d;
-    return kind_is_unsigned(v->kind) ? (double)v->u
-                                     : (double)cv_int64(v);
+    return kind_is_unsigned(v->kind) ? (double)v->u : (double)cv_int64(v);
 }
 
 // Round a folded real of float type to float precision where float is narrower than

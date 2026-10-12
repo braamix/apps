@@ -473,8 +473,7 @@ static bool ld_is_double(void)
 static Float128 ld_from_int(int64_t v, bool is_unsigned)
 {
     if (ld_is_double())
-        return f128_from_double(is_unsigned ? (double)(uint64_t)v
-                                            : (double)v);
+        return f128_from_double(is_unsigned ? (double)(uint64_t)v : (double)v);
     return is_unsigned ? f128_from_u64((uint64_t)v) : f128_from_i64(v);
 }
 
@@ -1235,8 +1234,7 @@ Tac_Instruction *constant_fold_typed(Tac_Instruction *body, const Tac_TopLevel *
 
         // A comparison of a constant with a variable → the mirrored comparison, the
         // constant second, where the code generators take an immediate.
-        if (cur->kind == TAC_INSTRUCTION_BINARY &&
-            cur->u.binary.src1->kind == TAC_VAL_CONSTANT &&
+        if (cur->kind == TAC_INSTRUCTION_BINARY && cur->u.binary.src1->kind == TAC_VAL_CONSTANT &&
             cur->u.binary.src2->kind != TAC_VAL_CONSTANT) {
             Tac_BinaryOperator m = mirror_comparison(cur->u.binary.op);
             if (m != (Tac_BinaryOperator)-1) {

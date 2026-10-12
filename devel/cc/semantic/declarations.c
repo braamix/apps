@@ -556,7 +556,7 @@ static void register_struct_type(const Type *t)
     FieldDef *unnamed       = NULL;
     FieldDef **unnamed_tail = &unnamed;
     int declared            = 0; // fields declared so far
-    int current_alignment = 1;
+    int current_alignment   = 1;
     for (const Field *f = t->u.struct_t.fields; f; f = f->next) {
         if (f->kind == FIELD_STATIC_ASSERT)
             continue; /* already evaluated in validate_struct_definition */

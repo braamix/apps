@@ -80,7 +80,7 @@ struct symtab {
 // isolated scan buffer expand_text() takes for itself.  They are on the heap and
 // not in a frame because both functions sit on the recursion that macro-expands
 // an argument; macro.c says so where it allocates them.
-#define EXPTXT_MULT 4 // exptxt holds this many BUFSIZ of expanded actuals
+#define EXPTXT_MULT 4                      // exptxt holds this many BUFSIZ of expanded actuals
 #define ACTTXT_SIZE BUFSIZ                 // ... the raw actuals
 #define EXPTXT_SIZE (EXPTXT_MULT * BUFSIZ) // ... the expanded ones
 #define STRBUF_SIZE (2 * BUFSIZ + 4)       // ... one '#param' result, worst-case all-escaped

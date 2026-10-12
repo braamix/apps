@@ -12,8 +12,8 @@
 //     ld         link            .o   -> a.out  (wasm-ld)
 //
 // The one target is wasm32-braam, a process of Braam; -t names it.  Input files are
-// dispatched by suffix: .c runs the full pipeline, .S is preprocessed assembly (cpp -> as), .s is assembled
-// directly, and .o is passed straight to the linker, as is a .a archive.
+// dispatched by suffix: .c runs the full pipeline, .S is preprocessed assembly (cpp -> as), .s is
+// assembled directly, and .o is passed straight to the linker, as is a .a archive.
 //
 // Selection of the last stage to run is controlled by -E (stop after cpp),
 // -S (stop after codegen, emit assembly) and -c (stop after as, emit object).
@@ -143,11 +143,11 @@ static unsigned long braam_pages = 4; // --initial-pages: a Braam process's init
                                       // BRAAM_BIN_INITIAL_PAGES in braam-core's BraamProgram.cmake
 static bool opt_nostdinc;             // -nostdinc: skip the target's standard include dir
 static char *outfile;                 // -o NAME: explicit output name
-static char *linkscript;      // -T FILE: linker script
-static char *max_errors_flag; // --max-errors=N for parse and lower, from -fmax-errors=N
-static int no_show_source;    // -fno-diagnostics-show-caret: no source line in diagnostics
-static int color = -1;        // -fdiagnostics-color: 1 always, 0 never, -1 when stderr is a tty
-static char *color_flag;      // --color=always|never for every pass, or NULL for auto
+static char *linkscript;              // -T FILE: linker script
+static char *max_errors_flag;         // --max-errors=N for parse and lower, from -fmax-errors=N
+static int no_show_source;            // -fno-diagnostics-show-caret: no source line in diagnostics
+static int color = -1;   // -fdiagnostics-color: 1 always, 0 never, -1 when stderr is a tty
+static char *color_flag; // --color=always|never for every pass, or NULL for auto
 
 static struct vec sources;  // input .c/.s files to compile
 static struct vec objects;  // .o (and produced) files to link

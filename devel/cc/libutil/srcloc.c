@@ -66,7 +66,8 @@ int diag_use_color(FILE *f)
     if (tty < 0) {
         const char *no_color = getenv("NO_COLOR");
         const char *term     = getenv("TERM");
-        tty = isatty(fileno(f)) && !(no_color && no_color[0]) && !(term && strcmp(term, "dumb") == 0);
+        tty =
+            isatty(fileno(f)) && !(no_color && no_color[0]) && !(term && strcmp(term, "dumb") == 0);
     }
     return tty;
 }

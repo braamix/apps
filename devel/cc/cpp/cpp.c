@@ -98,8 +98,7 @@ void usage()
     printf("Usage:\n");
     printf("    %s [options] [infile [outfile]]\n", cpp.prog_name ? cpp.prog_name : "cpp");
     printf("Options:\n");
-    printf(
-        "    -t target           Target: wasm32 or wasm32-braam (default wasm32-braam)\n");
+    printf("    -t target           Target: wasm32 or wasm32-braam (default wasm32-braam)\n");
     printf("    -I path             Add path to the search list for header files\n");
     printf("    -nostdinc           Do not search the target's standard include directory\n");
     printf("    -D macro[=value]    Fake a definition at the beginning\n");
