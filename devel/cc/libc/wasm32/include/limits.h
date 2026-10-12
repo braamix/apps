@@ -31,4 +31,9 @@
 #define LLONG_MAX  9223372036854775807LL
 #define ULLONG_MAX 18446744073709551615ULL
 
+#ifdef __braam__
+/* The longest path Braam's compat layer takes, NUL included. */
+#define PATH_MAX 512
+#endif
+
 #endif /* _LIMITS_H */

@@ -10,6 +10,9 @@
  * If `to_buf` is zero the formatted bytes go to putbyte(); otherwise they are
  * stored into buf (at most size-1, NUL-terminated).  The return value is the total
  * length that would be produced.
+ *
+ * On Braam the float conversions, %a among them, are musl's fmt_fp from the SDK's
+ * libbraam_math.a, which is exact.
  */
 #include <float.h>
 #include <math.h>
@@ -74,6 +77,39 @@ static char *ksprintn(char *nbuf, unsigned long long ul, int base, int prec, int
     return p;
 }
 
+#ifdef __braam__
+#include <stdlib.h>
+
+/* src/math/cvt/api.h: a truncating sink, which counts what it would have held. */
+typedef struct {
+    char *buf;
+    unsigned long cap, n;
+} Sink;
+
+int fmt_fp(Sink *f, double y, int w, int p, int fl, int t);
+
+/* One float conversion `t`, with fmt_fp's flag bits `fl` (1 << (c - ' ') for each of
+   the flag characters #0- +). */
+static void emit_fp(double d, int w, int p, int fl, int t)
+{
+    char small[512], *b = small;
+    Sink s = { small, sizeof small, 0 };
+    fmt_fp(&s, d, w, p, fl, t);
+    if (s.n > sizeof small) {
+        if (!(b = malloc(s.n)))
+            return;
+        s.buf = b;
+        s.cap = s.n;
+        s.n   = 0;
+        fmt_fp(&s, d, w, p, fl, t);
+    }
+    for (unsigned long k = 0; k < s.n; k++)
+        emit(b[k]);
+    if (b != small)
+        free(b);
+}
+#endif
+
 static int cvt(double number, int prec, int sharpflag, int *negp, int fmtch, char *b, int bsize,
                int *startidx);
 
@@ -82,7 +118,7 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
     char nbuf[MAXNBUF];
     char fbuf[FBUFSIZE];
     int i, c, base, ladjust, sharpflag, neg, dot, upper, lmod;
-    int n, width, dwidth, sign, blank, extrazeros, padding, dlen;
+    int n, width, dwidth, sign, blank, extrazeros, padding, dlen, zero;
     unsigned long long ul;
     char *s, *msd;
 
@@ -111,6 +147,7 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
         dot        = 0;
         dwidth     = -1;
         lmod       = 0; /* -2 hh, -1 h, 0 none, 1 l/z/t, 2 L, 3 ll/j */
+        zero       = 0; /* the 0 flag, which a precision does not cancel for a float */
 
     reswitch:
         c = fmt[i];
@@ -171,6 +208,7 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
         }
         if (c == '0' && !dot) {
             padding = '0';
+            zero    = 1;
             goto reswitch;
         }
         if (c >= '0' && c <= '9') {
@@ -221,6 +259,17 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
         }
 
         /* ---- floating point ---- */
+#ifdef __braam__
+        if (c == 'f' || c == 'F' || c == 'e' || c == 'E' || c == 'g' || c == 'G' || c == 'a' ||
+            c == 'A') {
+            double d = lmod == 2 ? (double)va_arg(ap, long double) : va_arg(ap, double);
+            int fl   = (sharpflag ? 1 << ('#' - ' ') : 0) | (ladjust ? 1 << ('-' - ' ') : 0) |
+                       (zero && !ladjust ? 1 << ('0' - ' ') : 0) | (sign ? 1 << ('+' - ' ') : 0) |
+                       (blank ? 1 << (' ' - ' ') : 0);
+            emit_fp(d, width, dot ? dwidth : -1, fl, c);
+            continue;
+        }
+#endif
         if (c == 'f' || c == 'F' || c == 'e' || c == 'E' || c == 'g' || c == 'G') {
             double d;
             int sidx, slen;

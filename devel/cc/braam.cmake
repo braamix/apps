@@ -51,9 +51,10 @@ function(vcc_compile list out src)
 endfunction()
 
 # The runtime, as upstream's libc/wasm32/CMakeLists.txt builds it: crt0.o is
-# Braam's exports; libc.a is wasm32's common, ILP32 and assembly sources,
-# compiled for wasm32 with its own headers, and braam/'s, compiled by the
-# driver with Braam's.
+# Braam's exports; libc.a is wasm32's common and assembly sources, compiled for
+# wasm32 with its own headers, and braam/'s, compiled by the driver with Braam's.
+# The float conversions and <math.h> are musl's, the SDK's libbraam_math.a, whose
+# members libc.a carries in place of upstream's ILP32 and assembly libm.
 set(src ${CMAKE_CURRENT_SOURCE_DIR}/libc)
 set(out ${CMAKE_CURRENT_BINARY_DIR}/libc)
 file(MAKE_DIRECTORY ${out})
@@ -67,7 +68,7 @@ add_custom_command(OUTPUT ${VCC_LIB}/crt0.o
     VERBATIM)
 
 set(VCC_LIBC_OBJS "")
-foreach(name memory sqrt)
+foreach(name memory)
     add_custom_command(OUTPUT ${out}/${name}.o
         COMMAND ${VCC_AS} -o ${out}/${name}.o ${src}/wasm32/${name}.s
         DEPENDS ${src}/wasm32/${name}.s
@@ -89,22 +90,25 @@ macro(vcc_compile_wasm32 dir name)
     list(APPEND VCC_LIBC_OBJS ${out}/${name}.o)
 endmacro()
 
-foreach(name atoi co doprnt fabs float128 fma fmax fmin memchr memcmp printf putchar puts
-             snprintf sprintf strcat strchr strcmp strcpy strlen strncat strncmp strncpy
-             strrchr strstr strtok)
+foreach(name atoi bsearch co ctype float128 getopt_long gmtime memccpy memchr memcmp printf
+             putchar puts qsort snprintf sprintf strcat strchr strcmp strcpy strcspn strdup
+             strftime strlen strncat strncmp strncpy strndup strnlen strpbrk strrchr strspn
+             strstr strtok strtok_r strtol vsnprintf vsprintf)
     vcc_compile_wasm32(common ${name})
 endforeach()
-foreach(name frexp ldexp modf)
-    vcc_compile_wasm32(ilp32 ${name})
-endforeach()
-foreach(name rt sys stdio malloc strerror taskbytes)
+foreach(name rt sys stdio malloc nan strerror strtod taskbytes)
     vcc_compile(VCC_LIBC_OBJS ${out} ${src}/wasm32/braam/${name}.c)
 endforeach()
+# The printf engine sees __braam__, which hands its floats to musl's fmt_fp.
+vcc_compile(VCC_LIBC_OBJS ${out} ${src}/common/doprnt.c)
+
+set(VCC_MATH $<TARGET_FILE:braam::math>)
 
 add_custom_command(OUTPUT ${VCC_LIB}/libc.a
     COMMAND ${CMAKE_COMMAND} -E rm -f ${VCC_LIB}/libc.a
-    COMMAND ${CMAKE_AR} rcs ${VCC_LIB}/libc.a ${VCC_LIBC_OBJS}
-    DEPENDS ${VCC_LIBC_OBJS}
+    COMMAND ${CMAKE_AR} qc ${VCC_LIB}/libc.a ${VCC_LIBC_OBJS}
+    COMMAND ${CMAKE_AR} qcsL ${VCC_LIB}/libc.a ${VCC_MATH}
+    DEPENDS ${VCC_LIBC_OBJS} ${VCC_MATH}
     VERBATIM)
 
 # braam.h's and errno.h's numbers against the SDK's kernel.
@@ -147,3 +151,5 @@ function(vcc_add_program)
 endfunction()
 
 vcc_add_program(NAME hello SOURCES test/hello.c)
+vcc_add_program(NAME libctest SOURCES test/libc.c)
+vcc_add_program(NAME systest SOURCES test/sys.c)

@@ -115,6 +115,14 @@ coro(braam_call *) int fflush(FILE *f)
         bad |= await fflush(stderr) == EOF;
         return bad ? EOF : 0;
     }
+    if (f->flags & __F_MEM) {
+        if (fputc(0, f) == EOF)
+            return EOF;
+        f->len--;
+        *f->mem    = f->buf;
+        *f->memlen = f->len;
+        return 0;
+    }
     if (f->len == 0)
         return 0;
     ssize_t n = await write(f->fd, f->buf, f->len);
@@ -289,7 +297,10 @@ coro(braam_call *) FILE *fopen(const char *path, const char *mode)
 coro(braam_call *) int fclose(FILE *f)
 {
     int bad = await fflush(f) == EOF;
-    bad |= await close(f->fd) < 0;
+    if (f->flags & __F_MEM)
+        f->buf = NULL; /* the caller's now */
+    else
+        bad |= await close(f->fd) < 0;
     free(f->buf);
     free(f->in);
     f->buf = f->in = NULL;
@@ -302,6 +313,43 @@ coro(braam_call *) int fclose(FILE *f)
         free(f);
     }
     return bad ? EOF : 0;
+}
+
+FILE *open_memstream(char **ptr, size_t *size)
+{
+    FILE *f = calloc(1, sizeof *f);
+    if (!f || !(f->buf = malloc(256))) {
+        free(f);
+        errno = ENOMEM;
+        return NULL;
+    }
+    f->fd     = -1;
+    f->cap    = 256;
+    f->flags  = __F_OPENED | __F_MEM;
+    f->mem    = ptr;
+    f->memlen = size;
+    f->buf[0] = 0;
+    *ptr      = f->buf;
+    *size     = 0;
+    f->next   = opened;
+    opened    = f;
+    return f;
+}
+
+int setvbuf(FILE *f, char *buf, int mode, size_t size)
+{
+    (void)f, (void)buf, (void)mode, (void)size;
+    return 0;
+}
+
+void setbuffer(FILE *f, char *buf, int size)
+{
+    (void)f, (void)buf, (void)size;
+}
+
+void setbuf(FILE *f, char *buf)
+{
+    (void)f, (void)buf;
 }
 
 /* What was read ahead and not taken goes back to the descriptor's position. */

@@ -102,6 +102,9 @@ target_link_libraries(genwasm wasm backend_common)
 
 add_executable(cc cc/cc.c)
 
+# test/libc.c on the host's C library, which Braam's is held to (test/libc.mjs).
+add_executable(libctest test/libc.c)
+
 # An installation, as upstream lays it out: the driver finds its passes beside
 # it and the headers in ../share/vcc/wasm32-braam/include. Braam's headers
 # first, then wasm32's, ILP32's and the common ones, the first of a name winning.
@@ -115,7 +118,7 @@ set(VCC_HEADERS "")
 set(VCC_HEADER_NAMES "")
 foreach(dir libc/wasm32/braam/include libc/wasm32/include libc/ilp32/include
             libc/common/include)
-    file(GLOB hs ${CMAKE_CURRENT_SOURCE_DIR}/${dir}/*.h)
+    file(GLOB hs CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${dir}/*.h)
     foreach(h ${hs})
         get_filename_component(name ${h} NAME)
         if(NOT name IN_LIST VCC_HEADER_NAMES)
@@ -124,6 +127,6 @@ foreach(dir libc/wasm32/braam/include libc/wasm32/include libc/ilp32/include
         endif()
     endforeach()
 endforeach()
-file(GLOB VCC_SYS_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/libc/wasm32/braam/include/sys/*.h)
+file(GLOB VCC_SYS_HEADERS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/libc/wasm32/braam/include/sys/*.h)
 install(FILES ${VCC_HEADERS} DESTINATION share/vcc/wasm32-braam/include)
 install(FILES ${VCC_SYS_HEADERS} DESTINATION share/vcc/wasm32-braam/include/sys)

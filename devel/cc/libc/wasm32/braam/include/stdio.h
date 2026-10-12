@@ -4,7 +4,8 @@
  * which grows rather than waits.  What can wait is a coroutine yielding braam_call *,
  * called with await: fflush writes a buffer out, fgetc, getc, getchar, fgets and fread
  * read through a buffer of BRAAM_CHUNK bytes (a read of stdin flushes stdout first),
- * and so are fopen, fclose, fseek, ftell, rewind, remove and rename.  The runtime
+ * and so are fopen, fclose, fseek, ftell, rewind, remove and rename.  A stream from
+ * open_memstream never waits, but is flushed and closed as the others are.  The runtime
  * flushes every stream when main returns; exit() cannot (stdlib.h).
  *
  * As in C, output is not directly followed by input on one stream without an fflush,
@@ -36,11 +37,18 @@ typedef struct __FILE {
     char *in; /* what was read and not taken: in[pos] up to in[end] */
     size_t pos, end;
     struct __FILE *next; /* the streams fopen made, for fflush(NULL) */
+    char **mem;          /* open_memstream's: where fflush and fclose leave buf, */
+    size_t *memlen;      /* and its length */
 } FILE;
 
 #define __F_EOF    1
 #define __F_ERR    2
 #define __F_OPENED 4
+#define __F_MEM    8
+
+#define _IOFBF 0
+#define _IOLBF 1
+#define _IONBF 2
 
 typedef long long fpos_t;
 
@@ -52,6 +60,8 @@ extern FILE *stderr;
 int printf(const char *fmt, ...);
 int sprintf(char *buf, const char *fmt, ...);
 int snprintf(char *buf, int size, const char *fmt, ...);
+int vsprintf(char *buf, const char *fmt, va_list ap);
+int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap);
 int puts(const char *s);
 int putchar(int c);
 
@@ -91,6 +101,15 @@ coro(braam_call *) int fclose(FILE *stream);
 coro(braam_call *) int fseek(FILE *stream, long offset, int whence);
 coro(braam_call *) long ftell(FILE *stream);
 coro(braam_call *) void rewind(FILE *stream);
+
+/* A stream into memory: fflush and fclose leave its bytes, NUL-terminated, in *ptr
+   (from malloc, the caller's to free) and their number in *size. */
+FILE *open_memstream(char **ptr, size_t *size);
+
+/* Accepted and ignored: an output buffer grows rather than fills. */
+int setvbuf(FILE *stream, char *buf, int mode, size_t size);
+void setbuffer(FILE *stream, char *buf, int size);
+void setbuf(FILE *stream, char *buf);
 
 coro(braam_call *) int remove(const char *path);
 coro(braam_call *) int rename(const char *from, const char *to);

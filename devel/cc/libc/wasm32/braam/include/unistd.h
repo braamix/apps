@@ -36,4 +36,24 @@ coro(braam_call *) char *getcwd(char *buf, size_t size);
 
 pid_t getpid(void);
 
+/* A symbolic link's target, not terminated: its length, or -1. */
+coro(braam_call *) ssize_t readlink(const char *path, char *buf, size_t size);
+
+/* Whether fd is the console's grid; a pipe or a file is not. */
+coro(braam_call *) int isatty(int fd);
+
+/* Whether path exists: Braam keeps no permissions, so mode is not checked. */
+#define F_OK 0
+#define X_OK 1
+#define W_OK 2
+#define R_OK 4
+coro(braam_call *) int access(const char *path, int mode);
+
+_Noreturn void _exit(int status);
+
+/* getopt and its four, as <getopt.h> declares them. */
+extern char *optarg;
+extern int optind, opterr, optopt;
+int getopt(int argc, char *const argv[], const char *optstring);
+
 #endif /* _UNISTD_H */

@@ -52,11 +52,16 @@ typedef struct braam_call {
 #define BRAAM_SYS_TOUCH    24
 #define BRAAM_SYS_CHDIR    25
 #define BRAAM_SYS_DUP      26
+#define BRAAM_SYS_READLINK 28 /* payload the path; data the target, unresolved */
 #define BRAAM_SYS_RENAME   29 /* payload u32 from_len, the old path, the new one */
 #define BRAAM_SYS_SEEK     30 /* arg fd; payload u32 whence, i64 offset; data u64 position */
 #define BRAAM_SYS_TRUNCATE 31
 #define BRAAM_SYS_SLEEP    32 /* payload u32 milliseconds */
 #define BRAAM_SYS_FSTAT    33 /* arg fd; data as Stat's */
+#define BRAAM_SYS_CLOCK    48 /* data u64 epoch ms, i32 the zone's minutes east of UTC */
+#define BRAAM_SYS_TTY      72 /* arg fd; data u32 flags, u32 cols, u32 rows */
+#define BRAAM_SYS_SPAWN    81 /* payload u32 fd0, fd1, fd2, argv, [env]; status the pid */
+#define BRAAM_SYS_WAIT     82 /* arg pid or BRAAM_WAIT_ANY; status the child's; data u32 pid */
 #define BRAAM_SYS_SIGACT   85 /* payload u32 mask, or empty to ask; data u32 the mask before */
 #define BRAAM_SYS_POLL     86 /* payload u32 timeout, then u32 fd, u32 events pairs */
 
@@ -69,6 +74,16 @@ typedef struct braam_call {
 #define BRAAM_O_TRUNC  8
 #define BRAAM_O_APPEND 16
 #define BRAAM_O_EXCL   32
+
+/* Spawn's argument: an environment follows argv, else the child inherits mine.  A
+   descriptor below BRAAM_FD_MIN is shared with the child; another is moved to it. */
+#define BRAAM_SPAWN_ENV 1
+#define BRAAM_FD_MIN    3
+#define BRAAM_ENV_MAX   8192
+#define BRAAM_WAIT_ANY  0
+
+/* Tty's flags: the descriptor is the console's grid. */
+#define BRAAM_TTY_CONSOLE 1
 
 /* Stat's kinds, and its argument. */
 #define BRAAM_KIND_FILE     0

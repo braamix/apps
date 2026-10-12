@@ -86,6 +86,47 @@ it (`VCC_HOST`, which defaults to that stage):
 [test/hello.c](test/hello.c) is built that way, and
 [test/hello.mjs](test/hello.mjs) runs it under the SDK's harness.
 
+## The C library
+
+Upstream's Braam runtime covered what its example programs call. What the
+compiler's own sources call was added, as C in upstream's layout, so it can
+be offered back:
+
+- **`libc/common/`**, target-neutral: `<ctype.h>`, `qsort` (a heapsort),
+  `bsearch`, the `strtol` family, `strdup`, `strndup`, `strnlen`, `strspn`,
+  `strcspn`, `strpbrk`, `strtok_r`, `memccpy`, `vsnprintf`, `vsprintf`,
+  `gmtime`, `strftime`, and `getopt`/`getopt_long` in `<getopt.h>`, which is
+  FreeBSD's `getopt_long.c` with its licence, since the host's (macOS's)
+  behaviour is that one's.
+- **`libc/wasm32/braam/`**, on the kernel: `getenv` and `environ` from the
+  start blob, `atexit` (run when `main` returns, since `exit()` runs
+  nothing), `isatty`, `access`, `time` and `localtime` over `Sys::Clock`,
+  `readlink` and `realpath`, `mkstemp` and `mkstemps` over `O_EXCL`,
+  `posix_spawn`, `posix_spawnp`, `waitpid` and `wait` over `Sys::Spawn` and
+  `Sys::Wait`, `open_memstream`, and `setvbuf`, which does nothing because
+  an output buffer grows. Each call that waits is a coroutine, as the rest
+  of Braam's calls are.
+- **Floating point is musl's**: the SDK's `libbraam_math.a`, whose members
+  `libc.a` carries. `strtod` and `strtof` are its `__floatscan`, rounding
+  correctly. `printf`'s `%e`, `%f`, `%g` and the new `%a` are its `fmt_fp`
+  (`doprnt.c` under `__braam__`): upstream's own conversion was not exact
+  (`%.17g` of `1e300`) and had no `%a`, which `genwasm` writes every float
+  constant with. `<math.h>` is all of C99's double and float functions, and
+  upstream's `fabs`, `frexp`, `ldexp`, `modf`, `fma`, `fmin`, `fmax` and
+  `sqrt.s` are left out of the build. `nan` alone is vcc's (`nan.c`),
+  because vcc names a function `nan` as `nan.vcc`.
+- `PATH_MAX` is 512 under `__braam__`, as in Braam's compat layer.
+
+[test/libc.c](test/libc.c) prints the pure half (ctype, integer and float
+conversions both ways, `printf`'s float formats and flags, sorting,
+strings, `getopt_long` with permutation, the calendar, a memory stream).
+The host build compiles the same file against its own C library, and
+[test/libc.mjs](test/libc.mjs) holds Braam's output to the host's byte for
+byte: 207 lines. One difference is accepted rather than tested: musl does
+not set `ERANGE` for a subnormal `strtod` result, and macOS does. The same
+test runs [test/sys.c](test/sys.c), the half that asks the kernel, against
+stated lines.
+
 ## Test programs
 
 [test/programs/](test/programs/) holds the C programs of vcc's test suites,

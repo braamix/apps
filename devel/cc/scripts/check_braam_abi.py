@@ -40,7 +40,7 @@ def main(braam_h, sysabi_h, result_h, errno_h):
               for m in re.finditer(r"constexpr (?:u32|usize) (\w+)\s*=\s*(0x[0-9a-fA-F]+|\d+);",
                                    sysabi)}
     theirs.update({m.group(1): int(m.group(2), 0)
-                   for m in re.finditer(r"\b(SYS_POLL_\w+)\s*=\s*(0x[0-9a-fA-F]+|\d+),", sysabi)})
+                   for m in re.finditer(r"\b(SYS_(?:POLL|TTY)_\w+)\s*=\s*(0x[0-9a-fA-F]+|\d+),", sysabi)})
     bad = []
 
     def check(what, ours_v, theirs_v):
@@ -63,6 +63,8 @@ def main(braam_h, sysabi_h, result_h, errno_h):
         if name.startswith("BRAAM_KIND_"):
             check(name, value, theirs.get("SYS_KIND_" + name[len("BRAAM_KIND_"):]))
     check("BRAAM_CHUNK", ours.get("BRAAM_CHUNK"), theirs.get("SYS_CHUNK"))
+    for name in ("SPAWN_ENV", "FD_MIN", "ENV_MAX", "WAIT_ANY", "TTY_CONSOLE"):
+        check("BRAAM_" + name, ours.get("BRAAM_" + name), theirs.get("SYS_" + name))
     check("BRAAM_STAT_NOFOLLOW", ours.get("BRAAM_STAT_NOFOLLOW"), theirs.get("SYS_STAT_NOFOLLOW"))
 
     errors = enum(open(result_h).read(), "Error")

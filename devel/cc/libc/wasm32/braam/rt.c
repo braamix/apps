@@ -19,9 +19,15 @@ void __braam_sys_async(unsigned op, unsigned token, const void *ptr, unsigned le
    64 KiB (taskbytes.c), or the program's own definition. */
 extern const unsigned __braam_task_bytes;
 
+/* What atexit registered, run in reverse when main returns. */
+static void (*at_exit[32])(void);
+static int n_at_exit;
+
 static coro(braam_call *) int braam_root(int argc, char **argv)
 {
     int status = await main(argc, argv);
+    while (n_at_exit > 0)
+        at_exit[--n_at_exit]();
     await fflush(NULL);
     return status;
 }
@@ -77,47 +83,70 @@ static unsigned get_u32(const unsigned char *p)
     return p[0] | p[1] << 8 | p[2] << 16 | (unsigned)p[3] << 24;
 }
 
-/* argv from the blob the host placed: u32 argc, then u32 length and the bytes of each
-   word.  The words are copied, each with its NUL; the environment after them is not
-   read yet. */
-static char **parse_argv(const unsigned char *blob, unsigned len, int *argc)
+/* A word list from the blob the host placed, at *at: u32 count, then u32 length and the
+   bytes of each word.  The words are copied, each with its NUL, into one block from
+   malloc, the vector first; *at moves past the list. */
+static char **parse_words(const unsigned char *blob, unsigned len, unsigned *at, int *count)
 {
-    unsigned n = len >= 4 ? get_u32(blob) : 0, at = 4, bytes = 0;
+    unsigned n = *at + 4 <= len ? get_u32(blob + *at) : 0, p = *at + 4, bytes = 0;
     unsigned k;
-    for (k = 0; k < n && at + 4 <= len; k++) {
-        unsigned size = get_u32(blob + at);
-        if (size > len - at - 4)
+    for (k = 0; k < n && p + 4 <= len; k++) {
+        unsigned size = get_u32(blob + p);
+        if (size > len - p - 4)
             break;
-        at += 4 + size;
+        p += 4 + size;
         bytes += size + 1;
     }
     n           = k;
-    char **argv = malloc((n + 1) * sizeof(char *) + bytes);
-    if (!argv) {
-        *argc = 0;
+    char **list = malloc((n + 1) * sizeof(char *) + bytes);
+    if (!list) {
+        *count = 0;
         return NULL;
     }
-    char *to = (char *)(argv + n + 1);
-    at       = 4;
+    char *to = (char *)(list + n + 1);
+    p        = *at + 4;
     for (k = 0; k < n; k++) {
-        unsigned size = get_u32(blob + at);
-        memcpy(to, blob + at + 4, size);
+        unsigned size = get_u32(blob + p);
+        memcpy(to, blob + p + 4, size);
         to[size] = 0;
-        argv[k]  = to;
+        list[k]  = to;
         to += size + 1;
-        at += 4 + size;
+        p += 4 + size;
     }
-    argv[n] = NULL;
-    *argc   = (int)n;
-    return argv;
+    list[n] = NULL;
+    *count  = (int)n;
+    *at     = p;
+    return list;
+}
+
+/* The environment, NAME=value words, after argv in the blob. */
+char **environ;
+
+char *getenv(const char *name)
+{
+    size_t n = strlen(name);
+    for (char **e = environ; e && *e; e++)
+        if (strncmp(*e, name, n) == 0 && (*e)[n] == '=')
+            return *e + n + 1;
+    return NULL;
+}
+
+int atexit(void (*func)(void))
+{
+    if (n_at_exit == 32)
+        return -1;
+    at_exit[n_at_exit++] = func;
+    return 0;
 }
 
 int __braam_start(unsigned blob, unsigned len)
 {
     if (tasks[0].frame)
         return state();
-    int argc;
-    char **argv   = parse_argv((const unsigned char *)blob, len, &argc);
+    int argc, envc;
+    unsigned at   = 0;
+    char **argv   = parse_words((const unsigned char *)blob, len, &at, &argc);
+    environ       = parse_words((const unsigned char *)blob, len, &at, &envc);
     void *storage = malloc(__braam_task_bytes); /* 16-aligned */
     if (!storage) {
         exited = 1;
