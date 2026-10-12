@@ -4,8 +4,9 @@
 `~/Project/Claude/vcc`, cut down to its `wasm32-braam` target and rewritten
 in vcc's own C-with-coroutines, so that it runs on Braam and can compile
 itself there. This file is the plan: what is taken, what changes, and the
-order of the steps, each with what proves it done. The import and the trim
-are done, and [README.md](README.md) says how they were checked.
+order of the steps, each with what proves it done. The import, the trim and
+the build in this tree are done, and [README.md](README.md) says how they
+were checked.
 
 ## 1. Where this starts
 
@@ -94,28 +95,6 @@ Not vendored: the GoogleTest suites (their programs are, see step 6),
 
 Each step ends green: `make test` passes and the package, once it exists,
 still builds.
-
-### Step 2 — the build in this tree
-
-1. **Stage 0, native.** The top `Makefile` configures `devel/cc` natively
-   into `build/host-cc/` and builds `cc` and its passes there, before the
-   wasm configure; the main configure is told where they are
-   (`-DVCC_HOST=`).
-2. **`vcc_add_program`**, a CMake function in `devel/cc/`, the
-   counterpart of `braam_add_program` for C-with-coroutines: host `cc -t
-   wasm32-braam -S`, then the SDK's `clang -c` on the `.s`, then `wasm-ld`
-   (or `ld` under `LINKER=ld`) with `crt0.o` and `libc.a`, then the stamp.
-   Stamp with the SDK's `stamp.py`, not vcc's `braam_stamp`, so the ABI is
-   the SDK's; `check_braam_abi.py` runs against the SDK's `sysabi.h` and
-   `result.h` as a build check.
-3. **The libc.** `crt0.o` and `libc.a` are built the same way, into the
-   package's `lib/`; the headers are staged into `include/`.
-4. **A first program.** `hello.c` built by `vcc_add_program`, planted in
-   the SDK harness and run (`test/hello.mjs`). This checks the build and
-   the runtime against the real kernel, before any of the compiler moves.
-
-Done when: `make` builds the libc and `hello` from vcc's C, and `make test`
-runs it on Braam.
 
 ### Step 3 — libc gaps
 
