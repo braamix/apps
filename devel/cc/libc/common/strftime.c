@@ -1,7 +1,5 @@
-/*
- * strftime — the "C" locale's conversions (C11 §7.27.3.5), with %z and %Z
- * as UTC's: the calendar keeps no zone.
- */
+// strftime — the "C" locale's conversions (C11 §7.27.3.5), with %z and %Z
+// as UTC's: the calendar keeps no zone.
 #include <string.h>
 #include <time.h>
 
@@ -13,7 +11,7 @@ static const char *const months[12] = { "January",   "February", "March",    "Ap
 
 typedef struct {
     char *buf;
-    size_t cap, n; /* n counts past cap, so an overflow shows */
+    size_t cap, n; // n counts past cap, so an overflow shows
 } Out;
 
 static void put(Out *o, char c)
@@ -29,7 +27,7 @@ static void puts_n(Out *o, const char *s, int n)
         put(o, s[k]);
 }
 
-/* v in at least `width` digits, padded with `pad`. */
+// v in at least `width` digits, padded with `pad`.
 static void num(Out *o, long long v, int width, char pad)
 {
     char d[24];
@@ -54,10 +52,10 @@ static int iso_weeks(long long y)
     return 52 + (p == 4 || q == 3);
 }
 
-/* The ISO 8601 week, and the year it belongs to. */
+// The ISO 8601 week, and the year it belongs to.
 static int iso_week(const struct tm *tm, long long *year)
 {
-    int mon0 = (tm->tm_wday + 6) % 7; /* Monday first */
+    int mon0 = (tm->tm_wday + 6) % 7; // Monday first
     int week = (tm->tm_yday - mon0 + 10) / 7;
     *year    = tm->tm_year + 1900LL;
     if (week < 1) {
@@ -80,7 +78,7 @@ static void format(Out *o, const char *fmt, const struct tm *tm)
             continue;
         }
         char c = *++fmt;
-        if (c == 'E' || c == 'O') /* the alternative forms are the plain ones here */
+        if (c == 'E' || c == 'O') // the alternative forms are the plain ones here
             c = *++fmt;
         switch (c) {
         case 'a':

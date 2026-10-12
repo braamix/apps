@@ -174,4 +174,4 @@ void free_symbol(Symbol *sym);
 }
 #endif
 
-#endif /* SYMTAB_H */
+#endif // SYMTAB_H

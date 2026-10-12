@@ -1,11 +1,9 @@
-/*
- * <spawn.h> for Braam: posix_spawn over Sys::Spawn.  The child's standard
- * descriptors are this process's, and there are no file actions or attributes to
- * change that: both must be NULL, or the answer is ENOTSUP.  The kernel looks a name
- * without a slash up along PATH, so posix_spawn and posix_spawnp are one call; the
- * child's argv[0] is path.  envp == environ (or NULL) lets the child inherit.
- * Each returns 0, or an error number, and does not set errno.
- */
+// <spawn.h> for Braam: posix_spawn over Sys::Spawn.  The child's standard
+// descriptors are this process's, and there are no file actions or attributes to
+// change that: both must be NULL, or the answer is ENOTSUP.  The kernel looks a name
+// without a slash up along PATH, so posix_spawn and posix_spawnp are one call; the
+// child's argv[0] is path.  envp == environ (or NULL) lets the child inherit.
+// Each returns 0, or an error number, and does not set errno.
 #ifndef _SPAWN_H
 #define _SPAWN_H
 
@@ -26,4 +24,4 @@ coro(braam_call *) int posix_spawnp(pid_t *pid, const char *file,
 
 extern char **environ;
 
-#endif /* _SPAWN_H */
+#endif // _SPAWN_H

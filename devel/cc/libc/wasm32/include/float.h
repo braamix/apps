@@ -1,9 +1,7 @@
-/*
- * <float.h> — characteristics of floating types (C11 §7.7), wasm32 target.
- *
- * float and double are IEEE-754 binary32 and binary64; long double is binary128
- * (clang's wasm32 choice), computed in software by the runtime (float128.c).
- */
+// <float.h> — characteristics of floating types (C11 §7.7), wasm32 target.
+//
+// float and double are IEEE-754 binary32 and binary64; long double is binary128
+// (clang's wasm32 choice), computed in software by the runtime (float128.c).
 #ifndef _FLOAT_H
 #define _FLOAT_H
 
@@ -54,4 +52,4 @@
 #define DBL_MAX  1.7976931348623157e+308
 #define LDBL_MAX 1.18973149535723176508575932662800702e+4932L
 
-#endif /* _FLOAT_H */
+#endif // _FLOAT_H

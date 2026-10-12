@@ -1,9 +1,7 @@
-/*
- * strcmp — compare two NUL-terminated strings (C11 §7.24.4.2).
- *
- * Returns <0, 0, or >0 according to whether s1 is less than, equal to, or
- * greater than s2, comparing the first differing bytes as unsigned char.
- */
+// strcmp — compare two NUL-terminated strings (C11 §7.24.4.2).
+//
+// Returns <0, 0, or >0 according to whether s1 is less than, equal to, or
+// greater than s2, comparing the first differing bytes as unsigned char.
 #include <string.h>
 
 int strcmp(const char *s1, const char *s2)

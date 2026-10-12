@@ -1,8 +1,6 @@
-/*
- * The asynchronous system calls of Braam (docs/Braam.md §7.3): braam_sys, the
- * one primitive, and the descriptor, file and directory calls on it, each a coroutine
- * yielding braam_call *.
- */
+// The asynchronous system calls of Braam (docs/Braam.md §7.3): braam_sys, the
+// one primitive, and the descriptor, file and directory calls on it, each a coroutine
+// yielding braam_call *.
 #include <braam.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -25,9 +23,9 @@ coro(braam_call *) int braam_sys(unsigned op, const void *payload, unsigned len,
                                  unsigned cap, unsigned *got)
 {
     braam_call c = { op, 0, payload, len, NULL, 0 };
-    defer __braam_forget(&c); /* destroyed while waiting: the reply goes unclaimed */
+    defer __braam_forget(&c); // destroyed while waiting: the reply goes unclaimed
     yield & c;
-    int status = -8; /* Io: a reply too short for its status */
+    int status = -8; // Io: a reply too short for its status
     unsigned n = 0;
     if (c.reply_len >= 4) {
         const unsigned char *r = c.reply;
@@ -46,15 +44,15 @@ unsigned braam_now(void)
     return (unsigned)braam_sys_sync(BRAAM_SYS_NOW, 0, 0, 0);
 }
 
-/* A Braam error as errno, and -1. */
+// A Braam error as errno, and -1.
 static int failed(int status)
 {
     errno = 32 - status;
     return -1;
 }
 
-/* A read of standard input flushes standard output first, as a terminal's line
-   discipline would: a prompt is out before the answer is asked for. */
+// A read of standard input flushes standard output first, as a terminal's line
+// discipline would: a prompt is out before the answer is asked for.
 coro(braam_call *) ssize_t read(int fd, void *buf, size_t n)
 {
     if (fd == 0)
@@ -127,7 +125,7 @@ coro(braam_call *) off_t lseek(int fd, off_t offset, int whence)
     return got == 8 ? (off_t)get_u64(pos) : failed(-8);
 }
 
-/* A call that names one path and answers with a status alone. */
+// A call that names one path and answers with a status alone.
 static coro(braam_call *) int on_path(unsigned op, const char *path)
 {
     int st = await braam_sys(op, path, strlen(path), NULL, 0, NULL);
@@ -178,7 +176,7 @@ coro(braam_call *) char *getcwd(char *buf, size_t size)
     return buf;
 }
 
-/* rename's payload: u32 the old path's length, the old path, the new one. */
+// rename's payload: u32 the old path's length, the old path, the new one.
 coro(braam_call *) int rename(const char *from, const char *to)
 {
     unsigned a = strlen(from), b = strlen(to);
@@ -201,7 +199,7 @@ pid_t getpid(void)
     return braam_sys_sync(BRAAM_SYS_GETPID, 0, 0, 0);
 }
 
-/* Stat's reply, u32 kind, u64 size, u64 mtime, as a struct stat. */
+// Stat's reply, u32 kind, u64 size, u64 mtime, as a struct stat.
 static int fill(struct stat *st, const unsigned char *r, unsigned got, const char *path)
 {
     if (got < 20)
@@ -218,7 +216,7 @@ static int fill(struct stat *st, const unsigned char *r, unsigned got, const cha
     st->st_nlink                = 1;
     st->st_blksize              = 512;
     st->st_blocks               = (st->st_size + 511) / 512;
-    if (path) { /* FNV-1a, as Braam's compat layer makes st_ino */
+    if (path) { // FNV-1a, as Braam's compat layer makes st_ino
         unsigned long long h = 0xcbf29ce484222325ull;
         for (; *path; path++)
             h = (h ^ (unsigned char)*path) * 0x100000001b3ull;
@@ -260,7 +258,7 @@ coro(braam_call *) int braam_yield(void)
 
 coro(braam_call *) int sig_catch(int sig, int on)
 {
-    static unsigned caught; /* the kernel's mask, shadowed so one bit can move alone */
+    static unsigned caught; // the kernel's mask, shadowed so one bit can move alone
     unsigned want = on ? caught | 1u << (sig & 31) : caught & ~(1u << (sig & 31));
     int st        = await braam_sys(BRAAM_SYS_SIGACT, &want, 4, NULL, 0, NULL);
     if (st < 0)
@@ -294,7 +292,7 @@ _Noreturn void _exit(int status)
     exit(status);
 }
 
-void __plain_write(int fd, const char *s); /* rt.c */
+void __plain_write(int fd, const char *s); // rt.c
 
 _Noreturn void __assert_fail(const char *expr, const char *file, int line)
 {
@@ -304,7 +302,7 @@ _Noreturn void __assert_fail(const char *expr, const char *file, int line)
     abort();
 }
 
-/* Whether fd is the console's grid. */
+// Whether fd is the console's grid.
 coro(braam_call *) int isatty(int fd)
 {
     unsigned char r[12];
@@ -317,7 +315,7 @@ coro(braam_call *) int isatty(int fd)
     return got >= 4 && (get_u32(r) & BRAAM_TTY_CONSOLE) ? 1 : 0;
 }
 
-/* Whether path exists: Braam keeps no permissions to check against mode. */
+// Whether path exists: Braam keeps no permissions to check against mode.
 coro(braam_call *) int access(const char *path, int mode)
 {
     (void)mode;
@@ -325,7 +323,7 @@ coro(braam_call *) int access(const char *path, int mode)
     return await stat(path, &st);
 }
 
-/* The zone of the last time(), in seconds east of UTC, for localtime. */
+// The zone of the last time(), in seconds east of UTC, for localtime.
 static long zone;
 
 coro(braam_call *) time_t time(time_t *t)
@@ -350,8 +348,8 @@ struct tm *localtime(const time_t *t)
     return __civil(*t, zone, &tm);
 }
 
-/* A word list as the kernel takes it: u32 count, then u32 length and the bytes of
-   each word.  Its size when to is NULL. */
+// A word list as the kernel takes it: u32 count, then u32 length and the bytes of
+// each word.  Its size when to is NULL.
 static unsigned put_words(unsigned char *to, char *const *words)
 {
     unsigned at = 4, n = 0;
@@ -372,9 +370,9 @@ static unsigned put_words(unsigned char *to, char *const *words)
 
 extern char **environ;
 
-/* The child runs path, found along PATH when it has no slash, with argv but argv[0]
-   replaced by path; its standard descriptors are this process's.  envp == environ
-   lets it inherit the environment. */
+// The child runs path, found along PATH when it has no slash, with argv but argv[0]
+// replaced by path; its standard descriptors are this process's.  envp == environ
+// lets it inherit the environment.
 static coro(braam_call *) int spawn_child(pid_t *pid, const char *path, char *const argv[],
                                           char *const envp[])
 {
@@ -397,8 +395,8 @@ static coro(braam_call *) int spawn_child(pid_t *pid, const char *path, char *co
         return ENOMEM;
     defer free(req);
     memset(req, 0, 12);
-    req[4] = 1; /* fd1 */
-    req[8] = 2; /* fd2 */
+    req[4] = 1; // fd1
+    req[8] = 2; // fd2
     put_words(req + 12, words);
     if (!inherit)
         put_words(req + 12 + nargs, envp);
@@ -429,8 +427,8 @@ coro(braam_call *) int posix_spawnp(pid_t *pid, const char *file,
     return await posix_spawn(pid, file, actions, attr, argv, envp);
 }
 
-/* A child's end: Braam's status is an exit code, 130 for an interrupt and 132 for a
-   trap included, so *status is always WIFEXITED. */
+// A child's end: Braam's status is an exit code, 130 for an interrupt and 132 for a
+// trap included, so *status is always WIFEXITED.
 coro(braam_call *) pid_t waitpid(pid_t pid, int *status, int options)
 {
     if (options) {
@@ -455,8 +453,8 @@ coro(braam_call *) pid_t wait(int *status)
     return await waitpid(-1, status, 0);
 }
 
-/* The template's six X before a suffix of `suffixlen` bytes, replaced until a new
-   file can be made; its descriptor, open for reading and writing. */
+// The template's six X before a suffix of `suffixlen` bytes, replaced until a new
+// file can be made; its descriptor, open for reading and writing.
 coro(braam_call *) int mkstemps(char *template, int suffixlen)
 {
     static const char letters[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -503,8 +501,8 @@ coro(braam_call *) ssize_t readlink(const char *path, char *buf, size_t size)
     return (ssize_t)got;
 }
 
-/* Appends the components of `rest` to the absolute path `out`, of `len` bytes,
-   following links as they are met: the new length, or -1. */
+// Appends the components of `rest` to the absolute path `out`, of `len` bytes,
+// following links as they are met: the new length, or -1.
 static coro(braam_call *) int walk(char *out, int len, const char *rest, int *links)
 {
     while (*rest) {
@@ -519,13 +517,13 @@ static coro(braam_call *) int walk(char *out, int len, const char *rest, int *li
             while (len > 0 && out[len - 1] != '/')
                 len--;
             if (len > 1)
-                len--; /* the slash, but for the root's */
+                len--; // the slash, but for the root's
             out[len] = 0;
             rest += n;
             continue;
         }
         if (len + 1 + (int)n >= PATH_MAX) {
-            errno = EINVAL; /* longer than PATH_MAX */
+            errno = EINVAL; // longer than PATH_MAX
             return -1;
         }
         int was = len;

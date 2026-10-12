@@ -60,10 +60,10 @@ static BlockHeader *head = NULL;
 //
 void *xalloc(size_t size, const char *funcname, const char *filename, unsigned lineno)
 {
-    /* Calculate total size: header + requested size */
+    // Calculate total size: header + requested size
     size_t total_size = sizeof(BlockHeader) + size;
 
-    /* Allocate memory using malloc */
+    // Allocate memory using malloc
     void *ptr = calloc(1, total_size);
     if (ptr == NULL) {
         diag_error(diag_loc, "out of memory: %zu bytes for %s() at %s:%u", size, funcname, filename,
@@ -71,25 +71,25 @@ void *xalloc(size_t size, const char *funcname, const char *filename, unsigned l
         exit(1);
     }
 
-    /* Set up the header */
+    // Set up the header
     BlockHeader *h    = (BlockHeader *)ptr;
     h->requested_size = size;
     h->funcname       = funcname;
     h->filename       = filename;
     h->lineno         = lineno;
 
-    /* Insert into the doubly linked list */
+    // Insert into the doubly linked list
     if (head == NULL) {
-        /* First allocation */
+        // First allocation
         head = h;
     } else {
-        /* Insert at the head of the list */
+        // Insert at the head of the list
         h->next    = head;
         head->prev = h;
         head       = h;
     }
 
-    /* Return pointer to user data (after header) */
+    // Return pointer to user data (after header)
     ptr = (void *)((char *)ptr + sizeof(BlockHeader));
     if (xalloc_debug) {
         trace_printf("--- %s %zu bytes, %p\n", __func__, size, ptr);
@@ -104,23 +104,23 @@ void *xalloc(size_t size, const char *funcname, const char *filename, unsigned l
 void xfree(void *ptr)
 {
     if (ptr == NULL) {
-        return; /* Nothing to free */
+        return; // Nothing to free
     }
 
-    /* Get the header (before the user pointer) */
+    // Get the header (before the user pointer)
     BlockHeader *h = (BlockHeader *)((char *)ptr - sizeof(BlockHeader));
     if (xalloc_debug) {
         trace_printf("--- %s %zu bytes, %p\n", __func__, h->requested_size, ptr);
     }
 
-    /* Remove from the doubly linked list */
+    // Remove from the doubly linked list
     if (h->prev != NULL) {
         if (h->prev->next != h) {
             internal_error("xfree: the list of blocks is damaged before %p", ptr);
         }
         h->prev->next = h->next;
     } else {
-        /* This is the head */
+        // This is the head
         if (head != h) {
             internal_error("xfree: the head of the list of blocks is damaged at %p", ptr);
         }
@@ -137,7 +137,7 @@ void xfree(void *ptr)
     h->next = NULL;
     h->prev = NULL;
 
-    /* Free the entire block (header + user data) */
+    // Free the entire block (header + user data)
     free(h);
 }
 

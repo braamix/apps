@@ -559,7 +559,7 @@ static void register_struct_type(const Type *t)
     int current_alignment   = 1;
     for (const Field *f = t->u.struct_t.fields; f; f = f->next) {
         if (f->kind == FIELD_STATIC_ASSERT)
-            continue; /* already evaluated in validate_struct_definition */
+            continue; // already evaluated in validate_struct_definition
         declared++;
         int member_alignment = get_alignment(f->u.member.type);
         int alignas          = alignment_spec_value(f->u.member.align_spec);

@@ -1,6 +1,4 @@
-/*
- * vsnprintf — snprintf with its arguments in a va_list (C11 §7.21.6.12).
- */
+// vsnprintf — snprintf with its arguments in a va_list (C11 §7.21.6.12).
 #include <stdio.h>
 
 extern int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf);

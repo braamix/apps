@@ -1,6 +1,4 @@
-/*
- * strerror for Braam: C's three errors and Braam's (errno.h).
- */
+// strerror for Braam: C's three errors and Braam's (errno.h).
 #include <string.h>
 
 static const char *const braam[] = {

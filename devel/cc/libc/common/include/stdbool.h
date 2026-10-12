@@ -1,9 +1,7 @@
-/*
- * <stdbool.h> — boolean type and values (C11 §7.18).
- *
- * Converting any scalar to _Bool is a zero test, so a _Bool object never holds
- * anything but 0 or 1.
- */
+// <stdbool.h> — boolean type and values (C11 §7.18).
+//
+// Converting any scalar to _Bool is a zero test, so a _Bool object never holds
+// anything but 0 or 1.
 #ifndef _STDBOOL_H
 #define _STDBOOL_H
 
@@ -13,4 +11,4 @@
 
 #define __bool_true_false_are_defined 1
 
-#endif /* _STDBOOL_H */
+#endif // _STDBOOL_H

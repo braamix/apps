@@ -1,8 +1,6 @@
-/*
- * <getopt.h> — getopt_long, as BSD's and GNU's (getopt_long.c, from FreeBSD).
- * Non-options are moved after the options unless POSIXLY_CORRECT is set or the
- * option string begins with '+'.
- */
+// <getopt.h> — getopt_long, as BSD's and GNU's (getopt_long.c, from FreeBSD).
+// Non-options are moved after the options unless POSIXLY_CORRECT is set or the
+// option string begins with '+'.
 #ifndef _GETOPT_H
 #define _GETOPT_H
 
@@ -11,9 +9,9 @@
 #define optional_argument 2
 
 struct option {
-    const char *name; /* the long option, without its dashes */
-    int has_arg;      /* no_argument, required_argument or optional_argument */
-    int *flag;        /* where to store val, or NULL to return it */
+    const char *name; // the long option, without its dashes
+    int has_arg;      // no_argument, required_argument or optional_argument
+    int *flag;        // where to store val, or NULL to return it
     int val;
 };
 
@@ -26,4 +24,4 @@ int getopt_long(int argc, char *const argv[], const char *optstring, const struc
 int getopt_long_only(int argc, char *const argv[], const char *optstring,
                      const struct option *longopts, int *longindex);
 
-#endif /* _GETOPT_H */
+#endif // _GETOPT_H

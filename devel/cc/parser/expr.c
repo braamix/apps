@@ -35,38 +35,38 @@ static bool is_constant_expression(const Expr *expression)
 
     switch (expression->kind) {
     case EXPR_LITERAL:
-        /* All literals are constant, including enum constants */
+        // All literals are constant, including enum constants
         return true;
 
     case EXPR_VAR:
-        /* Variables are not constant, even if they are enum constants
-         * (handled in EXPR_LITERAL with LITERAL_ENUM) */
+        // Variables are not constant, even if they are enum constants
+        // (handled in EXPR_LITERAL with LITERAL_ENUM)
         return false;
 
     case EXPR_UNARY_OP: {
-        /* Check which unary operations are allowed */
+        // Check which unary operations are allowed
         switch (expression->u.unary_op.op) {
         case UNARY_PLUS:
         case UNARY_NEG:
         case UNARY_BIT_NOT:
         case UNARY_LOG_NOT:
-            /* These operators are allowed if operand is constant */
+            // These operators are allowed if operand is constant
             return is_constant_expression(expression->u.unary_op.expr);
         case UNARY_ADDRESS:
         case UNARY_DEREF:
         case UNARY_PRE_INC:
         case UNARY_PRE_DEC:
-            /* These involve addresses or modification, not constant */
+            // These involve addresses or modification, not constant
             return false;
         }
-        return false; /* Unreachable, but for safety */
+        return false; // Unreachable, but for safety
     }
 
     case EXPR_BINARY_OP: {
-        /* Arithmetic, bitwise, relational, and logical ops are allowed, but not the
-         * comma operator: C11 6.6p3 forbids it in a constant expression unless it is
-         * inside an unevaluated subexpression -- and that carve-out already works,
-         * because EXPR_SIZEOF_EXPR below answers true without recursing. */
+        // Arithmetic, bitwise, relational, and logical ops are allowed, but not the
+        // comma operator: C11 6.6p3 forbids it in a constant expression unless it is
+        // inside an unevaluated subexpression -- and that carve-out already works,
+        // because EXPR_SIZEOF_EXPR below answers true without recursing.
         if (expression->u.binary_op.op == BINARY_COMMA)
             return false;
         const Expr *left  = expression->u.binary_op.left;
@@ -75,11 +75,11 @@ static bool is_constant_expression(const Expr *expression)
     }
 
     case EXPR_ASSIGN:
-        /* Assignments are not constant */
+        // Assignments are not constant
         return false;
 
     case EXPR_COND: {
-        /* Ternary operator is allowed if all operands are constant */
+        // Ternary operator is allowed if all operands are constant
         const Expr *cond      = expression->u.cond.condition;
         const Expr *then_expr = expression->u.cond.then_expr;
         const Expr *else_expr = expression->u.cond.else_expr;
@@ -88,10 +88,10 @@ static bool is_constant_expression(const Expr *expression)
     }
 
     case EXPR_CAST: {
-        /* Casts are allowed if the operand is constant and the target is scalar.
-         * The parser cannot resolve a typedef name, so it rejects only the targets
-         * that can never be scalar; typecheck_expr() does the real check once
-         * typedef names are resolved. */
+        // Casts are allowed if the operand is constant and the target is scalar.
+        // The parser cannot resolve a typedef name, so it rejects only the targets
+        // that can never be scalar; typecheck_expr() does the real check once
+        // typedef names are resolved.
         const Type *target_type = expression->u.cast.type;
         if (!target_type)
             return false;
@@ -108,54 +108,54 @@ static bool is_constant_expression(const Expr *expression)
     }
 
     case EXPR_CALL:
-        /* Function calls are not constant */
+        // Function calls are not constant
         return false;
 
     case EXPR_COMPOUND:
-        /* Compound literals are not constant (may involve runtime init) */
+        // Compound literals are not constant (may involve runtime init)
         return false;
 
     case EXPR_SUBSCRIPT:
-        /* Array indexing is not constant */
+        // Array indexing is not constant
         return false;
 
     case EXPR_FIELD_ACCESS:
     case EXPR_PTR_ACCESS:
-        /* Member access involves addresses, not constant */
+        // Member access involves addresses, not constant
         return false;
 
     case EXPR_POST_INC:
     case EXPR_POST_DEC:
-        /* Increment/decrement are not constant */
+        // Increment/decrement are not constant
         return false;
 
     case EXPR_SIZEOF_EXPR:
-        /* sizeof(expr) is constant if the expression's type is known at compile-time.
-         * In C, sizeof doesn't evaluate the expression, so we don't need to check
-         * if the operand is constant. */
+        // sizeof(expr) is constant if the expression's type is known at compile-time.
+        // In C, sizeof doesn't evaluate the expression, so we don't need to check
+        // if the operand is constant.
         return true;
 
     case EXPR_SIZEOF_TYPE:
-        /* sizeof(type) is always constant */
+        // sizeof(type) is always constant
         return true;
 
     case EXPR_ALIGNOF:
     case EXPR_VA_CLASS:
-        /* _Alignof(type) and __builtin_va_class(type) are always constant */
+        // _Alignof(type) and __builtin_va_class(type) are always constant
         return true;
 
     case EXPR_GENERIC:
-        /* _Generic is not constant (type selection may be runtime-dependent) */
+        // _Generic is not constant (type selection may be runtime-dependent)
         return false;
 
     case EXPR_YIELD:
     case EXPR_AWAIT:
     case EXPR_CO_OP:
-        /* Coroutine operations run code; co_sizeof is a link-time value */
+        // Coroutine operations run code; co_sizeof is a link-time value
         return false;
     }
 
-    return false; /* Unreachable, but for safety */
+    return false; // Unreachable, but for safety
 }
 
 //

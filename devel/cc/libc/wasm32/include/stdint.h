@@ -1,6 +1,4 @@
-/*
- * <stdint.h> — integer types of specified widths (C11 §7.20), wasm32 target.
- */
+// <stdint.h> — integer types of specified widths (C11 §7.20), wasm32 target.
 #ifndef _STDINT_H
 #define _STDINT_H
 
@@ -103,4 +101,4 @@ typedef unsigned long long uintmax_t;
 #define INTMAX_C(c)  c##LL
 #define UINTMAX_C(c) c##ULL
 
-#endif /* _STDINT_H */
+#endif // _STDINT_H

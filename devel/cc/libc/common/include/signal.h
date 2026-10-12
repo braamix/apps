@@ -1,10 +1,8 @@
-/*
- * <signal.h> — signal handling (C11 §7.14).
- *
- * TODO: implement signal()/raise().  Neither runtime environment delivers POSIX
- * signals, so a real implementation may support only raise() of synchronous
- * conditions; the surface is provided for source portability.
- */
+// <signal.h> — signal handling (C11 §7.14).
+//
+// TODO: implement signal()/raise().  Neither runtime environment delivers POSIX
+// signals, so a real implementation may support only raise() of synchronous
+// conditions; the surface is provided for source portability.
 #ifndef _SIGNAL_H
 #define _SIGNAL_H
 
@@ -24,4 +22,4 @@ typedef int sig_atomic_t;
 void (*signal(int sig, void (*handler)(int)))(int);
 int raise(int sig);
 
-#endif /* _SIGNAL_H */
+#endif // _SIGNAL_H

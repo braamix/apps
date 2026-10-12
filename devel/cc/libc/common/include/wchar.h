@@ -1,9 +1,7 @@
-/*
- * <wchar.h> — extended multibyte and wide character utilities (C11 §7.29).
- *
- * TODO: implement the wide-character routines.  This header is the canonical
- * home for wint_t, mbstate_t and WEOF.
- */
+// <wchar.h> — extended multibyte and wide character utilities (C11 §7.29).
+//
+// TODO: implement the wide-character routines.  This header is the canonical
+// home for wint_t, mbstate_t and WEOF.
 #ifndef _WCHAR_H
 #define _WCHAR_H
 
@@ -38,4 +36,4 @@ size_t wcsrtombs(char *dst, const wchar_t **src, size_t len, mbstate_t *ps);
 long wcstol(const wchar_t *nptr, wchar_t **endptr, int base);
 double wcstod(const wchar_t *nptr, wchar_t **endptr);
 
-#endif /* _WCHAR_H */
+#endif // _WCHAR_H

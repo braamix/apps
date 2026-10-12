@@ -52,7 +52,7 @@ void free_type(Type *type)
         free_type(type->u.atomic.base);
         break;
     default:
-        break; /* No nested allocations for basic types */
+        break; // No nested allocations for basic types
     }
     free_type_qualifier(type->qualifiers);
     xfree(type);
@@ -312,7 +312,7 @@ void free_literal(Literal *lit)
         xfree(lit->u.enum_const);
         break;
     default:
-        break; /* No allocations for int, float, char */
+        break; // No allocations for int, float, char
     }
     xfree(lit);
 }
@@ -371,7 +371,7 @@ void free_statement(Stmt *stmt)
         break;
     case STMT_CONTINUE:
     case STMT_BREAK:
-        break; /* No allocations */
+        break; // No allocations
     case STMT_RETURN:
         free_expression(stmt->u.expr);
         break;

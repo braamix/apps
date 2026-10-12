@@ -18,7 +18,7 @@
 
 #include "xalloc.h"
 
-#define BUFFER_SIZE (4096 / sizeof(size_t)) /* Buffer holds words, aligned to page size */
+#define BUFFER_SIZE (4096 / sizeof(size_t)) // Buffer holds words, aligned to page size
 
 int wio_debug; // Enable manually for debug
 

@@ -1,6 +1,4 @@
-/*
- * strnlen — the length of s, but no more than n (POSIX).
- */
+// strnlen — the length of s, but no more than n (POSIX).
 #include <string.h>
 
 size_t strnlen(const char *s, size_t n)

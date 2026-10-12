@@ -124,4 +124,4 @@ Expr *typecheck_co_op(Expr *e);
 }
 #endif
 
-#endif /* TYPECHECK_H */
+#endif // TYPECHECK_H

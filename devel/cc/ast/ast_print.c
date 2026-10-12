@@ -365,7 +365,7 @@ coro(braam_call *) void print_type(FILE *fd, const Type *type, int indent)
         break;
     }
 
-    /* Print qualifiers for the type itself */
+    // Print qualifiers for the type itself
     await print_type_qualifiers(fd, type->qualifiers, indent);
 }
 

@@ -1,9 +1,7 @@
-/*
- * <time.h> — date and time (C11 §7.27).
- *
- * TODO: implement the clock/time entry points against the environment's timer
- * services.
- */
+// <time.h> — date and time (C11 §7.27).
+//
+// TODO: implement the clock/time entry points against the environment's timer
+// services.
 #ifndef _TIME_H
 #define _TIME_H
 
@@ -37,4 +35,4 @@ char *asctime(const struct tm *tm);
 char *ctime(const time_t *timep);
 size_t strftime(char *s, size_t max, const char *format, const struct tm *tm);
 
-#endif /* _TIME_H */
+#endif // _TIME_H

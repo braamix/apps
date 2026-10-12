@@ -1,6 +1,4 @@
-/*
- * strtok_r — strtok with its position in *save rather than in a static (POSIX).
- */
+// strtok_r — strtok with its position in *save rather than in a static (POSIX).
 #include <string.h>
 
 char *strtok_r(char *str, const char *delim, char **save)

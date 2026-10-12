@@ -13,7 +13,7 @@
 #include "parser.h"
 #include "scanner.h"
 
-/* Shared global state (defined in parser.c) */
+// Shared global state (defined in parser.c)
 extern int current_token;
 extern const char *current_lexeme;
 extern int scope_level;
@@ -29,10 +29,10 @@ bool is_type_specifier(int token);
 bool is_type_qualifier(int token);
 bool is_storage_class_specifier(int token);
 
-/* Generic linked-list append (defined in expr.c) */
+// Generic linked-list append (defined in expr.c)
 void append_list(void *head, void *node);
 
-/* Expression parsing (defined in expr.c) */
+// Expression parsing (defined in expr.c)
 Expr *parse_primary_expression(void);
 Expr *parse_constant(void);
 Expr *parse_string(void);
@@ -61,11 +61,11 @@ AssignOp parse_assignment_operator(void);
 Expr *parse_expression(void);
 Expr *parse_constant_expression(void);
 
-/* Declaration helpers (defined in decl.c) */
+// Declaration helpers (defined in decl.c)
 bool is_typedef(const DeclSpec *specifiers);
 void define_typedef(InitDeclarator *decl);
 
-/* Declaration parsing (defined in decl.c) */
+// Declaration parsing (defined in decl.c)
 void reset_anon_tag_counter(void);
 Type *fuse_type_specifiers(const TypeSpec *specs);
 Type *type_apply_pointers(Type *type, const Pointer *pointers);
@@ -106,7 +106,7 @@ Designator *parse_designator_list(void);
 Designator *parse_designator(void);
 Declaration *parse_static_assert_declaration(void);
 
-/* Statement parsing (defined in stmt.c) */
+// Statement parsing (defined in stmt.c)
 Stmt *parse_statement(void);
 Stmt *parse_labeled_statement(void);
 Stmt *parse_compound_statement(void);
@@ -117,9 +117,9 @@ Stmt *parse_iteration_statement(void);
 Stmt *parse_jump_statement(void);
 Stmt *parse_defer_statement(void);
 
-/* Translation unit (defined in parser.c) */
+// Translation unit (defined in parser.c)
 Program *parse_translation_unit(void);
 ExternalDecl *parse_external_declaration(void);
 Declaration *parse_declaration_list(void);
 
-#endif /* PARSER_INTERNAL_H */
+#endif // PARSER_INTERNAL_H

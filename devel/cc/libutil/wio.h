@@ -24,16 +24,16 @@ extern "C" {
 // rest are plain functions over memory.
 //
 struct _wfile {
-    int fd;              /* Underlying file descriptor */
-    size_t *buffer;      /* Buffer for read/write operations */
-    size_t buffer_pos;   /* Current position in buffer */
-    size_t buffer_count; /* Number of words in buffer */
-    size_t buffer_cap;   /* Words the buffer has room for */
-    bool is_eof;         /* End-of-file flag */
-    bool is_error;       /* Error flag */
-    bool partial;        /* The file ended inside a word */
-    bool must_close_fd;  /* after wopen */
-    char mode;           /* 'r' for read, 'w' for write, 'a' for append */
+    int fd;              // Underlying file descriptor
+    size_t *buffer;      // Buffer for read/write operations
+    size_t buffer_pos;   // Current position in buffer
+    size_t buffer_count; // Number of words in buffer
+    size_t buffer_cap;   // Words the buffer has room for
+    bool is_eof;         // End-of-file flag
+    bool is_error;       // Error flag
+    bool partial;        // The file ended inside a word
+    bool must_close_fd;  // after wopen
+    char mode;           // 'r' for read, 'w' for write, 'a' for append
 };
 typedef struct _wfile WFILE;
 

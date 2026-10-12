@@ -1,12 +1,10 @@
-/*
- * <wctype.h> — wide character classification (C11 §7.30).
- *
- * TODO: implement.
- */
+// <wctype.h> — wide character classification (C11 §7.30).
+//
+// TODO: implement.
 #ifndef _WCTYPE_H
 #define _WCTYPE_H
 
-#include <wchar.h> /* wint_t, WEOF */
+#include <wchar.h> // wint_t, WEOF
 
 typedef int wctype_t;
 typedef int wctrans_t;
@@ -32,4 +30,4 @@ int iswctype(wint_t wc, wctype_t desc);
 wctrans_t wctrans(const char *property);
 wint_t towctrans(wint_t wc, wctrans_t desc);
 
-#endif /* _WCTYPE_H */
+#endif // _WCTYPE_H

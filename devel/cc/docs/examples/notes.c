@@ -1,13 +1,11 @@
-/*
- * notes — a notebook kept in a file: the worked example of docs/Braam_Example.md.
- *
- *     notes                list the notes, numbered
- *     notes add WORDS...   add a note
- *     notes del N          delete note N
- *     notes ask            add the lines typed, one note each, until ^D
- *
- * Build it with `vcc -t wasm32-braam notes.c -o notes`.
- */
+// notes — a notebook kept in a file: the worked example of docs/Braam_Example.md.
+//
+//     notes                list the notes, numbered
+//     notes add WORDS...   add a note
+//     notes del N          delete note N
+//     notes ask            add the lines typed, one note each, until ^D
+//
+// Build it with `vcc -t wasm32-braam notes.c -o notes`.
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,7 +15,7 @@
 #define NOTES "notes.txt"
 #define SPARE "notes.new"
 
-/* Every function that waits for the system is a coroutine, up to main. */
+// Every function that waits for the system is a coroutine, up to main.
 static coro(braam_call *) int list(void)
 {
     FILE *f = await fopen(NOTES, "r");
@@ -41,7 +39,7 @@ static coro(braam_call *) int list(void)
     return 0;
 }
 
-/* fprintf fills the stream's buffer, writing it out when full; fclose writes the rest. */
+// fprintf fills the stream's buffer, writing it out when full; fclose writes the rest.
 static coro(braam_call *) int add(int argc, char **argv)
 {
     FILE *f = await fopen(NOTES, "a");
@@ -55,7 +53,7 @@ static coro(braam_call *) int add(int argc, char **argv)
     return await fclose(f) == 0 ? 0 : 1;
 }
 
-/* Copy every note but the k-th to a spare file, then put the spare in its place. */
+// Copy every note but the k-th to a spare file, then put the spare in its place.
 static coro(braam_call *) int del(int k)
 {
     FILE *in = await fopen(NOTES, "r");
@@ -84,7 +82,7 @@ static coro(braam_call *) int del(int k)
     return await rename(SPARE, NOTES) == 0 ? 0 : 1;
 }
 
-/* Standard input is a stream too: reading it writes out the prompt first. */
+// Standard input is a stream too: reading it writes out the prompt first.
 static coro(braam_call *) int ask(void)
 {
     char line[256];

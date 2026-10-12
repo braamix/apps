@@ -1,8 +1,6 @@
-/*
- * ldexp — multiply a double by a power of two (C11 §7.12.6.6): at most three
- * multiplications by powers built from their IEEE-754 bits, for a target with 32-bit
- * long, where a double is two words, the low one first.
- */
+// ldexp — multiply a double by a power of two (C11 §7.12.6.6): at most three
+// multiplications by powers built from their IEEE-754 bits, for a target with 32-bit
+// long, where a double is two words, the low one first.
 #include <math.h>
 
 static double pow2(int n)
@@ -26,7 +24,7 @@ double ldexp(double x, int n)
                 n = 1023;
         }
     } else if (n < -1022) {
-        /* 2^-969 = 2^-1022 * 2^53: stays normal, loses no bits */
+        // 2^-969 = 2^-1022 * 2^53: stays normal, loses no bits
         x *= pow2(-969);
         n += 969;
         if (n < -1022) {

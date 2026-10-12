@@ -120,4 +120,4 @@ int va_class_of(const Type *t);
 }
 #endif
 
-#endif /* SEMANTIC_H */
+#endif // SEMANTIC_H

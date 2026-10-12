@@ -1,6 +1,4 @@
-/*
- * vsprintf — sprintf with its arguments in a va_list (C11 §7.21.6.13).
- */
+// vsprintf — sprintf with its arguments in a va_list (C11 §7.21.6.13).
 #include <limits.h>
 #include <stdio.h>
 

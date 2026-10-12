@@ -4,7 +4,7 @@
 #include "internal.h"
 #include "xalloc.h"
 
-/* Helper functions for AST construction */
+// Helper functions for AST construction
 Type *new_type(TypeKind kind, const char *funcname, const char *filename, unsigned lineno)
 {
     Type *t = xalloc(sizeof(Type), funcname, filename, lineno);

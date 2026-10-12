@@ -55,4 +55,4 @@ void typetab_print(void);
 }
 #endif
 
-#endif /* TYPETAB_H */
+#endif // TYPETAB_H

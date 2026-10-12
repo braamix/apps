@@ -5,7 +5,7 @@
 #include "internal.h"
 #include "xalloc.h"
 
-/* Forward declarations for recursive clone functions */
+// Forward declarations for recursive clone functions
 Type *clone_type(const Type *type, const char *funcname, const char *filename, unsigned lineno);
 TypeQualifier *clone_type_qualifier(const TypeQualifier *qual);
 Field *clone_field(const Field *field);
@@ -98,7 +98,7 @@ Type *clone_type(const Type *type, const char *funcname, const char *filename, u
         result->u.atomic.base = clone_type(type->u.atomic.base, __func__, __FILE__, __LINE__);
         break;
     default:
-        break; /* No nested fields for basic types */
+        break; // No nested fields for basic types
     }
     result->qualifiers = clone_type_qualifier(type->qualifiers);
     return result;
@@ -500,7 +500,7 @@ Stmt *clone_stmt(const Stmt *stmt)
         break;
     case STMT_CONTINUE:
     case STMT_BREAK:
-        break; /* No fields to clone */
+        break; // No fields to clone
     case STMT_RETURN:
         result->u.expr = clone_expression(stmt->u.expr);
         break;

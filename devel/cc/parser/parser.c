@@ -10,7 +10,7 @@
 #include "scanner.h"
 #include "xalloc.h"
 
-/* Global lexer state; diag_loc holds where the current token starts */
+// Global lexer state; diag_loc holds where the current token starts
 int current_token;
 static int peek_token;
 static SrcLoc peek_loc;
@@ -64,7 +64,7 @@ static int token_translation(int token)
     return token;
 }
 
-/* Token handling */
+// Token handling
 void advance_token()
 {
     if (current_token == TOKEN_LBRACE) {
@@ -327,7 +327,7 @@ Declaration *parse_declaration_list()
     return decl;
 }
 
-/* Main parsing function */
+// Main parsing function
 Program *parse(const char *text, size_t len)
 {
     if (parser_debug) {

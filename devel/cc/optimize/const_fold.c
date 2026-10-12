@@ -892,7 +892,7 @@ static Tac_Val *fold_conversion(Tac_InstructionKind kind, const Tac_Const *src, 
     if (dst_kind == TAC_DST_KIND_NO_FOLD)
         return NULL;
     switch (kind) {
-        /* ---- integer width conversions ---- */
+        // ---- integer width conversions ----
 
     case TAC_INSTRUCTION_SIGN_EXTEND:
         if (dst_kind >= 0 && const_is_integer_kind(src->kind))
@@ -987,7 +987,7 @@ static Tac_Val *fold_conversion(Tac_InstructionKind kind, const Tac_Const *src, 
         }
         break;
 
-        /* ---- integer → floating-point ---- */
+        // ---- integer → floating-point ----
 
     case TAC_INSTRUCTION_INT_TO_DOUBLE:
         if (!const_is_integer_kind(src->kind))
@@ -1031,7 +1031,7 @@ static Tac_Val *fold_conversion(Tac_InstructionKind kind, const Tac_Const *src, 
         rc->u.long_double_val = ld_from_int((int64_t)const_to_uint64(src), true);
         break;
 
-        /* ---- floating-point → integer (truncate toward zero) ---- */
+        // ---- floating-point → integer (truncate toward zero) ----
 
     case TAC_INSTRUCTION_DOUBLE_TO_INT:
     case TAC_INSTRUCTION_FLOAT_TO_INT: {
@@ -1090,7 +1090,7 @@ static Tac_Val *fold_conversion(Tac_InstructionKind kind, const Tac_Const *src, 
         break;
     }
 
-        /* ---- floating-point ↔ floating-point ---- */
+        // ---- floating-point ↔ floating-point ----
 
     case TAC_INSTRUCTION_FLOAT_TO_DOUBLE:
         if (src->kind != TAC_CONST_FLOAT)

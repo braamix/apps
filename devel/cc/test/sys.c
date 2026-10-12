@@ -112,6 +112,6 @@ coro(braam_call *) int main(int argc, char **argv)
     atexit(bye);
     atexit(bye2);
     assert(argc == 1);
-    await fflush(stdout); /* bye's _Exit writes nothing */
+    await fflush(stdout); // bye's _Exit writes nothing
     return 0;
 }

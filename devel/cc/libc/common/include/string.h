@@ -1,8 +1,6 @@
-/*
- * <string.h> — string handling (C11 §7.24).
- *
- * All functions below are implemented in the runtime (libc/common).
- */
+// <string.h> — string handling (C11 §7.24).
+//
+// All functions below are implemented in the runtime (libc/common).
 #ifndef _STRING_H
 #define _STRING_H
 
@@ -31,7 +29,7 @@ void *memchr(const void *s, int c, size_t n);
 
 char *strerror(int errnum);
 
-/* POSIX */
+// POSIX
 char *strdup(const char *s);
 char *strndup(const char *s, size_t n);
 size_t strnlen(const char *s, size_t n);
@@ -41,4 +39,4 @@ char *strpbrk(const char *s, const char *accept);
 char *strtok_r(char *str, const char *delim, char **save);
 void *memccpy(void *dest, const void *src, int c, size_t n);
 
-#endif /* _STRING_H */
+#endif // _STRING_H

@@ -1,7 +1,5 @@
-/*
- * qsort — heapsort (C11 §7.22.5.2): no recursion and no extra memory, and, as
- * C allows, not stable.
- */
+// qsort — heapsort (C11 §7.22.5.2): no recursion and no extra memory, and, as
+// C allows, not stable.
 #include <stdlib.h>
 
 static void swap(char *a, char *b, size_t size)
@@ -13,7 +11,7 @@ static void swap(char *a, char *b, size_t size)
     }
 }
 
-/* Moves base[root] down the heap of n elements until both children are smaller. */
+// Moves base[root] down the heap of n elements until both children are smaller.
 static void sift(char *base, size_t root, size_t n, size_t size,
                  int (*compar)(const void *, const void *))
 {

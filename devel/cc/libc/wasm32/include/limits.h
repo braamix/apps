@@ -1,8 +1,6 @@
-/*
- * <limits.h> — sizes of integer types (C11 §7.10), wasm32 target.
- *
- * char is 8 bits and signed, short 16, int and long 32, long long 64 bits.
- */
+// <limits.h> — sizes of integer types (C11 §7.10), wasm32 target.
+//
+// char is 8 bits and signed, short 16, int and long 32, long long 64 bits.
 #ifndef _LIMITS_H
 #define _LIMITS_H
 
@@ -32,8 +30,8 @@
 #define ULLONG_MAX 18446744073709551615ULL
 
 #ifdef __braam__
-/* The longest path Braam's compat layer takes, NUL included. */
+// The longest path Braam's compat layer takes, NUL included.
 #define PATH_MAX 512
 #endif
 
-#endif /* _LIMITS_H */
+#endif // _LIMITS_H

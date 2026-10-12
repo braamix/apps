@@ -1,6 +1,4 @@
-/*
- * strdup — a copy of s in memory from malloc (POSIX), or NULL.
- */
+// strdup — a copy of s in memory from malloc (POSIX), or NULL.
 #include <stdlib.h>
 #include <string.h>
 

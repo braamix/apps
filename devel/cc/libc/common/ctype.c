@@ -1,7 +1,5 @@
-/*
- * The character classes of the "C" locale (C11 §7.4), ASCII only: a byte
- * above 0x7f is in no class.
- */
+// The character classes of the "C" locale (C11 §7.4), ASCII only: a byte
+// above 0x7f is in no class.
 #include <ctype.h>
 
 int isalnum(int c)

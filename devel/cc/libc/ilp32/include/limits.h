@@ -1,9 +1,7 @@
-/*
- * <limits.h> — sizes of integer types (C11 §7.10), ILP32 targets
- * (RISC-V, ARM32).
- *
- * char is 8 bits and unsigned, short 16, int and long 32, long long 64 bits.
- */
+// <limits.h> — sizes of integer types (C11 §7.10), ILP32 targets
+// (RISC-V, ARM32).
+//
+// char is 8 bits and unsigned, short 16, int and long 32, long long 64 bits.
 #ifndef _LIMITS_H
 #define _LIMITS_H
 
@@ -32,4 +30,4 @@
 #define LLONG_MAX  9223372036854775807LL
 #define ULLONG_MAX 18446744073709551615ULL
 
-#endif /* _LIMITS_H */
+#endif // _LIMITS_H

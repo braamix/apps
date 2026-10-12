@@ -80,4 +80,4 @@ FieldDef *new_member(const char *name, Type *type, int offset);
 }
 #endif
 
-#endif /* STRUCTTAB_H */
+#endif // STRUCTTAB_H

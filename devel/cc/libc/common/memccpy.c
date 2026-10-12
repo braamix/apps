@@ -1,7 +1,5 @@
-/*
- * memccpy — copy up to n bytes, stopping after the first c; a pointer past that
- * c in dest, or NULL when it was not met (POSIX).
- */
+// memccpy — copy up to n bytes, stopping after the first c; a pointer past that
+// c in dest, or NULL when it was not met (POSIX).
 #include <string.h>
 
 void *memccpy(void *dest, const void *src, int c, size_t n)

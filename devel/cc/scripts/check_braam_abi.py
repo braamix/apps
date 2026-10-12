@@ -69,7 +69,7 @@ def main(braam_h, sysabi_h, result_h, errno_h):
 
     errors = enum(open(result_h).read(), "Error")
     errno = open(errno_h).read()
-    for m in re.finditer(r"#define\s+(E\w+)\s+(\d+)\s*/\*\s*(\w+)\s*\*/", errno):
+    for m in re.finditer(r"^#define\s+(E\w+)\s+(\d+)\s*//\s*(\w+)\s*$", errno, re.M):
         if int(m.group(2)) >= 32:
             check(m.group(1), int(m.group(2)) - 32, errors.get(m.group(3)))
 

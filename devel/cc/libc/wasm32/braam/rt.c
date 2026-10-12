@@ -1,12 +1,10 @@
-/*
- * The Braam process runtime (docs/Braam.md §7.2), as braam-core's src/proc/rt.cpp
- * is in C++: a handful of tasks, each a coroutine yielding braam_call *, and one
- * outstanding call each.  Task 0 is the root, which awaits main and then flushes what
- * main left buffered; braam_spawn adds the others.  When a task suspends, the
- * braam_call it yielded goes to the kernel with a token of its own, and _resume brings
- * the reply back to that task.  The process ends when the root returns.  The exports
- * themselves are in exports.s.
- */
+// The Braam process runtime (docs/Braam.md §7.2), as braam-core's src/proc/rt.cpp
+// is in C++: a handful of tasks, each a coroutine yielding braam_call *, and one
+// outstanding call each.  Task 0 is the root, which awaits main and then flushes what
+// main left buffered; braam_spawn adds the others.  When a task suspends, the
+// braam_call it yielded goes to the kernel with a token of its own, and _resume brings
+// the reply back to that task.  The process ends when the root returns.  The exports
+// themselves are in exports.s.
 #include <braam.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,11 +13,11 @@
 coro(braam_call *) int main(int argc, char **argv);
 void __braam_sys_async(unsigned op, unsigned token, const void *ptr, unsigned len);
 
-/* The size of the block for the root's frame and the arena of everything main awaits:
-   64 KiB (taskbytes.c), or the program's own definition. */
+// The size of the block for the root's frame and the arena of everything main awaits:
+// 64 KiB (taskbytes.c), or the program's own definition.
 extern const unsigned __braam_task_bytes;
 
-/* What atexit registered, run in reverse when main returns or exit() is called. */
+// What atexit registered, run in reverse when main returns or exit() is called.
 static void (*at_exit[32])(void);
 static int n_at_exit;
 
@@ -32,17 +30,17 @@ static coro(braam_call *) int braam_root(int argc, char **argv)
     return status;
 }
 
-/* The tasks: a frame, and the call it waits on (NULL while it runs). */
+// The tasks: a frame, and the call it waits on (NULL while it runs).
 static struct {
     braam_task *frame;
     braam_call *call;
 } tasks[BRAAM_TASKS];
 static unsigned token;
 static int exited;
-static unsigned signals; /* what _sig recorded and sig_take has not collected */
+static unsigned signals; // what _sig recorded and sig_take has not collected
 
-/* Runs task k to its next suspension, and hands the kernel what it yielded; a task
-   that returns leaves the table, and the root's return is the exit. */
+// Runs task k to its next suspension, and hands the kernel what it yielded; a task
+// that returns leaves the table, and the root's return is the exit.
 static void run(int k)
 {
     if (co_resume(tasks[k].frame) == CO_DONE) {
@@ -60,7 +58,7 @@ static void run(int k)
     __braam_sys_async(c->op, c->token, c->ptr, c->len);
 }
 
-/* What _start and _resume return: 0 = exited, 1 = suspended. */
+// What _start and _resume return: 0 = exited, 1 = suspended.
 static int state(void)
 {
     return exited ? 0 : 1;
@@ -83,9 +81,9 @@ static unsigned get_u32(const unsigned char *p)
     return p[0] | p[1] << 8 | p[2] << 16 | (unsigned)p[3] << 24;
 }
 
-/* A word list from the blob the host placed, at *at: u32 count, then u32 length and the
-   bytes of each word.  The words are copied, each with its NUL, into one block from
-   malloc, the vector first; *at moves past the list. */
+// A word list from the blob the host placed, at *at: u32 count, then u32 length and the
+// bytes of each word.  The words are copied, each with its NUL, into one block from
+// malloc, the vector first; *at moves past the list.
 static char **parse_words(const unsigned char *blob, unsigned len, unsigned *at, int *count)
 {
     unsigned n = *at + 4 <= len ? get_u32(blob + *at) : 0, p = *at + 4, bytes = 0;
@@ -119,7 +117,7 @@ static char **parse_words(const unsigned char *blob, unsigned len, unsigned *at,
     return list;
 }
 
-/* The environment, NAME=value words, after argv in the blob. */
+// The environment, NAME=value words, after argv in the blob.
 char **environ;
 
 char *getenv(const char *name)
@@ -147,7 +145,7 @@ int __braam_start(unsigned blob, unsigned len)
     unsigned at   = 0;
     char **argv   = parse_words((const unsigned char *)blob, len, &at, &argc);
     environ       = parse_words((const unsigned char *)blob, len, &at, &envc);
-    void *storage = malloc(__braam_task_bytes); /* 16-aligned */
+    void *storage = malloc(__braam_task_bytes); // 16-aligned
     if (!storage) {
         exited = 1;
         braam_sys_sync(BRAAM_SYS_EXIT, 1, 0, 0);
@@ -170,7 +168,7 @@ int __braam_resume(unsigned tok, unsigned reply, unsigned len)
             return state();
         }
     }
-    /* An answer nobody waits for: its call went with a destroyed frame. */
+    // An answer nobody waits for: its call went with a destroyed frame.
     free((void *)reply);
     return state();
 }
@@ -194,8 +192,8 @@ int sig_take(int sig)
     return 1;
 }
 
-/* A call whose coroutine is gone before its answer came: the task it belonged to was
-   destroyed, so its slot is free again.  A call answered has already left the table. */
+// A call whose coroutine is gone before its answer came: the task it belonged to was
+// destroyed, so its slot is free again.  A call answered has already left the table.
 void __braam_forget(braam_call *c)
 {
     for (int k = 0; k < BRAAM_TASKS; k++)
@@ -205,28 +203,28 @@ void __braam_forget(braam_call *c)
         }
 }
 
-/* Posts a call nobody waits for: its payload is copied at once, and the kernel
-   performs a Write posted in a process's last step before it goes. */
+// Posts a call nobody waits for: its payload is copied at once, and the kernel
+// performs a Write posted in a process's last step before it goes.
 void __braam_post(unsigned op, const void *ptr, unsigned len)
 {
     __braam_sys_async(op, ++token, ptr, len);
 }
 
-void __braam_exit(int status); /* exports.s */
-void __stdio_post(void);       /* stdio.c */
+void __braam_exit(int status); // exports.s
+void __stdio_post(void);       // stdio.c
 
-/* A write from plain code, which cannot await one: an assertion, a coroutine trap,
-   getopt's complaint, a diagnostic held to the end.  Posted to `fd` after what the
-   streams hold. */
+// A write from plain code, which cannot await one: an assertion, a coroutine trap,
+// getopt's complaint, a diagnostic held to the end.  Posted to `fd` after what the
+// streams hold.
 void __plain_write(int fd, const char *s)
 {
     __stdio_post();
     __braam_post(BRAAM_SYS_OP(BRAAM_SYS_WRITE, fd), s, (unsigned)strlen(s));
 }
 
-/* An exit from anywhere, plain code included: nothing unwinds, so the atexit
-   functions run and the stdio buffers are posted, and the process ends in this
-   step. */
+// An exit from anywhere, plain code included: nothing unwinds, so the atexit
+// functions run and the stdio buffers are posted, and the process ends in this
+// step.
 _Noreturn void exit(int status)
 {
     while (n_at_exit > 0)
@@ -240,7 +238,7 @@ _Noreturn void _Exit(int status)
     __braam_exit(status);
 }
 
-/* Status 134 (128 + SIGABRT), as a shell reports it; what was written still goes. */
+// Status 134 (128 + SIGABRT), as a shell reports it; what was written still goes.
 _Noreturn void abort(void)
 {
     __stdio_post();

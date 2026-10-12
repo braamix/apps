@@ -1,13 +1,11 @@
-/*
- * The allocator of a Braam process (docs/Braam.md §7.2): first fit over a free
- * list kept in address order, neighbours merged when a block is freed, the linear memory
- * grown when nothing fits.  Braam frees every reply block, so the bump allocator of
- * plain wasm32 would grow without end.
- *
- * A block is a 16-byte header, its size (the header included, a multiple of 16) and
- * whether it is in use, then the bytes, 16-aligned.  A free block holds the next free
- * one in its first word.
- */
+// The allocator of a Braam process (docs/Braam.md §7.2): first fit over a free
+// list kept in address order, neighbours merged when a block is freed, the linear memory
+// grown when nothing fits.  Braam frees every reply block, so the bump allocator of
+// plain wasm32 would grow without end.
+//
+// A block is a 16-byte header, its size (the header included, a multiple of 16) and
+// whether it is in use, then the bytes, 16-aligned.  A free block holds the next free
+// one in its first word.
 #include <stddef.h>
 #include <string.h>
 
@@ -24,15 +22,15 @@ typedef struct block {
     size_t pad[2];
 } Block;
 
-static char *brk;        /* the end of the heap so far */
-static Block *free_list; /* in address order */
+static char *brk;        // the end of the heap so far
+static Block *free_list; // in address order
 
 static Block **next_of(Block *b)
 {
     return (Block **)(b + 1);
 }
 
-/* A new block of `size` bytes at the end of the heap, or NULL. */
+// A new block of `size` bytes at the end of the heap, or NULL.
 static Block *extend(size_t size)
 {
     if (!brk)
@@ -62,7 +60,7 @@ void *malloc(size_t n)
     if (b) {
         *link = *next_of(b);
         if (b->size >= size + 2 * sizeof(Block)) {
-            /* Split: the rest stays free, where b was in the list. */
+            // Split: the rest stays free, where b was in the list.
             Block *rest    = (Block *)((char *)b + size);
             rest->size     = b->size - size;
             rest->used     = 0;
@@ -88,7 +86,7 @@ void free(void *p)
         prev = next;
         next = *next_of(next);
     }
-    /* Merge with the next free block, then the previous one. */
+    // Merge with the next free block, then the previous one.
     if (next && (char *)b + b->size == (char *)next) {
         b->size += next->size;
         next = *next_of(next);

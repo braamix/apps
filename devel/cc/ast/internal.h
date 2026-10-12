@@ -13,7 +13,7 @@ extern "C" {
 #include "ast.h"
 #include "host.h"
 
-/* Forward declarations for recursive types */
+// Forward declarations for recursive types
 typedef struct Declarator Declarator;
 typedef struct DeclaratorSuffix DeclaratorSuffix;
 typedef struct Pointer Pointer;
@@ -30,14 +30,14 @@ typedef enum {
 } TypeSpecKind;          // Internal for parser only
 
 struct TypeSpec {   // Internal for parser only
-    TypeSpec *next; /* linked list */
+    TypeSpec *next; // linked list
     TypeSpecKind kind;
     union {
         Type *basic;
         struct {
             Ident name;
             Field *fields;
-        } struct_spec; /* optional name */
+        } struct_spec; // optional name
         struct {
             Ident name;
             Enumerator *enumerators;
@@ -49,26 +49,26 @@ struct TypeSpec {   // Internal for parser only
             Type *type;
         } atomic;
     } u;
-    TypeQualifier *qualifiers; /* attributes */
+    TypeQualifier *qualifiers; // attributes
 };
 
 struct Declarator {
-    Declarator *next; /* linked list */
-    Ident name;       /* NULL for abstract declarator */
-    SrcLoc loc;       /* of the name */
+    Declarator *next; // linked list
+    Ident name;       // NULL for abstract declarator
+    SrcLoc loc;       // of the name
     Pointer *pointers;
     DeclaratorSuffix *suffixes;
 };
 
 struct Pointer {
-    Pointer *next; /* linked list */
+    Pointer *next; // linked list
     TypeQualifier *qualifiers;
 };
 
 typedef enum { SUFFIX_ARRAY, SUFFIX_FUNCTION, SUFFIX_POINTER } DeclaratorSuffixKind;
 
 struct DeclaratorSuffix {
-    DeclaratorSuffix *next; /* linked list */
+    DeclaratorSuffix *next; // linked list
     DeclaratorSuffixKind kind;
     union {
         struct {
@@ -118,4 +118,4 @@ TypeSpec *clone_type_spec(const TypeSpec *ts);
 }
 #endif
 
-#endif /* AST_INTERNAL_H */
+#endif // AST_INTERNAL_H

@@ -79,11 +79,11 @@ Type *fuse_type_specifiers(const TypeSpec *specs)
 
     enum { SIGNED_SIGNED, SIGNED_UNSIGNED };
 
-    /* State for tracking type specifiers */
-    int base_kind                = -1; /* Unset; holds TypeKind values */
-    int signedness               = -1; /* Unset */
-    int int_count                = 0;  /* For int */
-    int long_count               = 0;  /* For long, long long */
+    // State for tracking type specifiers
+    int base_kind                = -1; // Unset; holds TypeKind values
+    int signedness               = -1; // Unset
+    int int_count                = 0;  // For int
+    int long_count               = 0;  // For long, long long
     bool is_complex              = false;
     bool is_imaginary            = false;
     const TypeSpec *struct_spec  = NULL;
@@ -92,7 +92,7 @@ Type *fuse_type_specifiers(const TypeSpec *specs)
     const TypeSpec *typedef_spec = NULL;
     const TypeSpec *atomic_spec  = NULL; // _Atomic(type) or _Coro_frame(Y, T)
 
-    /* Collect specifiers */
+    // Collect specifiers
     for (const TypeSpec *s = specs; s; s = s->next) {
         if (s->kind == TYPE_SPEC_BASIC) {
             if (struct_spec || union_spec || enum_spec || typedef_spec || atomic_spec) {
@@ -194,7 +194,7 @@ Type *fuse_type_specifiers(const TypeSpec *specs)
                 }
                 is_complex = true;
                 if (base_kind == -1)
-                    base_kind = TYPE_DOUBLE; /* Default for _Complex */
+                    base_kind = TYPE_DOUBLE; // Default for _Complex
                 break;
             case TYPE_IMAGINARY:
                 if (base_kind != -1 && base_kind != TYPE_FLOAT && base_kind != TYPE_DOUBLE) {
@@ -202,7 +202,7 @@ Type *fuse_type_specifiers(const TypeSpec *specs)
                 }
                 is_imaginary = true;
                 if (base_kind == -1)
-                    base_kind = TYPE_DOUBLE; /* Default for _Imaginary */
+                    base_kind = TYPE_DOUBLE; // Default for _Imaginary
                 break;
             default:
                 internal_error("unknown basic type specifier");
@@ -241,7 +241,7 @@ Type *fuse_type_specifiers(const TypeSpec *specs)
         }
     }
 
-    /* Validate and construct Type */
+    // Validate and construct Type
     Type *result = NULL;
 
     if (struct_spec) {
@@ -266,7 +266,7 @@ Type *fuse_type_specifiers(const TypeSpec *specs)
         result->u.atomic.base =
             clone_type(atomic_spec->u.atomic.type, __func__, __FILE__, __LINE__);
     } else {
-        /* Handle basic types */
+        // Handle basic types
         if (base_kind == -1) {
             if (signedness == -1) {
                 internal_error("no valid type specifier provided");
@@ -320,7 +320,7 @@ Type *fuse_type_specifiers(const TypeSpec *specs)
             break;
         }
 
-        /* Create Type based on base_kind */
+        // Create Type based on base_kind
         if (is_complex) {
             result                 = new_type(TYPE_COMPLEX, __func__, __FILE__, __LINE__);
             result->u.complex.base = new_type((TypeKind)base_kind, __func__, __FILE__, __LINE__);
@@ -804,21 +804,21 @@ Field *parse_struct_declaration()
         Field *field                    = new_field(FIELD_STATIC_ASSERT);
         field->u.static_assrt.condition = sa->u.static_assrt.condition;
         field->u.static_assrt.message   = sa->u.static_assrt.message;
-        xfree(sa); /* free shell only; condition+message now owned by field */
+        xfree(sa); // free shell only; condition+message now owned by field
         return field;
     }
 
-    /* Parse specifier_qualifier_list */
+    // Parse specifier_qualifier_list
     TypeQualifier *qualifiers = NULL;
     AlignmentSpec *align      = NULL;
     TypeSpec *type_specs      = parse_specifier_qualifier_list(&qualifiers, &align);
 
-    /* Construct base Type from type_specs (simplified to first basic type) */
+    // Construct base Type from type_specs (simplified to first basic type)
     Type *base_type = fuse_type_specifiers(type_specs);
     free_type_spec(type_specs);
     base_type->qualifiers = qualifiers;
 
-    /* Parse struct_declarator_list */
+    // Parse struct_declarator_list
     Field *fields = NULL, **fields_tail = &fields;
     for (;;) {
         Field *field               = new_field(FIELD_MEMBER);
@@ -844,9 +844,9 @@ Field *parse_struct_declaration()
             field->u.member.bitfield = parse_constant_expression();
         }
 
-        /* A member with a scalar/basic type needs a declarator; only an
-         * anonymous bitfield (`int : 4;`) or an anonymous struct/union member
-         * (`struct { ... };`) may omit it.  Reject e.g. `int;`. */
+        // A member with a scalar/basic type needs a declarator; only an
+        // anonymous bitfield (`int : 4;`) or an anonymous struct/union member
+        // (`struct { ... };`) may omit it.  Reject e.g. `int;`.
         if (!field->u.member.name && !field->u.member.bitfield &&
             field->u.member.type->kind != TYPE_STRUCT && field->u.member.type->kind != TYPE_UNION) {
             fatal_error("member declaration does not declare anything");
@@ -897,7 +897,7 @@ TypeSpec *parse_specifier_qualifier_list(TypeQualifier **qualifiers, AlignmentSp
             TypeSpec *ts = parse_type_specifier();
             append_list(&type_specs, ts);
         } else {
-            break; /* End of specifier_qualifier_list */
+            break; // End of specifier_qualifier_list
         }
     }
     if (!type_specs) {
@@ -1288,7 +1288,7 @@ TypeQualifier *parse_type_qualifier_list()
     while (current_token == TOKEN_CONST || current_token == TOKEN_RESTRICT ||
            current_token == TOKEN_VOLATILE ||
            (current_token == TOKEN_ATOMIC && next_token() != TOKEN_LPAREN)) {
-        TypeQualifier *q = new_type_qualifier(TYPE_QUALIFIER_CONST); /* Default */
+        TypeQualifier *q = new_type_qualifier(TYPE_QUALIFIER_CONST); // Default
         switch (current_token) {
         case TOKEN_CONST:
             q->kind = TYPE_QUALIFIER_CONST;
@@ -1303,7 +1303,7 @@ TypeQualifier *parse_type_qualifier_list()
             q->kind = TYPE_QUALIFIER_ATOMIC;
             break;
         default:
-            return NULL; /* Unreachable */
+            return NULL; // Unreachable
         }
         advance_token();
         *qualifiers_tail = q;
@@ -1532,18 +1532,18 @@ Param *parse_parameter_declaration()
     }
     Param *param = new_param();
 
-    /* Parse declaration_specifiers */
+    // Parse declaration_specifiers
     param->specifiers = parse_declaration_specifiers(&param->type);
 
-    /* The only storage-class specifier permitted on a function parameter is
-     * register (C11 §6.7.6.3p2) — reject "f(extern int i)", "f(static int i)",
-     * etc., but allow "f(register int i)". */
+    // The only storage-class specifier permitted on a function parameter is
+    // register (C11 §6.7.6.3p2) — reject "f(extern int i)", "f(static int i)",
+    // etc., but allow "f(register int i)".
     if (param->specifiers && param->specifiers->storage != STORAGE_CLASS_NONE &&
         param->specifiers->storage != STORAGE_CLASS_REGISTER) {
         fatal_error("a parameter cannot have a storage class");
     }
 
-    /* Check for declarator or abstract_declarator */
+    // Check for declarator or abstract_declarator
     if (current_token == TOKEN_IDENTIFIER) {
         param->name = xstrdup(current_lexeme);
         param->loc  = diag_loc;
@@ -1555,7 +1555,7 @@ Param *parse_parameter_declaration()
         DeclaratorSuffix *suffixes =
             parse_direct_abstract_declarator(param->name ? NULL : &param->name);
 
-        /* Apply pointers and suffixes */
+        // Apply pointers and suffixes
         param->type = type_apply_suffixes(type_apply_pointers(param->type, pointers), suffixes);
         free_pointer(pointers);
         free_declarator_suffix(suffixes);
@@ -1577,12 +1577,12 @@ Type *parse_type_name()
     TypeQualifier *qualifiers = NULL;
     TypeSpec *type_specs      = parse_specifier_qualifier_list(&qualifiers, NULL);
 
-    /* Construct base Type from type_specs (simplified to first basic type) */
+    // Construct base Type from type_specs (simplified to first basic type)
     Type *base_type = fuse_type_specifiers(type_specs);
     free_type_spec(type_specs);
     base_type->qualifiers = qualifiers;
 
-    /* Parse optional abstract_declarator */
+    // Parse optional abstract_declarator
     Pointer *pointers          = NULL;
     DeclaratorSuffix *suffixes = NULL;
     if (current_token == TOKEN_STAR || current_token == TOKEN_LPAREN ||
@@ -1592,7 +1592,7 @@ Type *parse_type_name()
         suffixes = parse_direct_abstract_declarator(NULL);
     }
 
-    /* Apply pointers and suffixes to construct the final type */
+    // Apply pointers and suffixes to construct the final type
     Type *type = type_apply_suffixes(type_apply_pointers(base_type, pointers), suffixes);
     free_pointer(pointers);
     free_declarator_suffix(suffixes);

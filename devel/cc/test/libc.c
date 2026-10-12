@@ -34,8 +34,8 @@ static coro(braam_call *) void ctypes(void)
     await printf("\n");
 }
 
-/* strtol's and strtoul's answers for s, from strtoull's: long is 64 bits on the host
-   and 32 on Braam, so these are checked against a clamp rather than printed. */
+// strtol's and strtoul's answers for s, from strtoull's: long is 64 bits on the host
+// and 32 on Braam, so these are checked against a clamp rather than printed.
 static void expect_long(const char *s, int base, long *l, int *el, unsigned long *u, int *eu)
 {
     const char *p = s;
@@ -302,7 +302,7 @@ static coro(braam_call *) void options(void)
             argc++;
         }
         argv[argc] = NULL;
-        optind     = 0; /* a reset, to BSD's getopt and GNU's */
+        optind     = 0; // a reset, to BSD's getopt and GNU's
         int c, idx = -1;
         await printf("case %zu:", k);
         while ((c = getopt_long(argc, argv, "vt:", longs, &idx)) != -1)

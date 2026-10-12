@@ -8,8 +8,8 @@
 #include "typecheck.h"
 
 typedef struct SwitchCtx {
-    StringMap seen_cases; /* key = "%ld" formatted case value */
-    const Type *type;     /* the promoted controlling type: case values convert to it */
+    StringMap seen_cases; // key = "%ld" formatted case value
+    const Type *type;     // the promoted controlling type: case values convert to it
     bool seen_default;
     struct SwitchCtx *outer;
 } SwitchCtx;
@@ -132,17 +132,17 @@ static Stmt *typecheck_statement_at(const Type *ret_type, Stmt *s)
     case STMT_GOTO:
         return s;
     case STMT_SWITCH: {
-        /* C11 §6.8.4.2 p1: controlling expression must be integer type. */
+        // C11 §6.8.4.2 p1: controlling expression must be integer type.
         Expr *ctrl = typecheck_and_decay(s->u.switch_stmt.expr);
         if (!is_integer(ctrl->type)) {
             fatal_error("'switch' requires an integer value, not '%s'", type_to_c(ctrl->type));
         }
-        /* Integer promotion: types narrower than int → int (or unsigned int). */
+        // Integer promotion: types narrower than int → int (or unsigned int).
         if (is_promotable_narrow(ctrl->type)) {
             ctrl = convert_to_kind(ctrl, promoted_kind(ctrl->type));
         }
         s->u.switch_stmt.expr = ctrl;
-        /* Push a fresh context for case/default validation. */
+        // Push a fresh context for case/default validation.
         SwitchCtx ctx = { .type = ctrl->type, .seen_default = false, .outer = current_switch };
         map_init(&ctx.seen_cases);
         current_switch        = &ctx;
@@ -155,7 +155,7 @@ static Stmt *typecheck_statement_at(const Type *ret_type, Stmt *s)
         if (!current_switch) {
             fatal_error("'case' label not in a switch statement");
         }
-        /* C11 §6.8.4.2 p3: case expression must be integer constant. */
+        // C11 §6.8.4.2 p3: case expression must be integer constant.
         Expr *ce = typecheck_and_decay(s->u.case_stmt.expr);
         if (!is_integer(ce->type)) {
             fatal_error("'case' value must be an integer, not '%s'", type_to_c(ce->type));
@@ -164,8 +164,8 @@ static Stmt *typecheck_statement_at(const Type *ret_type, Stmt *s)
         if (!try_eval_const_int(ce, &val)) {
             fatal_error("'case' value is not a constant expression");
         }
-        /* C11 §6.8.4.2p5: compared after conversion to the promoted controlling type,
-           so 0 and 65536 are duplicates where int has 16 bits. */
+        // C11 §6.8.4.2p5: compared after conversion to the promoted controlling type,
+        // so 0 and 65536 are duplicates where int has 16 bits.
         val = narrow_const_int(val, current_switch->type);
         char key[32];
         snprintf(key, sizeof(key), "%lld", val);

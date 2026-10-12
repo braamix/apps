@@ -1,9 +1,7 @@
-/*
- * strstr — locate the substring needle within haystack (C11 §7.24.5.7).
- *
- * Returns a pointer to the first occurrence of needle in haystack, or NULL if
- * not found.  An empty needle matches at the start of haystack.  Naive search.
- */
+// strstr — locate the substring needle within haystack (C11 §7.24.5.7).
+//
+// Returns a pointer to the first occurrence of needle in haystack, or NULL if
+// not found.  An empty needle matches at the start of haystack.  Naive search.
 #include <string.h>
 
 char *strstr(const char *haystack, const char *needle)

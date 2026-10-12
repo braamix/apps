@@ -1,14 +1,12 @@
-/*
- * strtol, strtoul, strtoll, strtoull (C11 §7.22.1.4): one scan of the digits
- * into an unsigned long long, which notes overflow; each function then clamps
- * to its own range and sets ERANGE.
- */
+// strtol, strtoul, strtoll, strtoull (C11 §7.22.1.4): one scan of the digits
+// into an unsigned long long, which notes overflow; each function then clamps
+// to its own range and sets ERANGE.
 #include <errno.h>
 #include <limits.h>
 #include <stdlib.h>
 
-/* The magnitude of the number at s, with its sign in *neg; *end past the last
-   digit taken, or s when there is none.  *over when it did not fit. */
+// The magnitude of the number at s, with its sign in *neg; *end past the last
+// digit taken, or s when there is none.  *over when it did not fit.
 static unsigned long long scan(const char *s, char **end, int base, int *neg, int *over)
 {
     const char *p = s;

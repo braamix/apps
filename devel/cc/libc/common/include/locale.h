@@ -1,9 +1,7 @@
-/*
- * <locale.h> — localization (C11 §7.11).
- *
- * TODO: implement setlocale/localeconv.  Only the "C" locale is meaningful here;
- * the surface is provided for source portability.
- */
+// <locale.h> — localization (C11 §7.11).
+//
+// TODO: implement setlocale/localeconv.  Only the "C" locale is meaningful here;
+// the surface is provided for source portability.
 #ifndef _LOCALE_H
 #define _LOCALE_H
 
@@ -34,4 +32,4 @@ struct lconv {
 char *setlocale(int category, const char *locale);
 struct lconv *localeconv(void);
 
-#endif /* _LOCALE_H */
+#endif // _LOCALE_H

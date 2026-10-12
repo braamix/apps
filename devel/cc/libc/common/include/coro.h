@@ -1,15 +1,13 @@
-/*
- * <coro.h> — short names for vcc's extensions of C: `defer` on every target, and
- * coroutines on every target but BESM-6, where the compiler predefines
- * __vcc_coroutines__ (docs/Coroutines_in_C.md).  Without this header the reserved spellings still
- * work: _Defer, _Coro(Y), _Yield, _Await, _Coro_frame(Y, T), _Coro_ptr(Y, T) and
- * __co_init ... __co_alignof.
- */
+// <coro.h> — short names for vcc's extensions of C: `defer` on every target, and
+// coroutines on every target but BESM-6, where the compiler predefines
+// __vcc_coroutines__ (docs/Coroutines_in_C.md).  Without this header the reserved spellings still
+// work: _Defer, _Coro(Y), _Yield, _Await, _Coro_frame(Y, T), _Coro_ptr(Y, T) and
+// __co_init ... __co_alignof.
 #ifndef _CORO_H
 #define _CORO_H
 
-/* A program whose own names include defer or yield, as vcc's own sources do, defines
-   _CORO_NO_DEFER_YIELD before its first include and spells them _Defer and _Yield. */
+// A program whose own names include defer or yield, as vcc's own sources do, defines
+// _CORO_NO_DEFER_YIELD before its first include and spells them _Defer and _Yield.
 #ifndef _CORO_NO_DEFER_YIELD
 #define defer _Defer
 #define yield _Yield
@@ -31,10 +29,10 @@
 #define co_sizeof  __co_sizeof
 #define co_alignof __co_alignof
 
-/* What co_resume, co_cancel and co_destroy return. */
+// What co_resume, co_cancel and co_destroy return.
 typedef enum { CO_SUSPENDED, CO_DONE } co_status;
 
-/* What yield returns: how the coroutine was resumed. */
+// What yield returns: how the coroutine was resumed.
 typedef enum { CO_CONTINUE, CO_CANCEL } co_signal;
 
-#endif /* _CORO_H */
+#endif // _CORO_H

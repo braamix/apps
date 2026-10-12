@@ -1,8 +1,6 @@
-/*
- * frexp — break a double into a fraction in [0.5, 1) and a power of two (C11
- * §7.12.6.4), on the IEEE-754 bits: a target with 32-bit long, where a double is
- * two words, the low one first.
- */
+// frexp — break a double into a fraction in [0.5, 1) and a power of two (C11
+// §7.12.6.4), on the IEEE-754 bits: a target with 32-bit long, where a double is
+// two words, the low one first.
 #include <math.h>
 
 double frexp(double x, int *e)
@@ -14,7 +12,7 @@ double frexp(double x, int *e)
     if (be == 0x7ff || x == 0)
         return x;
     if (be == 0) {
-        /* subnormal: scale by 2^64 to make it normal */
+        // subnormal: scale by 2^64 to make it normal
         x = frexp(x * 18446744073709551616.0, e);
         *e -= 64;
         return x;

@@ -1,17 +1,15 @@
-/*
- * <math.h> for Braam: C99 §7.12 in double and float, answered by musl as the SDK's
- * libbraam_math.a has it, which libc.a carries.  There is no long double half, and
- * musl's extensions (significand, the Bessel functions and the rest) are left
- * undeclared, so a program may use their names.  The
- * classification macros pick the float or the double function by the argument's
- * size, as the compiler has no builtins for them.
- */
+// <math.h> for Braam: C99 §7.12 in double and float, answered by musl as the SDK's
+// libbraam_math.a has it, which libc.a carries.  There is no long double half, and
+// musl's extensions (significand, the Bessel functions and the rest) are left
+// undeclared, so a program may use their names.  The
+// classification macros pick the float or the double function by the argument's
+// size, as the compiler has no builtins for them.
 #ifndef _MATH_H
 #define _MATH_H
 
 #include <float.h>
 
-/* Overflowing constant expressions: the compiler has no builtins for these. */
+// Overflowing constant expressions: the compiler has no builtins for these.
 #define INFINITY  (1e30f * 1e30f)
 #define NAN       (INFINITY * 0.0f)
 #define HUGE_VAL  ((double)INFINITY)
@@ -178,4 +176,4 @@ long long llroundf(float);
 long lrintf(float);
 long lroundf(float);
 void sincosf(float, float *, float *);
-#endif /* _MATH_H */
+#endif // _MATH_H

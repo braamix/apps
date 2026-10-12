@@ -64,4 +64,4 @@ Type *parse_type_name(void);
 }
 #endif
 
-#endif /* PARSER_H */
+#endif // PARSER_H

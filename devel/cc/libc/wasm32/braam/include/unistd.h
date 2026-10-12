@@ -1,8 +1,6 @@
-/*
- * <unistd.h> for Braam: the descriptor calls, coroutines yielding braam_call *, so a
- * program calls them with await (docs/Braam.md §7.3).  On an error they return
- * -1 and set errno.
- */
+// <unistd.h> for Braam: the descriptor calls, coroutines yielding braam_call *, so a
+// program calls them with await (docs/Braam.md §7.3).  On an error they return
+// -1 and set errno.
 #ifndef _UNISTD_H
 #define _UNISTD_H
 
@@ -18,31 +16,31 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
-/* Up to n bytes; 0 at the end of the input. */
+// Up to n bytes; 0 at the end of the input.
 coro(braam_call *) ssize_t read(int fd, void *buf, size_t n);
-/* All n bytes, unless an error stops it. */
+// All n bytes, unless an error stops it.
 coro(braam_call *) ssize_t write(int fd, const void *buf, size_t n);
 coro(braam_call *) int close(int fd);
-/* The new position; a file only (not 0, 1 or 2). */
+// The new position; a file only (not 0, 1 or 2).
 coro(braam_call *) off_t lseek(int fd, off_t offset, int whence);
 
-/* A file, or an empty directory. */
+// A file, or an empty directory.
 coro(braam_call *) int unlink(const char *path);
 coro(braam_call *) int rmdir(const char *path);
 
-/* The working directory: set it, or copy it to buf (NULL if it does not fit). */
+// The working directory: set it, or copy it to buf (NULL if it does not fit).
 coro(braam_call *) int chdir(const char *path);
 coro(braam_call *) char *getcwd(char *buf, size_t size);
 
 pid_t getpid(void);
 
-/* A symbolic link's target, not terminated: its length, or -1. */
+// A symbolic link's target, not terminated: its length, or -1.
 coro(braam_call *) ssize_t readlink(const char *path, char *buf, size_t size);
 
-/* Whether fd is the console's grid; a pipe or a file is not. */
+// Whether fd is the console's grid; a pipe or a file is not.
 coro(braam_call *) int isatty(int fd);
 
-/* Whether path exists: Braam keeps no permissions, so mode is not checked. */
+// Whether path exists: Braam keeps no permissions, so mode is not checked.
 #define F_OK 0
 #define X_OK 1
 #define W_OK 2
@@ -51,9 +49,9 @@ coro(braam_call *) int access(const char *path, int mode);
 
 _Noreturn void _exit(int status);
 
-/* getopt and its four, as <getopt.h> declares them. */
+// getopt and its four, as <getopt.h> declares them.
 extern char *optarg;
 extern int optind, opterr, optopt;
 int getopt(int argc, char *const argv[], const char *optstring);
 
-#endif /* _UNISTD_H */
+#endif // _UNISTD_H

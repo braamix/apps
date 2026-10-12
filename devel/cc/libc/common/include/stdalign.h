@@ -1,6 +1,4 @@
-/*
- * <stdalign.h> — alignment (C11 §7.15).
- */
+// <stdalign.h> — alignment (C11 §7.15).
 #ifndef _STDALIGN_H
 #define _STDALIGN_H
 
@@ -10,4 +8,4 @@
 #define __alignas_is_defined 1
 #define __alignof_is_defined 1
 
-#endif /* _STDALIGN_H */
+#endif // _STDALIGN_H

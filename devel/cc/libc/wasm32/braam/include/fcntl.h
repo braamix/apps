@@ -1,7 +1,5 @@
-/*
- * <fcntl.h> for Braam: open, a coroutine yielding braam_call *.  The flags are
- * Sys::Open's bits, so O_RDONLY is not 0 here.
- */
+// <fcntl.h> for Braam: open, a coroutine yielding braam_call *.  The flags are
+// Sys::Open's bits, so O_RDONLY is not 0 here.
 #ifndef _FCNTL_H
 #define _FCNTL_H
 
@@ -15,12 +13,12 @@
 #define O_APPEND BRAAM_O_APPEND
 #define O_EXCL   BRAAM_O_EXCL
 
-/* The descriptor, or -1 with errno set.  A third argument (a mode) is not taken. */
+// The descriptor, or -1 with errno set.  A third argument (a mode) is not taken.
 coro(braam_call *) int open(const char *path, int flags);
 
-/* POSIX's open takes a mode after the flags, and a coroutine cannot be variadic:
-   the mode is accepted and dropped, as Braam keeps no permissions. */
+// POSIX's open takes a mode after the flags, and a coroutine cannot be variadic:
+// the mode is accepted and dropped, as Braam keeps no permissions.
 #define __open_mode(path, flags, ...) open(path, flags)
 #define open(...)                     __open_mode(__VA_ARGS__, 0)
 
-#endif /* _FCNTL_H */
+#endif // _FCNTL_H

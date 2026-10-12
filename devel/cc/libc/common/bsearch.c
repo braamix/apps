@@ -1,6 +1,4 @@
-/*
- * bsearch — an element of the sorted array equal to key, or NULL (C11 §7.22.5.1).
- */
+// bsearch — an element of the sorted array equal to key, or NULL (C11 §7.22.5.1).
 #include <stdlib.h>
 
 void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,

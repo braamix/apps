@@ -1,36 +1,34 @@
-/*
- * Core formatting engine shared by printf / sprintf / snprintf, for a
- * byte-addressed target with IEEE-754 double, and long of 32 or 64 bits.
- *
- * Derived from the BESM-6 engine (libc/besm6/doprnt.c), itself from the FreeBSD
- * kernel printf.  Differences: conversion letters keep their case, the length
- * modifiers hh/h/l/ll/j/z/t select the argument type, values are 64-bit, %s and %p
- * read real pointers, and infinities and NaNs print as inf/nan.
- *
- * If `to_buf` is zero the formatted bytes go to putbyte(); otherwise they are
- * stored into buf (at most size-1, NUL-terminated).  The return value is the total
- * length that would be produced.
- *
- * On Braam the float conversions, %a among them, are musl's fmt_fp from the SDK's
- * libbraam_math.a, which is exact.
- */
+// Core formatting engine shared by printf / sprintf / snprintf, for a
+// byte-addressed target with IEEE-754 double, and long of 32 or 64 bits.
+//
+// Derived from the BESM-6 engine (libc/besm6/doprnt.c), itself from the FreeBSD
+// kernel printf.  Differences: conversion letters keep their case, the length
+// modifiers hh/h/l/ll/j/z/t select the argument type, values are 64-bit, %s and %p
+// read real pointers, and infinities and NaNs print as inf/nan.
+//
+// If `to_buf` is zero the formatted bytes go to putbyte(); otherwise they are
+// stored into buf (at most size-1, NUL-terminated).  The return value is the total
+// length that would be produced.
+//
+// On Braam the float conversions, %a among them, are musl's fmt_fp from the SDK's
+// libbraam_math.a, which is exact.
 #include <float.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 
 enum {
-    MAXNBUF  = 32,                  /* integer digits: 64-bit octal (22) + slack  */
-    FBUFSIZE = DBL_MAX_10_EXP + 44, /* %f of DBL_MAX: its integer digits + '.' +
-                                       precision + exponent (352 for binary64)    */
-    MAX_DIG  = DBL_DECIMAL_DIG,     /* max meaningful significant digits          */
-    DEF_PREC = 6, /* default precision for %f/%e and significant digits for %g     */
+    MAXNBUF  = 32,                  // integer digits: 64-bit octal (22) + slack
+    FBUFSIZE = DBL_MAX_10_EXP + 44, // %f of DBL_MAX: its integer digits + '.' +
+                                    // precision + exponent (352 for binary64)
+    MAX_DIG  = DBL_DECIMAL_DIG,     // max meaningful significant digits
+    DEF_PREC = 6,                   // default precision for %f/%e and significant digits for %g
 };
 
-static int g_to_buf; /* 1 = store into g_buf, 0 = emit via putbyte (not on Braam) */
-static char *g_buf;  /* target buffer when g_to_buf                */
-static int g_size;   /* capacity of g_buf                          */
-static int g_len;    /* characters produced so far                 */
+static int g_to_buf; // 1 = store into g_buf, 0 = emit via putbyte (not on Braam)
+static char *g_buf;  // target buffer when g_to_buf
+static int g_size;   // capacity of g_buf
+static int g_len;    // characters produced so far
 
 static void emit(int c)
 {
@@ -59,12 +57,10 @@ static void emit_str(const char *s)
         emit(*s++);
 }
 
-/*
- * Convert `ul` to base `base` digits, written into nbuf in reverse order.
- * nbuf[0] is a 0 sentinel; digits occupy nbuf[1..].  At least `prec` digits are
- * produced (zero padded).  Returns a pointer to the most-significant digit and
- * stores the digit count in *lenp.
- */
+// Convert `ul` to base `base` digits, written into nbuf in reverse order.
+// nbuf[0] is a 0 sentinel; digits occupy nbuf[1..].  At least `prec` digits are
+// produced (zero padded).  Returns a pointer to the most-significant digit and
+// stores the digit count in *lenp.
 static char *ksprintn(char *nbuf, unsigned long long ul, int base, int prec, int upper, int *lenp)
 {
     const char *digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
@@ -82,7 +78,7 @@ static char *ksprintn(char *nbuf, unsigned long long ul, int base, int prec, int
 #ifdef __braam__
 #include <stdlib.h>
 
-/* src/math/cvt/api.h: a truncating sink, which counts what it would have held. */
+// src/math/cvt/api.h: a truncating sink, which counts what it would have held.
 typedef struct {
     char *buf;
     unsigned long cap, n;
@@ -90,8 +86,8 @@ typedef struct {
 
 int fmt_fp(Sink *f, double y, int w, int p, int fl, int t);
 
-/* One float conversion `t`, with fmt_fp's flag bits `fl` (1 << (c - ' ') for each of
-   the flag characters #0- +). */
+// One float conversion `t`, with fmt_fp's flag bits `fl` (1 << (c - ' ') for each of
+// the flag characters #0- +).
 static void emit_fp(double d, int w, int p, int fl, int t)
 {
     char small[512], *b = small;
@@ -148,8 +144,8 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
         blank      = 0;
         dot        = 0;
         dwidth     = -1;
-        lmod       = 0; /* -2 hh, -1 h, 0 none, 1 l/z/t, 2 L, 3 ll/j */
-        zero       = 0; /* the 0 flag, which a precision does not cancel for a float */
+        lmod       = 0; // -2 hh, -1 h, 0 none, 1 l/z/t, 2 L, 3 ll/j
+        zero       = 0; // the 0 flag, which a precision does not cancel for a float
 
     reswitch:
         c = fmt[i];
@@ -193,7 +189,7 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
             goto reswitch;
         }
         if (c == 'L') {
-            lmod = 2; /* printed with double precision */
+            lmod = 2; // printed with double precision
             goto reswitch;
         }
         if (c == '*') {
@@ -260,7 +256,7 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
             continue;
         }
 
-        /* ---- floating point ---- */
+        // ---- floating point ----
 #ifdef __braam__
         if (c == 'f' || c == 'F' || c == 'e' || c == 'E' || c == 'g' || c == 'G' || c == 'a' ||
             c == 'A') {
@@ -282,7 +278,7 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
                 d   = -d;
             }
             if (d != d || d - d != 0) {
-                /* NaN or infinity: no digits, no zero padding */
+                // NaN or infinity: no digits, no zero padding
                 s    = d != d ? (upper ? "NAN" : "nan") : (upper ? "INF" : "inf");
                 dlen = 3 + (neg || sign || blank ? 1 : 0);
                 if (!ladjust)
@@ -333,7 +329,7 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
             continue;
         }
 
-        /* ---- integer conversions ---- */
+        // ---- integer conversions ----
         upper = c == 'X';
         if (c == 'd' || c == 'i') {
             long long l;
@@ -379,7 +375,7 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
             goto nosign;
         }
 
-        /* unknown conversion: echo it verbatim */
+        // unknown conversion: echo it verbatim
         emit('%');
         emit(c);
         continue;
@@ -401,7 +397,7 @@ int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf)
             dwidth     = MAXNBUF - 1;
         }
         if (dot && dwidth == 0 && ul == 0) {
-            dlen = 0; /* "%.0d" of 0 prints no digits */
+            dlen = 0; // "%.0d" of 0 prints no digits
             msd  = nbuf;
         } else {
             msd = ksprintn(nbuf, ul, base, dwidth, upper, &dlen);
@@ -448,14 +444,12 @@ done:
     return g_len;
 }
 
-/*
- * Round the decimal digits start..end by the rest of the value: `fract` when
- * nonzero, else the next digit `ch` (`tie` telling that nothing nonzero follows
- * it).  An exact half rounds to even.  Carries propagate; `expo` (when non-null)
- * carries the e-format exponent so a carry out of the leading digit bumps it;
- * otherwise an f-format carry extends left into the reserved slot and moves
- * *startp back one.
- */
+// Round the decimal digits start..end by the rest of the value: `fract` when
+// nonzero, else the next digit `ch` (`tie` telling that nothing nonzero follows
+// it).  An exact half rounds to even.  Carries propagate; `expo` (when non-null)
+// carries the e-format exponent so a carry out of the leading digit bumps it;
+// otherwise an f-format carry extends left into the reserved slot and moves
+// *startp back one.
 static void cvtround(double fract, int *expo, char **startp, char *end, int ch, int tie, int *negp)
 {
     double tmp;
@@ -481,10 +475,10 @@ static void cvtround(double fract, int *expo, char **startp, char *end, int ch, 
                 break;
             *p = '0';
             if (p == start) {
-                if (expo) { /* e: increment exponent */
+                if (expo) { // e: increment exponent
                     *p = '1';
                     ++*expo;
-                } else { /* f: prepend a digit into the reserved slot */
+                } else { // f: prepend a digit into the reserved slot
                     --p;
                     *p = '1';
                     --start;
@@ -493,7 +487,7 @@ static void cvtround(double fract, int *expo, char **startp, char *end, int ch, 
             }
         }
     } else if (*negp) {
-        /* "%.3f" of -0.0004 must not print a negative zero */
+        // "%.3f" of -0.0004 must not print a negative zero
         for (;; --p) {
             if (*p == '.')
                 --p;
@@ -506,7 +500,7 @@ static void cvtround(double fract, int *expo, char **startp, char *end, int ch, 
     *startp = start;
 }
 
-/* Append the exponent suffix ("e+NN") at write cursor p; return the new cursor. */
+// Append the exponent suffix ("e+NN") at write cursor p; return the new cursor.
 static char *exponent(char *p, int expin, int fmtch)
 {
     char eb[8];
@@ -539,11 +533,9 @@ static char *exponent(char *p, int expin, int fmtch)
     return p;
 }
 
-/*
- * Format the magnitude `number` into b[] for %f/%e/%g.  b[0] is reserved for a
- * rounding carry; formatting runs from b+1.  *startidx receives the index of the
- * first character (0 if a carry extended left); the character count is returned.
- */
+// Format the magnitude `number` into b[] for %f/%e/%g.  b[0] is reserved for a
+// rounding carry; formatting runs from b+1.  *startidx receives the index of the
+// first character (0 if a carry extended left); the character count is returned.
 static int cvt(double number, int precin, int sharpflag, int *negp, int fmtch, char *b, int bsize,
                int *startidx)
 {
@@ -560,10 +552,10 @@ static int cvt(double number, int precin, int sharpflag, int *negp, int fmtch, c
     fract   = modf(number, &integer);
 
     endp  = b + bsize - 1;
-    start = b + 1; /* reserved rounding slot at b[0] */
+    start = b + 1; // reserved rounding slot at b[0]
     t     = b + 1;
 
-    /* integer part, least-significant first, into the top of the buffer */
+    // integer part, least-significant first, into the top of the buffer
     p = endp - 1;
     while (integer) {
         tmp = modf(integer / 10, &integer);
@@ -666,7 +658,7 @@ static int cvt(double number, int precin, int sharpflag, int *negp, int fmtch, c
         return (int)(t - start);
     }
 
-    /* ftc == 'G' */
+    // ftc == 'G'
     if (!prec)
         ++prec;
     if (expcnt > prec || (!expcnt && fract && fract < 0.0001)) {

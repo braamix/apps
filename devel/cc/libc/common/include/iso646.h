@@ -1,6 +1,4 @@
-/*
- * <iso646.h> — alternative spellings (C11 §7.9).
- */
+// <iso646.h> — alternative spellings (C11 §7.9).
 #ifndef _ISO646_H
 #define _ISO646_H
 
@@ -16,4 +14,4 @@
 #define xor    ^
 #define xor_eq ^=
 
-#endif /* _ISO646_H */
+#endif // _ISO646_H

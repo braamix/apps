@@ -1,8 +1,6 @@
-/*
- * The streams of Braam's stdio (docs/Braam.md §7.3): an output buffer each of BUFSIZ
- * bytes, which the output coroutines fill and write out when it is full, and an input
- * buffer, which the reading coroutines refill a chunk at a time.
- */
+// The streams of Braam's stdio (docs/Braam.md §7.3): an output buffer each of BUFSIZ
+// bytes, which the output coroutines fill and write out when it is full, and an input
+// buffer, which the reading coroutines refill a chunk at a time.
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -15,9 +13,9 @@ FILE *stdin  = &in_file;
 FILE *stdout = &out_file;
 FILE *stderr = &err_file;
 
-static FILE *opened; /* the streams fopen made, newest first */
+static FILE *opened; // the streams fopen made, newest first
 
-/* The buffer of f, made on first use; NULL with errno set. */
+// The buffer of f, made on first use; NULL with errno set.
 static char *buffer(FILE *f)
 {
     if (!f->buf && !(f->buf = malloc(BUFSIZ))) {
@@ -37,7 +35,7 @@ coro(braam_call *) int fflush(FILE *f)
         bad |= await fflush(stderr) == EOF;
         return bad ? EOF : 0;
     }
-    /* One write at a time: another task's may be waiting. */
+    // One write at a time: another task's may be waiting.
     while (f->flags & __F_BUSY)
         await braam_yield();
     size_t len = f->len;
@@ -46,7 +44,7 @@ coro(braam_call *) int fflush(FILE *f)
     f->flags |= __F_BUSY;
     ssize_t n = await write(f->fd, f->buf, len);
     f->flags &= ~__F_BUSY;
-    /* Another task may have added to the buffer while the write waited. */
+    // Another task may have added to the buffer while the write waited.
     memmove(f->buf, f->buf + len, f->len - len);
     f->len -= len;
     if (n < 0) {
@@ -56,7 +54,7 @@ coro(braam_call *) int fflush(FILE *f)
     return 0;
 }
 
-/* The end of an output call: stderr is written out at once. */
+// The end of an output call: stderr is written out at once.
 static coro(braam_call *) int done(FILE *f, int result)
 {
     if (f == stderr && await fflush(f) == EOF)
@@ -64,8 +62,8 @@ static coro(braam_call *) int done(FILE *f, int result)
     return result;
 }
 
-/* n bytes at p into f's buffer, writing it out each time it fills; one that does not
-   fit an empty buffer is written directly. */
+// n bytes at p into f's buffer, writing it out each time it fills; one that does not
+// fit an empty buffer is written directly.
 static coro(braam_call *) int put(FILE *f, const char *p, size_t n)
 {
     if (!buffer(f))
@@ -96,7 +94,7 @@ coro(braam_call *) int fputc(int c, FILE *f)
 {
     char b = (char)c;
     if (f->buf && f->len < BUFSIZ && f != stderr) {
-        f->buf[f->len++] = b; /* what nearly every call is */
+        f->buf[f->len++] = b; // what nearly every call is
         return (unsigned char)c;
     }
     if (await put(f, &b, 1) == EOF)
@@ -137,8 +135,8 @@ coro(braam_call *) size_t fwrite(const void *ptr, size_t size, size_t n, FILE *f
     return await done(f, 0) == EOF ? 0 : n;
 }
 
-/* Formatted into the free room of the buffer when it fits; else into the buffer just
-   written out, or, too long for any, into a block of its own. */
+// Formatted into the free room of the buffer when it fits; else into the buffer just
+// written out, or, too long for any, into a block of its own.
 coro(braam_call *) int vfprintf(FILE *f, const char *fmt, va_list ap)
 {
     if (!buffer(f))
@@ -207,9 +205,9 @@ coro(braam_call *) void perror(const char *s)
         await fprintf(stderr, "%s\n", strerror(errno));
 }
 
-void __braam_post(unsigned op, const void *ptr, unsigned len); /* rt.c */
+void __braam_post(unsigned op, const void *ptr, unsigned len); // rt.c
 
-/* A stream's buffer as Writes nobody waits for, a chunk each. */
+// A stream's buffer as Writes nobody waits for, a chunk each.
 static void post(FILE *f)
 {
     for (size_t at = 0; at < f->len;) {
@@ -220,8 +218,8 @@ static void post(FILE *f)
     f->len = 0;
 }
 
-/* Every stream's buffer, for an exit that cannot wait: the kernel performs them
-   before the process goes. */
+// Every stream's buffer, for an exit that cannot wait: the kernel performs them
+// before the process goes.
 void __stdio_post(void)
 {
     for (FILE *g = opened; g; g = g->next)
@@ -230,8 +228,8 @@ void __stdio_post(void)
     post(stderr);
 }
 
-/* The next chunk into the input buffer: 1, or 0 at the end or on an error.  One byte
-   is kept free below the chunk for ungetc. */
+// The next chunk into the input buffer: 1, or 0 at the end or on an error.  One byte
+// is kept free below the chunk for ungetc.
 static coro(braam_call *) int refill(FILE *f)
 {
     if (f->flags & (__F_EOF | __F_ERR))
@@ -309,7 +307,7 @@ int ungetc(int c, FILE *f)
         return EOF;
     if (f->pos == 0) {
         if (f->end > BUFSIZ)
-            return EOF; /* a second ungetc before a read */
+            return EOF; // a second ungetc before a read
         memmove(f->in + 1, f->in, f->end);
         f->end++;
     } else {
@@ -340,8 +338,8 @@ int fileno(FILE *f)
     return f->fd;
 }
 
-/* fopen's mode as Sys::Open's flags, as Braam's compat layer reads it; 0 for a mode
-   that starts with none of r, w and a. */
+// fopen's mode as Sys::Open's flags, as Braam's compat layer reads it; 0 for a mode
+// that starts with none of r, w and a.
 static int mode_flags(const char *mode)
 {
     int flags;
@@ -424,7 +422,7 @@ void setbuf(FILE *f, char *buf)
     (void)f, (void)buf;
 }
 
-/* What was read ahead and not taken goes back to the descriptor's position. */
+// What was read ahead and not taken goes back to the descriptor's position.
 coro(braam_call *) int fseek(FILE *f, long offset, int whence)
 {
     if (await fflush(f) == EOF)

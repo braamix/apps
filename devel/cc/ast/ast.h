@@ -14,7 +14,7 @@ extern "C" {
 #include "host.h"
 #include "srcloc.h"
 
-/* Forward declarations for recursive types */
+// Forward declarations for recursive types
 typedef struct Type Type;
 typedef struct TypeQualifier TypeQualifier;
 typedef struct Field Field;
@@ -37,10 +37,10 @@ typedef struct ForInit ForInit;
 typedef struct Program Program;
 typedef struct ExternalDecl ExternalDecl;
 
-/* Identifier */
+// Identifier
 typedef char *Ident;
 
-/* Types */
+// Types
 typedef enum {
     TYPE_VOID,
     TYPE_BOOL,
@@ -77,7 +77,7 @@ struct Type {
     union {
         struct {
             Type *base;
-        } complex; /* for Complex, Imaginary */
+        } complex; // for Complex, Imaginary
         struct {
             Type *target;
             TypeQualifier *qualifiers;
@@ -96,12 +96,12 @@ struct Type {
         struct {
             Ident name;
             Field *fields;
-            int cached_size;  /* bytes; 0 = not resolved (set by validate_type while tag is live) */
-            int cached_align; /* bytes; 0 = not resolved */
-            const struct StructDef *cached_def; /* the tag's definition; NULL = not resolved */
-            Type *frame_yield;  /* _Coro_frame(Y, T): Y (void included); NULL for any other */
-            Type *frame_result; /* _Coro_frame(Y, T): T */
-        } struct_t;             /* optional name */
+            int cached_size;  // bytes; 0 = not resolved (set by validate_type while tag is live)
+            int cached_align; // bytes; 0 = not resolved
+            const struct StructDef *cached_def; // the tag's definition; NULL = not resolved
+            Type *frame_yield;  // _Coro_frame(Y, T): Y (void included); NULL for any other
+            Type *frame_result; // _Coro_frame(Y, T): T
+        } struct_t;             // optional name
         struct {
             Ident name;
             Enumerator *enumerators;
@@ -113,7 +113,7 @@ struct Type {
             Type *base;
         } atomic;
     } u;
-    TypeQualifier *qualifiers; /* attributes */
+    TypeQualifier *qualifiers; // attributes
 };
 
 typedef enum {
@@ -124,7 +124,7 @@ typedef enum {
 } TypeQualifierKind;
 
 struct TypeQualifier {
-    TypeQualifier *next; /* linked list */
+    TypeQualifier *next; // linked list
     TypeQualifierKind kind;
 };
 
@@ -144,42 +144,42 @@ typedef struct {
 } BitField;
 
 struct Field {
-    Field *next; /* linked list */
+    Field *next; // linked list
     FieldKind kind;
     union {
         struct {
             Type *type;
-            Ident name;                /* optional */
-            Expr *bitfield;            /* optional */
-            AlignmentSpec *align_spec; /* optional: _Alignas */
+            Ident name;                // optional
+            Expr *bitfield;            // optional
+            AlignmentSpec *align_spec; // optional: _Alignas
         } member;
         struct {
             Expr *condition;
-            char *message; /* optional (always set in C11, guarded for safety) */
-        } static_assrt;    /* typo matches existing Declaration convention */
+            char *message; // optional (always set in C11, guarded for safety)
+        } static_assrt;    // typo matches existing Declaration convention
     } u;
 };
 
 struct Enumerator {
-    Enumerator *next; /* linked list */
+    Enumerator *next; // linked list
     Ident name;
-    Expr *value; /* optional */
+    Expr *value; // optional
 };
 
 struct Param {
-    Param *next; /* linked list */
-    SrcLoc loc;  /* source position, for diagnostics */
-    Ident name;  /* optional */
+    Param *next; // linked list
+    SrcLoc loc;  // source position, for diagnostics
+    Ident name;  // optional
     Type *type;
-    DeclSpec *specifiers; /* optional */
+    DeclSpec *specifiers; // optional
 };
 
-/* Declarations */
+// Declarations
 typedef enum { DECL_VAR, DECL_STATIC_ASSERT, DECL_EMPTY } DeclarationKind;
 
 struct Declaration {
-    Declaration *next; /* linked list for declaration_list */
-    SrcLoc loc;        /* source position, for diagnostics */
+    Declaration *next; // linked list for declaration_list
+    SrcLoc loc;        // source position, for diagnostics
     DeclarationKind kind;
     union {
         struct {
@@ -217,13 +217,13 @@ struct DeclSpec {
 typedef enum {
     FUNC_SPEC_INLINE,
     FUNC_SPEC_NORETURN,
-    FUNC_SPEC_CORO /* vcc extension: _Coro(Y) */
+    FUNC_SPEC_CORO // vcc extension: _Coro(Y)
 } FunctionSpecKind;
 
 struct FunctionSpec {
-    FunctionSpec *next; /* linked list */
+    FunctionSpec *next; // linked list
     FunctionSpecKind kind;
-    Type *yield_type; /* FUNC_SPEC_CORO: Y, void included; else NULL */
+    Type *yield_type; // FUNC_SPEC_CORO: Y, void included; else NULL
 };
 
 typedef enum { ALIGN_SPEC_TYPE, ALIGN_SPEC_EXPR } AlignmentSpecKind;
@@ -237,18 +237,18 @@ struct AlignmentSpec {
 };
 
 struct InitDeclarator {
-    InitDeclarator *next; /* linked list */
-    SrcLoc loc;           /* source position, for diagnostics */
+    InitDeclarator *next; // linked list
+    SrcLoc loc;           // source position, for diagnostics
     Type *type;
     Ident name;
-    Initializer *init; /* optional */
+    Initializer *init; // optional
 };
 
 typedef enum { INITIALIZER_SINGLE, INITIALIZER_COMPOUND } InitializerKind;
 
 struct Initializer {
     InitializerKind kind;
-    SrcLoc loc; /* source position, for diagnostics */
+    SrcLoc loc; // source position, for diagnostics
     union {
         Expr *expr;
         InitItem *items;
@@ -257,26 +257,26 @@ struct Initializer {
 };
 
 struct InitItem {
-    InitItem *next; /* linked list */
+    InitItem *next; // linked list
     Designator *designators;
     Initializer *init;
-    int offset;  /* byte offset of this item within the enclosing struct; set by typecheck (0
-                    otherwise) */
-    BitField bf; /* a bit-field member's place in the unit at offset; set by typecheck */
+    int offset;  // byte offset of this item within the enclosing struct; set by typecheck (0
+                 // otherwise)
+    BitField bf; // a bit-field member's place in the unit at offset; set by typecheck
 };
 
 typedef enum { DESIGNATOR_ARRAY, DESIGNATOR_FIELD } DesignatorKind;
 
 struct Designator {
-    Designator *next; /* linked list */
+    Designator *next; // linked list
     DesignatorKind kind;
     union {
-        Expr *expr; /* array index */
-        Ident name; /* field name */
+        Expr *expr; // array index
+        Ident name; // field name
     } u;
 };
 
-/* Expressions */
+// Expressions
 typedef enum {
     EXPR_LITERAL,
     EXPR_VAR,
@@ -365,8 +365,8 @@ typedef enum {
 } AssignOp;
 
 struct Expr {
-    Expr *next; /* linked list for argument lists */
-    SrcLoc loc; /* source position, for diagnostics */
+    Expr *next; // linked list for argument lists
+    SrcLoc loc; // source position, for diagnostics
     ExprKind kind;
     union {
         Literal *literal;
@@ -426,11 +426,11 @@ struct Expr {
         Type *sizeof_type;
         Type *align_of;
         Type *va_class;
-        Expr *yield_expr; /* optional */
+        Expr *yield_expr; // optional
         Expr *await_expr;
         struct {
             CoOp op;
-            Expr *args; /* a coroutine is named by an EXPR_VAR */
+            Expr *args; // a coroutine is named by an EXPR_VAR
         } co_op;
         struct {
             Expr *controlling_expr;
@@ -498,7 +498,7 @@ struct Literal {
 typedef enum { GENERIC_ASSOC_TYPE, GENERIC_ASSOC_DEFAULT } GenericAssocKind;
 
 struct GenericAssoc {
-    GenericAssoc *next; /* linked list */
+    GenericAssoc *next; // linked list
     GenericAssocKind kind;
     union {
         struct {
@@ -509,7 +509,7 @@ struct GenericAssoc {
     } u;
 };
 
-/* Statements */
+// Statements
 typedef enum {
     STMT_EXPR,
     STMT_COMPOUND,
@@ -525,14 +525,14 @@ typedef enum {
     STMT_LABELED,
     STMT_CASE,
     STMT_DEFAULT,
-    STMT_DEFER /* vcc extension: _Defer stmt */
+    STMT_DEFER // vcc extension: _Defer stmt
 } StmtKind;
 
 struct Stmt {
     StmtKind kind;
-    SrcLoc loc; /* source position, for diagnostics */
+    SrcLoc loc; // source position, for diagnostics
     union {
-        Expr *expr; /* optional */
+        Expr *expr; // optional
         DeclOrStmt *compound;
         struct {
             Expr *condition;
@@ -569,7 +569,7 @@ struct Stmt {
         Stmt *default_stmt;
         Stmt *defer_stmt;
     } u;
-    /* Assigned by label_loops() in translator; not serialized to .ast files. */
+    // Assigned by label_loops() in translator; not serialized to .ast files.
     char *loop_end_label;
     char *loop_continue_label;
     char *branch_target_label;
@@ -578,7 +578,7 @@ struct Stmt {
 typedef enum { DECL_OR_STMT_DECL, DECL_OR_STMT_STMT } DeclOrStmtKind;
 
 struct DeclOrStmt {
-    DeclOrStmt *next; /* linked list */
+    DeclOrStmt *next; // linked list
     DeclOrStmtKind kind;
     union {
         Declaration *decl;
@@ -596,7 +596,7 @@ struct ForInit {
     } u;
 };
 
-/* Program Structure */
+// Program Structure
 struct Program {
     ExternalDecl *decls;
 };
@@ -604,8 +604,8 @@ struct Program {
 typedef enum { EXTERNAL_DECL_FUNCTION, EXTERNAL_DECL_DECLARATION } ExternalDeclKind;
 
 struct ExternalDecl {
-    ExternalDecl *next; /* linked list */
-    SrcLoc loc;         /* source position, for diagnostics */
+    ExternalDecl *next; // linked list
+    SrcLoc loc;         // source position, for diagnostics
     ExternalDeclKind kind;
     union {
         struct {
@@ -742,4 +742,4 @@ extern const char *co_op_name[]; // "__co_init" ... "__co_alignof", by CoOp
 }
 #endif
 
-#endif /* AST_H */
+#endif // AST_H

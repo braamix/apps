@@ -327,4 +327,4 @@ Tac_TopLevel *translate_unit_end(void);
 }
 #endif
 
-#endif /* TRANSLATE_H */
+#endif // TRANSLATE_H

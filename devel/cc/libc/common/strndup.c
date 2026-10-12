@@ -1,6 +1,4 @@
-/*
- * strndup — a copy of at most n bytes of s, terminated, from malloc (POSIX).
- */
+// strndup — a copy of at most n bytes of s, terminated, from malloc (POSIX).
 #include <stdlib.h>
 #include <string.h>
 

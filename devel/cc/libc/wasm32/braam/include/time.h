@@ -1,8 +1,6 @@
-/*
- * <time.h> for Braam: libc/common's calendar, with time() a coroutine over
- * Sys::Clock.  localtime is in the zone the last time() reported; before one, UTC.
- * There is no process clock, so clock() is not declared.
- */
+// <time.h> for Braam: libc/common's calendar, with time() a coroutine over
+// Sys::Clock.  localtime is in the zone the last time() reported; before one, UTC.
+// There is no process clock, so clock() is not declared.
 #ifndef _TIME_H
 #define _TIME_H
 
@@ -29,4 +27,4 @@ struct tm *gmtime(const time_t *t);
 struct tm *localtime(const time_t *t);
 size_t strftime(char *s, size_t max, const char *format, const struct tm *tm);
 
-#endif /* _TIME_H */
+#endif // _TIME_H
