@@ -5,8 +5,8 @@
 in vcc's own C-with-coroutines, so that it runs on Braam and can compile
 itself there. This file is the plan: what is taken, what changes, and the
 order of the steps, each with what proves it done. The import, the trim,
-the build in this tree and the C library are done, and
-[README.md](README.md) says how they were checked.
+the build in this tree, the C library and the rewrite for Braam are done,
+and [README.md](README.md) says how they were checked.
 
 ## 1. Where this starts
 
@@ -55,7 +55,8 @@ What Braam already has, in this tree:
    written out once at the end — iconv's shape, and `devel/wasm/lib`'s
    rule ("pure: never awaits, never opens a file"). Only `main`, the file
    loaders and the writers are coroutines. The one wait in the middle of
-   work is cpp's `#include`, and it gets a step of its own (4.6).
+   work is cpp's `#include`, met by loading every file it could name
+   before cpp starts.
 3. **Five programs stay five programs.** The driver spawns the passes, as
    upstream forks them: the files between passes are vcc's tested
    interface, and every pass keeps a pile of globals that one process
@@ -95,93 +96,6 @@ Not vendored: the GoogleTest suites (their programs are, see step 6),
 
 Each step ends green: `make test` passes and the package, once it exists,
 still builds.
-
-### Step 4 — the coroutine rewrite, pass by pass
-
-Order: the shared library first, then the passes from the simplest. Each
-sub-step ends with (a) the host build still producing the reference corpus
-and (b) the pass, built for Braam, run under the harness on corpus inputs
-with its output equal to the host pass's.
-
-**4.1 Errors.** `libutil/srcloc.c` unwinds with `longjmp` to a recovery
-point (parser per statement and declaration, translator per function), and
-otherwise calls `exit(1)`. On Braam there is no `setjmp`, and `exit()`
-traps and loses what is buffered — the diagnostic itself. So:
-
-- First find out from braam-core (`doc/Concept.md`, the process teardown)
-  whether a `sys_async` Write issued in the last step before Exit is
-  delivered. If it is, `diag` gets a `diag_exit(status)` that posts the
-  stderr and stdout buffers and exits, and a fatal error stops the pass
-  there. If not, that is a kernel change to ask for, and until then a
-  fatal error unwinds to `main` by a sticky flag (vi's and mbasic's
-  answer), checked at each recovery point.
-- Error recovery — going on after an error to report more — is dropped on
-  Braam at first: the first fatal error ends the pass. The host build keeps
-  it. Bringing it to Braam is step 8.
-- `internal_error` and "too many errors" go the same way.
-
-**4.2 `libutil`.** `wio`: `wopen` reads the whole file into memory and
-`wclose` writes the whole buffer out; both become coroutines, and
-`wgetw`/`wputw` and the rest stay plain functions over memory. `srcloc`:
-the caret under a diagnostic reopens the source file from inside a plain
-function, so the scanner and cpp register their text in memory and the
-caret is drawn from there; a pass that has not got the text (`lower`,
-`genwasm`) prints no caret line on Braam.
-
-**4.3 `genwasm`** (`backend/common/driver.c`): `main` a coroutine, input
-through `wopen`, `.s` into a growing stream, `await fclose`. Between two
-top-level functions, `await braam_yield()`, so `^C` reaches a long run.
-
-**4.4 `lower`** (`translator/main.c`): the same, and the recovery point of
-4.1. `.ast` in, `.tac` out, a yield per function.
-
-**4.5 `parse`** (`parser/main.c`, `scanner/scanner.c`): the scanner reads
-from a memory buffer rather than `fgetc` on a `FILE`.
-
-**4.6 `cpp`.** The one pass that must wait mid-work: `refill_buffer` reads
-the current file in chunks from deep inside the lexer, and `do_include`
-opens a file from inside `process_directives`. Plan:
-
-- Files are read whole into memory when opened; `refill_buffer` copies
-  from memory and never waits.
-- `#include` becomes a request: `do_include` records the name and returns,
-  and cpp's top loop — a coroutine — searches the directories, loads the
-  file, and pushes it. Check first that nothing has to happen between the
-  directive and the switch of input; if something does, convert the call
-  chain from the top loop to `do_include` into coroutines instead, and
-  measure the depth.
-- `#pragma once` compares descriptors (`is_once_file(fd)`); compare
-  `st_ino` instead, which Braam's `stat` gives as a hash of the path.
-- `refill_buffer` "flushes and exits" at the end of input; that becomes a
-  return to `main`.
-
-**4.7 `cc`, the driver.** `run()` spawns and waits (`#ifdef __braam__`),
-`make_temp` uses `mkstemps`, `locate_self` reads `/pkg/bin/cc`, the
-passes are found in `libexec/`, assembly is `as` and the link is `ld` with
-`--braam-pages` (vcc's `--initial-pages`) and `-L<store>/lib`. Check `ld`
-for every option vcc's link passes (`--stack-first`, `-z stack-size`,
-`--initial-memory`, `--gc-sections`); `braam_stamp` goes on Braam, since
-`ld` stamps. On the host it keeps `clang` and `wasm-ld`.
-
-Done when: every pass and the driver run on Braam, and compile the
-reference corpus there to the same `.s` as the host.
-
-**Done**, as [README.md](README.md) "On Braam" says, with three departures:
-
-- 4.1: a write issued in the step that exits was dropped, so the answer was
-  the kernel change — braam-core's stepper now performs those writes, and a
-  trap after `Sys::Exit` is that exit, not a crash — and no sticky flag.
-  Until an SDK carries it, `test/toolchain.mjs` skips.
-- 4.6: no `#include` request. `cpp` reads only from memory, and before it
-  starts every file an `#include` could name is loaded.
-- New: a compiler running in 32 bits. 64-bit values now cross the word
-  streams in two words, and the syntax tree and the semantic layer no
-  longer keep constants in the host's `long`.
-
-On Braam, `cpp` makes the host's `.i` for the 666 sources of this tree,
-and `parse`, `lower` and `genwasm` make the host's `.s` for the 3,043 of the
-corpus that compile — this tree's, the compiler's own among them, and vcc's
-test snippets — and refuse the 942 the host refuses.
 
 ### Step 5 — the package
 
@@ -234,8 +148,8 @@ and the peak memory against the 100 MB cap. `__braam_task_bytes` and
 
 ### Step 8 — after the first release
 
-- Error recovery on Braam (4.1), if the sticky flag is affordable in the
-  parser and translator.
+- Error recovery on Braam, if a sticky flag is affordable in the parser
+  and translator.
 - The caret for `lower` and `genwasm` diagnostics, by reading the source
   before the pass starts.
 - `scanf`, `tmpfile`, reading directories — the gaps `docs/Braam.md` §7.6
@@ -245,10 +159,6 @@ and the peak memory against the 100 MB cap. `__braam_task_bytes` and
 
 ## 5. Risks
 
-- **The fatal exit** (4.1) may need a kernel change; it is the first thing
-  to find out.
-- **cpp's include path** (4.6) may be deeper than it looks; the coroutine
-  chain is the fallback.
 - **Memory**: vcc's `xalloc` and the optimizer were written for a host;
   the 100 MB cap may bind on the largest files.
 - **Byte-for-byte self-compilation** depends on vcc being deterministic
