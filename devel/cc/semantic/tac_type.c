@@ -1,7 +1,7 @@
 //
 // AST types to TAC types: the form the translator emits and the backends read.  Here
 // rather than in the translator so the semantic pass can apply a target's ABI rule
-// (tac_aapcs64_class) to a type, for __builtin_va_class.
+// (tac_wasm32_class) to a type, for __builtin_va_class.
 //
 #include "semantic.h"
 #include "structtab.h"

@@ -89,7 +89,7 @@ static void print_usage(const char *prog_name)
     fprintf(stderr, "    --max-errors=N      Stop after N errors (0: no limit; default 20)\n");
     fprintf(stderr, "    --no-show-source    Don't show the source line under a diagnostic\n");
     fprintf(stderr, "    --color=WHEN        Color diagnostics: always, never or auto (default)\n");
-    fprintf(stderr, "    -t, --target NAME   Target architecture (default: riscv64)\n");
+    fprintf(stderr, "    -t, --target NAME   Target architecture (default: wasm32-braam)\n");
     fprintf(stderr, "    -v, --verbose       Enable verbose mode\n");
     fprintf(stderr, "    -D, --debug         Print debug information\n");
     fprintf(stderr, "    -h, --help          Show this help message\n");
@@ -106,7 +106,7 @@ static void init_args(Args *args)
     args->help              = 0;
     args->debug             = 0;
     args->format            = FORMAT_TAC; // Default format
-    args->target_name       = "riscv64";
+    args->target_name       = "wasm32-braam";
     args->input_file        = NULL;
     args->output_file       = NULL;
     args->no_unreachable    = 0;

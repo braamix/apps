@@ -641,38 +641,6 @@ void tac_visit_names(const Tac_Instruction *in, Tac_NameVisitor fn, void *arg);
 bool tac_static_superseded(const Tac_TopLevel *program, const Tac_TopLevel *tl);
 
 //
-// AAPCS64 argument classes (tac_abi.c): in general registers, by reference to a copy
-// (an aggregate over 16 bytes), or in FP registers as `count` (1-4) elements of `esize`
-// (4, 8 or 16) bytes each, encoded esize * 8 + count — a float, double or long double
-// and a homogeneous float aggregate alike.  The value of __builtin_va_class.
-//
-enum { TAC_AAPCS64_GENERAL = 0, TAC_AAPCS64_BY_REF = 1 };
-int tac_aapcs64_class(const Tac_Type *t);
-// The element count of `t` as a homogeneous float aggregate (a lone FP scalar is one),
-// with the element size in *esize; 0 when it is none.
-int tac_aapcs64_hfa(const Tac_Type *t, int *esize);
-// The same under Apple's arm64 ABI, where long double is double.
-int tac_apple64_hfa(const Tac_Type *t, int *esize);
-// How a variadic argument goes under Apple's arm64 ABI: TAC_AAPCS64_BY_REF for an
-// aggregate over 16 bytes that is no homogeneous float aggregate, else
-// TAC_AAPCS64_GENERAL, in 8-byte stack slots (an HFA too).  The value of
-// __builtin_va_class on aarch64-darwin.
-int tac_apple64_class(const Tac_Type *t);
-//
-// AAPCS-VFP (32-bit) argument classes (tac_abi.c): in core registers and the stack, or
-// in VFP registers as `count` (1-4) elements of `esize` (4 or 8) bytes, encoded
-// esize * 8 + count — a float or double (long double is one) and a homogeneous float
-// aggregate alike.  Under the base standard (variadic) everything is TAC_AAPCS32_CORE.
-//
-enum { TAC_AAPCS32_CORE = 0 };
-int tac_aapcs32_class(const Tac_Type *t);
-//
-// MSP430 EABI argument classes, as GCC implements it (tac_abi.c): a structure or union
-// goes by reference, a scalar by value.  The value of __builtin_va_class.
-//
-enum { TAC_MSP430_VALUE = 0, TAC_MSP430_BY_REF = 1 };
-int tac_msp430_class(const Tac_Type *t);
-//
 // WebAssembly C ABI, as clang's wasm32 (tac_abi.c).  The scalar a value of type `t`
 // travels as: `t` itself for a scalar, the one scalar of an aggregate holding exactly
 // one (a lone bit-field's as the unsigned integer of the aggregate's size), else NULL:
@@ -683,17 +651,6 @@ enum { TAC_WASM32_VALUE = 0, TAC_WASM32_BY_REF = 1 };
 const Tac_Type *tac_wasm32_scalar(const Tac_Type *t);
 bool tac_wasm32_empty(const Tac_Type *t);
 int tac_wasm32_class(const Tac_Type *t);
-//
-// System V AMD64 argument classes (tac_abi.c): in memory (over 16 bytes, or with an
-// eightbyte that merges to MEMORY), X87 (a long double, or a struct of one: returned in
-// st(0), passed in memory), or the class of each eightbyte, INTEGER or SSE, encoded
-// class0 | class1 << 2 (class1 0 for a type of one eightbyte).  The value of
-// __builtin_va_class.
-//
-enum { TAC_SYSV64_MEMORY = 0, TAC_SYSV64_INTEGER = 1, TAC_SYSV64_SSE = 2, TAC_SYSV64_X87 = 3 };
-int tac_sysv64_class(const Tac_Type *t);
-// Eightbyte `i` (0 or 1) of class `cls`, or 0 when there is none.
-#define TAC_SYSV64_EIGHTBYTE(cls, i) ((cls) >> 2 * (i) & 3)
 
 //
 // Verify

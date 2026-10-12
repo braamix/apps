@@ -47,49 +47,21 @@ struct symtab {
 // §5.2.4.1 minimum of 4095 characters in a logical line requires a deterministic,
 // larger value.  The scratch areas below scale from it; they are on the heap, not
 // in a frame, so what this costs is address space and not stack.  Keep it
-// comfortably above 4095 -- except on the BESM-6, where it cannot be.
+// comfortably above 4095.
 #undef BUFSIZ
-#ifdef besm6
-// THE BESM-6 PROFILE IS DELIBERATELY NON-CONFORMING.  It does not meet the C11
-// §5.2.4.1 minima of 4095 macros and 4095 characters in a logical source line,
-// and it cannot: a user program gets 28,672 words of const+text+data+bss, no
-// pointer reaches past word 32,767, and the stack is 4,096 words.  The host
-// build (b6cpp, and the conformance suite in test/) keeps the full sizes; see
-// README.md, "Building for the BESM-6".
-#define BUFSIZ 1024
-
-// SBSIZE is measured against the real workload and not guessed down: the side
-// buffer holds every macro's name and body plus every file name saved, and the
-// include closure of one kernel source (kernel/sys1.c, 17 files) is 315 macros
-// and about 14 KB of them.  8192 was the first cut and it overflowed on
-// <sys/reg.h> with "too much defining"; this leaves room for a source with half
-// again as many.  It is 4,096 words of the address space -- the single largest
-// object in the program -- so it is also the first knob to turn if one is needed.
-#define SBSIZE 24576
-
-#define SYMSIZ 1021 // prime; 315 macros is the measured load of a kernel source
-#else
 #define BUFSIZ 8192
 #define SBSIZE \
     1048576 // bytes of "side buffer": every macro's name and body, the file names, and
             // the pushback buffers, BUFSIZ each (vcc's own X-macro tables need more than 64 KB)
 #define SYMSIZ \
     6151 // number of slots in the symbol hash table (prime; holds the §5.2.4.1 min of 4095 macros)
-#endif
 
 // How deep a macro call may sit inside a macro ARGUMENT before the argument is
 // substituted raw instead of prescanned.  §6.10.3.1's prescan is a recursion --
 // expand_macro -> expand_text -> scan_token -> expand_macro -- and it is the one
-// recursion in this program whose depth the input chooses, so on a machine whose
-// stack is 4,096 words and unchecked it needs a ceiling of its own.  The BESM-6
-// number is measured, not guessed: README.md, "Building for the BESM-6", prints
-// the frame chain it came from.  The host has no such limit and keeps a value
-// that only stops a runaway.
-#ifdef besm6
-#define MAXARGDEPTH 1
-#else
+// recursion in this program whose depth the input chooses.  This value only stops
+// a runaway.
 #define MAXARGDEPTH 200
-#endif
 
 #define MAXINC 10 // maximum depth of nested #include files
 #define MAXIF  64 // maximum depth of nested #if/#ifdef/#ifndef blocks
@@ -99,33 +71,16 @@ struct symtab {
 // host takes more: vcc's own sources need them (an X-macro table expanded in place,
 // cc.c's thirty -D, a library's -I path), and each pushback buffer is BUFSIZ bytes of
 // the side buffer.
-#ifdef besm6
-#define MAXFRE  14
-#define NPREDEF 20
-#define MAXDIRS 8
-#define MAXONCE 32
-#else
 #define MAXFRE  64
 #define NPREDEF 200
 #define MAXDIRS 64
 #define MAXONCE 1024
-#endif
 
 // The three scratch areas expand_macro() carves out of one heap block, and the
 // isolated scan buffer expand_text() takes for itself.  They are on the heap and
 // not in a frame because both functions sit on the recursion that macro-expands
 // an argument; macro.c says so where it allocates them.
-// EXPTXT_MULT is 2 and not 4 on the BESM-6 because of the ALLOCATOR's granularity, not
-// because of the size itself: libc's malloc grows the arena a 1,024-word PAGE at a time
-// (lib/libc/gen/malloc.c), so a 7*BUFSIZ block -- 1,196 words -- costs two pages while a
-// 5*BUFSIZ one costs one.  With one page per level the depth-1 chain fits the ~4,800 words
-// between `end' and the stack; with two it does not, and expand_macro starts reporting
-// "out of memory" on ordinary input.  Measure the break, not the request.
-#ifdef besm6
-#define EXPTXT_MULT 2
-#else
 #define EXPTXT_MULT 4 // exptxt holds this many BUFSIZ of expanded actuals
-#endif
 #define ACTTXT_SIZE BUFSIZ                 // ... the raw actuals
 #define EXPTXT_SIZE (EXPTXT_MULT * BUFSIZ) // ... the expanded ones
 #define STRBUF_SIZE (2 * BUFSIZ + 4)       // ... one '#param' result, worst-case all-escaped
