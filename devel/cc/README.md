@@ -58,12 +58,33 @@ byte of assembly the compiler writes.
   gone. [cc/README.md](cc/README.md) is its manual.
 - **Formatting** is the root `.clang-format`, which for C is vcc's own.
 
-## Building on the host
+## Building
 
-[CMakeLists.txt](CMakeLists.txt) builds the compiler with the host's C
-compiler, without the SDK's toolchain file:
+`make` at the top builds the compiler twice over. First natively: the top
+[Makefile](../../Makefile) configures this directory with the host's C
+compiler into `build/host-cc/`, without the SDK's toolchain file, and
+installs it into `build/host-cc/stage/` as upstream lays an installation
+out — `bin/vcc` and its passes, and the headers of `wasm32-braam` in
+`share/vcc/wasm32-braam/include/`. That is the cross compiler.
 
-    cmake -S devel/cc -B build/host-cc && cmake --build build/host-cc
+Then, in the tree's own wasm32 configure, [braam.cmake](braam.cmake) uses
+it (`VCC_HOST`, which defaults to that stage):
+
+- **The runtime.** `crt0.o` is `libc/wasm32/braam/exports.s`; `libc.a` is
+  upstream's `wasm32-braam` set — the common and ILP32 sources compiled for
+  `wasm32` by the passes, `memory.s` and `sqrt.s`, and `braam/`'s sources
+  compiled by the driver. Both go in `build/devel/cc/lib/`.
+- **`vcc_add_program(NAME n SOURCES ...)`**, the counterpart of
+  `braam_add_program` for C with coroutines: `vcc -S` on each source, the
+  SDK's clang to assemble, `wasm-ld` (or `ld` under `make LINKER=ld`) with
+  the driver's flags, `crt0.o` and `libc.a`, then the SDK's `stamp.py`, so
+  the ABI is the SDK's.
+- **A check**: [check_braam_abi.py](scripts/check_braam_abi.py) holds
+  `braam.h` and `errno.h` to the SDK's `sysabi.h` and `result.h`, and a
+  disagreement fails the build.
+
+[test/hello.c](test/hello.c) is built that way, and
+[test/hello.mjs](test/hello.mjs) runs it under the SDK's harness.
 
 ## Test programs
 

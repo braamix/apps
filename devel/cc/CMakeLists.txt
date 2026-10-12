@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.24)
 
+# Under the tree's own CMakeLists this is the wasm32 half: the runtime and the
+# programs, built by the host compiler below, configured apart (VCC_HOST).
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "wasm32")
+    include(braam.cmake)
+    return()
+endif()
+
 # The compiler on the host, built by the host's C compiler: the cross compiler
 # that builds this package (Plan.md, decision 1). Configure it without the
 # SDK's toolchain file, in a build directory of its own.
@@ -94,3 +101,29 @@ add_executable(genwasm backend/wasm/main.c)
 target_link_libraries(genwasm wasm backend_common)
 
 add_executable(cc cc/cc.c)
+
+# An installation, as upstream lays it out: the driver finds its passes beside
+# it and the headers in ../share/vcc/wasm32-braam/include. Braam's headers
+# first, then wasm32's, ILP32's and the common ones, the first of a name winning.
+install(PROGRAMS $<TARGET_FILE:cc> DESTINATION bin RENAME vcc)
+install(PROGRAMS $<TARGET_FILE:cpp> DESTINATION bin RENAME vcpp)
+install(PROGRAMS $<TARGET_FILE:parse> DESTINATION bin RENAME vparse)
+install(PROGRAMS $<TARGET_FILE:lower> DESTINATION bin RENAME vlower)
+install(PROGRAMS $<TARGET_FILE:genwasm> DESTINATION bin RENAME vgenwasm)
+
+set(VCC_HEADERS "")
+set(VCC_HEADER_NAMES "")
+foreach(dir libc/wasm32/braam/include libc/wasm32/include libc/ilp32/include
+            libc/common/include)
+    file(GLOB hs ${CMAKE_CURRENT_SOURCE_DIR}/${dir}/*.h)
+    foreach(h ${hs})
+        get_filename_component(name ${h} NAME)
+        if(NOT name IN_LIST VCC_HEADER_NAMES)
+            list(APPEND VCC_HEADER_NAMES ${name})
+            list(APPEND VCC_HEADERS ${h})
+        endif()
+    endforeach()
+endforeach()
+file(GLOB VCC_SYS_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/libc/wasm32/braam/include/sys/*.h)
+install(FILES ${VCC_HEADERS} DESTINATION share/vcc/wasm32-braam/include)
+install(FILES ${VCC_SYS_HEADERS} DESTINATION share/vcc/wasm32-braam/include/sys)

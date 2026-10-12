@@ -40,6 +40,11 @@ LD_SOURCES := $(wildcard devel/wasm/ld/*.cpp devel/wasm/ld/*.h \
                           devel/wasm/lib/*.cpp devel/wasm/lib/*.h \
                           devel/wasm/lib/demangle/*.cpp devel/wasm/lib/demangle/*.h)
 
+# devel/cc's compiler, built natively first: it is the cross compiler that
+# builds the package's C. Its installation is where the main configure looks
+# (VCC_HOST). The build is cheap to repeat, so it is always asked for.
+HOST_CC := $(BUILD)/host-cc
+
 # Publishing. The repository the index is for, which must equal the client's
 # /etc/repositories line byte for byte, and the index's own two numbers.
 REPO_URL      ?= https://braamix.github.io
@@ -62,17 +67,23 @@ MKINDEX ?= $(firstword $(wildcard $(SDK)/libexec/braam/mkindex.py))
 
 REPO := $(BUILD)/repo
 
-.PHONY: all package test longtest index clean hooks
+.PHONY: all package test longtest index clean hooks host-cc
 
 # Stated rather than left to position: a bare `make` builds everything, whatever
 # target happens to be written first.
 .DEFAULT_GOAL := all
 
 # BRAAM_LD is reconfigured whenever LINKER says otherwise than the cache.
-all: $(BUILD)/CMakeCache.txt $(BRAAM_LD)
+all: host-cc $(BUILD)/CMakeCache.txt $(BRAAM_LD)
 	@test "`sed -n 's/^BRAAM_LD:[A-Z]*=//p' $(BUILD)/CMakeCache.txt`" = "$(BRAAM_LD)" || \
 	    cmake -B $(BUILD) -DBRAAM_LD=$(BRAAM_LD) >/dev/null
 	@cmake --build $(BUILD) -j $(JOBS)
+
+host-cc:
+	@test -f $(HOST_CC)/CMakeCache.txt || cmake -S devel/cc -B $(HOST_CC) -G "$(GENERATOR)" \
+	    -DCMAKE_BUILD_TYPE=Release >/dev/null
+	@env -u MAKEFLAGS -u MFLAGS -u MAKELEVEL cmake --build $(HOST_CC) -j $(JOBS)
+	@cmake --install $(HOST_CC) --prefix $(HOST_CC)/stage >/dev/null
 
 # Once per clone: use .githooks/commit-msg (strips Co-authored-by trailers).
 hooks:
@@ -180,6 +191,7 @@ TESTS := \
     devel/c4/test/run.mjs \
     devel/c4/test/selfhost.mjs \
     devel/c4/test/interrupt.mjs \
+    devel/cc/test/hello.mjs \
     devel/wasm/ld/test/fixtures.mjs \
     devel/wasm/ld/test/dump.mjs \
     devel/wasm/ld/test/resolve.mjs \
@@ -372,6 +384,6 @@ $(abspath $(BOOT))/ld: $(BOOT)/ld.wasm
 # The toolchain file is named on this first configure and only here: CMake
 # fixes the compiler when a project is configured, and a build directory
 # configured without it cannot be repaired by adding the flag.
-$(BUILD)/CMakeCache.txt: $(TOOLCHAIN)
+$(BUILD)/CMakeCache.txt: $(TOOLCHAIN) | host-cc
 	@cmake -B $(BUILD) -G "$(GENERATOR)" \
 	    -DCMAKE_TOOLCHAIN_FILE=$(abspath $(TOOLCHAIN)) $(CMAKE_ARGS)
