@@ -114,6 +114,13 @@ Headless, in `TESTS`, each one boot with the package planted:
 
 Slow ones go in `LONGTESTS`.
 
+**Done**, as [README.md](README.md) "Tests on Braam" says. `hello.mjs`'s
+part is `toolchain.mjs`, the host's `hello.mjs` keeping its name; the run
+tests that are not the book's are `wasm.mjs`. `corpus.mjs` runs `vcpp`
+alone and the other three as a chain from the host's `.i`, since `.ast` and
+`.tac` are words of the build's `size_t`; it is in `LONGTESTS`. One bug
+found: upstream's `fflush` lost what another task printed while it wrote.
+
 ### Step 7 — self-compilation
 
 1. On Braam, `cc -c` every source of `devel/cc` and of its libc, then link

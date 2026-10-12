@@ -147,13 +147,10 @@ top-level `include/` and `lib/`, so the driver finds it as it always has:
 through `/pkg/bin/cc`, its links resolved, and `../share/vcc/wasm32-braam`.
 It is 428 KB packed and 1.3 MB unpacked.
 
-[test/toolchain.mjs](test/toolchain.mjs) is the install as a user makes it:
-a repository signed for the run, with an anchor of its own, serves `cc` and
-`wasm`, and `pkg install cc` pulls in both. Then, in the harness, `cc
-hello.c && ./a.out` with the package's example, a program built and run
-with arguments and a status, six programs compiled to the assembly the
-host's compiler makes of them, and a compile error. On a kernel whose
-`exit()` loses its output it checks the install alone, and says so.
+Every test of the compiler on Braam starts from the install as a user
+makes it ([test/ccfix.mjs](test/ccfix.mjs)): a repository signed for the
+run, with an anchor of its own, serves `cc` and `wasm`, and `pkg install
+cc` pulls in both. `make test-packages` packs the two zips first.
 
 ## The C library
 
@@ -187,6 +184,10 @@ be offered back:
 - `PATH_MAX` is 512 under `__braam__`, as in Braam's compat layer, and
   `open` takes POSIX's optional mode and drops it, since a coroutine cannot
   be variadic.
+- **A fix to upstream's `fflush`**: it emptied the buffer after its write,
+  so what another task printed while the write waited was lost. It now
+  drops only what it wrote. Upstream's fake kernel answers at once, which
+  is why its test of two tasks never saw it; `test/braam.mjs` does.
 
 [test/libc.c](test/libc.c) prints the pure half (ctype, integer and float
 conversions both ways, `printf`'s float formats and flags, sorting,
@@ -207,6 +208,36 @@ sources, one file each, with the output the test expects beside it as
 Chapter 20 of the book is left out, being about register allocation, and so
 is every program upstream's wasm32 fixture skips, most of them for assuming
 a 64-bit `long`.
+
+## Tests on Braam
+
+Each is one boot with the package installed, and in `TESTS` but for the
+corpus:
+
+| Test | What it holds |
+| --- | --- |
+| [toolchain.mjs](test/toolchain.mjs) | `cc hello.c && ./a.out` with the package's example; a program with arguments and a status; six programs compiled to the host's assembly; a compile error's message and status |
+| [book.mjs](test/book.mjs) | the book's 354 programs, compiled and run, each output and result as upstream's test expects |
+| [coro.mjs](test/coro.mjs) | 21 coroutine, `defer` and `alloca` programs, the same way |
+| [wasm.mjs](test/wasm.mjs) | 97 run tests of the wasm32 backend, the same way |
+| [braam.mjs](test/braam.mjs) | `braam_tests.cpp`'s programs: streams, files, standard input, tasks, poll, `^C` caught and not, and `notes.c`'s session |
+| [interrupt.mjs](test/interrupt.mjs) | `kill -INT` ends a long `vlower` run, with nothing written |
+| [corpus.mjs](test/corpus.mjs) | in `LONGTESTS`, 3½ minutes: `vcpp` makes the host's `.i` of the tree's 669 sources, and the other passes the host's `.s` of the 660 that compile |
+
+The run tests are plain wasm32 programs upstream, and on Braam `main` is a
+coroutine, so [suites.mjs](test/suites.mjs) compiles each with
+`-Dmain=__vcc_main` and links a `main` that calls it and, for the book,
+prints the result as upstream's `crt0-status.o` does. That costs three of
+the book's programs, which rely on `main`'s implicit `return 0`. Six more
+are skipped with their reason (no `setjmp`, a second unit or a helper that
+lived in the test, Braam's `errno` numbers), and 17 have no expected
+output to hold them to.
+
+`braam.mjs` keeps upstream's expectations where Braam agrees with the fake
+kernel, and says where it does not: `exit()` keeps its output; the
+harness's clock stands still; `POLLIN` on standard output is refused; and a
+sleep of `(unsigned)-10` ms is long. The fixture moves the clock to the
+next timer whenever the kernel waits for one, so sleeps end.
 
 ## Holding the trimmed compiler to upstream
 

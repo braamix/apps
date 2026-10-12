@@ -67,7 +67,7 @@ MKINDEX ?= $(firstword $(wildcard $(SDK)/libexec/braam/mkindex.py))
 
 REPO := $(BUILD)/repo
 
-.PHONY: all package test longtest index clean hooks host-cc
+.PHONY: all package test test-packages longtest index clean hooks host-cc
 
 # Stated rather than left to position: a bare `make` builds everything, whatever
 # target happens to be written first.
@@ -194,6 +194,11 @@ TESTS := \
     devel/cc/test/hello.mjs \
     devel/cc/test/libc.mjs \
     devel/cc/test/toolchain.mjs \
+    devel/cc/test/book.mjs \
+    devel/cc/test/coro.mjs \
+    devel/cc/test/wasm.mjs \
+    devel/cc/test/braam.mjs \
+    devel/cc/test/interrupt.mjs \
     devel/wasm/ld/test/fixtures.mjs \
     devel/wasm/ld/test/dump.mjs \
     devel/wasm/ld/test/resolve.mjs \
@@ -288,7 +293,8 @@ LONGTESTS := \
     lang/python/test/pycases.mjs,--shard=2/4 \
     lang/python/test/pycases.mjs,--shard=3/4 \
     lang/python/test/pycases.mjs,--shard=4/4 \
-    devel/wasm/wat/test/object.mjs
+    devel/wasm/wat/test/object.mjs \
+    devel/cc/test/corpus.mjs
 
 # `make test STRESS=1`. Python's cases are run a second time collecting at
 # every allocation, which is what says a C++ hand holding an object across an
@@ -336,11 +342,16 @@ define run-tests
 	@echo "passed: `wc -l < $(2)/list | tr -d ' '` tests" | tee -a $(3)
 endef
 
-test: all
+# devel/cc's tests install the cc and wasm packages, packed once here rather
+# than by each of them side by side.
+test-packages: all
+	@cmake --build $(BUILD) -j $(JOBS) --target pkg_cc pkg_wasm >/dev/null
+
+test: test-packages
 	$(call run-tests,$(TESTS) $(if $(STRESS),$(STRESS_TESTS)),$(TEST_DIR),$(TEST_LOG))
 
 # The slow half, in a log of its own.
-longtest: all
+longtest: test-packages
 	$(call run-tests,$(LONGTESTS),$(LONG_DIR),$(LONG_LOG))
 
 # The repository to upload: the signed index and the zips it vouches for, in

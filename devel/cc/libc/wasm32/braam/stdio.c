@@ -123,10 +123,13 @@ coro(braam_call *) int fflush(FILE *f)
         *f->memlen = f->len;
         return 0;
     }
-    if (f->len == 0)
+    size_t len = f->len;
+    if (len == 0)
         return 0;
-    ssize_t n = await write(f->fd, f->buf, f->len);
-    f->len    = 0;
+    ssize_t n = await write(f->fd, f->buf, len);
+    /* Another task may have added to the buffer while the write waited. */
+    memmove(f->buf, f->buf + len, f->len - len);
+    f->len -= len;
     if (n < 0) {
         f->flags |= __F_ERR;
         return EOF;
