@@ -158,7 +158,7 @@ the rest are plain, and `lower` and `genwasm` park once per declaration so
 The runtime stays where upstream's installation keeps it rather than in a
 top-level `include/` and `lib/`, so the driver finds it as it always has:
 through `/pkg/bin/cc`, its links resolved, and `../share/vcc/wasm32-braam`.
-It is 428 KB packed and 1.3 MB unpacked.
+It is 549 KB packed and 1.8 MB unpacked.
 
 Every test of the compiler on Braam starts from the install as a user
 makes it ([test/ccfix.mjs](test/ccfix.mjs)): a repository signed for the
