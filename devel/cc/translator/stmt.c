@@ -133,12 +133,9 @@ static int zero_stores(const Initializer *init)
 }
 
 // Zero the first `bytes` bytes of var_name: a word-store loop, then byte stores for a tail.
-// A word-addressed target's slot is whole words, so there the loop covers the tail too.
 static void gen_zero_fill(TacCtx *ctx, const char *var_name, int bytes)
 {
     int w = target_word_bytes();
-    if (target_word_addressed())
-        bytes = (bytes + w - 1) / w * w;
     int nwords = bytes / w;
 
     char *ptr             = new_typed_temp(ctx, tac_type_ptr(tac_type_word()));

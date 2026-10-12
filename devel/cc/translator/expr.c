@@ -126,19 +126,14 @@ static bool is_floating_type(const Type *t)
 }
 
 // For a non-byte pointer whose arithmetic must be scaled, return the element size in
-// bytes (the ADD_PTR scale); 0 when a plain BINARY add/subtract suffices.  On a
-// word-addressed target that is a pointee of one word or less, which already advances
-// by exactly one word; only a wider one (pointer-to-array / -struct) scales.  On a
-// byte-addressed target every pointee scales.
+// bytes (the ADD_PTR scale); 0 when a plain BINARY add/subtract suffices.  Every
+// pointee scales.
 static int wide_ptr_scale(const Type *t)
 {
     t = unalias(t);
     if (t->kind != TYPE_POINTER || is_byte_pointer(t))
         return 0;
-    int sz = (int)get_size(t->u.pointer.target);
-    if (!target_word_addressed())
-        return sz;
-    return sz > target_word_bytes() ? sz : 0;
+    return (int)get_size(t->u.pointer.target);
 }
 
 // Byte stride of a fat (byte) pointer — the size of its pointee: 1 for char*/void*, or the
@@ -186,10 +181,9 @@ static Tac_BinaryOperator map_binary_op(BinaryOp op, const Type *operand_type)
 {
     bool is_unsigned = is_unsigned_type(operand_type);
     bool is_float    = is_floating_type(operand_type);
-    // Addresses are ordered unsigned, so a pointer compare folds as one too; the BESM-6
-    // word pointers keep the plain operators.
+    // Addresses are ordered unsigned, so a pointer compare folds as one too.
     if ((op == BINARY_LT || op == BINARY_GT || op == BINARY_LE || op == BINARY_GE) &&
-        unalias(operand_type)->kind == TYPE_POINTER && !target_word_addressed())
+        unalias(operand_type)->kind == TYPE_POINTER)
         is_unsigned = true;
     switch (op) {
     case BINARY_ADD:
@@ -907,9 +901,8 @@ static Tac_Val *gen_binary(TacCtx *ctx, BinaryOp op, Expr *l, Expr *r, const Typ
             sub->u.binary.src2   = vr;
             sub->u.binary.dst    = vd;
             tac_append(ctx, sub);
-            // The difference is in addressing units: words, or bytes.
-            int unit  = target_word_addressed() ? target_word_bytes() : 1;
-            int elems = wide_ptr_scale(l->type) / unit;
+            // The difference is in bytes.
+            int elems = wide_ptr_scale(l->type);
             if (elems == 1)
                 return val_var(vd->u.var_name);
             return gen_div_const(ctx, val_var(vd->u.var_name), elems);
@@ -926,51 +919,6 @@ static Tac_Val *gen_binary(TacCtx *ctx, BinaryOp op, Expr *l, Expr *r, const Typ
             return gen_ptr_add(ctx, vptr, vidx, op == BINARY_SUB, l_scale ? l_scale : r_scale,
                                l_scale ? l->type : r->type, l_scale ? r->type : l->type);
         }
-    }
-
-    // Relational comparison of two char*/void* fat pointers.  The fat-pointer encoding
-    // carries the byte offset in the high (exponent) bits and the word address in the low
-    // bits, so a raw-word ordering compare is wrong.  Decode both to absolute byte positions
-    // and subtract (PTR_DIFF / b/pdiff), then compare the signed difference against 0:
-    // a >= b  iff  bytepos(a) - bytepos(b) >= 0, and likewise for <, >, <=.  (==/!=
-    // between two real pointers fall through to a full-word compare — identical positions
-    // have identical words — but ==/!= against a null constant is handled just below.)
-    // Only a word-addressed target has fat pointers: elsewhere the difference could
-    // overflow (rv32 pointers 2 GB apart), so the pointers are compared themselves.
-    if ((op == BINARY_LT || op == BINARY_GT || op == BINARY_LE || op == BINARY_GE) &&
-        target_word_addressed() && is_byte_pointer(l->type) && is_byte_pointer(r->type)) {
-        Tac_Val *vl          = gen_expr(ctx, l);
-        Tac_Val *vr          = gen_expr(ctx, r);
-        Tac_Val *vdiff       = new_var_val(ctx, tac_type_ptrdiff());
-        Tac_Instruction *pd  = tac_new_instruction(TAC_INSTRUCTION_PTR_DIFF);
-        pd->u.ptr_diff.ptr_a = vl;
-        pd->u.ptr_diff.ptr_b = vr;
-        pd->u.ptr_diff.dst   = vdiff;
-        tac_append(ctx, pd);
-
-        Tac_BinaryOperator cmp;
-        switch (op) {
-        case BINARY_LT:
-            cmp = TAC_BINARY_LESS_THAN;
-            break;
-        case BINARY_GT:
-            cmp = TAC_BINARY_GREATER_THAN;
-            break;
-        case BINARY_LE:
-            cmp = TAC_BINARY_LESS_OR_EQUAL;
-            break;
-        default: // BINARY_GE
-            cmp = TAC_BINARY_GREATER_OR_EQUAL;
-            break;
-        }
-        Tac_Val *vd         = new_var_val(ctx, tac_new_type(TAC_TYPE_INT));
-        Tac_Instruction *in = tac_new_instruction(TAC_INSTRUCTION_BINARY);
-        in->u.binary.op     = cmp;
-        in->u.binary.src1   = val_var(vdiff->u.var_name);
-        in->u.binary.src2   = val_int(0);
-        in->u.binary.dst    = vd;
-        tac_append(ctx, in);
-        return val_var(vd->u.var_name);
     }
 
     // Equality of a char*/void* fat pointer against a null constant (p == NULL, p != 0).
@@ -1849,28 +1797,6 @@ static Tac_Val *gen_expr_at(TacCtx *ctx, Expr *e)
         Tac_Val *args_head  = NULL;
         Tac_Val **args_tail = &args_head;
         for (Expr *arg = e->u.call.args; arg; arg = arg->next) {
-            // On a struct_args_split target a struct wider than a word is marshalled as N
-            // consecutive machine-word arguments (true by-value): read each word out of the struct
-            // slot and append it as its own call argument.  The callee reserves N
-            // contiguous param slots (see params_from_type), so the words line up.
-            if (type_is_split_arg(arg->type)) {
-                Tac_Val *sv = gen_expr(ctx, arg);
-                int w       = target_word_bytes();
-                int nwords  = ((int)get_size(arg->type) + w - 1) / w;
-                for (int i = 0; i < nwords; i++) {
-                    Tac_Val *t          = new_var_val(ctx, tac_type_word());
-                    Tac_Instruction *ld = tac_new_instruction(TAC_INSTRUCTION_COPY_FROM_OFFSET);
-                    ld->u.copy_from_offset.src    = xstrdup(sv->u.var_name);
-                    ld->u.copy_from_offset.offset = i * w;
-                    ld->u.copy_from_offset.dst    = t; // owned by the COPY_FROM_OFFSET
-                    tac_append(ctx, ld);
-
-                    *args_tail = val_var(t->u.var_name);
-                    args_tail  = &(*args_tail)->next;
-                }
-                tac_free_val(sv);
-                continue;
-            }
             Tac_Val *av = gen_expr(ctx, arg);
             *args_tail  = av;
             args_tail   = &av->next;

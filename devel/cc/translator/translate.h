@@ -189,12 +189,8 @@ int target_word_bytes(void);
 // True when `t` is a struct/union too large to return by value on this target
 // (Target.struct_return_max), so it uses the hidden-pointer (sret) calling convention.
 bool type_is_byval_sret(const Type *t);
-// True when `t` is a struct/union argument this target passes as consecutive words
-// (Target.struct_args_split).
-bool type_is_split_arg(const Type *t);
 // True when a `?:` of type `t` merges its arms in a frame slot by aggregate copies
-// rather than by a COPY: a struct/union wider than a word, or any struct/union on a
-// byte-addressed target.
+// rather than by a COPY: any struct/union.
 bool type_needs_slot(const Type *t);
 // One side of an aggregate copy: a named frame/global aggregate `name` at byte `offset`
 // (reached by COPY_*_OFFSET), or else the address held in variable `ptr` (ADD_PTR +

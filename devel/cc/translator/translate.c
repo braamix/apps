@@ -679,16 +679,9 @@ bool type_is_byval_sret(const Type *t)
     return get_size(t) > target_config->struct_return_max;
 }
 
-bool type_is_split_arg(const Type *t)
-{
-    return target_config->struct_args_split && is_struct_or_union(t) &&
-           (int)get_size(t) > target_word_bytes();
-}
-
 bool type_needs_slot(const Type *t)
 {
-    return is_struct_or_union(t) &&
-           ((int)get_size(t) > target_word_bytes() || !target_word_addressed());
+    return is_struct_or_union(t);
 }
 
 int aggregate_chunk(const Type *t)
@@ -790,25 +783,6 @@ static Tac_Param *params_from_type(const Type *fun_type)
         tp->type      = ast_type_to_tac_type(p->type);
         *tail         = tp;
         tail          = &tp->next;
-
-        // On a struct_args_split target a struct parameter wider than a word is passed
-        // as N consecutive machine words (see the call-site decomposition in expr.c).  The real
-        // param above is the struct's base slot; append N-1 filler params so frame_build reserves N
-        // contiguous slots and the body's `base + i*word` member accesses resolve
-        // correctly.  The fillers are never referenced by name.
-        if (type_is_split_arg(p->type)) {
-            int w      = target_word_bytes();
-            int nwords = ((int)get_size(p->type) + w - 1) / w;
-            for (int i = 1; i < nwords; i++) {
-                Tac_Param *fill = tac_new_param();
-                char buf[64];
-                snprintf(buf, sizeof(buf), "%s$w%d", p->name, i);
-                fill->name = xstrdup(buf);
-                fill->type = tac_type_word();
-                *tail      = fill;
-                tail       = &fill->next;
-            }
-        }
     }
     return head;
 }

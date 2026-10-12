@@ -385,12 +385,10 @@ bool is_promotable_narrow(const Type *t)
 }
 
 // C11 §6.3.1.1p2: unsigned short promotes to unsigned int where int cannot represent
-// all its values, i.e. where short is as wide as int (AVR).  BESM-6 keeps the
-// simplification described above: its unsigned short fills the word, and promotes to int.
+// all its values, i.e. where short is as wide as int (AVR).
 bool ushort_promotes_unsigned(void)
 {
-    return target_config && !target_word_addressed() &&
-           (int)target_config->short_size * 8 >= target_config->int_bits;
+    return target_config && (int)target_config->short_size * 8 >= target_config->int_bits;
 }
 
 // The type a promotable narrow integer type promotes to.

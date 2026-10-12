@@ -519,21 +519,7 @@ static Tac_StaticInit *static_init_at(Type *var_type, const Initializer *init)
                            target->kind == TYPE_UCHAR || target->kind == TYPE_VOID);
             if (is_fat) {
                 // A char*/void* addresses a byte.  eval_addr_const already yields the packed
-                // byte position for a char-array element/member and for a string/array decay;
-                // on a word-addressed target a directly-addressed scalar char keeps its value
-                // in the low byte of its one-word cell, so &c is byte#5 (offset_enc 5).
-                // Sub-word char addressing beyond these forms is the known char-in-struct
-                // limitation.
-                const Expr *operand = init->u.expr->kind == EXPR_UNARY_OP &&
-                                              init->u.expr->u.unary_op.op == UNARY_ADDRESS
-                                          ? init->u.expr->u.unary_op.expr
-                                          : NULL;
-                if (target_word_addressed() && operand &&
-                    (operand->kind == EXPR_VAR || operand->kind == EXPR_COMPOUND)) {
-                    const Type *ot = unalias(symtab_get(base)->type);
-                    if (ot->kind == TYPE_CHAR || ot->kind == TYPE_SCHAR || ot->kind == TYPE_UCHAR)
-                        off += (long)target_config->aggregate_align - 1;
-                }
+                // byte position for a char-array element/member and for a string/array decay.
                 Tac_StaticInit *fi        = tac_new_static_init(TAC_STATIC_INIT_FAT_POINTER);
                 fi->u.pointer.name        = xstrdup(base);
                 fi->u.pointer.byte_offset = (int)off;
