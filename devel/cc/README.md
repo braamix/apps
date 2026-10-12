@@ -2,7 +2,7 @@
 
 This is vcc, Serge Vakulenko's C11 compiler with `defer` and coroutines, cut
 down to its `wasm32-braam` target. It runs on Braam as the package `cc`,
-and is on its way to compiling itself there. [Plan.md](Plan.md) is the
+and compiles itself there. [Plan.md](Plan.md) is the
 plan; this file says where it stands.
 
 ## Upstream
@@ -103,9 +103,15 @@ The compiler is C with coroutines, and the host compiles the same sources:
 [libutil/host.h](libutil/host.h) makes `coro(Y)` and `await` nothing there,
 and a call that waits is then C's own. Coroutines stop at the door: a pass
 reads its input whole (`read_file`, or `wopen`/`wdopen` for the word streams),
-works in plain C over memory, and writes its output whole when it closes it.
-Only `main`, the opens and the closes wait, and `lower` and `genwasm` park
-once per declaration so `^C` reaches a long run.
+works in plain C over memory, and writes its output through stdio, whose
+calls wait. So every function that reaches an output call is a coroutine;
+the rest are plain, and `lower` and `genwasm` park once per declaration so
+`^C` reaches a long run.
+
+- **Diagnostics are held.** They are called from everywhere, plain code
+  included, so on Braam `diag_printf` keeps them and `diag_flush` writes
+  them at each pass's pause points; an `atexit` handler posts what is left.
+  The debug traces (`trace_printf`) compile out.
 
 - **A fatal error is `exit()`**, from wherever it is found. Braam's `exit()`
   posts every stream's buffer as a write nobody waits for and ends the

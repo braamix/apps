@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Twenty-one programs are ported so far**:
+**Twenty-three programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -220,6 +220,28 @@ and `exit(-1)` is a sticky flag. `#define int long long` is kept, so the VM
 word is eight bytes as upstream's was. `share/c4.c` and `share/hello.c` are
 the original sources, and a bare name resolves through `/pkg/bin` so
 `c4 hello.c` and `c4 c4.c hello.c` work after install.
+And [devel/cc](devel/cc/), vcc — a C11 compiler with `defer` and coroutines,
+cut down to its `wasm32-braam` target, and a **ninth shape**: the one port
+that is *not* C++, and whose programs are not either. A Braam program built
+by it is C whose `main` is a `coro(braam_call *)`, and every call that would
+block is `await`ed — **output included**: a stream's buffer is a fixed
+`BUFSIZ`, so `printf`, `fprintf`, `puts`, `putchar`, `fwrite` and the rest are
+coroutines, and `printf` being variadic is why vcc learned to compile
+variadic coroutines. The `snprintf` family stays plain, and plain code cannot
+print at all; the few runtime paths that must — `assert`, a coroutine trap,
+`getopt`'s complaint — post through `__plain_write`, as `exit()` posts the
+streams. The compiler's own passes are the same rule applied to itself: the
+host build and the Braam build are one set of sources, `libutil/host.h`
+making `coro` and `await` empty natively, and on Braam every function that
+reaches an output call is a coroutine. Diagnostics are the exception, being
+called from everywhere: they are held and written at each pass's pause
+points, or at exit; debug traces compile out. It is five processes — `cc`
+driving `vcpp`, `vparse`, `vlower` and `vgenwasm` — linked by
+[devel/wasm](devel/wasm/)'s `ld`, which `cc` depends on for `as` and `ld`,
+and it **compiles itself on Braam byte for byte** against the host build
+(`selfhost.mjs`, six minutes in `LONGTESTS`). Two size budgets keep huge
+coroutine bodies affordable: no CSE past 32 suspension points, and no local
+coalescing past 16 MB of analysis.
 
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
