@@ -4,7 +4,8 @@
 `~/Project/Claude/vcc`, cut down to its `wasm32-braam` target and rewritten
 in vcc's own C-with-coroutines, so that it runs on Braam and can compile
 itself there. This file is the plan: what is taken, what changes, and the
-order of the steps, each with what proves it done. No code exists yet.
+order of the steps, each with what proves it done. The import and the trim
+are done, and [README.md](README.md) says how they were checked.
 
 ## 1. Where this starts
 
@@ -86,37 +87,13 @@ What Braam already has, in this tree:
 | `*.asdl` specs | beside their headers | — |
 | `docs/Coroutines_in_C.md`, `Braam.md`, `Wasm_Backend.md` | `Manual.md` and `doc/` | other targets' sections |
 
-Whether `--yaml` and `ast_compare`/`tac_compare` stay is decided in step 1
-by whether the tests use them. Not vendored: the GoogleTest suites (their
-programs are, see step 6), `scripts/` but for `check_braam_abi.py`.
+Not vendored: the GoogleTest suites (their programs are, see step 6),
+`scripts/` but for `check_braam_abi.py`.
 
 ## 4. Steps
 
 Each step ends green: `make test` passes and the package, once it exists,
 still builds.
-
-### Step 1 — import and trim
-
-1. Copy the files of §3 verbatim at `937a00c4`, and record the commit in
-   `README.md`.
-2. Build them on the host with the host compiler (plain CMake, its own
-   build directory — never the SDK's toolchain file) and compile a corpus
-   to `.s` with `-t wasm32-braam`: vcc's book programs
-   (`backend/common/test/book/`), its coroutine programs
-   (`backend/common/test/coro/`), its Braam examples, its libc, and its own
-   sources. Keep those `.s` as the **reference corpus**.
-3. Trim per §3 in small commits. After each, the corpus is unchanged byte
-   for byte.
-4. `clang-format` the tree with the root `.clang-format` (vcc's is
-   different), corpus unchanged.
-
-Done when: the trimmed host build produces the reference corpus exactly.
-
-**Done.** The corpus grew to every C snippet of vcc's tests, 4,199 sources,
-and the driver got a transcript of its own; [README.md](README.md) says how
-both are checked. Two decisions moved: the passes keep `wasm32` beside
-`wasm32-braam`, being one descriptor, and the three-address code keeps every
-instruction, BESM-6's included, as the format between the passes.
 
 ### Step 2 — the build in this tree
 
@@ -302,7 +279,7 @@ and the peak memory against the 100 MB cap. `__braam_task_bytes` and
 - **Memory**: vcc's `xalloc` and the optimizer were written for a host;
   the 100 MB cap may bind on the largest files.
 - **Byte-for-byte self-compilation** depends on vcc being deterministic
-  across a 64-bit host and 32-bit wasm. Step 1's corpus on the host and
-  step 7's on Braam are what find out.
+  across a 64-bit host and 32-bit wasm. The corpus on the host and step 7's
+  on Braam are what find out.
 - **Drift from upstream.** vcc moves fast; the recorded commit and the
   README's list of changes are what keep a re-sync possible.
