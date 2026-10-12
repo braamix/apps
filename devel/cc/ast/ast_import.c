@@ -40,9 +40,9 @@ static _Noreturn void bad_input(const char *fmt, ...)
     va_list ap;
     va_start(ap, fmt);
     diag_print_prefix(stderr, diag_loc, "error");
-    fprintf(stderr, "the input is not an AST from this compiler: ");
-    vfprintf(stderr, fmt, ap);
-    fputc('\n', stderr);
+    diag_printf("the input is not an AST from this compiler: ");
+    diag_vprintf(fmt, ap);
+    diag_printf("%c", '\n');
     va_end(ap);
     exit(1);
 }
@@ -92,7 +92,7 @@ coro(braam_call *) void ast_import_open(WFILE *input, int fildes)
 coro(braam_call *) Program *import_ast(int fildes)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     WFILE input;
     await ast_import_open(&input, fildes);
@@ -111,7 +111,7 @@ coro(braam_call *) Program *import_ast(int fildes)
 Type *import_type(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "type tag");
@@ -224,7 +224,7 @@ Type *import_type(WFILE *input)
 TypeQualifier *import_type_qualifier(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "type qualifier tag");
@@ -241,7 +241,7 @@ TypeQualifier *import_type_qualifier(WFILE *input)
 Field *import_field(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "field tag");
@@ -269,7 +269,7 @@ Field *import_field(WFILE *input)
 Enumerator *import_enumerator(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "enumerator tag");
@@ -288,7 +288,7 @@ Enumerator *import_enumerator(WFILE *input)
 Param *import_param(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "param tag");
@@ -309,7 +309,7 @@ Param *import_param(WFILE *input)
 Declaration *import_declaration(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "declaration tag");
@@ -348,7 +348,7 @@ Declaration *import_declaration(WFILE *input)
 DeclSpec *import_decl_spec(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "decl spec tag");
@@ -380,7 +380,7 @@ DeclSpec *import_decl_spec(WFILE *input)
 FunctionSpec *import_function_spec(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "function spec tag");
@@ -399,7 +399,7 @@ FunctionSpec *import_function_spec(WFILE *input)
 AlignmentSpec *import_alignment_spec(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "alignment spec tag");
@@ -421,7 +421,7 @@ AlignmentSpec *import_alignment_spec(WFILE *input)
 InitDeclarator *import_init_declarator(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "init declarator tag");
@@ -442,7 +442,7 @@ InitDeclarator *import_init_declarator(WFILE *input)
 Initializer *import_initializer(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "initializer tag");
@@ -472,7 +472,7 @@ Initializer *import_initializer(WFILE *input)
 InitItem *import_init_item(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "init item tag");
@@ -497,7 +497,7 @@ InitItem *import_init_item(WFILE *input)
 Designator *import_designator(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "designator tag");
@@ -523,7 +523,7 @@ Designator *import_designator(WFILE *input)
 Expr *import_expr(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "expr tag");
@@ -654,7 +654,7 @@ Expr *import_expr(WFILE *input)
 Literal *import_literal(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "literal tag");
@@ -723,7 +723,7 @@ Literal *import_literal(WFILE *input)
 GenericAssoc *import_generic_assoc(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "generic assoc tag");
@@ -749,7 +749,7 @@ GenericAssoc *import_generic_assoc(WFILE *input)
 Stmt *import_stmt(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "stmt tag");
@@ -830,7 +830,7 @@ Stmt *import_stmt(WFILE *input)
 DeclOrStmt *import_decl_or_stmt(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "decl or stmt tag");
@@ -855,7 +855,7 @@ DeclOrStmt *import_decl_or_stmt(WFILE *input)
 ForInit *import_for_init(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "for init tag");
@@ -877,7 +877,7 @@ ForInit *import_for_init(WFILE *input)
 ExternalDecl *import_external_decl(WFILE *input)
 {
     if (import_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     size_t tag = wgetw(input);
     check_input(input, "external decl tag");

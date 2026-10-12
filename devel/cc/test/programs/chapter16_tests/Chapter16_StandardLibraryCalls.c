@@ -1,11 +1,11 @@
 /* Test calling string manipulation functions from the standard library */
 
 int strcmp(char *s1, char *s2);
-int puts(char *s);
+#include <stdio.h>
 unsigned long strlen(char *s);
 int atoi(char *s);
 
-int main(void) {
+coro(braam_call *) int main(void) {
     if (strcmp("abc", "abc")) {
         return 1;
     }
@@ -15,7 +15,7 @@ int main(void) {
         return 2;
     }
 
-    puts("HELLO, WORLD!");
+    await puts("HELLO, WORLD!");
 
     if (strlen("")) {
         return 3;

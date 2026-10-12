@@ -105,10 +105,10 @@ void eliminate_dead_stores(const OptCfg *cfg, const Tac_TopLevel *fn)
     collect_alias_sets(cfg, fn, &static_names, &address_taken);
 
     // Stage 2: the backward liveness dataflow.
-    int n               = cfg->nblocks;
-    StringMap *in_sets  = xalloc(n * sizeof(StringMap), __func__, __FILE__, __LINE__);
-    StringMap *out_sets = xalloc(n * sizeof(StringMap), __func__, __FILE__, __LINE__);
-    opt_live_solve(cfg, &static_names, &address_taken, true, in_sets, out_sets);
+    int n = cfg->nblocks;
+    OptLive lv;
+    opt_live_solve(&lv, cfg, &static_names, &address_taken, true);
+    LiveWord *live = opt_live_new(&lv);
 
     // Dead store removal: walk each block backward, pruning instructions whose
     // defined variable is dead on exit and which have no observable side-effects.
@@ -127,9 +127,7 @@ void eliminate_dead_stores(const OptCfg *cfg, const Tac_TopLevel *fn)
         for (Tac_Instruction *ins = b->first; ins; ins = ins->next)
             insts[k++] = ins;
 
-        StringMap live;
-        map_init(&live);
-        opt_live_copy(&live, &out_sets[i]);
+        opt_live_copy(&lv, live, opt_live_out(&lv, i));
 
         for (int j = nins - 1; j >= 0; j--) {
             Tac_Instruction *ins = insts[j];
@@ -138,7 +136,8 @@ void eliminate_dead_stores(const OptCfg *cfg, const Tac_TopLevel *fn)
             // pure instruction we may drop. Unlink and free it (and do NOT run
             // the transfer, so its sources are not revived — that is what lets
             // chains of dead defs collapse in this single backward pass).
-            if (dst && is_removable(ins->kind) && !ins->is_volatile && !map_get(&live, dst, NULL)) {
+            if (dst && is_removable(ins->kind) && !ins->is_volatile &&
+                !opt_live_has(&lv, live, dst)) {
                 OPT_TRACE("[dead-store] block %d: dst '%s' is dead", i, dst);
                 opt_trace_instr(" removing:", ins);
                 Tac_Instruction *prev = (j > 0) ? insts[j - 1] : NULL;
@@ -151,17 +150,15 @@ void eliminate_dead_stores(const OptCfg *cfg, const Tac_TopLevel *fn)
                 ins->next = NULL;
                 tac_free_instruction(ins);
             } else {
-                opt_live_transfer(&live, ins, &static_names, &address_taken);
+                opt_live_transfer(&lv, live, ins);
             }
         }
-        map_destroy(&live);
         xfree(insts);
     }
 
     // Free all dataflow scaffolding and the alias maps.
-    opt_live_free(n, in_sets, out_sets);
-    xfree(in_sets);
-    xfree(out_sets);
+    xfree(live);
+    opt_live_free(&lv);
     map_destroy(&static_names);
     map_destroy(&address_taken);
 }

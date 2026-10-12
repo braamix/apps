@@ -16,11 +16,11 @@ static void down(char *out, int n)
     strncat(out, p, 1);
 }
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     char out[8] = "";
     down(out, 5);
-    printf("%s\n", out);
+    await printf("%s\n", out);
     return 0;
 }
 

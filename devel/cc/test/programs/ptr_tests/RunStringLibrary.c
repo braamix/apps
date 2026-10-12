@@ -1,7 +1,7 @@
         #include <stdio.h>
         #include <string.h>
         #include <stdlib.h>
-        int main(void)
+        coro(braam_call *) int main(void)
         {
             char buf[32];
             strcpy(buf, "hello");
@@ -15,7 +15,7 @@
             if (memcmp(buf, "hhello world", 13) != 0) return 5;
             memcpy(buf, "hello", 5); // "helloo world"
             if (atoi("-1234") != -1234) return 6;
-            puts(buf);
+            await puts(buf);
             return 0;
         }
     

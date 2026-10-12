@@ -30,7 +30,7 @@ bool has_storage(const DeclSpec *spec)
 DeclOrStmt *typecheck_block(const Type *ret_type, DeclOrStmt *block)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     for (DeclOrStmt *item = block; item; item = item->next) {
         if (item->kind == DECL_OR_STMT_STMT) {
@@ -48,7 +48,7 @@ Stmt *typecheck_statement(const Type *ret_type, Stmt *s);
 static Stmt *typecheck_statement_at(const Type *ret_type, Stmt *s)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (!s)
         return NULL;

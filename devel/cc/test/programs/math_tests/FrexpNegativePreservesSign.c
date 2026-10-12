@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <math.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     int e;
     double m = frexp(-12.0, &e);   /* fraction in (-1, -0.5] */
-    printf("%f %d\n", m, e);
+    await printf("%f %d\n", m, e);
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

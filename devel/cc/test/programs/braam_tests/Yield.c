@@ -16,7 +16,7 @@ coro(braam_call *) int main(int argc, char **argv)
     int bad = 0;
     while (!co_done(t))
         bad |= await braam_yield();
-    printf("yields %d, counter %d\n", bad, counter);
+    await printf("yields %d, counter %d\n", bad, counter);
     return 0;
 }
 

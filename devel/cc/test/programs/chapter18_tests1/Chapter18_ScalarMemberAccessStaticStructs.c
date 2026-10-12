@@ -2,8 +2,7 @@
 // across multiple function invocations
 
 
-int putchar(int ch);
-int puts(char *s);
+#include <stdio.h>
 
 // BESM-6 adaptation: `struct s` is declared at file scope (the book declares it
 // twice inside the two helpers).  A static local of a *block-local* struct type
@@ -18,14 +17,14 @@ struct s {
 // test that changes to static struct are retained across function calls
 // do this by validating text written to stdout,
 // instead of usual pattern of signifying success/failure with return value
-void test_sl(int a, int b) {
+coro(braam_call *) void test_sl(int a, int b) {
     static struct s static_struct;
     if (!(static_struct.a || static_struct.b)) {
-        puts("ZERO");
+        await puts("ZERO");
     } else {
-        putchar(static_struct.a);
-        putchar(static_struct.b);
-        putchar('\n');
+        await putchar(static_struct.a);
+        await putchar(static_struct.b);
+        await putchar('\n');
     }
 
     static_struct.a = a;
@@ -34,15 +33,15 @@ void test_sl(int a, int b) {
 
 // test that changes to struct made through static pointer are retained across
 // function calls do this by validating text written to stdout
-void test_slp(int a, int b) {
+coro(braam_call *) void test_slp(int a, int b) {
     static struct s *struct_ptr;
     static struct s backing;  // static storage replaces malloc (no heap)
     if (!struct_ptr) {
         struct_ptr = &backing;
     } else {
-        putchar(struct_ptr->a);
-        putchar(struct_ptr->b);
-        putchar('\n');
+        await putchar(struct_ptr->a);
+        await putchar(struct_ptr->b);
+        await putchar('\n');
     }
 
     struct_ptr->a = a;
@@ -64,22 +63,22 @@ void f1(void) {
     g.z = g.z + 1;
 }
 
-void f2(void) {
-    putchar(g.x);
-    putchar(g.y);
-    putchar(g.z);
-    putchar('\n');
+coro(braam_call *) void f2(void) {
+    await putchar(g.x);
+    await putchar(g.y);
+    await putchar(g.z);
+    await putchar('\n');
 }
 
-void test_gs(void) {
+coro(braam_call *) void test_gs(void) {
     g.x = 'A';
     g.y = 'B';
     g.z = 'C';
 
     f1();
-    f2();
+    await f2();
     f1();
-    f2();
+    await f2();
 }
 
 // test that changes to global struct pointer are visible across function calls
@@ -92,41 +91,41 @@ void f3(void) {
     g_ptr->z = g_ptr->z + 1;
 }
 
-void f4(void) {
-    putchar(g_ptr->x);
-    putchar(g_ptr->y);
-    putchar(g_ptr->z);
-    putchar('\n');
+coro(braam_call *) void f4(void) {
+    await putchar(g_ptr->x);
+    await putchar(g_ptr->y);
+    await putchar(g_ptr->z);
+    await putchar('\n');
 }
 
-void test_gsp(void) {
+coro(braam_call *) void test_gsp(void) {
     g_ptr = &g;  // first, point to global struct from previous test
     f3();
-    f4();
+    await f4();
     f3();
-    f4();
+    await f4();
     // now point to a separate static struct instead
     g_ptr = &g2;
     g_ptr->x = 'A';
     g_ptr->y = 'B';
     g_ptr->z = 'C';
     f3();
-    f4();
+    await f4();
     f3();
-    f4();
+    await f4();
 }
 
-int main(void) {
-    test_sl('M', 'N');
-    test_sl('O', 'P');
-    test_sl('!', '!');
+coro(braam_call *) int main(void) {
+    await test_sl('M', 'N');
+    await test_sl('O', 'P');
+    await test_sl('!', '!');
     ;  // last one, won't be printed
-    test_slp('W', 'X');
-    test_slp('Y', 'Z');
-    test_slp('!', '!');
+    await test_slp('W', 'X');
+    await test_slp('Y', 'Z');
+    await test_slp('!', '!');
     ;  // last one, won't be printed
-    test_gs();
-    test_gsp();
+    await test_gs();
+    await test_gsp();
     return 0;
 }
 

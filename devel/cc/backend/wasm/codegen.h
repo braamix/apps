@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "host.h"
 #include "tac.h"
 
 #ifdef __cplusplus
@@ -25,7 +26,8 @@ extern bool wasm_coalesce;
 
 // Translate one TAC toplevel to WebAssembly assembly (the LLVM assembler's syntax) on
 // `out`.  `program` heads the whole translation unit, lowered with -t wasm32.
-void wasm_codegen(const Tac_TopLevel *program, const Tac_TopLevel *tl, FILE *out);
+coro(braam_call *) void wasm_codegen(const Tac_TopLevel *program, const Tac_TopLevel *tl,
+                                     FILE *out);
 
 #ifdef __cplusplus
 }

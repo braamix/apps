@@ -15,7 +15,7 @@ In `hello.c`:
 
 coro(braam_call *) int main(int argc, char **argv)
 {
-    printf("Hello, %s!\n", argc > 1 ? argv[1] : "world");
+    await printf("Hello, %s!\n", argc > 1 ? argv[1] : "world");
     return 0;
 }
 ```
@@ -26,8 +26,8 @@ cc hello.c
 ```
 
 `main` is a coroutine: a Braam program never waits inside a call, so every
-call that could wait — a read, an open, a sleep — is a coroutine and is
-called with `await`. Everything else is ordinary C11.
+call that could wait — a read, a write, a `printf`, an open, a sleep — is
+a coroutine and is called with `await`. Everything else is ordinary C11.
 
 The package installs the command `cc` and needs `wasm`, whose `as` and
 `ld` do the last two stages. The examples are in the package's `share/`,
@@ -118,7 +118,7 @@ so a long computation should `await braam_yield()` now and then.
 
 | Header | Calls that wait (`await` them) | Calls that do not |
 | --- | --- | --- |
-| `<stdio.h>` | `fopen`, `fclose`, `fflush`, `fgetc`, `getc`, `getchar`, `fgets`, `fread`, `fseek`, `ftell`, `rewind`, `remove`, `rename` | `printf` and its family, `puts`, `putchar`, `fputs`, `fputc`, `fwrite`, `ungetc`, `feof`, `ferror`, `perror` |
+| `<stdio.h>` | `printf`, `fprintf`, `vprintf`, `vfprintf`, `puts`, `putchar`, `fputs`, `fputc`, `putc`, `fwrite`, `perror`, `fopen`, `fclose`, `fflush`, `fgetc`, `getc`, `getchar`, `fgets`, `fread`, `fseek`, `ftell`, `rewind`, `remove`, `rename` | `sprintf`, `snprintf`, `vsprintf`, `vsnprintf`, `ungetc`, `feof`, `ferror` |
 | `<unistd.h>` | `read`, `write`, `close`, `lseek`, `unlink`, `rmdir`, `chdir`, `getcwd`, `readlink`, `isatty`, `access` | `getpid`, `getopt` |
 | `<fcntl.h>` | `open` | |
 | `<sys/stat.h>` | `stat`, `lstat`, `fstat`, `mkdir` | `S_ISDIR`, `S_ISREG`, `S_ISLNK` |
@@ -136,10 +136,12 @@ Every call that waits keeps C's name and parameters, so
 `n = read(fd, buf, len)` becomes `n = await read(fd, buf, len)`. Where it
 differs from Unix:
 
-- **Output never waits.** `printf` and the other formatting calls append
-  to the stream's buffer, which grows. It is written out by `await
-  fflush(f)`, `await fclose(f)`, at the end, and, for standard output,
-  before every read of standard input, so a prompt shows.
+- **Output waits.** `printf` and the rest put their text into the
+  stream's buffer of `BUFSIZ` bytes, and wait while it is written out when
+  it is full. It is also written out by `await fflush(f)`, `await
+  fclose(f)`, at the end, and, for standard output, before every read of
+  standard input, so a prompt shows. `stderr` is written out at the end of
+  each call. `sprintf` and `snprintf` only write memory, and do not wait.
 - **`open`'s flags** are Braam's bits; use the names. A mode argument is
   accepted and ignored.
 - **`errno`.** Braam's errors are numbered from 33 up; `strerror` and
@@ -175,8 +177,12 @@ Then what the compiler cannot see:
   wait becomes a table of `coro_ptr(braam_call *, int)`, or a `switch`.
 - **Callbacks.** A function called through an ordinary pointer, as
   `qsort`'s comparison is, cannot wait.
-- **Variadic functions** cannot be coroutines. One that waits takes a
-  `va_list` instead, or formats with `vfprintf`, which does not wait.
+- **Plain code cannot print.** A function called through a pointer, an
+  `atexit` function, a deferred statement and a coroutine of another
+  yield type cannot `await printf`. Format with `snprintf` and print the
+  text from a coroutine that can.
+- **Variadic functions** can be coroutines, as `printf` is. A structure
+  cannot be one of their variable arguments.
 - **`alloca`** is an error in a coroutine, since its frame outlives the
   stack.
 - **A loop that never waits** cannot be interrupted; give it an `await
@@ -186,5 +192,6 @@ Then what the compiler cannot see:
   scope; rename the variable.
 
 A program that is plain C everywhere but at its edges — read the input
-whole, work, write the output whole — needs coroutines only in `main` and
-the two edges. That is how `cc` itself was ported.
+whole, work, write the output — needs coroutines only in `main` and the
+two edges. That is how `cc` itself was ported: its passes read their input
+whole, and every function that writes output is a coroutine.

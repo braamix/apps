@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <string.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     // Differ at index 3, only 3 compared -> equal.
-    printf("%d\n", strncmp("ABCX", "ABCY", 3));
+    await printf("%d\n", strncmp("ABCX", "ABCY", 3));
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

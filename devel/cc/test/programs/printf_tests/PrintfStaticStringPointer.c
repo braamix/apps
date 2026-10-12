@@ -1,10 +1,10 @@
 #include <stdio.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     static char *p = "ABC";
-    printf("[%s]\n", p);
+    await printf("[%s]\n", p);
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

@@ -40,16 +40,16 @@ static coro(int) void gen(void)
     }
 }
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     int ks[] = { 0, 1, 2, 7, 8, 9, 5 };
     for (int j = 0; j < 7; j++) {
         n = 0;
         int r = returns(ks[j]);
-        printf("%d:%d:", ks[j], r);
+        await printf("%d:%d:", ks[j], r);
         for (int i = 0; i < n; i++)
-            printf(" %d", trace[i]);
-        printf("\n");
+            await printf(" %d", trace[i]);
+        await printf("\n");
     }
     for (int stop = 0; stop <= 4; stop++) {
         n = 0;
@@ -59,10 +59,10 @@ int main(void)
             co_resume(g);
         if (!co_done(g))
             co_destroy(g);
-        printf("destroy after %d:", stop);
+        await printf("destroy after %d:", stop);
         for (int i = 0; i < n; i++)
-            printf(" %d", trace[i]);
-        printf("\n");
+            await printf(" %d", trace[i]);
+        await printf("\n");
     }
     return 0;
 }

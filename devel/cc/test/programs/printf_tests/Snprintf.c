@@ -1,11 +1,11 @@
 #include <stdio.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     char buf[32];
     int n = snprintf(buf, 32, "n=%d s=%s", 7, "abc");
-    printf("[%s](%d)\n", buf, n);
+    await printf("[%s](%d)\n", buf, n);
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

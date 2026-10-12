@@ -11,6 +11,7 @@ extern "C" {
 #include <stdio.h>
 
 #include "float128.h"
+#include "host.h"
 #include "srcloc.h"
 
 /* Forward declarations for recursive types */
@@ -712,7 +713,7 @@ bool compare_program(const Program *a, const Program *b);
 //
 coro(braam_call *) Program *import_ast(int fildes);
 coro(braam_call *) void export_ast(int fildes, Program *program);
-void export_yaml(FILE *fd, Program *program);
+coro(braam_call *) void export_yaml(FILE *fd, Program *program);
 
 typedef struct _wfile WFILE;
 coro(braam_call *) void ast_import_open(WFILE *input, int fildes);
@@ -721,14 +722,15 @@ ExternalDecl *import_external_decl(WFILE *input);
 //
 // Print
 //
-void print_program(FILE *fd, Program *program);
-void print_expression(FILE *fd, const Expr *expr, int indent);
-void print_statement(FILE *fd, Stmt *stmt, int indent);
-void print_type(FILE *fd, const Type *type, int indent);
-void print_type_qualifiers(FILE *fd, const TypeQualifier *qualifiers, int indent);
-void print_declaration(FILE *fd, Declaration *decl, int indent);
-void print_external_decl(FILE *fd, ExternalDecl *ext, int indent);
-void print_initializer(FILE *fd, const Initializer *init, int indent);
+coro(braam_call *) void print_program(FILE *fd, Program *program);
+coro(braam_call *) void print_expression(FILE *fd, const Expr *expr, int indent);
+coro(braam_call *) void print_statement(FILE *fd, Stmt *stmt, int indent);
+coro(braam_call *) void print_type(FILE *fd, const Type *type, int indent);
+coro(braam_call *) void print_type_qualifiers(FILE *fd, const TypeQualifier *qualifiers,
+                                              int indent);
+coro(braam_call *) void print_declaration(FILE *fd, Declaration *decl, int indent);
+coro(braam_call *) void print_external_decl(FILE *fd, ExternalDecl *ext, int indent);
+coro(braam_call *) void print_initializer(FILE *fd, const Initializer *init, int indent);
 extern const char *type_kind_str[];
 
 // The type as C writes it, for a diagnostic: "const char *", "int (*)(int)",

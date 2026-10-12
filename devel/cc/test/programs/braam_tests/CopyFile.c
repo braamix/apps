@@ -13,9 +13,9 @@ coro(braam_call *) int main(int argc, char **argv)
         b[m++] = (char)c;
     await fclose(in);
     FILE *out = await fopen("braam-CopyFile.copy", "w");
-    fwrite(a, 1, n, out);
+    await fwrite(a, 1, n, out);
     await fclose(out);
-    printf("%d %d %s\n", (int)n, (int)m, n == m && !memcmp(a, b, n) ? "same" : "differ");
+    await printf("%d %d %s\n", (int)n, (int)m, n == m && !memcmp(a, b, n) ? "same" : "differ");
     return await remove(argv[1]);
 }
 

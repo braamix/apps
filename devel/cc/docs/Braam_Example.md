@@ -44,7 +44,7 @@ static coro(braam_call *) int list(void)
     FILE *f = await fopen(NOTES, "r");
     ...
     while (await fgets(line, sizeof line, f))
-        printf("%3d  %s", ++n, line);
+        await printf("%3d  %s", ++n, line);
     await fclose(f);
 ```
 
@@ -54,18 +54,19 @@ So a port is mostly a matter of following the compiler's messages: put `await` i
 front of each call that waits, then `coro(braam_call *)` on each function that makes
 one, up to `main`.
 
-**Output never waits; input does.**
+**Output and input both wait.**
 
-- `printf`, `fprintf`, `fputs`, `fputc` and `fwrite` only append to the stream's
-  buffer, so they are ordinary functions.
-- The buffer is written out by `await fflush(f)` or `await fclose(f)`. When `main`
-  returns, the runtime writes out every stream that is still open.
+- `printf`, `fprintf`, `fputs`, `fputc` and `fwrite` put their text into the
+  stream's buffer, and wait while it is written out when it is full. So they are
+  coroutines, awaited.
+- The rest of the buffer is written out by `await fflush(f)` or `await fclose(f)`.
+  When `main` returns, the runtime writes out every stream that is still open.
 - Reading standard input writes out standard output first. That is how `notes ask`
   shows its prompt before it waits for the answer:
 
 ```c
     for (;;) {
-        printf("note? ");
+        await printf("note? ");
         if (!await fgets(line, sizeof line, stdin))
             break;
 ```
@@ -74,8 +75,8 @@ Two limits are worth knowing.
 
 - **Cleanup that waits cannot be deferred.** `defer await fclose(f)` is an error:
   a deferred statement may not suspend. So `notes` closes its files explicitly.
-- **Use `return` from `main`, not `exit()`.** `exit()` reports the status and stops
-  the process at once. Nothing unwinds, and buffered output is lost.
+- **Use `return` from `main`, not `exit()`.** `exit()` stops the process at once.
+  What the streams hold is still written, but nothing unwinds and no `defer` runs.
 
 ## 2. Building
 

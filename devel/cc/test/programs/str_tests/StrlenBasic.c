@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <string.h>
-static void body(void) {
-    printf("%d\n", (int)strlen("HELLO"));
+static coro(braam_call *) void body(void) {
+    await printf("%d\n", (int)strlen("HELLO"));
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

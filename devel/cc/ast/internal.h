@@ -11,6 +11,7 @@ extern "C" {
 #include <stdio.h>
 
 #include "ast.h"
+#include "host.h"
 
 /* Forward declarations for recursive types */
 typedef struct Declarator Declarator;
@@ -89,8 +90,8 @@ struct DeclaratorSuffix {
 //
 // Print
 //
-void print_declarator(FILE *fd, Declarator *decl, int indent);
-void print_type_spec(FILE *fd, const TypeSpec *spec, int indent);
+coro(braam_call *) void print_declarator(FILE *fd, Declarator *decl, int indent);
+coro(braam_call *) void print_type_spec(FILE *fd, const TypeSpec *spec, int indent);
 
 //
 // Allocate

@@ -10,6 +10,7 @@ extern "C" {
 #include <stdio.h>
 
 #include "float128.h"
+#include "host.h"
 
 // Forward declarations
 typedef struct Tac_Val Tac_Val;
@@ -617,17 +618,17 @@ void tac_format_hex_double(char *out, size_t outsz, double v);
 // Render len bytes of a decoded string literal as printable text (C escapes for
 // non-printables), for the TAC dumps.  Returns an xalloc'd string; caller xfree()s it.
 char *tac_escape_string_bytes(const char *s, size_t len);
-void tac_print_const(FILE *fd, const Tac_Const *constant, int depth);
-void tac_print_val(FILE *fd, const Tac_Val *val, int depth);
-void tac_print_type(FILE *fd, const Tac_Type *type, int depth);
+coro(braam_call *) void tac_print_const(FILE *fd, const Tac_Const *constant, int depth);
+coro(braam_call *) void tac_print_val(FILE *fd, const Tac_Val *val, int depth);
+coro(braam_call *) void tac_print_type(FILE *fd, const Tac_Type *type, int depth);
 // One-line C-like spelling of a type, e.g. "*int", "[4]uchar", "fn(int, ...) -> void".
 // Returns an xalloc'd string; caller xfree()s it.
 char *tac_type_str(const Tac_Type *type);
-void tac_print_param(FILE *fd, const Tac_Param *param, int depth);
-void tac_print_static_init(FILE *fd, const Tac_StaticInit *init, int depth);
-void tac_print_instruction(FILE *fd, const Tac_Instruction *instr, int depth);
-void tac_print_toplevel(FILE *fd, const Tac_TopLevel *toplevel, int depth);
-void tac_print_program(FILE *fd, const Tac_Program *program);
+coro(braam_call *) void tac_print_param(FILE *fd, const Tac_Param *param, int depth);
+coro(braam_call *) void tac_print_static_init(FILE *fd, const Tac_StaticInit *init, int depth);
+coro(braam_call *) void tac_print_instruction(FILE *fd, const Tac_Instruction *instr, int depth);
+coro(braam_call *) void tac_print_toplevel(FILE *fd, const Tac_TopLevel *toplevel, int depth);
+coro(braam_call *) void tac_print_program(FILE *fd, const Tac_Program *program);
 
 //
 // Walk
@@ -696,6 +697,7 @@ void tac_export_begin_stream(WFILE *out);
 void tac_export_toplevel(WFILE *out, const Tac_TopLevel *tl);
 void tac_export_end_stream(WFILE *out);
 void tac_export_program(WFILE *out, const Tac_Program *prog);
+void tac_export_instruction_list(WFILE *out, const Tac_Instruction *list);
 
 //
 // Binary import (wio stream)
@@ -711,8 +713,9 @@ Tac_Program *tac_import_program(WFILE *in);
 // When false, the YAML omits the type annotations (symbol types, callee types,
 // function types), leaving the instruction-level view.  Default true.
 extern bool tac_yaml_types;
-void tac_export_yaml(FILE *fd, const Tac_TopLevel *tl);
-void tac_export_yaml_instruction_list(FILE *fd, const Tac_Instruction *instr, int level);
+coro(braam_call *) void tac_export_yaml(FILE *fd, const Tac_TopLevel *tl);
+coro(braam_call *) void tac_export_yaml_instruction_list(FILE *fd, const Tac_Instruction *instr,
+                                                         int level);
 
 #ifdef __cplusplus
 }

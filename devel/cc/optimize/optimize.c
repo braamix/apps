@@ -34,6 +34,7 @@
 #include "srcloc.h"
 #include "string_map.h"
 #include "target.h"
+#include "wio.h"
 #include "xalloc.h"
 
 // Pass entry points, implemented in the sibling translation units.
@@ -54,13 +55,17 @@ int optimize_debug;
 // emits its own trailing newline, so the line reads "<prefix> <instruction>".
 void opt_trace_instr(const char *prefix, const Tac_Instruction *ins)
 {
+#ifndef __braam__ // where tac_print_instruction is a coroutine
     if (!optimize_debug)
         return;
-    printf("%s ", prefix);
+    trace_printf("%s ", prefix);
     if (ins)
         tac_print_instruction(stdout, ins, 0);
     else
         printf("(null)\n");
+#else
+    (void)prefix, (void)ins;
+#endif
 }
 
 // Default flags: every CLI-toggleable pass is enabled, tracing off. Constant
@@ -80,20 +85,22 @@ OptFlags opt_flags_default(void)
     };
 }
 
-// The instruction list spelled as YAML: the fixed-point test compares the
-// spelling before and after a round. The result is xalloc'ed.
-static char *snapshot(const Tac_Instruction *body)
+// The instruction list spelled as TAC's binary export, in memory: the fixed-point
+// test compares the spelling before and after a round.
+static WFILE snapshot(const Tac_Instruction *body)
 {
-    char *buf  = NULL;
-    size_t len = 0;
-    FILE *f    = open_memstream(&buf, &len);
-    if (!f)
-        internal_error("optimizer: open_memstream failed");
-    tac_export_yaml_instruction_list(f, body, 0);
-    memstream_close(f);
-    char *copy = xstrdup(buf);
-    free(buf);
-    return copy;
+    WFILE w;
+    wmemopen(&w);
+    tac_export_instruction_list(&w, body);
+    if (w.is_error)
+        internal_error("optimizer: out of memory for a snapshot");
+    return w;
+}
+
+static bool same_snapshot(const WFILE *a, const WFILE *b)
+{
+    return a->buffer_pos == b->buffer_pos &&
+           memcmp(a->buffer, b->buffer, a->buffer_pos * sizeof(size_t)) == 0;
 }
 
 // Run the pipeline on one function body to a fixed point and return the
@@ -113,7 +120,7 @@ Tac_Instruction *optimize_function(Tac_Instruction *body, OptFlags flags, Tac_To
         iter++;
         OPT_TRACE("[optimize] iteration %d\n", iter);
 
-        char *before = snapshot(body);
+        WFILE before = snapshot(body);
 
         // Constant folding first, on the flat list (no CFG required).
         OPT_TRACE("[optimize] running pass: const-fold\n");
@@ -154,17 +161,17 @@ Tac_Instruction *optimize_function(Tac_Instruction *body, OptFlags flags, Tac_To
 
         // An empty result is also a terminal condition: nothing left to iterate.
         if (!new_body) {
-            xfree(before);
+            wmemfree(&before);
             OPT_TRACE("[optimize] converged (empty body) after %d iteration(s)\n", iter);
             return new_body;
         }
 
         // Fixed point: the passes rewrite the list in place, so the round is
         // compared against a snapshot of the list taken before it.
-        char *after    = snapshot(new_body);
-        bool unchanged = strcmp(before, after) == 0;
-        xfree(before);
-        xfree(after);
+        WFILE after    = snapshot(new_body);
+        bool unchanged = same_snapshot(&before, &after);
+        wmemfree(&before);
+        wmemfree(&after);
         // At the fixed point of the scalar passes, the loop optimizations run on code
         // they have simplified as far as it goes: a loop bound, say, is invariant only
         // once CSE and copy propagation have found its one computation. When they

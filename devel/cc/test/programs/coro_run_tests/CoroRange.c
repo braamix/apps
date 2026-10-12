@@ -8,12 +8,12 @@ coro(int) void range(int lo, int hi)
             return;
 }
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     co_frame(int, void) *f = co_alloca(range, 0, 3, 7);
     while (co_resume(f) == CO_SUSPENDED)
-        printf("%d\n", co_value(f));
-    printf("done %d\n", co_done(f));
+        await printf("%d\n", co_value(f));
+    await printf("done %d\n", co_done(f));
     return 0;
 }
 

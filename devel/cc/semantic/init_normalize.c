@@ -313,7 +313,7 @@ static Initializer *normalize_compound(const Type *t, Initializer *init, InitMod
 Initializer *normalize_init(Type *type, Initializer *init, InitMode mode)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     const Type *t = unalias(type);
 

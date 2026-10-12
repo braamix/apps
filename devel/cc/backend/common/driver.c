@@ -48,16 +48,16 @@ static void print_usage(const char *prog_name, const Backend *backend)
     if (p) {
         prog_name = p + 1;
     }
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "    %s [options] input-filename [output-filename]\n", prog_name);
-    fprintf(stderr, "Options:\n");
+    diag_printf("Usage:\n");
+    diag_printf("    %s [options] input-filename [output-filename]\n", prog_name);
+    diag_printf("Options:\n");
     for (int i = 0; i < num_flags(backend); i++) {
-        fprintf(stderr, "        --%-14s%s\n", backend->flags[i].name, backend->flags[i].help);
+        diag_printf("        --%-14s%s\n", backend->flags[i].name, backend->flags[i].help);
     }
-    fprintf(stderr, "        --color=WHEN    Color diagnostics: always, never or auto (default)\n");
-    fprintf(stderr, "    -v, --verbose       Enable verbose mode\n");
-    fprintf(stderr, "    -D, --debug         Print debug information\n");
-    fprintf(stderr, "    -h, --help          Show this help message\n");
+    diag_printf("        --color=WHEN    Color diagnostics: always, never or auto (default)\n");
+    diag_printf("    -v, --verbose       Enable verbose mode\n");
+    diag_printf("    -D, --debug         Print debug information\n");
+    diag_printf("    -h, --help          Show this help message\n");
 }
 
 //
@@ -188,10 +188,10 @@ static coro(braam_call *) void close_output(void)
 static coro(braam_call *) void process_file(const Args *args, const Backend *backend)
 {
     if (args->verbose) {
-        printf("Processing %s in verbose mode\n", args->input_file);
+        await printf("Processing %s in verbose mode\n", args->input_file);
     }
     if (args->debug) {
-        printf("Debug: Input = %s, Output = %s\n", args->input_file, args->output_file);
+        trace_printf("Debug: Input = %s, Output = %s\n", args->input_file, args->output_file);
     }
     await open_output(args);
 
@@ -217,9 +217,10 @@ static coro(braam_call *) void process_file(const Args *args, const Backend *bac
     // Phase 2: codegen each toplevel with the full program chain as context.
     for (const Tac_TopLevel *tl = head; tl; tl = tl->next) {
         await braam_yield(); // so ^C reaches a long unit
+        await diag_flush();
         if (args->debug)
-            tac_print_toplevel(stdout, tl, 0);
-        backend->codegen(head, tl, output_file);
+            await tac_print_toplevel(stdout, tl, 0);
+        await backend_codegen(head, tl, output_file);
     }
     tac_free_toplevel(head);
     await close_output();

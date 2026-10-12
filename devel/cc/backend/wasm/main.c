@@ -42,8 +42,14 @@ static const char *output_ext(void)
     return ".s";
 }
 
+coro(braam_call *) void backend_codegen(const Tac_TopLevel *program, const Tac_TopLevel *tl,
+                                        FILE *out)
+{
+    await wasm_codegen(program, tl, out);
+}
+
 coro(braam_call *) int main(int argc, char *argv[])
 {
-    static const Backend wasm = { flags, flag, output_ext, wasm_codegen };
+    static const Backend wasm = { flags, flag, output_ext };
     return await backend_main(argc, argv, &wasm);
 }

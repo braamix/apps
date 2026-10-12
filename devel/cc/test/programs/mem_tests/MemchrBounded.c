@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <string.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     char *p = memchr("ABCDEF", 'D', 3);
-    printf("%d\n", p == 0);
+    await printf("%d\n", p == 0);
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

@@ -27,13 +27,13 @@ coro(braam_call *) int main(int argc, char **argv)
 {
     int fd = argc > 1 ? await open(argv[1], O_RDONLY) : 0;
     if (fd < 0) {
-        fprintf(stderr, "wc: %s: %s\n", argv[1], strerror(errno));
+        await fprintf(stderr, "wc: %s: %s\n", argv[1], strerror(errno));
         return 1;
     }
     long l = 0, w = 0, c = 0;
     if (await count(fd, &l, &w, &c) < 0)
         return 1;
-    printf("%ld %ld %ld\n", l, w, c);
+    await printf("%ld %ld %ld\n", l, w, c);
     if (fd)
         await close(fd);
     return 0;

@@ -10,12 +10,12 @@ coro(int *) void cells(int n)
     }
 }
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     co_frame(int *, void) *c = co_alloca(cells, 0, 6);
     while (co_resume(c) == CO_SUSPENDED)
-        printf("%d ", *co_value(c));
-    printf("\n");
+        await printf("%d ", *co_value(c));
+    await printf("\n");
     return 0;
 }
 

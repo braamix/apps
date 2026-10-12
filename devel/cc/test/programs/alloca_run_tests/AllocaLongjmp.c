@@ -13,7 +13,7 @@ static void deep(int n)
         longjmp(env, 1);
 }
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     int count = 0;
     for (int i = 0; i < 20000; i++) {
@@ -24,7 +24,7 @@ int main(void)
             jumped = 1;
         count += jumped;
     }
-    printf("%d\n", count);
+    await printf("%d\n", count);
     return 0;
 }
 

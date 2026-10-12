@@ -34,7 +34,7 @@ mkdir "$inst/tools"; cp "$inst/stub" "$inst/tools/clang"; cp "$inst/stub" "$inst
 work=$(mktemp -d); cd "$work"
 cat > hello.c <<'EOF'
 #include <stdio.h>
-coro(braam_call *) int main(int argc, char **argv) { printf("hi %d\n", argc); return 0; }
+coro(braam_call *) int main(int argc, char **argv) { await printf("hi %d\n", argc); return 0; }
 EOF
 cat > plain.c <<'EOF'
 int main(void) { return 0; }

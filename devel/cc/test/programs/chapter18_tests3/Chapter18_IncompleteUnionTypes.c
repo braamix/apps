@@ -3,7 +3,7 @@
  * */
 
 
-int puts(char *s);
+#include <stdio.h>
 
  // Test 1: you can declare a function that accepts/returns incomplete
  // union types
@@ -34,15 +34,15 @@ int test_block_scope_forward_decl(void) {
 // test 3: you can pass and return pointers to incomplete union types
 union opaque_union;
 
-union opaque_union* use_union_pointers(union opaque_union* param) {
+coro(braam_call *) union opaque_union* use_union_pointers(union opaque_union* param) {
     if (param == 0) {
-        puts("NULL POINTER");
+        await puts("NULL POINTER");
     }
 
     return 0;
 }
 
-int test_use_incomplete_union_pointers(void) {
+coro(braam_call *) int test_use_incomplete_union_pointers(void) {
     // define a couple of pointers to this type
     // (distinct zeroed static ints back the incomplete-type pointers)
     static int ou1, ou2;
@@ -69,19 +69,19 @@ int test_use_incomplete_union_pointers(void) {
     }
 
     // can pass them as parameters
-    if (use_union_pointers(ptr3)) {
+    if (await use_union_pointers(ptr3)) {
         return 0;
     }
 
     return 1;  // success
 }
 
-int main(void) {
+coro(braam_call *) int main(void) {
     if (!test_block_scope_forward_decl()) {
         return 1; // fail
     }
 
-    if (!test_use_incomplete_union_pointers()) {
+    if (!await test_use_incomplete_union_pointers()) {
         return 2; // fail
     }
 

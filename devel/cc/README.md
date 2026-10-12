@@ -172,13 +172,23 @@ be offered back:
   FreeBSD's `getopt_long.c` with its licence, since the host's (macOS's)
   behaviour is that one's.
 - **`libc/wasm32/braam/`**, on the kernel: `getenv` and `environ` from the
-  start blob, `atexit` (run when `main` returns, since `exit()` runs
-  nothing), `isatty`, `access`, `time` and `localtime` over `Sys::Clock`,
-  `readlink` and `realpath`, `mkstemp` and `mkstemps` over `O_EXCL`,
-  `posix_spawn`, `posix_spawnp`, `waitpid` and `wait` over `Sys::Spawn` and
-  `Sys::Wait`, `open_memstream`, and `setvbuf`, which does nothing because
-  an output buffer grows. Each call that waits is a coroutine, as the rest
-  of Braam's calls are.
+  start blob, `atexit`, `isatty`, `access`, `time` and `localtime` over
+  `Sys::Clock`, `readlink` and `realpath`, `mkstemp` and `mkstemps` over
+  `O_EXCL`, `posix_spawn`, `posix_spawnp`, `waitpid` and `wait` over
+  `Sys::Spawn` and `Sys::Wait`, and `setvbuf`, which does nothing because a
+  stream's buffer is `BUFSIZ` bytes. Each call that waits is a coroutine,
+  as the rest of Braam's calls are.
+- **Output waits.** Upstream's streams never did: `printf` appended to a
+  buffer that grew until `fflush`, so a program's whole output could sit in
+  memory. Here the buffer is fixed, and a call that fills it waits while it
+  is written out, so `printf`, `fprintf`, `puts`, `putchar`, `fputs`,
+  `fputc`, `putc`, `fwrite` and `perror` are coroutines. `printf`,
+  `fprintf` and `perror` are variadic ones, which the compiler learned to
+  make for them (`docs/Coroutines_Internals.md`). The `snprintf` family
+  stays plain; `open_memstream`, `putbyte` and `putch` are gone. Plain code
+  that must write before the process ends — an assertion, a coroutine
+  trap, `getopt`'s complaint — posts its message as `exit` posts the
+  streams (`__plain_write`).
 - **Floating point is musl's**: the SDK's `libbraam_math.a`, whose members
   `libc.a` carries. `strtod` and `strtof` are its `__floatscan`, rounding
   correctly. `printf`'s `%e`, `%f`, `%g` and the new `%a` are its `fmt_fp`
@@ -189,8 +199,7 @@ be offered back:
   `sqrt.s` are left out of the build. `nan` alone is vcc's (`nan.c`),
   because vcc names a function `nan` as `nan.vcc`.
 - `PATH_MAX` is 512 under `__braam__`, as in Braam's compat layer, and
-  `open` takes POSIX's optional mode and drops it, since a coroutine cannot
-  be variadic.
+  `open` takes POSIX's optional mode and drops it.
 - **A fix to upstream's `fflush`**: it emptied the buffer after its write,
   so what another task printed while the write waited was lost. It now
   drops only what it wrote. Upstream's fake kernel answers at once, which
@@ -198,10 +207,10 @@ be offered back:
 
 [test/libc.c](test/libc.c) prints the pure half (ctype, integer and float
 conversions both ways, `printf`'s float formats and flags, sorting,
-strings, `getopt_long` with permutation, the calendar, a memory stream).
+strings, `getopt_long` with permutation, the calendar).
 The host build compiles the same file against its own C library, and
 [test/libc.mjs](test/libc.mjs) holds Braam's output to the host's byte for
-byte: 207 lines. One difference is accepted rather than tested: musl does
+byte: 205 lines. One difference is accepted rather than tested: musl does
 not set `ERANGE` for a subnormal `strtod` result, and macOS does. The same
 test runs [test/sys.c](test/sys.c), the half that asks the kernel, against
 stated lines.
@@ -216,6 +225,16 @@ Chapter 20 of the book is left out, being about register allocation, and so
 is every program upstream's wasm32 fixture skips, most of them for assuming
 a 64-bit `long`.
 
+On Braam `printf` is a coroutine, so the 150 programs that print were made
+to await it: [awaitify.py](test/awaitify.py) made each function that prints
+a `coro(braam_call *)` and put `await` in front of the calls, and the output
+each `.expect` holds is unchanged. Thirteen print where nothing can await —
+in a deferred statement, in a coroutine of another yield type, or beside
+`alloca` — and keep what they print with `snprintf` for `main` to print at
+the end; `CoroArenaOverflow` yields its depth to `main` instead, since its
+trap would lose what was kept. The book's `putch` and the runtime's
+`putbyte` are `putchar` now.
+
 ## Tests on Braam
 
 Each is one boot with the package installed, and in `TESTS` but for the
@@ -225,7 +244,7 @@ corpus:
 | --- | --- |
 | [toolchain.mjs](test/toolchain.mjs) | `cc hello.c && ./a.out` with the package's example; a program with arguments and a status; six programs compiled to the host's assembly; a compile error's message and status |
 | [book.mjs](test/book.mjs) | the book's 354 programs, compiled and run, each output and result as upstream's test expects |
-| [coro.mjs](test/coro.mjs) | 21 coroutine, `defer` and `alloca` programs, the same way |
+| [coro.mjs](test/coro.mjs) | 22 coroutine, `defer` and `alloca` programs, the same way |
 | [wasm.mjs](test/wasm.mjs) | 97 run tests of the wasm32 backend, the same way |
 | [braam.mjs](test/braam.mjs) | `braam_tests.cpp`'s programs: streams, files, standard input, tasks, poll, `^C` caught and not, and `notes.c`'s session |
 | [interrupt.mjs](test/interrupt.mjs) | `kill -INT` ends a long `vlower` run, with nothing written |
@@ -234,8 +253,9 @@ corpus:
 
 The run tests are plain wasm32 programs upstream, and on Braam `main` is a
 coroutine, so [suites.mjs](test/suites.mjs) compiles each with
-`-Dmain=__vcc_main` and links a `main` that calls it and, for the book,
-prints the result as upstream's `crt0-status.o` does. That costs three of
+`-Dmain=__vcc_main` and links a `main` that calls it, or awaits it when it
+prints, and for the book prints the result as upstream's `crt0-status.o`
+does. That costs three of
 the book's programs, which rely on `main`'s implicit `return 0`. Six more
 are skipped with their reason (no `setjmp`, a second unit or a helper that
 lived in the test, Braam's `errno` numbers), and 17 have no expected

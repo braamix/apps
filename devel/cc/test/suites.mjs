@@ -7,23 +7,35 @@
 // function. On Braam main is a coroutine, so each program is compiled with
 // -Dmain=__vcc_main and linked with a main that calls it; for the book's
 // suites that main prints the result after the output, as upstream's
-// crt0-status.o does.
+// crt0-status.o does. A program that prints has had its main made a coroutine
+// (printf being one on Braam), and is linked with a main that awaits it.
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { TREE, fixture } from "./ccfix.mjs";
 
 const MAIN = `#include <stdio.h>
+#if CORO
+coro(braam_call *) int __vcc_main(void);
+#else
 int __vcc_main(void);
+#endif
 coro(braam_call *) int main(int argc, char **argv)
 {
+#if CORO
+    int s = await __vcc_main();
+#else
     int s = __vcc_main();
+#endif
 #if STATUS
-    printf("%d\\n", s);
+    await printf("%d\\n", s);
 #endif
     return s;
 }
 `;
+
+// Whether a program's main is a coroutine.
+const coro_main = (src) => /coro\(braam_call \*\)\s+int\s+main\b/.test(src);
 
 // name: the test's; suites: directories of test/programs; status: whether
 // main's result is printed; skip: {program: why} for those that cannot run here.
@@ -37,9 +49,11 @@ export async function run_suites(name, suites, status, skip) {
 // differs.
 export function check_suites({ put, text, sh }, die, name, suites, status, skip) {
     put("/tmp/main.c", MAIN);
-    let r = sh(`cc -c -DSTATUS=${status ? 1 : 0} main.c`);
-    if (r.status !== 0)
-        die(`main.c: ${r.err}`);
+    for (const coro of [0, 1]) {
+        const r = sh(`cc -c -DSTATUS=${status ? 1 : 0} -DCORO=${coro} main.c -o main${coro}.o`);
+        if (r.status !== 0)
+            die(`main.c: ${r.err}`);
+    }
 
     const programs = [];
     const expected = new Set();
@@ -58,8 +72,9 @@ export function check_suites({ put, text, sh }, die, name, suites, status, skip)
             expected.add(n);
             if (n in skip)
                 continue;
-            put(`/tmp/${n}.c`, new Uint8Array(readFileSync(join(dir, f))));
-            programs.push({ n, expect });
+            const src = readFileSync(join(dir, f));
+            put(`/tmp/${n}.c`, new Uint8Array(src));
+            programs.push({ n, expect, coro: coro_main(src.toString()) ? 1 : 0 });
         }
     }
     for (const n of Object.keys(skip))
@@ -67,8 +82,8 @@ export function check_suites({ put, text, sh }, die, name, suites, status, skip)
             die(`${n} is skipped, but there is no such program with an .expect`);
 
     let script = "";
-    for (const { n } of programs)
-        script += `cc -Dmain=__vcc_main ${n}.c main.o -o ${n} 2>${n}.e && ./${n} >${n}.o 2>&1\n`;
+    for (const { n, coro } of programs)
+        script += `cc -Dmain=__vcc_main ${n}.c main${coro}.o -o ${n} 2>${n}.e && ./${n} >${n}.o 2>&1\n`;
     sh(script);
 
     const bad = [];

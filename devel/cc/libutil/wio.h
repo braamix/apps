@@ -41,6 +41,9 @@ coro(braam_call *) int wopen(WFILE *stream, const char *path, const char *mode);
 coro(braam_call *) int wreopen(WFILE *stream, const char *path, const char *mode);
 coro(braam_call *) int wdopen(WFILE *stream, int fildes, const char *mode);
 coro(braam_call *) void wclose(WFILE *stream);
+// A write stream with no file, its words only kept in memory; wmemfree frees them.
+void wmemopen(WFILE *stream);
+void wmemfree(WFILE *stream);
 int wflush(WFILE *stream);
 int wseek(WFILE *stream, long offset, int whence);
 long wtell(WFILE *stream);

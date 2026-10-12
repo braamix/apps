@@ -1,12 +1,12 @@
 #include <stdio.h>
 void *g = "AB";
 struct s { const void *p; } sg = { "CD" };
-static void body(void) {
+static coro(braam_call *) void body(void) {
     static void *q = "EF";
-    printf("[%s][%s][%s]\n", (char *)g, (const char *)sg.p, (char *)q);
+    await printf("[%s][%s][%s]\n", (char *)g, (const char *)sg.p, (char *)q);
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

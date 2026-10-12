@@ -42,18 +42,18 @@ static void vreport_at(const char *file, int line, const char *label, const char
     int color = use_color();
 
     if (color)
-        fputs("\033[1m", stderr);
+        diag_printf("%s", "\033[1m");
     if (line > 0)
-        fprintf(stderr, "%s:%d:", (file && file[0]) ? file : "<stdin>", line);
+        diag_printf("%s:%d:", (file && file[0]) ? file : "<stdin>", line);
     else
-        fprintf(stderr, "%s:", cpp.prog_name ? cpp.prog_name : "cpp");
+        diag_printf("%s:", cpp.prog_name ? cpp.prog_name : "cpp");
     if (color)
-        fprintf(stderr, "\033[0m %s%s:\033[0m ",
-                strcmp(label, "warning") == 0 ? "\033[1;35m" : "\033[1;31m", label);
+        diag_printf("\033[0m %s%s:\033[0m ",
+                    strcmp(label, "warning") == 0 ? "\033[1;35m" : "\033[1;31m", label);
     else
-        fprintf(stderr, " %s: ", label);
-    vfprintf(stderr, s, ap);
-    fprintf(stderr, "\n");
+        diag_printf(" %s: ", label);
+    diag_vprintf(s, ap);
+    diag_printf("\n");
     ++cpp.exit_code;
 }
 

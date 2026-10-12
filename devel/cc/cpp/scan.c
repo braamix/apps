@@ -34,7 +34,7 @@
 // expression (IN_SLOW_SCAN) the scanner returns every token individually and
 // remembers, via the static "state", that it stopped on a newline.
 //
-char *scan_token(char *p)
+coro(braam_call *) char *scan_token(char *p)
 {
     int c, i;
     char quoc;                  // the opening quote of the string/char literal being scanned
@@ -52,7 +52,7 @@ char *scan_token(char *p)
         switch ((unsigned char)*(cpp.tok_ptr = p - 1)) {
         case 0: { // possible end of buffered text (a nul), else an ignorable nul byte
             if (AT_BUF_END(--p)) {
-                p = refill_buffer(p);
+                p = await refill_buffer(p);
                 goto again;
             } else
                 ++p; // ignore null byte
@@ -61,8 +61,8 @@ char *scan_token(char *p)
         // marker from the output and un-paint the macro, then keep scanning.  Works
         // in both fast and slow (#if) scans since macros expand in #if too.
         case PAINT_END_MARK:
-            cpp.tok_ptr = p - 1; // the marker
-            flush_output();      // emit finished text up to it
+            cpp.tok_ptr = p - 1;  // the marker
+            await flush_output(); // emit finished text up to it
             if (cpp.paint_top > 0)
                 --cpp.paint_top;           // region closes: the macro may expand again
             cpp.out_ptr = cpp.tok_ptr = p; // skip the marker (never emitted)
@@ -75,7 +75,7 @@ char *scan_token(char *p)
                 if (*p++ == *cpp.tok_ptr)
                     break;
                 if (AT_BUF_END(--p))
-                    p = refill_buffer(p);
+                    p = await refill_buffer(p);
                 else
                     break;
             }
@@ -86,7 +86,7 @@ char *scan_token(char *p)
                 if (*p++ == '=')
                     break;
                 if (AT_BUF_END(--p))
-                    p = refill_buffer(p);
+                    p = await refill_buffer(p);
                 else
                     break;
             }
@@ -97,7 +97,7 @@ char *scan_token(char *p)
                 if (*p++ == '=' || p[-2] == p[-1])
                     break;
                 if (AT_BUF_END(--p))
-                    p = refill_buffer(p);
+                    p = await refill_buffer(p);
                 else
                     break;
             }
@@ -114,12 +114,12 @@ char *scan_token(char *p)
                     // lost newline is owed, and written after the next one.
                     ++cpp.pending_nl;
                     cpp.tok_ptr = p - 2; // the '\'
-                    flush_output();
+                    await flush_output();
                     cpp.out_ptr = cpp.tok_ptr = p;
                     break;
                 }
                 if (AT_BUF_END(--p))
-                    p = refill_buffer(p);
+                    p = await refill_buffer(p);
                 else {
                     ++p;
                     break;
@@ -139,7 +139,7 @@ char *scan_token(char *p)
                     com_width            = 0;     // its width on earlier buffers
                     if (!cpp.opt_keep_comments) {
                         cpp.tok_ptr = p - 2;
-                        flush_output();
+                        await flush_output();
                         ++cpp.false_level;
                     }
                     for (;;) {
@@ -153,19 +153,19 @@ char *scan_token(char *p)
                                     if (!cpp.opt_keep_comments) {
                                         com_width += p - com_seg;
                                         cpp.tok_ptr = p;
-                                        p           = refill_buffer(p);
+                                        p           = await refill_buffer(p);
                                         com_seg     = p;
                                     } else if ((p - cpp.tok_ptr) >= BUFSIZ) { // split long comment
                                         cpp.tok_ptr = p;
-                                        p           = refill_buffer(p); // last char written is '*'
-                                        putc('/', cpp.out_file);        // terminate first part
+                                        p = await refill_buffer(p);    // last char written is '*'
+                                        await putc('/', cpp.out_file); // terminate first part
                                         // and fake start of 2nd
                                         cpp.out_ptr = cpp.tok_ptr = p -= 3;
                                         *p++                      = '/';
                                         *p++                      = '*';
                                         *p++                      = '*';
                                     } else
-                                        p = refill_buffer(p);
+                                        p = await refill_buffer(p);
                                 } else
                                     break;
                             }
@@ -174,25 +174,24 @@ char *scan_token(char *p)
                             com_seg   = p;
                             com_width = 0;
                             if (!cpp.opt_keep_comments) {
-                                putc('\n', cpp.out_file);
-                                put_newlines();
+                                await out_write("\n", 1);
+                                await put_newlines();
                             }
                         } else if (AT_BUF_END(--p)) {
                             if (!cpp.opt_keep_comments) {
                                 com_width += p - com_seg;
                                 cpp.tok_ptr = p;
-                                p           = refill_buffer(p);
+                                p           = await refill_buffer(p);
                                 com_seg     = p;
                             } else if ((p - cpp.tok_ptr) >= BUFSIZ) { // split long comment
                                 cpp.tok_ptr = p;
-                                p           = refill_buffer(p);
-                                putc('*', cpp.out_file);
-                                putc('/', cpp.out_file);
+                                p           = await refill_buffer(p);
+                                await out_write("*/", 2);
                                 cpp.out_ptr = cpp.tok_ptr = p -= 2;
                                 *p++                      = '/';
                                 *p++                      = '*';
                             } else
-                                p = refill_buffer(p);
+                                p = await refill_buffer(p);
                         } else
                             ++p; // ignore null byte
                     }
@@ -208,7 +207,7 @@ char *scan_token(char *p)
                         if (cpp.false_level == 0) {
                             com_width += p - com_seg;
                             do
-                                putc(' ', cpp.out_file);
+                                await out_write(" ", 1);
                             while (--com_width > 0);
                         }
                         cpp.out_ptr = cpp.tok_ptr = p;
@@ -221,7 +220,7 @@ char *scan_token(char *p)
                 if (p[-1] == '/') {
                     if (!cpp.opt_keep_comments) {
                         cpp.tok_ptr = p - 2;
-                        flush_output();
+                        await flush_output();
                         ++cpp.false_level;
                     }
                     for (;;) {
@@ -231,21 +230,21 @@ char *scan_token(char *p)
                             break; // reached the newline
                         if (AT_BUF_END(p)) {
                             cpp.tok_ptr = p;
-                            p           = refill_buffer(p);
+                            p           = await refill_buffer(p);
                         } else
                             ++p; // ignore null byte
                     }
                     if (!cpp.opt_keep_comments) {
                         --cpp.false_level;
                         if (cpp.false_level == 0)
-                            putc(' ', cpp.out_file);
+                            await out_write(" ", 1);
                         cpp.out_ptr = cpp.tok_ptr = p;
                         goto again;
                     }
                     break; // -C: keep the '//...' run as the current token
                 }
                 if (AT_BUF_END(--p))
-                    p = refill_buffer(p);
+                    p = await refill_buffer(p);
                 else
                     break;
             }
@@ -272,14 +271,14 @@ char *scan_token(char *p)
                             break;
                         } // escaped \n ignored
                         if (AT_BUF_END(--p))
-                            p = refill_buffer(p);
+                            p = await refill_buffer(p);
                         else {
                             ++p;
                             break;
                         }
                     }
                 else if (AT_BUF_END(--p))
-                    p = refill_buffer(p);
+                    p = await refill_buffer(p);
                 else
                     ++p; // it was a different quote character
             }
@@ -305,7 +304,7 @@ char *scan_token(char *p)
                 if (*p++ == '#')
                     return (p);
                 if (AT_BUF_END(cpp.tok_ptr = --p))
-                    p = refill_buffer(p);
+                    p = await refill_buffer(p);
                 else
                     goto again;
             }
@@ -325,7 +324,7 @@ char *scan_token(char *p)
                 while (ISNUM(*p++))
                     ;
                 if (AT_BUF_END(--p))
-                    p = refill_buffer(p);
+                    p = await refill_buffer(p);
                 else
                     break;
             }
@@ -386,21 +385,21 @@ char *scan_token(char *p)
                 while (ISID(*p++))
                     ;
                 if (AT_BUF_END(--p)) {
-                    refill_buffer(p);
+                    await refill_buffer(p);
                     p = cpp.tok_ptr + 1;
                     continue;
                 }
                 goto lokid;
             endid:
                 if (AT_BUF_END(--p)) {
-                    refill_buffer(p);
+                    await refill_buffer(p);
                     p = cpp.tok_ptr + 1;
                     continue;
                 }
             lokid:
                 // the name passed the filter: look it up; if it was a macro,
                 // lookup_token set scan_ptr to where scanning should resume.
-                lookup_token(cpp.tok_ptr, p, 0);
+                await lookup_token(cpp.tok_ptr, p, 0);
                 if (cpp.scan_ptr) {
                     p = cpp.scan_ptr;
                     goto again;
@@ -411,7 +410,7 @@ char *scan_token(char *p)
                 while (ISID(*p++))
                     ;
                 if (AT_BUF_END(--p)) {
-                    p = refill_buffer(p);
+                    p = await refill_buffer(p);
                     goto nomac;
                 } else
                     break;
@@ -430,11 +429,11 @@ char *scan_token(char *p)
 // Scan forward past whitespace and return the first non-blank token, so callers
 // that only care about real tokens do not have to test for blanks themselves.
 //
-char *skip_blanks(char *p)
+coro(braam_call *) char *skip_blanks(char *p)
 {
     do {
         cpp.out_ptr = cpp.tok_ptr = p;
-        p                         = scan_token(p);
+        p                         = await scan_token(p);
     } while (cpp.char_class[(unsigned char)*cpp.tok_ptr] == BLANK);
     return (p);
 }

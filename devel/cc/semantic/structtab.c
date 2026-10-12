@@ -96,7 +96,7 @@ void structtab_add_struct(const char *tag, TypeKind kind, bool complete, int ali
                           FieldDef *members, int level)
 {
     if (semantic_debug) {
-        printf("--- %s() %s\n", __func__, tag);
+        trace_printf("--- %s() %s\n", __func__, tag);
     }
     // Build new definition.
     StructDef *def = xalloc(sizeof(StructDef), __func__, __FILE__, __LINE__);

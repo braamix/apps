@@ -19,8 +19,8 @@ static int cl_id;
 Symbol *new_symbol(const char *name, Type *t, SymbolKind kind)
 {
     if (semantic_debug) {
-        printf("--- %s() %s\n", __func__, name);
-        print_type(stdout, t, 4);
+        trace_printf("--- %s() %s\n", __func__, name);
+        trace_call(print_type(stdout, t, 4));
     }
     Symbol *sym = xalloc(sizeof(Symbol), __func__, __FILE__, __LINE__);
     sym->name   = xstrdup(name);

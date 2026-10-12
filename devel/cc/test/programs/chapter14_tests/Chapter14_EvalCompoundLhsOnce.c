@@ -1,24 +1,24 @@
 int i = 0;
 
-void putch(int c);
-int *print_A(void) {
-    putch(65);
+#include <stdio.h>
+coro(braam_call *) int *print_A(void) {
+    await putchar(65);
     return &i;
 }
 
-int *print_B(void) {
-    putch(66);
+coro(braam_call *) int *print_B(void) {
+    await putchar(66);
     return &i;
 }
 
-int main(void) {
+coro(braam_call *) int main(void) {
 
-    *print_A() += 5;
+    *await print_A() += 5;
     if (i != 5) {
         return 1;
     }
 
-    *print_B() += 5l;
+    *await print_B() += 5l;
     if (i != 10) {
         return 2;
     }

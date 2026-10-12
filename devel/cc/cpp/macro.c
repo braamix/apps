@@ -73,7 +73,7 @@ static int at_argument_end(const char *p)
 // redefinition that differs from the previous one draws a warning; an identical
 // one is silently accepted and its space reclaimed.
 //
-char *do_define(char *p)
+coro(braam_call *) char *do_define(char *p)
 {
     char *formal[MAXFRM]; // formal[n] is name of nth formal
     char formtxt[BUFSIZ]; // space for formal names
@@ -94,20 +94,20 @@ char *do_define(char *p)
     }
     oldsavch = cpp.side_ptr; // to reclaim space if redefinition
     ++cpp.false_level;       // prevent macro expansion during 'define'
-    p   = skip_blanks(p);
+    p   = await skip_blanks(p);
     pin = cpp.tok_ptr;
     if (cpp.char_class[(unsigned char)*pin] != IDENT) {
         ppwarn("macro name must be an identifier");
         while (*cpp.tok_ptr != '\n')
-            p = skip_blanks(p);
+            p = await skip_blanks(p);
         return (p);
     }
-    np = lookup_token(pin, p, 1);
+    np = await lookup_token(pin, p, 1);
     // §6.10.8.4: "defined" is reserved and may not be used as a macro name.
     if (strcmp(np->name, "defined") == 0) {
         pperror("'defined' cannot be used as a macro name");
         while (*cpp.tok_ptr != '\n') // consume the rest of the line
-            p = skip_blanks(p);
+            p = await skip_blanks(p);
         --cpp.false_level;
         return (p);
     }
@@ -116,7 +116,7 @@ char *do_define(char *p)
     if (np->predefined) {
         pperror("predefined macro '%s' cannot be redefined", np->name);
         while (*cpp.tok_ptr != '\n')
-            p = skip_blanks(p);
+            p = await skip_blanks(p);
         --cpp.false_level;
         return (p);
     }
@@ -131,7 +131,7 @@ char *do_define(char *p)
     }
     params      = 0;
     cpp.out_ptr = cpp.tok_ptr = p;
-    p                         = scan_token(p);
+    p                         = await scan_token(p);
     pin                       = cpp.tok_ptr;
     // If the name is immediately followed by '(' this is a function-like macro:
     // collect the parameter names into formal[] / formtxt.
@@ -139,7 +139,7 @@ char *do_define(char *p)
         int prev_was_formal = 0; // previous token was a normal named formal
         cf                  = formtxt;
         for (;;) {
-            p   = skip_blanks(p);
+            p   = await skip_blanks(p);
             pin = cpp.tok_ptr;
             if (*pin == '\n') {
                 --cpp.line_no[cpp.inc_level];
@@ -220,7 +220,7 @@ char *do_define(char *p)
     // with the marker "<param number><WARN_MARK>".
     for (;;) { // accumulate definition until linefeed
         cpp.out_ptr = cpp.tok_ptr = p;
-        p                         = scan_token(p);
+        p                         = await scan_token(p);
         pin                       = cpp.tok_ptr;
         if (*pin == '\\' && pin[1] == '\n')
             continue; // ignore escaped lf
@@ -430,7 +430,7 @@ struct symtab *lookup(char *namep, int enterf)
 // is expanded right away via expand_macro, and cpp.scan_ptr is set to where
 // scanning should resume.
 //
-struct symtab *lookup_token(char *p1, char *p2, int enterf)
+coro(braam_call *) struct symtab *lookup_token(char *p1, char *p2, int enterf)
 {
     char c2;
     struct symtab *np;
@@ -441,7 +441,7 @@ struct symtab *lookup_token(char *p1, char *p2, int enterf)
     np  = lookup(p1, enterf);
     *p2 = c2;
     if (np->value != 0 && cpp.false_level == 0)
-        cpp.scan_ptr = expand_macro(p2, np);
+        cpp.scan_ptr = await expand_macro(p2, np);
     else
         cpp.scan_ptr = 0;
     return (np);
@@ -538,10 +538,10 @@ static char *raw_text(const char *a0, const char *a1, char *out, int cap)
 // it, NUL-terminated, at out[cap]; return out.  A normal parameter substitutes
 // this *expanded* argument (§6.10.3.1p2), which is what lets the STR/XSTR
 // stringize-through-indirection idiom yield the expanded value.  The engine is
-// reused over an isolated buffer whose output is captured through a memory
-// stream; every global the scanner touches is saved and restored around the run.
+// reused over an isolated buffer whose output is captured in memory (cpp.capture);
+// every global the scanner touches is saved and restored around the run.
 //
-char *expand_text(const char *a0, const char *a1, char *out, int cap)
+coro(braam_call *) char *expand_text(const char *a0, const char *a1, char *out, int cap)
 {
     char *subarena, *start;
     long n  = a1 - a0;
@@ -584,7 +584,7 @@ char *expand_text(const char *a0, const char *a1, char *out, int cap)
     char *s_buf_start = cpp.buf_start, *s_buf_mid = cpp.buf_mid, *s_buf_end = cpp.buf_end;
     char *s_out = cpp.out_ptr, *s_tok = cpp.tok_ptr, *s_scan = cpp.scan_ptr;
     char *s_scan_tab = cpp.scan_tab, *s_mac = cpp.macro_name, *s_rb = cpp.recur_bound;
-    FILE *s_of  = cpp.out_file;
+    struct CppCapture *s_cap = cpp.capture;
     int s_false = cpp.false_level, s_paren = cpp.paren_level;
     int s_rd = cpp.recur_depth, s_rba = cpp.recur_bound_adj;
     int s_ptop = cpp.push_top, s_ftop = cpp.free_top;
@@ -595,13 +595,7 @@ char *expand_text(const char *a0, const char *a1, char *out, int cap)
     // at its "\n#" sentinel is discarded instead of leaking.
     int s_ptaint = cpp.paint_top;
 
-    char *mbuf  = NULL;
-    size_t mlen = 0;
-    FILE *mf    = open_memstream(&mbuf, &mlen);
-    if (mf == NULL) { // capture unavailable: fall back to raw text
-        free(subarena);
-        return raw_text(a0, a1, out, cap);
-    }
+    struct CppCapture mc = { NULL, 0, 0 };
 
     // Load  raw + "\n#"  into the isolated buffer.  The "\n#" makes scan_token
     // return (it looks like the start of a directive) so we regain control.
@@ -613,7 +607,7 @@ char *expand_text(const char *a0, const char *a1, char *out, int cap)
     cpp.buf_mid   = start;
     cpp.buf_end   = start + n + 2;
     cpp.out_ptr = cpp.tok_ptr = start;
-    cpp.out_file              = mf;
+    cpp.capture               = &mc;
     cpp.false_level           = 0;
     cpp.paren_level           = 0;
     cpp.recur_depth           = 0;
@@ -621,10 +615,11 @@ char *expand_text(const char *a0, const char *a1, char *out, int cap)
     cpp.recur_bound_adj       = 0;
     SET_FAST_SCAN();
     ++cpp.arg_depth;
-    scan_token(start);
+    await scan_token(start);
     --cpp.arg_depth;
-    flush_output(); // push [out_ptr,tok_ptr) (the expanded text) into the memory stream
-    memstream_close(mf);
+    await flush_output(); // push [out_ptr,tok_ptr) (the expanded text) into the capture
+    char *mbuf  = mc.buf;
+    size_t mlen = mc.len;
 
     // Restore engine state.
     cpp.buf_start              = s_buf_start;
@@ -636,7 +631,7 @@ char *expand_text(const char *a0, const char *a1, char *out, int cap)
     cpp.scan_tab               = s_scan_tab;
     cpp.macro_name             = s_mac;
     cpp.recur_bound            = s_rb;
-    cpp.out_file               = s_of;
+    cpp.capture                = s_cap;
     cpp.false_level            = s_false;
     cpp.paren_level            = s_paren;
     cpp.recur_depth            = s_rd;
@@ -667,7 +662,7 @@ char *expand_text(const char *a0, const char *a1, char *out, int cap)
 // into " and \\ into \), and emit it as a "#pragma ..." line to the output,
 // leaving the surrounding tokens intact.
 //
-static char *pragma_operator(char *p)
+static coro(braam_call *) char *pragma_operator(char *p)
 {
     // STATIC for the reason direct.c's #line buffers are: this is reached from
     // expand_macro, which nests, and a _Pragma cannot appear inside its own
@@ -679,14 +674,14 @@ static char *pragma_operator(char *p)
     SET_SLOW_SCAN();
     ++cpp.false_level; // suppress expansion and keep flush_output inert
     do
-        p = skip_blanks(p);
+        p = await skip_blanks(p);
     while (*cpp.tok_ptr == '\n');
     if (*cpp.tok_ptr != '(') {
         pperror("expected '(' after '_Pragma'");
         goto done;
     }
     do
-        p = skip_blanks(p);
+        p = await skip_blanks(p);
     while (*cpp.tok_ptr == '\n');
     if (*cpp.tok_ptr != '"') {
         pperror("expected a string literal in '_Pragma'");
@@ -702,7 +697,7 @@ static char *pragma_operator(char *p)
         *w++ = *s++;
     }
     do
-        p = skip_blanks(p);
+        p = await skip_blanks(p);
     while (*cpp.tok_ptr == '\n');
     if (*cpp.tok_ptr != ')')
         pperror("expected ')' after the string in '_Pragma'");
@@ -710,8 +705,8 @@ done:
     *w = '\0';
     --cpp.false_level;
     SET_FAST_SCAN();
-    cpp.out_ptr = cpp.tok_ptr = p;                 // drop the consumed _Pragma(...) region first
-    fprintf(cpp.out_file, "\n#pragma %s\n", text); // then emit the directive line
+    cpp.out_ptr = cpp.tok_ptr = p;            // drop the consumed _Pragma(...) region first
+    await out_printf("\n#pragma %s\n", text); // then emit the directive line
     return (p);
 }
 
@@ -727,7 +722,7 @@ done:
 // itself from looping forever, unless -R (opt_recurse) was given.  Returns the
 // new scan pointer.
 //
-char *expand_macro(char *p, struct symtab *sp)
+coro(braam_call *) char *expand_macro(char *p, struct symtab *sp)
 {
     char *ca, *vp;
     int params;
@@ -761,9 +756,9 @@ char *expand_macro(char *p, struct symtab *sp)
     cpp.recur_bound     = p;
     cpp.recur_bound_adj = 0; // new target for decrease in level
     cpp.macro_name      = sp->name;
-    flush_output();
+    await flush_output();
     if (sp == cpp.sym_pragma_op) // _Pragma("...") operator (§6.10.9)
-        return pragma_operator(p);
+        return await pragma_operator(p);
     scratch = malloc(ACTTXT_SIZE + EXPTXT_SIZE + STRBUF_SIZE);
     if (scratch == NULL) {
         pperror("out of memory expanding macro '%s'", sp->name);
@@ -807,7 +802,7 @@ char *expand_macro(char *p, struct symtab *sp)
         ++cpp.false_level; // no expansion during search for actuals
         cpp.paren_level = -1;
         do
-            p = skip_blanks(p);
+            p = await skip_blanks(p);
         while (*cpp.tok_ptr == '\n'); // skip \n too
         if (*cpp.tok_ptr != '(') {
             // Function-like macro name not followed by '(': not an invocation.
@@ -818,8 +813,8 @@ char *expand_macro(char *p, struct symtab *sp)
             cpp.paren_level = 0;
             --cpp.false_level;
             SET_FAST_SCAN();
-            fputs(sp->name, cpp.out_file);
-            putc(' ', cpp.out_file); // separator so the next token can't fuse
+            await out_write(sp->name, strlen(sp->name));
+            await out_write(" ", 1); // separator so the next token can't fuse
             if (*cpp.tok_ptr == '\0')
                 ++cpp.tok_ptr;         // step over refill_buffer's EOF sentinel
             cpp.out_ptr = cpp.tok_ptr; // drop the (stale) name region
@@ -836,7 +831,7 @@ char *expand_macro(char *p, struct symtab *sp)
                 *ca++             = '\0';
                 for (;;) {
                     cpp.out_ptr = cpp.tok_ptr = p;
-                    p                         = scan_token(p);
+                    p                         = await scan_token(p);
                     if (*cpp.tok_ptr == '(')
                         ++cpp.paren_level;
                     if (*cpp.tok_ptr == ')' && --cpp.paren_level == 0) {
@@ -883,7 +878,7 @@ char *expand_macro(char *p, struct symtab *sp)
                 while (a0[-1] != '\0') // start of this raw actual's text
                     --a0;
                 *ep++ = '\0';
-                expand_text(a0, a1, ep, (int)(exptxt + EXPTXT_SIZE - ep));
+                await expand_text(a0, a1, ep, (int)(exptxt + EXPTXT_SIZE - ep));
                 ep += strlen(ep);
                 expanded[k] = ep; // end pointer (leading '\0' stops the reader)
                 ep++;
@@ -898,7 +893,7 @@ char *expand_macro(char *p, struct symtab *sp)
     paint_stack[cpp.paint_top++] = sp;
     if (AT_BUF_START(p)) {
         cpp.out_ptr = cpp.tok_ptr = p;
-        p                         = spill_buffer(p);
+        p                         = await spill_buffer(p);
     }
     *--p = (char)PAINT_END_MARK;
     // Push the body onto the front of the input, back to front, so it will be
@@ -907,7 +902,7 @@ char *expand_macro(char *p, struct symtab *sp)
         while (!ISWARN(*--vp)) {
             if (AT_BUF_START(p)) {
                 cpp.out_ptr = cpp.tok_ptr = p;
-                p                         = spill_buffer(p);
+                p                         = await spill_buffer(p);
             }
             *--p = *vp;
         }
@@ -916,7 +911,7 @@ char *expand_macro(char *p, struct symtab *sp)
             while (*--ca) {
                 if (AT_BUF_START(p)) {
                     cpp.out_ptr = cpp.tok_ptr = p;
-                    p                         = spill_buffer(p);
+                    p                         = await spill_buffer(p);
                 }
                 *--p = *ca;
             }
@@ -931,7 +926,7 @@ char *expand_macro(char *p, struct symtab *sp)
             while (ce > strbuf) { // push the built string back-to-front
                 if (AT_BUF_START(p)) {
                     cpp.out_ptr = cpp.tok_ptr = p;
-                    p                         = spill_buffer(p);
+                    p                         = await spill_buffer(p);
                 }
                 *--p = *--ce;
             }
@@ -950,7 +945,7 @@ char *expand_macro(char *p, struct symtab *sp)
             while (a1 > a0) { // push it back-to-front, adjacent to its neighbor
                 if (AT_BUF_START(p)) {
                     cpp.out_ptr = cpp.tok_ptr = p;
-                    p                         = spill_buffer(p);
+                    p                         = await spill_buffer(p);
                 }
                 *--p = *--a1;
             }
@@ -963,13 +958,13 @@ char *expand_macro(char *p, struct symtab *sp)
                 while (a1 > a0) {
                     if (AT_BUF_START(p)) {
                         cpp.out_ptr = cpp.tok_ptr = p;
-                        p                         = spill_buffer(p);
+                        p                         = await spill_buffer(p);
                     }
                     *--p = *--a1;
                 }
                 if (AT_BUF_START(p)) {
                     cpp.out_ptr = cpp.tok_ptr = p;
-                    p                         = spill_buffer(p);
+                    p                         = await spill_buffer(p);
                 }
                 *--p = ',';
             }

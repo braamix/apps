@@ -21,8 +21,8 @@ vcc today (upstream commit `937a00c4`):
   `libutil/wio.c`, `.s` text. About 62k lines in all, plus `libutil` (3k).
 - **`wasm32-braam`** is already a complete target: `main` is
   `coro(braam_call *) int main(...)`, every call that waits keeps C's name
-  and parameters and is `await`ed, `printf` and the other output calls never
-  wait (the stream buffer grows), and the runtime is
+  and parameters and is `await`ed, `printf` and the other output calls too
+  (the stream buffer is fixed, and written out when full), and the runtime is
   `libc/wasm32/braam/` (`rt.c`, `sys.c`, `stdio.c`, `malloc.c`,
   `exports.s`). `docs/Braam.md` is its reference.
 - **On the host** vcc assembles with `clang -c`, links with `wasm-ld`, and
@@ -53,12 +53,16 @@ What Braam already has, in this tree:
    stage. The only `#ifdef __braam__` expected is the driver's process
    spawning.
 2. **Coroutines stop at the door.** Each pass reads its whole input into
-   memory, works in plain C, and writes into a growing buffer that is
-   written out once at the end — iconv's shape, and `devel/wasm/lib`'s
+   memory and works in plain C — iconv's shape, and `devel/wasm/lib`'s
    rule ("pure: never awaits, never opens a file"). Only `main`, the file
-   loaders and the writers are coroutines. The one wait in the middle of
-   work is cpp's `#include`, met by loading every file it could name
-   before cpp starts.
+   loaders and the writers are coroutines; since `printf` is one, a writer
+   is every function that reaches output, the YAML and print dumps,
+   `genwasm`'s emitters and cpp's scanner among them. The one wait in the
+   middle of work is cpp's `#include`, met by loading every file it could
+   name before cpp starts. Diagnostics are the exception: they come from
+   plain code everywhere, so they are held in memory and written out at
+   the passes' await points, or posted by `exit` (`diag_printf`), and the
+   debug traces behind the passes' `-D` are compiled out (`trace_printf`).
 3. **Five programs stay five programs.** The driver spawns the passes, as
    upstream forks them: the files between passes are vcc's tested
    interface, and every pass keeps a pile of globals that one process

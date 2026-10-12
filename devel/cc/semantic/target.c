@@ -78,10 +78,10 @@ const Target *target_lookup(const char *name)
 void target_list(void)
 {
     for (int i = 0; i < NUM_TARGETS; i++) {
-        fprintf(stderr, "  %s\n", targets[i].name);
+        diag_printf("  %s\n", targets[i].name);
     }
     for (size_t i = 0; i < sizeof(aliases) / sizeof(aliases[0]); i++)
-        fprintf(stderr, "  %s\n", aliases[i].name);
+        diag_printf("  %s\n", aliases[i].name);
 }
 
 int64_t sign_narrow(uint64_t bits, int w)

@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <math.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     double xs[6];
     xs[0] = 12.0;
     xs[1] = -12.0;
@@ -13,14 +13,14 @@ static void body(void) {
         double x = xs[i];
         double y = ldexp(frexp(x, &e), e);
         if (y != x) {
-            printf("FAIL %d\n", i);
+            await printf("FAIL %d\n", i);
             return;
         }
     }
-    printf("OK\n");
+    await printf("OK\n");
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

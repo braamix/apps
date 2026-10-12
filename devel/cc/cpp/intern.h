@@ -85,26 +85,35 @@ enum macro_mark {
 };
 
 // buffer.c -- scan-buffer refill/spill and output
-void emit_line_marker(void);  // write a "# line file" marker to the output
-void flush_output(void);      // write finished text from the buffer to the output file
-void put_newlines(void);      // write the newlines owed for spliced lines
-char *refill_buffer(char *p); // top the buffer up from pushback or the input file
-char *spill_buffer(char *p);  // save part of the buffer aside to make room for pushback
+coro(braam_call *) void emit_line_marker(void); // write a "# line file" marker to the output
+coro(braam_call *) void flush_output(
+    void); // write finished text from the buffer to the output file
+coro(braam_call *) void put_newlines(void); // write the newlines owed for spliced lines
+// Text to the output file, or while an argument is prescanned to cpp.capture.
+coro(braam_call *) void out_write(const char *s, size_t n);
+coro(braam_call *) void out_printf(const char *fmt, ...);
+coro(braam_call *) char *refill_buffer(
+    char *p); // top the buffer up from pushback or the input file
+coro(braam_call *) char *spill_buffer(
+    char *p); // save part of the buffer aside to make room for pushback
 
 // scan.c -- lexical scanner
-char *scan_token(char *p); // scan the next token, handling comments/strings/etc.
+coro(braam_call *) char *scan_token(char *p); // scan the next token, handling comments/strings/etc.
 
 // direct.c -- directive dispatch and -D/-U/builtin setup
-char *process_directives(char *p);               // the main "handle each # line" loop
-struct symtab *define_symbol(const char *s);     // turn a "-D name=value" string into a macro
-struct symtab *install_directive(const char *s); // register a built-in like "#define"
+coro(braam_call *) char *process_directives(char *p); // the main "handle each # line" loop
+coro(braam_call *) struct symtab *define_symbol(
+    const char *s); // turn a "-D name=value" string into a macro
+coro(braam_call *) struct symtab *install_directive(
+    const char *s); // register a built-in like "#define"
 
 // macro.c -- macro definition, symbol table, expansion
-char *do_define(char *p);                                    // parse and store a #define
-struct symtab *lookup_token(char *p1, char *p2, int enterf); // look up the token in [p1,p2)
-char *expand_macro(char *p, struct symtab *sp);              // expand a macro call in place
-char *expand_text(const char *a0, const char *a1, char *out,
-                  int cap); // fully expand [a0,a1) into out
+coro(braam_call *) char *do_define(char *p); // parse and store a #define
+coro(braam_call *) struct symtab *lookup_token(char *p1, char *p2,
+                                               int enterf);        // look up the token in [p1,p2)
+coro(braam_call *) char *expand_macro(char *p, struct symtab *sp); // expand a macro call in place
+coro(braam_call *) char *expand_text(const char *a0, const char *a1, char *out,
+                                     int cap); // fully expand [a0,a1) into out
 
 // files.c -- the files cpp reads: on Braam from memory, loaded before it starts
 struct stat;

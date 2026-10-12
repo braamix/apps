@@ -27,9 +27,9 @@ coro(io_req *) int read_header(int fd, struct header *h)
 
 static const char *input;
 
-static void serve(io_req *r)
+static coro(braam_call *) void serve(io_req *r)
 {
-    printf("req %d %d\n", r->fd, (int)r->len);
+    await printf("req %d %d\n", r->fd, (int)r->len);
     size_t n = strlen(input);
     if (n > 3)
         n = 3;
@@ -40,22 +40,22 @@ static void serve(io_req *r)
     r->out = n;
 }
 
-static int run(const char *text, struct header *h)
+static coro(braam_call *) int run(const char *text, struct header *h)
 {
     static _Alignas(16) char storage[512];
     input = text;
     co_frame(io_req *, int) *t = co_init(storage, sizeof storage, read_header, 0, h);
     while (co_resume(t) == CO_SUSPENDED)
-        serve(co_value(t));
+        await serve(co_value(t));
     return co_result(t);
 }
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     struct header h;
-    int st = run("1234abcd", &h);
-    printf("header %d: %.4s %.4s\n", st, h.a, h.b);
-    printf("short %d\n", run("12345", &h));
+    int st = await run("1234abcd", &h);
+    await printf("header %d: %.4s %.4s\n", st, h.a, h.b);
+    await printf("short %d\n", await run("12345", &h));
     return 0;
 }
 

@@ -23,35 +23,35 @@ static coro(braam_call *) int list(void)
     FILE *f = await fopen(NOTES, "r");
     if (!f) {
         if (errno != ENOENT) {
-            perror(NOTES);
+            await perror(NOTES);
             return 1;
         }
-        printf("no notes\n");
+        await printf("no notes\n");
         return 0;
     }
     char line[256];
     int n = 0;
     while (await fgets(line, sizeof line, f))
-        printf("%3d  %s", ++n, line);
+        await printf("%3d  %s", ++n, line);
     await fclose(f);
 
     struct stat st;
     if (await stat(NOTES, &st) == 0)
-        printf("(%d notes, %d bytes)\n", n, (int)st.st_size);
+        await printf("(%d notes, %d bytes)\n", n, (int)st.st_size);
     return 0;
 }
 
-/* Formatting never waits: fprintf fills the stream's buffer, fclose writes it out. */
+/* fprintf fills the stream's buffer, writing it out when full; fclose writes the rest. */
 static coro(braam_call *) int add(int argc, char **argv)
 {
     FILE *f = await fopen(NOTES, "a");
     if (!f) {
-        perror(NOTES);
+        await perror(NOTES);
         return 1;
     }
     for (int i = 0; i < argc; i++)
-        fprintf(f, i ? " %s" : "%s", argv[i]);
-    fputc('\n', f);
+        await fprintf(f, i ? " %s" : "%s", argv[i]);
+    await fputc('\n', f);
     return await fclose(f) == 0 ? 0 : 1;
 }
 
@@ -60,12 +60,12 @@ static coro(braam_call *) int del(int k)
 {
     FILE *in = await fopen(NOTES, "r");
     if (!in) {
-        perror(NOTES);
+        await perror(NOTES);
         return 1;
     }
     FILE *out = await fopen(SPARE, "w");
     if (!out) {
-        perror(SPARE);
+        await perror(SPARE);
         await fclose(in);
         return 1;
     }
@@ -73,11 +73,11 @@ static coro(braam_call *) int del(int k)
     int n = 0;
     while (await fgets(line, sizeof line, in))
         if (++n != k)
-            fputs(line, out);
+            await fputs(line, out);
     await fclose(in);
     await fclose(out);
     if (k < 1 || k > n) {
-        printf("there is no note %d\n", k);
+        await printf("there is no note %d\n", k);
         await remove(SPARE);
         return 1;
     }
@@ -90,7 +90,7 @@ static coro(braam_call *) int ask(void)
     char line[256];
     int added = 0;
     for (;;) {
-        printf("note? ");
+        await printf("note? ");
         if (!await fgets(line, sizeof line, stdin))
             break;
         char *end = strchr(line, '\n');
@@ -103,7 +103,7 @@ static coro(braam_call *) int ask(void)
             return 1;
         added++;
     }
-    printf("\n%d added\n", added);
+    await printf("\n%d added\n", added);
     return 0;
 }
 
@@ -117,6 +117,6 @@ coro(braam_call *) int main(int argc, char **argv)
         return await del(atoi(argv[2]));
     if (!strcmp(argv[1], "ask") && argc == 2)
         return await ask();
-    fprintf(stderr, "usage: notes [add words... | del n | ask]\n");
+    await fprintf(stderr, "usage: notes [add words... | del n | ask]\n");
     return 2;
 }

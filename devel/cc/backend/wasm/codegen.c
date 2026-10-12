@@ -23,7 +23,8 @@ static bool ends_in_transfer(const Wasm_Func *fn)
     }
 }
 
-static void gen_function(const Tac_TopLevel *program, const Tac_TopLevel *tl, FILE *out)
+static coro(braam_call *) void gen_function(const Tac_TopLevel *program, const Tac_TopLevel *tl,
+                                            FILE *out)
 {
     Gen g;
     gen_init(&g, program, tl);
@@ -34,13 +35,13 @@ static void gen_function(const Tac_TopLevel *program, const Tac_TopLevel *tl, FI
         wasm_append(g.fn, WASM_UNREACHABLE);
     wasm_optimize(g.fn);
     for (int i = 0; i < g.nhelpers; i++)
-        fprintf(out, "\t.functype\t%s %s\n", g.helpers[i].name, g.helpers[i].sig);
-    wasm_emit_func(out, g.fn);
+        await fprintf(out, "\t.functype\t%s %s\n", g.helpers[i].name, g.helpers[i].sig);
+    await wasm_emit_func(out, g.fn);
     gen_done(&g);
     for (const Tac_StaticLocal *s = tl->u.function.static_locals; s; s = s->next)
-        emit_static_variable(out, s->name, false, s->type, s->init_list, false, s->alignment);
+        await emit_static_variable(out, s->name, false, s->type, s->init_list, false, s->alignment);
     if (strcmp(tl->u.function.name, "main") == 0 && !tl->u.function.params)
-        wasm_emit_main_aliases(out);
+        await wasm_emit_main_aliases(out);
 }
 
 // The strictest _Alignas among the declarations of static variable `name`.
@@ -54,26 +55,26 @@ static int declared_alignment(const Tac_TopLevel *program, const char *name)
     return a;
 }
 
-void wasm_codegen(const Tac_TopLevel *program, const Tac_TopLevel *tl, FILE *out)
+coro(braam_call *) void wasm_codegen(const Tac_TopLevel *program, const Tac_TopLevel *tl, FILE *out)
 {
     if (tl == program)
-        wasm_emit_unit_begin(out, program);
+        await wasm_emit_unit_begin(out, program);
     switch (tl->kind) {
     case TAC_TOPLEVEL_FUNCTION:
-        gen_function(program, tl, out);
+        await gen_function(program, tl, out);
         break;
     case TAC_TOPLEVEL_EXTERN:
         break; // declared by wasm_emit_unit_begin; the linker resolves it
     case TAC_TOPLEVEL_STATIC_VARIABLE:
         if (tac_static_superseded(program, tl))
             break;
-        emit_static_variable(out, tl->u.static_variable.name, tl->u.static_variable.global,
-                             tl->u.static_variable.type, tl->u.static_variable.init_list, false,
-                             declared_alignment(program, tl->u.static_variable.name));
+        await emit_static_variable(out, tl->u.static_variable.name, tl->u.static_variable.global,
+                                   tl->u.static_variable.type, tl->u.static_variable.init_list,
+                                   false, declared_alignment(program, tl->u.static_variable.name));
         break;
     case TAC_TOPLEVEL_STATIC_CONSTANT:
-        emit_static_variable(out, tl->u.static_constant.name, false, tl->u.static_constant.type,
-                             tl->u.static_constant.init, true, 0);
+        await emit_static_variable(out, tl->u.static_constant.name, false,
+                                   tl->u.static_constant.type, tl->u.static_constant.init, true, 0);
         break;
     }
 }

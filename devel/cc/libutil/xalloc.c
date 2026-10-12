@@ -92,7 +92,7 @@ void *xalloc(size_t size, const char *funcname, const char *filename, unsigned l
     /* Return pointer to user data (after header) */
     ptr = (void *)((char *)ptr + sizeof(BlockHeader));
     if (xalloc_debug) {
-        printf("--- %s %zu bytes, %p\n", __func__, size, ptr);
+        trace_printf("--- %s %zu bytes, %p\n", __func__, size, ptr);
     }
     return ptr;
 }
@@ -110,7 +110,7 @@ void xfree(void *ptr)
     /* Get the header (before the user pointer) */
     BlockHeader *h = (BlockHeader *)((char *)ptr - sizeof(BlockHeader));
     if (xalloc_debug) {
-        printf("--- %s %zu bytes, %p\n", __func__, h->requested_size, ptr);
+        trace_printf("--- %s %zu bytes, %p\n", __func__, h->requested_size, ptr);
     }
 
     /* Remove from the doubly linked list */
@@ -148,7 +148,7 @@ void xfree(void *ptr)
 void xreport_lost_memory()
 {
     if (head) {
-        printf("Lost memory:\n");
+        trace_printf("Lost memory:\n");
     }
     for (const BlockHeader *h = head; h; h = h->next) {
         const char *filename = strrchr(h->filename, '/');
@@ -156,8 +156,8 @@ void xreport_lost_memory()
             filename = h->filename;
         else
             filename++;
-        printf("%zu bytes allocated by %s() at line %u of file %s\n", h->requested_size,
-               h->funcname, h->lineno, filename);
+        trace_printf("%zu bytes allocated by %s() at line %u of file %s\n", h->requested_size,
+                     h->funcname, h->lineno, filename);
     }
 }
 
@@ -181,7 +181,7 @@ size_t xtotal_allocated_size()
 void xfree_all()
 {
     if (xalloc_debug) {
-        printf("--- %s\n", __func__);
+        trace_printf("--- %s\n", __func__);
     }
     while (head) {
         BlockHeader *next = head->next;

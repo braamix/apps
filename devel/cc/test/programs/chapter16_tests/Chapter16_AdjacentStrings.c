@@ -1,9 +1,9 @@
 /* Test that we concatenate adjacent string literal tokens */
 
-int puts(char *s);
+#include <stdio.h>
 
-int main(void) {
+coro(braam_call *) int main(void) {
     char *strings = "HELLO," " WORLD";
-    puts(strings);
+    await puts(strings);
     return 0;
 }

@@ -294,9 +294,13 @@ _Noreturn void _exit(int status)
     exit(status);
 }
 
+void __plain_write(int fd, const char *s); /* rt.c */
+
 _Noreturn void __assert_fail(const char *expr, const char *file, int line)
 {
-    fprintf(stderr, "%s:%d: assertion failed: %s\n", file, line, expr);
+    char msg[512];
+    snprintf(msg, sizeof msg, "%s:%d: assertion failed: %s\n", file, line, expr);
+    __plain_write(2, msg);
     abort();
 }
 

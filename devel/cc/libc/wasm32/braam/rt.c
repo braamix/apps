@@ -215,6 +215,15 @@ void __braam_post(unsigned op, const void *ptr, unsigned len)
 void __braam_exit(int status); /* exports.s */
 void __stdio_post(void);       /* stdio.c */
 
+/* A write from plain code, which cannot await one: an assertion, a coroutine trap,
+   getopt's complaint, a diagnostic held to the end.  Posted to `fd` after what the
+   streams hold. */
+void __plain_write(int fd, const char *s)
+{
+    __stdio_post();
+    __braam_post(BRAAM_SYS_OP(BRAAM_SYS_WRITE, fd), s, (unsigned)strlen(s));
+}
+
 /* An exit from anywhere, plain code included: nothing unwinds, so the atexit
    functions run and the stdio buffers are posted, and the process ends in this
    step. */

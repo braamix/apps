@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <string.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     const char *s = "ABCDEF";
     char *p = memchr(s, 'C', 6);
-    printf("%d\n", (int)(p - s));
+    await printf("%d\n", (int)(p - s));
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

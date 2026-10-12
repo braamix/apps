@@ -13,12 +13,12 @@ static int sum(void)
     return total;
 }
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     int s = 0, n = 0;
     for (; n < 1000; n++)
         s = sum();
-    printf("sum %d calls %d\n", s, n);
+    await printf("sum %d calls %d\n", s, n);
     return 0;
 }
 

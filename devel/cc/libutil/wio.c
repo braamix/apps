@@ -145,6 +145,28 @@ coro(braam_call *) int wdopen(WFILE *stream, int fildes, const char *mode)
 }
 
 //
+// A write stream into memory alone: the words stay in its buffer.
+//
+void wmemopen(WFILE *stream)
+{
+    memset(stream, 0, sizeof *stream);
+    stream->fd         = -1;
+    stream->mode       = 'w';
+    stream->buffer_cap = 256;
+    stream->buffer     = malloc(stream->buffer_cap * sizeof(size_t));
+    if (!stream->buffer) {
+        stream->buffer_cap = 0;
+        stream->is_error   = true;
+    }
+}
+
+void wmemfree(WFILE *stream)
+{
+    free(stream->buffer);
+    stream->buffer = NULL;
+}
+
+//
 // Everything is written at wclose(): a write stream keeps its words until then.
 //
 int wflush(WFILE *stream)
@@ -248,7 +270,7 @@ size_t wgetw(WFILE *stream)
 
     size_t w = stream->buffer[stream->buffer_pos++];
     if (wio_debug) {
-        printf("    %s %#zx\n", __func__, w);
+        trace_printf("    %s %#zx\n", __func__, w);
     }
     return w;
 }
@@ -274,7 +296,7 @@ int wputw(size_t w, WFILE *stream)
     }
 
     if (wio_debug) {
-        printf("    %s %#zx\n", __func__, w);
+        trace_printf("    %s %#zx\n", __func__, w);
     }
     stream->buffer[stream->buffer_pos++] = w;
     return 0;
@@ -350,7 +372,7 @@ char *wgetstr(WFILE *stream)
         bool is_last_word = memchr(&buf[n], '\0', sizeof(size_t)) != NULL;
         if (is_last_word) {
             if (wio_debug) {
-                printf("    %s '%s'\n", __func__, (char *)buf);
+                trace_printf("    %s '%s'\n", __func__, (char *)buf);
             }
             char *str = xstrdup((char *)buf);
             xfree(buf);
@@ -373,7 +395,7 @@ char *wgetstr(WFILE *stream)
 int wputstr(const char *str, WFILE *stream)
 {
     if (wio_debug) {
-        printf("    %s '%s'\n", __func__, str ? str : "(empty)");
+        trace_printf("    %s '%s'\n", __func__, str ? str : "(empty)");
     }
     if (str == NULL) {
         // Write empty string.
@@ -402,7 +424,7 @@ int wputstr(const char *str, WFILE *stream)
 int wputdata(const void *data, size_t len, WFILE *stream)
 {
     if (wio_debug) {
-        printf("    %s %zu bytes\n", __func__, len);
+        trace_printf("    %s %zu bytes\n", __func__, len);
     }
     if (wputw(len, stream) < 0) {
         return -1;
@@ -446,7 +468,7 @@ void *wgetdata(size_t *len, WFILE *stream)
     }
     buf[n] = '\0';
     if (wio_debug) {
-        printf("    %s %zu bytes\n", __func__, n);
+        trace_printf("    %s %zu bytes\n", __func__, n);
     }
     *len = n;
     return buf;

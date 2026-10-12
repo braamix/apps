@@ -7,93 +7,77 @@
 #include "liveness.h"
 
 #include <stdbool.h>
+#include <string.h>
 
 #include "optimize.h"
+#include "srcloc.h"
 #include "xalloc.h"
 
 // ============================================================================
-// Live-set primitives. A live set is a StringMap whose key is a variable name;
-// membership = the variable is live. The value is an unused placeholder, and
-// StringMap owns its keys, so a live set never points into the instruction
-// stream — it stays valid across the instruction frees the removal walk does.
+// Live sets are bit vectors over the names of one function. Every name the
+// transfer can touch is numbered once, in strcmp order, so that walking a set's
+// bits visits the names in the order a StringMap of them would. The index owns
+// the names, so a set stays valid across the instruction frees the removal walk
+// does.
 // ============================================================================
 
-void opt_live_add(StringMap *ls, const char *name)
+#define WORD_BITS (8 * (int)sizeof(LiveWord))
+
+static int bit_of(const OptLive *lv, const char *name)
+{
+    intptr_t v;
+    if (!map_get((StringMap *)&lv->index, name, &v))
+        internal_error("liveness: '%s' is not among the function's names", name);
+    return (int)v - 1;
+}
+
+static void set_bit(LiveWord *set, int k)
+{
+    set[k / WORD_BITS] |= (LiveWord)1 << (k % WORD_BITS);
+}
+
+LiveWord *opt_live_new(const OptLive *lv)
+{
+    LiveWord *set = xalloc((lv->nwords + 1) * sizeof(LiveWord), __func__, __FILE__, __LINE__);
+    memset(set, 0, (lv->nwords + 1) * sizeof(LiveWord));
+    return set;
+}
+
+void opt_live_copy(const OptLive *lv, LiveWord *dst, const LiveWord *src)
+{
+    memcpy(dst, src, lv->nwords * sizeof(LiveWord));
+}
+
+bool opt_live_has(const OptLive *lv, const LiveWord *set, const char *name)
+{
+    int k = bit_of(lv, name);
+    return (set[k / WORD_BITS] >> (k % WORD_BITS)) & 1;
+}
+
+void opt_live_remove(const OptLive *lv, LiveWord *set, const char *name)
+{
+    if (!name)
+        return;
+    int k = bit_of(lv, name);
+    set[k / WORD_BITS] &= ~((LiveWord)1 << (k % WORD_BITS));
+}
+
+void opt_live_each(const OptLive *lv, const LiveWord *set, void (*f)(const char *name, void *arg),
+                   void *arg)
+{
+    for (int w = 0; w < lv->nwords; w++)
+        for (LiveWord bits = set[w]; bits; bits &= bits - 1) {
+            int k = w * WORD_BITS;
+            for (LiveWord b = bits & -bits; b > 1; b >>= 1)
+                k++;
+            f(lv->names[k], arg);
+        }
+}
+
+static void add_name(const OptLive *lv, LiveWord *set, const char *name)
 {
     if (name)
-        map_insert(ls, name, 0, 0);
-}
-
-void opt_live_add_val(StringMap *ls, const Tac_Val *v)
-{
-    if (v && v->kind == TAC_VAL_VAR)
-        opt_live_add(ls, v->u.var_name);
-}
-
-// map_remove_key is a no-op when the name is absent, so no membership pre-check.
-void opt_live_remove(StringMap *ls, const char *name)
-{
-    map_remove_key(ls, name);
-}
-
-// ============================================================================
-// opt_live_copy / opt_live_union
-// ============================================================================
-
-typedef struct {
-    StringMap *dst;
-} LiveCtx;
-
-static void live_copy_cb(const char *key, intptr_t value, const void *arg)
-{
-    (void)value;
-    opt_live_add(((const LiveCtx *)arg)->dst, key);
-}
-
-void opt_live_copy(StringMap *dst, const StringMap *src)
-{
-    LiveCtx ctx = { dst };
-    map_iterate((StringMap *)src, live_copy_cb, &ctx);
-}
-
-// The meet operator: result ∪= other. Used to combine successors' in-sets into
-// a block's out-set, and to seed the Exit out-set with the aliased variables.
-void opt_live_union(StringMap *result, const StringMap *other)
-{
-    LiveCtx ctx = { result };
-    map_iterate((StringMap *)other, live_copy_cb, &ctx);
-}
-
-// ============================================================================
-// opt_live_equal: set equality, used as the fixed-point test for the backward
-// dataflow loop. Checked in both directions.
-// ============================================================================
-
-typedef struct {
-    bool *equal;
-    const StringMap *other;
-} LiveEqualCtx;
-
-static void live_equal_cb(const char *key, intptr_t value, const void *arg)
-{
-    const LiveEqualCtx *ctx = (const LiveEqualCtx *)arg;
-    (void)value;
-    if (!*ctx->equal)
-        return;
-    if (!map_get((StringMap *)ctx->other, key, NULL))
-        *ctx->equal = false;
-}
-
-bool opt_live_equal(const StringMap *a, const StringMap *b)
-{
-    bool eq          = true;
-    LiveEqualCtx ctx = { &eq, b };
-    map_iterate((StringMap *)a, live_equal_cb, &ctx);
-    if (!eq)
-        return false;
-    ctx.other = a;
-    map_iterate((StringMap *)b, live_equal_cb, &ctx);
-    return eq;
+        set_bit(set, bit_of(lv, name));
 }
 
 // ============================================================================
@@ -176,32 +160,30 @@ const char *opt_live_def(const Tac_Instruction *ins)
 }
 
 // ============================================================================
-// opt_live_transfer: the liveness transfer function for one instruction,
-// updating live set `ls` in place. Caller walks instructions last-to-first.
-// The order is kill-def then gen-use, so an instruction like `x = x + 1` keeps
-// x live: x is removed as the def, then re-added as a use.
+// The names an instruction reads, each handed to `use`; a call's are its
+// arguments and, called through a pointer, the pointer.
 // ============================================================================
 
-void opt_live_transfer(StringMap *ls, const Tac_Instruction *ins, const StringMap *static_names,
-                       const StringMap *address_taken)
+typedef void (*UseFn)(const OptLive *lv, LiveWord *set, const char *name);
+
+static void use_val(UseFn use, const OptLive *lv, LiveWord *set, const Tac_Val *v)
 {
-    if (ins->kind == TAC_INSTRUCTION_FUN_CALL || ins->kind == TAC_INSTRUCTION_FUN_CALL_NORETURN) {
-        // Callee may read any static or address-taken variable.
-        opt_live_union(ls, static_names);
-        opt_live_union(ls, address_taken);
-        for (const Tac_Val *a = ins->u.fun_call.args; a; a = a->next)
-            opt_live_add_val(ls, a);
-        if (ins->u.fun_call.indirect)
-            opt_live_add(ls, ins->u.fun_call.fun_name); // the callee is read out of this var
-        // FUN_CALL: no defined variable to kill.
-        return;
-    }
+    if (v && v->kind == TAC_VAL_VAR)
+        use(lv, set, v->u.var_name);
+}
 
-    opt_live_remove(ls, opt_live_def(ins));
-
+static void uses(const Tac_Instruction *ins, UseFn use, const OptLive *lv, LiveWord *set)
+{
     switch (ins->kind) {
+    case TAC_INSTRUCTION_FUN_CALL:
+    case TAC_INSTRUCTION_FUN_CALL_NORETURN:
+        for (const Tac_Val *a = ins->u.fun_call.args; a; a = a->next)
+            use_val(use, lv, set, a);
+        if (ins->u.fun_call.indirect)
+            use(lv, set, ins->u.fun_call.fun_name); // the callee is read out of this var
+        break;
     case TAC_INSTRUCTION_RETURN:
-        opt_live_add_val(ls, ins->u.return_.src);
+        use_val(use, lv, set, ins->u.return_.src);
         break;
     case TAC_INSTRUCTION_SIGN_EXTEND:
     case TAC_INSTRUCTION_TRUNCATE:
@@ -226,56 +208,57 @@ void opt_live_transfer(StringMap *ls, const Tac_Instruction *ins, const StringMa
     case TAC_INSTRUCTION_FLOAT_TO_LONG_DOUBLE:
     case TAC_INSTRUCTION_PTR_TO_CHAR_PTR:
     case TAC_INSTRUCTION_CHAR_PTR_TO_PTR:
-        opt_live_add_val(ls, ins->u.sign_extend.src);
+        use_val(use, lv, set, ins->u.sign_extend.src);
         break;
     case TAC_INSTRUCTION_UNARY:
-        opt_live_add_val(ls, ins->u.unary.src);
+        use_val(use, lv, set, ins->u.unary.src);
         break;
     case TAC_INSTRUCTION_BINARY:
-        opt_live_add_val(ls, ins->u.binary.src1);
-        opt_live_add_val(ls, ins->u.binary.src2);
+        use_val(use, lv, set, ins->u.binary.src1);
+        use_val(use, lv, set, ins->u.binary.src2);
         break;
     case TAC_INSTRUCTION_COPY:
-        opt_live_add_val(ls, ins->u.copy.src);
+        use_val(use, lv, set, ins->u.copy.src);
         break;
     case TAC_INSTRUCTION_GET_ADDRESS:
     case TAC_INSTRUCTION_GET_ADDRESS_BYTE:
     case TAC_INSTRUCTION_GET_ADDRESS_DECAY:
-        opt_live_add_val(ls, ins->u.get_address.src);
+        use_val(use, lv, set, ins->u.get_address.src);
         break;
     case TAC_INSTRUCTION_LOAD:
     case TAC_INSTRUCTION_LOAD_BYTE:
-        opt_live_add_val(ls, ins->u.load.src_ptr);
+        use_val(use, lv, set, ins->u.load.src_ptr);
         break;
     case TAC_INSTRUCTION_STORE:
     case TAC_INSTRUCTION_STORE_BYTE:
-        opt_live_add_val(ls, ins->u.store.src);
-        opt_live_add_val(ls, ins->u.store.dst_ptr);
+        use_val(use, lv, set, ins->u.store.src);
+        use_val(use, lv, set, ins->u.store.dst_ptr);
         break;
     case TAC_INSTRUCTION_ADD_PTR:
-        opt_live_add_val(ls, ins->u.add_ptr.ptr);
-        opt_live_add_val(ls, ins->u.add_ptr.index);
+        use_val(use, lv, set, ins->u.add_ptr.ptr);
+        use_val(use, lv, set, ins->u.add_ptr.index);
         break;
     case TAC_INSTRUCTION_PTR_DIFF:
-        opt_live_add_val(ls, ins->u.ptr_diff.ptr_a);
-        opt_live_add_val(ls, ins->u.ptr_diff.ptr_b);
+        use_val(use, lv, set, ins->u.ptr_diff.ptr_a);
+        use_val(use, lv, set, ins->u.ptr_diff.ptr_b);
         break;
     case TAC_INSTRUCTION_COPY_TO_OFFSET:
     case TAC_INSTRUCTION_COPY_BYTE_TO_OFFSET:
-        opt_live_add_val(ls, ins->u.copy_to_offset.src);
+        use_val(use, lv, set, ins->u.copy_to_offset.src);
         break;
     case TAC_INSTRUCTION_COPY_FROM_OFFSET:
     case TAC_INSTRUCTION_COPY_BYTE_FROM_OFFSET:
-        opt_live_add(ls, ins->u.copy_from_offset.src); // char*, not Tac_Val*
+        if (ins->u.copy_from_offset.src)
+            use(lv, set, ins->u.copy_from_offset.src); // char*, not Tac_Val*
         break;
     case TAC_INSTRUCTION_JUMP_IF_ZERO:
-        opt_live_add_val(ls, ins->u.jump_if_zero.condition);
+        use_val(use, lv, set, ins->u.jump_if_zero.condition);
         break;
     case TAC_INSTRUCTION_JUMP_IF_NOT_ZERO:
-        opt_live_add_val(ls, ins->u.jump_if_not_zero.condition);
+        use_val(use, lv, set, ins->u.jump_if_not_zero.condition);
         break;
     case TAC_INSTRUCTION_JUMP_TABLE:
-        opt_live_add_val(ls, ins->u.jump_table.index);
+        use_val(use, lv, set, ins->u.jump_table.index);
         break;
     default:
         break;
@@ -283,19 +266,104 @@ void opt_live_transfer(StringMap *ls, const Tac_Instruction *ins, const StringMa
 }
 
 // ============================================================================
-// opt_live_solve: the backward fixpoint.  in[] and out[] (n entries each) are
-// initialized here; the caller destroys them with opt_live_free.
+// opt_live_transfer: one instruction, backward. A call makes live every static
+// and address-taken name, which the callee may read, and kills nothing.
 // ============================================================================
 
-void opt_live_solve(const OptCfg *cfg, const StringMap *static_names,
-                    const StringMap *address_taken, bool only_reachable, StringMap *in_sets,
-                    StringMap *out_sets)
+void opt_live_transfer(const OptLive *lv, LiveWord *set, const Tac_Instruction *ins)
 {
-    int n = cfg->nblocks;
-    for (int i = 0; i < n; i++) {
-        map_init(&in_sets[i]);
-        map_init(&out_sets[i]);
+    if (ins->kind == TAC_INSTRUCTION_FUN_CALL || ins->kind == TAC_INSTRUCTION_FUN_CALL_NORETURN) {
+        for (int w = 0; w < lv->nwords; w++)
+            set[w] |= lv->observed[w];
+    } else {
+        opt_live_remove(lv, set, opt_live_def(ins));
     }
+    uses(ins, add_name, lv, set);
+}
+
+// ============================================================================
+// The function's names: every name an instruction defines or reads, a call's
+// result, and the static and address-taken names; numbered in strcmp order.
+// ============================================================================
+
+static void note(const OptLive *lv, LiveWord *set, const char *name)
+{
+    (void)set;
+    if (name)
+        map_insert((StringMap *)&lv->index, name, 0, 0);
+}
+
+static void note_key(const char *key, intptr_t value, const void *arg)
+{
+    (void)value;
+    note(arg, NULL, key);
+}
+
+static void count_key(const char *key, intptr_t value, const void *arg)
+{
+    (void)key, (void)value;
+    ((OptLive *)arg)->nnames++;
+}
+
+static void name_key(const char *key, intptr_t value, const void *arg)
+{
+    (void)value;
+    OptLive *lv             = (OptLive *)arg;
+    lv->names[lv->nnames++] = key;
+}
+
+static void observe(const char *key, intptr_t value, const void *arg)
+{
+    (void)value;
+    const OptLive *lv = arg;
+    add_name(lv, lv->observed, key);
+}
+
+static void number_names(OptLive *lv, const OptCfg *cfg, const StringMap *static_names,
+                         const StringMap *address_taken)
+{
+    map_init(&lv->index);
+    for (int i = 0; i < cfg->nblocks; i++)
+        for (const Tac_Instruction *ins = cfg->blocks[i]->first; ins; ins = ins->next) {
+            note(lv, NULL, opt_live_def(ins));
+            if (ins->kind == TAC_INSTRUCTION_FUN_CALL && ins->u.fun_call.dst &&
+                ins->u.fun_call.dst->kind == TAC_VAL_VAR)
+                note(lv, NULL, ins->u.fun_call.dst->u.var_name);
+            uses(ins, note, lv, NULL);
+        }
+    map_iterate((StringMap *)static_names, note_key, lv);
+    map_iterate((StringMap *)address_taken, note_key, lv);
+
+    // A key lives in its node, which keeps its place while only its value changes.
+    lv->nnames = 0;
+    map_iterate(&lv->index, count_key, lv);
+    lv->names  = xalloc((lv->nnames + 1) * sizeof(char *), __func__, __FILE__, __LINE__);
+    lv->nnames = 0;
+    map_iterate(&lv->index, name_key, lv);
+    for (int k = 0; k < lv->nnames; k++)
+        map_insert(&lv->index, lv->names[k], k + 1, 0);
+    lv->nwords = (lv->nnames + WORD_BITS - 1) / WORD_BITS;
+
+    lv->observed = opt_live_new(lv);
+    map_iterate((StringMap *)static_names, observe, lv);
+    map_iterate((StringMap *)address_taken, observe, lv);
+}
+
+// ============================================================================
+// opt_live_solve: the backward fixpoint.  Release with opt_live_free.
+// ============================================================================
+
+void opt_live_solve(OptLive *lv, const OptCfg *cfg, const StringMap *static_names,
+                    const StringMap *address_taken, bool only_reachable)
+{
+    number_names(lv, cfg, static_names, address_taken);
+    int n        = cfg->nblocks;
+    int nw       = lv->nwords;
+    size_t bytes = ((size_t)n * nw + 1) * sizeof(LiveWord);
+    lv->in       = xalloc(bytes, __func__, __FILE__, __LINE__);
+    lv->out      = xalloc(bytes, __func__, __FILE__, __LINE__);
+    memset(lv->in, 0, bytes);
+    memset(lv->out, 0, bytes);
 
     // Per-block instruction arrays, built once: the transfer walks each block backward.
     int *block_nins = xalloc((n + 1) * sizeof(int), __func__, __FILE__, __LINE__);
@@ -315,8 +383,9 @@ void opt_live_solve(const OptCfg *cfg, const StringMap *static_names,
 
     // Recompute out[b] then in[b] for every block, in descending order (a backward
     // analysis converges faster bottom-up), until no in-set changes.
-    bool changed = true;
-    int iter     = 0;
+    LiveWord *new_in = opt_live_new(lv);
+    bool changed     = true;
+    int iter         = 0;
     while (changed) {
         changed = false;
         iter++;
@@ -333,44 +402,49 @@ void opt_live_solve(const OptCfg *cfg, const StringMap *static_names,
             if (only_reachable && !b->reachable)
                 continue;
 
-            // Meet: out[b] = union of in[s] for all successors s.
-            StringMap new_out;
-            map_init(&new_out);
-            for (int j = 0; j < b->nsucc; j++)
-                opt_live_union(&new_out, &in_sets[b->succs[j]->id]);
-            // Exit block (no successors): seed with variables observable after return.
-            if (b->nsucc == 0) {
-                opt_live_union(&new_out, static_names);
-                opt_live_union(&new_out, address_taken);
+            // Meet: out[b] = union of in[s] for all successors s.  Exit block (no
+            // successors): the variables observable after return.
+            LiveWord *out = lv->out + (size_t)i * nw;
+            memset(out, 0, nw * sizeof(LiveWord));
+            for (int j = 0; j < b->nsucc; j++) {
+                const LiveWord *s = lv->in + (size_t)b->succs[j]->id * nw;
+                for (int w = 0; w < nw; w++)
+                    out[w] |= s[w];
             }
+            if (b->nsucc == 0)
+                for (int w = 0; w < nw; w++)
+                    out[w] |= lv->observed[w];
 
             // Transfer: in[b] = backward_transfer(out[b]).
-            StringMap new_in;
-            map_init(&new_in);
-            opt_live_copy(&new_in, &new_out);
+            opt_live_copy(lv, new_in, out);
             for (int j = block_nins[i] - 1; j >= 0; j--)
-                opt_live_transfer(&new_in, block_insts[i][j], static_names, address_taken);
+                opt_live_transfer(lv, new_in, block_insts[i][j]);
 
-            if (!opt_live_equal(&new_in, &in_sets[i]))
+            LiveWord *in = lv->in + (size_t)i * nw;
+            if (memcmp(new_in, in, nw * sizeof(LiveWord)) != 0) {
                 changed = true;
-
-            map_destroy(&in_sets[i]);
-            map_destroy(&out_sets[i]);
-            in_sets[i]  = new_in;
-            out_sets[i] = new_out;
+                opt_live_copy(lv, in, new_in);
+            }
         }
     }
     OPT_TRACE("[liveness] fixpoint converged after %d iteration(s)\n", iter);
+    xfree(new_in);
     for (int i = 0; i < n; i++)
         xfree(block_insts[i]);
     xfree(block_insts);
     xfree(block_nins);
 }
 
-void opt_live_free(int n, StringMap *in_sets, StringMap *out_sets)
+const LiveWord *opt_live_out(const OptLive *lv, int block)
 {
-    for (int i = 0; i < n; i++) {
-        map_destroy(&in_sets[i]);
-        map_destroy(&out_sets[i]);
-    }
+    return lv->out + (size_t)block * lv->nwords;
+}
+
+void opt_live_free(OptLive *lv)
+{
+    xfree(lv->in);
+    xfree(lv->out);
+    xfree(lv->observed);
+    xfree(lv->names);
+    map_destroy(&lv->index);
 }

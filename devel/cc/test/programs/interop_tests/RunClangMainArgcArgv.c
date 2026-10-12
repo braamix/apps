@@ -1,7 +1,7 @@
-        void putch(unsigned c);
-        int main(int argc, char **argv)
+        #include <stdio.h>
+        coro(braam_call *) int main(int argc, char **argv)
         {
-            putch('o'); putch('k'); putch('\n');
+            await putchar('o'); await putchar('k'); await putchar('\n');
             return argc + (argv != 0) + 4;
         }
     

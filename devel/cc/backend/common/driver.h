@@ -28,9 +28,12 @@ typedef struct {
     void (*flag)(int index);
     // Extension of the default output file name (e.g. ".s"), asked after the flags.
     const char *(*output_ext)(void);
-    // Translate one toplevel to assembly.  `program` heads the whole translation unit.
-    void (*codegen)(const Tac_TopLevel *program, const Tac_TopLevel *tl, FILE *out);
 } Backend;
+
+// Translate one toplevel to assembly.  `program` heads the whole translation unit.
+// The backend defines it: a coroutine has no function pointer.
+coro(braam_call *) void backend_codegen(const Tac_TopLevel *program, const Tac_TopLevel *tl,
+                                        FILE *out);
 
 coro(braam_call *) int backend_main(int argc, char *argv[], const Backend *backend);
 

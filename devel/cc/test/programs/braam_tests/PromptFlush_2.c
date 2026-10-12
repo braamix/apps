@@ -7,7 +7,7 @@ coro(braam_call *) int depth(int n)
 }
 coro(braam_call *) int main(int argc, char **argv)
 {
-    printf("%d\n", await depth(300));
+    await printf("%d\n", await depth(300));
     return 0;
 }
 

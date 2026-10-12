@@ -34,10 +34,9 @@ void tac_free_val(Tac_Val *val)
 }
 
 // Free a Tac_Instruction and its contents recursively
-void tac_free_instruction(Tac_Instruction *instr)
+// One, its contents and itself.
+static void free_one_instruction(Tac_Instruction *instr)
 {
-    if (!instr)
-        return;
     switch (instr->kind) {
     case TAC_INSTRUCTION_RETURN:
         tac_free_val(instr->u.return_.src);
@@ -157,8 +156,17 @@ void tac_free_instruction(Tac_Instruction *instr)
         }
         break;
     }
-    tac_free_instruction(instr->next);
     xfree(instr);
+}
+
+// A list, in a loop: a function's body may be tens of thousands long.
+void tac_free_instruction(Tac_Instruction *instr)
+{
+    while (instr) {
+        Tac_Instruction *next = instr->next;
+        free_one_instruction(instr);
+        instr = next;
+    }
 }
 
 // Free a Tac_Type and its contents recursively
@@ -193,14 +201,15 @@ void tac_free_type(Tac_Type *type)
 // Free a Tac_Param and its contents recursively
 void tac_free_param(Tac_Param *param)
 {
-    if (!param)
-        return;
-    if (param->name) {
-        xfree(param->name);
+    while (param) { // in a loop: a function may have thousands of locals
+        Tac_Param *next = param->next;
+        if (param->name) {
+            xfree(param->name);
+        }
+        tac_free_type(param->type);
+        xfree(param);
+        param = next;
     }
-    tac_free_type(param->type);
-    tac_free_param(param->next);
-    xfree(param);
 }
 
 // Free a Tac_Member list and its contents
@@ -247,10 +256,9 @@ void tac_free_static_init(Tac_StaticInit *init)
 }
 
 // Free a Tac_TopLevel and its contents recursively
-void tac_free_toplevel(Tac_TopLevel *toplevel)
+// One, its contents and itself.
+static void free_one_toplevel(Tac_TopLevel *toplevel)
 {
-    if (!toplevel)
-        return;
     switch (toplevel->kind) {
     case TAC_TOPLEVEL_FUNCTION:
         if (toplevel->u.function.name) {
@@ -283,6 +291,15 @@ void tac_free_toplevel(Tac_TopLevel *toplevel)
         tac_free_type(toplevel->u.extern_.type);
         break;
     }
-    tac_free_toplevel(toplevel->next);
     xfree(toplevel);
+}
+
+// A list, in a loop: a function's body may be tens of thousands long.
+void tac_free_toplevel(Tac_TopLevel *toplevel)
+{
+    while (toplevel) {
+        Tac_TopLevel *next = toplevel->next;
+        free_one_toplevel(toplevel);
+        toplevel = next;
+    }
 }

@@ -16,7 +16,7 @@ static intmax_t str_to_int(char *st, int b, int *is_unsigned);
 // is exactly how "#if SOMENAME" is supposed to behave.  Returns "stop" at the
 // end of the line.
 //
-int lex_if_token()
+coro(braam_call *) int lex_if_token(void)
 {
     static int ifdef        = 0; // 1 while the operand of "defined" is expected
     static char *op2[]      = { "||", "&&", ">>", "<<", ">=", "<=", "!=", "==" }; // 2-char ops
@@ -29,7 +29,7 @@ int lex_if_token()
     const struct symtab *sp;
 
     for (;;) {
-        cpp.scan_ptr = skip_blanks(cpp.scan_ptr);
+        cpp.scan_ptr = await skip_blanks(cpp.scan_ptr);
         if (*cpp.tok_ptr == '\n')
             return (stop); // end of #if
         savc          = *cpp.scan_ptr;

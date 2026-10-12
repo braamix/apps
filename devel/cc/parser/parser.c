@@ -59,7 +59,7 @@ static int token_translation(int token)
         }
     }
     if (parser_debug) {
-        printf("--- token %d '%s'\n", token, get_yytext());
+        trace_printf("--- token %d '%s'\n", token, get_yytext());
     }
     return token;
 }
@@ -203,7 +203,7 @@ bool is_storage_class_specifier(int token)
 Program *parse_translation_unit()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Program *program = new_program();
 #ifndef __braam__ // no setjmp: the first error ends the pass
@@ -236,7 +236,7 @@ Program *parse_translation_unit()
 ExternalDecl *parse_external_declaration()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     SrcLoc loc = diag_loc; // of its first token
     if (current_token == TOKEN_STATIC_ASSERT) {
@@ -318,7 +318,7 @@ ExternalDecl *parse_external_declaration()
 Declaration *parse_declaration_list()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Declaration *decl = parse_declaration();
     if (current_token_is_not(TOKEN_LBRACE)) {
@@ -331,7 +331,7 @@ Declaration *parse_declaration_list()
 Program *parse(const char *text, size_t len)
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     init_scanner(text, len);
     peek_token  = 0;

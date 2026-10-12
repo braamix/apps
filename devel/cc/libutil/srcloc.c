@@ -120,28 +120,97 @@ static const char *kind_color(const char *kind)
     return "\033[1;31m";
 }
 
+#ifdef __braam__
+// The diagnostics not yet written: posted by exit(), which runs held_post.
+static char *held;
+static size_t held_len, held_cap;
+
+void __plain_write(int fd, const char *s); // libc's rt.c
+
+static void held_post(void)
+{
+    if (held_len) {
+        __plain_write(2, held);
+        held_len = 0;
+    }
+}
+#endif
+
+void diag_vprintf(const char *fmt, va_list ap)
+{
+#ifdef __braam__
+    va_list again;
+    va_copy(again, ap);
+    int n = vsnprintf(NULL, 0, fmt, again);
+    va_end(again);
+    if (n < 0) {
+        return;
+    }
+    if (held_len + n + 1 > held_cap) {
+        size_t cap = held_cap ? 2 * held_cap : 256;
+        while (cap < held_len + n + 1)
+            cap *= 2;
+        char *more = realloc(held, cap);
+        if (!more) {
+            return;
+        }
+        if (!held) {
+            atexit(held_post);
+        }
+        held     = more;
+        held_cap = cap;
+    }
+    vsnprintf(held + held_len, n + 1, fmt, ap);
+    held_len += n;
+#else
+    vfprintf(stderr, fmt, ap);
+#endif
+}
+
+void diag_printf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    diag_vprintf(fmt, ap);
+    va_end(ap);
+}
+
+coro(braam_call *) int diag_flush(void)
+{
+#ifdef __braam__
+    size_t n = held_len;
+    if (n == 0) {
+        return 0;
+    }
+    held_len = 0;
+    return await write(2, held, n) < 0 ? -1 : 0;
+#else
+    return fflush(stderr);
+#endif
+}
+
 void diag_print_prefix(FILE *f, SrcLoc loc, const char *kind)
 {
     int color = diag_use_color(f);
     if (loc.line > 0 || diag_progname) {
         if (color) {
-            fputs("\033[1m", f);
+            diag_printf("%s", "\033[1m");
         }
         if (loc.line > 0) {
-            fprintf(f, "%s:%d:", loc.file ? loc.file : "<input>", loc.line);
+            diag_printf("%s:%d:", loc.file ? loc.file : "<input>", loc.line);
             if (loc.col > 0) {
-                fprintf(f, "%d:", loc.col);
+                diag_printf("%d:", loc.col);
             }
         } else {
             const char *slash = strrchr(diag_progname, '/');
-            fprintf(f, "%s:", slash ? slash + 1 : diag_progname);
+            diag_printf("%s:", slash ? slash + 1 : diag_progname);
         }
-        fputs(color ? "\033[0m " : " ", f);
+        diag_printf("%s", color ? "\033[0m " : " ");
     }
     if (color) {
-        fprintf(f, "%s%s:\033[0m ", kind_color(kind), kind);
+        diag_printf("%s%s:\033[0m ", kind_color(kind), kind);
     } else {
-        fprintf(f, "%s: ", kind);
+        diag_printf("%s: ", kind);
     }
 }
 
@@ -171,21 +240,21 @@ static void print_source_text(FILE *f, SrcLoc loc, const char *text, size_t size
     }
     size_t start = at;
     int len      = 0;
-    fprintf(f, "%5d | ", loc.line);
+    diag_printf("%5d | ", loc.line);
     for (; at < size && text[at] != '\n'; at++) {
         if (text[at] != '\r') {
-            fputc(text[at], f);
+            diag_printf("%c", text[at]);
         }
         len++;
     }
-    fputc('\n', f);
+    diag_printf("\n");
     if (loc.col > 0 && loc.col <= len + 1) {
-        fprintf(f, "      | ");
+        diag_printf("      | ");
         for (int col = 1; col < loc.col; col++) {
             size_t k = start + col - 1;
-            fputc(k < size && text[k] == '\t' ? '\t' : ' ', f);
+            diag_printf("%c", k < size && text[k] == '\t' ? '\t' : ' ');
         }
-        fputs(diag_use_color(f) ? "\033[1;32m^\033[0m\n" : "^\n", f);
+        diag_printf("%s", diag_use_color(f) ? "\033[1;32m^\033[0m\n" : "^\n");
     }
 }
 
@@ -216,20 +285,20 @@ void diag_print_source(FILE *f, SrcLoc loc)
     }
     long start = ftell(src);
     int len    = 0;
-    fprintf(f, "%5d | ", loc.line);
+    diag_printf("%5d | ", loc.line);
     while ((c = getc(src)) != EOF && c != '\n') {
         if (c != '\r') {
-            fputc(c, f);
+            diag_printf("%c", c);
         }
         len++;
     }
-    fputc('\n', f);
+    diag_printf("\n");
     if (loc.col > 0 && loc.col <= len + 1 && fseek(src, start, SEEK_SET) == 0) {
-        fprintf(f, "      | ");
+        diag_printf("      | ");
         for (int col = 1; col < loc.col; col++) {
-            fputc(getc(src) == '\t' ? '\t' : ' ', f);
+            diag_printf("%c", getc(src) == '\t' ? '\t' : ' ');
         }
-        fputs(diag_use_color(f) ? "\033[1;32m^\033[0m\n" : "^\n", f);
+        diag_printf("%s", diag_use_color(f) ? "\033[1;32m^\033[0m\n" : "^\n");
     }
     fclose(src);
 #endif
@@ -238,8 +307,8 @@ void diag_print_source(FILE *f, SrcLoc loc)
 void diag_vreport(SrcLoc loc, const char *kind, const char *fmt, va_list ap)
 {
     diag_print_prefix(stderr, loc, kind);
-    vfprintf(stderr, fmt, ap);
-    fputc('\n', stderr);
+    diag_vprintf(fmt, ap);
+    diag_printf("\n");
     diag_print_source(stderr, loc);
 }
 
@@ -272,7 +341,7 @@ void diag_count_error(void)
     diag_errors++;
     if (diag_max_errors > 0 && diag_errors >= diag_max_errors) {
         diag_print_prefix(stderr, (SrcLoc){ 0 }, "error");
-        fprintf(stderr, "too many errors, stopping\n");
+        diag_printf("too many errors, stopping\n");
         exit(1);
     }
 }
@@ -314,6 +383,6 @@ void internal_error(const char *fmt, ...)
     va_start(ap, fmt);
     diag_vreport(diag_loc, "internal compiler error", fmt, ap);
     va_end(ap);
-    fprintf(stderr, "please report this bug\n");
+    diag_printf("please report this bug\n");
     exit(2);
 }

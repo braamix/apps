@@ -27,7 +27,7 @@ enum {
     DEF_PREC = 6, /* default precision for %f/%e and significant digits for %g     */
 };
 
-static int g_to_buf; /* 1 = store into g_buf, 0 = emit via putbyte */
+static int g_to_buf; /* 1 = store into g_buf, 0 = emit via putbyte (not on Braam) */
 static char *g_buf;  /* target buffer when g_to_buf                */
 static int g_size;   /* capacity of g_buf                          */
 static int g_len;    /* characters produced so far                 */
@@ -38,7 +38,9 @@ static void emit(int c)
         if (g_len < g_size - 1)
             g_buf[g_len] = (char)c;
     } else {
+#ifndef __braam__
         putbyte(c);
+#endif
     }
     ++g_len;
 }

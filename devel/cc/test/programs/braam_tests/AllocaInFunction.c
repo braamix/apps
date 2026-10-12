@@ -14,7 +14,7 @@ coro(braam_call *) int main(int argc, char **argv)
 {
     for (int k = 0; k < 1000; k++)
         sum(100);
-    printf("sum %d\n", sum(100));
+    await printf("sum %d\n", sum(100));
     return 0;
 }
 

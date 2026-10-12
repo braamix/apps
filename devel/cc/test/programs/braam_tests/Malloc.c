@@ -34,7 +34,7 @@ coro(braam_call *) int main(int argc, char **argv)
     if (!big)
         return 3;
     free(big);
-    printf("ok %d\n", __vcc_memory_size() <= pages + 2);
+    await printf("ok %d\n", __vcc_memory_size() <= pages + 2);
     return 0;
 }
 

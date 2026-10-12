@@ -171,7 +171,7 @@ static bool is_constant_expression(const Expr *expression)
 Expr *parse_primary_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *expr = NULL;
     switch (current_token) {
@@ -296,7 +296,7 @@ static uint64_t parse_char_literal(const char *s, int *out_nbytes)
 Expr *parse_constant()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *expr      = new_expression(EXPR_LITERAL);
     expr->u.literal = new_literal(current_token == TOKEN_I_CONSTANT   ? LITERAL_INT
@@ -430,7 +430,7 @@ Expr *parse_constant()
 Expr *parse_string()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     // C11 §5.1.1.2 phase 6: concatenate adjacent string-literal tokens.
     // Each lexeme is a quoted token (e.g. "HELLO,"); join by dropping the
@@ -462,7 +462,7 @@ Expr *parse_string()
 Expr *parse_generic_selection()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     expect_token(TOKEN_GENERIC);
     expect_token(TOKEN_LPAREN);
@@ -485,7 +485,7 @@ Expr *parse_generic_selection()
 GenericAssoc *parse_generic_assoc_list()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     GenericAssoc *assoc = parse_generic_association();
     if (current_token == TOKEN_COMMA) {
@@ -504,7 +504,7 @@ GenericAssoc *parse_generic_assoc_list()
 GenericAssoc *parse_generic_association()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     GenericAssoc *assoc;
     if (current_token == TOKEN_DEFAULT) {
@@ -541,7 +541,7 @@ GenericAssoc *parse_generic_association()
 Expr *parse_postfix_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     return parse_postfix_tail(parse_primary_expression());
 }
@@ -617,7 +617,7 @@ Expr *parse_postfix_tail(Expr *expr)
 Expr *parse_argument_expression_list()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *expr = parse_assignment_expression();
     if (current_token == TOKEN_COMMA) {
@@ -732,7 +732,7 @@ static Expr *parse_co_op()
 Expr *parse_unary_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     SrcLoc loc = diag_loc; // of the operator
     if (current_token == TOKEN_INC_OP) {
@@ -830,7 +830,7 @@ Expr *parse_unary_expression()
 UnaryOp parse_unary_operator()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     UnaryOp op = current_token == TOKEN_AMPERSAND ? UNARY_ADDRESS
                  : current_token == TOKEN_STAR    ? UNARY_DEREF
@@ -851,7 +851,7 @@ UnaryOp parse_unary_operator()
 Expr *parse_cast_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (current_token == TOKEN_LPAREN &&
         (is_type_specifier(next_token()) || is_type_qualifier(next_token()) ||
@@ -883,7 +883,7 @@ Expr *parse_cast_expression()
 Expr *parse_multiplicative_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_cast_expression();
     while (current_token == TOKEN_STAR || current_token == TOKEN_SLASH ||
@@ -910,7 +910,7 @@ Expr *parse_multiplicative_expression()
 Expr *parse_additive_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_multiplicative_expression();
     while (current_token == TOKEN_PLUS || current_token == TOKEN_MINUS) {
@@ -934,7 +934,7 @@ Expr *parse_additive_expression()
 Expr *parse_shift_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_additive_expression();
     while (current_token == TOKEN_LEFT_OP || current_token == TOKEN_RIGHT_OP) {
@@ -961,7 +961,7 @@ Expr *parse_shift_expression()
 Expr *parse_relational_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_shift_expression();
     while (current_token == TOKEN_LT || current_token == TOKEN_GT || current_token == TOKEN_LE_OP ||
@@ -989,7 +989,7 @@ Expr *parse_relational_expression()
 Expr *parse_equality_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_relational_expression();
     while (current_token == TOKEN_EQ_OP || current_token == TOKEN_NE_OP) {
@@ -1012,7 +1012,7 @@ Expr *parse_equality_expression()
 Expr *parse_and_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_equality_expression();
     while (current_token == TOKEN_AMPERSAND) {
@@ -1035,7 +1035,7 @@ Expr *parse_and_expression()
 Expr *parse_exclusive_or_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_and_expression();
     while (current_token == TOKEN_CARET) {
@@ -1058,7 +1058,7 @@ Expr *parse_exclusive_or_expression()
 Expr *parse_inclusive_or_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_exclusive_or_expression();
     while (current_token == TOKEN_PIPE) {
@@ -1081,7 +1081,7 @@ Expr *parse_inclusive_or_expression()
 Expr *parse_logical_and_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_inclusive_or_expression();
     while (current_token == TOKEN_AND_OP) {
@@ -1104,7 +1104,7 @@ Expr *parse_logical_and_expression()
 Expr *parse_logical_or_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_logical_and_expression();
     while (current_token == TOKEN_OR_OP) {
@@ -1127,7 +1127,7 @@ Expr *parse_logical_or_expression()
 Expr *parse_conditional_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *expr = parse_logical_or_expression();
     if (current_token == TOKEN_QUESTION) {
@@ -1155,7 +1155,7 @@ Expr *parse_conditional_expression()
 Expr *parse_assignment_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *target = parse_conditional_expression();
     if (current_token == TOKEN_ASSIGN || current_token == TOKEN_MUL_ASSIGN ||
@@ -1191,7 +1191,7 @@ Expr *parse_assignment_expression()
 AssignOp parse_assignment_operator()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     AssignOp op = current_token == TOKEN_ASSIGN         ? ASSIGN_SIMPLE
                   : current_token == TOKEN_MUL_ASSIGN   ? ASSIGN_MUL
@@ -1217,7 +1217,7 @@ AssignOp parse_assignment_operator()
 Expr *parse_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *left = parse_assignment_expression();
     while (current_token == TOKEN_COMMA) {
@@ -1240,7 +1240,7 @@ Expr *parse_expression()
 Expr *parse_constant_expression()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *expression = parse_conditional_expression();
     if (!is_constant_expression(expression)) {

@@ -17,12 +17,12 @@ e2:
     s += 2;
     goto a;
 }
-int main(void)
+coro(braam_call *) int main(void)
 {
     unsigned t = 0;
     for (int k = 0; k < 6; k++)
         t = t * 7 + g(k * 13, k);
-    printf("%u\n", t);
+    await printf("%u\n", t);
     return 0;
 }
 

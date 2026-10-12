@@ -1,13 +1,13 @@
-void putch(int c);
-int incr_and_print(int c);
+#include <stdio.h>
+coro(braam_call *) int incr_and_print(int c);
 
-int main(void) {
-    incr_and_print(70);
+coro(braam_call *) int main(void) {
+    await incr_and_print(70);
     return 0;
 }
 
-int incr_and_print(int b) {
-    putch(b + 2);
+coro(braam_call *) int incr_and_print(int b) {
+    await putchar(b + 2);
     return 0;
 }
 

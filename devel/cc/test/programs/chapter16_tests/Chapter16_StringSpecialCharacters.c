@@ -2,10 +2,10 @@
  * that are not array initializers
  */
 
-int puts(char *s);
+#include <stdio.h>
 int strcmp(char *s1, char *s2);
 
-int main(void) {
+coro(braam_call *) int main(void) {
     // string literal containing escape sequences
     char *escape_sequence = "\a\b";
     if (escape_sequence[0] != 7) {
@@ -25,13 +25,13 @@ int main(void) {
     if (with_double_quote[5] != '"') {
         return 4;
     }
-    puts(with_double_quote);
+    await puts(with_double_quote);
 
     char *with_newline = "LINE\nBREAK!";
     if (with_newline[4] != 10) {
         return 6;
     }
-    puts(with_newline);
+    await puts(with_newline);
 
     // literal tab
     char *tab = "\t";
@@ -39,7 +39,7 @@ int main(void) {
         return 7;
     }
 
-    puts("TESTING, 123.");
+    await puts("TESTING, 123.");
 
     return 0;
 }

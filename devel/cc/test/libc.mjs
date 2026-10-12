@@ -64,12 +64,10 @@ spawn 0 1 1 7
 spawnp 0 1 0
 spawn missing 1
 waitpid nothing -1
-atexit 2
-atexit 1
 `;
 submit("mkdir /tmp/d; ln -s .. /tmp/d/up; ln -s d/up/d /tmp/l");
 submit("SYS_TEST=x sys >/tmp/o 2>/tmp/e; echo $? >/tmp/s");
-if (text("/tmp/o") !== SYS || text("/tmp/s") !== "0\n" || text("/tmp/e") !== "")
+if (text("/tmp/o") !== SYS || text("/tmp/s") !== "6\n" || text("/tmp/e") !== "")
     die(`sys:\n${text("/tmp/o")}stderr ${JSON.stringify(text("/tmp/e"))}, status ${text("/tmp/s")}`);
 submit("sys");
 if (!H.rows(H.screen()).includes("isatty 1 1 0 1"))

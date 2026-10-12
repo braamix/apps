@@ -1,13 +1,13 @@
 #include <stdio.h>
 #include <string.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     char dst[10];
     strcpy(dst, "ABC");
     strncat(dst, "DEFGH", 2);
-    printf("%s\n", dst);
+    await printf("%s\n", dst);
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

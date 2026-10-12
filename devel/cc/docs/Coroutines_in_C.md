@@ -931,6 +931,7 @@ declared as `coro(braam_call *)`, so you put `await` in front of the call:
 |---|---|
 | `n = read(fd, buf, len);` | `n = await read(fd, buf, len);` |
 | `n = write(fd, buf, len);` | `n = await write(fd, buf, len);` |
+| `printf("%d\n", n);` | `await printf("%d\n", n);` |
 | `fd = open(path, O_RDONLY);` | `fd = await open(path, O_RDONLY);` |
 | `close(fd);` | `await close(fd);` |
 | `c = fgetc(f);` | `c = await fgetc(f);` |
@@ -946,10 +947,12 @@ ordinary and are called as usual.
 
 ### Output
 
-`printf`, `puts` and `putchar` do not wait: they add to the output buffer. The buffer
-is written out when you `await fflush(stdout)`, when a read from standard input
-starts, and when `main` returns. So a prompt appears before the program reads the
-answer, and nothing is lost at the end.
+`printf`, `puts` and `putchar` add to the output buffer, and wait while it is
+written out when it is full: they are coroutines, and are awaited. The rest is
+written out when you `await fflush(stdout)`, when a read from standard input starts,
+and when `main` returns. So a prompt appears before the program reads the answer, and
+nothing is lost at the end. `snprintf` and `sprintf` only fill memory, and are
+ordinary functions.
 
 ### Ending the program
 
@@ -1005,7 +1008,7 @@ keyboard and a timer, starts a second task with `braam_spawn`. A task is a
 static coro(braam_call *) int clock_task(void)
 {
     while (await sleep_ms(1000) == 0) {
-        printf("tick\n");
+        await printf("tick\n");
         await fflush(stdout);
     }
     return 0;

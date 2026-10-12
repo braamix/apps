@@ -83,33 +83,33 @@ static void select_target(const char *name)
         }
     }
     pperror("unknown target '%s'", name);
-    fprintf(stderr, "Valid targets:");
+    diag_printf("Valid targets:");
     for (i = 0; i < sizeof(targets) / sizeof(targets[0]); i++)
-        fprintf(stderr, " %s", targets[i].name);
-    fprintf(stderr, "\n");
+        diag_printf(" %s", targets[i].name);
+    diag_printf("\n");
     exit(1);
 }
 
 //
 // Print the command-line help and the meaning of each option.
 //
-void usage()
+coro(braam_call *) void usage(void)
 {
-    printf("Usage:\n");
-    printf("    %s [options] [infile [outfile]]\n", cpp.prog_name ? cpp.prog_name : "cpp");
-    printf("Options:\n");
-    printf("    -t target           Target: wasm32 or wasm32-braam (default wasm32-braam)\n");
-    printf("    -I path             Add path to the search list for header files\n");
-    printf("    -nostdinc           Do not search the target's standard include directory\n");
-    printf("    -D macro[=value]    Fake a definition at the beginning\n");
-    printf("    -U macro            Undefine a macro at the beginning\n");
-    printf("    -R                  Allow macro recursion\n");
-    printf("    -P                  Inhibit generation of line markers\n");
-    printf("    -C                  Do not discard comments\n");
-    printf("    -w                  Suppress warnings\n");
-    printf("    -trigraphs          Translate trigraphs\n");
-    printf("    -E                  Ignored for compatibility\n");
-    printf("    --color=WHEN        Color diagnostics: always, never or auto (default)\n");
+    await printf("Usage:\n");
+    await printf("    %s [options] [infile [outfile]]\n", cpp.prog_name ? cpp.prog_name : "cpp");
+    await printf("Options:\n");
+    await printf("    -t target           Target: wasm32 or wasm32-braam (default wasm32-braam)\n");
+    await printf("    -I path             Add path to the search list for header files\n");
+    await printf("    -nostdinc           Do not search the target's standard include directory\n");
+    await printf("    -D macro[=value]    Fake a definition at the beginning\n");
+    await printf("    -U macro            Undefine a macro at the beginning\n");
+    await printf("    -R                  Allow macro recursion\n");
+    await printf("    -P                  Inhibit generation of line markers\n");
+    await printf("    -C                  Do not discard comments\n");
+    await printf("    -w                  Suppress warnings\n");
+    await printf("    -trigraphs          Translate trigraphs\n");
+    await printf("    -E                  Ignored for compatibility\n");
+    await printf("    --color=WHEN        Color diagnostics: always, never or auto (default)\n");
 }
 
 //
@@ -314,7 +314,7 @@ static coro(braam_call *) void parse_args(int argc, char *argv[])
         }
     }
     if (cpp.in_fd == STDIN && await isatty(cpp.in_fd)) {
-        usage();
+        await usage();
         exit(1);
     }
 }
@@ -334,27 +334,27 @@ static coro(braam_call *) void register_builtins(void)
         cpp.search_dirs[cpp.ndirs++] = std_include;
     }
     cpp.search_dirs[cpp.ndirs++] = 0;
-    cpp.sym_define               = install_directive("define");
-    cpp.sym_undef                = install_directive("undef");
-    cpp.sym_include              = install_directive("include");
-    cpp.sym_elif                 = install_directive("elif");
-    cpp.sym_else                 = install_directive("else");
-    cpp.sym_endif                = install_directive("endif");
-    cpp.sym_ifdef                = install_directive("ifdef");
-    cpp.sym_ifndef               = install_directive("ifndef");
-    cpp.sym_if                   = install_directive("if");
-    cpp.sym_line                 = install_directive("line");
-    cpp.sym_error                = install_directive("error");
-    cpp.sym_pragma               = install_directive("pragma");
+    cpp.sym_define               = await install_directive("define");
+    cpp.sym_undef                = await install_directive("undef");
+    cpp.sym_include              = await install_directive("include");
+    cpp.sym_elif                 = await install_directive("elif");
+    cpp.sym_else                 = await install_directive("else");
+    cpp.sym_endif                = await install_directive("endif");
+    cpp.sym_ifdef                = await install_directive("ifdef");
+    cpp.sym_ifndef               = await install_directive("ifndef");
+    cpp.sym_if                   = await install_directive("if");
+    cpp.sym_line                 = await install_directive("line");
+    cpp.sym_error                = await install_directive("error");
+    cpp.sym_pragma               = await install_directive("pragma");
     for (i = sizeof(cpp.macro_bits) / sizeof(cpp.macro_bits[0]); --i >= 0;)
         cpp.macro_bits[i] = 0;
     // The target's macros (-t).  Ordinary and #undef'able (§6.10.8.4 applies to
     // none of them).
     for (i = 0; i < sizeof(target->macros) / sizeof(target->macros[0]) && target->macros[i]; i++)
-        define_symbol(target->macros[i]);
-    cpp.sym_line_macro             = define_symbol("__LINE__");
-    cpp.sym_file_macro             = define_symbol("__FILE__");
-    cpp.sym_pragma_op              = define_symbol("_Pragma");
+        await define_symbol(target->macros[i]);
+    cpp.sym_line_macro             = await define_symbol("__LINE__");
+    cpp.sym_file_macro             = await define_symbol("__FILE__");
+    cpp.sym_pragma_op              = await define_symbol("_Pragma");
     cpp.sym_line_macro->predefined = 1; // §6.10.8.4: no #define/#undef
     cpp.sym_file_macro->predefined = 1;
 
@@ -362,11 +362,11 @@ static coro(braam_call *) void register_builtins(void)
     // __LINE__/__FILE__ these need no per-expansion synthesis, so they are just
     // registered like ordinary macros.  Each is flagged predefined so §6.10.8.4
     // rejects any #define or #undef of it (including from a -D/-U option).
-    define_symbol("__STDC__=1");
+    await define_symbol("__STDC__=1");
     cpp.last_sym->predefined = 1;
-    define_symbol("__STDC_VERSION__=201112L");
+    await define_symbol("__STDC_VERSION__=201112L");
     cpp.last_sym->predefined = 1;
-    define_symbol("__STDC_HOSTED__=1");
+    await define_symbol("__STDC_HOSTED__=1");
     cpp.last_sym->predefined = 1;
 
     // C11 §6.10.8.3 conditional feature macros.  __STDC_HOSTED__ is 1 above, so
@@ -377,13 +377,13 @@ static coro(braam_call *) void register_builtins(void)
     // portable source #ifdef its way past all three instead of failing to find
     // a header.  __STDC_NO_VLA__ likewise: the front end has no variable-length
     // arrays.
-    define_symbol("__STDC_NO_COMPLEX__=1");
+    await define_symbol("__STDC_NO_COMPLEX__=1");
     cpp.last_sym->predefined = 1;
-    define_symbol("__STDC_NO_ATOMICS__=1");
+    await define_symbol("__STDC_NO_ATOMICS__=1");
     cpp.last_sym->predefined = 1;
-    define_symbol("__STDC_NO_THREADS__=1");
+    await define_symbol("__STDC_NO_THREADS__=1");
     cpp.last_sym->predefined = 1;
-    define_symbol("__STDC_NO_VLA__=1");
+    await define_symbol("__STDC_NO_VLA__=1");
     cpp.last_sym->predefined = 1;
     {
         time_t now          = await time((time_t *)0);
@@ -391,10 +391,10 @@ static coro(braam_call *) void register_builtins(void)
         char dtbuf[64];
         // "Mmm dd yyyy": %e is space-padded so days < 10 keep the 11-char shape.
         strftime(dtbuf, sizeof(dtbuf), "__DATE__=\"%b %e %Y\"", tm);
-        define_symbol(dtbuf);
+        await define_symbol(dtbuf);
         cpp.last_sym->predefined = 1;
         strftime(dtbuf, sizeof(dtbuf), "__TIME__=\"%H:%M:%S\"", tm);
-        define_symbol(dtbuf);
+        await define_symbol(dtbuf);
         cpp.last_sym->predefined = 1;
     }
 
@@ -403,7 +403,7 @@ static coro(braam_call *) void register_builtins(void)
     cpp.line_no[cpp.inc_level]  = 1;
     cp2                         = cpp.pre_defs;
     while (cp2 < cpp.pre_defs_end)
-        define_symbol(*cp2++);
+        await define_symbol(*cp2++);
     cp2 = cpp.pre_undefs;
     while (cp2 < cpp.pre_undefs_end) {
         char *p;
@@ -462,8 +462,9 @@ coro(braam_call *) int main(int argc, char *argv[])
     cpp.true_level  = 0;
     cpp.false_level = 0;
     cpp.line_no[0]  = 1;
-    emit_line_marker();
+    await emit_line_marker();
     cpp.out_ptr = cpp.tok_ptr = cpp.buf_end;
-    process_directives(cpp.buf_end);
+    await process_directives(cpp.buf_end);
+    await fflush(cpp.out_file);
     exit_cpp();
 }

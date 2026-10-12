@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <string.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     char buf[6];
     buf[0] = 'A';
     buf[1] = 'B';
@@ -9,10 +9,10 @@ static void body(void) {
     buf[4] = 'E';
     buf[5] = 0;
     memset(buf + 1, 'Z', 3);
-    printf("%s\n", buf);
+    await printf("%s\n", buf);
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

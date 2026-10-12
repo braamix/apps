@@ -65,35 +65,31 @@ static void print_usage(const char *prog_name)
     if (p) {
         prog_name = p + 1;
     }
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "    %s [options] input-filename [output-filename]\n", prog_name);
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "    --tac               Emit TAC in binary format (default)\n");
-    fprintf(stderr, "    --yaml              Emit YAML format\n");
-    fprintf(stderr, "    --no-unreachable    Disable unreachable code elimination\n");
-    fprintf(stderr, "    --no-copy-prop      Disable copy propagation\n");
-    fprintf(stderr, "    --no-cse            Disable common-subexpression elimination\n");
-    fprintf(stderr, "    --no-dead-store     Disable dead store elimination\n");
-    fprintf(stderr,
-            "    --no-loop-rotate    Disable loop rotation (a loop tested at its bottom)\n");
-    fprintf(stderr, "    --no-ivsr           Disable induction-variable strength reduction\n");
-    fprintf(stderr,
-            "    --no-shared-cleanup Lower a defer on every way out, never sharing one copy\n");
-    fprintf(stderr,
-            "    --no-cond-jumps     Lower && || ! in a condition as a 0/1 value, and copy\n");
-    fprintf(stderr, "                        any loop condition into the guard\n");
-    fprintf(stderr, "    --opt-debug         Trace optimizer passes to stdout\n");
-    fprintf(stderr,
-            "    --opt-max-iter N    Run at most N optimizer rounds (0: to a fixed point)\n");
-    fprintf(stderr, "    --verify            Check the TAC types (always on in debug builds)\n");
-    fprintf(stderr, "    --max-errors=N      Stop after N errors (0: no limit; default 20)\n");
-    fprintf(stderr, "    --no-show-source    Don't show the source line under a diagnostic\n");
-    fprintf(stderr, "    --color=WHEN        Color diagnostics: always, never or auto (default)\n");
-    fprintf(stderr, "    -t, --target NAME   Target architecture (default: wasm32-braam)\n");
-    fprintf(stderr, "    -v, --verbose       Enable verbose mode\n");
-    fprintf(stderr, "    -D, --debug         Print debug information\n");
-    fprintf(stderr, "    -h, --help          Show this help message\n");
-    fprintf(stderr, "Known targets:\n");
+    diag_printf("Usage:\n");
+    diag_printf("    %s [options] input-filename [output-filename]\n", prog_name);
+    diag_printf("Options:\n");
+    diag_printf("    --tac               Emit TAC in binary format (default)\n");
+    diag_printf("    --yaml              Emit YAML format\n");
+    diag_printf("    --no-unreachable    Disable unreachable code elimination\n");
+    diag_printf("    --no-copy-prop      Disable copy propagation\n");
+    diag_printf("    --no-cse            Disable common-subexpression elimination\n");
+    diag_printf("    --no-dead-store     Disable dead store elimination\n");
+    diag_printf("    --no-loop-rotate    Disable loop rotation (a loop tested at its bottom)\n");
+    diag_printf("    --no-ivsr           Disable induction-variable strength reduction\n");
+    diag_printf("    --no-shared-cleanup Lower a defer on every way out, never sharing one copy\n");
+    diag_printf("    --no-cond-jumps     Lower && || ! in a condition as a 0/1 value, and copy\n");
+    diag_printf("                        any loop condition into the guard\n");
+    diag_printf("    --opt-debug         Trace optimizer passes to stdout\n");
+    diag_printf("    --opt-max-iter N    Run at most N optimizer rounds (0: to a fixed point)\n");
+    diag_printf("    --verify            Check the TAC types (always on in debug builds)\n");
+    diag_printf("    --max-errors=N      Stop after N errors (0: no limit; default 20)\n");
+    diag_printf("    --no-show-source    Don't show the source line under a diagnostic\n");
+    diag_printf("    --color=WHEN        Color diagnostics: always, never or auto (default)\n");
+    diag_printf("    -t, --target NAME   Target architecture (default: wasm32-braam)\n");
+    diag_printf("    -v, --verbose       Enable verbose mode\n");
+    diag_printf("    -D, --debug         Print debug information\n");
+    diag_printf("    -h, --help          Show this help message\n");
+    diag_printf("Known targets:\n");
     target_list();
 }
 
@@ -280,10 +276,10 @@ static coro(braam_call *) void open_input_output(const Args *args)
     if (args->verbose) {
         switch (args->format) {
         case FORMAT_TAC:
-            printf("Emitting TAC in binary format to %s\n", args->output_file);
+            await printf("Emitting TAC in binary format to %s\n", args->output_file);
             break;
         case FORMAT_YAML:
-            printf("Emitting YAML format to %s\n", args->output_file);
+            await printf("Emitting YAML format to %s\n", args->output_file);
             break;
         }
     }
@@ -318,7 +314,7 @@ static coro(braam_call *) void emit_tac_toplevel(const Args *args, WFILE *tac_ou
         tac_export_toplevel(tac_out, tac);
         break;
     case FORMAT_YAML:
-        tac_export_yaml(output_file, tac);
+        await tac_export_yaml(output_file, tac);
         await fflush(output_file);
         break;
     }
@@ -355,11 +351,11 @@ coro(braam_call *) void process_file(const Args *args)
     flags.debug = args->opt_debug;
 
     if (args->verbose) {
-        printf("Processing %s in verbose mode\n", args->input_file);
+        await printf("Processing %s in verbose mode\n", args->input_file);
     }
     if (args->debug) {
-        printf("Debug: Format = %d, Input = %s, Output = %s\n", args->format, args->input_file,
-               args->output_file);
+        trace_printf("Debug: Format = %d, Input = %s, Output = %s\n", args->format,
+                     args->input_file, args->output_file);
         translator_debug = 1;
         // import_debug     = 1;
         // export_debug     = 1;
@@ -401,13 +397,14 @@ coro(braam_call *) void process_file(const Args *args)
 #endif
     for (;;) {
         await braam_yield(); // so ^C reaches a long unit
+        await diag_flush();  // the warnings of the declaration before
         ExternalDecl *ast = import_external_decl(&input);
         if (!ast)
             break;
         current = ast;
 
         if (args->debug) {
-            print_external_decl(stdout, ast, 0);
+            await print_external_decl(stdout, ast, 0);
         }
 
         // Errors outside any statement or expression are the declaration's.
@@ -429,7 +426,7 @@ coro(braam_call *) void process_file(const Args *args)
         if (tac) {
             for (const Tac_TopLevel *t = tac; t; t = t->next) {
                 if (args->debug) {
-                    tac_print_toplevel(stdout, t, 0);
+                    await tac_print_toplevel(stdout, t, 0);
                 }
                 await emit_tac_toplevel(args, tac_out_ready ? &tac_out : NULL, t);
             }
@@ -451,7 +448,7 @@ coro(braam_call *) void process_file(const Args *args)
     Tac_TopLevel *externs = translate_unit_end();
     for (const Tac_TopLevel *t = externs; t; t = t->next) {
         if (args->debug)
-            tac_print_toplevel(stdout, t, 0);
+            await tac_print_toplevel(stdout, t, 0);
         await emit_tac_toplevel(args, tac_out_ready ? &tac_out : NULL, t);
     }
     tac_free_toplevel(externs);

@@ -1,7 +1,7 @@
 /*
- * The streams of Braam's stdio (docs/Braam.md §7.3): an output buffer each,
- * which the formatting functions fill without blocking and fflush writes out, and an
- * input buffer, which the reading coroutines refill a chunk at a time.
+ * The streams of Braam's stdio (docs/Braam.md §7.3): an output buffer each of BUFSIZ
+ * bytes, which the output coroutines fill and write out when it is full, and an input
+ * buffer, which the reading coroutines refill a chunk at a time.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -17,92 +17,14 @@ FILE *stderr = &err_file;
 
 static FILE *opened; /* the streams fopen made, newest first */
 
-int fputc(int c, FILE *f)
+/* The buffer of f, made on first use; NULL with errno set. */
+static char *buffer(FILE *f)
 {
-    if (f->len == f->cap) {
-        size_t cap = f->cap ? 2 * f->cap : 256;
-        char *buf  = realloc(f->buf, cap);
-        if (!buf) {
-            f->flags |= __F_ERR;
-            return EOF;
-        }
-        f->buf = buf;
-        f->cap = cap;
+    if (!f->buf && !(f->buf = malloc(BUFSIZ))) {
+        f->flags |= __F_ERR;
+        errno = ENOMEM;
     }
-    f->buf[f->len++] = (char)c;
-    return (unsigned char)c;
-}
-
-int putc(int c, FILE *f)
-{
-    return fputc(c, f);
-}
-
-int fputs(const char *s, FILE *f)
-{
-    for (; *s; s++)
-        if (fputc(*s, f) == EOF)
-            return EOF;
-    return 0;
-}
-
-size_t fwrite(const void *ptr, size_t size, size_t n, FILE *f)
-{
-    const char *p = ptr;
-    size_t bytes  = size * n, k;
-    for (k = 0; k < bytes; k++)
-        if (fputc(p[k], f) == EOF)
-            break;
-    return size ? k / size : 0;
-}
-
-void perror(const char *s)
-{
-    if (s && *s)
-        fprintf(stderr, "%s: ", s);
-    fprintf(stderr, "%s\n", strerror(errno));
-}
-
-/* Where putbyte writes: stdout, or the stream of the fprintf running. */
-static FILE *current = &out_file;
-
-void putbyte(int b)
-{
-    fputc(b, current);
-}
-
-void putch(unsigned c)
-{
-    fputc((int)c, current);
-}
-
-extern int __doprnt(const char *fmt, va_list ap, char *buf, int size, int to_buf);
-
-int vfprintf(FILE *f, const char *fmt, va_list ap)
-{
-    FILE *was = current;
-    current   = f;
-    int n     = __doprnt(fmt, ap, 0, 0, 0);
-    current   = was;
-    return n;
-}
-
-int vprintf(const char *fmt, va_list ap)
-{
-    return vfprintf(stdout, fmt, ap);
-}
-
-int fprintf(FILE *f, const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    int n = vfprintf(f, fmt, ap);
-    va_end(ap);
-    return n;
-}
-
-void flush(void)
-{
+    return f->buf;
 }
 
 coro(braam_call *) int fflush(FILE *f)
@@ -115,18 +37,15 @@ coro(braam_call *) int fflush(FILE *f)
         bad |= await fflush(stderr) == EOF;
         return bad ? EOF : 0;
     }
-    if (f->flags & __F_MEM) {
-        if (fputc(0, f) == EOF)
-            return EOF;
-        f->len--;
-        *f->mem    = f->buf;
-        *f->memlen = f->len;
-        return 0;
-    }
+    /* One write at a time: another task's may be waiting. */
+    while (f->flags & __F_BUSY)
+        await braam_yield();
     size_t len = f->len;
     if (len == 0)
         return 0;
+    f->flags |= __F_BUSY;
     ssize_t n = await write(f->fd, f->buf, len);
+    f->flags &= ~__F_BUSY;
     /* Another task may have added to the buffer while the write waited. */
     memmove(f->buf, f->buf + len, f->len - len);
     f->len -= len;
@@ -137,13 +56,162 @@ coro(braam_call *) int fflush(FILE *f)
     return 0;
 }
 
+/* The end of an output call: stderr is written out at once. */
+static coro(braam_call *) int done(FILE *f, int result)
+{
+    if (f == stderr && await fflush(f) == EOF)
+        return EOF;
+    return result;
+}
+
+/* n bytes at p into f's buffer, writing it out each time it fills; one that does not
+   fit an empty buffer is written directly. */
+static coro(braam_call *) int put(FILE *f, const char *p, size_t n)
+{
+    if (!buffer(f))
+        return EOF;
+    while (n > 0) {
+        if (f->len == 0 && n >= BUFSIZ && !(f->flags & __F_BUSY)) {
+            f->flags |= __F_BUSY;
+            ssize_t w = await write(f->fd, p, n);
+            f->flags &= ~__F_BUSY;
+            if (w < 0) {
+                f->flags |= __F_ERR;
+                return EOF;
+            }
+            return 0;
+        }
+        if (f->len == BUFSIZ && await fflush(f) == EOF)
+            return EOF;
+        size_t k = BUFSIZ - f->len < n ? BUFSIZ - f->len : n;
+        memcpy(f->buf + f->len, p, k);
+        f->len += k;
+        p += k;
+        n -= k;
+    }
+    return 0;
+}
+
+coro(braam_call *) int fputc(int c, FILE *f)
+{
+    char b = (char)c;
+    if (f->buf && f->len < BUFSIZ && f != stderr) {
+        f->buf[f->len++] = b; /* what nearly every call is */
+        return (unsigned char)c;
+    }
+    if (await put(f, &b, 1) == EOF)
+        return EOF;
+    return await done(f, (unsigned char)c);
+}
+
+coro(braam_call *) int putc(int c, FILE *f)
+{
+    return await fputc(c, f);
+}
+
+coro(braam_call *) int putchar(int c)
+{
+    return await fputc(c, stdout);
+}
+
+coro(braam_call *) int fputs(const char *s, FILE *f)
+{
+    if (await put(f, s, strlen(s)) == EOF)
+        return EOF;
+    return await done(f, 0);
+}
+
+coro(braam_call *) int puts(const char *s)
+{
+    if (await put(stdout, s, strlen(s)) == EOF || await put(stdout, "\n", 1) == EOF)
+        return EOF;
+    return 0;
+}
+
+coro(braam_call *) size_t fwrite(const void *ptr, size_t size, size_t n, FILE *f)
+{
+    if (size == 0 || n == 0)
+        return 0;
+    if (await put(f, ptr, size * n) == EOF)
+        return 0;
+    return await done(f, 0) == EOF ? 0 : n;
+}
+
+/* Formatted into the free room of the buffer when it fits; else into the buffer just
+   written out, or, too long for any, into a block of its own. */
+coro(braam_call *) int vfprintf(FILE *f, const char *fmt, va_list ap)
+{
+    if (!buffer(f))
+        return EOF;
+    va_list again;
+    va_copy(again, ap);
+    size_t room = BUFSIZ - f->len;
+    int n       = vsnprintf(f->buf + f->len, room, fmt, again);
+    va_end(again);
+    if (n < 0)
+        return n;
+    if ((size_t)n < room) {
+        f->len += (size_t)n;
+        return await done(f, n);
+    }
+    if (await fflush(f) == EOF)
+        return EOF;
+    room = BUFSIZ - f->len;
+    if ((size_t)n < room) {
+        vsnprintf(f->buf + f->len, room, fmt, ap);
+        f->len += (size_t)n;
+        return await done(f, n);
+    }
+    char *block = malloc((size_t)n + 1);
+    if (!block) {
+        f->flags |= __F_ERR;
+        errno = ENOMEM;
+        return EOF;
+    }
+    vsnprintf(block, (size_t)n + 1, fmt, ap);
+    int st = await put(f, block, (size_t)n);
+    free(block);
+    if (st == EOF)
+        return EOF;
+    return await done(f, n);
+}
+
+coro(braam_call *) int vprintf(const char *fmt, va_list ap)
+{
+    return await vfprintf(stdout, fmt, ap);
+}
+
+coro(braam_call *) int fprintf(FILE *f, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int n = await vfprintf(f, fmt, ap);
+    va_end(ap);
+    return n;
+}
+
+coro(braam_call *) int printf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int n = await vfprintf(stdout, fmt, ap);
+    va_end(ap);
+    return n;
+}
+
+coro(braam_call *) void perror(const char *s)
+{
+    if (s && *s)
+        await fprintf(stderr, "%s: %s\n", s, strerror(errno));
+    else
+        await fprintf(stderr, "%s\n", strerror(errno));
+}
+
 void __braam_post(unsigned op, const void *ptr, unsigned len); /* rt.c */
 
 /* A stream's buffer as Writes nobody waits for, a chunk each. */
 static void post(FILE *f)
 {
-    if (f->flags & __F_MEM)
-        return;
     for (size_t at = 0; at < f->len;) {
         unsigned n = f->len - at > BRAAM_READ_MAX ? BRAAM_READ_MAX : (unsigned)(f->len - at);
         __braam_post(BRAAM_SYS_OP(BRAAM_SYS_WRITE, f->fd), f->buf + at, n);
@@ -325,14 +393,11 @@ coro(braam_call *) FILE *fopen(const char *path, const char *mode)
 coro(braam_call *) int fclose(FILE *f)
 {
     int bad = await fflush(f) == EOF;
-    if (f->flags & __F_MEM)
-        f->buf = NULL; /* the caller's now */
-    else
-        bad |= await close(f->fd) < 0;
+    bad |= await close(f->fd) < 0;
     free(f->buf);
     free(f->in);
     f->buf = f->in = NULL;
-    f->len = f->cap = f->pos = f->end = 0;
+    f->len = f->pos = f->end = 0;
     if (f->flags & __F_OPENED) {
         FILE **p = &opened;
         while (*p != f)
@@ -341,27 +406,6 @@ coro(braam_call *) int fclose(FILE *f)
         free(f);
     }
     return bad ? EOF : 0;
-}
-
-FILE *open_memstream(char **ptr, size_t *size)
-{
-    FILE *f = calloc(1, sizeof *f);
-    if (!f || !(f->buf = malloc(256))) {
-        free(f);
-        errno = ENOMEM;
-        return NULL;
-    }
-    f->fd     = -1;
-    f->cap    = 256;
-    f->flags  = __F_OPENED | __F_MEM;
-    f->mem    = ptr;
-    f->memlen = size;
-    f->buf[0] = 0;
-    *ptr      = f->buf;
-    *size     = 0;
-    f->next   = opened;
-    opened    = f;
-    return f;
 }
 
 int setvbuf(FILE *f, char *buf, int mode, size_t size)

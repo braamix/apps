@@ -30,13 +30,13 @@ static coro(double) long double mix(long double base, int n)
     return total;
 }
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     co_frame(double, long double) *m = co_alloca(mix, 0, 1.5L, 7);
     int n = 0;
     while (co_resume(m) == CO_SUSPENDED)
-        printf("%g ", co_value(m)), n++;
-    printf("| %d %g\n", n, (double)co_result(m));
+        await printf("%g ", co_value(m)), n++;
+    await printf("| %d %g\n", n, (double)co_result(m));
     return 0;
 }
 

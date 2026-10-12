@@ -1487,6 +1487,21 @@ static void verify_function(const Tac_TopLevel *chain, const Tac_TopLevel *fn)
         internal_error("TAC of %s fails verification (%d problems)", fn->u.function.name, errors);
 }
 
+// The awaits and yields past which a coroutine is not given CSE.  Each becomes a loop
+// of several blocks, and CSE's cost grows with blocks times available expressions: a
+// coroutine printing hundreds of lines, as the passes' dumps are, takes it minutes.
+enum { CORO_CSE_MAX_SUSPENSIONS = 32 };
+
+static int suspensions(const Tac_Instruction *body)
+{
+    int n = 0;
+    for (const Tac_Instruction *in = body; in; in = in->next)
+        if (in->kind == TAC_INSTRUCTION_FUN_CALL && !in->u.fun_call.indirect &&
+            strcmp(in->u.fun_call.fun_name, "__coro_suspend") == 0)
+            n++;
+    return n;
+}
+
 //
 // Convert the AST to TAC.
 //
@@ -1514,7 +1529,10 @@ Tac_TopLevel *translate(const ExternalDecl *ast, OptFlags flags, int *label_seq)
         // params + automatic locals needed to tell private locals from globals.
         if (t->kind == TAC_TOPLEVEL_FUNCTION) {
             percent_locals_in_function(t);
-            t->u.function.body = optimize_function(t->u.function.body, flags, t);
+            OptFlags f = flags;
+            if (t == coro_pending_fn && suspensions(t->u.function.body) > CORO_CSE_MAX_SUSPENSIONS)
+                f.cse = false;
+            t->u.function.body = optimize_function(t->u.function.body, f, t);
             optimize_prune_locals(t);
             if (t == coro_pending_fn) {
                 // A coroutine: split, then optimized once more over its frame.
@@ -1524,7 +1542,7 @@ Tac_TopLevel *translate(const ExternalDecl *ast, OptFlags flags, int *label_seq)
                     last = last->next;
                 last->next         = t->next;
                 t->next            = made;
-                t->u.function.body = optimize_function(t->u.function.body, flags, t);
+                t->u.function.body = optimize_function(t->u.function.body, f, t);
                 optimize_prune_locals(t);
                 coro_pending_fn = NULL;
             }

@@ -6,6 +6,7 @@
 #define WASM_INTERNAL_H
 
 #include "codegen.h"
+#include "host.h"
 #include "string_map.h"
 #include "wasm_ir.h"
 
@@ -190,8 +191,9 @@ void wasm_coalesce_locals(Wasm_Func *fn);
 //
 // Static data (data.c)
 //
-void emit_static_variable(FILE *out, const char *name, bool global, const Tac_Type *type,
-                          const Tac_StaticInit *init, bool readonly, int alignment);
+coro(braam_call *) void emit_static_variable(FILE *out, const char *name, bool global,
+                                             const Tac_Type *type, const Tac_StaticInit *init,
+                                             bool readonly, int alignment);
 
 //
 // Symbols and assembly (emit.c)
@@ -202,13 +204,13 @@ const char *wasm_name(const char *name);
 const char *wasm_symbol(const Tac_TopLevel *program, const char *name);
 // The declarations a translation unit starts with: the target's features and the
 // signature of every function it defines or references.
-void wasm_emit_unit_begin(FILE *out, const Tac_TopLevel *program);
-void wasm_emit_func(FILE *out, const Wasm_Func *fn);
+coro(braam_call *) void wasm_emit_unit_begin(FILE *out, const Tac_TopLevel *program);
+coro(braam_call *) void wasm_emit_func(FILE *out, const Wasm_Func *fn);
 // The signature as call_indirect spells it, (i32, i64) -> (f64), in a new string.
 char *wasm_sig_string(const Wasm_Sig *sig);
 // main(void)'s two other names, as clang emits them: the main(argc, argv) that calls it
 // and __main_void, which crt0 calls.
-void wasm_emit_main_aliases(FILE *out);
+coro(braam_call *) void wasm_emit_main_aliases(FILE *out);
 
 #ifdef __cplusplus
 }

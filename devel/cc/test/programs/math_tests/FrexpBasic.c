@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <math.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     int e;
     double m = frexp(12.0, &e);   /* 12 = 0.75 * 2^4 */
-    printf("M=%f E=%d\n", m, e);
+    await printf("M=%f E=%d\n", m, e);
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

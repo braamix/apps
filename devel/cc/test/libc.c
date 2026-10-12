@@ -17,7 +17,7 @@
 #define await
 #endif
 
-static void ctypes(void)
+static coro(braam_call *) void ctypes(void)
 {
     int (*const is[])(int) = { isalnum, isalpha, isblank, iscntrl, isdigit, isgraph,
                                islower, isprint, ispunct, isspace, isupper, isxdigit };
@@ -26,12 +26,12 @@ static void ctypes(void)
         for (int c = 0; c < 128; c++)
             if (is[k](c))
                 bits[c / 64] |= 1ull << (c % 64);
-        printf("ctype %d: %016llx %016llx %d\n", k, bits[1], bits[0], is[k](EOF) != 0);
+        await printf("ctype %d: %016llx %016llx %d\n", k, bits[1], bits[0], is[k](EOF) != 0);
     }
     for (int c = 0; c < 128; c++)
         if (tolower(c) != c || toupper(c) != c)
-            printf("%c%c%c ", c, tolower(c), toupper(c));
-    printf("\n");
+            await printf("%c%c%c ", c, tolower(c), toupper(c));
+    await printf("\n");
 }
 
 /* strtol's and strtoul's answers for s, from strtoull's: long is 64 bits on the host
@@ -53,7 +53,7 @@ static void expect_long(const char *s, int base, long *l, int *el, unsigned long
     *u                   = *eu ? ULONG_MAX : neg ? 0 - (unsigned long)m : (unsigned long)m;
 }
 
-static void integers(void)
+static coro(braam_call *) void integers(void)
 {
     static const char *const in[] = { "0",
                                       "  42z",
@@ -96,12 +96,12 @@ static void integers(void)
             errno                 = 0;
             unsigned long long ul = strtoull(in[i], &end, bases[b]);
             int e4 = errno, n4 = (int)(end - in[i]);
-            printf("\"%s\"/%d: %d %d, %d %d, %lld %d %d, %llu %d %d\n", in[i], bases[b], ok1, n1,
-                   ok2, n2, ll, n3, e3 == ERANGE, ul, n4, e4 == ERANGE);
+            await printf("\"%s\"/%d: %d %d, %d %d, %lld %d %d, %llu %d %d\n", in[i], bases[b], ok1,
+                         n1, ok2, n2, ll, n3, e3 == ERANGE, ul, n4, e4 == ERANGE);
         }
 }
 
-static void floats(void)
+static coro(braam_call *) void floats(void)
 {
     static const char *const in[] = {
         "0",
@@ -144,9 +144,9 @@ static void floats(void)
         float f  = strtof(in[i], &end2);
         int e2   = errno;
         // ERANGE where both libraries set it: macOS also does for a subnormal result.
-        printf("\"%s\": %a %d %d, %a %d %d\n", in[i], d, (int)(end1 - in[i]),
-               e1 == ERANGE && (d == 0 || isinf(d)), (double)f, (int)(end2 - in[i]),
-               e2 == ERANGE && (f == 0 || isinf(f)));
+        await printf("\"%s\": %a %d %d, %a %d %d\n", in[i], d, (int)(end1 - in[i]),
+                     e1 == ERANGE && (d == 0 || isinf(d)), (double)f, (int)(end2 - in[i]),
+                     e2 == ERANGE && (f == 0 || isinf(f)));
     }
 
     static const double v[]        = { 0.0,
@@ -175,26 +175,26 @@ static void floats(void)
         for (size_t k = 0; k < sizeof fmt / sizeof *fmt; k++) {
             char buf[512];
             snprintf(buf, sizeof buf, fmt[k], v[i]);
-            printf("%s ", buf);
+            await printf("%s ", buf);
         }
-        printf("\n");
+        await printf("\n");
     }
     double inf = INFINITY, qnan = NAN;
-    printf("%f %e %g %a %F %5.1f| %-6g|\n", inf, -inf, inf, -inf, inf, qnan, -inf);
+    await printf("%f %e %g %a %F %5.1f| %-6g|\n", inf, -inf, inf, -inf, inf, qnan, -inf);
 
-    printf("%d %d %d %d %d %d\n", isnan(qnan), isnan(1.0), isinf(-inf), isinf(1e308), isfinite(1.0),
-           isfinite(inf));
-    printf("%d %d %d %d\n", signbit(-0.0), signbit(0.0), signbit(-1.0f), isnan((float)qnan));
-    printf("%d %d %d %d %d\n", fpclassify(0.0) == FP_ZERO, fpclassify(1e-310) == FP_SUBNORMAL,
-           fpclassify(1.0) == FP_NORMAL, fpclassify(inf) == FP_INFINITE,
-           fpclassify(qnan) == FP_NAN);
+    await printf("%d %d %d %d %d %d\n", isnan(qnan), isnan(1.0), isinf(-inf), isinf(1e308),
+                 isfinite(1.0), isfinite(inf));
+    await printf("%d %d %d %d\n", signbit(-0.0), signbit(0.0), signbit(-1.0f), isnan((float)qnan));
+    await printf("%d %d %d %d %d\n", fpclassify(0.0) == FP_ZERO, fpclassify(1e-310) == FP_SUBNORMAL,
+                 fpclassify(1.0) == FP_NORMAL, fpclassify(inf) == FP_INFINITE,
+                 fpclassify(qnan) == FP_NAN);
     int e;
     double ip;
-    printf("%a %a %a %a %a %a\n", sqrt(2.0), floor(-2.5), ceil(-2.5), fmod(7.5, 2.0), trunc(-2.7),
-           round(2.5));
-    printf("%a %d %a %a %a %a\n", frexp(48.0, &e), e, ldexp(0.75, 10), modf(-3.25, &ip), ip,
-           copysign(3.0, -0.0));
-    printf("%d %d\n", isnan(nan("")), signbit(nan("")) == 0);
+    await printf("%a %a %a %a %a %a\n", sqrt(2.0), floor(-2.5), ceil(-2.5), fmod(7.5, 2.0),
+                 trunc(-2.7), round(2.5));
+    await printf("%a %d %a %a %a %a\n", frexp(48.0, &e), e, ldexp(0.75, 10), modf(-3.25, &ip), ip,
+                 copysign(3.0, -0.0));
+    await printf("%d %d\n", isnan(nan("")), signbit(nan("")) == 0);
 }
 
 static int cmp_int(const void *a, const void *b)
@@ -208,7 +208,7 @@ static int cmp_str(const void *a, const void *b)
     return strcmp(*(char *const *)a, *(char *const *)b);
 }
 
-static void sorting(void)
+static coro(braam_call *) void sorting(void)
 {
     int a[50];
     unsigned seed = 12345;
@@ -218,40 +218,40 @@ static void sorting(void)
     }
     qsort(a, 50, sizeof *a, cmp_int);
     for (int k = 0; k < 50; k++)
-        printf("%d ", a[k]);
-    printf("\n");
+        await printf("%d ", a[k]);
+    await printf("\n");
     for (int key = -52; key <= 52; key += 13) {
         int *p = bsearch(&key, a, 50, sizeof *a, cmp_int);
-        printf("%d:%s ", key, p ? "found" : "-");
+        await printf("%d:%s ", key, p ? "found" : "-");
     }
     const char *w[] = { "pear", "apple", "fig", "banana", "cherry", "date", "apple" };
     qsort(w, 7, sizeof *w, cmp_str);
     for (int k = 0; k < 7; k++)
-        printf("%s ", w[k]);
+        await printf("%s ", w[k]);
     const char *key = "date";
-    printf("%d\n", bsearch(&key, w, 7, sizeof *w, cmp_str) != NULL);
+    await printf("%d\n", bsearch(&key, w, 7, sizeof *w, cmp_str) != NULL);
     qsort(a, 0, sizeof *a, cmp_int);
     qsort(a, 1, sizeof *a, cmp_int);
 }
 
-static void strings(void)
+static coro(braam_call *) void strings(void)
 {
     char *d = strdup("hello"), *n = strndup("hello", 3), *n2 = strndup("hi", 10);
-    printf("%s %s %s %zu %zu\n", d, n, n2, strnlen("hello", 3), strnlen("hi", 10));
+    await printf("%s %s %s %zu %zu\n", d, n, n2, strnlen("hello", 3), strnlen("hi", 10));
     free(d);
     free(n);
     free(n2);
-    printf("%zu %zu %zu %zu\n", strspn("abcabd", "abc"), strspn("", "a"), strcspn("hello", "lo"),
-           strcspn("abc", ""));
-    printf("%s %d\n", strpbrk("hello, world", " ,"), strpbrk("abc", "xyz") == NULL);
+    await printf("%zu %zu %zu %zu\n", strspn("abcabd", "abc"), strspn("", "a"),
+                 strcspn("hello", "lo"), strcspn("abc", ""));
+    await printf("%s %d\n", strpbrk("hello, world", " ,"), strpbrk("abc", "xyz") == NULL);
     char line[] = "  a,b,,c  ";
     char *save, *tok = strtok_r(line, " ,", &save);
     for (; tok; tok = strtok_r(NULL, " ,", &save))
-        printf("[%s]", tok);
+        await printf("[%s]", tok);
     char buf[16];
     memset(buf, '.', sizeof buf);
     char *p = memccpy(buf, "abc:def", ':', 7);
-    printf(" %d %.6s %d\n", (int)(p - buf), buf, memccpy(buf, "abc", 'x', 3) == NULL);
+    await printf(" %d %.6s %d\n", (int)(p - buf), buf, memccpy(buf, "abc", 'x', 3) == NULL);
 }
 
 static int vfmt(char *buf, size_t size, const char *fmt, ...)
@@ -263,22 +263,22 @@ static int vfmt(char *buf, size_t size, const char *fmt, ...)
     return n;
 }
 
-static void formats(void)
+static coro(braam_call *) void formats(void)
 {
     char buf[8];
     int n = snprintf(buf, sizeof buf, "%s-%d", "abcdef", 12345);
-    printf("%d %s ", n, buf);
+    await printf("%d %s ", n, buf);
     n = vfmt(buf, sizeof buf, "%05d|%-3x|", 42, 255);
-    printf("%d %s ", n, buf);
+    await printf("%d %s ", n, buf);
     n = vfmt(NULL, 0, "%s", "counted");
-    printf("%d ", n);
+    await printf("%d ", n);
     char big[64];
     n = sprintf(big, "%lld %llu %hhd %hu %ld %zu %c %%", -9223372036854775807LL - 1,
                 18446744073709551615ULL, 300, 70000, -5L, (size_t)7, 'x');
-    printf("%d %s\n", n, big);
+    await printf("%d %s\n", n, big);
 }
 
-static void options(void)
+static coro(braam_call *) void options(void)
 {
     static const struct option longs[]  = { { "verbose", no_argument, 0, 'v' },
                                             { "target", required_argument, 0, 't' },
@@ -304,17 +304,17 @@ static void options(void)
         argv[argc] = NULL;
         optind     = 0; /* a reset, to BSD's getopt and GNU's */
         int c, idx = -1;
-        printf("case %zu:", k);
+        await printf("case %zu:", k);
         while ((c = getopt_long(argc, argv, "vt:", longs, &idx)) != -1)
-            printf(" %c(%s,%d,%d)", c, optarg ? optarg : "-", idx, c == '?' ? optopt : 0);
-        printf(" |");
+            await printf(" %c(%s,%d,%d)", c, optarg ? optarg : "-", idx, c == '?' ? optopt : 0);
+        await printf(" |");
         for (int i = optind; i < argc; i++)
-            printf(" %s", argv[i]);
-        printf("\n");
+            await printf(" %s", argv[i]);
+        await printf("\n");
     }
 }
 
-static void calendar(void)
+static coro(braam_call *) void calendar(void)
 {
     static const time_t when[] = { 0,          951782400,  951868799,  -1,        1700000000,
                                    2147483647, 1104537600, 1230681600, 1609459199 };
@@ -325,38 +325,22 @@ static void calendar(void)
                             "%a %A %b %B %c|%C %d %D %e %F %g %G %h %H %I %j %m %M %n%p %r %R %S %t"
                             "%T %u %U %V %w %W %x %X %y %Y %%",
                             tm);
-        printf("%zu %s yday %d\n", n, buf, tm->tm_yday);
+        await printf("%zu %s yday %d\n", n, buf, tm->tm_yday);
     }
     char small[4];
-    printf("%zu\n", strftime(small, sizeof small, "%Y", gmtime(&when[0])));
-}
-
-static coro(braam_call *) void memstreams(void)
-{
-    char *buf;
-    size_t len;
-    FILE *f = open_memstream(&buf, &len);
-    for (int k = 0; k < 100; k++)
-        fprintf(f, "%d,", k);
-    await fflush(f);
-    printf("%zu %.12s %d\n", len, buf, buf[len] == 0);
-    fputs("end", f);
-    await fclose(f);
-    printf("%zu %s\n", len, buf + len - 7);
-    free(buf);
+    await printf("%zu\n", strftime(small, sizeof small, "%Y", gmtime(&when[0])));
 }
 
 coro(braam_call *) int main(int argc, char **argv)
 {
     (void)argc, (void)argv;
-    ctypes();
-    integers();
-    floats();
-    sorting();
-    strings();
-    formats();
-    options();
-    calendar();
-    await memstreams();
+    await ctypes();
+    await integers();
+    await floats();
+    await sorting();
+    await strings();
+    await formats();
+    await options();
+    await calendar();
     return 0;
 }

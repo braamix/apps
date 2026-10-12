@@ -1,24 +1,39 @@
 #include <coro.h>
 #include <stdio.h>
+#include <stdarg.h>
 
-int main(void)
+// On Braam printf is a coroutine of its own yield type, which neither a deferred
+// statement nor a coroutine of another one can await: what they print is kept, and
+// main prints it.
+static char said[4096];
+static int said_len;
+
+static void say(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    said_len += vsnprintf(said + said_len, sizeof said - said_len, fmt, ap);
+    va_end(ap);
+}
+
+static int run(void)
 {
     for (int i = 0; i < 5; i++) {
-        defer printf("iter %d\n", i);
+        defer say("iter %d\n", i);
         if (i == 1)
             continue;
         if (i == 2)
             break;
-        printf("body %d\n", i);
+        say("body %d\n", i);
     }
     while (1) {
-        defer puts("once");
+        defer say("once\n");
         break;
     }
     int n = 0;
 again:
     {
-        defer printf("left %d\n", n++);
+        defer say("left %d\n", n++);
         if (n < 2)
             goto again;
     }
@@ -28,7 +43,13 @@ loop:
         defer back++;
         goto loop;
     }
-    printf("n=%d back=%d\n", n, back);
+    say("n=%d back=%d\n", n, back);
     return 0;
 }
 
+coro(braam_call *) int main(void)
+{
+    int status = run();
+    await fputs(said, stdout);
+    return status;
+}

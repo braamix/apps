@@ -1,9 +1,9 @@
 #include <stdio.h>
-static void body(void) {
-    printf("%c%c%c\n", 'A', 'B', 'C');
+static coro(braam_call *) void body(void) {
+    await printf("%c%c%c\n", 'A', 'B', 'C');
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

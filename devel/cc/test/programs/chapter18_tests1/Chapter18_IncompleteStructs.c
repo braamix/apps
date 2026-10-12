@@ -3,7 +3,7 @@
  * */
 
 
-int puts(char *s);
+#include <stdio.h>
 int strcmp(char *s1, char *s2);
 
 // test 1: you can declare a function that accepts/returns incomplete struct
@@ -72,15 +72,15 @@ int validate_struct(struct pair *ptr) {
 // but not define or use, variables with incomplete type
 
 struct msg_holder;
-void print_msg(struct msg_holder *param);
+coro(braam_call *) void print_msg(struct msg_holder *param);
 int val_incv(void);
 
 // okay to declare extern variable w/ incomplete type
 extern struct msg_holder incomplete_var;
 
-int test_incomplete_var(void) {
+coro(braam_call *) int test_incomplete_var(void) {
     // okay to take address of incomplete var
-    print_msg(&incomplete_var);
+    await print_msg(&incomplete_var);
     return val_incv();
 }
 
@@ -102,8 +102,8 @@ int val_incv(void) {
 struct msg_holder incomplete_var = {"I AM A STRUCT"};
 
 // also need to define print_msg
-void print_msg(struct msg_holder *param) {
-    puts(param->msg);
+coro(braam_call *) void print_msg(struct msg_holder *param) {
+    await puts(param->msg);
 }
 
 // test 5: you can dereference a pointer to an incomplete var, then take its
@@ -123,14 +123,14 @@ int test_deref_incomplete_var(void) {
 // compare them to 0 and each other
 struct opaque_struct;
 
-struct opaque_struct *use_struct_pointers(struct opaque_struct *param) {
+coro(braam_call *) struct opaque_struct *use_struct_pointers(struct opaque_struct *param) {
     if (param == 0) {
-        puts("EMPTY POINTER!");
+        await puts("EMPTY POINTER!");
     }
     return 0;
 }
 
-int test_use_incomplete_struct_pointers(void) {
+coro(braam_call *) int test_use_incomplete_struct_pointers(void) {
     // define a couple of pointers to this type
     // (distinct zeroed static ints back the incomplete-type pointers)
     static int op_s1, op_s2;
@@ -157,14 +157,14 @@ int test_use_incomplete_struct_pointers(void) {
     }
 
     // can pass them as parameters
-    if (use_struct_pointers(ptr3)) {
+    if (await use_struct_pointers(ptr3)) {
         return 0;
     }
 
     return 1;  // success
 }
 
-int main(void) {
+coro(braam_call *) int main(void) {
     if (!test_block_scope_forward_decl()) {
         return 2;
     }
@@ -173,7 +173,7 @@ int main(void) {
         return 3;
     }
 
-    if (!test_incomplete_var()) {
+    if (!await test_incomplete_var()) {
         return 4;
     }
 
@@ -181,7 +181,7 @@ int main(void) {
         return 5;
     }
 
-    if (!test_use_incomplete_struct_pointers()) {
+    if (!await test_use_incomplete_struct_pointers()) {
         return 6;
     }
 

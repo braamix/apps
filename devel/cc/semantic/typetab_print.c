@@ -3,6 +3,8 @@
 #include "string_map.h"
 #include "typetab.h"
 
+#ifndef __braam__ // debug dumps nothing calls; on Braam they would be coroutines
+
 extern StringMap typetab;
 
 //
@@ -10,7 +12,7 @@ extern StringMap typetab;
 //
 static void print_typedef(const TypeDef *def)
 {
-    printf("    typedef %s:\n", def->name);
+    trace_printf("    typedef %s:\n", def->name);
     print_type(stdout, def->type, 8);
 }
 
@@ -28,3 +30,4 @@ void typetab_print()
 {
     map_iterate(&typetab, typetab_print_callback, NULL);
 }
+#endif

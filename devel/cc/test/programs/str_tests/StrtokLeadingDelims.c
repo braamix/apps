@@ -1,16 +1,16 @@
 #include <stdio.h>
 #include <string.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     char buf[16];
     strcpy(buf, ",,AB,,CD,,");
     char *t = strtok(buf, ",");
     while (t != 0) {
-        printf("%s\n", t);
+        await printf("%s\n", t);
         t = strtok(0, ",");
     }
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

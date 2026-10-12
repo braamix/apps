@@ -366,7 +366,7 @@ static void typecheck_static_assert_decl(Declaration *d)
 static void validate_struct_definition(const char *tag, const Field *members)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
 
     // Check for duplicate member names.
@@ -666,7 +666,7 @@ void register_inline_struct_defs(const Type *t)
 static void typecheck_tag_decl(const Declaration *d)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (!d->u.empty.type)
         return;
@@ -707,7 +707,7 @@ static void add_typedef(const char *name, const Type *type)
 static void typecheck_local_var_decl(const Declaration *d)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (d->u.var.specifiers && d->u.var.specifiers->storage == STORAGE_CLASS_TYPEDEF) {
         reject_alignas(d->u.var.specifiers, "a typedef");
@@ -998,7 +998,7 @@ static bool stmt_falls_through(const Stmt *s)
 static void typecheck_fn_decl(ExternalDecl *d)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     d->u.function.type   = resolve_typedef_names(d->u.function.type);
     const Type *fun_type = d->u.function.type;
@@ -1138,7 +1138,7 @@ void typecheck_local_decl(Declaration *d);
 static void typecheck_local_decl_at(Declaration *d)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     switch (d->kind) {
     case DECL_VAR:
@@ -1167,8 +1167,8 @@ void typecheck_local_decl(Declaration *d)
 static void typecheck_file_scope_var_decl(Declaration *d)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
-        print_declaration(stdout, d, 4);
+        trace_printf("--- %s()\n", __func__);
+        trace_call(print_declaration(stdout, d, 4));
     }
     if (d->u.var.specifiers && d->u.var.specifiers->storage == STORAGE_CLASS_TYPEDEF) {
         reject_alignas(d->u.var.specifiers, "a typedef");
@@ -1268,15 +1268,15 @@ void typecheck_global_decl(ExternalDecl *d);
 static void typecheck_global_decl_at(ExternalDecl *d)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
-        print_external_decl(stdout, d, 4);
+        trace_printf("--- %s()\n", __func__);
+        trace_call(print_external_decl(stdout, d, 4));
     }
     switch (d->kind) {
     case EXTERNAL_DECL_FUNCTION:
         typecheck_fn_decl(d);
         if (semantic_debug) {
-            printf("--- result:\n");
-            print_external_decl(stdout, d, 4);
+            trace_printf("--- result:\n");
+            trace_call(print_external_decl(stdout, d, 4));
         }
         break;
     case EXTERNAL_DECL_DECLARATION:
@@ -1292,8 +1292,8 @@ static void typecheck_global_decl_at(ExternalDecl *d)
             break;
         }
         if (semantic_debug) {
-            printf("--- result:\n");
-            print_declaration(stdout, d->u.declaration, 4);
+            trace_printf("--- result:\n");
+            trace_call(print_declaration(stdout, d->u.declaration, 4));
         }
         break;
     }

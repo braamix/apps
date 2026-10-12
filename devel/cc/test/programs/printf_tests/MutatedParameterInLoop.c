@@ -1,13 +1,13 @@
 #include <stdio.h>
-void countdown(int n) {
+coro(braam_call *) void countdown(int n) {
     while (n > 0) {
-        putbyte('0' + n);
+        await putchar('0' + n);
         --n;
     }
 }
-static void body(void) { countdown(3); putbyte('\n'); }
-int main(void) {
-    body();
+static coro(braam_call *) void body(void) { await countdown(3); await putchar('\n'); }
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

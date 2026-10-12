@@ -2,6 +2,8 @@
  * the client; this is a common idiom for hiding a library's implementation
  * details */
 
+#include <stdio.h>
+
 struct s;  // declare a type but don't define it
 
 // declare some functions for getting/using pointers to this type
@@ -10,21 +12,21 @@ void increment_struct(struct s *src_ptr);
 
 int check_struct(struct s *ptr, int expected_i, double expected_d,
                  char *expected_s);
-void print_struct_msg(struct s *ptr);
+coro(braam_call *) void print_struct_msg(struct s *ptr);
 struct s *get_internal_struct(void);
 
 // declare a variable with this type
 extern struct s incomplete_var;
 
-int main(void) {
+coro(braam_call *) int main(void) {
     struct s *new_struct = create_struct(101, 102.0, "NEW STRUCT");
 
     struct s *internal_struct = get_internal_struct();
 
     // print initial message from all three structs
-    print_struct_msg(new_struct);
-    print_struct_msg(internal_struct);
-    print_struct_msg(&incomplete_var);
+    await print_struct_msg(new_struct);
+    await print_struct_msg(internal_struct);
+    await print_struct_msg(&incomplete_var);
 
     // modify some structs
     increment_struct(new_struct);
@@ -48,7 +50,6 @@ int main(void) {
 
 // library functions
 int strcmp(char *s1, char *s2);
-int puts(char *s);
 
 struct s {
     int member1;
@@ -89,8 +90,8 @@ int check_struct(struct s *ptr, int expected_i, double expected_d,
     return 1;  // success
 }
 
-void print_struct_msg(struct s *ptr) {
-    puts(ptr->member3);
+coro(braam_call *) void print_struct_msg(struct s *ptr) {
+    await puts(ptr->member3);
 }
 
 // define a struct s that isn't visible in the other translation unit

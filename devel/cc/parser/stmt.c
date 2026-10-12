@@ -18,7 +18,7 @@
 Stmt *parse_statement()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     SrcLoc loc = diag_loc; // of its first token
     Stmt *stmt;
@@ -57,7 +57,7 @@ Stmt *parse_statement()
 Stmt *parse_labeled_statement()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (current_token == TOKEN_IDENTIFIER) {
         Ident label = xstrdup(current_lexeme);
@@ -99,7 +99,7 @@ Stmt *parse_labeled_statement()
 Stmt *parse_defer_statement()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     expect_token(TOKEN_DEFER);
     Stmt *stmt         = new_stmt(STMT_DEFER);
@@ -116,7 +116,7 @@ Stmt *parse_defer_statement()
 Stmt *parse_compound_statement()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     SrcLoc loc = diag_loc; // of the '{'
     expect_token(TOKEN_LBRACE);
@@ -170,7 +170,7 @@ Stmt *parse_compound_statement()
 DeclOrStmt *parse_block_item()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (is_storage_class_specifier(current_token) || is_type_specifier(current_token) ||
         is_type_qualifier(current_token) || current_token == TOKEN_ATOMIC ||
@@ -197,7 +197,7 @@ DeclOrStmt *parse_block_item()
 Stmt *parse_expression_statement()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *expr = NULL;
     if (current_token_is_not(TOKEN_SEMICOLON)) {
@@ -219,7 +219,7 @@ Stmt *parse_expression_statement()
 Stmt *parse_selection_statement()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (current_token == TOKEN_IF) {
         advance_token();
@@ -264,7 +264,7 @@ Stmt *parse_selection_statement()
 Stmt *parse_iteration_statement()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (current_token == TOKEN_WHILE) {
         advance_token();
@@ -340,7 +340,7 @@ Stmt *parse_iteration_statement()
 Stmt *parse_jump_statement()
 {
     if (parser_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (current_token == TOKEN_GOTO) {
         advance_token();

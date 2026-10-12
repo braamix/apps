@@ -51,21 +51,21 @@ coro(int) long outer(int k)
     return a + b + c;
 }
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     co_frame(int, long) *f = co_alloca(outer, 512, 10);
     while (co_resume(f) == CO_SUSPENDED)
-        printf("%d ", co_value(f));
-    printf("= %ld\n", co_result(f));
+        await printf("%d ", co_value(f));
+    await printf("= %ld\n", co_result(f));
 
     static _Alignas(16) char storage[256];
     co_frame(int, int) *g = co_init(storage, sizeof storage, each, 2, 7, 8);
     while (co_resume(g) == CO_SUSPENDED)
-        printf("%d ", co_value(g));
-    printf("= %d\n", co_result(g));
+        await printf("%d ", co_value(g));
+    await printf("= %d\n", co_result(g));
 
     co_frame(int, long) *h = co_alloca(mixed, 0, "LL", 1.0L, 2.0L);
     co_resume(h);
-    puts("not reached");
+    await puts("not reached");
     return 0;
 }

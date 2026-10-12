@@ -1,12 +1,14 @@
 /*
- * <stdio.h> for Braam (docs/Braam.md §7.3).  The output half never blocks:
- * printf, puts, putchar, fputs, fputc, putc and fwrite append to the stream's buffer,
- * which grows rather than waits.  What can wait is a coroutine yielding braam_call *,
- * called with await: fflush writes a buffer out, fgetc, getc, getchar, fgets and fread
- * read through a buffer of BRAAM_CHUNK bytes (a read of stdin flushes stdout first),
- * and so are fopen, fclose, fseek, ftell, rewind, remove and rename.  A stream from
- * open_memstream never waits, but is flushed and closed as the others are.  The runtime
- * flushes every stream when main returns; exit() cannot (stdlib.h).
+ * <stdio.h> for Braam (docs/Braam.md §7.3).  Every call that can wait is a coroutine
+ * yielding braam_call *, called with await.  Output goes into the stream's buffer of
+ * BUFSIZ bytes, and a call that finds it full waits while it is written out: printf,
+ * fprintf, vprintf, vfprintf, puts, putchar, fputs, fputc, putc, fwrite and perror.
+ * stderr is written out at the end of each of them.  fflush writes a buffer out;
+ * fgetc, getc, getchar, fgets and fread read through it (a read of stdin flushes stdout
+ * first); and so are fopen, fclose, fseek, ftell, rewind, remove and rename.  The
+ * formatting into memory, sprintf, snprintf, vsprintf and vsnprintf, never waits.  The
+ * runtime flushes every stream when main returns, and exit() posts what is left
+ * (stdlib.h).
  *
  * As in C, output is not directly followed by input on one stream without an fflush,
  * fseek or rewind between them, and input not by output without an fseek or rewind.
@@ -20,7 +22,7 @@
 #include <sys/types.h>
 
 #define EOF          (-1)
-#define BUFSIZ       BRAAM_CHUNK
+#define BUFSIZ       4096
 #define FILENAME_MAX 256
 
 #ifndef SEEK_SET
@@ -31,20 +33,18 @@
 
 typedef struct __FILE {
     int fd;
-    int flags; /* __F_EOF, __F_ERR, __F_OPENED */
-    char *buf; /* what is waiting to be written */
-    size_t len, cap;
+    int flags; /* __F_EOF, __F_ERR, __F_OPENED, __F_BUSY */
+    char *buf; /* what is waiting to be written, BUFSIZ bytes */
+    size_t len;
     char *in; /* what was read and not taken: in[pos] up to in[end] */
     size_t pos, end;
     struct __FILE *next; /* the streams fopen made, for fflush(NULL) */
-    char **mem;          /* open_memstream's: where fflush and fclose leave buf, */
-    size_t *memlen;      /* and its length */
 } FILE;
 
 #define __F_EOF    1
 #define __F_ERR    2
 #define __F_OPENED 4
-#define __F_MEM    8
+#define __F_BUSY   8 /* a write of the buffer is waiting */
 
 #define _IOFBF 0
 #define _IOLBF 1
@@ -56,25 +56,27 @@ extern FILE *stdin;
 extern FILE *stdout;
 extern FILE *stderr;
 
-/* Formatting, into stdout's buffer. */
-int printf(const char *fmt, ...);
+/* Formatting into memory, which never waits. */
 int sprintf(char *buf, const char *fmt, ...);
 int snprintf(char *buf, int size, const char *fmt, ...);
 int vsprintf(char *buf, const char *fmt, va_list ap);
 int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap);
-int puts(const char *s);
-int putchar(int c);
 
-/* Into a stream's buffer. */
-int fprintf(FILE *stream, const char *fmt, ...);
-int vfprintf(FILE *stream, const char *fmt, va_list ap);
-int vprintf(const char *fmt, va_list ap);
-int fputc(int c, FILE *stream);
-int putc(int c, FILE *stream);
-int fputs(const char *s, FILE *stream);
-size_t fwrite(const void *ptr, size_t size, size_t n, FILE *stream);
+/* Output to stdout. */
+coro(braam_call *) int printf(const char *fmt, ...);
+coro(braam_call *) int vprintf(const char *fmt, va_list ap);
+coro(braam_call *) int puts(const char *s);
+coro(braam_call *) int putchar(int c);
+
+/* Output to a stream. */
+coro(braam_call *) int fprintf(FILE *stream, const char *fmt, ...);
+coro(braam_call *) int vfprintf(FILE *stream, const char *fmt, va_list ap);
+coro(braam_call *) int fputc(int c, FILE *stream);
+coro(braam_call *) int putc(int c, FILE *stream);
+coro(braam_call *) int fputs(const char *s, FILE *stream);
+coro(braam_call *) size_t fwrite(const void *ptr, size_t size, size_t n, FILE *stream);
 /* "s: strerror(errno)" on stderr. */
-void perror(const char *s);
+coro(braam_call *) void perror(const char *s);
 
 /* Write the buffer out: 0, or EOF with errno set.  NULL flushes every stream. */
 coro(braam_call *) int fflush(FILE *stream);
@@ -102,22 +104,12 @@ coro(braam_call *) int fseek(FILE *stream, long offset, int whence);
 coro(braam_call *) long ftell(FILE *stream);
 coro(braam_call *) void rewind(FILE *stream);
 
-/* A stream into memory: fflush and fclose leave its bytes, NUL-terminated, in *ptr
-   (from malloc, the caller's to free) and their number in *size. */
-FILE *open_memstream(char **ptr, size_t *size);
-
-/* Accepted and ignored: an output buffer grows rather than fills. */
+/* Accepted and ignored: a stream's buffer is BUFSIZ bytes. */
 int setvbuf(FILE *stream, char *buf, int mode, size_t size);
 void setbuffer(FILE *stream, char *buf, int size);
 void setbuf(FILE *stream, char *buf);
 
 coro(braam_call *) int remove(const char *path);
 coro(braam_call *) int rename(const char *from, const char *to);
-
-/* The runtime's console primitives: putbyte and putch append a byte to stdout's
-   buffer; flush does nothing (a write is a syscall, so only fflush may make one). */
-void putbyte(int b);
-void putch(unsigned ch);
-void flush(void);
 
 #endif /* _STDIO_H */

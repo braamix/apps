@@ -79,13 +79,14 @@ static void problem(Verifier *v, const char *fmt, ...)
     v->errors++;
     if (!v->err)
         return;
-    fprintf(v->err, "verify: %s: #%d %s: ", v->fn->u.function.name, v->index,
-            v->in ? tac_instruction_name(v->in->kind) : "symbols");
+    // Written as a diagnostic, to stderr: a plain function cannot await v->err.
+    diag_printf("verify: %s: #%d %s: ", v->fn->u.function.name, v->index,
+                v->in ? tac_instruction_name(v->in->kind) : "symbols");
     va_list ap;
     va_start(ap, fmt);
-    vfprintf(v->err, fmt, ap);
+    diag_vprintf(fmt, ap);
     va_end(ap);
-    fputc('\n', v->err);
+    diag_printf("\n");
 }
 
 static Class class_of(const Tac_Type *t)

@@ -49,8 +49,8 @@ void typetab_destroy()
 void typetab_add(const char *ident, const Type *type, int level)
 {
     if (semantic_debug) {
-        printf("--- %s() %s\n", __func__, ident);
-        print_type(stdout, type, 4);
+        trace_printf("--- %s() %s\n", __func__, ident);
+        trace_call(print_type(stdout, type, 4));
     }
     TypeDef *def = xalloc(sizeof(TypeDef), __func__, __FILE__, __LINE__);
     def->name    = xstrdup(ident);

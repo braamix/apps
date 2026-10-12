@@ -49,17 +49,17 @@ void print_usage(const char *prog_name)
     if (p) {
         prog_name = p + 1;
     }
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "    %s [options] input-filename [output-filename]\n", prog_name);
-    fprintf(stderr, "Options:\n");
-    fprintf(stderr, "    --ast            Emit AST in binary format (default)\n");
-    fprintf(stderr, "    --yaml           Emit YAML format\n");
-    fprintf(stderr, "    --max-errors=N   Stop after N errors (0: no limit; default 20)\n");
-    fprintf(stderr, "    --no-show-source Don't show the source line under a diagnostic\n");
-    fprintf(stderr, "    --color=WHEN     Color diagnostics: always, never or auto (default)\n");
-    fprintf(stderr, "    -v, --verbose    Enable verbose mode\n");
-    fprintf(stderr, "    -D, --debug      Print debug information\n");
-    fprintf(stderr, "    -h, --help       Show this help message\n");
+    diag_printf("Usage:\n");
+    diag_printf("    %s [options] input-filename [output-filename]\n", prog_name);
+    diag_printf("Options:\n");
+    diag_printf("    --ast            Emit AST in binary format (default)\n");
+    diag_printf("    --yaml           Emit YAML format\n");
+    diag_printf("    --max-errors=N   Stop after N errors (0: no limit; default 20)\n");
+    diag_printf("    --no-show-source Don't show the source line under a diagnostic\n");
+    diag_printf("    --color=WHEN     Color diagnostics: always, never or auto (default)\n");
+    diag_printf("    -v, --verbose    Enable verbose mode\n");
+    diag_printf("    -D, --debug      Print debug information\n");
+    diag_printf("    -h, --help       Show this help message\n");
 }
 
 //
@@ -233,11 +233,11 @@ static coro(braam_call *) void load_sources(const char *name, const char *text, 
 coro(braam_call *) void process_file(const Args *args)
 {
     if (args->verbose) {
-        printf("Processing %s in verbose mode\n", args->input_file);
+        await printf("Processing %s in verbose mode\n", args->input_file);
     }
     if (args->debug) {
-        printf("Debug: Format = %d, Input = %s, Output = %s\n", args->format, args->input_file,
-               args->output_file);
+        trace_printf("Debug: Format = %d, Input = %s, Output = %s\n", args->format,
+                     args->input_file, args->output_file);
         parser_debug = 1;
         import_debug = 1;
         export_debug = 1;
@@ -266,18 +266,18 @@ coro(braam_call *) void process_file(const Args *args)
     default:
     case FORMAT_AST:
         if (args->verbose) {
-            printf("Emitting AST in binary format to %s\n", args->output_file);
+            await printf("Emitting AST in binary format to %s\n", args->output_file);
         }
         if (args->debug) {
-            print_program(stdout, program);
+            await print_program(stdout, program);
         }
         await export_ast(fileno(output_file), program);
         break;
     case FORMAT_YAML:
         if (args->verbose) {
-            printf("Emitting YAML format to %s\n", args->output_file);
+            await printf("Emitting YAML format to %s\n", args->output_file);
         }
-        export_yaml(output_file, program);
+        await export_yaml(output_file, program);
         break;
     }
 

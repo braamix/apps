@@ -197,7 +197,7 @@ static bool is_function_designator(const Expr *e)
 static bool is_lvalue(const Expr *e)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     switch (e->kind) {
     case EXPR_VAR:
@@ -227,7 +227,7 @@ static bool is_lvalue(const Expr *e)
 static Expr *typecheck_var(Expr *e)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     const Symbol *sym = symtab_get(e->u.var);
     if (coroutine_value(e, sym))
@@ -253,7 +253,7 @@ static Expr *typecheck_var(Expr *e)
 Expr *typecheck_string(Expr *e)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Type *array            = new_type(TYPE_ARRAY, __func__, __FILE__, __LINE__);
     array->u.array.element = new_type(TYPE_CHAR, __func__, __FILE__, __LINE__);
@@ -293,7 +293,7 @@ static void widen_long_literal(Literal *lit)
 static Expr *typecheck_literal(Expr *e)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     free_type(e->type);
     e->type = NULL; // prevent double-free: typecheck_string also calls free_type(e->type)
@@ -423,7 +423,7 @@ static Expr *typecheck_expr(Expr *e);
 static Expr *typecheck_expr_at(Expr *e)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (!e)
         return NULL;
@@ -1257,7 +1257,7 @@ static TypeKind bitfield_promoted_kind(const Expr *e)
 Expr *typecheck_and_decay(Expr *e)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (!e)
         return NULL;
@@ -1272,7 +1272,7 @@ Expr *typecheck_and_decay(Expr *e)
 Expr *typecheck_scalar(Expr *e)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     Expr *typed = typecheck_and_decay(e);
     if (!is_scalar(typed->type)) {

@@ -554,9 +554,9 @@ static void lint_warning(const char *fmt, ...)
     va_list ap;
     va_start(ap, fmt);
     diag_print_prefix(stderr, diag_loc, "warning");
-    fprintf(stderr, "%s: ", lint_fn ? lint_fn : "?");
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+    diag_printf("%s: ", lint_fn ? lint_fn : "?");
+    diag_vprintf(fmt, ap);
+    diag_printf("\n");
     va_end(ap);
 }
 

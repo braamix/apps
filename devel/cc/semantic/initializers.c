@@ -40,7 +40,7 @@ static InitItem *union_rest(const Type *u, const Type *member)
 static Initializer *make_zero_init(Type *t)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     t = (Type *)unalias(t); // look through global typedef references (read-only use)
     if (t->kind == TYPE_ARRAY) {
@@ -751,7 +751,7 @@ static void merge_zero_runs(Tac_StaticInit *list)
 Tac_StaticInit *build_static_init(Type *var_type, Initializer **init)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (*init) {
         *init = normalize_init(var_type, *init, INIT_STATIC);
@@ -859,7 +859,7 @@ static Initializer *check_init(Type *target_type, Initializer *init)
 Initializer *typecheck_init(Type *target_type, Initializer *init)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (!init) {
         return NULL;

@@ -28,13 +28,12 @@ enum {
 #define STATE_DONE      (UINT_MAX - 1)
 #define STATE_DESTROYED UINT_MAX
 
-int putchar(int c);
+void __plain_write(int fd, const char *s); /* the target's runtime: a write from plain code */
 _Noreturn void exit(int status);
 
 static void print(const char *s)
 {
-    for (; *s; s++)
-        putchar(*s);
+    __plain_write(1, s);
 }
 
 /* The trap `name`, and the coroutine it concerns when there is one. */
@@ -46,7 +45,7 @@ _Noreturn void __coro_trap(const char *name, const char *coroutine)
         print(": ");
         print(coroutine);
     }
-    putchar('\n');
+    print("\n");
     exit(255);
 }
 
@@ -142,4 +141,33 @@ char *__coro_va_save(void *fp, const char *va, size_t size)
     for (size_t i = 0; i < size; i++)
         p[i] = va[i];
     return p;
+}
+
+/* An arena await of the coroutine desc and resume describe: its frame off the arena of
+   the awaiting frame fp's task, set up to join that task. */
+void *__coro_start(void *fp, const size_t *desc, int (*resume)(void *), const char *name)
+{
+    void *sub = __coro_push(fp, desc[0], desc[1], name);
+    return __coro_setup(sub, desc[0], desc, resume, fp);
+}
+
+/* A step of an await: the awaited frame sub resumed with signal 0 or 1.  Suspended, the
+   value it yielded, size bytes at value_off, becomes the awaiting frame fp's, at the
+   same offset since the two yield one type.  Returns the co_status. */
+int __coro_step(void *sub, int signal, void *fp, unsigned value_off, unsigned size)
+{
+    int status = __coro_resume(sub, signal);
+    if (status == 0)
+        for (unsigned i = 0; i < size; i++)
+            ((char *)fp)[value_off + i] = ((char *)sub)[value_off + i];
+    return status;
+}
+
+/* An await whose awaiting frame fp is being destroyed: the awaited frame sub is
+   destroyed first, and given back to the arena when it came from there. */
+void __coro_drop(void *fp, void *sub, int arena)
+{
+    __coro_resume(sub, SIGNAL_DESTROY);
+    if (arena)
+        __coro_pop(fp, sub);
 }

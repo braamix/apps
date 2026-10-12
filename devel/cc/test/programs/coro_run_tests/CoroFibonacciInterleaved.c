@@ -15,16 +15,16 @@ coro(long long) int fib(int n)
 
 static _Alignas(16) char storage[256];
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     co_frame(long long, int) *f = co_init(storage, sizeof storage, fib, 10);
     co_frame(long long, int) *g = co_alloca(fib, 0, 5);
     while (co_resume(f) == CO_SUSPENDED) {
-        printf("%lld ", co_value(f));
+        await printf("%lld ", co_value(f));
         if (!co_done(g) && co_resume(g) == CO_SUSPENDED)
-            printf("(%lld) ", co_value(g));
+            await printf("(%lld) ", co_value(g));
     }
-    printf("-> %d %d\n", co_result(f), co_result(g));
+    await printf("-> %d %d\n", co_result(f), co_result(g));
     return 0;
 }
 

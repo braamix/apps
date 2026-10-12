@@ -1,9 +1,9 @@
 #include <stdio.h>
-static void body(void) {
-    printf("[%.2f][%10.3f][%-8.3f]\n", 3.14159, 3.14159, 3.14159);
+static coro(braam_call *) void body(void) {
+    await printf("[%.2f][%10.3f][%-8.3f]\n", 3.14159, 3.14159, 3.14159);
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

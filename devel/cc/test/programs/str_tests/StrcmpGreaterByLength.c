@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <string.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     // "ABCD" > "ABC": first extra byte 'D'(68) - '\0'(0) = 68
-    printf("%d\n", strcmp("ABCD", "ABC"));
+    await printf("%d\n", strcmp("ABCD", "ABC"));
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

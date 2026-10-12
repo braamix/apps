@@ -130,8 +130,9 @@ vgenwasm ${out}/${name}.tac ${out}/${name}.s && as -o ${out}/${name}.o ${out}/${
     list(APPEND VCC_LIBC_OBJS ${out}/${name}.o)
 endmacro()
 
-foreach(name atoi bsearch co ctype float128 getopt_long gmtime memccpy memchr memcmp printf
-             putchar puts qsort snprintf sprintf strcat strchr strcmp strcpy strcspn strdup
+# printf, putchar and puts are stdio.c's, coroutines on Braam.
+foreach(name atoi bsearch co ctype float128 getopt_long gmtime memccpy memchr memcmp
+             qsort snprintf sprintf strcat strchr strcmp strcpy strcspn strdup
              strftime strlen strncat strncmp strncpy strndup strnlen strpbrk strrchr strspn
              strstr strtok strtok_r strtol vsnprintf vsprintf)
     vcc_compile_wasm32(common ${name})

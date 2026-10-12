@@ -25,14 +25,14 @@ static coro(int) int chain(void *arg)
 
 coro_ptr(int, int) table[] = { count, twice, chain };
 
-int main(void)
+coro(braam_call *) int main(void)
 {
     int three = 3, two = 2;
     void *args[] = { &three, 0, &two };
     static _Alignas(16) char storage[3][512];
     co_frame(int, int) *f[3];
     for (int i = 0; i < 3; i++) {
-        printf("task %d: header %d align %d\n", i,
+        await printf("task %d: header %d align %d\n", i,
                co_sizeof(table[i]) > 2 * sizeof(unsigned) + 4 * sizeof(void *),
                co_alignof(table[i]) == _Alignof(void *));
         f[i] = co_init(storage[i], sizeof storage[i], table[i], args[i]);
@@ -44,17 +44,17 @@ int main(void)
             if (co_done(f[i]))
                 continue;
             if (co_resume(f[i]) == CO_SUSPENDED) {
-                printf("  %d yields %d\n", i, co_value(f[i]));
+                await printf("  %d yields %d\n", i, co_value(f[i]));
                 live++;
             } else {
-                printf("  %d returns %d\n", i, co_result(f[i]));
+                await printf("  %d returns %d\n", i, co_result(f[i]));
             }
         }
     }
     coro_ptr(int, int) q = twice;
     co_frame(int, int) *g = co_alloca(q, 0);
     co_resume(g);
-    printf("alloca'd: %d, same %d, null %d\n", co_value(g), q == table[1], q != 0);
+    await printf("alloca'd: %d, same %d, null %d\n", co_value(g), q == table[1], q != 0);
     return 0;
 }
 

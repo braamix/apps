@@ -70,12 +70,9 @@ static void export_val(WFILE *out, const Tac_Val *v)
     export_val(out, v->next);
 }
 
-static void export_instr(WFILE *out, const Tac_Instruction *instr)
+// One instruction.
+static void export_one(WFILE *out, const Tac_Instruction *instr)
 {
-    if (!instr) {
-        wputw(TAG_EOL, out);
-        return;
-    }
     {
         size_t tag = TAG_TAC_INSTR + instr->kind;
         if (instr->is_volatile)
@@ -200,19 +197,24 @@ static void export_instr(WFILE *out, const Tac_Instruction *instr)
     default:
         break;
     }
-    export_instr(out, instr->next);
+}
+
+// A list of instructions, in a loop: a function's body may be tens of thousands long.
+static void export_instr(WFILE *out, const Tac_Instruction *instr)
+{
+    for (; instr; instr = instr->next)
+        export_one(out, instr);
+    wputw(TAG_EOL, out);
 }
 
 static void export_param(WFILE *out, const Tac_Param *p)
 {
-    if (!p) {
-        wputw(TAG_EOL, out);
-        return;
+    for (; p; p = p->next) { // in a loop: a function may have thousands of locals
+        wputw(TAG_TAC_PARAM, out);
+        wputstr(p->name ? p->name : "", out);
+        export_type(out, p->type);
     }
-    wputw(TAG_TAC_PARAM, out);
-    wputstr(p->name ? p->name : "", out);
-    export_type(out, p->type);
-    export_param(out, p->next);
+    wputw(TAG_EOL, out);
 }
 
 static void export_static_local(WFILE *out, const Tac_StaticLocal *sl)
@@ -267,6 +269,11 @@ void tac_export_toplevel(WFILE *out, const Tac_TopLevel *tl)
     default:
         break;
     }
+}
+
+void tac_export_instruction_list(WFILE *out, const Tac_Instruction *list)
+{
+    export_instr(out, list);
 }
 
 void tac_export_begin_stream(WFILE *out)

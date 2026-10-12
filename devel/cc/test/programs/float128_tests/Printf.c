@@ -1,9 +1,9 @@
 #include <stdio.h>
 static long double big = 1e100L;
-int main(void)
+coro(braam_call *) int main(void)
 {
     long double x = -1;
-    printf("%.3Lf %Lg %Lg %d\n", 2.5L, x / 8, big, 7);
+    await printf("%.3Lf %Lg %Lg %d\n", 2.5L, x / 8, big, 7);
     return 0;
 }
 

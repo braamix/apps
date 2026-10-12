@@ -1,10 +1,10 @@
 /* Test that we can take the address of a string literal and annotate it with the correct type */
 
-int puts(char *s);
+#include <stdio.h>
 
-int main(void) {
+coro(braam_call *) int main(void) {
     char(*str)[16] = &"SAMPLE\tSTRING!\n";
-    puts(*str);
+    await puts(*str);
 
     // get pointer to one-past-the-end of this string
     char (*one_past_the_end)[16] = str + 1;

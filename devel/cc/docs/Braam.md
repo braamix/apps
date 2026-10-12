@@ -108,9 +108,10 @@ and then, as Braam's interpreters do.
 
 ### Ending
 
-`main`'s return value is the exit status. `exit(n)` reports `n` and stops the process
-at once, as Braam's own C library does: nothing unwinds, no `defer` runs and buffered
-output is lost, and the kernel counts it as a crash. Return from `main` instead.
+`main`'s return value is the exit status. `exit(n)` ends the process at once, from
+plain code too: the `atexit` functions run and what the streams hold is posted as
+writes the kernel performs before the process goes, but nothing unwinds and no
+`defer` runs.
 
 A coroutine trap (Coroutines_in_C.md §7) and a WebAssembly trap end the process the
 same way.
@@ -119,7 +120,7 @@ same way.
 
 | Header | Calls that wait (`await` them) | Calls that do not |
 |---|---|---|
-| `<stdio.h>` | `fflush`, `fgetc`, `getc`, `getchar`, `fgets`, `fread`, `fopen`, `fclose`, `fseek`, `ftell`, `rewind`, `remove`, `rename` | `printf`, `fprintf`, `vfprintf`, `vprintf`, `sprintf`, `snprintf`, `puts`, `putchar`, `fputs`, `fputc`, `putc`, `fwrite`, `ungetc`, `feof`, `ferror`, `clearerr`, `fileno`, `perror` |
+| `<stdio.h>` | `printf`, `fprintf`, `vfprintf`, `vprintf`, `puts`, `putchar`, `fputs`, `fputc`, `putc`, `fwrite`, `perror`, `fflush`, `fgetc`, `getc`, `getchar`, `fgets`, `fread`, `fopen`, `fclose`, `fseek`, `ftell`, `rewind`, `remove`, `rename` | `sprintf`, `snprintf`, `vsprintf`, `vsnprintf`, `ungetc`, `feof`, `ferror`, `clearerr`, `fileno` |
 | `<unistd.h>` | `read`, `write`, `close`, `lseek`, `unlink`, `rmdir`, `chdir`, `getcwd` | `getpid` |
 | `<fcntl.h>` | `open` | |
 | `<sys/stat.h>` | `stat`, `lstat`, `fstat`, `mkdir` | `S_ISDIR`, `S_ISREG`, `S_ISLNK` |
@@ -135,11 +136,13 @@ allocator.
 
 Things that work differently from Unix:
 
-- **Streams.** Output never waits: `printf` and the other formatting calls only
-  append to the stream's buffer, which grows when full. The buffer is written out by
-  `await fflush(f)`, by `await fclose(f)`, when `main` returns, and, for standard
-  output, before every read of standard input, so a prompt is shown before the
-  program waits for the answer. Input is buffered in 512-byte chunks. Between reading
+- **Streams.** Output waits: `printf` and the rest put their text into the stream's
+  buffer of `BUFSIZ` (4096) bytes, and a call that finds it full waits while it is
+  written out. The buffer is also written out by `await fflush(f)`, by `await
+  fclose(f)`, when `main` returns, and, for standard output, before every read of
+  standard input, so a prompt is shown before the program waits for the answer.
+  `stderr` is written out at the end of each call. `sprintf` and `snprintf` only fill
+  memory, and do not wait. Input is buffered in chunks of `BUFSIZ`. Between reading
   and writing one stream, `fflush` or `fseek` it, as C requires.
 - **`open`'s flags** are Braam's own bits: `O_RDONLY` is 1, `O_WRONLY` 2, `O_RDWR` 3.
   Use the names.
@@ -167,8 +170,9 @@ The compiler does most of the work: it rejects a call of a coroutine without
 
 Then look for the things the compiler cannot tell you about:
 
-- **`exit()`** in the middle of the program loses buffered output. Return a status
-  up to `main` instead, or `await fflush(NULL)` before the `exit`.
+- **Plain code cannot print.** A function called through a pointer, an `atexit`
+  function, a deferred statement and a coroutine of another yield type cannot `await
+  printf`. Format with `snprintf` and print the text from a coroutine that can.
 - **Cleanup that waits.** A deferred statement may not `await`, so `defer await
   fclose(f)` is an error. Close files and descriptors explicitly; `defer` is still
   right for memory.
@@ -183,9 +187,8 @@ Then look for the things the compiler cannot tell you about:
 - **`alloca`** is an error in a coroutine, `main` included, since its frame outlives
   the stack. Move the code that allocates into an ordinary function, or use `malloc`.
 - **Deep recursion through `await`** needs a larger `__braam_task_bytes` (§2).
-- **Variadic functions** cannot be coroutines. One that waits becomes a coroutine
-  taking a `va_list`, or formats into its stream with `vfprintf`, which does not wait,
-  and leaves the writing to a later `await fflush`.
+- **Variadic functions** can be coroutines, as `printf` is (Coroutines_in_C.md §2). A
+  structure cannot be one of their variable arguments.
 
 ## 5. Running a program by hand
 
@@ -352,23 +355,29 @@ static void run(int k)              /* task k to its next suspension */
 - **`_alloc` and `_free`** are `malloc` and `free`. `malloc.c` is a first fit over an
   address-ordered free list, merging neighbours and calling `memory.grow` when nothing
   fits.
-- **`exit(n)`** (`exports.s`) calls `sys(Exit, n)` and traps, as Braam's own compat
-  layer does (`doc/Compat.md`: "C `exit()` and `abort()` trap"). A coroutine trap goes
-  through `exit` too, its message left in the stdout buffer.
+- **`exit(n)`** (`rt.c`) runs the `atexit` functions, posts what the streams hold as
+  writes nobody waits for, then calls `sys(Exit, n)` (`exports.s`) and traps; the
+  kernel performs the writes before the process goes. Plain code that must write
+  before it ends, an assertion or a coroutine trap, posts its message the same way
+  (`__plain_write`), after what the streams hold.
 
 ### 7.3 The library
 
 The C library splits as Braam's own does (`braam-apps/CLAUDE.md`, "Three groups"):
-what never waits is `libc/common`'s, and what waits keeps C's names and parameters
+what never waits is `libc/common`'s, `printf`'s formatting engine included, and what
+waits keeps C's names and parameters
 with a coroutine specifier, so a port adds `await` and `coro(braam_call *)` and
 changes nothing else. Every call that waits is `await braam_sys(op, payload, len, …)`
 plus a copy into the caller's buffer. On an error they return -1 and set `errno`.
 
-- **Output** (`stdio.c`). `printf` and its kin are variadic, so they cannot be
-  coroutines: they format into the stream's buffer, which grows by `realloc` rather
-  than wait. `putbyte` writes to the stream of the `fprintf` running, stdout
-  otherwise. `write` writes all of its bytes, in chunks.
-- **Input.** Each stream has an input buffer of `BRAAM_CHUNK` bytes, with one byte in
+- **Output** (`stdio.c`). `printf`, `fprintf` and `perror` are variadic coroutines.
+  Each output call puts its text into the stream's buffer of `BUFSIZ` bytes, and
+  writes the buffer out when it is full; `vfprintf` formats with `vsnprintf` into the
+  free room, and again after writing the buffer out when the text did not fit, and
+  a text longer than the buffer goes out from a block of its own. One write of a
+  stream's buffer waits at a time (`__F_BUSY`), so tasks printing to one stream do
+  not write the same bytes twice. `write` writes all of its bytes, in chunks.
+- **Input.** Each stream has an input buffer of `BUFSIZ` bytes, with one byte in
   front for `ungetc`; `fgetc`, `fgets` and `fread` take from it and refill it with
   `read`. A `read` of standard input writes out standard output first, as a
   line-buffered terminal does.

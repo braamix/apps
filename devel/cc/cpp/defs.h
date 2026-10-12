@@ -6,6 +6,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "host.h"
+
+// The text an argument's prescan writes (macro.c), from malloc.
+struct CppCapture {
+    char *buf;
+    size_t len, cap;
+};
+
 //
 // Token codes produced by the little lexer in yylex.c and consumed by the
 // expression parser in parser.c when evaluating a "#if" line.  YYEOF/number/
@@ -150,12 +158,13 @@ struct cppstate {
     int trig_nhold[MAXINC];   // trailing '?' count carried across a read boundary (per level,
                               // -trigraphs)
     char *search_dirs[MAXDIRS +
-                      3]; // #include search path: [0]=current dir, then -I dirs, then system
-    int in_fd;            // fd of the file currently being read; init: STDIN
-    char *prog_name;      // diagnostic prefix: basename of argv[0]
-    FILE *out_file;       // where preprocessed text is written (usually stdout)
-    int ndirs;            // number of entries filled in search_dirs; init: 1
-    int inc_level;        // current #include nesting depth (0 = top-level file)
+                      3];       // #include search path: [0]=current dir, then -I dirs, then system
+    int in_fd;                  // fd of the file currently being read; init: STDIN
+    char *prog_name;            // diagnostic prefix: basename of argv[0]
+    FILE *out_file;             // where preprocessed text is written (usually stdout)
+    struct CppCapture *capture; // while an argument is prescanned: its expansion
+    int ndirs;                  // number of entries filled in search_dirs; init: 1
+    int inc_level;              // current #include nesting depth (0 = top-level file)
 
     // command-line option flags
     int opt_no_lines;      // -P: do not emit "# line" markers
@@ -232,9 +241,9 @@ extern struct cppstate cpp; // the single global instance, defined in cpp.c
 #define ISWARN(a) (cpp.fast_tab[(unsigned char)a] & WB) // is a a macro_mark marker?
 
 // Functions defined in the core files but also called from parser.c / yylex.c.
-int lex_if_token(void);                         // scan one #if-expression token (yylex.c)
-int eval_if(void);                              // evaluate a whole #if expression (parser.c)
-char *skip_blanks(char *p);                     // advance past whitespace tokens (scan.c)
+coro(braam_call *) int lex_if_token(void);      // scan one #if-expression token (yylex.c)
+coro(braam_call *) int eval_if(void);           // evaluate a whole #if expression (parser.c)
+coro(braam_call *) char *skip_blanks(char *p);  // advance past whitespace tokens (scan.c)
 struct symtab *lookup(char *namep, int enterf); // find/insert a symbol (macro.c)
 void pperror(const char *s, ...);               // report an error (diag.c)
 void pperror_at(const char *file, int line, const char *s, ...); // ... at a given line

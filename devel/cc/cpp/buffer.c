@@ -16,12 +16,11 @@
 // (cpp.opt_no_lines).  Called whenever the line numbering jumps -- after an
 // #include, at end of file, etc.
 //
-void emit_line_marker()
+coro(braam_call *) void emit_line_marker(void)
 {
     cpp.pending_nl = 0; // the marker resynchronizes the line number
     if (cpp.opt_no_lines == 0)
-        fprintf(cpp.out_file, "# %d \"%s\"\n", cpp.line_no[cpp.inc_level],
-                cpp.inc_file[cpp.inc_level]);
+        await out_printf("# %d \"%s\"\n", cpp.line_no[cpp.inc_level], cpp.inc_file[cpp.inc_level]);
 }
 
 // data structure guide
@@ -82,40 +81,93 @@ void emit_line_marker()
 // output file, then advance out_ptr.  Does nothing while inside a skipped #if
 // block (false_level != 0).
 //
-void flush_output()
+coro(braam_call *) void flush_output(void)
 {
-    // write part of buffer which lies between  out_ptr  and  tok_ptr .
-    // this should be a direct call to 'write', but the system slows to a crawl
-    // if it has to do an unaligned copy.  thus we buffer.  this silly loop
-    // is 15% of the total time, thus even the 'putc' macro is too slow.
+    // write part of buffer which lies between  out_ptr  and  tok_ptr ,
+    // a line at a time while newlines are owed.
     //
     char *p1;
-    FILE *f;
     if ((p1 = cpp.out_ptr) == cpp.tok_ptr || cpp.false_level != 0)
         return;
-    f = cpp.out_file;
-    if (cpp.pending_nl) {
-        while (p1 < cpp.tok_ptr) {
-            char c = *p1++;
-            putc(c, f);
-            if (c == '\n')
-                put_newlines();
+    while (cpp.pending_nl && p1 < cpp.tok_ptr) {
+        char *nl  = memchr(p1, '\n', (size_t)(cpp.tok_ptr - p1));
+        char *end = nl ? nl + 1 : cpp.tok_ptr;
+        await out_write(p1, (size_t)(end - p1));
+        p1 = end;
+        if (nl)
+            await put_newlines();
+    }
+    await out_write(p1, (size_t)(cpp.tok_ptr - p1));
+    cpp.out_ptr = cpp.tok_ptr;
+}
+
+//
+// The text out: into the capture of a prescan, or the output file.
+//
+static int capture_append(struct CppCapture *c, const char *s, size_t n)
+{
+    if (c->len + n + 1 > c->cap) {
+        size_t cap = c->cap ? 2 * c->cap : 256;
+        while (cap < c->len + n + 1)
+            cap *= 2;
+        char *more = realloc(c->buf, cap);
+        if (!more)
+            return -1;
+        c->buf = more;
+        c->cap = cap;
+    }
+    memcpy(c->buf + c->len, s, n);
+    c->len += n;
+    c->buf[c->len] = '\0';
+    return 0;
+}
+
+coro(braam_call *) void out_write(const char *s, size_t n)
+{
+    if (n == 0)
+        return;
+    if (cpp.capture) {
+        if (capture_append(cpp.capture, s, n) < 0)
+            pperror("out of memory expanding an argument of macro '%s'", cpp.macro_name);
+        return;
+    }
+    await fwrite(s, 1, n, cpp.out_file);
+}
+
+coro(braam_call *) void out_printf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    if (cpp.capture) {
+        char small[256];
+        va_list again;
+        va_copy(again, ap);
+        int n = vsnprintf(small, sizeof small, fmt, again);
+        va_end(again);
+        if (n >= 0 && (size_t)n < sizeof small) {
+            await out_write(small, (size_t)n);
+        } else if (n >= 0) {
+            char *big = malloc((size_t)n + 1);
+            if (big) {
+                vsnprintf(big, (size_t)n + 1, fmt, ap);
+                await out_write(big, (size_t)n);
+                free(big);
+            }
         }
     } else {
-        while (p1 < cpp.tok_ptr)
-            putc(*p1++, f);
+        await vfprintf(cpp.out_file, fmt, ap);
     }
-    cpp.out_ptr = p1;
+    va_end(ap);
 }
 
 //
 // Write the newlines owed for spliced lines (pending_nl), right after a newline
 // was written, so the following text keeps its source line number.
 //
-void put_newlines()
+coro(braam_call *) void put_newlines(void)
 {
     for (; cpp.pending_nl > 0; --cpp.pending_nl)
-        putc('\n', cpp.out_file);
+        await out_write("\n", 1);
 }
 
 //
@@ -163,14 +215,14 @@ static int translate_trigraphs(char *buf, int n)
 // macro text, then the current file, then (on EOF) the file that #included it.
 // At true end of input it flushes and exits.  Returns the updated scan pointer.
 //
-char *refill_buffer(char *p)
+coro(braam_call *) char *refill_buffer(char *p)
 {
     // save chars from tok_ptr to p, read into arena at buf_mid contiguous with p.
     //
     char *np;
     const char *op;
 
-    flush_output();
+    await flush_output();
     np = cpp.buf_mid - (p - cpp.tok_ptr);
     op = cpp.tok_ptr;
     if (AT_BUF_START(np + 1)) {
@@ -269,13 +321,13 @@ char *refill_buffer(char *p)
                     pperror_at(cpp.if_file[i], cpp.if_line[i],
                                "unterminated conditional directive");
                 cpp.tok_ptr = p;
-                flush_output();
+                await flush_output();
                 exit_cpp();
             }
             cpp_close(cpp.in_fd);
             cpp.in_fd          = cpp.inc_fd[--cpp.inc_level];
             cpp.search_dirs[0] = cpp.inc_dir[cpp.inc_level];
-            emit_line_marker();
+            await emit_line_marker();
         }
     }
 }
@@ -289,7 +341,7 @@ char *refill_buffer(char *p)
 // the shifted scan pointer is returned.  If all pushback slots are in use it
 // first drains some by flushing.
 //
-char *spill_buffer(char *p)
+coro(braam_call *) char *spill_buffer(char *p)
 {
     char *np;
     const char *op;
@@ -299,11 +351,11 @@ char *spill_buffer(char *p)
         pperror("expanding macro '%s' needs more pushback than the preprocessor has",
                 cpp.macro_name);
         p = cpp.tok_ptr = cpp.buf_end;
-        flush_output(); // begin flushing pushback
+        await flush_output(); // begin flushing pushback
         while (cpp.push_top > cpp.inc_push_top[cpp.inc_level]) {
-            p = refill_buffer(p);
+            p = await refill_buffer(p);
             p = cpp.tok_ptr = cpp.buf_end;
-            flush_output();
+            await flush_output();
         }
     }
     if (cpp.free_top > 0)

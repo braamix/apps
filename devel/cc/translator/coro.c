@@ -361,6 +361,8 @@ static Tac_Val *coro_resume_fn(TacCtx *ctx, const char *g)
     return v;
 }
 
+static void init_frame(TacCtx *ctx, const Expr *g, Tac_Val *storage, Expr *args);
+
 // A frame for coroutine `g` (the EXPR_VAR naming it) at `storage` of `bytes`: set up
 // by the runtime, the root of a task of its own or, with a `parent` frame, of the
 // parent's task; then the arguments `args` stored by g$init.
@@ -372,7 +374,13 @@ static void setup_frame(TacCtx *ctx, const Expr *g, Tac_Val *storage, Tac_Val *b
     Tac_Type *sparams[] = { void_ptr(), size_type(), tac_type_ptr(size_type()),
                             tac_type_ptr(resume_type()), void_ptr() };
     tac_free_val(emit_call(ctx, "__coro_setup", void_ptr(), 5, sargs, sparams));
+    init_frame(ctx, g, storage, args);
+}
 
+// g$init(storage, args...): the arguments of a run of g (the EXPR_VAR naming it) stored in
+// its frame.
+static void init_frame(TacCtx *ctx, const Expr *g, Tac_Val *storage, Expr *args)
+{
     char *init              = suffixed(g->u.var, "$init");
     Tac_Type *it            = init_type(g->type);
     Tac_Instruction *in     = tac_new_instruction(TAC_INSTRUCTION_FUN_CALL);
@@ -496,23 +504,6 @@ static Tac_Val *emit_resume(TacCtx *ctx, Tac_Val *p, Tac_Val *signal)
 // __coro_resume does, without its checks or its indirect call.  They cannot fail here:
 // the frame is private to the await, which never resumes it once it is done or while it
 // runs, and destroys it only after it has suspended.
-static Tac_Val *emit_direct_resume(TacCtx *ctx, const char *g, Tac_Val *sub, Tac_Val *signal)
-{
-    Tac_Val *flags =
-        emit_binary(ctx, TAC_BINARY_LEFT_SHIFT, signal, val_int(1), tac_kind(TAC_TYPE_INT));
-    flags = emit_binary(ctx, TAC_BINARY_BITWISE_OR, flags, val_int(1), tac_kind(TAC_TYPE_INT));
-    emit_store(ctx, flags, emit_offset(ctx, sub->u.var_name, CO_FLAGS, tac_kind(TAC_TYPE_INT)));
-    char *name         = suffixed(g, "$resume");
-    Tac_Val *args[]    = { dup_val(sub) };
-    Tac_Type *params[] = { char_ptr() };
-    Tac_Val *status    = emit_call(ctx, name, tac_kind(TAC_TYPE_INT), 1, args, params);
-    xfree(name);
-    emit_store(ctx, val_int(0),
-               emit_offset(ctx, sub->u.var_name, CO_FLAGS, tac_kind(TAC_TYPE_INT)));
-    tac_free_val(sub);
-    return status;
-}
-
 // Memory off the arena of the task the coroutine being lowered belongs to, for a frame
 // of coroutine `g`, which a trap names when it does not fit.
 static Tac_Val *emit_push(TacCtx *ctx, Tac_Val *bytes, Tac_Val *align, const char *g)
@@ -740,45 +731,35 @@ Tac_Val *gen_await(TacCtx *ctx, Expr *e)
                            op->u.call.args);
         tac_free_val(desc);
     } else if (arena) {
-        const Expr *g = op->u.call.func;
-        Tac_Val *desc = coro_desc(ctx, g->u.var);
-        Tac_Val *size = emit_load(ctx, dup_val(desc), size_type());
-        Tac_Val *alp =
-            emit_offset(ctx, desc->u.var_name, (int)target_config->pointer_size, size_type());
-        Tac_Val *align = emit_load(ctx, alp, size_type());
-        sub = in_variable(ctx, emit_push(ctx, dup_val(size), align, g->u.var), void_ptr());
-        setup_frame(ctx, g, dup_val(sub), size, desc, own_frame(ctx), op->u.call.args);
+        // __coro_start: the frame off the arena, set up to join our task.
+        const Expr *g       = op->u.call.func;
+        Tac_Val *sargs[]    = { own_frame(ctx), coro_desc(ctx, g->u.var),
+                                coro_resume_fn(ctx, g->u.var),
+                                gen_string_constant(ctx, g->u.var, strlen(g->u.var)) };
+        Tac_Type *sparams[] = { void_ptr(), tac_type_ptr(size_type()), tac_type_ptr(resume_type()),
+                                char_ptr() };
+        sub = in_variable(ctx, emit_call(ctx, "__coro_start", void_ptr(), 4, sargs, sparams),
+                          void_ptr());
+        init_frame(ctx, g, dup_val(sub), op->u.call.args);
     } else {
         sub = in_variable(ctx, gen_expr(ctx, op), void_ptr());
     }
     int value_off, result_off, end, align;
     coro_layout(co->yield, e->type, &value_off, &result_off, &end, &align);
 
+    // __coro_step resumes it; suspended, its value is ours (at the same offset, the
+    // yield types being one), and so is the suspension.
     Tac_Val *sig = in_variable(ctx, val_int(0), tac_kind(TAC_TYPE_INT));
     char *loop   = new_temp(ctx);
     char *done   = new_temp(ctx);
     emit_label(ctx, loop);
-    const char *g = arena && !by_ptr ? op->u.call.func->u.var : NULL;
+    unsigned vsize   = unalias(co->yield)->kind == TYPE_VOID ? 0 : (unsigned)get_size(co->yield);
+    Tac_Val *rargs[] = { dup_val(sub), dup_val(sig), own_frame(ctx), val_uint((unsigned)value_off),
+                         val_uint(vsize) };
+    Tac_Type *rparams[] = { void_ptr(), tac_kind(TAC_TYPE_INT), void_ptr(), tac_kind(TAC_TYPE_UINT),
+                            tac_kind(TAC_TYPE_UINT) };
     emit_jump_if(ctx, true,
-                 g ? emit_direct_resume(ctx, g, dup_val(sub), dup_val(sig))
-                   : emit_resume(ctx, dup_val(sub), dup_val(sig)),
-                 done);
-
-    // Suspended: its value is ours, and so is the suspension.
-    if (unalias(co->yield)->kind != TYPE_VOID) {
-        Tac_Type *yt  = ast_type_to_tac_type(co->yield);
-        Tac_Val *from = emit_offset(ctx, sub->u.var_name, value_off, tac_clone_type(yt));
-        Tac_Val *to   = emit_offset(ctx, co->fp, value_off, yt);
-        if (is_aggregate(co->yield)) {
-            AggPlace dst = { NULL, 0, to->u.var_name };
-            AggPlace src = { NULL, 0, from->u.var_name };
-            gen_aggregate_copy(ctx, &dst, &src, co->yield);
-            tac_free_val(to);
-        } else {
-            emit_store(ctx, emit_load(ctx, dup_val(from), ast_type_to_tac_type(co->yield)), to);
-        }
-        tac_free_val(from);
-    }
+                 emit_call(ctx, "__coro_step", tac_kind(TAC_TYPE_INT), 5, rargs, rparams), done);
     Tac_Val *fargs[]    = { own_frame(ctx) };
     Tac_Type *fparams[] = { char_ptr() };
     Tac_Val *signal = emit_call(ctx, "__coro_suspend", tac_kind(TAC_TYPE_INT), 1, fargs, fparams);
@@ -789,10 +770,9 @@ Tac_Val *gen_await(TacCtx *ctx, Expr *e)
                  emit_binary(ctx, TAC_BINARY_EQUAL, dup_val(signal), val_int(CO_SIGNAL_DESTROY),
                              tac_kind(TAC_TYPE_INT)),
                  over);
-    tac_free_val(g ? emit_direct_resume(ctx, g, dup_val(sub), val_int(CO_SIGNAL_DESTROY))
-                   : emit_resume(ctx, dup_val(sub), val_int(CO_SIGNAL_DESTROY)));
-    if (arena)
-        emit_pop(ctx, dup_val(sub));
+    Tac_Val *dargs[]    = { own_frame(ctx), dup_val(sub), val_int(arena) };
+    Tac_Type *dparams[] = { void_ptr(), void_ptr(), tac_kind(TAC_TYPE_INT) };
+    emit_call(ctx, "__coro_drop", tac_kind(TAC_TYPE_VOID), 3, dargs, dparams);
     gen_finish(ctx, CO_STATE_DESTROYED);
     emit_label(ctx, over);
     emit_copy(ctx, signal, sig->u.var_name);
@@ -1030,9 +1010,8 @@ typedef struct {
     const char *except;
 } LiveAdd;
 
-static void add_live_cb(const char *key, intptr_t value, const void *arg)
+static void add_live_cb(const char *key, void *arg)
 {
-    (void)value;
     const LiveAdd *la = arg;
     if (!la->except || strcmp(key, la->except) != 0)
         add_home(la->s, key, 0, 1);
@@ -1045,9 +1024,9 @@ static Tac_Instruction *find_live_across(Split *s, Tac_Instruction *body)
     int n       = cfg->nblocks;
     StringMap none;
     map_init(&none);
-    StringMap *in_sets  = xalloc((n + 1) * sizeof(StringMap), __func__, __FILE__, __LINE__);
-    StringMap *out_sets = xalloc((n + 1) * sizeof(StringMap), __func__, __FILE__, __LINE__);
-    opt_live_solve(cfg, &none, &none, false, in_sets, out_sets);
+    OptLive lv;
+    opt_live_solve(&lv, cfg, &none, &none, false);
+    LiveWord *live = opt_live_new(&lv);
     for (int i = 0; i < n; i++) {
         int cnt = 0;
         for (const Tac_Instruction *in = cfg->blocks[i]->first; in; in = in->next)
@@ -1058,9 +1037,7 @@ static Tac_Instruction *find_live_across(Split *s, Tac_Instruction *body)
         int k                 = 0;
         for (Tac_Instruction *in = cfg->blocks[i]->first; in; in = in->next)
             ins[k++] = in;
-        StringMap live;
-        map_init(&live);
-        opt_live_copy(&live, &out_sets[i]);
+        opt_live_copy(&lv, live, opt_live_out(&lv, i));
         for (int j = cnt - 1; j >= 0; j--) {
             const Tac_Instruction *in = ins[j];
             const Tac_Val *dst        = NULL;
@@ -1068,18 +1045,16 @@ static Tac_Instruction *find_live_across(Split *s, Tac_Instruction *body)
                 dst = in->u.fun_call.dst;
             if (is_suspend(in)) {
                 LiveAdd la = { s, dst ? dst->u.var_name : NULL };
-                map_iterate(&live, add_live_cb, &la);
+                opt_live_each(&lv, live, add_live_cb, &la);
             }
             if (dst && dst->kind == TAC_VAL_VAR)
-                opt_live_remove(&live, dst->u.var_name); // a call defines its result
-            opt_live_transfer(&live, in, &none, &none);
+                opt_live_remove(&lv, live, dst->u.var_name); // a call defines its result
+            opt_live_transfer(&lv, live, in);
         }
-        map_destroy(&live);
         xfree(ins);
     }
-    opt_live_free(n, in_sets, out_sets);
-    xfree(in_sets);
-    xfree(out_sets);
+    xfree(live);
+    opt_live_free(&lv);
     map_destroy(&none);
     body = cfg_flatten(cfg);
     cfg_free(cfg);

@@ -1,19 +1,19 @@
-void putch(int c);
+#include <stdio.h>
 
-int main(void) {
-    putch(72);
-    putch(69);
-    putch(76);
-    putch(76);
-    putch(79);
-    putch(44);
-    putch(32);
-    putch(87);
-    putch(79);
-    putch(82);
-    putch(76);
-    putch(68);
-    putch(33);
-    putch(10);
+coro(braam_call *) int main(void) {
+    await putchar(72);
+    await putchar(69);
+    await putchar(76);
+    await putchar(76);
+    await putchar(79);
+    await putchar(44);
+    await putchar(32);
+    await putchar(87);
+    await putchar(79);
+    await putchar(82);
+    await putchar(76);
+    await putchar(68);
+    await putchar(33);
+    await putchar(10);
 }
 

@@ -118,7 +118,7 @@ static void vec_push(struct vec *v, char *s)
         v->data = realloc(v->data, v->cap * sizeof(*v->data));
         if (!v->data) {
             diag_prefix("error");
-            fprintf(stderr, "out of memory\n");
+            diag_printf("out of memory\n");
             exit(1);
         }
     }
@@ -188,7 +188,7 @@ static char *concat(const char *a, const char *b)
     char *s  = malloc(n);
     if (!s) {
         diag_prefix("error");
-        fprintf(stderr, "out of memory\n");
+        diag_printf("out of memory\n");
         exit(1);
     }
     snprintf(s, n, "%s%s", a, b);
@@ -210,10 +210,10 @@ static void diag_prefix(const char *kind)
         color = stderr_tty && !(no_color && no_color[0]) && !(term && strcmp(term, "dumb") == 0);
     }
     if (color)
-        fprintf(stderr, "\033[1m%s:\033[0m %s%s:\033[0m ", progname,
-                strcmp(kind, "note") == 0 ? "\033[1;36m" : "\033[1;31m", kind);
+        diag_printf("\033[1m%s:\033[0m %s%s:\033[0m ", progname,
+                    strcmp(kind, "note") == 0 ? "\033[1;36m" : "\033[1;31m", kind);
     else
-        fprintf(stderr, "%s: %s: ", progname, kind);
+        diag_printf("%s: %s: ", progname, kind);
 }
 
 //
@@ -226,9 +226,9 @@ static void error(const char *fmt, ...)
 
     va_start(ap, fmt);
     diag_prefix("error");
-    vfprintf(stderr, fmt, ap);
+    diag_vprintf(fmt, ap);
     va_end(ap);
-    fprintf(stderr, "\n");
+    diag_printf("\n");
     errflag = 1;
 }
 
@@ -515,12 +515,14 @@ static coro(braam_call *) int run(const char *tool, char *const argv[])
 {
     if (opt_v) {
         for (char *const *p = argv; *p; p++)
-            printf("%s ", *p);
-        putchar('\n');
+            await printf("%s ", *p);
+        await putchar('\n');
     }
     // stdout is buffered: without the flush the child would inherit a copy of
-    // whatever -v had put in the buffer.
+    // whatever -v had put in the buffer. The diagnostics held go before the
+    // child's.
     await fflush(stdout);
+    await diag_flush();
 
 #ifdef __braam__
     // No fork: the kernel spawns, looking a name without a '/' up on PATH.
@@ -542,7 +544,7 @@ static coro(braam_call *) int run(const char *tool, char *const argv[])
         // the parent, and letting it flush the parent's buffers or run the parent's
         // atexit() handlers would unlink the very temp files still in use.
         diag_prefix("error");
-        fprintf(stderr, "cannot run '%s': %s\n", tool, strerror(errno));
+        diag_printf("cannot run '%s': %s\n", tool, strerror(errno));
         fflush(stderr);
         _exit(127);
     }
@@ -887,7 +889,7 @@ static coro(braam_call *) int braam_stamp(const char *path)
             out[n++] = (unsigned char)(meta[i] >> (8 * k));
 
     f       = await fopen(path, "wb");
-    bool ok = f && fwrite(out, 1, n, f) == n;
+    bool ok = f && await fwrite(out, 1, n, f) == n;
     if (f && await fclose(f) != 0)
         ok = false;
     free(data);
@@ -967,48 +969,50 @@ static void select_target(const char *name)
         return;
     error("unknown target '%s'", name);
     diag_prefix("note");
-    fprintf(stderr, "the targets are");
+    diag_printf("the targets are");
     for (size_t i = 0; i < sizeof(targets) / sizeof(targets[0]); i++)
-        fprintf(stderr, " %s", targets[i].name);
-    fprintf(stderr, "\n");
+        diag_printf(" %s", targets[i].name);
+    diag_printf("\n");
     exit(1);
 }
 
-static void usage(int status)
+static coro(braam_call *) void usage(int status)
 {
-    printf("Usage:\n");
-    printf("    %s [options] file...\n", progname);
-    printf("Options:\n");
-    printf("    -t, --target NAME  Target: wasm32-braam, a process of Braam (the default)\n");
-    printf("    -c              Compile and assemble, but do not link\n");
-    printf("    -S              Compile only; emit assembly (.s)\n");
-    printf("    -E              Preprocess only; write to output or standard output\n");
-    printf("    -P              With -E, no line markers\n");
-    printf("    -x LANG         Input language: c, assembler-with-cpp, assembler or none\n");
-    printf("    -o file         Set output file name\n");
-    printf("    -O              Optimize (reserved; currently a no-op)\n");
-    printf("    -g              Emit debug info (reserved; currently a no-op)\n");
-    printf("    -v              Verbose: echo each sub-command\n");
-    printf("    -Dname[=val]    Predefine a preprocessor macro\n");
-    printf("    -Uname          Undefine a preprocessor macro\n");
-    printf("    -Ipath          Add a header search directory\n");
-    printf("    -Lpath          Add a library search directory (for the linker)\n");
-    printf("    -lname          Link against library libname (for the linker)\n");
-    printf("    -T file         Linker script\n");
-    printf(
+    await printf("Usage:\n");
+    await printf("    %s [options] file...\n", progname);
+    await printf("Options:\n");
+    await printf("    -t, --target NAME  Target: wasm32-braam, a process of Braam (the default)\n");
+    await printf("    -c              Compile and assemble, but do not link\n");
+    await printf("    -S              Compile only; emit assembly (.s)\n");
+    await printf("    -E              Preprocess only; write to output or standard output\n");
+    await printf("    -P              With -E, no line markers\n");
+    await printf("    -x LANG         Input language: c, assembler-with-cpp, assembler or none\n");
+    await printf("    -o file         Set output file name\n");
+    await printf("    -O              Optimize (reserved; currently a no-op)\n");
+    await printf("    -g              Emit debug info (reserved; currently a no-op)\n");
+    await printf("    -v              Verbose: echo each sub-command\n");
+    await printf("    -Dname[=val]    Predefine a preprocessor macro\n");
+    await printf("    -Uname          Undefine a preprocessor macro\n");
+    await printf("    -Ipath          Add a header search directory\n");
+    await printf("    -Lpath          Add a library search directory (for the linker)\n");
+    await printf("    -lname          Link against library libname (for the linker)\n");
+    await printf("    -T file         Linker script\n");
+    await printf(
         "    -nostdlib       Do not use the standard library dir, crt0.o or the implicit "
         "libraries\n");
-    printf("    -nostdinc       Do not add the standard include directory\n");
-    printf("    --initial-pages=N  The process's initial memory, in 64 KiB pages\n");
-    printf("                    (default 4)\n");
-    printf("    -fmax-errors=N  Stop after N errors (0: no limit; default 20)\n");
-    printf("    -fno-diagnostics-show-caret  Don't show the source line under a diagnostic\n");
-    printf("    -fdiagnostics-color[=WHEN]  Color diagnostics: always (the default WHEN), never\n");
-    printf("                    or auto (when stderr is a terminal; the default)\n");
-    printf("    -fno-diagnostics-color  Same as -fdiagnostics-color=never\n");
-    printf("    -W..., -f..., -std=..., -pedantic, -pipe, -arch A, -isysroot D\n");
-    printf("                    Accepted and ignored, for build systems made for GCC\n");
-    printf(
+    await printf("    -nostdinc       Do not add the standard include directory\n");
+    await printf("    --initial-pages=N  The process's initial memory, in 64 KiB pages\n");
+    await printf("                    (default 4)\n");
+    await printf("    -fmax-errors=N  Stop after N errors (0: no limit; default 20)\n");
+    await printf(
+        "    -fno-diagnostics-show-caret  Don't show the source line under a diagnostic\n");
+    await printf(
+        "    -fdiagnostics-color[=WHEN]  Color diagnostics: always (the default WHEN), never\n");
+    await printf("                    or auto (when stderr is a terminal; the default)\n");
+    await printf("    -fno-diagnostics-color  Same as -fdiagnostics-color=never\n");
+    await printf("    -W..., -f..., -std=..., -pedantic, -pipe, -arch A, -isysroot D\n");
+    await printf("                    Accepted and ignored, for build systems made for GCC\n");
+    await printf(
         "Inputs are dispatched by suffix: .c (compile), "
         ".S (preprocess + assemble), .s (assemble), .o and .a (link).\n");
     exit(status);
@@ -1074,7 +1078,7 @@ coro(braam_call *) int main(int argc, char *argv[])
             continue;
         }
         if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0)
-            usage(0);
+            await usage(0);
         if (strcmp(arg, "-x") == 0 && i + 1 >= argc) {
             error("missing argument to '%s'", arg);
             exit(1);

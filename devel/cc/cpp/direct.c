@@ -69,14 +69,14 @@ static int in_assembler(void)
 // new level on the include stack, save the current buffer contents aside (so we
 // can resume the including file at end-of-file), and start reading the new file.
 //
-static char *do_include(char *p)
+static coro(braam_call *) char *do_include(char *p)
 {
     int filok, inctype; // filok: file was opened; inctype: 0="" 1=<> 2=bad
     char *cp;
     char **dirp, *nfil;
     char filname[BUFSIZ];
 
-    p  = skip_blanks(p);
+    p  = await skip_blanks(p);
     cp = filname;
     if (*cpp.tok_ptr++ == '<') { // special <> syntax
         inctype = 1;
@@ -97,7 +97,7 @@ static char *do_include(char *p)
         ++cpp.false_level;
         for (;;) {
             cpp.out_ptr = cpp.tok_ptr = p;
-            p                         = scan_token(p);
+            p                         = await scan_token(p);
             if (*cpp.tok_ptr == '\n') {
                 --p;
                 *cp = '\0';
@@ -125,11 +125,11 @@ static char *do_include(char *p)
     ++cpp.false_level;
     do {
         cpp.out_ptr = cpp.tok_ptr = p;
-        p                         = scan_token(p);
+        p                         = await scan_token(p);
     } while (*cpp.tok_ptr != '\n');
     --cpp.false_level;
     cpp.tok_ptr = p;
-    flush_output();
+    await flush_output();
     if (inctype == 2)
         return (p);
     // look for included file
@@ -171,10 +171,10 @@ static char *do_include(char *p)
             ;
         cpp.side_ptr               = cp;
         cpp.inc_dir[cpp.inc_level] = cpp.search_dirs[0] = dir_of(save_string(nfil));
-        emit_line_marker();
+        await emit_line_marker();
         // save current contents of buffer
         while (!AT_BUF_END(p))
-            p = spill_buffer(p);
+            p = await spill_buffer(p);
         cpp.inc_push_top[cpp.inc_level] = cpp.push_top;
     }
     return (p);
@@ -186,7 +186,7 @@ static char *do_include(char *p)
 // do_define().  "name" alone becomes "name 1"; "name=value" becomes
 // "name value".  Returns the created symbol.
 //
-struct symtab *define_symbol(const char *s)
+coro(braam_call *) struct symtab *define_symbol(const char *s)
 {
     char buf[BUFSIZ];
     char *p;
@@ -211,7 +211,7 @@ struct symtab *define_symbol(const char *s)
     cpp.buf_end = p;
     *--p        = '\n';
     SET_SLOW_SCAN();
-    do_define(buf);
+    await do_define(buf);
     return (cpp.last_sym);
 }
 
@@ -221,13 +221,13 @@ struct symtab *define_symbol(const char *s)
 // hash seed so that directives live in their own corner of the table and never
 // collide with ordinary macro names.  Returns the entry (saved in cpp.sym_*).
 //
-struct symtab *install_directive(const char *s)
+coro(braam_call *) struct symtab *install_directive(const char *s)
 {
     struct symtab *sp;
 
     cpp.hash_seed   = SALT;
     *cpp.side_ptr++ = SALT;
-    sp              = define_symbol(s);
+    sp              = await define_symbol(s);
     --sp->name;
     cpp.hash_seed = 0;
     return (sp);
@@ -265,39 +265,39 @@ static void enter_if(int was_live, int taken)
 // true_level/false_level), #undef, and #line.  Text inside a false conditional
 // branch is scanned but not emitted.  This function does not return.
 //
-char *process_directives(char *p)
+coro(braam_call *) char *process_directives(char *p)
 {
     for (;;) {
         const struct symtab *np; // the directive keyword's symbol-table entry
         cpp.dir_line = 0;
         SET_FAST_SCAN();
-        p = scan_token(p);
+        p = await scan_token(p);
         if (*cpp.tok_ptr == '\n')
             ++cpp.tok_ptr;
         cpp.dir_line  = cpp.line_no[cpp.inc_level];
         cpp.dir_level = cpp.inc_level;
-        flush_output();
+        await flush_output();
         SET_SLOW_SCAN();
-        p              = skip_blanks(p);
+        p              = await skip_blanks(p);
         *--cpp.tok_ptr = SALT;
         cpp.out_ptr    = cpp.tok_ptr;
         ++cpp.false_level;
-        np = lookup_token(cpp.tok_ptr, p, 0);
+        np = await lookup_token(cpp.tok_ptr, p, 0);
         --cpp.false_level;
         if (np == cpp.sym_define) { // define
             if (cpp.false_level == 0) {
-                p = do_define(p);
+                p = await do_define(p);
                 continue;
             }
         } else if (np == cpp.sym_include) { // include
             if (cpp.false_level == 0) {
-                p = do_include(p);
+                p = await do_include(p);
                 continue;
             }
         } else if (np == cpp.sym_ifndef) { // ifndef
             ++cpp.false_level;
-            p  = skip_blanks(p);
-            np = lookup_token(cpp.tok_ptr, p, 0);
+            p  = await skip_blanks(p);
+            np = await lookup_token(cpp.tok_ptr, p, 0);
             --cpp.false_level;
             {
                 int was_live = (cpp.false_level == 0);
@@ -305,8 +305,8 @@ char *process_directives(char *p)
             }
         } else if (np == cpp.sym_ifdef) { // ifdef
             ++cpp.false_level;
-            p  = skip_blanks(p);
-            np = lookup_token(cpp.tok_ptr, p, 0);
+            p  = await skip_blanks(p);
+            np = await lookup_token(cpp.tok_ptr, p, 0);
             --cpp.false_level;
             {
                 int was_live = (cpp.false_level == 0);
@@ -318,7 +318,7 @@ char *process_directives(char *p)
             else {
                 if (cpp.false_level) {
                     if (--cpp.false_level == 0)
-                        emit_line_marker();
+                        await emit_line_marker();
                 } else if (cpp.true_level)
                     --cpp.true_level;
                 --cpp.if_top;
@@ -339,7 +339,7 @@ char *process_directives(char *p)
                 // so drop it and evaluate the #elif condition.
                 cpp.scan_ptr = p;
                 --cpp.false_level;
-                if (eval_if()) {
+                if (await eval_if()) {
                     ++cpp.true_level;
                     cpp.if_taken[cpp.if_top] = 1;
                 } else
@@ -360,7 +360,7 @@ char *process_directives(char *p)
                 --cpp.false_level;
                 ++cpp.true_level;
                 cpp.if_taken[cpp.if_top] = 1;
-                emit_line_marker();
+                await emit_line_marker();
             }
         } else if (np == cpp.sym_undef) { // undefine
             if (cpp.false_level == 0) {
@@ -368,8 +368,8 @@ char *process_directives(char *p)
                 char saved;
                 int is_def;
                 ++cpp.false_level;
-                p   = skip_blanks(p);
-                usp = lookup_token(cpp.tok_ptr, p, 0); // look only, do not DROP yet
+                p   = await skip_blanks(p);
+                usp = await lookup_token(cpp.tok_ptr, p, 0); // look only, do not DROP yet
                 // "defined" is never a table entry, so match it by token text.
                 saved  = *p;
                 *p     = '\0';
@@ -380,7 +380,7 @@ char *process_directives(char *p)
                 else if (usp->name && (unsigned char)usp->name[0] != DROP && usp->predefined)
                     pperror("predefined macro '%s' cannot be undefined", usp->name);
                 else
-                    lookup_token(cpp.tok_ptr, p, DROP);
+                    await lookup_token(cpp.tok_ptr, p, DROP);
                 --cpp.false_level;
             }
         } else if (np == cpp.sym_if) { // if
@@ -388,7 +388,7 @@ char *process_directives(char *p)
             int taken    = 0;
             if (was_live) {
                 cpp.scan_ptr = p;
-                taken        = eval_if();
+                taken        = await eval_if();
                 p            = cpp.scan_ptr;
             }
             enter_if(was_live, taken);
@@ -407,13 +407,13 @@ char *process_directives(char *p)
                 // Collect the raw operand text up to end of line.  Reaching the
                 // '\n' here counts the directive line (scan_token bumps line_no);
                 // we set the presumed line number afterwards so it is not perturbed.
-                p  = skip_blanks(p);
+                p  = await skip_blanks(p);
                 cp = optext;
                 while (*cpp.tok_ptr != '\n') {
                     while (cpp.tok_ptr < p && cp < optext + sizeof(optext) - 1)
                         *cp++ = *cpp.tok_ptr++;
                     cpp.out_ptr = cpp.tok_ptr = p;
-                    p                         = scan_token(p);
+                    p                         = await scan_token(p);
                 }
                 // Back p onto the terminating '\n' the last scan_token consumed:
                 // the loop resumes with a FAST scan looking for "\n#", and a p
@@ -423,7 +423,7 @@ char *process_directives(char *p)
                 p   = cpp.tok_ptr;
                 *cp = '\0';
                 // §6.10.4p5: the operands are macro-expanded before use.
-                expand_text(optext, cp, expbuf, sizeof(expbuf));
+                await expand_text(optext, cp, expbuf, sizeof(expbuf));
                 e = expbuf;
                 while (*e == ' ' || *e == '\t')
                     ++e;
@@ -448,7 +448,7 @@ char *process_directives(char *p)
                     if (fname)
                         cpp.inc_file[cpp.inc_level] = save_string(fname);
                     if (cpp.opt_no_lines == 0)
-                        emit_line_marker();
+                        await emit_line_marker();
                     // ...and one low, the re-scanned newline bumping it back.
                     --cpp.line_no[cpp.inc_level];
                 }
@@ -459,12 +459,12 @@ char *process_directives(char *p)
                 static char msg[BUFSIZ]; // the diagnostic tokens, used literally
                 char *cp = msg;
 
-                p = skip_blanks(p);
+                p = await skip_blanks(p);
                 while (*cpp.tok_ptr != '\n') {
                     while (cpp.tok_ptr < p && cp < msg + sizeof(msg) - 1)
                         *cp++ = *cpp.tok_ptr++;
                     cpp.out_ptr = cpp.tok_ptr = p;
-                    p                         = scan_token(p);
+                    p                         = await scan_token(p);
                 }
                 *cp = '\0';
                 pperror("#error %s", msg); // msg is a %s arg, so a '%' in it is harmless
@@ -478,7 +478,7 @@ char *process_directives(char *p)
             // the line without error (a conformant tool ignores unknown pragmas).
             if (cpp.false_level == 0) {
                 ++cpp.false_level;
-                p = skip_blanks(p);
+                p = await skip_blanks(p);
                 --cpp.false_level;
                 if (p - cpp.tok_ptr == 4 && strncmp(cpp.tok_ptr, "once", 4) == 0)
                     add_once_file(cpp.in_fd);
@@ -492,7 +492,7 @@ char *process_directives(char *p)
         ++cpp.false_level;
         while (*cpp.tok_ptr != '\n') {
             cpp.out_ptr = cpp.tok_ptr = p;
-            p                         = scan_token(p);
+            p                         = await scan_token(p);
         }
         --cpp.false_level;
     }

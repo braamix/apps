@@ -3,7 +3,7 @@
 
 set(VCC_LIBUTIL
     libutil/c_escape.c libutil/string_map.c libutil/xalloc.c libutil/wio.c
-    libutil/float128.c libutil/srcloc.c libutil/memstream.c libutil/readfile.c)
+    libutil/float128.c libutil/srcloc.c libutil/readfile.c)
 set(VCC_AST
     ast/ast_alloc.c ast/ast_print.c ast/ast_free.c ast/ast_clone.c ast/ast_yaml.c
     ast/ast_export.c ast/ast_import.c ast/ast_compare.c ast/type_to_c.c)

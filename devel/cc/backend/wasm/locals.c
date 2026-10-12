@@ -151,6 +151,10 @@ static int find(int *rep, int v)
     return v;
 }
 
+// The memory the coalescing of one function may take, of a pass whose whole process
+// has 100 MB.
+#define COALESCE_MAX_BYTES (16u << 20)
+
 // Whether sets a and b have a member in common.
 static bool meets(const Set *a, const Set *b, int words)
 {
@@ -173,6 +177,12 @@ void wasm_coalesce_locals(Wasm_Func *fn)
     Graph g;
     build_graph(fn, &g);
     int n = g.n, words = (nv + 63) / 64;
+    // A live set per instruction and a conflict set per local: past the budget, as for
+    // a coroutine awaiting hundreds of times, the locals stay as they are.
+    if (((size_t)n + nv) * words * sizeof(Set) > COALESCE_MAX_BYTES) {
+        free_graph(&g);
+        return;
+    }
 
     // Liveness: live[i] before instruction i.
     Set *live = xalloc(((size_t)(n + 1) * words + 1) * sizeof(Set), __func__, __FILE__, __LINE__);

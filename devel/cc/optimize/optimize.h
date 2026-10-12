@@ -27,10 +27,10 @@ OptFlags opt_flags_default(void);
 extern int optimize_debug;
 
 // Gated trace print: emits to stdout only when optimize_debug is set.
-#define OPT_TRACE(...)           \
-    do {                         \
-        if (optimize_debug)      \
-            printf(__VA_ARGS__); \
+#define OPT_TRACE(...)                 \
+    do {                               \
+        if (optimize_debug)            \
+            trace_printf(__VA_ARGS__); \
     } while (0)
 
 // Dump one instruction (via tac_print_instruction) under `prefix`, gated by

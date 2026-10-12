@@ -17,9 +17,9 @@ static _Noreturn void bad_input(const char *fmt, ...)
     va_list ap;
     va_start(ap, fmt);
     diag_print_prefix(stderr, diag_loc, "error");
-    fprintf(stderr, "the input is not TAC from this compiler: ");
-    vfprintf(stderr, fmt, ap);
-    fputc('\n', stderr);
+    diag_printf("the input is not TAC from this compiler: ");
+    diag_vprintf(fmt, ap);
+    diag_printf("%c", '\n');
     va_end(ap);
     exit(1);
 }
@@ -264,16 +264,19 @@ static Tac_StaticInit *import_static_init(WFILE *in)
 
 static Tac_Param *import_param(WFILE *in)
 {
-    size_t tag = wgetw(in);
-    check_input(in, "param tag");
-    if (tag != TAG_TAC_PARAM)
-        return NULL;
-    Tac_Param *p = tac_new_param();
-    p->name      = wgetstr(in);
-    check_input(in, "param name");
-    p->type = import_type(in);
-    p->next = import_param(in);
-    return p;
+    Tac_Param *head = NULL, **tail = &head;
+    for (;;) { // in a loop: a function may have thousands of locals
+        size_t tag = wgetw(in);
+        check_input(in, "param tag");
+        if (tag != TAG_TAC_PARAM)
+            return head;
+        Tac_Param *p = tac_new_param();
+        p->name      = wgetstr(in);
+        check_input(in, "param name");
+        p->type = import_type(in);
+        *tail   = p;
+        tail    = &p->next;
+    }
 }
 
 static Tac_StaticLocal *import_static_local(WFILE *in)
@@ -293,7 +296,8 @@ static Tac_StaticLocal *import_static_local(WFILE *in)
     return sl;
 }
 
-static Tac_Instruction *import_instr(WFILE *in)
+// One instruction, or NULL at the end of the list.
+static Tac_Instruction *import_one(WFILE *in)
 {
     size_t tag = wgetw(in);
     check_input(in, "instr tag");
@@ -440,8 +444,16 @@ static Tac_Instruction *import_instr(WFILE *in)
     default:
         break;
     }
-    instr->next = import_instr(in);
     return instr;
+}
+
+// A list of instructions, in a loop: a function's body may be tens of thousands long.
+static Tac_Instruction *import_instr(WFILE *in)
+{
+    Tac_Instruction *head = NULL, **tail = &head;
+    for (Tac_Instruction *instr; (instr = import_one(in)) != NULL; tail = &instr->next)
+        *tail = instr;
+    return head;
 }
 
 Tac_TopLevel *tac_import_toplevel(WFILE *in)

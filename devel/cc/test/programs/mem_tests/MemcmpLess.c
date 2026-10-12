@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <string.h>
-static void body(void) {
+static coro(braam_call *) void body(void) {
     // 'A'(65) - 'B'(66) = -1
-    printf("%d\n", memcmp("AAAA", "ABAA", 4));
+    await printf("%d\n", memcmp("AAAA", "ABAA", 4));
 }
-int main(void) {
-    body();
+coro(braam_call *) int main(void) {
+    await body();
     return 0;
 }
 

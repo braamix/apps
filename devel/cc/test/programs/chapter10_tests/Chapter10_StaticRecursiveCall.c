@@ -1,15 +1,15 @@
-void putch(int ch);
+#include <stdio.h>
 
-int print_alphabet(void) {
+coro(braam_call *) int print_alphabet(void) {
     static int count = 0;
-    putch(count + 65);
+    await putchar(count + 65);
     count = count + 1;
     if (count < 26) {
-        print_alphabet();
+        await print_alphabet();
     }
     return count;
 }
 
-int main(void) {
-    print_alphabet();
+coro(braam_call *) int main(void) {
+    await print_alphabet();
 }

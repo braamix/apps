@@ -57,7 +57,7 @@ void semantic_recover(const ExternalDecl *d)
 int round_away_from_zero(int alignment, int size)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (size % alignment == 0) {
         return size;
@@ -73,7 +73,7 @@ int round_away_from_zero(int alignment, int size)
 size_t get_array_size(const Type *t)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     t = unalias(t);
     if (t->kind != TYPE_ARRAY) {
@@ -106,8 +106,8 @@ void set_array_size(Type *t, size_t size)
 void validate_type(const Type *t)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
-        print_type(stdout, t, 4);
+        trace_printf("--- %s()\n", __func__);
+        trace_call(print_type(stdout, t, 4));
     }
     if (!t)
         return;
@@ -197,7 +197,7 @@ void validate_type(const Type *t)
 Expr *convert_to_type(Expr *e, const Type *target_type)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     const Type *src = unalias(e->type);
     const Type *tgt = unalias(target_type);
@@ -215,7 +215,7 @@ Expr *convert_to_type(Expr *e, const Type *target_type)
 Expr *convert_to_kind(Expr *e, TypeKind target_kind)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     if (e->type->kind == target_kind)
         return e; // Avoid unnecessary casts
@@ -231,7 +231,7 @@ Expr *convert_to_kind(Expr *e, TypeKind target_kind)
 const Type *get_common_type(const Type *t1, const Type *t2)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     static const Type int_type         = { .kind = TYPE_INT };
     static const Type uint_type        = { .kind = TYPE_UINT };
@@ -265,7 +265,7 @@ const Type *get_common_type(const Type *t1, const Type *t2)
 bool is_zero_int(const Literal *c)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     switch (c->kind) {
     case LITERAL_INT:
@@ -293,7 +293,7 @@ bool is_zero_int(const Literal *c)
 bool is_null_pointer_constant(const Expr *e)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     return e->kind == EXPR_LITERAL && is_zero_int(e->u.literal);
 }
@@ -302,7 +302,7 @@ bool is_null_pointer_constant(const Expr *e)
 Type *common_pointer_type(const Expr *e1, const Expr *e2)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     const Type *p1 = unalias(e1->type), *p2 = unalias(e2->type);
     if (p1->kind == p2->kind && is_pointer(p1) &&
@@ -413,7 +413,7 @@ bool compatible_type(const Type *target, const Type *src)
 Expr *coerce_for_assignment(Expr *e, const Type *target_type, const char *context)
 {
     if (semantic_debug) {
-        printf("--- %s()\n", __func__);
+        trace_printf("--- %s()\n", __func__);
     }
     const Type *e_type = unalias(e->type);
     target_type        = unalias(target_type);

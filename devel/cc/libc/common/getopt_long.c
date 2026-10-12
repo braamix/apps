@@ -99,15 +99,25 @@ static char *place = EMSG; /* option letter processing */
 /* vcc: err(3)'s warnx, with argv[0]'s last component for the program's name. */
 static const char *progname;
 
+void __plain_write(int fd, const char *s); /* the target's runtime: a write from plain code */
+
+/* vcc: getopt is a plain function, and on Braam fprintf a coroutine. */
 static void warnx(const char *fmt, ...)
 {
+    char msg[256];
     va_list ap;
+    int n;
 
+    n = snprintf(msg, sizeof msg - 1, "%s: ", progname);
+    if (n < 0 || n >= (int)sizeof msg - 1)
+        n = 0;
     va_start(ap, fmt);
-    fprintf(stderr, "%s: ", progname);
-    vfprintf(stderr, fmt, ap);
-    fputc('\n', stderr);
+    vsnprintf(msg + n, sizeof msg - 1 - n, fmt, ap);
     va_end(ap);
+    n          = (int)strlen(msg);
+    msg[n]     = '\n';
+    msg[n + 1] = '\0';
+    __plain_write(2, msg);
 }
 
 /* XXX: set optreset to 1 rather than these two */
