@@ -20,7 +20,7 @@ target_link_libraries(libutil m)
 
 add_library(ast STATIC
     ast/ast_alloc.c ast/ast_print.c ast/ast_free.c ast/ast_clone.c ast/ast_yaml.c
-    ast/ast_graphviz.c ast/ast_export.c ast/ast_import.c ast/ast_compare.c
+    ast/ast_export.c ast/ast_import.c ast/ast_compare.c
     ast/type_to_c.c)
 target_include_directories(ast PUBLIC ast)
 target_link_libraries(ast libutil)
@@ -36,7 +36,7 @@ target_link_libraries(parser scanner ast libutil)
 
 add_library(tac STATIC
     tac/tac_alloc.c tac/tac_print.c tac/tac_free.c tac/tac_compare.c tac/tac_yaml.c
-    tac/tac_import.c tac/tac_export.c tac/tac_graphviz.c tac/tac_walk.c
+    tac/tac_import.c tac/tac_export.c tac/tac_walk.c
     tac/tac_verify.c tac/tac_abi.c)
 target_include_directories(tac PUBLIC tac)
 target_link_libraries(tac libutil)

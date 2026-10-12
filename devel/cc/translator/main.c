@@ -29,8 +29,7 @@ static FILE *output_file;
 //
 typedef enum {
     FORMAT_TAC, // Default: binary TAC
-    FORMAT_YAML,
-    FORMAT_DOT
+    FORMAT_YAML
 } OutputFormat;
 
 //
@@ -40,7 +39,7 @@ typedef struct {
     int verbose;             // -v or --verbose
     int help;                // -h or --help
     int debug;               // -D or --debug
-    OutputFormat format;     // Output format (--tac, --yaml, --dot)
+    OutputFormat format;     // Output format (--tac, --yaml)
     const char *target_name; // -t/--target
     char *input_file;        // Input filename
     char *output_file;       // Output filename (optional)
@@ -71,7 +70,6 @@ static void print_usage(const char *prog_name)
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "    --tac               Emit TAC in binary format (default)\n");
     fprintf(stderr, "    --yaml              Emit YAML format\n");
-    fprintf(stderr, "    --dot               Emit Graphviz DOT script\n");
     fprintf(stderr, "    --no-unreachable    Disable unreachable code elimination\n");
     fprintf(stderr, "    --no-copy-prop      Disable copy propagation\n");
     fprintf(stderr, "    --no-cse            Disable common-subexpression elimination\n");
@@ -132,9 +130,7 @@ static char *generate_output_filename(const char *input_file, OutputFormat forma
     // Find the last '.' in input_file to replace extension
     const char *ext     = strrchr(input_file, '.');
     size_t base_len     = ext ? (size_t)(ext - input_file) : strlen(input_file);
-    const char *new_ext = (format == FORMAT_DOT)    ? ".dot"
-                          : (format == FORMAT_YAML) ? ".yaml"
-                                                    : ".tac";
+    const char *new_ext = (format == FORMAT_YAML) ? ".yaml" : ".tac";
     size_t new_ext_len  = strlen(new_ext);
 
     // Allocate memory for new filename
@@ -161,7 +157,6 @@ static int parse_args(int argc, char *argv[], Args *args)
         { "debug", no_argument, 0, 'D' },              //
         { "tac", no_argument, 0, 'T' },                //
         { "yaml", no_argument, 0, 'y' },               //
-        { "dot", no_argument, 0, 'd' },                //
         { "target", required_argument, 0, 't' },       //
         { "no-unreachable", no_argument, 0, 256 },     //
         { "no-copy-prop", no_argument, 0, 257 },       //
@@ -205,9 +200,6 @@ static int parse_args(int argc, char *argv[], Args *args)
         // Long options without short equivalents
         case 'y':
             args->format = FORMAT_YAML;
-            break;
-        case 'd':
-            args->format = FORMAT_DOT;
             break;
         case 'T':
             args->format = FORMAT_TAC;
@@ -293,9 +285,6 @@ static void open_input_output(const Args *args)
         case FORMAT_YAML:
             printf("Emitting YAML format to %s\n", args->output_file);
             break;
-        case FORMAT_DOT:
-            printf("Emitting Graphviz DOT script to %s\n", args->output_file);
-            break;
         }
     }
     input_fd = open(args->input_file, O_RDONLY);
@@ -329,10 +318,6 @@ static void emit_tac_toplevel(const Args *args, WFILE *tac_out, const Tac_TopLev
         break;
     case FORMAT_YAML:
         tac_export_yaml(output_file, tac);
-        fflush(output_file);
-        break;
-    case FORMAT_DOT:
-        tac_export_dot(output_file, tac);
         fflush(output_file);
         break;
     }

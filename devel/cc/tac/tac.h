@@ -717,11 +717,6 @@ int tac_verify_program(const Tac_TopLevel *program, const Tac_Layout *layout, FI
 const char *tac_instruction_name(Tac_InstructionKind kind);
 
 //
-// Graphviz (instruction-level sketch)
-//
-void tac_export_dot(FILE *fd, const Tac_TopLevel *toplevel);
-
-//
 // Compare
 //
 bool tac_compare_const(const Tac_Const *a, const Tac_Const *b);

@@ -25,8 +25,7 @@ static const SrcLoc no_loc;
 //
 typedef enum {
     FORMAT_AST, // Default: binary AST
-    FORMAT_YAML,
-    FORMAT_DOT
+    FORMAT_YAML
 } OutputFormat;
 
 //
@@ -36,7 +35,7 @@ typedef struct {
     int verbose;         // -v or --verbose
     int help;            // -h or --help
     int debug;           // -D or --debug
-    OutputFormat format; // Output format (--ast, --yaml, --dot)
+    OutputFormat format; // Output format (--ast, --yaml)
     char *input_file;    // Input filename
     char *output_file;   // Output filename (optional)
 } Args;
@@ -55,7 +54,6 @@ void print_usage(const char *prog_name)
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "    --ast            Emit AST in binary format (default)\n");
     fprintf(stderr, "    --yaml           Emit YAML format\n");
-    fprintf(stderr, "    --dot            Emit Graphviz DOT script\n");
     fprintf(stderr, "    --max-errors=N   Stop after N errors (0: no limit; default 20)\n");
     fprintf(stderr, "    --no-show-source Don't show the source line under a diagnostic\n");
     fprintf(stderr, "    --color=WHEN     Color diagnostics: always, never or auto (default)\n");
@@ -85,9 +83,7 @@ char *generate_output_filename(const char *input_file, OutputFormat format)
     // Find the last '.' in input_file to replace extension
     const char *ext     = strrchr(input_file, '.');
     size_t base_len     = ext ? (size_t)(ext - input_file) : strlen(input_file);
-    const char *new_ext = (format == FORMAT_DOT)    ? ".dot"
-                          : (format == FORMAT_YAML) ? ".yaml"
-                                                    : ".ast";
+    const char *new_ext = (format == FORMAT_YAML) ? ".yaml" : ".ast";
     size_t new_ext_len  = strlen(new_ext);
 
     // Allocate memory for new filename
@@ -114,7 +110,6 @@ int parse_args(int argc, char *argv[], Args *args)
         { "debug", no_argument, 0, 'D' },   //
         { "ast", no_argument, 0, 'a' },     //
         { "yaml", no_argument, 0, 'y' },    //
-        { "dot", no_argument, 0, 'd' },     //
         { "max-errors", required_argument, 0, 256 },
         { "no-show-source", no_argument, 0, 257 },
         { "color", required_argument, 0, 258 },
@@ -143,9 +138,6 @@ int parse_args(int argc, char *argv[], Args *args)
         // Long options without short equivalents
         case 'y':
             args->format = FORMAT_YAML;
-            break;
-        case 'd':
-            args->format = FORMAT_DOT;
             break;
         case 'a':
             args->format = FORMAT_AST;
@@ -238,12 +230,6 @@ void process_file(const Args *args)
             printf("Emitting YAML format to %s\n", args->output_file);
         }
         export_yaml(output_file, program);
-        break;
-    case FORMAT_DOT:
-        if (args->verbose) {
-            printf("Emitting Graphviz DOT script to %s\n", args->output_file);
-        }
-        export_dot(output_file, program);
         break;
     }
 
