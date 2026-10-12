@@ -156,7 +156,7 @@ opens a file from inside `process_directives`. Plan:
   return to `main`.
 
 **4.7 `cc`, the driver.** `run()` spawns and waits (`#ifdef __braam__`),
-`make_temp` uses step 3's names, `locate_self` reads `/pkg/bin/cc`, the
+`make_temp` uses `mkstemps`, `locate_self` reads `/pkg/bin/cc`, the
 passes are found in `libexec/`, assembly is `as` and the link is `ld` with
 `--braam-pages` (vcc's `--initial-pages`) and `-L<store>/lib`. Check `ld`
 for every option vcc's link passes (`--stack-first`, `-z stack-size`,
