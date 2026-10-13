@@ -1,0 +1,4 @@
+echo a.o built
+a.o built
+echo [base more] [one] [two] [a.o]
+[base more] [one] [two] [a.o]

@@ -53,7 +53,7 @@ static int firstrd = 0;
 
 static void readenv(void);
 
-static int rdd1(char *buf, int len);
+static Task<int> rdd1(char *buf, int len);
 
 // argv, copied out of the Args views once: main() blanks the words it has used.
 #define NARGS 200
@@ -463,7 +463,7 @@ Task<int> rddescf(const char *descfile)
 
     if (!firstrd++) {
         if (!noruleflag)
-            rdd1(NULL, 0);
+            co_await rdd1(NULL, 0);
         readenv();
     }
     if (stopped)
@@ -471,7 +471,7 @@ Task<int> rddescf(const char *descfile)
     if (!unequal(descfile, "-")) {
         if ((buf = co_await rdall(stdin, &len)) == NULL)
             co_return 1;
-        r = rdd1(buf, len);
+        r = co_await rdd1(buf, len);
         free(buf);
         co_return r;
     }
@@ -481,7 +481,7 @@ Task<int> rddescf(const char *descfile)
         co_await b_fclose(k);
         if (buf == NULL)
             co_return 1;
-        r = rdd1(buf, len);
+        r = co_await rdd1(buf, len);
         free(buf);
         co_return r;
     }
@@ -489,18 +489,79 @@ Task<int> rddescf(const char *descfile)
     co_return 1;
 }
 
-static int rdd1(char *buf, int len)
+static Task<int> rdd1(char *buf, int len)
 {
     fin      = buf;
     finend   = buf + len;
     yylineno = 0;
     zznextc  = 0;
 
-    if (yyparse())
+    if (co_await yyparse())
         fatal("Description file error");
 
     fin = NULL;
-    return 0;
+    co_return 0;
+}
+
+// The files an include line names, read whole and put on the parser's input
+// stack, last first, so that the first is read first.  A missing one stops
+// make unless it was -include or sinclude.
+Task<void> includef(char *names, int opt)
+{
+    char **w, **bufs, *s;
+    int *lens, n, i, len;
+    FILE *k;
+
+    for (n = 0, s = names; *s;) {
+        while (*s == ' ' || *s == '\t')
+            ++s;
+        if (*s == '\0')
+            break;
+        ++n;
+        while (*s && *s != ' ' && *s != '\t')
+            ++s;
+    }
+    w    = (char **)ckalloc((n + 1) * sizeof(char *));
+    bufs = (char **)ckalloc((n + 1) * sizeof(char *));
+    lens = (int *)ckalloc((n + 1) * sizeof(int));
+    for (i = 0, s = names; i < n; ++i) {
+        while (*s == ' ' || *s == '\t')
+            ++s;
+        w[i] = s;
+        while (*s && *s != ' ' && *s != '\t')
+            ++s;
+        if (*s)
+            *s++ = '\0';
+    }
+
+    for (i = 0; i < n && !stopped; ++i) {
+        bufs[i] = NULL;
+        len     = 0;
+        if ((k = co_await b_fopen(w[i], "r")) != NULL) {
+            bufs[i] = co_await rdall(k, &len);
+            co_await b_fclose(k);
+        }
+        if (bufs[i] == NULL) {
+            if (!opt)
+                fatal1("Cannot open %s", w[i]);
+            continue;
+        }
+        // A last line with no newline ends where the file does, not on the
+        // line after the include.
+        if (len == 0 || bufs[i][len - 1] != '\n') {
+            bufs[i]        = (char *)realloc(bufs[i], len + 1);
+            bufs[i][len++] = '\n';
+        }
+        lens[i] = len;
+    }
+    for (i = n; i-- > 0;)
+        if (bufs[i] != NULL) {
+            if (stopped || !pushin(bufs[i], lens[i]))
+                free(bufs[i]);
+        }
+    free(w);
+    free(bufs);
+    free(lens);
 }
 
 void printdesc(int prntflag)

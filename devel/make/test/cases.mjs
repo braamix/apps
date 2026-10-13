@@ -154,6 +154,21 @@ const SETUP = {
         put(`${DIR}/all`, "", T0 + 5000);
         put(`${DIR}/clean`, "", T0 + 5000);
     },
+    // Three hundred includes in a row, each a parse loop await that parks on a
+    // read; and a chain fifty deep.
+    incmany: () => {
+        let mk = "";
+        for (let i = 0; i < 300; i++) {
+            put(`${DIR}/i${i}.mk`, `LAST = ${i}\n`);
+            mk += `include i${i}.mk\n`;
+        }
+        put(`${DIR}/many.mk`, mk + "all:\n\techo [$(LAST)]\n");
+    },
+    incdeep: () => {
+        for (let i = 0; i < 50; i++)
+            put(`${DIR}/c${i}.mk`, i < 49 ? `include c${i + 1}.mk\n` : "DEEP = 49\n");
+        put(`${DIR}/c0.mk`, "include c1.mk\nall:\n\techo [$(DEEP)]\n");
+    },
     interrupt: () => put(`${DIR}/src`, "", T0 + 1000),
     precious: () => put(`${DIR}/src`, "", T0 + 1000),
     longmember: () => put(`${DIR}/libl.a`, archive(

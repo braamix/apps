@@ -24,6 +24,10 @@ typedef long long TIMETYPE;
 #define OUTMAX   2500 // longest command line after substitution
 #define QBUFMAX  1500 // longest $? list
 
+// include may nest this deep, which is far past any use and short of a file
+// that includes itself running make out of memory.
+#define MAXINCL 100
+
 // subst() recurses once per nested macro reference.
 #define MAXSUBST 100
 
@@ -128,7 +132,9 @@ extern char *zznextc;
 extern int yylineno;
 extern char *fin; // the description file, read whole; NULL while reading builtin[]
 extern char *finend;
-int yyparse(void);
+Task<int> yyparse(void);
+int pushin(char *buf, int len);
+Task<void> includef(char *names, int opt);
 int yylex(void);
 
 // files.cpp

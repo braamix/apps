@@ -37,7 +37,12 @@ enum {
     COLON,
     DOUBLECOLON,
     GREATER,
+    INCLUDE, // include, -include or sinclude: incnames names the files
 };
+
+// What an INCLUDE line named, expanded, and whether a missing file is fine.
+static char incnames[INMAX];
+static int incopt;
 
 // yacc's %union.
 static union {
@@ -103,7 +108,11 @@ static void rule(struct depblock *deps, struct shblock *shell)
 // 0 at the end of the file, 1 when the description is in error.  Every error
 // is yyerror()'s, which stops make, so `error' never recovers: as in v7, the
 // first is the last.
-int yyparse(void)
+//
+// A coroutine for `include' alone, which reads a file.  The lexer under it is
+// plain: an await per token that did not park would cost native stack per
+// token, where a file read parks every time.
+Task<int> yyparse(void)
 {
     int tok;
     struct depblock *deps;
@@ -112,12 +121,17 @@ int yyparse(void)
     tok = yylex();
     for (;;) {
         if (stopped)
-            return 1;
+            co_return 1;
         switch (tok) {
         case 0:
-            return 0;
+            co_return 0;
 
         case MACRODEF:
+            tok = yylex();
+            continue;
+
+        case INCLUDE:
+            co_await includef(incnames, incopt);
             tok = yylex();
             continue;
 
@@ -129,7 +143,7 @@ int yyparse(void)
 
         default:
             yyerror("syntax error");
-            return 1;
+            co_return 1;
         }
 
         // namelist
@@ -138,12 +152,12 @@ int yyparse(void)
         while ((tok = yylex()) == NAME) {
             if (nlefts >= NLEFTS) {
                 fatal("Too many lefts");
-                return 1;
+                co_return 1;
             }
             lefts[nlefts++] = yylval.ynameblock;
         }
         if (stopped)
-            return 1;
+            co_return 1;
 
         // deplist : the empty one is yacc's default reduction, so any token
         // that is not a separator takes it.
@@ -152,7 +166,7 @@ int yyparse(void)
 
             snprintf(junk, sizeof(junk), "%d", yylineno);
             fatal1("Must be a separator on rules line %s", junk);
-            return 1;
+            co_return 1;
         }
         sepc    = (tok == COLON ? ALLDEPS : SOMEDEPS);
         prevdep = 0;
@@ -168,7 +182,7 @@ int yyparse(void)
             prevdep = pp;
         }
         if (stopped)
-            return 1;
+            co_return 1;
 
         // shellist
         shell = 0;
@@ -181,7 +195,7 @@ int yyparse(void)
             tok     = yylex();
         }
         if (stopped)
-            return 1;
+            co_return 1;
 
         rule(deps, shell);
     }
@@ -192,6 +206,41 @@ int yylineno;
 char *fin;
 char *finend;
 
+// The input stack: a file `include' named, above the one that named it, which
+// is put back where it was when the included one ends.
+struct inbuf {
+    struct inbuf *prev;
+    char *own; // the included file's buffer
+    char *fin, *finend;
+    int lineno;
+};
+static struct inbuf *instack;
+static int indepth;
+
+// buf is the file's whole text, ending in a newline, and is the stack's now.
+int pushin(char *buf, int len)
+{
+    struct inbuf *s;
+
+    if (indepth >= MAXINCL) {
+        fatal("include nested too deeply");
+        free(buf);
+        return NO;
+    }
+    s         = ALLOC(inbuf);
+    s->prev   = instack;
+    s->own    = buf;
+    s->fin    = fin;
+    s->finend = finend;
+    s->lineno = yylineno;
+    instack   = s;
+    fin       = buf;
+    finend    = buf + len;
+    yylineno  = 0;
+    ++indepth;
+    return YES;
+}
+
 // Scratch at file scope: three INMAX char arrays.
 static char word[INMAX];
 static char templin[INMAX];
@@ -200,7 +249,38 @@ static char yytext[INMAX];
 // getc(fin), from the description file read whole.
 static int getfin(void)
 {
+    struct inbuf *s;
+
+    while (fin >= finend && (s = instack) != NULL) {
+        fin      = s->fin;
+        finend   = s->finend;
+        yylineno = s->lineno;
+        instack  = s->prev;
+        free(s->own);
+        free(s);
+        --indepth;
+    }
     return fin < finend ? (unsigned char)*fin++ : EOF;
+}
+
+// include, -include and sinclude, at the start of a line and followed by a
+// blank: what comes after the word, or NULL.
+static char *isinclude(char *t, int *optp)
+{
+    static const char *const words[] = { "include", "-include", "sinclude" };
+    size_t n;
+    int i;
+
+    while (*t == ' ')
+        ++t;
+    for (i = 0; i < 3; ++i) {
+        n = strlen(words[i]);
+        if (!strncmp(t, words[i], n) && (t[n] == ' ' || t[n] == '\t' || t[n] == '\0')) {
+            *optp = i > 0;
+            return t + n;
+        }
+    }
+    return NULL;
 }
 
 int yylex(void)
@@ -381,6 +461,13 @@ endloop:
                 eqsign(text);
                 return MACRODEF;
             }
+    }
+
+    // include: the rest of the line, expanded, names the files, which
+    // yyparse() reads (README.md, "Includes").
+    if ((p = isinclude(text, &incopt)) != NULL) {
+        subst(p, incnames, incnames + INMAX - 1);
+        return stopped ? 0 : INCLUDE;
     }
 
     // substitute for macros on dependency line up to the semicolon if any
