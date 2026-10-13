@@ -31,7 +31,7 @@ foreach(f ${WASM_SHARE_SRC} ${WASM_DOCS})
     list(APPEND WASM_SHARE ${f}=share/${n})
 endforeach()
 
-braam_add_package(NAME wasm VERSION 0.5-r0
+braam_add_package(NAME wasm VERSION 0.5-r1
                   FIELD "T=WebAssembly tools: ld, strip, ar, size, nm, disasm, wat and as"
                   FILES ${WASM_SHARE}
                         ${CMAKE_CURRENT_SOURCE_DIR}/wat/README.md=share/Wat.md
