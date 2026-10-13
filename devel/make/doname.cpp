@@ -282,7 +282,7 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
 Task<int> docom(struct shblock *q)
 {
     char *s, *at;
-    int ign, nopr, sil;
+    int ign, nopr, sil, plus;
     // At file scope, not in a frame: OUTMAX would be past a coroutine's 512
     // bytes, and only one docom() is ever live.
     static char string[OUTMAX];
@@ -307,19 +307,24 @@ Task<int> docom(struct shblock *q)
             if (stopped)
                 co_return YES;
 
+            // A + line, or one naming $(MAKE), runs under -n too: that is how
+            // a recursive make passes -n down rather than being skipped.
             ign  = ignerr || isnamed(".IGNORE", at);
             nopr = NO;
-            for (s = string; *s == '-' || *s == '@'; ++s)
+            plus = strstr(q->shbp, "$(MAKE)") || strstr(q->shbp, "${MAKE}");
+            for (s = string; *s == '-' || *s == '@' || *s == '+'; ++s)
                 if (*s == '-')
                     ign = YES;
-                else
+                else if (*s == '@')
                     nopr = YES;
+                else
+                    plus = YES;
 
             if (s[0] == '\0')
                 continue;
             if (!sil && (!nopr || noexflag))
                 mprintf("%s%s\n", (noexflag ? "" : prompt), s);
-            if (noexflag)
+            if (noexflag && !plus)
                 continue;
 
             if (co_await docom1(s, ign) && !ign) {

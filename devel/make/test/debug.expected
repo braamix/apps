@@ -4,6 +4,10 @@ Open directories:
 Macros:
 	? = 
 	@ = (null)
+	MAKEFLAGS = nr
+	MAKE = make
+	HOME = /home
+	PATH = /bin:/pkg/bin
 	$ = $
 
 

@@ -1,6 +1,7 @@
 // make's cases: each <case>.args is one run in /tmp/t, where every fixture
 // here is planted, and <case>.expected is its stdout and stderr together;
-// <case>.status the exit status when it is not 0, <case>.in its stdin.  The
+// <case>.status the exit status when it is not 0, <case>.in its stdin, and
+// <case>.env NAME=value words for its environment.  The
 // first twenty-six are the BESM-6 port's; README.md, "Tests", says what the
 // rest add.  --bless writes what came out as the expectation.
 
@@ -205,7 +206,10 @@ for (const name of names) {
         sh(`wait %${job}; echo $? >/tmp/st`);
         sh("cd /");
     } else {
-        put("/tmp/run", `cd ${DIR}\nmake ${args} <${stdin} >/tmp/out 2>&1\necho $? >/tmp/st\n`);
+        const env = existsSync(join(HERE, name + ".env"))
+            ? readFileSync(join(HERE, name + ".env"), "utf8").trim() + " " : "";
+        put("/tmp/run",
+            `cd ${DIR}\n${env}make ${args} <${stdin} >/tmp/out 2>&1\necho $? >/tmp/st\n`);
         sh("sh /tmp/run");
     }
 

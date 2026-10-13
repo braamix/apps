@@ -1,4 +1,7 @@
 Macros:
+	MAKE = make
+	HOME = /home
+	PATH = /bin:/pkg/bin
 	$ = $
 
 

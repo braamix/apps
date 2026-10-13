@@ -40,14 +40,18 @@ int questflag  = NO;
 int ndocoms    = NO;
 int ignerr     = NO; // default is to stop on error
 int okdel      = YES;
+int envflag    = NO;
 int inarglist;
-const char *prompt = "";
+const char *makename0 = "make"; // argv[0], for $(MAKE)
+const char *prompt    = "";
 char junkname[20];
 char funny[256];
 
 const char **linesptr = builtin;
 
 static int firstrd = 0;
+
+static void readenv(void);
 
 static int rdd1(char *buf, int len);
 
@@ -71,6 +75,8 @@ Task<i32> proc_main(Args args)
     avbuf[argc] = 0;
 
     co_await sig_catch(SIG_INT);
+    if (argc > 0 && avbuf[0][0])
+        makename0 = avbuf[0];
 
     st = co_await make_main(argc, avbuf);
     if (stopped)
@@ -80,17 +86,168 @@ Task<i32> proc_main(Args args)
     co_return st;
 }
 
+// One option letter, from the command line or MAKEFLAGS.  NO if unknown.
+static int setflag(char c)
+{
+    switch (c) {
+    case 'd':
+        dbgflag = YES;
+        break;
+
+    case 'e':
+        envflag = YES;
+        break;
+
+    case 'p':
+        prtrflag = YES;
+        break;
+
+    case 's':
+        silflag = YES;
+        break;
+
+    case 'i':
+        ignerr = YES;
+        break;
+
+    case 'S':
+        keepgoing = NO;
+        break;
+
+    case 'k':
+        keepgoing = YES;
+        break;
+
+    case 'n':
+        noexflag = YES;
+        break;
+
+    case 'r':
+        noruleflag = YES;
+        break;
+
+    case 't':
+        touchflag = YES;
+        break;
+
+    case 'q':
+        questflag = YES;
+        break;
+
+    default:
+        return NO;
+    }
+    return YES;
+}
+
+// The macros from the command line and from MAKEFLAGS, as typed, for the
+// MAKEFLAGS a child is given.
+static char *cmdmacros;
+
+static void addmacro(const char *def)
+{
+    char *t, *d;
+    const char *s;
+    size_t n = cmdmacros ? strlen(cmdmacros) : 0;
+
+    t = (char *)ckalloc(n + 2 * strlen(def) + 2);
+    if (cmdmacros)
+        memcpy(t, cmdmacros, n);
+    d = t + n;
+    if (n)
+        *d++ = ' ';
+    for (s = def; *s; *d++ = *s++)
+        if (*s == ' ' || *s == '\t' || *s == '\\')
+            *d++ = '\\'; // a blank in a value is escaped, as GNU make writes it
+    *d = '\0';
+    free(cmdmacros);
+    cmdmacros = t;
+}
+
+// MAKEFLAGS, as a parent make wrote it or a user set it: option letters, with
+// or without a dash, and macro definitions, which count as the command line's
+// but lose to it.
+static void readmakeflags(void)
+{
+    Str env = proc_env("MAKEFLAGS");
+    char *buf, *w, *d, *s;
+
+    if (env.size() == 0)
+        return;
+    buf = (char *)ckalloc(env.size() + 1);
+    memcpy(buf, env.data(), env.size());
+    for (s = buf; *s;) {
+        while (*s == ' ' || *s == '\t')
+            ++s;
+        if (*s == '\0')
+            break;
+        for (w = d = s; *s && *s != ' ' && *s != '\t'; *d++ = *s++)
+            if (*s == '\\' && s[1])
+                ++s;
+        if (*s)
+            ++s;
+        *d = '\0';
+        if (!strcmp(w, "--"))
+            continue;
+        if (strchr(w, '=')) {
+            addmacro(w);
+            inarglist = 1;
+            eqsign(copys(w));
+            inarglist = 0;
+        } else
+            for (d = w + (*w == '-'); *d; ++d)
+                setflag(*d);
+    }
+    free(buf);
+}
+
+// MAKEFLAGS for the children: the letters a child should act on, and the
+// command line's macros.
+static void writemakeflags(void)
+{
+    char flags[16], *d = flags, *mf;
+    size_t n;
+
+    if (envflag)
+        *d++ = 'e';
+    if (ignerr && !srchname(".IGNORE"))
+        *d++ = 'i';
+    if (keepgoing)
+        *d++ = 'k';
+    if (noexflag)
+        *d++ = 'n';
+    if (questflag)
+        *d++ = 'q';
+    if (noruleflag)
+        *d++ = 'r';
+    if (silflag && !srchname(".SILENT"))
+        *d++ = 's';
+    if (touchflag)
+        *d++ = 't';
+    *d = '\0';
+
+    n  = strlen(flags) + (cmdmacros ? strlen(cmdmacros) + 1 : 0);
+    mf = (char *)ckalloc(n + 1);
+    strcpy(mf, flags);
+    if (cmdmacros) {
+        if (*flags)
+            strcat(mf, " ");
+        strcat(mf, cmdmacros);
+    }
+    setvar("MAKEFLAGS", mf);
+    childenv(mf);
+}
+
 static Task<int> make_main(int argc, char *argv[])
 {
     struct nameblock *p;
     int i, j;
-    int descset, nfargs, errs = 0;
+    int nfargs, ndescf = 0, errs = 0;
     TIMETYPE tjunk;
     char c;
     const char *s;
     static char onechar[2] = "X";
-
-    descset = 0;
+    static char *descf[NARGS];
 
     funny['\0'] = (META | TERMINAL);
     for (s = "=|^();&<>*?[]:$`'\"\\\n"; *s; ++s)
@@ -100,70 +257,29 @@ static Task<int> make_main(int argc, char *argv[])
 
     inarglist = 1;
     for (i = 1; i < argc; ++i)
-        if (argv[i] != 0 && argv[i][0] != '-' && eqsign(argv[i]))
-            argv[i] = 0;
+        if (argv[i] != 0 && argv[i][0] != '-' && strchr(argv[i], '=')) {
+            addmacro(argv[i]);
+            if (eqsign(argv[i]))
+                argv[i] = 0;
+        }
 
     setvar("$", (char *)"$");
     inarglist = 0;
+    readmakeflags();
 
+    // Every option before any file is read, as POSIX has it: v7 read a -f
+    // file the moment it met it, before the options after it.
     for (i = 1; i < argc; ++i)
         if (argv[i] != 0 && argv[i][0] == '-') {
             for (j = 1; (c = argv[i][j]) != '\0'; ++j)
-                switch (c) {
-                case 'd':
-                    dbgflag = YES;
-                    break;
-
-                case 'p':
-                    prtrflag = YES;
-                    break;
-
-                case 's':
-                    silflag = YES;
-                    break;
-
-                case 'i':
-                    ignerr = YES;
-                    break;
-
-                case 'S':
-                    keepgoing = NO;
-                    break;
-
-                case 'k':
-                    keepgoing = YES;
-                    break;
-
-                case 'n':
-                    noexflag = YES;
-                    break;
-
-                case 'r':
-                    noruleflag = YES;
-                    break;
-
-                case 't':
-                    touchflag = YES;
-                    break;
-
-                case 'q':
-                    questflag = YES;
-                    break;
-
-                case 'f':
-                    if (i >= argc - 1) {
+                if (c == 'f') {
+                    if (i >= argc - 1 || argv[i + 1] == 0) {
                         fatal("No description argument after -f flag");
                         co_return 1;
                     }
-                    if (co_await rddescf(argv[i + 1]))
-                        fatal1("Cannot open %s", argv[i + 1]);
-                    if (stopped)
-                        co_return 1;
-                    argv[i + 1] = 0;
-                    ++descset;
-                    break;
-
-                default:
+                    descf[ndescf++] = argv[i + 1];
+                    argv[i + 1]     = 0;
+                } else if (!setflag(c)) {
                     onechar[0] = c;
                     fatal1("Unknown flag argument %s", onechar);
                     co_return 1;
@@ -172,7 +288,13 @@ static Task<int> make_main(int argc, char *argv[])
             argv[i] = 0;
         }
 
-    if (!descset)
+    for (i = 0; i < ndescf; ++i) {
+        if (co_await rddescf(descf[i]))
+            fatal1("Cannot open %s", descf[i]);
+        if (stopped)
+            co_return 1;
+    }
+    if (!ndescf)
         if (co_await rddescf("makefile"))
             co_await rddescf("Makefile");
     if (stopped)
@@ -189,6 +311,7 @@ static Task<int> make_main(int argc, char *argv[])
         silflag = 1;
     if ((p = srchname(".SUFFIXES")))
         sufflist = p->linep;
+    writemakeflags();
 
     nfargs = 0;
 
@@ -304,6 +427,32 @@ static Task<char *> rdall(FILE *k, int *lenp)
     co_return buf;
 }
 
+// The environment, between the built-in rules and the makefile: a makefile's
+// macro beats it, and it beats a built-in one; -e reverses the first.  SHELL
+// is not taken, as POSIX has it.  MAKE is the name make was run by.
+static void readenv(void)
+{
+    usize i, n = proc_env_count();
+    Str e;
+    char *def, *v;
+
+    inarglist = envflag;
+    for (i = 0; i < n; ++i) {
+        e = proc_env_at(i);
+        if (e.starts_with("SHELL=") || e.starts_with("MAKEFLAGS="))
+            continue;
+        def = (char *)ckalloc(e.size() + 1);
+        memcpy(def, e.data(), e.size());
+        if ((v = strchr(def, '=')) != NULL && v != def) {
+            *v++ = '\0';
+            setvar(def, v);
+        } else
+            free(def);
+    }
+    inarglist = 0;
+    setvar("MAKE", (char *)makename0);
+}
+
 // Read and parse a description file.  It is read whole first, so the parser
 // under it is plain code and never waits.
 Task<int> rddescf(const char *descfile)
@@ -315,6 +464,7 @@ Task<int> rddescf(const char *descfile)
     if (!firstrd++) {
         if (!noruleflag)
             rdd1(NULL, 0);
+        readenv();
     }
     if (stopped)
         co_return 1;

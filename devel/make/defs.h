@@ -109,7 +109,9 @@ extern int questflag;
 extern int ndocoms;
 extern int ignerr;
 extern int okdel;
+extern int envflag;
 extern int inarglist;
+extern const char *makename0;
 extern const char *prompt;
 extern char junkname[20];
 extern const char **linesptr;
@@ -143,6 +145,7 @@ Task<void> expand(struct depblock *q);
 // dosys.cpp
 Task<int> dosys(char *comstring, int nohalt);
 Task<void> touch(int force, char *name);
+void childenv(const char *makeflags);
 
 // misc.cpp
 struct nameblock *srchname(const char *s);

@@ -36,11 +36,31 @@ static int metas(char *s)
     return c;
 }
 
+// A child's environment: this process's, with the MAKEFLAGS make_main() made.
+static Str *cenv;
+static Args cenvargs;
+
+void childenv(const char *makeflags)
+{
+    usize i, k, n = proc_env_count();
+    char *mf;
+
+    cenv = (Str *)ckalloc((n + 1) * sizeof(Str));
+    for (i = k = 0; i < n; ++i)
+        if (!proc_env_at(i).starts_with("MAKEFLAGS="))
+            cenv[k++] = proc_env_at(i);
+    mf = (char *)ckalloc(strlen(makeflags) + sizeof("MAKEFLAGS="));
+    strcpy(mf, "MAKEFLAGS=");
+    strcat(mf, makeflags);
+    cenv[k++] = Str(mf, strlen(mf));
+    cenvargs  = Args{ Span<const Str>(cenv, k) };
+}
+
 // fork() and exec() are one spawn(): the child is entered with this process's
 // three streams and nothing else, so there is nothing for v7's doclose() to do.
 static Task<int> run(Span<const Str> argv)
 {
-    Result<u32> r = co_await spawn(Args{ argv });
+    Result<u32> r = co_await spawn(Args{ argv }, ChildIo{}, cenv ? &cenvargs : nullptr);
 
     if (r.is_err()) {
         if (r.error() == Error::NotFound)
