@@ -148,6 +148,12 @@ const SETUP = {
     // No makefile at all: the built-in .c: rule makes hello from hello.c.
     single: () => put(`${DIR}/hello.c`, "int x;\n"),
     singlecmd: () => put(`${DIR}/hello.c`, "int x;\n"),
+    // Files named like the phony targets, newer than anything: ignored.
+    phony: () => {
+        put(`${DIR}/prog`, "", T0 + 1000);
+        put(`${DIR}/all`, "", T0 + 5000);
+        put(`${DIR}/clean`, "", T0 + 5000);
+    },
     interrupt: () => put(`${DIR}/src`, "", T0 + 1000),
     precious: () => put(`${DIR}/src`, "", T0 + 1000),
     longmember: () => put(`${DIR}/libl.a`, archive(

@@ -305,7 +305,8 @@ int setvar(const char *v, char *s)
         p->varval  = s;
         p->simple  = NO;
         p->noreset = inarglist;
-        if (p->used && unequal(v, "@") && unequal(v, "*") && unequal(v, "<") && unequal(v, "?"))
+        if (p->used && unequal(v, "@") && unequal(v, "*") && unequal(v, "<") && unequal(v, "?") &&
+            unequal(v, "^"))
             diag("Warning: %s changed after being used\n", v);
         return YES;
     }
@@ -457,6 +458,34 @@ struct chain *appendq(struct chain *head, char *tail)
         return head;
     } else
         return p;
+}
+
+// appendq(), unless the name is there already.
+struct chain *appendu(struct chain *head, char *tail)
+{
+    struct chain *q;
+
+    for (q = head; q; q = q->nextp)
+        if (!unequal(q->datap, tail))
+            return head;
+    return appendq(head, tail);
+}
+
+// The same at the front, the name moving there if it was further on.
+struct chain *prependu(struct chain *head, char *name)
+{
+    struct chain *p, **pp;
+
+    for (pp = &head; *pp; pp = &(*pp)->nextp)
+        if (!unequal((*pp)->datap, name)) {
+            p   = *pp;
+            *pp = p->nextp;
+            break;
+        }
+    p        = ALLOC(chain);
+    p->datap = name;
+    p->nextp = head;
+    return p;
 }
 
 char *mkqlist(struct chain *p)

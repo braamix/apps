@@ -1,0 +1,4 @@
+echo [a.c b.c] [a.c]
+[a.c b.c] [a.c]
+echo [hdr.h] [hdr.h] [x]
+[hdr.h] [hdr.h] [x]

@@ -164,6 +164,8 @@ void fatal1(const char *s, const char *t);
 void fatal(const char *s);
 void yyerror(const char *s);
 struct chain *appendq(struct chain *head, char *tail);
+struct chain *appendu(struct chain *head, char *tail);
+struct chain *prependu(struct chain *head, char *name);
 char *mkqlist(struct chain *p);
 
 // exit() traps here, so fatal() and its kind stop rather than exit: they record

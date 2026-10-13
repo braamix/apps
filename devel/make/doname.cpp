@@ -16,9 +16,9 @@ static Task<int> docom1(char *comstring, int nohalt);
 
 // Find a suffix rule that makes p.  Returns the source file's name block and
 // sets *rulep to the rule's, or NULL if there is none; prefix and sourcename are
-// the caller's buffers, 100 bytes each.  `single' allows a single-suffix rule.
+// the caller's buffers, 100 bytes each.
 static Task<struct nameblock *> implicit(struct nameblock *p, char *prefix, char *sourcename,
-                                         struct nameblock **rulep, int single)
+                                         struct nameblock **rulep)
 {
     struct lineblock *lp, *lp1;
     struct depblock *suffp, *suffp1;
@@ -52,10 +52,7 @@ static Task<struct nameblock *> implicit(struct nameblock *p, char *prefix, char
 
     // POSIX's single-suffix rules: `.c:' makes a target from the target's name
     // with .c after it, as hello from hello.c.  Only a suffix with a rule of
-    // its own counts; .SUFFIXES names the rest.  Only for a target with no
-    // commands of its own, as POSIX has it.
-    if (!single)
-        co_return NULL;
+    // its own counts; .SUFFIXES names the rest.
     for (lp = sufflist; lp; lp = lp->nxtlineblock)
         for (suffp = lp->depp; suffp; suffp = suffp->nxtdepblock) {
             p1 = suffp->depname;
@@ -76,7 +73,8 @@ static Task<struct nameblock *> implicit(struct nameblock *p, char *prefix, char
 
 // Run the commands that bring p up to date and return its new time.
 static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, struct shblock *explcom,
-                             struct shblock *implcom, struct chain *qchain, int *errstatp)
+                             struct shblock *implcom, struct chain *qchain, struct chain *allq,
+                             int *errstatp)
 {
     struct nameblock *p1;
     struct lineblock *lp2;
@@ -85,6 +83,7 @@ static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, struct shblock 
     ptime = (tdep > 0 ? tdep : co_await prestime());
     setvar("@", p->namep);
     setvar("?", mkqlist(qchain));
+    setvar("^", copys(mkqlist(allq)));
     if (explcom)
         *errstatp += co_await docom(explcom);
     else if (implcom)
@@ -107,7 +106,7 @@ static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, struct shblock 
         co_return 0;
 
     setvar("@", (char *)NULL);
-    if (noexflag || (ptime = co_await exists(p->namep)) == 0)
+    if (noexflag || isnamed(".PHONY", p->namep) || (ptime = co_await exists(p->namep)) == 0)
         ptime = co_await prestime();
     co_return ptime;
 }
@@ -131,7 +130,8 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     struct lineblock *lp;
     struct lineblock *lp2;
     struct names *nb;
-    struct chain *qchain;
+    struct chain *qchain, *allq, *lineq;
+    int phony;
 
     if (p == 0) {
         *tval = 0;
@@ -150,7 +150,9 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     tdep    = 0;
     implcom = 0;
     explcom = 0;
-    ptime   = co_await exists(p->namep);
+    // A .PHONY target is no file: never looked for, and always remade.
+    phony   = isnamed(".PHONY", p->namep);
+    ptime   = phony ? 0 : co_await exists(p->namep);
     ptime1  = 0;
     didwork = NO;
     p->done = 1; // avoid infinite loops
@@ -158,6 +160,7 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
         co_return 1;
 
     qchain = NULL;
+    allq   = NULL; // $^: every prerequisite, once each
 
     // Expand any names that have embedded metacharaters
     for (lp = p->linep; lp; lp = lp->nxtlineblock)
@@ -172,7 +175,8 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
 
     // make sure all dependents are up to date
     for (lp = p->linep; lp; lp = lp->nxtlineblock) {
-        td = 0;
+        td    = 0;
+        lineq = NULL;
         for (q = lp->depp; q; q = q->nxtdepblock) {
             // A name already done, or one expand() emptied, answers without
             // waiting: a co_await is a call, and costs native stack until
@@ -196,6 +200,8 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
                 td = td1;
             if (ptime < td1)
                 qchain = appendq(qchain, q->depname->namep);
+            allq  = appendu(allq, q->depname->namep);
+            lineq = appendu(lineq, q->depname->namep);
         }
         if (p->septype == SOMEDEPS) {
             if (lp->shp != 0)
@@ -204,6 +210,8 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
                     okdel  = NO;
                     setvar("@", p->namep);
                     setvar("?", mkqlist(qchain));
+                    setvar("^", copys(mkqlist(lineq)));
+                    setvar("<", lineq ? lineq->datap : (char *)"");
                     qchain = NULL;
                     if (!questflag)
                         errstat += co_await docom(lp->shp);
@@ -232,8 +240,25 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     // Look for implicit dependents, using suffix rules
     p1 = NULL;
     nb = ALLOC(names);
-    if ((p2 = co_await implicit(p, nb->prefix, nb->sourcename, &p1,
-                                explcom == 0 && p->septype != SOMEDEPS)) != NULL) {
+    p2 = NULL;
+    // Only a target with no commands of its own, as POSIX has it: v7 looked
+    // for every target, and gave one with commands a prerequisite besides.
+    if (!phony && explcom == 0 && p->septype != SOMEDEPS)
+        p2 = co_await implicit(p, nb->prefix, nb->sourcename, &p1);
+    // $< in an explicit rule is its first prerequisite, and $* the target
+    // less a suffix .SUFFIXES knows, as GNU make has them; an inference rule
+    // sets its own below.  v7 left both as the last inference rule set them.
+    setvar("<", allq ? allq->datap : (char *)"");
+    setvar("*", (char *)"");
+    if (strlen(p->namep) < sizeof(nb->prefix))
+        for (lp = sufflist; lp; lp = lp->nxtlineblock)
+            for (q = lp->depp; q; q = q->nxtdepblock)
+                if (q->depname && suffix(p->namep, q->depname->namep, nb->prefix)) {
+                    setvar("*", copys(nb->prefix));
+                    goto stemmed;
+                }
+stemmed:
+    if (p2 != NULL) {
         errstat += co_await doname(p2, reclevel + 1, &td);
         if (stopped)
             co_return 1;
@@ -245,6 +270,7 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
             tdep = td;
         setvar("*", nb->prefix);
         setvar("<", copys(nb->sourcename));
+        allq = prependu(allq, p2->namep); // the inferred prerequisite first, as GNU has it
         for (lp2 = p1->linep; lp2; lp2 = lp2->nxtlineblock)
             if ((implcom = lp2->shp))
                 break;
@@ -254,7 +280,7 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
         co_return 1;
 
     if (errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0)))
-        ptime = co_await makeit(p, tdep, explcom, implcom, qchain, &errstat);
+        ptime = co_await makeit(p, tdep, explcom, implcom, qchain, allq, &errstat);
 
     else if (errstat != 0 && reclevel == 0)
         mprintf("`%s' not remade because of errors\n", p->namep);

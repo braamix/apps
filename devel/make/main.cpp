@@ -356,7 +356,7 @@ Task<void> intrupt()
     char *p;
 
     if (okdel && !noexflag && !touchflag && (p = varptr("@")->varval) && co_await exists(p) > 0 &&
-        !isprecious(p)) {
+        !isprecious(p) && !isnamed(".PHONY", p)) {
         diag("\n***  %s removed.", p);
         co_await b_unlink(p);
     }

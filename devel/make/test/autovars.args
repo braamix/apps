@@ -1,0 +1,1 @@
+-f autovars.mk prog x.o

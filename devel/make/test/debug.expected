@@ -2,8 +2,11 @@ doname(solo,0)
 echo solo
 Open directories:
 Macros:
+	^ = 
 	? = 
 	@ = (null)
+	* = 
+	< = 
 	MAKEFLAGS = nr
 	MAKE = make
 	HOME = /home
