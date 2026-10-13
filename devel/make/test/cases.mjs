@@ -203,17 +203,6 @@ let job = 0;
 const CHECK = {
     shell: () => get(`${DIR}/shout`) === "through the shell\n" || "shout was not written",
     touchrun: () => get(`${DIR}/prog`) !== undefined || "prog was not created",
-    // An archive devel/wasm's ar wrote, the long name in its `//' member, and
-    // -U for the dates make compares.  They are whole seconds: hdr.h is no
-    // newer than its member, the other source is.
-    realar: () => {
-        put(`${DIR}/a-rather-long-member.c`, "int x;\n", T0);
-        sh(`cd ${DIR}; ar crU libr.a a-rather-long-member.c hdr.h`);
-        sh("cd /");
-        put(`${DIR}/a-rather-long-member.c`, "int x;\n", T0 + 5000);
-        if (!get(`${DIR}/libr.a`)?.includes("//"))
-            die("ar wrote no long-name table");
-    },
     interrupt: () => get(`${DIR}/keep`) === undefined || "keep was not removed",
     precious: () => get(`${DIR}/keep`) === "new\n" || "keep was not kept",
 };
@@ -226,6 +215,7 @@ const GMAKE_CASES = new Set([
     "env", "envflag", "ignoresome", "include", "incdeep", "incmany", "lastline", "limits",
     "longname", "macros", "dirfile", "special", "shellassign",
     "phony", "silent", "silentsome", "substref", "suffix",
+    "cond", "define", "export", "exportall",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])

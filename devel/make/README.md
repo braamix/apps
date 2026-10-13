@@ -79,6 +79,9 @@ inference rule set them.
 | `+` under `-t` and `-q` | POSIX | Only the `+` lines run; `-t` then touches |
 | `-C dir` | GNU, BSD | In order, before any makefile; not passed on in `MAKEFLAGS` |
 | `.WAIT`, `.POSIX`, `.NOTPARALLEL`, `.SCCS_GET` | POSIX.1-2024 | Accepted; `.WAIT` is no prerequisite, there being no `-j` |
+| `ifeq`, `ifneq`, `ifdef`, `ifndef`, `else`, `endif` | GNU | `else ifeq` chains; `ifdef` asks for a value that is not empty, unexpanded |
+| `define`/`endef` | GNU | With any assignment operator; a value with lines is a command per line in a rule |
+| `override`, `export`, `unexport` | GNU | A child gets the environment's and the command line's macros, and the exported ones, at their values now |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a

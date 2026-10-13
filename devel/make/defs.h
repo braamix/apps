@@ -74,7 +74,9 @@ struct varblock {
     char *varval;
     int noreset;
     int used;
-    int simple; // set by := and ::=, and not expanded again
+    int simple;   // set by := and ::=, and not expanded again
+    int exported; // 1 by export, the environment or the command line; -1 by unexport
+    int fromenv;  // the value is still the environment's, as it was
 };
 
 struct pattern {
@@ -153,6 +155,7 @@ Task<void> expand(struct depblock *q);
 Task<int> dosys(char *comstring, int nohalt);
 Task<void> touch(int force, char *name);
 void childenv(const char *makeflags);
+Args *mkenv(void);
 
 // misc.cpp
 struct nameblock *srchname(const char *s);
@@ -168,12 +171,17 @@ char *substa(char *a);
 char *substnow(char *a);
 extern int substfull;
 int setvar(const char *v, char *s);
+extern int overriding;
+extern int exportall;
+void assign(char *v, char *s, int op);
 int eqsign(char *a);
 int assigncolon(const char *s);
 extern int shellpend;
 extern char *shellname, *shellcmd;
+extern int shellover;
 Task<void> runset(void);
 struct varblock *varptr(const char *v);
+struct varblock *findvar(const char *v);
 void fatal1(const char *s, const char *t);
 void fatal(const char *s);
 void yyerror(const char *s);

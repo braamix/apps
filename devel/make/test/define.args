@@ -1,0 +1,1 @@
+-r -f define.mk O=cmd OD=cmd

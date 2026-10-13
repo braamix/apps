@@ -413,16 +413,24 @@ char *subst(char *a, char *b, char *bend)
     return b;
 }
 
+// Set while an `override' line is assigned: it sets what the command line
+// set, and a later plain assignment does not reset it.
+int overriding = NO;
+
+// Set by `export' alone: every macro is exported that is not unexported.
+int exportall = NO;
+
 // YES if it was set: a macro from the command line is not reset.
 int setvar(const char *v, char *s)
 {
     struct varblock *p;
 
     p = varptr(v);
-    if (p->noreset == 0) {
+    if (p->noreset == 0 || overriding) {
         p->varval  = s;
         p->simple  = NO;
-        p->noreset = inarglist;
+        p->fromenv = NO;
+        p->noreset = inarglist || overriding;
         if (p->used && unequal(v, "@") && unequal(v, "*") && unequal(v, "<") && unequal(v, "?") &&
             unequal(v, "^"))
             diag("Warning: %s changed after being used\n", v);
@@ -435,13 +443,14 @@ int setvar(const char *v, char *s)
 // here and its caller awaits runset().
 int shellpend = NO;
 char *shellname, *shellcmd;
+int shellover; // an override !=
 
 // The assignment operators past v7's `=': `:=' and `::=' expand the value
 // now and once, `?=' sets only what is not set, `+=' appends after a space
 // -- expanded first when the macro is a := one, as GNU and POSIX have it.
 // POSIX.1-2024's `:::=' expands now too, but doubles each $ of the result and
 // leaves an ordinary macro, so a later += appends without expanding.
-static void assign(char *v, char *s, int op)
+void assign(char *v, char *s, int op)
 {
     struct varblock *p = varptr(v);
     char *buf, *old;
@@ -489,6 +498,7 @@ static void assign(char *v, char *s, int op)
         shellname = copys(v);
         shellcmd  = copys(s);
         shellpend = YES;
+        shellover = overriding;
         return;
     }
     setvar(v, copys(s));
@@ -534,6 +544,17 @@ int eqsign(char *a)
         ;
     assign(a, s, op);
     return YES;
+}
+
+// The macro v, or NULL: unlike varptr(), it makes none.
+struct varblock *findvar(const char *v)
+{
+    struct varblock *vp;
+
+    for (vp = firstvar; vp; vp = vp->nxtvarblock)
+        if (!unequal(v, vp->varname))
+            return vp;
+    return NULL;
 }
 
 struct varblock *varptr(const char *v)

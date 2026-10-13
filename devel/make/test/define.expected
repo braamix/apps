@@ -1,0 +1,6 @@
+one
+*** Error code 1 (ignored)
+echo two
+two
+echo [n is 1] [n is 2] [a b] [makefile] [from define]
+[n is 1] [n is 2] [a b] [makefile] [from define]

@@ -192,7 +192,8 @@ static void readmakeflags(void)
         if (strchr(w, '=')) {
             addmacro(w);
             inarglist = 1;
-            eqsign(copys(w));
+            if (eqsign(d = copys(w)))
+                varptr(d)->exported = 1;
             inarglist = 0;
         } else
             for (d = w + (*w == '-'); *d; ++d)
@@ -259,8 +260,10 @@ static Task<int> make_main(int argc, char *argv[])
     for (i = 1; i < argc; ++i)
         if (argv[i] != 0 && argv[i][0] != '-' && strchr(argv[i], '=')) {
             addmacro(argv[i]);
-            if (eqsign(argv[i]))
+            if (eqsign(argv[i])) {
+                varptr(argv[i])->exported = 1; // a child has it, as in GNU
                 argv[i] = 0;
+            }
             if (shellpend)
                 co_await runset();
         }
@@ -481,7 +484,9 @@ static void readenv(void)
         memcpy(def, e.data(), e.size());
         if ((v = strchr(def, '=')) != NULL && v != def) {
             *v++ = '\0';
-            setvar(def, v);
+            if (setvar(def, v))
+                varptr(def)->fromenv = YES;
+            varptr(def)->exported = 1;
         } else
             free(def);
     }

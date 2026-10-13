@@ -369,8 +369,8 @@ stemmed:
 // waits: docom1() is entered only when a command is to be run.
 Task<int> docom(struct shblock *q)
 {
-    char *s, *at;
-    int ign, nopr, sil, plus;
+    char *s, *at, *line, *next;
+    int ign, nopr, sil, plus, plus0;
     // The expanded line, as long as it is: v7's was OUTMAX bytes.  Kept at file
     // scope until the next, since only one docom() is ever live.
     static char *string;
@@ -390,33 +390,47 @@ Task<int> docom(struct shblock *q)
 
         // A + line, or one naming $(MAKE), runs under -n too: that is how
         // a recursive make passes -n down rather than being skipped.
-        ign  = ignerr || isnamed(".IGNORE", at);
-        nopr = NO;
-        plus = strstr(q->shbp, "$(MAKE)") || strstr(q->shbp, "${MAKE}");
-        for (s = string; *s == '-' || *s == '@' || *s == '+'; ++s)
-            if (*s == '-')
-                ign = YES;
-            else if (*s == '@')
-                nopr = YES;
+        plus0 = strstr(q->shbp, "$(MAKE)") || strstr(q->shbp, "${MAKE}");
+
+        // A value with lines in it, as a define has, is a command per line,
+        // each with its own prefixes.  GNU's canned recipes.
+        for (line = string; line != NULL; line = next) {
+            for (next = line; *next && (*next != '\n' || (next > line && next[-1] == '\\'));
+                 ++next)
+                ;
+            if (*next)
+                *next++ = '\0';
             else
-                plus = YES;
+                next = NULL;
 
-        if (s[0] == '\0' || ((touchflag || questflag) && !plus))
-            continue;
-        // -n writes what would run, silent or not, as POSIX and GNU have it.
-        if (noexflag || (!sil && !nopr))
-            mprintf("%s%s\n", (noexflag ? "" : prompt), s);
-        if (noexflag && !plus)
-            continue;
+            ign  = ignerr || isnamed(".IGNORE", at);
+            nopr = NO;
+            plus = plus0;
+            for (s = line; *s == '-' || *s == '@' || *s == '+' || *s == ' ' || *s == '\t'; ++s)
+                if (*s == '-')
+                    ign = YES;
+                else if (*s == '@')
+                    nopr = YES;
+                else if (*s == '+')
+                    plus = YES;
 
-        if (co_await docom1(s, ign) && !ign) {
-            if (keepgoing)
+            if (s[0] == '\0' || ((touchflag || questflag) && !plus))
+                continue;
+            // -n writes what would run, silent or not, as POSIX and GNU have it.
+            if (noexflag || (!sil && !nopr))
+                mprintf("%s%s\n", (noexflag ? "" : prompt), s);
+            if (noexflag && !plus)
+                continue;
+
+            if (co_await docom1(s, ign) && !ign) {
+                if (keepgoing)
+                    co_return YES;
+                else
+                    fatal((char *)NULL);
+            }
+            if (stopped)
                 co_return YES;
-            else
-                fatal((char *)NULL);
         }
-        if (stopped)
-            co_return YES;
     }
 
     if (touchflag && !questflag) {

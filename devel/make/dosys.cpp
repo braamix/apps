@@ -36,31 +36,93 @@ static int metas(char *s)
     return c;
 }
 
-// A child's environment: this process's, with the MAKEFLAGS make_main() made.
+// A child's environment, made for each child: this process's, with every
+// exported macro at its value now and the MAKEFLAGS make_main() made, and the
+// unexported ones out.  A macro still as the environment had it is passed as
+// it was, not expanded.  GNU's.
+static char *cmakeflags;
 static Str *cenv;
+static char **cdefs;
+static int ncdefs;
 static Args cenvargs;
 
 void childenv(const char *makeflags)
 {
-    usize i, k, n = proc_env_count();
-    char *mf;
+    free(cmakeflags);
+    cmakeflags = (char *)ckalloc(strlen(makeflags) + sizeof("MAKEFLAGS="));
+    strcpy(cmakeflags, "MAKEFLAGS=");
+    strcat(cmakeflags, makeflags);
+}
 
-    cenv = (Str *)ckalloc((n + 1) * sizeof(Str));
-    for (i = k = 0; i < n; ++i)
-        if (!proc_env_at(i).starts_with("MAKEFLAGS="))
-            cenv[k++] = proc_env_at(i);
-    mf = (char *)ckalloc(strlen(makeflags) + sizeof("MAKEFLAGS="));
-    strcpy(mf, "MAKEFLAGS=");
-    strcat(mf, makeflags);
-    cenv[k++] = Str(mf, strlen(mf));
+// Whether a child sees v as a macro of this make's rather than as it came.
+static int expvar(struct varblock *vp)
+{
+    const char *s;
+
+    if (vp->varval == 0 || vp->exported < 0 || vp->fromenv || !unequal(vp->varname, "MAKEFLAGS"))
+        return NO;
+    if (vp->exported == 0 && !exportall)
+        return NO;
+    for (s = vp->varname; *s; ++s) // a name the shell can take
+        if (!(*s == '_' || (*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') ||
+              (s > vp->varname && *s >= '0' && *s <= '9')))
+            return NO;
+    return s > vp->varname;
+}
+
+Args *mkenv(void)
+{
+    usize i, n = proc_env_count();
+    struct varblock *vp;
+    char *name, *val;
+    int nv, k, j;
+    Str e;
+
+    if (cmakeflags == NULL)
+        return nullptr;
+    for (j = 0; j < ncdefs; ++j)
+        free(cdefs[j]);
+    free(cdefs);
+    free(cenv);
+    for (nv = 0, vp = firstvar; vp; vp = vp->nxtvarblock)
+        nv += expvar(vp);
+    cenv   = (Str *)ckalloc((n + nv + 1) * sizeof(Str));
+    cdefs  = (char **)ckalloc((nv + 1) * sizeof(char *));
+    ncdefs = 0;
+    for (i = 0, k = 0; i < n; ++i) {
+        e = proc_env_at(i);
+        if (e.starts_with("MAKEFLAGS="))
+            continue;
+        for (j = 0; j < (int)e.size() && e.data()[j] != '='; ++j)
+            ;
+        name = (char *)ckalloc(j + 1);
+        memcpy(name, e.data(), j);
+        vp = findvar(name);
+        free(name);
+        if (vp && vp->varval && (vp->exported < 0 || expvar(vp)))
+            continue;
+        cenv[k++] = e;
+    }
+    for (vp = firstvar; vp; vp = vp->nxtvarblock)
+        if (expvar(vp)) {
+            val  = vp->simple ? copys(vp->varval) : substa(vp->varval);
+            name = (char *)ckalloc(strlen(vp->varname) + strlen(val) + 2);
+            concat(vp->varname, "=", name);
+            strcat(name, val);
+            free(val);
+            cdefs[ncdefs++] = name;
+            cenv[k++]       = Str(name, strlen(name));
+        }
+    cenv[k++] = Str(cmakeflags, strlen(cmakeflags));
     cenvargs  = Args{ Span<const Str>(cenv, k) };
+    return &cenvargs;
 }
 
 // fork() and exec() are one spawn(): the child is entered with this process's
 // three streams and nothing else, so there is nothing for v7's doclose() to do.
 static Task<int> run(Span<const Str> argv)
 {
-    Result<u32> r = co_await spawn(Args{ argv }, ChildIo{}, cenv ? &cenvargs : nullptr);
+    Result<u32> r = co_await spawn(Args{ argv }, ChildIo{}, mkenv());
 
     if (r.is_err()) {
         if (r.error() == Error::NotFound)
@@ -172,7 +234,7 @@ Task<void> runset(void)
         Str argv[3] = { SHELLCOM, "-c", Str(cmd, strlen(cmd)) };
         r           = co_await spawn(Args{ Span<const Str>(argv, 3) },
                                      ChildIo{ SYS_STDIN, (u32)pipe.value().w, SYS_STDERR },
-                                     cenv ? &cenvargs : nullptr);
+                                     mkenv());
     }
     if (r.is_err()) {
         co_await close_fd(pipe.value().r);
@@ -198,8 +260,10 @@ Task<void> runset(void)
     for (p = out; *p; ++p)
         if (*p == '\n')
             *p = ' ';
+    overriding = shellover;
     if (!setvar(shellname, out))
         free(out);
+    overriding = NO;
 done:
     free(cmd);
 }

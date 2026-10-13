@@ -294,6 +294,312 @@ static char *isinclude(char *t, int *optp)
     return NULL;
 }
 
+// The word w at t, past blanks, followed by a blank or the end: what follows
+// it and its blanks, or NULL.
+static char *isword(char *t, const char *w)
+{
+    size_t n = strlen(w);
+
+    while (*t == ' ' || *t == '\t')
+        ++t;
+    if (strncmp(t, w, n) || (t[n] != ' ' && t[n] != '\t' && t[n] != '\0'))
+        return NULL;
+    for (t += n; *t == ' ' || *t == '\t'; ++t)
+        ;
+    return t;
+}
+
+// The conditionals open, innermost last: whether lines are read in each, and
+// whether a branch of it was taken -- or none can be, as its outer one is not.
+struct cond {
+    int ok;
+    int seen;
+};
+static struct cond *conds;
+static int ncond, condcap;
+
+// ifeq's two strings, (a,b) or "a" "b" or 'a' 'b', each expanded: 1 if they are
+// the same, 0 if not, -1 if t is neither.  As GNU has it, the blanks before
+// a comma are not the first string's and those after it not the second's.
+static int condeq(char *t)
+{
+    char *a1, *e1, *a2, *e2, *x1, *x2;
+    int nest, r;
+
+    if (*t == '(') {
+        for (a1 = e1 = t + 1, nest = 0; *e1 && (*e1 != ',' || nest > 0); ++e1)
+            if (*e1 == '(' || *e1 == '{')
+                ++nest;
+            else if (*e1 == ')' || *e1 == '}')
+                --nest;
+        if (*e1 != ',')
+            return -1;
+        for (a2 = e1 + 1; *a2 == ' ' || *a2 == '\t'; ++a2)
+            ;
+        for (e2 = a2, nest = 0; *e2 && (*e2 != ')' || nest > 0); ++e2)
+            if (*e2 == '(' || *e2 == '{')
+                ++nest;
+            else if (*e2 == ')' || *e2 == '}')
+                --nest;
+        if (*e2 != ')')
+            return -1;
+        t = e2 + 1;
+        while (e1 > a1 && (e1[-1] == ' ' || e1[-1] == '\t'))
+            --e1;
+    } else if (*t == '"' || *t == '\'') {
+        a1 = t + 1;
+        if ((e1 = strchr(a1, *t)) == NULL)
+            return -1;
+        for (t = e1 + 1; *t == ' ' || *t == '\t'; ++t)
+            ;
+        if (*t != '"' && *t != '\'')
+            return -1;
+        a2 = t + 1;
+        if ((e2 = strchr(a2, *t)) == NULL)
+            return -1;
+        t = e2 + 1;
+    } else
+        return -1;
+    while (*t == ' ' || *t == '\t')
+        ++t;
+    if (*t != '\0')
+        return -1;
+    *e1 = *e2 = '\0';
+    x1      = substa(a1);
+    x2      = substa(a2);
+    r       = !unequal(x1, x2);
+    free(x1);
+    free(x2);
+    return r;
+}
+
+// ifdef's test: whether the macro t names has a value that is not empty.  The
+// name is expanded, the value is not.
+static int conddef(char *t)
+{
+    char *n, *e;
+    struct varblock *vp;
+    int r;
+
+    n = substa(t);
+    for (e = n + strlen(n); e > n && (e[-1] == ' ' || e[-1] == '\t'); --e)
+        ;
+    *e = '\0';
+    r  = (vp = findvar(n)) != NULL && vp->varval != NULL && *vp->varval != '\0';
+    free(n);
+    return r;
+}
+
+// The test after ifeq, ifneq, ifdef or ifndef: 1 or 0, or -1 if it is none.
+static int condtest(char *t, int *isp)
+{
+    char *a;
+    int r;
+
+    *isp = YES;
+    if ((a = isword(t, "ifeq")) != NULL)
+        return condeq(a);
+    if ((a = isword(t, "ifneq")) != NULL)
+        return (r = condeq(a)) < 0 ? r : !r;
+    if ((a = isword(t, "ifdef")) != NULL)
+        return conddef(a);
+    if ((a = isword(t, "ifndef")) != NULL)
+        return !conddef(a);
+    *isp = NO;
+    return -1;
+}
+
+// A conditional line, taken: YES if t was one.  GNU's, with its else-if.
+static int condline(char *t)
+{
+    char *a;
+    int is, r, outer;
+
+    r = condtest(t, &is);
+    if (is) {
+        outer = ncond == 0 || conds[ncond - 1].ok;
+        if (outer && r < 0) {
+            yyerror("invalid syntax in conditional");
+            return YES;
+        }
+        if (ncond >= condcap)
+            conds = (struct cond *)growbuf(conds, &condcap, sizeof(*conds));
+        conds[ncond].ok   = outer && r;
+        conds[ncond].seen = !outer || r;
+        ++ncond;
+        return YES;
+    }
+    if ((a = isword(t, "else")) != NULL) {
+        if (ncond == 0) {
+            yyerror("extraneous `else'");
+            return YES;
+        }
+        if (*a == '\0') {
+            conds[ncond - 1].ok   = !conds[ncond - 1].seen;
+            conds[ncond - 1].seen = YES;
+            return YES;
+        }
+        if (conds[ncond - 1].seen) {
+            conds[ncond - 1].ok = NO;
+            return YES;
+        }
+        r = condtest(a, &is);
+        if (!is || r < 0) {
+            yyerror("invalid syntax in conditional");
+            return YES;
+        }
+        conds[ncond - 1].ok = conds[ncond - 1].seen = r;
+        return YES;
+    }
+    if ((a = isword(t, "endif")) != NULL) {
+        if (ncond == 0)
+            yyerror("extraneous `endif'");
+        else
+            --ncond;
+        return YES;
+    }
+    return NO;
+}
+
+// A define being read: its name, its operator, its body so far, and how deep
+// in defines the line is.  Nothing in the body is looked at but define and
+// endef.
+static int indef;
+static char *defname, *defbody;
+static int defop, deflen, defcap, defover, defexport;
+
+static void startdef(char *t, int over, int exp)
+{
+    char *e, *o;
+
+    for (e = t; *e && *e != ' ' && *e != '\t' && *e != '='; ++e)
+        ;
+    // the operator, if any: = := ::= :::= += ?= !=
+    for (o = e; *o == ' ' || *o == '\t'; ++o)
+        ;
+    defop = '=';
+    if (!strncmp(o, ":::=", 4))
+        defop = 'T';
+    else if (!strncmp(o, "::=", 3) || !strncmp(o, ":=", 2))
+        defop = ':';
+    else if (o[0] && strchr("+?!", o[0]) && o[1] == '=')
+        defop = o[0];
+    *e = '\0';
+    free(defname);
+    defname   = substa(t);
+    deflen    = 0;
+    defover   = over;
+    defexport = exp;
+    indef     = 1;
+    if (defbody == NULL)
+        defbody = (char *)growbuf(defbody, &defcap, 1);
+    defbody[0] = '\0';
+}
+
+// A line of a define's body, or its endef: YES when that was the end, and the
+// macro is set.
+static int defline(char *t)
+{
+    char *a;
+    size_t n;
+
+    if ((a = isword(t, "endef")) != NULL && (*a == '\0' || *a == '#') && t[0] != '\t') {
+        if (--indef == 0) {
+            overriding = defover;
+            assign(defname, defbody, defop);
+            overriding = NO;
+            if (defexport)
+                varptr(defname)->exported = 1;
+            return YES;
+        }
+    } else if (isword(t, "define") != NULL && t[0] != '\t')
+        ++indef;
+    n = strlen(t);
+    while (deflen + n + 2 > (size_t)defcap)
+        defbody = (char *)growbuf(defbody, &defcap, 1);
+    if (deflen > 0)
+        defbody[deflen++] = '\n';
+    memcpy(defbody + deflen, t, n + 1);
+    deflen += n;
+    return NO;
+}
+
+// Each name in t, expanded, marked to be exported (1) or not (-1).
+static void markexp(char *t, int how)
+{
+    char *names, *w, *e;
+
+    names = substa(t);
+    for (w = names; !stopped; w = e) {
+        while (*w == ' ' || *w == '\t')
+            ++w;
+        if (*w == '\0')
+            break;
+        for (e = w; *e && *e != ' ' && *e != '\t'; ++e)
+            ;
+        if (*e)
+            *e++ = '\0';
+        varptr(w)->exported = how;
+    }
+    free(names);
+}
+
+// define, override, export and unexport.  t when the line is none of them,
+// NULL when it was taken whole, and another pointer when it was a macro
+// definition, as nextlin()'s MACRODEF.
+static char *directive(char *t)
+{
+    char *a, *n;
+    int over = NO, how;
+
+    if ((a = isword(t, "override")) != NULL) {
+        over = YES;
+        t    = a;
+    }
+    if ((a = isword(t, "define")) != NULL) {
+        startdef(a, over, NO);
+        return NULL;
+    }
+    how = 0;
+    if ((a = isword(t, "export")) != NULL)
+        how = 1;
+    else if ((a = isword(t, "unexport")) != NULL)
+        how = -1;
+    if (how != 0) {
+        if (how == 1 && !over && (n = isword(a, "define")) != NULL) {
+            startdef(n, NO, YES);
+            return NULL;
+        }
+        if (*a == '\0') {
+            exportall = how == 1;
+            return NULL;
+        }
+        overriding = over;
+        n          = a;
+        if (how == 1 && eqsign(n)) {
+            overriding = NO;
+            while (*n == ' ')
+                ++n;
+            varptr(n)->exported = 1;
+            return a;
+        }
+        overriding = NO;
+        markexp(a, how);
+        return NULL;
+    }
+    if (over) {
+        overriding = YES;
+        if (!eqsign(t)) {
+            overriding = NO;
+            yyerror("override without an assignment");
+            return NULL;
+        }
+        overriding = NO;
+        return t;
+    }
+    return t;
+}
+
 int yylex(void)
 {
     char *p;
@@ -380,7 +686,7 @@ static int nextlin(void)
 
 again:
 
-    incom   = NO;
+    incom   = indef > 0; // a define's body is taken as it is
     zznextc = 0;
 
     if (fin == NULL) {
@@ -420,7 +726,7 @@ again:
 
             case '\n':
                 ++yylineno;
-                if (p == yytext || p[-1] != '\\') {
+                if (p == yytext || p[-1] != '\\' || indef) {
                     *p = '\0';
                     goto endloop;
                 }
@@ -450,6 +756,10 @@ again:
                     goto endloop;
                 }
                 *p = '\0';
+                if (indef)
+                    yyerror("missing `endef'");
+                else if (ncond)
+                    yyerror("missing `endif'");
                 return 0;
             }
         }
@@ -458,8 +768,28 @@ again:
 endloop:
     text = yytext;
 
+    if (indef) {
+        if (defline(text))
+            return shellpend ? SHELLDEF : MACRODEF;
+        goto again;
+    }
+    if (text[0] != '\t' && condline(text)) {
+        if (stopped)
+            return 0;
+        goto again;
+    }
+    if (ncond > 0 && !conds[ncond - 1].ok)
+        goto again;
+
     if ((c = text[0]) == '\t')
         return retsh(text);
+
+    if ((p = directive(text)) == NULL)
+        goto again;
+    if (stopped)
+        return 0;
+    if (p != text)
+        return shellpend ? SHELLDEF : MACRODEF;
 
     if (isalpha((unsigned char)c) || isdigit((unsigned char)c) || c == ' ' || c == '.' ||
         c == '_') {
