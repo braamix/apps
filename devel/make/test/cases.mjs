@@ -206,6 +206,14 @@ const SETUP = {
         put(`${DIR}/other/util.c`, "", T0 + 5000);
         put(`${DIR}/other/lib.a`, "", T0);
     },
+    chain: () => put(`${DIR}/prog.y`, "", T0),
+    chainsec: () => put(`${DIR}/prog.y`, "", T0),
+    chainup: () => {
+        put(`${DIR}/prog.y`, "", T0);
+        put(`${DIR}/prog.o`, "", T0 + 1000);
+        put(`${DIR}/prog`, "", T0 + 2000);
+    },
+    inter: () => put(`${DIR}/src`, "", T0),
     orderonly: () => {
         put(`${DIR}/a.o`, "", T0 + 1000);
         put(`${DIR}/prog`, "", T0 + 2000);
@@ -232,6 +240,10 @@ let job = 0;
 
 // What a case is checked for beyond its output, by name.
 const CHECK = {
+    chain: () => get(`${DIR}/prog.c`) === undefined && get(`${DIR}/prog`) === "link\n" ||
+        "prog.c was kept, or prog not made",
+    chainsec: () => get(`${DIR}/prog.c`) !== undefined || "prog.c was removed",
+    inter: () => get(`${DIR}/mid`) === undefined || "mid was kept",
     delerr: () => get(`${DIR}/out`) === undefined && get(`${DIR}/old`) === "was" ||
         "out was kept, or old was not",
     shellfn: () => get(`${DIR}/made`) === "hi\n" || "made was not written",
@@ -253,6 +265,7 @@ const GMAKE_CASES = new Set([
     "orderonly", "autolists", "goals", "goalsnamed", "defgoal",
     "patrule", "patcancel", "patcancel2", "static",
     "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2", "eval", "tvars", "tvarscmd", "longopts", "mflong", "oneshell", "oneshell2",
+    "chain", "chainup", "chainsec", "inter",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])

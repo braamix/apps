@@ -1,0 +1,3 @@
+echo mid > mid
+echo link > prog
+rm mid

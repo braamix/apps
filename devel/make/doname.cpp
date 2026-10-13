@@ -84,68 +84,83 @@ static void impdep(struct implied *im, struct nameblock *np, int orderonly)
 }
 
 // GNU's pattern rules, tried before the suffix rules.  Of those whose target
-// matches p and whose prerequisites, the stem put in, are files or are named
-// in the makefile, the one with the shortest stem, the first of those.  A
-// target pattern with no slash is matched against the file part of the name,
-// and the directory goes back on the stem and on each prerequisite.
-static Task<int> patimplicit(struct nameblock *p, struct implied *im)
+// matches pname and whose prerequisites, the stem put in, are files, or are
+// named in the makefile, or can be made by another pattern rule, the one with
+// the shortest stem, the first of those.  A target pattern with no slash is
+// matched against the file part of the name, and the directory goes back on
+// the stem and on each prerequisite.  With im NULL it only asks whether one
+// applies, for a chain: a rule is used once in a chain, ten deep at most.
+static Task<int> patimplicit(const char *pname, struct implied *im, int depth)
 {
     struct patrule *pr, *best = NULL;
     struct depblock *q;
-    char *slash, *stem, *beststem = NULL, *name;
+    struct nameblock *np;
+    char *slash, *stem, *beststem = NULL, *name, *path;
     int dirlen, bestdir = 0, ok;
 
-    slash = strrchr(p->namep, '/');
+    slash = strrchr(pname, '/');
     for (pr = firstpatrule; pr && !stopped; pr = pr->nxtpatrule) {
-        dirlen = slash && !strchr(pr->target, '/') ? slash + 1 - p->namep : 0;
-        if ((stem = patstem(pr->target, p->namep + dirlen)) == NULL)
+        if (pr->busy)
+            continue;
+        dirlen = slash && !strchr(pr->target, '/') ? slash + 1 - pname : 0;
+        if ((stem = patstem(pr->target, pname + dirlen)) == NULL)
             continue;
         if (beststem && strlen(stem) >= strlen(beststem)) {
             free(stem);
             continue;
         }
+        pr->busy = YES;
         for (ok = YES, q = pr->depp; q && ok && !stopped; q = q->nxtdepblock) {
             name = patput(q->depname->namep, stem);
             if (dirlen) {
                 char *t = (char *)ckalloc(dirlen + strlen(name) + 1);
 
-                memcpy(t, p->namep, dirlen);
+                memcpy(t, pname, dirlen);
                 strcpy(t + dirlen, name);
                 free(name);
                 name = t;
             }
             ok = srchname(name) != 0 || co_await exists(name) > 0;
             if (!ok && havevpath()) {
-                char *path;
-
                 ok = co_await vfind(name, &path) > 0;
                 free(path);
             }
+            if (!ok && depth < 10) // made through another rule: a chain
+                ok = co_await patimplicit(name, NULL, depth + 1);
             free(name);
         }
+        pr->busy = NO;
         if (ok && !stopped) {
             free(beststem);
             best     = pr;
             beststem = stem;
             bestdir  = dirlen;
+            if (im == NULL)
+                break;
         } else
             free(stem);
     }
-    if (best == NULL || stopped) {
+    if (best == NULL || stopped || im == NULL) {
         free(beststem);
-        co_return NO;
+        co_return best != NULL && !stopped;
     }
     for (q = best->depp; q; q = q->nxtdepblock) {
         name = patput(q->depname->namep, beststem);
         stem = (char *)ckalloc(bestdir + strlen(name) + 1);
-        memcpy(stem, p->namep, bestdir);
+        memcpy(stem, pname, bestdir);
         strcpy(stem + bestdir, name);
-        impdep(im, named(stem), q->orderonly);
+        // Neither named nor there: a link in a chain, which is intermediate.
+        if ((np = srchname(stem)) == 0) {
+            np = makename(stem);
+            if (co_await exists(stem) == 0 && !(havevpath() && co_await vfind(stem, &np->path)))
+                np->intermediate = YES;
+        }
+        impdep(im, np, q->orderonly);
         free(name);
         free(stem);
     }
     im->stem = (char *)ckalloc(bestdir + strlen(beststem) + 1);
-    memcpy(im->stem, p->namep, bestdir);
+    memcpy(im->stem, pname, bestdir);
     strcpy(im->stem + bestdir, beststem);
     free(beststem);
     im->com = best->shp;
@@ -210,7 +225,7 @@ static Task<int> implicit(struct nameblock *p, struct implied *im)
         goto none;
     }
 
-    if (firstpatrule && co_await patimplicit(p, im))
+    if (firstpatrule && co_await patimplicit(p->namep, im, 0))
         co_return YES;
     if (stopped)
         co_return NO;
@@ -283,6 +298,8 @@ static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, TIMETYPE ptime0
     setat(p->namep);
     setlists(lists[0], lists[1], lists[2], lists[3]);
     attime = ptime0;
+    if (explcom || implcom)
+        p->made = YES; // an intermediate made is removed at the end
     if (explcom)
         *errstatp += co_await docom(explcom);
     else if (implcom)
@@ -400,8 +417,13 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     co_return r;
 }
 
+// The time of the target whose prerequisite is being made, for one that is
+// intermediate.
+static TIMETYPE parenttime;
+
 static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
 {
+    TIMETYPE myparent = parenttime;
     int errstat;
     int okdel1;
     int didwork;
@@ -481,8 +503,10 @@ static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
                     mprintf("doname(%s,%d)\n", q->depname->namep, reclevel + 1);
                 td1 = q->depname->modtime;
                 errstat += q->depname->done == 3;
-            } else
+            } else {
+                parenttime = ptime;
                 errstat += co_await doname(q->depname, reclevel + 1, &td1);
+            }
             if (stopped)
                 co_return 1;
             if (q->depname == 0)
@@ -573,8 +597,10 @@ stemmed:
             if (q->depname->done > 0) {
                 td = q->depname->modtime;
                 errstat += q->depname->done == 3;
-            } else
+            } else {
+                parenttime = ptime;
                 errstat += co_await doname(q->depname, reclevel + 1, &td);
+            }
             if (stopped)
                 co_return 1;
             if (q->orderonly) {
@@ -597,6 +623,16 @@ stemmed:
     }
     if (im.stem)
         setvar("*", im.stem);
+
+    // A missing intermediate is not made for a target newer than everything
+    // it is made from, as GNU has it.
+    if (p->intermediate && ptime == 0 && errstat == 0 && myparent > 0 && tdep > 0 &&
+        myparent >= tdep) {
+        p->done    = 2;
+        p->modtime = tdep;
+        *tval      = tdep;
+        co_return 0;
+    }
 
     if (errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0))) {
         // a target found elsewhere is made here, under its own name, as GNU

@@ -67,6 +67,8 @@ struct nameblock {
     TIMETYPE modtime;
     char *path; // where VPATH or vpath found it, if not here
     struct tvar *tvars;
+    int intermediate; // a link in a chain of pattern rules, or .INTERMEDIATE
+    int made;         // its commands were run
 };
 
 struct lineblock {
@@ -82,6 +84,7 @@ struct patrule {
     char *target;
     struct depblock *depp;
     struct shblock *shp;
+    int busy; // in the chain being looked at
 };
 
 struct depblock {

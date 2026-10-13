@@ -1,0 +1,3 @@
+echo yacc prog.y > prog.c
+echo cc prog.c > prog.o
+echo link > prog

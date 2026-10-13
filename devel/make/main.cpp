@@ -308,6 +308,36 @@ static void writemakeflags(void)
     childenv(mf);
 }
 
+// GNU's intermediate files, removed once made, with one rm line, but for
+// those .SECONDARY or .PRECIOUS names; .SECONDARY with no names keeps them all.
+static Task<void> rminter(void)
+{
+    struct nameblock *p, *sec = srchname(".SECONDARY");
+    struct nameblock **v;
+    int n = 0, i, k;
+
+    if (questflag || touchflag || (sec && !hasdeps(sec)))
+        co_return;
+    for (p = firstname; p; p = p->nxtnameblock)
+        n += p->intermediate && p->made;
+    if (n == 0)
+        co_return;
+    v = (struct nameblock **)ckalloc(n * sizeof(*v));
+    for (n = 0, p = firstname; p; p = p->nxtnameblock)
+        if (p->intermediate && p->made && !isnamed(".SECONDARY", p->namep) &&
+            !isprecious(p->namep) && (noexflag || co_await exists(p->namep) > 0))
+            v[n++] = p;
+    for (k = 0, i = n; i-- > 0; ++k) // in the order they were named
+        if (!silflag)
+            mprintf("%s%s", k ? " " : "rm ", v[i]->namep);
+    if (n && !silflag)
+        mprintf("\n");
+    if (!noexflag)
+        for (i = n; i-- > 0;)
+            co_await b_unlink(v[i]->namep);
+    free(v);
+}
+
 static Task<int> make_main(int argc, char *argv[])
 {
     struct nameblock *p;
@@ -474,6 +504,10 @@ static Task<int> make_main(int argc, char *argv[])
         silflag = 1;
     if ((p = srchname(".SUFFIXES")))
         sufflist = p->linep;
+    if ((p = srchname(".INTERMEDIATE")))
+        for (struct lineblock *lp = p->linep; lp; lp = lp->nxtlineblock)
+            for (struct depblock *dp = lp->depp; dp; dp = dp->nxtdepblock)
+                dp->depname->intermediate = YES;
     writemakeflags();
 
     nfargs = 0;
@@ -506,6 +540,8 @@ static Task<int> make_main(int argc, char *argv[])
                 printdesc(YES);
         }
     }
+
+    co_await rminter();
 
     // -k went on past a target it could not make, and POSIX says so in the
     // status, where v7 exited 0.
