@@ -141,6 +141,10 @@ static Task<int> run(Span<const Str> argv)
     co_return co_await await();
 }
 
+// Set for a .ONESHELL script, which the shell runs as GNU's does, with -c
+// alone: a script stops where it says, not at its first failure.
+int shellonly = NO;
+
 static Task<int> doshell(char *comstring, int nohalt)
 {
     // This sh takes its flags one word each: -ce would be -c and a command "e".
@@ -148,7 +152,7 @@ static Task<int> doshell(char *comstring, int nohalt)
     Str ce[4] = { SHELLCOM, "-e", "-c", cmd };
     Str c[3]  = { SHELLCOM, "-c", cmd };
 
-    if (nohalt)
+    if (nohalt || shellonly)
         co_return co_await run(Span<const Str>(c, 3));
     co_return co_await run(Span<const Str>(ce, 4));
 }

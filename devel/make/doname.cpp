@@ -628,6 +628,35 @@ stemmed:
     co_return errstat;
 }
 
+// The lines of coms as one script, in coms[0].
+static void oneshell(char **coms)
+{
+    char *script, *d, *s;
+    size_t n = 1;
+    int i, first = YES;
+
+    for (i = 0; coms[i]; ++i)
+        n += strlen(coms[i]) + 1;
+    d = script = (char *)ckalloc(n);
+    for (i = 0; coms[i]; ++i) {
+        for (s = coms[i]; *s; first = NO) {
+            if (!first) {
+                *d++ = '\n';
+                while (*s == '@' || *s == '-' || *s == '+' || *s == ' ' || *s == '\t')
+                    ++s;
+            }
+            while (*s && *s != '\n')
+                *d++ = *s++;
+            if (*s)
+                ++s;
+        }
+        free(coms[i]);
+        coms[i] = NULL;
+    }
+    *d      = '\0';
+    coms[0] = script;
+}
+
 static void freecoms(char **v, int *plus)
 {
     int i;
@@ -663,7 +692,7 @@ static Task<void> delonerr(char *at)
 Task<int> docom(struct shblock *q)
 {
     char *s, *at, *line, *next, **coms;
-    int ign, nopr, sil, plus, *plus0, r, i, n;
+    int ign, nopr, sil, plus, *plus0, r, i, n, one;
     struct shblock *q1;
 
     ++ndocoms;
@@ -695,13 +724,19 @@ Task<int> docom(struct shblock *q)
         co_return YES;
     }
 
+    // GNU's .ONESHELL: the lines are one script, its first line's @, - and +
+    // for the whole, and the others' taken off.
+    if ((one = srchname(".ONESHELL") != NULL) && coms[0])
+        oneshell(coms);
+
     // -t and -q run none of the commands but the + ones, as -n does; -t then
     // touches the target.
     for (i = 0; coms[i]; ++i) {
         // A value with lines in it, as a define has, is a command per line,
         // each with its own prefixes.  GNU's canned recipes.
         for (line = coms[i]; line != NULL; line = next) {
-            for (next = line; *next && (*next != '\n' || (next > line && next[-1] == '\\'));
+            for (next = line;
+                 *next && (one || *next != '\n' || (next > line && next[-1] == '\\'));
                  ++next)
                 ;
             if (*next)
@@ -728,7 +763,9 @@ Task<int> docom(struct shblock *q)
             if (noexflag && !plus)
                 continue;
 
-            r = co_await docom1(s, ign);
+            shellonly = one;
+            r         = co_await docom1(s, ign);
+            shellonly = NO;
             forget(); // the command may have changed what $(shell) would say
             if (r && !ign) {
                 freecoms(coms, plus0);

@@ -97,6 +97,7 @@ inference rule set them.
 | `$(eval)` | GNU | Read as one more input buffer before the next line of the makefile, or, in a rule's commands, before the next command is expanded. A macro it sets is not seen by the rest of its own line |
 | Target-specific and pattern-specific macros | GNU | `target: name op value`, with `override` and `export`; in effect while the target is made, and so for its prerequisites too |
 | Long options, `--help` | GNU | `--directory`, `--file`, `--makefile`, `--dry-run` and the rest, each standing for its letter; a parent's long options in `MAKEFLAGS` are understood or passed over |
+| `.ONESHELL` | GNU | A rule's lines are one script to one `sh -c`, without `-e`, its first line's `@`, `-` and `+` for the whole |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a

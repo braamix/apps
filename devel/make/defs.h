@@ -195,6 +195,7 @@ Task<void> expand(struct depblock *q);
 
 // dosys.cpp
 Task<int> dosys(char *comstring, int nohalt);
+extern int shellonly;
 Task<void> touch(int force, char *name);
 void childenv(const char *makeflags);
 Args *mkenv(void);

@@ -1,0 +1,6 @@
+x=1
+echo "x is $x"
+false
+echo after
+x is 1
+after
