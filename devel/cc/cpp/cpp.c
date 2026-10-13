@@ -68,6 +68,8 @@ static const struct target targets[] = {
 static const struct target *target; // selected by -t; default wasm32-braam, like lower
 static int opt_nostdinc;            // -nostdinc: no target include directory
 static char std_include[256];       // VCC_SHARE_DIR/<target>/include
+static char *sys_dirs[MAXDIRS];     // -isystem: searched after every -I
+static int nsys;
 
 //
 // Select the target by name, or fail listing the valid ones.
@@ -100,6 +102,7 @@ coro(braam_call *) void usage(void)
     await printf("Options:\n");
     await printf("    -t target           Target: wasm32 or wasm32-braam (default wasm32-braam)\n");
     await printf("    -I path             Add path to the search list for header files\n");
+    await printf("    -isystem dir        Add dir to the system headers, searched after -I\n");
     await printf("    -nostdinc           Do not search the target's standard include directory\n");
     await printf("    -D macro[=value]    Fake a definition at the beginning\n");
     await printf("    -U macro            Undefine a macro at the beginning\n");
@@ -109,6 +112,16 @@ coro(braam_call *) void usage(void)
     await printf("    -w                  Suppress warnings\n");
     await printf("    -trigraphs          Translate trigraphs\n");
     await printf("    -E                  Ignored for compatibility\n");
+    await printf(
+        "    -M, -MM             Write the make rule of the included files, not the text;\n");
+    await printf("                        -MM leaves out the system headers\n");
+    await printf(
+        "    -MD, -MMD           Write the rule as well as the text, to -MF or <input>.d\n");
+    await printf("    -MF file            Write the rule to file\n");
+    await printf("    -MT target, -MQ target  The rule's target, as given or quoted for make\n");
+    await printf("    -MP                 Add an empty rule for each header\n");
+    await printf(
+        "    -MG                 With -M or -MM, list a missing header rather than fail\n");
     await printf("    --color=WHEN        Color diagnostics: always, never or auto (default)\n");
 }
 
@@ -268,8 +281,29 @@ static coro(braam_call *) void parse_args(int argc, char *argv[])
                 }
                 *cpp.pre_undefs_end++ = argv[i] + 2;
                 continue;
+            case 'M':
+                if (!deps_option(argc, argv, &i)) {
+                    pperror("unknown option '%s'", argv[i]);
+                    exit(1);
+                }
+                continue;
+            case 'i':
+                if (strncmp(argv[i], "-isystem", 8) == 0) {
+                    char *dir = argv[i] + 8;
+                    if (*dir == '\0' && i + 1 < argc)
+                        dir = argv[++i];
+                    if (*dir == '\0')
+                        pperror("missing argument to '%s'", argv[i]);
+                    else if (cpp.ndirs + nsys > MAXDIRS)
+                        pperror("too many '-I' directories; '%s' is ignored", dir);
+                    else
+                        sys_dirs[nsys++] = dir;
+                    continue;
+                }
+                pperror("unknown option '%s'", argv[i]);
+                exit(1);
             case 'I':
-                if (cpp.ndirs > MAXDIRS)
+                if (cpp.ndirs + nsys > MAXDIRS)
                     pperror("too many '-I' directories; '%s' is ignored", argv[i]);
                 else
                     cpp.search_dirs[cpp.ndirs++] = argv[i] + 2;
@@ -293,6 +327,7 @@ static coro(braam_call *) void parse_args(int argc, char *argv[])
                     exit(1);
                 }
                 cpp.inc_file[cpp.inc_level] = save_string(argv[i]);
+                deps_main(argv[i]);
                 cpp.search_dirs[0] = cpp.inc_dir[cpp.inc_level] = dir_of(argv[i]);
 
                 // too dangerous to have file name in same syntactic position
@@ -328,7 +363,11 @@ static coro(braam_call *) void register_builtins(void)
     int i;
     char *tf, **cp2;
 
-    // after user -I files here is the target's standard include directory
+    // after user -I files the -isystem ones, then the target's standard include
+    // directory
+    cpp.first_system = cpp.ndirs;
+    for (i = 0; i < nsys; i++)
+        cpp.search_dirs[cpp.ndirs++] = sys_dirs[i];
     if (!opt_nostdinc) {
         snprintf(std_include, sizeof(std_include), "%s/%s/include", VCC_SHARE_DIR, target->name);
         cpp.search_dirs[cpp.ndirs++] = std_include;

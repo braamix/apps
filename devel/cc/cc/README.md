@@ -58,6 +58,13 @@ and removed on exit.
 | `-Lpath`, `-lname` | Passed to the linker, after the objects |
 | `-T file` | A linker script, which `wasm-ld` has none of by default |
 | `-nostdinc` | Do not add the target's standard include directory |
+| `-isystem dir` | A system header directory, searched after every `-I` and left out by `-MM` |
+| `-M`, `-MM` | Instead of preprocessing, write a make rule naming the source and every header it includes, to `-o` or standard output (they imply `-E`); `-MM` leaves out the system headers |
+| `-MD`, `-MMD` | Write the same rule beside the compile, to `-MF`, else `-o`'s name with `.d`, else the source's base name with `.d` |
+| `-MF file` | Where the rule goes (one input only) |
+| `-MT target`, `-MQ target` | The rule's target, as given or quoted for make; repeatable. The default is the `-c -o` object, else the source's base name with `.o` |
+| `-MP` | An empty rule for each header, so that make does not fail when one is deleted |
+| `-MG` | With `-M` or `-MM`, a header not found is listed, as a file to be generated, rather than an error |
 | `--initial-pages=N` | The process's initial memory, 1 to 1600 pages of 64 KiB (default 4, braam-core's `BRAAM_BIN_INITIAL_PAGES`); the link's `--initial-memory` and the `braam` section both say it |
 | `-nostdlib` | No `crt0.o`, no standard library directory, no implicit libraries |
 | `-fmax-errors=N` | Stop after N errors (default 20, 0 for no limit); `vparse` and `vlower` take it as `--max-errors=N` |
@@ -91,8 +98,8 @@ On Braam itself the passes are in `../libexec/` rather than beside `vcc`, as a
 package's `bin/` holds commands only; the assembler is `as` and the linker `ld`,
 devel/wasm's, found on `PATH`; and the passes are spawned with `posix_spawnp`.
 
-`vcc` passes `-nostdinc -I<share>/include` to `vcpp`, so `vcpp`'s own compiled-in include
-directory plays no part. The assembler and linker belong to other projects. They are the
+`vcc` passes `-nostdinc -isystem<share>/include` to `vcpp`, so `vcpp`'s own compiled-in
+include directory plays no part, and `-MM` knows the headers there as the system's. The assembler and linker belong to other projects. They are the
 ones found when the build was configured, or else `clang` and `wasm-ld` on `PATH`. Which
 kind a tool is, by its name, decides its flags.
 

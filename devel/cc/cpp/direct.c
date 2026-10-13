@@ -158,12 +158,14 @@ static coro(braam_call *) char *do_include(char *p)
             }
             filok     = 1;
             cpp.in_fd = cpp.inc_fd[++cpp.inc_level];
+            deps_include(cpp.inc_level, nfil, dirp - cpp.search_dirs >= cpp.first_system);
             break;
         }
     }
-    if (filok == 0)
-        pperror("'%s' file not found", filname);
-    else {
+    if (filok == 0) {
+        if (!deps_missing(filname))
+            pperror("'%s' file not found", filname);
+    } else {
         cpp.line_no[cpp.inc_level]    = 1;
         cpp.trig_nhold[cpp.inc_level] = 0; // fresh file: no trigraph '?' carried in
         cpp.inc_file[cpp.inc_level] = cp = nfil;

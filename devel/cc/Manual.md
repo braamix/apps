@@ -63,6 +63,7 @@ ld         link          .o   -> a.out
 | `-Lpath`, `-lname` | for the linker, after the objects |
 | `--initial-pages=N` | the process's initial memory, in 64 KiB pages (default 4) |
 | `-nostdinc`, `-nostdlib` | no standard headers; no `crt0.o` and `libc.a` |
+| `-M`, `-MM`, `-MD`, `-MMD` | a make rule of the headers, instead of the output or beside it, as GCC writes it; `-MF`, `-MT`, `-MQ`, `-MP` and `-MG` as GCC has them |
 | `-O`, `-g`, `-W…`, `-std=…` | accepted and ignored |
 
 Inputs are `.c`, `.S` (preprocessed assembly), `.s`, `.o` and `.a`. The

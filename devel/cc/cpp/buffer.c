@@ -131,7 +131,8 @@ coro(braam_call *) void out_write(const char *s, size_t n)
             pperror("out of memory expanding an argument of macro '%s'", cpp.macro_name);
         return;
     }
-    await fwrite(s, 1, n, cpp.out_file);
+    if (!deps_quiet())
+        await fwrite(s, 1, n, cpp.out_file);
 }
 
 coro(braam_call *) void out_printf(const char *fmt, ...)
@@ -154,7 +155,7 @@ coro(braam_call *) void out_printf(const char *fmt, ...)
                 free(big);
             }
         }
-    } else {
+    } else if (!deps_quiet()) {
         await vfprintf(cpp.out_file, fmt, ap);
     }
     va_end(ap);
@@ -322,6 +323,7 @@ coro(braam_call *) char *refill_buffer(char *p)
                                "unterminated conditional directive");
                 cpp.tok_ptr = p;
                 await flush_output();
+                await deps_write();
                 exit_cpp();
             }
             cpp_close(cpp.in_fd);

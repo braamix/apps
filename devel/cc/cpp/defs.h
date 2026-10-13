@@ -164,6 +164,7 @@ struct cppstate {
     FILE *out_file;             // where preprocessed text is written (usually stdout)
     struct CppCapture *capture; // while an argument is prescanned: its expansion
     int ndirs;                  // number of entries filled in search_dirs; init: 1
+    int first_system;           // search_dirs from here on are system directories
     int inc_level;              // current #include nesting depth (0 = top-level file)
 
     // command-line option flags

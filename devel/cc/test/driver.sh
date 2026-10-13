@@ -44,12 +44,14 @@ int f(void) { return x; }
 EOF
 printf '\t.text\n' > a.s
 printf '#define X 1\n\t.text\n' > b.S
+scrub() {
+    sed -e "s|/private$inst|INST|g" -e "s|$inst|INST|g" -e "s|$work|WORK|g" -e 's/vcc[A-Za-z0-9_]\{6\}/vccXXXXXX/g' -e "s|/private/var|/var|g" -e "s|$TMPDIR|TMP/|g" "$1"
+}
 run() {
     echo "=== $*"
     st=0
     VCC_AS="$inst/tools/clang" VCC_LD="$inst/tools/wasm-ld" "$inst/bin/vcc" -v "$@" >"$work/.log" 2>&1 || st=$?
-    cat "$work/.log" |
-        sed -e "s|/private$inst|INST|g" -e "s|$inst|INST|g" -e "s|$work|WORK|g" -e 's/vcc[A-Za-z0-9_]\{6\}/vccXXXXXX/g' -e "s|/private/var|/var|g" -e "s|$TMPDIR|TMP/|g"
+    scrub "$work/.log"
     echo "status $st"; rm -f "$work/.log"
     ls
 }
@@ -68,6 +70,10 @@ run -t wasm32-braam -DX=1 -UY -I/inc -O2 -g -Wall -std=c11 -S hello.c -o h.s
 run -t wasm32 -S hello.c
 run -t nosuch hello.c
 run -S hello.c
+run -M hello.c
+run -MM -MP plain.c
+run -MMD -MP -c hello.c -o obj.o; scrub obj.d; rm -f obj.d
+run -MD -MF deps -MT t -MQ 'a b' -S hello.c; scrub deps; rm -f deps
 run --help
 } > "$out" 2>&1
 rm -rf "$inst" "$work"

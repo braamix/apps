@@ -157,6 +157,10 @@ static char *color_flag; // --color=always|never for every pass, or NULL for aut
 static struct vec sources;  // input .c/.s files to compile
 static struct vec objects;  // .o (and produced) files to link
 static struct vec cppflags; // -D/-I/-U pass-throughs for the preprocessor
+static const char *dep_opt; // -M, -MM, -MD or -MMD, or NULL
+static char *dep_file;      // -MF FILE
+static bool dep_target;     // -MT or -MQ was given
+static struct vec depflags; // -MP, -MG, -MT and -MQ for the preprocessor
 static struct vec ldflags;  // -L/-l pass-throughs for the linker
 static struct vec tmpfiles; // temp files to unlink on exit
 static struct vec owned;    // heap-allocated file names to free on exit
@@ -288,6 +292,20 @@ static char *replace_suffix(const char *name, const char *suf)
     memcpy(out, base, stem);
     out[stem] = '.';
     strcpy(out + stem + 1, suf);
+    return out;
+}
+
+//
+// Return an owned copy of `name`, its directory kept and its suffix replaced
+// by `.suf`: with_suffix("obj/foo.o", "d") == "obj/foo.d".
+//
+static char *with_suffix(const char *name, const char *suf)
+{
+    const char *slash = strrchr(name, '/');
+    const char *dot   = strrchr(slash ? slash + 1 : name, '.');
+    size_t stem       = dot ? (size_t)(dot - name) : strlen(name);
+    char *out         = concat(name, concat(".", suf)); // long enough
+    snprintf(out + stem, strlen(suf) + 2, ".%s", suf);
     return out;
 }
 
@@ -606,7 +624,27 @@ static coro(braam_call *) int run_cpp(const char *in, const char *out, bool asse
     // vcpp wants the search directory glued to the flag: -Ipath, not -I path.
     // The standard directory comes after every user -I.
     if (!opt_nostdinc)
-        vec_push(&av, concat(concat("-I", share_dir), "/include"));
+        vec_push(&av, concat(concat("-isystem", share_dir), "/include"));
+    if (dep_opt) {
+        // The rule's file and target, as gcc names them: -MD's file after the
+        // -o of a single output, else after the source; the target the -c
+        // object.
+        vec_push(&av, (char *)dep_opt);
+        for (size_t i = 0; i < depflags.len; i++)
+            vec_push(&av, depflags.data[i]);
+        if (opt_c && outfile && !dep_target) {
+            vec_push(&av, "-MQ");
+            vec_push(&av, outfile);
+        }
+        if (dep_file) {
+            vec_push(&av, "-MF");
+            vec_push(&av, dep_file);
+        } else if (strchr(dep_opt, 'D')) {
+            vec_push(&av, "-MF");
+            vec_push(&av, outfile && (opt_c || opt_S || opt_E) ? with_suffix(outfile, "d")
+                                                               : own(replace_suffix(in, "d")));
+        }
+    }
     if (color_flag)
         vec_push(&av, color_flag);
     vec_push(&av, (char *)in);
@@ -994,6 +1032,15 @@ static coro(braam_call *) void usage(int status)
     await printf("    -Dname[=val]    Predefine a preprocessor macro\n");
     await printf("    -Uname          Undefine a preprocessor macro\n");
     await printf("    -Ipath          Add a header search directory\n");
+    await printf("    -isystem dir    Add a system header directory, searched after -I\n");
+    await printf(
+        "    -M, -MM         Write a make rule of the source's headers instead of output;\n");
+    await printf("                    -MM leaves out the system headers\n");
+    await printf("    -MD, -MMD       Write the rule beside the compile, to file.d\n");
+    await printf("    -MF file        Write the rule to file\n");
+    await printf("    -MT t, -MQ t    The rule's target, as given or quoted for make\n");
+    await printf("    -MP             Add an empty rule for each header\n");
+    await printf("    -MG             With -M or -MM, list a missing header as generated\n");
     await printf("    -Lpath          Add a library search directory (for the linker)\n");
     await printf("    -lname          Link against library libname (for the linker)\n");
     await printf("    -T file         Linker script\n");
@@ -1079,6 +1126,40 @@ coro(braam_call *) int main(int argc, char *argv[])
         }
         if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0)
             await usage(0);
+        // Dependencies, for make: -M and -MM instead of the output, -MD and -MMD
+        // beside it.
+        if (strcmp(arg, "-M") == 0 || strcmp(arg, "-MM") == 0 || strcmp(arg, "-MD") == 0 ||
+            strcmp(arg, "-MMD") == 0) {
+            dep_opt = arg;
+            continue;
+        }
+        if (strcmp(arg, "-MP") == 0 || strcmp(arg, "-MG") == 0) {
+            vec_push(&depflags, arg);
+            continue;
+        }
+        if (arg[1] == 'M' && (arg[2] == 'F' || arg[2] == 'T' || arg[2] == 'Q')) {
+            if (arg[3] == '\0' && i + 1 >= argc) {
+                error("missing argument to '%s'", arg);
+                exit(1);
+            }
+            char *val = arg[3] ? arg + 3 : argv[++i];
+            if (arg[2] == 'F') {
+                dep_file = val;
+            } else {
+                dep_target = true;
+                vec_push(&depflags, arg[2] == 'T' ? "-MT" : "-MQ");
+                vec_push(&depflags, val);
+            }
+            continue;
+        }
+        if (strncmp(arg, "-isystem", 8) == 0) {
+            if (arg[8] == '\0' && i + 1 >= argc) {
+                error("missing argument to '%s'", arg);
+                exit(1);
+            }
+            vec_push(&cppflags, concat("-isystem", arg[8] ? arg + 8 : argv[++i]));
+            continue;
+        }
         if (strcmp(arg, "-x") == 0 && i + 1 >= argc) {
             error("missing argument to '%s'", arg);
             exit(1);
@@ -1227,8 +1308,14 @@ coro(braam_call *) int main(int argc, char *argv[])
         error("no input files");
         exit(1);
     }
+    if (dep_opt && (strcmp(dep_opt, "-M") == 0 || strcmp(dep_opt, "-MM") == 0))
+        opt_E = true; // the rule is the output
     if ((opt_E || opt_S || opt_c) && outfile && sources.len > 1) {
         error("cannot specify '-o' with '-c', '-S' or '-E' and multiple input files");
+        return 1;
+    }
+    if (dep_file && sources.len > 1) {
+        error("cannot specify '-MF' with multiple input files");
         return 1;
     }
 
@@ -1254,6 +1341,7 @@ coro(braam_call *) int main(int argc, char *argv[])
     vec_free(&sources);
     vec_free(&objects);
     vec_free(&cppflags);
+    vec_free(&depflags);
     vec_free(&ldflags);
     await cleanup();
     return errflag ? 1 : 0;

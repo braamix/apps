@@ -124,6 +124,14 @@ int cpp_read(int fd, char *buf, int n);            // read
 void cpp_close(int fd);                            // close
 int cpp_fstat(int fd, struct stat *st);            // fstat
 
+// deps.c -- the dependency rule of -M, -MM, -MD and -MMD
+int deps_option(int argc, char *argv[], int *i); // take an -M... option: 1, or 0 if unknown
+int deps_quiet(void);                            // -M, -MM: the rule replaces the output
+void deps_main(const char *path);                // the input file
+void deps_include(int level, const char *path, int system); // a header entered at level
+int deps_missing(const char *name);                         // -MG: a header not found is listed: 1
+coro(braam_call *) void deps_write(void);                   // write the rule, at the end
+
 // diag.c -- diagnostics and small string helpers
 extern int cpp_stderr_tty;               // stderr is a terminal: set once, in main
 char *dir_of(char *s);                   // reduce a path to its directory part

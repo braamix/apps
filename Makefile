@@ -199,6 +199,7 @@ TESTS := \
     devel/cc/test/hello.mjs \
     devel/cc/test/libc.mjs \
     devel/cc/test/toolchain.mjs \
+    devel/cc/test/deps.mjs \
     devel/cc/test/book.mjs \
     devel/cc/test/coro.mjs \
     devel/cc/test/wasm.mjs \

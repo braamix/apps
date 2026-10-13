@@ -46,8 +46,8 @@ the tables of. Phase D, the rest that makefiles reach for, is done and in
 | `-j [n]` | `doname()`, `docom()`, `dosys.cpp` | §3.3. `.WAIT` and `.NOTPARALLEL` begin to mean something |
 
 `.SILENT:` per target is already there (phase A), and so is
-`-include $(OBJS:.o=.d)`; what automatic dependencies still wait on is `cc`
-learning `-MD`, which is `devel/cc`'s work and not this phase's.
+`-include $(OBJS:.o=.d)`; with `cc -MMD -MP` that is automatic dependencies,
+which `test/build.mjs` builds with.
 
 #### 2.1 Functions without side effects to speak of
 

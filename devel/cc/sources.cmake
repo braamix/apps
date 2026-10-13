@@ -35,7 +35,7 @@ set(VCC_WASM
     backend/wasm/codegen.c)
 set(VCC_CPP
     cpp/cpp.c cpp/buffer.c cpp/scan.c cpp/direct.c cpp/macro.c cpp/diag.c
-    cpp/parser.c cpp/yylex.c cpp/files.c)
+    cpp/parser.c cpp/yylex.c cpp/files.c cpp/deps.c)
 
 # Each program: its main and the parts it links.
 set(VCC_PARSE_SOURCES parser/main.c ${VCC_PARSER} ${VCC_SCANNER} ${VCC_AST} ${VCC_LIBUTIL})

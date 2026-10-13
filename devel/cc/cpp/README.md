@@ -24,7 +24,14 @@ standard stream). **The exit status is the number of errors reported** (0 on suc
 | --- | --- |
 | `-t NAME`, `-tNAME`, `--target NAME` | Target: `wasm32-braam` (default, like `lower`; wasm32's macros and `__braam__`) or `wasm32`. Selects the predefined macros and the standard include directory. |
 | `-Ipath` | Add a directory to the header search list (up to 64). |
+| `-isystem dir`, `-isystemdir` | Add a system header directory: searched after every `-I` and before the standard one, which is a system directory too. |
 | `-nostdinc` | Do not search the target's standard include directory. |
+| `-M`, `-MM` | Write a make rule naming the input and every file it includes, in place of the output; `-MM` leaves out a system header and anything it includes. |
+| `-MD`, `-MMD` | Preprocess as usual, and write the same rule to `-MF` or `<input base name>.d`. |
+| `-MF file` | Where the rule goes. |
+| `-MT target`, `-MQ target` | The rule's target, as given or quoted for make (`$` doubled, blank and `#` escaped); repeatable. The default is the input's base name with `.o`. |
+| `-MP` | An empty rule for each header. |
+| `-MG` | With `-M` or `-MM`, a header not found is listed rather than an error. |
 | `-Dname[=value]` | Predefine a macro; bare `-Dname` defines it as `1`. Up to 20. |
 | `-Uname` | Undefine a macro at startup. Up to 20. |
 | `-R` | Allow macro recursion (disables the "blue paint" recursion stop). |
@@ -36,6 +43,9 @@ standard stream). **The exit status is the number of errors reported** (0 on suc
 | `--color=WHEN` | Color diagnostics: `always`, `never`, or `auto` (the default: when stderr is a terminal, `NO_COLOR` is unset or empty, and `TERM` is not `dumb`). |
 
 `-I`, `-D` and `-U` take their argument in the same word (`-Ifoo`, not `-I foo`).
+
+The rule is GCC's: each file once, in the order it was first included, lines
+wrapped at 72 columns, and no rule at all when the input has an error.
 
 A full compilation:
 
@@ -126,5 +136,6 @@ From [`defs.h`](defs.h); all meet the C11 §5.2.4.1 minimums.
 | `direct.c` | Directive dispatch, `#include` search and the include stack. |
 | `parser.c`, `yylex.c` | The `#if` expression evaluator and its tokenizer. |
 | `diag.c` | Diagnostics and small string helpers. |
+| `deps.c` | The make rule of `-M` and its family. |
 | `defs.h` | The state struct, the symbol-table entry, the size limits. |
 | `intern.h` | Scan-table macros, marker bytes, the macro-name filter. |
