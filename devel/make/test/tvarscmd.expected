@@ -1,0 +1,8 @@
+echo cc cmd main.o [pat cmd]
+cc cmd main.o [pat cmd]
+echo cc -util util.o [pat cmd]
+cc -util util.o [pat cmd]
+echo link prog [cmd]
+link prog [cmd]
+echo cc cmd other.o "[$E]"
+cc cmd other.o [exported]

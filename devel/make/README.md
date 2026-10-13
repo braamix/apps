@@ -95,6 +95,7 @@ inference rule set them.
 | `$(value)`, `$(origin)`, `$(call)` | GNU | `$(call)` binds `$(0)`, `$(1)`... as `$(foreach)` binds its name |
 | `$(info)`, `$(warning)`, `$(error)` | GNU | Said once the expansion is done for good, never twice; `$(error)` stops make |
 | `$(eval)` | GNU | Read as one more input buffer before the next line of the makefile, or, in a rule's commands, before the next command is expanded. A macro it sets is not seen by the rest of its own line |
+| Target-specific and pattern-specific macros | GNU | `target: name op value`, with `override` and `export`; in effect while the target is made, and so for its prerequisites too |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a

@@ -1,0 +1,8 @@
+echo cc -O -g main.o [pat -O]
+cc -O -g main.o [pat -O]
+echo cc -util util.o [pat -O]
+cc -util util.o [pat -O]
+echo link prog [-O -g]
+link prog [-O -g]
+echo cc -O other.o "[$E]"
+cc -O other.o [exported]

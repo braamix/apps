@@ -252,7 +252,7 @@ const GMAKE_CASES = new Set([
     "cond", "define", "export", "exportall", "funcs", "shellfn", "wildcard",
     "orderonly", "autolists", "goals", "goalsnamed", "defgoal",
     "patrule", "patcancel", "patcancel2", "static",
-    "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2", "eval",
+    "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2", "eval", "tvars", "tvarscmd",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])

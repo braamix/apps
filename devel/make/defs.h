@@ -43,6 +43,21 @@ extern char funny[256];
 
 #define ALLOC(x) (struct x *)ckalloc(sizeof(struct x))
 
+// A target-specific or pattern-specific macro, GNU's target: name op value.
+struct tvar {
+    struct tvar *next;
+    char *name;
+    char *val;
+    int op; // as assign() takes it; 'S' for a value expanded when read
+    int over, exp;
+};
+
+struct patvar {
+    struct patvar *next;
+    char *pat;
+    struct tvar *tv;
+};
+
 struct nameblock {
     struct nameblock *nxtnameblock;
     char *namep;
@@ -51,6 +66,7 @@ struct nameblock {
     int septype;
     TIMETYPE modtime;
     char *path; // where VPATH or vpath found it, if not here
+    struct tvar *tvars;
 };
 
 struct lineblock {
@@ -120,6 +136,7 @@ extern struct varblock *firstvar;
 extern struct pattern *firstpat;
 extern struct opendir *firstod;
 extern struct patrule *firstpatrule;
+extern struct patvar *firstpatvar;
 
 extern int childpid; // the child await() is waiting for; v7 called it waitpid
 extern int dbgflag;

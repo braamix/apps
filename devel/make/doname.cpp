@@ -310,7 +310,97 @@ static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, TIMETYPE ptime0
     co_return ptime;
 }
 
+// A macro as it was before a target's own value was put in effect.
+struct saved {
+    struct saved *next;
+    struct varblock *vp;
+    char *val;
+    int simple, used, fromenv, origin, exported, noreset;
+};
+static struct saved *savedvars;
+
+// One target-specific or pattern-specific macro put in effect.
+static void apply1(struct tvar *t)
+{
+    struct varblock *vp = varptr(t->name);
+    struct saved *sv    = ALLOC(saved);
+
+    sv->vp       = vp;
+    sv->val      = vp->varval;
+    sv->simple   = vp->simple;
+    sv->used     = vp->used;
+    sv->fromenv  = vp->fromenv;
+    sv->origin   = vp->origin;
+    sv->exported = vp->exported;
+    sv->noreset  = vp->noreset;
+    sv->next     = savedvars;
+    savedvars    = sv;
+
+    vp->used   = NO; // no "changed after being used": this is what it is for
+    overriding = t->over;
+    if (t->op == 'S') {
+        if (setvar(t->name, copys(t->val)))
+            vp->simple = YES;
+    } else
+        assign(t->name, t->val, t->op);
+    overriding = NO;
+    substneed  = NO; // a += that waits on $(shell) adds nothing
+    if (t->exp)
+        vp->exported = 1;
+    vp->used = sv->used;
+}
+
+// p's own macros, after those of the patterns it matches, in the order read.
+static void pushvars(struct nameblock *p)
+{
+    struct patvar *pv;
+    struct tvar *t;
+    char *stem;
+
+    for (pv = firstpatvar; pv; pv = pv->next)
+        if ((stem = patstem(pv->pat, p->namep)) != NULL) {
+            free(stem);
+            apply1(pv->tv);
+        }
+    for (t = p->tvars; t; t = t->next)
+        apply1(t);
+}
+
+static void popvars(struct saved *mark)
+{
+    struct saved *sv;
+
+    while ((sv = savedvars) != mark) {
+        savedvars        = sv->next;
+        sv->vp->varval   = sv->val;
+        sv->vp->simple   = sv->simple;
+        sv->vp->used     = sv->used;
+        sv->vp->fromenv  = sv->fromenv;
+        sv->vp->origin   = sv->origin;
+        sv->vp->exported = sv->exported;
+        sv->vp->noreset  = sv->noreset;
+        free(sv);
+    }
+}
+
+static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval);
+
+// A target's own macros are in effect while it is made, and so for what it
+// needs made too, as GNU has them.
 Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
+{
+    struct saved *mark = savedvars;
+    int r;
+
+    if (p == 0 || p->done > 0 || (p->tvars == NULL && firstpatvar == NULL))
+        co_return co_await doname1(p, reclevel, tval);
+    pushvars(p);
+    r = co_await doname1(p, reclevel, tval);
+    popvars(mark);
+    co_return r;
+}
+
+static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
 {
     int errstat;
     int okdel1;

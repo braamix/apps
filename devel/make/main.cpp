@@ -27,6 +27,7 @@ struct varblock *firstvar;
 struct pattern *firstpat;
 struct opendir *firstod;
 struct patrule *firstpatrule;
+struct patvar *firstpatvar;
 
 int childpid = 0;
 

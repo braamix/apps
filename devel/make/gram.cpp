@@ -735,6 +735,98 @@ static char *directive(char *t)
     return t;
 }
 
+// The first of `stops' in t outside $(...) and ${...}, or the end.
+static char *outside(char *t, const char *stops)
+{
+    int nest = 0;
+
+    for (; *t; ++t)
+        if (*t == '(' || *t == '{')
+            ++nest;
+        else if (*t == ')' || *t == '}')
+            --nest;
+        else if (nest == 0 && strchr(stops, *t))
+            break;
+    return t;
+}
+
+// target...: [override] [export] name op value -- GNU's target-specific and
+// pattern-specific macros, kept for doname() to put in effect.  NO if t is
+// not one, YES when it was taken, NEED when it waits on $(shell).
+static int targetvar(char *t)
+{
+    char *sep, *rest, *a, *eq, *e, *n, *val, *names, *w, *x;
+    struct tvar *tv, **tp;
+    struct patvar *pv, **pp;
+    struct nameblock *np;
+    int op, over = NO, exp = NO;
+
+    sep = outside(t, ":;=");
+    if (*sep != ':')
+        return NO;
+    rest = sep + 1 + (sep[1] == ':');
+    eq   = outside(rest, ";=");
+    if (*eq != '=')
+        return NO;
+    a = rest;
+    if ((x = isword(a, "override")) != NULL)
+        over = YES, a = x;
+    if ((x = isword(a, "export")) != NULL)
+        exp = YES, a = x;
+    e  = eq;
+    op = '=';
+    if (e > a && (e[-1] == '+' || e[-1] == '?' || e[-1] == ':')) {
+        op = *--e;
+        while (e > a && e[-1] == ':') // ::= and :::= expand when read, as := does
+            --e;
+    }
+    while (*a == ' ' || *a == '\t')
+        ++a;
+    while (e > a && (e[-1] == ' ' || e[-1] == '\t'))
+        --e;
+    for (n = a; n < e; ++n)
+        if (*n == ' ' || *n == '\t')
+            return NO; // a name is one word
+    if (e == a)
+        return NO;
+    for (val = eq + 1; *val == ' ' || *val == '\t'; ++val)
+        ;
+    *e   = '\0';
+    *sep = '\0';
+    names = substa(t);
+    x     = op == ':' ? substnow(val) : copys(val);
+    if (substneed || stopped) {
+        free(names);
+        free(x);
+        return substneed ? NEED : YES;
+    }
+    for (w = names; (w = strtok(w, " \t")) != NULL; w = NULL) {
+        tv       = ALLOC(tvar);
+        tv->name = copys(a);
+        tv->val  = copys(x);
+        tv->op   = op == ':' ? 'S' : op;
+        tv->over = over;
+        tv->exp  = exp;
+        if (strchr(w, '%')) {
+            pv      = ALLOC(patvar);
+            pv->pat = copys(w);
+            pv->tv  = tv;
+            for (pp = &firstpatvar; *pp; pp = &(*pp)->next)
+                ;
+            *pp = pv;
+        } else {
+            if ((np = srchname(w)) == 0)
+                np = makename(w);
+            for (tp = &np->tvars; *tp; tp = &(*tp)->next)
+                ;
+            *tp = tv;
+        }
+    }
+    free(names);
+    free(x);
+    return YES;
+}
+
 int yylex(void)
 {
     char *p;
@@ -973,6 +1065,15 @@ again1:
         free(incnames);
         incnames = substa(p);
         return stopped ? 0 : substneed ? NEED : INCLUDE;
+    }
+
+    switch (targetvar(text)) {
+    case YES:
+        if (stopped)
+            return 0;
+        goto again;
+    case NEED:
+        return NEED;
     }
 
     // substitute for macros on dependency line up to the semicolon if any
