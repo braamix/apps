@@ -70,6 +70,40 @@ struct lineblock *lp, *lpp;
 static struct depblock *prevdep;
 static int sepc;
 
+// Whether two lists of prerequisites name the same, in the same order.
+static int samedeps(struct depblock *a, struct depblock *b)
+{
+    for (; a && b; a = a->nxtdepblock, b = b->nxtdepblock)
+        if (a->depname != b->depname || a->orderonly != b->orderonly)
+            return NO;
+    return a == b;
+}
+
+// A pattern rule, GNU's: one with the same target and prerequisites goes, and
+// this one takes its place -- unless it has no commands, when it only cancels.
+static void patdef(char *target, struct depblock *deps, struct shblock *shell)
+{
+    struct patrule *pr, **prp;
+
+    for (prp = &firstpatrule; (pr = *prp) != NULL; prp = &pr->nxtpatrule)
+        if (!unequal(pr->target, target) && samedeps(pr->depp, deps)) {
+            if (shell == 0) {
+                *prp = pr->nxtpatrule;
+                free(pr);
+            } else
+                pr->shp = shell;
+            return;
+        }
+    if (shell == 0)
+        return;
+    pr             = ALLOC(patrule);
+    pr->target     = target;
+    pr->depp       = deps;
+    pr->shp        = shell;
+    pr->nxtpatrule = NULL;
+    *prp           = pr;
+}
+
 // comline : START namelist deplist shellist
 static void rule(struct depblock *deps, struct shblock *shell)
 {
@@ -81,6 +115,10 @@ static void rule(struct depblock *deps, struct shblock *shell)
 
     while (--nlefts >= 0) {
         leftp = lefts[nlefts];
+        if (strchr(leftp->namep, '%')) {
+            patdef(leftp->namep, deps, shell);
+            continue;
+        }
         if (leftp->septype == 0)
             leftp->septype = sepc;
         else if (leftp->septype != sepc)
@@ -95,6 +133,7 @@ static void rule(struct depblock *deps, struct shblock *shell)
         lp->nxtlineblock = NULL;
         lp->depp         = deps;
         lp->shp          = shell;
+        lp->stem         = NULL;
 
         if (!unequal(leftp->namep, ".SUFFIXES") && deps == 0)
             leftp->linep = 0;
@@ -110,6 +149,76 @@ static void rule(struct depblock *deps, struct shblock *shell)
     }
 }
 
+// dlist : the names after a separator, those after a `|' order-only.  The
+// token after them is returned.
+static int dlist(struct depblock **depsp)
+{
+    int tok, oo = NO;
+
+    prevdep = 0;
+    *depsp  = 0;
+    while ((tok = yylex()) == NAME || (tok == PIPE && !oo)) {
+        if (tok == PIPE) { // GNU's order-only prerequisites follow
+            oo = YES;
+            continue;
+        }
+        pp              = ALLOC(depblock);
+        pp->nxtdepblock = NULL;
+        pp->depname     = yylval.ynameblock;
+        pp->orderonly   = oo;
+        if (prevdep == 0)
+            *depsp = pp;
+        else
+            prevdep->nxtdepblock = pp;
+        prevdep = pp;
+    }
+    return tok;
+}
+
+// GNU's static pattern, targets: %.o: %.c -- a rule for each target, its
+// prerequisites the patterns with its stem for the %, and the stem its $*.
+static void staticrule(struct depblock *tpat, struct depblock *ppats, struct shblock *shell)
+{
+    struct nameblock **targets, *np;
+    struct depblock *deps, *last, *d, *q;
+    char *stem, *name;
+    int n, i;
+
+    if (tpat == 0 || tpat->nxtdepblock != 0 || !strchr(tpat->depname->namep, '%')) {
+        yyerror("target pattern contains no `%'");
+        return;
+    }
+    n       = nlefts;
+    targets = (struct nameblock **)ckalloc(n * sizeof(*targets));
+    memcpy(targets, lefts, n * sizeof(*targets));
+    for (i = 0; i < n && !stopped; ++i) {
+        if ((stem = patstem(tpat->depname->namep, targets[i]->namep)) == NULL) {
+            fatal1("target `%s' doesn't match the target pattern", targets[i]->namep);
+            break;
+        }
+        for (deps = last = 0, q = ppats; q; q = q->nxtdepblock) {
+            name = patput(q->depname->namep, stem);
+            if ((np = srchname(name)) == 0)
+                np = makename(name);
+            free(name);
+            d              = ALLOC(depblock);
+            d->depname     = np;
+            d->orderonly   = q->orderonly;
+            d->nxtdepblock = 0;
+            if (last)
+                last->nxtdepblock = d;
+            else
+                deps = d;
+            last = d;
+        }
+        lefts[0] = targets[i];
+        nlefts   = 1;
+        rule(deps, shell);
+        lp->stem = stem;
+    }
+    free(targets);
+}
+
 // 0 at the end of the file, 1 when the description is in error.  Every error
 // is yyerror()'s, which stops make, so `error' never recovers: as in v7, the
 // first is the last.
@@ -119,8 +228,8 @@ static void rule(struct depblock *deps, struct shblock *shell)
 // token, where a file read parks every time.
 Task<int> yyparse(void)
 {
-    int tok, oo;
-    struct depblock *deps;
+    int tok;
+    struct depblock *deps, *tpats;
     struct shblock *shell;
 
     tok = yylex();
@@ -183,24 +292,12 @@ Task<int> yyparse(void)
             fatal1("Must be a separator on rules line %s", junk);
             co_return 1;
         }
-        sepc    = (tok == COLON ? ALLDEPS : SOMEDEPS);
-        prevdep = 0;
-        deps    = 0;
-        oo      = NO;
-        while ((tok = yylex()) == NAME || (tok == PIPE && !oo)) {
-            if (tok == PIPE) { // GNU's order-only prerequisites follow
-                oo = YES;
-                continue;
-            }
-            pp              = ALLOC(depblock);
-            pp->nxtdepblock = NULL;
-            pp->depname     = yylval.ynameblock;
-            pp->orderonly   = oo;
-            if (prevdep == 0)
-                deps = pp;
-            else
-                prevdep->nxtdepblock = pp;
-            prevdep = pp;
+        sepc  = (tok == COLON ? ALLDEPS : SOMEDEPS);
+        tok   = dlist(&deps);
+        tpats = 0;
+        if (tok == COLON && sepc == ALLDEPS) { // a static pattern
+            tpats = deps;
+            tok   = dlist(&deps);
         }
         if (stopped)
             co_return 1;
@@ -224,7 +321,10 @@ Task<int> yyparse(void)
         if (stopped)
             co_return 1;
 
-        rule(deps, shell);
+        if (tpats)
+            staticrule(tpats, deps, shell);
+        else
+            rule(deps, shell);
     }
 }
 

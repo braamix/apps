@@ -26,6 +26,7 @@ struct lineblock *sufflist;
 struct varblock *firstvar;
 struct pattern *firstpat;
 struct opendir *firstod;
+struct patrule *firstpatrule;
 
 int childpid = 0;
 
@@ -648,6 +649,7 @@ void printdesc(int prntflag)
     struct opendir *od;
     struct shblock *sp;
     struct lineblock *lp;
+    struct patrule *pr;
 
     // A directory here is a listing and not a descriptor, so there is no number
     // to print beside it.
@@ -684,6 +686,18 @@ void printdesc(int prntflag)
                     mprintf("\t%s\n", sp->shbp);
             }
         }
+    }
+
+    for (pr = firstpatrule; pr; pr = pr->nxtpatrule) {
+        mprintf("\n\n%s:  (PATTERN)", pr->target);
+        if ((dp = pr->depp)) {
+            mprintf("\n depends on:");
+            for (; dp; dp = dp->nxtdepblock)
+                mprintf(" %s%s ", dp->orderonly ? "| " : "", dp->depname->namep);
+        }
+        mprintf("\n commands:\n");
+        for (sp = pr->shp; sp != 0; sp = sp->nxtshblock)
+            mprintf("\t%s\n", sp->shbp);
     }
     mprintf("\n");
 }

@@ -188,6 +188,10 @@ const SETUP = {
         for (const f of ["z.x", "a.x", ".hidden"])
             put(`${DIR}/sub/${f}`, "");
     },
+    patrule: () => {
+        put(`${DIR}/bb.c`, "");
+        put(`${DIR}/sub/x.c`, "");
+    },
     orderonly: () => {
         put(`${DIR}/a.o`, "", T0 + 1000);
         put(`${DIR}/prog`, "", T0 + 2000);
@@ -233,6 +237,7 @@ const GMAKE_CASES = new Set([
     "phony", "silent", "silentsome", "substref", "suffix",
     "cond", "define", "export", "exportall", "funcs", "shellfn", "wildcard",
     "orderonly", "autolists", "goals", "goalsnamed", "defgoal",
+    "patrule", "patcancel", "patcancel2", "static",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])

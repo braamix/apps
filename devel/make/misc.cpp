@@ -63,7 +63,42 @@ static int hasslash(const char *s)
 // targets, in gram.cpp's rule().
 int maincand(const char *s)
 {
-    return s[0] != '.' || hasslash(s);
+    return (s[0] != '.' || hasslash(s)) && !strchr(s, '%');
+}
+
+// What the % of pat matched in name, in a buffer of its own; NULL if pat does
+// not match.  As in GNU, a % matches at least one character.  A pattern with
+// no % matches only itself, with an empty stem.
+char *patstem(const char *pat, const char *name)
+{
+    const char *pct = strchr(pat, '%');
+    size_t pl = strlen(pat), nl = strlen(name), pre, suf;
+    char *stem;
+
+    if (pct == NULL)
+        return unequal(pat, name) ? NULL : copys("");
+    pre = pct - pat;
+    suf = pl - pre - 1;
+    if (nl <= pre + suf || strncmp(name, pat, pre) || strcmp(name + nl - suf, pct + 1))
+        return NULL;
+    stem = (char *)ckalloc(nl - pre - suf + 1);
+    memcpy(stem, name + pre, nl - pre - suf);
+    return stem;
+}
+
+// pat with stem for its first %, in a buffer of its own.
+char *patput(const char *pat, const char *stem)
+{
+    const char *pct = strchr(pat, '%');
+    char *s;
+
+    if (pct == NULL)
+        return copys(pat);
+    s = (char *)ckalloc(strlen(pat) + strlen(stem));
+    memcpy(s, pat, pct - pat);
+    strcpy(s + (pct - pat), stem);
+    strcat(s, pct + 1);
+    return s;
 }
 
 struct nameblock *makename(const char *s)
@@ -662,6 +697,27 @@ struct chain *appendu(struct chain *head, char *tail)
         if (!unequal(q->datap, tail))
             return head;
     return appendq(head, tail);
+}
+
+// The names of a, then those of b not in a.
+struct chain *joinu(struct chain *a, struct chain *b)
+{
+    for (; b; b = b->nextp)
+        a = appendu(a, b->datap);
+    return a;
+}
+
+// a, then b.
+struct chain *joinq(struct chain *a, struct chain *b)
+{
+    struct chain *q;
+
+    if (a == NULL)
+        return b;
+    for (q = a; q->nextp; q = q->nextp)
+        ;
+    q->nextp = b;
+    return a;
 }
 
 // A name at the front.

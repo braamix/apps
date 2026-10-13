@@ -1,0 +1,6 @@
+echo static a.o from a.c stem a [hdr.h]
+static a.o from a.c stem a [hdr.h]
+echo static b.o from b.c stem b [hdr.h]
+static b.o from b.c stem b [hdr.h]
+echo x x.c
+x x.c

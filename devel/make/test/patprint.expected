@@ -1,0 +1,23 @@
+Macros:
+	.DEFAULT_GOAL = all
+	SHELL = /bin/sh
+	MAKE = make
+	HOME = /home
+	PATH = /bin:/pkg/bin
+	MAKECMDGOALS = 
+	$ = $
+
+
+all:  (MAIN NAME)
+
+hdr.h
+
+%.c
+
+%.o
+
+%.o:  (PATTERN)
+ depends on: %.c  | hdr.h 
+ commands:
+	cc -c $<
+

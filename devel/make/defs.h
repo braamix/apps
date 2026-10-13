@@ -56,6 +56,15 @@ struct lineblock {
     struct lineblock *nxtlineblock;
     struct depblock *depp;
     struct shblock *shp;
+    char *stem; // a static pattern's $*
+};
+
+// A pattern rule, GNU's %.o: %.c, in the order read.
+struct patrule {
+    struct patrule *nxtpatrule;
+    char *target;
+    struct depblock *depp;
+    struct shblock *shp;
 };
 
 struct depblock {
@@ -104,6 +113,7 @@ extern struct lineblock *sufflist;
 extern struct varblock *firstvar;
 extern struct pattern *firstpat;
 extern struct opendir *firstod;
+extern struct patrule *firstpatrule;
 
 extern int childpid; // the child await() is waiting for; v7 called it waitpid
 extern int dbgflag;
@@ -173,6 +183,8 @@ char *callfunc(int fn, char *args, char *b, char *bend);
 struct nameblock *srchname(const char *s);
 struct nameblock *makename(const char *s);
 int maincand(const char *s);
+char *patstem(const char *pat, const char *name);
+char *patput(const char *pat, const char *stem);
 char *copys(const char *s);
 void *growbuf(void *buf, int *capp, int n);
 char *concat(const char *a, const char *b, char *c);
@@ -202,6 +214,8 @@ struct chain *appendq(struct chain *head, char *tail);
 struct chain *appendu(struct chain *head, char *tail);
 struct chain *prependu(struct chain *head, char *name);
 struct chain *prependq(struct chain *head, char *name);
+struct chain *joinu(struct chain *a, struct chain *b);
+struct chain *joinq(struct chain *a, struct chain *b);
 char *mkqlist(struct chain *p);
 int ismember(const char *name, char **libp, char **memp);
 

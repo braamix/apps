@@ -54,12 +54,114 @@ static Task<void> srchpre(const char *prefix)
     free(pat);
 }
 
-// Find a suffix rule that makes p.  Returns the source file's name block, sets
-// *rulep to the rule's and *prefixp to $*, which the caller keeps; or NULL if
-// there is none.  v7's buffers were 100 bytes and its names were not looked
-// at; these are the names' own lengths.
-static Task<struct nameblock *> implicit(struct nameblock *p, char **prefixp,
-                                         struct nameblock **rulep)
+// What an inference rule gives a target: its prerequisites, the first being
+// $<, the stem that is $*, and the commands.
+struct implied {
+    struct depblock *deps;
+    char *stem;
+    struct shblock *com;
+};
+
+// The name, or a new one.
+static struct nameblock *named(const char *s)
+{
+    struct nameblock *p = srchname(s);
+
+    return p ? p : makename(s);
+}
+
+// One prerequisite as an inference rule names it, at the head of the list it
+// is building.
+static void impdep(struct implied *im, struct nameblock *np, int orderonly)
+{
+    struct depblock *d = ALLOC(depblock), **dp;
+
+    d->depname   = np;
+    d->orderonly = orderonly;
+    for (dp = &im->deps; *dp; dp = &(*dp)->nxtdepblock)
+        ;
+    *dp = d;
+}
+
+// GNU's pattern rules, tried before the suffix rules.  Of those whose target
+// matches p and whose prerequisites, the stem put in, are files or are named
+// in the makefile, the one with the shortest stem, the first of those.  A
+// target pattern with no slash is matched against the file part of the name,
+// and the directory goes back on the stem and on each prerequisite.
+static Task<int> patimplicit(struct nameblock *p, struct implied *im)
+{
+    struct patrule *pr, *best = NULL;
+    struct depblock *q;
+    char *slash, *stem, *beststem = NULL, *name;
+    int dirlen, bestdir = 0, ok;
+
+    slash = strrchr(p->namep, '/');
+    for (pr = firstpatrule; pr && !stopped; pr = pr->nxtpatrule) {
+        dirlen = slash && !strchr(pr->target, '/') ? slash + 1 - p->namep : 0;
+        if ((stem = patstem(pr->target, p->namep + dirlen)) == NULL)
+            continue;
+        if (beststem && strlen(stem) >= strlen(beststem)) {
+            free(stem);
+            continue;
+        }
+        for (ok = YES, q = pr->depp; q && ok && !stopped; q = q->nxtdepblock) {
+            name = patput(q->depname->namep, stem);
+            if (dirlen) {
+                char *t = (char *)ckalloc(dirlen + strlen(name) + 1);
+
+                memcpy(t, p->namep, dirlen);
+                strcpy(t + dirlen, name);
+                free(name);
+                name = t;
+            }
+            ok = srchname(name) != 0 || co_await exists(name) > 0;
+            free(name);
+        }
+        if (ok && !stopped) {
+            free(beststem);
+            best     = pr;
+            beststem = stem;
+            bestdir  = dirlen;
+        } else
+            free(stem);
+    }
+    if (best == NULL || stopped) {
+        free(beststem);
+        co_return NO;
+    }
+    for (q = best->depp; q; q = q->nxtdepblock) {
+        name = patput(q->depname->namep, beststem);
+        stem = (char *)ckalloc(bestdir + strlen(name) + 1);
+        memcpy(stem, p->namep, bestdir);
+        strcpy(stem + bestdir, name);
+        impdep(im, named(stem), q->orderonly);
+        free(name);
+        free(stem);
+    }
+    im->stem = (char *)ckalloc(bestdir + strlen(beststem) + 1);
+    memcpy(im->stem, p->namep, bestdir);
+    strcpy(im->stem + bestdir, beststem);
+    free(beststem);
+    im->com = best->shp;
+    co_return YES;
+}
+
+// A suffix rule's commands: those of its first line with any.
+static struct shblock *rulecom(struct nameblock *rp)
+{
+    struct lineblock *lp;
+
+    for (lp = rp->linep; lp; lp = lp->nxtlineblock)
+        if (lp->shp)
+            return lp->shp;
+    return NULL;
+}
+
+// Find an inference rule that makes p, and fill *im from it: NO if there is
+// none.  The pattern rules first, then the suffix rules.  v7's buffers were
+// 100 bytes and its names were not looked at; these are the names' own
+// lengths.
+static Task<int> implicit(struct nameblock *p, struct implied *im)
 {
     struct lineblock *lp, *lp1;
     struct depblock *suffp, *suffp1;
@@ -82,14 +184,16 @@ static Task<struct nameblock *> implicit(struct nameblock *p, char **prefixp,
         for (lp = sufflist; lp; lp = lp->nxtlineblock)
             for (suffp = lp->depp; suffp; suffp = suffp->nxtdepblock) {
                 p1namep = suffp->depname->namep;
-                if ((p1 = srchcat(p1namep, ".a")) && (p2 = srchcat(prefix, p1namep))) {
-                    *rulep   = p1;
-                    *prefixp = prefix;
-                    co_return p2;
-                }
+                if ((p1 = srchcat(p1namep, ".a")) && (p2 = srchcat(prefix, p1namep)))
+                    goto found;
             }
         goto none;
     }
+
+    if (firstpatrule && co_await patimplicit(p, im))
+        co_return YES;
+    if (stopped)
+        co_return NO;
 
     prefix = (char *)ckalloc(strlen(p->namep) + 1);
     for (lp = sufflist; lp; lp = lp->nxtlineblock)
@@ -102,11 +206,8 @@ static Task<struct nameblock *> implicit(struct nameblock *p, char **prefixp,
                 for (lp1 = sufflist; lp1; lp1 = lp1->nxtlineblock)
                     for (suffp1 = lp1->depp; suffp1; suffp1 = suffp1->nxtdepblock) {
                         p1namep = suffp1->depname->namep;
-                        if ((p1 = srchcat(p1namep, pnamep)) && (p2 = srchcat(prefix, p1namep))) {
-                            *rulep   = p1;
-                            *prefixp = prefix;
-                            co_return p2;
-                        }
+                        if ((p1 = srchcat(p1namep, pnamep)) && (p2 = srchcat(prefix, p1namep)))
+                            goto found;
                     }
             }
         }
@@ -124,17 +225,20 @@ static Task<struct nameblock *> implicit(struct nameblock *p, char **prefixp,
                 goto none;
             if ((p2 = srchcat(p->namep, p1->namep))) {
                 strcpy(prefix, p->namep);
-                *rulep   = p1;
-                *prefixp = prefix;
-                co_return p2;
+                goto found;
             }
         }
 none:
     free(prefix);
-    co_return NULL;
+    co_return NO;
+
+found:
+    impdep(im, p2, NO);
+    im->stem = prefix;
+    im->com  = rulecom(p1);
+    co_return YES;
 }
 
-// Run the commands that bring p up to date and return its new time.
 // $?, $^, $+ and $| for commands about to run.
 static void setlists(struct chain *qchain, struct chain *allq, struct chain *plusq,
                      struct chain *ooq)
@@ -192,11 +296,10 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     TIMETYPE td, td1, tdep, ptime, ptime1;
     struct depblock *q;
     struct depblock *qtemp;
-    struct nameblock *p1, *p2;
     struct shblock *implcom, *explcom;
     struct lineblock *lp;
-    struct lineblock *lp2;
-    char *prefix, *stem;
+    struct implied im;
+    char *stem, *explstem;
     struct chain *qchain, *allq, *lineq, *plusq, *lineplus, *ooq, *lists[4];
     int phony;
 
@@ -215,8 +318,9 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
 
     errstat = 0;
     tdep    = 0;
-    implcom = 0;
-    explcom = 0;
+    implcom  = 0;
+    explcom  = 0;
+    explstem = NULL;
     // A .PHONY target is no file: never looked for, and always remade.
     phony   = isnamed(".PHONY", p->namep);
     ptime   = phony ? 0 : co_await exists(p->namep);
@@ -308,8 +412,10 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
             if (lp->shp != 0) {
                 if (explcom)
                     diag("Too many command lines for `%s'\n", p->namep);
-                else
-                    explcom = lp->shp;
+                else {
+                    explcom  = lp->shp;
+                    explstem = lp->stem;
+                }
             }
 
             if (td > tdep)
@@ -317,17 +423,20 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
         }
     }
 
-    // Look for implicit dependents, using suffix rules
-    p1     = NULL;
-    p2     = NULL;
-    prefix = NULL;
+    // Look for implicit dependents, using pattern and suffix rules
+    im.deps = NULL;
+    im.stem = NULL;
+    im.com  = NULL;
     // Only a target with no commands of its own, as POSIX has it: v7 looked
     // for every target, and gave one with commands a prerequisite besides.
     if (!phony && explcom == 0 && p->septype != SOMEDEPS)
-        p2 = co_await implicit(p, &prefix, &p1);
+        co_await implicit(p, &im);
+    if (stopped)
+        co_return 1;
     // $< in an explicit rule is its first prerequisite, and $* the target
-    // less a suffix .SUFFIXES knows, as GNU make has them; an inference rule
-    // sets its own below.  v7 left both as the last inference rule set them.
+    // less a suffix .SUFFIXES knows, or a static pattern's stem, as GNU make
+    // has them; an inference rule sets its own below.  v7 left both as the
+    // last inference rule set them.
     setvar("<", allq ? allq->datap : (char *)"");
     setvar("*", (char *)"");
     stem = (char *)ckalloc(strlen(p->namep) + 1);
@@ -340,26 +449,39 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
             }
     free(stem);
 stemmed:
-    if (p2 != NULL) {
-        errstat += co_await doname(p2, reclevel + 1, &td);
-        if (stopped)
-            co_return 1;
-        if (ptime < td)
-            qchain = appendu(qchain, p2->namep);
-        if (dbgflag)
-            mprintf("TIME(%s)=%lld\n", p2->namep, td);
-        if (td > tdep)
-            tdep = td;
-        setvar("*", prefix);
-        setvar("<", p2->namep);
-        allq  = prependu(allq, p2->namep); // the inferred prerequisite first, as GNU has it
-        plusq = prependq(plusq, p2->namep);
-        for (lp2 = p1->linep; lp2; lp2 = lp2->nxtlineblock)
-            if ((implcom = lp2->shp))
-                break;
+    if (explstem)
+        setvar("*", explstem);
+    if (im.deps != NULL) {
+        struct chain *impq = NULL, *impplus = NULL;
+
+        for (q = im.deps; q; q = q->nxtdepblock) {
+            if (q->depname->done > 0) {
+                td = q->depname->modtime;
+                errstat += q->depname->done == 3;
+            } else
+                errstat += co_await doname(q->depname, reclevel + 1, &td);
+            if (stopped)
+                co_return 1;
+            if (q->orderonly) {
+                ooq = appendu(ooq, q->depname->namep);
+                continue;
+            }
+            if (ptime < td)
+                qchain = appendu(qchain, q->depname->namep);
+            if (dbgflag)
+                mprintf("TIME(%s)=%lld\n", q->depname->namep, td);
+            if (td > tdep)
+                tdep = td;
+            impq    = appendu(impq, q->depname->namep);
+            impplus = appendq(impplus, q->depname->namep);
+        }
+        setvar("*", im.stem);
+        setvar("<", impq ? impq->datap : (char *)"");
+        // the inferred prerequisites first, as GNU has them
+        allq    = joinu(impq, allq);
+        plusq   = joinq(impplus, plusq);
+        implcom = im.com;
     }
-    if (stopped)
-        co_return 1;
 
     if (errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0))) {
         lists[0] = qchain, lists[1] = allq, lists[2] = plusq, lists[3] = ooq;

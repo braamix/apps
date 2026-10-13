@@ -1,0 +1,4 @@
+echo pattern a.c
+pattern a.c
+echo explicit b.c
+explicit b.c
