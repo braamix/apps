@@ -69,6 +69,8 @@ struct nameblock {
     struct tvar *tvars;
     int intermediate; // a link in a chain of pattern rules, or .INTERMEDIATE
     int made;         // its commands were run
+    int oldfile;      // -o: as old as can be, and never made
+    int newfile;      // -W: as if just changed
 };
 
 struct lineblock {
@@ -208,6 +210,7 @@ Task<int> startsys(char *comstring, int nohalt, u32 *pidp);
 Task<int> runself(Args args, int restarts);
 extern int remaking;
 extern int printdir;
+extern int alwaysmake;
 Task<void> touch(int force, char *name);
 void childenv(const char *makeflags);
 Args *mkenv(void);

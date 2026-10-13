@@ -1,0 +1,1 @@
+-r -n -W a.o -f times.mk prog

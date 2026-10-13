@@ -1,5 +1,6 @@
 Usage: make [options] [name=value]... [target]...
 Options:
+  -B, --always-make            every target out of date
   -C dir, --directory=dir      change to dir before reading the makefiles
   -d, --debug                  say what is made and why
   -e, --environment-overrides  the environment over the makefiles
@@ -9,6 +10,8 @@ Options:
   -w, --print-directory        say the directory make is in, and leaving it
   --no-print-directory         do not, not even in a sub-make
   -k, --keep-going             go on with what does not need a failed target
+  -o f, --old-file=f           f as old, and never made
+  -W f, --what-if=f            f as just changed
   -n, --dry-run                print the commands, run only + ones
   -p, --print-data-base        print the macros and rules
   -q, --question               status 1 if anything is out of date

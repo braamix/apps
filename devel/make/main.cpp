@@ -165,6 +165,10 @@ static int setflag(char c)
         printdir = YES;
         break;
 
+    case 'B':
+        alwaysmake = YES;
+        break;
+
     case '\001': // --no-print-directory
         printdir = NO;
         break;
@@ -173,6 +177,19 @@ static int setflag(char c)
         return NO;
     }
     return YES;
+}
+
+// GNU's -o and -W: a file taken as old and never remade, or as just changed.
+static void fileopt(char c, const char *name)
+{
+    struct nameblock *p = srchname(name);
+
+    if (p == 0)
+        p = makename(name);
+    if (c == 'o')
+        p->oldfile = YES;
+    else
+        p->newfile = YES;
 }
 
 // GNU's long options and the letters they stand for; f and C take a value.
@@ -199,6 +216,12 @@ static const struct {
     { "quiet", 's' },
     { "touch", 't' },
     { "jobs", 'j' },
+    { "always-make", 'B' },
+    { "old-file", 'o' },
+    { "assume-old", 'o' },
+    { "what-if", 'W' },
+    { "new-file", 'W' },
+    { "assume-new", 'W' },
     { "print-directory", 'w' },
     { "no-print-directory", '\001' },
     { "help", 'h' },
@@ -222,6 +245,7 @@ static void usage(void)
 {
     mprintf("Usage: make [options] [name=value]... [target]...\n"
             "Options:\n"
+            "  -B, --always-make            every target out of date\n"
             "  -C dir, --directory=dir      change to dir before reading the makefiles\n"
             "  -d, --debug                  say what is made and why\n"
             "  -e, --environment-overrides  the environment over the makefiles\n"
@@ -231,6 +255,8 @@ static void usage(void)
             "  -w, --print-directory        say the directory make is in, and leaving it\n"
             "  --no-print-directory         do not, not even in a sub-make\n"
             "  -k, --keep-going             go on with what does not need a failed target\n"
+            "  -o f, --old-file=f           f as old, and never made\n"
+            "  -W f, --what-if=f            f as just changed\n"
             "  -n, --dry-run                print the commands, run only + ones\n"
             "  -p, --print-data-base        print the macros and rules\n"
             "  -q, --question               status 1 if anything is out of date\n"
@@ -301,7 +327,7 @@ static void readmakeflags(void)
             const char *v;
             char c = longopt(w + 2, &v);
 
-            if (c && c != 'f' && c != 'C' && c != 'h' && c != 'j' && c != 'w')
+            if (c && !strchr("fChjwoW", c))
                 setflag(c);
         } else
             for (d = w + (*w == '-'); *d; ++d)
@@ -317,6 +343,8 @@ static void writemakeflags(void)
     char flags[16], *d = flags, *mf;
     size_t n;
 
+    if (alwaysmake)
+        *d++ = 'B';
     if (envflag)
         *d++ = 'e';
     if (ignerr && !srchname(".IGNORE"))
@@ -603,17 +631,22 @@ static Task<int> make_main(int argc, char *argv[])
                     argv[i + 1] = 0;
                 }
                 jobslots = s ? jobcount(s) : 1 << 20;
-            } else if (c == 'f' || c == 'C') {
+            } else if (c == 'f' || c == 'C' || c == 'o' || c == 'W') {
                 if (s == NULL && i < argc - 1 && argv[i + 1] != 0) {
                     s           = argv[i + 1];
                     argv[i + 1] = 0;
                 }
                 if (s == NULL) {
-                    fatal(c == 'f' ? "No description argument after -f flag"
-                                   : "No directory argument after -C flag");
+                    onechar[0] = c;
+                    fatal1(c == 'f'   ? "No description argument after -%s flag"
+                           : c == 'C' ? "No directory argument after -%s flag"
+                                      : "No file argument after -%s flag",
+                           onechar);
                     co_return 1;
                 }
-                if (c == 'f')
+                if (c == 'o' || c == 'W')
+                    fileopt(c, s);
+                else if (c == 'f')
                     descf[ndescf++] = (char *)s;
                 else if (co_await b_chdir(s) != 0) {
                     fatal1("Cannot change to directory %s", s);
@@ -649,6 +682,19 @@ static Task<int> make_main(int argc, char *argv[])
                         co_return 1;
                     }
                     ++nchdir;
+                    break;
+                } else if (c == 'o' || c == 'W') {
+                    // -o file and -W file, or -ofile: GNU's old and new files.
+                    if (argv[i][j + 1] != '\0')
+                        fileopt(c, argv[i] + j + 1);
+                    else if (i < argc - 1 && argv[i + 1] != 0) {
+                        fileopt(c, argv[i + 1]);
+                        argv[i + 1] = 0;
+                    } else {
+                        onechar[0] = c;
+                        fatal1("No file argument after -%s flag", onechar);
+                        co_return 1;
+                    }
                     break;
                 } else if (c == 'j') {
                     // -j n, -jn or -j alone, which is no limit.  Not passed on

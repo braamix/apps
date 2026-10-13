@@ -129,6 +129,22 @@ const SETUP = {
         put(`${DIR}/a.o`, "", T0 + 1000);
         put(`${DIR}/prog`, "", T0 + 2000);
     },
+    always: () => {
+        put(`${DIR}/a.o`, "", T0 + 1000);
+        put(`${DIR}/prog`, "", T0 + 2000);
+    },
+    whatif: () => {
+        put(`${DIR}/a.o`, "", T0 + 1000);
+        put(`${DIR}/prog`, "", T0 + 2000);
+    },
+    whatifold: () => {
+        put(`${DIR}/a.o`, "", T0 + 1000);
+        put(`${DIR}/prog`, "", T0 + 2000);
+    },
+    oldfile: () => {
+        put(`${DIR}/prog`, "", T0 + 2000);
+        put(`${DIR}/a.o`, "", T0 + 3000);
+    },
     stale: () => {
         put(`${DIR}/prog`, "", T0 + 2000);
         put(`${DIR}/a.o`, "", T0 + 3000);
@@ -278,7 +294,7 @@ const GMAKE_CASES = new Set([
     "patrule", "patcancel", "patcancel2", "static",
     "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2", "eval", "tvars", "tvarscmd", "longopts", "mflong", "oneshell", "oneshell2",
     "chain", "chainup", "chainsec", "inter", "jobs", "jobswait", "jobspat",
-    "remake", "remaked", "funcs3",
+    "remake", "remaked", "funcs3", "always", "oldfile", "whatif", "whatifold",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])

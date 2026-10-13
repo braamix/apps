@@ -14,7 +14,7 @@ and fixed six bounds V7 did not check; that port's README is the account of
 those.
 
 ```
-make [-einpqrstkS] [-j [n]] [-C dir]... [-f makefile]... [--option]...
+make [-BeinpqrstkSw] [-j [n]] [-o file]... [-W file]... [-C dir]... [-f makefile]... [--option]...
      [name=value]... [target]...
 ```
 
@@ -107,6 +107,7 @@ inference rule set them.
 | `$(abspath)`, `$(realpath)`, `$(flavor)`, `$(intcmp)`, `$(let)`, `$(file)` | GNU | `realpath` follows links and drops what is not there; `$(file)` is done when its expansion is, once however often the expansion is done |
 | `undefine` | GNU | A command-line macro keeps its value, `override` or not, as GNU's does |
 | `MAKELEVEL`, `-w`, `--print-directory`, `--no-print-directory` | GNU | `make[1]: Entering directory '...'` and `Leaving`, said under `-w`, and by default in a sub-make and under `-C` but for `-s` |
+| `-B`, `-o file`, `-W file` and their long names | GNU | Every target with commands out of date, `$?` all of them; `file` as old as can be and never made; `file` as if just changed |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a

@@ -1,0 +1,1 @@
+-r -n --what-if=a.c --assume-old=prog -f times.mk prog

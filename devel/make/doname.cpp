@@ -420,6 +420,9 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     co_return r;
 }
 
+// GNU's -B: every target with commands is out of date.
+int alwaysmake = NO;
+
 // Set while remakemfs() brings the makefiles up to date: no word about one
 // with nothing to do or no rule.
 int remaking;
@@ -457,6 +460,14 @@ static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
         co_return p->done == 3;
     }
 
+    // GNU's -o: there, as old as can be, and nothing it needs looked at.
+    if (p->oldfile) {
+        p->done    = 2;
+        p->modtime = 1;
+        *tval      = 1;
+        co_return 0;
+    }
+
     errstat = 0;
     tdep    = 0;
     implcom  = 0;
@@ -468,6 +479,8 @@ static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
     // Not here: through VPATH and vpath, as GNU looks.
     if (ptime == 0 && !phony && !stopped && havevpath())
         ptime = co_await vfind(p->namep, &p->path);
+    if (p->newfile && !stopped) // GNU's -W: as if just changed
+        ptime = co_await prestime();
     ptime1  = 0;
     didwork = NO;
     p->done = 1; // avoid infinite loops
@@ -687,7 +700,8 @@ stemmed:
         co_return 0;
     }
 
-    if (errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0))) {
+    if (errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0) ||
+                         (alwaysmake && !remaking && !p->newfile && (explcom || implcom)))) {
         // a target found elsewhere is made here, under its own name, as GNU
         // does without GPATH
         free(p->path);
@@ -700,13 +714,15 @@ stemmed:
                 co_return 0;
             }
             setat(p->namep);
-            setlists(qchain, allq, plusq, ooq);
+            setlists(alwaysmake ? allq : qchain, allq, plusq, ooq);
             p->made = YES;
             co_await startjob(p, explcom ? explcom : implcom, ptime);
             setvar("@", (char *)NULL);
             *tval = p->modtime;
             co_return p->done == 3;
         }
+        if (alwaysmake && !remaking) // -B: every prerequisite is newer
+            qchain = allq;
         lists[0] = qchain, lists[1] = allq, lists[2] = plusq, lists[3] = ooq;
         ptime    = co_await makeit(p, tdep, ptime, explcom, implcom, lists, &errstat);
     }
