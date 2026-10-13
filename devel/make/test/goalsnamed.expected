@@ -1,0 +1,4 @@
+echo first [first second]
+first [first second]
+echo second [first second] [second]
+second [first second] [second]

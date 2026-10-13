@@ -1,0 +1,10 @@
+echo b.o
+b.o
+echo a.o
+a.o
+echo d1
+d1
+echo d2
+d2
+echo [b.o a.o] [b.o a.o b.o] [d1 d2] [b.o] [b.o a.o]
+[b.o a.o] [b.o a.o b.o] [d1 d2] [b.o] [b.o a.o]

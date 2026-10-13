@@ -40,6 +40,7 @@ enum {
     INCLUDE,  // include, -include or sinclude: incnames names the files
     SHELLDEF, // a != line, which eqsign() left for runset()
     NEED,     // a line that waits on $(shell) or $(wildcard), to be done again
+    PIPE,     // `|', before the order-only prerequisites
 };
 
 // What an INCLUDE line named, expanded, and whether a missing file is fine.
@@ -118,7 +119,7 @@ static void rule(struct depblock *deps, struct shblock *shell)
 // token, where a file read parks every time.
 Task<int> yyparse(void)
 {
-    int tok;
+    int tok, oo;
     struct depblock *deps;
     struct shblock *shell;
 
@@ -185,10 +186,16 @@ Task<int> yyparse(void)
         sepc    = (tok == COLON ? ALLDEPS : SOMEDEPS);
         prevdep = 0;
         deps    = 0;
-        while ((tok = yylex()) == NAME) {
+        oo      = NO;
+        while ((tok = yylex()) == NAME || (tok == PIPE && !oo)) {
+            if (tok == PIPE) { // GNU's order-only prerequisites follow
+                oo = YES;
+                continue;
+            }
             pp              = ALLOC(depblock);
             pp->nxtdepblock = NULL;
             pp->depname     = yylval.ynameblock;
+            pp->orderonly   = oo;
             if (prevdep == 0)
                 deps = pp;
             else
@@ -651,6 +658,11 @@ int yylex(void)
     if (*zznextc == '>') {
         ++zznextc;
         return GREATER;
+    }
+
+    if (*zznextc == '|') {
+        ++zznextc;
+        return PIPE;
     }
 
     if (*zznextc == ';')

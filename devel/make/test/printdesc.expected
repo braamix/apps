@@ -1,8 +1,10 @@
 Macros:
+	.DEFAULT_GOAL = prog
 	SHELL = /bin/sh
 	MAKE = make
 	HOME = /home
 	PATH = /bin:/pkg/bin
+	MAKECMDGOALS = prog
 	$ = $
 
 

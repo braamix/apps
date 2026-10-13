@@ -61,6 +61,7 @@ struct lineblock {
 struct depblock {
     struct depblock *nxtdepblock;
     struct nameblock *depname;
+    int orderonly; // after a `|': made first, but its time is not looked at
 };
 
 struct shblock {
@@ -151,6 +152,7 @@ Task<char *> wildcard(char *pats);
 // doname.cpp
 Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval);
 Task<int> docom(struct shblock *q);
+extern TIMETYPE attime;
 Task<void> expand(struct depblock *q);
 
 // dosys.cpp
@@ -199,6 +201,7 @@ void yyerror(const char *s);
 struct chain *appendq(struct chain *head, char *tail);
 struct chain *appendu(struct chain *head, char *tail);
 struct chain *prependu(struct chain *head, char *name);
+struct chain *prependq(struct chain *head, char *name);
 char *mkqlist(struct chain *p);
 int ismember(const char *name, char **libp, char **memp);
 

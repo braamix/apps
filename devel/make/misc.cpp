@@ -448,8 +448,7 @@ int setvar(const char *v, char *s)
         p->simple  = NO;
         p->fromenv = NO;
         p->noreset = inarglist || overriding;
-        if (p->used && unequal(v, "@") && unequal(v, "*") && unequal(v, "<") && unequal(v, "?") &&
-            unequal(v, "^"))
+        if (p->used && !(v[0] && strchr("@*<?^%+|", v[0]) && v[1] == '\0'))
             diag("Warning: %s changed after being used\n", v);
         return YES;
     }
@@ -663,6 +662,16 @@ struct chain *appendu(struct chain *head, char *tail)
         if (!unequal(q->datap, tail))
             return head;
     return appendq(head, tail);
+}
+
+// A name at the front.
+struct chain *prependq(struct chain *head, char *name)
+{
+    struct chain *p = ALLOC(chain);
+
+    p->datap = name;
+    p->nextp = head;
+    return p;
 }
 
 // The same at the front, the name moving there if it was further on.

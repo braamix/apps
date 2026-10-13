@@ -324,6 +324,17 @@ static Task<int> make_main(int argc, char *argv[])
             argv[i] = 0;
         }
 
+    // GNU's MAKECMDGOALS: the targets named on the command line.
+    for (i = 1, d = copys(""); i < argc; ++i)
+        if (argv[i] != 0) {
+            s = d;
+            d = (char *)ckalloc(strlen(s) + strlen(argv[i]) + 2);
+            concat(s, *s ? " " : "", d);
+            strcat(d, argv[i]);
+            free((char *)s);
+        }
+    setvar("MAKECMDGOALS", d);
+
     for (i = 0; i < ndescf; ++i) {
         if (co_await rddescf(descf[i]))
             fatal1("Cannot open %s", descf[i]);
@@ -335,6 +346,21 @@ static Task<int> make_main(int argc, char *argv[])
             co_await rddescf("Makefile");
     if (stopped)
         co_return 1;
+
+    // GNU's .DEFAULT_GOAL: a makefile may name the default target, and reads
+    // the one chosen when it does not.
+    if ((d = substnow((char *)"$(.DEFAULT_GOAL)")) != NULL && *d) {
+        for (s = d; *s == ' '; ++s)
+            ;
+        for (j = 0; s[j] && s[j] != ' '; ++j)
+            ;
+        d[s - d + j] = '\0';
+        if ((p = srchname(s)) == 0)
+            p = makename(s);
+        mainname = p;
+    } else if (mainname)
+        setvar(".DEFAULT_GOAL", mainname->namep);
+    substneed = NO;
 
     if (prtrflag)
         printdesc(NO);

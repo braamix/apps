@@ -2,6 +2,8 @@ doname(solo,0)
 echo solo
 Open directories:
 Macros:
+	| = 
+	+ = 
 	^ = 
 	? = 
 	% = 
@@ -9,10 +11,12 @@ Macros:
 	* = 
 	< = 
 	MAKEFLAGS = nr
+	.DEFAULT_GOAL = solo
 	SHELL = /bin/sh
 	MAKE = make
 	HOME = /home
 	PATH = /bin:/pkg/bin
+	MAKECMDGOALS = solo
 	$ = $
 
 

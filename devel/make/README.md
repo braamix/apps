@@ -85,6 +85,10 @@ inference rule set them.
 | Text functions | GNU | `subst patsubst strip findstring filter filter-out sort word wordlist words firstword lastword dir notdir suffix basename addsuffix addprefix join if or and foreach` |
 | `$(wildcard)`, `$(shell)` | GNU | Sorted, a leading `.` matched only by one; two identical calls in one line or one rule's commands are run once |
 | A rule's commands are all expanded before the first runs | GNU | So `$(wildcard)` in one does not see what the one before made |
+| Order-only prerequisites, `a: b \| c`, and `$\|` | GNU | Made first; their times are not looked at |
+| `$+` | GNU | Every prerequisite in order, repeats kept; `$?` has each once |
+| `.DELETE_ON_ERROR` | GNU | A target its failed command changed is removed, as `^C` removes it |
+| `MAKECMDGOALS`, `.DEFAULT_GOAL` | GNU | A makefile may set `.DEFAULT_GOAL`, and reads the default target's name in it when it does not |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a

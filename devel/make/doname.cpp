@@ -135,9 +135,19 @@ none:
 }
 
 // Run the commands that bring p up to date and return its new time.
-static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, struct shblock *explcom,
-                             struct shblock *implcom, struct chain *qchain, struct chain *allq,
-                             int *errstatp)
+// $?, $^, $+ and $| for commands about to run.
+static void setlists(struct chain *qchain, struct chain *allq, struct chain *plusq,
+                     struct chain *ooq)
+{
+    setvar("?", mkqlist(qchain));
+    setvar("^", mkqlist(allq));
+    setvar("+", mkqlist(plusq));
+    setvar("|", mkqlist(ooq));
+}
+
+static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, TIMETYPE ptime0,
+                             struct shblock *explcom, struct shblock *implcom,
+                             struct chain **lists, int *errstatp)
 {
     struct nameblock *p1;
     struct lineblock *lp2;
@@ -145,8 +155,8 @@ static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, struct shblock 
 
     ptime = (tdep > 0 ? tdep : co_await prestime());
     setat(p->namep);
-    setvar("?", mkqlist(qchain));
-    setvar("^", mkqlist(allq));
+    setlists(lists[0], lists[1], lists[2], lists[3]);
+    attime = ptime0;
     if (explcom)
         *errstatp += co_await docom(explcom);
     else if (implcom)
@@ -187,7 +197,7 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     struct lineblock *lp;
     struct lineblock *lp2;
     char *prefix, *stem;
-    struct chain *qchain, *allq, *lineq;
+    struct chain *qchain, *allq, *lineq, *plusq, *lineplus, *ooq, *lists[4];
     int phony;
 
     if (p == 0) {
@@ -218,6 +228,8 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
 
     qchain = NULL;
     allq   = NULL; // $^: every prerequisite, once each
+    plusq  = NULL; // $+: every one, in order, repeats kept
+    ooq    = NULL; // $|: the order-only ones
 
     // Expand any names that have embedded metacharaters
     for (lp = p->linep; lp; lp = lp->nxtlineblock)
@@ -232,8 +244,9 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
 
     // make sure all dependents are up to date
     for (lp = p->linep; lp; lp = lp->nxtlineblock) {
-        td    = 0;
-        lineq = NULL;
+        td       = 0;
+        lineq    = NULL;
+        lineplus = NULL;
         for (q = lp->depp; q; q = q->nxtdepblock) {
             // POSIX's .WAIT orders what is made in parallel, and this make
             // makes one thing at a time: it is no prerequisite at all.
@@ -255,14 +268,20 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
                 co_return 1;
             if (q->depname == 0)
                 continue; // v7 went on to read q->depname->namep
+            if (q->orderonly) {
+                ooq = appendu(ooq, q->depname->namep);
+                continue;
+            }
             if (dbgflag)
                 mprintf("TIME(%s)=%lld\n", q->depname->namep, td1);
             if (td1 > td)
                 td = td1;
             if (ptime < td1)
-                qchain = appendq(qchain, q->depname->namep);
-            allq  = appendu(allq, q->depname->namep);
-            lineq = appendu(lineq, q->depname->namep);
+                qchain = appendu(qchain, q->depname->namep);
+            allq     = appendu(allq, q->depname->namep);
+            lineq    = appendu(lineq, q->depname->namep);
+            plusq    = appendq(plusq, q->depname->namep);
+            lineplus = appendq(lineplus, q->depname->namep);
         }
         if (p->septype == SOMEDEPS) {
             if (lp->shp != 0)
@@ -270,10 +289,10 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
                     okdel1 = okdel;
                     okdel  = NO;
                     setat(p->namep);
-                    setvar("?", mkqlist(qchain));
-                    setvar("^", mkqlist(lineq));
+                    setlists(qchain, lineq, lineplus, ooq);
                     setvar("<", lineq ? lineq->datap : (char *)"");
                     qchain = NULL;
+                    attime = ptime;
                     if (!questflag)
                         errstat += co_await docom(lp->shp);
                     if (stopped)
@@ -326,14 +345,15 @@ stemmed:
         if (stopped)
             co_return 1;
         if (ptime < td)
-            qchain = appendq(qchain, p2->namep);
+            qchain = appendu(qchain, p2->namep);
         if (dbgflag)
             mprintf("TIME(%s)=%lld\n", p2->namep, td);
         if (td > tdep)
             tdep = td;
         setvar("*", prefix);
         setvar("<", p2->namep);
-        allq = prependu(allq, p2->namep); // the inferred prerequisite first, as GNU has it
+        allq  = prependu(allq, p2->namep); // the inferred prerequisite first, as GNU has it
+        plusq = prependq(plusq, p2->namep);
         for (lp2 = p1->linep; lp2; lp2 = lp2->nxtlineblock)
             if ((implcom = lp2->shp))
                 break;
@@ -341,8 +361,10 @@ stemmed:
     if (stopped)
         co_return 1;
 
-    if (errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0)))
-        ptime = co_await makeit(p, tdep, explcom, implcom, qchain, allq, &errstat);
+    if (errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0))) {
+        lists[0] = qchain, lists[1] = allq, lists[2] = plusq, lists[3] = ooq;
+        ptime    = co_await makeit(p, tdep, ptime, explcom, implcom, lists, &errstat);
+    }
 
     else if (errstat != 0 && reclevel == 0)
         mprintf("`%s' not remade because of errors\n", p->namep);
@@ -395,6 +417,26 @@ static void freecoms(char **v, int *plus)
         free(v[i]);
     free(v);
     free(plus);
+}
+
+// The target's time before its commands ran, for .DELETE_ON_ERROR.
+TIMETYPE attime;
+
+// GNU's .DELETE_ON_ERROR: a target its failed command changed is removed, as
+// ^C removes it.
+static Task<void> delonerr(char *at)
+{
+    TIMETYPE t;
+    char *mem = varptr("%")->varval;
+
+    if (at == NULL || !srchname(".DELETE_ON_ERROR") || isprecious(at) || isnamed(".PHONY", at))
+        co_return;
+    if (mem && *mem) // a library is not removed for a member
+        co_return;
+    if ((t = co_await exists(at)) > 0 && t != attime) {
+        diag("***  %s removed.\n", at);
+        co_await b_unlink(at);
+    }
 }
 
 // The commands, each printed and run.  -n prints and runs none, so nothing
@@ -459,6 +501,7 @@ Task<int> docom(struct shblock *q)
             forget(); // the command may have changed what $(shell) would say
             if (r && !ign) {
                 freecoms(coms, plus0);
+                co_await delonerr(at);
                 if (keepgoing)
                     co_return YES;
                 fatal((char *)NULL);

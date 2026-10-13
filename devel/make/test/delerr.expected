@@ -1,0 +1,6 @@
+echo partial > out
+false
+*** Error code 1
+***  out removed.
+false
+*** Error code 1

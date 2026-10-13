@@ -188,6 +188,14 @@ const SETUP = {
         for (const f of ["z.x", "a.x", ".hidden"])
             put(`${DIR}/sub/${f}`, "");
     },
+    orderonly: () => {
+        put(`${DIR}/a.o`, "", T0 + 1000);
+        put(`${DIR}/prog`, "", T0 + 2000);
+    },
+    delerr: () => {
+        put(`${DIR}/src`, "", T0 + 1000);
+        put(`${DIR}/old`, "was", T0);
+    },
     longname: () => put(`${DIR}/${"x".repeat(200)}.c`, "", T0),
     // Two -C, the first with its directory attached.
     chdir: () => put(`${DIR}/cdir/deeper/makefile`, "all:\n\tpwd\n"),
@@ -206,6 +214,8 @@ let job = 0;
 
 // What a case is checked for beyond its output, by name.
 const CHECK = {
+    delerr: () => get(`${DIR}/out`) === undefined && get(`${DIR}/old`) === "was" ||
+        "out was kept, or old was not",
     shellfn: () => get(`${DIR}/made`) === "hi\n" || "made was not written",
     shell: () => get(`${DIR}/shout`) === "through the shell\n" || "shout was not written",
     touchrun: () => get(`${DIR}/prog`) !== undefined || "prog was not created",
@@ -222,6 +232,7 @@ const GMAKE_CASES = new Set([
     "longname", "macros", "dirfile", "special", "shellassign",
     "phony", "silent", "silentsome", "substref", "suffix",
     "cond", "define", "export", "exportall", "funcs", "shellfn", "wildcard",
+    "orderonly", "autolists", "goals", "goalsnamed", "defgoal",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])
