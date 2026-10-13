@@ -84,7 +84,7 @@ inference rule set them.
 | `override`, `export`, `unexport` | GNU | A child gets the environment's and the command line's macros, and the exported ones, at their values now |
 | Text functions | GNU | `subst patsubst strip findstring filter filter-out sort word wordlist words firstword lastword dir notdir suffix basename addsuffix addprefix join if or and foreach` |
 | `$(wildcard)`, `$(shell)` | GNU | Sorted, a leading `.` matched only by one; two identical calls in one line or one rule's commands are run once |
-| A rule's commands are all expanded before the first runs | GNU | So `$(wildcard)` in one does not see what the one before made |
+| A rule's commands are all expanded before the first runs | GNU | So `$(wildcard)` in one does not see what the one before made; they are expanded in order, so an `$(eval)` in one is seen by the next |
 | Order-only prerequisites, `a: b \| c`, and `$\|` | GNU | Made first; their times are not looked at |
 | `$+` | GNU | Every prerequisite in order, repeats kept; `$?` has each once |
 | `.DELETE_ON_ERROR` | GNU | A target its failed command changed is removed, as `^C` removes it |
@@ -94,6 +94,7 @@ inference rule set them.
 | `VPATH`, `vpath` | GNU | A prerequisite not here is looked for through the matching `vpath`s, then `VPATH`, and is its path in `$<`, `$^` and the rest; an inference rule's source too. A target found there that is out of date is made here |
 | `$(value)`, `$(origin)`, `$(call)` | GNU | `$(call)` binds `$(0)`, `$(1)`... as `$(foreach)` binds its name |
 | `$(info)`, `$(warning)`, `$(error)` | GNU | Said once the expansion is done for good, never twice; `$(error)` stops make |
+| `$(eval)` | GNU | Read as one more input buffer before the next line of the makefile, or, in a rule's commands, before the next command is expanded. A macro it sets is not seen by the rest of its own line |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a

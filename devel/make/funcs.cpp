@@ -39,6 +39,7 @@ enum {
     F_WARNING,
     F_ERROR,
     F_CALL,
+    F_EVAL,
 };
 
 // Each function, the fewest arguments it takes and the most, the last taking
@@ -54,7 +55,7 @@ static const struct func {
     { "addsuffix", 2, 2 }, { "addprefix", 2, 2 }, { "join", 2, 2 },      { "if", 2, 3 },
     { "or", 1, 1000 },     { "and", 1, 1000 },    { "foreach", 3, 3 },   { "wildcard", 1, 1 },
     { "shell", 1, 1 },     { "value", 1, 1 },     { "origin", 1, 1 },    { "info", 1, 1 },
-    { "warning", 1, 1 },   { "error", 1, 1 },     { "call", 1, 1000 },
+    { "warning", 1, 1 },   { "error", 1, 1 },     { "call", 1, 1000 },   { "eval", 1, 1 },
 };
 #define NFUNCS (int)(sizeof(funcs) / sizeof(funcs[0]))
 
@@ -133,6 +134,22 @@ static void hold(int fd, const char *text)
     heldtail  = &h->next;
 }
 
+// $(eval)'s text, which no parse has taken yet: docom() parses it before the
+// commands it was found in run.
+char *evalpend;
+
+// The texts of the $(eval)s of an expansion, in order, as one: read at once
+// as one more input buffer while a makefile is, held for docom() otherwise.
+static void evaltext(const char *t)
+{
+    size_t n = evalpend ? strlen(evalpend) : 0, m = strlen(t);
+
+    evalpend = (char *)realloc(evalpend, n + m + 2);
+    memcpy(evalpend + n, t, m);
+    evalpend[n + m]     = '\n';
+    evalpend[n + m + 1] = '\0';
+}
+
 void heldeffects(int keep)
 {
     struct held *h;
@@ -141,12 +158,19 @@ void heldeffects(int keep)
         heldq = h->next;
         if (keep && h->fd == SYS_STDOUT)
             mprintf("%s\n", h->text);
-        else if (keep)
+        else if (keep && h->fd == SYS_STDERR)
             diag("%s\n", h->text);
+        else if (keep)
+            evaltext(h->text);
         free(h->text);
         free(h);
     }
     heldtail = &heldq;
+    if (keep && parsing && evalpend) {
+        if (!pushin(evalpend, strlen(evalpend)))
+            free(evalpend);
+        evalpend = NULL;
+    }
 }
 
 // A macro bound for $(foreach) or $(call), and what it was before.
@@ -583,6 +607,10 @@ char *callfunc(int fn, char *args, char *b, char *bend)
 
     case F_ERROR:
         fatal(x[0]);
+        break;
+
+    case F_EVAL:
+        hold(-1, x[0]);
         break;
 
     case F_CALL: {

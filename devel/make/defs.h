@@ -186,6 +186,8 @@ Task<char *> shellout(char *cmd);
 // funcs.cpp
 extern int substneed;
 void heldeffects(int keep);
+extern char *evalpend;
+Task<void> evalnow(void);
 Task<void> perform(void);
 void forget(void);
 int isfunc(const char *name);

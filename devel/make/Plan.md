@@ -73,7 +73,7 @@ handed on when the expansion finishes. Met while the makefile is read, it is
 pushed as one more input buffer (§3.1), so `yyparse()` reads it before the
 next line, which is where a line of nothing but `$(eval ...)` wants it. Met
 while a rule's commands are expanded, `docom()` awaits `yyparse()` over it
-before running any. A `$(foreach)` of evals is one buffer, in order. Unlike
+before the next command is expanded, as GNU's are, one after another. A `$(foreach)` of evals is one buffer, in order. Unlike
 GNU, a macro an `eval` sets is not seen by the rest of the line it is on.
 
 #### 2.3 Target-specific and pattern-specific macros

@@ -1,0 +1,14 @@
+echo cc one.o
+cc one.o
+echo link one from one.o
+link one from one.o
+echo cc two.o
+cc two.o
+echo link two from two.o
+link two from two.o
+echo [one two]
+[one two]
+echo [set by eval] 
+[set by eval]
+echo [at run time]
+[at run time]

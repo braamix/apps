@@ -454,8 +454,8 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     im.com  = NULL;
     // Only a target with no commands of its own, as POSIX has it: v7 looked
     // for every target, and gave one with commands a prerequisite besides.
-    if (!phony && explcom == 0 && p->septype != SOMEDEPS)
-        co_await implicit(p, &im);
+    if (!phony && explcom == 0 && p->septype != SOMEDEPS && co_await implicit(p, &im))
+        implcom = im.com; // a pattern rule may have no prerequisites
     if (stopped)
         co_return 1;
     // $< in an explicit rule is its first prerequisite, and $* the target
@@ -500,13 +500,13 @@ stemmed:
             impq    = appendu(impq, dname(q->depname));
             impplus = appendq(impplus, dname(q->depname));
         }
-        setvar("*", im.stem);
         setvar("<", impq ? impq->datap : (char *)"");
         // the inferred prerequisites first, as GNU has them
-        allq    = joinu(impq, allq);
-        plusq   = joinq(impplus, plusq);
-        implcom = im.com;
+        allq  = joinu(impq, allq);
+        plusq = joinq(impplus, plusq);
     }
+    if (im.stem)
+        setvar("*", im.stem);
 
     if (errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0))) {
         // a target found elsewhere is made here, under its own name, as GNU
@@ -536,28 +536,6 @@ stemmed:
     p->modtime = ptime;
     *tval      = ptime;
     co_return errstat;
-}
-
-// The commands of a rule, every one expanded before the first is run, as GNU
-// does, and NULL after them.  A $(shell) or $(wildcard) is performed and the
-// whole expanded again.
-static char **expcoms(struct shblock *q0, int **plusp)
-{
-    struct shblock *q;
-    char **v;
-    int n, i;
-
-    for (n = 0, q = q0; q; q = q->nxtshblock)
-        ++n;
-    v      = (char **)ckalloc((n + 1) * sizeof(char *));
-    *plusp = (int *)ckalloc((n + 1) * sizeof(int));
-    for (i = 0, q = q0; q && !stopped; q = q->nxtshblock, ++i) {
-        v[i] = substa(q->shbp);
-        // A + line, or one naming $(MAKE), runs under -n too: that is how
-        // a recursive make passes -n down rather than being skipped.
-        (*plusp)[i] = strstr(q->shbp, "$(MAKE)") || strstr(q->shbp, "${MAKE}");
-    }
-    return v;
 }
 
 static void freecoms(char **v, int *plus)
@@ -595,20 +573,32 @@ static Task<void> delonerr(char *at)
 Task<int> docom(struct shblock *q)
 {
     char *s, *at, *line, *next, **coms;
-    int ign, nopr, sil, plus, *plus0, r, i;
+    int ign, nopr, sil, plus, *plus0, r, i, n;
+    struct shblock *q1;
 
     ++ndocoms;
 
     at  = varptr("@")->varval;
     sil = silflag || isnamed(".SILENT", at);
 
-    // Each expanded line as long as it is: v7's were OUTMAX bytes.
-    for (;;) {
-        coms = expcoms(q, &plus0);
-        if (stopped || !substneed)
-            break;
-        freecoms(coms, plus0);
-        co_await perform(); // $(shell) or $(wildcard): run, and expand again
+    // The commands, every one expanded before the first is run, as GNU does,
+    // and each as long as it is: v7's were OUTMAX bytes.  A $(shell) or
+    // $(wildcard) is performed and the line expanded again, and an $(eval) is
+    // read before the next line is expanded.
+    for (n = 0, q1 = q; q1; q1 = q1->nxtshblock)
+        ++n;
+    coms  = (char **)ckalloc((n + 1) * sizeof(char *));
+    plus0 = (int *)ckalloc((n + 1) * sizeof(int));
+    for (i = 0, q1 = q; q1 && !stopped; q1 = q1->nxtshblock, ++i) {
+        while ((coms[i] = substa(q1->shbp)), substneed && !stopped) {
+            free(coms[i]);
+            co_await perform();
+        }
+        // A + line, or one naming $(MAKE), runs under -n too: that is how
+        // a recursive make passes -n down rather than being skipped.
+        plus0[i] = strstr(q1->shbp, "$(MAKE)") || strstr(q1->shbp, "${MAKE}");
+        if (evalpend && !stopped)
+            co_await evalnow();
     }
     if (stopped) {
         freecoms(coms, plus0);

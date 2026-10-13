@@ -591,6 +591,29 @@ static Task<int> rdd1(char *buf, int len)
     co_return 0;
 }
 
+// What $(eval) left while a rule's commands were expanded, read now as a
+// makefile is.
+Task<void> evalnow(void)
+{
+    char *buf = evalpend, *ofin = fin, *oend = finend, *ozz = zznextc;
+    int oline = yylineno, opars = parsing;
+
+    evalpend = NULL;
+    fin      = buf;
+    finend   = buf + strlen(buf);
+    yylineno = 0;
+    zznextc  = 0;
+    parsing  = YES;
+    if (co_await yyparse())
+        fatal("Description file error");
+    fin      = ofin;
+    finend   = oend;
+    zznextc  = ozz;
+    yylineno = oline;
+    parsing  = opars;
+    free(buf);
+}
+
 // The files an include line names, read whole and put on the parser's input
 // stack, last first, so that the first is read first.  A missing one stops
 // make unless it was -include or sinclude.
