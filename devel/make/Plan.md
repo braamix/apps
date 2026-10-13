@@ -21,11 +21,13 @@ feature; each ends green and is published on its own.
 2. **POSIX.1-2024 first, then GNU.** Phases A and B are POSIX's `make`, and
    phase C is the GNU make most makefiles are written for. BSD make's dialect
    (`.if`, `:M`) is not a goal.
-3. **The parser stays plain.** Whatever has to wait — reading an included
-   file, running `!=` or `$(shell)`, listing a directory for `$(wildcard)` —
-   is done by the coroutine above the parser, in the driver shape simbesm and
-   mbasic use: the plain code stops and reports what it needs, the caller
-   does the waiting, and the plain code goes on. §3 has the two mechanisms.
+3. **Await only where something parks.** A `co_await` is a call and not a
+   tail call, so a loop that awaits without parking grows the native stack
+   until the process traps. `yyparse()` becomes a coroutine and awaits
+   `include` and `!=` itself, both of which park on a system call; the lexer,
+   `nextlin()` and `subst()` stay plain, since they run once per token, line
+   and macro reference and almost never need to wait. §3 has the two
+   mechanisms.
 4. **The README is rewritten in phase A** to say what the program now is:
    V7's code, made a POSIX make. The port's account stays, and a section
    lists each addition and the standard it comes from. The package's `T=`
@@ -53,7 +55,7 @@ Then the features:
 
 | Feature | Where | Notes |
 |---|---|---|
-| `include f...`, `-include`, `sinclude` | `nextlin`, `rddescf` | §3.1. Nested files; `-` ignores a missing one |
+| `include f...`, `-include`, `sinclude` | `nextlin`, `yyparse()` | §3.1. Nested files; `-` ignores a missing one |
 | `$(VAR:a=b)` substitution references | `subst()` | Suffix form only, as POSIX defines it |
 | `+=`, `?=`, `:=`, `::=` | `eqsign()`, `setvar()` | `:=` expands once; a `varblock` flag says which |
 | Environment as macros | `make_main` | `proc_env_count()`/`proc_env_at()`; makefile beats environment, command line beats both |
@@ -75,7 +77,7 @@ Each fixture's `make -n` output is also checked against host GNU make's
 | Hash table, `INMAX`, `OUTMAX`, `QBUFMAX`, `NLEFTS` grow | `misc.cpp`, `gram.cpp` | A real project passes 509 names; growing buffers replace the fixed ones |
 | `$(@D)`, `$(@F)`, and `D`/`F` on `< * ? %` | `subst()` | |
 | `$%`, `lib.a(m.o)` targets, the `.c.a` rule | `doname()`, `files.cpp` | Built-in `ARFLAGS` is `rvU`, for the reason README.md's "Archives" gives |
-| `!=` | `nextlin`, driver | §3.1, like `include` |
+| `!=` | `nextlin`, `yyparse()` | §3.1, like `include` |
 | `+` command prefix | `docom()` | Runs under `-n`, `-t`, `-q` |
 | `-e`, `-C dir` | `make_main` | `-C` is not POSIX but every make has it |
 | `.POSIX` | `gram.cpp` | Accepted with no effect: POSIX is already what this make does |
@@ -93,7 +95,7 @@ using only POSIX syntax under both this make and host GNU make with
 | Pattern rules, `%.o: %.c`, and static patterns | `implicit()`, `gram.cpp` | The largest change: searched before suffix rules, as GNU does |
 | Conditionals: `ifeq`, `ifneq`, `ifdef`, `ifndef`, `else`, `endif` | `nextlin` | A stack of skip states; tested on the expanded line |
 | Text functions | `subst()` | `subst patsubst strip findstring filter filter-out sort word words firstword lastword dir notdir suffix basename addsuffix addprefix join if or and foreach` |
-| `$(wildcard)`, `$(shell)` | `subst()`, driver | §3.2 |
+| `$(wildcard)`, `$(shell)` | `subst()`, its callers | §3.2 |
 | `define`/`endef`, `export`, `unexport`, `override` | `nextlin`, `eqsign()` | Exported macros go through `spawn`'s `env` |
 | `VPATH`, `vpath` | `exists()`, `doname()` | A found prerequisite's path is what `$<` names |
 | Order-only prerequisites, `a: b \| c` | `gram.cpp`, `doname()` | |
@@ -111,8 +113,10 @@ macro.
   output per job written whole as each finishes, `^C` sent to every child.
   `.WAIT` and `.NOTPARALLEL` start to mean something.
 - **`$(call)`, `$(eval)`, `$(value)`, `$(origin)`, `$(error)`, `$(warning)`,
-  `$(info)`.** `$(eval)` re-enters the parser from inside expansion, the
-  hardest of these.
+  `$(info)`.** `$(eval)` is the hardest: plain `subst()` pushes its text as
+  one more input buffer (§3.1), and `yyparse()` parses it before the next
+  line of the file — or, met while a command is expanded, `docom()` awaits
+  `yyparse()` over it before running the command.
 - **Target-specific and pattern-specific variables.**
 - **`.ONESHELL`, `.SECONDARY`, `.INTERMEDIATE`, `.SILENT:` per target.**
 - **Automatic dependencies** with `-include $(OBJS:.o=.d)`. The make side is
@@ -129,15 +133,24 @@ dialect.
 
 ### 3.1 A line that has to wait: `include` and `!=`
 
-Both are whole lines, found by `nextlin()` between two `comline`s. `nextlin`
-returns a new token, `INCLUDE` or `SHELLDEF`, with the expanded rest of the
-line saved. `yyparse()` takes it as the start of a `comline`, finishes the
-rule before it, and returns 2 with the request. `rddescf()` performs it — it
-reads the named file and pushes it on a stack of input buffers (`fin`,
-`finend`, `yylineno`, the file name), or runs the command and sets the macro
-— and calls `yyparse()` again. A buffer is popped at its end, so `fin` and
-`finend` become the top of that stack; nothing of the parse is in flight
-across the call, which is why this is safe.
+`yyparse()` becomes a `Task`, awaited by `rddescf()`, over the same plain
+`yylex()`. Both lines are whole lines, found by `nextlin()` between two
+`comline`s: it returns a new token, `INCLUDE` or `SHELLDEF`, with the
+expanded rest of the line saved, and `yyparse()` takes it as the start of a
+`comline`, after finishing the rule before it:
+
+```cpp
+case INCLUDE:  co_await pushfile(name); continue;   // read, push a buffer
+case SHELLDEF: co_await runset(macro, cmd); continue;
+```
+
+`pushfile()` reads the file whole and pushes it on a stack of input buffers
+(`fin`, `finend`, `yylineno`, the file's name); `getfin()` pops a buffer at
+its end and goes on with the one below, so nested includes need nothing
+more. `runset()` runs the command as `$(shell)` does and sets the macro. Each
+await parks on a read or a spawn, so the parse loop's stack goes back to
+nothing at every one of them, however many lines the files have. `rddescf()`
+reads the top file as it does now and pushes it the same way.
 
 ### 3.2 An expansion that has to wait: `$(wildcard)` and `$(shell)`
 
@@ -166,8 +179,10 @@ README will say so.
   compared.
 - **A real build** at the end of A and C: `cc` on Braam builds from the
   phase's makefiles, as `build.mjs` does today.
-- **Stack and frames:** every new loop over a list is plain or suspends, and
-  no new coroutine frame holds a buffer, per rule 3 in §1 and CLAUDE.md.
+- **Stack and frames:** every new loop over a list is plain or parks at each
+  await, and no new coroutine frame holds a buffer, per rule 3 in §1 and
+  CLAUDE.md. A case includes a few hundred files in a row, so a parse loop
+  that awaited without parking would trap there.
 
 ## 5. Order inside phase A
 
@@ -176,4 +191,5 @@ later case is written once against the behaviour that stays. Then
 `$(VAR:a=b)` and the assignment operators: they are contained in
 `subst()` and `eqsign()`, and everything after uses them. Then environment
 and `MAKEFLAGS`, then `.PHONY`, `$^` and single-suffix rules, and `include`
-last, since it brings §3.1's mechanism that `!=` reuses in phase B.
+last, since it turns `yyparse()` into a coroutine (§3.1), which `!=` reuses
+in phase B.
