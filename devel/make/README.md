@@ -91,6 +91,7 @@ inference rule set them.
 | `MAKECMDGOALS`, `.DEFAULT_GOAL` | GNU | A makefile may set `.DEFAULT_GOAL`, and reads the default target's name in it when it does not |
 | Pattern rules, `%.o: %.c` | GNU | Tried before the suffix rules; of those that apply, the shortest stem wins. A `%` matches at least one character, and one with no commands cancels. Not chained through an intermediate file |
 | Static patterns, `objs: %.o: %.c` | GNU | A rule per target, its stem `$*` |
+| `VPATH`, `vpath` | GNU | A prerequisite not here is looked for through the matching `vpath`s, then `VPATH`, and is its path in `$<`, `$^` and the rest; an inference rule's source too. A target found there that is out of date is made here |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a

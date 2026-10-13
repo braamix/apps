@@ -50,6 +50,7 @@ struct nameblock {
     int done; // v7 packed done and septype into three bits each
     int septype;
     TIMETYPE modtime;
+    char *path; // where VPATH or vpath found it, if not here
 };
 
 struct lineblock {
@@ -158,6 +159,10 @@ Task<TIMETYPE> exists(char *filename);
 Task<TIMETYPE> prestime(void);
 Task<struct depblock *> srchdir(char *pat, int mkchain, struct depblock *nextdbl);
 Task<char *> wildcard(char *pats);
+void vpathdef(char *line);
+int havevpath(void);
+Task<TIMETYPE> vfind(const char *name, char **pathp);
+char *dname(struct nameblock *p);
 
 // doname.cpp
 Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval);

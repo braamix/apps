@@ -1,0 +1,2 @@
+echo link other/lib.a
+link other/lib.a

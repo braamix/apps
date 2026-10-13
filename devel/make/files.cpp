@@ -162,6 +162,114 @@ Task<struct depblock *> srchdir(char *pat, int mkchain, struct depblock *nextdbl
     co_return thisdbl;
 }
 
+// GNU's vpath directives, in the order given: a pattern and the directories
+// to look in for a name it matches.
+struct vpath {
+    struct vpath *next;
+    char *pat;
+    char *dirs;
+};
+static struct vpath *vpaths;
+
+// vpath pattern dirs, vpath pattern, or vpath alone: the line past the word.
+void vpathdef(char *line)
+{
+    char *x = substa(line), *pat, *e, *d;
+    struct vpath *v, **vp;
+
+    for (pat = x; *pat == ' ' || *pat == '\t'; ++pat)
+        ;
+    for (e = pat; *e && *e != ' ' && *e != '\t'; ++e)
+        ;
+    for (d = e; *d == ' ' || *d == '\t'; ++d)
+        ;
+    *e = '\0';
+    if (*d == '\0') { // forget the pattern's, or all of them
+        for (vp = &vpaths; (v = *vp) != NULL;)
+            if (*pat == '\0' || !unequal(v->pat, pat)) {
+                *vp = v->next;
+                free(v->pat);
+                free(v->dirs);
+                free(v);
+            } else
+                vp = &v->next;
+    } else {
+        v       = ALLOC(vpath);
+        v->pat  = copys(pat);
+        v->dirs = copys(d);
+        for (vp = &vpaths; *vp; vp = &(*vp)->next)
+            ;
+        *vp = v;
+    }
+    free(x);
+}
+
+int havevpath(void)
+{
+    struct varblock *vp = findvar("VPATH");
+
+    return vpaths != NULL || (vp && vp->varval && *vp->varval);
+}
+
+// name in each of dirs, a colon or a blank apart: its time and *pathp where it
+// is a file, or 0.
+static Task<TIMETYPE> indirs(const char *dirs, const char *name, char **pathp)
+{
+    const char *d, *e;
+    char *path;
+    TIMETYPE t;
+
+    for (d = dirs; *d; d = e) {
+        while (*d == ':' || *d == ' ' || *d == '\t')
+            ++d;
+        for (e = d; *e && *e != ':' && *e != ' ' && *e != '\t'; ++e)
+            ;
+        if (e == d)
+            continue;
+        path = (char *)ckalloc((e - d) + 1 + strlen(name) + 1);
+        memcpy(path, d, e - d);
+        path[e - d] = '/';
+        strcpy(path + (e - d) + 1, name);
+        if ((t = co_await exists(path)) > 0) {
+            *pathp = path;
+            co_return t;
+        }
+        free(path);
+    }
+    co_return 0;
+}
+
+// A name that is not here, looked for through the vpaths that match it and
+// then through VPATH, as GNU does.
+Task<TIMETYPE> vfind(const char *name, char **pathp)
+{
+    struct vpath *v;
+    char *stem, *dirs;
+    TIMETYPE t = 0;
+
+    *pathp = NULL;
+    if (name[0] == '/' || strchr(name, '('))
+        co_return 0;
+    for (v = vpaths; v && t == 0; v = v->next)
+        if ((stem = patstem(v->pat, name)) != NULL) {
+            free(stem);
+            t = co_await indirs(v->dirs, name, pathp);
+        }
+    if (t == 0) {
+        dirs = substnow((char *)"$(VPATH)");
+        substneed = NO;
+        t    = co_await indirs(dirs, name, pathp);
+        free(dirs);
+    }
+    co_return t;
+}
+
+// The name a prerequisite goes by in $<, $? and the rest: where it was found.
+char *dname(struct nameblock *p)
+{
+    return p->path ? p->path : p->namep;
+}
+
 static int cmpname(const void *a, const void *b)
 {
     return strcmp(*(char *const *)a, *(char *const *)b);

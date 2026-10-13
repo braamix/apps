@@ -1,0 +1,4 @@
+echo ar lib.a other/util.c
+ar lib.a other/util.c
+echo link lib.a
+link lib.a

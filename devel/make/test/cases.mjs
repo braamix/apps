@@ -192,6 +192,20 @@ const SETUP = {
         put(`${DIR}/bb.c`, "");
         put(`${DIR}/sub/x.c`, "");
     },
+    vpath: () => {
+        put(`${DIR}/src/main.c`, "");
+        put(`${DIR}/other/util.c`, "");
+        put(`${DIR}/inc/defs.h`, "");
+    },
+    vpathsuf: () => put(`${DIR}/src/main.c`, ""),
+    vpathtgt: () => {
+        put(`${DIR}/other/util.c`, "", T0);
+        put(`${DIR}/other/lib.a`, "", T0 + 5000);
+    },
+    vpathold: () => {
+        put(`${DIR}/other/util.c`, "", T0 + 5000);
+        put(`${DIR}/other/lib.a`, "", T0);
+    },
     orderonly: () => {
         put(`${DIR}/a.o`, "", T0 + 1000);
         put(`${DIR}/prog`, "", T0 + 2000);
@@ -238,6 +252,7 @@ const GMAKE_CASES = new Set([
     "cond", "define", "export", "exportall", "funcs", "shellfn", "wildcard",
     "orderonly", "autolists", "goals", "goalsnamed", "defgoal",
     "patrule", "patcancel", "patcancel2", "static",
+    "vpath", "vpathsuf", "vpathtgt", "vpathold",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])

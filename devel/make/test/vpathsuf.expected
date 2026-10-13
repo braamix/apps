@@ -1,0 +1,4 @@
+echo cc -c src/main.c
+cc -c src/main.c
+echo link main.o
+link main.o

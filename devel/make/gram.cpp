@@ -681,6 +681,10 @@ static char *directive(char *t)
     char *a, *n;
     int over = NO, how;
 
+    if ((a = isword(t, "vpath")) != NULL && !strchr(a, '=')) {
+        vpathdef(a);
+        return NULL;
+    }
     if ((a = isword(t, "override")) != NULL) {
         over = YES;
         t    = a;

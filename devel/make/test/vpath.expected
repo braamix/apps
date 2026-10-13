@@ -1,0 +1,6 @@
+echo cc -c src/main.c -o main.o [src/main.c inc/defs.h]
+cc -c src/main.c -o main.o [src/main.c inc/defs.h]
+echo cc -c other/util.c -o util.o [other/util.c inc/defs.h]
+cc -c other/util.c -o util.o [other/util.c inc/defs.h]
+echo link main.o util.o
+link main.o util.o

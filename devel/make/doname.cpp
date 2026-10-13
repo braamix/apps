@@ -115,6 +115,12 @@ static Task<int> patimplicit(struct nameblock *p, struct implied *im)
                 name = t;
             }
             ok = srchname(name) != 0 || co_await exists(name) > 0;
+            if (!ok && havevpath()) {
+                char *path;
+
+                ok = co_await vfind(name, &path) > 0;
+                free(path);
+            }
             free(name);
         }
         if (ok && !stopped) {
@@ -155,6 +161,20 @@ static struct shblock *rulecom(struct nameblock *rp)
         if (lp->shp)
             return lp->shp;
     return NULL;
+}
+
+// The names a and b run together, if VPATH or vpath finds them.
+static Task<struct nameblock *> vnamed(const char *a, const char *b)
+{
+    char *s = concata(a, b), *path;
+    struct nameblock *p = NULL;
+
+    if (co_await vfind(s, &path) > 0) {
+        free(path);
+        p = makename(s);
+    }
+    free(s);
+    co_return p;
 }
 
 // Find an inference rule that makes p, and fill *im from it: NO if there is
@@ -206,7 +226,9 @@ static Task<int> implicit(struct nameblock *p, struct implied *im)
                 for (lp1 = sufflist; lp1; lp1 = lp1->nxtlineblock)
                     for (suffp1 = lp1->depp; suffp1; suffp1 = suffp1->nxtdepblock) {
                         p1namep = suffp1->depname->namep;
-                        if ((p1 = srchcat(p1namep, pnamep)) && (p2 = srchcat(prefix, p1namep)))
+                        if ((p1 = srchcat(p1namep, pnamep)) &&
+                            ((p2 = srchcat(prefix, p1namep)) ||
+                             (havevpath() && (p2 = co_await vnamed(prefix, p1namep)))))
                             goto found;
                     }
             }
@@ -324,6 +346,9 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     // A .PHONY target is no file: never looked for, and always remade.
     phony   = isnamed(".PHONY", p->namep);
     ptime   = phony ? 0 : co_await exists(p->namep);
+    // Not here: through VPATH and vpath, as GNU looks.
+    if (ptime == 0 && !phony && !stopped && havevpath())
+        ptime = co_await vfind(p->namep, &p->path);
     ptime1  = 0;
     didwork = NO;
     p->done = 1; // avoid infinite loops
@@ -373,7 +398,7 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
             if (q->depname == 0)
                 continue; // v7 went on to read q->depname->namep
             if (q->orderonly) {
-                ooq = appendu(ooq, q->depname->namep);
+                ooq = appendu(ooq, dname(q->depname));
                 continue;
             }
             if (dbgflag)
@@ -381,11 +406,11 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
             if (td1 > td)
                 td = td1;
             if (ptime < td1)
-                qchain = appendu(qchain, q->depname->namep);
-            allq     = appendu(allq, q->depname->namep);
-            lineq    = appendu(lineq, q->depname->namep);
-            plusq    = appendq(plusq, q->depname->namep);
-            lineplus = appendq(lineplus, q->depname->namep);
+                qchain = appendu(qchain, dname(q->depname));
+            allq     = appendu(allq, dname(q->depname));
+            lineq    = appendu(lineq, dname(q->depname));
+            plusq    = appendq(plusq, dname(q->depname));
+            lineplus = appendq(lineplus, dname(q->depname));
         }
         if (p->septype == SOMEDEPS) {
             if (lp->shp != 0)
@@ -463,17 +488,17 @@ stemmed:
             if (stopped)
                 co_return 1;
             if (q->orderonly) {
-                ooq = appendu(ooq, q->depname->namep);
+                ooq = appendu(ooq, dname(q->depname));
                 continue;
             }
             if (ptime < td)
-                qchain = appendu(qchain, q->depname->namep);
+                qchain = appendu(qchain, dname(q->depname));
             if (dbgflag)
                 mprintf("TIME(%s)=%lld\n", q->depname->namep, td);
             if (td > tdep)
                 tdep = td;
-            impq    = appendu(impq, q->depname->namep);
-            impplus = appendq(impplus, q->depname->namep);
+            impq    = appendu(impq, dname(q->depname));
+            impplus = appendq(impplus, dname(q->depname));
         }
         setvar("*", im.stem);
         setvar("<", impq ? impq->datap : (char *)"");
@@ -484,6 +509,10 @@ stemmed:
     }
 
     if (errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0))) {
+        // a target found elsewhere is made here, under its own name, as GNU
+        // does without GPATH
+        free(p->path);
+        p->path  = NULL;
         lists[0] = qchain, lists[1] = allq, lists[2] = plusq, lists[3] = ooq;
         ptime    = co_await makeit(p, tdep, ptime, explcom, implcom, lists, &errstat);
     }
