@@ -187,7 +187,7 @@ char *substnow(char *a)
 }
 
 // Append n bytes of s at *bp, short of bend.  NO when they do not fit.
-static int putn(char **bp, char *bend, const char *s, size_t n)
+int putn(char **bp, char *bend, const char *s, size_t n)
 {
     if ((size_t)(bend - *bp) < n) {
         substfull = YES;
@@ -343,7 +343,7 @@ char *subst(char *a, char *b, char *bend)
     char vname[100];
     struct varblock *vbp;
     char closer;
-    int nest, dir;
+    int nest, dir, fn;
 
     if (++depth > MAXSUBST)
         fatal("infinitely recursive macro?");
@@ -365,12 +365,29 @@ char *subst(char *a, char *b, char *bend)
                     ++a;
                     while (*a == ' ')
                         ++a;
-                    while (*a != ' ' && *a != ':' && *a != closer && *a != '\0') {
+                    while (*a != ' ' && *a != '\t' && *a != ':' && *a != closer && *a != '\0') {
                         if (s >= &vname[sizeof(vname) - 1]) {
                             fatal("macro name too long");
                             break;
                         }
                         *s++ = *a++;
+                    }
+                    *s = '\0';
+                    // $(function args), GNU's: the arguments run to the closer
+                    // that matches.  funcs.cpp.
+                    if ((*a == ' ' || *a == '\t') && (fn = isfunc(vname)) != 0) {
+                        for (st = ++a, nest = 0; *a && (*a != closer || nest > 0); ++a)
+                            if (*a == '(' || *a == '{')
+                                ++nest;
+                            else if (*a == ')' || *a == '}')
+                                --nest;
+                        spec = (char *)ckalloc(a - st + 1);
+                        memcpy(spec, st, a - st);
+                        if (*a == closer)
+                            ++a;
+                        b = callfunc(fn, spec, b, bend);
+                        free(spec);
+                        continue;
                     }
                     if (*a == ':') {
                         // the rest, to the closer that matches: $(A:.c=$(O))

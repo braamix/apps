@@ -1,0 +1,18 @@
+echo "x|b||b| a |"
+x|b||b| a |
+echo "abcx|bAnAnA|a b c|a/ ./|b c"
+abcx|bAnAnA|a b c|a/ ./|b c
+echo ".c .g|a d/e.f h.d/i|a1 b2 c"
+.c .g|a d/e.f h.d/i|a1 b2 c
+echo "b c|b||3|0"
+b c|b||3|0
+echo "a.o b.h|b ab|a.c x"
+a.o b.h|b ab|a.c x
+echo "b.h|a||a b"
+b.h|a||a b
+echo "a|b|a.c b.c|d/a d/b"
+a|b|a.c b.c|d/a d/b
+echo "[one] [two]||one.o two.o"
+[one] [two]||one.o two.o
+echo "a;b"
+a;b

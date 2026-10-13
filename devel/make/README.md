@@ -82,6 +82,7 @@ inference rule set them.
 | `ifeq`, `ifneq`, `ifdef`, `ifndef`, `else`, `endif` | GNU | `else ifeq` chains; `ifdef` asks for a value that is not empty, unexpanded |
 | `define`/`endef` | GNU | With any assignment operator; a value with lines is a command per line in a rule |
 | `override`, `export`, `unexport` | GNU | A child gets the environment's and the command line's macros, and the exported ones, at their values now |
+| Text functions | GNU | `subst patsubst strip findstring filter filter-out sort word wordlist words firstword lastword dir notdir suffix basename addsuffix addprefix join if or and foreach` |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a

@@ -157,6 +157,10 @@ Task<void> touch(int force, char *name);
 void childenv(const char *makeflags);
 Args *mkenv(void);
 
+// funcs.cpp
+int isfunc(const char *name);
+char *callfunc(int fn, char *args, char *b, char *bend);
+
 // misc.cpp
 struct nameblock *srchname(const char *s);
 struct nameblock *makename(const char *s);
@@ -168,6 +172,7 @@ int suffix(char *a, char *b, char *p);
 void *ckalloc(int n);
 char *subst(char *a, char *b, char *bend); // bend: last writable byte of b
 char *substa(char *a);
+int putn(char **bp, char *bend, const char *s, size_t n);
 char *substnow(char *a);
 extern int substfull;
 int setvar(const char *v, char *s);

@@ -181,7 +181,8 @@ const SETUP = {
         const t = Array.from({ length: 600 }, (_, i) => `t${String(i).padStart(3, "0")}`);
         for (const n of t)
             put(`${DIR}/${n}`, "", T0);
-        put(`${DIR}/limits.mk`, `T = ${t.join(" ")}\nall: $(T)\n\techo $?\n$(T):\n`);
+        put(`${DIR}/limits.mk`, `T = ${t.join(" ")}\nall: $(T)\n\techo $?\n` +
+            `\techo $(words $(foreach t,$(T),$(t).o $(t).c))\n$(T):\n`);
     },
     longname: () => put(`${DIR}/${"x".repeat(200)}.c`, "", T0),
     // Two -C, the first with its directory attached.
@@ -215,7 +216,7 @@ const GMAKE_CASES = new Set([
     "env", "envflag", "ignoresome", "include", "incdeep", "incmany", "lastline", "limits",
     "longname", "macros", "dirfile", "special", "shellassign",
     "phony", "silent", "silentsome", "substref", "suffix",
-    "cond", "define", "export", "exportall",
+    "cond", "define", "export", "exportall", "funcs",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])

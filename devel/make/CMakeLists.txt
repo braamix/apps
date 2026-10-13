@@ -8,7 +8,8 @@ endif()
 
 # PORT for the C library; NOFLOAT, a time being a count of milliseconds.
 braam_add_program(NAME make
-                  SOURCES main.cpp doname.cpp files.cpp misc.cpp dosys.cpp ident.cpp gram.cpp
+                  SOURCES main.cpp doname.cpp files.cpp misc.cpp funcs.cpp dosys.cpp ident.cpp
+                          gram.cpp
                   PORT NOFLOAT)
 
 braam_add_package(NAME make VERSION 2.58-r2
