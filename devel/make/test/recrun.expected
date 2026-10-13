@@ -1,4 +1,6 @@
 make -f sub.mk
+make[1]: Entering directory '/tmp/t'
 echo sub [r V=2] [2]
 sub [r V=2] [2]
+make[1]: Leaving directory '/tmp/t'
 top done

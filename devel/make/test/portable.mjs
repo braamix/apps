@@ -86,13 +86,14 @@ coro(braam_call *) int main(int argc, char **argv)
 }
 `);
 
+// A sub-make says where it is, as GNU's does.
+const sub = (dir, ...lines) => [`cd ${dir} && make`,
+                               `make[1]: Entering directory '${P}/${dir}'`, ...lines,
+                               `make[1]: Leaving directory '${P}/${dir}'`];
 const built = [
-    "cd lib && make",
-    "cc -DLOUD=1 -c greet.c",
-    "cc -DLOUD=1 -c shout.c",
-    "cd app && make",
-    "cc -DLOUD=1 -I../lib -c main.c",
-    "cc  -o hello main.o ../lib/greet.o ../lib/shout.o",
+    ...sub("lib", "cc -DLOUD=1 -c greet.c", "cc -DLOUD=1 -c shout.c"),
+    ...sub("app", "cc -DLOUD=1 -I../lib -c main.c",
+           "cc  -o hello main.o ../lib/greet.o ../lib/shout.o"),
 ].join("\n") + "\n";
 
 let r = run("make");
@@ -102,9 +103,9 @@ r = run("app/hello");
 if (r.status !== 0 || r.out !== "hello from three directories!\n")
     die(`hello: ${JSON.stringify(r)}`);
 
-// Up to date: only the two cd lines, the phony targets having no commands.
+// Up to date: only the two sub-makes, the phony targets having no commands.
 r = run("make");
-if (r.status !== 0 || r.out !== "cd lib && make\ncd app && make\n")
+if (r.status !== 0 || r.out !== [...sub("lib"), ...sub("app")].join("\n") + "\n")
     die(`the second make: ${JSON.stringify(r)}`);
 
 // The header moves: both library objects, main.o and the program.

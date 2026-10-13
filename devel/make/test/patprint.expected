@@ -1,6 +1,7 @@
 Macros:
 	.DEFAULT_GOAL = all
 	SHELL = /bin/sh
+	MAKELEVEL = 0
 	MAKE = make
 	HOME = /home
 	PATH = /bin:/pkg/bin

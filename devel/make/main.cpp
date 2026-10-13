@@ -63,6 +63,25 @@ static char *avbuf[NARGS + 1];
 
 static Task<int> make_main(int argc, char *argv[]);
 
+// GNU's -w: YES, NO for --no-print-directory, or -1 for the default, which is
+// to say it in a sub-make and under -C unless -s.  Whether it was said, and whether
+// make started again, for the leaving.
+int printdir = -1;
+static int entered, restarted, makelevel;
+
+// make, or make[1] in a sub-make: what GNU's messages begin with.
+static char *progname(void)
+{
+    static char buf[64];
+    const char *b = strrchr(makename0, '/') ? strrchr(makename0, '/') + 1 : makename0;
+
+    if (makelevel > 0)
+        snprintf(buf, sizeof(buf), "%s[%d]", b, makelevel);
+    else
+        snprintf(buf, sizeof(buf), "%s", b);
+    return buf;
+}
+
 // The arguments as given, for starting again (remakemfs()).
 static Args origargs;
 
@@ -87,6 +106,8 @@ Task<i32> proc_main(Args args)
     st = co_await make_main(argc, avbuf);
     if (stopped)
         st = stopped & 0xff;
+    if (entered && !restarted)
+        mprintf("%s: Leaving directory '%s'\n", progname(), curdir);
 
     co_await flushout();
     co_return st;
@@ -140,6 +161,14 @@ static int setflag(char c)
         questflag = YES;
         break;
 
+    case 'w':
+        printdir = YES;
+        break;
+
+    case '\001': // --no-print-directory
+        printdir = NO;
+        break;
+
     default:
         return NO;
     }
@@ -170,6 +199,8 @@ static const struct {
     { "quiet", 's' },
     { "touch", 't' },
     { "jobs", 'j' },
+    { "print-directory", 'w' },
+    { "no-print-directory", '\001' },
     { "help", 'h' },
 };
 
@@ -197,6 +228,8 @@ static void usage(void)
             "  -f file, --file=file         read file as a makefile\n"
             "  -i, --ignore-errors          go on past a command that fails\n"
             "  -j [n], --jobs[=n]           run n commands at once, or any number\n"
+            "  -w, --print-directory        say the directory make is in, and leaving it\n"
+            "  --no-print-directory         do not, not even in a sub-make\n"
             "  -k, --keep-going             go on with what does not need a failed target\n"
             "  -n, --dry-run                print the commands, run only + ones\n"
             "  -p, --print-data-base        print the macros and rules\n"
@@ -268,7 +301,7 @@ static void readmakeflags(void)
             const char *v;
             char c = longopt(w + 2, &v);
 
-            if (c && c != 'f' && c != 'C' && c != 'h' && c != 'j')
+            if (c && c != 'f' && c != 'C' && c != 'h' && c != 'j' && c != 'w')
                 setflag(c);
         } else
             for (d = w + (*w == '-'); *d; ++d)
@@ -300,11 +333,15 @@ static void writemakeflags(void)
         *d++ = 's';
     if (touchflag)
         *d++ = 't';
+    if (printdir == YES)
+        *d++ = 'w';
     *d = '\0';
 
-    n  = strlen(flags) + (cmdmacros ? strlen(cmdmacros) + 1 : 0);
+    n  = strlen(flags) + (cmdmacros ? strlen(cmdmacros) + 1 : 0) + 24;
     mf = (char *)ckalloc(n + 1);
     strcpy(mf, flags);
+    if (printdir == NO) // GNU's own spelling, which a GNU sub-make takes too
+        strcat(mf, *flags ? " --no-print-directory" : "--no-print-directory");
     if (cmdmacros) {
         if (*flags)
             strcat(mf, " ");
@@ -421,7 +458,8 @@ static Task<int> remakemfs(void)
     if (startcwd)
         co_await b_chdir(startcwd);
     co_await flushout();
-    st = co_await runself(origargs, n + 1);
+    st        = co_await runself(origargs, n + 1);
+    restarted = YES;
     co_return st;
 }
 
@@ -495,6 +533,9 @@ static Task<int> make_main(int argc, char *argv[])
     int nfargs, ndescf = 0, errs = 0;
     TIMETYPE tjunk;
     char c, *d;
+    Str envs;
+    usize u;
+    int nchdir = 0;
     const char *s;
     static char onechar[2] = "X";
     static char *descf[NARGS];
@@ -577,7 +618,8 @@ static Task<int> make_main(int argc, char *argv[])
                 else if (co_await b_chdir(s) != 0) {
                     fatal1("Cannot change to directory %s", s);
                     co_return 1;
-                }
+                } else
+                    ++nchdir;
             } else
                 setflag(c);
         } else if (argv[i] != 0 && argv[i][0] == '-') {
@@ -606,6 +648,7 @@ static Task<int> make_main(int argc, char *argv[])
                         fatal1("Cannot change to directory %s", s);
                         co_return 1;
                     }
+                    ++nchdir;
                     break;
                 } else if (c == 'j') {
                     // -j n, -jn or -j alone, which is no limit.  Not passed on
@@ -630,6 +673,16 @@ static Task<int> make_main(int argc, char *argv[])
     curdir = (char *)ckalloc(PATH_MAX + 1);
     if (co_await b_getcwd(curdir, PATH_MAX + 1) == NULL)
         strcpy(curdir, "/");
+
+    // GNU's MAKELEVEL, one more in a child, and the directory said.
+    for (envs = proc_env("MAKELEVEL"), u = 0; u < envs.size() && envs[u] >= '0' && envs[u] <= '9';
+         ++u)
+        makelevel = makelevel * 10 + (envs[u] - '0');
+    if (printdir == YES || (printdir < 0 && (makelevel > 0 || nchdir > 0) && !silflag)) {
+        if (proc_env("MAKE_RESTARTS").size() == 0)
+            mprintf("%s: Entering directory '%s'\n", progname(), curdir);
+        entered = YES;
+    }
 
     // GNU's MAKECMDGOALS: the targets named on the command line.
     for (i = 1, d = copys(""); i < argc; ++i)
@@ -856,6 +909,8 @@ static void readenv(void)
     inarglist = 0;
     setorigin = O_DEFAULT;
     setvar("MAKE", (char *)makename0);
+    if (findvar("MAKELEVEL") == NULL || findvar("MAKELEVEL")->varval == NULL)
+        setvar("MAKELEVEL", (char *)"0");
     setvar("SHELL", (char *)SHELLCOM); // what runs a command, as POSIX has make provide it
     setorigin = O_FILE;
 }

@@ -13,6 +13,7 @@ Macros:
 	MAKEFLAGS = nr
 	.DEFAULT_GOAL = solo
 	SHELL = /bin/sh
+	MAKELEVEL = 0
 	MAKE = make
 	HOME = /home
 	PATH = /bin:/pkg/bin

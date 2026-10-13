@@ -1,2 +1,4 @@
+make: Entering directory '/tmp/t/cdir/deeper'
 pwd
 /tmp/t/cdir/deeper
+make: Leaving directory '/tmp/t/cdir/deeper'

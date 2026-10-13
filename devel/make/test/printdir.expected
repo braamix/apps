@@ -1,0 +1,4 @@
+make: Entering directory '/tmp/t'
+echo solo
+solo
+make: Leaving directory '/tmp/t'

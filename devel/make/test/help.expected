@@ -6,6 +6,8 @@ Options:
   -f file, --file=file         read file as a makefile
   -i, --ignore-errors          go on past a command that fails
   -j [n], --jobs[=n]           run n commands at once, or any number
+  -w, --print-directory        say the directory make is in, and leaving it
+  --no-print-directory         do not, not even in a sub-make
   -k, --keep-going             go on with what does not need a failed target
   -n, --dry-run                print the commands, run only + ones
   -p, --print-data-base        print the macros and rules

@@ -1,0 +1,4 @@
+make -f sub.mk
+echo sub [r --no-print-directory V=2] [2]
+sub [r --no-print-directory V=2] [2]
+top done

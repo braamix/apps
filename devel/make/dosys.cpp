@@ -46,8 +46,14 @@ static char **cdefs;
 static int ncdefs;
 static Args cenvargs;
 
+static char cmakelevel[32];
+
 void childenv(const char *makeflags)
 {
+    struct varblock *vp = findvar("MAKELEVEL");
+
+    snprintf(cmakelevel, sizeof(cmakelevel), "MAKELEVEL=%d",
+             (vp && vp->varval ? atoi(vp->varval) : 0) + 1);
     free(cmakeflags);
     cmakeflags = (char *)ckalloc(strlen(makeflags) + sizeof("MAKEFLAGS="));
     strcpy(cmakeflags, "MAKEFLAGS=");
@@ -59,7 +65,8 @@ static int expvar(struct varblock *vp)
 {
     const char *s;
 
-    if (vp->varval == 0 || vp->exported < 0 || vp->fromenv || !unequal(vp->varname, "MAKEFLAGS"))
+    if (vp->varval == 0 || vp->exported < 0 || vp->fromenv || !unequal(vp->varname, "MAKEFLAGS") ||
+        !unequal(vp->varname, "MAKELEVEL"))
         return NO;
     if (vp->exported == 0 && !exportall)
         return NO;
@@ -86,12 +93,12 @@ Args *mkenv(void)
     free(cenv);
     for (nv = 0, vp = firstvar; vp; vp = vp->nxtvarblock)
         nv += expvar(vp);
-    cenv   = (Str *)ckalloc((n + nv + 1) * sizeof(Str));
+    cenv   = (Str *)ckalloc((n + nv + 2) * sizeof(Str));
     cdefs  = (char **)ckalloc((nv + 1) * sizeof(char *));
     ncdefs = 0;
     for (i = 0, k = 0; i < n; ++i) {
         e = proc_env_at(i);
-        if (e.starts_with("MAKEFLAGS="))
+        if (e.starts_with("MAKEFLAGS=") || e.starts_with("MAKELEVEL="))
             continue;
         for (j = 0; j < (int)e.size() && e.data()[j] != '='; ++j)
             ;
@@ -114,6 +121,7 @@ Args *mkenv(void)
             cenv[k++]       = Str(name, strlen(name));
         }
     cenv[k++] = Str(cmakeflags, strlen(cmakeflags));
+    cenv[k++] = Str(cmakelevel, strlen(cmakelevel)); // GNU's: one more than this make's
     cenvargs  = Args{ Span<const Str>(cenv, k) };
     return &cenvargs;
 }
