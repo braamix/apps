@@ -14,7 +14,8 @@ braam_add_program(NAME make
 
 braam_add_package(NAME make VERSION 2.58-r5
                   FIELD "T=POSIX and GNU make, grown from V7 make"
-                  FILES $<TARGET_FILE:bin_make>=bin/make)
+                  FILES $<TARGET_FILE:bin_make>=bin/make
+                        ${CMAKE_CURRENT_SOURCE_DIR}/Manual.md=share/Manual.md)
 
 if(TARGET packages)
     add_dependencies(packages pkg_make)

@@ -13,6 +13,9 @@ was grown by. It came here by way of the BESM-6 port in
 and fixed six bounds V7 did not check; that port's README is the account of
 those.
 
+[Manual.md](Manual.md), which the package installs as `share/Manual.md`, is
+the user's guide: the makefile language from the first rule to `-j`.
+
 ```
 make [-BeinpqrstkSw] [-j [n]] [-O[type]] [-o file]... [-W file]... [-C dir]...
      [-f makefile]... [--option]... [name=value]... [target]...
