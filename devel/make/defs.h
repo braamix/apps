@@ -209,6 +209,8 @@ Task<int> dosys(char *comstring, int nohalt);
 extern int shellonly;
 Task<int> startsys(char *comstring, int nohalt, u32 *pidp);
 Task<int> runself(Args args, int restarts);
+extern ChildIo *spawnio;
+extern int outsync;
 extern int remaking;
 extern int printdir;
 extern int alwaysmake;
@@ -280,6 +282,7 @@ void stop(int status);
 void mprintf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void diag(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 int outheld(void);
+void takeheld(char **bufs, size_t *lens);
 Task<void> flushout(void);
 
 #endif // MAKE_DEFS_H

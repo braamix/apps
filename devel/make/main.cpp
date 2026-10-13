@@ -179,6 +179,21 @@ static int setflag(char c)
     return YES;
 }
 
+// GNU's -O and its type: target (the default, and recurse, which is the same
+// here), line, or none.  NO if it is none of them.
+static int syncopt(const char *t)
+{
+    if (*t == '\0' || !strcmp(t, "target") || !strcmp(t, "recurse"))
+        outsync = 't';
+    else if (!strcmp(t, "line"))
+        outsync = 'l';
+    else if (!strcmp(t, "none"))
+        outsync = 0;
+    else
+        return NO;
+    return YES;
+}
+
 // GNU's -o and -W: a file taken as old and never remade, or as just changed.
 static void fileopt(char c, const char *name)
 {
@@ -216,6 +231,7 @@ static const struct {
     { "quiet", 's' },
     { "touch", 't' },
     { "jobs", 'j' },
+    { "output-sync", 'O' },
     { "always-make", 'B' },
     { "old-file", 'o' },
     { "assume-old", 'o' },
@@ -252,6 +268,8 @@ static void usage(void)
             "  -f file, --file=file         read file as a makefile\n"
             "  -i, --ignore-errors          go on past a command that fails\n"
             "  -j [n], --jobs[=n]           run n commands at once, or any number\n"
+            "  -O[t], --output-sync[=t]     under -j, each target's output whole; t is\n"
+            "                               target, line, recurse or none\n"
             "  -w, --print-directory        say the directory make is in, and leaving it\n"
             "  --no-print-directory         do not, not even in a sub-make\n"
             "  -k, --keep-going             go on with what does not need a failed target\n"
@@ -327,7 +345,7 @@ static void readmakeflags(void)
             const char *v;
             char c = longopt(w + 2, &v);
 
-            if (c && !strchr("fChjwoW", c))
+            if (c && !strchr("fChjwoWO", c))
                 setflag(c);
         } else
             for (d = w + (*w == '-'); *d; ++d)
@@ -625,7 +643,12 @@ static Task<int> make_main(int argc, char *argv[])
                 co_return 0;
             }
             argv[i] = 0;
-            if (c == 'j') {
+            if (c == 'O') {
+                if (!syncopt(s ? s : "")) {
+                    fatal1("Unknown output-sync type %s", s);
+                    co_return 1;
+                }
+            } else if (c == 'j') {
                 if (s == NULL && i < argc - 1 && isnumber(argv[i + 1])) {
                     s           = argv[i + 1];
                     argv[i + 1] = 0;
@@ -693,6 +716,12 @@ static Task<int> make_main(int argc, char *argv[])
                     } else {
                         onechar[0] = c;
                         fatal1("No file argument after -%s flag", onechar);
+                        co_return 1;
+                    }
+                    break;
+                } else if (c == 'O') {
+                    if (!syncopt(argv[i] + j + 1)) {
+                        fatal1("Unknown output-sync type %s", argv[i] + j + 1);
                         co_return 1;
                     }
                     break;
@@ -795,6 +824,8 @@ static Task<int> make_main(int argc, char *argv[])
 
     // -j: the goals walked again each time a command ends.  Plan.md, 3.3.
     jobmode = jobslots > 1 && !noexflag && !touchflag && !questflag && !srchname(".NOTPARALLEL");
+    if (outsync && jobslots > (int)SYS_POLL_MAX / 2) // two pipes a job, polled at once
+        jobslots = SYS_POLL_MAX / 2;
     if (jobmode)
         co_return co_await makejobs(argc, argv);
 

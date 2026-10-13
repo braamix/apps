@@ -866,6 +866,22 @@ int outheld(void)
     return olen;
 }
 
+// What is held, taken out to bufs[0] (stdout) and bufs[1] (stderr), each
+// growing: under -O it is part of a job's output.
+void takeheld(char **bufs, size_t *lens)
+{
+    int at, run, fd;
+
+    for (at = 0; at < olen; at += 5 + run) {
+        memcpy(&run, obuf + at + 1, 4);
+        fd       = obuf[at] == SYS_STDERR;
+        bufs[fd] = (char *)realloc(bufs[fd], lens[fd] + run + 1);
+        memcpy(bufs[fd] + lens[fd], obuf + at + 5, run);
+        lens[fd] += run;
+    }
+    olen = 0;
+}
+
 Task<void> flushout(void)
 {
     int at, run;

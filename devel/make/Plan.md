@@ -3,9 +3,10 @@
 `devel/make` is V7 make 2.58 grown into **Braam's make**: POSIX.1-2024's
 `make`, then GNU make, on V7's code. Phases A to D are done and in
 `2.58-r4` — all of POSIX's `make`, `-j` included, and of GNU's what most
-makefiles use; [README.md](README.md) has the tables. What is left is phase
-E, the rest of GNU make that real projects reach for, now that `cc` writes
-dependencies. BSD make's dialect (`.if`, `.for`, `:M`) is not a goal.
+makefiles use; [README.md](README.md) has the tables. Phase E, the rest of
+GNU make that real projects reach for now that `cc` writes dependencies, is
+done and in `2.58-r5`. BSD make's dialect (`.if`, `.for`, `:M`) is not a
+goal.
 
 ## 1. Rules for every phase
 
@@ -85,6 +86,15 @@ intermediate. GNU makes it then. `doname()` will do the same: a target
 about to run its commands first makes any missing intermediate among its
 prerequisites that the first walk passed over, which is a second walk of
 those prerequisites alone.
+
+**Done** in `2.58-r5`, with what the plan did not say. The loop guard on
+starting again is twenty starts, not a comparison of what was remade. A
+command-line macro survives `override undefine`, as it does in GNU make
+4.4. Two `$(file)`s in one expansion are done in the order written, which
+is why requests are now kept in the order asked. `-d` says nothing about
+the makefiles being remade, but `-p` after it lists them as names. A
+`define` whose first line is empty lost that line. And under `-O`, at most
+32 jobs run, as one poll takes 64 descriptors.
 
 **Done when:** each feature has cases in `cases.mjs`, compared against host
 GNU make's `-n` where it is GNU's (§4), and `test/deps.mjs` (§2.1) is green
@@ -192,7 +202,7 @@ pipes are at their end its child is reaped by pid, which no longer parks
 long, and the buffer is written whole. `-O target`, the default, writes when
 a target's last command ends; `-O line` after each command. A command's
 output and error lose their order against each other, which GNU keeps by
-sending both to one file; the README will say so.
+sending both to one file; the README says so.
 
 ## 4. How each phase is checked
 

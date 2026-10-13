@@ -259,6 +259,7 @@ const SETUP = {
     interrupt: () => put(`${DIR}/src`, "", T0 + 1000),
     precious: () => put(`${DIR}/src`, "", T0 + 1000),
     jobsint: () => put(`${DIR}/src`, "", T0 + 1000),
+    jobsintsync: () => put(`${DIR}/src`, "", T0 + 1000),
     longmember: () => put(`${DIR}/libl.a`, archive(
         [{ name: "short.o", date: T0 / 1000, data: "s" },
          { name: "a-rather-long-member.o", date: T0 / 1000 + 5, data: "long" }], [])),
@@ -267,7 +268,7 @@ const SETUP = {
 // ^C, as kill -INT: make in the background, parked in wait_child() on a sleep
 // that the frozen clock never ends, and the kill queued behind it.
 // A background job's number counts up for the life of the shell.
-const INTERRUPT = new Set(["interrupt", "precious", "jobsint"]);
+const INTERRUPT = new Set(["interrupt", "precious", "jobsint", "jobsintsync"]);
 let job = 0;
 
 // What a case is checked for beyond its output, by name.
@@ -285,6 +286,8 @@ const CHECK = {
     precious: () => get(`${DIR}/keep`) === "new\n" || "keep was not kept",
     jobsint: () => get(`${DIR}/keep1`) === undefined && get(`${DIR}/keep2`) === undefined ||
         "keep1 or keep2 was not removed",
+    jobsintsync: () => get(`${DIR}/keep1`) === undefined && get(`${DIR}/keep2`) === undefined ||
+        "keep1 or keep2 was not removed",
 };
 
 // GNU make on the host, where there is one: each case named here runs under -n
@@ -299,7 +302,7 @@ const GMAKE_CASES = new Set([
     "orderonly", "autolists", "goals", "goalsnamed", "defgoal",
     "patrule", "patcancel", "patcancel2", "static",
     "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2", "eval", "tvars", "tvarscmd", "longopts", "mflong", "oneshell", "oneshell2",
-    "chain", "chainup", "chainsec", "inter", "chainneed", "jobs", "jobswait", "jobspat",
+    "chain", "chainup", "chainsec", "inter", "chainneed", "jobs", "jobswait", "jobspat", "jobssync",
     "remake", "remaked", "funcs3", "always", "oldfile", "whatif", "whatifold",
 ]);
 const GMAKE = (() => {

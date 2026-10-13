@@ -1024,8 +1024,28 @@ struct job {
     int member;
     int phony;
     TIMETYPE attime;
+    i32 rfd[2];     // -O: the read ends of the command's stdout and stderr, or -1
+    char *buf[2];   // what they and make have said, held
+    size_t len[2];
 };
 static struct job *jobs;
+
+// GNU's -O: 0 for none, 'l' for each command's output whole, 't' for each
+// target's.
+int outsync;
+
+// What a job has held, written: stdout's, then stderr's.
+static Task<void> writejob(struct job *j)
+{
+    int k;
+
+    takeheld(j->buf, j->len);
+    for (k = 0; k < 2; ++k)
+        if (j->len[k]) {
+            co_await write_all(k ? SYS_STDERR : SYS_STDOUT, Str(j->buf[k], j->len[k]));
+            j->len[k] = 0;
+        }
+}
 int njobs;
 
 // A job done with: its target's time read, and the target done.
@@ -1034,6 +1054,10 @@ static Task<void> finishjob(struct job *j)
     struct job **jp;
     TIMETYPE t = 0;
 
+    if (outsync) // the target's output, whole
+        co_await writejob(j);
+    for (int k = 0; k < 2; ++k)
+        free(j->buf[k]);
     if (!j->phony)
         t = co_await exists(j->p->namep);
     if (t == 0)
@@ -1070,6 +1094,43 @@ static Task<int> jobstatus(struct job *j, int status, int ign)
     co_return YES;
 }
 
+// Under -O, a command started with its stdout and stderr on two pipes of the
+// job's -- two, as a descriptor given to a child is moved into it.  The line
+// said for it is the job's too.
+static Task<int> startsync(struct job *j, char *s, int ign)
+{
+    Result<Piped> po = co_await make_pipe(), pe = Err(Error::Io);
+    ChildIo io;
+    int st;
+
+    takeheld(j->buf, j->len);
+    if (po.is_ok())
+        pe = co_await make_pipe();
+    if (po.is_err() || pe.is_err()) {
+        if (po.is_ok()) {
+            co_await close_fd(po.value().r);
+            co_await close_fd(po.value().w);
+        }
+        fatal("Cannot make a pipe");
+        co_return 1 << 8;
+    }
+    io.out  = (u32)po.value().w;
+    io.err  = (u32)pe.value().w;
+    spawnio = &io;
+    st      = co_await startsys(s, ign, &j->pid);
+    spawnio = NULL;
+    if (st == 0 && j->pid != 0) {
+        j->rfd[0] = po.value().r;
+        j->rfd[1] = pe.value().r;
+        co_return 0;
+    }
+    co_await close_fd(po.value().r);
+    co_await close_fd(pe.value().r);
+    co_await close_fd(po.value().w);
+    co_await close_fd(pe.value().w);
+    co_return st;
+}
+
 // The job's next command started, or the job finished.
 static Task<void> advance(struct job *j)
 {
@@ -1084,7 +1145,10 @@ static Task<void> advance(struct job *j)
         if ((s = nextcom(&j->cs, &ign)) == NULL)
             break;
         shellonly = j->cs.one;
-        st        = co_await startsys(s, ign, &j->pid);
+        if (outsync)
+            st = co_await startsync(j, s, ign);
+        else
+            st = co_await startsys(s, ign, &j->pid);
         shellonly = NO;
         if (st == 0 && j->pid != 0) {
             j->ign = ign;
@@ -1109,6 +1173,7 @@ static Task<void> startjob(struct nameblock *p, struct shblock *com, TIMETYPE pt
     j->attime = ptime0;
     j->phony  = isnamed(".PHONY", p->namep);
     j->member = m != NULL && *m != '\0';
+    j->rfd[0] = j->rfd[1] = -1;
     for (jp = &jobs; *jp; jp = &(*jp)->next) // in the order begun
         ;
     *jp = j;
@@ -1153,8 +1218,15 @@ static Task<void> killjobs(void)
                 j->pid = 0;
     }
     while ((j = jobs) != NULL) {
+        for (int k = 0; k < 2; ++k)
+            if (j->rfd[k] >= 0)
+                co_await close_fd(j->rfd[k]);
+        if (outsync)
+            co_await writejob(j);
         co_await rmtarget(j->cs.at, j->member);
         jobs = j->next;
+        free(j->buf[0]);
+        free(j->buf[1]);
         freecoms(j->cs.coms, j->cs.plus0);
         free(j->cs.at);
         free(j);
@@ -1164,10 +1236,91 @@ static Task<void> killjobs(void)
     stop(2);
 }
 
+// A command of j has ended, with status: the job goes on or is done.
+static Task<void> ended(struct job *j, int status)
+{
+    j->pid = 0;
+    if (outsync == 'l') // each command's output, whole
+        co_await writejob(j);
+    if (co_await jobstatus(j, status, j->ign))
+        co_await finishjob(j);
+    else
+        co_await advance(j);
+}
+
+// -O's reap: what the running commands write is held, and a command whose
+// pipes are both at their end is reaped by pid, which hardly parks.
+static Task<void> reapsync(void)
+{
+    PollFd fds[SYS_POLL_MAX];
+    struct job *who[SYS_POLL_MAX], *j;
+    int side[SYS_POLL_MAX], n = 0, k;
+    Result<usize> pr = Err(Error::Io);
+    Result<Exited> r = Err(Error::Io);
+
+    for (j = jobs; j; j = j->next)
+        for (k = 0; k < 2; ++k)
+            if (j->rfd[k] >= 0 && n < (int)SYS_POLL_MAX) {
+                fds[n].fd      = (u32)j->rfd[k];
+                fds[n].events  = SYS_POLL_IN;
+                fds[n].revents = 0;
+                who[n]         = j;
+                side[n++]      = k;
+            }
+    if (n > 0) {
+        pr = co_await poll_fds(Span<PollFd>(fds, n));
+        if (pr.is_err()) {
+            if (pr.error() == Error::Intr && sig_take(SIG_INT))
+                co_await killjobs();
+            else {
+                stop(pr.error() == Error::Cancelled ? 130 : 2);
+                jobs  = NULL;
+                njobs = 0;
+            }
+            co_return;
+        }
+        for (k = 0; k < n; ++k) {
+            if (fds[k].revents == 0)
+                continue;
+            j                = who[k];
+            Result<String> c = co_await read_chunk(fds[k].fd);
+            if (c.is_ok() && c.value().size() > 0) {
+                j->buf[side[k]] = (char *)realloc(j->buf[side[k]],
+                                                  j->len[side[k]] + c.value().size() + 1);
+                memcpy(j->buf[side[k]] + j->len[side[k]], c.value().data(), c.value().size());
+                j->len[side[k]] += c.value().size();
+            } else {
+                co_await close_fd(fds[k].fd);
+                j->rfd[side[k]] = -1;
+            }
+        }
+    }
+    // A command with both pipes at their end has ended, or is about to.
+    for (;;) {
+        for (j = jobs; j && !(j->pid && j->rfd[0] < 0 && j->rfd[1] < 0); j = j->next)
+            ;
+        if (j == NULL)
+            break;
+        r = co_await wait_child(j->pid);
+        if (r.is_err()) {
+            if (r.error() == Error::Intr && sig_take(SIG_INT))
+                co_await killjobs();
+            else
+                stop(2);
+            co_return;
+        }
+        co_await ended(j, (r.value().status & 0xff) << 8);
+    }
+}
+
 // One command of a job ends, and the job goes on or is done; under ^C, every
 // one of them ends.
 Task<void> reap(void)
 {
+    if (outsync) {
+        co_await reapsync();
+        co_return;
+    }
     Result<Exited> r = co_await wait_child();
     struct job *j;
 
@@ -1188,11 +1341,7 @@ Task<void> reap(void)
         ;
     if (j == NULL)
         co_return;
-    j->pid = 0;
-    if (co_await jobstatus(j, (r.value().status & 0xff) << 8, j->ign))
-        co_await finishjob(j);
-    else
-        co_await advance(j);
+    co_await ended(j, (r.value().status & 0xff) << 8);
     co_await flushout();
 }
 

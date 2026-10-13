@@ -5,16 +5,16 @@ from Seventh Edition Unix**, version 2.58 of 14 March 1979
 ([ident.cpp](ident.cpp)), Caldera's licence in [COPYRIGHT](COPYRIGHT). The
 code, its identifiers, its comments and its messages are V7's; what it does is
 POSIX.1-2024's wherever the two disagree, and [Plan.md](Plan.md) is the way
-from one to the other — all four of its phases are done, so this is the whole
+from one to the other — all five of its phases are done, so this is the whole
 of POSIX's `make`, `-j` included, and of GNU's what makefiles use: its
-conditionals, functions, `$(eval)`, pattern rules, target-specific macros and
-`VPATH`. It came here by way of the BESM-6 port in
+conditionals, functions, `$(eval)`, pattern rules, target-specific macros,
+`VPATH`, remade makefiles and `-O`. It came here by way of the BESM-6 port in
 `~/Project/Besm-6/v7besm/cmd/make/`, which had already turned V7's into C11
 and fixed six bounds V7 did not check; that port's README is the account of
 those.
 
 ```
-make [-BeinpqrstkSw] [-j [n]] [-o file]... [-W file]... [-C dir]...
+make [-BeinpqrstkSw] [-j [n]] [-O[type]] [-o file]... [-W file]... [-C dir]...
      [-f makefile]... [--option]... [name=value]... [target]...
 ```
 
@@ -108,6 +108,7 @@ inference rule set them.
 | `undefine` | GNU | A command-line macro keeps its value, `override` or not, as GNU's does |
 | `MAKELEVEL`, `-w`, `--print-directory`, `--no-print-directory` | GNU | `make[1]: Entering directory '...'` and `Leaving`, said under `-w`, and by default in a sub-make and under `-C` but for `-s` |
 | `-B`, `-o file`, `-W file` and their long names | GNU | Every target with commands out of date, `$?` all of them; `file` as old as can be and never made; `file` as if just changed |
+| `-O`, `--output-sync` | GNU | Under `-j`, a target's output written whole when it is made, or with `line` each command's; stdout before stderr, as each goes down a pipe of its own. At most 32 jobs, as 64 pipes are what one poll takes |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a

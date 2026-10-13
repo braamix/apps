@@ -272,7 +272,7 @@ And [devel/make](devel/make/), V7 make 2.58 by way of the BESM-6 port, being
 grown into Braam's POSIX make by [its Plan.md](devel/make/Plan.md) — V7's code
 and messages, POSIX's behaviour wherever the two differ, and most of GNU's
 beside it — conditionals, functions, `$(eval)`, pattern rules, target-specific
-macros, `VPATH`, `-j`; all four phases done.
+macros, `VPATH`, `-j`, remade makefiles, `-O`; all five phases done.
 It is a **tenth shape**, the program whose work is *running other programs*:
 the first port to `spawn` and `wait_child`, and the first whose correctness is
 file times. `fork`/`execvp` are one `spawn`, `exit` traps so `fatal()` is a
@@ -290,9 +290,11 @@ devel/wasm's `ar` format — which dates members 0 unless given `-U` — and `^C
 lands in `wait_child`, where make signals the child and removes `$@` as v7's
 `intrupt()` did. `-j` keeps that recursive `doname()` too: a target's
 commands become a job it starts and returns from, and the goals are walked
-again each time `wait_child` reports any command ended. `test/build.mjs`,
-`portable.mjs`, `library.mjs`, `gnu.mjs` and `jobs.mjs` have it drive `cc` on
-Braam, and `cases.mjs` holds its `-n` to host GNU make's.
+again each time `wait_child` reports any command ended. A makefile it remakes
+cannot be read again in the same process, whose state was never written to
+be emptied, so make spawns itself and waits, which is GNU's `exec` here.
+`test/build.mjs`, `portable.mjs`, `library.mjs`, `gnu.mjs`, `jobs.mjs` and
+`deps.mjs` have it drive `cc` on Braam, and `cases.mjs` holds its `-n` to host GNU make's.
 
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:

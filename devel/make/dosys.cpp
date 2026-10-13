@@ -126,8 +126,10 @@ Args *mkenv(void)
     return &cenvargs;
 }
 
-// Where run() puts the child it does not wait for, under -j.
+// Where run() puts the child it does not wait for, under -j, and the streams
+// it is given, under -O.
 static u32 *spawnpid;
+ChildIo *spawnio;
 
 // fork() and exec() are one spawn(): the child is entered with this process's
 // three streams and nothing else, so there is nothing for v7's doclose() to do.
@@ -138,7 +140,7 @@ static Task<int> run(Span<const Str> argv)
 
     while ((env = mkenv()), substneed)
         co_await perform();
-    r = co_await spawn(Args{ argv }, ChildIo{}, env);
+    r = co_await spawn(Args{ argv }, spawnio ? *spawnio : ChildIo{}, env);
 
     if (r.is_err()) {
         if (r.error() == Error::NotFound)

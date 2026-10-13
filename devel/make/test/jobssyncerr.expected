@@ -1,0 +1,10 @@
+echo a1; echo a-err >&2
+a1
+false
+*** Error code 1
+a-err
+echo b1
+b1
+echo b2
+b2
+`all' not remade because of errors
