@@ -167,8 +167,3 @@ a program of three directories from makefiles in the portable style: `cd dir
 `$(SRCS:.c=.o)`. Then it is up to date, `make -n` after a header moves names
 every command and builds nothing, `make` builds them, `make clean` cleans, and
 `make CFLAGS=...` reaches the sub-makes through `MAKEFLAGS`.
-
-**Braam's `sh` keeps backslash-newline as a newline** where POSIX removes it,
-in a script and under `-c` alike. make passes a continued command to it as
-POSIX says, so `contcmd` runs under `-n`, and what the shell does with it is
-the shell's to fix.
