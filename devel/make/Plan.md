@@ -1,17 +1,23 @@
-# make — a plan for what V7 did not have
+# make — a plan for Braam's POSIX make
 
-`devel/make` is V7 make 2.58 ([README.md](README.md)). It runs V7's makefiles
-and builds with `cc` on Braam, but a makefile written in the last forty years
-will usually stop at its first line. This plan adds what such makefiles
-expect, in four phases ordered by how soon a real makefile reaches for each
-feature. Each phase ends green and is published on its own.
+`devel/make` is V7 make 2.58 ([README.md](README.md)). It builds with `cc` on
+Braam, but a makefile written in the last forty years will usually stop at
+its first line. This plan makes it **Braam's POSIX make**: POSIX.1-2024's
+`make`, then the half of GNU make that most makefiles lean on, grown from
+V7's code. It is no longer V7's program once this starts, and nothing on
+Braam has a V7 makefile to keep working, so where V7 and POSIX disagree,
+POSIX wins. Four phases, ordered by how soon a real makefile reaches for each
+feature; each ends green and is published on its own.
 
 ## 1. Rules for every phase
 
-1. **V7 stays V7.** The 39 cases in `test/` keep their expectations byte for
-   byte. A new feature takes syntax V7 rejected or ignored, so no V7 makefile
-   changes meaning. The one exception is §3's backslash in commands, which
-   only `.POSIX` turns on.
+1. **POSIX wins, V7's code stays.** Behaviour follows POSIX wherever the two
+   disagree, with no switch to get V7's back; phase A starts by settling every
+   such difference. What stays is V7's code, its identifiers and structure,
+   its comments, and its own text where POSIX does not specify any — the
+   `Make: ... Stop.` messages, `` `x' is up to date.``, `-p` and `-d`. The 39
+   cases in `test/` change only where POSIX demands it, and each commit that
+   changes an expectation says which rule required it.
 2. **POSIX.1-2024 first, then GNU.** Phases A and B are POSIX's `make`, and
    phase C is the GNU make most makefiles are written for. BSD make's dialect
    (`.if`, `:M`) is not a goal.
@@ -20,14 +26,30 @@ feature. Each phase ends green and is published on its own.
    is done by the coroutine above the parser, in the driver shape simbesm and
    mbasic use: the plain code stops and reports what it needs, the caller
    does the waiting, and the plain code goes on. §3 has the two mechanisms.
-4. **The README's account grows.** A section "Beyond V7" lists each addition
-   and the standard it comes from, and the V7 sections stay as written.
+4. **The README is rewritten in phase A** to say what the program now is:
+   V7's code, made a POSIX make. The port's account stays, and a section
+   lists each addition and the standard it comes from. The package's `T=`
+   says "POSIX make" from then on.
 5. **Version:** `2.58-r1` after phase A, `-r2` after B, and so on. There is
    no upstream version to move, so only the revision counts up.
 
 ## 2. Phases
 
-### Phase A — what nearly every makefile uses
+### Phase A — POSIX where V7 differs, and what nearly every makefile uses
+
+First the differences, since everything after is written against POSIX's
+behaviour and not V7's:
+
+| V7 | POSIX, and from phase A on | Where |
+|---|---|---|
+| Backslash-newline in a command becomes a space | Kept, and passed to the shell | `nextlin` |
+| `.out` rules: `make hello` needs a target `hello.out` | Single-suffix `.c:` and `.s:` rules; `.SUFFIXES: .o .c .s .a` | `builtin[]`, `implicit()` |
+| The environment is not read | Environment variables are macros (below) | `make_main` |
+| `.SILENT` and `.IGNORE` with prerequisites act on everything | Only on those targets; without prerequisites, on everything | `docom()` |
+| `-q` exits 255 when not up to date, and every error exits 1 | `-q` exits 1; an error exits 2 | `doname()`, `fatal()` |
+| `No suffix list.` on every run under `-r` | Nothing: an empty list is not worth saying | `make_main` |
+
+Then the features:
 
 | Feature | Where | Notes |
 |---|---|---|
@@ -37,7 +59,6 @@ feature. Each phase ends green and is published on its own.
 | Environment as macros | `make_main` | `proc_env_count()`/`proc_env_at()`; makefile beats environment, command line beats both |
 | `$(MAKE)`, `MAKEFLAGS` | `make_main`, `run()` | `MAKEFLAGS` carries flags and command-line macros to a child through `spawn`'s `env` |
 | `.PHONY` | `doname()` | A phony target is always remade and never `stat`ed |
-| Single-suffix rules, `.c:` | `implicit()` | So `make hello` builds from `hello.c`; built-in `.c:` and `.s:` rules |
 | `$^`, `$<` in explicit rules | `doname()` | GNU's, but used everywhere; `$<` is the first prerequisite |
 
 **Done when:** every feature has cases in `cases.mjs`, and a new
@@ -57,7 +78,7 @@ Each fixture's `make -n` output is also checked against host GNU make's
 | `!=` | `nextlin`, driver | §3.1, like `include` |
 | `+` command prefix | `docom()` | Runs under `-n`, `-t`, `-q` |
 | `-e`, `-C dir` | `make_main` | `-C` is not POSIX but every make has it |
-| `.POSIX` | `nextlin`, `dosys` | Backslash-newline kept in commands; `-e` shell as now |
+| `.POSIX` | `gram.cpp` | Accepted with no effect: POSIX is already what this make does |
 | `.WAIT`, `.NOTPARALLEL`, `.SCCS_GET` | `gram.cpp` | Accepted and ignored until phase D's `-j` |
 | Built-in macros | `builtin[]` | `AR`, `ARFLAGS`, `LDFLAGS`, `MAKE`, as POSIX lists them, for Braam's tools |
 
@@ -141,8 +162,8 @@ README will say so.
   and POSIX agree on, `gmake -n -r` on the host and `make -n -r` on Braam
   print the same commands. A new `test/gmake.mjs` runs each fixture in a
   directory list both ways, with the same file times set on both sides, and
-  diffs. Where this make differs on purpose (V7's `No suffix list.`, the
-  messages), the difference is listed beside the fixture.
+  diffs. The commands must agree; the messages, which stay V7's, are not
+  compared.
 - **A real build** at the end of A and C: `cc` on Braam builds from the
   phase's makefiles, as `build.mjs` does today.
 - **Stack and frames:** every new loop over a list is plain or suspends, and
@@ -150,7 +171,9 @@ README will say so.
 
 ## 5. Order inside phase A
 
-`$(VAR:a=b)` and the assignment operators first: they are contained in
+The POSIX differences first, with the expectations they move, so that every
+later case is written once against the behaviour that stays. Then
+`$(VAR:a=b)` and the assignment operators: they are contained in
 `subst()` and `eqsign()`, and everything after uses them. Then environment
 and `MAKEFLAGS`, then `.PHONY`, `$^` and single-suffix rules, and `include`
 last, since it brings §3.1's mechanism that `!=` reuses in phase B.
