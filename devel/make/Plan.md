@@ -1,13 +1,11 @@
 # make — a plan for Braam's make
 
 `devel/make` is V7 make 2.58 grown into **Braam's make**: POSIX.1-2024's
-`make`, then GNU make, then the parts of BSD make that sit beside both, on
-V7's code. Phases A to D are done and in `2.58-r4` — all of POSIX's `make`,
-`-j` included, and of GNU's what most makefiles use; [README.md](README.md)
-has the tables. What is left is two phases: E, the rest of GNU make that
-real projects reach for, now that `cc` writes dependencies; and F, BSD
-make's directives and modifiers. Each ends green and is published on its
-own.
+`make`, then GNU make, on V7's code. Phases A to D are done and in
+`2.58-r4` — all of POSIX's `make`, `-j` included, and of GNU's what most
+makefiles use; [README.md](README.md) has the tables. What is left is phase
+E, the rest of GNU make that real projects reach for, now that `cc` writes
+dependencies. BSD make's dialect (`.if`, `.for`, `:M`) is not a goal.
 
 ## 1. Rules for every phase
 
@@ -17,10 +15,8 @@ own.
    not specify any — the `Make: ... Stop.` messages, `` `x' is up to
    date.``, `-p` and `-d`. A case's expectation changes only where POSIX
    demands it, and the commit that changes it says which rule required it.
-2. **POSIX, then GNU, then BSD.** Where two of them read the same text two
-   ways, the one earlier in that list decides, so no POSIX or GNU makefile
-   changes meaning when phase F comes in. `$(X:Main.c=main.o)` stays POSIX's
-   substitution and is not BSD's `:M` modifier; §2.5 has the rule.
+2. **POSIX, then GNU.** Where the two read the same text two ways, POSIX
+   decides, as phases B to D have it.
 3. **Await only where something parks.** A `co_await` is a call and not a
    tail call, so a loop that awaits without parking grows the native stack
    until the process traps. `yyparse()` is a coroutine and awaits `include`
@@ -31,8 +27,8 @@ own.
 4. **The README keeps up.** Each addition goes in its "Beyond V7" table with
    the standard it comes from, and each POSIX difference in "Where POSIX
    overrules V7".
-5. **Version:** `2.58-r5` after phase E, `-r6` after F. There is no upstream
-   version to move, so only the revision counts up.
+5. **Version:** `2.58-r5` after phase E. There is no upstream version to
+   move, so only the revision counts up.
 
 ## 2. Phases
 
@@ -94,108 +90,9 @@ those prerequisites alone.
 GNU make's `-n` where it is GNU's (§4), and `test/deps.mjs` (§2.1) is green
 with both `-MMD` and a `%.d: %.c` rule.
 
-### Phase F — BSD make, where it sits beside the others
-
-BSD make — NetBSD's, which `bmake` carries, and FreeBSD's, which is the
-same lineage — is the third dialect a makefile is written in. What is
-taken from it is what a POSIX or GNU makefile cannot have written by
-accident, and what an ordinary BSD-style makefile uses; its system
-makefiles, `<bsd.prog.mk>` and the rest, are not, being a library of their
-own written for BSD's toolchain.
-
-| Feature | Where | Notes |
-|---|---|---|
-| `.include "f"`, `.include <f>`, `.-include`, `.sinclude`, and `-I dir` | `nextlin()`, `make_main` | §2.4. `-I` is GNU's too, for `include` |
-| `.if`, `.ifdef`, `.ifndef`, `.ifmake`, `.ifnmake`, `.elif` and its kin, `.else`, `.endif` | `nextlin()`, a new `cond.cpp` | §2.4 |
-| `.for v... in list` ... `.endfor` | `nextlin()` | §2.4 |
-| `.undef`, `.export`, `.unexport`, `.info`, `.warning`, `.error` | `nextlin()` | As GNU's `undefine`, `export`, `unexport`, `$(info)` and the rest |
-| Modifiers: `:M :N :S :C :H :T :E :R :Q :u :O :Or :tl :tu :ts :U :D :L :sh :@v@text@ :!cmd!` | `subst()`, `substref()` | §2.5 |
-| `${.TARGET}`, `${.IMPSRC}`, `${.ALLSRC}`, `${.OODATE}`, `${.PREFIX}`, `${.MEMBER}`, `${.ARCHIVE}` | `setat()`, `setlists()` | The long names of `$@ $< $^ $? $* $% `, set beside them |
-| `.CURDIR`, `.MAKE.LEVEL`, `.MAKE` | `make_main` | `.MAKE.LEVEL` is `MAKELEVEL` (phase E) |
-| `.PATH:` and `.PATH.suffix:` | `vfind()` | BSD's `VPATH`, a directory list per suffix, searched as phase C's |
-| `.MAIN:`, `.BEGIN:`, `.END:`, `.INTERRUPT:` | `make_main`, `intrupt()` | The default goal; commands run before anything, after everything, and on `^C` |
-| Sources that are attributes: `.USE`, `.USEBEFORE`, `.OPTIONAL`, `.EXEC`, `.NOTMAIN`, `.MAKE`, and `.IGNORE`, `.SILENT`, `.PRECIOUS`, `.PHONY` as sources | `rule()`, `doname()` | §2.6 |
-| `.ORDER: a b` | the job loop | Under `-j`, `b` is not begun while `a` is being made |
-| `-V var` and `-v var` | `make_main` | The macro's value, unexpanded or expanded, printed instead of making anything; for scripts |
-
-#### 2.4 Directives
-
-A BSD directive is a line starting with a dot, any blanks after it, and one
-of its words followed by a blank or the end: `.include`, `.if`, `.for` and
-the rest. No such line means anything to POSIX or GNU — a target line has a
-colon and a macro line an `=` — so §1's rule 2 holds without a test. They are
-taken where GNU's directives are, before anything else looks at the line.
-
-`.include` is GNU's `include` with BSD's quoting: `"f"` is looked for beside
-the including makefile and then in the `-I` directories, `<f>` in the `-I`
-directories only. A missing `.include` stops make; `.-include` and
-`.sinclude` pass over it.
-
-`.if` takes an expression: `defined(v)`, `make(t)`, `empty(v:mods)`,
-`exists(f)`, `target(t)`, `commands(t)`, comparisons of expanded strings and
-of numbers, `!`, `&&`, `||` and parentheses. The evaluator is plain code in
-`cond.cpp`, the conditional stack is GNU's `conds`, and `exists()` is a
-§3.2 request, so a line that needs one is done again as a `$(wildcard)` one
-is. `.ifdef v` is `.if defined(v)` and `.ifmake t` is `.if make(t)`;
-`.elif`, `.elifdef` and the others chain as GNU's `else if...` does.
-
-`.for` reads its body up to the matching `.endfor`, as `define` does, then
-expands the list and pushes the body once per word — or per as many words as
-it names variables — as one input buffer (§3.1), each `${v}` and `$(v)` in it
-replaced by its word as BSD does, textually and before the body is read. So
-a `.for` is a stretch of makefile written out, and nothing else has to know
-about it.
-
-#### 2.5 Modifiers
-
-BSD writes `${v:mod:mod...}`: modifiers one after another, each on the
-result of the one before. What is a modifier and what is POSIX's
-`$(v:a=b)` is decided once, on the whole of what follows the colon:
-
-1. If it is `S` or `C` followed by a delimiter that is not a letter, a digit
-   or a blank, and the delimiter comes twice more, it is BSD's `:S/old/new/`
-   or `:C/regex/new/`, flags after.
-2. Otherwise, if it has an `=` outside nested `$(...)`, it is POSIX's
-   substitution, `%` forms included, as now.
-3. Otherwise it is a chain of BSD modifiers, split at colons outside nested
-   references; an unknown one stops make with a message.
-
-So every substitution POSIX and GNU allow keeps its meaning. `:M` and `:N`
-keep and drop the words matching a glob, by `amatch()`. `:S` replaces
-literally, `^` and `$` anchoring, `&` the match, `g` for every one. `:C` is
-the same with an ERE from the port kit's `<regex.h>`, which costs some
-14 KB of binary and is linked only by this. `:H :T :E :R` are head, tail,
-extension and root of each word; `:Q` quotes for the shell; `:u` drops
-repeats in a row, `:O` sorts and `:Or` sorts backwards; `:tl`, `:tu` and
-`:ts c` lower, upper and join; `:U` and `:D` give a value where the macro
-is undefined or defined, and `:L` the name itself. `:@v@text@` is
-`$(foreach)`. `:sh` and `:!cmd!` run the shell, and are §3.2 requests.
-
-#### 2.6 Attributes
-
-A source that is one of BSD's attributes marks the target and is no
-prerequisite: `t: .SILENT` is `.SILENT: t`, and the same for `.IGNORE`,
-`.PRECIOUS` and `.PHONY`. `.OPTIONAL` lets `t` be missing with no rule;
-`.EXEC` runs `t`'s commands without dating `t`; `.NOTMAIN` keeps `t` from
-being the default goal; `.MAKE` runs its commands under `-n`, as `+` does.
-A target with `.USE` is a macro of commands: a target that names it as a
-prerequisite gets its commands after its own, `.USEBEFORE` before, with
-`$@` and the rest its own.
-
-**Done when:** each feature has cases in `cases.mjs`, those in `BMAKE_CASES`
-compared against the host's BSD make under `-n` as `GMAKE_CASES` are against
-`gmake` (§4);
-and `test/bsd.mjs` builds a program with `cc` on Braam from a makefile in
-BSD's style — `.include` of a shared file, `.if` on a `DEBUG` macro and on
-`exists()`, a `.for` over the programs, `${SRCS:M*.c:R:S/$/.o/}`, `.PATH`
-for the sources — then makes nothing, and remakes one object when its
-source moves.
-
-Not planned, in either phase: GNU's `.SECONDEXPANSION`, grouped targets
-`&:`, `load` and Guile, and the jobserver between separate `make`s, which
-needs a descriptor passed to a child and a spawn passes only the three
-streams; BSD's system makefiles, `.OBJDIR` and its object directories, meta
-mode, and `.MAKE.MODE`.
+Not planned: `.SECONDEXPANSION`, grouped targets `&:`, `load` and Guile,
+the jobserver between separate `make`s, which needs a descriptor passed to a
+child where a spawn passes only the three streams, and BSD make's dialect.
 
 ## 3. The mechanisms
 
@@ -242,9 +139,8 @@ from an expansion that needs, and a conditional is not pushed.
 The cache is emptied after every command runs, since a command can create
 files and change what a shell prints. That makes two identical `$(shell)`s
 within one line or one rule the same result, where GNU runs them twice; the
-README says so. Phases E and F add to the requests — `$(realpath)`,
-`$(file <f)`, BSD's `exists()`, `:sh` and `:!cmd!` — and nothing to the
-loop.
+README says so. Phase E adds to the requests — `$(realpath)` and
+`$(file <f)` — and nothing to the loop.
 
 ### 3.3 Jobs: `-j`
 
@@ -306,20 +202,6 @@ sending both to one file; the README will say so.
   runs under `-n` on Braam and under the host's `gmake -n`, over the same
   files at the same times, and the commands must agree line for line; the
   messages, being V7's, are not compared.
-- **Differential against host BSD make**, from phase F on. `BMAKE_CASES` is
-  the same as `GMAKE_CASES`, for the BSD make the host has. Two may be:
-  `bmake`, NetBSD's (`brew install bmake`), which is the dialect phase F
-  follows; and `bsdmake`, Apple's (`brew install bsdmake`, version 24), an
-  older FreeBSD make. `bsdmake` has the common half — `.include`, `.if` with
-  `defined()`, `make()`, `exists()` and `empty()`, `.for`, `:M :N :S :C :H
-  :T :E :R :Q :u :O :sh`, the long names, `.PATH`, `.BEGIN`, `.END`,
-  `.USE`, `.ORDER` and `-V` — and lacks the rest: `.info`, `.export`,
-  `.-include`, `.elifdef`, numeric comparisons in `.if`, `:Or :U :D :@ :tl
-  :tu :ts`. Its `:L` lowers case, where NetBSD's, which this make follows,
-  is the macro's name. So a case in `BMAKE_CASES` is compared against
-  `bmake` when there is one and against `bsdmake` otherwise, except the cases
-  in `BMAKE_ONLY`, which only `bmake` is asked. With neither the run says so
-  and goes on.
 - **A real build** at the end of each phase: `cc` on Braam builds from the
   phase's makefiles, as `build.mjs`, `gnu.mjs` and `jobs.mjs` do now.
 - **Stack and frames:** every new loop over a list is plain or parks at each
@@ -327,17 +209,11 @@ sending both to one file; the README will say so.
   CLAUDE.md. `incmany` includes three hundred files in a row, so a parse loop
   that awaited without parking would trap there.
 
-## 5. Order
+## 5. Order inside phase E
 
-**Phase E.** Dependencies first, as the reason for the phase and a test
-with no code under it, then remaking makefiles, which the `%.d` half of
-`deps.mjs` needs. The functions and `undefine` next, each small; then
-`MAKELEVEL` and `-w`, since a sub-make's messages change every recursive
-case; then `-B`, `-W` and `-o`, the intermediate, and `-O` last, the one
-that changes the job loop.
-
-**Phase F.** `.include` and `-I` first, as everything else is tried in
-included files; then the conditionals and their evaluator; then the
-modifiers, which `.if` expressions use through `empty()`; then `.for`. The
-long names, `.PATH`, the special targets and the attributes after, each
-small; `.ORDER` and `-V` last, and `bsd.mjs` the phase's real build.
+Dependencies first, as the reason for the phase and a test with no code
+under it, then remaking makefiles, which the `%.d` half of `deps.mjs`
+needs. The functions and `undefine` next, each small; then `MAKELEVEL` and
+`-w`, since a sub-make's messages change every recursive case; then `-B`,
+`-W` and `-o`, the intermediate, and `-O` last, the one that changes the job
+loop.
