@@ -1,29 +1,76 @@
-# make — maintain program groups
+# make — Braam's POSIX make
 
-**This is Stuart Feldman's make from Seventh Edition Unix**, version 2.58 of
-14 March 1979 ([ident.cpp](ident.cpp)), Caldera's licence in
-[COPYRIGHT](COPYRIGHT). It came here by way of the BESM-6 port in
-`~/Project/Besm-6/v7besm/cmd/make/`, which had already turned it into C11 and
-fixed six bounds v7 did not check; that port's README is the account of those,
-and what follows is only what Braam changed on top of them.
+**This is POSIX's `make`, grown from Stuart Feldman's make from Seventh
+Edition Unix**, version 2.58 of 14 March 1979 ([ident.cpp](ident.cpp)),
+Caldera's licence in [COPYRIGHT](COPYRIGHT). The code, its identifiers, its
+comments and its messages are V7's; what it does is POSIX.1-2024's wherever
+the two disagree, and [Plan.md](Plan.md) is the way from one to the other —
+phase A of it is done. It came here by way of the BESM-6 port in
+`~/Project/Besm-6/v7besm/cmd/make/`, which had already turned V7's into C11
+and fixed six bounds V7 did not check; that port's README is the account of
+those.
 
 ```
-make [-f makefile] [-inpqrstkS] [name=value]... [target]...
+make [-einpqrstkS] [-f makefile]... [name=value]... [target]...
 ```
 
 `makefile` then `Makefile` is read when no `-f` names one, and `-f -` reads
-standard input. The built-in rules are `cc`'s and `as`'s:
+standard input. The built-in rules are POSIX's, for `cc` and `as`:
 
 ```
-.SUFFIXES : .out .o .c .s
+.SUFFIXES : .o .c .s .a
+.c              $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
+.s              $(CC) $(LDFLAGS) -o $@ $<
 .c.o            $(CC) $(CFLAGS) -c $<
 .s.o            $(AS) -o $@ $<
-.c.out .s.out .o.out
-                $(CC) $(CFLAGS) $< $(LOADLIBES) -o $@
 ```
 
-v7's yacc and lex rules are gone, as the BESM port's f77 rules went before
-them: neither program is on Braam. `-r` leaves them all out.
+so `make hello` builds `hello` from `hello.c` with no makefile at all. V7's
+yacc and lex rules are gone, as the BESM port's f77 rules went before them:
+neither program is on Braam. `-r` leaves them all out.
+
+## Where POSIX overrules V7
+
+| V7 | Here, as POSIX has it |
+|---|---|
+| Backslash-newline in a command became a space | Kept for the shell; the next line loses one leading tab |
+| Elsewhere it joined lines past any empty ones | One space for it and the blanks around it, and no further |
+| A last line with no newline was dropped | It is a line |
+| `.out` rules: `make hello` wanted a target `hello.out` | Single-suffix rules, `.c:` and `.s:` |
+| An inference rule was looked for for every target | Only for one with no commands of its own |
+| The default goal was the first *name* met, a prerequisite too | The first *target* that is not special |
+| `.SILENT` and `.IGNORE` named anywhere acted on every target | With prerequisites, on those alone |
+| `-n` left out what `-s` or `.SILENT` silenced | It writes every command that would run |
+| `-q` exited 255 when out of date, every error 1, `-k` 0 | 1, 2, and 2 when `-k` went past a failure |
+| A `-f` file was read when its option was met | Every option first, then the files |
+| The environment was not read | Its variables are macros, below the makefile's |
+| `No suffix list.` under `-r` | Nothing |
+
+`$<` and `$*` in an explicit rule are the first prerequisite and the target
+less a known suffix, as GNU and BSD make have them; V7 left both as the last
+inference rule set them.
+
+## Beyond V7
+
+| What | From | Notes |
+|---|---|---|
+| `include`, `-include`, `sinclude` | POSIX.1-2024 | The names are expanded; nested to 100 |
+| `$(name:a=b)`, `$(name:%a=%b)` | POSIX, POSIX.1-2024 | In each word; the words come out one space apart |
+| `:=`, `::=`, `+=`, `?=` | POSIX.1-2024 | `:=` expands once; `+=` after one expands what it adds |
+| Environment macros, `-e` | POSIX | Command line, then makefile, then environment, then built-in; `-e` puts the environment above the makefile. `SHELL` is not taken |
+| `MAKE`, `MAKEFLAGS`, `SHELL` | POSIX | A child gets the flags and the command line's macros in `MAKEFLAGS` |
+| `+` before a command, and a command naming `$(MAKE)` | POSIX | Run under `-n`, which is how a recursive make passes it down |
+| `.PHONY` | POSIX.1-2024 | Never looked for, always remade, never removed by `^C` |
+| `$^` | GNU, POSIX.1-2024 | Every prerequisite once, an inferred one first |
+
+**Includes** are why `yyparse()` is a coroutine and the lexer under it is not.
+`nextlin()` finds the line and expands the names; `yyparse()` awaits
+`includef()`, which reads each file whole and pushes it on a stack of input
+buffers; `getfin()` pops one at its end and goes on with the line after the
+include. The await is a file read, which parks every time, so the stack is
+back to nothing at each one however many there are — a case includes three
+hundred. An await per token would not park, and would cost native stack per
+token.
 
 ## What the port changed
 
@@ -40,7 +87,7 @@ byte, where `docom1()` reads it, so `*** Error code 1` is v7's own line.
 **`exit()` traps, so `fatal()` stops instead.** It records the message and a
 sticky status, and every caller of anything that may stop tests `stopped` and
 returns, a frame at a time, as vi's `error()` does. `proc_main()` says the
-message and returns the status. `-q`'s `exit(-1)` is a status of 255, as it was.
+message and returns the status, 2 for an error and 1 for `-q`'s `exit(-1)`.
 Out of memory is the one exception: every allocation would have to be tested,
 so `ckalloc()` traps instead.
 
@@ -60,8 +107,8 @@ yacc in this build, and gram.y's grammar is seven rules. The tokens, `yylex()`,
 `nextlin()` and every action are gram.y's; the parser mirrors yacc's default
 reduction, so a rules line with no separator still says `Must be a separator`
 and anything else unexpected is `line N: syntax error`, the first error being
-the last as before. The description file is read whole first, so the parser
-under it never waits.
+the last as before. A description file is read whole first, so only an
+`include` makes the parser wait.
 
 **Times are milliseconds.** `TIMETYPE` is 64 bits — a `long` is 32 here — and
 `exists()` asks `stat_of()`, not `st_mtime`'s whole seconds, since a build here
@@ -97,17 +144,31 @@ cycle, so the bound is gone and `subst()`'s is v7's 100 again. `fatal1()` and
 
 [test/cases.mjs](test/cases.mjs) runs each `test/<case>.args` in `/tmp/t`, every
 fixture planted beside it, and compares stdout and stderr with
-`<case>.expected` and the status with `<case>.status`. Twenty-five are the
-BESM port's, passing with their expectations unchanged; its `toodeep` is
-`deep` here and now builds all sixteen levels. The rest are what b6sim could
-not run: a `*.c` glob over a real directory, an implicit rule finding a source
-nobody named, a command through the shell and one spawned directly, a command
-that is not there, `*** Error code 1` and `(ignored)`, stale and fresh decided
-by times, `-t` creating a target, a long-named member, an archive written by
-the real `ar`, and `^C` removing a target and `.PRECIOUS` keeping one. The
-harness clock is frozen, so each time a case compares is set by the case.
+`<case>.expected` and the status with `<case>.status`; `<case>.env` sets its
+environment. Twenty-five came from the BESM port, and their expectations moved
+only where POSIX moved them — the `No suffix list.` line and the statuses. The
+rest are what b6sim could not run (globs over a real directory, commands run
+directly and through the shell, times, archives the real `ar` wrote, `^C`) and
+phase A's additions, each in its own case. The harness clock is frozen, so
+each time a case compares is set by the case.
+
+**Against GNU make.** Where the host has GNU make 4, every case in
+`GMAKE_CASES` also runs under `-n` on Braam and under the host's `gmake -n`,
+over the same files at the same times, and the commands must agree line for
+line; the messages, being V7's, are not compared. Without one the run says so
+and goes on.
 
 [test/build.mjs](test/build.mjs) installs `cc` as devel/cc's tests do and
 builds a program of two sources and a header through the built-in `.c.o` rule;
 then it is up to date, `touch greet.h` remakes both objects, and a changed
-`greet.c` remakes its own alone.
+`greet.c` remakes its own alone. [test/portable.mjs](test/portable.mjs) builds
+a program of three directories from makefiles in the portable style: `cd dir
+&& $(MAKE)`, an included configuration, `.PHONY: all clean`, `$^` and
+`$(SRCS:.c=.o)`. Then it is up to date, `make -n` after a header moves names
+every command and builds nothing, `make` builds them, `make clean` cleans, and
+`make CFLAGS=...` reaches the sub-makes through `MAKEFLAGS`.
+
+**Braam's `sh` keeps backslash-newline as a newline** where POSIX removes it,
+in a script and under `-c` alike. make passes a continued command to it as
+POSIX says, so `contcmd` runs under `-n`, and what the shell does with it is
+the shell's to fix.

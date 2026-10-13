@@ -206,6 +206,7 @@ TESTS := \
     devel/cc/test/interrupt.mjs \
     devel/make/test/cases.mjs \
     devel/make/test/build.mjs \
+    devel/make/test/portable.mjs \
     devel/wasm/ld/test/fixtures.mjs \
     devel/wasm/ld/test/dump.mjs \
     devel/wasm/ld/test/resolve.mjs \

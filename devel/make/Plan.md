@@ -63,6 +63,12 @@ Then the features:
 | `.PHONY` | `doname()` | A phony target is always remade and never `stat`ed |
 | `$^`, `$<` in explicit rules | `doname()` | GNU's, but used everywhere; `$<` is the first prerequisite |
 
+**Done** in `2.58-r1`, with two of phase B's rows brought forward because a
+recursive `make -n` needs them — the `+` prefix and `SHELL` — and two findings
+of the comparison with GNU make: `-n` writes the commands `-s` and `.SILENT`
+would have hidden, and an inference rule is looked for only for a target with
+no commands. The `-k` status joined the differences table.
+
 **Done when:** every feature has cases in `cases.mjs`, and a new
 `test/portable.mjs` builds a three-directory C program with `cc` from
 makefiles that use only phase-A features: `cd dir && $(MAKE)` into each
@@ -78,7 +84,7 @@ Each fixture's `make -n` output is also checked against host GNU make's
 | `$(@D)`, `$(@F)`, and `D`/`F` on `< * ? %` | `subst()` | |
 | `$%`, `lib.a(m.o)` targets, the `.c.a` rule | `doname()`, `files.cpp` | Built-in `ARFLAGS` is `rvU`, for the reason README.md's "Archives" gives |
 | `!=` | `nextlin`, `yyparse()` | §3.1, like `include` |
-| `+` command prefix | `docom()` | Runs under `-n`, `-t`, `-q` |
+| `+` command prefix under `-t` and `-q` | `docom()` | Under `-n` it is phase A's |
 | `-e`, `-C dir` | `make_main` | `-C` is not POSIX but every make has it |
 | `.POSIX` | `gram.cpp` | Accepted with no effect: POSIX is already what this make does |
 | `.WAIT`, `.NOTPARALLEL`, `.SCCS_GET` | `gram.cpp` | Accepted and ignored until phase D's `-j` |

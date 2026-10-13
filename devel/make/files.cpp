@@ -10,7 +10,7 @@
 
 // DEFAULT RULES.  POSIX's, for the toolchain Braam has: cc and as.  v7's .out
 // rules are POSIX's single-suffix ones, and its yacc, lex, f77, Ratfor and EFL
-// rules name nothing that is here.  README.md, "The default rules".
+// rules name nothing that is here.  README.md.
 // clang-format off
 const char *builtin[] = {
     ".SUFFIXES : .o .c .s .a",

@@ -11,8 +11,8 @@ braam_add_program(NAME make
                   SOURCES main.cpp doname.cpp files.cpp misc.cpp dosys.cpp ident.cpp gram.cpp
                   PORT NOFLOAT)
 
-braam_add_package(NAME make VERSION 2.58-r0
-                  FIELD "T=V7 make, maintain program groups"
+braam_add_package(NAME make VERSION 2.58-r1
+                  FIELD "T=POSIX make, grown from V7 make"
                   FILES $<TARGET_FILE:bin_make>=bin/make)
 
 if(TARGET packages)
