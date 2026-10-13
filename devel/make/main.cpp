@@ -376,12 +376,14 @@ static Task<int> make_main(int argc, char *argv[])
 
 // ^C, caught while a command ran.  v7's was a signal handler; here await() is
 // where the signal arrives.
+static int ismember(void);
+
 Task<void> intrupt()
 {
     char *p;
 
     if (okdel && !noexflag && !touchflag && (p = varptr("@")->varval) && co_await exists(p) > 0 &&
-        !isprecious(p) && !isnamed(".PHONY", p)) {
+        !isprecious(p) && !isnamed(".PHONY", p) && !ismember()) {
         diag("\n***  %s removed.", p);
         co_await b_unlink(p);
     }
@@ -390,6 +392,15 @@ Task<void> intrupt()
         co_await b_unlink(junkname);
     diag("\n");
     stop(2);
+}
+
+// Whether the target being made is a library member: ^C leaves a library
+// alone, where v7 would have removed the whole of it as $@.
+static int ismember(void)
+{
+    char *m = varptr("%")->varval;
+
+    return m != NULL && *m != '\0';
 }
 
 int isprecious(char *p)

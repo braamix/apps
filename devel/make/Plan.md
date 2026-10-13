@@ -3,9 +3,10 @@
 `devel/make` is V7 make 2.58 being grown into **Braam's POSIX make**:
 POSIX.1-2024's `make`, then the half of GNU make that most makefiles lean on,
 on V7's code. Phase A is done and in `2.58-r1` — where POSIX overrules V7, and
-what nearly every makefile uses; [README.md](README.md) has both tables. Three
-phases are left, ordered by how soon a real makefile reaches for each feature;
-each ends green and is published on its own.
+what nearly every makefile uses — and phase B in `2.58-r2`, the rest of POSIX
+but `-j`; [README.md](README.md) has the tables. Phases C and D are left,
+ordered by how soon a real makefile reaches for each feature; each ends green
+and is published on its own.
 
 ## 1. Rules for every phase
 
@@ -93,6 +94,15 @@ dates a member through `lookarch()`, so `lib.a: lib.a(a.o) lib.a(b.o)` is
 remade member by member. A member's date is whole seconds; `lookarch()` takes
 the end of the second, which keeps a member just archived from looking older
 than its object.
+
+**Done** in `2.58-r2`, with four things the plan did not say. A member
+prerequisite is its member's name in `$?` and `$^`, as GNU has it, so that
+`$(AR) $(ARFLAGS) $@ $?` names the objects. A `lib(member)` whose library is
+not there yet is a member not there, where V7 stopped. An assignment that
+expands at once is not a use of what it reads, so V7's "changed after being
+used" warning no longer fires on the change it was written for. And the
+comparison with GNU make runs it with `SHELL=/bin/sh`, without which GNU runs a
+command-line `!=` with no shell at all.
 
 **Done when:** each feature has cases in `cases.mjs`, those whose behaviour
 POSIX fixes beginning `.POSIX:` and compared against host GNU make's `-n`

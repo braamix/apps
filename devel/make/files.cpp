@@ -18,6 +18,8 @@ const char *builtin[] = {
     "AS=as",
     "CFLAGS=",
     "LDFLAGS=",
+    "AR=ar",
+    "ARFLAGS=-rvU",
 
     ".c :",
     "\t$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<",
@@ -30,6 +32,13 @@ const char *builtin[] = {
 
     ".s.o :",
     "\t$(AS) -o $@ $<",
+
+    // POSIX's, but for rm -f: Braam's rm has no -f.  ARFLAGS has -U, without
+    // which ar dates a member 0 and the member is never up to date.
+    ".c.a :",
+    "\t$(CC) -c $(CFLAGS) $<",
+    "\t$(AR) $(ARFLAGS) $@ $*.o",
+    "\trm $*.o",
 
     0
 };
@@ -294,9 +303,10 @@ static Task<TIMETYPE> lookarch(char *filename)
     for (p = filename; *p != '('; ++p)
         ;
     *p = '\0';
+    // A library not made yet holds no member, which is not an error: its
+    // members are what make is about to put in it.  v7 stopped here.
     fi = co_await b_fopen(filename, "r");
     if (fi == NULL) {
-        fatal1("cannot open %s", filename);
         *p = '(';
         co_return 0;
     }

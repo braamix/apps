@@ -1,2 +1,2 @@
 echo short
-echo long libl.a(a-rather-long-member.o)
+echo long a-rather-long-member.o

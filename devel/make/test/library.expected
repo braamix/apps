@@ -1,0 +1,7 @@
+cc -c  a.c
+ar -rvU lib.a a.o
+rm a.o
+cc -c  b.c
+ar -rvU lib.a b.o
+rm b.o
+echo [lib.a] [] [a.o b.o]

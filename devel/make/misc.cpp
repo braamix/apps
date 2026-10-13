@@ -634,12 +634,29 @@ struct chain *prependu(struct chain *head, char *name)
     return p;
 }
 
+// The library and the member of lib(member), each in a buffer of its own; NO
+// for a name that is not one.  lib((entry)) is v7's, and only a prerequisite.
+int ismember(const char *name, char **libp, char **memp)
+{
+    const char *open = strchr(name, '(');
+    size_t n         = strlen(name);
+
+    if (open == NULL || open == name || name[n - 1] != ')' || open[1] == '(')
+        return NO;
+    *libp = (char *)ckalloc(open - name + 1);
+    memcpy(*libp, name, open - name);
+    *memp = (char *)ckalloc(n - (open - name) - 1);
+    memcpy(*memp, open + 1, n - (open - name) - 2);
+    return YES;
+}
+
 // The names, a space apart, in a string of their own.  v7's was one static
 // QBUFMAX buffer, so a long list was cut short and $? and the next list shared
-// it.
+// it.  A library member is its member's name, as GNU make has it, so that
+// $(AR) $(ARFLAGS) $@ $? names the objects.
 char *mkqlist(struct chain *p)
 {
-    char *qbuf, *qbufp, *s;
+    char *qbuf, *qbufp, *s, *lib, *mem;
     struct chain *q;
     size_t n = 1;
 
@@ -648,10 +665,13 @@ char *mkqlist(struct chain *p)
     qbufp = qbuf = (char *)ckalloc(n);
 
     for (; p; p = p->nextp) {
-        s = p->datap;
-        while (*s)
+        mem = NULL;
+        if (ismember(p->datap, &lib, &mem))
+            free(lib);
+        for (s = mem ? mem : p->datap; *s;)
             *qbufp++ = *s++;
         *qbufp++ = ' ';
+        free(mem);
     }
     if (qbufp > qbuf)
         --qbufp;

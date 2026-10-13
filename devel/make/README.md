@@ -5,27 +5,35 @@ Edition Unix**, version 2.58 of 14 March 1979 ([ident.cpp](ident.cpp)),
 Caldera's licence in [COPYRIGHT](COPYRIGHT). The code, its identifiers, its
 comments and its messages are V7's; what it does is POSIX.1-2024's wherever
 the two disagree, and [Plan.md](Plan.md) is the way from one to the other —
-phase A of it is done. It came here by way of the BESM-6 port in
+phases A and B of it are done, so this is the whole of POSIX's `make` but
+`-j`. It came here by way of the BESM-6 port in
 `~/Project/Besm-6/v7besm/cmd/make/`, which had already turned V7's into C11
 and fixed six bounds V7 did not check; that port's README is the account of
 those.
 
 ```
-make [-einpqrstkS] [-f makefile]... [name=value]... [target]...
+make [-einpqrstkS] [-C dir]... [-f makefile]... [name=value]... [target]...
 ```
 
 `makefile` then `Makefile` is read when no `-f` names one, and `-f -` reads
-standard input. The built-in rules are POSIX's, for `cc` and `as`:
+standard input. The built-in rules are POSIX's, for `cc`, `as` and `ar`:
 
 ```
 .SUFFIXES : .o .c .s .a
+CC=cc  AS=as  AR=ar  ARFLAGS=-rvU  CFLAGS=  LDFLAGS=
 .c              $(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<
 .s              $(CC) $(LDFLAGS) -o $@ $<
 .c.o            $(CC) $(CFLAGS) -c $<
 .s.o            $(AS) -o $@ $<
+.c.a            $(CC) -c $(CFLAGS) $<
+                $(AR) $(ARFLAGS) $@ $*.o
+                rm $*.o
 ```
 
-so `make hello` builds `hello` from `hello.c` with no makefile at all. V7's
+so `make hello` builds `hello` from `hello.c` with no makefile at all, and
+`lib.a: lib.a(a.o) lib.a(b.o)` builds a library. `ARFLAGS` has `-U` and
+`.c.a` has `rm` and not `rm -f`, both for Braam's tools: `ar` dates a member 0
+without `-U` (below, "Archives"), and `rm` has no `-f`. V7's
 yacc and lex rules are gone, as the BESM port's f77 rules went before them:
 neither program is on Braam. `-r` leaves them all out.
 
@@ -43,6 +51,8 @@ neither program is on Braam. `-r` leaves them all out.
 | `-n` left out what `-s` or `.SILENT` silenced | It writes every command that would run |
 | `-q` exited 255 when out of date, every error 1, `-k` 0 | 1, 2, and 2 when `-k` went past a failure |
 | A `-f` file was read when its option was met | Every option first, then the files |
+| A `lib(member)` whose library is not there stopped make | The member is not there either, so it is made |
+| `$@` of a `lib(member)` target was the whole name | The library, with the member in `$%` |
 | The environment was not read | Its variables are macros, below the makefile's |
 | `No suffix list.` under `-r` | Nothing |
 
@@ -62,6 +72,19 @@ inference rule set them.
 | `+` before a command, and a command naming `$(MAKE)` | POSIX | Run under `-n`, which is how a recursive make passes it down |
 | `.PHONY` | POSIX.1-2024 | Never looked for, always remade, never removed by `^C` |
 | `$^` | GNU, POSIX.1-2024 | Every prerequisite once, an inferred one first |
+| `$(@D)`, `$(@F)`, and the same of `< * ? % ^` | POSIX | In each word, the directory (`.` without one) or the file |
+| `lib(member)` targets, `$%`, `.c.a` | POSIX | The member less its suffix is `$*`, and the rule is from a source's suffix to `.a` |
+| A member in `$?` and `$^` is its member's name | GNU | So `$(AR) $(ARFLAGS) $@ $?` names the objects |
+| `!=`, `:::=` | POSIX.1-2024 | `!=` runs `sh -c` and keeps what it wrote, newlines as spaces; `:::=` expands now and doubles each `$` |
+| `+` under `-t` and `-q` | POSIX | Only the `+` lines run; `-t` then touches |
+| `-C dir` | GNU, BSD | In order, before any makefile; not passed on in `MAKEFLAGS` |
+| `.WAIT`, `.POSIX`, `.NOTPARALLEL`, `.SCCS_GET` | POSIX.1-2024 | Accepted; `.WAIT` is no prerequisite, there being no `-j` |
+| No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
+
+An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a
+*use* of the macros it reads, so V7's `Warning: X changed after being used`
+is not said when one of them changes after: the change is what the operator
+is for.
 
 **Includes** are why `yyparse()` is a coroutine and the lexer under it is not.
 `nextlin()` finds the line and expands the names; `yyparse()` awaits
@@ -140,6 +163,16 @@ cycle, so the bound is gone and `subst()`'s is v7's 100 again. `fatal1()` and
 `yyerror()` use `snprintf`, a target name being as long as it likes. Under
 `-d`, a dependent that a glob emptied no longer dereferences a null name.
 
+**No buffer has a fixed size.** V7's `INMAX`, `OUTMAX`, `QBUFMAX`, `NLEFTS`,
+its 509-slot name table and its 100-byte names all stopped make when a
+makefile outgrew them. The table doubles at two-thirds full; `subst()` says
+when its buffer is full rather than stopping, and `substa()` expands again
+into one twice the size until the text fits; the line, the word, `$?`, a rule
+line's targets and `doexec()`'s arguments are sized from what they hold.
+Expanding twice is safe because an expansion changes nothing but `used`.
+`MAXSUBST` and `MAXINCL`, 100 each, stay: they stop a macro or a file that
+refers to itself.
+
 ## Tests
 
 [test/cases.mjs](test/cases.mjs) runs each `test/<case>.args` in `/tmp/t`, every
@@ -157,6 +190,10 @@ each time a case compares is set by the case.
 over the same files at the same times, and the commands must agree line for
 line; the messages, being V7's, are not compared. Without one the run says so
 and goes on.
+
+[test/library.mjs](test/library.mjs) builds a library through `.c.a` with
+`cc` and `ar` on Braam, links a program against it, makes nothing on the run
+after, and remakes one member when its source moves.
 
 [test/build.mjs](test/build.mjs) installs `cc` as devel/cc's tests do and
 builds a program of two sources and a header through the built-in `.c.o` rule;

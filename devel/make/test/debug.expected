@@ -4,6 +4,7 @@ Open directories:
 Macros:
 	^ = 
 	? = 
+	% = 
 	@ = (null)
 	* = 
 	< = 

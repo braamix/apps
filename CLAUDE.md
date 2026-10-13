@@ -270,11 +270,11 @@ coroutine bodies affordable: no CSE past 32 suspension points, and no local
 coalescing past 16 MB of analysis.
 And [devel/make](devel/make/), V7 make 2.58 by way of the BESM-6 port, being
 grown into Braam's POSIX make by [its Plan.md](devel/make/Plan.md) — V7's code
-and messages, POSIX's behaviour wherever the two differ, phase A done. It is a
-**tenth shape**, the program whose work is *running other programs*: the first
-port to `spawn` and `wait_child`, and the first whose correctness is file
-times. `fork`/`execvp` are one `spawn`, `exit` traps so `fatal()` is a sticky
-status unwound a frame at a time, and nothing prints through an await:
+and messages, POSIX's behaviour wherever the two differ, phases A and B done.
+It is a **tenth shape**, the program whose work is *running other programs*:
+the first port to `spawn` and `wait_child`, and the first whose correctness is
+file times. `fork`/`execvp` are one `spawn`, `exit` traps so `fatal()` is a
+sticky status unwound a frame at a time, and nothing prints through an await:
 `mprintf` and `diag` hold stdout and stderr in one ordered buffer that
 `flushout()` writes before each command, so the parser and `-p`'s walk stay
 plain. gram.y is written out by hand, there being no yacc in the build, and

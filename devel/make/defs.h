@@ -181,6 +181,7 @@ struct chain *appendq(struct chain *head, char *tail);
 struct chain *appendu(struct chain *head, char *tail);
 struct chain *prependu(struct chain *head, char *name);
 char *mkqlist(struct chain *p);
+int ismember(const char *name, char **libp, char **memp);
 
 // exit() traps here, so fatal() and its kind stop rather than exit: they record
 // the status, and every caller of something that may stop tests `stopped` and

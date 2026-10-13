@@ -1,2 +1,2 @@
-echo update libr.a(a-rather-long-member.c)
+echo update libr.a
 `libr.a(hdr.h)' is up to date.

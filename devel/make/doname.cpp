@@ -14,6 +14,21 @@
 
 static Task<int> docom1(char *comstring, int nohalt);
 
+// $@ for a target, and $% beside it: for lib(member) they are lib and member,
+// as POSIX has them, and for anything else the name and nothing.
+static void setat(const char *name)
+{
+    char *lib, *mem;
+
+    if (ismember(name, &lib, &mem)) {
+        setvar("@", lib);
+        setvar("%", mem);
+    } else {
+        setvar("@", (char *)name);
+        setvar("%", (char *)"");
+    }
+}
+
 // Two names run together, in a buffer of their own.
 static char *concata(const char *a, const char *b)
 {
@@ -50,6 +65,31 @@ static Task<struct nameblock *> implicit(struct nameblock *p, char **prefixp,
     struct depblock *suffp, *suffp1;
     struct nameblock *p1, *p2;
     char *pnamep, *p1namep, *prefix;
+
+    // lib(member), as POSIX has it: the member less its suffix is $*, and the
+    // rule is from a source's suffix to .a -- lib.a(x.o) from x.c by .c.a.
+    if (ismember(p->namep, &prefix, &pnamep)) {
+        free(prefix);
+        prefix = pnamep;
+        for (lp = sufflist; lp; lp = lp->nxtlineblock)
+            for (suffp = lp->depp; suffp; suffp = suffp->nxtdepblock)
+                if (suffix(pnamep, suffp->depname->namep, prefix))
+                    goto stemmed;
+    stemmed:
+        co_await srchpre(prefix);
+        if (stopped)
+            goto none;
+        for (lp = sufflist; lp; lp = lp->nxtlineblock)
+            for (suffp = lp->depp; suffp; suffp = suffp->nxtdepblock) {
+                p1namep = suffp->depname->namep;
+                if ((p1 = srchcat(p1namep, ".a")) && (p2 = srchcat(prefix, p1namep))) {
+                    *rulep   = p1;
+                    *prefixp = prefix;
+                    co_return p2;
+                }
+            }
+        goto none;
+    }
 
     prefix = (char *)ckalloc(strlen(p->namep) + 1);
     for (lp = sufflist; lp; lp = lp->nxtlineblock)
@@ -104,7 +144,7 @@ static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, struct shblock 
     TIMETYPE ptime;
 
     ptime = (tdep > 0 ? tdep : co_await prestime());
-    setvar("@", p->namep);
+    setat(p->namep);
     setvar("?", mkqlist(qchain));
     setvar("^", mkqlist(allq));
     if (explcom)
@@ -229,7 +269,7 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
                 if (ptime < td || (ptime == 0 && td == 0) || lp->depp == 0) {
                     okdel1 = okdel;
                     okdel  = NO;
-                    setvar("@", p->namep);
+                    setat(p->namep);
                     setvar("?", mkqlist(qchain));
                     setvar("^", mkqlist(lineq));
                     setvar("<", lineq ? lineq->datap : (char *)"");
