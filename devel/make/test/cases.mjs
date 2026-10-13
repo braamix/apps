@@ -5,7 +5,10 @@
 // first twenty-six are the BESM-6 port's; README.md, "Tests", says what the
 // rest add.  --bless writes what came out as the expectation.
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync,
+         writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HARNESS, KERNEL, ROOTFS } from "../../../test/sdk.mjs";
@@ -201,6 +204,58 @@ const CHECK = {
     precious: () => get(`${DIR}/keep`) === "new\n" || "keep was not kept",
 };
 
+// GNU make on the host, where there is one: each case named here runs under -n
+// on both as well, over the same files at the same times, and the commands
+// must agree.  The messages, which are v7's here, are not compared.
+const GMAKE_CASES = new Set([
+    "assign", "autovars", "basic", "cmdline", "contcmd", "contdef", "dcolon", "default",
+    "env", "envflag", "ignoresome", "include", "incdeep", "incmany", "lastline", "macros",
+    "phony", "silent", "silentsome", "substref", "suffix",
+]);
+const GMAKE = (() => {
+    for (const g of ["gmake", "make"])
+        try {
+            const v = execFileSync(g, ["--version"], { encoding: "utf8" });
+            if (/^GNU Make [4-9]/.test(v))
+                return g;
+        } catch {}
+    return null;
+})();
+
+// What -n says, less what is only a message.
+const commands = (out) => out.split("\n").filter((l) => l !== "" && l !== "Stop." &&
+    !/^(g?make|Make)(\[\d+\])?: /.test(l) && !/is up to date\.$/.test(l)).join("\n");
+
+function gmake_check(name, args, env) {
+    const host = mkdtempSync(join(tmpdir(), "make-gmake-"));
+    try {
+        for (const [path, bytes] of H.store.files)
+            if (path.startsWith(DIR + "/") && !path.slice(DIR.length + 1).includes("/")) {
+                const f = join(host, path.slice(DIR.length + 1));
+                writeFileSync(f, bytes);
+                const t = (H.store.mtimes.get(path) ?? T0) / 1000;
+                utimesSync(f, t, t);
+            }
+        let theirs;
+        try {
+            theirs = execFileSync("/bin/sh", ["-c", `${env}${GMAKE} -n --no-print-directory ` +
+                                  `${args.replaceAll(DIR, host)} 2>&1`],
+                                  { cwd: host, encoding: "utf8",
+                                    env: { PATH: process.env.PATH, HOME: "/home" } });
+        } catch (e) {
+            theirs = e.stdout;
+        }
+        put("/tmp/run", `cd ${DIR}\n${env}make -n ${args} >/tmp/out 2>&1\n`);
+        sh("sh /tmp/run");
+        const ours = get("/tmp/out") ?? "";
+        if (commands(ours) !== commands(theirs))
+            return `-n differs from ${GMAKE}:\n--- ${GMAKE}\n${theirs}--- make\n${ours}---`;
+        return true;
+    } finally {
+        rmSync(host, { recursive: true });
+    }
+}
+
 const names = readdirSync(HERE).filter((f) => f.endsWith(".args")).map((f) => f.slice(0, -5))
     .filter((n) => !only.length || only.includes(n)).sort();
 const failed = [];
@@ -229,6 +284,14 @@ for (const name of names) {
     } else {
         const env = existsSync(join(HERE, name + ".env"))
             ? readFileSync(join(HERE, name + ".env"), "utf8").trim() + " " : "";
+        if (GMAKE && GMAKE_CASES.has(name) && !bless) {
+            const g = gmake_check(name, args, env);
+            if (g !== true) {
+                failed.push(name);
+                console.error(`make ${name}: ${g}`);
+            }
+            H.store.files.delete("/tmp/out");
+        }
         put("/tmp/run",
             `cd ${DIR}\n${env}make ${args} <${stdin} >/tmp/out 2>&1\necho $? >/tmp/st\n`);
         sh("sh /tmp/run");
@@ -265,4 +328,6 @@ for (const name of names) {
 
 if (failed.length)
     die(`${failed.length} of ${names.length} failed: ${failed.join(" ")}`);
-console.log(`make ok: ${names.length} cases`);
+console.log(`make ok: ${names.length} cases` +
+            (GMAKE ? `, ${names.filter((n) => GMAKE_CASES.has(n)).length} against ${GMAKE} -n`
+                   : `; no GNU make 4 here to compare -n with`));

@@ -8,6 +8,7 @@ Macros:
 	* = 
 	< = 
 	MAKEFLAGS = nr
+	SHELL = /bin/sh
 	MAKE = make
 	HOME = /home
 	PATH = /bin:/pkg/bin

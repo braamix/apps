@@ -348,7 +348,8 @@ Task<int> docom(struct shblock *q)
 
             if (s[0] == '\0')
                 continue;
-            if (!sil && (!nopr || noexflag))
+            // -n writes what would run, silent or not, as POSIX and GNU have it.
+            if (noexflag || (!sil && !nopr))
                 mprintf("%s%s\n", (noexflag ? "" : prompt), s);
             if (noexflag && !plus)
                 continue;

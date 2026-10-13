@@ -1,2 +1,2 @@
-echo [env] [env] [cmd] [] [makefile]
-[env] [env] [cmd] [] [makefile]
+echo [env] [env] [cmd] [/bin/sh] [makefile]
+[env] [env] [cmd] [/bin/sh] [makefile]

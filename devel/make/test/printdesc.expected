@@ -1,4 +1,5 @@
 Macros:
+	SHELL = /bin/sh
 	MAKE = make
 	HOME = /home
 	PATH = /bin:/pkg/bin

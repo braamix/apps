@@ -451,6 +451,7 @@ static void readenv(void)
     }
     inarglist = 0;
     setvar("MAKE", (char *)makename0);
+    setvar("SHELL", (char *)SHELLCOM); // what runs a command, as POSIX has make provide it
 }
 
 // Read and parse a description file.  It is read whole first, so the parser
