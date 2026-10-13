@@ -88,7 +88,12 @@ struct varblock {
     int simple;   // set by := and ::=, and not expanded again
     int exported; // 1 by export, the environment or the command line; -1 by unexport
     int fromenv;  // the value is still the environment's, as it was
+    int origin;   // where it was set, for $(origin)
 };
+
+// Where a macro was set, as $(origin) names it.
+enum { O_UNDEF, O_DEFAULT, O_ENV, O_ENVOVR, O_FILE, O_CMD, O_OVERRIDE, O_AUTO };
+extern int setorigin; // what setvar() is setting from now
 
 struct pattern {
     struct pattern *nxtpattern;
@@ -147,6 +152,7 @@ extern char *zznextc;
 extern int yylineno;
 extern char *fin; // the description file, read whole; NULL while reading builtin[]
 extern char *finend;
+extern int parsing;
 Task<int> yyparse(void);
 int pushin(char *buf, int len);
 Task<void> includef(char *names, int opt);
@@ -179,6 +185,7 @@ Task<char *> shellout(char *cmd);
 
 // funcs.cpp
 extern int substneed;
+void heldeffects(int keep);
 Task<void> perform(void);
 void forget(void);
 int isfunc(const char *name);

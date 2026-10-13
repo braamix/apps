@@ -1,0 +1,11 @@
+reading: why and more
+line 8: careful
+expanding
+echo '[$(Y) and more] [simple] [two one] [[pair:a,b]]'
+[$(Y) and more] [simple] [two one] [[pair:a,b]]
+echo '[[pair:qx,b a]] [default|file|undefined|command line|environment|default|override|automatic]'
+[[pair:qx,b a]] [default|file|undefined|command line|environment|default|override|automatic]
+echo [[pair:a,] [pair:b,]]
+[[pair:a,] [pair:b,]]
+echo  done
+done

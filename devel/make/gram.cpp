@@ -329,6 +329,7 @@ Task<int> yyparse(void)
 }
 
 char *zznextc; // zero if need another line; otherwise points to next char
+int parsing;   // a makefile is being read, so a line number means something
 int yylineno;
 char *fin;
 char *finend;

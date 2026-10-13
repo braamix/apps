@@ -33,6 +33,12 @@ enum {
     F_FOREACH,
     F_WILDCARD,
     F_SHELL,
+    F_VALUE,
+    F_ORIGIN,
+    F_INFO,
+    F_WARNING,
+    F_ERROR,
+    F_CALL,
 };
 
 // Each function, the fewest arguments it takes and the most, the last taking
@@ -47,7 +53,8 @@ static const struct func {
     { "dir", 1, 1 },       { "notdir", 1, 1 },    { "suffix", 1, 1 },    { "basename", 1, 1 },
     { "addsuffix", 2, 2 }, { "addprefix", 2, 2 }, { "join", 2, 2 },      { "if", 2, 3 },
     { "or", 1, 1000 },     { "and", 1, 1000 },    { "foreach", 3, 3 },   { "wildcard", 1, 1 },
-    { "shell", 1, 1 },
+    { "shell", 1, 1 },     { "value", 1, 1 },     { "origin", 1, 1 },    { "info", 1, 1 },
+    { "warning", 1, 1 },   { "error", 1, 1 },     { "call", 1, 1000 },
 };
 #define NFUNCS (int)(sizeof(funcs) / sizeof(funcs[0]))
 
@@ -105,6 +112,77 @@ void forget(void)
         free(r);
     }
 }
+
+// What $(info) and $(warning) said, held until the expansion they are in is
+// done for good: one done again, to grow its buffer or for a $(shell), says
+// nothing twice.  substa() calls this at the start and end of the outermost.
+struct held {
+    struct held *next;
+    int fd;
+    char *text;
+};
+static struct held *heldq, **heldtail = &heldq;
+
+static void hold(int fd, const char *text)
+{
+    struct held *h = ALLOC(held);
+
+    h->fd     = fd;
+    h->text   = copys(text);
+    *heldtail = h;
+    heldtail  = &h->next;
+}
+
+void heldeffects(int keep)
+{
+    struct held *h;
+
+    while ((h = heldq) != NULL) {
+        heldq = h->next;
+        if (keep && h->fd == SYS_STDOUT)
+            mprintf("%s\n", h->text);
+        else if (keep)
+            diag("%s\n", h->text);
+        free(h->text);
+        free(h);
+    }
+    heldtail = &heldq;
+}
+
+// A macro bound for $(foreach) or $(call), and what it was before.
+struct binding {
+    struct varblock *vp;
+    char *val;
+    int simple, used, fromenv, origin;
+};
+
+static void bind(struct binding *b, const char *name, char *val)
+{
+    b->vp      = varptr(name);
+    b->val     = b->vp->varval;
+    b->simple  = b->vp->simple;
+    b->used    = b->vp->used;
+    b->fromenv = b->vp->fromenv;
+    b->origin  = b->vp->origin;
+
+    b->vp->varval  = val;
+    b->vp->simple  = YES;
+    b->vp->fromenv = NO;
+    b->vp->origin  = O_AUTO;
+}
+
+static void unbind(struct binding *b)
+{
+    b->vp->varval  = b->val;
+    b->vp->simple  = b->simple;
+    b->vp->used    = b->used;
+    b->vp->fromenv = b->fromenv;
+    b->vp->origin  = b->origin;
+}
+
+static const char *const onames[] = { "undefined", "default", "environment",
+                                      "environment override", "file", "command line",
+                                      "override", "automatic" };
 
 int isfunc(const char *name)
 {
@@ -250,7 +328,7 @@ char *callfunc(int fn, char *args, char *b, char *bend)
     }
 
     // Those taken whole, expanded now.
-    if (fn != F_IF && fn != F_OR && fn != F_AND && fn != F_FOREACH)
+    if (fn != F_IF && fn != F_OR && fn != F_AND && fn != F_FOREACH && fn != F_CALL)
         for (i = 0; i < ac && i < 3; ++i)
             x[i] = substa(av[i]);
     if (stopped)
@@ -450,27 +528,84 @@ char *callfunc(int fn, char *args, char *b, char *bend)
         break;
 
     case F_FOREACH: {
-        char *nameb, *name, *list, *oval;
-        int osimple, oused, ofromenv;
+        char *nameb, *name, *list;
+        struct binding bd;
 
         nameb = substa(av[0]);
         name  = strip(nameb);
-        list = substa(av[1]);
-        vp   = varptr(name);
-        oval = vp->varval, osimple = vp->simple, oused = vp->used, ofromenv = vp->fromenv;
+        list  = substa(av[1]);
+        bind(&bd, name, NULL);
         for (p = list; !stopped && !substfull && (w = nextword(&p, &wl)) != NULL;) {
             if (*p)
                 *p++ = '\0';
             if (!first && !putn(&b, bend, " ", 1))
                 break;
-            first       = NO;
-            vp->varval  = w;
-            vp->simple  = YES;
-            vp->fromenv = NO;
-            b           = subst(av[2], b, bend);
+            first         = NO;
+            bd.vp->varval = w;
+            b             = subst(av[2], b, bend);
         }
-        vp->varval = oval, vp->simple = osimple, vp->used = oused, vp->fromenv = ofromenv;
+        unbind(&bd);
         free(list);
+        free(nameb);
+        break;
+    }
+
+    case F_VALUE:
+        if ((vp = findvar(strip(x[0]))) != NULL && vp->varval)
+            putn(&b, bend, vp->varval, strlen(vp->varval));
+        break;
+
+    case F_ORIGIN:
+        s = strip(x[0]);
+        if ((vp = findvar(s)) == NULL || vp->varval == NULL)
+            n = O_UNDEF;
+        else if (s[0] && strchr("@<*?^%+|", s[0]) && s[1] == '\0')
+            n = O_AUTO;
+        else
+            n = vp->origin ? vp->origin : O_FILE;
+        putn(&b, bend, onames[n], strlen(onames[n]));
+        break;
+
+    case F_INFO:
+        hold(SYS_STDOUT, x[0]);
+        break;
+
+    case F_WARNING:
+        if (parsing) {
+            char *t = (char *)ckalloc(strlen(x[0]) + 32);
+
+            snprintf(t, strlen(x[0]) + 32, "line %d: %s", yylineno, x[0]);
+            hold(SYS_STDERR, t);
+            free(t);
+        } else
+            hold(SYS_STDERR, x[0]);
+        break;
+
+    case F_ERROR:
+        fatal(x[0]);
+        break;
+
+    case F_CALL: {
+        // $(0) is the name and $(1)... the arguments, bound as $(foreach)
+        // binds its name, and the value expanded with them.
+        struct binding *bd;
+        char *nameb, num[12];
+
+        nameb = substa(av[0]);
+        bd    = (struct binding *)ckalloc(ac * sizeof(*bd));
+        for (i = 1; i < ac; ++i) {
+            snprintf(num, sizeof(num), "%d", i);
+            bind(&bd[i], num, substa(av[i]));
+        }
+        bind(&bd[0], "0", strip(nameb));
+        if ((vp = findvar(bd[0].vp->varval)) != NULL && vp->varval)
+            b = subst(vp->varval, b, bend);
+        for (i = ac; i-- > 0;) {
+            if (i > 0)
+                free(bd[i].vp->varval);
+            unbind(&bd[i]);
+        }
+        free(bd);
         free(nameb);
         break;
     }

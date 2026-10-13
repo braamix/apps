@@ -252,7 +252,7 @@ const GMAKE_CASES = new Set([
     "cond", "define", "export", "exportall", "funcs", "shellfn", "wildcard",
     "orderonly", "autolists", "goals", "goalsnamed", "defgoal",
     "patrule", "patcancel", "patcancel2", "static",
-    "vpath", "vpathsuf", "vpathtgt", "vpathold",
+    "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])
@@ -266,7 +266,8 @@ const GMAKE = (() => {
 
 // What -n says, less what is only a message.
 const commands = (out) => out.split("\n").filter((l) => l !== "" && l !== "Stop." &&
-    !/^(g?make|Make)(\[\d+\])?: /.test(l) && !/is up to date\.$/.test(l)).join("\n");
+    !/^(g?make|Make)(\[\d+\])?: /.test(l) && !/is up to date\.$/.test(l) &&
+    !/^(line \d+|[\w./-]+:\d+): /.test(l)).join("\n"); // a $(warning)
 
 function gmake_check(name, args, env) {
     const host = mkdtempSync(join(tmpdir(), "make-gmake-"));

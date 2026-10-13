@@ -259,6 +259,7 @@ static Task<int> make_main(int argc, char *argv[])
         funny[(unsigned char)*s] |= TERMINAL;
 
     inarglist = 1;
+    setorigin = O_CMD;
     for (i = 1; i < argc; ++i)
         if (argv[i] != 0 && argv[i][0] != '-' && strchr(argv[i], '=')) {
             addmacro(argv[i]);
@@ -277,14 +278,17 @@ static Task<int> make_main(int argc, char *argv[])
                 co_await runset();
         }
 
+    setorigin = O_DEFAULT;
     setvar("$", (char *)"$");
     inarglist = 0;
+    setorigin = O_CMD;
     readmakeflags();
     if (shellpend) {
         inarglist = 1;
         co_await runset();
         inarglist = 0;
     }
+    setorigin = O_FILE;
 
     // Every option before any file is read, as POSIX has it: v7 read a -f
     // file the moment it met it, before the options after it.
@@ -511,6 +515,7 @@ static void readenv(void)
     char *def, *v;
 
     inarglist = envflag;
+    setorigin = envflag ? O_ENVOVR : O_ENV;
     for (i = 0; i < n; ++i) {
         e = proc_env_at(i);
         if (e.starts_with("SHELL=") || e.starts_with("MAKEFLAGS="))
@@ -526,8 +531,10 @@ static void readenv(void)
             free(def);
     }
     inarglist = 0;
+    setorigin = O_DEFAULT;
     setvar("MAKE", (char *)makename0);
     setvar("SHELL", (char *)SHELLCOM); // what runs a command, as POSIX has make provide it
+    setorigin = O_FILE;
 }
 
 // Read and parse a description file.  It is read whole first, so the parser
@@ -568,15 +575,19 @@ Task<int> rddescf(const char *descfile)
 
 static Task<int> rdd1(char *buf, int len)
 {
-    fin      = buf;
-    finend   = buf + len;
-    yylineno = 0;
-    zznextc  = 0;
+    fin       = buf;
+    finend    = buf + len;
+    yylineno  = 0;
+    zznextc   = 0;
+    parsing   = buf != NULL;
+    setorigin = buf ? O_FILE : O_DEFAULT;
 
     if (co_await yyparse())
         fatal("Description file error");
 
-    fin = NULL;
+    fin       = NULL;
+    parsing   = NO;
+    setorigin = O_FILE;
     co_return 0;
 }
 

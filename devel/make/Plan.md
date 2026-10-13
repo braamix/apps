@@ -23,7 +23,7 @@ the tables of. Phase D, the rest that makefiles reach for, is left.
    and `!=` itself, both of which park on a system call; the lexer,
    `nextlin()` and `subst()` stay plain, since they run once per token, line
    and macro reference and almost never need to wait. §3 has the
-   mechanisms, §3.3 how `-j` drives `doname()`.
+   mechanisms; §3.3 is how `-j` drives `doname()`.
 4. **The README keeps up.** Each addition goes in its "Beyond V7" table with
    the standard it comes from, and each POSIX difference in "Where POSIX
    overrules V7".

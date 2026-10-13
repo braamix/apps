@@ -255,10 +255,14 @@ static char *valuea(struct varblock *vbp)
 // harmless, since an expansion changes nothing but `used'.
 char *substa(char *a)
 {
-    size_t n = 256;
+    static int depth = 0;
+    size_t n         = 256;
     char *buf;
 
+    ++depth;
     for (;;) {
+        if (depth == 1)
+            heldeffects(NO); // a pass done again says nothing twice
         buf       = (char *)ckalloc(n);
         substfull = NO;
         subst(a, buf, buf + n - 1);
@@ -272,6 +276,9 @@ char *substa(char *a)
         }
     }
     substfull = NO;
+    // What $(info), $(warning) and $(eval) did, once the whole is done.
+    if (--depth == 0)
+        heldeffects(!substneed && !stopped);
     return buf;
 }
 
@@ -465,6 +472,8 @@ char *subst(char *a, char *b, char *bend)
     return b;
 }
 
+int setorigin = O_FILE;
+
 // Set while an `override' line is assigned: it sets what the command line
 // set, and a later plain assignment does not reset it.
 int overriding = NO;
@@ -482,6 +491,7 @@ int setvar(const char *v, char *s)
         p->varval  = s;
         p->simple  = NO;
         p->fromenv = NO;
+        p->origin  = overriding ? O_OVERRIDE : setorigin;
         p->noreset = inarglist || overriding;
         if (p->used && !(v[0] && strchr("@*<?^%+|", v[0]) && v[1] == '\0'))
             diag("Warning: %s changed after being used\n", v);

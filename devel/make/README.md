@@ -92,6 +92,8 @@ inference rule set them.
 | Pattern rules, `%.o: %.c` | GNU | Tried before the suffix rules; of those that apply, the shortest stem wins. A `%` matches at least one character, and one with no commands cancels. Not chained through an intermediate file |
 | Static patterns, `objs: %.o: %.c` | GNU | A rule per target, its stem `$*` |
 | `VPATH`, `vpath` | GNU | A prerequisite not here is looked for through the matching `vpath`s, then `VPATH`, and is its path in `$<`, `$^` and the rest; an inference rule's source too. A target found there that is out of date is made here |
+| `$(value)`, `$(origin)`, `$(call)` | GNU | `$(call)` binds `$(0)`, `$(1)`... as `$(foreach)` binds its name |
+| `$(info)`, `$(warning)`, `$(error)` | GNU | Said once the expansion is done for good, never twice; `$(error)` stops make |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a
