@@ -37,7 +37,8 @@ enum {
     COLON,
     DOUBLECOLON,
     GREATER,
-    INCLUDE, // include, -include or sinclude: incnames names the files
+    INCLUDE,  // include, -include or sinclude: incnames names the files
+    SHELLDEF, // a != line, which eqsign() left for runset()
 };
 
 // What an INCLUDE line named, expanded, and whether a missing file is fine.
@@ -134,6 +135,11 @@ Task<int> yyparse(void)
 
         case INCLUDE:
             co_await includef(incnames, incopt);
+            tok = yylex();
+            continue;
+
+        case SHELLDEF:
+            co_await runset();
             tok = yylex();
             continue;
 
@@ -462,7 +468,7 @@ endloop:
                 break;
             else if (*p++ == '=') {
                 eqsign(text);
-                return MACRODEF;
+                return shellpend ? SHELLDEF : MACRODEF;
             }
     }
 

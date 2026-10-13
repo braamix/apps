@@ -261,11 +261,18 @@ static Task<int> make_main(int argc, char *argv[])
             addmacro(argv[i]);
             if (eqsign(argv[i]))
                 argv[i] = 0;
+            if (shellpend)
+                co_await runset();
         }
 
     setvar("$", (char *)"$");
     inarglist = 0;
     readmakeflags();
+    if (shellpend) {
+        inarglist = 1;
+        co_await runset();
+        inarglist = 0;
+    }
 
     // Every option before any file is read, as POSIX has it: v7 read a -f
     // file the moment it met it, before the options after it.

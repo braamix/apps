@@ -148,6 +148,62 @@ static Task<int> doexec(char *str)
     co_return status;
 }
 
+// The `!=' eqsign() left: the command expanded and run by the shell, and what
+// it wrote, its newlines spaces and a last one gone, the macro's value.  Its
+// status is not looked at, as POSIX has it.
+Task<void> runset(void)
+{
+    char *cmd, *out = NULL, *p;
+    size_t n           = 0;
+    Result<Piped> pipe = Err(Error::Io);
+    Result<u32> r      = Err(Error::Io);
+
+    shellpend = NO;
+    cmd       = substnow(shellcmd);
+    if (stopped)
+        goto done;
+    co_await flushout();
+    pipe = co_await make_pipe();
+    if (pipe.is_err()) {
+        fatal("Cannot make a pipe");
+        goto done;
+    }
+    {
+        Str argv[3] = { SHELLCOM, "-c", Str(cmd, strlen(cmd)) };
+        r           = co_await spawn(Args{ Span<const Str>(argv, 3) },
+                                     ChildIo{ SYS_STDIN, (u32)pipe.value().w, SYS_STDERR },
+                                     cenv ? &cenvargs : nullptr);
+    }
+    if (r.is_err()) {
+        co_await close_fd(pipe.value().r);
+        co_await close_fd(pipe.value().w);
+        fatal("Couldn't load Shell");
+        goto done;
+    }
+    for (;;) {
+        Result<String> c = co_await read_chunk(pipe.value().r);
+        if (c.is_err())
+            break;
+        out = (char *)realloc(out, n + c.value().size() + 1);
+        memcpy(out + n, c.value().data(), c.value().size());
+        n += c.value().size();
+    }
+    co_await close_fd(pipe.value().r);
+    co_await wait_child(r.value());
+    if (out == NULL)
+        out = copys("");
+    out[n] = '\0';
+    if (n > 0 && out[n - 1] == '\n')
+        out[--n] = '\0';
+    for (p = out; *p; ++p)
+        if (*p == '\n')
+            *p = ' ';
+    if (!setvar(shellname, out))
+        free(out);
+done:
+    free(cmd);
+}
+
 // v7 read a byte and wrote it back to move the time.  The store has a call for
 // that, and creating a file is what is left of the rest.
 Task<void> touch(int force, char *name)

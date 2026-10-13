@@ -224,7 +224,7 @@ const CHECK = {
 const GMAKE_CASES = new Set([
     "assign", "autovars", "basic", "cmdline", "contcmd", "contdef", "dcolon", "default",
     "env", "envflag", "ignoresome", "include", "incdeep", "incmany", "lastline", "limits",
-    "longname", "macros", "dirfile", "special",
+    "longname", "macros", "dirfile", "special", "shellassign",
     "phony", "silent", "silentsome", "substref", "suffix",
 ]);
 const GMAKE = (() => {
@@ -256,7 +256,10 @@ function gmake_check(name, args, env) {
             theirs = execFileSync("/bin/sh", ["-c", `${env}${GMAKE} -n --no-print-directory ` +
                                   `${args.replaceAll(DIR, host)} 2>&1`],
                                   { cwd: host, encoding: "utf8",
-                                    env: { PATH: process.env.PATH, HOME: "/home" } });
+                                    // SHELL, or GNU make runs a command-line
+                                    // != with no shell at all
+                                    env: { PATH: process.env.PATH, HOME: "/home",
+                                           SHELL: "/bin/sh" } });
         } catch (e) {
             theirs = e.stdout;
         }

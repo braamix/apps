@@ -170,6 +170,22 @@ void *ckalloc(int n)
 // expand again into a bigger one.
 int substfull = NO;
 
+// Whether an expansion counts as a use, for v7's "changed after being used".
+// One that :=, ::=, :::= or != makes is the value being taken there and then,
+// and a later change is what the operator is for.
+int noteuse = YES;
+
+// substa(), not counted as a use.
+char *substnow(char *a)
+{
+    char *s;
+
+    noteuse = NO;
+    s       = substa(a);
+    noteuse = YES;
+    return s;
+}
+
 // Append n bytes of s at *bp, short of bend.  NO when they do not fit.
 static int putn(char **bp, char *bend, const char *s, size_t n)
 {
@@ -379,12 +395,14 @@ char *subst(char *a, char *b, char *bend)
                     dir      = vname[1] == 'D';
                     vname[1] = '\0';
                     if ((vbp = varptr(vname))->varval != 0) {
-                        b         = dirfile(vbp, dir, b, bend);
-                        vbp->used = YES;
+                        b = dirfile(vbp, dir, b, bend);
+                        if (noteuse)
+                            vbp->used = YES;
                     }
                 } else if ((vbp = varptr(vname))->varval != 0) {
-                    b         = spec ? substref(vbp, spec, b, bend) : valueof(vbp, b, bend);
-                    vbp->used = YES;
+                    b = spec ? substref(vbp, spec, b, bend) : valueof(vbp, b, bend);
+                    if (noteuse)
+                        vbp->used = YES;
                 }
                 free(spec);
             }
@@ -413,9 +431,16 @@ int setvar(const char *v, char *s)
     return NO;
 }
 
+// A `!=' waiting to be run: plain code cannot spawn, so eqsign() leaves it
+// here and its caller awaits runset().
+int shellpend = NO;
+char *shellname, *shellcmd;
+
 // The assignment operators past v7's `=': `:=' and `::=' expand the value
 // now and once, `?=' sets only what is not set, `+=' appends after a space
 // -- expanded first when the macro is a := one, as GNU and POSIX have it.
+// POSIX.1-2024's `:::=' expands now too, but doubles each $ of the result and
+// leaves an ordinary macro, so a later += appends without expanding.
 static void assign(char *v, char *s, int op)
 {
     struct varblock *p = varptr(v);
@@ -425,7 +450,7 @@ static void assign(char *v, char *s, int op)
     if (op == '?' && p->varval != 0)
         return;
     if (op == '+' && p->varval != 0) {
-        old = p->simple ? substa(s) : copys(s);
+        old = p->simple ? substnow(s) : copys(s);
         buf = (char *)ckalloc(strlen(p->varval) + 1 + strlen(old) + 1);
         concat(p->varval, " ", buf);
         strcat(buf, old);
@@ -440,24 +465,44 @@ static void assign(char *v, char *s, int op)
         return;
     }
     if (op == ':') {
-        buf = substa(s);
+        buf = substnow(s);
         if (setvar(v, buf))
             p->simple = YES;
         else
             free(buf);
         return;
     }
+    if (op == 'T') {
+        old = substnow(s);
+        buf = (char *)ckalloc(2 * strlen(old) + 1);
+        for (char *t = old, *d = buf; (*d = *t) != '\0'; ++t, ++d)
+            if (*t == '$')
+                *++d = '$';
+        free(old);
+        if (!setvar(v, buf))
+            free(buf);
+        return;
+    }
+    if (op == '!') {
+        free(shellname);
+        free(shellcmd);
+        shellname = copys(v);
+        shellcmd  = copys(s);
+        shellpend = YES;
+        return;
+    }
     setvar(v, copys(s));
 }
 
-// Whether s, at a colon, is the colon of := or ::=.
+// Whether s, at a colon, is a colon of :=, ::= or :::=.
 int assigncolon(const char *s)
 {
-    return s[1] == '=' || (s[1] == ':' && s[2] == '=');
+    return s[1] == '=' || (s[1] == ':' && s[2] == '=') ||
+           (s[1] == ':' && s[2] == ':' && s[3] == '=');
 }
 
-// look for arguments with equal signs but not colons -- but for those of :=
-// and ::=.  The character before the = may make it +=, ?= or :=.
+// look for arguments with equal signs but not colons -- but for those of :=,
+// ::= and :::=.  What is before the = may make it +=, ?=, !=, := or :::=.
 int eqsign(char *a)
 {
     char *s, *t, *e;
@@ -473,9 +518,12 @@ int eqsign(char *a)
 
     op = '=';
     e  = s;
-    if (e > a && (e[-1] == '+' || e[-1] == '?' || e[-1] == ':')) {
+    if (e > a && (e[-1] == '+' || e[-1] == '?' || e[-1] == '!' || e[-1] == ':')) {
         op = *--e;
-        if (op == ':' && e > a && e[-1] == ':')
+        if (op == ':' && e - a >= 2 && e[-1] == ':' && e[-2] == ':') {
+            e -= 2;
+            op = 'T'; // :::=
+        } else if (op == ':' && e > a && e[-1] == ':')
             --e;
     }
     for (t = a; t < e && *t != ' ' && *t != '\t'; ++t)

@@ -165,10 +165,14 @@ int suffix(char *a, char *b, char *p);
 void *ckalloc(int n);
 char *subst(char *a, char *b, char *bend); // bend: last writable byte of b
 char *substa(char *a);
+char *substnow(char *a);
 extern int substfull;
 int setvar(const char *v, char *s);
 int eqsign(char *a);
 int assigncolon(const char *s);
+extern int shellpend;
+extern char *shellname, *shellcmd;
+Task<void> runset(void);
 struct varblock *varptr(const char *v);
 void fatal1(const char *s, const char *t);
 void fatal(const char *s);
