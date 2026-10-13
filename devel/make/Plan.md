@@ -2,11 +2,10 @@
 
 `devel/make` is V7 make 2.58 being grown into **Braam's POSIX make**:
 POSIX.1-2024's `make`, then the half of GNU make that most makefiles lean on,
-on V7's code. Phase A is done and in `2.58-r1` — where POSIX overrules V7, and
-what nearly every makefile uses — and phase B in `2.58-r2`, the rest of POSIX
-but `-j`; [README.md](README.md) has the tables. Phases C and D are left,
-ordered by how soon a real makefile reaches for each feature; each ends green
-and is published on its own.
+on V7's code. Phases A and B are done and in `2.58-r2`: all of POSIX's
+`make` but `-j`, which [README.md](README.md) has the tables of. Phases C and
+D are left, ordered by how soon a real makefile reaches for each feature;
+each ends green and is published on its own.
 
 ## 1. Rules for every phase
 
@@ -16,8 +15,8 @@ and is published on its own.
    not specify any — the `Make: ... Stop.` messages, `` `x' is up to
    date.``, `-p` and `-d`. A case's expectation changes only where POSIX
    demands it, and the commit that changes it says which rule required it.
-2. **POSIX.1-2024 first, then GNU.** Phase B finishes POSIX's `make`, and
-   phase C is the GNU make most makefiles are written for. BSD make's dialect
+2. **POSIX.1-2024 first, then GNU.** POSIX's `make` is done, and phase C is
+   the GNU make most makefiles are written for. BSD make's dialect
    (`.if`, `:M`) is not a goal.
 3. **Await only where something parks.** A `co_await` is a call and not a
    tail call, so a loop that awaits without parking grows the native stack
@@ -29,105 +28,92 @@ and is published on its own.
 4. **The README keeps up.** Each addition goes in its "Beyond V7" table with
    the standard it comes from, and each POSIX difference in "Where POSIX
    overrules V7".
-5. **Version:** `2.58-r2` after phase B, `-r3` after C, and so on. There is no
+5. **Version:** `2.58-r3` after phase C, `-r4` after D. There is no
    upstream version to move, so only the revision counts up.
 
 ## 2. Phases
-
-### Phase B — the rest of POSIX, and the limits
-
-| Feature | Where | Notes |
-|---|---|---|
-| Growing limits | `misc.cpp`, `gram.cpp`, `doname.cpp`, `files.cpp`, `dosys.cpp` | §2.1 |
-| `$(@D)`, `$(@F)`, and `D`/`F` on `< * ? % ^` | `subst()` | Each word of the value; a word with no `/` has `.` for its directory |
-| `+` under `-t` and `-q` | `docom()` | Runs, as under `-n`; `-t` then touches the target |
-| `-C dir` | `make_main` | `b_chdir()` before any makefile is read, in order with other `-C`s; not passed in `MAKEFLAGS`. Not POSIX, but every make has it |
-| `.WAIT` | `doname()` | A prerequisite named `.WAIT` is skipped; it orders nothing until phase D's `-j` |
-| `.POSIX`, `.NOTPARALLEL`, `.SCCS_GET` | — | Already harmless special targets; each gets a case that says so |
-| `!=` | `eqsign()`, `nextlin`, `yyparse()` | §3.1: the command is expanded, run by `sh -c`, and its output's newlines become spaces, a trailing one dropped |
-| `:::=` | `eqsign()`, `assign()` | POSIX.1-2024: expanded now, each `$` of the result doubled, and kept as an ordinary `=` macro |
-| `lib.a(m.o)` targets, `$%`, the `.c.a` rule | `doname()`, `implicit()`, `files.cpp` | §2.2 |
-| Built-in macros | `builtin[]` | `AR=ar`, `ARFLAGS=-rvU`, `CC=cc`, `CFLAGS=`, `LDFLAGS=`, `AS=as`. `-U` because `ar` dates members 0 without it (README.md, "Archives") |
-
-#### 2.1 Growing limits
-
-Every fixed buffer a makefile can fill, and what replaces it:
-
-- **The name table**, 509 slots of open addressing: doubled and rehashed at
-  two-thirds full, so `Hash table overflow` goes.
-- **Expansion**: `subst()` reports a full buffer instead of stopping, and a
-  plain `substa(text)` expands into a heap buffer, doubling and expanding
-  again until it fits. It serves `docom()`'s `OUTMAX` line, `nextlin()`'s
-  dependency line (`templin`), `assign()`'s `:=` and `+=`, `substref()`, and
-  `include`'s names. Expanding twice is safe because expansion has no side
-  effect but `used`, which is idempotent — and stays so in phase C, where §3.2
-  caches what would not be.
-- **Input lines**: `yytext` and `word` grow as `nextlin()` and `yylex()` fill
-  them, so `line too long` and `word too long` go.
-- **`$?` and `$^`**: `mkqlist()` builds a heap string, so `$? list too long`
-  goes, and a list no longer shares one static buffer with the next.
-- **`NLEFTS`**: the targets of one rule line grow, so `Too many lefts` goes.
-- **Names**: `doname()`'s and `implicit()`'s 100-byte name buffers are sized
-  from the name, so a long name gets its inference rule; `srchdir()`'s too.
-- **`doexec()`'s 200 arguments**: counted first and allocated.
-
-`MAXSUBST` (100 nested references) and `MAXINCL` (100 nested includes) stay:
-they stop a macro or a file that refers to itself, and no makefile is near
-either.
-
-#### 2.2 Library members
-
-POSIX's `lib(member)` as a *target*: making it makes the member, and `$@` is
-`lib`, `$%` is `member`. The inference rule for one is found from the
-member's suffix to `.a` — `lib.a(x.o)` from `x.c` by `.c.a` — and the
-built-in one is POSIX's:
-
-```
-.c.a:
-	$(CC) -c $(CFLAGS) $<
-	$(AR) $(ARFLAGS) $@ $*.o
-	rm $*.o
-```
-
-with `rm` and not `rm -f`, Braam's `rm` having no `-f`. `exists()` already
-dates a member through `lookarch()`, so `lib.a: lib.a(a.o) lib.a(b.o)` is
-remade member by member. A member's date is whole seconds; `lookarch()` takes
-the end of the second, which keeps a member just archived from looking older
-than its object.
-
-**Done** in `2.58-r2`, with four things the plan did not say. A member
-prerequisite is its member's name in `$?` and `$^`, as GNU has it, so that
-`$(AR) $(ARFLAGS) $@ $?` names the objects. A `lib(member)` whose library is
-not there yet is a member not there, where V7 stopped. An assignment that
-expands at once is not a use of what it reads, so V7's "changed after being
-used" warning no longer fires on the change it was written for. And the
-comparison with GNU make runs it with `SHELL=/bin/sh`, without which GNU runs a
-command-line `!=` with no shell at all.
-
-**Done when:** each feature has cases in `cases.mjs`, those whose behaviour
-POSIX fixes beginning `.POSIX:` and compared against host GNU make's `-n`
-(§4); and `test/library.mjs` builds a library with `cc` and `ar` on Braam
-through `.c.a`, links a program against it, rebuilds one member when its
-source moves, and makes nothing on the run after.
 
 ### Phase C — GNU make, the everyday half
 
 | Feature | Where | Notes |
 |---|---|---|
-| Pattern rules, `%.o: %.c`, and static patterns | `implicit()`, `gram.cpp` | The largest change: searched before suffix rules, as GNU does |
-| Conditionals: `ifeq`, `ifneq`, `ifdef`, `ifndef`, `else`, `endif` | `nextlin` | A stack of skip states; tested on the expanded line |
-| Text functions | `subst()` | `subst patsubst strip findstring filter filter-out sort word words firstword lastword dir notdir suffix basename addsuffix addprefix join if or and foreach` |
-| `$(wildcard)`, `$(shell)` | `subst()`, its callers | §3.2 |
-| `define`/`endef`, `export`, `unexport`, `override` | `nextlin`, `eqsign()` | Exported macros go through `spawn`'s `env` |
-| `VPATH`, `vpath` | `exists()`, `doname()` | A found prerequisite's path is what `$<` names |
-| Order-only prerequisites, `a: b \| c` | `gram.cpp`, `doname()` | |
-| `.DELETE_ON_ERROR`, `MAKECMDGOALS`, `.DEFAULT_GOAL` | `doname()`, `make_main` | |
-| `$+`, `$\|`, `$(@:...)` forms | `subst()` | |
+| `ifeq`, `ifneq`, `ifdef`, `ifndef`, `else`, `endif` | `nextlin()` | §2.1 |
+| `define`/`endef`, `override`, `export`, `unexport` | `nextlin()`, `assign()`, `dosys.cpp` | §2.1 |
+| Text functions | `funcs.cpp`, from `subst()` | §2.2 |
+| `$(wildcard)`, `$(shell)` | `funcs.cpp`, their awaiting callers | §3.2 |
+| Order-only prerequisites, `a: b \| c`, and `$\|` | `yylex()`, `yyparse()`, `doname()` | Made first, never newer than the target |
+| `$+` | `doname()` | Every prerequisite in order, repeats kept |
+| `.DELETE_ON_ERROR`, `MAKECMDGOALS`, `.DEFAULT_GOAL` | `docom()`, `make_main` | A failed command removes `$@` as `^C` does |
+| Pattern rules, `%.o: %.c`, and static patterns | `rule()`, `implicit()`, `doname()` | §2.3 |
+| `VPATH`, `vpath` | `exists()`, `implicit()`, `doname()` | §2.4 |
 
-**Done when:** each has cases checked against host GNU make 4.4 (§4), and
-`test/gnu.mjs` builds a C program from an unedited GNU-style makefile:
-pattern rules, `$(wildcard *.c)`, `$(patsubst)`, conditionals on a `DEBUG`
-macro.
+#### 2.1 Directives
+
+Each is a whole line, found by `nextlin()` before anything else looks at it,
+and never one starting with a tab. A conditional keeps a stack of states:
+inside a false branch nothing is read but the next `else` or `endif` and the
+nesting of other conditionals. `else ifeq ...` chains, as GNU's does. `ifeq`
+takes `(a,b)`, `"a" "b"` and `'a' 'b'`, each side expanded; `ifdef` asks
+whether the named macro has a value that is not empty, without expanding it.
+
+`define NAME [op]` takes the lines up to its `endef` as they are — comments
+and blanks too, nested `define`s counted — and assigns them with the
+operator, `=` if none. A value with newlines used in a command is one command
+per line, each with its own `@`, `-` and `+`, which is a canned recipe.
+
+`override` sets a macro the command line set, and keeps it from the
+makefile's later plain assignments. `export` and `unexport` mark macros, and
+`export` alone marks them all. A child's environment is built for each
+command: this process's, with every macro from the environment or the command
+line and every exported one at its value now, expanded, and the unexported
+ones out. GNU does the same.
+
+#### 2.2 Text functions
+
+`$(name args)`, a known name followed by a blank. The arguments are split at
+commas outside nested parentheses, the last taking the rest; each is
+expanded only when the function wants it, so `$(if)`, `$(or)` and `$(and)`
+expand only the branch they take. `$(foreach v,list,text)` binds `v` for each
+word and puts it back after. The set:
+`subst patsubst strip findstring filter filter-out sort word wordlist words
+firstword lastword dir notdir suffix basename addsuffix addprefix join if or
+and foreach`, plus the two of §3.2. All are plain code over `putn()`, so a
+full buffer is `substa()`'s loop as it is now.
+
+#### 2.3 Pattern rules
+
+A target with a `%` is a pattern rule, kept on a list of its own in the order
+read and never the default goal. A pattern rule with no commands cancels the
+one before it with the same target and prerequisites. For a target with no
+commands and not `.PHONY`, `implicit()` tries the pattern rules first, then
+the suffix rules as now. A rule applies when its target pattern matches —
+against the file part when the pattern has no slash, the directory going back
+on the stem — and each prerequisite, the stem put in for its `%`, is a file,
+or a target, or found through §2.4. `implicit()` then returns them all, the
+first being `$<`, and `$*` is the stem. A rule is not chained through an
+intermediate file another pattern rule would make; that is phase D.
+
+A static pattern, `objs: %.o: %.c`, is a rule per target: the stem matched,
+the prerequisites written out and added to the target's own, and `$*` the
+stem when its commands run. A target the pattern does not match is an error,
+as in GNU.
+
+#### 2.4 VPATH
+
+`VPATH` names directories, a colon or a blank apart; `vpath pattern dirs`
+names them for the names `pattern` matches, `vpath pattern` forgets them, and
+`vpath` alone forgets all. A prerequisite that is not a file here is looked
+for in them, the `vpath`s first, and found is its path: `$<`, `$^`, `$?` and
+`$+` name the path. A target found through them that is out of date is made
+here, under its own name, as GNU does without `GPATH`. `implicit()` looks for
+a source the same way.
+
+**Done when:** each feature has cases in `cases.mjs`, compared against host
+GNU make 4.4's `-n` where it is GNU's (§4); and `test/gnu.mjs` builds a C
+program with `cc` on Braam from a GNU-style makefile — pattern rules,
+`$(wildcard *.c)`, `$(patsubst)`, a conditional on `DEBUG`, `VPATH` for the
+sources, order-only for the object directory — then makes nothing, and
+remakes one object when its source moves.
 
 ### Phase D — less often needed
 
@@ -161,8 +147,8 @@ returns a token, `INCLUDE` or `SHELLDEF`, with what the line said saved, and
 before it:
 
 ```cpp
-case INCLUDE:  co_await includef(incnames, incopt); continue;   // in now
-case SHELLDEF: co_await runset(shellname, shellcmd); continue;  // phase B
+case INCLUDE:  co_await includef(incnames, incopt); continue;
+case SHELLDEF: co_await runset(); continue;
 ```
 
 `includef()` reads each file whole and `pushin()` puts it on a stack of input
@@ -175,13 +161,22 @@ run the same way by `make_main()`.
 ### 3.2 An expansion that has to wait: `$(wildcard)` and `$(shell)`
 
 `subst()` stays plain, and is called from plain code. A blocking function it
-meets is looked up in a cache keyed by the function's expanded argument. On a
-miss it records the request, stops, and its caller reports "need": the
-coroutine above (`rddescf()` for a makefile line, `docom()` for a command)
-performs it, stores the result, and expands the same text again, which now
-hits. Each pass does at least one request, so the number of passes is the
-number of distinct calls in the line. Phase B's `substa()` already expands
-again when its buffer fills; this is the same loop with a second reason.
+meets is looked up in a cache keyed by the function and its expanded
+argument. On a miss it records the request, puts nothing, and sets
+`substneed`; whatever was being done with the expansion is not done. The
+coroutine above performs the requests, fills the cache, and expands the same
+text again, which now hits. Each pass does at least one request, so the
+number of passes is the number of distinct calls in the line. `substa()`
+already expands again when its buffer fills; this is the same loop with a
+second reason, one level up.
+
+The coroutines above are three. For a makefile line, `nextlin()` keeps the
+line as read and returns a `NEED` token in place of what it would have
+returned; `yyparse()` takes it, as it takes `INCLUDE`, awaits the requests and
+has the line processed again. `docom()` does the same for a command,
+`runset()` for a `!=`, and `make_main()` for a macro on the command line.
+Before a line is done again nothing of it has been: `assign()` sets nothing
+from an expansion that needs, and a conditional is not pushed.
 
 The cache is emptied after every command runs, since a command can create
 files and change what a shell prints. That makes two identical `$(shell)`s
@@ -203,11 +198,11 @@ README will say so.
   CLAUDE.md. `incmany` includes three hundred files in a row, so a parse loop
   that awaited without parking would trap there.
 
-## 5. Order inside phase B
+## 5. Order inside phase C
 
-The limits first: `substa()` is what `!=`, `:::=` and the `D`/`F` forms
-expand with, and a long line or name is better found failing early than
-late. Then the small ones — `D`/`F`, `+` under `-t` and `-q`, `-C`, the
-special targets, the built-in macros — and `!=` and `:::=` together, since
-both are `eqsign()`'s. Library members last, as the largest, with
-`library.mjs` the phase's real build.
+The directives first, being all of `nextlin()`: conditionals, `define`,
+`override`, `export`. Then the text functions, which every later step's cases
+use; then `$(wildcard)` and `$(shell)`, the one new mechanism; then the small
+ones — order-only, `$+`, `.DELETE_ON_ERROR`, `MAKECMDGOALS`, `.DEFAULT_GOAL`.
+Pattern rules after, as the largest, and `VPATH` last, since it changes what a
+pattern rule's prerequisite is; `gnu.mjs` is the phase's real build.
