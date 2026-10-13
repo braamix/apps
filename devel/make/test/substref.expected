@@ -1,0 +1,8 @@
+echo a.o
+a.o
+echo b.o
+b.o
+echo c.o
+c.o
+echo '[a.o b.o hdr.h c.o] [obj/a.o obj/b.o hdr.h obj/c.o] [a.o b.o hdr.h c.o] [<a.c> <b.c> <hdr.h> <c.c>] [a b hdr.h c]'
+[a.o b.o hdr.h c.o] [obj/a.o obj/b.o hdr.h obj/c.o] [a.o b.o hdr.h c.o] [<a.c> <b.c> <hdr.h> <c.c>] [a b hdr.h c]

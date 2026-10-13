@@ -69,6 +69,7 @@ struct varblock {
     char *varval;
     int noreset;
     int used;
+    int simple; // set by := and ::=, and not expanded again
 };
 
 struct pattern {
@@ -152,8 +153,9 @@ char *concat(const char *a, const char *b, char *c);
 int suffix(char *a, char *b, char *p);
 void *ckalloc(int n);
 char *subst(char *a, char *b, char *bend); // bend: last writable byte of b
-void setvar(const char *v, char *s);
+int setvar(const char *v, char *s);
 int eqsign(char *a);
+int assigncolon(const char *s);
 struct varblock *varptr(const char *v);
 void fatal1(const char *s, const char *t);
 void fatal(const char *s);

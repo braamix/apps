@@ -137,15 +137,105 @@ void *ckalloc(int n)
     __builtin_trap();
 }
 
+// Append n bytes of s at *bp, short of bend.  NO when they do not fit.
+static int putn(char **bp, char *bend, const char *s, size_t n)
+{
+    if ((size_t)(bend - *bp) < n) {
+        fatal("macro expansion too long");
+        return NO;
+    }
+    memcpy(*bp, s, n);
+    *bp += n;
+    return YES;
+}
+
+// A macro's value as it reads in use: a := one is already expanded.
+static char *valueof(struct varblock *vbp, char *b, char *bend)
+{
+    if (vbp->simple) {
+        putn(&b, bend, vbp->varval, strlen(vbp->varval));
+        *b = '\0';
+        return b;
+    }
+    return subst(vbp->varval, b, bend);
+}
+
+// $(name:from=to), POSIX's substitution reference: in each word of the value
+// ending with `from', that end becomes `to'.  With a % in `from' it is
+// POSIX.1-2024's pattern form, $(name:%.c=%.o), the % in `to' being what the
+// one in `from' matched.  The words come out one space apart.
+static char *substref(struct varblock *vbp, char *spec, char *b, char *bend)
+{
+    size_t n = bend - b + 1;
+    char *sp, *val, *from, *to, *w, *e, *fpct, *tpct;
+    size_t fl, wl, pl, sl;
+    int first = YES;
+
+    sp  = (char *)ckalloc(OUTMAX);
+    val = (char *)ckalloc(n);
+    subst(spec, sp, sp + OUTMAX - 1);
+    valueof(vbp, val, val + n - 1);
+    if (stopped)
+        goto out;
+    if ((to = strchr(sp, '=')) == NULL) {
+        b = subst(val, b, bend); // no `=': the value as it is
+        goto out;
+    }
+    from  = sp;
+    *to++ = '\0';
+    fl    = strlen(from);
+    fpct  = strchr(from, '%');
+    tpct  = strchr(to, '%');
+
+    for (w = val;; w = e) {
+        while (*w == ' ' || *w == '\t' || *w == '\n')
+            ++w;
+        if (*w == '\0')
+            break;
+        for (e = w; *e && *e != ' ' && *e != '\t' && *e != '\n'; ++e)
+            ;
+        wl = e - w;
+        if (!first && !putn(&b, bend, " ", 1))
+            break;
+        first = NO;
+        if (fpct) {
+            pl = fpct - from;
+            sl = fl - pl - 1;
+            if (wl >= pl + sl && !strncmp(w, from, pl) && !strncmp(e - sl, fpct + 1, sl)) {
+                if (!tpct) {
+                    if (!putn(&b, bend, to, strlen(to)))
+                        break;
+                } else if (!putn(&b, bend, to, tpct - to) ||
+                           !putn(&b, bend, w + pl, wl - pl - sl) ||
+                           !putn(&b, bend, tpct + 1, strlen(tpct + 1)))
+                    break;
+                continue;
+            }
+        } else if (wl >= fl && !strncmp(e - fl, from, fl)) {
+            if (!putn(&b, bend, w, wl - fl) || !putn(&b, bend, to, strlen(to)))
+                break;
+            continue;
+        }
+        if (!putn(&b, bend, w, wl))
+            break;
+    }
+    *b = '\0';
+out:
+    free(sp);
+    free(val);
+    return b;
+}
+
 // copy string a into b, substituting for arguments.  bend is the last byte b may
 // write; v7 had no bound here at all and no bound on vname either.
 char *subst(char *a, char *b, char *bend)
 {
     static int depth = 0;
-    char *s;
+    char *s, *spec, *st;
     char vname[100];
     struct varblock *vbp;
     char closer;
+    int nest;
 
     if (++depth > MAXSUBST)
         fatal("infinitely recursive macro?");
@@ -160,18 +250,29 @@ char *subst(char *a, char *b, char *bend)
             else if (*++a == '\0' || *a == '$')
                 *b++ = *a++;
             else {
-                s = vname;
+                s    = vname;
+                spec = NULL;
                 if (*a == '(' || *a == '{') {
                     closer = (*a == '(' ? ')' : '}');
                     ++a;
                     while (*a == ' ')
                         ++a;
-                    while (*a != ' ' && *a != closer && *a != '\0') {
+                    while (*a != ' ' && *a != ':' && *a != closer && *a != '\0') {
                         if (s >= &vname[sizeof(vname) - 1]) {
                             fatal("macro name too long");
                             break;
                         }
                         *s++ = *a++;
+                    }
+                    if (*a == ':') {
+                        // the rest, to the closer that matches: $(A:.c=$(O))
+                        for (st = ++a, nest = 0; *a && (*a != closer || nest > 0); ++a)
+                            if (*a == '(' || *a == '{')
+                                ++nest;
+                            else if (*a == ')' || *a == '}')
+                                --nest;
+                        spec = (char *)ckalloc(a - st + 1);
+                        memcpy(spec, st, a - st);
                     }
                     while (*a != closer && *a != '\0')
                         ++a;
@@ -182,9 +283,10 @@ char *subst(char *a, char *b, char *bend)
 
                 *s = '\0';
                 if ((vbp = varptr(vname))->varval != 0) {
-                    b         = subst(vbp->varval, b, bend);
+                    b         = spec ? substref(vbp, spec, b, bend) : valueof(vbp, b, bend);
                     vbp->used = YES;
                 }
+                free(spec);
             }
         }
 
@@ -193,39 +295,98 @@ char *subst(char *a, char *b, char *bend)
     return b;
 }
 
-void setvar(const char *v, char *s)
+// YES if it was set: a macro from the command line is not reset.
+int setvar(const char *v, char *s)
 {
     struct varblock *p;
 
     p = varptr(v);
     if (p->noreset == 0) {
         p->varval  = s;
+        p->simple  = NO;
         p->noreset = inarglist;
         if (p->used && unequal(v, "@") && unequal(v, "*") && unequal(v, "<") && unequal(v, "?"))
             diag("Warning: %s changed after being used\n", v);
+        return YES;
     }
+    return NO;
 }
 
-// look for arguments with equal signs but not colons
+// The assignment operators past v7's `=': `:=' and `::=' expand the value
+// now and once, `?=' sets only what is not set, `+=' appends after a space
+// -- expanded first when the macro is a := one, as GNU and POSIX have it.
+static void assign(char *v, char *s, int op)
+{
+    struct varblock *p = varptr(v);
+    char *buf, *old;
+    int simple = p->simple, used;
+
+    if (op == '?' && p->varval != 0)
+        return;
+    if (op == '+' && p->varval != 0) {
+        old = p->varval;
+        buf = (char *)ckalloc(strlen(old) + 1 + OUTMAX);
+        strcpy(buf, old);
+        strcat(buf, " ");
+        if (p->simple)
+            subst(s, buf + strlen(buf), buf + strlen(old) + OUTMAX - 1);
+        else
+            strcat(buf, s);
+        used    = p->used; // appending after a use is what += is for: no warning
+        p->used = NO;
+        if (setvar(v, copys(buf)))
+            p->simple = simple;
+        p->used = used;
+        free(buf);
+        return;
+    }
+    if (op == ':') {
+        buf = (char *)ckalloc(OUTMAX);
+        subst(s, buf, buf + OUTMAX - 1);
+        if (setvar(v, copys(buf)))
+            p->simple = YES;
+        free(buf);
+        return;
+    }
+    setvar(v, copys(s));
+}
+
+// Whether s, at a colon, is the colon of := or ::=.
+int assigncolon(const char *s)
+{
+    return s[1] == '=' || (s[1] == ':' && s[2] == '=');
+}
+
+// look for arguments with equal signs but not colons -- but for those of :=
+// and ::=.  The character before the = may make it +=, ?= or :=.
 int eqsign(char *a)
 {
-    char *s, *t;
+    char *s, *t, *e;
+    int op;
 
     while (*a == ' ')
         ++a;
-    for (s = a; *s != '\0' && *s != ':'; ++s)
-        if (*s == '=') {
-            for (t = a; *t != '=' && *t != ' ' && *t != '\t'; ++t)
-                ;
-            *t = '\0';
+    for (s = a; *s != '\0' && *s != '='; ++s)
+        if (*s == ':' && !assigncolon(s))
+            return NO;
+    if (*s != '=')
+        return NO;
 
-            for (++s; *s == ' ' || *s == '\t'; ++s)
-                ;
-            setvar(a, copys(s));
-            return YES;
-        }
+    op = '=';
+    e  = s;
+    if (e > a && (e[-1] == '+' || e[-1] == '?' || e[-1] == ':')) {
+        op = *--e;
+        if (op == ':' && e > a && e[-1] == ':')
+            --e;
+    }
+    for (t = a; t < e && *t != ' ' && *t != '\t'; ++t)
+        ;
+    *t = '\0';
 
-    return NO;
+    for (++s; *s == ' ' || *s == '\t'; ++s)
+        ;
+    assign(a, s, op);
+    return YES;
 }
 
 struct varblock *varptr(const char *v)

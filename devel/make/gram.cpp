@@ -372,9 +372,10 @@ endloop:
     if ((c = text[0]) == '\t')
         return retsh(text);
 
-    if (isalpha((unsigned char)c) || isdigit((unsigned char)c) || c == ' ' || c == '.') {
+    if (isalpha((unsigned char)c) || isdigit((unsigned char)c) || c == ' ' || c == '.' ||
+        c == '_') {
         for (p = text + 1; *p != '\0';)
-            if (*p == ':')
+            if (*p == ':' && !assigncolon(p))
                 break;
             else if (*p++ == '=') {
                 eqsign(text);
