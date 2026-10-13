@@ -69,6 +69,7 @@ struct nameblock {
     struct tvar *tvars;
     int intermediate; // a link in a chain of pattern rules, or .INTERMEDIATE
     int made;         // its commands were run
+    int skipped;      // an intermediate passed over, as nothing needed it made
     int oldfile;      // -o: as old as can be, and never made
     int newfile;      // -W: as if just changed
 };

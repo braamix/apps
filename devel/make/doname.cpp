@@ -431,6 +431,24 @@ int remaking;
 // intermediate.
 static TIMETYPE parenttime;
 
+// A prerequisite that is an intermediate passed over, made after all.  *pendp
+// under -j while it is.
+static Task<int> unskip(struct depblock *q, int reclevel, int *pendp)
+{
+    TIMETYPE t;
+    int e;
+
+    if (q->depname == 0 || !q->depname->skipped)
+        co_return 0;
+    q->depname->skipped = NO;
+    q->depname->done    = 0;
+    parenttime          = 0; // no target newer to pass it over for
+    e                   = co_await doname(q->depname, reclevel + 1, &t);
+    if (q->depname->done == 0 || q->depname->done == 4)
+        *pendp = YES;
+    co_return e;
+}
+
 static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
 {
     TIMETYPE myparent = parenttime;
@@ -445,7 +463,7 @@ static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
     struct implied im;
     char *stem, *explstem;
     struct chain *qchain, *allq, *lineq, *plusq, *lineplus, *ooq, *lists[4];
-    int phony, pend = NO;
+    int phony, pend = NO, remake;
 
     if (p == 0) {
         *tval = 0;
@@ -694,14 +712,39 @@ stemmed:
     // it is made from, as GNU has it.
     if (p->intermediate && ptime == 0 && errstat == 0 && myparent > 0 && tdep > 0 &&
         myparent >= tdep) {
+        p->skipped = YES;
         p->done    = 2;
         p->modtime = tdep;
         *tval      = tdep;
         co_return 0;
     }
 
-    if (errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0) ||
-                         (alwaysmake && !remaking && !p->newfile && (explcom || implcom)))) {
+    remake = errstat == 0 && (ptime < tdep || (ptime == 0 && tdep == 0) ||
+                              (alwaysmake && !remaking && !p->newfile && (explcom || implcom)));
+
+    // An intermediate passed over is wanted after all, its target being
+    // remade for some other reason: made now, as GNU does.
+    if (remake) {
+        char *lt = varptr("<")->varval, *st = varptr("*")->varval;
+
+        for (lp = p->linep; lp; lp = lp->nxtlineblock)
+            for (q = lp->depp; q; q = q->nxtdepblock)
+                errstat += co_await unskip(q, reclevel, &pend);
+        for (q = im.deps; q; q = q->nxtdepblock)
+            errstat += co_await unskip(q, reclevel, &pend);
+        if (stopped)
+            co_return 1;
+        setvar("<", lt); // as this target has them, not the intermediate
+        setvar("*", st);
+        if (pend) {
+            p->done = 0;
+            *tval   = 0;
+            co_return errstat;
+        }
+        remake = errstat == 0;
+    }
+
+    if (remake) {
         // a target found elsewhere is made here, under its own name, as GNU
         // does without GPATH
         free(p->path);

@@ -224,6 +224,12 @@ const SETUP = {
     },
     chain: () => put(`${DIR}/prog.y`, "", T0),
     chainsec: () => put(`${DIR}/prog.y`, "", T0),
+    chainneed: () => {
+        put(`${DIR}/prog.y`, "", T0);
+        put(`${DIR}/prog.o`, "", T0 + 1000);
+        put(`${DIR}/prog`, "", T0 + 2000);
+        put(`${DIR}/hdr.h`, "", T0 + 3000);
+    },
     chainup: () => {
         put(`${DIR}/prog.y`, "", T0);
         put(`${DIR}/prog.o`, "", T0 + 1000);
@@ -293,7 +299,7 @@ const GMAKE_CASES = new Set([
     "orderonly", "autolists", "goals", "goalsnamed", "defgoal",
     "patrule", "patcancel", "patcancel2", "static",
     "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2", "eval", "tvars", "tvarscmd", "longopts", "mflong", "oneshell", "oneshell2",
-    "chain", "chainup", "chainsec", "inter", "jobs", "jobswait", "jobspat",
+    "chain", "chainup", "chainsec", "inter", "chainneed", "jobs", "jobswait", "jobspat",
     "remake", "remaked", "funcs3", "always", "oldfile", "whatif", "whatifold",
 ]);
 const GMAKE = (() => {

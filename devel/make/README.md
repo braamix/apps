@@ -14,8 +14,8 @@ and fixed six bounds V7 did not check; that port's README is the account of
 those.
 
 ```
-make [-BeinpqrstkSw] [-j [n]] [-o file]... [-W file]... [-C dir]... [-f makefile]... [--option]...
-     [name=value]... [target]...
+make [-BeinpqrstkSw] [-j [n]] [-o file]... [-W file]... [-C dir]...
+     [-f makefile]... [--option]... [name=value]... [target]...
 ```
 
 `makefile` then `Makefile` is read when no `-f` names one, and `-f -` reads
@@ -94,7 +94,7 @@ inference rule set them.
 | `.DELETE_ON_ERROR` | GNU | A target its failed command changed is removed, as `^C` removes it |
 | `MAKECMDGOALS`, `.DEFAULT_GOAL` | GNU | A makefile may set `.DEFAULT_GOAL`, and reads the default target's name in it when it does not |
 | Pattern rules, `%.o: %.c` | GNU | Tried before the suffix rules; of those that apply, the shortest stem wins. A `%` matches at least one character, and one with no commands cancels |
-| Chained pattern rules, `.INTERMEDIATE`, `.SECONDARY` | GNU | A prerequisite another pattern rule makes is intermediate: not made when what needs it is newer than its sources, and removed once made, with one `rm` line. Ten deep, each rule once in a chain |
+| Chained pattern rules, `.INTERMEDIATE`, `.SECONDARY` | GNU | A prerequisite another pattern rule makes is intermediate: not made when what needs it is newer than its sources — unless that is remade for another reason — and removed once made, with one `rm` line. Ten deep, each rule once in a chain |
 | Static patterns, `objs: %.o: %.c` | GNU | A rule per target, its stem `$*` |
 | `VPATH`, `vpath` | GNU | A prerequisite not here is looked for through the matching `vpath`s, then `VPATH`, and is its path in `$<`, `$^` and the rest; an inference rule's source too. A target found there that is out of date is made here |
 | `$(value)`, `$(origin)`, `$(call)` | GNU | `$(call)` binds `$(0)`, `$(1)`... as `$(foreach)` binds its name |
