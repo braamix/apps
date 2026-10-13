@@ -118,6 +118,9 @@ Args *mkenv(void)
     return &cenvargs;
 }
 
+// Where run() puts the child it does not wait for, under -j.
+static u32 *spawnpid;
+
 // fork() and exec() are one spawn(): the child is entered with this process's
 // three streams and nothing else, so there is nothing for v7's doclose() to do.
 static Task<int> run(Span<const Str> argv)
@@ -137,8 +140,25 @@ static Task<int> run(Span<const Str> argv)
                  (int)error_name(r.error()).size(), error_name(r.error()).data());
         co_return 1 << 8;
     }
+    if (spawnpid) { // a job's: reaped by whoever waits for any
+        *spawnpid = r.value();
+        co_return 0;
+    }
     childpid = r.value();
     co_return co_await await();
+}
+
+// A command started and not waited for, under -j: 0 and *pidp, or the status
+// it failed with.
+Task<int> startsys(char *comstring, int nohalt, u32 *pidp)
+{
+    int status;
+
+    *pidp    = 0;
+    spawnpid = pidp;
+    status   = co_await dosys(comstring, nohalt);
+    spawnpid = NULL;
+    co_return status;
 }
 
 // Set for a .ONESHELL script, which the shell runs as GNU's does, with -c

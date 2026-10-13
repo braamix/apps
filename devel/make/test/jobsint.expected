@@ -1,0 +1,5 @@
+echo new >keep1; sleep 100
+echo new >keep2; sleep 100
+
+***  keep1 removed.
+***  keep2 removed.

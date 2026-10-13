@@ -1,18 +1,21 @@
 # make — Braam's POSIX make
 
-**This is POSIX's `make` and the everyday half of GNU's, grown from Stuart
-Feldman's make from Seventh Edition Unix**, version 2.58 of 14 March 1979 ([ident.cpp](ident.cpp)),
-Caldera's licence in [COPYRIGHT](COPYRIGHT). The code, its identifiers, its
-comments and its messages are V7's; what it does is POSIX.1-2024's wherever
-the two disagree, and [Plan.md](Plan.md) is the way from one to the other —
-phases A, B and C of it are done, so this is the whole of POSIX's `make` but
-`-j`, and GNU's conditionals, functions, pattern rules and `VPATH`. It came here by way of the BESM-6 port in
+**This is POSIX's `make` and most of GNU's, grown from Stuart Feldman's make
+from Seventh Edition Unix**, version 2.58 of 14 March 1979
+([ident.cpp](ident.cpp)), Caldera's licence in [COPYRIGHT](COPYRIGHT). The
+code, its identifiers, its comments and its messages are V7's; what it does is
+POSIX.1-2024's wherever the two disagree, and [Plan.md](Plan.md) is the way
+from one to the other — all four of its phases are done, so this is the whole
+of POSIX's `make`, `-j` included, and of GNU's what makefiles use: its
+conditionals, functions, `$(eval)`, pattern rules, target-specific macros and
+`VPATH`. It came here by way of the BESM-6 port in
 `~/Project/Besm-6/v7besm/cmd/make/`, which had already turned V7's into C11
 and fixed six bounds V7 did not check; that port's README is the account of
 those.
 
 ```
-make [-einpqrstkS] [-C dir]... [-f makefile]... [--option]... [name=value]... [target]...
+make [-einpqrstkS] [-j [n]] [-C dir]... [-f makefile]... [--option]...
+     [name=value]... [target]...
 ```
 
 `makefile` then `Makefile` is read when no `-f` names one, and `-f -` reads
@@ -78,7 +81,8 @@ inference rule set them.
 | `!=`, `:::=` | POSIX.1-2024 | `!=` runs `sh -c` and keeps what it wrote, newlines as spaces; `:::=` expands now and doubles each `$` |
 | `+` under `-t` and `-q` | POSIX | Only the `+` lines run; `-t` then touches |
 | `-C dir` | GNU, BSD | In order, before any makefile; not passed on in `MAKEFLAGS` |
-| `.WAIT`, `.POSIX`, `.NOTPARALLEL`, `.SCCS_GET` | POSIX.1-2024 | Accepted; `.WAIT` is no prerequisite, there being no `-j` |
+| `.WAIT`, `.POSIX`, `.NOTPARALLEL`, `.SCCS_GET` | POSIX.1-2024 | `.WAIT` and `.NOTPARALLEL` order what `-j` runs; the others are accepted |
+| `-j [n]` | POSIX | Up to `n` commands at once, any number without one. A failure without `-k` waits for what is running and stops; `^C` goes to every child. Not passed to a sub-make, which runs one at a time; the children write as they go |
 | `ifeq`, `ifneq`, `ifdef`, `ifndef`, `else`, `endif` | GNU | `else ifeq` chains; `ifdef` asks for a value that is not empty, unexpanded |
 | `define`/`endef` | GNU | With any assignment operator; a value with lines is a command per line in a rule |
 | `override`, `export`, `unexport` | GNU | A child gets the environment's and the command line's macros, and the exported ones, at their values now |
@@ -114,6 +118,14 @@ include. The await is a file read, which parks every time, so the stack is
 back to nothing at each one however many there are — a case includes three
 hundred. An await per token would not park, and would cost native stack per
 token.
+
+**`-j`** keeps V7's `doname()`, which makes a target by walking what it
+needs. Under `-j` a target's commands become a job: `doname()` expands them,
+starts the first, marks the target running and returns, and a target that
+needs one running returns too, to be looked at again. The goals are walked
+again each time a command ends, `wait_child` taking whichever ends first. Each
+walk awaits a `stat` per target, which parks, so its stack is back to nothing
+each time.
 
 **`$(wildcard)` and `$(shell)`** wait, and `subst()` cannot: it is plain
 code, and an await in it that did not park would cost native stack per macro
@@ -220,6 +232,11 @@ each time a case compares is set by the case.
 over the same files at the same times, and the commands must agree line for
 line; the messages, being V7's, are not compared. Without one the run says so
 and goes on.
+
+[test/jobs.mjs](test/jobs.mjs) builds a program of five sources under
+`-j 4`, links it only after every object, gets the same bytes as under `-j 1`,
+and has a failing compile wait for the one running beside it before make
+stops. `^C` under `-j` is `cases.mjs`'s `jobsint`.
 
 [test/gnu.mjs](test/gnu.mjs) builds a program with `cc` on Braam from a
 makefile written for GNU make — `$(wildcard)` and `$(patsubst)` for the

@@ -161,6 +161,7 @@ extern char junkname[20];
 extern const char **linesptr;
 
 Task<void> intrupt();
+Task<void> rmtarget(char *p, int member);
 int isprecious(char *p);
 int isnamed(const char *special, const char *p);
 int hasdeps(struct nameblock *np);
@@ -194,11 +195,14 @@ char *dname(struct nameblock *p);
 Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval);
 Task<int> docom(struct shblock *q);
 extern TIMETYPE attime;
+extern int jobslots, jobmode, jobfail, njobs;
+Task<void> reap(void);
 Task<void> expand(struct depblock *q);
 
 // dosys.cpp
 Task<int> dosys(char *comstring, int nohalt);
 extern int shellonly;
+Task<int> startsys(char *comstring, int nohalt, u32 *pidp);
 Task<void> touch(int force, char *name);
 void childenv(const char *makeflags);
 Args *mkenv(void);

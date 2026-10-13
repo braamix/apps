@@ -165,6 +165,7 @@ static const struct {
     { "silent", 's' },
     { "quiet", 's' },
     { "touch", 't' },
+    { "jobs", 'j' },
     { "help", 'h' },
 };
 
@@ -191,6 +192,7 @@ static void usage(void)
             "  -e, --environment-overrides  the environment over the makefiles\n"
             "  -f file, --file=file         read file as a makefile\n"
             "  -i, --ignore-errors          go on past a command that fails\n"
+            "  -j [n], --jobs[=n]           run n commands at once, or any number\n"
             "  -k, --keep-going             go on with what does not need a failed target\n"
             "  -n, --dry-run                print the commands, run only + ones\n"
             "  -p, --print-data-base        print the macros and rules\n"
@@ -262,7 +264,7 @@ static void readmakeflags(void)
             const char *v;
             char c = longopt(w + 2, &v);
 
-            if (c && c != 'f' && c != 'C' && c != 'h')
+            if (c && c != 'f' && c != 'C' && c != 'h' && c != 'j')
                 setflag(c);
         } else
             for (d = w + (*w == '-'); *d; ++d)
@@ -338,6 +340,69 @@ static Task<void> rminter(void)
     free(v);
 }
 
+// The goals under -j: walked, which starts what can be started, and walked
+// again each time a command ends, until nothing is running.
+static Task<int> makejobs(int argc, char *argv[])
+{
+    struct nameblock **goals, *p;
+    int i, n = 0, errs = 0;
+    TIMETYPE t;
+
+    goals = (struct nameblock **)ckalloc((argc + 1) * sizeof(*goals));
+    for (i = 1; i < argc; ++i)
+        if (argv[i] != 0) {
+            if ((p = srchname(argv[i])) == 0)
+                p = makename(argv[i]);
+            goals[n++] = p;
+        }
+    if (n == 0) {
+        if (mainname == 0) {
+            fatal("No arguments or description file");
+            co_return 1;
+        }
+        goals[n++] = mainname;
+    }
+    for (;;) {
+        for (i = 0; i < n && !stopped && !jobfail; ++i)
+            if (goals[i]->done == 0)
+                co_await doname(goals[i], 0, &t);
+        if (stopped || njobs == 0)
+            break;
+        co_await reap();
+    }
+    while (njobs > 0) // a failure or a stop waits for what is running
+        co_await reap();
+    if (dbgflag)
+        printdesc(YES);
+    for (i = 0; i < n; ++i)
+        errs += goals[i]->done == 3;
+    free(goals);
+    if (jobfail && !stopped)
+        fatal((char *)NULL);
+    if (stopped)
+        co_return 1;
+    co_await rminter();
+    co_return errs ? 2 : 0;
+}
+
+// -j's count: n, or as many as there are when there is none.
+static int jobcount(const char *s)
+{
+    int n = atoi(s);
+
+    return n > 0 ? n : 1;
+}
+
+static int isnumber(const char *s)
+{
+    if (s == NULL || *s == '\0')
+        return NO;
+    for (; *s; ++s)
+        if (*s < '0' || *s > '9')
+            return NO;
+    return YES;
+}
+
 static Task<int> make_main(int argc, char *argv[])
 {
     struct nameblock *p;
@@ -401,7 +466,13 @@ static Task<int> make_main(int argc, char *argv[])
                 co_return 0;
             }
             argv[i] = 0;
-            if (c == 'f' || c == 'C') {
+            if (c == 'j') {
+                if (s == NULL && i < argc - 1 && isnumber(argv[i + 1])) {
+                    s           = argv[i + 1];
+                    argv[i + 1] = 0;
+                }
+                jobslots = s ? jobcount(s) : 1 << 20;
+            } else if (c == 'f' || c == 'C') {
                 if (s == NULL && i < argc - 1 && argv[i + 1] != 0) {
                     s           = argv[i + 1];
                     argv[i + 1] = 0;
@@ -445,6 +516,17 @@ static Task<int> make_main(int argc, char *argv[])
                         fatal1("Cannot change to directory %s", s);
                         co_return 1;
                     }
+                    break;
+                } else if (c == 'j') {
+                    // -j n, -jn or -j alone, which is no limit.  Not passed on
+                    // in MAKEFLAGS: a sub-make runs one command at a time.
+                    if (argv[i][j + 1] != '\0')
+                        jobslots = jobcount(argv[i] + j + 1);
+                    else if (i < argc - 1 && isnumber(argv[i + 1])) {
+                        jobslots    = jobcount(argv[i + 1]);
+                        argv[i + 1] = 0;
+                    } else
+                        jobslots = 1 << 20;
                     break;
                 } else if (!setflag(c)) {
                     onechar[0] = c;
@@ -512,6 +594,11 @@ static Task<int> make_main(int argc, char *argv[])
 
     nfargs = 0;
 
+    // -j: the goals walked again each time a command ends.  Plan.md, 3.3.
+    jobmode = jobslots > 1 && !noexflag && !touchflag && !questflag && !srchname(".NOTPARALLEL");
+    if (jobmode)
+        co_return co_await makejobs(argc, argv);
+
     for (i = 1; i < argc; ++i)
         if ((s = argv[i]) != 0) {
             if ((p = srchname(s)) == 0) {
@@ -554,18 +641,22 @@ static int ismember(void);
 
 Task<void> intrupt()
 {
-    char *p;
-
-    if (okdel && !noexflag && !touchflag && (p = varptr("@")->varval) && co_await exists(p) > 0 &&
-        !isprecious(p) && !isnamed(".PHONY", p) && !ismember()) {
-        diag("\n***  %s removed.", p);
-        co_await b_unlink(p);
-    }
-
+    co_await rmtarget(varptr("@")->varval, ismember());
     if (junkname[0])
         co_await b_unlink(junkname);
     diag("\n");
     stop(2);
+}
+
+// The target a command was making when ^C came, removed: not a library for
+// a member, nor anything .PRECIOUS or .PHONY.
+Task<void> rmtarget(char *p, int member)
+{
+    if (okdel && !noexflag && !touchflag && p && co_await exists(p) > 0 && !isprecious(p) &&
+        !isnamed(".PHONY", p) && !member) {
+        diag("\n***  %s removed.", p);
+        co_await b_unlink(p);
+    }
 }
 
 // Whether the target being made is a library member: ^C leaves a library

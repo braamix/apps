@@ -4,7 +4,8 @@
 POSIX.1-2024's `make`, then the half of GNU make that most makefiles lean on,
 on V7's code. Phases A to C are done and in `2.58-r3`: all of POSIX's `make`
 but `-j`, and the everyday half of GNU make, which [README.md](README.md) has
-the tables of. Phase D, the rest that makefiles reach for, is left.
+the tables of. Phase D, the rest that makefiles reach for, is done and in
+`2.58-r4`.
 
 ## 1. Rules for every phase
 
@@ -97,6 +98,17 @@ where only `prog.c` is there. Such a file is *intermediate*, as is anything
 is newer than the intermediate's own prerequisites, and those that were made
 are removed at the end, with one `rm` line, unless `.SECONDARY` names them,
 or names nothing and so means all, or `.PRECIOUS` does.
+
+**Done** in `2.58-r4`, with what the plan did not say. A rule's commands are
+expanded one after another, so an `$(eval)` in one is seen by the next, as in
+GNU. A missing intermediate is still not made when a target needing it is
+remade for some other reason, where GNU would make it. A long option in a
+parent's `MAKEFLAGS` was being read as a string of letters —
+`--no-print-directory` as `-n` among them — and is now understood or passed
+over. A
+pattern rule with no prerequisites had lost its commands. And `^C` under `-j`
+is tested by `cases.mjs`'s `jobsint` rather than by `jobs.mjs`, as a compile
+under the harness never waits long enough for a key.
 
 **Done when:** each feature has cases in `cases.mjs`, compared against host
 GNU make 4.4's `-n` where it is GNU's (§4); and `test/jobs.mjs` builds a

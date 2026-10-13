@@ -1,0 +1,11 @@
+echo a1
+a1
+echo b1
+b1
+false
+echo b2
+b2
+*** Error code 1
+echo c
+c
+`all' not remade because of errors

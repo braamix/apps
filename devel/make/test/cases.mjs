@@ -214,6 +214,10 @@ const SETUP = {
         put(`${DIR}/prog`, "", T0 + 2000);
     },
     inter: () => put(`${DIR}/src`, "", T0),
+    jobspat: () => {
+        for (const f of ["x.c", "y.c", "z.c"])
+            put(`${DIR}/${f}`, "");
+    },
     orderonly: () => {
         put(`${DIR}/a.o`, "", T0 + 1000);
         put(`${DIR}/prog`, "", T0 + 2000);
@@ -227,6 +231,7 @@ const SETUP = {
     chdir: () => put(`${DIR}/cdir/deeper/makefile`, "all:\n\tpwd\n"),
     interrupt: () => put(`${DIR}/src`, "", T0 + 1000),
     precious: () => put(`${DIR}/src`, "", T0 + 1000),
+    jobsint: () => put(`${DIR}/src`, "", T0 + 1000),
     longmember: () => put(`${DIR}/libl.a`, archive(
         [{ name: "short.o", date: T0 / 1000, data: "s" },
          { name: "a-rather-long-member.o", date: T0 / 1000 + 5, data: "long" }], [])),
@@ -235,7 +240,7 @@ const SETUP = {
 // ^C, as kill -INT: make in the background, parked in wait_child() on a sleep
 // that the frozen clock never ends, and the kill queued behind it.
 // A background job's number counts up for the life of the shell.
-const INTERRUPT = new Set(["interrupt", "precious"]);
+const INTERRUPT = new Set(["interrupt", "precious", "jobsint"]);
 let job = 0;
 
 // What a case is checked for beyond its output, by name.
@@ -251,6 +256,8 @@ const CHECK = {
     touchrun: () => get(`${DIR}/prog`) !== undefined || "prog was not created",
     interrupt: () => get(`${DIR}/keep`) === undefined || "keep was not removed",
     precious: () => get(`${DIR}/keep`) === "new\n" || "keep was not kept",
+    jobsint: () => get(`${DIR}/keep1`) === undefined && get(`${DIR}/keep2`) === undefined ||
+        "keep1 or keep2 was not removed",
 };
 
 // GNU make on the host, where there is one: each case named here runs under -n
@@ -265,7 +272,7 @@ const GMAKE_CASES = new Set([
     "orderonly", "autolists", "goals", "goalsnamed", "defgoal",
     "patrule", "patcancel", "patcancel2", "static",
     "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2", "eval", "tvars", "tvarscmd", "longopts", "mflong", "oneshell", "oneshell2",
-    "chain", "chainup", "chainsec", "inter",
+    "chain", "chainup", "chainsec", "inter", "jobs", "jobswait", "jobspat",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])

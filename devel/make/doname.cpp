@@ -13,6 +13,7 @@
 // p->done = 3   file make failed
 
 static Task<int> docom1(char *comstring, int nohalt);
+static Task<void> startjob(struct nameblock *p, struct shblock *com, TIMETYPE ptime0);
 
 // $@ for a target, and $% beside it: for lib(member) they are lib and member,
 // as POSIX has them, and for anything else the name and nothing.
@@ -435,7 +436,7 @@ static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
     struct implied im;
     char *stem, *explstem;
     struct chain *qchain, *allq, *lineq, *plusq, *lineplus, *ooq, *lists[4];
-    int phony;
+    int phony, pend = NO;
 
     if (p == 0) {
         *tval = 0;
@@ -483,22 +484,49 @@ static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
             }
         }
 
+    // Under -j, a :: target's prerequisites are all made before any of its
+    // rules is run, since a rule run is not run again.
+    if (jobmode && p->septype == SOMEDEPS) {
+        for (lp = p->linep; lp; lp = lp->nxtlineblock)
+            for (q = lp->depp; q && !stopped; q = q->nxtdepblock)
+                if (q->depname && q->depname->done == 0 && unequal(q->depname->namep, ".WAIT")) {
+                    parenttime = ptime;
+                    errstat += co_await doname(q->depname, reclevel + 1, &td1);
+                }
+        for (lp = p->linep; lp; lp = lp->nxtlineblock)
+            for (q = lp->depp; q; q = q->nxtdepblock)
+                if (q->depname && (q->depname->done == 0 || q->depname->done == 4) &&
+                    unequal(q->depname->namep, ".WAIT"))
+                    pend = YES;
+        if (pend || stopped) {
+            p->done = 0;
+            *tval   = 0;
+            co_return stopped ? 1 : errstat;
+        }
+    }
+
     // make sure all dependents are up to date
     for (lp = p->linep; lp; lp = lp->nxtlineblock) {
         td       = 0;
         lineq    = NULL;
         lineplus = NULL;
         for (q = lp->depp; q; q = q->nxtdepblock) {
-            // POSIX's .WAIT orders what is made in parallel, and this make
-            // makes one thing at a time: it is no prerequisite at all.
-            if (q->depname && !unequal(q->depname->namep, ".WAIT"))
+            // POSIX's .WAIT: under -j, nothing after it is begun while
+            // anything before it is being made.  It is no prerequisite.
+            if (q->depname && !unequal(q->depname->namep, ".WAIT")) {
+                if (pend)
+                    break;
                 continue;
+            }
             // A name already done, or one expand() emptied, answers without
             // waiting: a co_await is a call, and costs native stack until
             // something suspends.  README.md, "Output".
             if (q->depname == 0)
                 td1 = 0;
-            else if (q->depname->done > 0) {
+            else if (q->depname->done == 4) { // running, under -j
+                pend = YES;
+                continue;
+            } else if (q->depname->done > 0) {
                 if (dbgflag)
                     mprintf("doname(%s,%d)\n", q->depname->namep, reclevel + 1);
                 td1 = q->depname->modtime;
@@ -511,6 +539,10 @@ static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
                 co_return 1;
             if (q->depname == 0)
                 continue; // v7 went on to read q->depname->namep
+            if (q->depname->done == 0 || q->depname->done == 4) { // -j: not yet
+                pend = YES;
+                continue;
+            }
             if (q->orderonly) {
                 ooq = appendu(ooq, dname(q->depname));
                 continue;
@@ -594,7 +626,10 @@ stemmed:
         struct chain *impq = NULL, *impplus = NULL;
 
         for (q = im.deps; q; q = q->nxtdepblock) {
-            if (q->depname->done > 0) {
+            if (q->depname->done == 4) {
+                pend = YES;
+                continue;
+            } else if (q->depname->done > 0) {
                 td = q->depname->modtime;
                 errstat += q->depname->done == 3;
             } else {
@@ -603,6 +638,10 @@ stemmed:
             }
             if (stopped)
                 co_return 1;
+            if (q->depname->done == 0 || q->depname->done == 4) {
+                pend = YES;
+                continue;
+            }
             if (q->orderonly) {
                 ooq = appendu(ooq, dname(q->depname));
                 continue;
@@ -624,6 +663,14 @@ stemmed:
     if (im.stem)
         setvar("*", im.stem);
 
+    // Under -j, something it needs is being made: it is looked at again on a
+    // later walk.
+    if (pend) {
+        p->done = 0;
+        *tval   = 0;
+        co_return errstat;
+    }
+
     // A missing intermediate is not made for a target newer than everything
     // it is made from, as GNU has it.
     if (p->intermediate && ptime == 0 && errstat == 0 && myparent > 0 && tdep > 0 &&
@@ -638,7 +685,22 @@ stemmed:
         // a target found elsewhere is made here, under its own name, as GNU
         // does without GPATH
         free(p->path);
-        p->path  = NULL;
+        p->path = NULL;
+        // Under -j, the commands are a job, begun when there is a slot.
+        if (jobmode && (explcom || implcom)) {
+            if (njobs >= jobslots || jobfail) {
+                p->done = 0;
+                *tval   = 0;
+                co_return 0;
+            }
+            setat(p->namep);
+            setlists(qchain, allq, plusq, ooq);
+            p->made = YES;
+            co_await startjob(p, explcom ? explcom : implcom, ptime);
+            setvar("@", (char *)NULL);
+            *tval = p->modtime;
+            co_return p->done == 3;
+        }
         lists[0] = qchain, lists[1] = allq, lists[2] = plusq, lists[3] = ooq;
         ptime    = co_await makeit(p, tdep, ptime, explcom, implcom, lists, &errstat);
     }
@@ -708,14 +770,13 @@ TIMETYPE attime;
 
 // GNU's .DELETE_ON_ERROR: a target its failed command changed is removed, as
 // ^C removes it.
-static Task<void> delonerr(char *at)
+static Task<void> delonerr(char *at, int member)
 {
     TIMETYPE t;
-    char *mem = varptr("%")->varval;
 
     if (at == NULL || !srchname(".DELETE_ON_ERROR") || isprecious(at) || isnamed(".PHONY", at))
         co_return;
-    if (mem && *mem) // a library is not removed for a member
+    if (member) // a library is not removed for a member
         co_return;
     if ((t = co_await exists(at)) > 0 && t != attime) {
         diag("***  %s removed.\n", at);
@@ -723,109 +784,152 @@ static Task<void> delonerr(char *at)
     }
 }
 
-// The commands, each printed and run.  -n prints and runs none, so nothing
-// waits: docom1() is entered only when a command is to be run.
-Task<int> docom(struct shblock *q)
+// A rule's commands, expanded, and which is the next to run.
+struct comstate {
+    char **coms;
+    int *plus0; // each names $(MAKE)
+    int i;      // the command being run
+    char *next; // the rest of its lines, or NULL
+    int one;    // .ONESHELL
+    int sil;
+    char *at;
+};
+
+// The commands for $@, every one expanded before the first is run, as GNU
+// does, and each as long as it is: v7's were OUTMAX bytes.  A $(shell) or
+// $(wildcard) is performed and the line expanded again, and an $(eval) is
+// read before the next line is expanded.  NO if make stopped.
+static Task<int> prepcoms(struct shblock *q, struct comstate *cs)
 {
-    char *s, *at, *line, *next, **coms;
-    int ign, nopr, sil, plus, *plus0, r, i, n, one;
     struct shblock *q1;
+    int i, n;
 
-    ++ndocoms;
-
-    at  = varptr("@")->varval;
-    sil = silflag || isnamed(".SILENT", at);
-
-    // The commands, every one expanded before the first is run, as GNU does,
-    // and each as long as it is: v7's were OUTMAX bytes.  A $(shell) or
-    // $(wildcard) is performed and the line expanded again, and an $(eval) is
-    // read before the next line is expanded.
+    cs->at  = varptr("@")->varval;
+    cs->sil = silflag || isnamed(".SILENT", cs->at);
     for (n = 0, q1 = q; q1; q1 = q1->nxtshblock)
         ++n;
-    coms  = (char **)ckalloc((n + 1) * sizeof(char *));
-    plus0 = (int *)ckalloc((n + 1) * sizeof(int));
+    cs->coms  = (char **)ckalloc((n + 1) * sizeof(char *));
+    cs->plus0 = (int *)ckalloc((n + 1) * sizeof(int));
     for (i = 0, q1 = q; q1 && !stopped; q1 = q1->nxtshblock, ++i) {
-        while ((coms[i] = substa(q1->shbp)), substneed && !stopped) {
-            free(coms[i]);
+        while ((cs->coms[i] = substa(q1->shbp)), substneed && !stopped) {
+            free(cs->coms[i]);
             co_await perform();
         }
         // A + line, or one naming $(MAKE), runs under -n too: that is how
         // a recursive make passes -n down rather than being skipped.
-        plus0[i] = strstr(q1->shbp, "$(MAKE)") || strstr(q1->shbp, "${MAKE}");
+        cs->plus0[i] = strstr(q1->shbp, "$(MAKE)") || strstr(q1->shbp, "${MAKE}");
         if (evalpend && !stopped)
             co_await evalnow();
     }
-    if (stopped) {
-        freecoms(coms, plus0);
-        co_return YES;
-    }
-
     // GNU's .ONESHELL: the lines are one script, its first line's @, - and +
     // for the whole, and the others' taken off.
-    if ((one = srchname(".ONESHELL") != NULL) && coms[0])
-        oneshell(coms);
+    if ((cs->one = srchname(".ONESHELL") != NULL) && cs->coms[0])
+        oneshell(cs->coms);
+    cs->i    = 0;
+    cs->next = cs->coms[0];
+    co_return !stopped;
+}
 
-    // -t and -q run none of the commands but the + ones, as -n does; -t then
-    // touches the target.
-    for (i = 0; coms[i]; ++i) {
+// The next command to run, said as it is run; NULL after the last.  -n says
+// them all and runs only the + ones; -t and -q run none but the + ones.
+static char *nextcom(struct comstate *cs, int *ignp)
+{
+    char *line, *s, *e;
+    int nopr, plus;
+
+    for (;;) {
+        if (cs->next == NULL) {
+            if (cs->coms[cs->i] == NULL || cs->coms[++cs->i] == NULL)
+                return NULL;
+            cs->next = cs->coms[cs->i];
+        }
         // A value with lines in it, as a define has, is a command per line,
         // each with its own prefixes.  GNU's canned recipes.
-        for (line = coms[i]; line != NULL; line = next) {
-            for (next = line;
-                 *next && (one || *next != '\n' || (next > line && next[-1] == '\\'));
-                 ++next)
-                ;
-            if (*next)
-                *next++ = '\0';
-            else
-                next = NULL;
+        line = cs->next;
+        for (e = line; *e && (cs->one || *e != '\n' || (e > line && e[-1] == '\\')); ++e)
+            ;
+        if (*e) {
+            *e++     = '\0';
+            cs->next = e;
+        } else
+            cs->next = NULL;
 
-            ign  = ignerr || isnamed(".IGNORE", at);
-            nopr = NO;
-            plus = plus0[i];
-            for (s = line; *s == '-' || *s == '@' || *s == '+' || *s == ' ' || *s == '\t'; ++s)
-                if (*s == '-')
-                    ign = YES;
-                else if (*s == '@')
-                    nopr = YES;
-                else if (*s == '+')
-                    plus = YES;
+        *ignp = ignerr || isnamed(".IGNORE", cs->at);
+        nopr  = NO;
+        plus  = cs->plus0[cs->i];
+        for (s = line; *s == '-' || *s == '@' || *s == '+' || *s == ' ' || *s == '\t'; ++s)
+            if (*s == '-')
+                *ignp = YES;
+            else if (*s == '@')
+                nopr = YES;
+            else if (*s == '+')
+                plus = YES;
 
-            if (s[0] == '\0' || ((touchflag || questflag) && !plus))
-                continue;
-            // -n writes what would run, silent or not, as POSIX and GNU have it.
-            if (noexflag || (!sil && !nopr))
-                mprintf("%s%s\n", (noexflag ? "" : prompt), s);
-            if (noexflag && !plus)
-                continue;
+        if (s[0] == '\0' || ((touchflag || questflag) && !plus))
+            continue;
+        // -n writes what would run, silent or not, as POSIX and GNU have it.
+        if (noexflag || (!cs->sil && !nopr))
+            mprintf("%s%s\n", (noexflag ? "" : prompt), s);
+        if (noexflag && !plus)
+            continue;
+        return s;
+    }
+}
 
-            shellonly = one;
-            r         = co_await docom1(s, ign);
-            shellonly = NO;
-            forget(); // the command may have changed what $(shell) would say
-            if (r && !ign) {
-                freecoms(coms, plus0);
-                co_await delonerr(at);
-                if (keepgoing)
-                    co_return YES;
-                fatal((char *)NULL);
+// The commands, each printed and run.  -n prints and runs none, so nothing
+// waits: docom1() is entered only when a command is to be run.
+Task<int> docom(struct shblock *q)
+{
+    struct comstate cs;
+    char *s;
+    int ign, r;
+
+    ++ndocoms;
+    if (!co_await prepcoms(q, &cs)) {
+        freecoms(cs.coms, cs.plus0);
+        co_return YES;
+    }
+    while ((s = nextcom(&cs, &ign)) != NULL) {
+        shellonly = cs.one;
+        r         = co_await docom1(s, ign);
+        shellonly = NO;
+        forget(); // the command may have changed what $(shell) would say
+        if (r && !ign) {
+            freecoms(cs.coms, cs.plus0);
+            co_await delonerr(cs.at, *varptr("%")->varval != '\0');
+            if (keepgoing)
                 co_return YES;
-            }
-            if (stopped) {
-                freecoms(coms, plus0);
-                co_return YES;
-            }
+            fatal((char *)NULL);
+            co_return YES;
+        }
+        if (stopped) {
+            freecoms(cs.coms, cs.plus0);
+            co_return YES;
         }
     }
-    freecoms(coms, plus0);
+    freecoms(cs.coms, cs.plus0);
 
     if (touchflag && !questflag) {
-        if (!sil)
-            mprintf("touch(%s)\n", at);
+        if (!cs.sil)
+            mprintf("touch(%s)\n", cs.at);
         if (!noexflag)
-            co_await touch(YES, at);
+            co_await touch(YES, cs.at);
     }
     co_return NO;
+}
+
+// A command's status, said as v7's docom1() said it.
+static void saystatus(int status, int nohalt)
+{
+    if (status >> 8)
+        mprintf("*** Error code %d", status >> 8);
+    else
+        mprintf("*** Termination code %d", status);
+
+    if (nohalt)
+        mprintf(" (ignored)\n");
+    else
+        mprintf("\n");
 }
 
 // What is left of v7's docom1() once the printing has moved up into docom():
@@ -834,21 +938,197 @@ static Task<int> docom1(char *comstring, int nohalt)
 {
     int status;
 
-    if ((status = co_await dosys(comstring, nohalt))) {
-        if (stopped)
-            co_return status;
-        if (status >> 8)
-            mprintf("*** Error code %d", status >> 8);
-        else
-            mprintf("*** Termination code %d", status);
-
-        if (nohalt)
-            mprintf(" (ignored)\n");
-        else
-            mprintf("\n");
-    }
-
+    if ((status = co_await dosys(comstring, nohalt)) && !stopped)
+        saystatus(status, nohalt);
     co_return status;
+}
+
+// -j: what runs at once.  Plan.md, section 3.3.
+int jobslots = 1;
+int jobmode; // more than one slot, and nothing that runs one at a time
+int jobfail; // a command failed without -k: nothing more is started
+
+// A target whose commands are running, one at a time, beside the others'.
+struct job {
+    struct job *next;
+    struct nameblock *p;
+    struct comstate cs;
+    u32 pid; // the command running, or 0
+    int ign; // its failure is ignored
+    int failed;
+    int member;
+    int phony;
+    TIMETYPE attime;
+};
+static struct job *jobs;
+int njobs;
+
+// A job done with: its target's time read, and the target done.
+static Task<void> finishjob(struct job *j)
+{
+    struct job **jp;
+    TIMETYPE t = 0;
+
+    if (!j->phony)
+        t = co_await exists(j->p->namep);
+    if (t == 0)
+        t = co_await prestime();
+    j->p->modtime = t;
+    j->p->done    = j->failed ? 3 : 2;
+    for (jp = &jobs; *jp && *jp != j; jp = &(*jp)->next)
+        ;
+    if (*jp)
+        *jp = j->next;
+    --njobs;
+    freecoms(j->cs.coms, j->cs.plus0);
+    free(j->cs.at);
+    free(j);
+}
+
+// A command of j ended with status: YES if that is the end of the job.
+static Task<int> jobstatus(struct job *j, int status, int ign)
+{
+    forget(); // the command may have changed what $(shell) would say
+    if (status == 0 || stopped)
+        co_return stopped;
+    saystatus(status, ign);
+    if (ign)
+        co_return NO;
+    attime = j->attime;
+    co_await delonerr(j->cs.at, j->member);
+    j->failed = YES;
+    if (!keepgoing && !jobfail) {
+        jobfail = YES;
+        if (njobs > 1)
+            mprintf("*** Waiting for unfinished jobs\n");
+    }
+    co_return YES;
+}
+
+// The job's next command started, or the job finished.
+static Task<void> advance(struct job *j)
+{
+    char *s;
+    int ign, st;
+
+    for (;;) {
+        if (jobfail || stopped) {
+            j->failed = YES; // what is left of it is not run
+            break;
+        }
+        if ((s = nextcom(&j->cs, &ign)) == NULL)
+            break;
+        shellonly = j->cs.one;
+        st        = co_await startsys(s, ign, &j->pid);
+        shellonly = NO;
+        if (st == 0 && j->pid != 0) {
+            j->ign = ign;
+            co_return;
+        }
+        if (co_await jobstatus(j, st, ign)) // it could not be started
+            break;
+    }
+    co_await finishjob(j);
+}
+
+// p's commands as a job, the first started, and p running: done is 4 until it
+// ends.  $@ and the rest are set.
+static Task<void> startjob(struct nameblock *p, struct shblock *com, TIMETYPE ptime0)
+{
+    struct job *j = ALLOC(job), **jp;
+    char *m       = varptr("%")->varval;
+    int ok;
+
+    ++ndocoms;
+    j->p      = p;
+    j->attime = ptime0;
+    j->phony  = isnamed(".PHONY", p->namep);
+    j->member = m != NULL && *m != '\0';
+    for (jp = &jobs; *jp; jp = &(*jp)->next) // in the order begun
+        ;
+    *jp = j;
+    ++njobs;
+    p->done  = 4;
+    ok       = co_await prepcoms(com, &j->cs);
+    j->cs.at = copys(j->cs.at ? j->cs.at : "");
+    if (!ok) {
+        j->failed = YES;
+        co_await finishjob(j);
+    } else
+        co_await advance(j);
+}
+
+// ^C under -j: every command sent it, each reaped, and each target removed.
+static Task<void> killjobs(void)
+{
+    struct job *j;
+    Result<Exited> r = Err(Error::Io);
+    int left, intr = 0;
+
+    for (j = jobs; j; j = j->next)
+        if (j->pid)
+            co_await kill_child(j->pid, SIG_INT);
+    for (;;) {
+        for (left = 0, j = jobs; j; j = j->next)
+            left += j->pid != 0;
+        if (left == 0)
+            break;
+        r = co_await wait_child();
+        if (r.is_err()) {
+            if (r.error() == Error::Intr && sig_take(SIG_INT) && !intr++) {
+                for (j = jobs; j; j = j->next)
+                    if (j->pid)
+                        co_await kill_child(j->pid, SIG_KILL);
+                continue;
+            }
+            break;
+        }
+        for (j = jobs; j; j = j->next)
+            if (j->pid == r.value().pid)
+                j->pid = 0;
+    }
+    while ((j = jobs) != NULL) {
+        co_await rmtarget(j->cs.at, j->member);
+        jobs = j->next;
+        freecoms(j->cs.coms, j->cs.plus0);
+        free(j->cs.at);
+        free(j);
+    }
+    njobs = 0;
+    diag("\n");
+    stop(2);
+}
+
+// One command of a job ends, and the job goes on or is done; under ^C, every
+// one of them ends.
+Task<void> reap(void)
+{
+    Result<Exited> r = co_await wait_child();
+    struct job *j;
+
+    if (r.is_err()) {
+        if (r.error() == Error::Intr && sig_take(SIG_INT)) {
+            co_await killjobs();
+            co_return;
+        }
+        if (r.error() == Error::Cancelled)
+            stop(130);
+        else
+            fatal("bad wait code");
+        jobs  = NULL; // nothing more will be heard of them
+        njobs = 0;
+        co_return;
+    }
+    for (j = jobs; j && j->pid != r.value().pid; j = j->next)
+        ;
+    if (j == NULL)
+        co_return;
+    j->pid = 0;
+    if (co_await jobstatus(j, (r.value().status & 0xff) << 8, j->ign))
+        co_await finishjob(j);
+    else
+        co_await advance(j);
+    co_await flushout();
 }
 
 // If there are any Shell meta characters in the name,

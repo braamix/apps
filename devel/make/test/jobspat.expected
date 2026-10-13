@@ -1,0 +1,8 @@
+echo cc x.c
+cc x.c
+echo cc y.c
+cc y.c
+echo cc z.c
+cc z.c
+echo link x.o y.o z.o
+link x.o y.o z.o

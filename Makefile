@@ -209,6 +209,7 @@ TESTS := \
     devel/make/test/portable.mjs \
     devel/make/test/library.mjs \
     devel/make/test/gnu.mjs \
+    devel/make/test/jobs.mjs \
     devel/wasm/ld/test/fixtures.mjs \
     devel/wasm/ld/test/dump.mjs \
     devel/wasm/ld/test/resolve.mjs \
