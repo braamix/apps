@@ -1,0 +1,5 @@
+cc -c a.c
+Make: Cannot load cc.  Stop.
+*** Error code 1
+
+Stop.

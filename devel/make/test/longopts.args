@@ -1,0 +1,1 @@
+--no-builtin-rules --dry-run --file basic.mk --keep-going

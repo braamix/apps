@@ -142,6 +142,66 @@ static int setflag(char c)
     return YES;
 }
 
+// GNU's long options and the letters they stand for; f and C take a value.
+static const struct {
+    const char *name;
+    char c;
+} longopts[] = {
+    { "directory", 'C' },
+    { "file", 'f' },
+    { "makefile", 'f' },
+    { "debug", 'd' },
+    { "environment-overrides", 'e' },
+    { "ignore-errors", 'i' },
+    { "keep-going", 'k' },
+    { "no-keep-going", 'S' },
+    { "stop", 'S' },
+    { "just-print", 'n' },
+    { "dry-run", 'n' },
+    { "recon", 'n' },
+    { "print-data-base", 'p' },
+    { "question", 'q' },
+    { "no-builtin-rules", 'r' },
+    { "silent", 's' },
+    { "quiet", 's' },
+    { "touch", 't' },
+    { "help", 'h' },
+};
+
+// The letter of --name or --name=value, and the value in *valp; 0 if unknown.
+static char longopt(const char *opt, const char **valp)
+{
+    const char *eq = strchr(opt, '=');
+    size_t n       = eq ? (size_t)(eq - opt) : strlen(opt);
+    size_t i;
+
+    *valp = eq ? eq + 1 : NULL;
+    for (i = 0; i < sizeof(longopts) / sizeof(longopts[0]); ++i)
+        if (strlen(longopts[i].name) == n && !strncmp(opt, longopts[i].name, n))
+            return longopts[i].c;
+    return 0;
+}
+
+static void usage(void)
+{
+    mprintf("Usage: make [options] [name=value]... [target]...\n"
+            "Options:\n"
+            "  -C dir, --directory=dir      change to dir before reading the makefiles\n"
+            "  -d, --debug                  say what is made and why\n"
+            "  -e, --environment-overrides  the environment over the makefiles\n"
+            "  -f file, --file=file         read file as a makefile\n"
+            "  -i, --ignore-errors          go on past a command that fails\n"
+            "  -k, --keep-going             go on with what does not need a failed target\n"
+            "  -n, --dry-run                print the commands, run only + ones\n"
+            "  -p, --print-data-base        print the macros and rules\n"
+            "  -q, --question               status 1 if anything is out of date\n"
+            "  -r, --no-builtin-rules       no built-in rules\n"
+            "  -s, --silent                 do not print the commands\n"
+            "  -S, --stop                   stop at the first failure, undoing -k\n"
+            "  -t, --touch                  touch the targets rather than make them\n"
+            "  --help                       this\n");
+}
+
 // The macros from the command line and from MAKEFLAGS, as typed, for the
 // MAKEFLAGS a child is given.
 static char *cmdmacros;
@@ -198,6 +258,12 @@ static void readmakeflags(void)
                 varptr(d)->exported = 1;
             substneed = NO; // a $(shell) in MAKEFLAGS is not waited for
             inarglist = 0;
+        } else if (w[0] == '-' && w[1] == '-') { // a parent's long option
+            const char *v;
+            char c = longopt(w + 2, &v);
+
+            if (c && c != 'f' && c != 'C' && c != 'h')
+                setflag(c);
         } else
             for (d = w + (*w == '-'); *d; ++d)
                 setflag(*d);
@@ -294,7 +360,36 @@ static Task<int> make_main(int argc, char *argv[])
     // Every option before any file is read, as POSIX has it: v7 read a -f
     // file the moment it met it, before the options after it.
     for (i = 1; i < argc; ++i)
-        if (argv[i] != 0 && argv[i][0] == '-') {
+        if (argv[i] != 0 && argv[i][0] == '-' && argv[i][1] == '-') {
+            // GNU's long options, each the letter it stands for.
+            if ((c = longopt(argv[i] + 2, &s)) == 0) {
+                fatal1("Unknown flag argument %s", argv[i]);
+                co_return 1;
+            }
+            if (c == 'h') {
+                usage();
+                co_return 0;
+            }
+            argv[i] = 0;
+            if (c == 'f' || c == 'C') {
+                if (s == NULL && i < argc - 1 && argv[i + 1] != 0) {
+                    s           = argv[i + 1];
+                    argv[i + 1] = 0;
+                }
+                if (s == NULL) {
+                    fatal(c == 'f' ? "No description argument after -f flag"
+                                   : "No directory argument after -C flag");
+                    co_return 1;
+                }
+                if (c == 'f')
+                    descf[ndescf++] = (char *)s;
+                else if (co_await b_chdir(s) != 0) {
+                    fatal1("Cannot change to directory %s", s);
+                    co_return 1;
+                }
+            } else
+                setflag(c);
+        } else if (argv[i] != 0 && argv[i][0] == '-') {
             for (j = 1; (c = argv[i][j]) != '\0'; ++j)
                 if (c == 'f') {
                     if (i >= argc - 1 || argv[i + 1] == 0) {

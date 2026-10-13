@@ -1,0 +1,16 @@
+Usage: make [options] [name=value]... [target]...
+Options:
+  -C dir, --directory=dir      change to dir before reading the makefiles
+  -d, --debug                  say what is made and why
+  -e, --environment-overrides  the environment over the makefiles
+  -f file, --file=file         read file as a makefile
+  -i, --ignore-errors          go on past a command that fails
+  -k, --keep-going             go on with what does not need a failed target
+  -n, --dry-run                print the commands, run only + ones
+  -p, --print-data-base        print the macros and rules
+  -q, --question               status 1 if anything is out of date
+  -r, --no-builtin-rules       no built-in rules
+  -s, --silent                 do not print the commands
+  -S, --stop                   stop at the first failure, undoing -k
+  -t, --touch                  touch the targets rather than make them
+  --help                       this
