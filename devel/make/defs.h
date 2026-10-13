@@ -203,6 +203,8 @@ Task<void> expand(struct depblock *q);
 Task<int> dosys(char *comstring, int nohalt);
 extern int shellonly;
 Task<int> startsys(char *comstring, int nohalt, u32 *pidp);
+Task<int> runself(Args args, int restarts);
+extern int remaking;
 Task<void> touch(int force, char *name);
 void childenv(const char *makeflags);
 Args *mkenv(void);

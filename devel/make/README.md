@@ -103,6 +103,7 @@ inference rule set them.
 | Target-specific and pattern-specific macros | GNU | `target: name op value`, with `override` and `export`; in effect while the target is made, and so for its prerequisites too |
 | Long options, `--help` | GNU | `--directory`, `--file`, `--makefile`, `--dry-run` and the rest, each standing for its letter; a parent's long options in `MAKEFLAGS` are understood or passed over |
 | `.ONESHELL` | GNU | A rule's lines are one script to one `sh -c`, without `-e`, its first line's `@`, `-` and `+` for the whole |
+| Remade makefiles | GNU | Each makefile and included file that is a target is brought up to date first, under `-n` too; if one was remade, make starts itself again from the start, `MAKE_RESTARTS` counting. An `include` that is missing is an error only if it cannot be made |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a
@@ -232,6 +233,12 @@ each time a case compares is set by the case.
 over the same files at the same times, and the commands must agree line for
 line; the messages, being V7's, are not compared. Without one the run says so
 and goes on.
+
+[test/deps.mjs](test/deps.mjs) has `cc` write the dependencies, both ways:
+`-MMD -MP` beside each object, and a `%.d: %.c` rule with `-MM`, which make
+remakes as makefiles and starts again to read. Either way a moved header
+remakes exactly the objects that include it, and with `-MP` a header that
+is gone does not stop make.
 
 [test/jobs.mjs](test/jobs.mjs) builds a program of five sources under
 `-j 4`, links it only after every object, gets the same bytes as under `-j 1`,

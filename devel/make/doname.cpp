@@ -313,7 +313,9 @@ static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, TIMETYPE ptime0
                     *errstatp += co_await docom(implcom);
                     break;
                 }
-        } else if (keepgoing) {
+        } else if (remaking) // a makefile with no rule is what it is
+            ++*errstatp;
+        else if (keepgoing) {
             mprintf("Don't know how to make %s\n", p->namep);
             ++*errstatp;
         } else
@@ -417,6 +419,10 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     popvars(mark);
     co_return r;
 }
+
+// Set while remakemfs() brings the makefiles up to date: no word about one
+// with nothing to do or no rule.
+int remaking;
 
 // The time of the target whose prerequisite is being made, for one that is
 // intermediate.
@@ -705,10 +711,10 @@ stemmed:
         ptime    = co_await makeit(p, tdep, ptime, explcom, implcom, lists, &errstat);
     }
 
-    else if (errstat != 0 && reclevel == 0)
+    else if (errstat != 0 && reclevel == 0 && !remaking)
         mprintf("`%s' not remade because of errors\n", p->namep);
 
-    else if (!questflag && reclevel == 0 && didwork == NO)
+    else if (!questflag && reclevel == 0 && didwork == NO && !remaking)
         mprintf("`%s' is up to date.\n", p->namep);
     if (stopped)
         co_return 1;

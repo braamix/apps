@@ -1,0 +1,3 @@
+echo "GEN = made" > gen.mk
+echo [made] [1]
+[made] [1]

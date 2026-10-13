@@ -148,6 +148,37 @@ static Task<int> run(Span<const Str> argv)
     co_return co_await await();
 }
 
+// make itself, started again with the arguments it was given and the
+// environment it was given but for MAKE_RESTARTS, and waited for: its status.
+Task<int> runself(Args args, int restarts)
+{
+    usize i, k, n = proc_env_count();
+    Str *env;
+    char *mr;
+    Args ea;
+    Result<u32> r = Err(Error::Io);
+    int st;
+
+    env = (Str *)ckalloc((n + 1) * sizeof(Str));
+    for (i = k = 0; i < n; ++i)
+        if (!proc_env_at(i).starts_with("MAKE_RESTARTS="))
+            env[k++] = proc_env_at(i);
+    mr = (char *)ckalloc(32);
+    snprintf(mr, 32, "MAKE_RESTARTS=%d", restarts);
+    env[k++] = Str(mr, strlen(mr));
+    ea       = Args{ Span<const Str>(env, k) };
+    r        = co_await spawn(args, ChildIo{}, &ea);
+    free(env);
+    free(mr);
+    if (r.is_err()) {
+        fatal("Cannot start make again");
+        co_return 2;
+    }
+    childpid = r.value();
+    st       = co_await await();
+    co_return st >> 8;
+}
+
 // A command started and not waited for, under -j: 0 and *pidp, or the status
 // it failed with.
 Task<int> startsys(char *comstring, int nohalt, u32 *pidp)

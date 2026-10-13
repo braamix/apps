@@ -20,6 +20,8 @@ Macros:
 	$ = $
 
 
+/tmp/t/solo.mk  done=2
+
 solo:  done=2  (MAIN NAME)
  commands:
 	echo solo

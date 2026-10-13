@@ -63,6 +63,9 @@ static char *avbuf[NARGS + 1];
 
 static Task<int> make_main(int argc, char *argv[]);
 
+// The arguments as given, for starting again (remakemfs()).
+static Args origargs;
+
 Task<i32> proc_main(Args args)
 {
     int argc = (int)args.size();
@@ -75,6 +78,7 @@ Task<i32> proc_main(Args args)
         memcpy(avbuf[i], args[i].data(), args[i].size());
     }
     avbuf[argc] = 0;
+    origargs = args;
 
     co_await sig_catch(SIG_INT);
     if (argc > 0 && avbuf[0][0])
@@ -340,6 +344,87 @@ static Task<void> rminter(void)
     free(v);
 }
 
+// The makefiles read, and the included ones, read or not: GNU remakes each
+// that is a target before making anything else.
+struct mfile {
+    struct mfile *next;
+    char *name;
+    int needed; // an include that was not there
+};
+static struct mfile *mfiles;
+static char *startcwd;
+
+static void addmf(const char *name, int needed)
+{
+    struct mfile *m = ALLOC(mfile), **mp;
+
+    m->name   = copys(name);
+    m->needed = needed;
+    for (mp = &mfiles; *mp; mp = &(*mp)->next)
+        ;
+    *mp = m;
+}
+
+// Each makefile brought up to date, as a target with no word said about it
+// when there is nothing to do or no way to do it; -n, -t and -q do not stop
+// it, as GNU has it.  -1 to go on; otherwise make has started again, and this
+// is the status of the make that did.  Plan.md, section 3.4.
+static Task<int> remakemfs(void)
+{
+    struct mfile *m;
+    struct nameblock *p;
+    TIMETYPE before, after, t;
+    int changed = NO, n, ex = noexflag, to = touchflag, qu = questflag, st, dbg;
+    usize i;
+    Str restarts;
+
+    noexflag = touchflag = questflag = NO;
+    remaking = YES;
+    dbg      = dbgflag; // -d is about the goals
+    dbgflag  = NO;
+    for (m = mfiles; m && !stopped; m = m->next) {
+        if ((p = srchname(m->name)) == 0)
+            p = makename(m->name);
+        if (p->septype == SOMEDEPS && !hasdeps(p)) // GNU's guard against a loop
+            continue;
+        before = co_await exists(m->name);
+        co_await doname(p, 0, &t);
+        after = co_await exists(m->name);
+        if (after > 0 && after != before)
+            changed = YES;
+    }
+    remaking  = NO;
+    dbgflag   = dbg;
+    noexflag  = ex;
+    touchflag = to;
+    questflag = qu;
+    if (stopped)
+        co_return -1;
+    if (!changed) {
+        for (m = mfiles; m; m = m->next)
+            if (m->needed) {
+                fatal1("Cannot open %s", m->name);
+                break;
+            }
+        co_return -1;
+    }
+
+    // Start again: the same arguments from the same directory, and
+    // MAKE_RESTARTS one higher.
+    restarts = proc_env("MAKE_RESTARTS");
+    for (n = 0, i = 0; i < restarts.size() && restarts[i] >= '0' && restarts[i] <= '9'; ++i)
+        n = n * 10 + (restarts[i] - '0');
+    if (n >= 20) {
+        fatal("makefiles remade over and over");
+        co_return -1;
+    }
+    if (startcwd)
+        co_await b_chdir(startcwd);
+    co_await flushout();
+    st = co_await runself(origargs, n + 1);
+    co_return st;
+}
+
 // The goals under -j: walked, which starts what can be started, and walked
 // again each time a command ends, until nothing is running.
 static Task<int> makejobs(int argc, char *argv[])
@@ -414,6 +499,11 @@ static Task<int> make_main(int argc, char *argv[])
     static char onechar[2] = "X";
     static char *descf[NARGS];
 
+    startcwd = (char *)ckalloc(PATH_MAX + 1);
+    if (co_await b_getcwd(startcwd, PATH_MAX + 1) == NULL) {
+        free(startcwd);
+        startcwd = NULL;
+    }
     funny['\0'] = (META | TERMINAL);
     for (s = "=|^();&<>*?[]:$`'\"\\\n"; *s; ++s)
         funny[(unsigned char)*s] |= META;
@@ -591,6 +681,12 @@ static Task<int> make_main(int argc, char *argv[])
             for (struct depblock *dp = lp->depp; dp; dp = dp->nxtdepblock)
                 dp->depname->intermediate = YES;
     writemakeflags();
+
+    // GNU's remade makefiles: if one was, make starts again to read it.
+    if ((i = co_await remakemfs()) >= 0)
+        co_return i;
+    if (stopped)
+        co_return 1;
 
     nfargs = 0;
 
@@ -784,6 +880,7 @@ Task<int> rddescf(const char *descfile)
     }
 
     if ((k = co_await b_fopen(descfile, "r")) != NULL) {
+        addmf(descfile, NO);
         buf = co_await rdall(k, &len);
         co_await b_fclose(k);
         if (buf == NULL)
@@ -875,11 +972,11 @@ Task<void> includef(char *names, int opt)
             bufs[i] = co_await rdall(k, &len);
             co_await b_fclose(k);
         }
-        if (bufs[i] == NULL) {
-            if (!opt)
-                fatal1("Cannot open %s", w[i]);
+        // A missing one may yet be made, as GNU has it: remakemfs() tries,
+        // and says it is missing only if it is still not there.
+        addmf(w[i], bufs[i] == NULL && !opt);
+        if (bufs[i] == NULL)
             continue;
-        }
         // A last line with no newline ends where the file does, not on the
         // line after the include.
         if (len == 0 || bufs[i][len - 1] != '\n') {

@@ -66,7 +66,7 @@ prog: $(OBJS)
 `);
 const md = (o) => compile(o, " -MMD -MP");
 
-let r = run("make");
+let r = run("make"), said;
 if (r.status !== 0 || lines(r.out).at(-1) !== link ||
     !same(lines(r.out).slice(0, -1), OBJS.map(md)))
     die(`the first make: ${JSON.stringify(r)}`);
@@ -97,5 +97,42 @@ if (r.status !== 0 || lines(r.out).at(-1) !== link ||
 r = run("./prog");
 if (r.status !== 0 || r.out !== "one\ntwo\n")
     die(`prog: ${JSON.stringify(r)}`);
+
+// --- The old way: the .d files are a rule's, and make remakes them as its
+// own makefiles, then starts again to read them.
+for (const f of [...H.store.files.keys()])
+    if (/^\/tmp\/[^/]*\.[odh]$/.test(f) || f === "/tmp/prog")
+        H.store.files.delete(f);
+sources();
+file("/tmp/makefile", `OBJS = ${OBJS.join(" ")}
+
+prog: $(OBJS)
+\t$(CC) -o $@ $(OBJS)
+
+%.d: %.c
+\t$(CC) -MM -MF $@ $<
+
+-include $(OBJS:.o=.d)
+`);
+const dep = (o) => `cc -MM -MF ${o.replace(/\.o$/, ".d")} ${o.replace(/\.o$/, ".c")}`;
+const plain = (o) => compile(o, "");
+
+// The .d files are made, make starts again, and then the objects.
+r = run("make");
+said = lines(r.out);
+if (r.status !== 0 || !same(said.slice(0, 3), OBJS.map(dep)) || said.at(-1) !== link ||
+    !same(said.slice(3, -1), OBJS.map(plain)))
+    die(`the first make, with %.d: ${JSON.stringify(r)}`);
+r = run("make");
+if (r.status !== 0 || r.out !== "`prog' is up to date.\n")
+    die(`the second make, with %.d: ${JSON.stringify(r)}`);
+
+// two.h moves: no .d is remade, and main.o and two.o are.
+file("/tmp/two.h", "#include <braam.h>\ncoro(braam_call *) void two(void);\n\n");
+r = run("make");
+said = lines(r.out);
+if (r.status !== 0 || said.at(-1) !== link ||
+    !same(said.slice(0, -1), ["main.o", "two.o"].map(plain)))
+    die(`make after two.h moved, with %.d: ${JSON.stringify(r)}`);
 
 console.log("make deps ok");

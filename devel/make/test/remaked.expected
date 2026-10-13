@@ -1,0 +1,4 @@
+echo "a.o: hdr.h" > a.d
+echo "b.o: hdr.h" > b.d
+echo cc a.c
+cc a.c

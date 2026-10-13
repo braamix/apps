@@ -218,6 +218,7 @@ const SETUP = {
         for (const f of ["x.c", "y.c", "z.c"])
             put(`${DIR}/${f}`, "");
     },
+    remake: () => put(`${DIR}/src`, "", T0),
     orderonly: () => {
         put(`${DIR}/a.o`, "", T0 + 1000);
         put(`${DIR}/prog`, "", T0 + 2000);
@@ -273,6 +274,7 @@ const GMAKE_CASES = new Set([
     "patrule", "patcancel", "patcancel2", "static",
     "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2", "eval", "tvars", "tvarscmd", "longopts", "mflong", "oneshell", "oneshell2",
     "chain", "chainup", "chainsec", "inter", "jobs", "jobswait", "jobspat",
+    "remake", "remaked",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])
@@ -358,6 +360,9 @@ for (const name of names) {
                 console.error(`make ${name}: ${g}`);
             }
             H.store.files.delete("/tmp/out");
+            // -n remakes makefiles for real, so the case starts afresh
+            plant_fixtures();
+            SETUP[name]?.();
         }
         put("/tmp/run",
             `cd ${DIR}\n${env}make ${args} <${stdin} >/tmp/out 2>&1\necho $? >/tmp/st\n`);
