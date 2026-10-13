@@ -12,8 +12,8 @@ braam_add_program(NAME make
                           gram.cpp
                   PORT NOFLOAT)
 
-braam_add_package(NAME make VERSION 2.58-r2
-                  FIELD "T=POSIX make, grown from V7 make"
+braam_add_package(NAME make VERSION 2.58-r3
+                  FIELD "T=POSIX and GNU make, grown from V7 make"
                   FILES $<TARGET_FILE:bin_make>=bin/make)
 
 if(TARGET packages)

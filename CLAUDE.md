@@ -270,7 +270,9 @@ coroutine bodies affordable: no CSE past 32 suspension points, and no local
 coalescing past 16 MB of analysis.
 And [devel/make](devel/make/), V7 make 2.58 by way of the BESM-6 port, being
 grown into Braam's POSIX make by [its Plan.md](devel/make/Plan.md) — V7's code
-and messages, POSIX's behaviour wherever the two differ, phases A and B done.
+and messages, POSIX's behaviour wherever the two differ, and GNU's
+conditionals, functions, pattern rules and `VPATH` beside it; phases A to C
+done.
 It is a **tenth shape**, the program whose work is *running other programs*:
 the first port to `spawn` and `wait_child`, and the first whose correctness is
 file times. `fork`/`execvp` are one `spawn`, `exit` traps so `fatal()` is a
@@ -280,11 +282,15 @@ sticky status unwound a frame at a time, and nothing prints through an await:
 plain. gram.y is written out by hand, there being no yacc in the build, and
 `yyparse()` is a coroutine only so that `include` can read a file: the lexer
 under it stays plain, since an await per token that never parks would cost
-native stack per token. Times are milliseconds from `stat_of`, archives are
+native stack per token. `$(shell)` and `$(wildcard)` are the same problem one
+level down — `subst()` is plain, so a call it has no answer for is recorded,
+the expansion is marked as needing it, and the coroutine above runs it and
+expands the line again. Times are milliseconds from `stat_of`, archives are
 devel/wasm's `ar` format — which dates members 0 unless given `-U` — and `^C`
 lands in `wait_child`, where make signals the child and removes `$@` as v7's
-`intrupt()` did. `test/build.mjs` and `test/portable.mjs` have it drive `cc`
-on Braam, and `cases.mjs` holds its `-n` to host GNU make's.
+`intrupt()` did. `test/build.mjs`, `portable.mjs`, `library.mjs` and
+`gnu.mjs` have it drive `cc` on Braam, and `cases.mjs` holds its `-n` to host
+GNU make's.
 
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:

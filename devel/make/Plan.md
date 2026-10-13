@@ -3,9 +3,9 @@
 `devel/make` is V7 make 2.58 being grown into **Braam's POSIX make**:
 POSIX.1-2024's `make`, then the half of GNU make that most makefiles lean on,
 on V7's code. Phases A and B are done and in `2.58-r2`: all of POSIX's
-`make` but `-j`, which [README.md](README.md) has the tables of. Phases C and
-D are left, ordered by how soon a real makefile reaches for each feature;
-each ends green and is published on its own.
+`make` but `-j`, which [README.md](README.md) has the tables of. Phase C, the
+everyday half of GNU make, is done and in `2.58-r3`. Phase D is left; each
+phase ends green and is published on its own.
 
 ## 1. Rules for every phase
 
@@ -107,6 +107,13 @@ for in them, the `vpath`s first, and found is its path: `$<`, `$^`, `$?` and
 `$+` name the path. A target found through them that is out of date is made
 here, under its own name, as GNU does without `GPATH`. `implicit()` looks for
 a source the same way.
+
+**Done** in `2.58-r3`, with three things the plan did not say. A rule's
+commands are all expanded before the first runs, as GNU does, so `$(wildcard)`
+in one does not see what the one before made. A directory's time on Braam
+may be 0, and `exists()` takes it as there and as old as can be, which is
+what an order-only directory wants. And `$?` has each name once, as in GNU,
+now that `$+` keeps the repeats.
 
 **Done when:** each feature has cases in `cases.mjs`, compared against host
 GNU make 4.4's `-n` where it is GNU's (§4); and `test/gnu.mjs` builds a C

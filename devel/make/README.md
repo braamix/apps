@@ -1,12 +1,12 @@
 # make — Braam's POSIX make
 
-**This is POSIX's `make`, grown from Stuart Feldman's make from Seventh
-Edition Unix**, version 2.58 of 14 March 1979 ([ident.cpp](ident.cpp)),
+**This is POSIX's `make` and the everyday half of GNU's, grown from Stuart
+Feldman's make from Seventh Edition Unix**, version 2.58 of 14 March 1979 ([ident.cpp](ident.cpp)),
 Caldera's licence in [COPYRIGHT](COPYRIGHT). The code, its identifiers, its
 comments and its messages are V7's; what it does is POSIX.1-2024's wherever
 the two disagree, and [Plan.md](Plan.md) is the way from one to the other —
-phases A and B of it are done, so this is the whole of POSIX's `make` but
-`-j`. It came here by way of the BESM-6 port in
+phases A, B and C of it are done, so this is the whole of POSIX's `make` but
+`-j`, and GNU's conditionals, functions, pattern rules and `VPATH`. It came here by way of the BESM-6 port in
 `~/Project/Besm-6/v7besm/cmd/make/`, which had already turned V7's into C11
 and fixed six bounds V7 did not check; that port's README is the account of
 those.
@@ -205,7 +205,7 @@ environment. Twenty-five came from the BESM port, and their expectations moved
 only where POSIX moved them — the `No suffix list.` line and the statuses. The
 rest are what b6sim could not run (globs over a real directory, commands run
 directly and through the shell, times, archives the real `ar` wrote, `^C`) and
-phase A's additions, each in its own case. The harness clock is frozen, so
+each phase's additions, each in its own case. The harness clock is frozen, so
 each time a case compares is set by the case.
 
 **Against GNU make.** Where the host has GNU make 4, every case in
@@ -213,6 +213,13 @@ each time a case compares is set by the case.
 over the same files at the same times, and the commands must agree line for
 line; the messages, being V7's, are not compared. Without one the run says so
 and goes on.
+
+[test/gnu.mjs](test/gnu.mjs) builds a program with `cc` on Braam from a
+makefile written for GNU make — `$(wildcard)` and `$(patsubst)` for the
+objects, a pattern rule, `VPATH` for the sources, an order-only object
+directory — makes nothing on the run after, remakes one object when its source
+moves, and builds again under `make DEBUG=1`, which an `ifdef` turns into a
+flag.
 
 [test/library.mjs](test/library.mjs) builds a library through `.c.a` with
 `cc` and `ar` on Braam, links a program against it, makes nothing on the run

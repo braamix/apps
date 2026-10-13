@@ -61,8 +61,11 @@ Task<TIMETYPE> exists(char *filename)
     Result<FileInfo> r = co_await stat_of(Str(filename, strlen(filename)));
     if (r.is_err())
         co_return 0;
-    else
-        co_return (TIMETYPE) r.value().mtime;
+    // A directory here may have no time, and is there all the same: as old as
+    // can be, which is what an order-only directory wants.
+    if (r.value().mtime == 0 && r.value().kind != SYS_KIND_FILE)
+        co_return 1;
+    co_return (TIMETYPE)r.value().mtime;
 }
 
 Task<TIMETYPE> prestime(void)
