@@ -395,7 +395,7 @@ $(TOOLCHAIN):
 # devel/cc configures there too, so it is shown the host compiler.
 $(BOOT)/ld.wasm: $(TOOLCHAIN) $(LD_SOURCES) | host-cc
 	@test -f $(BOOT)/CMakeCache.txt || cmake -B $(BOOT) -G "$(GENERATOR)" \
-	    -DCMAKE_TOOLCHAIN_FILE=$(abspath $(TOOLCHAIN)) \
+	    -DCMAKE_TOOLCHAIN_FILE=$(abspath $(TOOLCHAIN)) -DVCC_HOST=$(abspath $(HOST_CC))/stage \
 	    -Dbraam_DIR=$(abspath $(SDK))/lib/cmake/braam $(CMAKE_ARGS) >/dev/null
 	@grep -q '^VCC_HOST:PATH=$(abspath $(HOST_CC))/stage$$' $(BOOT)/CMakeCache.txt || \
 	    cmake -B $(BOOT) -DVCC_HOST=$(abspath $(HOST_CC))/stage \
