@@ -1,0 +1,5 @@
+No suffix list.
+test 1 -eq 2
+*** Error code 1 (ignored)
+echo carried on
+carried on

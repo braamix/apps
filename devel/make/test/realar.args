@@ -1,0 +1,1 @@
+-r -n -f realar.mk 'libr.a(a-rather-long-member.c)' 'libr.a(hdr.h)'

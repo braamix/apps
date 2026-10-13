@@ -1,0 +1,3 @@
+No suffix list.
+echo GOT x.c b.c a.c
+GOT x.c b.c a.c

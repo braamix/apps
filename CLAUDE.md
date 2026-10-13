@@ -9,7 +9,7 @@ that runs in a browser tab. Each program is a freestanding C++20 wasm32 binary,
 compiled against the Braam SDK and shipped as a ZIP package that `/bin/pkg`
 installs.
 
-**Twenty-three programs are ported so far**:
+**Twenty-four programs are ported so far**:
 [benchmarks/dhrystone](benchmarks/dhrystone/), which established the build and
 is the worked example a new port copies;
 [benchmarks/duremark](benchmarks/duremark/), which shows the other shape — an
@@ -268,6 +268,18 @@ and it **compiles itself on Braam byte for byte** against the host build
 (`selfhost.mjs`, six minutes in `LONGTESTS`). Two size budgets keep huge
 coroutine bodies affordable: no CSE past 32 suspension points, and no local
 coalescing past 16 MB of analysis.
+And [devel/make](devel/make/), V7 make 2.58 by way of the BESM-6 port — a
+**tenth shape**, the program whose work is *running other programs*: the
+first port to `spawn` and `wait_child`, and the first whose correctness is
+file times. `fork`/`execvp` are one `spawn`, `exit` traps so `fatal()` is a
+sticky status unwound a frame at a time, and nothing prints through an
+await: `mprintf` and `diag` hold stdout and stderr in one ordered buffer
+that `flushout()` writes before each command, so the parser and `-p`'s walk
+stay plain. gram.y is written out by hand, there being no yacc in the build.
+Times are milliseconds from `stat_of`, archives are devel/wasm's `ar` format —
+which dates members 0 unless given `-U` — and `^C` lands in `wait_child`,
+where make signals the child and removes `$@` as v7's `intrupt()` did.
+`test/build.mjs` has it drive `cc` on Braam.
 
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:
