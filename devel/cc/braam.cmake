@@ -262,7 +262,7 @@ foreach(f docs/examples/hello.c docs/examples/notes.c Manual.md README.md
     get_filename_component(n ${f} NAME)
     list(APPEND VCC_PKG_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${f}=share/${n})
 endforeach()
-braam_add_package(NAME cc VERSION 0.1-r0
+braam_add_package(NAME cc VERSION 0.1-r1
                   FIELD "T=vcc, a C11 compiler with coroutines, for Braam"
                   FIELD D=wasm
                   FILES ${VCC_PKG_FILES})
