@@ -14,36 +14,57 @@
 
 static Task<int> docom1(char *comstring, int nohalt);
 
-// Find a suffix rule that makes p.  Returns the source file's name block and
-// sets *rulep to the rule's, or NULL if there is none; prefix and sourcename are
-// the caller's buffers, 100 bytes each.
-static Task<struct nameblock *> implicit(struct nameblock *p, char *prefix, char *sourcename,
+// Two names run together, in a buffer of their own.
+static char *concata(const char *a, const char *b)
+{
+    return concat(a, b, (char *)ckalloc(strlen(a) + strlen(b) + 1));
+}
+
+// Whether the names a and b run together name something, freeing the name.
+static struct nameblock *srchcat(const char *a, const char *b)
+{
+    char *s             = concata(a, b);
+    struct nameblock *p = srchname(s);
+
+    free(s);
+    return p;
+}
+
+// Lists the directory for prefix*, so that a source nobody named is known.
+static Task<void> srchpre(const char *prefix)
+{
+    char *pat = concata(prefix, "*");
+
+    co_await srchdir(pat, NO, (struct depblock *)NULL);
+    free(pat);
+}
+
+// Find a suffix rule that makes p.  Returns the source file's name block, sets
+// *rulep to the rule's and *prefixp to $*, which the caller keeps; or NULL if
+// there is none.  v7's buffers were 100 bytes and its names were not looked
+// at; these are the names' own lengths.
+static Task<struct nameblock *> implicit(struct nameblock *p, char **prefixp,
                                          struct nameblock **rulep)
 {
     struct lineblock *lp, *lp1;
     struct depblock *suffp, *suffp1;
     struct nameblock *p1, *p2;
-    char *pnamep, *p1namep;
-    char temp[100], concsuff[20];
+    char *pnamep, *p1namep, *prefix;
 
-    // The buffers are 100 bytes, and v7 did not look: a longer name has no
-    // inference rule rather than an overrun.
-    if (strlen(p->namep) + sizeof(concsuff) >= sizeof(temp))
-        co_return NULL;
-
+    prefix = (char *)ckalloc(strlen(p->namep) + 1);
     for (lp = sufflist; lp; lp = lp->nxtlineblock)
         for (suffp = lp->depp; suffp; suffp = suffp->nxtdepblock) {
             pnamep = suffp->depname->namep;
             if (suffix(p->namep, pnamep, prefix)) {
-                co_await srchdir(concat(prefix, "*", temp), NO, (struct depblock *)NULL);
+                co_await srchpre(prefix);
                 if (stopped)
-                    co_return NULL;
+                    goto none;
                 for (lp1 = sufflist; lp1; lp1 = lp1->nxtlineblock)
                     for (suffp1 = lp1->depp; suffp1; suffp1 = suffp1->nxtdepblock) {
                         p1namep = suffp1->depname->namep;
-                        if ((p1 = srchname(concat(p1namep, pnamep, concsuff))) &&
-                            (p2 = srchname(concat(prefix, p1namep, sourcename)))) {
-                            *rulep = p1;
+                        if ((p1 = srchcat(p1namep, pnamep)) && (p2 = srchcat(prefix, p1namep))) {
+                            *rulep   = p1;
+                            *prefixp = prefix;
                             co_return p2;
                         }
                     }
@@ -56,18 +77,20 @@ static Task<struct nameblock *> implicit(struct nameblock *p, char *prefix, char
     for (lp = sufflist; lp; lp = lp->nxtlineblock)
         for (suffp = lp->depp; suffp; suffp = suffp->nxtdepblock) {
             p1 = suffp->depname;
-            if (p1->linep == 0 || strlen(p->namep) + strlen(p1->namep) >= sizeof(temp))
+            if (p1->linep == 0)
                 continue;
-            concat(p->namep, "*", temp);
-            co_await srchdir(temp, NO, (struct depblock *)NULL);
+            co_await srchpre(p->namep);
             if (stopped)
-                co_return NULL;
-            if ((p2 = srchname(concat(p->namep, p1->namep, sourcename)))) {
+                goto none;
+            if ((p2 = srchcat(p->namep, p1->namep))) {
                 strcpy(prefix, p->namep);
-                *rulep = p1;
+                *rulep   = p1;
+                *prefixp = prefix;
                 co_return p2;
             }
         }
+none:
+    free(prefix);
     co_return NULL;
 }
 
@@ -83,7 +106,7 @@ static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, struct shblock 
     ptime = (tdep > 0 ? tdep : co_await prestime());
     setvar("@", p->namep);
     setvar("?", mkqlist(qchain));
-    setvar("^", copys(mkqlist(allq)));
+    setvar("^", mkqlist(allq));
     if (explcom)
         *errstatp += co_await docom(explcom);
     else if (implcom)
@@ -111,12 +134,6 @@ static Task<TIMETYPE> makeit(struct nameblock *p, TIMETYPE tdep, struct shblock 
     co_return ptime;
 }
 
-// prefix and sourcename, which v7 kept on the stack: here they would hold a
-// coroutine frame past its 512 bytes.
-struct names {
-    char sourcename[100], prefix[100];
-};
-
 Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
 {
     int errstat;
@@ -129,7 +146,7 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     struct shblock *implcom, *explcom;
     struct lineblock *lp;
     struct lineblock *lp2;
-    struct names *nb;
+    char *prefix, *stem;
     struct chain *qchain, *allq, *lineq;
     int phony;
 
@@ -210,7 +227,7 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
                     okdel  = NO;
                     setvar("@", p->namep);
                     setvar("?", mkqlist(qchain));
-                    setvar("^", copys(mkqlist(lineq)));
+                    setvar("^", mkqlist(lineq));
                     setvar("<", lineq ? lineq->datap : (char *)"");
                     qchain = NULL;
                     if (!questflag)
@@ -238,25 +255,27 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     }
 
     // Look for implicit dependents, using suffix rules
-    p1 = NULL;
-    nb = ALLOC(names);
-    p2 = NULL;
+    p1     = NULL;
+    p2     = NULL;
+    prefix = NULL;
     // Only a target with no commands of its own, as POSIX has it: v7 looked
     // for every target, and gave one with commands a prerequisite besides.
     if (!phony && explcom == 0 && p->septype != SOMEDEPS)
-        p2 = co_await implicit(p, nb->prefix, nb->sourcename, &p1);
+        p2 = co_await implicit(p, &prefix, &p1);
     // $< in an explicit rule is its first prerequisite, and $* the target
     // less a suffix .SUFFIXES knows, as GNU make has them; an inference rule
     // sets its own below.  v7 left both as the last inference rule set them.
     setvar("<", allq ? allq->datap : (char *)"");
     setvar("*", (char *)"");
-    if (strlen(p->namep) < sizeof(nb->prefix))
-        for (lp = sufflist; lp; lp = lp->nxtlineblock)
-            for (q = lp->depp; q; q = q->nxtdepblock)
-                if (q->depname && suffix(p->namep, q->depname->namep, nb->prefix)) {
-                    setvar("*", copys(nb->prefix));
-                    goto stemmed;
-                }
+    stem = (char *)ckalloc(strlen(p->namep) + 1);
+    for (lp = sufflist; lp; lp = lp->nxtlineblock)
+        for (q = lp->depp; q; q = q->nxtdepblock)
+            if (q->depname && suffix(p->namep, q->depname->namep, stem)) {
+                setvar("*", stem);
+                stem = NULL;
+                goto stemmed;
+            }
+    free(stem);
 stemmed:
     if (p2 != NULL) {
         errstat += co_await doname(p2, reclevel + 1, &td);
@@ -268,14 +287,13 @@ stemmed:
             mprintf("TIME(%s)=%lld\n", p2->namep, td);
         if (td > tdep)
             tdep = td;
-        setvar("*", nb->prefix);
-        setvar("<", copys(nb->sourcename));
+        setvar("*", prefix);
+        setvar("<", p2->namep);
         allq = prependu(allq, p2->namep); // the inferred prerequisite first, as GNU has it
         for (lp2 = p1->linep; lp2; lp2 = lp2->nxtlineblock)
             if ((implcom = lp2->shp))
                 break;
-    } else
-        free(nb); // kept otherwise: $* points into it
+    }
     if (stopped)
         co_return 1;
 
@@ -309,9 +327,9 @@ Task<int> docom(struct shblock *q)
 {
     char *s, *at;
     int ign, nopr, sil, plus;
-    // At file scope, not in a frame: OUTMAX would be past a coroutine's 512
-    // bytes, and only one docom() is ever live.
-    static char string[OUTMAX];
+    // The expanded line, as long as it is: v7's was OUTMAX bytes.  Kept at file
+    // scope until the next, since only one docom() is ever live.
+    static char *string;
 
     ++ndocoms;
     if (questflag)
@@ -329,7 +347,8 @@ Task<int> docom(struct shblock *q)
 
     else
         for (; q; q = q->nxtshblock) {
-            subst(q->shbp, string, string + OUTMAX - 1);
+            free(string);
+            string = substa(q->shbp);
             if (stopped)
                 co_return YES;
 

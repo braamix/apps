@@ -120,22 +120,20 @@ static Task<int> await(void)
 static Task<int> doexec(char *str)
 {
     char *t;
-    // At file scope, not in a frame: 200 words are past a coroutine's 512
-    // bytes, and only one command runs at a time.
-    static Str argv[200];
-    Str *p;
+    Str *argv, *p;
+    int n, status;
 
     while (*str == ' ' || *str == '\t')
         ++str;
     if (*str == '\0')
         co_return -1; // no command
 
-    p = argv;
+    // As many words as there are: v7's argv was 200.
+    for (n = 1, t = str; *t; ++t)
+        if (*t == ' ' || *t == '\t')
+            ++n;
+    p = argv = (Str *)ckalloc(n * sizeof(Str));
     for (t = str; *t;) {
-        if (p >= &argv[sizeof(argv) / sizeof(argv[0]) - 1]) {
-            diag("Too many arguments\n");
-            co_return -1;
-        }
         char *w = t;
         while (*t != ' ' && *t != '\t' && *t != '\0')
             ++t;
@@ -145,7 +143,9 @@ static Task<int> doexec(char *str)
                 ;
     }
 
-    co_return co_await run(Span<const Str>(argv, p - argv));
+    status = co_await run(Span<const Str>(argv, p - argv));
+    free(argv);
+    co_return status;
 }
 
 // v7 read a byte and wrote it back to move the time.  The store has a call for

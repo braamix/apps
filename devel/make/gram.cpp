@@ -41,7 +41,7 @@ enum {
 };
 
 // What an INCLUDE line named, expanded, and whether a missing file is fine.
-static char incnames[INMAX];
+static char *incnames;
 static int incopt;
 
 // yacc's %union.
@@ -57,7 +57,9 @@ static int nextlin(void);
 struct depblock *pp;
 static struct shblock *prevshp;
 
-static struct nameblock *lefts[NLEFTS];
+// The targets of a rule line, as many as there are: v7 stopped at NLEFTS.
+static struct nameblock **lefts;
+static int leftcap;
 struct nameblock *leftp;
 static int nlefts;
 
@@ -147,13 +149,13 @@ Task<int> yyparse(void)
         }
 
         // namelist
+        if (lefts == NULL)
+            lefts = (struct nameblock **)ckalloc((leftcap = NLEFTS) * sizeof(*lefts));
         lefts[0] = yylval.ynameblock;
         nlefts   = 1;
         while ((tok = yylex()) == NAME) {
-            if (nlefts >= NLEFTS) {
-                fatal("Too many lefts");
-                co_return 1;
-            }
+            if (nlefts >= leftcap)
+                lefts = (struct nameblock **)growbuf(lefts, &leftcap, sizeof(*lefts));
             lefts[nlefts++] = yylval.ynameblock;
         }
         if (stopped)
@@ -241,10 +243,13 @@ int pushin(char *buf, int len)
     return YES;
 }
 
-// Scratch at file scope: three INMAX char arrays.
-static char word[INMAX];
-static char templin[INMAX];
-static char yytext[INMAX];
+// The line as read, a word of it, and the line expanded, each as long as it
+// is: v7's were INMAX bytes, and `line too long' stopped make.
+static char *yytext;
+static int yycap;
+static char *word;
+static int wcap;
+static char *expline;
 
 // getc(fin), from the description file read whole.
 static int getfin(void)
@@ -317,15 +322,12 @@ int yylex(void)
         return retsh(zznextc);
 
     p = zznextc;
+    while ((int)strlen(p) >= wcap)
+        word = (char *)growbuf(word, &wcap, 1);
     q = word;
 
-    while (!(funny[(unsigned char)*p] & TERMINAL)) {
-        if (q >= &word[INMAX - 1]) {
-            fatal("word too long");
-            return 0;
-        }
+    while (!(funny[(unsigned char)*p] & TERMINAL))
         *q++ = *p++;
-    }
 
     if (p != zznextc) {
         *q = '\0';
@@ -362,7 +364,6 @@ static int retsh(char *q)
 
 static int nextlin(void)
 {
-    static char *yytextl = yytext + INMAX;
     char *text;
     char c;
     char *p, *t;
@@ -382,18 +383,21 @@ again:
         if ((bt = *linesptr++) == 0)
             return 0;
         ++yylineno;
-        for (p = yytext; p < yytextl && (*p = *bt++) != '\0'; ++p)
-            ;
-        if (p >= yytextl) {
-            fatal("line too long");
-            return 0;
-        }
+        while ((int)strlen(bt) >= yycap)
+            yytext = (char *)growbuf(yytext, &yycap, 1);
+        strcpy(yytext, bt);
         text = yytext;
     }
 
     else {
-        text = yytext;
-        for (p = yytext; p < yytextl; *p++ = kc)
+        if (yytext == NULL)
+            yytext = (char *)growbuf(yytext, &yycap, 1);
+        for (p = yytext;; *p++ = kc) {
+            if (p - yytext >= yycap - 1) {
+                kc     = p - yytext;
+                yytext = (char *)growbuf(yytext, &yycap, 1);
+                p      = yytext + kc;
+            }
             switch (kc = getfin()) {
             case '\t':
                 if (p != yytext)
@@ -442,12 +446,11 @@ again:
                 *p = '\0';
                 return 0;
             }
-
-        fatal("line too long");
-        return 0;
+        }
     }
 
 endloop:
+    text = yytext;
 
     if ((c = text[0]) == '\t')
         return retsh(text);
@@ -466,7 +469,8 @@ endloop:
     // include: the rest of the line, expanded, names the files, which
     // yyparse() reads (README.md, "Includes").
     if ((p = isinclude(text, &incopt)) != NULL) {
-        subst(p, incnames, incnames + INMAX - 1);
+        free(incnames);
+        incnames = substa(p);
         return stopped ? 0 : INCLUDE;
     }
 
@@ -478,29 +482,21 @@ endloop:
     lastch  = *t;
     *t      = '\0';
 
-    subst(text, templin, templin + INMAX - 1);
+    free(expline);
+    expline = substa(text);
     if (stopped)
         return 0;
 
+    // and the rest, from the semicolon on, as it was
     if (lastch) {
-        for (t = templin; *t; ++t)
-            ;
-        if (t >= &templin[INMAX - 1]) {
-            fatal("macro expansion too long");
-            return 0;
-        }
-        *t = lastch;
-        while (t < &templin[INMAX - 1] && (*++t = *++lastchp))
-            ;
-        *t = '\0';
+        *lastchp = lastch;
+        t        = (char *)ckalloc(strlen(expline) + strlen(lastchp) + 1);
+        concat(expline, lastchp, t);
+        free(expline);
+        expline = t;
     }
 
-    p = templin;
-    t = text;
-    while ((*t++ = *p++))
-        ;
-
-    for (p = zznextc = text; *p; ++p)
+    for (p = zznextc = expline; *p; ++p)
         if (*p != ' ' && *p != '\t')
             return START;
     goto again;

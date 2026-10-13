@@ -18,11 +18,12 @@ typedef long long TIMETYPE;
 
 #define unequal strcmp
 
-#define HASHSIZE 509
-#define NLEFTS   40
-#define INMAX    1500 // longest input line
-#define OUTMAX   2500 // longest command line after substitution
-#define QBUFMAX  1500 // longest $? list
+#define HASHSIZE 509  // the name table's first size; it doubles as it fills
+#define NLEFTS   40   // the targets of a rule line, at first; they grow
+#define INMAX    1500 // the input line's first size; it grows
+
+// An expansion past this is taken for a runaway rather than a command.
+#define MAXEXPAND (64 * 1024 * 1024)
 
 // include may nest this deep, which is far past any use and short of a file
 // that includes itself running make out of memory.
@@ -158,10 +159,13 @@ struct nameblock *srchname(const char *s);
 struct nameblock *makename(const char *s);
 int maincand(const char *s);
 char *copys(const char *s);
+void *growbuf(void *buf, int *capp, int n);
 char *concat(const char *a, const char *b, char *c);
 int suffix(char *a, char *b, char *p);
 void *ckalloc(int n);
 char *subst(char *a, char *b, char *bend); // bend: last writable byte of b
+char *substa(char *a);
+extern int substfull;
 int setvar(const char *v, char *s);
 int eqsign(char *a);
 int assigncolon(const char *s);

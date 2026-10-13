@@ -69,11 +69,7 @@ Task<TIMETYPE> prestime(void)
 Task<struct depblock *> srchdir(char *pat, int mkchain, struct depblock *nextdbl)
 {
     DIR *dirf;
-    char *dirname, *dirpref, *endir, *filepat, *p;
-    // At file scope, not in a frame: two hundred bytes of a coroutine's 512,
-    // and srchdir() does not recurse.
-    static char temp[100];
-    static char fullname[100];
+    char *dirname, *dirpref, *endir, *filepat, *p, *fullname;
     struct dirent *dp;
     struct nameblock *q;
     struct depblock *thisdbl;
@@ -98,19 +94,15 @@ Task<struct depblock *> srchdir(char *pat, int mkchain, struct depblock *nextdbl
         if (*p == '/')
             endir = p;
 
+    // The names are as long as they are: v7's buffers were 100 bytes.
     if (endir == 0) {
         dirname = (char *)".";
-        dirpref = (char *)"";
+        dirpref = copys("");
         filepat = pat;
     } else {
         dirname = pat;
         *endir  = '\0';
-        if (strlen(dirname) + 2 > sizeof(temp)) {
-            fatal1("Directory name too long: %s", dirname);
-            *endir = '/';
-            co_return 0;
-        }
-        dirpref = concat(dirname, "/", temp);
+        dirpref = concat(dirname, "/", (char *)ckalloc(strlen(dirname) + 2));
         filepat = endir + 1;
     }
 
@@ -132,17 +124,18 @@ Task<struct depblock *> srchdir(char *pat, int mkchain, struct depblock *nextdbl
         fatal("Cannot open");
         if (endir != 0)
             *endir = '/';
+        free(dirpref);
         co_return 0;
     }
 
     while ((dp = b_readdir(dirf)) != NULL) {
         if (!amatch(dp->d_name, filepat))
             continue;
-        if (strlen(dirpref) + strlen(dp->d_name) + 1 > sizeof(fullname))
-            continue;
-        concat(dirpref, dp->d_name, fullname);
+        fullname =
+            concat(dirpref, dp->d_name, (char *)ckalloc(strlen(dirpref) + strlen(dp->d_name) + 1));
         if ((q = srchname(fullname)) == 0)
             q = makename(fullname);
+        free(fullname);
         if (stopped)
             break;
         if (mkchain) {
@@ -155,6 +148,7 @@ Task<struct depblock *> srchdir(char *pat, int mkchain, struct depblock *nextdbl
 
     if (endir != 0)
         *endir = '/';
+    free(dirpref);
 
     co_return thisdbl;
 }

@@ -172,6 +172,16 @@ const SETUP = {
             put(`${DIR}/c${i}.mk`, i < 49 ? `include c${i + 1}.mk\n` : "DEEP = 49\n");
         put(`${DIR}/c0.mk`, "include c1.mk\nall:\n\techo [$(DEEP)]\n");
     },
+    // Past every limit v7 had: 600 targets on one rule line and in the name
+    // table, a 3 KB line, a 3 KB $? and 600 arguments to a command run
+    // directly; and a 200-character name through an inference rule.
+    limits: () => {
+        const t = Array.from({ length: 600 }, (_, i) => `t${String(i).padStart(3, "0")}`);
+        for (const n of t)
+            put(`${DIR}/${n}`, "", T0);
+        put(`${DIR}/limits.mk`, `T = ${t.join(" ")}\nall: $(T)\n\techo $?\n$(T):\n`);
+    },
+    longname: () => put(`${DIR}/${"x".repeat(200)}.c`, "", T0),
     interrupt: () => put(`${DIR}/src`, "", T0 + 1000),
     precious: () => put(`${DIR}/src`, "", T0 + 1000),
     longmember: () => put(`${DIR}/libl.a`, archive(
@@ -209,7 +219,8 @@ const CHECK = {
 // must agree.  The messages, which are v7's here, are not compared.
 const GMAKE_CASES = new Set([
     "assign", "autovars", "basic", "cmdline", "contcmd", "contdef", "dcolon", "default",
-    "env", "envflag", "ignoresome", "include", "incdeep", "incmany", "lastline", "macros",
+    "env", "envflag", "ignoresome", "include", "incdeep", "incmany", "lastline", "limits",
+    "longname", "macros",
     "phony", "silent", "silentsome", "substref", "suffix",
 ]);
 const GMAKE = (() => {

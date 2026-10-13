@@ -6,8 +6,11 @@
 
 #include "defs.h"
 
-static struct nameblock *hashtab[HASHSIZE];
-static int nhashed = 0;
+// v7's table was HASHSIZE slots for the life of the run; this one doubles at
+// two-thirds full, so a large project no longer meets `Hash table overflow'.
+static struct nameblock **hashtab;
+static int hashsize = 0;
+static int nhashed  = 0;
 
 // simple linear hash.  hash function is sum of characters mod hash table size.
 static int hashloc(const char *s)
@@ -21,16 +24,29 @@ static int hashloc(const char *s)
     for (t = s; *t != '\0'; ++t)
         hashval += *t;
 
-    hashval %= HASHSIZE;
+    hashval = (unsigned)hashval % hashsize;
 
-    for (i = hashval; hashtab[i] != 0 && unequal(s, hashtab[i]->namep); i = (i + 1) % HASHSIZE)
+    for (i = hashval; hashtab[i] != 0 && unequal(s, hashtab[i]->namep); i = (i + 1) % hashsize)
         ;
 
     return i;
 }
 
+static void rehash(int size)
+{
+    struct nameblock *p;
+
+    free(hashtab);
+    hashsize = size;
+    hashtab  = (struct nameblock **)ckalloc(size * sizeof(*hashtab));
+    for (p = firstname; p; p = p->nxtnameblock)
+        hashtab[hashloc(p->namep)] = p;
+}
+
 struct nameblock *srchname(const char *s)
 {
+    if (hashsize == 0)
+        rehash(HASHSIZE);
     return hashtab[hashloc(s)];
 }
 
@@ -50,15 +66,14 @@ int maincand(const char *s)
     return s[0] != '.' || hasslash(s);
 }
 
-// NULL once the table is full, and make has stopped.
 struct nameblock *makename(const char *s)
 {
     struct nameblock *p;
 
-    if (nhashed++ > HASHSIZE - 3) {
-        fatal("Hash table overflow");
-        return NULL;
-    }
+    if (hashsize == 0)
+        rehash(HASHSIZE);
+    if (3 * ++nhashed > 2 * hashsize)
+        rehash(2 * hashsize + 1);
 
     p               = ALLOC(nameblock);
     p->nxtnameblock = firstname;
@@ -72,6 +87,20 @@ struct nameblock *makename(const char *s)
 
     hashtab[hashloc(s)] = p;
 
+    return p;
+}
+
+// buf grown to twice *capp items of n bytes, or to INMAX of them at first.
+void *growbuf(void *buf, int *capp, int n)
+{
+    int cap = *capp ? 2 * *capp : INMAX;
+    void *p = ckalloc(cap * n);
+
+    if (buf) {
+        memcpy(p, buf, (size_t)*capp * n);
+        free(buf);
+    }
+    *capp = cap;
     return p;
 }
 
@@ -137,11 +166,15 @@ void *ckalloc(int n)
     __builtin_trap();
 }
 
+// Set when an expansion ran out of the buffer it was given, for substa() to
+// expand again into a bigger one.
+int substfull = NO;
+
 // Append n bytes of s at *bp, short of bend.  NO when they do not fit.
 static int putn(char **bp, char *bend, const char *s, size_t n)
 {
     if ((size_t)(bend - *bp) < n) {
-        fatal("macro expansion too long");
+        substfull = YES;
         return NO;
     }
     memcpy(*bp, s, n);
@@ -160,21 +193,49 @@ static char *valueof(struct varblock *vbp, char *b, char *bend)
     return subst(vbp->varval, b, bend);
 }
 
+// The same, into a buffer of its own.
+static char *valuea(struct varblock *vbp)
+{
+    return vbp->simple ? copys(vbp->varval) : substa(vbp->varval);
+}
+
+// a expanded into a buffer that fits it, which the caller frees: v7's were
+// INMAX and OUTMAX bytes, and a longer line stopped make.  Expanding twice is
+// harmless, since an expansion changes nothing but `used'.
+char *substa(char *a)
+{
+    size_t n = 256;
+    char *buf;
+
+    for (;;) {
+        buf       = (char *)ckalloc(n);
+        substfull = NO;
+        subst(a, buf, buf + n - 1);
+        if (!substfull || stopped)
+            break;
+        free(buf);
+        if ((n *= 2) > MAXEXPAND) {
+            fatal("macro expansion too long");
+            buf = copys("");
+            break;
+        }
+    }
+    substfull = NO;
+    return buf;
+}
+
 // $(name:from=to), POSIX's substitution reference: in each word of the value
 // ending with `from', that end becomes `to'.  With a % in `from' it is
 // POSIX.1-2024's pattern form, $(name:%.c=%.o), the % in `to' being what the
 // one in `from' matched.  The words come out one space apart.
 static char *substref(struct varblock *vbp, char *spec, char *b, char *bend)
 {
-    size_t n = bend - b + 1;
     char *sp, *val, *from, *to, *w, *e, *fpct, *tpct;
     size_t fl, wl, pl, sl;
     int first = YES;
 
-    sp  = (char *)ckalloc(OUTMAX);
-    val = (char *)ckalloc(n);
-    subst(spec, sp, sp + OUTMAX - 1);
-    valueof(vbp, val, val + n - 1);
+    sp  = substa(spec);
+    val = valuea(vbp);
     if (stopped)
         goto out;
     if ((to = strchr(sp, '=')) == NULL) {
@@ -240,9 +301,9 @@ char *subst(char *a, char *b, char *bend)
     if (++depth > MAXSUBST)
         fatal("infinitely recursive macro?");
     if (a != 0)
-        while (*a && !stopped) {
+        while (*a && !stopped && !substfull) {
             if (b >= bend) {
-                fatal("macro expansion too long");
+                substfull = YES;
                 break;
             }
             if (*a != '$')
@@ -325,28 +386,26 @@ static void assign(char *v, char *s, int op)
     if (op == '?' && p->varval != 0)
         return;
     if (op == '+' && p->varval != 0) {
-        old = p->varval;
-        buf = (char *)ckalloc(strlen(old) + 1 + OUTMAX);
-        strcpy(buf, old);
-        strcat(buf, " ");
-        if (p->simple)
-            subst(s, buf + strlen(buf), buf + strlen(old) + OUTMAX - 1);
-        else
-            strcat(buf, s);
+        old = p->simple ? substa(s) : copys(s);
+        buf = (char *)ckalloc(strlen(p->varval) + 1 + strlen(old) + 1);
+        concat(p->varval, " ", buf);
+        strcat(buf, old);
+        free(old);
         used    = p->used; // appending after a use is what += is for: no warning
         p->used = NO;
-        if (setvar(v, copys(buf)))
+        if (setvar(v, buf))
             p->simple = simple;
+        else
+            free(buf);
         p->used = used;
-        free(buf);
         return;
     }
     if (op == ':') {
-        buf = (char *)ckalloc(OUTMAX);
-        subst(s, buf, buf + OUTMAX - 1);
-        if (setvar(v, copys(buf)))
+        buf = substa(s);
+        if (setvar(v, buf))
             p->simple = YES;
-        free(buf);
+        else
+            free(buf);
         return;
     }
     setvar(v, copys(s));
@@ -488,30 +547,25 @@ struct chain *prependu(struct chain *head, char *name)
     return p;
 }
 
+// The names, a space apart, in a string of their own.  v7's was one static
+// QBUFMAX buffer, so a long list was cut short and $? and the next list shared
+// it.
 char *mkqlist(struct chain *p)
 {
-    char *qbufp, *s;
-    static char qbuf[QBUFMAX];
+    char *qbuf, *qbufp, *s;
+    struct chain *q;
+    size_t n = 1;
 
-    if (p == NULL) {
-        qbuf[0] = '\0';
-        return qbuf; // v7 returned nothing at all here
-    }
-
-    qbufp = qbuf;
+    for (q = p; q; q = q->nextp)
+        n += strlen(q->datap) + 1;
+    qbufp = qbuf = (char *)ckalloc(n);
 
     for (; p; p = p->nextp) {
         s = p->datap;
-        if (qbufp + strlen(s) > &qbuf[QBUFMAX - 3]) {
-            diag("$? list too long\n");
-            break;
-        }
         while (*s)
             *qbufp++ = *s++;
         *qbufp++ = ' ';
     }
-    // v7 wrote *--qbufp unconditionally, forming a pointer below the array when
-    // the first name already overflowed.
     if (qbufp > qbuf)
         --qbufp;
     *qbufp = '\0';
