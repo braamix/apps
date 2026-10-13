@@ -2,10 +2,9 @@
 
 `devel/make` is V7 make 2.58 being grown into **Braam's POSIX make**:
 POSIX.1-2024's `make`, then the half of GNU make that most makefiles lean on,
-on V7's code. Phases A and B are done and in `2.58-r2`: all of POSIX's
-`make` but `-j`, which [README.md](README.md) has the tables of. Phase C, the
-everyday half of GNU make, is done and in `2.58-r3`. Phase D is left; each
-phase ends green and is published on its own.
+on V7's code. Phases A to C are done and in `2.58-r3`: all of POSIX's `make`
+but `-j`, and the everyday half of GNU make, which [README.md](README.md) has
+the tables of. Phase D, the rest that makefiles reach for, is left.
 
 ## 1. Rules for every phase
 
@@ -15,135 +14,103 @@ phase ends green and is published on its own.
    not specify any — the `Make: ... Stop.` messages, `` `x' is up to
    date.``, `-p` and `-d`. A case's expectation changes only where POSIX
    demands it, and the commit that changes it says which rule required it.
-2. **POSIX.1-2024 first, then GNU.** POSIX's `make` is done, and phase C is
-   the GNU make most makefiles are written for. BSD make's dialect
+2. **POSIX.1-2024 first, then GNU.** POSIX's `make` is done, and so is the
+   GNU make most makefiles are written for; phase D is the rest of it. BSD make's dialect
    (`.if`, `:M`) is not a goal.
 3. **Await only where something parks.** A `co_await` is a call and not a
    tail call, so a loop that awaits without parking grows the native stack
    until the process traps. `yyparse()` is a coroutine and awaits `include`
    and `!=` itself, both of which park on a system call; the lexer,
    `nextlin()` and `subst()` stay plain, since they run once per token, line
-   and macro reference and almost never need to wait. §3 has the two
-   mechanisms.
+   and macro reference and almost never need to wait. §3 has the
+   mechanisms, §3.3 how `-j` drives `doname()`.
 4. **The README keeps up.** Each addition goes in its "Beyond V7" table with
    the standard it comes from, and each POSIX difference in "Where POSIX
    overrules V7".
-5. **Version:** `2.58-r3` after phase C, `-r4` after D. There is no
+5. **Version:** `2.58-r4` after phase D. There is no
    upstream version to move, so only the revision counts up.
 
 ## 2. Phases
 
-### Phase C — GNU make, the everyday half
+### Phase D — the rest of GNU make that makefiles use
 
 | Feature | Where | Notes |
 |---|---|---|
-| `ifeq`, `ifneq`, `ifdef`, `ifndef`, `else`, `endif` | `nextlin()` | §2.1 |
-| `define`/`endef`, `override`, `export`, `unexport` | `nextlin()`, `assign()`, `dosys.cpp` | §2.1 |
-| Text functions | `funcs.cpp`, from `subst()` | §2.2 |
-| `$(wildcard)`, `$(shell)` | `funcs.cpp`, their awaiting callers | §3.2 |
-| Order-only prerequisites, `a: b \| c`, and `$\|` | `yylex()`, `yyparse()`, `doname()` | Made first, never newer than the target |
-| `$+` | `doname()` | Every prerequisite in order, repeats kept |
-| `.DELETE_ON_ERROR`, `MAKECMDGOALS`, `.DEFAULT_GOAL` | `docom()`, `make_main` | A failed command removes `$@` as `^C` does |
-| Pattern rules, `%.o: %.c`, and static patterns | `rule()`, `implicit()`, `doname()` | §2.3 |
-| `VPATH`, `vpath` | `exists()`, `implicit()`, `doname()` | §2.4 |
+| `$(value)`, `$(origin)`, `$(info)`, `$(warning)`, `$(error)`, `$(call)` | `funcs.cpp` | §2.1 |
+| `$(eval)` | `funcs.cpp`, `yyparse()`, `docom()` | §2.2 |
+| Target-specific and pattern-specific macros | `nextlin()`, `doname()` | §2.3 |
+| Long options and `--help` | `make_main` | `--directory`, `--file`, `--makefile`, `--jobs`, `--keep-going`, `--dry-run`, `--just-print`, `--silent`, `--quiet`, `--ignore-errors`, `--touch`, `--question`, `--print-data-base`, `--environment-overrides`, `--no-builtin-rules`, each `=value` or the next word |
+| `.ONESHELL` | `docom()` | A rule's lines are one script to one shell, its first line's `@`, `-` and `+` for the whole, as GNU has it |
+| Chained pattern rules, `.INTERMEDIATE`, `.SECONDARY` | `implicit()`, `doname()`, `make_main` | §2.4 |
+| `-j [n]` | `doname()`, `docom()`, `dosys.cpp` | §3.3. `.WAIT` and `.NOTPARALLEL` begin to mean something |
 
-#### 2.1 Directives
+`.SILENT:` per target is already there (phase A), and so is
+`-include $(OBJS:.o=.d)`; what automatic dependencies still wait on is `cc`
+learning `-MD`, which is `devel/cc`'s work and not this phase's.
 
-Each is a whole line, found by `nextlin()` before anything else looks at it,
-and never one starting with a tab. A conditional keeps a stack of states:
-inside a false branch nothing is read but the next `else` or `endif` and the
-nesting of other conditionals. `else ifeq ...` chains, as GNU's does. `ifeq`
-takes `(a,b)`, `"a" "b"` and `'a' 'b'`, each side expanded; `ifdef` asks
-whether the named macro has a value that is not empty, without expanding it.
+#### 2.1 Functions without side effects to speak of
 
-`define NAME [op]` takes the lines up to its `endef` as they are — comments
-and blanks too, nested `define`s counted — and assigns them with the
-operator, `=` if none. A value with newlines used in a command is one command
-per line, each with its own `@`, `-` and `+`, which is a canned recipe.
+`$(value v)` is the value unexpanded. `$(origin v)` is `undefined`,
+`default`, `environment`, `environment override`, `file`, `command line`,
+`override` or `automatic`, so a macro remembers where it was set: a field set
+by `setvar()` from what its caller is doing — reading `builtin[]`, the
+environment, the command line, an `override` line. `$(call v,a,b,...)` binds
+`$(0)` to `v` and `$(1)`... to the arguments, as `$(foreach)` binds its name,
+and expands `v`'s value.
 
-`override` sets a macro the command line set, and keeps it from the
-makefile's later plain assignments. `export` and `unexport` mark macros, and
-`export` alone marks them all. A child's environment is built for each
-command: this process's, with every macro from the environment or the command
-line and every exported one at its value now, expanded, and the unexported
-ones out. GNU does the same.
+`$(info)`, `$(warning)` and `$(error)` are the first functions with an effect,
+and an expansion may be done twice — `substa()` growing its buffer, or a line
+done again for §3.2. So what `info` and `warning` say is held while an
+expansion runs and said only when the outermost `substa()` finishes with
+nothing left to wait for; a pass that is done again throws it away.
+`$(error)` stops make, which is the same however often it happens. `warning`
+says the line, as `yyerror()` does.
 
-#### 2.2 Text functions
+#### 2.2 `$(eval)`
 
-`$(name args)`, a known name followed by a blank. The arguments are split at
-commas outside nested parentheses, the last taking the rest; each is
-expanded only when the function wants it, so `$(if)`, `$(or)` and `$(and)`
-expand only the branch they take. `$(foreach v,list,text)` binds `v` for each
-word and puts it back after. The set:
-`subst patsubst strip findstring filter filter-out sort word wordlist words
-firstword lastword dir notdir suffix basename addsuffix addprefix join if or
-and foreach`, plus the two of §3.2. All are plain code over `putn()`, so a
-full buffer is `substa()`'s loop as it is now.
+Its argument, expanded, is makefile text, held as `info` is (§2.1) and
+handed on when the expansion finishes. Met while the makefile is read, it is
+pushed as one more input buffer (§3.1), so `yyparse()` reads it before the
+next line, which is where a line of nothing but `$(eval ...)` wants it. Met
+while a rule's commands are expanded, `docom()` awaits `yyparse()` over it
+before running any. A `$(foreach)` of evals is one buffer, in order. Unlike
+GNU, a macro an `eval` sets is not seen by the rest of the line it is on.
 
-#### 2.3 Pattern rules
+#### 2.3 Target-specific and pattern-specific macros
 
-A target with a `%` is a pattern rule, kept on a list of its own in the order
-read and never the default goal. A pattern rule with no commands cancels the
-one before it with the same target and prerequisites. For a target with no
-commands and not `.PHONY`, `implicit()` tries the pattern rules first, then
-the suffix rules as now. A rule applies when its target pattern matches —
-against the file part when the pattern has no slash, the directory going back
-on the stem — and each prerequisite, the stem put in for its `%`, is a file,
-or a target, or found through §2.4. `implicit()` then returns them all, the
-first being `$<`, and `$*` is the stem. A rule is not chained through an
-intermediate file another pattern rule would make; that is phase D.
+`target...: name op value` and `%.o: name op value`, with any operator and
+`override` or `export` before the name, found by `nextlin()` as a rule line
+whose part after the separator is an assignment. Each target keeps a list
+of them, and the pattern ones a list of their own. `doname()` puts a
+target's into effect when it begins — the pattern ones that match it first,
+in the order read, then its own — and puts the old values back when it
+returns, so they are in effect for its prerequisites too, as GNU has it.
+`:=` is expanded when read, `+=` appends to the value in effect, `?=` sets
+only what has none, and a command-line macro still wins without `override`.
 
-A static pattern, `objs: %.o: %.c`, is a rule per target: the stem matched,
-the prerequisites written out and added to the target's own, and `$*` the
-stem when its commands run. A target the pattern does not match is an error,
-as in GNU.
+#### 2.4 Chains
 
-#### 2.4 VPATH
-
-`VPATH` names directories, a colon or a blank apart; `vpath pattern dirs`
-names them for the names `pattern` matches, `vpath pattern` forgets them, and
-`vpath` alone forgets all. A prerequisite that is not a file here is looked
-for in them, the `vpath`s first, and found is its path: `$<`, `$^`, `$?` and
-`$+` name the path. A target found through them that is out of date is made
-here, under its own name, as GNU does without `GPATH`. `implicit()` looks for
-a source the same way.
-
-**Done** in `2.58-r3`, with three things the plan did not say. A rule's
-commands are all expanded before the first runs, as GNU does, so `$(wildcard)`
-in one does not see what the one before made. A directory's time on Braam
-may be 0, and `exists()` takes it as there and as old as can be, which is
-what an order-only directory wants. And `$?` has each name once, as in GNU,
-now that `$+` keeps the repeats.
+A pattern rule's prerequisite that is neither a file nor named may be made by
+another pattern rule, to a depth of ten: `prog` from `prog.o` from `prog.c`
+where only `prog.c` is there. Such a file is *intermediate*, as is anything
+`.INTERMEDIATE` names. A missing intermediate is not made when what needs it
+is newer than the intermediate's own prerequisites, and those that were made
+are removed at the end, with one `rm` line, unless `.SECONDARY` names them,
+or names nothing and so means all, or `.PRECIOUS` does.
 
 **Done when:** each feature has cases in `cases.mjs`, compared against host
-GNU make 4.4's `-n` where it is GNU's (§4); and `test/gnu.mjs` builds a C
-program with `cc` on Braam from a GNU-style makefile — pattern rules,
-`$(wildcard *.c)`, `$(patsubst)`, a conditional on `DEBUG`, `VPATH` for the
-sources, order-only for the object directory — then makes nothing, and
-remakes one object when its source moves.
+GNU make 4.4's `-n` where it is GNU's (§4); and `test/jobs.mjs` builds a
+program of several sources with `cc` on Braam under `-j 4`, the same
+program as under `-j 1`, with a failing command under `-j` waiting for the
+jobs already running before it stops, and `^C` under `-j` stopping them
+all.
 
-### Phase D — less often needed
-
-- **`-j n`**, parallel jobs: `wait_child(SYS_WAIT_ANY)`, a slot count, held
-  output per job written whole as each finishes, `^C` sent to every child.
-  `.WAIT` and `.NOTPARALLEL` start to mean something.
-- **`$(call)`, `$(eval)`, `$(value)`, `$(origin)`, `$(error)`, `$(warning)`,
-  `$(info)`.** `$(eval)` is the hardest: plain `subst()` pushes its text as
-  one more input buffer (§3.1), and `yyparse()` parses it before the next
-  line of the file — or, met while a command is expanded, `docom()` awaits
-  `yyparse()` over it before running the command.
-- **Target-specific and pattern-specific variables.**
-- **`.ONESHELL`, `.SECONDARY`, `.INTERMEDIATE`, `.SILENT:` per target.**
-- **Automatic dependencies** with `-include $(OBJS:.o=.d)`. The make side is
-  there; the rest waits on `cc` learning `-MD`, which it does not have.
-- **`--help`, and long options** where GNU has them (`--directory`,
-  `--jobs`, `--keep-going`, `--dry-run`).
-
-Not planned: `.SECONDEXPANSION`, grouped targets (`&:`), `load`, Guile, the
-jobserver protocol between separate `make` processes, and BSD make's
+Not planned: `--output-sync`, `.SECONDEXPANSION`, grouped targets (`&:`),
+`load`, Guile, the jobserver protocol between separate `make` processes —
+so a sub-make runs its own jobs one at a time — `-B`, and BSD make's
 dialect.
 
-## 3. The two mechanisms
+## 3. The mechanisms
 
 ### 3.1 A line that has to wait: `include` and `!=`
 
@@ -190,6 +157,35 @@ files and change what a shell prints. That makes two identical `$(shell)`s
 within one line or one rule the same result, where GNU runs them twice; the
 README will say so.
 
+### 3.3 Jobs: `-j`
+
+V7's `doname()` makes a target by walking its prerequisites and awaiting each
+command, so one runs at a time. Under `-j n` a target's commands are a *job*
+instead: `doname()` expands them, as `docom()` already does all of a rule's
+at once, spawns the first, marks the target running and returns. A target
+with a prerequisite running is left as not looked at, and returns too. The
+walk over the goals is then done again whenever a job's command ends, until
+nothing is running and nothing is left:
+
+```
+for (;;) {
+    walk the goals: doname() starts what it can, up to n jobs
+    if no job is running: break
+    reap one: wait_child(SYS_WAIT_ANY), then its job's next line, or its
+    target done -- its time read, done = 2, or 3 if the line failed
+}
+```
+
+A walk awaits a `stat` per target it looks at, which parks, so its stack
+goes back to nothing each time; the cost is a walk per command, which is
+small beside a command. A `.WAIT` stops the walk along that list while
+anything before it is running, and `.NOTPARALLEL` makes `n` one. A failure
+without `-k` starts nothing new, waits for the running commands, and stops; a
+`^C` is sent to every child, and each running target is removed as one is
+now. A `::` rule, and anything under `-n`, `-t` or `-q`, runs as it does
+without `-j`. The children write to make's own output as they go, which is
+GNU's default; `--output-sync` is not planned.
+
 ## 4. How each phase is checked
 
 - **Cases** in `cases.mjs`, one `.args`/`.mk`/`.expected` per behaviour.
@@ -205,11 +201,10 @@ README will say so.
   CLAUDE.md. `incmany` includes three hundred files in a row, so a parse loop
   that awaited without parking would trap there.
 
-## 5. Order inside phase C
+## 5. Order inside phase D
 
-The directives first, being all of `nextlin()`: conditionals, `define`,
-`override`, `export`. Then the text functions, which every later step's cases
-use; then `$(wildcard)` and `$(shell)`, the one new mechanism; then the small
-ones — order-only, `$+`, `.DELETE_ON_ERROR`, `MAKECMDGOALS`, `.DEFAULT_GOAL`.
-Pattern rules after, as the largest, and `VPATH` last, since it changes what a
-pattern rule's prerequisite is; `gnu.mjs` is the phase's real build.
+The functions first, since the later steps' cases use them, with `$(eval)`
+after the others, as it needs their held effects. Then target-specific
+macros, long options and `.ONESHELL`, each small; then chains, which are
+`implicit()`'s; and `-j` last, as the one that changes how `doname()` is
+driven, with `jobs.mjs` the phase's real build.
