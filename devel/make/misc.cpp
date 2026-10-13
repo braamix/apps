@@ -42,6 +42,14 @@ static int hasslash(const char *s)
     return NO;
 }
 
+// Whether a target may be the one made by default.  v7 asked this of every
+// name it met, a prerequisite of .SILENT as much as a target; POSIX asks it of
+// targets, in gram.cpp's rule().
+int maincand(const char *s)
+{
+    return s[0] != '.' || hasslash(s);
+}
+
 // NULL once the table is full, and make has stopped.
 struct nameblock *makename(const char *s)
 {
@@ -61,9 +69,6 @@ struct nameblock *makename(const char *s)
     p->modtime      = 0;
 
     firstname = p;
-    if (mainname == NULL)
-        if (s[0] != '.' || hasslash(s))
-            mainname = p;
 
     hashtab[hashloc(s)] = p;
 
@@ -266,7 +271,7 @@ void fatal(const char *s)
         diag("Make: %s.  Stop.\n", s);
     else
         diag("\nStop.\n");
-    stop(1);
+    stop(2); // POSIX: >1 is an error, 1 being -q's "not up to date"
 }
 
 void yyerror(const char *s)

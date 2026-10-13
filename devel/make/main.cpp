@@ -84,7 +84,7 @@ static Task<int> make_main(int argc, char *argv[])
 {
     struct nameblock *p;
     int i, j;
-    int descset, nfargs;
+    int descset, nfargs, errs = 0;
     TIMETYPE tjunk;
     char c;
     const char *s;
@@ -181,14 +181,14 @@ static Task<int> make_main(int argc, char *argv[])
     if (prtrflag)
         printdesc(NO);
 
-    if (srchname(".IGNORE"))
+    // With no prerequisites these name every target; with some, only those
+    // (docom()).  v7 took any mention as the first.
+    if ((p = srchname(".IGNORE")) && !hasdeps(p))
         ++ignerr;
-    if (srchname(".SILENT"))
+    if ((p = srchname(".SILENT")) && !hasdeps(p))
         silflag = 1;
     if ((p = srchname(".SUFFIXES")))
         sufflist = p->linep;
-    if (!sufflist)
-        diag("No suffix list.\n");
 
     nfargs = 0;
 
@@ -200,7 +200,7 @@ static Task<int> make_main(int argc, char *argv[])
             if (stopped)
                 co_return 1;
             ++nfargs;
-            co_await doname(p, 0, &tjunk);
+            errs += co_await doname(p, 0, &tjunk);
             if (stopped)
                 co_return 1;
             if (dbgflag)
@@ -213,7 +213,7 @@ static Task<int> make_main(int argc, char *argv[])
         if (mainname == 0)
             fatal("No arguments or description file");
         else {
-            co_await doname(mainname, 0, &tjunk);
+            errs += co_await doname(mainname, 0, &tjunk);
             if (stopped)
                 co_return 1;
             if (dbgflag)
@@ -221,7 +221,9 @@ static Task<int> make_main(int argc, char *argv[])
         }
     }
 
-    co_return 0;
+    // -k went on past a target it could not make, and POSIX says so in the
+    // status, where v7 exited 0.
+    co_return errs ? 2 : 0;
 }
 
 // ^C, caught while a command ran.  v7's was a signal handler; here await() is
@@ -244,16 +246,32 @@ Task<void> intrupt()
 
 int isprecious(char *p)
 {
+    return isnamed(".PRECIOUS", p);
+}
+
+// Whether special target `special' names p among its prerequisites.
+int isnamed(const char *special, const char *p)
+{
     struct lineblock *lp;
     struct depblock *dp;
     struct nameblock *np;
 
-    if ((np = srchname(".PRECIOUS")))
+    if (p && (np = srchname(special)))
         for (lp = np->linep; lp; lp = lp->nxtlineblock)
             for (dp = lp->depp; dp; dp = dp->nxtdepblock)
-                if (!unequal(p, dp->depname->namep))
+                if (dp->depname && !unequal(p, dp->depname->namep))
                     return YES;
 
+    return NO;
+}
+
+int hasdeps(struct nameblock *np)
+{
+    struct lineblock *lp;
+
+    for (lp = np->linep; lp; lp = lp->nxtlineblock)
+        if (lp->depp)
+            return YES;
     return NO;
 }
 

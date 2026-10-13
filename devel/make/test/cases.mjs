@@ -144,6 +144,9 @@ const SETUP = {
         if (!get(`${DIR}/libr.a`)?.includes("//"))
             die("ar wrote no long-name table");
     },
+    // No makefile at all: the built-in .c: rule makes hello from hello.c.
+    single: () => put(`${DIR}/hello.c`, "int x;\n"),
+    singlecmd: () => put(`${DIR}/hello.c`, "int x;\n"),
     interrupt: () => put(`${DIR}/src`, "", T0 + 1000),
     precious: () => put(`${DIR}/src`, "", T0 + 1000),
     longmember: () => put(`${DIR}/libl.a`, archive(

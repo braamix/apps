@@ -115,6 +115,8 @@ extern const char **linesptr;
 
 Task<void> intrupt();
 int isprecious(char *p);
+int isnamed(const char *special, const char *p);
+int hasdeps(struct nameblock *np);
 Task<int> rddescf(const char *descfile);
 void printdesc(int prntflag);
 
@@ -144,6 +146,7 @@ Task<void> touch(int force, char *name);
 // misc.cpp
 struct nameblock *srchname(const char *s);
 struct nameblock *makename(const char *s);
+int maincand(const char *s);
 char *copys(const char *s);
 char *concat(const char *a, const char *b, char *c);
 int suffix(char *a, char *b, char *p);

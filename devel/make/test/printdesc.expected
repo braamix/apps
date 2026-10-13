@@ -25,7 +25,6 @@ prog:  (MAIN NAME)
  commands:
 	ld -o prog a.o b.o
 
-No suffix list.
 cc -c a.c
 cc -c b.c
 ld -o prog a.o b.o

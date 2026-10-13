@@ -63,6 +63,12 @@ static int sepc;
 // comline : START namelist deplist shellist
 static void rule(struct depblock *deps, struct shblock *shell)
 {
+    int i;
+
+    for (i = 0; i < nlefts && mainname == NULL; ++i)
+        if (maincand(lefts[i]->namep))
+            mainname = lefts[i];
+
     while (--nlefts >= 0) {
         leftp = lefts[nlefts];
         if (leftp->septype == 0)
@@ -328,15 +334,31 @@ again:
                     *p = '\0';
                     goto endloop;
                 }
-                p[-1] = ' ';
-                while ((kc = getfin()) == '\t' || kc == ' ' || kc == '\n')
-                    if (kc == '\n')
-                        ++yylineno;
-
-                if (kc != EOF)
+                if (incom) {
+                    // POSIX: a command keeps its backslash-newline for the
+                    // shell, and the next line loses the tab it starts with.
+                    if ((kc = getfin()) != '\t' && kc != EOF)
+                        --fin;
+                    kc = '\n';
                     break;
-                // fall through
+                }
+                // Elsewhere the backslash-newline and the blanks either side
+                // of it are one space.  v7 went on past empty lines too.
+                for (--p; p > yytext && (p[-1] == ' ' || p[-1] == '\t'); --p)
+                    ;
+                while ((kc = getfin()) == '\t' || kc == ' ')
+                    ;
+                if (kc != EOF)
+                    --fin;
+                kc = ' ';
+                break;
+
             case EOF:
+                // A last line with no newline is still a line; v7 dropped it.
+                if (p != yytext) {
+                    *p = '\0';
+                    goto endloop;
+                }
                 *p = '\0';
                 return 0;
             }

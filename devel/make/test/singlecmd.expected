@@ -1,0 +1,2 @@
+cc  -c hello.c
+cc -o hello hello.o

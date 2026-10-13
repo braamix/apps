@@ -16,15 +16,20 @@ static Task<int> docom1(char *comstring, int nohalt);
 
 // Find a suffix rule that makes p.  Returns the source file's name block and
 // sets *rulep to the rule's, or NULL if there is none; prefix and sourcename are
-// the caller's buffers.
+// the caller's buffers, 100 bytes each.  `single' allows a single-suffix rule.
 static Task<struct nameblock *> implicit(struct nameblock *p, char *prefix, char *sourcename,
-                                         struct nameblock **rulep)
+                                         struct nameblock **rulep, int single)
 {
     struct lineblock *lp, *lp1;
     struct depblock *suffp, *suffp1;
     struct nameblock *p1, *p2;
     char *pnamep, *p1namep;
     char temp[100], concsuff[20];
+
+    // The buffers are 100 bytes, and v7 did not look: a longer name has no
+    // inference rule rather than an overrun.
+    if (strlen(p->namep) + sizeof(concsuff) >= sizeof(temp))
+        co_return NULL;
 
     for (lp = sufflist; lp; lp = lp->nxtlineblock)
         for (suffp = lp->depp; suffp; suffp = suffp->nxtdepblock) {
@@ -42,6 +47,28 @@ static Task<struct nameblock *> implicit(struct nameblock *p, char *prefix, char
                             co_return p2;
                         }
                     }
+            }
+        }
+
+    // POSIX's single-suffix rules: `.c:' makes a target from the target's name
+    // with .c after it, as hello from hello.c.  Only a suffix with a rule of
+    // its own counts; .SUFFIXES names the rest.  Only for a target with no
+    // commands of its own, as POSIX has it.
+    if (!single)
+        co_return NULL;
+    for (lp = sufflist; lp; lp = lp->nxtlineblock)
+        for (suffp = lp->depp; suffp; suffp = suffp->nxtdepblock) {
+            p1 = suffp->depname;
+            if (p1->linep == 0 || strlen(p->namep) + strlen(p1->namep) >= sizeof(temp))
+                continue;
+            concat(p->namep, "*", temp);
+            co_await srchdir(temp, NO, (struct depblock *)NULL);
+            if (stopped)
+                co_return NULL;
+            if ((p2 = srchname(concat(p->namep, p1->namep, sourcename)))) {
+                strcpy(prefix, p->namep);
+                *rulep = p1;
+                co_return p2;
             }
         }
     co_return NULL;
@@ -205,7 +232,8 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
     // Look for implicit dependents, using suffix rules
     p1 = NULL;
     nb = ALLOC(names);
-    if ((p2 = co_await implicit(p, nb->prefix, nb->sourcename, &p1)) != NULL) {
+    if ((p2 = co_await implicit(p, nb->prefix, nb->sourcename, &p1,
+                                explcom == 0 && p->septype != SOMEDEPS)) != NULL) {
         errstat += co_await doname(p2, reclevel + 1, &td);
         if (stopped)
             co_return 1;
@@ -237,7 +265,7 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
         co_return 1;
 
     if (questflag && reclevel == 0) {
-        stop(ndocoms > 0 ? 255 : 0); // v7's exit(-1)
+        stop(ndocoms > 0 ? 1 : 0); // v7's exit(-1); POSIX's 1
         co_return 1;
     }
 
@@ -253,8 +281,8 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
 // waits: docom1() is entered only when a command is to be run.
 Task<int> docom(struct shblock *q)
 {
-    char *s;
-    int ign, nopr;
+    char *s, *at;
+    int ign, nopr, sil;
     // At file scope, not in a frame: OUTMAX would be past a coroutine's 512
     // bytes, and only one docom() is ever live.
     static char string[OUTMAX];
@@ -263,9 +291,11 @@ Task<int> docom(struct shblock *q)
     if (questflag)
         co_return NO;
 
+    at  = varptr("@")->varval;
+    sil = silflag || isnamed(".SILENT", at);
     if (touchflag) {
-        s = varptr("@")->varval;
-        if (!silflag)
+        s = at;
+        if (!sil)
             mprintf("touch(%s)\n", s);
         if (!noexflag)
             co_await touch(YES, s);
@@ -277,7 +307,7 @@ Task<int> docom(struct shblock *q)
             if (stopped)
                 co_return YES;
 
-            ign  = ignerr;
+            ign  = ignerr || isnamed(".IGNORE", at);
             nopr = NO;
             for (s = string; *s == '-' || *s == '@'; ++s)
                 if (*s == '-')
@@ -287,7 +317,7 @@ Task<int> docom(struct shblock *q)
 
             if (s[0] == '\0')
                 continue;
-            if (!silflag && (!nopr || noexflag))
+            if (!sil && (!nopr || noexflag))
                 mprintf("%s%s\n", (noexflag ? "" : prompt), s);
             if (noexflag)
                 continue;

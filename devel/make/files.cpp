@@ -8,25 +8,28 @@
 
 #include "defs.h"
 
-// DEFAULT RULES.  Trimmed to the toolchain Braam has: cc and as.  v7's yacc,
-// lex, f77, Ratfor and EFL rules name nothing that is here.  README.md, "The
-// default rules".
+// DEFAULT RULES.  POSIX's, for the toolchain Braam has: cc and as.  v7's .out
+// rules are POSIX's single-suffix ones, and its yacc, lex, f77, Ratfor and EFL
+// rules name nothing that is here.  README.md, "The default rules".
 // clang-format off
 const char *builtin[] = {
-    ".SUFFIXES : .out .o .c .s",
+    ".SUFFIXES : .o .c .s .a",
     "CC=cc",
     "AS=as",
     "CFLAGS=",
-    "LOADLIBES=",
+    "LDFLAGS=",
+
+    ".c :",
+    "\t$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $<",
+
+    ".s :",
+    "\t$(CC) $(LDFLAGS) -o $@ $<",
 
     ".c.o :",
     "\t$(CC) $(CFLAGS) -c $<",
 
     ".s.o :",
     "\t$(AS) -o $@ $<",
-
-    ".s.out .c.out .o.out :",
-    "\t$(CC) $(CFLAGS) $< $(LOADLIBES) -o $@",
 
     0
 };
