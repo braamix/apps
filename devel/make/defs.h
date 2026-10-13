@@ -139,12 +139,14 @@ Task<int> yyparse(void);
 int pushin(char *buf, int len);
 Task<void> includef(char *names, int opt);
 int yylex(void);
+int yyrelex(void);
 
 // files.cpp
 extern const char *builtin[];
 Task<TIMETYPE> exists(char *filename);
 Task<TIMETYPE> prestime(void);
 Task<struct depblock *> srchdir(char *pat, int mkchain, struct depblock *nextdbl);
+Task<char *> wildcard(char *pats);
 
 // doname.cpp
 Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval);
@@ -156,8 +158,12 @@ Task<int> dosys(char *comstring, int nohalt);
 Task<void> touch(int force, char *name);
 void childenv(const char *makeflags);
 Args *mkenv(void);
+Task<char *> shellout(char *cmd);
 
 // funcs.cpp
+extern int substneed;
+Task<void> perform(void);
+void forget(void);
 int isfunc(const char *name);
 char *callfunc(int fn, char *args, char *b, char *bend);
 

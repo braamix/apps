@@ -83,6 +83,8 @@ inference rule set them.
 | `define`/`endef` | GNU | With any assignment operator; a value with lines is a command per line in a rule |
 | `override`, `export`, `unexport` | GNU | A child gets the environment's and the command line's macros, and the exported ones, at their values now |
 | Text functions | GNU | `subst patsubst strip findstring filter filter-out sort word wordlist words firstword lastword dir notdir suffix basename addsuffix addprefix join if or and foreach` |
+| `$(wildcard)`, `$(shell)` | GNU | Sorted, a leading `.` matched only by one; two identical calls in one line or one rule's commands are run once |
+| A rule's commands are all expanded before the first runs | GNU | So `$(wildcard)` in one does not see what the one before made |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a
@@ -98,6 +100,16 @@ include. The await is a file read, which parks every time, so the stack is
 back to nothing at each one however many there are — a case includes three
 hundred. An await per token would not park, and would cost native stack per
 token.
+
+**`$(wildcard)` and `$(shell)`** wait, and `subst()` cannot: it is plain
+code, and an await in it that did not park would cost native stack per macro
+reference. So each is answered from a cache, and a call that is not there is
+recorded instead, and the expansion marked as needing it. The coroutine
+above — `yyparse()` for a makefile line, `docom()` for a rule's commands,
+`runset()` for a `!=` — runs what was recorded and expands the same text
+again, which now finds it; nothing of a line is done until it expands
+whole. The cache is emptied after each command, which may have changed what
+either would say.
 
 ## What the port changed
 

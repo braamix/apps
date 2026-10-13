@@ -1,0 +1,11 @@
+echo t1
+t1
+echo t2
+t2
+echo [braam] [one two] [taken] [in define] "[$E]"
+[braam] [one two] [taken] [in define] [exported]
+echo [a b] []
+[a b] []
+echo hi > made
+echo []
+[]

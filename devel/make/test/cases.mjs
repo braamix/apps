@@ -6,7 +6,7 @@
 // rest add.  --bless writes what came out as the expectation.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync,
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync,
          writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -184,6 +184,10 @@ const SETUP = {
         put(`${DIR}/limits.mk`, `T = ${t.join(" ")}\nall: $(T)\n\techo $?\n` +
             `\techo $(words $(foreach t,$(T),$(t).o $(t).c))\n$(T):\n`);
     },
+    wildcard: () => {
+        for (const f of ["z.x", "a.x", ".hidden"])
+            put(`${DIR}/sub/${f}`, "");
+    },
     longname: () => put(`${DIR}/${"x".repeat(200)}.c`, "", T0),
     // Two -C, the first with its directory attached.
     chdir: () => put(`${DIR}/cdir/deeper/makefile`, "all:\n\tpwd\n"),
@@ -202,6 +206,7 @@ let job = 0;
 
 // What a case is checked for beyond its output, by name.
 const CHECK = {
+    shellfn: () => get(`${DIR}/made`) === "hi\n" || "made was not written",
     shell: () => get(`${DIR}/shout`) === "through the shell\n" || "shout was not written",
     touchrun: () => get(`${DIR}/prog`) !== undefined || "prog was not created",
     interrupt: () => get(`${DIR}/keep`) === undefined || "keep was not removed",
@@ -216,7 +221,7 @@ const GMAKE_CASES = new Set([
     "env", "envflag", "ignoresome", "include", "incdeep", "incmany", "lastline", "limits",
     "longname", "macros", "dirfile", "special", "shellassign",
     "phony", "silent", "silentsome", "substref", "suffix",
-    "cond", "define", "export", "exportall", "funcs",
+    "cond", "define", "export", "exportall", "funcs", "shellfn", "wildcard",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])
@@ -236,8 +241,9 @@ function gmake_check(name, args, env) {
     const host = mkdtempSync(join(tmpdir(), "make-gmake-"));
     try {
         for (const [path, bytes] of H.store.files)
-            if (path.startsWith(DIR + "/") && !path.slice(DIR.length + 1).includes("/")) {
+            if (path.startsWith(DIR + "/")) {
                 const f = join(host, path.slice(DIR.length + 1));
+                mkdirSync(dirname(f), { recursive: true });
                 writeFileSync(f, bytes);
                 const t = (H.store.mtimes.get(path) ?? T0) / 1000;
                 utimesSync(f, t, t);

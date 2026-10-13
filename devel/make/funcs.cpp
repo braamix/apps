@@ -31,6 +31,8 @@ enum {
     F_OR,
     F_AND,
     F_FOREACH,
+    F_WILDCARD,
+    F_SHELL,
 };
 
 // Each function, the fewest arguments it takes and the most, the last taking
@@ -44,9 +46,65 @@ static const struct func {
     { "wordlist", 3, 3 },  { "words", 1, 1 },     { "firstword", 1, 1 }, { "lastword", 1, 1 },
     { "dir", 1, 1 },       { "notdir", 1, 1 },    { "suffix", 1, 1 },    { "basename", 1, 1 },
     { "addsuffix", 2, 2 }, { "addprefix", 2, 2 }, { "join", 2, 2 },      { "if", 2, 3 },
-    { "or", 1, 1000 },     { "and", 1, 1000 },    { "foreach", 3, 3 },
+    { "or", 1, 1000 },     { "and", 1, 1000 },    { "foreach", 3, 3 },   { "wildcard", 1, 1 },
+    { "shell", 1, 1 },
 };
 #define NFUNCS (int)(sizeof(funcs) / sizeof(funcs[0]))
+
+// $(wildcard) and $(shell) wait, and subst() cannot: each is answered from
+// here, and one that is not is recorded and `substneed' set, for the coroutine
+// above to perform() and expand again.  Emptied after each command, which may
+// have changed what either would say.  Plan.md, section 3.2.
+struct req {
+    struct req *next;
+    int fn;
+    char *arg;
+    char *result; // NULL until performed
+};
+static struct req *reqs;
+int substneed = NO;
+
+static void ask(int fn, char *arg, char **bp, char *bend)
+{
+    struct req *r;
+
+    for (r = reqs; r; r = r->next)
+        if (r->fn == fn && !unequal(r->arg, arg))
+            break;
+    if (r == NULL) {
+        r       = ALLOC(req);
+        r->next = reqs;
+        r->fn   = fn;
+        r->arg  = copys(arg);
+        reqs    = r;
+    }
+    if (r->result == NULL)
+        substneed = YES;
+    else
+        putn(bp, bend, r->result, strlen(r->result));
+}
+
+Task<void> perform(void)
+{
+    struct req *r;
+
+    substneed = NO;
+    for (r = reqs; r && !stopped; r = r->next)
+        if (r->result == NULL)
+            r->result = r->fn == F_SHELL ? co_await shellout(r->arg) : co_await wildcard(r->arg);
+}
+
+void forget(void)
+{
+    struct req *r;
+
+    while ((r = reqs) != NULL) {
+        reqs = r->next;
+        free(r->arg);
+        free(r->result);
+        free(r);
+    }
+}
 
 int isfunc(const char *name)
 {
@@ -416,6 +474,11 @@ char *callfunc(int fn, char *args, char *b, char *bend)
         free(nameb);
         break;
     }
+
+    case F_WILDCARD:
+    case F_SHELL:
+        ask(fn, x[0], &b, bend);
+        break;
     }
     *b = '\0';
 out:

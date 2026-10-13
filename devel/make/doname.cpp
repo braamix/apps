@@ -365,36 +365,69 @@ stemmed:
     co_return errstat;
 }
 
+// The commands of a rule, every one expanded before the first is run, as GNU
+// does, and NULL after them.  A $(shell) or $(wildcard) is performed and the
+// whole expanded again.
+static char **expcoms(struct shblock *q0, int **plusp)
+{
+    struct shblock *q;
+    char **v;
+    int n, i;
+
+    for (n = 0, q = q0; q; q = q->nxtshblock)
+        ++n;
+    v      = (char **)ckalloc((n + 1) * sizeof(char *));
+    *plusp = (int *)ckalloc((n + 1) * sizeof(int));
+    for (i = 0, q = q0; q && !stopped; q = q->nxtshblock, ++i) {
+        v[i] = substa(q->shbp);
+        // A + line, or one naming $(MAKE), runs under -n too: that is how
+        // a recursive make passes -n down rather than being skipped.
+        (*plusp)[i] = strstr(q->shbp, "$(MAKE)") || strstr(q->shbp, "${MAKE}");
+    }
+    return v;
+}
+
+static void freecoms(char **v, int *plus)
+{
+    int i;
+
+    for (i = 0; v[i]; ++i)
+        free(v[i]);
+    free(v);
+    free(plus);
+}
+
 // The commands, each printed and run.  -n prints and runs none, so nothing
 // waits: docom1() is entered only when a command is to be run.
 Task<int> docom(struct shblock *q)
 {
-    char *s, *at, *line, *next;
-    int ign, nopr, sil, plus, plus0;
-    // The expanded line, as long as it is: v7's was OUTMAX bytes.  Kept at file
-    // scope until the next, since only one docom() is ever live.
-    static char *string;
+    char *s, *at, *line, *next, **coms;
+    int ign, nopr, sil, plus, *plus0, r, i;
 
     ++ndocoms;
 
     at  = varptr("@")->varval;
     sil = silflag || isnamed(".SILENT", at);
 
+    // Each expanded line as long as it is: v7's were OUTMAX bytes.
+    for (;;) {
+        coms = expcoms(q, &plus0);
+        if (stopped || !substneed)
+            break;
+        freecoms(coms, plus0);
+        co_await perform(); // $(shell) or $(wildcard): run, and expand again
+    }
+    if (stopped) {
+        freecoms(coms, plus0);
+        co_return YES;
+    }
+
     // -t and -q run none of the commands but the + ones, as -n does; -t then
     // touches the target.
-    for (; q; q = q->nxtshblock) {
-        free(string);
-        string = substa(q->shbp);
-        if (stopped)
-            co_return YES;
-
-        // A + line, or one naming $(MAKE), runs under -n too: that is how
-        // a recursive make passes -n down rather than being skipped.
-        plus0 = strstr(q->shbp, "$(MAKE)") || strstr(q->shbp, "${MAKE}");
-
+    for (i = 0; coms[i]; ++i) {
         // A value with lines in it, as a define has, is a command per line,
         // each with its own prefixes.  GNU's canned recipes.
-        for (line = string; line != NULL; line = next) {
+        for (line = coms[i]; line != NULL; line = next) {
             for (next = line; *next && (*next != '\n' || (next > line && next[-1] == '\\'));
                  ++next)
                 ;
@@ -405,7 +438,7 @@ Task<int> docom(struct shblock *q)
 
             ign  = ignerr || isnamed(".IGNORE", at);
             nopr = NO;
-            plus = plus0;
+            plus = plus0[i];
             for (s = line; *s == '-' || *s == '@' || *s == '+' || *s == ' ' || *s == '\t'; ++s)
                 if (*s == '-')
                     ign = YES;
@@ -422,16 +455,22 @@ Task<int> docom(struct shblock *q)
             if (noexflag && !plus)
                 continue;
 
-            if (co_await docom1(s, ign) && !ign) {
+            r = co_await docom1(s, ign);
+            forget(); // the command may have changed what $(shell) would say
+            if (r && !ign) {
+                freecoms(coms, plus0);
                 if (keepgoing)
                     co_return YES;
-                else
-                    fatal((char *)NULL);
-            }
-            if (stopped)
+                fatal((char *)NULL);
                 co_return YES;
+            }
+            if (stopped) {
+                freecoms(coms, plus0);
+                co_return YES;
+            }
         }
     }
+    freecoms(coms, plus0);
 
     if (touchflag && !questflag) {
         if (!sil)

@@ -477,6 +477,10 @@ void assign(char *v, char *s, int op)
         return;
     if (op == '+' && p->varval != 0) {
         old = p->simple ? substnow(s) : copys(s);
+        if (substneed) { // to be done again, once what it waits for is there
+            free(old);
+            return;
+        }
         buf = (char *)ckalloc(strlen(p->varval) + 1 + strlen(old) + 1);
         concat(p->varval, " ", buf);
         strcat(buf, old);
@@ -492,7 +496,9 @@ void assign(char *v, char *s, int op)
     }
     if (op == ':') {
         buf = substnow(s);
-        if (setvar(v, buf))
+        if (substneed)
+            free(buf);
+        else if (setvar(v, buf))
             p->simple = YES;
         else
             free(buf);
@@ -500,6 +506,10 @@ void assign(char *v, char *s, int op)
     }
     if (op == 'T') {
         old = substnow(s);
+        if (substneed) {
+            free(old);
+            return;
+        }
         buf = (char *)ckalloc(2 * strlen(old) + 1);
         for (char *t = old, *d = buf; (*d = *t) != '\0'; ++t, ++d)
             if (*t == '$')

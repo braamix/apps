@@ -39,6 +39,7 @@ enum {
     GREATER,
     INCLUDE,  // include, -include or sinclude: incnames names the files
     SHELLDEF, // a != line, which eqsign() left for runset()
+    NEED,     // a line that waits on $(shell) or $(wildcard), to be done again
 };
 
 // What an INCLUDE line named, expanded, and whether a missing file is fine.
@@ -53,7 +54,7 @@ static union {
 } yylval;
 
 static int retsh(char *q);
-static int nextlin(void);
+static int nextlin(int redo);
 
 struct depblock *pp;
 static struct shblock *prevshp;
@@ -143,6 +144,11 @@ Task<int> yyparse(void)
             tok = yylex();
             continue;
 
+        case NEED:
+            co_await perform();
+            tok = yyrelex();
+            continue;
+
         case START:
             tok = yylex();
             if (tok != NAME)
@@ -194,7 +200,13 @@ Task<int> yyparse(void)
 
         // shellist
         shell = 0;
-        while (tok == SHELLINE) {
+        while (tok == SHELLINE || tok == NEED) {
+            // a conditional among the commands that waits
+            if (tok == NEED) {
+                co_await perform();
+                tok = yyrelex();
+                continue;
+            }
             if (shell == 0)
                 shell = yylval.yshblock;
             else
@@ -391,33 +403,36 @@ static int conddef(char *t)
 }
 
 // The test after ifeq, ifneq, ifdef or ifndef: 1 or 0, or -1 if it is none.
-static int condtest(char *t, int *isp)
+// *isp says whether t was one; with eval NO that is all it does.
+static int condtest(char *t, int *isp, int eval)
 {
-    char *a;
-    int r;
+    static const char *const words[] = { "ifeq", "ifneq", "ifdef", "ifndef" };
+    char *a = NULL;
+    int i, r;
 
-    *isp = YES;
-    if ((a = isword(t, "ifeq")) != NULL)
-        return condeq(a);
-    if ((a = isword(t, "ifneq")) != NULL)
-        return (r = condeq(a)) < 0 ? r : !r;
-    if ((a = isword(t, "ifdef")) != NULL)
-        return conddef(a);
-    if ((a = isword(t, "ifndef")) != NULL)
-        return !conddef(a);
-    *isp = NO;
-    return -1;
+    for (i = 0; i < 4 && (a = isword(t, words[i])) == NULL; ++i)
+        ;
+    *isp = i < 4;
+    if (i == 4 || !eval)
+        return 0;
+    if (i < 2)
+        return (r = condeq(a)) < 0 ? r : r == (i == 0);
+    return conddef(a) == (i == 2);
 }
 
-// A conditional line, taken: YES if t was one.  GNU's, with its else-if.
+// A conditional line, taken: YES if t was one.  GNU's, with its else-if.  In
+// a branch not taken nothing is expanded, and only the nesting counts.
 static int condline(char *t)
 {
     char *a;
     int is, r, outer;
+    struct cond *top;
 
-    r = condtest(t, &is);
+    outer = ncond == 0 || conds[ncond - 1].ok;
+    r     = condtest(t, &is, outer);
+    if (substneed)
+        return YES;
     if (is) {
-        outer = ncond == 0 || conds[ncond - 1].ok;
         if (outer && r < 0) {
             yyerror("invalid syntax in conditional");
             return YES;
@@ -434,21 +449,21 @@ static int condline(char *t)
             yyerror("extraneous `else'");
             return YES;
         }
+        top = &conds[ncond - 1];
         if (*a == '\0') {
-            conds[ncond - 1].ok   = !conds[ncond - 1].seen;
-            conds[ncond - 1].seen = YES;
+            top->ok   = !top->seen;
+            top->seen = YES;
             return YES;
         }
-        if (conds[ncond - 1].seen) {
-            conds[ncond - 1].ok = NO;
+        r = condtest(a, &is, !top->seen);
+        if (substneed)
             return YES;
-        }
-        r = condtest(a, &is);
         if (!is || r < 0) {
             yyerror("invalid syntax in conditional");
             return YES;
         }
-        conds[ncond - 1].ok = conds[ncond - 1].seen = r;
+        top->ok = top->seen ? NO : r;
+        top->seen |= r;
         return YES;
     }
     if ((a = isword(t, "endif")) != NULL) {
@@ -486,7 +501,9 @@ static void startdef(char *t, int over, int exp)
         defop = o[0];
     *e = '\0';
     free(defname);
-    defname   = substa(t);
+    defname = substa(t);
+    if (substneed)
+        return;
     deflen    = 0;
     defover   = over;
     defexport = exp;
@@ -508,6 +525,10 @@ static int defline(char *t)
             overriding = defover;
             assign(defname, defbody, defop);
             overriding = NO;
+            if (substneed) { // the endef again, once it can be done
+                indef = 1;
+                return YES;
+            }
             if (defexport)
                 varptr(defname)->exported = 1;
             return YES;
@@ -539,7 +560,8 @@ static void markexp(char *t, int how)
             ;
         if (*e)
             *e++ = '\0';
-        varptr(w)->exported = how;
+        if (!substneed)
+            varptr(w)->exported = how;
     }
     free(names);
 }
@@ -580,7 +602,8 @@ static char *directive(char *t)
             overriding = NO;
             while (*n == ' ')
                 ++n;
-            varptr(n)->exported = 1;
+            if (!substneed)
+                varptr(n)->exported = 1;
             return a;
         }
         overriding = NO;
@@ -609,13 +632,13 @@ int yylex(void)
         return 0;
 
     if (zznextc == 0)
-        return nextlin();
+        return nextlin(NO);
 
     while (isspace((unsigned char)*zznextc))
         ++zznextc;
 
     if (*zznextc == '\0')
-        return nextlin();
+        return nextlin(NO);
 
     if (*zznextc == ':') {
         if (*++zznextc == ':') {
@@ -674,7 +697,17 @@ static int retsh(char *q)
     return SHELLINE;
 }
 
-static int nextlin(void)
+// The last line, as it was read, for nextlin() to do again: one that waited
+// on $(shell) or $(wildcard) had nothing of it done.  Plan.md, section 3.2.
+static char *linecopy;
+static int linecap;
+
+int yyrelex(void)
+{
+    return nextlin(YES);
+}
+
+static int nextlin(int redo)
 {
     char *text;
     char c;
@@ -683,6 +716,12 @@ static int nextlin(void)
     char lastch, *lastchp;
     int incom;
     int kc;
+
+    if (redo) {
+        zznextc = 0;
+        strcpy(yytext, linecopy);
+        goto again1;
+    }
 
 again:
 
@@ -766,16 +805,22 @@ again:
     }
 
 endloop:
+    while ((int)strlen(yytext) >= linecap)
+        linecopy = (char *)growbuf(linecopy, &linecap, 1);
+    strcpy(linecopy, yytext);
+again1:
     text = yytext;
 
     if (indef) {
         if (defline(text))
-            return shellpend ? SHELLDEF : MACRODEF;
+            return substneed ? NEED : shellpend ? SHELLDEF : MACRODEF;
         goto again;
     }
     if (text[0] != '\t' && condline(text)) {
         if (stopped)
             return 0;
+        if (substneed)
+            return NEED;
         goto again;
     }
     if (ncond > 0 && !conds[ncond - 1].ok)
@@ -784,10 +829,13 @@ endloop:
     if ((c = text[0]) == '\t')
         return retsh(text);
 
-    if ((p = directive(text)) == NULL)
-        goto again;
+    p = directive(text);
     if (stopped)
         return 0;
+    if (substneed)
+        return NEED;
+    if (p == NULL)
+        goto again;
     if (p != text)
         return shellpend ? SHELLDEF : MACRODEF;
 
@@ -798,7 +846,7 @@ endloop:
                 break;
             else if (*p++ == '=') {
                 eqsign(text);
-                return shellpend ? SHELLDEF : MACRODEF;
+                return substneed ? NEED : shellpend ? SHELLDEF : MACRODEF;
             }
     }
 
@@ -807,7 +855,7 @@ endloop:
     if ((p = isinclude(text, &incopt)) != NULL) {
         free(incnames);
         incnames = substa(p);
-        return stopped ? 0 : INCLUDE;
+        return stopped ? 0 : substneed ? NEED : INCLUDE;
     }
 
     // substitute for macros on dependency line up to the semicolon if any
@@ -822,6 +870,8 @@ endloop:
     expline = substa(text);
     if (stopped)
         return 0;
+    if (substneed)
+        return NEED;
 
     // and the rest, from the semicolon on, as it was
     if (lastch) {

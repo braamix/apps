@@ -1,0 +1,4 @@
+echo [a.c b.c x.c] [a.c sub/a.x sub/z.x] []
+[a.c b.c x.c] [a.c sub/a.x sub/z.x] []
+echo [a.o b.o x.o] [sub/.hidden] [sub/a.x sub/z.x]
+[a.o b.o x.o] [sub/.hidden] [sub/a.x sub/z.x]

@@ -122,7 +122,12 @@ Args *mkenv(void)
 // three streams and nothing else, so there is nothing for v7's doclose() to do.
 static Task<int> run(Span<const Str> argv)
 {
-    Result<u32> r = co_await spawn(Args{ argv }, ChildIo{}, mkenv());
+    Args *env;
+    Result<u32> r = Err(Error::Io);
+
+    while ((env = mkenv()), substneed)
+        co_await perform();
+    r = co_await spawn(Args{ argv }, ChildIo{}, env);
 
     if (r.is_err()) {
         if (r.error() == Error::NotFound)
@@ -210,37 +215,35 @@ static Task<int> doexec(char *str)
     co_return status;
 }
 
-// The `!=' eqsign() left: the command expanded and run by the shell, and what
-// it wrote, its newlines spaces and a last one gone, the macro's value.  Its
-// status is not looked at, as POSIX has it.
-Task<void> runset(void)
+// What cmd wrote, run by the shell: its newlines spaces and a last one gone.
+// Its status is not looked at, as POSIX has it for != and GNU for $(shell).
+Task<char *> shellout(char *cmd)
 {
-    char *cmd, *out = NULL, *p;
+    char *out = NULL, *p;
     size_t n           = 0;
+    Args *env;
     Result<Piped> pipe = Err(Error::Io);
     Result<u32> r      = Err(Error::Io);
 
-    shellpend = NO;
-    cmd       = substnow(shellcmd);
-    if (stopped)
-        goto done;
     co_await flushout();
-    pipe = co_await make_pipe();
+    // Not waited for: an exported macro may name the very $(shell) being run.
+    env       = mkenv();
+    substneed = NO;
+    pipe      = co_await make_pipe();
     if (pipe.is_err()) {
         fatal("Cannot make a pipe");
-        goto done;
+        co_return copys("");
     }
     {
         Str argv[3] = { SHELLCOM, "-c", Str(cmd, strlen(cmd)) };
         r           = co_await spawn(Args{ Span<const Str>(argv, 3) },
-                                     ChildIo{ SYS_STDIN, (u32)pipe.value().w, SYS_STDERR },
-                                     mkenv());
+                                     ChildIo{ SYS_STDIN, (u32)pipe.value().w, SYS_STDERR }, env);
     }
     if (r.is_err()) {
         co_await close_fd(pipe.value().r);
         co_await close_fd(pipe.value().w);
         fatal("Couldn't load Shell");
-        goto done;
+        co_return copys("");
     }
     for (;;) {
         Result<String> c = co_await read_chunk(pipe.value().r);
@@ -260,12 +263,35 @@ Task<void> runset(void)
     for (p = out; *p; ++p)
         if (*p == '\n')
             *p = ' ';
-    overriding = shellover;
-    if (!setvar(shellname, out))
-        free(out);
-    overriding = NO;
-done:
+    co_return out;
+}
+
+// The `!=' eqsign() left: the command expanded and run by the shell, and what
+// it wrote the macro's value.
+Task<void> runset(void)
+{
+    char *cmd, *out, *name = shellname;
+    int over = shellover;
+
+    shellpend = NO;
+    shellname = NULL;
+    for (;;) {
+        cmd = substnow(shellcmd);
+        if (stopped || !substneed)
+            break;
+        free(cmd);
+        co_await perform();
+    }
+    if (!stopped) {
+        out = co_await shellout(cmd);
+        forget(); // what the command did may change what the rest would say
+        overriding = over;
+        if (!setvar(name, out))
+            free(out);
+        overriding = NO;
+    }
     free(cmd);
+    free(name);
 }
 
 // v7 read a byte and wrote it back to move the time.  The store has a call for

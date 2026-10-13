@@ -162,6 +162,79 @@ Task<struct depblock *> srchdir(char *pat, int mkchain, struct depblock *nextdbl
     co_return thisdbl;
 }
 
+static int cmpname(const void *a, const void *b)
+{
+    return strcmp(*(char *const *)a, *(char *const *)b);
+}
+
+// $(wildcard pats): the names each pattern matches, sorted, as GNU has it.  A
+// pattern is matched in its own directory, and a `.' at the start of a name is
+// matched only by one in the pattern.  A name with no pattern in it is there
+// if it is a file.
+Task<char *> wildcard(char *pats0)
+{
+    char *pats = copys(pats0), *out = copys(""), *w, *e, *slash, *dir, *fp, *t, **v;
+    int n, cap, i, last;
+    DIR *d;
+    struct dirent *dp;
+    size_t len = 0, need;
+
+    for (w = pats;; w = e) {
+        while (*w == ' ' || *w == '\t' || *w == '\n')
+            ++w;
+        if (*w == '\0')
+            break;
+        for (e = w; *e && *e != ' ' && *e != '\t' && *e != '\n'; ++e)
+            ;
+        last = *e == '\0';
+        *e   = '\0';
+        v    = NULL;
+        n = cap = 0;
+        if (!strpbrk(w, "*?[")) {
+            if ((co_await stat_of(Str(w, strlen(w)))).is_ok()) {
+                v    = (char **)ckalloc(sizeof(char *));
+                v[n++] = copys(w);
+            }
+        } else {
+            slash = strrchr(w, '/');
+            fp    = slash ? slash + 1 : w;
+            dir   = slash ? (slash == w ? copys("/") : (char *)ckalloc(slash - w + 1)) : copys(".");
+            if (slash && slash != w)
+                memcpy(dir, w, slash - w);
+            if ((d = co_await b_opendir(dir)) != NULL) {
+                while ((dp = b_readdir(d)) != NULL) {
+                    if ((dp->d_name[0] == '.' && fp[0] != '.') || !amatch(dp->d_name, fp))
+                        continue;
+                    if (n >= cap)
+                        v = (char **)growbuf(v, &cap, sizeof(char *));
+                    t = (char *)ckalloc((slash ? slash + 1 - w : 0) + strlen(dp->d_name) + 1);
+                    memcpy(t, w, slash ? slash + 1 - w : 0);
+                    strcat(t, dp->d_name);
+                    v[n++] = t;
+                }
+                b_closedir(d);
+            }
+            free(dir);
+            qsort(v, n, sizeof(char *), cmpname);
+        }
+        for (i = 0; i < n; ++i) {
+            need = len + strlen(v[i]) + 2;
+            out  = (char *)realloc(out, need);
+            if (len)
+                out[len++] = ' ';
+            strcpy(out + len, v[i]);
+            len += strlen(v[i]);
+            free(v[i]);
+        }
+        free(v);
+        if (last)
+            break;
+        ++e;
+    }
+    free(pats);
+    co_return out;
+}
+
 // stolen from glob through find.  v7 recursed once per matched character;
 // iterating instead keeps the depth to the number of `*'s in the pattern.
 static int amatch(char *s, char *p)

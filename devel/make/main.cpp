@@ -192,8 +192,9 @@ static void readmakeflags(void)
         if (strchr(w, '=')) {
             addmacro(w);
             inarglist = 1;
-            if (eqsign(d = copys(w)))
+            if (eqsign(d = copys(w)) && !substneed)
                 varptr(d)->exported = 1;
+            substneed = NO; // a $(shell) in MAKEFLAGS is not waited for
             inarglist = 0;
         } else
             for (d = w + (*w == '-'); *d; ++d)
@@ -245,7 +246,7 @@ static Task<int> make_main(int argc, char *argv[])
     int i, j;
     int nfargs, ndescf = 0, errs = 0;
     TIMETYPE tjunk;
-    char c;
+    char c, *d;
     const char *s;
     static char onechar[2] = "X";
     static char *descf[NARGS];
@@ -260,8 +261,15 @@ static Task<int> make_main(int argc, char *argv[])
     for (i = 1; i < argc; ++i)
         if (argv[i] != 0 && argv[i][0] != '-' && strchr(argv[i], '=')) {
             addmacro(argv[i]);
-            if (eqsign(argv[i])) {
-                varptr(argv[i])->exported = 1; // a child has it, as in GNU
+            for (;;) {
+                d = copys(argv[i]);
+                if (!(j = eqsign(d)) || !substneed)
+                    break;
+                free(d);
+                co_await perform();
+            }
+            if (j) {
+                varptr(d)->exported = 1; // a child has it, as in GNU
                 argv[i] = 0;
             }
             if (shellpend)
