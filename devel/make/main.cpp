@@ -279,6 +279,24 @@ static Task<int> make_main(int argc, char *argv[])
                     }
                     descf[ndescf++] = argv[i + 1];
                     argv[i + 1]     = 0;
+                } else if (c == 'C') {
+                    // -C dir, or -Cdir: there before any makefile is read, each
+                    // -C from where the last left it.  Not POSIX's, but every
+                    // make's, and not passed on in MAKEFLAGS.
+                    if (argv[i][j + 1] != '\0')
+                        s = argv[i] + j + 1;
+                    else if (i < argc - 1 && argv[i + 1] != 0) {
+                        s           = argv[i + 1];
+                        argv[i + 1] = 0;
+                    } else {
+                        fatal("No directory argument after -C flag");
+                        co_return 1;
+                    }
+                    if (co_await b_chdir(s) != 0) {
+                        fatal1("Cannot change to directory %s", s);
+                        co_return 1;
+                    }
+                    break;
                 } else if (!setflag(c)) {
                     onechar[0] = c;
                     fatal1("Unknown flag argument %s", onechar);

@@ -287,6 +287,37 @@ out:
     return b;
 }
 
+// $(@D) and $(@F), and the same of $< $* $? $% $^: in each word of the value,
+// what is before its last slash -- `.' if it has none -- or what is after it.
+static char *dirfile(struct varblock *vbp, int dir, char *b, char *bend)
+{
+    char *val, *w, *e, *slash;
+    int first = YES;
+
+    val = valuea(vbp);
+    for (w = val; !stopped && !substfull; w = e) {
+        while (*w == ' ' || *w == '\t')
+            ++w;
+        if (*w == '\0')
+            break;
+        for (e = w, slash = NULL; *e && *e != ' ' && *e != '\t'; ++e)
+            if (*e == '/')
+                slash = e;
+        if (!first && !putn(&b, bend, " ", 1))
+            break;
+        first = NO;
+        if (!dir)
+            putn(&b, bend, slash ? slash + 1 : w, e - (slash ? slash + 1 : w));
+        else if (!slash)
+            putn(&b, bend, ".", 1);
+        else
+            putn(&b, bend, w, slash == w ? 1 : slash - w); // "/x" is in "/"
+    }
+    *b = '\0';
+    free(val);
+    return b;
+}
+
 // copy string a into b, substituting for arguments.  bend is the last byte b may
 // write; v7 had no bound here at all and no bound on vname either.
 char *subst(char *a, char *b, char *bend)
@@ -296,7 +327,7 @@ char *subst(char *a, char *b, char *bend)
     char vname[100];
     struct varblock *vbp;
     char closer;
-    int nest;
+    int nest, dir;
 
     if (++depth > MAXSUBST)
         fatal("infinitely recursive macro?");
@@ -343,7 +374,15 @@ char *subst(char *a, char *b, char *bend)
                     *s++ = *a++;
 
                 *s = '\0';
-                if ((vbp = varptr(vname))->varval != 0) {
+                if (strchr("@<*?%^", vname[0]) && (vname[1] == 'D' || vname[1] == 'F') &&
+                    vname[2] == '\0') {
+                    dir      = vname[1] == 'D';
+                    vname[1] = '\0';
+                    if ((vbp = varptr(vname))->varval != 0) {
+                        b         = dirfile(vbp, dir, b, bend);
+                        vbp->used = YES;
+                    }
+                } else if ((vbp = varptr(vname))->varval != 0) {
                     b         = spec ? substref(vbp, spec, b, bend) : valueof(vbp, b, bend);
                     vbp->used = YES;
                 }

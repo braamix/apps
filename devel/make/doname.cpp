@@ -195,6 +195,10 @@ Task<int> doname(struct nameblock *p, int reclevel, TIMETYPE *tval)
         td    = 0;
         lineq = NULL;
         for (q = lp->depp; q; q = q->nxtdepblock) {
+            // POSIX's .WAIT orders what is made in parallel, and this make
+            // makes one thing at a time: it is no prerequisite at all.
+            if (q->depname && !unequal(q->depname->namep, ".WAIT"))
+                continue;
             // A name already done, or one expand() emptied, answers without
             // waiting: a co_await is a call, and costs native stack until
             // something suspends.  README.md, "Output".
@@ -332,56 +336,55 @@ Task<int> docom(struct shblock *q)
     static char *string;
 
     ++ndocoms;
-    if (questflag)
-        co_return NO;
 
     at  = varptr("@")->varval;
     sil = silflag || isnamed(".SILENT", at);
-    if (touchflag) {
-        s = at;
-        if (!sil)
-            mprintf("touch(%s)\n", s);
-        if (!noexflag)
-            co_await touch(YES, s);
+
+    // -t and -q run none of the commands but the + ones, as -n does; -t then
+    // touches the target.
+    for (; q; q = q->nxtshblock) {
+        free(string);
+        string = substa(q->shbp);
+        if (stopped)
+            co_return YES;
+
+        // A + line, or one naming $(MAKE), runs under -n too: that is how
+        // a recursive make passes -n down rather than being skipped.
+        ign  = ignerr || isnamed(".IGNORE", at);
+        nopr = NO;
+        plus = strstr(q->shbp, "$(MAKE)") || strstr(q->shbp, "${MAKE}");
+        for (s = string; *s == '-' || *s == '@' || *s == '+'; ++s)
+            if (*s == '-')
+                ign = YES;
+            else if (*s == '@')
+                nopr = YES;
+            else
+                plus = YES;
+
+        if (s[0] == '\0' || ((touchflag || questflag) && !plus))
+            continue;
+        // -n writes what would run, silent or not, as POSIX and GNU have it.
+        if (noexflag || (!sil && !nopr))
+            mprintf("%s%s\n", (noexflag ? "" : prompt), s);
+        if (noexflag && !plus)
+            continue;
+
+        if (co_await docom1(s, ign) && !ign) {
+            if (keepgoing)
+                co_return YES;
+            else
+                fatal((char *)NULL);
+        }
+        if (stopped)
+            co_return YES;
     }
 
-    else
-        for (; q; q = q->nxtshblock) {
-            free(string);
-            string = substa(q->shbp);
-            if (stopped)
-                co_return YES;
-
-            // A + line, or one naming $(MAKE), runs under -n too: that is how
-            // a recursive make passes -n down rather than being skipped.
-            ign  = ignerr || isnamed(".IGNORE", at);
-            nopr = NO;
-            plus = strstr(q->shbp, "$(MAKE)") || strstr(q->shbp, "${MAKE}");
-            for (s = string; *s == '-' || *s == '@' || *s == '+'; ++s)
-                if (*s == '-')
-                    ign = YES;
-                else if (*s == '@')
-                    nopr = YES;
-                else
-                    plus = YES;
-
-            if (s[0] == '\0')
-                continue;
-            // -n writes what would run, silent or not, as POSIX and GNU have it.
-            if (noexflag || (!sil && !nopr))
-                mprintf("%s%s\n", (noexflag ? "" : prompt), s);
-            if (noexflag && !plus)
-                continue;
-
-            if (co_await docom1(s, ign) && !ign) {
-                if (keepgoing)
-                    co_return YES;
-                else
-                    fatal((char *)NULL);
-            }
-            if (stopped)
-                co_return YES;
-        }
+    if (touchflag && !questflag) {
+        if (!sil)
+            mprintf("touch(%s)\n", at);
+        if (!noexflag)
+            co_await touch(YES, at);
+    }
     co_return NO;
 }
 

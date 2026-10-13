@@ -53,6 +53,8 @@ const T0 = 1781000000000;
 function put(path, bytes, mtime = T0) {
     H.store.files.set(path, enc(bytes));
     H.store.mtimes.set(path, mtime);
+    for (let d = dirname(path); d !== "/"; d = dirname(d))
+        H.store.dirs.add(d);
 }
 
 let now = 1;
@@ -182,6 +184,8 @@ const SETUP = {
         put(`${DIR}/limits.mk`, `T = ${t.join(" ")}\nall: $(T)\n\techo $?\n$(T):\n`);
     },
     longname: () => put(`${DIR}/${"x".repeat(200)}.c`, "", T0),
+    // Two -C, the first with its directory attached.
+    chdir: () => put(`${DIR}/cdir/deeper/makefile`, "all:\n\tpwd\n"),
     interrupt: () => put(`${DIR}/src`, "", T0 + 1000),
     precious: () => put(`${DIR}/src`, "", T0 + 1000),
     longmember: () => put(`${DIR}/libl.a`, archive(
@@ -220,7 +224,7 @@ const CHECK = {
 const GMAKE_CASES = new Set([
     "assign", "autovars", "basic", "cmdline", "contcmd", "contdef", "dcolon", "default",
     "env", "envflag", "ignoresome", "include", "incdeep", "incmany", "lastline", "limits",
-    "longname", "macros",
+    "longname", "macros", "dirfile", "special",
     "phony", "silent", "silentsome", "substref", "suffix",
 ]);
 const GMAKE = (() => {

@@ -1,0 +1,6 @@
+echo [sub/dir] [x.o] [] []
+[sub/dir] [x.o] [] []
+echo [.] [y.o] [] []
+[.] [y.o] [] []
+echo [.] [all] [sub/dir .] [x.o y.o] [sub/dir .] [x.o y.o] [sub/dir] [x.o]
+[.] [all] [sub/dir .] [x.o y.o] [sub/dir .] [x.o y.o] [sub/dir] [x.o]
