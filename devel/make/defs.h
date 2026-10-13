@@ -186,6 +186,8 @@ Task<TIMETYPE> exists(char *filename);
 Task<TIMETYPE> prestime(void);
 Task<struct depblock *> srchdir(char *pat, int mkchain, struct depblock *nextdbl);
 Task<char *> wildcard(char *pats);
+Task<char *> realpaths(char *names);
+Task<char *> filefn(char *key);
 void vpathdef(char *line);
 int havevpath(void);
 Task<TIMETYPE> vfind(const char *name, char **pathp);
@@ -218,6 +220,8 @@ Task<void> evalnow(void);
 Task<void> perform(void);
 void forget(void);
 int isfunc(const char *name);
+char *abspath(const char *name);
+extern char *curdir;
 char *callfunc(int fn, char *args, char *b, char *bend);
 
 // misc.cpp

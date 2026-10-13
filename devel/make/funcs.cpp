@@ -40,6 +40,12 @@ enum {
     F_ERROR,
     F_CALL,
     F_EVAL,
+    F_ABSPATH,
+    F_REALPATH,
+    F_FLAVOR,
+    F_INTCMP,
+    F_LET,
+    F_FILE,
 };
 
 // Each function, the fewest arguments it takes and the most, the last taking
@@ -56,6 +62,8 @@ static const struct func {
     { "or", 1, 1000 },     { "and", 1, 1000 },    { "foreach", 3, 3 },   { "wildcard", 1, 1 },
     { "shell", 1, 1 },     { "value", 1, 1 },     { "origin", 1, 1 },    { "info", 1, 1 },
     { "warning", 1, 1 },   { "error", 1, 1 },     { "call", 1, 1000 },   { "eval", 1, 1 },
+    { "abspath", 1, 1 },   { "realpath", 1, 1 },  { "flavor", 1, 1 },    { "intcmp", 2, 5 },
+    { "let", 3, 3 },       { "file", 1, 2 },
 };
 #define NFUNCS (int)(sizeof(funcs) / sizeof(funcs[0]))
 
@@ -79,12 +87,15 @@ static void ask(int fn, char *arg, char **bp, char *bend)
     for (r = reqs; r; r = r->next)
         if (r->fn == fn && !unequal(r->arg, arg))
             break;
-    if (r == NULL) {
-        r       = ALLOC(req);
-        r->next = reqs;
-        r->fn   = fn;
-        r->arg  = copys(arg);
-        reqs    = r;
+    if (r == NULL) { // performed in the order asked: $(file >) then >>
+        struct req **rp;
+
+        r      = ALLOC(req);
+        r->fn  = fn;
+        r->arg = copys(arg);
+        for (rp = &reqs; *rp; rp = &(*rp)->next)
+            ;
+        *rp = r;
     }
     if (r->result == NULL)
         substneed = YES;
@@ -99,7 +110,10 @@ Task<void> perform(void)
     substneed = NO;
     for (r = reqs; r && !stopped; r = r->next)
         if (r->result == NULL)
-            r->result = r->fn == F_SHELL ? co_await shellout(r->arg) : co_await wildcard(r->arg);
+            r->result = r->fn == F_SHELL      ? co_await shellout(r->arg)
+                        : r->fn == F_REALPATH ? co_await realpaths(r->arg)
+                        : r->fn == F_FILE     ? co_await filefn(r->arg)
+                                              : co_await wildcard(r->arg);
 }
 
 void forget(void)
@@ -288,6 +302,67 @@ static int cmpstr(const void *a, const void *b)
     return strcmp(*(char *const *)a, *(char *const *)b);
 }
 
+// A signed number, for intcmp: NO if it is none.
+static int intval(const char *s, long long *vp)
+{
+    int neg = NO;
+
+    while (isblank_(*s))
+        ++s;
+    if (*s == '-' || *s == '+')
+        neg = *s++ == '-';
+    if (*s < '0' || *s > '9')
+        return NO;
+    for (*vp = 0; *s >= '0' && *s <= '9'; ++s)
+        *vp = *vp * 10 + (*s - '0');
+    while (isblank_(*s))
+        ++s;
+    if (neg)
+        *vp = -*vp;
+    return *s == '\0';
+}
+
+// A name made absolute against the directory make is in, with ., .. and
+// repeated slashes gone, in a buffer of its own: $(abspath).
+char *abspath(const char *name)
+{
+    char *full, *out, *d, *c, *e;
+    size_t n;
+
+    n    = (curdir ? strlen(curdir) : 1) + strlen(name) + 3;
+    full = (char *)ckalloc(n);
+    if (name[0] == '/')
+        strcpy(full, name);
+    else
+        snprintf(full, n, "%s/%s", curdir ? curdir : "", name);
+    out = (char *)ckalloc(strlen(full) + 2);
+    d   = out;
+    for (c = full; *c;) {
+        while (*c == '/')
+            ++c;
+        for (e = c; *e && *e != '/'; ++e)
+            ;
+        if (e == c)
+            break;
+        if (e - c == 1 && c[0] == '.')
+            ;
+        else if (e - c == 2 && c[0] == '.' && c[1] == '.') {
+            while (d > out && *--d != '/')
+                ;
+        } else {
+            *d++ = '/';
+            memcpy(d, c, e - c);
+            d += e - c;
+        }
+        c = e;
+    }
+    if (d == out)
+        *d++ = '/';
+    *d = '\0';
+    free(full);
+    return out;
+}
+
 // A number, for word and wordlist: -1 if it is none.
 static long num(const char *s)
 {
@@ -352,7 +427,8 @@ char *callfunc(int fn, char *args, char *b, char *bend)
     }
 
     // Those taken whole, expanded now.
-    if (fn != F_IF && fn != F_OR && fn != F_AND && fn != F_FOREACH && fn != F_CALL)
+    if (fn != F_IF && fn != F_OR && fn != F_AND && fn != F_FOREACH && fn != F_CALL &&
+        fn != F_INTCMP && fn != F_LET)
         for (i = 0; i < ac && i < 3; ++i)
             x[i] = substa(av[i]);
     if (stopped)
@@ -640,8 +716,122 @@ char *callfunc(int fn, char *args, char *b, char *bend)
 
     case F_WILDCARD:
     case F_SHELL:
+    case F_REALPATH:
         ask(fn, x[0], &b, bend);
         break;
+
+    case F_ABSPATH:
+        for (p = x[0]; (w = nextword(&p, &wl)) != NULL;) {
+            char save = w[wl];
+
+            w[wl] = '\0';
+            s     = abspath(w);
+            w[wl] = save;
+            if (!putword(&b, bend, &first, s, strlen(s))) {
+                free(s);
+                break;
+            }
+            free(s);
+        }
+        break;
+
+    case F_FLAVOR:
+        s = strip(x[0]);
+        vp = findvar(s);
+        s  = (char *)(vp == NULL || vp->varval == NULL ? "undefined"
+                      : vp->simple || (s[0] && strchr("@<*?^%+|", s[0]) && s[1] == '\0')
+                          ? "simple"
+                          : "recursive");
+        putn(&b, bend, s, strlen(s));
+        break;
+
+    case F_INTCMP: {
+        // $(intcmp a,b,lt,eq,gt): gt is eq when not given, and with two
+        // arguments eq is the number itself.
+        long long va, vb;
+        int ok;
+
+        s  = substa(av[0]);
+        t  = substa(av[1]);
+        ok = intval(s, &va) && intval(t, &vb);
+        free(s);
+        free(t);
+        if (!ok) {
+            fatal("non-numeric argument to `intcmp' function");
+            break;
+        }
+        if (ac == 2) {
+            if (va == vb) {
+                char nb[24];
+
+                snprintf(nb, sizeof(nb), "%lld", va);
+                putn(&b, bend, nb, strlen(nb));
+            }
+            break;
+        }
+        i = va < vb ? 2 : va == vb ? 3 : ac > 4 ? 4 : 3;
+        if (i < ac)
+            b = subst(av[i], b, bend);
+        break;
+    }
+
+    case F_LET: {
+        // $(let a b,list,text): each name a word of the list, the last the
+        // rest of it, bound as $(foreach) binds its name.
+        struct binding *bd;
+        char *names, *list, *nm, *rest;
+
+        names = substa(av[0]);
+        list  = substa(av[1]);
+        for (n = 0, p = names; nextword(&p, &wl) != NULL; ++n)
+            ;
+        bd = (struct binding *)ckalloc((n + 1) * sizeof(*bd));
+        for (i = 0, p = names, rest = list; (nm = nextword(&p, &wl)) != NULL; ++i) {
+            if (*p)
+                *p++ = '\0';
+            while (isblank_(*rest))
+                ++rest;
+            if (i == n - 1) {
+                bind(&bd[i], nm, copys(strip(rest)));
+                continue;
+            }
+            w = rest;
+            if ((w = nextword(&rest, &wl)) == NULL) {
+                bind(&bd[i], nm, copys(""));
+                continue;
+            }
+            s = (char *)ckalloc(wl + 1);
+            memcpy(s, w, wl);
+            bind(&bd[i], nm, s);
+        }
+        b = subst(av[2], b, bend);
+        for (i = n; i-- > 0;) {
+            free(bd[i].vp->varval);
+            unbind(&bd[i]);
+        }
+        free(bd);
+        free(names);
+        free(list);
+        break;
+    }
+
+    case F_FILE: {
+        // $(file >f,text), >>f and <f: a request, as $(shell) is, the
+        // operator, the name and the text in its key.
+        char *key, *op = strip(x[0]);
+        size_t kl;
+
+        if (strncmp(op, ">", 1) && strncmp(op, "<", 1)) {
+            fatal1("invalid file operation: %s", op);
+            break;
+        }
+        kl  = strlen(op) + (ac > 1 ? strlen(x[1]) : 0) + 3;
+        key = (char *)ckalloc(kl);
+        snprintf(key, kl, "%s%c%s", op, ac > 1 ? '\1' : '\2', ac > 1 ? x[1] : "");
+        ask(fn, key, &b, bend);
+        free(key);
+        break;
+    }
     }
     *b = '\0';
 out:

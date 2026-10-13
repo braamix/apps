@@ -218,6 +218,10 @@ const SETUP = {
         for (const f of ["x.c", "y.c", "z.c"])
             put(`${DIR}/${f}`, "");
     },
+    reallink: () => {
+        sh(`cd ${DIR}; ln -s a.c lnk; ln -s nope dangling`);
+        sh("cd /");
+    },
     remake: () => put(`${DIR}/src`, "", T0),
     orderonly: () => {
         put(`${DIR}/a.o`, "", T0 + 1000);
@@ -274,7 +278,7 @@ const GMAKE_CASES = new Set([
     "patrule", "patcancel", "patcancel2", "static",
     "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2", "eval", "tvars", "tvarscmd", "longopts", "mflong", "oneshell", "oneshell2",
     "chain", "chainup", "chainsec", "inter", "jobs", "jobswait", "jobspat",
-    "remake", "remaked",
+    "remake", "remaked", "funcs3",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])

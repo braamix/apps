@@ -273,6 +273,170 @@ char *dname(struct nameblock *p)
     return p->path ? p->path : p->namep;
 }
 
+// The directory make is in, once -C has been seen to.
+char *curdir;
+
+// One name made absolute with every link along it resolved, or NULL when it,
+// or any directory on the way to it, is not there: $(realpath).
+static Task<char *> realpath1(const char *name)
+{
+    char *path, *done, *rest, *t, *e, link[PATH_MAX + 1];
+    ssize_t n;
+    int hops = 0;
+    size_t dl;
+
+    path = (char *)ckalloc(strlen(curdir) + strlen(name) + 2);
+    if (name[0] == '/')
+        strcpy(path, name);
+    else
+        sprintf(path, "%s/%s", curdir, name);
+    // done is resolved and there, rest is not; a link puts its target in
+    // front of rest.
+    done = copys("");
+    rest = path;
+    for (;;) {
+        while (*rest == '/')
+            ++rest;
+        if (*rest == '\0')
+            break;
+        for (e = rest; *e && *e != '/'; ++e)
+            ;
+        if (e - rest == 1 && rest[0] == '.') {
+            rest = e;
+            continue;
+        }
+        if (e - rest == 2 && rest[0] == '.' && rest[1] == '.') {
+            if ((t = strrchr(done, '/')) != NULL)
+                *t = '\0';
+            rest = e;
+            continue;
+        }
+        dl = strlen(done);
+        t  = (char *)ckalloc(dl + (e - rest) + 2);
+        memcpy(t, done, dl);
+        t[dl] = '/';
+        memcpy(t + dl + 1, rest, e - rest);
+        if ((n = co_await b_readlink(t, link, PATH_MAX)) > 0 && ++hops < 40) {
+            link[n] = '\0';
+            free(t);
+            // the target, then what was left after the link
+            t = (char *)ckalloc(dl + n + strlen(e) + 3);
+            if (link[0] == '/')
+                sprintf(t, "%s%s", link, e);
+            else
+                sprintf(t, "%s/%s%s", done, link, e);
+            free(path);
+            path = t;
+            free(done);
+            done = copys("");
+            rest = path;
+            continue;
+        }
+        if ((co_await stat_of(Str(t, strlen(t)))).is_err()) {
+            free(t);
+            free(done);
+            free(path);
+            co_return NULL;
+        }
+        free(done);
+        done = t;
+        rest = e;
+    }
+    if (*done == '\0') {
+        free(done);
+        done = copys("/");
+    }
+    free(path);
+    co_return done;
+}
+
+Task<char *> realpaths(char *names)
+{
+    char *out = copys(""), *w, *e, *r, save;
+    size_t len = 0;
+
+    for (w = names;; w = e) {
+        while (*w == ' ' || *w == '\t' || *w == '\n')
+            ++w;
+        if (*w == '\0')
+            break;
+        for (e = w; *e && *e != ' ' && *e != '\t' && *e != '\n'; ++e)
+            ;
+        save = *e;
+        *e   = '\0';
+        r    = co_await realpath1(w);
+        *e   = save;
+        if (r) {
+            out = (char *)realloc(out, len + strlen(r) + 2);
+            if (len)
+                out[len++] = ' ';
+            strcpy(out + len, r);
+            len += strlen(r);
+            free(r);
+        }
+    }
+    co_return out;
+}
+
+// $(file op name,text): > writes the text and a newline, >> appends them, <
+// reads, its last newline dropped.  The key is op and name, then \1 and the
+// text, or \2 for none.  What it gives is the read file, or nothing.
+Task<char *> filefn(char *key)
+{
+    char *k = copys(key), *op, *name, *e, *text = NULL, *out = copys("");
+    const char *mode;
+    FILE *f;
+    size_t n;
+    int len;
+
+    op = k;
+    for (name = op; *name == '<' || *name == '>'; ++name)
+        ;
+    mode = name - op == 2 && op[0] == '>' && op[1] == '>' ? "a"
+         : name - op == 1 && op[0] == '>'                 ? "w"
+         : name - op == 1 && op[0] == '<'                 ? "r"
+                                                          : NULL;
+    while (*name == ' ' || *name == '\t')
+        ++name;
+    for (e = name; *e && *e != '\1' && *e != '\2'; ++e)
+        ;
+    if (*e == '\1')
+        text = e + 1;
+    *e = '\0';
+    while (e > name && (e[-1] == ' ' || e[-1] == '\t'))
+        *--e = '\0';
+    if (mode == NULL || *name == '\0') {
+        fatal1("invalid file operation: %s", key);
+        goto out;
+    }
+    if ((f = co_await b_fopen(name, mode)) == NULL) {
+        if (*mode != 'r') // GNU reads a missing file as nothing
+            fatal1("open: %s", name);
+        goto out;
+    }
+    if (*mode == 'r') {
+        free(out);
+        len = 0;
+        for (out = NULL, n = 0;;) {
+            out = (char *)realloc(out, n + 4096 + 1);
+            if ((len = (int)co_await b_fread(out + n, 1, 4096, f)) <= 0)
+                break;
+            n += len;
+        }
+        out[n] = '\0';
+        if (n > 0 && out[n - 1] == '\n')
+            out[--n] = '\0';
+    } else if (text) {
+        co_await b_fwrite(text, 1, strlen(text), f);
+        if (*text == '\0' || text[strlen(text) - 1] != '\n')
+            co_await b_fwrite("\n", 1, 1, f);
+    }
+    co_await b_fclose(f);
+out:
+    free(k);
+    co_return out;
+}
+
 static int cmpname(const void *a, const void *b)
 {
     return strcmp(*(char *const *)a, *(char *const *)b);

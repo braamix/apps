@@ -627,6 +627,10 @@ static Task<int> make_main(int argc, char *argv[])
             argv[i] = 0;
         }
 
+    curdir = (char *)ckalloc(PATH_MAX + 1);
+    if (co_await b_getcwd(curdir, PATH_MAX + 1) == NULL)
+        strcpy(curdir, "/");
+
     // GNU's MAKECMDGOALS: the targets named on the command line.
     for (i = 1, d = copys(""); i < argc; ++i)
         if (argv[i] != 0) {

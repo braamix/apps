@@ -104,6 +104,8 @@ inference rule set them.
 | Long options, `--help` | GNU | `--directory`, `--file`, `--makefile`, `--dry-run` and the rest, each standing for its letter; a parent's long options in `MAKEFLAGS` are understood or passed over |
 | `.ONESHELL` | GNU | A rule's lines are one script to one `sh -c`, without `-e`, its first line's `@`, `-` and `+` for the whole |
 | Remade makefiles | GNU | Each makefile and included file that is a target is brought up to date first, under `-n` too; if one was remade, make starts itself again from the start, `MAKE_RESTARTS` counting. An `include` that is missing is an error only if it cannot be made |
+| `$(abspath)`, `$(realpath)`, `$(flavor)`, `$(intcmp)`, `$(let)`, `$(file)` | GNU | `realpath` follows links and drops what is not there; `$(file)` is done when its expansion is, once however often the expansion is done |
+| `undefine` | GNU | A command-line macro keeps its value, `override` or not, as GNU's does |
 | No fixed limits | — | The name table, lines, words, expansions, `$?`, a rule line's targets and a command's arguments grow as they need to |
 
 An assignment that expands at once — `:=`, `::=`, `:::=`, `!=` — is not a

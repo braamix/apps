@@ -589,7 +589,7 @@ static int condline(char *t)
 // endef.
 static int indef;
 static char *defname, *defbody;
-static int defop, deflen, defcap, defover, defexport;
+static int defop, deflen, defcap, defover, defexport, deflines;
 
 static void startdef(char *t, int over, int exp)
 {
@@ -613,6 +613,7 @@ static void startdef(char *t, int over, int exp)
     if (substneed)
         return;
     deflen    = 0;
+    deflines  = 0;
     defover   = over;
     defexport = exp;
     indef     = 1;
@@ -646,11 +647,30 @@ static int defline(char *t)
     n = strlen(t);
     while (deflen + n + 2 > (size_t)defcap)
         defbody = (char *)growbuf(defbody, &defcap, 1);
-    if (deflen > 0)
+    if (deflines++ > 0)
         defbody[deflen++] = '\n';
     memcpy(defbody + deflen, t, n + 1);
     deflen += n;
     return NO;
+}
+
+// GNU's undefine: each name in t, expanded, has no value, as if never set.  A
+// macro from the command line keeps its value, override or not, as GNU's
+// does.
+static void undefine(char *t)
+{
+    char *names, *w;
+    struct varblock *vp;
+
+    names = substa(t);
+    for (w = names; !substneed && (w = strtok(w, " \t")) != NULL; w = NULL)
+        if ((vp = findvar(w)) != NULL && !vp->noreset) {
+            vp->varval   = 0;
+            vp->simple   = NO;
+            vp->exported = 0;
+            vp->fromenv  = NO;
+        }
+    free(names);
 }
 
 // Each name in t, expanded, marked to be exported (1) or not (-1).
@@ -692,6 +712,10 @@ static char *directive(char *t)
     }
     if ((a = isword(t, "define")) != NULL) {
         startdef(a, over, NO);
+        return NULL;
+    }
+    if ((a = isword(t, "undefine")) != NULL && !strchr(a, '=')) {
+        undefine(a);
         return NULL;
     }
     how = 0;
