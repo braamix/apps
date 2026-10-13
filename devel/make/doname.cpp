@@ -1008,7 +1008,7 @@ static Task<int> docom1(char *comstring, int nohalt)
     co_return status;
 }
 
-// -j: what runs at once.  Plan.md, section 3.3.
+// -j: what runs at once.  README.md, "Beyond V7".
 int jobslots = 1;
 int jobmode; // more than one slot, and nothing that runs one at a time
 int jobfail; // a command failed without -k: nothing more is started

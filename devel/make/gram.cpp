@@ -931,7 +931,7 @@ static int retsh(char *q)
 }
 
 // The last line, as it was read, for nextlin() to do again: one that waited
-// on $(shell) or $(wildcard) had nothing of it done.  Plan.md, section 3.2.
+// on $(shell) or $(wildcard) had nothing of it done.  README.md.
 static char *linecopy;
 static int linecap;
 

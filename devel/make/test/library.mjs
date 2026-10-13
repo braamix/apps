@@ -1,6 +1,6 @@
 // A library made through POSIX's .c.a rule with cc and ar on Braam, a program
 // linked against it, nothing made on the run after, and one member remade when
-// its source moves. Phase B's real build, as portable.mjs is phase A's.
+// its source moves.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

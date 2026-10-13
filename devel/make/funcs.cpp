@@ -70,7 +70,7 @@ static const struct func {
 // $(wildcard) and $(shell) wait, and subst() cannot: each is answered from
 // here, and one that is not is recorded and `substneed' set, for the coroutine
 // above to perform() and expand again.  Emptied after each command, which may
-// have changed what either would say.  Plan.md, section 3.2.
+// have changed what either would say.  README.md.
 struct req {
     struct req *next;
     int fn;

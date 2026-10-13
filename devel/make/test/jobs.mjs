@@ -1,7 +1,7 @@
 // A program of five sources built with cc on Braam under -j 4: every object
 // compiled before the link, the program the same bytes as under -j 1, nothing
 // made on the run after, and a failing compile under -j waiting for the ones
-// running before it stops.  Phase D's real build, as gnu.mjs is phase C's.
+// running before it stops.
 // ^C under -j is cases.mjs's jobsint.
 
 import { readFileSync } from "node:fs";

@@ -2,7 +2,6 @@
 // $(wildcard) and $(patsubst) for the objects, a pattern rule, VPATH for the
 // sources, an order-only object directory, and a conditional on DEBUG.  Then
 // nothing made on the run after, and one object remade when its source moves.
-// Phase C's real build, as library.mjs is phase B's.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

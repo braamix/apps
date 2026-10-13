@@ -1,5 +1,5 @@
 // A program of three directories built with cc on Braam from makefiles in the
-// portable style phase A of Plan.md is for: `cd dir && $(MAKE)` into each, an
+// portable style: `cd dir && $(MAKE)` into each, an
 // included configuration, .PHONY all and clean, the built-in .c.o rule, $^ and
 // $(VAR:.c=.o).  Built, then up to date, then rebuilt where a header moved,
 // -n passed down without building, and cleaned.

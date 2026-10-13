@@ -451,7 +451,7 @@ static void addmf(const char *name, int needed)
 // Each makefile brought up to date, as a target with no word said about it
 // when there is nothing to do or no way to do it; -n, -t and -q do not stop
 // it, as GNU has it.  -1 to go on; otherwise make has started again, and this
-// is the status of the make that did.  Plan.md, section 3.4.
+// is the status of the make that did.  README.md, "Remade makefiles".
 static Task<int> remakemfs(void)
 {
     struct mfile *m;
@@ -822,7 +822,7 @@ static Task<int> make_main(int argc, char *argv[])
 
     nfargs = 0;
 
-    // -j: the goals walked again each time a command ends.  Plan.md, 3.3.
+    // -j: the goals walked again each time a command ends.  README.md.
     jobmode = jobslots > 1 && !noexflag && !touchflag && !questflag && !srchname(".NOTPARALLEL");
     if (outsync && jobslots > (int)SYS_POLL_MAX / 2) // two pipes a job, polled at once
         jobslots = SYS_POLL_MAX / 2;

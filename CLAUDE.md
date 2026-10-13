@@ -268,11 +268,11 @@ and it **compiles itself on Braam byte for byte** against the host build
 (`selfhost.mjs`, six minutes in `LONGTESTS`). Two size budgets keep huge
 coroutine bodies affordable: no CSE past 32 suspension points, and no local
 coalescing past 16 MB of analysis.
-And [devel/make](devel/make/), V7 make 2.58 by way of the BESM-6 port, being
-grown into Braam's POSIX make by [its Plan.md](devel/make/Plan.md) — V7's code
-and messages, POSIX's behaviour wherever the two differ, and most of GNU's
-beside it — conditionals, functions, `$(eval)`, pattern rules, target-specific
-macros, `VPATH`, `-j`, remade makefiles, `-O`; all five phases done.
+And [devel/make](devel/make/), V7 make 2.58 by way of the BESM-6 port, grown
+into Braam's POSIX make — V7's code and messages, POSIX's behaviour wherever
+the two differ, and most of GNU's beside it: conditionals, functions,
+`$(eval)`, pattern rules, target-specific macros, `VPATH`, `-j`, remade
+makefiles, `-O`. Its README's "Kept by" is the rules it was grown by.
 It is a **tenth shape**, the program whose work is *running other programs*:
 the first port to `spawn` and `wait_child`, and the first whose correctness is
 file times. `fork`/`execvp` are one `spawn`, `exit` traps so `fatal()` is a

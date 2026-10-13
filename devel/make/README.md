@@ -4,11 +4,11 @@
 from Seventh Edition Unix**, version 2.58 of 14 March 1979
 ([ident.cpp](ident.cpp)), Caldera's licence in [COPYRIGHT](COPYRIGHT). The
 code, its identifiers, its comments and its messages are V7's; what it does is
-POSIX.1-2024's wherever the two disagree, and [Plan.md](Plan.md) is the way
-from one to the other — all five of its phases are done, so this is the whole
-of POSIX's `make`, `-j` included, and of GNU's what makefiles use: its
-conditionals, functions, `$(eval)`, pattern rules, target-specific macros,
-`VPATH`, remade makefiles and `-O`. It came here by way of the BESM-6 port in
+POSIX.1-2024's wherever the two disagree, and GNU make's beside it. This is
+the whole of POSIX's `make`, `-j` included, and of GNU's what makefiles use:
+its conditionals, functions, `$(eval)`, pattern rules, target-specific
+macros, `VPATH`, remade makefiles and `-O`. "Kept by" below is the rules it
+was grown by. It came here by way of the BESM-6 port in
 `~/Project/Besm-6/v7besm/cmd/make/`, which had already turned V7's into C11
 and fixed six bounds V7 did not check; that port's README is the account of
 those.
@@ -141,7 +141,48 @@ above — `yyparse()` for a makefile line, `docom()` for a rule's commands,
 `runset()` for a `!=` — runs what was recorded and expands the same text
 again, which now finds it; nothing of a line is done until it expands
 whole. The cache is emptied after each command, which may have changed what
-either would say.
+either would say. `$(realpath)` and `$(file)` are requests too.
+
+**Remade makefiles** start make again, and its state — the name table, the
+macros, the rules, every static in the parser — was never written to be
+emptied. So make does not start again in the process: it spawns itself, with
+the arguments it was given, from the directory it began in, and
+`MAKE_RESTARTS` one higher, waits for it as for any command, `^C` included,
+and exits with its status. A Braam process is a fresh instance, so that is
+what GNU's `exec` of itself is here. Twenty starts in a row stop it.
+
+**`-O`** gives each command's stdout and stderr a pipe each — two, as a
+descriptor given to a child is moved into it and one cannot serve both. The
+job loop then waits on `poll_fds()` over every running job's pipes rather
+than on `wait_child()`, holds what each says, reaps a command by pid once
+both its pipes are at their end, and writes the job's output whole.
+
+## Kept by
+
+1. **POSIX wins, V7's code stays.** Behaviour follows POSIX wherever the two
+   disagree, with no switch to get V7's back. What stays is V7's code, its
+   identifiers and structure, its comments, and its own text where POSIX does
+   not specify any — the `Make: ... Stop.` messages, `` `x' is up to
+   date.``, `-p` and `-d`. A case's expectation changes only where POSIX
+   demands it, and the commit that changes it says which rule required it.
+2. **POSIX, then GNU.** Where the two read the same text two ways, POSIX
+   decides.
+3. **Await only where something parks.** A `co_await` is a call and not a
+   tail call, so a loop that awaits without parking grows the native stack
+   until the process traps. `yyparse()` awaits `include` and `!=`, both of
+   which park on a system call; the lexer, `nextlin()` and `subst()` stay
+   plain, since they run once per token, line and macro reference and almost
+   never need to wait. No coroutine frame holds a buffer.
+4. **The README keeps up.** Each addition goes in the "Beyond V7" table with
+   the standard it comes from, and each POSIX difference in "Where POSIX
+   overrules V7".
+5. **Version:** there is no upstream version to move, so only the revision
+   counts up — `2.58-r5` now.
+
+Not done, on purpose: GNU's `.SECONDEXPANSION`, grouped targets `&:`, `load`
+and Guile; the jobserver between separate `make`s, which needs a descriptor
+passed to a child where a spawn passes only the three streams, so a sub-make
+runs one command at a time; and BSD make's dialect (`.if`, `.for`, `:M`).
 
 ## What the port changed
 
@@ -230,7 +271,7 @@ environment. Twenty-five came from the BESM port, and their expectations moved
 only where POSIX moved them — the `No suffix list.` line and the statuses. The
 rest are what b6sim could not run (globs over a real directory, commands run
 directly and through the shell, times, archives the real `ar` wrote, `^C`) and
-each phase's additions, each in its own case. The harness clock is frozen, so
+what was added beyond V7, each in its own case. The harness clock is frozen, so
 each time a case compares is set by the case.
 
 **Against GNU make.** Where the host has GNU make 4, every case in
