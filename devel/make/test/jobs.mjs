@@ -2,6 +2,7 @@
 // compiled before the link, the program the same bytes as under -j 1, nothing
 // made on the run after, and a failing compile under -j waiting for the ones
 // running before it stops.
+// A target of 1300 prerequisites is made, one at a time and two.
 // ^C under -j is cases.mjs's jobsint.
 
 import { readFileSync } from "node:fs";
@@ -89,5 +90,17 @@ if (r.status !== 2 || !said.includes("cc -c bad.c") || !said.includes("*** Error
     die(`make -j 3 broken: ${JSON.stringify(r)}`);
 if (!H.store.files.has("/tmp/a.o"))
     die("a.o, begun before bad.c failed, was not finished");
+
+// A target of many prerequisites: each one already made answers without an
+// await, or the native stack runs out.
+const many = Array.from({ length: 1300 }, (_, i) => `w/t${i}`);
+file("/tmp/w/.keep", "");
+file("/tmp/many.mk", `all: ${many.join(" ")}\n\t@echo all\nw/%:\n\t@touch $@\n`);
+for (const j of ["1", "2"]) {
+    run("rm -r w/t*");
+    r = run(`make -j ${j} -f many.mk`);
+    if (r.status !== 0 || r.out !== "all\n")
+        die(`make -j ${j} -f many.mk: ${JSON.stringify(r)}`);
+}
 
 console.log("make jobs ok");

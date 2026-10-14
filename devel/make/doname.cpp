@@ -168,6 +168,24 @@ static Task<int> patimplicit(const char *pname, struct implied *im, int depth)
     co_return YES;
 }
 
+// What a walk of one target built for its own use, let go: under -j a target
+// is walked again each time a command ends, and these would pile up.  A list
+// set as $^ and the rest was copied there by mkqlist().
+static void dropwalk(struct chain **lists, struct implied *im)
+{
+    struct depblock *q, *qn;
+
+    for (int i = 0; i < 4; ++i)
+        freechain(lists[i]);
+    for (q = im->deps; q; q = qn) {
+        qn = q->nxtdepblock;
+        free(q);
+    }
+    if (im->stem && varptr("*")->varval == im->stem)
+        setvar("*", (char *)"");
+    free(im->stem);
+}
+
 // A suffix rule's commands: those of its first line with any.
 static struct shblock *rulecom(struct nameblock *rp)
 {
@@ -629,6 +647,8 @@ static Task<int> doname1(struct nameblock *p, int reclevel, TIMETYPE *tval)
             if (td > tdep)
                 tdep = td;
         }
+        freechain(lineq);
+        freechain(lineplus);
     }
 
     // Look for implicit dependents, using pattern and suffix rules
@@ -694,7 +714,9 @@ stemmed:
         }
         setvar("<", impq ? impq->datap : (char *)"");
         // the inferred prerequisites first, as GNU has them
-        allq  = joinu(impq, allq);
+        struct chain *old = allq;
+        allq              = joinu(impq, allq);
+        freechain(old);
         plusq = joinq(impplus, plusq);
     }
     if (im.stem)
@@ -702,7 +724,9 @@ stemmed:
 
     // Under -j, something it needs is being made: it is looked at again on a
     // later walk.
+    lists[0] = qchain, lists[1] = allq, lists[2] = plusq, lists[3] = ooq;
     if (pend) {
+        dropwalk(lists, &im);
         p->done = 0;
         *tval   = 0;
         co_return errstat;
@@ -727,16 +751,21 @@ stemmed:
     if (remake) {
         char *lt = varptr("<")->varval, *st = varptr("*")->varval;
 
+        // Only the skipped are awaited: an await that answers at once still
+        // costs native stack, and a target may have thousands.
         for (lp = p->linep; lp; lp = lp->nxtlineblock)
             for (q = lp->depp; q; q = q->nxtdepblock)
-                errstat += co_await unskip(q, reclevel, &pend);
+                if (q->depname && q->depname->skipped)
+                    errstat += co_await unskip(q, reclevel, &pend);
         for (q = im.deps; q; q = q->nxtdepblock)
-            errstat += co_await unskip(q, reclevel, &pend);
+            if (q->depname && q->depname->skipped)
+                errstat += co_await unskip(q, reclevel, &pend);
         if (stopped)
             co_return 1;
         setvar("<", lt); // as this target has them, not the intermediate
         setvar("*", st);
         if (pend) {
+            dropwalk(lists, &im);
             p->done = 0;
             *tval   = 0;
             co_return errstat;
@@ -752,6 +781,7 @@ stemmed:
         // Under -j, the commands are a job, begun when there is a slot.
         if (jobmode && (explcom || implcom)) {
             if (njobs >= jobslots || jobfail) {
+                dropwalk(lists, &im);
                 p->done = 0;
                 *tval   = 0;
                 co_return 0;
@@ -761,6 +791,8 @@ stemmed:
             p->made = YES;
             co_await startjob(p, explcom ? explcom : implcom, ptime);
             setvar("@", (char *)NULL);
+            for (int i = 0; i < 4; ++i) // $^ and the rest have their copies
+                freechain(lists[i]);
             *tval = p->modtime;
             co_return p->done == 3;
         }

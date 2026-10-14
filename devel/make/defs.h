@@ -268,6 +268,7 @@ struct chain *prependu(struct chain *head, char *name);
 struct chain *prependq(struct chain *head, char *name);
 struct chain *joinu(struct chain *a, struct chain *b);
 struct chain *joinq(struct chain *a, struct chain *b);
+void freechain(struct chain *p);
 char *mkqlist(struct chain *p);
 int ismember(const char *name, char **libp, char **memp);
 

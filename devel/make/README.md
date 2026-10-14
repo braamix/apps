@@ -183,7 +183,7 @@ both its pipes are at their end, and writes the job's output whole.
    the standard it comes from, and each POSIX difference in "Where POSIX
    overrules V7".
 5. **Version:** there is no upstream version to move, so only the revision
-   counts up — `2.58-r6` now.
+   counts up — `2.58-r7` now.
 
 Not done, on purpose: GNU's `.SECONDEXPANSION`, grouped targets `&:`, `load`
 and Guile; the jobserver between separate `make`s, which needs a descriptor

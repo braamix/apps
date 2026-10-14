@@ -730,6 +730,17 @@ struct chain *joinq(struct chain *a, struct chain *b)
     return a;
 }
 
+// The links of a chain; the names are not its own.
+void freechain(struct chain *p)
+{
+    struct chain *q;
+
+    for (; p; p = q) {
+        q = p->nextp;
+        free(p);
+    }
+}
+
 // A name at the front.
 struct chain *prependq(struct chain *head, char *name)
 {
