@@ -71,9 +71,10 @@ Then, in the tree's own wasm32 configure, [braam.cmake](braam.cmake) uses
 it (`VCC_HOST`, which defaults to that stage):
 
 - **The runtime.** `crt0.o` is `libc/wasm32/braam/exports.s`; `libc.a` is
-  upstream's `wasm32-braam` set — the common sources compiled for `wasm32`
-  by the passes, `memory.s`, and `braam/`'s sources compiled by the driver —
-  with musl's libm beside them (below). Both go in `build/devel/cc/lib/`.
+  upstream's `wasm32-braam` set — the common sources with their own headers
+  (`-nostdinc`), which upstream compiles for plain `wasm32` and the driver
+  compiles to the same bytes, `memory.s`, and `braam/`'s sources — with
+  musl's libm beside them (below). Both go in `build/devel/cc/lib/`.
 - **`vcc_add_program(NAME n SOURCES ...)`**, the counterpart of
   `braam_add_program` for C with coroutines: `vcc -S` on each source, run
   from this directory with its path relative to it, the SDK's clang to

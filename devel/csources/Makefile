@@ -7,10 +7,9 @@
 # obj/ is laid out as the cc package is, so obj/bin/cc runs from where it is:
 # its passes in obj/libexec/, its runtime and headers in obj/share/vcc/.
 
-# The installed cc package: its passes compile the wasm32 half of libc.
+# The installed cc package, which obj/ is checked against.
 CCDIR := $(firstword $(wildcard /pkg/store/cc-*))
 CCLIB := $(CCDIR)/share/vcc/wasm32-braam/lib
-PASSES := $(CCDIR)/libexec
 INC := $(CCDIR)/share/vcc/wasm32-braam/include
 
 # The compiler's parts, each a directory of its own.
@@ -53,17 +52,14 @@ VGENWASM_SRCS = backend/wasm/main.c $(WASM) $(BACKEND) $(TAC) $(LIBUTIL)
 CFLAGS = -D_CORO_NO_DEFER_YIELD -Ilibutil -Iast -Iscanner -Iparser -Itac -Isemantic \
          -Ioptimize -Itranslator -Ibackend/common -Ibackend/wasm
 
-# The runtime. libc/common is plain C for any wasm32, compiled by the passes
-# with its own headers; libc/wasm32/braam is the half that knows Braam,
-# compiled by the driver.
+# The runtime. libc/common is plain C for any wasm32, compiled with its own
+# headers; libc/wasm32/braam is the half that knows Braam.
 LIBC_COMMON = atoi bsearch co ctype float128 getopt_long gmtime memccpy memchr memcmp \
               qsort snprintf sprintf strcat strchr strcmp strcpy strcspn strdup \
               strftime strlen strncat strncmp strncpy strndup strnlen strpbrk strrchr strspn \
               strstr strtok strtok_r strtol vsnprintf vsprintf
 LIBC_BRAAM = rt sys stdio malloc strerror strtod taskbytes
-WASM32_INCLUDE = -Ilibc/wasm32/include -Ilibc/ilp32/include -Ilibc/common/include
-WASM32_HEADERS = $(wildcard libc/wasm32/include/*.h libc/ilp32/include/*.h \
-                            libc/common/include/*.h)
+WASM32_INCLUDE = -nostdinc -Ilibc/wasm32/include -Ilibc/ilp32/include -Ilibc/common/include
 
 LIBC_OBJS = obj/libc/memory.o $(LIBC_COMMON:%=obj/libc/%.o) $(LIBC_BRAAM:%=obj/libc/%.o) \
             obj/libc/doprnt.o
@@ -93,13 +89,9 @@ obj/%.o: %.c
 	@mkdir -p $(@D)
 	cc $(CFLAGS) -MMD -c -o $@ $<
 
-$(LIBC_COMMON:%=obj/libc/%.o): obj/libc/%.o: libc/common/%.c $(WASM32_HEADERS)
+$(LIBC_COMMON:%=obj/libc/%.o): obj/libc/%.o: libc/common/%.c
 	@mkdir -p $(@D)
-	$(PASSES)/vcpp -t wasm32 -nostdinc $(WASM32_INCLUDE) $< obj/libc/$*.i
-	$(PASSES)/vparse obj/libc/$*.i obj/libc/$*.ast
-	$(PASSES)/vlower -t wasm32 obj/libc/$*.ast obj/libc/$*.tac
-	$(PASSES)/vgenwasm obj/libc/$*.tac obj/libc/$*.s
-	as -o $@ obj/libc/$*.s
+	cc $(WASM32_INCLUDE) -MMD -c -o $@ $<
 
 $(LIBC_BRAAM:%=obj/libc/%.o): obj/libc/%.o: libc/wasm32/braam/%.c
 	@mkdir -p $(@D)

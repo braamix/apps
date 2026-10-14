@@ -79,9 +79,11 @@ function(vcc_compile list out src name flags)
     set(${list} ${${list}} ${out}/${name}.o PARENT_SCOPE)
 endfunction()
 
-# The runtime, as upstream's libc/wasm32/CMakeLists.txt builds it: crt0.o is
-# Braam's exports; libc.a is wasm32's common and assembly sources, compiled for
-# wasm32 with its own headers, and braam/'s, compiled by the driver with Braam's.
+# The runtime, as upstream's libc/wasm32/CMakeLists.txt has it: crt0.o is
+# Braam's exports; libc.a is wasm32's common and assembly sources, compiled with
+# their own headers, and braam/'s, compiled with Braam's. Upstream compiles the
+# common ones for plain wasm32; the driver's wasm32-braam gives the same bytes,
+# as none of them has a main or asks for __braam__ but doprnt.c, which wants it.
 # The float conversions and <math.h> are musl's, the SDK's share/braam/src/math,
 # compiled here in place of upstream's ILP32 and assembly libm.
 set(src ${CMAKE_CURRENT_SOURCE_DIR}/libc)
@@ -89,8 +91,6 @@ set(out ${CMAKE_CURRENT_BINARY_DIR}/libc)
 file(MAKE_DIRECTORY ${out})
 vcc_selfhost("mkdir -p ${VCC_LIB} ${out}")
 set(VCC_WASM32_INCLUDE -Ilibc/wasm32/include -Ilibc/ilp32/include -Ilibc/common/include)
-file(GLOB VCC_WASM32_HEADERS ${src}/wasm32/include/*.h ${src}/ilp32/include/*.h
-     ${src}/common/include/*.h)
 
 add_custom_command(OUTPUT ${VCC_LIB}/crt0.o
     COMMAND ${VCC_AS} -o ${VCC_LIB}/crt0.o libc/wasm32/braam/exports.s
@@ -110,29 +110,11 @@ foreach(name memory)
     list(APPEND VCC_LIBC_OBJS ${out}/${name}.o)
 endforeach()
 
-macro(vcc_compile_wasm32 dir name)
-    add_custom_command(OUTPUT ${out}/${name}.o
-        COMMAND ${VCC_HOST}/bin/vcpp -t wasm32 -nostdinc ${VCC_WASM32_INCLUDE}
-                libc/${dir}/${name}.c ${out}/${name}.i
-        COMMAND ${VCC_HOST}/bin/vparse ${out}/${name}.i ${out}/${name}.ast
-        COMMAND ${VCC_HOST}/bin/vlower -t wasm32 ${out}/${name}.ast ${out}/${name}.tac
-        COMMAND ${VCC_HOST}/bin/vgenwasm ${out}/${name}.tac ${out}/${name}.s
-        COMMAND ${VCC_AS} -o ${out}/${name}.o ${out}/${name}.s
-        DEPENDS ${src}/${dir}/${name}.c ${VCC_PASSES} ${VCC_WASM32_HEADERS}
-        WORKING_DIRECTORY ${VCC_TREE}
-        COMMENT "Compiling ${name}.c (wasm32)"
-        VERBATIM)
-    string(JOIN " " inc ${VCC_WASM32_INCLUDE})
-    vcc_selfhost("vcpp -t wasm32 -nostdinc ${inc} libc/${dir}/${name}.c ${out}/${name}.i && \
-vparse ${out}/${name}.i ${out}/${name}.ast && \
-vlower -t wasm32 ${out}/${name}.ast ${out}/${name}.tac && \
-vgenwasm ${out}/${name}.tac ${out}/${name}.s && as -o ${out}/${name}.o ${out}/${name}.s")
-    list(APPEND VCC_LIBC_OBJS ${out}/${name}.o)
-endmacro()
 
 # printf, putchar and puts are stdio.c's, coroutines on Braam.
 foreach(name ${VCC_LIBC_COMMON})
-    vcc_compile_wasm32(common ${name})
+    vcc_compile(VCC_LIBC_OBJS ${out} ${src}/common/${name}.c ${name}
+                "-nostdinc;${VCC_WASM32_INCLUDE}")
 endforeach()
 foreach(name ${VCC_LIBC_BRAAM})
     vcc_compile(VCC_LIBC_OBJS ${out} ${src}/wasm32/braam/${name}.c ${name} "")

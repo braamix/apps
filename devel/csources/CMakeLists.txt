@@ -50,7 +50,7 @@ foreach(f ${ms} musl/COPYRIGHT)
     list(APPEND files ${math}/${f}=math/${f})
 endforeach()
 
-braam_add_package(NAME csources VERSION 0.1-r2
+braam_add_package(NAME csources VERSION 0.1-r3
                   FIELD "T=vcc's C sources, and a Makefile that builds the compiler on Braam"
                   FIELD "D=cc make"
                   FILES ${files})

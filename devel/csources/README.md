@@ -102,13 +102,13 @@ includes it.
 
 The runtime is built in four steps:
 
-1. **`libc/common/*.c`** does not go through the driver. The driver always
-   compiles for `wasm32-braam`, with Braam's headers. These files are plain
-   `wasm32` C, so the Makefile runs the four installed passes by hand, with
-   `-t wasm32 -nostdinc` and the three `include/` directories. You can see
-   every intermediate file in `obj/libc/`.
-2. **`libc/wasm32/braam/*.c`** and the printf engine, `doprnt.c`, go
-   through `cc` like the compiler's own sources.
+1. **`libc/common/*.c`** is plain C for any wasm32, so `cc` compiles it
+   with `-nostdinc` and the three `include/` directories in place of
+   Braam's headers. Upstream compiles these for plain `wasm32`; `cc`'s
+   `wasm32-braam` gives the same bytes, since none of them has a `main` or
+   asks for `__braam__`.
+2. **`libc/wasm32/braam/*.c`** and the printf engine, `doprnt.c`, which does
+   ask for `__braam__`, go through `cc` like the compiler's own sources.
 3. **The math library** is musl's C in `math/`, the SDK's
    `share/braam/src/math` that the `cc` package's `libc.a` was compiled
    from. It goes through `cc` with `-Ilibc/wasm32/braam/musl -Dhidden=`, and

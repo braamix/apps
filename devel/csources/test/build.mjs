@@ -33,7 +33,6 @@ keep();
 if (r.status !== 0 || !/obj\/ is the cc package, byte for byte\.\n$/.test(r.out))
     die(`make check: status ${r.status}\n${r.out.split("\n").slice(-20).join("\n")}\n${r.err}`);
 const compiles = (r.out.match(/^cc .* -c -o /gm) ?? []).length;
-const passes = (r.out.match(/\/vgenwasm /gm) ?? []).length;
 
 r = make("");
 if (r.status !== 0 || /^(cc|as|ld|ar|cp) /m.test(r.out))
@@ -47,5 +46,5 @@ if (r.status !== 0 || r.out !== "Hello, csources!\n")
     die(`hello: ${JSON.stringify(r)}`);
 
 const objs = [...H.store.files.keys()].filter((f) => /^\/pkg\/store\/csources-[^/]+\/obj\/.*\.o$/.test(f));
-console.log(`csources ok: ${compiles} compiled by cc and ${passes} by the passes, ` +
-            `${objs.length} objects; obj/ is the cc package, byte for byte`);
+console.log(`csources ok: ${compiles} compiled by cc, ${objs.length} objects; ` +
+            "obj/ is the cc package, byte for byte");
