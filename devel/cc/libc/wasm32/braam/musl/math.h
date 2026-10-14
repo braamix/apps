@@ -84,7 +84,7 @@ float y1f(float);
 #define fegetround()     FE_TONEAREST
 #define fesetround(r)    ((void)(r), 0)
 
-// fma.c reached this through atomic.h; i64.clz, in native.s.
+// fma.c reached this through atomic.h; i64.clz, in math.s.
 #define a_clz_64(x) __clz64(x)
 int __clz64(uint64_t);
 

@@ -108,7 +108,7 @@ index version must rise at every publication. The whole procedure is
 
 The SDK is currently
 
-    https://github.com/braamix/core/releases/download/v0.10.3/braam-sdk-0.10.286-eb637d9.zip
+    https://github.com/braamix/core/releases/download/v0.11/braam-sdk-0.11.288-89bbbae.zip
 
 named at the head of the [Makefile](Makefile). Please move to the newest with
 each Braam release: a binary carries the process ABI it was built for, and the
