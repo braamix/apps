@@ -3,8 +3,8 @@
 
 # The SDK this tree builds against. Move it with each Braam release, here and
 # in README.md. A binary stamped for another process ABI is refused at exec.
-SDK_RELEASE := v0.10.2
-SDK_VERSION := 0.10.283-bcfffef
+SDK_RELEASE := v0.10.3
+SDK_VERSION := 0.10.286-eb637d9
 SDK_URL := https://github.com/braamix/core/releases/download/$(SDK_RELEASE)/braam-sdk-$(SDK_VERSION).zip
 
 BUILD     ?= build
