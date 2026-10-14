@@ -361,6 +361,10 @@ Tac_Val *emit_bool_normalize(TacCtx *ctx, Tac_Val *src, const Type *from, const 
 
 Tac_Val *emit_cast(TacCtx *ctx, Tac_Val *src, const Type *from, const Type *to)
 {
+    // The kinds below are the types' own, not a typedef's: (double_t)f is a conversion.
+    from = unalias(from);
+    to   = unalias(to);
+
     // A cast to void discards the value: the operand has already been evaluated
     // for its side effects, and a void expression can never be used as a value.
     // Emit no conversion and hand the source back unchanged (the caller drops it).
