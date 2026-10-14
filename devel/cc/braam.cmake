@@ -131,13 +131,10 @@ vgenwasm ${out}/${name}.tac ${out}/${name}.s && as -o ${out}/${name}.o ${out}/${
 endmacro()
 
 # printf, putchar and puts are stdio.c's, coroutines on Braam.
-foreach(name atoi bsearch co ctype float128 getopt_long gmtime memccpy memchr memcmp
-             qsort snprintf sprintf strcat strchr strcmp strcpy strcspn strdup
-             strftime strlen strncat strncmp strncpy strndup strnlen strpbrk strrchr strspn
-             strstr strtok strtok_r strtol vsnprintf vsprintf)
+foreach(name ${VCC_LIBC_COMMON})
     vcc_compile_wasm32(common ${name})
 endforeach()
-foreach(name rt sys stdio malloc nan strerror strtod taskbytes)
+foreach(name ${VCC_LIBC_BRAAM})
     vcc_compile(VCC_LIBC_OBJS ${out} ${src}/wasm32/braam/${name}.c ${name} "")
 endforeach()
 # The printf engine sees __braam__, which hands its floats to musl's fmt_fp.

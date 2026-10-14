@@ -295,6 +295,18 @@ cannot be read again in the same process, whose state was never written to
 be emptied, so make spawns itself and waits, which is GNU's `exec` here.
 `test/build.mjs`, `portable.mjs`, `library.mjs`, `gnu.mjs`, `jobs.mjs` and
 `deps.mjs` have it drive `cc` on Braam, and `cases.mjs` holds its `-n` to host GNU make's.
+And [devel/csources](devel/csources/), which is no program at all: a package
+of devel/cc's own sources at their paths there, plus a hand-written Makefile,
+so that `cd /pkg/store/csources-*/ && make check` rebuilds the compiler on
+Braam with the installed `cc` and `make` and `cmp`s it against the `cc`
+package. Its `CMakeLists.txt` takes the file list from `../cc/sources.cmake`,
+which now also holds the libc name lists `braam.cmake` uses, but its Makefile
+repeats those lists by hand, so `test/build.mjs` in `LONGTESTS` is what catches
+drift. The math members of `libc.a` are musl compiled as C++ and cannot be
+built there, so the Makefile takes the `*.obj` members out of the installed
+`libc.a`. And `ld` writes its output's file name into the module's `name`
+section, so each program is linked as the `.wasm` the package's was and then
+copied to `bin/cc` or `libexec/v<name>`, or the bytes differ by that name.
 
 The rest of the tree is category directories, a few
 holding a one-line `TODO.md` naming the upstream to port:

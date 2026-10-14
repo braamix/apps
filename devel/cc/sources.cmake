@@ -37,6 +37,15 @@ set(VCC_CPP
     cpp/cpp.c cpp/buffer.c cpp/scan.c cpp/direct.c cpp/macro.c cpp/diag.c
     cpp/parser.c cpp/yylex.c cpp/files.c cpp/deps.c)
 
+# The runtime: libc/common/<name>.c, compiled for wasm32 with its own headers,
+# and libc/wasm32/braam/<name>.c, compiled by the driver with Braam's.
+set(VCC_LIBC_COMMON
+    atoi bsearch co ctype float128 getopt_long gmtime memccpy memchr memcmp
+    qsort snprintf sprintf strcat strchr strcmp strcpy strcspn strdup
+    strftime strlen strncat strncmp strncpy strndup strnlen strpbrk strrchr strspn
+    strstr strtok strtok_r strtol vsnprintf vsprintf)
+set(VCC_LIBC_BRAAM rt sys stdio malloc nan strerror strtod taskbytes)
+
 # Each program: its main and the parts it links.
 set(VCC_PARSE_SOURCES parser/main.c ${VCC_PARSER} ${VCC_SCANNER} ${VCC_AST} ${VCC_LIBUTIL})
 set(VCC_LOWER_SOURCES translator/main.c ${VCC_TRANSLATOR} ${VCC_OPTIMIZE} ${VCC_SEMANTIC}

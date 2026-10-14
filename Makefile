@@ -308,7 +308,8 @@ LONGTESTS := \
     lang/python/test/pycases.mjs,--shard=4/4 \
     devel/wasm/wat/test/object.mjs \
     devel/cc/test/corpus.mjs \
-    devel/cc/test/selfhost.mjs
+    devel/cc/test/selfhost.mjs \
+    devel/csources/test/build.mjs
 
 # `make test STRESS=1`. Python's cases are run a second time collecting at
 # every allocation, which is what says a C++ hand holding an object across an
@@ -356,10 +357,10 @@ define run-tests
 	@echo "passed: `wc -l < $(2)/list | tr -d ' '` tests" | tee -a $(3)
 endef
 
-# devel/cc's tests install the cc and wasm packages, packed once here rather
-# than by each of them side by side.
+# devel/cc's tests install the cc and wasm packages, and devel/csources's make
+# and csources too: packed once here rather than by each of them side by side.
 test-packages: all
-	@cmake --build $(BUILD) -j $(JOBS) --target pkg_cc pkg_wasm >/dev/null
+	@cmake --build $(BUILD) -j $(JOBS) --target pkg_cc pkg_wasm pkg_make pkg_csources >/dev/null
 
 test: test-packages
 	$(call run-tests,$(TESTS) $(if $(STRESS),$(STRESS_TESTS)),$(TEST_DIR),$(TEST_LOG))

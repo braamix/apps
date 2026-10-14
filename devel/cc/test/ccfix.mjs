@@ -1,6 +1,7 @@
 // The fixture devel/cc's tests share: a boot with the cc package installed as
 // a user installs it. A signed index offers the cc and wasm packages, and `pkg
-// install cc` pulls in both. The anchor is the fixture's own, over keys made
+// install cc` pulls in both; `extra` names more for it to offer, as
+// "<category>/<name>". The anchor is the fixture's own, over keys made
 // for the run, so no publisher's key is needed.
 
 import { execFileSync } from "node:child_process";
@@ -17,24 +18,25 @@ export const HOST_VCC = join(APPS, "build/host-cc/stage/bin/vcc");
 const TOOLS = join(SDK, "libexec/braam");
 const URL = "https://braamix.github.io";
 
-export function fixture(name) {
+export function fixture(name, extra = []) {
     const die = (msg) => {
         console.error(`${name}: ${msg}`);
         process.exit(1);
     };
-    return { die, boot: () => boot(die) };
+    return { die, boot: () => boot(die, extra) };
 }
 
-// The two packages, which `make test-packages` packs, and a repository
-// vouching for them.
-function repository(die) {
+// The packages, which `make test-packages` packs, and a repository vouching
+// for them.
+function repository(die, extra) {
     const zipIn = (dir, name) => {
         const z = readdirSync(dir).filter((f) => f.startsWith(name + "-") && f.endsWith(".zip"));
         if (z.length !== 1)
             die(`${dir}: ${z.length} ${name} packages; \`make test-packages\` packs them`);
         return join(dir, z[0]);
     };
-    const zips = [zipIn(BUILD, "cc"), zipIn(join(APPS, "build/devel/wasm"), "wasm")];
+    const zips = [zipIn(BUILD, "cc"), zipIn(join(APPS, "build/devel/wasm"), "wasm"),
+                  ...extra.map((p) => zipIn(join(APPS, "build", p), p.split("/")[1]))];
     const keys = mkdtempSync(join(tmpdir(), "vcc-repo-"));
     const py = (script, args) =>
         execFileSync("python3", [join(TOOLS, script), ...args], { cwd: keys });
@@ -59,8 +61,8 @@ function repository(die) {
 //   run(cmd)                 {out, err, status} of a command, run from /tmp
 //   sh(script)               the same of a script, which has no length limit
 //   store                    the cc package's store directory
-async function boot(die) {
-    const { zips, anchor, index } = repository(die);
+async function boot(die, extra) {
+    const { zips, anchor, index } = repository(die, extra);
     const H = await import(HARNESS);
     await H.init(KERNEL, ROOTFS);
     H.kernel().init(0);
