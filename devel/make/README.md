@@ -183,7 +183,7 @@ both its pipes are at their end, and writes the job's output whole.
    the standard it comes from, and each POSIX difference in "Where POSIX
    overrules V7".
 5. **Version:** there is no upstream version to move, so only the revision
-   counts up — `2.58-r7` now.
+   counts up — `2.58-r8` now.
 
 Not done, on purpose: GNU's `.SECONDEXPANSION`, grouped targets `&:`, `load`
 and Guile; the jobserver between separate `make`s, which needs a descriptor
@@ -252,7 +252,9 @@ and make reads 0 as "not there", so a library make keeps up to date wants
 **Signals.** `^C` is caught. It reaches make where make parks, which is in
 `wait_child()`: the child is sent `SIG_INT` (a second `^C` sends `SIG_KILL`),
 reaped, and then `intrupt()` does what v7's did — removes `$@` unless
-`.PRECIOUS` names it, and exits 2. There is no `SIGQUIT`, and v7's test for an
+`.PRECIOUS` names it, and exits 2. A `^C` that comes while make is in a call
+the kernel cannot abandon, a `stat` or a `spawn`, is only noted, so make asks
+`sig_take()` before each wait as well: a long walk is mostly such calls. There is no `SIGQUIT`, and v7's test for an
 already-ignored `SIGINT` went with it.
 
 **Bounds.** The BESM port bounded the graph at eleven levels for its 4 KW
@@ -298,7 +300,8 @@ is gone does not stop make.
 [test/jobs.mjs](test/jobs.mjs) builds a program of five sources under
 `-j 4`, links it only after every object, gets the same bytes as under `-j 1`,
 and has a failing compile wait for the one running beside it before make
-stops. `^C` under `-j` is `cases.mjs`'s `jobsint`.
+stops. `^C` under `-j` is `cases.mjs`'s `jobsint`; jobs.mjs sends one while
+make walks 200 targets, with `-j 4` and without, and make stops.
 
 [test/gnu.mjs](test/gnu.mjs) builds a program with `cc` on Braam from a
 makefile written for GNU make — `$(wildcard)` and `$(patsubst)` for the

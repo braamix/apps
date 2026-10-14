@@ -226,6 +226,9 @@ static Task<int> await(void)
     Result<Exited> r = Err(Error::Io);
     int intr         = 0;
 
+    // A ^C that came while make was in a call it cannot abandon is only noted.
+    if (sig_take(SIG_INT))
+        co_await kill_child(childpid, intr++ ? SIG_KILL : SIG_INT);
     for (;;) {
         r = co_await wait_child(childpid);
         if (r.is_ok())

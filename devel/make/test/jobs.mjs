@@ -3,6 +3,7 @@
 // made on the run after, and a failing compile under -j waiting for the ones
 // running before it stops.
 // A target of 1300 prerequisites is made, one at a time and two.
+// A ^C that lands while make walks stops it, under -j and without.
 // ^C under -j is cases.mjs's jobsint.
 
 import { readFileSync } from "node:fs";
@@ -101,6 +102,32 @@ for (const j of ["1", "2"]) {
     r = run(`make -j ${j} -f many.mk`);
     if (r.status !== 0 || r.out !== "all\n")
         die(`make -j ${j} -f many.mk: ${JSON.stringify(r)}`);
+}
+
+// ^C while make is in a call it cannot abandon -- a stat, a spawn -- is only
+// noted: make takes it before its next wait, and stops.  The kill is queued
+// behind make, so it lands while make walks its 200 targets.
+const many2 = Array.from({ length: 200 }, (_, i) => `t${i}`);
+file("/tmp/v/m.mk", `all: ${many2.join(" ")}\n${many2.join(" ")}:\n\t@touch $@\n`);
+let tick = 1e9, job = 0;
+for (const j of ["4", "1"]) {
+    ++job; // a job's number counts up for the life of the shell
+    run("rm -f /tmp/v/t* /tmp/v/st");
+    H.type("cd /tmp/v");
+    H.press(H.KEY.ENTER);
+    H.run(tick++);
+    for (const line of [`make -j ${j} -f m.mk >o 2>e &`, `kill -INT %${job}`]) {
+        H.type(line);
+        H.press(H.KEY.ENTER);
+    }
+    H.run(tick++);
+    H.type(`wait %${job}; echo $? >st; cd /tmp`);
+    H.press(H.KEY.ENTER);
+    H.run(tick++);
+    const st = new TextDecoder().decode(H.store.files.get("/tmp/v/st") ?? new Uint8Array());
+    const made = many2.filter((t) => H.store.files.has(`/tmp/v/${t}`)).length;
+    if (st !== "2\n" || made > 2)
+        die(`^C under -j ${j}: status ${JSON.stringify(st)}, ${made} of 200 made`);
 }
 
 console.log("make jobs ok");

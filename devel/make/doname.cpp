@@ -1349,6 +1349,12 @@ static Task<void> reapsync(void)
 // one of them ends.
 Task<void> reap(void)
 {
+    // A ^C that came while make was in a call it cannot abandon -- a stat, a
+    // spawn -- is only noted, and is taken here, before the wait.
+    if (sig_take(SIG_INT)) {
+        co_await killjobs();
+        co_return;
+    }
     if (outsync) {
         co_await reapsync();
         co_return;

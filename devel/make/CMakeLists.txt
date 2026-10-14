@@ -12,7 +12,7 @@ braam_add_program(NAME make
                           gram.cpp
                   PORT NOFLOAT)
 
-braam_add_package(NAME make VERSION 2.58-r7
+braam_add_package(NAME make VERSION 2.58-r8
                   FIELD "T=POSIX and GNU make, grown from V7 make"
                   FILES $<TARGET_FILE:bin_make>=bin/make
                         ${CMAKE_CURRENT_SOURCE_DIR}/Manual.md=share/Manual.md)
