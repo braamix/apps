@@ -398,7 +398,7 @@ char *callfunc(int fn, char *args, char *b, char *bend)
 {
     const struct func *f = &funcs[fn - 1];
     char **av, *x[3] = { 0, 0, 0 }, *p, *w, *s, *t, **v;
-    int ac, nest, first = YES, i, n;
+    int ac, nest, first = YES, i, n, before = substneed, argneed;
     size_t wl, l;
     long k, m;
     struct varblock *vp;
@@ -426,11 +426,18 @@ char *callfunc(int fn, char *args, char *b, char *bend)
         goto out;
     }
 
-    // Those taken whole, expanded now.
+    // Those taken whole, expanded now. One still waiting on a call is not the
+    // argument yet: what acts on it waits too, rather than run or stop on half
+    // of it.
+    argneed = NO;
     if (fn != F_IF && fn != F_OR && fn != F_AND && fn != F_FOREACH && fn != F_CALL &&
-        fn != F_INTCMP && fn != F_LET)
+        fn != F_INTCMP && fn != F_LET) {
+        substneed = NO;
         for (i = 0; i < ac && i < 3; ++i)
             x[i] = substa(av[i]);
+        argneed   = substneed;
+        substneed = before || argneed;
+    }
     if (stopped)
         goto out;
 
@@ -682,7 +689,8 @@ char *callfunc(int fn, char *args, char *b, char *bend)
         break;
 
     case F_ERROR:
-        fatal(x[0]);
+        if (!argneed)
+            fatal(x[0]);
         break;
 
     case F_EVAL:
@@ -717,7 +725,8 @@ char *callfunc(int fn, char *args, char *b, char *bend)
     case F_WILDCARD:
     case F_SHELL:
     case F_REALPATH:
-        ask(fn, x[0], &b, bend);
+        if (!argneed)
+            ask(fn, x[0], &b, bend);
         break;
 
     case F_ABSPATH:
@@ -828,7 +837,8 @@ char *callfunc(int fn, char *args, char *b, char *bend)
         kl  = strlen(op) + (ac > 1 ? strlen(x[1]) : 0) + 3;
         key = (char *)ckalloc(kl);
         snprintf(key, kl, "%s%c%s", op, ac > 1 ? '\1' : '\2', ac > 1 ? x[1] : "");
-        ask(fn, key, &b, bend);
+        if (!argneed)
+            ask(fn, key, &b, bend);
         free(key);
         break;
     }

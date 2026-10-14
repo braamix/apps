@@ -304,6 +304,7 @@ const GMAKE_CASES = new Set([
     "vpath", "vpathsuf", "vpathtgt", "vpathold", "funcs2", "eval", "tvars", "tvarscmd", "longopts", "mflong", "oneshell", "oneshell2",
     "chain", "chainup", "chainsec", "inter", "chainneed", "jobs", "jobswait", "jobspat", "jobssync",
     "remake", "remaked", "funcs3", "always", "oldfile", "whatif", "whatifold",
+    "nodir", "nestfn",
 ]);
 const GMAKE = (() => {
     for (const g of ["gmake", "make"])

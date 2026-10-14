@@ -131,9 +131,9 @@ Task<struct depblock *> srchdir(char *pat, int mkchain, struct depblock *nextdbl
         b_closedir(od->dirfc); // read it again rather than rewind it
     dirf = od->dirfc = co_await b_opendir(dirname);
 
+    // No directory has no names in it, as in GNU make: v7 stopped here, which
+    // made a probe under a directory that commands have yet to create fatal.
     if (dirf == NULL) {
-        diag("Directory %s: ", dirname);
-        fatal("Cannot open");
         if (endir != 0)
             *endir = '/';
         free(dirpref);

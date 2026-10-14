@@ -143,8 +143,11 @@ recorded instead, and the expansion marked as needing it. The coroutine
 above — `yyparse()` for a makefile line, `docom()` for a rule's commands,
 `runset()` for a `!=` — runs what was recorded and expands the same text
 again, which now finds it; nothing of a line is done until it expands
-whole. The cache is emptied after each command, which may have changed what
-either would say. `$(realpath)` and `$(file)` are requests too.
+whole. A call whose own argument is still waiting is not recorded until that
+argument is whole, so `$(shell ls $(wildcard x*))` runs once, on the names,
+and `$(error)` does not stop on half its message. The cache is emptied after
+each command, which may have changed what either would say. `$(realpath)` and
+`$(file)` are requests too.
 
 **Remade makefiles** start make again, and its state — the name table, the
 macros, the rules, every static in the parser — was never written to be
@@ -180,7 +183,7 @@ both its pipes are at their end, and writes the job's output whole.
    the standard it comes from, and each POSIX difference in "Where POSIX
    overrules V7".
 5. **Version:** there is no upstream version to move, so only the revision
-   counts up — `2.58-r5` now.
+   counts up — `2.58-r6` now.
 
 Not done, on purpose: GNU's `.SECONDEXPANSION`, grouped targets `&:`, `load`
 and Guile; the jobserver between separate `make`s, which needs a descriptor
@@ -231,7 +234,10 @@ finishes inside a second. `prestime()` is `clock_now()`.
 
 **Directories.** A listing here is taken whole in one call and does not change
 after it, so where v7 rewound an open directory to see what a command had made
-since, `srchdir()` reads it again. `-d` prints a directory's name and no
+since, `srchdir()` reads it again. A directory that cannot be opened has no
+names in it, as in GNU make, where v7 stopped with `Directory d: Cannot
+open`: an implicit-rule probe for `obj/x.d`, before a command has made
+`obj/`, is an ordinary miss. `-d` prints a directory's name and no
 descriptor, there being none.
 
 **Archives** are what [devel/wasm](../wasm/)'s `ar` writes, System V's:
