@@ -74,10 +74,14 @@ The runtime has three parts:
 - [libc/wasm32/braam/](libc/wasm32/braam/) is the half that knows Braam:
   system calls, `malloc`, and stdio built on coroutines. Its headers,
   `braam.h` and `errno.h`, are in `include/` beside it.
-- Two files of assembly. `exports.s` holds the entry points the kernel calls
-  (`_start`, `_resume`, `_alloc`, `_free`, `_sig`) and becomes `crt0.o`.
-  `memory.s` holds `memcpy`, `memmove`, `memset` and the calls that size and
-  grow memory.
+- Three files of assembly. `exports.s` holds the entry points the kernel
+  calls (`_start`, `_resume`, `_alloc`, `_free`, `_sig`) and becomes
+  `crt0.o`. `memory.s` holds `memcpy`, `memmove`, `memset` and the calls
+  that size and grow memory. `math.s` holds `sqrt`, `floor` and the other
+  math functions that are one wasm instruction each.
+
+`math/` is not vcc's: it is musl's `libm` and its `strtod` and
+`printf` engines, from the Braam SDK (`math/musl/COPYRIGHT`).
 
 ## How it comes together
 
@@ -105,11 +109,13 @@ The runtime is built in four steps:
    every intermediate file in `obj/libc/`.
 2. **`libc/wasm32/braam/*.c`** and the printf engine, `doprnt.c`, go
    through `cc` like the compiler's own sources.
-3. **`libc.a`** is those objects in a fixed order, followed by the math
-   library. The math library is musl's, compiled in C++ by the Braam SDK, so
-   it cannot be built here. The Makefile asks the installed `libc.a` for its
-   `*.obj` members (`ar t`), takes them out (`ar x`) and appends them in the
-   same order.
+3. **The math library** is musl's C in `math/`, the SDK's
+   `share/braam/src/math` that the `cc` package's `libc.a` was compiled
+   from. It goes through `cc` with `-Ilibc/wasm32/braam/musl -Dhidden=`, and
+   `math.s` holds the functions wasm answers with one instruction.
+   `libc.a` is the objects of steps 1 and 2 in a fixed order, followed by
+   the math library's, in the order `$(sort $(wildcard ...))` gives, which
+   is the order the host build's glob gives too.
 4. **The headers** are copied into `obj/share/vcc/wasm32-braam/include/`.
    Braam's come first, then wasm32's, ILP32's and the common ones, and the
    first file with a given name wins. That is the set and order the installed

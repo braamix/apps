@@ -44,7 +44,7 @@ set(VCC_LIBC_COMMON
     qsort snprintf sprintf strcat strchr strcmp strcpy strcspn strdup
     strftime strlen strncat strncmp strncpy strndup strnlen strpbrk strrchr strspn
     strstr strtok strtok_r strtol vsnprintf vsprintf)
-set(VCC_LIBC_BRAAM rt sys stdio malloc nan strerror strtod taskbytes)
+set(VCC_LIBC_BRAAM rt sys stdio malloc strerror strtod taskbytes)
 
 # Each program: its main and the parts it links.
 set(VCC_PARSE_SOURCES parser/main.c ${VCC_PARSER} ${VCC_SCANNER} ${VCC_AST} ${VCC_LIBUTIL})

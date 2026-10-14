@@ -5,7 +5,7 @@
 // installed over the package's and compiles the book's programs.
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { BOOK } from "./book.mjs";
 import { BUILD, TREE, fixture } from "./ccfix.mjs";
@@ -21,8 +21,14 @@ for (const f of execFileSync("git", ["ls-files", "--cached", "--others", "--excl
                              { cwd: TREE, encoding: "utf8" }).split("\n"))
     if (/\.[chs]$/.test(f))
         put(`${T}/${f}`, new Uint8Array(readFileSync(join(TREE, f))));
-put("/tmp/math.a", new Uint8Array(readFileSync(join(SDK, "lib/braam/libbraam_math.a"))));
-const script = `T=${T}\nO=${O}\nMATH=/tmp/math.a\nPATH=$PATH:${store}/libexec\ncd $T\n` +
+// The SDK's math sources, at math/ beside the tree, as csources has them.
+for (const dir of ["musl", "cvt"]) {
+    const from = join(SDK, "share/braam/src/math", dir);
+    for (const f of readdirSync(from))
+        if (/\.[ch]$/.test(f))
+            put(`${T}/math/${dir}/${f}`, new Uint8Array(readFileSync(join(from, f))));
+}
+const script = `T=${T}\nO=${O}\nPATH=$PATH:${store}/libexec\ncd $T\n` +
                readFileSync(join(BUILD, "selfhost.sh"), "utf8");
 const r = sh(script);
 if (r.err)

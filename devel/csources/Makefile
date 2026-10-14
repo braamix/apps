@@ -7,8 +7,7 @@
 # obj/ is laid out as the cc package is, so obj/bin/cc runs from where it is:
 # its passes in obj/libexec/, its runtime and headers in obj/share/vcc/.
 
-# The installed cc package: its passes compile the wasm32 half of libc, and
-# its libc.a supplies the math library.
+# The installed cc package: its passes compile the wasm32 half of libc.
 CCDIR := $(firstword $(wildcard /pkg/store/cc-*))
 CCLIB := $(CCDIR)/share/vcc/wasm32-braam/lib
 PASSES := $(CCDIR)/libexec
@@ -61,13 +60,20 @@ LIBC_COMMON = atoi bsearch co ctype float128 getopt_long gmtime memccpy memchr m
               qsort snprintf sprintf strcat strchr strcmp strcpy strcspn strdup \
               strftime strlen strncat strncmp strncpy strndup strnlen strpbrk strrchr strspn \
               strstr strtok strtok_r strtol vsnprintf vsprintf
-LIBC_BRAAM = rt sys stdio malloc nan strerror strtod taskbytes
+LIBC_BRAAM = rt sys stdio malloc strerror strtod taskbytes
 WASM32_INCLUDE = -Ilibc/wasm32/include -Ilibc/ilp32/include -Ilibc/common/include
 WASM32_HEADERS = $(wildcard libc/wasm32/include/*.h libc/ilp32/include/*.h \
                             libc/common/include/*.h)
 
 LIBC_OBJS = obj/libc/memory.o $(LIBC_COMMON:%=obj/libc/%.o) $(LIBC_BRAAM:%=obj/libc/%.o) \
             obj/libc/doprnt.o
+
+# The math library: wasm's one-instruction functions, then musl's C in math/,
+# in the order the host build globs it. libc/wasm32/braam/musl/math.h comes
+# first on the path; sincos.c and jn.c each need a word more.
+MATH_SRCS = $(sort $(wildcard math/musl/*.c math/cvt/*.c))
+MATH_OBJS = obj/libc/math.o $(patsubst math/%.c,obj/libc/math/%.o,$(MATH_SRCS))
+MATH_FLAGS = -Ilibc/wasm32/braam/musl -Dhidden=
 
 # The installation, as the cc package lays it out.
 SHARE = obj/share/vcc/wasm32-braam
@@ -104,6 +110,17 @@ obj/libc/doprnt.o: libc/common/doprnt.c
 	@mkdir -p $(@D)
 	cc -MMD -c -o $@ libc/common/doprnt.c
 
+obj/libc/math.o: libc/wasm32/math.s
+	@mkdir -p $(@D)
+	as -o $@ libc/wasm32/math.s
+
+obj/libc/math/%.o: math/%.c
+	@mkdir -p $(@D)
+	cc $(MATH_FLAGS) -MMD -c -o $@ $<
+
+obj/libc/math/musl/sincos.o obj/libc/math/musl/sincosf.o: MATH_FLAGS += -DMUSL_SINCOS
+obj/libc/math/musl/jn.o obj/libc/math/musl/jnf.o: MATH_FLAGS += -DMUSL_JN
+
 obj/libc/memory.o: libc/wasm32/memory.s
 	@mkdir -p $(@D)
 	as -o $@ libc/wasm32/memory.s
@@ -113,15 +130,12 @@ $(SHARE)/lib/crt0.o: libc/wasm32/braam/exports.s
 	@mkdir -p $(@D)
 	as -o $@ libc/wasm32/braam/exports.s
 
-# libc.a is our objects, then the math library's: musl, built by the SDK in
-# C++, so taken out of the installed libc.a rather than compiled here.
-$(SHARE)/lib/libc.a: $(LIBC_OBJS)
-	@mkdir -p $(@D) obj/math
+# libc.a is our objects, then the math library's.
+$(SHARE)/lib/libc.a: $(LIBC_OBJS) $(MATH_OBJS)
+	@mkdir -p $(@D)
 	test ! -f $@ || rm $@
 	ar qc $@ $(LIBC_OBJS)
-	cd obj/math && ar x $(CCLIB)/libc.a $(MATH) && ar qcs ../../$@ $(MATH)
-
-MATH = $(filter %.obj,$(shell ar t $(CCLIB)/libc.a))
+	ar qcs $@ $(MATH_OBJS)
 
 # The headers, the first of a name winning: Braam's, then wasm32's, ILP32's
 # and the common ones. Copied last to first, so the first is the one left.
@@ -185,4 +199,4 @@ clean:
 .DELETE_ON_ERROR:
 
 # What -MMD wrote, once there is any.
--include $(wildcard obj/*/*.d obj/*/*/*.d)
+-include $(wildcard obj/*/*.d obj/*/*/*.d obj/*/*/*/*.d)

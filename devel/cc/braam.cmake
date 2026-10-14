@@ -52,7 +52,7 @@ set(VCC_TREE ${CMAKE_CURRENT_SOURCE_DIR})
 # The same build as commands for Braam's shell, selfhost.sh, which
 # test/selfhost.mjs runs there: in this directory, with the outputs under $O
 # where this build has them under its binary directory, and the SDK's math
-# archive at $MATH; $T is this directory.
+# sources at $T/math; $T is this directory.
 set_property(GLOBAL PROPERTY VCC_SELFHOST "")
 function(vcc_selfhost line)
     string(REPLACE "${CMAKE_CURRENT_BINARY_DIR}" "$O" line "${line}")
@@ -82,8 +82,8 @@ endfunction()
 # The runtime, as upstream's libc/wasm32/CMakeLists.txt builds it: crt0.o is
 # Braam's exports; libc.a is wasm32's common and assembly sources, compiled for
 # wasm32 with its own headers, and braam/'s, compiled by the driver with Braam's.
-# The float conversions and <math.h> are musl's, the SDK's libbraam_math.a, whose
-# members libc.a carries in place of upstream's ILP32 and assembly libm.
+# The float conversions and <math.h> are musl's, the SDK's share/braam/src/math,
+# compiled here in place of upstream's ILP32 and assembly libm.
 set(src ${CMAKE_CURRENT_SOURCE_DIR}/libc)
 set(out ${CMAKE_CURRENT_BINARY_DIR}/libc)
 file(MAKE_DIRECTORY ${out})
@@ -140,18 +140,57 @@ endforeach()
 # The printf engine sees __braam__, which hands its floats to musl's fmt_fp.
 vcc_compile(VCC_LIBC_OBJS ${out} ${src}/common/doprnt.c doprnt "")
 
-set(VCC_MATH $<TARGET_FILE:braam::math>)
+# The math library: the one-instruction functions in assembly, and musl's C from
+# the SDK, compiled in its directory as math/<dir>/<name>.c, which is where a
+# Braam build has it too. libc/wasm32/braam/musl/math.h is what the SDK's
+# musl_prologue.h is to clang; sincos.c and jn.c each need a word more (MUSL_*).
+add_custom_command(OUTPUT ${out}/math.o
+    COMMAND ${VCC_AS} -o ${out}/math.o libc/wasm32/math.s
+    DEPENDS ${src}/wasm32/math.s
+    WORKING_DIRECTORY ${VCC_TREE}
+    VERBATIM)
+vcc_selfhost("as -o ${out}/math.o libc/wasm32/math.s")
+set(VCC_MATH_OBJS ${out}/math.o)
+
+get_filename_component(VCC_MATH_ROOT ${BRAAM_EXAMPLES_DIR}/../src ABSOLUTE)
+file(GLOB VCC_MATH_SOURCES RELATIVE ${VCC_MATH_ROOT}
+     ${VCC_MATH_ROOT}/math/musl/*.c ${VCC_MATH_ROOT}/math/cvt/*.c)
+file(GLOB VCC_MATH_HEADERS ${VCC_MATH_ROOT}/math/musl/*.h ${VCC_MATH_ROOT}/math/cvt/*.h)
+set(VCC_MUSL_INCLUDE ${src}/wasm32/braam/musl)
+file(MAKE_DIRECTORY ${out}/math)
+vcc_selfhost("mkdir -p ${out}/math")
+foreach(s ${VCC_MATH_SOURCES})
+    get_filename_component(name ${s} NAME_WE)
+    set(flags -Dhidden=)
+    if(name MATCHES "^sincosf?$")
+        list(APPEND flags -DMUSL_SINCOS)
+    elseif(name MATCHES "^jnf?$")
+        list(APPEND flags -DMUSL_JN)
+    endif()
+    set(o ${out}/math/${name})
+    add_custom_command(OUTPUT ${o}.o
+        COMMAND ${VCC} -I${VCC_MUSL_INCLUDE} ${flags} -S -o ${o}.s ${s}
+        COMMAND ${VCC_AS} -o ${o}.o ${o}.s
+        DEPENDS ${VCC_MATH_ROOT}/${s} ${VCC_MATH_HEADERS} ${VCC_MUSL_INCLUDE}/math.h
+                ${VCC_PASSES} ${VCC_HEADERS}
+        WORKING_DIRECTORY ${VCC_MATH_ROOT}
+        COMMENT "Compiling ${s} (wasm32-braam)"
+        VERBATIM)
+    string(JOIN " " f ${flags})
+    vcc_selfhost("cc -Ilibc/wasm32/braam/musl ${f} -S -o ${o}.s ${s} && as -o ${o}.o ${o}.s")
+    list(APPEND VCC_MATH_OBJS ${o}.o)
+endforeach()
 
 add_custom_command(OUTPUT ${VCC_LIB}/libc.a
     COMMAND ${CMAKE_COMMAND} -E rm -f ${VCC_LIB}/libc.a
     COMMAND ${CMAKE_AR} qc ${VCC_LIB}/libc.a ${VCC_LIBC_OBJS}
-    COMMAND ${CMAKE_AR} qcsL ${VCC_LIB}/libc.a ${VCC_MATH}
-    DEPENDS ${VCC_LIBC_OBJS} ${VCC_MATH}
+    COMMAND ${CMAKE_AR} qcs ${VCC_LIB}/libc.a ${VCC_MATH_OBJS}
+    DEPENDS ${VCC_LIBC_OBJS} ${VCC_MATH_OBJS}
     VERBATIM)
-# Braam's ar has no L: the math archive's members are taken out and added.
 string(JOIN " " objs ${VCC_LIBC_OBJS})
+string(JOIN " " mobjs ${VCC_MATH_OBJS})
 vcc_selfhost("ar qc ${VCC_LIB}/libc.a ${objs}")
-vcc_selfhost("mkdir -p $O/math && cd $O/math && ar x $MATH && ar qcs ${VCC_LIB}/libc.a \`ar t $MATH\`; cd $T")
+vcc_selfhost("ar qcs ${VCC_LIB}/libc.a ${mobjs}")
 
 # braam.h's and errno.h's numbers against the SDK's kernel.
 get_filename_component(VCC_KERNEL_INCLUDE ${BRAAM_SYSABI} DIRECTORY)
@@ -259,7 +298,7 @@ foreach(f docs/examples/hello.c docs/examples/notes.c Manual.md README.md
     get_filename_component(n ${f} NAME)
     list(APPEND VCC_PKG_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${f}=share/${n})
 endforeach()
-braam_add_package(NAME cc VERSION 0.1-r1
+braam_add_package(NAME cc VERSION 0.1-r2
                   FIELD "T=vcc, a C11 compiler with coroutines, for Braam"
                   FIELD D=wasm
                   FILES ${VCC_PKG_FILES})

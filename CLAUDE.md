@@ -302,9 +302,9 @@ Braam with the installed `cc` and `make` and `cmp`s it against the `cc`
 package. Its `CMakeLists.txt` takes the file list from `../cc/sources.cmake`,
 which now also holds the libc name lists `braam.cmake` uses, but its Makefile
 repeats those lists by hand, so `test/build.mjs` in `LONGTESTS` is what catches
-drift. The math members of `libc.a` are musl compiled as C++ and cannot be
-built there, so the Makefile takes the `*.obj` members out of the installed
-`libc.a`. And `ld` writes its output's file name into the module's `name`
+drift. The math part of `libc.a` is the SDK's musl, `share/braam/src/math`,
+which vcc compiles on the host and the package ships at `math/`, so it is
+rebuilt on Braam like the rest. And `ld` writes its output's file name into the module's `name`
 section, so each program is linked as the `.wasm` the package's was and then
 copied to `bin/cc` or `libexec/v<name>`, or the bytes differ by that name.
 

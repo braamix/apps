@@ -195,15 +195,21 @@ be offered back:
   that must write before the process ends — an assertion, a coroutine
   trap, `getopt`'s complaint — posts its message as `exit` posts the
   streams (`__plain_write`).
-- **Floating point is musl's**: the SDK's `libbraam_math.a`, whose members
-  `libc.a` carries. `strtod` and `strtof` are its `__floatscan`, rounding
-  correctly. `printf`'s `%e`, `%f`, `%g` and the new `%a` are its `fmt_fp`
-  (`doprnt.c` under `__braam__`): upstream's own conversion was not exact
-  (`%.17g` of `1e300`) and had no `%a`, which `genwasm` writes every float
-  constant with. `<math.h>` is all of C99's double and float functions, and
-  upstream's `fabs`, `frexp`, `ldexp`, `modf`, `fma`, `fmin`, `fmax` and
-  `sqrt.s` are left out of the build. `nan` alone is vcc's (`nan.c`),
-  because vcc names a function `nan` as `nan.vcc`.
+- **Floating point is musl's**: the SDK's `share/braam/src/math`, compiled
+  by vcc into `libc.a`. `strtod` and `strtof` are its `__floatscan`,
+  rounding correctly. `printf`'s `%e`, `%f`, `%g` and the new `%a` are its
+  `fmt_fp` (`doprnt.c` under `__braam__`): upstream's own conversion was not
+  exact (`%.17g` of `1e300`) and had no `%a`, which `genwasm` writes every
+  float constant with. `<math.h>` is all of C99's double and float
+  functions, and upstream's `fabs`, `frexp`, `ldexp`, `modf`, `fma`, `fmin`,
+  `fmax` and `sqrt.s` are left out of the build. The SDK's C is clang's, so
+  [libc/wasm32/braam/musl/math.h](libc/wasm32/braam/musl/math.h), first on
+  the path, is what the SDK's `musl_prologue.h` is to clang, without
+  attributes or builtins: `-Dhidden=` for the data headers, `MUSL_SINCOS` for
+  `sincos.c`, whose parameters are named `sin` and `cos`, and `MUSL_JN` for
+  `jn.c`, which alone sees the Bessel functions declared. The eight
+  functions the SDK's `native.c` answers with one instruction are
+  [libc/wasm32/math.s](libc/wasm32/math.s), with `i64.clz` for `fma.c`.
 - `PATH_MAX` is 512 under `__braam__`, as in Braam's compat layer, and
   `open` takes POSIX's optional mode and drops it.
 - **A fix to upstream's `fflush`**: it emptied the buffer after its write,
